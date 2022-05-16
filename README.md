@@ -49,3 +49,23 @@ With good pipelining design, safe loading becomes a non-issue.
 
 * Auto schema migration: What do you do when a new field appears, or if it changes type? With auto schema migration you can default to ingest this data, or throw a validation error.
 
+## Why?
+
+Data loading is at the base of the data work pyramid. 
+
+The current ecosystem of tools follows an old paradigm where the data pipeline creator is a software engineer, while the data pipeline user is an analyst.
+
+In the current world, the data analyst needs to solve problems end to end, including loading. 
+
+Currently there are no simple frameworks to achieve this, but only clunky applications that need engineering and devops expertise to run, install, manage and scale. The reason for this is often an artificial monetisation insert (open source but pay to manage). 
+
+Additionally, these existing loaders only load data sources for which somebody developed an extractor, requiring a software developer once again.
+
+DLT aims to bring loading into the hands of analysts with none of the unreasonable redundacy waste of the modern data platform.
+
+Additionally, the source schemas will be compatible across the community, creating the possiblity to share reusable analysis and modelling back to the open source community without creating tool-based vendor locks.
+
+
+
+
+
