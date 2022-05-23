@@ -1,0 +1,544 @@
+tables:
+  _version:
+    version:
+      data_type: bigint
+      nullable: false
+    engine_version:
+      data_type: bigint
+      nullable: false
+    inserted_at:
+      data_type: timestamp
+      nullable: false
+
+  _loads:
+    load_id:
+      data_type: text
+      nullable: false
+    status:
+      data_type: bigint
+      nullable: false
+    inserted_at:
+      data_type: timestamp
+      nullable: false
+
+  channels:
+    _load_id:
+      data_type: text
+      nullable: false
+    _record_hash:
+      unique: true
+      data_type: text
+      nullable: false
+    id:
+      data_type: text
+      nullable: false
+      primary_key: true
+    type:
+      data_type: bigint
+      nullable: false
+    name:
+      data_type: text
+      nullable: false
+    position:
+      data_type: bigint
+      nullable: true
+    flags:
+      data_type: bigint
+      nullable: true
+    guild_id:
+      data_type: text
+      nullable: false
+      cluster: true
+    last_message_id:
+      data_type: text
+      nullable: true
+    parent_id:
+      data_type: text
+      nullable: true
+    topic:
+      data_type: text
+      nullable: true
+    last_pin_timestamp:
+      data_type: timestamp
+      nullable: true
+    rate_limit_per_user:
+      data_type: bigint
+      nullable: true
+    nsfw:
+      data_type: bool
+      nullable: true
+    bitrate:
+      data_type: bigint
+      nullable: true
+    user_limit:
+      data_type: bigint
+      nullable: true
+
+  channels__permission_overwrites:
+    id:
+      data_type: text
+      nullable: true
+      unique: true
+    type:
+      data_type: bigint
+      nullable: true
+    allow:
+      data_type: text
+      nullable: true
+    deny:
+      data_type: text
+      nullable: true
+    _parent_hash:
+      foreign_key: true
+      data_type: text
+      nullable: false
+    _pos:
+      data_type: bigint
+      nullable: false
+    _root_hash:
+      data_type: text
+      nullable: false
+    _record_hash:
+      unique: true
+      data_type: text
+      nullable: false
+
+  messages:
+    id:
+      data_type: text
+      nullable: false
+      primary_key: true
+    type:
+      data_type: bigint
+      nullable: false
+    content:
+      data_type: text
+      nullable: true
+    channel_id:
+      data_type: text
+      nullable: false
+    author__id:
+      data_type: text
+      nullable: true
+    author__username:
+      data_type: text
+      nullable: true
+    author__avatar:
+      data_type: text
+      nullable: true
+    author__discriminator:
+      data_type: text
+      nullable: true
+    author__public_flags:
+      data_type: bigint
+      nullable: true
+    pinned:
+      data_type: bool
+      nullable: true
+    mention_everyone:
+      data_type: bool
+      nullable: true
+    tts:
+      data_type: bool
+      nullable: true
+    timestamp:
+      data_type: timestamp
+      nullable: false
+      partition: true
+      sort: true
+    flags:
+      data_type: bigint
+      nullable: true
+    _load_id:
+      data_type: text
+      nullable: false
+    _record_hash:
+      unique: true
+      data_type: text
+      nullable: false
+    message_reference__channel_id:
+      data_type: text
+      nullable: true
+    message_reference__guild_id:
+      data_type: text
+      nullable: false
+      cluster: true
+    message_reference__message_id:
+      data_type: text
+      nullable: true
+    edited_timestamp:
+      data_type: timestamp
+      nullable: true
+
+  messages__mentions:
+    id:
+      data_type: text
+      nullable: false
+      unique: true
+    username:
+      data_type: text
+      nullable: true
+    avatar:
+      data_type: text
+      nullable: true
+    discriminator:
+      data_type: text
+      nullable: true
+    public_flags:
+      data_type: bigint
+      nullable: true
+    _parent_hash:
+      foreign_key: true
+      data_type: text
+      nullable: false
+    _pos:
+      data_type: bigint
+      nullable: false
+    _root_hash:
+      data_type: text
+      nullable: false
+    _record_hash:
+      unique: true
+      data_type: text
+      nullable: false
+
+  messages__reactions:
+    emoji__id:
+      data_type: text
+      nullable: true
+    emoji__name:
+      data_type: text
+      nullable: true
+    count:
+      data_type: bigint
+      nullable: true
+    me:
+      data_type: bool
+      nullable: true
+    _parent_hash:
+      foreign_key: true
+      data_type: text
+      nullable: false
+    _pos:
+      data_type: bigint
+      nullable: false
+    _root_hash:
+      data_type: text
+      nullable: false
+    _record_hash:
+      unique: true
+      data_type: text
+      nullable: false
+
+  messages__referenced_message:
+    id:
+      data_type: text
+      nullable: false
+      unique: true
+    type:
+      data_type: bigint
+      nullable: true
+    content:
+      data_type: text
+      nullable: true
+    channel_id:
+      data_type: text
+      nullable: true
+    author__id:
+      data_type: text
+      nullable: true
+    author__username:
+      data_type: text
+      nullable: true
+    author__avatar:
+      data_type: text
+      nullable: true
+    author__discriminator:
+      data_type: text
+      nullable: true
+    author__public_flags:
+      data_type: bigint
+      nullable: true
+    pinned:
+      data_type: bool
+      nullable: true
+    mention_everyone:
+      data_type: bool
+      nullable: true
+    tts:
+      data_type: bool
+      nullable: true
+    timestamp:
+      data_type: text
+      nullable: true
+    flags:
+      data_type: bigint
+      nullable: true
+    message_reference__channel_id:
+      data_type: text
+      nullable: true
+    message_reference__guild_id:
+      data_type: text
+      nullable: true
+    message_reference__message_id:
+      data_type: text
+      nullable: true
+    _parent_hash:
+      foreign_key: true
+      data_type: text
+      nullable: false
+    _pos:
+      data_type: bigint
+      nullable: false
+    _root_hash:
+      data_type: text
+      nullable: false
+    _record_hash:
+      unique: true
+      data_type: text
+      nullable: false
+    edited_timestamp:
+      data_type: text
+      nullable: true
+
+  messages__referenced_message__mentions:
+    id:
+      data_type: text
+      nullable: true
+    username:
+      data_type: text
+      nullable: true
+    avatar:
+      data_type: text
+      nullable: true
+    discriminator:
+      data_type: text
+      nullable: true
+    public_flags:
+      data_type: bigint
+      nullable: true
+    _parent_hash:
+      foreign_key: true
+      data_type: text
+      nullable: false
+    _pos:
+      data_type: bigint
+      nullable: false
+    _root_hash:
+      data_type: text
+      nullable: false
+    _record_hash:
+      unique: true
+      data_type: text
+      nullable: false
+
+  messages__attachments:
+    id:
+      data_type: text
+      nullable: true
+    filename:
+      data_type: text
+      nullable: true
+    size:
+      data_type: bigint
+      nullable: true
+    url:
+      data_type: text
+      nullable: true
+    proxy_url:
+      data_type: text
+      nullable: true
+    width:
+      data_type: bigint
+      nullable: true
+    height:
+      data_type: bigint
+      nullable: true
+    content_type:
+      data_type: text
+      nullable: true
+    _parent_hash:
+      foreign_key: true
+      data_type: text
+      nullable: false
+    _pos:
+      data_type: bigint
+      nullable: false
+    _root_hash:
+      data_type: text
+      nullable: false
+    _record_hash:
+      unique: true
+      data_type: text
+      nullable: false
+
+  messages__embeds:
+    type:
+      data_type: text
+      nullable: true
+    url:
+      data_type: text
+      nullable: true
+    description:
+      data_type: text
+      nullable: true
+    color:
+      data_type: bigint
+      nullable: true
+    timestamp:
+      data_type: text
+      nullable: true
+    author__name:
+      data_type: text
+      nullable: true
+    author__url:
+      data_type: text
+      nullable: true
+    author__icon_url:
+      data_type: text
+      nullable: true
+    author__proxy_icon_url:
+      data_type: text
+      nullable: true
+    footer__text:
+      data_type: text
+      nullable: true
+    footer__icon_url:
+      data_type: text
+      nullable: true
+    footer__proxy_icon_url:
+      data_type: text
+      nullable: true
+    _parent_hash:
+      foreign_key: true
+      data_type: text
+      nullable: false
+    _pos:
+      data_type: bigint
+      nullable: false
+    _root_hash:
+      data_type: text
+      nullable: false
+    _record_hash:
+      unique: true
+      data_type: text
+      nullable: false
+    title:
+      data_type: text
+      nullable: true
+    provider__name:
+      data_type: text
+      nullable: true
+    provider__url:
+      data_type: text
+      nullable: true
+    thumbnail__url:
+      data_type: text
+      nullable: true
+    thumbnail__proxy_url:
+      data_type: text
+      nullable: true
+    thumbnail__width:
+      data_type: bigint
+      nullable: true
+    thumbnail__height:
+      data_type: bigint
+      nullable: true
+
+  messages__referenced_message__embeds:
+    type:
+      data_type: text
+      nullable: true
+    url:
+      data_type: text
+      nullable: true
+    title:
+      data_type: text
+      nullable: true
+    description:
+      data_type: text
+      nullable: true
+    thumbnail__url:
+      data_type: text
+      nullable: true
+    thumbnail__proxy_url:
+      data_type: text
+      nullable: true
+    thumbnail__width:
+      data_type: bigint
+      nullable: true
+    thumbnail__height:
+      data_type: bigint
+      nullable: true
+    _parent_hash:
+      foreign_key: true
+      data_type: text
+      nullable: false
+    _pos:
+      data_type: bigint
+      nullable: false
+    _root_hash:
+      data_type: text
+      nullable: false
+    _record_hash:
+      unique: true
+      data_type: text
+      nullable: false
+
+  messages__referenced_message__attachments:
+    id:
+      data_type: text
+      nullable: true
+    filename:
+      data_type: text
+      nullable: true
+    size:
+      data_type: bigint
+      nullable: true
+    url:
+      data_type: text
+      nullable: true
+    proxy_url:
+      data_type: text
+      nullable: true
+    width:
+      data_type: bigint
+      nullable: true
+    height:
+      data_type: bigint
+      nullable: true
+    content_type:
+      data_type: text
+      nullable: true
+    _parent_hash:
+      foreign_key: true
+      data_type: text
+      nullable: false
+    _pos:
+      data_type: bigint
+      nullable: false
+    _root_hash:
+      data_type: text
+      nullable: false
+    _record_hash:
+      unique: true
+      data_type: text
+      nullable: false
+
+name: discord
+version: 12
+preferred_types: {}
+hints:
+  not_null:
+  - ^_record_hash$
+  - ^_root_hash$
+  - ^_parent_hash$
+  - ^_pos$
+  - _load_id
+  foreign_key:
+  - ^_parent_hash$
+  unique:
+  - ^_record_hash$
+excludes: []
+includes: []
+engine_version: 2
