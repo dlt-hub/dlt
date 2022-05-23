@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "pydlt"
+name = "py-dlt"
 version = "0.0.1"
 description = "DLT is an open-source python-native scalable data loading framework that does not require any devops efforts to run."
 authors = ["Marcin Rudolf <rudolfix@rudolfix.org>"]
@@ -10,7 +10,7 @@ packages = [
 
 [tool.poetry.dependencies]
 python = "^3.8,<3.11"
-autopoiesis = {path = "../rasa_data_ingestion"}
+# autopoiesis = {path = "../rasa_data_ingestion"}
 
 
 [tool.poetry.dev-dependencies]

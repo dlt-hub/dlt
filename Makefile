@@ -10,6 +10,7 @@ has-poetry:
 dev: has-poetry
 	# will install itself as editable module
 	poetry install
+	poetry run pip install -e ../rasa_data_ingestion
 
 lint:
 	poetry run mypy --config-file mypy.ini dlt examples
@@ -17,4 +18,4 @@ lint:
 	$(MAKE) lint-security
 
 lint-security:
-	bandit -r autopoiesis/ -n 3 -ll
+	poetry run bandit -r autopoiesis/ -n 3 -ll
