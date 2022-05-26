@@ -1,4 +1,5 @@
-# [![DLT header](https://raw.githubusercontent.com/scale-vector/dlt/DLT-Pacman-Quick.gif)]
+![](https://github.com/scale-vector/dlt/DLT-Pacman-Quick.gif)]
+
 
 # DLT 
 DLT enables simple python-native data pipelining for data professionals. 
