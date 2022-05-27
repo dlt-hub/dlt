@@ -14,7 +14,7 @@ DLT aims to simplify data loading for everyone.
 
 
 To achieve this, we take into account the progressive steps of data pipelining:
-![](docs/DLT-diagram 1.gif)
+![](docs/DLT Diagram 1.jpg)
 ### 1. Data discovery, typing, schema, metadata
 
 When we create a pipeline, we start by grabbing data from the source.
