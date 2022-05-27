@@ -1,4 +1,4 @@
-![](docs/DLT-Pacman-Quick.gif)
+![](docs/DLT-Pacman-Big.gif)
 
 
 # DLT
