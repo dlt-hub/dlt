@@ -21,9 +21,34 @@ gcp_credential_json_file_path = "/Users/adrian/PycharmProjects/sv/dlt/temp/scale
 data_file_path = "/Users/adrian/PycharmProjects/sv/dlt/examples/data/demo_example.json"
 parent_table = 'books'
 
+"""
+to get your data in a flat table, you need to join the sub-json back to the parent
+example sql:
+
+SELECT
+    b.* EXCEPT(_load_id, _record_hash, _root_hash),
+    bc.* EXCEPT(_parent_hash, _record_hash, _root_hash),
+FROM `scalevector.library_documents_prod.books` as b
+left join `scalevector.library_documents_prod.books__category` as bc
+on b._record_hash = bc._parent_hash
+
+SQL result rows:
+{  "isbn": "123-456-222",  "author__lastname": "Panda",  "author__firstname": "Jane",  "editor__lastname": "Smite",  "editor__firstname": "Jane",  "title": "The Ultimate Database Study Guide",  "value": "Non-Fiction",  "_pos": "0"}
+{  "isbn": "123-456-222",  "author__lastname": "Panda",  "author__firstname": "Jane",  "editor__lastname": "Smite",  "editor__firstname": "Jane",  "title": "The Ultimate Database Study Guide",  "value": "Technology",  "_pos": "1"}
+{  "isbn": "123-456-789",  "author__lastname": "Jayson",  "author__firstname": "Joe",  "editor__lastname": "Smite",  "editor__firstname": "Jane",  "title": "Json for big data",  "value": "SF",  "_pos": "0"}
+{  "isbn": "123-456-789",  "author__lastname": "Jayson",  "author__firstname": "Joe",  "editor__lastname": "Smite",  "editor__firstname": "Jane",  "title": "Json for big data",  "value": "Horror",  "_pos": "1"}
+{  "isbn": "123-456-789",  "author__lastname": "Jayson",  "author__firstname": "Joe",  "editor__lastname": "Smite",  "editor__firstname": "Jane",  "title": "Json for big data",  "value": "Dystopia",  "_pos": "2"}
+"""
 
 
 if __name__ == "__main__":
+
+    # loading and error handling below:
+
+
+    from autopoiesis.common import json
+    from autopoiesis.common.schema import Schema
+    from dlt.pipeline import Pipeline
 
     def get_json_file_data(path):
         with open(path, "r") as f:
@@ -32,14 +57,6 @@ if __name__ == "__main__":
 
 
     data = get_json_file_data(data_file_path)
-
-    from autopoiesis.common import json
-    from autopoiesis.common.schema import Schema
-    from dlt.pipeline import Pipeline
-
-# put variables here
-
-
 
     # this is example of extracting from iterator that may be a
     # - jsonl file you read line by line
