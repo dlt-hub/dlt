@@ -21,6 +21,15 @@ gcp_credential_json_file_path = "/Users/adrian/PycharmProjects/sv/dlt/temp/scale
 data_file_path = "/Users/adrian/PycharmProjects/sv/dlt/examples/data/demo_example.json"
 parent_table = 'books'
 
+data_schema = None
+data_schema_file_path = "/Users/adrian/PycharmProjects/sv/dlt/examples/schemas/inferred_demo_schema.yml"
+
+# or pass a saved data schema file
+# f = open(data_schema_file_path, "r")
+# data_schema = f.read()
+#
+#
+
 """
 to get your data in a flat table, you need to join the sub-json back to the parent
 example sql:
@@ -104,6 +113,17 @@ if __name__ == "__main__":
         print("Unpacking failed")
         print(pipeline.last_run_exception)
         exit(0)
+
+
+
+    schema = pipeline.get_current_schema()
+    schema_yaml = schema.as_yaml()
+    f = open(data_schema_file_path, "a")
+    f.write(schema_yaml)
+    f.close()
+    #pipeline.save_schema_to_file(data_schema_file_path, schema)
+
+
 
     # show loads, each load contains a copy of the schema that corresponds to the data inside
     # and a set of directories for job states (new -> in progress -> failed|completed)
