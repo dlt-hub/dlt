@@ -1,23 +1,23 @@
-![](https://github.com/scale-vector/dlt/DLT-Pacman-Quick.gif)]
+![](docs/DLT-Pacman-Quick.gif)
 
 
-# DLT 
-DLT enables simple python-native data pipelining for data professionals. 
+# DLT
+DLT enables simple python-native data pipelining for data professionals.
 
 DLT is an open-source python-native scalable data loading framework that does not require any devops efforts to run.
- 
-## [Quickstart guide](QUICKSTART.md) 
+
+## [Quickstart guide](QUICKSTART.md)
 
 ## How does it work?
 
-DLT aims to simplify data loading for everyone. 
+DLT aims to simplify data loading for everyone.
 
 
 To achieve this, we take into account the progressive steps of data pipelining:
-
+![](docs/DLT-diagram 1.gif)
 ### 1. Data discovery, typing, schema, metadata
 
-When we create a pipeline, we start by grabbing data from the source. 
+When we create a pipeline, we start by grabbing data from the source.
 
 Usually, the source metadata is lacking, so we need to look at the actual data to understand what it is and how to ingest it.
 
@@ -54,13 +54,13 @@ With good pipelining design, safe loading becomes a non-issue.
 
 ## Why?
 
-Data loading is at the base of the data work pyramid. 
+Data loading is at the base of the data work pyramid.
 
 The current ecosystem of tools follows an old paradigm where the data pipeline creator is a software engineer, while the data pipeline user is an analyst.
 
-In the current world, the data analyst needs to solve problems end to end, including loading. 
+In the current world, the data analyst needs to solve problems end to end, including loading.
 
-Currently there are no simple frameworks to achieve this, but only clunky applications that need engineering and devops expertise to run, install, manage and scale. The reason for this is often an artificial monetisation insert (open source but pay to manage). 
+Currently there are no simple frameworks to achieve this, but only clunky applications that need engineering and devops expertise to run, install, manage and scale. The reason for this is often an artificial monetisation insert (open source but pay to manage).
 
 Additionally, these existing loaders only load data sources for which somebody developed an extractor, requiring a software developer once again.
 
