@@ -1,0 +1,115 @@
+#─────── DLT ───────────────
+#───▄▄█████████▄────────────
+#──███████▄██▀▀─────────────
+#─▐████████── JSON ── JSON──
+#──█████████▄▄──────────────
+#───▀██████████▀────────────
+
+
+# the load schema will be named {pipeline_mame}_{source_name}
+# this allows you to easily consume multiple environments/instances of the same source
+schema_prefix = 'library_documents'
+schema_source_suffix = 'prod'
+
+# you authenticate by passing a credential, such as RDBMS host/user/port/pass or gcp service account json.
+gcp_credential_json_file_path = "/Users/adrian/PycharmProjects/sv/dlt/temp/scalevector-1235ac340b0b.json"
+
+# get some data and give a name to the parent table.
+# If you have a stream with different document types, pass the doc type into the table name to separate the stream.
+# In our example we have a list of 2 books
+
+data_file_path = "/Users/adrian/PycharmProjects/sv/dlt/examples/data/demo_example.json"
+parent_table = 'books'
+
+
+
+if __name__ == "__main__":
+
+    def get_json_file_data(path):
+        with open(path, "r") as f:
+            data = json.load(f)
+        return data
+
+
+    data = get_json_file_data(data_file_path)
+
+    from autopoiesis.common import json
+    from autopoiesis.common.schema import Schema
+    from dlt.pipeline import Pipeline
+
+# put variables here
+
+
+
+    # this is example of extracting from iterator that may be a
+    # - jsonl file you read line by line
+    # - a list of dicts
+    # - iterator over panda frame https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.to_dict.html
+    # - any iterator with map function
+    # - any iterator whatsoever ie getting data from REST API
+
+    # extracting from iterator always happens in single worker thread and iterator is directly returning data so there's no retry mechanism if anything fails
+
+    # working BQ creds
+    # credentials = Pipeline.load_gcp_credentials("_secrets/project1234_service.json", "gamma_guild")
+
+    # working redshift creds, you can pass password as last parameter or via PG_PASSWORD env variable ie.
+    # LOG_LEVEL=INFO PG_PASSWORD=.... python examples/discord_iterator.py
+    credentials = Pipeline.load_gcp_credentials(gcp_credential_json_file_path, schema_prefix)
+
+    pipeline = Pipeline(schema_source_suffix)
+
+    schema: Schema = None
+    # uncomment to use already modified schema, but the auto-inferred schema will also work nicely
+    # TODO: schema below needs is not yet finished, more exploration needed
+    # schema = Pipeline.load_schema_from_file("examples/schemas/discord_schema.yml")
+    pipeline.create_pipeline(credentials, schema=schema)
+    # the pipeline created a working directory. you can always attach the pipeline back by just providing the dir to
+    # Pipeline::restore_pipeline
+    print(pipeline.root_path)
+
+
+
+    # and extract it
+    m = pipeline.extract_iterator(parent_table, data)
+
+    # please note that all pipeline methods that return TRunMetrics are atomic so
+    # - if m.has_failed is False the operation worked fully
+    # - if m.has_failed is False the operation failed fully and can be retried
+    if m.has_failed:
+        print("Extracting failed")
+        print(pipeline.last_run_exception)
+        exit(0)
+
+    # now create loading packages and infer the schema
+    m = pipeline.unpack()
+    if m.has_failed:
+        print("Unpacking failed")
+        print(pipeline.last_run_exception)
+        exit(0)
+
+    # show loads, each load contains a copy of the schema that corresponds to the data inside
+    # and a set of directories for job states (new -> in progress -> failed|completed)
+    new_loads = pipeline.list_unpacked_loads()
+    print(new_loads)
+
+
+
+    # load packages
+    m = pipeline.load()
+    if m.has_failed:
+        print("Loading failed, fix the problem, restore the pipeline and run loading packages again")
+        print(pipeline.last_run_exception)
+    else:
+        # should be empty
+        new_loads = pipeline.list_unpacked_loads()
+        print(new_loads)
+
+        # now enumerate all complete loads if we have any failed packages
+        # complete but failed job will not raise any exceptions
+        completed_loads = pipeline.list_completed_loads()
+        # print(completed_loads)
+        for load_id in completed_loads:
+            print(f"Checking failed jobs in {load_id}")
+            for job, failed_message in pipeline.get_failed_jobs(load_id):
+                print(f"JOB: {job}\nMSG: {failed_message}")
