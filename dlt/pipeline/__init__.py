@@ -1,30 +1,25 @@
 import yaml
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict as dtc_asdict
 import tempfile
 import os.path
-from typing import Callable, Iterator, List, Literal, Sequence, Tuple, cast
+from typing import Callable, Iterator, List, Literal, Sequence, Tuple
 from prometheus_client import REGISTRY
 
 from autopoiesis.common import json, runners
-from autopoiesis.common.configuration import (BasicConfiguration, PoolRunnerConfiguration, UnpackingVolumeConfiguration,
-                                              LoadingVolumeConfiguration, SchemaVolumeConfiguration,
-                                              GcpClientConfiguration, PostgresConfiguration)
+from autopoiesis.common.configuration import BasicConfiguration, make_configuration
 from autopoiesis.common.configuration.config_utils import TConfigSecret
 from autopoiesis.common.file_storage import FileStorage
 from autopoiesis.common.logger import process_internal_exception
 from autopoiesis.common.runners import TRunArgs, TRunMetrics
 from autopoiesis.common.schema import Schema, StoredSchema
 from autopoiesis.common.typing import DictStrAny, StrAny
-from autopoiesis.common.utils import uniq_id
+from autopoiesis.common.utils import uniq_id, is_interactive
 
 from autopoiesis.extractors.extractor_storage import ExtractorStorageBase
+from autopoiesis.unpacker.configuration import configuration as unpacker_configuration
+from autopoiesis.loaders.configuration import configuration as loader_configuration
 from autopoiesis.unpacker import unpacker
 from autopoiesis.loaders import loader
-
-
-class _PipelineConfig(BasicConfiguration):
-    pass
-
 
 TClientType = Literal["gcp", "redshift"]
 
@@ -38,7 +33,7 @@ TExtractorGenerator = Callable[[DictStrAny], Iterator[TExtractorItemWithTable]]
 
 @dataclass
 class PipelineCredentials:
-    client_type: TClientType
+    CLIENT_TYPE: TClientType
 
 
 @dataclass
@@ -71,9 +66,11 @@ class Pipeline:
         self.extractor_storage: ExtractorStorageBase = None
 
         # patch config and initialize pipeline
-        _PipelineConfig.LOG_LEVEL = log_level
-        _PipelineConfig.NAME = pipeline_name
-        runners.initialize_runner(_PipelineConfig, TRunArgs(True, 0))
+        C = make_configuration(BasicConfiguration, BasicConfiguration, initial_values={
+            "NAME": pipeline_name,
+            "LOG_LEVEL": log_level
+        })
+        runners.initialize_runner(C, TRunArgs(True, 0))
 
     def create_pipeline(self, credentials: PipelineCredentials, working_dir: str = None, schema: Schema = None) -> None:
         # initialize root storage
@@ -81,8 +78,9 @@ class Pipeline:
             working_dir = tempfile.mkdtemp()
         self.root_storage = FileStorage(working_dir, makedirs=True)
         self.root_path = self.root_storage.storage_path
-        self._apply_credentials(credentials)
-        self._mod_configurations()
+        self.credentials = credentials
+        # self._apply_credentials(credentials)
+        # self._mod_configurations()
         self._load_modules()
         self.extractor_storage = ExtractorStorageBase("1.0.0", True, FileStorage(os.path.join(self.root_path, "extractor"), makedirs=True), unpacker.unpack_storage)
         # create new schema
@@ -96,8 +94,9 @@ class Pipeline:
         # do not create extractor dir - it must exist
         self.root_storage = FileStorage(working_dir, makedirs=False)
         self.root_path = self.root_storage.storage_path
-        self._apply_credentials(credentials)
-        self._mod_configurations()
+        self.credentials = credentials
+        # self._apply_credentials(credentials)
+        # self._mod_configurations()
         self._load_modules()
         self.extractor_storage = ExtractorStorageBase("1.0.0", True, FileStorage(os.path.join(self.root_path, "extractor"), makedirs=False), unpacker.unpack_storage)
         # schema must exist
@@ -109,7 +108,8 @@ class Pipeline:
             # TODO: this is not very effective - we consume iterator right away
             docs = list(docs_iter)
             for d in docs:
-                d["_event_type"] = table_name  # type: ignore
+                assert isinstance(d, dict), "Must pass iterator of dicts in docs_iter"
+                d["_event_type"] = table_name
 
             load_id = uniq_id()
             self.extractor_storage.storage.save(f"{load_id}.json", json.dumps(docs))
@@ -154,9 +154,9 @@ class Pipeline:
     def list_completed_loads(self) -> Sequence[str]:
         return loader.load_storage.list_completed_loads()
 
-    def get_failed_jobs(self, load_id: str) -> Sequence[Tuple[str, str]]:
+    def list_failed_jobs(self, load_id: str) -> Sequence[Tuple[str, str]]:
         failed_jobs: List[Tuple[str, str]] = []
-        for file in loader.load_storage.list_failed_jobs(load_id):
+        for file in loader.load_storage.list_archived_failed_jobs(load_id):
             if not file.endswith(".exception"):
                 try:
                     failed_message = loader.load_storage.storage.load(file + ".exception")
@@ -179,63 +179,46 @@ class Pipeline:
             client.update_storage_schema()
 
     def _unpack(self, workers: int, max_events_in_chunk: int) -> TRunMetrics:
+        if is_interactive():
+            raise NotImplementedError("Do not use workers in interactive mode ie. in notebook")
         unpacker.CONFIG.MAX_PARALLELISM = workers
         unpacker.CONFIG.MAX_EVENTS_IN_CHUNK = max_events_in_chunk
+        # switch to thread pool for single worker
+        unpacker.CONFIG.POOL_TYPE = "thread" if workers == 1 else "process"
         runners.pool_runner(unpacker.CONFIG, unpacker.run)
         return runners.LAST_RUN_METRICS
 
-    def _apply_credentials(self, credentials: PipelineCredentials) -> None:
-        # setup singleton configurations
-        if credentials.client_type == "gcp":
-            gcp_credentials = cast(GCPPipelineCredentials, credentials)
-            GcpClientConfiguration.DATASET = gcp_credentials.DATASET
-            GcpClientConfiguration.PROJECT_ID = gcp_credentials.PROJECT_ID
-            GcpClientConfiguration.BQ_CRED_CLIENT_EMAIL = gcp_credentials.BQ_CRED_CLIENT_EMAIL
-            GcpClientConfiguration.BQ_CRED_PRIVATE_KEY = gcp_credentials.BQ_CRED_PRIVATE_KEY
-        elif credentials.client_type == "redshift":
-            postgres_credentials = cast(PostgresPipelineCredentials, credentials)
-            PostgresConfiguration.PG_DATABASE_NAME = postgres_credentials.PG_DATABASE_NAME
-            PostgresConfiguration.PG_SCHEMA_PREFIX = postgres_credentials.PG_SCHEMA_PREFIX
-            PostgresConfiguration.PG_PASSWORD = postgres_credentials.PG_PASSWORD
-            PostgresConfiguration.PG_USER = postgres_credentials.PG_USER
-            PostgresConfiguration.PG_HOST = postgres_credentials.PG_HOST
-            PostgresConfiguration.PG_PORT = postgres_credentials.PG_PORT
-            PostgresConfiguration.PG_CONNECTION_TIMEOUT = postgres_credentials.PG_CONNECTION_TIMEOUT
-        else:
-            raise ValueError(credentials.client_type)
-        self.credentials = credentials
-
-    def _mod_configurations(self) -> None:
-        # mod storage configurations before storages are instantiated
-        PoolRunnerConfiguration.EXIT_ON_EXCEPTION = True
-        LoadingVolumeConfiguration.DELETE_COMPLETED_JOBS = True
-
-        # TODO: this is really a hack: the configs are global class variables and intended to be instantiated only once per working process, here we abuse that
-        UnpackingVolumeConfiguration.UNPACKING_VOLUME_PATH = os.path.join(self.root_path, "unpacking")
-        LoadingVolumeConfiguration.LOADING_VOLUME_PATH = os.path.join(self.root_path, "loading")
-        SchemaVolumeConfiguration.SCHEMA_VOLUME_PATH = os.path.join(self.root_path, "schemas")
-
     def _load_modules(self) -> None:
-        unpacker.CONFIG.ADD_EVENT_JSON = False
-        if self.credentials.client_type == "gcp":
-            unpacker.CONFIG.WRITER_TYPE = "jsonl"
-            loader.client_module = loader.client_impl("gcp")
-        else:
-            unpacker.CONFIG.WRITER_TYPE = "insert_values"
-            loader.client_module = loader.client_impl("redshift")
+        # pass to all modules
+        common_initial: StrAny = {
+            "EXIT_ON_EXCEPTION": True,
+            "LOADING_VOLUME_PATH": os.path.join(self.root_path, "loading")
+        }
 
-        # print(loader.client_impl.__module__.)
+        # use credentials to populate loader config, it includes also client type
+        loader_initial = dtc_asdict(self.credentials)
+        loader_initial.update(common_initial)
+        loader_initial["DELETE_COMPLETED_JOBS"] = True
+        loader.CONFIG = loader_configuration(initial_values=loader_initial)
+        loader.client_module = loader.client_impl(loader.CONFIG.CLIENT_TYPE)
+
+        # create unpacker config
+        unpacker_initial = {
+            "UNPACKING_VOLUME_PATH": os.path.join(self.root_path, "unpacking"),
+            "SCHEMA_VOLUME_PATH": os.path.join(self.root_path, "schemas"),
+            "WRITER_TYPE": loader.supported_writer(),
+            "ADD_EVENT_JSON": False
+        }
+        unpacker_initial.update(common_initial)
 
         # initialize unpacker
+        unpacker.CONFIG = unpacker_configuration(initial_values=unpacker_initial)
         unpacker.unpack_storage, unpacker.load_storage, unpacker.schema_storage, unpacker.load_schema_storage = unpacker.create_folders()
         unpacker.event_counter, unpacker.event_gauge, unpacker.schema_version_gauge, unpacker.load_package_counter = unpacker.create_gauges(REGISTRY)
 
-        # initialize loader
+        # create loader objects
         loader.load_storage = loader.create_folders()
         loader.load_counter, loader.job_gauge, loader.job_counter, loader.job_wait_summary = loader.create_gauges(REGISTRY)
-
-    def _unload_modules(self) -> None:
-        pass
 
     @staticmethod
     def load_gcp_credentials(services_path: str, dataset_prefix: str = None) -> GCPPipelineCredentials:
