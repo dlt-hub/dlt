@@ -11,7 +11,8 @@ from dlt.pipeline import Pipeline
 
 SCOPES = ['https://www.googleapis.com/auth/drive']
 # KEY_FILE_LOCATION = '/Users/adrian/PycharmProjects/sv/dlt/temp/scalevector-1235ac340b0b.json'
-KEY_FILE_LOCATION = '_secrets/scalevector-1235ac340b0b.json'
+# KEY_FILE_LOCATION = '_secrets/scalevector-1235ac340b0b.json'
+KEY_FILE_LOCATION = '_secrets/project1234_service.json'
 
 
 def _initialize_drive() -> Any:
@@ -25,6 +26,17 @@ def _initialize_drive() -> Any:
 
     # Build the service object.
     service = build('drive', 'v3', credentials=credentials)
+
+    return service
+
+
+def _initialize_sheets() -> Any:
+
+    credentials = ServiceAccountCredentials.from_json_keyfile_name(
+        KEY_FILE_LOCATION, SCOPES)
+
+    # Build the service object.
+    service = build('sheets', 'v4', credentials=credentials)
 
     return service
 
@@ -45,14 +57,35 @@ def download_csv_as_json(file_id: str, csv_options: StrAny = None) -> Iterator[S
     return csv.DictReader(io.StringIO(rows), **csv_options)
 
 
+def download_sheet_to_csv(spreadsheet_id: str, sheet_name: str) -> Iterator[StrAny]:
+    sheets = _initialize_sheets()
+
+    # get list of list of typed values
+    result = sheets.spreadsheets().values().get(
+        spreadsheetId=spreadsheet_id,
+        range=sheet_name,
+        # unformatted returns typed values
+        valueRenderOption="UNFORMATTED_VALUE",
+        # will return formatted dates
+        dateTimeRenderOption="FORMATTED_STRING"
+    ).execute()
+
+    values = result.get('values')
+
+    # yield dicts assuming row 0 contains headers and following rows values and all rows have identical length
+    for v in values[1:]:
+        yield {h: v for h, v in zip(values[0], v)}
+
+
 if __name__ == "__main__":
-    file_id = '1dkJYb-WVVseZIQLAY0jh_o0s7Bas4Gp5'
+    file_id = '11G95oVZjieRhyGqtQMQqlqpxyvWkRXowKE8CtdLtFaU'
+    sheet_name = "2022-05"
     options = {'delimiter': ';'}
-    iter_d = download_csv_as_json(file_id, csv_options=options)
+    iter_d = download_sheet_to_csv(file_id, sheet_name)
 
     # LOADING DETAILS
-    table_n = 'people'
-    schema_prefix = 'drive'
+    table_n = 'model_annotations'
+    schema_prefix = 'annotations'
     schema_source_suffix = 'csv'
 
     # you authenticate by passing a credential, such as RDBMS host/user/port/pass or gcp service account json.
