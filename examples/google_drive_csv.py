@@ -2,29 +2,37 @@ from apiclient.discovery import build
 from oauth2client.service_account import ServiceAccountCredentials
 from googleapiclient.http import MediaIoBaseDownload
 import io
-
-import json
+from typing import Any, Iterator
 import csv
 
+from autopoiesis.common.typing import StrAny
+from autopoiesis.common.schema import Schema
+from dlt.pipeline import Pipeline
+
 SCOPES = ['https://www.googleapis.com/auth/drive']
-KEY_FILE_LOCATION = '/Users/adrian/PycharmProjects/sv/dlt/temp/scalevector-1235ac340b0b.json'
+# KEY_FILE_LOCATION = '/Users/adrian/PycharmProjects/sv/dlt/temp/scalevector-1235ac340b0b.json'
+KEY_FILE_LOCATION = '_secrets/scalevector-1235ac340b0b.json'
 
 
-def _initialize_drive():
-  """Initializes an drive service object.
+def _initialize_drive() -> Any:
+    """Initializes an drive service object.
 
-  Returns:
+    Returns:
     An authorized drive service object.
-  """
-  credentials = ServiceAccountCredentials.from_json_keyfile_name(
-      KEY_FILE_LOCATION, SCOPES)
+    """
+    credentials = ServiceAccountCredentials.from_json_keyfile_name(
+        KEY_FILE_LOCATION, SCOPES)
 
-  # Build the service object.
-  service = build('drive', 'v3', credentials=credentials)
+    # Build the service object.
+    service = build('drive', 'v3', credentials=credentials)
 
-  return service
+    return service
 
-def download_csv_as_json(file_id, csv_options = {}):
+
+def download_csv_as_json(file_id: str, csv_options: StrAny = None) -> Iterator[StrAny]:
+    if csv_options is None:
+        csv_options = {}
+
     drive_service = _initialize_drive()
     request = drive_service.files().get_media(fileId=file_id)
     fh = io.BytesIO()
@@ -34,17 +42,15 @@ def download_csv_as_json(file_id, csv_options = {}):
         status, done = downloader.next_chunk()
         print("Download %d%%." % int(status.progress() * 100))
     rows = fh.getvalue().decode("utf-8")
-    reader = csv.DictReader(io.StringIO(rows), **csv_options)
-    json_data = json.dumps(list(reader))
-    return json_data
+    return csv.DictReader(io.StringIO(rows), **csv_options)
+
 
 if __name__ == "__main__":
-    file_id='1dkJYb-WVVseZIQLAY0jh_o0s7Bas4Gp5'
+    file_id = '1dkJYb-WVVseZIQLAY0jh_o0s7Bas4Gp5'
     options = {'delimiter': ';'}
-    d = download_csv_as_json(file_id, csv_options = options)
-    print(d)
+    iter_d = download_csv_as_json(file_id, csv_options=options)
 
-    ### LOADING DETAILS
+    # LOADING DETAILS
     table_n = 'people'
     schema_prefix = 'drive'
     schema_source_suffix = 'csv'
@@ -52,13 +58,10 @@ if __name__ == "__main__":
     # you authenticate by passing a credential, such as RDBMS host/user/port/pass or gcp service account json.
     gcp_credential_json_file_path = KEY_FILE_LOCATION
 
-    from autopoiesis.common import json
-    from autopoiesis.common.schema import Schema
-    from dlt.pipeline import Pipeline
-
-    ### SCHEMA CREATION
+    # SCHEMA CREATION
     data_schema = None
-    data_schema_file_path = f"/Users/adrian/PycharmProjects/sv/dlt/examples/schemas/inferred_drive_csv_{file_id}_schema.yml"
+    # data_schema_file_path = f"/Users/adrian/PycharmProjects/sv/dlt/examples/schemas/inferred_drive_csv_{file_id}_schema.yml"
+    data_schema_file_path = f"examples/schemas/inferred_drive_csv_{file_id}_schema.yml"
 
     credentials = Pipeline.load_gcp_credentials(gcp_credential_json_file_path, schema_prefix)
 
@@ -72,11 +75,10 @@ if __name__ == "__main__":
     # the pipeline created a working directory. you can always attach the pipeline back by just providing the dir to
     # Pipeline::restore_pipeline
     print(pipeline.root_path)
-    #/private/var/folders/4q/gzmrslrs03j587990jcqt23h0000gn/T/tmp5e17osrg/
-
+    # /private/var/folders/4q/gzmrslrs03j587990jcqt23h0000gn/T/tmp5e17osrg/
 
     # and extract it
-    m = pipeline.extract_iterator(table_n, d)
+    m = pipeline.extract_iterator(table_n, iter_d)
 
     # please note that all pipeline methods that return TRunMetrics are atomic so
     # - if m.has_failed is False the operation worked fully
@@ -122,5 +124,5 @@ if __name__ == "__main__":
         # print(completed_loads)
         for load_id in completed_loads:
             print(f"Checking failed jobs in {load_id}")
-            for job, failed_message in pipeline.get_failed_jobs(load_id):
+            for job, failed_message in pipeline.list_failed_jobs(load_id):
                 print(f"JOB: {job}\nMSG: {failed_message}")

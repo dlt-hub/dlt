@@ -152,6 +152,11 @@ tables:
       name: transaction_index
       nullable: false
       primary_key: true
+    hash:
+      data_type: text
+      name: hash
+      nullable: false
+      unique: true
     block_hash:
       data_type: text
       name: block_hash
@@ -228,6 +233,11 @@ tables:
       nullable: true
 
   blocks__transactions__logs:
+    _record_hash:
+      data_type: text
+      name: _record_hash
+      nullable: false
+      unique: true
     address:
       data_type: text
       name: address

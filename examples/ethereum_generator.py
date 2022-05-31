@@ -27,7 +27,7 @@ def block_generator(state: DictStrAny) -> Iterator[TExtractorItemWithTable]:
     # 14788082
     highest_block = w3.eth.get_block_number()
     # get 5 blocks max from last run
-    current_block = max(last_block + 1, highest_block - 5)
+    current_block = max(last_block + 1, highest_block - 2)
 
     # do not get highest block (in fact we should have 3 block lag here)
     while current_block < highest_block:
@@ -108,7 +108,7 @@ def block_generator(state: DictStrAny) -> Iterator[TExtractorItemWithTable]:
         state["last_block"] = current_block
 
 
-credentials = Pipeline.load_gcp_credentials("_secrets/project1234_service.json", "mainnet_2")
+credentials = Pipeline.load_gcp_credentials("_secrets/project1234_service.json", "mainnet_4")
 # credentials = PostgresPipelineCredentials("redshift", "chat_analytics_rasa", "mainnet", "loader", "3.73.90.3")
 
 pipeline = Pipeline("ethereum")
@@ -157,5 +157,5 @@ else:
     # print(completed_loads)
     for load_id in completed_loads:
         print(f"Checking failed jobs in {load_id}")
-        for job, failed_message in pipeline.get_failed_jobs(load_id):
+        for job, failed_message in pipeline.list_failed_jobs(load_id):
             print(f"JOB: {job}\nMSG: {failed_message}")

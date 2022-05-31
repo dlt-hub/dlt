@@ -1,10 +1,16 @@
-#─────── DLT ───────────────
-#───▄▄█████████▄────────────
-#──███████▄██▀▀─────────────
-#─▐████████── JSON ── JSON──
-#──█████████▄▄──────────────
-#───▀██████████▀────────────
+# ─────── DLT ───────────────
+# ───▄▄█████████▄────────────
+# ──███████▄██▀▀─────────────
+# ─▐████████── JSON ── JSON──
+# ──█████████▄▄──────────────
+# ───▀██████████▀────────────
 
+from typing import Sequence
+
+from autopoiesis.common.typing import StrAny
+from autopoiesis.common import json
+from autopoiesis.common.schema import Schema
+from dlt.pipeline import Pipeline
 
 # the load schema will be named {pipeline_mame}_{source_name}
 # this allows you to easily consume multiple environments/instances of the same source
@@ -47,23 +53,17 @@ SQL result rows:
 {  "isbn": "123-456-789",  "author__lastname": "Jayson",  "author__firstname": "Joe",  "editor__lastname": "Smite",  "editor__firstname": "Jane",  "title": "Json for big data",  "value": "SF",  "_pos": "0"}
 {  "isbn": "123-456-789",  "author__lastname": "Jayson",  "author__firstname": "Joe",  "editor__lastname": "Smite",  "editor__firstname": "Jane",  "title": "Json for big data",  "value": "Horror",  "_pos": "1"}
 {  "isbn": "123-456-789",  "author__lastname": "Jayson",  "author__firstname": "Joe",  "editor__lastname": "Smite",  "editor__firstname": "Jane",  "title": "Json for big data",  "value": "Dystopia",  "_pos": "2"}
-"""
+"""  # noqa: E501
 
 
 if __name__ == "__main__":
 
     # loading and error handling below:
 
-
-    from autopoiesis.common import json
-    from autopoiesis.common.schema import Schema
-    from dlt.pipeline import Pipeline
-
-    def get_json_file_data(path):
+    def get_json_file_data(path: str) -> Sequence[StrAny]:
         with open(path, "r") as f:
             data = json.load(f)
-        return data
-
+        return data  # type: ignore
 
     data = get_json_file_data(data_file_path)
 
@@ -94,10 +94,8 @@ if __name__ == "__main__":
     # Pipeline::restore_pipeline
     print(pipeline.root_path)
 
-
-
     # and extract it
-    m = pipeline.extract_iterator(parent_table, data)
+    m = pipeline.extract_iterator(parent_table, iter(data))
 
     # please note that all pipeline methods that return TRunMetrics are atomic so
     # - if m.has_failed is False the operation worked fully
@@ -114,23 +112,17 @@ if __name__ == "__main__":
         print(pipeline.last_run_exception)
         exit(0)
 
-
-
     schema = pipeline.get_current_schema()
     schema_yaml = schema.as_yaml()
     f = open(data_schema_file_path, "a")
     f.write(schema_yaml)
     f.close()
-    #pipeline.save_schema_to_file(data_schema_file_path, schema)
-
-
+    # pipeline.save_schema_to_file(data_schema_file_path, schema)
 
     # show loads, each load contains a copy of the schema that corresponds to the data inside
     # and a set of directories for job states (new -> in progress -> failed|completed)
     new_loads = pipeline.list_unpacked_loads()
     print(new_loads)
-
-
 
     # load packages
     m = pipeline.load()
@@ -148,5 +140,5 @@ if __name__ == "__main__":
         # print(completed_loads)
         for load_id in completed_loads:
             print(f"Checking failed jobs in {load_id}")
-            for job, failed_message in pipeline.get_failed_jobs(load_id):
+            for job, failed_message in pipeline.list_failed_jobs(load_id):
                 print(f"JOB: {job}\nMSG: {failed_message}")
