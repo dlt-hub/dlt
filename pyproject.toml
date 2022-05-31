@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "py-dlt"
+name = "python-dlt"
 version = "0.0.1"
 description = "DLT is an open-source python-native scalable data loading framework that does not require any devops efforts to run."
 authors = ["Marcin Rudolf <rudolfix@rudolfix.org>"]
