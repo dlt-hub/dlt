@@ -48,7 +48,7 @@ dbt-bigquery = {version = "1.0.0", optional = true, extras = ["dbt"]}
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2.4"
-mypy = "0.931"
+mypy = "0.960"
 flake8 = "3.9.2"
 bandit = "^1.7.0"
 flake8-bugbear = "^21.4.3"
