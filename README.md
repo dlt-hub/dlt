@@ -1,8 +1,10 @@
 ![](docs/DLT-Pacman-Big.gif)
+
 <p align="center">
-  <a href="https://github.com/scale-vector/dlt/actions/workflows/lint.yml">
-    <img src="https://github.com/scale-vector/dlt/actions/workflows/lint.yml/badge.svg?event=push" alt="LINT Badge"/>
-  </a>
+
+[![PyPI version](https://badge.fury.io/py/python-dlt.svg)](https://pypi.org/project/python-dlt/)
+[![LINT Badge](https://github.com/scale-vector/dlt/actions/workflows/lint.yml/badge.svg)](https://github.com/scale-vector/dlt/actions/workflows/lint.yml)
+
 </p>
 
 # DLT
