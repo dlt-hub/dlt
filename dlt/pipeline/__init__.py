@@ -194,6 +194,7 @@ class Pipeline:
     def _load_modules(self) -> None:
         # pass to all modules
         common_initial: StrAny = {
+            "NAME": self.pipeline_name,
             "EXIT_ON_EXCEPTION": True,
             "LOADING_VOLUME_PATH": os.path.join(self.root_path, "loading")
         }
