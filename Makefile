@@ -39,7 +39,7 @@ dev: has-poetry
 lint:
 	poetry run mypy --config-file mypy.ini dlt examples
 	# poetry run flake8 --max-line-length=200 dlt examples tests
-	$(MAKE) lint-security
+	# $(MAKE) lint-security
 
 lint-security:
 	poetry run bandit -r dlt/ -n 3 -l
