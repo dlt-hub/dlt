@@ -1,0 +1,40 @@
+[
+    {
+        "event": "action",
+        "timestamp": 1624001204.767503,
+        "metadata": {
+            "rasa_x_flagged": false,
+            "rasa_x_id": 60293
+        },
+        "name": "utter_SCENARIOCHECK",
+        "policy": "policy_0_MemoizationPolicy",
+        "confidence": 1.0,
+        "action_text": null,
+        "hide_rule_turn": false,
+        "is_flagged": false,
+        "sender_id": "411b44bdfcc545f282fb4aa15282b73f",
+        "model_id": "__unknown",
+        "environment": "__unknown"
+    },
+    {
+        "event": "bot",
+        "timestamp": 1624001210.7276764,
+        "metadata": {
+            "rasa_x_flagged": false,
+            "rasa_x_id": 60304
+        },
+        "text": "Hello! Just a heads up - this bot is part of a research project and we intend to make the conversations publicly available to researchers. So please don't share any personal information! [Privacy Policy](https://rasa.com/carbon-bot-privacy-policy/)",
+        "data": {
+            "elements": null,
+            "quick_replies": null,
+            "buttons": null,
+            "attachment": null,
+            "image": null,
+            "custom": null
+        },
+        "is_flagged": false,
+        "sender_id": "411b44bdfcc545f282fb4aa15282b73f",
+        "model_id": "__unknown",
+        "environment": "__unknown"
+    }
+]

@@ -1,0 +1,19 @@
+[
+    {
+        "event": "slot",
+        "timestamp": 1640951453.1129234,
+        "metadata": {
+            "rasa_x_flagged": false,
+            "rasa_x_id": 57378
+        },
+        "name": "session_started_metadata",
+        "value": {
+            "user_id": "world",
+            "mitter_id": "hello"
+        },
+        "is_flagged": false,
+        "sender_id": "1234",
+        "model_id": "20211224-134834_2.8.7",
+        "environment": "production"
+    }
+]

@@ -2,10 +2,11 @@ import requests
 from typing import Iterator, Sequence, cast
 from web3 import Web3, HTTPProvider
 
-from autopoiesis.common import Decimal
-from autopoiesis.common.arithmetics import numeric_default_context, numeric_default_quantize
-from autopoiesis.common.schema import Schema
-from autopoiesis.common.typing import DictStrAny, StrAny
+from dlt.common import json
+from dlt.common import Decimal
+from dlt.common.arithmetics import numeric_default_context, numeric_default_quantize
+from dlt.common.schema import Schema
+from dlt.common.typing import DictStrAny, StrAny
 
 from dlt.pipeline import Pipeline, TExtractorItemWithTable, TExtractorItem
 
@@ -117,6 +118,10 @@ schema: Schema = None
 # in case of ethereum data the fundamental problem is 2^256 integer size which does not fit in any BIGINT
 # type. that is fixed in schema loaded below
 schema = Pipeline.load_schema_from_file("examples/schemas/ethereum_schema.yml")
+# jschema = schema.to_dict()
+# with open("examples/schemas/ethereum_schema.json", "w") as f:
+#     json.dump(jschema, f)
+# exit(-1)
 pipeline.create_pipeline(credentials, schema=schema)
 print(pipeline.root_path)
 
@@ -124,13 +129,12 @@ m = pipeline.extract_generator(block_generator)
 if m.has_failed:
     print("Extracting failed")
     print(pipeline.last_run_exception)
-    exit(0)
+exit(0)
 
 m = pipeline.unpack()
 if m.has_failed:
     print("Unpacking failed")
     print(pipeline.last_run_exception)
-    exit(0)
 
 # get inferred schema
 schema = pipeline.get_current_schema()

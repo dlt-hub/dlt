@@ -1,0 +1,59 @@
+{
+    "tables": {
+        "_version": {
+            "version": {
+                "name": "version",
+                "data_type": "bigint",
+                "nullable": false
+            },
+            "engine_version": {
+                "name": "engine_version",
+                "data_type": "bigint",
+                "nullable": false
+            },
+            "inserted_at": {
+                "name": "inserted_at",
+                "data_type": "timestamp",
+                "nullable": false
+            }
+        },
+        "_loads": {
+            "load_id": {
+                "name": "load_id",
+                "data_type": "text",
+                "nullable": false
+            },
+            "status": {
+                "name": "status",
+                "data_type": "bigint",
+                "nullable": false
+            },
+            "inserted_at": {
+                "name": "inserted_at",
+                "data_type": "timestamp",
+                "nullable": false
+            }
+        }
+    },
+    "version": 1,
+    "engine_version": 2,
+    "name": "event",
+    "preferred_types": {
+        "^timestamp$": "timestamp",
+        "^_timestamp$": "timestamp",
+        "^inserted_at$": "timestamp",
+        "confidence": "double",
+        "^_pos$": "bigint"
+    },
+    "hints": {
+        "not_null": ["^timestamp$", "^_timestamp$", "^_dist_key$", "^_record_hash$", "^_root_hash$", "^_load_id$", "^_parent_hash$", "^_pos$", "^sender_id$"],
+        "partition": ["^_timestamp$", "^timestamp$"],
+        "cluster": ["^_dist_key$", "^sender_id$"],
+        "primary_key": [],
+        "foreign_key": ["^_parent_hash$"],
+        "sort": ["^timestamp$", "^_timestamp$"],
+        "unique": ["^_record_hash$"]
+    },
+    "excludes": ["^event_user__parse_data", "^event_bot__data", "^event_bot__metadata"],
+    "includes": ["^event_user__parse_data__(intent|entities|message_id$|text$)", "^event_bot__metadata__(utter_action|template_name|rasa_x_[a-z]+)$"]
+}

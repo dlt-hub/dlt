@@ -1,0 +1,16 @@
+import pendulum  # noqa: I251
+
+# force UTC as the local timezone to prevent local dates to be written to dbs
+pendulum.set_local_timezone(pendulum.timezone('UTC'))  # type: ignore
+
+
+def __utcnow() -> pendulum.DateTime:
+    """
+    Use this function instead of datetime.now
+    Returns:
+        pendulum.DateTime -- current time in UTC timezone
+    """
+    return pendulum.now()
+
+
+pendulum.utcnow = __utcnow  # type: ignore

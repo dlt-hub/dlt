@@ -1,0 +1,249 @@
+from typing import Any, Callable, Type, List, Dict, Optional, Sequence, Tuple
+from multiprocessing.pool import Pool as ProcessPool
+from itertools import chain
+from prometheus_client import Counter, CollectorRegistry, REGISTRY, Gauge
+from prometheus_client.metrics import MetricWrapperBase
+
+from dlt.common import pendulum, signals, json, logger
+from dlt.common.runners import TRunArgs, TRunMetrics, create_default_args, pool_runner, initialize_runner
+from dlt.common.storages.unpacker_storage import UnpackerStorage
+from dlt.common.telemetry import get_logging_extras
+from dlt.common.utils import uniq_id
+from dlt.common.typing import TEvent
+from dlt.common.logger import process_internal_exception
+from dlt.common.exceptions import PoolException
+from dlt.common.storages import SchemaStorage
+from dlt.common.schema import CannotCoerceColumnException, SchemaUpdate, Schema
+from dlt.common.parser import PATH_SEPARATOR
+from dlt.common.storages.loader_storage import LoaderStorage
+
+from dlt.common.parser import extract, TExtractFunc
+from dlt.unpacker.configuration import configuration, UnpackerConfiguration
+
+extract_func: TExtractFunc = extract
+CONFIG: Type[UnpackerConfiguration] = None
+unpack_storage: UnpackerStorage = None
+load_storage: LoaderStorage = None
+schema_storage: SchemaStorage = None
+load_schema_storage: SchemaStorage = None
+event_counter: Counter = None
+event_gauge: Gauge = None
+schema_version_gauge: Gauge = None
+load_package_counter: Counter = None
+
+
+def create_gauges(registry: CollectorRegistry) -> Tuple[MetricWrapperBase, MetricWrapperBase, MetricWrapperBase, MetricWrapperBase]:
+    return (
+        Counter("unpacker_event_count", "Events processed in unpacker", ["schema"], registry=registry),
+        Gauge("unpacker_last_events", "Number of events processed in last run", ["schema"], registry=registry),
+        Gauge("unpacker_schema_version", "Current schema version", ["schema"], registry=registry),
+        Gauge("unpacker_load_packages_created_count", "Count of load package created", ["schema"], registry=registry)
+    )
+
+
+def create_folders() -> Tuple[UnpackerStorage, LoaderStorage, SchemaStorage, SchemaStorage]:
+    unpack_storage = UnpackerStorage(True, CONFIG)
+    schema_storage = SchemaStorage(CONFIG.SCHEMA_VOLUME_PATH, makedirs=True)
+    load_schema_storage = SchemaStorage(CONFIG.LOADING_VOLUME_PATH, makedirs=False)
+    load_storage = LoaderStorage(True, CONFIG, CONFIG.WRITER_TYPE)
+
+    unpack_storage.initialize_storage()
+    load_storage.initialize_storage()
+
+    return unpack_storage, load_storage, schema_storage, load_schema_storage
+
+
+def install_schemas(default_schemas_path: str, schema_names: List[str]) -> None:
+    # copy default schemas if not present
+    default_schemas = SchemaStorage(default_schemas_path)
+    logger.info(f"Checking default schemas in {schema_storage.storage.storage_path}")
+    for name in schema_names:
+        if not schema_storage.has_store_schema(name):
+            logger.info(f"Schema, {name} not present in {schema_storage.storage.storage_path}, installing...")
+            schema = default_schemas.load_store_schema(name)
+            schema_storage.save_store_schema(schema)
+
+
+def load_or_create_schema(schema_name: str) -> Schema:
+    try:
+        schema = schema_storage.load_store_schema(schema_name)
+        logger.info(f"Loaded schema with name {schema_name} with version {schema.schema_version}")
+    except FileNotFoundError:
+        schema = Schema(schema_name)
+        logger.info(f"Created new schema with name {schema_name}")
+    return schema
+
+
+# this is a worker process
+def w_unpack_files(schema_name: str, load_id: str, events_files: Sequence[str]) -> SchemaUpdate:
+    unpacked_data: Dict[str, List[Any]] = {}
+
+    schema_update: SchemaUpdate = {}
+    schema = load_or_create_schema(schema_name)
+    file_id = uniq_id()
+
+    # process all event files and store rows in memory
+    for events_file in events_files:
+        try:
+            logger.debug(f"Processing events file {events_file}")
+            with unpack_storage.storage.open(events_file) as f:
+                events: Sequence[TEvent] = json.load(f)
+            for event in events:
+                for table_name, row in extract_func(schema, event, load_id, CONFIG.ADD_EVENT_JSON):
+                    # filter row, may eliminate some or all fields
+                    row = schema.filter_row(table_name, row, PATH_SEPARATOR)
+                    # do not process empty rows
+                    if row:
+                        # check if schema can be updated
+                        row, table_update = schema.coerce_row(table_name, row)
+                        if len(table_update) > 0:
+                            # update schema and save the change
+                            schema.update_schema(table_name, table_update)
+                            table_updates = schema_update.setdefault(table_name, [])
+                            table_updates.extend(table_update)
+                        # store row
+                        rows = unpacked_data.setdefault(table_name, [])
+                        rows.append(row)
+        except Exception:
+            process_internal_exception(f"Exception when processing file {events_file}")
+            raise PoolException("unpack_files", events_file)
+
+    # save rows and return schema changes to be gathered in parent process
+    for table_name, rows in unpacked_data.items():
+        # save into new jobs to processed as load
+        table = schema.get_table(table_name)
+        load_storage.write_temp_loading_file(load_id, table_name, table, file_id, rows)
+
+    return schema_update
+
+
+TMapFuncRV = Tuple[List[SchemaUpdate], List[Sequence[str]]]
+TMapFuncType = Callable[[ProcessPool, str, str, Sequence[str]], TMapFuncRV]
+
+def map_parallel(pool: ProcessPool, schema_name: str, load_id: str, files: Sequence[str]) -> TMapFuncRV:
+    # we chunk files in a way to not exceed MAX_EVENTS_IN_CHUNK and split them equally
+    # between processors
+    configured_processes = pool._processes  # type: ignore
+    chunk_files = UnpackerStorage.chunk_by_events(files, CONFIG.MAX_EVENTS_IN_CHUNK, configured_processes)
+    logger.info(f"Obtained {len(chunk_files)} processing chunks")
+    param_chunk = [(schema_name, load_id, files) for files in chunk_files]
+    return pool.starmap(w_unpack_files, param_chunk), chunk_files
+
+
+def map_single(_: ProcessPool, schema_name: str, load_id: str, files: Sequence[str]) -> TMapFuncRV:
+    chunk_files = UnpackerStorage.chunk_by_events(files, CONFIG.MAX_EVENTS_IN_CHUNK, 1)
+    # get in one chunk
+    assert len(chunk_files) == 1
+    logger.info(f"Obtained {len(chunk_files)} processing chunks")
+    return [w_unpack_files(schema_name, load_id, chunk_files[0])], chunk_files
+
+
+def update_schema(schema_name: str, schema_updates: List[SchemaUpdate]) -> Schema:
+    schema = load_or_create_schema(schema_name)
+    # gather schema from all manifests, validate consistency and combine
+    for schema_update in schema_updates:
+        for table_name, table_updates in schema_update.items():
+            logger.debug(f"Updating schema for table {table_name} with {len(table_updates)} deltas")
+            schema.update_schema(table_name, table_updates)
+    return schema
+
+
+def spool_files(pool: ProcessPool, schema_name: str, load_id: str, map_f: TMapFuncType, files: Sequence[str]) -> None:
+    # process files in parallel or in single thread, depending on map_f
+    schema_updates, chunk_files = map_f(pool, schema_name, load_id, files)
+
+    schema = update_schema(schema_name, schema_updates)
+    schema_version_gauge.labels(schema_name).set(schema._version)
+    logger.metrics("Unpacker metrics", extra=get_logging_extras([schema_version_gauge.labels(schema_name)]))
+    logger.info(f"Saving schema {schema_name} with version {schema._version}, writing manifest files")
+    # schema is updated, save it to schema volume
+    schema_storage.save_store_schema(schema)
+    # save schema and schema updates to temp load folder
+    load_schema_storage.save_folder_schema(schema, load_id)
+    load_storage.save_schema_updates(load_id, schema_updates)
+    # files must be renamed and deleted together so do not attempt that when process is about to be terminated
+    signals.raise_if_signalled()
+    logger.info(f"Committing storage, do not kill this process")
+    # rename temp folder to processing
+    load_storage.commit_temp_load_folder(load_id)
+    # delete event files and count events to provide metrics
+    total_events = 0
+    for event_file in chain.from_iterable(chunk_files):  # flatten chunks
+        unpack_storage.storage.delete(event_file)
+        total_events += UnpackerStorage.get_events_count(event_file)
+    # log and update metrics
+    logger.info(f"Chunk {load_id} processed")
+    load_package_counter.labels(schema_name).inc()
+    event_counter.labels(schema_name).inc(total_events)
+    event_gauge.labels(schema_name).set(total_events)
+    logger.metrics("Unpacker metrics", extra=get_logging_extras(
+        [load_package_counter.labels(schema_name), event_counter.labels(schema_name), event_gauge.labels(schema_name)]))
+
+
+def spool_schema_files(pool: ProcessPool, schema_name: str, files: Sequence[str]) -> str:
+    # unpacked files will go here before being atomically renamed
+    load_id = str(pendulum.now().timestamp())
+    load_storage.create_temp_load_folder(load_id)
+    logger.info(f"Created temp load folder {load_id} on loading volume")
+
+    try:
+        # process parallel
+        spool_files(pool, schema_name, load_id, map_parallel, files)
+    except CannotCoerceColumnException as exc:
+        # schema conflicts resulting from parallel executing
+        logger.warning(f"Parallel schema update conflict, switching to single thread ({str(exc)}")
+        # start from scratch
+        load_storage.create_temp_load_folder(load_id)
+        spool_files(pool, schema_name, load_id, map_single, files)
+
+    return load_id
+
+
+def run(pool: ProcessPool) -> TRunMetrics:
+    logger.info(f"Running file unpacking")
+    # list files and group by schema name, list must be sorted for group by to actually work
+    files = unpack_storage.list_files_to_unpack_sorted()
+    logger.info(f"Found {len(files)} files, will process in chunks of {CONFIG.MAX_EVENTS_IN_CHUNK} of events")
+    if len(files) == 0:
+        return TRunMetrics(True, False, 0)
+    # group files by schema
+    for schema_name, files_in_schema in unpack_storage.get_grouped_iterator(files):
+        logger.info(f"Found files in schema {schema_name}")
+        spool_schema_files(pool, schema_name, list(files_in_schema))
+    # return info on still pending files (if extractor saved something in the meantime)
+    return TRunMetrics(False, False, len(unpack_storage.list_files_to_unpack_sorted()))
+
+
+def configure(C: Type[UnpackerConfiguration], collector: CollectorRegistry, extract_f: TExtractFunc, default_schemas_path: str = None, schema_names: List[str] = None) -> bool:
+    global CONFIG
+    global unpack_storage, load_storage, schema_storage, load_schema_storage
+    global event_counter, event_gauge, schema_version_gauge, load_package_counter
+    global extract_func
+
+    CONFIG = C
+    # set extracting parser function
+    extract_func = extract_f
+    try:
+        unpack_storage, load_storage, schema_storage, load_schema_storage = create_folders()
+        event_counter, event_gauge, schema_version_gauge, load_package_counter = create_gauges(collector)
+        if default_schemas_path and schema_names:
+            install_schemas(default_schemas_path, schema_names)
+        return True
+    except Exception:
+        process_internal_exception("init module")
+        return False
+
+
+def main(extract_f: TExtractFunc, default_schemas_path: str = None, schema_names: List[str] = None) -> None:
+    # initialize runner
+    C = configuration()
+    parser = create_default_args(C)
+    args = parser.parse_args()
+    initialize_runner(C, TRunArgs(args.single_run, args.wait_runs))
+    if not configure(C, REGISTRY, extract_f, default_schemas_path, schema_names):
+        exit(-1)
+    # run
+    exit(pool_runner(C, run))
+
+if __name__ == '__main__':
+    main(extract)

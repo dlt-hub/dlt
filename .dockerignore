@@ -1,0 +1,13 @@
+.idea
+.direnv
+.mypy_cache
+.pytest_cache
+htmlcov
+.coverage
+__pycache__
+.eggs
+.egg-info
+_storage
+_test_storage
+Dockerfile
+.md

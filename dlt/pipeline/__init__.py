@@ -5,21 +5,21 @@ import os.path
 from typing import Callable, Dict, Iterator, List, Literal, Sequence, Tuple
 from prometheus_client import REGISTRY
 
-from autopoiesis.common import json, runners
-from autopoiesis.common.configuration import BasicConfiguration, make_configuration
-from autopoiesis.common.configuration.utils import TConfigSecret
-from autopoiesis.common.file_storage import FileStorage
-from autopoiesis.common.logger import process_internal_exception
-from autopoiesis.common.runners import TRunArgs, TRunMetrics
-from autopoiesis.common.schema import Schema, StoredSchema
-from autopoiesis.common.typing import DictStrAny, StrAny
-from autopoiesis.common.utils import uniq_id, is_interactive
+from dlt.common import json, runners
+from dlt.common.configuration import BasicConfiguration, make_configuration
+from dlt.common.configuration.utils import TConfigSecret
+from dlt.common.file_storage import FileStorage
+from dlt.common.logger import process_internal_exception
+from dlt.common.runners import TRunArgs, TRunMetrics
+from dlt.common.schema import Schema, StoredSchema
+from dlt.common.typing import DictStrAny, StrAny
+from dlt.common.utils import uniq_id, is_interactive
 
-from autopoiesis.extractors.extractor_storage import ExtractorStorageBase
-from autopoiesis.unpacker.configuration import configuration as unpacker_configuration
-from autopoiesis.loaders.configuration import configuration as loader_configuration
-from autopoiesis.unpacker import unpacker
-from autopoiesis.loaders import loader
+from dlt.extractors.extractor_storage import ExtractorStorageBase
+from dlt.unpacker.configuration import configuration as unpacker_configuration
+from dlt.loaders.configuration import configuration as loader_configuration
+from dlt.unpacker import unpacker
+from dlt.loaders import loader
 
 TClientType = Literal["gcp", "redshift"]
 

@@ -1,0 +1,911 @@
+{
+    "tables": {
+        "_loads": {
+            "inserted_at": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "timestamp",
+                "name": "inserted_at",
+                "nullable": false
+            },
+            "load_id": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "text",
+                "name": "load_id",
+                "nullable": false
+            },
+            "status": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "bigint",
+                "name": "status",
+                "nullable": false
+            }
+        },
+        "_version": {
+            "engine_version": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "bigint",
+                "name": "engine_version",
+                "nullable": false
+            },
+            "inserted_at": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "timestamp",
+                "name": "inserted_at",
+                "nullable": false
+            },
+            "version": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "bigint",
+                "name": "version",
+                "nullable": false
+            }
+        },
+        "blocks": {
+            "_load_id": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "text",
+                "name": "_load_id",
+                "nullable": false
+            },
+            "_record_hash": {
+                "partition": false,
+                "cluster": false,
+                "unique": true,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "text",
+                "name": "_record_hash",
+                "nullable": false
+            },
+            "number": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": true,
+                "foreign_key": false,
+                "data_type": "bigint",
+                "name": "number",
+                "nullable": false
+            },
+            "parent_hash": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "text",
+                "name": "parent_hash",
+                "nullable": true
+            },
+            "hash": {
+                "partition": false,
+                "cluster": true,
+                "unique": true,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "text",
+                "name": "hash",
+                "nullable": false
+            },
+            "base_fee_per_gas": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "wei",
+                "name": "base_fee_per_gas",
+                "nullable": false
+            },
+            "difficulty": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "wei",
+                "name": "difficulty",
+                "nullable": false
+            },
+            "extra_data": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "text",
+                "name": "extra_data",
+                "nullable": true
+            },
+            "gas_limit": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "bigint",
+                "name": "gas_limit",
+                "nullable": false
+            },
+            "gas_used": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "bigint",
+                "name": "gas_used",
+                "nullable": false
+            },
+            "logs_bloom": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "text",
+                "name": "logs_bloom",
+                "nullable": true
+            },
+            "miner": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "text",
+                "name": "miner",
+                "nullable": true
+            },
+            "mix_hash": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "text",
+                "name": "mix_hash",
+                "nullable": true
+            },
+            "nonce": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "text",
+                "name": "nonce",
+                "nullable": true
+            },
+            "receipts_root": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "text",
+                "name": "receipts_root",
+                "nullable": true
+            },
+            "sha3_uncles": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "text",
+                "name": "sha3_uncles",
+                "nullable": true
+            },
+            "size": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "bigint",
+                "name": "size",
+                "nullable": true
+            },
+            "state_root": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "text",
+                "name": "state_root",
+                "nullable": false
+            },
+            "timestamp": {
+                "partition": false,
+                "cluster": false,
+                "unique": true,
+                "sort": true,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "timestamp",
+                "name": "timestamp",
+                "nullable": false
+            },
+            "total_difficulty": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "wei",
+                "name": "total_difficulty",
+                "nullable": true
+            },
+            "transactions_root": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "text",
+                "name": "transactions_root",
+                "nullable": false
+            }
+        },
+        "blocks__transactions": {
+            "_record_hash": {
+                "partition": false,
+                "cluster": false,
+                "unique": true,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "text",
+                "name": "_record_hash",
+                "nullable": false
+            },
+            "block_number": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": true,
+                "foreign_key": false,
+                "data_type": "bigint",
+                "name": "block_number",
+                "nullable": false
+            },
+            "transaction_index": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": true,
+                "foreign_key": false,
+                "data_type": "bigint",
+                "name": "transaction_index",
+                "nullable": false
+            },
+            "hash": {
+                "partition": false,
+                "cluster": false,
+                "unique": true,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "text",
+                "name": "hash",
+                "nullable": false
+            },
+            "block_hash": {
+                "partition": false,
+                "cluster": true,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "text",
+                "name": "block_hash",
+                "nullable": false
+            },
+            "block_timestamp": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": true,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "timestamp",
+                "name": "block_timestamp",
+                "nullable": false
+            },
+            "chain_id": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "text",
+                "name": "chain_id",
+                "nullable": true
+            },
+            "from": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "text",
+                "name": "from",
+                "nullable": true
+            },
+            "gas": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "bigint",
+                "name": "gas",
+                "nullable": true
+            },
+            "gas_price": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "bigint",
+                "name": "gas_price",
+                "nullable": true
+            },
+            "input": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "text",
+                "name": "input",
+                "nullable": true
+            },
+            "max_fee_per_gas": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "wei",
+                "name": "max_fee_per_gas",
+                "nullable": true
+            },
+            "max_priority_fee_per_gas": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "wei",
+                "name": "max_priority_fee_per_gas",
+                "nullable": true
+            },
+            "nonce": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "bigint",
+                "name": "nonce",
+                "nullable": true
+            },
+            "r": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "text",
+                "name": "r",
+                "nullable": true
+            },
+            "s": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "text",
+                "name": "s",
+                "nullable": true
+            },
+            "status": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "bigint",
+                "name": "status",
+                "nullable": true
+            },
+            "to": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "text",
+                "name": "to",
+                "nullable": true
+            },
+            "type": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "text",
+                "name": "type",
+                "nullable": true
+            },
+            "v": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "bigint",
+                "name": "v",
+                "nullable": true
+            },
+            "value": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "wei",
+                "name": "value",
+                "nullable": false
+            },
+            "eth_value": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "decimal",
+                "name": "eth_value",
+                "nullable": true
+            }
+        },
+        "blocks__transactions__logs": {
+            "_record_hash": {
+                "partition": false,
+                "cluster": false,
+                "unique": true,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "text",
+                "name": "_record_hash",
+                "nullable": false
+            },
+            "address": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "text",
+                "name": "address",
+                "nullable": false
+            },
+            "block_timestamp": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": true,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "timestamp",
+                "name": "block_timestamp",
+                "nullable": false
+            },
+            "block_hash": {
+                "partition": false,
+                "cluster": true,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "text",
+                "name": "block_hash",
+                "nullable": false
+            },
+            "block_number": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": true,
+                "foreign_key": false,
+                "data_type": "bigint",
+                "name": "block_number",
+                "nullable": false
+            },
+            "transaction_index": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": true,
+                "foreign_key": false,
+                "data_type": "bigint",
+                "name": "transaction_index",
+                "nullable": false
+            },
+            "log_index": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": true,
+                "foreign_key": false,
+                "data_type": "bigint",
+                "name": "log_index",
+                "nullable": false
+            },
+            "data": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "text",
+                "name": "data",
+                "nullable": true
+            },
+            "removed": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "bool",
+                "name": "removed",
+                "nullable": true
+            },
+            "transaction_hash": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "text",
+                "name": "transaction_hash",
+                "nullable": false
+            }
+        },
+        "blocks__transactions__logs__topics": {
+            "_parent_hash": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": true,
+                "data_type": "text",
+                "name": "_parent_hash",
+                "nullable": false
+            },
+            "_pos": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "bigint",
+                "name": "_pos",
+                "nullable": false
+            },
+            "_record_hash": {
+                "partition": false,
+                "cluster": false,
+                "unique": true,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "text",
+                "name": "_record_hash",
+                "nullable": false
+            },
+            "_root_hash": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "text",
+                "name": "_root_hash",
+                "nullable": false
+            },
+            "value": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "text",
+                "name": "value",
+                "nullable": true
+            }
+        },
+        "blocks__transactions__access_list": {
+            "_parent_hash": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": true,
+                "data_type": "text",
+                "name": "_parent_hash",
+                "nullable": false
+            },
+            "_pos": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "bigint",
+                "name": "_pos",
+                "nullable": false
+            },
+            "_record_hash": {
+                "partition": false,
+                "cluster": false,
+                "unique": true,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "text",
+                "name": "_record_hash",
+                "nullable": false
+            },
+            "_root_hash": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "text",
+                "name": "_root_hash",
+                "nullable": false
+            },
+            "address": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "text",
+                "name": "address",
+                "nullable": true
+            }
+        },
+        "blocks__transactions__access_list__storage_keys": {
+            "_parent_hash": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": true,
+                "data_type": "text",
+                "name": "_parent_hash",
+                "nullable": false
+            },
+            "_pos": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "bigint",
+                "name": "_pos",
+                "nullable": false
+            },
+            "_record_hash": {
+                "partition": false,
+                "cluster": false,
+                "unique": true,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "text",
+                "name": "_record_hash",
+                "nullable": false
+            },
+            "_root_hash": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "text",
+                "name": "_root_hash",
+                "nullable": false
+            },
+            "value": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "text",
+                "name": "value",
+                "nullable": true
+            }
+        },
+        "blocks__uncles": {
+            "_parent_hash": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": true,
+                "data_type": "text",
+                "name": "_parent_hash",
+                "nullable": false
+            },
+            "_pos": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "bigint",
+                "name": "_pos",
+                "nullable": false
+            },
+            "_record_hash": {
+                "partition": false,
+                "cluster": false,
+                "unique": true,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "text",
+                "name": "_record_hash",
+                "nullable": false
+            },
+            "_root_hash": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "text",
+                "name": "_root_hash",
+                "nullable": false
+            },
+            "value": {
+                "partition": false,
+                "cluster": false,
+                "unique": false,
+                "sort": false,
+                "primary_key": false,
+                "foreign_key": false,
+                "data_type": "text",
+                "name": "value",
+                "nullable": true
+            }
+        }
+    },
+    "name": "ethereum",
+    "version": 8,
+    "preferred_types": {},
+    "hints": {
+        "foreign_key": [
+            "^_parent_hash$"
+        ],
+        "not_null": [
+            "^_record_hash$",
+            "^_root_hash$",
+            "^_parent_hash$",
+            "^_pos$"
+        ],
+        "unique": [
+            "^_record_hash$"
+        ]
+    },
+    "excludes": [],
+    "includes": [],
+    "engine_version": 2
+}

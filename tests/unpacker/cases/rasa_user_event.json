@@ -1,0 +1,79 @@
+{
+    "event": "user",
+    "timestamp": 1596457188.7167368,
+    "metadata": {
+        "rasa_x_flagged": false,
+        "rasa_x_id": 7837
+    },
+    "text": "Percy",
+    "parse_data": {
+        "intent": {
+            "name": "human_handoff",
+            "confidence": 0.541744411
+        },
+        "entities": [
+            {
+                "entity": "PERSON",
+                "value": "Percy",
+                "start": 0,
+                "confidence": null,
+                "end": 5,
+                "extractor": "SpacyEntityExtractor"
+            }
+        ],
+        "text": "Percy",
+        "message_id": "4d0776aec30e4fef9719d9aee67feff9",
+        "metadata": {
+            "rasa_x_flagged": false,
+            "rasa_x_id": 7837
+        },
+        "intent_ranking": [
+            {
+                "name": "human_handoff",
+                "confidence": 0.541744411
+            },
+            {
+                "name": "transfer_money",
+                "confidence": 0.1577572227
+            },
+            {
+                "name": "greet",
+                "confidence": 0.1216964871
+            },
+            {
+                "name": "deny",
+                "confidence": 0.0888213813
+            },
+            {
+                "name": "affirm",
+                "confidence": 0.029734388
+            },
+            {
+                "name": "ask_transfer_charge",
+                "confidence": 0.0263750814
+            },
+            {
+                "name": "check_recipients",
+                "confidence": 0.0114318039
+            },
+            {
+                "name": "pay_cc",
+                "confidence": 0.0112889791
+            },
+            {
+                "name": "thankyou",
+                "confidence": 0.0056796907
+            },
+            {
+                "name": "inform",
+                "confidence": 0.0054705087
+            }
+        ]
+    },
+    "input_channel": "rasa",
+    "message_id": "4d0776aec30e4fef9719d9aee67feff9",
+    "is_flagged": false,
+    "sender_id": "846a98d228a14f4a8cc2f1f9554eea56",
+    "model_id": "a106fc25b13759df37ff84387cc1c962",
+    "environment": "production"
+}

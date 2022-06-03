@@ -1,0 +1,151 @@
+[
+    {
+        "event": "user",
+        "timestamp": 1632131578.3382933,
+        "metadata": {
+            "rasa_x_flagged": false,
+            "rasa_x_id": 12517,
+            "user_nicknames": ["eryk", "dażybór"]
+        },
+        "text": "co sie stalo z tym?",
+        "parse_data": {
+            "intent": {
+                "id": 2674161170217088760,
+                "name": "user_confused",
+                "confidence": 0.2885022759
+            },
+            "entities": [
+                {
+                    "entity": "confusion_type",
+                    "start": 24,
+                    "end": 33,
+                    "confidence_entity": 0.9563692212,
+                    "value": "stalo z tym",
+                    "extractor": "DIETClassifier",
+                    "processors": [
+                        "EntitySynonymMapper"
+                    ]
+                }
+            ],
+            "text": "co sie stalo z tym?",
+            "message_id": "8883f362187a406dbd7ba97a3eb154eb",
+            "metadata": {},
+            "intent_ranking": [
+                {
+                    "id": 2674161170217088760,
+                    "name": "user_confused",
+                    "confidence": 0.2885022759
+                },
+                {
+                    "id": 1638803557919420258,
+                    "name": "inform",
+                    "confidence": 0.1144759804
+                },
+                {
+                    "id": 570647431301173618,
+                    "name": "transfer_money",
+                    "confidence": 0.0954395533
+                },
+                {
+                    "id": -3158637492950234320,
+                    "name": "ask_transfer_charge",
+                    "confidence": 0.0791917965
+                },
+                {
+                    "id": 8733985492887428649,
+                    "name": "faq/sie_stalo",
+                    "confidence": 0.0754189938
+                },
+                {
+                    "id": -2016277678936362874,
+                    "name": "greet",
+                    "confidence": 0.0622899421
+                }
+            ],
+            "response_selector": {
+                "all_retrieval_intents": [
+                    "chitchat",
+                    "faq"
+                ],
+                "faq": {
+                    "response": {
+                        "id": -8534012393726003555,
+                        "responses": [
+                            {
+                                "text": "Nic sie nie stalo"
+                            }
+                        ],
+                        "response_templates": [
+                            {
+                                "text": "Nic sie nie stalo"
+                            }
+                        ],
+                        "confidence": 0.9278085828,
+                        "intent_response_key": "faq/nothing_happened",
+                        "utter_action": "utter_faq/nothing_happened",
+                        "template_name": "utter_faq/nothing_happened"
+                    },
+                    "ranking": [
+                        {
+                            "id": -8534012393726003555,
+                            "confidence": 0.9278085828,
+                            "intent_response_key": "faq/nothing_happened"
+                        },
+                        {
+                            "id": -5896606731757305376,
+                            "confidence": 0.0648222044,
+                            "intent_response_key": "faq/something_happened"
+                        },
+                        {
+                            "id": 8363942074642748953,
+                            "confidence": 0.0073192776,
+                            "intent_response_key": "faq/help_me"
+                        }
+                    ]
+                },
+                "chitchat": {
+                    "response": {
+                        "id": 5563655013923209593,
+                        "responses": [
+                            {
+                                "text": "Yes I'm bot"
+                            }
+                        ],
+                        "response_templates": [
+                            {
+                                "text": "Yes I'm bot"
+                            }
+                        ],
+                        "confidence": 0.6765472889,
+                        "intent_response_key": "chitchat/yes_bot",
+                        "utter_action": "utter_chitchat/yes_bot",
+                        "template_name": "utter_chitchat/yes_bot"
+                    },
+                    "ranking": [
+                        {
+                            "id": 5563655013923209593,
+                            "confidence": 0.6765472889,
+                            "intent_response_key": "chitchat/yes_bot"
+                        },
+                        {
+                            "id": -1081973221898103091,
+                            "confidence": 0.3013097346,
+                            "intent_response_key": "chitchat/no_human"
+                        },
+                        {
+                            "id": -8884412576127107110,
+                            "confidence": 0.0219273493,
+                            "intent_response_key": "chitchat/no_polish"
+                        }
+                    ]
+                }
+            }
+        },
+        "input_channel": "rasa",
+        "message_id": "8883f362187a406dbd7ba97a3eb154eb",
+        "is_flagged": false,
+        "sender_id": "0a1c8e14dce44134bf6138f5a86ebc3f",
+        "model_id": "20210928-144933_rasa2.8.7_2.8.7",
+        "environment": "production"
+    }
+]

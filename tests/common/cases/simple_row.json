@@ -1,0 +1,16 @@
+[
+    {
+        "f_int": 7817289712,
+        "f_float": 92898e37,
+        "f_timestamp": "2021-10-13T13:49:32.901899+00:00",
+        "f_bool": true,
+        "f_bool_2": false,
+        "f_str": "some string"
+    },
+    {
+        "f_int": 7817289713,
+        "f_float": 878172.8292,
+        "f_timestamp": "2021-10-13T13:49:32.901899+00:00",
+        "f_bool_2": false
+    }
+]

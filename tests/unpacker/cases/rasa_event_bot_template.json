@@ -1,0 +1,31 @@
+{
+    "event": "bot",
+    "timestamp": 1611827717.581728,
+    "metadata": {
+        "template_name": "utter_ask_transaction_search_form_search_type",
+        "rasa_x_flagged": false,
+        "rasa_x_id": 16326
+    },
+    "text": "Would you like to search incoming or outgoing transactions?",
+    "data": {
+        "elements": null,
+        "quick_replies": null,
+        "buttons": [
+            {
+                "title": "Incoming (earnings)",
+                "payload": null
+            },
+            {
+                "title": "Outgoing (spending)",
+                "payload": null
+            }
+        ],
+        "attachment": null,
+        "image": null,
+        "custom": null
+    },
+    "is_flagged": false,
+    "sender_id": "02fefddbeb33429eb13819eb1e890f14",
+    "model_id": "ddfe3bfb8b83f2f79106c8346b9b8d9d",
+    "environment": "production"
+}

@@ -5,8 +5,8 @@ import io
 from typing import Any, Iterator
 import csv
 
-from autopoiesis.common.typing import StrAny
-from autopoiesis.common.schema import Schema
+from dlt.common.typing import StrAny
+from dlt.common.schema import Schema
 from dlt.pipeline import Pipeline
 
 SCOPES = ['https://www.googleapis.com/auth/drive']
@@ -15,19 +15,19 @@ SCOPES = ['https://www.googleapis.com/auth/drive']
 KEY_FILE_LOCATION = '_secrets/project1234_service.json'
 
 
-def _initialize_drive() -> Any:
-    """Initializes an drive service object.
+# def _initialize_drive() -> Any:
+#     """Initializes an drive service object.
 
-    Returns:
-    An authorized drive service object.
-    """
-    credentials = ServiceAccountCredentials.from_json_keyfile_name(
-        KEY_FILE_LOCATION, SCOPES)
+#     Returns:
+#     An authorized drive service object.
+#     """
+#     credentials = ServiceAccountCredentials.from_json_keyfile_name(
+#         KEY_FILE_LOCATION, SCOPES)
 
-    # Build the service object.
-    service = build('drive', 'v3', credentials=credentials)
+#     # Build the service object.
+#     service = build('drive', 'v3', credentials=credentials)
 
-    return service
+#     return service
 
 
 def _initialize_sheets() -> Any:
@@ -41,20 +41,20 @@ def _initialize_sheets() -> Any:
     return service
 
 
-def download_csv_as_json(file_id: str, csv_options: StrAny = None) -> Iterator[StrAny]:
-    if csv_options is None:
-        csv_options = {}
+# def download_csv_as_json(file_id: str, csv_options: StrAny = None) -> Iterator[StrAny]:
+#     if csv_options is None:
+#         csv_options = {}
 
-    drive_service = _initialize_drive()
-    request = drive_service.files().get_media(fileId=file_id)
-    fh = io.BytesIO()
-    downloader = MediaIoBaseDownload(fh, request)
-    done = False
-    while done is False:
-        status, done = downloader.next_chunk()
-        print("Download %d%%." % int(status.progress() * 100))
-    rows = fh.getvalue().decode("utf-8")
-    return csv.DictReader(io.StringIO(rows), **csv_options)
+#     drive_service = _initialize_drive()
+#     request = drive_service.files().get_media(fileId=file_id)
+#     fh = io.BytesIO()
+#     downloader = MediaIoBaseDownload(fh, request)
+#     done = False
+#     while done is False:
+#         status, done = downloader.next_chunk()
+#         print("Download %d%%." % int(status.progress() * 100))
+#     rows = fh.getvalue().decode("utf-8")
+#     return csv.DictReader(io.StringIO(rows), **csv_options)
 
 
 def download_sheet_to_csv(spreadsheet_id: str, sheet_name: str) -> Iterator[StrAny]:

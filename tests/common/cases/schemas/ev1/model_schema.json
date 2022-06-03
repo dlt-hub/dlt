@@ -1,0 +1,63 @@
+{
+  "tables": {
+    "_version": {
+      "version": {
+        "name": "version",
+        "data_type": "bigint",
+        "nullable": false
+      },
+      "engine_version": {
+        "name": "engine_version",
+        "data_type": "bigint",
+        "nullable": false
+      },
+      "inserted_at": {
+        "name": "inserted_at",
+        "data_type": "timestamp",
+        "nullable": false
+      }
+    },
+    "_loads": {
+      "load_id": {
+        "name": "load_id",
+        "data_type": "text",
+        "nullable": false
+      },
+      "status": {
+        "name": "status",
+        "data_type": "bigint",
+        "nullable": false
+      },
+      "inserted_at": {
+        "name": "inserted_at",
+        "data_type": "timestamp",
+        "nullable": false
+      }
+    }
+  },
+  "name": "model",
+  "version": 1,
+  "preferred_types": {
+    "^timestamp$": "timestamp",
+    "trained_at$": "timestamp",
+    "^inserted_at$": "timestamp",
+    "^_pos$": "bigint"
+  },
+  "hints": {
+    "not_null": [
+      "^timestamp$",
+      "^_record_hash$",
+      "^_root_hash$",
+      "^_load_id$",
+      "^_parent_hash$",
+      "^_pos$"
+    ],
+    "primary_key": [
+      "^_record_hash$"
+    ],
+    "foreign_key": [
+      "^_parent_hash$"
+    ]
+  },
+  "engine_version": 1
+}

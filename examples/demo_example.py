@@ -7,9 +7,9 @@
 
 from typing import Sequence
 
-from autopoiesis.common.typing import StrAny
-from autopoiesis.common import json
-from autopoiesis.common.schema import Schema
+from dlt.common.typing import StrAny
+from dlt.common import json
+from dlt.common.schema import Schema
 from dlt.pipeline import Pipeline
 
 # the load schema will be named {pipeline_mame}_{source_name}

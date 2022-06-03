@@ -1,0 +1,11 @@
+jaffle_shop:
+  target: analytics
+  outputs:
+    analytics:
+      type: postgres
+      host: hostname
+      user: username
+      password: password
+      port: 5041
+      dbname: database_name
+      schema: "{{ var('dbt_schema') }}"

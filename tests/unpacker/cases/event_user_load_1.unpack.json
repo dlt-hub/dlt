@@ -1,0 +1,156 @@
+[
+    {
+        "event": "user",
+        "timestamp": 1624001204.7594721,
+        "metadata": {
+            "rasa_x_flagged": false,
+            "rasa_x_id": 60291
+        },
+        "text": "hello",
+        "parse_data": {
+            "intent": {
+                "id": -4536367473937558157,
+                "name": "greet",
+                "confidence": 0.9999822378
+            },
+            "entities": [],
+            "text": "hello",
+            "message_id": "dbeaf3d81ae74fde9a79bd9b4e33e59b",
+            "metadata": {},
+            "intent_ranking": [
+                {
+                    "id": -4536367473937558157,
+                    "name": "greet",
+                    "confidence": 0.9999822378
+                },
+                {
+                    "id": -3136631948379253918,
+                    "name": "restart",
+                    "confidence": 1.1449e-05
+                },
+                {
+                    "id": -7771981479793047238,
+                    "name": "express_uncertainty",
+                    "confidence": 4.2514e-06
+                },
+                {
+                    "id": -3305491128315924477,
+                    "name": "express_positive-emo",
+                    "confidence": 4.256e-07
+                },
+                {
+                    "id": -6005850841622754585,
+                    "name": "farewell",
+                    "confidence": 4.092e-07
+                },
+                {
+                    "id": 9125925096810900236,
+                    "name": "thank",
+                    "confidence": 3.649e-07
+                },
+                {
+                    "id": -2236666065946559672,
+                    "name": "help",
+                    "confidence": 3.259e-07
+                },
+                {
+                    "id": 4635677144980067358,
+                    "name": "deny",
+                    "confidence": 2.407e-07
+                },
+                {
+                    "id": -1222949271322331992,
+                    "name": "affirm",
+                    "confidence": 1.458e-07
+                },
+                {
+                    "id": -6928051739109086500,
+                    "name": "insult",
+                    "confidence": 1.304e-07
+                }
+            ],
+            "response_selector": {
+                "all_retrieval_intents": [
+                    "faq"
+                ],
+                "default": {
+                    "response": {
+                        "id": 6620953317997634576,
+                        "responses": [
+                            {
+                                "text": "I'm great! Thanks for asking."
+                            }
+                        ],
+                        "response_templates": [
+                            {
+                                "text": "I'm great! Thanks for asking."
+                            }
+                        ],
+                        "confidence": 0.7890706062,
+                        "intent_response_key": "faq/ask_howdoing",
+                        "utter_action": "utter_faq/ask_howdoing",
+                        "template_name": "utter_faq/ask_howdoing"
+                    },
+                    "ranking": [
+                        {
+                            "id": 6620953317997634576,
+                            "confidence": 0.7890706062,
+                            "intent_response_key": "faq/ask_howdoing"
+                        },
+                        {
+                            "id": -9041720972245942282,
+                            "confidence": 0.0567939878,
+                            "intent_response_key": "faq/placeholder"
+                        },
+                        {
+                            "id": -6784762547552862956,
+                            "confidence": 0.0476409681,
+                            "intent_response_key": "faq/oos_request"
+                        },
+                        {
+                            "id": -8732733991037778109,
+                            "confidence": 0.0457900539,
+                            "intent_response_key": "faq/opinion"
+                        },
+                        {
+                            "id": 4682664680382764798,
+                            "confidence": 0.0329141431,
+                            "intent_response_key": "faq/personal_question_for_bot"
+                        },
+                        {
+                            "id": -2487681309784074414,
+                            "confidence": 0.0097925346,
+                            "intent_response_key": "faq/ask_creators"
+                        },
+                        {
+                            "id": -8803882372259948307,
+                            "confidence": 0.0058945417,
+                            "intent_response_key": "faq/meta_inquire-ask_bot-challenge"
+                        },
+                        {
+                            "id": 1176934195041833707,
+                            "confidence": 0.0052540326,
+                            "intent_response_key": "faq/oos_inquire"
+                        },
+                        {
+                            "id": -5251618483951632767,
+                            "confidence": 0.0035447665,
+                            "intent_response_key": "faq/oos_inform"
+                        },
+                        {
+                            "id": 7005479104644416710,
+                            "confidence": 0.0033043721,
+                            "intent_response_key": "faq/layover"
+                        }
+                    ]
+                }
+            }
+        },
+        "input_channel": "Tester",
+        "message_id": "dbeaf3d81ae74fde9a79bd9b4e33e59b",
+        "is_flagged": false,
+        "sender_id": "411b44bdfcc545f282fb4aa15282b73f",
+        "model_id": "__unknown",
+        "environment": "__unknown"
+    }
+]

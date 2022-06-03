@@ -1,0 +1,936 @@
+tables:
+  _version:
+    version:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: bigint
+      nullable: false
+    engine_version:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: bigint
+      nullable: false
+    inserted_at:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: timestamp
+      nullable: false
+  _loads:
+    load_id:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: text
+      nullable: false
+    status:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: bigint
+      nullable: false
+    inserted_at:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: timestamp
+      nullable: false
+  model_annotations:
+    sender_id:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: text
+      nullable: true
+    message_id:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: bigint
+      nullable: true
+    annotation:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: text
+      nullable: true
+    confidence:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: double
+      nullable: true
+    count:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: bigint
+      nullable: true
+    added_at:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: text
+      nullable: true
+    reviewed:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: bool
+      nullable: true
+    _load_id:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: text
+      nullable: false
+    _record_hash:
+      partition: false
+      cluster: false
+      unique: true
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: text
+      nullable: false
+name: csv
+version: 2
+preferred_types: {}
+hints:
+  not_null:
+  - ^_record_hash$
+  - ^_root_hash$
+  - ^_parent_hash$
+  - ^_pos$
+  - _load_id
+  foreign_key:
+  - ^_parent_hash$
+  unique:
+  - ^_record_hash$
+excludes: []
+includes: []
+engine_version: 2
+tables:
+  _version:
+    version:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: bigint
+      nullable: false
+    engine_version:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: bigint
+      nullable: false
+    inserted_at:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: timestamp
+      nullable: false
+  _loads:
+    load_id:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: text
+      nullable: false
+    status:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: bigint
+      nullable: false
+    inserted_at:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: timestamp
+      nullable: false
+  model_annotations:
+    sender_id:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: text
+      nullable: true
+    message_id:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: bigint
+      nullable: true
+    annotation:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: text
+      nullable: true
+    confidence:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: double
+      nullable: true
+    count:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: bigint
+      nullable: true
+    added_at:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: text
+      nullable: true
+    reviewed:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: bool
+      nullable: true
+    _load_id:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: text
+      nullable: false
+    _record_hash:
+      partition: false
+      cluster: false
+      unique: true
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: text
+      nullable: false
+name: csv
+version: 2
+preferred_types: {}
+hints:
+  not_null:
+  - ^_record_hash$
+  - ^_root_hash$
+  - ^_parent_hash$
+  - ^_pos$
+  - _load_id
+  foreign_key:
+  - ^_parent_hash$
+  unique:
+  - ^_record_hash$
+excludes: []
+includes: []
+engine_version: 2
+tables:
+  _version:
+    version:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: bigint
+      nullable: false
+    engine_version:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: bigint
+      nullable: false
+    inserted_at:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: timestamp
+      nullable: false
+  _loads:
+    load_id:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: text
+      nullable: false
+    status:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: bigint
+      nullable: false
+    inserted_at:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: timestamp
+      nullable: false
+  model_annotations:
+    sender_id:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: text
+      nullable: true
+    message_id:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: bigint
+      nullable: true
+    annotation:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: text
+      nullable: true
+    confidence:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: double
+      nullable: true
+    count:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: bigint
+      nullable: true
+    added_at:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: text
+      nullable: true
+    reviewed:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: bool
+      nullable: true
+    _load_id:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: text
+      nullable: false
+    _record_hash:
+      partition: false
+      cluster: false
+      unique: true
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: text
+      nullable: false
+name: csv
+version: 2
+preferred_types: {}
+hints:
+  not_null:
+  - ^_record_hash$
+  - ^_root_hash$
+  - ^_parent_hash$
+  - ^_pos$
+  - _load_id
+  foreign_key:
+  - ^_parent_hash$
+  unique:
+  - ^_record_hash$
+excludes: []
+includes: []
+engine_version: 2
+tables:
+  _version:
+    version:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: bigint
+      nullable: false
+    engine_version:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: bigint
+      nullable: false
+    inserted_at:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: timestamp
+      nullable: false
+  _loads:
+    load_id:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: text
+      nullable: false
+    status:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: bigint
+      nullable: false
+    inserted_at:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: timestamp
+      nullable: false
+  model_annotations:
+    sender_id:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: text
+      nullable: true
+    message_id:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: bigint
+      nullable: true
+    annotation:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: text
+      nullable: true
+    confidence:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: double
+      nullable: true
+    count:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: bigint
+      nullable: true
+    added_at:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: text
+      nullable: true
+    reviewed:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: bool
+      nullable: true
+    _load_id:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: text
+      nullable: false
+    _record_hash:
+      partition: false
+      cluster: false
+      unique: true
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: text
+      nullable: false
+name: csv
+version: 2
+preferred_types: {}
+hints:
+  not_null:
+  - ^_record_hash$
+  - ^_root_hash$
+  - ^_parent_hash$
+  - ^_pos$
+  - _load_id
+  foreign_key:
+  - ^_parent_hash$
+  unique:
+  - ^_record_hash$
+excludes: []
+includes: []
+engine_version: 2
+tables:
+  _version:
+    version:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: bigint
+      nullable: false
+    engine_version:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: bigint
+      nullable: false
+    inserted_at:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: timestamp
+      nullable: false
+  _loads:
+    load_id:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: text
+      nullable: false
+    status:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: bigint
+      nullable: false
+    inserted_at:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: timestamp
+      nullable: false
+  model_annotations:
+    sender_id:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: text
+      nullable: true
+    message_id:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: bigint
+      nullable: true
+    annotation:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: text
+      nullable: true
+    confidence:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: double
+      nullable: true
+    count:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: bigint
+      nullable: true
+    added_at:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: text
+      nullable: true
+    reviewed:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: bool
+      nullable: true
+    _load_id:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: text
+      nullable: false
+    _record_hash:
+      partition: false
+      cluster: false
+      unique: true
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: text
+      nullable: false
+name: csv
+version: 2
+preferred_types: {}
+hints:
+  not_null:
+  - ^_record_hash$
+  - ^_root_hash$
+  - ^_parent_hash$
+  - ^_pos$
+  - _load_id
+  foreign_key:
+  - ^_parent_hash$
+  unique:
+  - ^_record_hash$
+excludes: []
+includes: []
+engine_version: 2
+tables:
+  _version:
+    version:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: bigint
+      nullable: false
+    engine_version:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: bigint
+      nullable: false
+    inserted_at:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: timestamp
+      nullable: false
+  _loads:
+    load_id:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: text
+      nullable: false
+    status:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: bigint
+      nullable: false
+    inserted_at:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: timestamp
+      nullable: false
+  model_annotations:
+    sender_id:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: text
+      nullable: true
+    message_id:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: bigint
+      nullable: true
+    annotation:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: text
+      nullable: true
+    confidence:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: double
+      nullable: true
+    count:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: bigint
+      nullable: true
+    added_at:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: text
+      nullable: true
+    reviewed:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: bool
+      nullable: true
+    _load_id:
+      partition: false
+      cluster: false
+      unique: false
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: text
+      nullable: false
+    _record_hash:
+      partition: false
+      cluster: false
+      unique: true
+      sort: false
+      primary_key: false
+      foreign_key: false
+      data_type: text
+      nullable: false
+name: csv
+version: 2
+preferred_types: {}
+hints:
+  not_null:
+  - ^_record_hash$
+  - ^_root_hash$
+  - ^_parent_hash$
+  - ^_pos$
+  - _load_id
+  foreign_key:
+  - ^_parent_hash$
+  unique:
+  - ^_record_hash$
+excludes: []
+includes: []
+engine_version: 2

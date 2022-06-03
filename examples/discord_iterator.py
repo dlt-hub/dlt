@@ -1,6 +1,6 @@
-from autopoiesis.common import json
-from autopoiesis.common.schema import Schema
-from autopoiesis.common.typing import DictStrAny, StrAny
+from dlt.common import json
+from dlt.common.schema import Schema
+from dlt.common.typing import DictStrAny, StrAny
 
 from dlt.pipeline import Pipeline, PostgresPipelineCredentials
 
@@ -17,7 +17,6 @@ from dlt.pipeline import Pipeline, PostgresPipelineCredentials
 # credentials = Pipeline.load_gcp_credentials("_secrets/project1234_service.json", "gamma_guild")
 
 import multiprocessing
-multiprocessing.set_start_method("spawn", force=True)
 
 if __name__ == '__main__':
     # working redshift creds, you can pass password as last parameter or via PG_PASSWORD env variable ie.
@@ -70,7 +69,7 @@ if __name__ == '__main__':
     # from now on each pipeline does more or less the same thing: unpack and load data
 
     # now create loading packages and infer the schema
-    m = pipeline.unpack(workers=2)
+    m = pipeline.unpack()
     if m.has_failed:
         print("Unpacking failed")
         print(pipeline.last_run_exception)

@@ -1,0 +1,103 @@
+{"event_user": {
+    "_record_hash": {
+      "data_type": "text",
+      "name": "_record_hash",
+      "nullable": false
+    },
+    "_root_hash": {
+      "data_type": "text",
+      "name": "_root_hash",
+      "nullable": false
+    },
+    "environment": {
+      "data_type": "text",
+      "name": "environment",
+      "nullable": true
+    },
+    "event": {
+      "data_type": "text",
+      "name": "event",
+      "nullable": true
+    },
+    "input_channel": {
+      "data_type": "text",
+      "name": "input_channel",
+      "nullable": true
+    },
+    "is_flagged": {
+      "data_type": "bool",
+      "name": "is_flagged",
+      "nullable": true
+    },
+    "message_id": {
+      "data_type": "text",
+      "name": "message_id",
+      "nullable": true
+    },
+    "metadata__rasa_x_flagged": {
+      "data_type": "bool",
+      "name": "metadata__rasa_x_flagged",
+      "nullable": true
+    },
+    "metadata__rasa_x_id": {
+      "data_type": "bigint",
+      "name": "metadata__rasa_x_id",
+      "nullable": true
+    },
+    "model_id": {
+      "data_type": "text",
+      "name": "model_id",
+      "nullable": true
+    },
+    "parse_data__intent__confidence": {
+      "data_type": "double",
+      "name": "parse_data__intent__confidence",
+      "nullable": true
+    },
+    "parse_data__intent__id": {
+      "data_type": "decimal",
+      "name": "parse_data__intent__id",
+      "nullable": true
+    },
+    "parse_data__intent__name": {
+      "data_type": "text",
+      "name": "parse_data__intent__name",
+      "nullable": true
+    },
+    "parse_data__message_id": {
+      "data_type": "text",
+      "name": "parse_data__message_id",
+      "nullable": true
+    },
+    "parse_data__metadata__rasa_x_flagged": {
+      "data_type": "bool",
+      "name": "parse_data__metadata__rasa_x_flagged",
+      "nullable": true
+    },
+    "parse_data__metadata__rasa_x_id": {
+      "data_type": "wei",
+      "name": "parse_data__metadata__rasa_x_id",
+      "nullable": true
+    },
+    "parse_data__text": {
+      "data_type": "text",
+      "name": "parse_data__text",
+      "nullable": true
+    },
+    "sender_id": {
+      "data_type": "text",
+      "name": "sender_id",
+      "nullable": false
+    },
+    "text": {
+      "data_type": "text",
+      "name": "text",
+      "nullable": true
+    },
+    "timestamp": {
+      "data_type": "timestamp",
+      "name": "timestamp",
+      "nullable": false
+    }
+  }
+}
