@@ -2,12 +2,12 @@ import yaml
 from dataclasses import dataclass, asdict as dtc_asdict
 import tempfile
 import os.path
-from typing import Callable, Iterator, List, Literal, Sequence, Tuple
+from typing import Callable, Dict, Iterator, List, Literal, Sequence, Tuple
 from prometheus_client import REGISTRY
 
 from autopoiesis.common import json, runners
 from autopoiesis.common.configuration import BasicConfiguration, make_configuration
-from autopoiesis.common.configuration.config_utils import TConfigSecret
+from autopoiesis.common.configuration.utils import TConfigSecret
 from autopoiesis.common.file_storage import FileStorage
 from autopoiesis.common.logger import process_internal_exception
 from autopoiesis.common.runners import TRunArgs, TRunMetrics
@@ -126,8 +126,11 @@ class Pipeline:
     def extract_generator(self, generator: TExtractorGenerator, workers: int = 1, max_events_in_chunk: int = 40000) -> TRunMetrics:
         # currently we just re use iterator to extract from generators (no parallel processing, no generator state preserving, no chunking, no retry logic)
         # TODO: state should be retrieved: now create always empty state
-        for table, items in generator({}):
-            m = self.extract_iterator(table, items())
+        all_tables: Dict[str, List[StrAny]] = {}
+        for table, item in generator({}):
+            all_tables.setdefault(table, []).extend(item())
+        for table, items in all_tables.items():
+            m = self.extract_iterator(table, iter(items))
             if m.has_failed:
                 return m
         # TODO: state should be preserved for the next extraction run
@@ -179,7 +182,7 @@ class Pipeline:
             client.update_storage_schema()
 
     def _unpack(self, workers: int, max_events_in_chunk: int) -> TRunMetrics:
-        if is_interactive():
+        if is_interactive() and workers > 1:
             raise NotImplementedError("Do not use workers in interactive mode ie. in notebook")
         unpacker.CONFIG.MAX_PARALLELISM = workers
         unpacker.CONFIG.MAX_EVENTS_IN_CHUNK = max_events_in_chunk
