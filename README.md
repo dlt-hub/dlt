@@ -1,5 +1,9 @@
 ![](docs/DLT-Pacman-Big.gif)
-
+<p align="center">
+  <a href="https://github.com/scale-vector/dlt/actions/workflows/lint.yml">
+    <img src="https://github.com/scale-vector/dlt/actions/workflows/lint.yml/badge.svg?event=push" alt="LINT Badge"/>
+  </a>
+</p>
 
 # DLT
 DLT enables simple python-native data pipelining for data professionals.
