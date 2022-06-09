@@ -1,6 +1,7 @@
 import base64
 import binascii
 import yaml
+import datetime
 import re
 from re import Pattern
 from copy import deepcopy
@@ -8,6 +9,7 @@ from dateutil.parser import isoparse
 from typing import Dict, List, Set, Mapping, Optional, Sequence, Tuple, Type, TypedDict, Literal, Any, cast
 
 from dlt.common import pendulum, json, Decimal
+from dlt.common.names import normalize_schema_name
 from dlt.common.typing import DictStrAny, StrAny, StrStr
 from dlt.common.arithmetics import ConversionSyntax
 from dlt.common.exceptions import DltException
@@ -57,6 +59,9 @@ class Schema:
     ENGINE_VERSION = 2
 
     def __init__(self, name: str) -> None:
+        # verify schema name
+        if name != normalize_schema_name(name):
+            raise InvalidSchemaName(name)
         self._schema_tables: SchemaTables = {}
         self._schema_name: str = name
         self._version = 1
@@ -323,6 +328,7 @@ class Schema:
             except ValueError:
                 # coercion not possible
                 pass
+        print(f"{v} {k} -> {mapped_type}")
         return mapped_type
 
     def _get_preferred_type(self, col_name: str) -> Optional[DataType]:
@@ -442,8 +448,10 @@ class Schema:
             return "binary"
         elif t in [dict, list]:
             return "complex"
-        elif t is Decimal:
+        elif issubclass(t, Decimal):
             return "decimal"
+        elif issubclass(t, datetime.datetime):
+            return "timestamp"
         else:
             return "text"
 
@@ -544,6 +552,12 @@ class Schema:
 
 class SchemaException(DltException):
     pass
+
+
+class InvalidSchemaName(SchemaException):
+    def __init__(self, name: str) -> None:
+        self.name = name
+        super().__init__(f"{name} is invalid schema name. Only lowercase letters are allowed. Try {normalize_schema_name(name)} instead")
 
 
 class CannotCoerceColumnException(SchemaException):

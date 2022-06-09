@@ -46,13 +46,12 @@ def modify_and_commit_file(repo_path: str, file_name: str, content: str = "NEW R
 
 def setup_runner(dest_schema_prefix: str, override_values: StrAny = None) -> None:
     clean_storage()
-    runner.CONFIG = gen_configuration_variant(initial_values=override_values)
+    C = gen_configuration_variant(initial_values=override_values)
     # set unique dest schema prefix by default
-    runner.CONFIG.DEST_SCHEMA_PREFIX = dest_schema_prefix
-    runner.CONFIG.PACKAGE_RUN_PARAMS = ["--fail-fast", "--full-refresh"]
+    C.DEST_SCHEMA_PREFIX = dest_schema_prefix
+    C.PACKAGE_RUN_PARAMS = ["--fail-fast", "--full-refresh"]
     # override values including the defaults above
     if override_values:
         for k,v in override_values.items():
-            setattr(runner.CONFIG, k, v)
-    runner.storage, runner.dbt_package_vars, runner.global_args, runner.repo_path, runner.profile_name  = runner.create_folders()
-    runner.model_elapsed_gauge, runner.model_exec_info = runner.create_gauges(CollectorRegistry(auto_describe=True))
+            setattr(C, k, v)
+    runner.configure(C, CollectorRegistry(auto_describe=True))

@@ -1,34 +1,16 @@
 import pytest
+from dlt.common.sources import DLT_METADATA_FIELD, with_table_name
 
 from dlt.common.utils import digest128, uniq_id
 from dlt.common.schema import Schema
 
-from dlt.common.parser import _fix_field_name, _flatten, _get_child_row_hash, _unpack_row, extract
+from dlt.common.parser import _flatten, _get_child_row_hash, _unpack_row, extract
 
 from tests.utils import create_schema_with_name
 
 @pytest.fixture
 def schema() -> Schema:
     return Schema("default")
-
-
-def test_fix_field_name() -> None:
-    assert _fix_field_name("event_value") == "event_value"
-    assert _fix_field_name("event value") == "event_value"
-    assert _fix_field_name("event-.!:value") == "event_value"
-    # remove leading digits
-    assert _fix_field_name("1event_n'") == "_event_n_"
-    assert _fix_field_name("123event_n'") == "_event_n_"
-    # all lowercase and converted to snake
-    assert _fix_field_name("123BaNaNa") == "_ba_na_na"
-    # consecutive capital letters
-    assert _fix_field_name("BANANA") == "banana"
-    assert _fix_field_name("BAN_ANA") == "ban_ana"
-    assert _fix_field_name("BANaNA") == "ba_na_na"
-
-
-def test_normalizes_underscores() -> None:
-    assert _fix_field_name("event__value_value2____") == "event_value_value2_"
 
 
 def test_flatten_fix_field_name() -> None:
@@ -272,7 +254,7 @@ def test_preserves_complex_types_list(schema: Schema) -> None:
     assert rows[-1][1]["value"] == row["value"]
 
 
-def test_extract_with_event_type() -> None:
+def test_extract_with_table_name_meta() -> None:
     row = {
         "id": "817949077341208606",
         "type": 4,
@@ -284,13 +266,14 @@ def test_extract_with_event_type() -> None:
         "permission_overwrites": []
     }
     # force table name
-    row["_event_type"] = "channel"
-    rows = list(extract(create_schema_with_name("discord"), row, "load_id", add_json=False))
+    rows = list(
+        extract(create_schema_with_name("discord"), with_table_name(row, "channel"), "load_id", add_json=False)
+    )
     # table is channel
     assert rows[0][0] == "channel"
     unpacked_row = rows[0][1]
-    # _event_type must be removed
-    assert "_event_type" not in unpacked_row
+    # __dlt_meta must be removed must be removed
+    assert DLT_METADATA_FIELD not in unpacked_row
     assert unpacked_row["guild_id"] == "815421435900198962"
     assert "_record_hash" in unpacked_row
     assert unpacked_row["_load_id"] == "load_id"
