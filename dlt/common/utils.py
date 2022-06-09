@@ -1,6 +1,6 @@
 import hashlib
 from os import environ
-from uuid import uuid4
+import secrets
 from typing import Any, Iterator, Sequence, TypeVar, Mapping, List, Union
 
 from dlt.common.typing import StrAny, DictStrAny, StrStr
@@ -14,7 +14,7 @@ def chunks(list: Sequence[T], n: int) -> Iterator[Sequence[T]]:
 
 
 def uniq_id() -> str:
-    return uuid4().hex
+    return secrets.token_hex(16)
 
 
 def digest128(v: str) -> str:

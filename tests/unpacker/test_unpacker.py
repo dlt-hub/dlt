@@ -177,7 +177,7 @@ def test_unpack_many_events_insert(raw_unpacker: FileStorage) -> None:
 def test_unpack_many_schemas(raw_unpacker: FileStorage) -> None:
     unpacker.load_storage.writer_type = unpacker.CONFIG.WRITER_TYPE = "insert_values"
     copy_cases(["event_many_load_2", "event_user_load_1", "ethereum_blocks_9c1d9b504ea240a482b007788d5cd61c_2"])
-    unpacker.unpack(ThreadPool())
+    unpacker.unpack(ThreadPool(processes=4))
     # must have two loading groups with model and event schemas
     loads = unpacker.load_storage.list_loads()
     assert len(loads) == 2
