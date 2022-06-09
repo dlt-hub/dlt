@@ -199,7 +199,7 @@ def spool_schema_files(pool: ProcessPool, schema_name: str, files: Sequence[str]
     return load_id
 
 
-def run(pool: ProcessPool) -> TRunMetrics:
+def unpack(pool: ProcessPool) -> TRunMetrics:
     logger.info(f"Running file unpacking")
     # list files and group by schema name, list must be sorted for group by to actually work
     files = unpack_storage.list_files_to_unpack_sorted()
@@ -214,7 +214,7 @@ def run(pool: ProcessPool) -> TRunMetrics:
     return TRunMetrics(False, False, len(unpack_storage.list_files_to_unpack_sorted()))
 
 
-def configure(C: Type[UnpackerConfiguration], collector: CollectorRegistry, extract_f: TExtractFunc, default_schemas_path: str = None, schema_names: List[str] = None) -> bool:
+def configure(C: Type[UnpackerConfiguration], collector: CollectorRegistry, extract_f: TExtractFunc, default_schemas_path: str = None, schema_names: List[str] = None) -> None:
     global CONFIG
     global unpack_storage, load_storage, schema_storage, load_schema_storage
     global event_counter, event_gauge, schema_version_gauge, load_package_counter
@@ -223,27 +223,31 @@ def configure(C: Type[UnpackerConfiguration], collector: CollectorRegistry, extr
     CONFIG = C
     # set extracting parser function
     extract_func = extract_f
+    # setup singletons
+    unpack_storage, load_storage, schema_storage, load_schema_storage = create_folders()
     try:
-        unpack_storage, load_storage, schema_storage, load_schema_storage = create_folders()
         event_counter, event_gauge, schema_version_gauge, load_package_counter = create_gauges(collector)
-        if default_schemas_path and schema_names:
-            install_schemas(default_schemas_path, schema_names)
-        return True
-    except Exception:
-        process_internal_exception("init module")
-        return False
+    except ValueError as v:
+        # ignore re-creation of gauges
+        if "Duplicated timeseries" not in str(v):
+            raise
+    if default_schemas_path and schema_names:
+        install_schemas(default_schemas_path, schema_names)
 
 
-def main(extract_f: TExtractFunc, default_schemas_path: str = None, schema_names: List[str] = None) -> None:
+def main(args: TRunArgs, extract_f: TExtractFunc, default_schemas_path: str = None, schema_names: List[str] = None) -> int:
     # initialize runner
     C = configuration()
-    parser = create_default_args(C)
-    args = parser.parse_args()
-    initialize_runner(C, TRunArgs(args.single_run, args.wait_runs))
-    if not configure(C, REGISTRY, extract_f, default_schemas_path, schema_names):
-        exit(-1)
-    # run
-    exit(pool_runner(C, run))
+    initialize_runner(C, args)
+    # create objects and gauges
+    try:
+        configure(C, REGISTRY, extract_f, default_schemas_path, schema_names)
+    except Exception:
+        process_internal_exception("init module")
+        return -1
+    # unpack
+    return pool_runner(C, unpack)
 
-if __name__ == '__main__':
-    main(extract)
+
+def run_main(args: TRunArgs) -> None:
+    exit(main(args, extract))
