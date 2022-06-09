@@ -88,8 +88,8 @@ def _init_logging(logger_name: str, level: str, format: str, component: str, ver
         logger = logging.getLogger(DLT_LOGGER_NAME)
         logger.propagate = False
         logger.setLevel(level)
-        handler = logging.StreamHandler()
-        # handler.setFormatter(_MetricsFormatter(fmt=format, style='{'))
+        # get or create logging handler
+        handler = next(iter(logger.handlers), logging.StreamHandler())
         logger.addHandler(handler)
 
     # set right formatter
@@ -142,8 +142,6 @@ class _SentryHttpTransport(HttpTransport):
 
 def _init_sentry(config: Type[BasicConfiguration], version: StrStr) -> None:
     if config.SENTRY_DSN:
-        global sentry_client
-
         sys_ver = version["version"]
         release = sys_ver + "_" + version.get("commit_sha", "")
         _SentryHttpTransport.timeout = config.REQUEST_TIMEOUT[0]
@@ -169,22 +167,22 @@ def init_telemetry(config: Type[BasicConfiguration]) -> None:
         Info("runs_component_name", "Name of the executing component").info(_extract_version_info(config))
 
 
-def init_logging_from_config(config: Type[BasicConfiguration]) -> None:
+def init_logging_from_config(C: Type[BasicConfiguration]) -> None:
     global LOGGER
 
     # add HEALTH and METRICS log levels
-    _add_logging_level("HEALTH", logging.WARNING - 1, "health")
-    _add_logging_level("METRICS", logging.WARNING - 2, "metrics")
+    if not hasattr(logging, "health"):
+        _add_logging_level("HEALTH", logging.WARNING - 1, "health")
+        _add_logging_level("METRICS", logging.WARNING - 2, "metrics")
 
-    version = _extract_version_info(config)
+    version = _extract_version_info(C)
     LOGGER = _init_logging(
         DLT_LOGGER_NAME,
-        # "root",
-        config.LOG_LEVEL,
-        config.LOG_FORMAT,
-        config.NAME,
+        C.LOG_LEVEL,
+        C.LOG_FORMAT,
+        C.NAME,
         version)
-    _init_sentry(config, version)
+    _init_sentry(C, version)
 
 
 def is_json_logging(log_format: str) -> bool:
