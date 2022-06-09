@@ -171,17 +171,33 @@ def run(_: None) -> TRunMetrics:
         raise
 
 
-if __name__ == '__main__':
-    CONFIG = gen_configuration_variant()
-    parser = create_default_args(CONFIG)
-    args = parser.parse_args()
-    # we should force single run
-    initialize_runner(CONFIG, TRunArgs(args.single_run, args.wait_runs))
+def configure(C: Type[DBTRunnerConfiguration], collector: CollectorRegistry) -> None:
+    global CONFIG
+    global storage, dbt_package_vars, global_args, repo_path, profile_name
+    global model_elapsed_gauge, model_exec_info
+
+    CONFIG = C
+    storage, dbt_package_vars, global_args, repo_path, profile_name = create_folders()
     try:
-        storage, dbt_package_vars, global_args, repo_path, profile_name = create_folders()
         model_elapsed_gauge, model_exec_info = create_gauges(REGISTRY)
+    except ValueError as v:
+        # ignore re-creation of gauges
+        if "Duplicated timeseries" not in str(v):
+            raise
+
+
+def main(args: TRunArgs) -> int:
+    C = gen_configuration_variant()
+    # we should force single run
+    initialize_runner(C, args)
+    try:
+        configure(C, REGISTRY)
     except Exception:
         process_internal_exception("init module")
-        exit(-1)
+        return -1
 
-    exit(pool_runner(CONFIG, run))
+    return pool_runner(C, run)
+
+
+def run_main(args: TRunArgs) -> None:
+    exit(main(args))
