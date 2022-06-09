@@ -259,7 +259,7 @@ class Pipeline:
                     with_table_name(i, default_table_name)
 
             load_id = uniq_id()
-            self.extractor_storage.storage.save(f"{load_id}.json", json.dumps(items))
+            self.extractor_storage.save_json(f"{load_id}.json", items)
             self.extractor_storage.commit_events(
                 self.pipeline_name,
                 self.extractor_storage.storage._make_path(f"{load_id}.json"),

@@ -1,6 +1,6 @@
 import hashlib
 from os import environ
-from uuid import uuid4
+import secrets
 from typing import Any, Iterator, Sequence, TypeVar, Mapping, List, Union
 
 from dlt.common.typing import StrAny, DictStrAny, StrStr
@@ -14,7 +14,7 @@ def chunks(list: Sequence[T], n: int) -> Iterator[Sequence[T]]:
 
 
 def uniq_id() -> str:
-    return uuid4().hex
+    return secrets.token_hex(16)
 
 
 def digest128(v: str) -> str:
@@ -51,7 +51,7 @@ def flatten_list_of_str_or_dicts(seq: Sequence[Union[StrAny, str]]) -> StrAny:
     """
     o: DictStrAny = {}
     for e in seq:
-        if type(e) is dict:
+        if isinstance(e, dict):
             for k,v in e.items():
                 if k in o:
                     raise KeyError(f"Cannot flatten with duplicate key {k}")
@@ -70,7 +70,7 @@ def flatten_dicts_of_dicts(dicts: Mapping[str, Any]) -> Sequence[Any]:
     """
     o: List[Any] = []
     for k, v in dicts.items():
-        if type(v) is list:
+        if isinstance(v, list):
             # if v is a list then add "key" to each list element
             for lv in v:
                 lv["key"] = k

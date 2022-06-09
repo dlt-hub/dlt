@@ -4,6 +4,9 @@
 
 [![PyPI version](https://badge.fury.io/py/python-dlt.svg)](https://pypi.org/project/python-dlt/)
 [![LINT Badge](https://github.com/scale-vector/dlt/actions/workflows/lint.yml/badge.svg)](https://github.com/scale-vector/dlt/actions/workflows/lint.yml)
+[![TEST COMMON Badge](https://github.com/scale-vector/dlt/actions/workflows/test_common.yml/badge.svg)](https://github.com/scale-vector/dlt/actions/workflows/test_common.yml)
+[![TEST REDSHIFT Badge](https://github.com/scale-vector/dlt/actions/workflows/test_loader_redshift.yml/badge.svg)](https://github.com/scale-vector/dlt/actions/workflows/test_loader_redshift.yml)
+[![TEST GCP Badge](https://github.com/scale-vector/dlt/actions/workflows/test_loader_gcp.yml/badge.svg)](https://github.com/scale-vector/dlt/actions/workflows/test_loader_gcp.yml)
 
 </p>
 
@@ -37,14 +40,14 @@ In order to facilitate this, DLT includes several features
 
 ### 2. Safe, scalable loading
 
-When we load data, many things can intrerupt the process, so we want to make sure we can safely retry without generating artefacts in the data.
+When we load data, many things can intrrerupt the process, so we want to make sure we can safely retry without generating artefacts in the data.
 
 Additionally, it's not uncommon to not know the data size in advance, making it a challenge to match data size to loading infrastructure.
 
 With good pipelining design, safe loading becomes a non-issue.
 
 * Idempotency: The data pipeline supports idempotency on load, so no risk of data duplication.
-* Atomicity: The data is either loaded, or not. Partial loading occurs in the s3/storage buffer, which is then fully committed to warehouse/catalogue once finished. If something fails, the buffer is not partially-commited further.
+* Atomicity: The data is either loaded, or not. Partial loading occurs in the s3/storage buffer, which is then fully committed to warehouse/catalogue once finished. If something fails, the buffer is not partially-committed further.
 * Data-size agnostic: By using generators (like incremental downloading) and online storage as a buffer, it can incrementally process sources of any size without running into worker-machine size limitations.
 
 

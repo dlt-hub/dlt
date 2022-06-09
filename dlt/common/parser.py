@@ -51,7 +51,7 @@ def _flatten(table: str, dict_row: TEventRowChild) -> TEventRowChild:
         for k, v in dict_row.items():
             corrected_k = normalize_db_name(k)
             child_name = corrected_k if not parent_name else f'{parent_name}{PATH_SEPARATOR}{corrected_k}'
-            if type(v) is dict:
+            if isinstance(v, dict):
                 unpack_row_dicts(v, parent_name=child_name)
                 if _should_preserve_complex_value(table, child_name):
                     out_rec_row[child_name] = v  # type: ignore
@@ -111,16 +111,17 @@ def _unpack_row(
         extend["_root_hash"] = record_hash
 
     # generate child tables only for lists
-    children = [k for k in new_dict_row if type(new_dict_row[k]) is list]  # type: ignore
+    children = [k for k in new_dict_row if isinstance(new_dict_row[k], list)]  # type: ignore
     for k in children:
         child_table = f"{table}{PATH_SEPARATOR}{k}"
         # this will skip empty lists
         v: TEventRowChild
         for idx, v in enumerate(new_dict_row[k]):  # type: ignore
             # yield child table row
-            if type(v) is dict:
+            tv = type(v)
+            if tv is dict:
                 yield from _unpack_row(schema, v, extend, child_table, record_hash, idx)
-            elif type(v) is list:
+            elif tv is list:
                 # unpack lists of lists
                 raise ValueError(v)
             else:
