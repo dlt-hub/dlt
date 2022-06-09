@@ -4,7 +4,7 @@ from typing import Any, Callable, Iterable, Iterator, Literal, Optional, Sequenc
 try:
     from typing_extensions import ParamSpec
 except ImportError:
-    ParamSpec = lambda x: [x]
+    ParamSpec = lambda x: [x]  # type: ignore
 
 from dlt.common import logger
 from dlt.common.names import normalize_table_name

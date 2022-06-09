@@ -1,4 +1,4 @@
-from typing import Iterator, Union, cast, Sequence
+from typing import Any, Iterator, Union, cast, Sequence
 import requests
 
 from dlt.common.typing import DictStrAny
@@ -88,7 +88,8 @@ def _get_block(w3: Web3, current_block: int, chain_id: int) -> DictStrAny:
     # set explicit chain id
     block["chain_id"] = chain_id
     # get rid of AttributeDict (web3 didn't adopt TypedDict)
-    transactions: Sequence[DictStrAny] = [dict(tx) for tx in block["transactions"]]  # type: ignore
+    attr_txs = cast(Sequence[Any], block["transactions"])
+    transactions: Sequence[DictStrAny] = [dict(tx) for tx in attr_txs]
     for tx in transactions:
         if "accessList" in tx and len(tx["accessList"]) > 0:
             tx["accessList"] = [dict(al) for al in tx["accessList"]]
