@@ -1,4 +1,5 @@
 from typing import Dict, List, Sequence
+import os
 import pytest
 import shutil
 from fnmatch import fnmatch
@@ -8,18 +9,20 @@ from multiprocessing.dummy import Pool as ThreadPool
 from dlt.common import json
 from dlt.common.sources import with_table_name
 from dlt.common.utils import uniq_id
-from dlt.common.typing import TEvent
+from dlt.common.typing import StrAny, TEvent
 from dlt.common.parser import TUnpackedRowIterator, extract
 from dlt.common.file_storage import FileStorage
 from dlt.common.schema import DataType, Schema
 from dlt.common.storages.loader_storage import LoaderStorage
 from dlt.common.storages.unpacker_storage import UnpackerStorage
 from dlt.common.storages import SchemaStorage
+from dlt.extractors.extractor_storage import ExtractorStorageBase
 
 from dlt.unpacker import unpacker, __version__
+from tests.cases import JSON_TYPED_DICT, JSON_TYPED_DICT_TYPES
 
 from tests.unpacker.utils import json_case_path
-from tests.utils import assert_no_dict_key_starts_with, write_version, clean_storage, init_logger
+from tests.utils import TEST_STORAGE, assert_no_dict_key_starts_with, write_version, clean_storage, init_logger
 
 
 @pytest.fixture()
@@ -193,6 +196,23 @@ def test_unpack_many_schemas(raw_unpacker: FileStorage) -> None:
     assert set(schemas) == set(["ethereum", "event"])
 
 
+def test_unpack_typed_json(raw_unpacker: FileStorage) -> None:
+    unpacker.load_storage.writer_type = unpacker.CONFIG.WRITER_TYPE = "jsonl"
+    extract_items([JSON_TYPED_DICT], "special")
+    unpacker.unpack(ThreadPool())
+    loads = unpacker.load_storage.list_loads()
+    assert len(loads) == 1
+    schema_storage = SchemaStorage(unpacker.load_storage.storage.storage_path)
+    # load all schemas
+    schema = schema_storage.load_folder_schema(unpacker.load_storage.get_load_path(loads[0]))
+    assert schema.schema_name == "special"
+    # named as schema - default fallback
+    table = schema.get_table("special")
+    # assert inferred types
+    for k, v in JSON_TYPED_DICT_TYPES.items():
+        assert table[k]["data_type"] == v
+
+
 EXPECTED_ETH_TABLES = ["blocks", "blocks__transactions", "blocks__transactions__logs", "blocks__transactions__logs__topics",
                        "blocks__uncles", "blocks__transactions__access_list", "blocks__transactions__access_list__storage_keys"]
 
@@ -200,6 +220,18 @@ EXPECTED_USER_TABLES = ["event", "event_user", "event_user__parse_data__intent_r
          "event_user__parse_data__response_selector__default__ranking", "event_user__parse_data__response_selector__default__response__response_templates",
          "event_user__parse_data__response_selector__default__response__responses"]
 
+
+def extract_items(items: Sequence[StrAny], schema_name: str) -> None:
+    extractor = ExtractorStorageBase("1.0.0", True, FileStorage(os.path.join(TEST_STORAGE, "extractor"), makedirs=True), unpacker.unpack_storage)
+    load_id = uniq_id()
+    extractor.save_json(f"{load_id}.json", items)
+    extractor.commit_events(
+        schema_name,
+        extractor.storage._make_path(f"{load_id}.json"),
+        "items",
+        len(items),
+        load_id
+    )
 
 def unpack_event_user(case: str) -> None:
     load_id = unpack_cases([case])

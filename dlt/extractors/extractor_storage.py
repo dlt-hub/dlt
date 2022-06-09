@@ -1,5 +1,8 @@
 import semver
 
+from dlt.common import json
+from dlt.common.json import json_typed_dumps
+from dlt.common.typing import Any
 from dlt.common.utils import uniq_id
 from dlt.common.names import normalize_schema_name
 from dlt.common.file_storage import FileStorage
@@ -16,6 +19,10 @@ class ExtractorStorageBase(VersionedStorage):
         tf_name = uniq_id()
         self.storage.create_folder(tf_name)
         return tf_name
+
+    def save_json(self, name: str, d: Any) -> None:
+        # saves json using typed encoder
+        self.storage.save(name, json_typed_dumps(d))
 
     def commit_events(self, schema_name: str, processed_file_path: str, dest_file_stem: str, no_processed_events: int, load_id: str, with_delete: bool = True) -> str:
         # schema name cannot contain underscores

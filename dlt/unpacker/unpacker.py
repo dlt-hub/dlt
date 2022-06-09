@@ -5,6 +5,7 @@ from prometheus_client import Counter, CollectorRegistry, REGISTRY, Gauge
 from prometheus_client.metrics import MetricWrapperBase
 
 from dlt.common import pendulum, signals, json, logger
+from dlt.common.json import custom_pua_decode
 from dlt.common.runners import TRunArgs, TRunMetrics, create_default_args, pool_runner, initialize_runner
 from dlt.common.storages.unpacker_storage import UnpackerStorage
 from dlt.common.telemetry import get_logging_extras
@@ -94,6 +95,9 @@ def w_unpack_files(schema_name: str, load_id: str, events_files: Sequence[str]) 
                     row = schema.filter_row(table_name, row, PATH_SEPARATOR)
                     # do not process empty rows
                     if row:
+                        # decode pua types
+                        for k, v in row.items():
+                            row[k] = custom_pua_decode(v)  # type: ignore
                         # check if schema can be updated
                         row, table_update = schema.coerce_row(table_name, row)
                         if len(table_update) > 0:
