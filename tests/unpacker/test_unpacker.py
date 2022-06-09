@@ -39,7 +39,7 @@ def default_unpacker() -> FileStorage:
 
 def init_unpacker(default_schemas_path: str = None, schema_names: List[str] = None) -> FileStorage:
     storage = clean_storage()
-    unpacker.configure(unpacker.configuration(), CollectorRegistry(), _mock_rasa_extract, default_schemas_path, schema_names)
+    unpacker.configure(unpacker.configuration({"NAME": "test"}), CollectorRegistry(), _mock_rasa_extract, default_schemas_path, schema_names)
     # set jsonl as default writer
     unpacker.load_storage.writer_type = unpacker.CONFIG.WRITER_TYPE = "jsonl"
     return storage
@@ -256,6 +256,8 @@ def copy_cases(cases: Sequence[str]) -> None:
 
 def expect_load_package(load_id: str, expected_tables: Sequence[str]) -> Dict[str, str]:
     files = unpacker.load_storage.list_new_jobs(load_id)
+    print(files)
+    print(expected_tables)
     assert len(files) == len(expected_tables)
     ofl: Dict[str, str] = {}
     for expected_table in expected_tables:
@@ -282,4 +284,4 @@ def assert_timestamp_data_type(data_type: DataType) -> None:
 
 
 def test_version() -> None:
-    assert unpacker.configuration()._VERSION == __version__
+    assert unpacker.configuration({"NAME": "test"})._VERSION == __version__
