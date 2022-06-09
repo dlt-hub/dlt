@@ -177,7 +177,7 @@ def test_unpack_many_events_insert(raw_unpacker: FileStorage) -> None:
 def test_unpack_many_schemas(raw_unpacker: FileStorage) -> None:
     unpacker.load_storage.writer_type = unpacker.CONFIG.WRITER_TYPE = "insert_values"
     copy_cases(["event_many_load_2", "event_user_load_1", "ethereum_blocks_9c1d9b504ea240a482b007788d5cd61c_2"])
-    unpacker.unpack(ThreadPool(processes=4))
+    unpacker.unpack(ThreadPool(processes=1))
     # must have two loading groups with model and event schemas
     loads = unpacker.load_storage.list_loads()
     assert len(loads) == 2
@@ -199,7 +199,7 @@ def test_unpack_many_schemas(raw_unpacker: FileStorage) -> None:
 def test_unpack_typed_json(raw_unpacker: FileStorage) -> None:
     unpacker.load_storage.writer_type = unpacker.CONFIG.WRITER_TYPE = "jsonl"
     extract_items([JSON_TYPED_DICT], "special")
-    unpacker.unpack(ThreadPool())
+    unpacker.unpack(ThreadPool(processes=1))
     loads = unpacker.load_storage.list_loads()
     assert len(loads) == 1
     schema_storage = SchemaStorage(unpacker.load_storage.storage.storage_path)
@@ -256,8 +256,6 @@ def copy_cases(cases: Sequence[str]) -> None:
 
 def expect_load_package(load_id: str, expected_tables: Sequence[str]) -> Dict[str, str]:
     files = unpacker.load_storage.list_new_jobs(load_id)
-    print(files)
-    print(expected_tables)
     assert len(files) == len(expected_tables)
     ofl: Dict[str, str] = {}
     for expected_table in expected_tables:

@@ -129,7 +129,7 @@ def map_parallel(pool: ProcessPool, schema_name: str, load_id: str, files: Seque
     # between processors
     configured_processes = pool._processes  # type: ignore
     chunk_files = UnpackerStorage.chunk_by_events(files, CONFIG.MAX_EVENTS_IN_CHUNK, configured_processes)
-    logger.info(f"map_parallel: Obtained {len(chunk_files)} processing chunks")
+    logger.info(f"Obtained {len(chunk_files)} processing chunks")
     param_chunk = [(schema_name, load_id, files) for files in chunk_files]
     return pool.starmap(w_unpack_files, param_chunk), chunk_files
 
@@ -138,7 +138,7 @@ def map_single(_: ProcessPool, schema_name: str, load_id: str, files: Sequence[s
     chunk_files = UnpackerStorage.chunk_by_events(files, CONFIG.MAX_EVENTS_IN_CHUNK, 1)
     # get in one chunk
     assert len(chunk_files) == 1
-    logger.info(f"map_single: Obtained {len(chunk_files)} processing chunks")
+    logger.info(f"Obtained {len(chunk_files)} processing chunks")
     return [w_unpack_files(schema_name, load_id, chunk_files[0])], chunk_files
 
 
