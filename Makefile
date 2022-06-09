@@ -37,8 +37,9 @@ dev: has-poetry
 	poetry install -E "postgres redshift dbt gcp"
 
 lint:
-	poetry run mypy --config-file mypy.ini dlt
-	# poetry run flake8 --max-line-length=200 dlt examples tests
+	./check-package.sh
+	poetry run mypy --config-file mypy.ini dlt examples
+	poetry run flake8 --max-line-length=200 examples
 	# $(MAKE) lint-security
 
 lint-security:
@@ -53,9 +54,12 @@ recreate-compiled-deps:
 	poetry export -f requirements.txt --output _gen_requirements.txt --without-hashes --extras gcp --extras redshift
 	grep `cat compiled_packages.txt` _gen_requirements.txt > compiled_requirements.txt
 
-publish-library:
+.PHONY: build-library
+build-library:
 	poetry version ${VERSION}
 	poetry build
+
+publish-library: build-library
 	poetry publish -u __token__
 
 build-image-tags:
@@ -65,7 +69,7 @@ build-image-tags:
 	@echo ${NAME}:${VERSION}
 
 build-image-no-version-tags:
-	poetry export -f requirements.txt --output _gen_requirements.txt --without-hashes --extras gcp --extras redshift
+	# poetry export -f requirements.txt --output _gen_requirements.txt --without-hashes --extras gcp --extras redshift
 	docker build -f deploy/dlt/Dockerfile --build-arg=COMMIT_SHA=${TAG} --build-arg=IMAGE_VERSION="${VERSION}" . -t ${IMG}
 
 build-image: build-image-no-version-tags
@@ -85,9 +89,9 @@ dbt-build-image-tags:
 	@echo ${DBT_VERSION_MM}
 	@echo ${DBT_VERSION}
 
-dbt-build-image:
-	poetry export -f requirements.txt --output _gen_requirements_dbt.txt --without-hashes --extras dbt
-	docker build -f dlt/dbt_runner/Dockerfile --build-arg=COMMIT_SHA=${TAG} --build-arg=IMAGE_VERSION="${DBT_VERSION}" . -t ${DBT_IMG}
+dbt-build-image: build-library
+	# poetry export -f requirements.txt --output _gen_requirements_dbt.txt --without-hashes --extras dbt
+	docker build -f deploy/dbt_runner/Dockerfile --build-arg=COMMIT_SHA=${TAG} --build-arg=IMAGE_VERSION="${DBT_VERSION}" --build-arg=DLT_VERSION="${VERSION}" . -t ${DBT_IMG}
 	docker tag ${DBT_IMG} ${DBT_LATEST}
 	docker tag ${DBT_IMG} ${DBT_NAME}:${DBT_VERSION_MM}
 	docker tag ${DBT_IMG} ${DBT_NAME}:${DBT_VERSION}

@@ -6,6 +6,6 @@ pipeline = Pipeline("ethereum")
 pipeline.create_pipeline(credentials)
 schema = Pipeline.load_schema_from_file("examples/schemas/ethereum_schema.yml")
 # set the loaded schema for the whole pipeline
-pipeline.set_current_schema(schema)
+pipeline.set_default_schema(schema)
 # will sync schema with the target
 pipeline.sync_schema()

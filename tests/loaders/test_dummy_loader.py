@@ -190,7 +190,7 @@ def test_failed_loop() -> None:
 def test_completed_loop_with_delete_completed() -> None:
     setup_loader({"COMPLETED_PROB": 1.0})
     loader.CONFIG.DELETE_COMPLETED_JOBS = True
-    loader.load_storage = loader.create_folders()
+    loader.load_storage = loader.create_folders(is_storage_owner=False)
     assert_complete_job(loader.load_storage.storage, should_delete_completed=True)
 
 
@@ -201,22 +201,22 @@ def test_retry_on_new_loop() -> None:
         ["event_user.839c6e6b514e427687586ccc65bf133f.jsonl",
         "event_loop_interrupted.839c6e6b514e427687586ccc65bf133f.jsonl"]
     )
-    loader.run(ThreadPool())
+    loader.load(ThreadPool())
     files = loader.load_storage.list_new_jobs(load_id)
     assert len(files) == 2
     # one job will be completed
     # print(list(client.JOBS.keys()))
     # client.JOBS["event_user.839c6e6b514e427687586ccc65bf133f.jsonl"].retry_prob = 0
     # client.JOBS["event_user.839c6e6b514e427687586ccc65bf133f.jsonl"].completed_prob = 1.0
-    loader.run(ThreadPool())
+    loader.load(ThreadPool())
     files = loader.load_storage.list_new_jobs(load_id)
     assert len(files) == 2
     # jobs will be completed
     setup_loader({"COMPLETED_PROB" : 1.0})
-    loader.run(ThreadPool())
+    loader.load(ThreadPool())
     files = loader.load_storage.list_new_jobs(load_id)
     assert len(files) == 0
-    loader.run(ThreadPool())
+    loader.load(ThreadPool())
     assert not loader.load_storage.storage.has_folder(loader.load_storage.get_load_path(load_id))
 
 
@@ -227,7 +227,7 @@ def test_wrong_writer_type() -> None:
         "event_user.b1d32c6660b242aaabbf3fc27245b7e6.insert_values"]
     )
     with pytest.raises(JobWithUnsupportedWriterException) as exv:
-        loader.run(ThreadPool())
+        loader.load(ThreadPool())
     assert exv.value.load_id == load_id
 
 
@@ -251,11 +251,11 @@ def assert_complete_job(storage: FileStorage, should_delete_completed: bool = Fa
     )
     # will complete all jobs
     with patch.object(client.DummyClient, "complete_load") as complete_load:
-        loader.run(ThreadPool())
+        loader.load(ThreadPool())
         # did process schema update
         assert storage.has_file(loader.load_storage._get_file_path(load_id, LoaderStorage.COMPLETED_JOBS_FOLDER, LoaderStorage.LOAD_SCHEMA_UPDATE_FILE_NAME))
         # will finalize the whole package
-        loader.run(ThreadPool())
+        loader.load(ThreadPool())
         # moved to loaded
         assert not storage.has_folder(loader.load_storage.get_load_path(load_id))
         archived_path = loader.load_storage.get_archived_path(load_id)
@@ -292,10 +292,6 @@ def setup_loader(initial_values: StrAny = None) -> None:
     if initial_values:
         default_values.update(initial_values)
     # setup loader
-    loader.CONFIG = configuration(initial_values=default_values)
-    # import dummy client module
-    loader.client_module = loader.client_impl(loader.CONFIG.CLIENT_TYPE)
-    loader.load_storage = loader.create_folders()
-    loader.load_counter, loader.job_gauge, loader.job_counter, loader.job_wait_summary = loader.create_gauges(CollectorRegistry(auto_describe=True))
+    loader.configure(configuration(initial_values=default_values), CollectorRegistry(auto_describe=True))
     # reset jobs for a test
     client.JOBS = {}

@@ -1,4 +1,3 @@
-# Python 3.8 required
 FROM alpine:3.15
 
 # Metadata
@@ -38,6 +37,8 @@ ENV COMMIT_SHA=${COMMIT_SHA}
 ENV IMAGE_VERSION=${IMAGE_VERSION}
 
 # install exactly the same version of the library we used to build
-RUN pip3 install python-dlt==${IMAGE_VERSION}[gcp,redshift]
+COPY dist/python-dlt-${IMAGE_VERSION}.tar.gz .
+RUN pip3 install /tmp/pydlt/python-dlt-${IMAGE_VERSION}.tar.gz[gcp,redshift]
 
+WORKDIR /
 RUN rm -r /tmp/pydlt

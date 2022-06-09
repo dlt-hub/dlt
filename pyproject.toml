@@ -1,10 +1,10 @@
 [tool.poetry]
 name = "python-dlt"
-version = "0.1.0.dev0"
+version = "0.1.0rc1"
 description = "DLT is an open-source python-native scalable data loading framework that does not require any devops efforts to run."
 authors = ["ScaleVector <services@scalevector.ai>"]
 maintainers = [ "Marcin Rudolf <marcin@scalevector.ai>", "Adrian Brudaru <adrian@scalevector.ai>",]
-readme = "README.md"
+readme = "QUICKSTART.md"
 license = "Apache-2.0"
 homepage = "https://github.com/scale-vector"
 repository = "https://github.com/scale-vector/dlt"
@@ -16,9 +16,10 @@ classifiers = [
     "Operating System :: MacOS :: MacOS X",
     "Operating System :: POSIX :: Linux",]
 keywords = [ "etl" ]
-include = [ "LICENSE.txt", "README.md"]
+include = [ "LICENSE.txt", "QUICKSTART.md", "examples/schemas/*.yml", "examples/schemas/data/*"]
 packages = [
     { include = "dlt" },
+    { include = "examples" },
 ]
 
 [tool.poetry.dependencies]
@@ -35,15 +36,15 @@ sentry-sdk = "^1.4.3"
 hexbytes = "^0.2.2"
 cachetools = "^5.2.0"
 
-psycopg2-binary = {version = "^2.9.1", optional = true, extras = ["redshift", "postgres"]}
+psycopg2-binary = {version = "^2.9.1", optional = true}
 
-grpcio = {version = "1.43.0", optional = true, extras = ["gcp"]}
-google-cloud-bigquery = {version = "^2.26.0", optional = true, extras = ["gcp"]}
+grpcio = {version = "1.43.0", optional = true}
+google-cloud-bigquery = {version = "^2.26.0", optional = true}
 
-GitPython = {version = "^3.1.26", optional = true, extras = ["dbt"]}
-dbt-core = {version = "1.0.6", optional = true, extras = ["dbt"]}
-dbt-redshift = {version = "1.0.1", optional = true, extras = ["dbt"]}
-dbt-bigquery = {version = "1.0.0", optional = true, extras = ["dbt"]}
+GitPython = {version = "^3.1.26", optional = true}
+dbt-core = {version = "1.0.6", optional = true}
+dbt-redshift = {version = "1.0.1", optional = true}
+dbt-bigquery = {version = "1.0.0", optional = true}
 
 
 [tool.poetry.dev-dependencies]
@@ -68,6 +69,9 @@ dbt = ["dbt-core", "GitPython", "dbt-redshift", "dbt-bigquery"]
 gcp = ["grpcio", "google-cloud-bigquery"]
 postgres = ["psycopg2-binary"]
 redshift = ["psycopg2-binary"]
+
+[tool.poetry.scripts]
+dlt = "dlt.cli.dlt:main"
 
 [build-system]
 requires = ["poetry-core>=1.0.8"]

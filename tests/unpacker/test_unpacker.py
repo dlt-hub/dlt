@@ -6,6 +6,7 @@ from prometheus_client import CollectorRegistry
 from multiprocessing.dummy import Pool as ThreadPool
 
 from dlt.common import json
+from dlt.common.sources import with_table_name
 from dlt.common.utils import uniq_id
 from dlt.common.typing import TEvent
 from dlt.common.parser import TUnpackedRowIterator, extract
@@ -46,10 +47,10 @@ def _mock_rasa_extract(schema: Schema, source_event: TEvent, load_id: str, add_j
         # this emulates rasa parser on standard parser
         event = {"sender_id": source_event["sender_id"], "timestamp": source_event["timestamp"]}
         yield from extract(schema, event, load_id, add_json)
-        # will generate tables properly
-        source_event["_event_type"] = "event_" + source_event["event"]
+        # add table name which is "event" field in RASA OSS
+        with_table_name(source_event, "event_" + source_event["event"])
 
-    # yield main record
+    # will generate tables properly
     yield from extract(schema, source_event, load_id, add_json)
 
 
@@ -173,7 +174,7 @@ def test_unpack_many_events_insert(raw_unpacker: FileStorage) -> None:
 def test_unpack_many_schemas(raw_unpacker: FileStorage) -> None:
     unpacker.load_storage.writer_type = unpacker.CONFIG.WRITER_TYPE = "insert_values"
     copy_cases(["event_many_load_2", "event_user_load_1", "ethereum_blocks_9c1d9b504ea240a482b007788d5cd61c_2"])
-    unpacker.run(ThreadPool())
+    unpacker.unpack(ThreadPool())
     # must have two loading groups with model and event schemas
     loads = unpacker.load_storage.list_loads()
     assert len(loads) == 2

@@ -42,8 +42,8 @@ def supported_writer() -> TWriterType:
     return client_module.supported_writer(CONFIG)  # type: ignore
 
 
-def create_folders() -> LoaderStorage:
-    load_storage = LoaderStorage(False, CONFIG, supported_writer())
+def create_folders(is_storage_owner: bool) -> LoaderStorage:
+    load_storage = LoaderStorage(is_storage_owner, CONFIG, supported_writer())
     load_storage.initialize_storage()
     return load_storage
 
@@ -165,7 +165,7 @@ def complete_jobs(load_id: str, jobs: List[LoadJob]) -> List[LoadJob]:
 
 
 
-def run(pool: ThreadPool) -> TRunMetrics:
+def load(pool: ThreadPool) -> TRunMetrics:
     logger.info(f"Running file loading")
     # get list of loads and order by name ASC to execute schema updates
     loads = load_storage.list_loads()
@@ -223,16 +223,33 @@ def run(pool: ThreadPool) -> TRunMetrics:
     return TRunMetrics(False, False, len(load_storage.list_loads()))
 
 
-if __name__ == '__main__':
-    CONFIG = configuration()
-    parser = create_default_args(CONFIG)
-    args = parser.parse_args()
-    initialize_runner(CONFIG, TRunArgs(args.single_run, args.wait_runs))
+def configure(C: Type[LoaderConfiguration], collector: CollectorRegistry, is_storage_owner: bool = False) -> None:
+    global CONFIG
+    global client_module, load_storage
+    global load_counter, job_gauge, job_counter, job_wait_summary
+
+    CONFIG = C
+    client_module = client_impl(C.CLIENT_TYPE)
+    load_storage = create_folders(is_storage_owner)
     try:
-        client_module = client_impl(CONFIG.CLIENT_TYPE)
-        load_counter, job_gauge, job_counter, job_wait_summary = create_gauges(REGISTRY)
-        load_storage = create_folders()
+        load_counter, job_gauge, job_counter, job_wait_summary = create_gauges(collector)
+    except ValueError as v:
+        # ignore re-creation of gauges
+        if "Duplicated timeseries" not in str(v):
+            raise
+
+
+
+def main(args: TRunArgs) -> int:
+    C = configuration()
+    initialize_runner(C, args)
+    try:
+        configure(C, REGISTRY)
     except Exception:
         process_internal_exception("run")
-        exit(-1)
-    exit(pool_runner(CONFIG, run))
+        return -1
+    return pool_runner(C, load)
+
+
+def run_main(args: TRunArgs) -> None:
+    exit(main(args))

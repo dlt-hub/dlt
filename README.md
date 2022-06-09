@@ -14,6 +14,8 @@ DLT is an open-source python-native scalable data loading framework that does no
 
 ## [Quickstart guide](QUICKSTART.md)
 
+## [Example Sources](examples/README.md)
+
 ## How does it work?
 
 DLT aims to simplify data loading for everyone.
@@ -31,7 +33,7 @@ Usually, the source metadata is lacking, so we need to look at the actual data t
 In order to facilitate this, DLT includes several features
 * Auto-unpack nested json if desired
 * generate an inferred schema with data types and load data as-is for inspection in your warehouse.
-* Use an ajusted schema for follow up loads, to better type and filter your data after visual inspection (this also solves dynamic typing of Pandas dfs)
+* Use an adjusted schema for follow up loads, to better type and filter your data after visual inspection (this also solves dynamic typing of Pandas dfs)
 
 ### 2. Safe, scalable loading
 

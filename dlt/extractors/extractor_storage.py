@@ -1,6 +1,7 @@
 import semver
 
 from dlt.common.utils import uniq_id
+from dlt.common.names import normalize_schema_name
 from dlt.common.file_storage import FileStorage
 from dlt.common.storages.versioned_storage import VersionedStorage
 from dlt.common.storages.unpacker_storage import UnpackerStorage
@@ -18,7 +19,7 @@ class ExtractorStorageBase(VersionedStorage):
 
     def commit_events(self, schema_name: str, processed_file_path: str, dest_file_stem: str, no_processed_events: int, load_id: str, with_delete: bool = True) -> str:
         # schema name cannot contain underscores
-        if "_" in schema_name:
+        if schema_name != normalize_schema_name(schema_name):
             raise ValueError(schema_name)
 
         dest_name = UnpackerStorage.build_unpack_file_name(schema_name, dest_file_stem, no_processed_events, load_id)

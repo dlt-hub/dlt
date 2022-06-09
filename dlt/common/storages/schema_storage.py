@@ -32,6 +32,10 @@ class SchemaStorage:
         schema_file = self._get_file_by_name(schema.schema_name)
         return self.storage.save(schema_file, dump)
 
+    def remove_store_schema(self, name: str) -> None:
+        schema_file = self._get_file_by_name(name)
+        self.storage.delete(schema_file)
+
     def save_folder_schema(self, schema: Schema, in_folder: str) -> str:
         # save a schema to a folder holding one schema
         dump = json.dumps(schema.to_dict())

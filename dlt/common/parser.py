@@ -1,23 +1,40 @@
-import re
-from typing import Iterator, Optional, Tuple, Callable, cast
+from typing import Iterator, Optional, Tuple, Callable, cast, TypedDict, Any
 
 from dlt.common import json
 from dlt.common.schema import Schema
 from dlt.common.utils import uniq_id, digest128
-from dlt.common.typing import TEvent, TEventRowChild, TEventRowRoot, StrAny
+from dlt.common.typing import TEvent, StrAny
+from dlt.common.names import normalize_db_name
+from dlt.common.sources import DLT_METADATA_FIELD, TEventDLTMeta, get_table_name
+
+
+class TEventRow(TypedDict, total=False):
+    _timestamp: float  # used for partitioning
+    _dist_key: str  # distribution key used for clustering
+    _record_hash: str  # unique id of current row
+    _root_hash: str  # unique id of top level parent
+
+
+class TEventRowRoot(TEventRow, total=False):
+    _load_id: str  # load id to identify records loaded together that ie. need to be processed
+    _event_json: str  # dump of the original event
+    __dlt_meta: TEventDLTMeta  # stores metadata
+
+
+class TEventRowChild(TEventRow, total=False):
+    _parent_hash: str  # unique id of parent row
+    _pos: int  # position in the list of rows
+    value: Any  # for lists of simple types
 
 
 # I(table name, row data)
 TUnpackedRowIterator = Iterator[Tuple[str, StrAny]]
 TExtractFunc = Callable[[Schema, TEvent, str, bool], TUnpackedRowIterator]
 
-RE_UNDERSCORES = re.compile("_+")
-RE_LEADING_DIGITS = re.compile(r"^\d+")
-INVALID_SQL_IDENT_CHARS = "- *!:,.'\\\"`"
-INVALID_SQL_TX = str.maketrans(INVALID_SQL_IDENT_CHARS, "_" * len(INVALID_SQL_IDENT_CHARS))
 
 # subsequent nested fields will be separated with the string below, applies both to field and table names
 PATH_SEPARATOR = "__"
+
 
 # for those paths the complex nested objects should be left in place
 # current use case: we want to preserve event_slot__value in db even if it's an object
@@ -27,26 +44,12 @@ def _should_preserve_complex_value(table: str, field_name: str) -> bool:
     return path in ["event_slot__value"]
 
 
-def _fix_field_name(name: str) -> str:
-
-    def camel_to_snake(name: str) -> str:
-        name = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
-        return re.sub('([a-z0-9])([A-Z])', r'\1_\2', name).lower()
-
-    # fix field name so it's an acceptable name for a database column
-    # all characters that are not letters digits or a few special chars
-    name = camel_to_snake(name.translate(INVALID_SQL_TX))
-    name = RE_LEADING_DIGITS.sub("_", name)
-    # replace consecutive underscores with single one to prevent name clashes with parent child
-    return RE_UNDERSCORES.sub("_", name)
-
-
 def _flatten(table: str, dict_row: TEventRowChild) -> TEventRowChild:
     out_rec_row: TEventRowChild = {}
 
     def unpack_row_dicts(dict_row: StrAny, parent_name: Optional[str]) -> None:
         for k, v in dict_row.items():
-            corrected_k = _fix_field_name(k)
+            corrected_k = normalize_db_name(k)
             child_name = corrected_k if not parent_name else f'{parent_name}{PATH_SEPARATOR}{corrected_k}'
             if type(v) is dict:
                 unpack_row_dicts(v, parent_name=child_name)
@@ -141,7 +144,9 @@ def extract(schema: Schema, source_event: TEvent, load_id: str, add_json: bool) 
     if add_json:
         event["_event_json"] = json.dumps(event)
     # find table name
-    table_name = event.pop("_event_type", None) or schema.schema_name
+    table_name = get_table_name(event) or schema.schema_name
+    # drop dlt metadata before unpacking
+    event.pop(DLT_METADATA_FIELD, None)  # type: ignore
     # TODO: if table_name exist get "_dist_key" and "_timestamp" from the table definition in schema and propagate, if not take them from global hints
     # use event type or schema name as table name, request _root_hash propagation
     yield from _unpack_row(schema, cast(TEventRowChild, event), {"_root_hash": None}, table_name)

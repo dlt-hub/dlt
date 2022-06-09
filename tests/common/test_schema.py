@@ -6,7 +6,7 @@ import os
 from dlt.common import json, pendulum, Decimal
 from dlt.common.typing import StrAny
 from dlt.common.utils import uniq_id
-from dlt.common.schema import CannotCoerceColumnException, CannotCoerceNullException, Column, Schema, SchemaEngineNoUpgradePathException, StoredSchema, Table
+from dlt.common.schema import CannotCoerceColumnException, CannotCoerceNullException, Column, InvalidSchemaName, Schema, SchemaEngineNoUpgradePathException, StoredSchema, Table
 from dlt.common.storages import SchemaStorage
 from tests.common.utils import load_json_case
 
@@ -40,6 +40,12 @@ def test_new_schema(schema: Schema) -> None:
     assert "version" in tables["_version"]
     assert "_loads" in tables
     assert "load_id" in tables["_loads"]
+
+
+def test_invalid_schema_name() -> None:
+    with pytest.raises(InvalidSchemaName) as exc:
+        Schema("a_b")
+    assert exc.value.name == "a_b"
 
 
 @pytest.mark.parametrize("columns,hint,value", [

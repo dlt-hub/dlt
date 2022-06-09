@@ -74,12 +74,18 @@ def add_pool_cli_arguments(parser: argparse.ArgumentParser) -> None:
 def initialize_runner(C: Type[BasicConfiguration], run_args: Optional[TRunArgs] = None) -> None:
     global RUN_ARGS
 
-    init_logging_from_config(C)
-    init_telemetry(C)
-    create_gauges(REGISTRY)
-    register_signals()
     if run_args is not None:
         RUN_ARGS = run_args
+
+    # initialize or re-initialize logging with new settings
+    init_logging_from_config(C)
+
+    # initialize only once
+    if not HEALTH_PROPS_GAUGES:
+        init_telemetry(C)
+        create_gauges(REGISTRY)
+        register_signals()
+
 
 
 def pool_runner(C: Type[PoolRunnerConfiguration], run_f: Callable[[TPool], TRunMetrics]) -> int:
