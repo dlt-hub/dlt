@@ -97,10 +97,13 @@ In contast, DLT allows you to throw json or other iterable data into the databas
 
 DLT aims to make data pipelining as simple as possible by defaulting to simple loading.
 
-At the same time, it can also be configured for high parallelism, incremental loading, custom types, performance hints, keys, etc.
+At the same time, it can also be configured for high parallelism, incremental loading, custom types, performance hints, keys, filtering fields in/out, schema migration strategies, etc.
 
 It can also test the data or initiate a dbt package.
 
-In short, it allows the creation of scalable, elegant, commercial-grade pipelines with just a little bit of configuration.
+In short, DLT does not require any specialist knowledge to use
+
+Advanced, commercial-grade use of DLT requires only some configuration.
+
 
 
