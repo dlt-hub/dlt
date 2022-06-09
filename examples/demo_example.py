@@ -7,7 +7,7 @@
 
 from typing import Sequence
 
-from dlt.common.typing import StrAny
+from dlt.common.typing import DictStrAny
 from dlt.common import json
 from dlt.common.schema import Schema
 from dlt.pipeline import Pipeline
@@ -60,7 +60,7 @@ if __name__ == "__main__":
 
     # loading and error handling below:
 
-    def get_json_file_data(path: str) -> Sequence[StrAny]:
+    def get_json_file_data(path: str) -> Sequence[DictStrAny]:
         with open(path, "r") as f:
             data = json.load(f)
         return data  # type: ignore
@@ -95,24 +95,12 @@ if __name__ == "__main__":
     print(pipeline.root_path)
 
     # and extract it
-    m = pipeline.extract_iterator(parent_table, iter(data))
-
-    # please note that all pipeline methods that return TRunMetrics are atomic so
-    # - if m.has_failed is False the operation worked fully
-    # - if m.has_failed is False the operation failed fully and can be retried
-    if m.has_failed:
-        print("Extracting failed")
-        print(pipeline.last_run_exception)
-        exit(0)
+    pipeline.extract(iter(data), table_name=parent_table)
 
     # now create loading packages and infer the schema
-    m = pipeline.unpack()
-    if m.has_failed:
-        print("Unpacking failed")
-        print(pipeline.last_run_exception)
-        exit(0)
+    pipeline.unpack()
 
-    schema = pipeline.get_current_schema()
+    schema = pipeline.get_default_schema()
     schema_yaml = schema.as_yaml()
     f = open(data_schema_file_path, "a")
     f.write(schema_yaml)
@@ -125,20 +113,17 @@ if __name__ == "__main__":
     print(new_loads)
 
     # load packages
-    m = pipeline.load()
-    if m.has_failed:
-        print("Loading failed, fix the problem, restore the pipeline and run loading packages again")
-        print(pipeline.last_run_exception)
-    else:
-        # should be empty
-        new_loads = pipeline.list_unpacked_loads()
-        print(new_loads)
+    pipeline.load()
 
-        # now enumerate all complete loads if we have any failed packages
-        # complete but failed job will not raise any exceptions
-        completed_loads = pipeline.list_completed_loads()
-        # print(completed_loads)
-        for load_id in completed_loads:
-            print(f"Checking failed jobs in {load_id}")
-            for job, failed_message in pipeline.list_failed_jobs(load_id):
-                print(f"JOB: {job}\nMSG: {failed_message}")
+    # should be empty
+    new_loads = pipeline.list_unpacked_loads()
+    print(new_loads)
+
+    # now enumerate all complete loads if we have any failed packages
+    # complete but failed job will not raise any exceptions
+    completed_loads = pipeline.list_completed_loads()
+    # print(completed_loads)
+    for load_id in completed_loads:
+        print(f"Checking failed jobs in {load_id}")
+        for job, failed_message in pipeline.list_failed_jobs(load_id):
+            print(f"JOB: {job}\nMSG: {failed_message}")

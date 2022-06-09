@@ -1,6 +1,7 @@
+
 from dlt.common import json
 from dlt.common.schema import Schema
-from dlt.common.typing import DictStrAny, StrAny
+from dlt.common.typing import DictStrAny
 
 from dlt.pipeline import Pipeline, PostgresPipelineCredentials
 
@@ -15,8 +16,6 @@ from dlt.pipeline import Pipeline, PostgresPipelineCredentials
 
 # working BQ creds
 # credentials = Pipeline.load_gcp_credentials("_secrets/project1234_service.json", "gamma_guild")
-
-import multiprocessing
 
 if __name__ == '__main__':
     # working redshift creds, you can pass password as last parameter or via PG_PASSWORD env variable ie.
@@ -37,69 +36,47 @@ if __name__ == '__main__':
     with open("examples/data/channels.json", "r") as f:
         channels = json.load(f)
     # and extract it
-    m = pipeline.extract_iterator("channels", channels)
-    # please note that all pipeline methods that return TRunMetrics are atomic so
-    # - if m.has_failed is False the operation worked fully
-    # - if m.has_failed is False the operation failed fully and can be retried
-    if m.has_failed:
-        print("Extracting failed")
-        print(pipeline.last_run_exception)
-        exit(0)
-
+    pipeline.extract(channels, table_name="channels")
     # load list of messages
     with open("examples/data/messages.json", "r") as f:
         messages = json.load(f)
 
     # but we actually want to process messages before processing so pass mapping function instead
-    def processor(m: DictStrAny) -> StrAny:
+    def processor(m: DictStrAny) -> DictStrAny:
         if "referenced_message" in m and m["referenced_message"] is not None:
-            # embed references messages in a list so unpacker will produce a separate table to hold them
-            # instead of forcing it into messages table
-            m["referenced_message"] = [m["referenced_message"]]
+            # we do not want full entity for referenced message, just the id
+            m["referenced_message"] = m["referenced_message"]["id"]
 
         return m
 
     # pass mapping iterator over messages and extract
-    m = pipeline.extract_iterator("messages", map(processor, messages))
-    if m.has_failed:
-        print("Extracting failed")
-        print(pipeline.last_run_exception)
-        exit(0)
+    pipeline.extract(map(processor, messages), table_name="messages")
 
     # from now on each pipeline does more or less the same thing: unpack and load data
 
     # now create loading packages and infer the schema
-    m = pipeline.unpack()
-    if m.has_failed:
-        print("Unpacking failed")
-        print(pipeline.last_run_exception)
-        exit(0)
+    pipeline.unpack()
 
     # show loads, each load contains a copy of the schema that corresponds to the data inside
     # and a set of directories for job states (new -> in progress -> failed|completed)
     new_loads = pipeline.list_unpacked_loads()
-    print(new_loads)
 
     # get inferred schema
     # schema = pipeline.get_current_schema()
     # print(schema.as_yaml(remove_default_hints=True))
-    # pipeline.save_schema_to_file("examples/inferred_discord_schema.yml", schema)
 
     # load packages
-    m = pipeline.load()
-    if m.has_failed:
-        print("Loading failed, fix the problem, restore the pipeline and run loading packages again")
-        print(pipeline.last_run_exception)
-    else:
-        # should be empty
-        new_loads = pipeline.list_unpacked_loads()
-        print(new_loads)
+    pipeline.load()
 
-        # now enumerate all complete loads if we have any failed packages
-        # complete but failed job will not raise any exceptions
-        completed_loads = pipeline.list_completed_loads()
-        # print(completed_loads)
-        for load_id in completed_loads:
-            print(f"Checking failed jobs in {load_id}")
-            for job, failed_message in pipeline.list_failed_jobs(load_id):
-                print(f"JOB: {job}\nMSG: {failed_message}")
+    # should be empty
+    new_loads = pipeline.list_unpacked_loads()
+    print(new_loads)
+
+    # now enumerate all complete loads if we have any failed packages
+    # complete but failed job will not raise any exceptions
+    completed_loads = pipeline.list_completed_loads()
+    # print(completed_loads)
+    for load_id in completed_loads:
+        print(f"Checking failed jobs in {load_id}")
+        for job, failed_message in pipeline.list_failed_jobs(load_id):
+            print(f"JOB: {job}\nMSG: {failed_message}")

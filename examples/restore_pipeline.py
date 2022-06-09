@@ -16,31 +16,5 @@ if __name__ == '__main__':
     # do we have anything to unpack
     print(pipeline.list_extracted_loads())
 
-    # unpack
-    m = pipeline.unpack()
-    if m.has_failed:
-        print("Unpacking failed")
-        print(pipeline.last_run_exception)
-        exit(0)
-
-    # show loads to be loaded to target
-    print(pipeline.list_unpacked_loads())
-
-    # and finish up loading
-    m = pipeline.load()
-    if m.has_failed:
-        print("Loading failed, fix the problem, restore the pipeline and run loading packages again")
-        print(pipeline.last_run_exception)
-    else:
-        # should be empty
-        new_loads = pipeline.list_unpacked_loads()
-        print(new_loads)
-
-        # now enumerate all complete loads if we have any failed packages
-        # complete but failed job will not raise any exceptions
-        completed_loads = pipeline.list_completed_loads()
-        # print(completed_loads)
-        for load_id in completed_loads:
-            print(f"Checking failed jobs in {load_id}")
-            for job, failed_message in pipeline.list_failed_jobs(load_id):
-                print(f"JOB: {job}\nMSG: {failed_message}")
+    # just finalize
+    pipeline.flush()
