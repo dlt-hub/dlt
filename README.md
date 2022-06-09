@@ -78,6 +78,29 @@ DLT aims to bring loading into the hands of analysts with none of the unreasonab
 Additionally, the source schemas will be compatible across the community, creating the possiblity to share reusable analysis and modelling back to the open source community without creating tool-based vendor locks.
 
 
+## Why not an OOP framework?
 
+```
+import this
+```
+[The zen of python](!https://peps.python.org/pep-0020/#the-zen-of-python) and the idea of "pythonic" programming ask for simplicity.
+
+Data people operate at the intersection between business, mathematics and functional programming.
+
+Such, the learning curve to write OOP sources in a very complex SDK is too steep for all but the most tech-interested.
+
+In contast, DLT allows you to throw json or other iterable data into the database, with zero learning curve.
+
+## Why not something simpler?
+
+> “Everything should be as simple as it can be, but not simpler” – a scientist’s defense of art and knowledge – of lightness, completeness and accuracy.
+
+DLT aims to make data pipelining as simple as possible by defaulting to simple loading.
+
+At the same time, it can also be configured for high parallelism, incremental loading, custom types, performance hints, keys, etc.
+
+It can also test the data or initiate a dbt package.
+
+In short, it allows the creation of scalable, elegant, commercial-grade pipelines with just a little bit of configuration.
 
 
