@@ -21,7 +21,7 @@ def write_insert_values(f: IO[Any], rows: Sequence[StrAny], headers: Iterable[st
     f.write(")\nVALUES\n")
 
     def stringify(v: Any) -> str:
-        if type(v) is bytes:
+        if isinstance(v, bytes):
            return f"from_hex('{v.hex()}')"
         else:
             return str(v)
@@ -29,7 +29,7 @@ def write_insert_values(f: IO[Any], rows: Sequence[StrAny], headers: Iterable[st
     def write_row(row: StrAny) -> None:
         output = ["NULL" for _ in range(len(headers_lookup))]
         for n,v  in row.items():
-            output[headers_lookup[n]] = escape_redshift_literal(v) if type(v) is str else stringify(v)
+            output[headers_lookup[n]] = escape_redshift_literal(v) if isinstance(v, str) else stringify(v)
         f.write("(")
         f.write(",".join(output))
         f.write(")")

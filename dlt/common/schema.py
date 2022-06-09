@@ -125,7 +125,7 @@ class Schema:
             is_included = False
             is_excluded = any(exclude.search(path) for exclude in self._compiled_excludes)
             if is_excluded:
-                # we may have exception if explicitely included
+                # we may have exception if explicitly included
                 is_included = any(include.search(path) for include in self._compiled_includes)
             return is_excluded and not is_included
 
@@ -243,7 +243,7 @@ class Schema:
                 # remove hints with default values
                 if remove_default_hints:
                     for h in list(c.keys()):
-                        if type(c[h]) is bool and c[h] is False and h != "nullable":  # type: ignore
+                        if isinstance(c[h], bool) and c[h] is False and h != "nullable":  # type: ignore
                             del c[h]  # type: ignore
 
         d["tables"] = clean_tables
@@ -328,7 +328,6 @@ class Schema:
             except ValueError:
                 # coercion not possible
                 pass
-        print(f"{v} {k} -> {mapped_type}")
         return mapped_type
 
     def _get_preferred_type(self, col_name: str) -> Optional[DataType]:
@@ -406,7 +405,7 @@ class Schema:
         if data_type not in DATA_TYPES:
             raise SchemaCorruptedException(f"In table {table_name} column {column_name}: {data_type} is not one of available types: {DATA_TYPES}")
         for p, v in column.items():
-            if p in COLUMN_HINTS and not type(v) is bool:
+            if p in COLUMN_HINTS and not isinstance(v, bool):
                  raise SchemaCorruptedException(f"In table {table_name} column {column_name}: hint {p} is not boolean.")
 
     @staticmethod
@@ -444,9 +443,9 @@ class Schema:
             return "bigint"
         elif t is bool:
             return "bool"
-        elif t is bytes:
+        elif issubclass(t, bytes):
             return "binary"
-        elif t in [dict, list]:
+        elif issubclass(t, dict) or  issubclass(t, list):
             return "complex"
         elif issubclass(t, Decimal):
             return "decimal"
