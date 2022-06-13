@@ -1,7 +1,7 @@
-from dlt.pipeline import Pipeline
+from dlt.pipeline import Pipeline, GCPPipelineCredentials
 
 if __name__ == '__main__':
-    credentials = Pipeline.load_gcp_credentials("_secrets/project1234_service.json", "mainnet_3")
+    credentials = GCPPipelineCredentials.from_services_file("_secrets/project1234_service.json", "mainnet_3")
     # credentials = PostgresPipelineCredentials("redshift", "chat_analytics_rasa", "mainnet_2", "loader", "3.73.90.3")
 
     pipeline = Pipeline("ethereum")

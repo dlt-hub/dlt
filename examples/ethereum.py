@@ -1,14 +1,14 @@
 from dlt.common import Decimal
 from dlt.common.time import sleep
 from dlt.common.typing import DictStrAny
-from dlt.pipeline import Pipeline
+from dlt.pipeline import Pipeline, GCPPipelineCredentials
 from dlt.common.arithmetics import numeric_default_context, numeric_default_quantize
 
 from examples.schemas.ethereum import discover_schema
 from examples.sources.ethereum import get_source
 
-credentials = Pipeline.load_gcp_credentials("_secrets/project1234_service.json", "mainnet_5")
-# credentials = PostgresPipelineCredentials("redshift", "chat_analytics_rasa", "mainnet", "loader", "3.73.90.3")
+credentials = GCPPipelineCredentials.from_services_file("_secrets/project1234_service.json", "mainnet_6")
+# credentials = PostgresPipelineCredentials("redshift", "chat_analytics_rasa", "mainnet_6", "loader", "3.73.90.3")
 
 pipeline = Pipeline("ethereum")
 pipeline.create_pipeline(credentials, schema=discover_schema())

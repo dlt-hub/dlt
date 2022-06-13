@@ -10,9 +10,9 @@ from typing import Sequence
 from dlt.common.typing import DictStrAny
 from dlt.common import json
 from dlt.common.schema import Schema
-from dlt.pipeline import Pipeline
+from dlt.pipeline import Pipeline, GCPPipelineCredentials
 
-# the load schema will be named {pipeline_mame}_{source_name}
+# the load schema will be named {pipeline_name}_{source_name}
 # this allows you to easily consume multiple environments/instances of the same source
 schema_prefix = 'library_documents'
 schema_source_suffix = 'prod'
@@ -81,7 +81,7 @@ if __name__ == "__main__":
 
     # working redshift creds, you can pass password as last parameter or via PG_PASSWORD env variable ie.
     # LOG_LEVEL=INFO PG_PASSWORD=.... python examples/discord_iterator.py
-    credentials = Pipeline.load_gcp_credentials(gcp_credential_json_file_path, schema_prefix)
+    credentials = GCPPipelineCredentials.from_services_file(gcp_credential_json_file_path, schema_prefix)
 
     pipeline = Pipeline(schema_source_suffix)
 
