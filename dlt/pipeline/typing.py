@@ -1,6 +1,7 @@
 
 from dataclasses import dataclass
 from typing import Callable, Dict, Iterable, Iterator, List, Literal, Sequence, Tuple, TypeVar, Union, Generic
+from dlt.common import json
 
 from dlt.common.typing import DictStrAny, StrAny
 from dlt.common.configuration.utils import TConfigSecret
@@ -28,6 +29,18 @@ class GCPPipelineCredentials(PipelineCredentials):
     BQ_CRED_CLIENT_EMAIL: str
     BQ_CRED_PRIVATE_KEY: TConfigSecret = None
     TIMEOUT: float = 30.0
+
+    @classmethod
+    def from_services_dict(cls, services: StrAny, dataset_prefix: str) -> "GCPPipelineCredentials":
+        assert dataset_prefix is not None
+
+        return cls("gcp", services["project_id"], dataset_prefix, services["client_email"], services["private_key"])
+
+    @classmethod
+    def from_services_file(cls, services_path: str, dataset_prefix: str) -> "GCPPipelineCredentials":
+        with open(services_path, "r") as f:
+            services = json.load(f)
+        return GCPPipelineCredentials.from_services_dict(services, dataset_prefix)
 
 
 @dataclass
