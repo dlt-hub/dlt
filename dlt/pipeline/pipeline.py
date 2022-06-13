@@ -23,6 +23,7 @@ from dlt.common.parser import extract as default_parser
 from dlt.common.sources import DLT_METADATA_FIELD, TItem, with_table_name
 
 from dlt.extractors.extractor_storage import ExtractorStorageBase
+from dlt.loaders.client_base import SqlClientBase
 from dlt.unpacker.configuration import configuration as unpacker_configuration
 from dlt.loaders.configuration import configuration as loader_configuration
 from dlt.unpacker import unpacker
@@ -196,6 +197,11 @@ class Pipeline:
             client.initialize_storage()
             client.update_storage_schema()
 
+    def sql_client(self) -> SqlClientBase:
+        schema = unpacker.schema_storage.load_store_schema(self.default_schema_name)
+        with loader.create_client(schema) as c:
+            return c  # type: ignore
+
     def _configure_unpack(self) -> None:
         # create unpacker config
         unpacker_initial = {
@@ -293,14 +299,6 @@ class Pipeline:
         self.state.clear()
         restored_state: DictStrAny = json.loads(self.root_storage.load("state.json"))
         self.state.update(restored_state)
-
-    @staticmethod
-    def load_gcp_credentials(services_path: str, dataset_prefix: str = None) -> GCPPipelineCredentials:
-        assert dataset_prefix is not None
-
-        with open(services_path, "r") as f:
-            services = json.load(f)
-        return GCPPipelineCredentials("gcp", services["project_id"], dataset_prefix, services["client_email"], services["private_key"])
 
     @staticmethod
     def save_schema_to_file(file_name: str, schema: Schema, remove_default_hints: bool = True) -> None:

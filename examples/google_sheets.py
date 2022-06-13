@@ -1,12 +1,12 @@
 from oauth2client.service_account import ServiceAccountCredentials
 
-from dlt.pipeline import Pipeline
+from dlt.pipeline import Pipeline, GCPPipelineCredentials
 
 from examples.sources.google_sheets import get_source
 
 
 p = Pipeline("annotations")
-credentials = Pipeline.load_gcp_credentials('_secrets/project1234_service.json', "load_3")
+credentials = GCPPipelineCredentials.from_services_file('_secrets/project1234_service.json', "load_3")
 p.create_pipeline(credentials)
 
 # create google credentials to get data from source

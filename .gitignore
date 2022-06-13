@@ -7,6 +7,7 @@ _test_storage
 **/_test_storage
 _secrets/
 _backup_storage/
+experiments
 
 # Byte-compiled / optimized / DLL files
 **/__pycache__/

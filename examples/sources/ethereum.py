@@ -1,4 +1,5 @@
 from typing import Any, Iterator, Union, cast, Sequence
+from hexbytes import HexBytes
 import requests
 
 from dlt.common.typing import DictStrAny
@@ -100,6 +101,7 @@ def _get_block(w3: Web3, current_block: int, chain_id: int) -> DictStrAny:
         tx["chainId"] = chain_id
 
     block["transactions"] = transactions
+    block["logsBloom"] = bytes(cast(HexBytes, block["logsBloom"]))  # serialize as bytes
 
     # get transaction receipts using batching. web3 does not support batching so we must
     # call node directly and then convert hex numbers to ints

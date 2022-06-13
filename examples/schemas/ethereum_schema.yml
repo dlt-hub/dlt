@@ -90,7 +90,7 @@ tables:
       name: gas_used
       nullable: false
     logs_bloom:
-      data_type: text
+      data_type: binary
       name: logs_bloom
       nullable: true
     miner:

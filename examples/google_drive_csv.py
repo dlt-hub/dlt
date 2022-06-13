@@ -8,7 +8,7 @@ import csv
 from dlt.common.typing import DictStrAny, StrAny
 from dlt.common.schema import Schema
 
-from dlt.pipeline import Pipeline
+from dlt.pipeline import Pipeline, GCPPipelineCredentials
 
 SCOPES = ['https://www.googleapis.com/auth/drive']
 # KEY_FILE_LOCATION = '/Users/adrian/PycharmProjects/sv/dlt/temp/scalevector-1235ac340b0b.json'
@@ -64,7 +64,7 @@ if __name__ == "__main__":
     # data_schema_file_path = f"/Users/adrian/PycharmProjects/sv/dlt/examples/schemas/inferred_drive_csv_{file_id}_schema.yml"
     data_schema_file_path = f"examples/schemas/inferred_drive_csv_{file_id}_schema.yml"
 
-    credentials = Pipeline.load_gcp_credentials(gcp_credential_json_file_path, schema_prefix)
+    credentials = GCPPipelineCredentials.from_services_file(gcp_credential_json_file_path, schema_prefix)
 
     pipeline = Pipeline(schema_source_suffix)
 
