@@ -26,4 +26,6 @@ The example shows:
 - how to write complex transformations (we convert `wei` into `ether` and this is not trivial)
 - how to re-instantiate pipeline to get newly produced blockchain blocks
 
-5. `demo_example` accompanies [Quickstart](../QUICKSTART.md) and shows how you can load a complex nested json and get nice schema at the end.
+5. `quickstart` and `demo` accompanies [Quickstart](../QUICKSTART.md) and shows how you can load a complex nested json and get nice schema at the end.
+
+6. `rasa` example and `rasa_tracker_store` source extracts rasa tracker store events to a set of inferred tables. it's also an example of pipelining sources (ie. events from kafka/file source are fed into rasa source to obtain final iterator)

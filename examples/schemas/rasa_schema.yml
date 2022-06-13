@@ -1,0 +1,51 @@
+tables:
+  _version:
+    version:
+      data_type: bigint
+      nullable: false
+    engine_version:
+      data_type: bigint
+      nullable: false
+    inserted_at:
+      data_type: timestamp
+      nullable: false
+  _loads:
+    load_id:
+      data_type: text
+      nullable: false
+    status:
+      data_type: bigint
+      nullable: false
+    inserted_at:
+      data_type: timestamp
+      nullable: false
+name: rasa
+version: 1
+preferred_types:
+  ^timestamp$: timestamp
+  ^inserted_at$: timestamp
+  confidence: double
+  ^_pos$: bigint
+hints:
+  not_null:
+  - ^timestamp$
+  - ^_record_hash$
+  - ^_root_hash$
+  - ^_load_id$
+  - ^_parent_hash$
+  - ^_pos$
+  - ^sender_id$
+  foreign_key:
+  - ^_parent_hash$
+  sort:
+  - ^timestamp$
+  unique:
+  - ^_record_hash$
+excludes:
+- ^event_user__parse_data
+- ^event_bot__data
+- ^event_bot__metadata
+includes:
+- ^event_user__parse_data__(intent|entities|message_id$|text$)
+- ^event_bot__metadata__(utter_action|template_name|rasa_x_[a-z]+)$
+engine_version: 2
