@@ -1,18 +1,35 @@
-Follow this quick guide to implement DLT in your project
+# Quickstart Guide: Data Load Tool (DLT)
 
-## Simple loading of two rows:
+**TL;DR: This step-by-step guide introduces you to DLT with an example that loads some JSON documents into Google BigQuery.**
 
-### Install DLT
-DLT is available in PyPi and can be installed with `pip install python-dlt`. You also need to install support for target warehouses in extra packages:
+## JSON Documents
 
-`pip install python-dlt[gcp]` for BigQuery
-or
-`pip install python-dlt[redshift]` for Redshift
+Here is the data we are loading:
 
+## 1. Set up a virtual environment
 
-### 1. Configuraton: name your schema, table, pass credentials
+a. Ensure you are using either Python 3.8 or 3.9: `python3 --version`
 
-```
+b. Create a new virtual environment: `python3 -m venv ./env`
+
+c. Activate the virtual environment: `source ./env/bin/activate`
+
+## 2. Install DLT and support for the target warehouse
+
+a. Install DLT using pip: `pip3 install -U --user pip && pip3 install python-dlt`
+
+b. Install support for Google BigQuery: `pip install python-dlt[gcp]`
+
+*Question: where should we mention `pip install python-dlt[redshift]` for Redshift?*
+
+### 3. Configure DLT
+
+a. Name your schema
+
+b. Name your table
+
+c. Pass credentials
+
 
 import base64
 from dlt.common.utils import uniq_id
