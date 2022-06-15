@@ -10,14 +10,11 @@
 
 </p>
 
-# DLT
-DLT enables simple python-native data pipelining for data professionals.
+# Data Load Tool (DLT)
 
-DLT is an open-source python-native scalable data loading framework that does not require any devops efforts to run.
+Data Load Tool (DLT) enables simple, python-native data pipelining for data professionals. It is an open source, scalable data loading framework that does not require any help from DevOps.
 
-## [Quickstart guide](QUICKSTART.md)
-
-## [Example Sources](examples/README.md)
+Learn more with the **[Quickstart guide](QUICKSTART.md)** and check out **[Example Sources](examples/README.md)** to get started.
 
 ## How does it work?
 
