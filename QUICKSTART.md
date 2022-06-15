@@ -1,6 +1,18 @@
 # Quickstart Guide: Data Load Tool (DLT)
 
-## **TL;DR: This guide show you how to load a JSON document into Google BigQuery using DLT.**
+## **TL;DR: This guide shows you how to load a JSON document into Google BigQuery using DLT.**
+
+![](docs/DLT-Pacman-Big.gif)
+
+<p align="center">
+
+[![PyPI version](https://badge.fury.io/py/python-dlt.svg)](https://pypi.org/project/python-dlt/)
+[![LINT Badge](https://github.com/scale-vector/dlt/actions/workflows/lint.yml/badge.svg)](https://github.com/scale-vector/dlt/actions/workflows/lint.yml)
+[![TEST COMMON Badge](https://github.com/scale-vector/dlt/actions/workflows/test_common.yml/badge.svg)](https://github.com/scale-vector/dlt/actions/workflows/test_common.yml)
+[![TEST REDSHIFT Badge](https://github.com/scale-vector/dlt/actions/workflows/test_loader_redshift.yml/badge.svg)](https://github.com/scale-vector/dlt/actions/workflows/test_loader_redshift.yml)
+[![TEST GCP Badge](https://github.com/scale-vector/dlt/actions/workflows/test_loader_gcp.yml/badge.svg)](https://github.com/scale-vector/dlt/actions/workflows/test_loader_gcp.yml)
+
+</p>
 
 ## 1. Grab the files needed
 
