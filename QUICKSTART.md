@@ -80,7 +80,7 @@ a. Extract the dictionary into a SQL table
 
 b. Unpack the pipeline into a relational structure
 
-c. Save schema to file
+c. Save schema to `schema.yml` file
 
 *question: do we really want to append to the schema file?*
 
@@ -94,7 +94,7 @@ c. Inspect `schema.yml` that has been generated
 
 ## 10. Query the Google BigQuery table
 
-a. Run SQL code
+a. Run SQL queries
 
 b. See results like the following:
 
