@@ -104,7 +104,9 @@ pipeline.create_pipeline(credentials)
 ```
 
 6b. Create the pipeline with your credentials
+```
 pipeline.create_pipeline(credentials)
+```
 
 ## 6. Load the data from the JSON document
 
@@ -145,7 +147,17 @@ a. Load
 pipeline.load()
 ```
 
-b. Error capture - print, raise or handle.
+b. Make sure there are no errors
+```
+# now enumerate all complete loads if we have any failed packages
+# complete but failed job will not raise any exceptions
+completed_loads = pipeline.list_completed_loads()
+# print(completed_loads)
+for load_id in completed_loads:
+    print(f"Checking failed jobs in {load_id}")
+    for job, failed_message in pipeline.list_failed_jobs(load_id):
+        print(f"JOB: {job}\nMSG: {failed_message}")
+```
 
 c. Run the script:
 ```
@@ -160,6 +172,33 @@ vim schema.yml
 ## 9. Query the Google BigQuery table
 
 a. Run SQL queries
+```
+def run_query(query):
+    df = c._execute_sql(query)
+    print(query)
+    print(list(df))
+    print()
+
+with pipeline.sql_client() as c:
+
+    # Query table for parents
+    query = f"SELECT * FROM `{schema_prefix}_example.json_doc`"
+    run_query(query)
+
+    # Query table for children
+    query = f"SELECT * FROM `{schema_prefix}_example.json_doc__children` LIMIT 1000"
+    run_query(query)
+
+    # Join previous two queries via auto generated keys
+    query = f"""
+        select p.name, p.age, p.id as parent_id,
+            c.name as child_name, c.id as child_id, c._pos as child_order_in_list
+        from `{schema_prefix}_example.my_json_doc` as p
+        left join `{schema_prefix}_example.my_json_doc__children`  as c
+            on p._record_hash = c._parent_hash
+    """
+    run_query(query)
+```
 
 b. See results like the following:
 
@@ -191,15 +230,15 @@ SQL result:
 
 ## 10. Next steps
 
-1. Replace `data.json` with data you want to explore
+a. Replace `data.json` with data you want to explore
 
-2. Plug in your own iterator or generator
+b. Plug in your own iterator or generator
 
-3. Check that the inferred types are correct in `schema.yml`
+c. Check that the inferred types are correct in `schema.yml`
 
-4. Set up your own Google BigQuery warehouse (and replace the credentials)
+d. Set up your own Google BigQuery warehouse (and replace the credentials)
 
-5. Make the necessary transformations (e.g. with dbt) to create a semantic layer / analytical model on top of your new clean staging layer
+e. Make the necessary transformations (e.g. with dbt) to create a semantic layer / analytical model on top of your new clean staging layer
 
 *question: what does it mean to plug in your own iterator or generator?*
 
