@@ -1,6 +1,6 @@
 # Quickstart Guide: Data Load Tool (DLT)
 
-## **TL;DR: This step-by-step guide introduces you to DLT with an example that loads a JSON document into Google BigQuery**
+## **TL;DR: This step-by-step guide show you how to load a JSON document into Google BigQuery.**
 
 ## 1. Clone the example repository
 
@@ -16,6 +16,7 @@ cd dlt-quickstart-example
 
 c. Open the following files in your favorite IDE / text editor:
 - `data.json` (i.e. the JSON document you will load)
+- `credentials.json` (i.e. contains the credentials to our demo Google BigQuery warehouse)
 - `quickstart.py` (i.e. the script that uses DLT)
 
 ## 2. Set up a virtual environment
@@ -65,7 +66,7 @@ b. Optional: Reuse existing schema
 
 c. Create the pipeline with your credentials
 
-*Question: what happens if schema file non-existent?*
+*Question: what happens if schema file is non-existent?*
 
 ## 7. Load the data from the JSON document
 
@@ -79,14 +80,11 @@ b. Unpack the pipeline into a relational structure
 
 c. Optional: save schema to file
 
-pipeline.extract(iter(rows), table_name=parent_table)
-
 ## 9. Load
 
 a. Load
 
 b. Error capture - print, raise or handle.
-
 
 ## 10. Try querying the Google BigQuery table
 
