@@ -1,6 +1,6 @@
 # Quickstart Guide: Data Load Tool (DLT)
 
-**TL;DR: This step-by-step guide introduces you to DLT with an example that loads some JSON documents into Google BigQuery.**
+## **TL;DR: This step-by-step guide introduces you to DLT with an example that loads some JSON documents into Google BigQuery.**
 
 ## JSON Documents
 
@@ -8,19 +8,22 @@ Here is the data we are loading:
 
 ## 1. Set up a virtual environment
 
-a. Ensure you are using either Python 3.8 or 3.9: `python3 --version`
+a. Ensure you are using either Python 3.8 or 3.9: 
+```
+python3 --version
+```
 
-b. Create a new virtual environment: `python3 -m venv ./env`
+b. Create a new virtual environment: ```python3 -m venv ./env```
 
-c. Activate the virtual environment: `source ./env/bin/activate`
+c. Activate the virtual environment: ```source ./env/bin/activate```
 
 ## 2. Install DLT and support for the target warehouse
 
-a. Install DLT using pip: `pip3 install -U --user pip && pip3 install python-dlt`
+a. Install DLT using pip: ```pip3 install -U --user pip && pip3 install python-dlt```
 
-b. Install support for Google BigQuery: `pip install python-dlt[gcp]`
+b. Install support for Google BigQuery: ```pip install python-dlt[gcp]```
 
-*Question: where should we mention `pip install python-dlt[redshift]` for Redshift?*
+*Question: where should we mention ```pip install python-dlt[redshift]``` for Redshift?*
 
 ### 3. Configure DLT
 
@@ -30,7 +33,7 @@ b. Name your table
 
 c. Pass credentials
 
-
+```
 import base64
 from dlt.common.utils import uniq_id
 from dlt.pipeline import Pipeline, GCPPipelineCredentials
