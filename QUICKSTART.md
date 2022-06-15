@@ -1,31 +1,55 @@
 # Quickstart Guide: Data Load Tool (DLT)
 
-## **TL;DR: This step-by-step guide introduces you to DLT with an example that loads some JSON documents into Google BigQuery.**
+## **TL;DR: This step-by-step guide introduces you to DLT with an example that loads a JSON document into Google BigQuery.**
 
-## JSON Documents
+## 1. Clone the example repository
 
-Here is the data we are loading:
+a. Clone the example repository:
+```
+git clone dlt-quickstart-example
+```
 
-## 1. Set up a virtual environment
+b. Enter the directory:
+```
+cd dlt-quickstart-example
+```
 
-a. Ensure you are using either Python 3.8 or 3.9: 
+c. Open the following files in your favorite IDE / text editor:
+- `data.json` (i.e. the JSON document you will load)
+- `quickstart.py` (i.e. the script that uses DLT)
+
+## 2. Set up a virtual environment
+
+a. Ensure you are using either Python 3.8 or 3.9:
 ```
 python3 --version
 ```
 
-b. Create a new virtual environment: ```python3 -m venv ./env```
+b. Create a new virtual environment:
+```
+python3 -m venv ./env
+```
 
-c. Activate the virtual environment: ```source ./env/bin/activate```
+c. Activate the virtual environment:
+```
+source ./env/bin/activate
+```
 
-## 2. Install DLT and support for the target warehouse
+## 3. Install DLT and support for the target data warehouse
 
-a. Install DLT using pip: ```pip3 install -U --user pip && pip3 install python-dlt```
+a. Install DLT using pip:
+```
+pip3 install -U --user pip && pip3 install python-dlt
+```
 
-b. Install support for Google BigQuery: ```pip install python-dlt[gcp]```
+b. Install support for Google BigQuery:
+```
+pip3 install -U --user pip && pip3 install python-dlt[gcp]
+```
 
 *Question: where should we mention ```pip install python-dlt[redshift]``` for Redshift?*
 
-### 3. Configure DLT
+### 5. Configure DLT
 
 a. Name your schema
 
