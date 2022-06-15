@@ -4,7 +4,7 @@
 
 ![](docs/DLT-Pacman-Big.gif)
 
-## 1. Grab the files needed
+## 1. Grab the necessary files
 
 a. Clone the example repository:
 ```
@@ -58,9 +58,9 @@ a. Name your schema
 
 b. Name your table
 
-c. Pass credentials
+c. Load credentials
 
-## 6. Create a pipeline
+## 6. Create a DLT pipeline
 
 a. Instantiate a pipeline
 
@@ -74,7 +74,7 @@ c. Create the pipeline with your credentials
 
 a. Load JSON document into a dictionary
 
-## 8. Pass the data to the pipeline and give it a table name.
+## 8. Pass the data to the DLT pipeline
 
 a. Extract the dictionary into a SQL table
 
@@ -84,7 +84,7 @@ c. Save schema to file
 
 *question: do we really want to append to the schema file?*
 
-## 9. Load
+## 9. Use DLT to load the data
 
 a. Load
 
@@ -92,7 +92,7 @@ b. Error capture - print, raise or handle.
 
 c. Inspect `schema.yml` that has been generated
 
-## 10. Try querying the Google BigQuery table
+## 10. Query the Google BigQuery table
 
 a. Run SQL code
 
@@ -124,9 +124,16 @@ SQL result:
     # {  "name": "Bob",  "age": "30",  "parent_id": "455",  "child_name": "Dave",  "child_id": "621",  "child_order_in_list": "1"}
 ```
 
-### 11. Run it yourself
-- replace data.json with your own file
-- plug your own iterator or generator
-- check that the types are correct
-- set up your own google bigquery
-- create semantic model on top of the data
+## 11. Next steps
+
+1. Replace `data.json` with data you want to explore
+
+2. Plug in your own iterator or generator
+
+3. Check that the inferred types are correct in `schema.yml`
+
+4. Set up your own Google BigQuery warehouse (and replace the credentials)
+
+5. Make the necessary transformations (e.g. with dbt) to create a semantic layer / analytical model on top of your new clean staging layer
+
+*question: what does it mean to plug in your own iterator or generator?*
