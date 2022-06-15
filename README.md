@@ -108,4 +108,14 @@ In short, DLT does not require any specialist knowledge to use
 Advanced, commercial-grade use of DLT requires only some configuration.
 
 
+## Supported data warehouses
 
+Google BigQuery: 
+```pip3 install python-dlt[gcp]```
+
+Amazon Redshift: 
+```pip install python-dlt[redshift]```
+
+## How to load very large sources?
+
+You will want to use a generator instead of an iterator.

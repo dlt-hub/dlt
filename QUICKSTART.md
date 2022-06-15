@@ -231,14 +231,8 @@ SQL result:
 
 a. Replace `data.json` with data you want to explore
 
-b. Plug in your own iterator or generator
+b. Check that the inferred types are correct in `schema.yml`
 
-c. Check that the inferred types are correct in `schema.yml`
+c. Set up your own Google BigQuery warehouse (and replace the credentials)
 
-d. Set up your own Google BigQuery warehouse (and replace the credentials)
-
-e. Make the necessary transformations (e.g. with dbt) to create a semantic layer / analytical model on top of your new clean staging layer
-
-*question: what does it mean to plug in your own iterator or generator?*
-
-*Question: where should we mention ```pip install python-dlt[redshift]``` for Redshift?*
+d. Use this new clean staging layer as the starting point for a semantic layer / analytical model (e.g. using dbt)
