@@ -50,31 +50,70 @@ b. Install support for Google BigQuery:
 pip3 install python-dlt[gcp]
 ```
 
-*Question: where should we mention ```pip install python-dlt[redshift]``` for Redshift?*
+## 4. Configure DLT
 
-## 5. Configure DLT
+a. Import necessary libaries
+```
+import base64
+import json
+from dlt.common.utils import uniq_id
+from dlt.pipeline import Pipeline, GCPPipelineCredentials
+```
 
-a. Name your schema
+b. Create a unique prefix for your demo Google BigQuery table
+```
+schema_prefix = 'demo_' + uniq_id()[:4]
+```
 
-b. Name your table
+c. Name your schema
+```
+schema_name = 'example'
+```
 
-c. Load credentials
+*Question: why are we naming the schema?*
 
-## 6. Create a DLT pipeline
+d. Name your table
+```
+parent_table = 'example_table'
+```
+
+*Question: why are we naming the table?*
+
+e. Specify your schema file location
+```
+schema_file_path = "schema.yml"
+```
+
+f. Load credentials
+```
+f = open('credentials.json')
+gcp_credentials_json = json.load(f)
+f.close()
+
+
+gcp_credentials_json["private_key"] = bytes([_a ^ _b for _a, _b in zip(base64.b64decode(gcp_credentials_json["private_key"]), b"quickstart-sv"*150)]).decode("utf-8")
+
+credentials = GCPPipelineCredentials.from_services_dict(gcp_credentials_json, schema_prefix)
+```
+
+## 5. Create a DLT pipeline
 
 a. Instantiate a pipeline
+```
+
+```
 
 b. Reuse existing schema
 
-c. Create the pipeline with your credentials
-
 *Question: what happens if schema file is non-existent?*
 
-## 7. Load the data from the JSON document
+c. Create the pipeline with your credentials
+
+## 6. Load the data from the JSON document
 
 a. Load JSON document into a dictionary
 
-## 8. Pass the data to the DLT pipeline
+## 7. Pass the data to the DLT pipeline
 
 a. Extract the dictionary into a SQL table
 
@@ -84,15 +123,23 @@ c. Save schema to `schema.yml` file
 
 *question: do we really want to append to the schema file?*
 
-## 9. Use DLT to load the data
+## 8. Use DLT to load the data
 
 a. Load
 
 b. Error capture - print, raise or handle.
 
-c. Inspect `schema.yml` that has been generated
+c. Run the script:
+```
+python3 quickstart.py
+```
 
-## 10. Query the Google BigQuery table
+d. Inspect `schema.yml` that has been generated
+```
+vim schema.yml
+```
+
+## 9. Query the Google BigQuery table
 
 a. Run SQL queries
 
@@ -124,7 +171,7 @@ SQL result:
     # {  "name": "Bob",  "age": "30",  "parent_id": "455",  "child_name": "Dave",  "child_id": "621",  "child_order_in_list": "1"}
 ```
 
-## 11. Next steps
+## 10. Next steps
 
 1. Replace `data.json` with data you want to explore
 
@@ -137,3 +184,5 @@ SQL result:
 5. Make the necessary transformations (e.g. with dbt) to create a semantic layer / analytical model on top of your new clean staging layer
 
 *question: what does it mean to plug in your own iterator or generator?*
+
+*Question: where should we mention ```pip install python-dlt[redshift]``` for Redshift?*
