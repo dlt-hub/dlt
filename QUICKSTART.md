@@ -98,7 +98,7 @@ a. Instantiate a pipeline
 pipeline = Pipeline(schema_name)
 ```
 
-6b. Create the pipeline with your credentials
+b. Create the pipeline with your credentials
 ```
 pipeline.create_pipeline(credentials)
 ```
