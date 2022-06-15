@@ -4,7 +4,7 @@
 
 ![](docs/DLT-Pacman-Big.gif)
 
-## 1. Grab the necessary files
+## 1. Grab the demo
 
 a. Clone the example repository:
 ```
@@ -74,7 +74,7 @@ schema_name = 'example'
 
 d. Name your table
 ```
-parent_table = 'example_table'
+parent_table = 'json_doc'
 ```
 
 *Question: why are we naming the table?*
@@ -100,7 +100,6 @@ credentials = GCPPipelineCredentials.from_services_dict(gcp_credentials_json, sc
 a. Instantiate a pipeline
 ```
 pipeline = Pipeline(schema_name)
-pipeline.create_pipeline(credentials)
 ```
 
 6b. Create the pipeline with your credentials
@@ -202,13 +201,13 @@ with pipeline.sql_client() as c:
 
 b. See results like the following:
 
-table: my_json_doc
+table: json_doc
 ```
 {  "name": "Ana",  "age": "30",  "id": "456",  "_load_id": "1654787700.406905",  "_record_hash": "5b018c1ba3364279a0ca1a231fbd8d90"}
 {  "name": "Bob",  "age": "30",  "id": "455",  "_load_id": "1654787700.406905",  "_record_hash": "afc8506472a14a529bf3e6ebba3e0a9e"}
 ```
 
-table: my_json_doc__children
+table: json_doc__children
 ```
     # {"name": "Bill", "id": "625", "_parent_hash": "5b018c1ba3364279a0ca1a231fbd8d90", "_pos": "0", "_root_hash": "5b018c1ba3364279a0ca1a231fbd8d90",
     #   "_record_hash": "7993452627a98814cc7091f2c51faf5c"}
