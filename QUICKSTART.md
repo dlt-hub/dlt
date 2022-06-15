@@ -159,7 +159,7 @@ c. Run the script:
 python3 quickstart.py
 ```
 
-d. Inspect `schema.yml` that has been generated
+d. Inspect `schema.yml` that has been generated:
 ```
 vim schema.yml
 ```
@@ -195,7 +195,7 @@ with pipeline.sql_client() as c:
     run_query(query)
 ```
 
-b. See results like the following:
+b. See results like the following
 
 table: json_doc
 ```
