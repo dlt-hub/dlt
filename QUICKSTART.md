@@ -90,9 +90,8 @@ f = open('credentials.json')
 gcp_credentials_json = json.load(f)
 f.close()
 
-
+# Private key needs to be decoded (because we don't want to store it as plain text)
 gcp_credentials_json["private_key"] = bytes([_a ^ _b for _a, _b in zip(base64.b64decode(gcp_credentials_json["private_key"]), b"quickstart-sv"*150)]).decode("utf-8")
-
 credentials = GCPPipelineCredentials.from_services_dict(gcp_credentials_json, schema_prefix)
 ```
 
@@ -100,32 +99,51 @@ credentials = GCPPipelineCredentials.from_services_dict(gcp_credentials_json, sc
 
 a. Instantiate a pipeline
 ```
-
+pipeline = Pipeline(schema_name)
+pipeline.create_pipeline(credentials)
 ```
 
-b. Reuse existing schema
-
-*Question: what happens if schema file is non-existent?*
-
-c. Create the pipeline with your credentials
+6b. Create the pipeline with your credentials
+pipeline.create_pipeline(credentials)
 
 ## 6. Load the data from the JSON document
 
 a. Load JSON document into a dictionary
+```
+f = open('data.json')
+data = json.load(f)
+f.close()
+```
 
 ## 7. Pass the data to the DLT pipeline
 
-a. Extract the dictionary into a SQL table
+a. Extract the dictionary into a table
+```
+pipeline.extract(iter(data), table_name=parent_table)
+```
 
 b. Unpack the pipeline into a relational structure
+```
+pipeline.unpack()
+```
 
 c. Save schema to `schema.yml` file
+```
+schema = pipeline.get_default_schema()
+schema_yaml = schema.as_yaml()
+f = open(schema_file_path, "a")
+f.write(schema_yaml)
+f.close()
+```
 
 *question: do we really want to append to the schema file?*
 
 ## 8. Use DLT to load the data
 
 a. Load
+```
+pipeline.load()
+```
 
 b. Error capture - print, raise or handle.
 
