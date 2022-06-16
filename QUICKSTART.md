@@ -79,7 +79,7 @@ parent_table = 'json_doc'
 
 e. Specify your schema file location
 ```
-schema_file_path = "schema.yml"
+schema_file_path = 'schema.yml'
 ```
 
 f. Load credentials
