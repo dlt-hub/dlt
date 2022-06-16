@@ -132,7 +132,6 @@ with open(schema_file_path, 'w') as f:
     f.write(schema_yaml)
 ```
 
-*question: do we really want to append to the schema file?*
 
 ## 8. Use DLT to load the data
 
