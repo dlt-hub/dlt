@@ -84,9 +84,8 @@ schema_file_path = "schema.yml"
 
 f. Load credentials
 ```
-f = open('credentials.json')
-gcp_credentials_json = json.load(f)
-f.close()
+with open('credentials.json', 'r') as f:
+    gcp_credentials_json = json.load(f)
 
 # Private key needs to be decoded (because we don't want to store it as plain text)
 gcp_credentials_json["private_key"] = bytes([_a ^ _b for _a, _b in zip(base64.b64decode(gcp_credentials_json["private_key"]), b"quickstart-sv"*150)]).decode("utf-8")
@@ -109,9 +108,8 @@ pipeline.create_pipeline(credentials)
 
 a. Load JSON document into a dictionary
 ```
-f = open('data.json')
-data = json.load(f)
-f.close()
+with open('data.json', 'r') as f:
+    data = json.load(f)
 ```
 
 ## 7. Pass the data to the DLT pipeline
@@ -130,9 +128,8 @@ c. Save schema to `schema.yml` file
 ```
 schema = pipeline.get_default_schema()
 schema_yaml = schema.as_yaml()
-f = open(schema_file_path, "a")
-f.write(schema_yaml)
-f.close()
+with open(schema_file_path, 'w') as f:
+    f.write(schema_yaml)
 ```
 
 *question: do we really want to append to the schema file?*
