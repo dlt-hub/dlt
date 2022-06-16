@@ -9,7 +9,7 @@ from dlt.common.typing import DictStrAny, DictStrStr, StrAny
 from dlt.common.logger import process_internal_exception, is_json_logging
 from dlt.common.telemetry import get_logging_extras
 from dlt.common.file_storage import FileStorage
-from dlt.common.runners import TRunArgs, create_default_args, initialize_runner, pool_runner
+from dlt.common.runners import TRunArgs, initialize_runner, run_pool
 from dlt.common.telemetry import TRunMetrics
 
 from dlt.dbt_runner.configuration import DBTRunnerConfiguration, gen_configuration_variant
@@ -196,7 +196,7 @@ def main(args: TRunArgs) -> int:
         process_internal_exception("init module")
         return -1
 
-    return pool_runner(C, run)
+    return run_pool(C, run)
 
 
 def run_main(args: TRunArgs) -> None:

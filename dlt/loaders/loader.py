@@ -6,7 +6,7 @@ from prometheus_client import REGISTRY, Counter, Gauge, CollectorRegistry, Summa
 from prometheus_client.metrics import MetricWrapperBase
 
 from dlt.common import sleep, logger
-from dlt.common.runners import TRunArgs, TRunMetrics, create_default_args, initialize_runner, pool_runner
+from dlt.common.runners import TRunArgs, TRunMetrics, initialize_runner, run_pool
 from dlt.common.logger import process_internal_exception, pretty_format_exception
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.dataset_writers import TWriterType
@@ -248,7 +248,7 @@ def main(args: TRunArgs) -> int:
     except Exception:
         process_internal_exception("run")
         return -1
-    return pool_runner(C, load)
+    return run_pool(C, load)
 
 
 def run_main(args: TRunArgs) -> None:

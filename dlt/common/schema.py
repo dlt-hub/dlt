@@ -110,8 +110,8 @@ class Schema:
         self._version = stored_schema["version"]
         self._preferred_types = stored_schema["preferred_types"]
         self._hints = stored_schema["hints"]
-        self._excludes = stored_schema["excludes"]
-        self._includes = stored_schema["includes"]
+        self._excludes = stored_schema.get("excludes", [])
+        self._includes = stored_schema.get("includes", [])
         # compile regexes
         self._compile_regexes()
 

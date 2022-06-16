@@ -88,7 +88,7 @@ def initialize_runner(C: Type[BasicConfiguration], run_args: Optional[TRunArgs] 
 
 
 
-def pool_runner(C: Type[PoolRunnerConfiguration], run_f: Callable[[TPool], TRunMetrics]) -> int:
+def run_pool(C: Type[PoolRunnerConfiguration], run_f: Callable[[TPool], TRunMetrics]) -> int:
     # start pool
     pool: Pool = None
     if C.POOL_TYPE == "process":

@@ -6,7 +6,7 @@ from prometheus_client.metrics import MetricWrapperBase
 
 from dlt.common import pendulum, signals, json, logger
 from dlt.common.json import custom_pua_decode
-from dlt.common.runners import TRunArgs, TRunMetrics, create_default_args, pool_runner, initialize_runner
+from dlt.common.runners import TRunArgs, TRunMetrics, run_pool, initialize_runner
 from dlt.common.storages.unpacker_storage import UnpackerStorage
 from dlt.common.telemetry import get_logging_extras
 from dlt.common.utils import uniq_id
@@ -250,7 +250,7 @@ def main(args: TRunArgs, extract_f: TExtractFunc, default_schemas_path: str = No
         process_internal_exception("init module")
         return -1
     # unpack
-    return pool_runner(C, unpack)
+    return run_pool(C, unpack)
 
 
 def run_main(args: TRunArgs) -> None:
