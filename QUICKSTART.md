@@ -4,6 +4,8 @@
 
 ![](docs/DLT-Pacman-Big.gif)
 
+*Please open a pull request [here](https://github.com/scale-vector/dlt/edit/master/QUICKSTART.md) if there is something you can improve about this quickstart.*
+
 ## 1. Grab the demo
 
 a. Clone the example repository:
