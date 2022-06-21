@@ -12,7 +12,7 @@
 
 # Data Load Tool (DLT)
 
-Data Load Tool (DLT) enables simple, python-native data pipelining for data professionals. 
+! Data Load Tool (DLT) enables simple, python-native data pipelining for data professionals.
 
 It is an open source, scalable data loading framework that does not require any help from DevOps.
 
@@ -110,10 +110,10 @@ Advanced, commercial-grade use of DLT requires only some configuration.
 
 ## Supported data warehouses
 
-Google BigQuery: 
+Google BigQuery:
 ```pip3 install python-dlt[gcp]```
 
-Amazon Redshift: 
+Amazon Redshift:
 ```pip install python-dlt[redshift]```
 
 ## How to load very large sources?
