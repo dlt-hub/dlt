@@ -6,194 +6,77 @@
 
 *Please open a pull request [here](https://github.com/scale-vector/dlt/edit/master/QUICKSTART.md) if there is something you can improve about this quickstart.*
 
-## 1. Grab the demo
+## Grab the demo
 
-a. Clone the example repository:
+Clone the example repository:
 ```
 git clone https://github.com/scale-vector/dlt-quickstart-example.git
 ```
 
-b. Enter the directory:
+Enter the directory:
 ```
 cd dlt-quickstart-example
 ```
 
-c. Open the files in your favorite IDE / text editor:
+Open the files in your favorite IDE / text editor:
 - `data.json` (i.e. the JSON document you will load)
 - `credentials.json` (i.e. contains the credentials to our demo Google BigQuery warehouse)
 - `quickstart.py` (i.e. the script that uses DLT)
 
-## 2. Set up a virtual environment
+## Set up a virtual environment
 
-a. Ensure you are using either Python 3.8 or 3.9:
+Ensure you are using either Python 3.8 or 3.9:
 ```
 python3 --version
 ```
 
-b. Create a new virtual environment:
+Create a new virtual environment:
 ```
 python3 -m venv ./env
 ```
 
-c. Activate the virtual environment:
+Activate the virtual environment:
 ```
 source ./env/bin/activate
 ```
 
-## 3. Install DLT and support for the target data warehouse
+## Install DLT and support for the target data warehouse
 
-a. Install DLT using pip:
+Install DLT using pip:
 ```
 pip3 install python-dlt
 ```
 
-b. Install support for Google BigQuery:
+Install support for Google BigQuery:
 ```
 pip3 install python-dlt[gcp]
 ```
 
-## 4. Configure DLT
+## Understanding the code
 
-a. Import necessary libaries
-```
-import base64
-import json
-from dlt.common.utils import uniq_id
-from dlt.pipeline import Pipeline, GCPPipelineCredentials
-```
+1. Configure DLT
 
-b. Create a unique prefix for your demo Google BigQuery table
-```
-schema_prefix = 'demo_' + uniq_id()[:4]
-```
+2. Create a DLT pipeline
 
-c. Name your schema
-```
-schema_name = 'example'
-```
+3. Load the data from the JSON document
 
-d. Name your table
-```
-parent_table = 'json_doc'
-```
+4. Pass the data to the DLT pipeline
 
-e. Specify your schema file location
-```
-schema_file_path = 'schema.yml'
-```
+5. Use DLT to load the data
 
-f. Load credentials
-```
-with open('credentials.json', 'r') as f:
-    gcp_credentials_json = json.load(f)
+## Running the code
 
-# Private key needs to be decoded (because we don't want to store it as plain text)
-gcp_credentials_json["private_key"] = bytes([_a ^ _b for _a, _b in zip(base64.b64decode(gcp_credentials_json["private_key"]), b"quickstart-sv"*150)]).decode("utf-8")
-credentials = GCPPipelineCredentials.from_services_dict(gcp_credentials_json, schema_prefix)
-```
-
-## 5. Create a DLT pipeline
-
-a. Instantiate a pipeline
-```
-pipeline = Pipeline(schema_name)
-```
-
-b. Create the pipeline with your credentials
-```
-pipeline.create_pipeline(credentials)
-```
-
-## 6. Load the data from the JSON document
-
-a. Load JSON document into a dictionary
-```
-with open('data.json', 'r') as f:
-    data = json.load(f)
-```
-
-## 7. Pass the data to the DLT pipeline
-
-a. Extract the dictionary into a table
-```
-pipeline.extract(iter(data), table_name=parent_table)
-```
-
-b. Unpack the pipeline into a relational structure
-```
-pipeline.unpack()
-```
-
-c. Save schema to `schema.yml` file
-```
-schema = pipeline.get_default_schema()
-schema_yaml = schema.as_yaml(remove_default_hints=True)
-with open(schema_file_path, 'w') as f:
-    f.write(schema_yaml)
-```
-
-
-## 8. Use DLT to load the data
-
-a. Load
-```
-pipeline.load()
-```
-
-b. Make sure there are no errors
-```
-completed_loads = pipeline.list_completed_loads()
-# print(completed_loads)
-# now enumerate all complete loads if we have any failed packages
-# complete but failed job will not raise any exceptions
-for load_id in completed_loads:
-    print(f"Checking failed jobs in {load_id}")
-    for job, failed_message in pipeline.list_failed_jobs(load_id):
-        print(f"JOB: {job}\nMSG: {failed_message}")
-```
-
-c. Run the script:
+Run the script:
 ```
 python3 quickstart.py
 ```
 
-d. Inspect `schema.yml` that has been generated:
+Inspect `schema.yml` that has been generated:
 ```
 vim schema.yml
 ```
 
-## 9. Query the Google BigQuery table
-
-a. Run SQL queries
-```
-def run_query(query):
-    df = c._execute_sql(query)
-    print(query)
-    print(list(df))
-    print()
-
-with pipeline.sql_client() as c:
-
-    # Query table for parents
-    query = f"SELECT * FROM `{schema_prefix}_example.json_doc`"
-    run_query(query)
-
-    # Query table for children
-    query = f"SELECT * FROM `{schema_prefix}_example.json_doc__children` LIMIT 1000"
-    run_query(query)
-
-    # Join previous two queries via auto generated keys
-    query = f"""
-        select p.name, p.age, p.id as parent_id,
-            c.name as child_name, c.id as child_id, c._pos as child_order_in_list
-        from `{schema_prefix}_example.json_doc` as p
-        left join `{schema_prefix}_example.json_doc__children`  as c
-            on p._record_hash = c._parent_hash
-    """
-    run_query(query)
-```
-
-b. See results like the following
+See results of querying the Google BigQuery table
 
 table: json_doc
 ```
@@ -221,12 +104,12 @@ SQL result:
     # {  "name": "Bob",  "age": "30",  "parent_id": "455",  "child_name": "Dave",  "child_id": "621",  "child_order_in_list": "1"}
 ```
 
-## 10. Next steps
+## Next steps
 
-a. Replace `data.json` with data you want to explore
+1. Replace `data.json` with data you want to explore
 
-b. Check that the inferred types are correct in `schema.yml`
+2. Check that the inferred types are correct in `schema.yml`
 
-c. Set up your own Google BigQuery warehouse (and replace the credentials)
+3. Set up your own Google BigQuery warehouse (and replace the credentials)
 
-d. Use this new clean staging layer as the starting point for a semantic layer / analytical model (e.g. using dbt)
+4. Use this new clean staging layer as the starting point for a semantic layer / analytical model (e.g. using dbt)
