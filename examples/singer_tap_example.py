@@ -1,18 +1,36 @@
+import os
+from tempfile import mkdtemp
 
-from typing import Iterator
-from dlt.pipeline import Pipeline
-from dlt.pipeline.typing import GCPPipelineCredentials
+from dlt.pipeline import Pipeline, GCPPipelineCredentials
+from dlt.common.runners.venv import Venv
 
-from examples.sources.singer_tap import SingerMessage, get_source
-from examples.sources.jsonl import get_source as read_jsonl
+from examples.sources.singer_tap import get_source
 
-# load hubspot schema stub - it converts all field names with `timestamp` into timestamp type
-schema = Pipeline.load_schema_from_file("examples/schemas/hubspot_schema.yml")
-p = Pipeline("singer_tap_sheets")
-p.create_pipeline(GCPPipelineCredentials.from_services_file("_secrets/project1234_service.json", "load_1"), schema=schema)
-# p.extract(get_source(read_jsonl("examples/data/singer_taps/tap_google_sheet.jsonl")))
-raw_messages: Iterator[SingerMessage] = read_jsonl("examples/data/singer_taps/tap_hubspot.jsonl")  # type: ignore
-p.extract(get_source(raw_messages, p.state))
-p.unpack()
-print(p.get_default_schema().as_yaml(remove_default_hints=True))
-# p.load()
+p = Pipeline("singer_csv")
+p.create_pipeline(GCPPipelineCredentials.from_services_file("_secrets/project1234_service.json", "load_1"))
+
+# create Venv with desired dependencies, in this case csv tap
+# venv creation costs time so it should be created only once and reused
+
+# here we use context manager to automatically delete venv after example was run
+# the dependency is meltano version of csv tap
+print("Spawning virtual environment to run singer and installing csv tap from git+https://github.com/MeltanoLabs/tap-csv.git")
+with Venv.create(mkdtemp(), ["git+https://github.com/MeltanoLabs/tap-csv.git"]) as venv:
+    # prep singer config for csv-tap
+    csv_tap_config = {
+        "files": [
+            {
+                "entity": "annotations_202205",
+                "path": os.path.abspath("examples/data/singer_taps/model_annotations.csv"),
+                "keys": [
+                    "message id"
+                ]
+            }
+        ]
+    }
+    print("running tap-csv")
+    i = get_source(venv, "tap-csv", csv_tap_config, "examples/data/singer_taps/csv_catalog.json", state=p.state)
+    p.extract(i)
+    p.unpack()
+    print(p.get_default_schema().as_yaml(remove_default_hints=True))
+    # p.load()
