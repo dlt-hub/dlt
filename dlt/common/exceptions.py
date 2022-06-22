@@ -27,6 +27,19 @@ class UnsupportedProcessStartMethodException(DltException):
         super().__init__(f"Process pool supports only fork start method, {method} not supported. Switch the pool type to threading")
 
 
+class CannotInstallDependency(DltException):
+    def __init__(self, dependency: str, interpreter: str, output: str) -> None:
+        self.dependency = dependency
+        self.interpreter = interpreter
+        super().__init__(f"Cannot install dependency {dependency} with {interpreter} and pip:\n{output}\n")
+
+
+class VenvNotFound(DltException):
+    def __init__(self, interpreter: str) -> None:
+        self.interpreter = interpreter
+        super().__init__(f"Venv with interpreter {interpreter} not found in path")
+
+
 class TerminalException(Exception):
     """
     Marks an exception that cannot be recovered from, should be mixed in into concrete exception class
