@@ -1,7 +1,7 @@
 import argparse
 from typing import Callable
 
-from dlt.common.runners import TRunArgs, add_pool_cli_arguments
+from dlt.common.runners.pool_runner import TRunArgs, add_pool_cli_arguments
 
 
 def main() -> None:

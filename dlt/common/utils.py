@@ -1,3 +1,5 @@
+import os
+from contextlib import contextmanager
 import hashlib
 from os import environ
 import secrets
@@ -115,3 +117,20 @@ def update_dict_with_prune(dest: DictStrAny, update: StrAny) -> None:
 def is_interactive() -> bool:
     import __main__ as main
     return not hasattr(main, '__file__')
+
+
+@contextmanager
+def custom_environ(env: StrStr) -> Iterator[None]:
+    """Temporarily set environment variables inside the context manager and
+    fully restore previous environment afterwards
+    """
+    original_env = {key: os.getenv(key) for key in env}
+    os.environ.update(env)
+    try:
+        yield
+    finally:
+        for key, value in original_env.items():
+            if value is None:
+                del os.environ[key]
+            else:
+                os.environ[key] = value

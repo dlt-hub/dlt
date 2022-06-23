@@ -1,4 +1,8 @@
-from typing import Callable, Dict, Any, List, Literal, Mapping, Sequence, TypeVar, TypedDict, Optional, Union
+from typing import Callable, Dict, Any, Mapping, TypeVar, TypedDict, TYPE_CHECKING
+if TYPE_CHECKING:
+    from _typeshed import StrOrBytesPath
+else:
+    StrOrBytesPath = Any
 
 DictStrAny = Dict[str, Any]
 DictStrStr = Dict[str, str]
