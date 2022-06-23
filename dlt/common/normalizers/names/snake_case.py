@@ -24,12 +24,9 @@ def normalize_table_name(name: str) -> str:
     # max 2 consecutive underscores are allowed
     return RE_DOUBLE_UNDERSCORES.sub("__", name)
 
-# fix a name so it's an acceptable name for a database column name
-def normalize_db_name(name: str) -> str:
+
+# fix a name so it's an acceptable name for a database column
+def normalize_column_name(name: str) -> str:
     # replace consecutive underscores with single one to prevent name clashes with parent child
     return RE_UNDERSCORES.sub("_", normalize_table_name(name))
 
-
-def normalize_schema_name(name: str) -> str:
-    # remove underscores
-    return normalize_db_name(name).replace("_", "")

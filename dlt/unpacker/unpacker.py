@@ -14,14 +14,16 @@ from dlt.common.typing import TEvent
 from dlt.common.logger import process_internal_exception
 from dlt.common.exceptions import PoolException
 from dlt.common.storages import SchemaStorage
-from dlt.common.schema import CannotCoerceColumnException, SchemaUpdate, Schema
+from dlt.common.schema import SchemaUpdate, Schema
+from dlt.common.schema.exceptions import CannotCoerceColumnException
 from dlt.common.normalizers.json.relational import PATH_SEPARATOR
 from dlt.common.storages.loader_storage import LoaderStorage
+from dlt.common.normalizers.json import TNormalizeJSONFunc
+from dlt.common.normalizers.json.relational import normalize
 
-from dlt.common.normalizers.json.relational import normalize, TExtractFunc
 from dlt.unpacker.configuration import configuration, UnpackerConfiguration
 
-extract_func: TExtractFunc = normalize
+extract_func: TNormalizeJSONFunc = normalize
 CONFIG: Type[UnpackerConfiguration] = None
 unpack_storage: UnpackerStorage = None
 load_storage: LoaderStorage = None
@@ -218,7 +220,7 @@ def unpack(pool: ProcessPool) -> TRunMetrics:
     return TRunMetrics(False, False, len(unpack_storage.list_files_to_unpack_sorted()))
 
 
-def configure(C: Type[UnpackerConfiguration], collector: CollectorRegistry, extract_f: TExtractFunc, default_schemas_path: str = None, schema_names: List[str] = None) -> None:
+def configure(C: Type[UnpackerConfiguration], collector: CollectorRegistry, extract_f: TNormalizeJSONFunc, default_schemas_path: str = None, schema_names: List[str] = None) -> None:
     global CONFIG
     global unpack_storage, load_storage, schema_storage, load_schema_storage
     global event_counter, event_gauge, schema_version_gauge, load_package_counter
@@ -239,7 +241,7 @@ def configure(C: Type[UnpackerConfiguration], collector: CollectorRegistry, extr
         install_schemas(default_schemas_path, schema_names)
 
 
-def main(args: TRunArgs, extract_f: TExtractFunc, default_schemas_path: str = None, schema_names: List[str] = None) -> int:
+def main(args: TRunArgs, extract_f: TNormalizeJSONFunc, default_schemas_path: str = None, schema_names: List[str] = None) -> int:
     # initialize runner
     C = configuration()
     initialize_runner(C, args)

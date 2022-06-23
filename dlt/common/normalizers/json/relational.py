@@ -1,10 +1,10 @@
-from typing import Iterator, Optional, Tuple, Callable, cast, TypedDict, Any
+from typing import Optional, cast, TypedDict, Any
 
-from dlt.common import json
 from dlt.common.schema import Schema
 from dlt.common.utils import uniq_id, digest128
 from dlt.common.typing import TEvent, StrAny
-from dlt.common.normalizers.names.snake_case import normalize_db_name
+from dlt.common.normalizers.json import TUnpackedRowIterator
+from dlt.common.normalizers.names.snake_case import normalize_column_name
 from dlt.common.sources import DLT_METADATA_FIELD, TEventDLTMeta, get_table_name
 
 
@@ -17,7 +17,6 @@ class TEventRow(TypedDict, total=False):
 
 class TEventRowRoot(TEventRow, total=False):
     _load_id: str  # load id to identify records loaded together that ie. need to be processed
-    _event_json: str  # dump of the original event
     __dlt_meta: TEventDLTMeta  # stores metadata
 
 
@@ -25,11 +24,6 @@ class TEventRowChild(TEventRow, total=False):
     _parent_hash: str  # unique id of parent row
     _pos: int  # position in the list of rows
     value: Any  # for lists of simple types
-
-
-# I(table name, row data)
-TUnpackedRowIterator = Iterator[Tuple[str, StrAny]]
-TExtractFunc = Callable[[Schema, TEvent, str], TUnpackedRowIterator]
 
 
 # subsequent nested fields will be separated with the string below, applies both to field and table names
@@ -49,7 +43,7 @@ def _flatten(table: str, dict_row: TEventRowChild) -> TEventRowChild:
 
     def unpack_row_dicts(dict_row: StrAny, parent_name: Optional[str]) -> None:
         for k, v in dict_row.items():
-            corrected_k = normalize_db_name(k)
+            corrected_k = normalize_column_name(k)
             child_name = corrected_k if not parent_name else f'{parent_name}{PATH_SEPARATOR}{corrected_k}'
             if isinstance(v, dict):
                 unpack_row_dicts(v, parent_name=child_name)

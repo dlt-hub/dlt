@@ -14,8 +14,7 @@ from dlt.common.runners import pool_runner as runner, TRunArgs, TRunMetrics
 from dlt.common.configuration import BasicConfiguration, make_configuration
 from dlt.common.file_storage import FileStorage
 from dlt.common.logger import process_internal_exception
-from dlt.common.normalizers.names.snake_case import normalize_schema_name
-from dlt.common.schema import Schema, StoredSchema
+from dlt.common.schema import Schema, StoredSchema, normalize_schema_name
 from dlt.common.typing import DictStrAny, StrAny
 from dlt.common.utils import uniq_id, is_interactive
 from dlt.common.normalizers.json.relational import normalize as default_parser

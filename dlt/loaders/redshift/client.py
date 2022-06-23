@@ -7,7 +7,7 @@ from dlt.common.typing import StrAny
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 from dlt.common.configuration import PostgresConfiguration
 from dlt.common.dataset_writers import TWriterType, escape_redshift_identifier
-from dlt.common.schema import COLUMN_HINTS, Column, ColumnBase, DataType, HintType, Schema, SchemaUpdate, Table
+from dlt.common.schema import COLUMN_HINTS, Column, ColumnBase, DataType, HintType, Schema, Table, add_missing_hints
 
 from dlt.loaders.exceptions import (LoadClientSchemaWillNotUpdate, LoadClientTerminalInnerException,
                                             LoadClientTransientInnerException, LoadFileTooBig)
@@ -238,7 +238,7 @@ class RedshiftClient(SqlClientMixin, SqlClientBase):
                 "nullable": self._null_to_bool(c[2]),
                 "data_type": self._pq_t_to_sc_t(c[1], c[3], c[4]),
             }
-            schema_table[c[0]] = Schema._add_missing_hints(schema_c)
+            schema_table[c[0]] = add_missing_hints(schema_c)
         return True, schema_table
 
 
