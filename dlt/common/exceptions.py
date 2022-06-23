@@ -1,3 +1,6 @@
+from typing import AnyStr
+
+
 class DltException(Exception):
     pass
 
@@ -28,10 +31,14 @@ class UnsupportedProcessStartMethodException(DltException):
 
 
 class CannotInstallDependency(DltException):
-    def __init__(self, dependency: str, interpreter: str, output: str) -> None:
+    def __init__(self, dependency: str, interpreter: str, output: AnyStr) -> None:
         self.dependency = dependency
         self.interpreter = interpreter
-        super().__init__(f"Cannot install dependency {dependency} with {interpreter} and pip:\n{output}\n")
+        if isinstance(output, bytes):
+            str_output = output.decode("utf-8")
+        else:
+            str_output = output
+        super().__init__(f"Cannot install dependency {dependency} with {interpreter} and pip:\n{str_output}\n")
 
 
 class VenvNotFound(DltException):
