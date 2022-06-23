@@ -7,7 +7,7 @@ except ImportError:
     ParamSpec = lambda x: [x]  # type: ignore
 
 from dlt.common import logger
-from dlt.common.names import normalize_table_name
+from dlt.common.normalizers.names.snake_case import normalize_table_name
 from dlt.common.time import sleep
 from dlt.common.typing import DictStrAny, StrAny
 

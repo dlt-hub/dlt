@@ -6,7 +6,7 @@ from collections import abc
 from dataclasses import asdict as dtc_asdict
 import tempfile
 import os.path
-from typing import Callable, Dict, Iterable, Iterator, List, Literal, Sequence, Tuple, TypeVar, Union, Generic
+from typing import Iterator, List, Sequence, Tuple
 from prometheus_client import REGISTRY
 
 from dlt.common import json, logger
@@ -14,11 +14,11 @@ from dlt.common.runners import pool_runner as runner, TRunArgs, TRunMetrics
 from dlt.common.configuration import BasicConfiguration, make_configuration
 from dlt.common.file_storage import FileStorage
 from dlt.common.logger import process_internal_exception
-from dlt.common.names import normalize_schema_name
+from dlt.common.normalizers.names.snake_case import normalize_schema_name
 from dlt.common.schema import Schema, StoredSchema
 from dlt.common.typing import DictStrAny, StrAny
 from dlt.common.utils import uniq_id, is_interactive
-from dlt.common.parser import extract as default_parser
+from dlt.common.normalizers.json.relational import normalize as default_parser
 from dlt.common.sources import DLT_METADATA_FIELD, TItem, with_table_name
 
 from dlt.extractors.extractor_storage import ExtractorStorageBase

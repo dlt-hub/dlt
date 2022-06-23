@@ -4,7 +4,7 @@ from dlt.common.sources import DLT_METADATA_FIELD, with_table_name
 from dlt.common.utils import digest128, uniq_id
 from dlt.common.schema import Schema
 
-from dlt.common.parser import _flatten, _get_child_row_hash, _unpack_row, extract
+from dlt.common.normalizers.json.relational import _flatten, _get_child_row_hash, _unpack_row, normalize
 
 from tests.utils import create_schema_with_name
 
@@ -267,7 +267,7 @@ def test_extract_with_table_name_meta() -> None:
     }
     # force table name
     rows = list(
-        extract(create_schema_with_name("discord"), with_table_name(row, "channel"), "load_id", add_json=False)
+        normalize(create_schema_with_name("discord"), with_table_name(row, "channel"), "load_id")
     )
     # table is channel
     assert rows[0][0] == "channel"
@@ -290,7 +290,7 @@ def test_parse_with_primary_key() -> None:
             "wo_id": [1, 2, 3]
             }]
     }
-    rows = list(extract(schema, row, "load_id", add_json=False))
+    rows = list(normalize(schema, row, "load_id"))
     # get root
     root = next(t[1] for t in rows if t[0] == "discord")
     assert root["_record_hash"] == digest128("817949077341208606")
@@ -313,10 +313,9 @@ def test_parse_with_primary_key() -> None:
 
 def test_keeps_none_values() -> None:
     row = {"a": None, "timestamp": 7}
-    rows = list(extract(create_schema_with_name("other"), row, "1762162.1212", add_json=True))
+    rows = list(normalize(create_schema_with_name("other"), row, "1762162.1212"))
     table_name = rows[0][0]
     assert table_name == "other"
     unpacked_row = rows[0][1]
     assert unpacked_row["a"] is None
     assert unpacked_row["_load_id"] == "1762162.1212"
-    assert "_event_json" in unpacked_row

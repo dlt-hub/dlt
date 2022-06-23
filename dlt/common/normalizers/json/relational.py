@@ -4,7 +4,7 @@ from dlt.common import json
 from dlt.common.schema import Schema
 from dlt.common.utils import uniq_id, digest128
 from dlt.common.typing import TEvent, StrAny
-from dlt.common.names import normalize_db_name
+from dlt.common.normalizers.names.snake_case import normalize_db_name
 from dlt.common.sources import DLT_METADATA_FIELD, TEventDLTMeta, get_table_name
 
 
@@ -29,7 +29,7 @@ class TEventRowChild(TEventRow, total=False):
 
 # I(table name, row data)
 TUnpackedRowIterator = Iterator[Tuple[str, StrAny]]
-TExtractFunc = Callable[[Schema, TEvent, str, bool], TUnpackedRowIterator]
+TExtractFunc = Callable[[Schema, TEvent, str], TUnpackedRowIterator]
 
 
 # subsequent nested fields will be separated with the string below, applies both to field and table names
@@ -136,14 +136,11 @@ def _unpack_row(
     yield table, new_dict_row
 
 
-def extract(schema: Schema, source_event: TEvent, load_id: str, add_json: bool) -> TUnpackedRowIterator:
+def normalize(schema: Schema, source_event: TEvent, load_id: str) -> TUnpackedRowIterator:
     # we will extend event with all the fields necessary to load it as root row
     event = cast(TEventRowRoot, source_event)
     # identify load id if loaded data must be processed after loading incrementally
     event["_load_id"] = load_id
-    # add original json field, mostly useful for debugging
-    if add_json:
-        event["_event_json"] = json.dumps(event)
     # find table name
     table_name = get_table_name(event) or schema.schema_name
     # drop dlt metadata before unpacking

@@ -15,13 +15,13 @@ from dlt.common.logger import process_internal_exception
 from dlt.common.exceptions import PoolException
 from dlt.common.storages import SchemaStorage
 from dlt.common.schema import CannotCoerceColumnException, SchemaUpdate, Schema
-from dlt.common.parser import PATH_SEPARATOR
+from dlt.common.normalizers.json.relational import PATH_SEPARATOR
 from dlt.common.storages.loader_storage import LoaderStorage
 
-from dlt.common.parser import extract, TExtractFunc
+from dlt.common.normalizers.json.relational import normalize, TExtractFunc
 from dlt.unpacker.configuration import configuration, UnpackerConfiguration
 
-extract_func: TExtractFunc = extract
+extract_func: TExtractFunc = normalize
 CONFIG: Type[UnpackerConfiguration] = None
 unpack_storage: UnpackerStorage = None
 load_storage: LoaderStorage = None
@@ -90,7 +90,7 @@ def w_unpack_files(schema_name: str, load_id: str, events_files: Sequence[str]) 
             with unpack_storage.storage.open(events_file) as f:
                 events: Sequence[TEvent] = json.load(f)
             for event in events:
-                for table_name, row in extract_func(schema, event, load_id, CONFIG.ADD_EVENT_JSON):
+                for table_name, row in extract_func(schema, event, load_id):
                     # filter row, may eliminate some or all fields
                     row = schema.filter_row(table_name, row, PATH_SEPARATOR)
                     # do not process empty rows
@@ -254,4 +254,4 @@ def main(args: TRunArgs, extract_f: TExtractFunc, default_schemas_path: str = No
 
 
 def run_main(args: TRunArgs) -> None:
-    exit(main(args, extract))
+    exit(main(args, normalize))

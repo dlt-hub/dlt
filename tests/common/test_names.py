@@ -1,4 +1,4 @@
-from dlt.common.names import normalize_db_name, normalize_schema_name, normalize_table_name
+from dlt.common.normalizers.names.snake_case import normalize_db_name, normalize_schema_name, normalize_table_name
 
 
 def test_fix_field_name() -> None:

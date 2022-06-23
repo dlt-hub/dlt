@@ -9,7 +9,7 @@ from dateutil.parser import isoparse
 from typing import Dict, List, Set, Mapping, Optional, Sequence, Tuple, Type, TypedDict, Literal, Any, cast
 
 from dlt.common import pendulum, json, Decimal
-from dlt.common.names import normalize_schema_name
+from dlt.common.normalizers.names.snake_case import normalize_schema_name
 from dlt.common.typing import DictStrAny, StrAny, StrStr
 from dlt.common.arithmetics import ConversionSyntax
 from dlt.common.exceptions import DltException

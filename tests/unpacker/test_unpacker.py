@@ -10,7 +10,7 @@ from dlt.common import json
 from dlt.common.sources import with_table_name
 from dlt.common.utils import uniq_id
 from dlt.common.typing import StrAny, TEvent
-from dlt.common.parser import TUnpackedRowIterator, extract
+from dlt.common.normalizers.json.relational import TUnpackedRowIterator, normalize
 from dlt.common.file_storage import FileStorage
 from dlt.common.schema import DataType, Schema
 from dlt.common.storages.loader_storage import LoaderStorage
@@ -45,16 +45,16 @@ def init_unpacker(default_schemas_path: str = None, schema_names: List[str] = No
     return storage
 
 
-def _mock_rasa_extract(schema: Schema, source_event: TEvent, load_id: str, add_json: bool) -> TUnpackedRowIterator:
+def _mock_rasa_extract(schema: Schema, source_event: TEvent, load_id: str) -> TUnpackedRowIterator:
     if schema.schema_name == "event":
         # this emulates rasa parser on standard parser
         event = {"sender_id": source_event["sender_id"], "timestamp": source_event["timestamp"]}
-        yield from extract(schema, event, load_id, add_json)
+        yield from normalize(schema, event, load_id)
         # add table name which is "event" field in RASA OSS
         with_table_name(source_event, "event_" + source_event["event"])
 
     # will generate tables properly
-    yield from extract(schema, source_event, load_id, add_json)
+    yield from normalize(schema, source_event, load_id)
 
 
 @pytest.fixture(scope="module", autouse=True)
