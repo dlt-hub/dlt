@@ -3,7 +3,7 @@ import base64
 import binascii
 import datetime
 from dateutil.parser import isoparse
-from typing import Type, Any, Mapping, Sequence
+from typing import Dict, List, Type, Any
 
 from dlt.common import pendulum, json, Decimal
 from dlt.common.arithmetics import ConversionSyntax
@@ -35,12 +35,14 @@ def verify_column(table_name: str, column_name: str, column: Column) -> None:
 
 
 def upgrade_engine_version(schema_dict: StoredSchema, from_engine: int, to_engine: int) -> None:
-    if from_engine == 1:
+    if from_engine == 1 and to_engine > 1:
         schema_dict["engine_version"] = 2
         schema_dict["includes"] = []
         schema_dict["excludes"] = []
         from_engine = 2
-    if from_engine == 2:
+    if from_engine == 2 and to_engine > 2:
+        raise SchemaEngineNoUpgradePathException(schema_dict["name"], schema_dict["engine_version"], from_engine, to_engine)
+    if from_engine == 3:
         pass
     if from_engine != to_engine:
         raise SchemaEngineNoUpgradePathException(schema_dict["name"], schema_dict["engine_version"], from_engine, to_engine)
@@ -70,7 +72,7 @@ def py_type_to_sc_type(t: Type[Any]) -> DataType:
         return "bool"
     elif issubclass(t, bytes):
         return "binary"
-    elif issubclass(t, dict) or  issubclass(t, list):
+    elif issubclass(t, dict) or issubclass(t, list):
         return "complex"
     elif issubclass(t, Decimal):
         return "decimal"
@@ -82,6 +84,9 @@ def py_type_to_sc_type(t: Type[Any]) -> DataType:
 
 def coerce_type(to_type: DataType, from_type: DataType, value: Any) -> Any:
     if to_type == from_type:
+        if to_type == "complex":
+            # complex types will be always represented as strings
+            return json.dumps(value)
         return value
 
     if to_type == "text":
@@ -214,6 +219,6 @@ def load_table() -> Table:
     }
 
 
-def standard_hints() -> Mapping[HintType, Sequence[str]]:
+def standard_hints() -> Dict[HintType, List[str]]:
     # no standard hints independent of json normalizer
     return {}

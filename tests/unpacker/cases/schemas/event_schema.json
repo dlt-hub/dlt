@@ -33,10 +33,23 @@
                 "data_type": "timestamp",
                 "nullable": false
             }
+        },
+        "event_slot": {
+            "value": {
+                "name": "value",
+                "data_type": "complex",
+                "nullable": "true"
+            }
         }
     },
-    "version": 1,
-    "engine_version": 2,
+    "normalizers": {
+        "names": "dlt.common.normalizers.names.snake_case",
+        "json": {
+            "module": "tests.unpacker.mock_rasa_json_normalizer"
+        }
+    },
+    "version": 3,
+    "engine_version": 3,
     "name": "event",
     "preferred_types": {
         "^timestamp$": "timestamp",

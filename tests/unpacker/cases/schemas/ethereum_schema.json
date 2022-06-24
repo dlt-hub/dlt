@@ -888,6 +888,12 @@
             }
         }
     },
+    "normalizers": {
+        "names": "dlt.common.normalizers.names.snake_case",
+        "json": {
+            "module": "dlt.common.normalizers.json.relational"
+        }
+    },
     "name": "ethereum",
     "version": 8,
     "preferred_types": {},
@@ -907,5 +913,5 @@
     },
     "excludes": [],
     "includes": [],
-    "engine_version": 2
+    "engine_version": 3
 }

@@ -48,7 +48,12 @@ TABLE_UPDATE: List[Column] = [
         "name": "col8",
         "data_type": "wei",
         "nullable": True
-    }
+    },
+    {
+        "name": "col9",
+        "data_type": "complex",
+        "nullable": False
+    },
 ]
 
 TABLE_ROW = {
@@ -59,7 +64,8 @@ TABLE_ROW = {
     "col5": "string data",
     "col6": Decimal("2323.34"),
     "col7": b'binary data',
-    "col8": 2**56 + 92093890840
+    "col8": 2**56 + 92093890840,
+    "col9": "{complex: [1,2,3]}"
 }
 
 def load_table(name: str) -> Table:

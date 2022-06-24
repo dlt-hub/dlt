@@ -50,6 +50,7 @@ def test_create_table(client: RedshiftClient) -> None:
     assert '"col6" numeric(38,9)  NOT NULL' in sql
     assert '"col7" varbinary' in sql
     assert '"col8" numeric(38,0)' in sql
+    assert '"col9" varchar(max)  NOT NULL' in sql
     assert sql.endswith('\nCOMMIT TRANSACTION;')
 
 
@@ -70,6 +71,7 @@ def test_alter_table(client: RedshiftClient) -> None:
     assert '"col6" numeric(38,9)  NOT NULL' in sql
     assert '"col7" varbinary' in sql
     assert '"col8" numeric(38,0)' in sql
+    assert '"col9" varchar(max)  NOT NULL' in sql
     assert sql.endswith("\nCOMMIT TRANSACTION;")
 
 

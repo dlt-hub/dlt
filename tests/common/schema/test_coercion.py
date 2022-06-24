@@ -1,0 +1,102 @@
+import pytest
+
+from dlt.common import Decimal, json
+from dlt.common.schema import utils
+
+def test_coerce_type() -> None:
+    # same type coercion
+    assert utils.coerce_type("double", "double", 8721.1) == 8721.1
+    # anything into text
+    assert utils.coerce_type("text", "bool", False) == str(False)
+
+
+def test_coerce_type_float() -> None:
+    # bigint into float
+    assert utils.coerce_type("double", "bigint", 762162) == 762162.0
+    # text into float if parsable
+    assert utils.coerce_type("double", "text", " -1726.1288 ") == -1726.1288
+
+
+def test_coerce_type_integer() -> None:
+    # bigint/wei type
+    assert utils.coerce_type("bigint", "text", " -1726 ") == -1726
+    assert utils.coerce_type("wei", "text", " -1726 ") == -1726
+    assert utils.coerce_type("bigint", "double", 1276.0) == 1276
+    assert utils.coerce_type("wei", "double", 1276.0) == 1276
+    assert utils.coerce_type("wei", "decimal", Decimal(1276.0)) == 1276
+    assert utils.coerce_type("bigint", "decimal", 1276.0) == 1276
+    # float into bigint raises
+    with pytest.raises(ValueError):
+        utils.coerce_type("bigint", "double", 912.12)
+    with pytest.raises(ValueError):
+        utils.coerce_type("wei", "double", 912.12)
+    # decimal (non integer) also raises
+    with pytest.raises(ValueError):
+        utils.coerce_type("bigint", "decimal", Decimal(912.12))
+    with pytest.raises(ValueError):
+        utils.coerce_type("wei", "decimal", Decimal(912.12))
+    # non parsable floats and ints
+    with pytest.raises(ValueError):
+        utils.coerce_type("bigint", "text", "f912.12")
+    with pytest.raises(ValueError):
+        utils.coerce_type("double", "text", "a912.12")
+
+
+def test_coerce_type_decimal() -> None:
+    # decimal type
+    assert utils.coerce_type("decimal", "text", " -1726 ") == Decimal("-1726")
+    # we keep integer if value is integer
+    assert utils.coerce_type("decimal", "bigint", -1726) == -1726
+    assert utils.coerce_type("decimal", "double", 1276.0) == Decimal("1276")
+
+
+def test_coerce_type_from_hex_text() -> None:
+    # hex text into various types
+    assert utils.coerce_type("wei", "text", " 0xff") == 255
+    assert utils.coerce_type("bigint", "text", " 0xff") == 255
+    assert utils.coerce_type("decimal", "text", " 0xff") == Decimal(255)
+    assert utils.coerce_type("double", "text", " 0xff") == 255.0
+
+
+def test_coerce_type_timestamp() -> None:
+    # timestamp cases
+    assert utils.coerce_type("timestamp", "text", " 1580405246 ") == "2020-01-30T17:27:26+00:00"
+    # the tenths of microseconds will be ignored
+    assert utils.coerce_type("timestamp", "double", 1633344898.7415245) == "2021-10-04T10:54:58.741524+00:00"
+    # if text is ISO string it will be coerced
+    assert utils.coerce_type("timestamp", "text", "2022-05-10T03:41:31.466000+00:00") == "2022-05-10T03:41:31.466000+00:00"
+    # non parsable datetime
+    with pytest.raises(ValueError):
+        utils.coerce_type("timestamp", "text", "2022-05-10T03:41:31.466000X+00:00")
+
+
+def test_coerce_type_binary() -> None:
+    # from hex string
+    assert utils.coerce_type("binary", "text", "0x30") == b'0'
+    # from base64
+    assert utils.coerce_type("binary", "text", "YmluYXJ5IHN0cmluZw==") == b'binary string'
+    # int into bytes
+    assert utils.coerce_type("binary", "bigint", 15) == b"\x0f"
+    # can't into double
+    with pytest.raises(ValueError):
+        utils.coerce_type("binary", "double", 912.12)
+    # can't broken base64
+    with pytest.raises(ValueError):
+        assert utils.coerce_type("binary", "text", "!YmluYXJ5IHN0cmluZw==")
+
+
+def test_coerce_type_complex() -> None:
+    # dicts and lists should be coerced into strings automatically
+    v_list = [1, 2, "3", {"complex": True}]
+    v_dict = {"list": [1, 2], "str": "complex"}
+    assert utils.py_type_to_sc_type(type(v_list)) == "complex"
+    assert utils.py_type_to_sc_type(type(v_dict)) == "complex"
+    assert type(utils.coerce_type("complex", "complex", v_dict)) is str
+    assert type(utils.coerce_type("complex", "complex", v_list)) is str
+    assert utils.coerce_type("complex", "complex", v_dict) == json.dumps(v_dict)
+    assert utils.coerce_type("complex", "complex", v_list) == json.dumps(v_list)
+    assert utils.coerce_type("text", "complex", v_dict) == json.dumps(v_dict)
+    assert utils.coerce_type("text", "complex", v_list) == json.dumps(v_list)
+    # all other coercions fail
+    with pytest.raises(ValueError):
+        utils.coerce_type("binary", "complex", v_list)

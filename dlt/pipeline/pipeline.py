@@ -9,7 +9,7 @@ import os.path
 from typing import Iterator, List, Sequence, Tuple
 from prometheus_client import REGISTRY
 
-from dlt.common import json, logger
+from dlt.common import json
 from dlt.common.runners import pool_runner as runner, TRunArgs, TRunMetrics
 from dlt.common.configuration import BasicConfiguration, make_configuration
 from dlt.common.file_storage import FileStorage
@@ -17,7 +17,6 @@ from dlt.common.logger import process_internal_exception
 from dlt.common.schema import Schema, StoredSchema, normalize_schema_name
 from dlt.common.typing import DictStrAny, StrAny
 from dlt.common.utils import uniq_id, is_interactive
-from dlt.common.normalizers.json.relational import normalize as default_parser
 from dlt.common.sources import DLT_METADATA_FIELD, TItem, with_table_name
 
 from dlt.extractors.extractor_storage import ExtractorStorageBase
@@ -27,7 +26,7 @@ from dlt.loaders.configuration import configuration as loader_configuration
 from dlt.unpacker import unpacker
 from dlt.loaders import loader
 from dlt.pipeline.exceptions import InvalidPipelineContextException, MissingDependencyException, NoPipelineException, PipelineStepFailed, CannotRestorePipelineException
-from dlt.pipeline.typing import PipelineCredentials, GCPPipelineCredentials
+from dlt.pipeline.typing import PipelineCredentials
 
 
 class Pipeline:
@@ -115,7 +114,7 @@ class Pipeline:
 
             try:
                 self._extract_iterator(default_table_name, all_items)
-            except:
+            except Exception:
                 raise PipelineStepFailed("extract", self.last_run_exception, runner.LAST_RUN_METRICS)
 
     def unpack(self, workers: int = 1, max_events_in_chunk: int = 100000) -> None:
@@ -210,7 +209,7 @@ class Pipeline:
         }
         unpacker_initial.update(self._configure_runner())
         C = unpacker_configuration(initial_values=unpacker_initial)
-        unpacker.configure(C, REGISTRY, default_parser)
+        unpacker.configure(C, REGISTRY)
         self._unpacker_instance = id(unpacker.CONFIG)
 
     def _configure_load(self) -> None:
@@ -222,7 +221,11 @@ class Pipeline:
         try:
             loader.configure(C, REGISTRY, is_storage_owner=True)
         except ImportError:
-            raise MissingDependencyException(f"{self.credentials.CLIENT_TYPE} loader", [f"python-dlt[{self.credentials.CLIENT_TYPE}]"], "Dependencies for specific loaders are available as extras of python-dlt")
+            raise MissingDependencyException(
+                f"{self.credentials.CLIENT_TYPE} loader",
+                [f"python-dlt[{self.credentials.CLIENT_TYPE}]"],
+                "Dependencies for specific loaders are available as extras of python-dlt"
+            )
         self._loader_instance = id(loader.CONFIG)
 
     # def _only_active(f: TFun) -> TFun:

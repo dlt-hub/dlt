@@ -31,7 +31,7 @@ class Schema:
         # compiled regexes
         self._compiled_preferred_types: List[Tuple[Pattern[str], DataType]] = []
         # table hints
-        self._hints: Mapping[HintType, Sequence[str]] = {}
+        self._hints: Dict[HintType, List[str]] = {}
         self._compiled_hints: Dict[HintType, Sequence[Pattern[str]]] = {}
         # excluded paths
         self._excludes: Sequence[str] = []
@@ -45,7 +45,7 @@ class Schema:
         self.normalize_table_name: TNormalizeNameFunc = None
         self.normalize_column_name: TNormalizeNameFunc = None
         # json normalization function
-        self.json_normalize: TNormalizeJSONFunc = None
+        self.normalize_json: TNormalizeJSONFunc = None
         # add version table
         self._add_standard_tables()
         # add standard hints
@@ -79,7 +79,7 @@ class Schema:
                 table[column_name] = column
         self._version = stored_schema["version"]
         self._preferred_types = stored_schema["preferred_types"]
-        self._hints = stored_schema["hints"]
+        self._hints = stored_schema["hints"]  # type: ignore
         self._excludes = stored_schema.get("excludes", [])
         self._includes = stored_schema.get("includes", [])
         # compile regexes
@@ -125,7 +125,7 @@ class Schema:
 
         return new_row, new_columns
 
-    def filter_hints_in_row(self, table_name: str, hint_type: HintType, row: StrAny) -> StrAny:
+    def filter_row_with_hint(self, table_name: str, hint_type: HintType, row: StrAny) -> StrAny:
         rv_row: DictStrAny = {}
         column_prop: ColumnProp = utils.hint_to_column_prop(hint_type)
         try:
@@ -142,6 +142,17 @@ class Schema:
 
         # dicts are ordered and we will return the rows with hints in the same order as they appear in the columns
         return rv_row
+
+    def merge_hints(self, new_hints: Mapping[HintType, Sequence[str]]) -> None:
+        # add `new_hints` to existing hints
+        for h, l in new_hints.items():
+            if h in self._hints:
+                # merge if hint of this type exist
+                self._hints[h] = list(set(self._hints[h] + list(l)))
+            else:
+                # set new hint type
+                self._hints[h] = l  # type: ignore
+        self._compile_regexes()
 
     def update_schema(self, table_name: str, updated_columns: List[Column]) -> None:
         if table_name not in self._schema_tables:
@@ -173,6 +184,9 @@ class Schema:
 
     def get_table(self, table_name: str) -> Table:
         return self._schema_tables[table_name]
+
+    def get_preferred_type(self, col_name: str) -> Optional[DataType]:
+        return next((m[1] for m in self._compiled_preferred_types if m[0].search(col_name)), None)
 
     def to_dict(self) -> StoredSchema:
         return  {
@@ -237,37 +251,29 @@ class Schema:
 
     def _coerce_non_null_value(self, table_schema: Table, table_name: str, col_name: str, v: Any) -> Tuple[str, Column, Any]:
         new_column: Column = None
-        rv = v
         variant_col_name = col_name
 
         if col_name in table_schema:
             existing_column = table_schema[col_name]
             # existing columns cannot be changed so we must update row
             py_data_type = utils.py_type_to_sc_type(type(v))
-            if existing_column["data_type"] != py_data_type:
-                # first try to coerce existing value into destination type
-                try:
-                    rv = utils.coerce_type(existing_column["data_type"], py_data_type, v)
-                except (ValueError, SyntaxError):
-                    # for complex types we must coerce to text
-                    if py_data_type == "complex":
-                        py_data_type = "text"
-                        rv = utils.coerce_type("text", "complex", v)
-                    # if that does not work we must create variant extension to the table
-                    variant_col_name = f"{col_name}_v_{py_data_type}"
-                    # if variant exists check type, coercions are not required
-                    if variant_col_name in table_schema:
-                        if table_schema[variant_col_name]["data_type"] != py_data_type:
-                            raise CannotCoerceColumnException(table_name, variant_col_name, table_schema[variant_col_name]["data_type"], py_data_type, v)
-                    else:
-                        # new column
-                        # add new column
-                        new_column = self._infer_column(variant_col_name, v)
-                        # must have variant type, not preferred or coerced type
-                        new_column["data_type"] = py_data_type
-            else:
-                # just copy row: types match
-                pass
+            # first try to coerce existing value into destination type
+            try:
+                rv = utils.coerce_type(existing_column["data_type"], py_data_type, v)
+            except (ValueError, SyntaxError):
+                # if that does not work we must create variant extension to the table
+                variant_col_name = f"{col_name}_v_{py_data_type}"
+                # if variant exists check type, coercions are not required
+                if variant_col_name in table_schema:
+                    if table_schema[variant_col_name]["data_type"] != py_data_type:
+                        raise CannotCoerceColumnException(table_name, variant_col_name, table_schema[variant_col_name]["data_type"], py_data_type, v)
+                else:
+                    # add new column
+                    new_column = self._infer_column(variant_col_name, v)
+                    # must have variant type, not preferred or coerced type
+                    new_column["data_type"] = py_data_type
+                # coerce even if types are the same (complex case)
+                rv = utils.coerce_type(py_data_type, py_data_type, v)
         else:
             # infer new column
             new_column = self._infer_column(col_name, v)
@@ -279,11 +285,8 @@ class Schema:
 
     def _map_value_to_column_type(self, v: Any, k: str) -> DataType:
         mapped_type = utils.py_type_to_sc_type(type(v))
-         # if complex type was detected we must coerce to string
-        if mapped_type == "complex":
-            mapped_type = "text"
         # get preferred type based on column name
-        preferred_type = self._get_preferred_type(k)
+        preferred_type = self.get_preferred_type(k)
         # try to match python type to preferred
         if preferred_type:
             # try to coerce to destination type
@@ -295,9 +298,6 @@ class Schema:
                 # coercion not possible
                 pass
         return mapped_type
-
-    def _get_preferred_type(self, col_name: str) -> Optional[DataType]:
-        return next((m[1] for m in self._compiled_preferred_types if m[0].search(col_name)), None)
 
     def _infer_hint(self, hint_type: HintType, _: Any, k: str) -> bool:
         if hint_type in self._compiled_hints:
@@ -328,7 +328,7 @@ class Schema:
         self.normalize_table_name = naming_module.normalize_table_name
         self.normalize_column_name = naming_module.normalize_column_name
         # json normalization function
-        self.json_normalize = json_module.normalize
+        self.normalize_json = json_module.normalize
         json_module.extend_schema(self)
 
     def _compile_regexes(self) -> None:

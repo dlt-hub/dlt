@@ -53,7 +53,8 @@ def test_create_table(gcp_client: BigQueryClient) -> None:
     assert "`col5` STRING " in sql
     assert "`col6` NUMERIC(38,9) NOT NULL" in sql
     assert "`col7` BYTES" in sql
-    assert "`col8` BIGNUMERIC )" in sql
+    assert "`col8` BIGNUMERIC" in sql
+    assert "`col9` STRING NOT NULL)" in sql
     assert "CLUSTER BY" not in sql
     assert "PARTITION BY" not in sql
 
@@ -72,6 +73,7 @@ def test_alter_table(gcp_client: BigQueryClient) -> None:
     assert "ADD COLUMN `col6` NUMERIC(38,9) NOT NULL" in sql
     assert "ADD COLUMN `col7` BYTES" in sql
     assert "ADD COLUMN `col8` BIGNUMERIC" in sql
+    assert "ADD COLUMN `col9` STRING NOT NULL" in sql
     # table has col1 already in storage
     sql = gcp_client._get_table_update_sql("event_test_table", {"col1": {}}, True)
     assert "ADD COLUMN `col1` INTEGER NOT NULL" not in sql

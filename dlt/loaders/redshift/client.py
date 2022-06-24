@@ -15,6 +15,7 @@ from dlt.loaders.local_types import LoadJobStatus
 from dlt.loaders.client_base import ClientBase, SqlClientBase, LoadJob
 
 SCT_TO_PGT: Dict[DataType, str] = {
+    "complex": "varchar(max)",
     "text": "varchar(max)",
     "double": "double precision",
     "bool": "boolean",

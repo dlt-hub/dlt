@@ -18,6 +18,7 @@ from dlt.loaders.client_base import SqlClientBase, LoadJob
 from dlt.loaders.exceptions import LoadClientSchemaWillNotUpdate, LoadJobNotExistsException, LoadJobServerTerminalException, LoadUnknownTableException
 
 SCT_TO_BQT: Dict[DataType, str] = {
+    "complex": "STRING",
     "text": "STRING",
     "double": "FLOAT64",
     "bool": "BOOLEAN",

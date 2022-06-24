@@ -301,7 +301,10 @@ def test_get_storage_table_with_all_types(client: RedshiftClient) -> None:
     storage_columns = list(storage_table.values())
     for c, s_c in zip(TABLE_UPDATE, storage_columns):
         assert c["name"] == s_c["name"]
-        assert c["data_type"] == s_c["data_type"]
+        if c["data_type"] == "complex":
+            assert s_c["data_type"] == "text"
+        else:
+            assert c["data_type"] == s_c["data_type"]
 
 
 @pytest.mark.order(14)

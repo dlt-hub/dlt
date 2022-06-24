@@ -18,12 +18,9 @@ from dlt.common.schema import SchemaUpdate, Schema
 from dlt.common.schema.exceptions import CannotCoerceColumnException
 from dlt.common.normalizers.json.relational import PATH_SEPARATOR
 from dlt.common.storages.loader_storage import LoaderStorage
-from dlt.common.normalizers.json import TNormalizeJSONFunc
-from dlt.common.normalizers.json.relational import normalize
 
 from dlt.unpacker.configuration import configuration, UnpackerConfiguration
 
-extract_func: TNormalizeJSONFunc = normalize
 CONFIG: Type[UnpackerConfiguration] = None
 unpack_storage: UnpackerStorage = None
 load_storage: LoaderStorage = None
@@ -92,7 +89,7 @@ def w_unpack_files(schema_name: str, load_id: str, events_files: Sequence[str]) 
             with unpack_storage.storage.open(events_file) as f:
                 events: Sequence[TEvent] = json.load(f)
             for event in events:
-                for (table_name, parent_table), row in extract_func(schema, event, load_id):
+                for (table_name, parent_table), row in schema.normalize_json(schema, event, load_id):
                     # filter row, may eliminate some or all fields
                     row = schema.filter_row(table_name, row, PATH_SEPARATOR)
                     # do not process empty rows
@@ -220,15 +217,12 @@ def unpack(pool: ProcessPool) -> TRunMetrics:
     return TRunMetrics(False, False, len(unpack_storage.list_files_to_unpack_sorted()))
 
 
-def configure(C: Type[UnpackerConfiguration], collector: CollectorRegistry, extract_f: TNormalizeJSONFunc, default_schemas_path: str = None, schema_names: List[str] = None) -> None:
+def configure(C: Type[UnpackerConfiguration], collector: CollectorRegistry, default_schemas_path: str = None, schema_names: List[str] = None) -> None:
     global CONFIG
     global unpack_storage, load_storage, schema_storage, load_schema_storage
     global event_counter, event_gauge, schema_version_gauge, load_package_counter
-    global extract_func
 
     CONFIG = C
-    # set extracting parser function
-    extract_func = extract_f
     # setup singletons
     unpack_storage, load_storage, schema_storage, load_schema_storage = create_folders()
     try:
@@ -241,13 +235,13 @@ def configure(C: Type[UnpackerConfiguration], collector: CollectorRegistry, extr
         install_schemas(default_schemas_path, schema_names)
 
 
-def main(args: TRunArgs, extract_f: TNormalizeJSONFunc, default_schemas_path: str = None, schema_names: List[str] = None) -> int:
+def main(args: TRunArgs, default_schemas_path: str = None, schema_names: List[str] = None) -> int:
     # initialize runner
     C = configuration()
     initialize_runner(C, args)
     # create objects and gauges
     try:
-        configure(C, REGISTRY, extract_f, default_schemas_path, schema_names)
+        configure(C, REGISTRY, default_schemas_path, schema_names)
     except Exception:
         process_internal_exception("init module")
         return -1
@@ -256,4 +250,4 @@ def main(args: TRunArgs, extract_f: TNormalizeJSONFunc, default_schemas_path: st
 
 
 def run_main(args: TRunArgs) -> None:
-    exit(main(args, normalize))
+    exit(main(args))
