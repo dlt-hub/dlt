@@ -4,7 +4,7 @@ from dlt.common.sources import DLT_METADATA_FIELD, with_table_name
 from dlt.common.utils import digest128, uniq_id
 from dlt.common.schema import Schema
 
-from dlt.common.normalizers.json.relational import _flatten, _get_child_row_hash, _normalize_row, normalize
+from dlt.common.normalizers.json.relational import JSONNormalizerConfigPropagation, _flatten, _get_child_row_hash, _normalize_row, normalize
 
 from tests.utils import create_schema_with_name
 
@@ -90,8 +90,10 @@ def test_child_table_linking(schema: Schema) -> None:
             "o": [{"a": 1}, {"a": 2}]
         }]
     }
-    # request _root_hash propagation but use None to get generated record_hash
-    rows = list(_normalize_row(schema, row, {"_root_hash": None}, "table"))
+    # request _root_hash propagation
+    add_root_hash_propagation(schema)
+
+    rows = list(_normalize_row(schema, row, {}, "table"))
     # should have 7 entries (root + level 1 + 3 * list + 2 * object)
     assert len(rows) == 7
     # root elem will not have a root hash if not explicitly added, "extend" is added only to child
@@ -144,7 +146,7 @@ def test_child_table_linking_primary_key(schema: Schema) -> None:
     schema._hints = {"primary_key": ["^id$"]}
     schema._compile_regexes()
 
-    rows = list(_normalize_row(schema, row, {"_root_hash": None}, "table"))
+    rows = list(_normalize_row(schema, row, {}, "table"))
     root = next(t for t in rows if t[0][0] == "table")[1]
     # record hash must be derived from natural key
     assert root["_record_hash"] == digest128("level0")
@@ -175,7 +177,7 @@ def test_yields_parents_first(schema: Schema) -> None:
             "o": [{"a": 1}, {"a": 2}]
         }]
     }
-    rows = list(_normalize_row(schema, row, {"_root_hash": None}, "table"))
+    rows = list(_normalize_row(schema, row, {}, "table"))
     tables = list(r[0][0] for r in rows)
     assert ['table', 'table__f', 'table__f__l', 'table__f__l', 'table__f__l', 'table__f__o', 'table__f__o'] == tables
 
@@ -242,7 +244,7 @@ def test_child_row_deterministic_hash(schema: Schema) -> None:
             "lo": [{"e": "a"}, {"e": "b"}, {"e":"c"}]
         }]
     }
-    rows = list(_normalize_row(schema, row, {"_root_hash": None}, "table"))
+    rows = list(_normalize_row(schema, row, {}, "table"))
     children = [t for t in rows if t[0][0] != "table"]
     # all hashes must be different
     distinct_hashes = set([ch[1]["_record_hash"] for ch in children])
@@ -259,19 +261,19 @@ def test_child_row_deterministic_hash(schema: Schema) -> None:
     assert f_lo_p2["_record_hash"] == digest128(f"{el_f['_record_hash']}_table__f__lo_2")
 
     # same data with same table and row_id
-    rows_2 = list(_normalize_row(schema, row, {"_root_hash": "root_hash"}, "table"))
+    rows_2 = list(_normalize_row(schema, row, {}, "table"))
     children_2 = [t for t in rows_2 if t[0][0] != "table"]
     # corresponding hashes must be identical
     assert all(ch[0][1]["_record_hash"] == ch[1][1]["_record_hash"] for ch in zip(children, children_2))
 
     # change parent table and all child hashes must be different
-    rows_4 = list(_normalize_row(schema, row, {"_root_hash": "root_hash"}, "other_table"))
+    rows_4 = list(_normalize_row(schema, row, {}, "other_table"))
     children_4 = [t for t in rows_4 if t[0][0] != "other_table"]
     assert all(ch[0][1]["_record_hash"] != ch[1][1]["_record_hash"] for ch in zip(children, children_4))
 
     # change parent hash and all child hashes must be different
     row["_record_hash"] = uniq_id()
-    rows_3 = list(_normalize_row(schema, row, {"_root_hash": "root_hash"}, "table"))
+    rows_3 = list(_normalize_row(schema, row, {}, "table"))
     children_3 = [t for t in rows_3 if t[0][0] != "table"]
     assert all(ch[0][1]["_record_hash"] != ch[1][1]["_record_hash"] for ch in zip(children, children_3))
 
@@ -282,12 +284,12 @@ def test_keeps_record_hash(schema: Schema) -> None:
         "a": "b",
         "_record_hash": h
     }
-    rows = list(_normalize_row(schema, row, {"_root_hash": "root_hash"}, "table"))
+    rows = list(_normalize_row(schema, row, {}, "table"))
     root = [t for t in rows if t[0][0] == "table"][0][1]
     assert root["_record_hash"] == h
 
 
-def test_propagate_context(schema: Schema) -> None:
+def test_propagate_hardcoded_context(schema: Schema) -> None:
     row = {"level": 1, "list": ["a", "b", "c"], "comp": [{"_timestamp": "a"}]}
     rows = list(_normalize_row(schema, row, {"_timestamp": 1238.9, "_dist_key": "SENDER_3000"}, "table"))
     # context is not added to root element
@@ -298,11 +300,66 @@ def test_propagate_context(schema: Schema) -> None:
     assert all(e[1]["_timestamp"] == 1238.9 and e[1]["_dist_key"] == "SENDER_3000" for e in rows if e[0][0] != "table")
 
 
+def test_propagates_root_context(schema: Schema) -> None:
+    add_root_hash_propagation(schema)
+    # add timestamp propagation
+    schema._normalizers_config["json"]["config"]["propagation"]["root"]["timestamp"] = "_partition_ts"
+    # add propagation for non existing element
+    schema._normalizers_config["json"]["config"]["propagation"]["root"]["__not_found"] = "__not_found"
+
+    row = {"_record_hash": "###", "timestamp": 12918291.1212, "dependent_list":[1, 2,3], "dependent_objects": [{"vx": "ax"}]}
+    normalized_rows = list(_normalize_row(schema, row, {}, "table"))
+    # all non-root rows must have:
+    non_root = [r for r in normalized_rows if r[0][1] is not None]
+    assert all(r[1]["_root_hash"] == "###" for r in non_root)
+    assert all(r[1]["_partition_ts"] == 12918291.1212 for r in non_root)
+    assert all("__not_found" not in r[1] for r in non_root)
+
+
+def test_propagates_table_context(schema: Schema) -> None:
+    add_root_hash_propagation(schema)
+    prop_config: JSONNormalizerConfigPropagation = schema._normalizers_config["json"]["config"]["propagation"]
+    prop_config["root"]["timestamp"] = "_partition_ts"
+    # for table "table__lvl1" request to propagate "vx" and "partition_ovr" as "_partition_ts" (should overwrite root)
+    prop_config["tables"]["table__lvl1"] = {
+        "vx": "__vx",
+        "partition_ovr": "_partition_ts",
+        "__not_found": "__not_found"
+    }
+
+    row = {
+            "_record_hash": "###",
+            "timestamp": 12918291.1212,
+            "lvl1": [{
+                    "vx": "ax",
+                    "partition_ovr": 1283.12,
+                    "lvl2": [{
+                        "_partition_ts": "overwritten"
+                    }]
+                }]
+            }
+
+    normalized_rows = list(_normalize_row(schema, row, {}, "table"))
+    non_root = [r for r in normalized_rows if r[0][1] is not None]
+    # _root_hash in all non root
+    assert all(r[1]["_root_hash"] == "###" for r in non_root)
+    # __not_found nowhere
+    assert all("__not_found" not in r[1] for r in non_root)
+    # _partition_ts == timestamp only at lvl1
+    assert all(r[1]["_partition_ts"] == 12918291.1212 for r in non_root if r[0][0] == "table__lvl1")
+    # _partition_ts == partition_ovr and __vx only at lvl2
+    assert all(r[1]["_partition_ts"] == 1283.12 and r[1]["__vx"] == "ax" for r in non_root if r[0][0] == "table__lvl1__lvl2")
+    assert any(r[1]["_partition_ts"] == 1283.12 and r[1]["__vx"] == "ax" for r in non_root if r[0][0] != "table__lvl1__lvl2") is False
+
+
 def test_removes_normalized_list(schema: Schema) -> None:
     # after normalizing the list that got unpacked into child table must be deleted
     row = {"comp": [{"_timestamp": "a"}]}
-    normalized_rows = list(_normalize_row(schema, row, {}, "table"))
-    root_row = next(r for r in normalized_rows if r[0][1] is None)
+    # get iterator
+    normalized_rows_i = _normalize_row(schema, row, {}, "table")
+    # yield just one item
+    root_row = next(normalized_rows_i)
+    # root_row = next(r for r in normalized_rows if r[0][1] is None)
     assert "comp" not in root_row[1]
 
 
@@ -367,6 +424,8 @@ def test_parse_with_primary_key() -> None:
     schema = create_schema_with_name("discord")
     schema._hints = {"primary_key": ["^id$"]}
     schema._compile_regexes()
+    add_root_hash_propagation(schema)
+
     row = {
         "id": "817949077341208606",
         "w_id":[{
@@ -404,3 +463,16 @@ def test_keeps_none_values() -> None:
     normalized_row = rows[0][1]
     assert normalized_row["a"] is None
     assert normalized_row["_load_id"] == "1762162.1212"
+
+
+def add_root_hash_propagation(schema: Schema) -> None:
+    schema._normalizers_config["json"] = {
+        "config": {
+            "propagation": {
+                "root": {
+                    "_record_hash": "_root_hash"
+                },
+                "tables": {}
+            }
+        }
+    }

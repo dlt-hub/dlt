@@ -1,4 +1,4 @@
-from typing import Dict, List, Literal, Mapping, Optional, Sequence, Set, TypedDict
+from typing import Dict, List, Literal, Mapping, Sequence, Set, TypedDict
 
 from dlt.common.typing import StrAny
 
@@ -36,9 +36,11 @@ class JSONNormalizer(TypedDict, total=False):
     module: str
     config: StrAny  # config is a free form and is consumed by `module`
 
+
 class NormalizersConfig(TypedDict, total=True):
     names: str
     json: JSONNormalizer
+
 
 class StoredSchema(TypedDict, total=True):
     version: int

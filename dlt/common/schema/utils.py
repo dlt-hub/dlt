@@ -7,7 +7,6 @@ from typing import Dict, List, Type, Any
 
 from dlt.common import pendulum, json, Decimal
 from dlt.common.arithmetics import ConversionSyntax
-from dlt.common.typing import StrStr
 from dlt.common.schema.typing import StoredSchema, Table, ColumnBase, Column, ColumnProp, DataType, HintType, COLUMN_PROPS, COLUMN_HINTS, DATA_TYPES
 from dlt.common.schema.exceptions import SchemaCorruptedException, SchemaEngineNoUpgradePathException
 
@@ -31,7 +30,7 @@ def verify_column(table_name: str, column_name: str, column: Column) -> None:
         raise SchemaCorruptedException(f"In table {table_name} column {column_name}: {data_type} is not one of available types: {DATA_TYPES}")
     for p, v in column.items():
         if p in COLUMN_HINTS and not isinstance(v, bool):
-                raise SchemaCorruptedException(f"In table {table_name} column {column_name}: hint {p} is not boolean.")
+            raise SchemaCorruptedException(f"In table {table_name} column {column_name}: hint {p} is not boolean.")
 
 
 def upgrade_engine_version(schema_dict: StoredSchema, from_engine: int, to_engine: int) -> None:
@@ -46,7 +45,6 @@ def upgrade_engine_version(schema_dict: StoredSchema, from_engine: int, to_engin
         pass
     if from_engine != to_engine:
         raise SchemaEngineNoUpgradePathException(schema_dict["name"], schema_dict["engine_version"], from_engine, to_engine)
-
 
 
 def add_missing_hints(column: ColumnBase) -> Column:
@@ -198,6 +196,7 @@ def version_table() -> Table:
             "nullable": False
         })
     }
+
 
 def load_table() -> Table:
     return {

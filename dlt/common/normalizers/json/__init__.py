@@ -12,4 +12,3 @@ TUnpackedRowIterator = Iterator[Tuple[Tuple[str, str], StrAny]]
 
 # normalization function signature
 TNormalizeJSONFunc = Callable[["Schema", TEvent, str], TUnpackedRowIterator]
-

@@ -9,10 +9,13 @@ normalizers:
     config:
       generate_record_hash: true
       propagation:
-        default:
+        # for all root tables
+        root:
           _record_hash: _root_hash
         tables:
+          # for particular tables
           blocks:
+            # propagate timestamp as block_timestamp to child tables
             timestamp: block_timestamp
             hash: block_hash
 

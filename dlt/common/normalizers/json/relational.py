@@ -2,16 +2,13 @@ from typing import Optional, cast, TypedDict, Any
 
 from dlt.common.schema import Schema
 from dlt.common.utils import uniq_id, digest128
-from dlt.common.typing import StrStr, StrStrStr, TEvent, StrAny
+from dlt.common.typing import DictStrAny, DictStrStr, StrStr, StrStrStr, TEvent, StrAny
 from dlt.common.normalizers.json import TUnpackedRowIterator
 from dlt.common.sources import DLT_METADATA_FIELD, TEventDLTMeta, get_table_name
 
 
 class TEventRow(TypedDict, total=False):
-    _timestamp: float  # used for partitioning
-    _dist_key: str  # distribution key used for clustering
     _record_hash: str  # unique id of current row
-    _root_hash: str  # unique id of top level parent
 
 
 class TEventRowRoot(TEventRow, total=False):
@@ -20,19 +17,20 @@ class TEventRowRoot(TEventRow, total=False):
 
 
 class TEventRowChild(TEventRow, total=False):
+    _root_hash: str  # unique id of top level parent
     _parent_hash: str  # unique id of parent row
     _pos: int  # position in the list of rows
     value: Any  # for lists of simple types
 
 
-class JSONNormalizerConfigProgapagtion(TypedDict, total=True):
-    default: StrStr
+class JSONNormalizerConfigPropagation(TypedDict, total=True):
+    root: StrStr
     tables: StrStrStr
 
 
 class JSONNormalizerConfig(TypedDict, total=True):
     generate_record_hash: bool
-    propagation: JSONNormalizerConfigProgapagtion
+    propagation: JSONNormalizerConfigPropagation
 
 
 # subsequent nested fields will be separated with the string below, applies both to field and table names
@@ -41,7 +39,7 @@ PATH_SEPARATOR = "__"
 
 # for those paths the complex nested objects should be left in place
 # current use case: we want to preserve event_slot__value in db even if it's an object
-def _is_complex_type(schema: Schema, table: str, field_name: str, v: Any) -> bool:
+def _is_complex_type(schema: Schema, table: str, field_name: str) -> bool:
     column = schema._schema_tables.get(table, {}).get(field_name, None)
     if column is None:
         data_type = schema.get_preferred_type(field_name)
@@ -50,24 +48,24 @@ def _is_complex_type(schema: Schema, table: str, field_name: str, v: Any) -> boo
     return data_type == "complex"
 
 
-def _flatten(schema: Schema, table: str, dict_row: TEventRowChild) -> TEventRowChild:
-    out_rec_row: TEventRowChild = {}
+def _flatten(schema: Schema, table: str, dict_row: TEventRow) -> TEventRow:
+    out_rec_row: DictStrAny = {}
 
     def norm_row_dicts(dict_row: StrAny, parent_name: Optional[str]) -> None:
         for k, v in dict_row.items():
             corrected_k = schema.normalize_column_name(k)
             child_name = corrected_k if not parent_name else f'{parent_name}{PATH_SEPARATOR}{corrected_k}'
             if isinstance(v, dict):
-                if _is_complex_type(schema, table, child_name, v):
-                    out_rec_row[child_name] = v  # type: ignore
+                if _is_complex_type(schema, table, child_name):
+                    out_rec_row[child_name] = v
                 else:
                     norm_row_dicts(v, parent_name=child_name)
 
             else:
-                out_rec_row[child_name] = v  # type: ignore
+                out_rec_row[child_name] = v
 
     norm_row_dicts(dict_row, None)
-    return out_rec_row
+    return cast(TEventRow, out_rec_row)
 
 
 def _get_child_row_hash(parent_hash: str, child_table: str, list_pos: int) -> str:
@@ -83,22 +81,40 @@ def _get_content_hash(schema: Schema, table: str, row: StrAny) -> str:
     return digest128(uniq_id())
 
 
+def _get_propagated_values(schema: Schema, table: str, row: TEventRow, is_top_level: bool) -> StrAny:
+    config: JSONNormalizerConfigPropagation = schema._normalizers_config["json"].get("config", {}).get("propagation", None)
+    extend: DictStrAny = {}
+    if config:
+        # mapping(k:v): propagate property with name "k" as property with name "v" in child table
+        mappings: DictStrStr = {}
+        if is_top_level:
+            mappings.update(config.get("root", {}))
+        if table in config.get("tables", {}):
+            mappings.update(config["tables"][table])
+        # look for keys and create propagation as values
+        for prop_from, prop_as in mappings.items():
+            if prop_from in row:
+                extend[prop_as] = row[prop_from]  # type: ignore
+
+    return extend
+
+
 def _normalize_row(
     schema: Schema,
-    dict_row: TEventRowChild,
-    extend: TEventRowChild,
+    dict_row: TEventRow,
+    extend: DictStrAny,
     table: str,
     parent_table: Optional[str] = None,
     parent_hash: Optional[str] = None,
     pos: Optional[int] = None
-    ) -> TUnpackedRowIterator:
+) -> TUnpackedRowIterator:
 
-    def _append_child_meta(_row: TEventRowChild, _hash: str, _p_hash: str, _p_pos: int) -> TEventRowChild:
-        _row["_parent_hash"] = _p_hash
-        _row["_pos"] = _p_pos
-        _row.update(extend)
+    def _add_linking(_child_row: TEventRowChild, _p_hash: str, _p_pos: int) -> TEventRowChild:
+        _child_row["_parent_hash"] = _p_hash
+        _child_row["_pos"] = _p_pos
+        _child_row.update(extend)  # type: ignore
 
-        return _row
+        return _child_row
 
     is_top_level = parent_table is None
 
@@ -116,27 +132,31 @@ def _normalize_row(
             # child table row deterministic hash
             record_hash = _get_child_row_hash(parent_hash, table, pos)
             # link to parent table
-            _append_child_meta(flattened_row, record_hash, parent_hash, pos)
+            _add_linking(cast(TEventRowChild, flattened_row), parent_hash, pos)
         else:
-            # create random row id, note that incremental loads will not work with such tables
-            # TODO: create deterministic hash from all new_dict_row elements
+            # create hash based on the content of the row
             record_hash = _get_content_hash(schema, table, flattened_row)
         flattened_row["_record_hash"] = record_hash
 
-    # if _root_hash propagation requested and we are at the top level then update extend
-    if "_root_hash" in extend and extend["_root_hash"] is None and is_top_level:
-        extend["_root_hash"] = record_hash
+    # find fields to propagate to child tables in config
+    extend.update(_get_propagated_values(schema, table, flattened_row, is_top_level))
+
+    # remove all lists from row before yielding
+    lists = {k: flattened_row[k] for k in flattened_row if isinstance(flattened_row[k], list)}  # type: ignore
+    for k in lists:
+        if not _is_complex_type(schema, table, k):
+            # remove child list
+            del flattened_row[k]  # type: ignore
 
     # yield parent table first
     yield (table, parent_table), flattened_row
 
     # generate child tables only for lists
-    lists = [k for k in flattened_row if isinstance(flattened_row[k], list)]  # type: ignore
-    for k in lists:
+    for k, list_content in lists.items():
         child_table = f"{table}{PATH_SEPARATOR}{k}"
         # this will skip empty lists
-        v: TEventRowChild
-        for idx, v in enumerate(flattened_row[k]):  # type: ignore
+        v: TEventRowChild = None
+        for idx, v in enumerate(list_content):
             # yield child table row
             tv = type(v)
             if tv is dict:
@@ -147,11 +167,8 @@ def _normalize_row(
             else:
                 # list of simple types
                 child_row_hash = _get_child_row_hash(record_hash, child_table, idx)
-                e = _append_child_meta({"value": v, "_record_hash": child_row_hash}, child_row_hash, record_hash, idx)
+                e = _add_linking({"value": v, "_record_hash": child_row_hash}, record_hash, idx)
                 yield (child_table, table), e
-        if not _is_complex_type(schema, table, k, []):
-            # remove child list
-            del flattened_row[k]  # type: ignore
 
 
 def extend_schema(schema: Schema) -> None:
@@ -176,6 +193,5 @@ def normalize(schema: Schema, source_event: TEvent, load_id: str) -> TUnpackedRo
     table_name = schema.normalize_table_name(get_table_name(event) or schema.schema_name)
     # drop dlt metadata before normalizing
     event.pop(DLT_METADATA_FIELD, None)  # type: ignore
-    # TODO: if table_name exist get "_dist_key" and "_timestamp" from the table definition in schema and propagate, if not take them from global hints
     # use event type or schema name as table name, request _root_hash propagation
-    yield from _normalize_row(schema, cast(TEventRowChild, event), {"_root_hash": None}, table_name)
+    yield from _normalize_row(schema, cast(TEventRowChild, event), {}, table_name)

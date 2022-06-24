@@ -45,7 +45,16 @@
     "normalizers": {
         "names": "dlt.common.normalizers.names.snake_case",
         "json": {
-            "module": "tests.unpacker.mock_rasa_json_normalizer"
+            "module": "tests.unpacker.mock_rasa_json_normalizer",
+            "config": {
+                "propagation": {
+                    "root": {
+                        "_record_hash": "_root_hash",
+                        "timestamp": "_timestamp",
+                        "sender_id": "_dist_key"
+                    }
+                }
+            }
         }
     },
     "version": 3,

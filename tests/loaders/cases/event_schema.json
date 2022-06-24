@@ -1,1888 +1,779 @@
 {
-  "name": "event",
-  "preferred_types": {
-    "^_pos$": "bigint",
-    "^inserted_at$": "timestamp",
-    "^timestamp$": "timestamp",
-    "confidence": "double"
-  },
-  "tables": {
-    "_version": {
-      "version": {
-        "data_type": "bigint",
-        "name": "version",
-        "nullable": false
-      }
-    },
-    "event": {
-      "_record_hash": {
-        "data_type": "text",
-        "name": "_record_hash",
-        "nullable": true
+    "version": 8,
+    "engine_version": 3,
+    "name": "event",
+    "tables": {
+      "_version": {
+        "version": {
+          "partition": false,
+          "cluster": false,
+          "unique": false,
+          "sort": false,
+          "primary_key": false,
+          "foreign_key": false,
+          "name": "version",
+          "data_type": "bigint",
+          "nullable": false
+        },
+        "engine_version": {
+          "partition": false,
+          "cluster": false,
+          "unique": false,
+          "sort": false,
+          "primary_key": false,
+          "foreign_key": false,
+          "name": "engine_version",
+          "data_type": "bigint",
+          "nullable": false
+        },
+        "inserted_at": {
+          "partition": false,
+          "cluster": false,
+          "unique": false,
+          "sort": false,
+          "primary_key": false,
+          "foreign_key": false,
+          "name": "inserted_at",
+          "data_type": "timestamp",
+          "nullable": false
+        }
       },
-      "environment": {
-        "data_type": "text",
-        "name": "environment",
-        "nullable": true
+      "_loads": {
+        "load_id": {
+          "partition": false,
+          "cluster": false,
+          "unique": false,
+          "sort": false,
+          "primary_key": false,
+          "foreign_key": false,
+          "name": "load_id",
+          "data_type": "text",
+          "nullable": false
+        },
+        "status": {
+          "partition": false,
+          "cluster": false,
+          "unique": false,
+          "sort": false,
+          "primary_key": false,
+          "foreign_key": false,
+          "name": "status",
+          "data_type": "bigint",
+          "nullable": false
+        },
+        "inserted_at": {
+          "partition": false,
+          "cluster": false,
+          "unique": false,
+          "sort": false,
+          "primary_key": false,
+          "foreign_key": false,
+          "name": "inserted_at",
+          "data_type": "timestamp",
+          "nullable": false
+        }
       },
-      "event_json": {
-        "data_type": "text",
-        "name": "event_json",
-        "nullable": true
-      },
-      "event_type": {
-        "data_type": "text",
-        "name": "event_type",
-        "nullable": true
-      },
-      "inserted_at": {
-        "data_type": "timestamp",
-        "name": "inserted_at",
-        "nullable": true
-      },
-      "model_id": {
-        "data_type": "text",
-        "name": "model_id",
-        "nullable": true
-      },
-      "name": {
-        "data_type": "text",
-        "name": "name",
-        "nullable": true
-      },
-      "sender_id": {
-        "data_type": "text",
-        "name": "sender_id",
-        "nullable": true
-      },
-      "timestamp": {
-        "data_type": "timestamp",
-        "name": "timestamp",
-        "nullable": true
-      }
-    },
-    "event_action": {
-      "_record_hash": {
-        "data_type": "text",
-        "name": "_record_hash",
-        "nullable": true
-      },
-      "_root_hash": {
-        "data_type": "text",
-        "name": "_root_hash",
-        "nullable": true
-      },
-      "confidence": {
-        "data_type": "double",
-        "name": "confidence",
-        "nullable": true
-      },
-      "environment": {
-        "data_type": "text",
-        "name": "environment",
-        "nullable": true
-      },
-      "event": {
-        "data_type": "text",
-        "name": "event",
-        "nullable": true
-      },
-      "hide_rule_turn": {
-        "data_type": "bool",
-        "name": "hide_rule_turn",
-        "nullable": true
-      },
-      "is_flagged": {
-        "data_type": "bool",
-        "name": "is_flagged",
-        "nullable": true
-      },
-      "metadata__rasa_x_flagged": {
-        "data_type": "bool",
-        "name": "metadata__rasa_x_flagged",
-        "nullable": true
-      },
-      "metadata__rasa_x_id": {
-        "data_type": "bigint",
-        "name": "metadata__rasa_x_id",
-        "nullable": true
-      },
-      "model_id": {
-        "data_type": "text",
-        "name": "model_id",
-        "nullable": true
-      },
-      "name": {
-        "data_type": "text",
-        "name": "name",
-        "nullable": true
-      },
-      "policy": {
-        "data_type": "text",
-        "name": "policy",
-        "nullable": true
-      },
-      "sender_id": {
-        "data_type": "text",
-        "name": "sender_id",
-        "nullable": true
-      },
-      "timestamp": {
-        "data_type": "timestamp",
-        "name": "timestamp",
-        "nullable": true
-      }
-    },
-    "event_action_execution_rejected": {
-      "_record_hash": {
-        "data_type": "text",
-        "name": "_record_hash",
-        "nullable": true
-      },
-      "_root_hash": {
-        "data_type": "text",
-        "name": "_root_hash",
-        "nullable": true
-      },
-      "confidence": {
-        "data_type": "double",
-        "name": "confidence",
-        "nullable": true
-      },
-      "environment": {
-        "data_type": "text",
-        "name": "environment",
-        "nullable": true
+      "event_slot": {
+        "value": {
+          "partition": false,
+          "cluster": false,
+          "unique": false,
+          "sort": false,
+          "primary_key": false,
+          "foreign_key": false,
+          "name": "value",
+          "data_type": "complex",
+          "nullable": "true"
+        }
       },
       "event": {
-        "data_type": "text",
-        "name": "event",
-        "nullable": true
+        "sender_id": {
+          "name": "sender_id",
+          "data_type": "text",
+          "nullable": false,
+          "partition": false,
+          "cluster": true,
+          "sort": false,
+          "unique": false,
+          "primary_key": false,
+          "foreign_key": false
+        },
+        "timestamp": {
+          "name": "timestamp",
+          "data_type": "timestamp",
+          "nullable": false,
+          "partition": true,
+          "cluster": false,
+          "sort": true,
+          "unique": false,
+          "primary_key": false,
+          "foreign_key": false
+        },
+        "_load_id": {
+          "name": "_load_id",
+          "data_type": "text",
+          "nullable": false,
+          "partition": false,
+          "cluster": false,
+          "sort": false,
+          "unique": false,
+          "primary_key": false,
+          "foreign_key": false
+        },
+        "_record_hash": {
+          "name": "_record_hash",
+          "data_type": "text",
+          "nullable": false,
+          "partition": false,
+          "cluster": false,
+          "sort": false,
+          "unique": true,
+          "primary_key": false,
+          "foreign_key": false
+        }
       },
-      "is_flagged": {
-        "data_type": "bool",
-        "name": "is_flagged",
-        "nullable": true
+      "event_action": {
+        "event": {
+          "name": "event",
+          "data_type": "text",
+          "nullable": true,
+          "partition": false,
+          "cluster": false,
+          "sort": false,
+          "unique": false,
+          "primary_key": false,
+          "foreign_key": false
+        },
+        "timestamp": {
+          "name": "timestamp",
+          "data_type": "timestamp",
+          "nullable": false,
+          "partition": true,
+          "cluster": false,
+          "sort": true,
+          "unique": false,
+          "primary_key": false,
+          "foreign_key": false
+        },
+        "metadata__rasa_x_flagged": {
+          "name": "metadata__rasa_x_flagged",
+          "data_type": "bool",
+          "nullable": true,
+          "partition": false,
+          "cluster": false,
+          "sort": false,
+          "unique": false,
+          "primary_key": false,
+          "foreign_key": false
+        },
+        "metadata__rasa_x_id": {
+          "name": "metadata__rasa_x_id",
+          "data_type": "bigint",
+          "nullable": true,
+          "partition": false,
+          "cluster": false,
+          "sort": false,
+          "unique": false,
+          "primary_key": false,
+          "foreign_key": false
+        },
+        "name": {
+          "name": "name",
+          "data_type": "text",
+          "nullable": true,
+          "partition": false,
+          "cluster": false,
+          "sort": false,
+          "unique": false,
+          "primary_key": false,
+          "foreign_key": false
+        },
+        "policy": {
+          "name": "policy",
+          "data_type": "text",
+          "nullable": true,
+          "partition": false,
+          "cluster": false,
+          "sort": false,
+          "unique": false,
+          "primary_key": false,
+          "foreign_key": false
+        },
+        "confidence": {
+          "name": "confidence",
+          "data_type": "double",
+          "nullable": true,
+          "partition": false,
+          "cluster": false,
+          "sort": false,
+          "unique": false,
+          "primary_key": false,
+          "foreign_key": false
+        },
+        "hide_rule_turn": {
+          "name": "hide_rule_turn",
+          "data_type": "bool",
+          "nullable": true,
+          "partition": false,
+          "cluster": false,
+          "sort": false,
+          "unique": false,
+          "primary_key": false,
+          "foreign_key": false
+        },
+        "is_flagged": {
+          "name": "is_flagged",
+          "data_type": "bool",
+          "nullable": true,
+          "partition": false,
+          "cluster": false,
+          "sort": false,
+          "unique": false,
+          "primary_key": false,
+          "foreign_key": false
+        },
+        "sender_id": {
+          "name": "sender_id",
+          "data_type": "text",
+          "nullable": false,
+          "partition": false,
+          "cluster": true,
+          "sort": false,
+          "unique": false,
+          "primary_key": false,
+          "foreign_key": false
+        },
+        "model_id": {
+          "name": "model_id",
+          "data_type": "text",
+          "nullable": true,
+          "partition": false,
+          "cluster": false,
+          "sort": false,
+          "unique": false,
+          "primary_key": false,
+          "foreign_key": false
+        },
+        "environment": {
+          "name": "environment",
+          "data_type": "text",
+          "nullable": true,
+          "partition": false,
+          "cluster": false,
+          "sort": false,
+          "unique": false,
+          "primary_key": false,
+          "foreign_key": false
+        },
+        "_load_id": {
+          "name": "_load_id",
+          "data_type": "text",
+          "nullable": false,
+          "partition": false,
+          "cluster": false,
+          "sort": false,
+          "unique": false,
+          "primary_key": false,
+          "foreign_key": false
+        },
+        "_record_hash": {
+          "name": "_record_hash",
+          "data_type": "text",
+          "nullable": false,
+          "partition": false,
+          "cluster": false,
+          "sort": false,
+          "unique": true,
+          "primary_key": false,
+          "foreign_key": false
+        }
       },
-      "metadata__rasa_x_flagged": {
-        "data_type": "bool",
-        "name": "metadata__rasa_x_flagged",
-        "nullable": true
+      "event_bot": {
+        "event": {
+          "name": "event",
+          "data_type": "text",
+          "nullable": true,
+          "partition": false,
+          "cluster": false,
+          "sort": false,
+          "unique": false,
+          "primary_key": false,
+          "foreign_key": false
+        },
+        "timestamp": {
+          "name": "timestamp",
+          "data_type": "timestamp",
+          "nullable": false,
+          "partition": true,
+          "cluster": false,
+          "sort": true,
+          "unique": false,
+          "primary_key": false,
+          "foreign_key": false
+        },
+        "metadata__rasa_x_flagged": {
+          "name": "metadata__rasa_x_flagged",
+          "data_type": "bool",
+          "nullable": true,
+          "partition": false,
+          "cluster": false,
+          "sort": false,
+          "unique": false,
+          "primary_key": false,
+          "foreign_key": false
+        },
+        "metadata__rasa_x_id": {
+          "name": "metadata__rasa_x_id",
+          "data_type": "bigint",
+          "nullable": true,
+          "partition": false,
+          "cluster": false,
+          "sort": false,
+          "unique": false,
+          "primary_key": false,
+          "foreign_key": false
+        },
+        "text": {
+          "name": "text",
+          "data_type": "text",
+          "nullable": true,
+          "partition": false,
+          "cluster": false,
+          "sort": false,
+          "unique": false,
+          "primary_key": false,
+          "foreign_key": false
+        },
+        "is_flagged": {
+          "name": "is_flagged",
+          "data_type": "bool",
+          "nullable": true,
+          "partition": false,
+          "cluster": false,
+          "sort": false,
+          "unique": false,
+          "primary_key": false,
+          "foreign_key": false
+        },
+        "sender_id": {
+          "name": "sender_id",
+          "data_type": "text",
+          "nullable": false,
+          "partition": false,
+          "cluster": true,
+          "sort": false,
+          "unique": false,
+          "primary_key": false,
+          "foreign_key": false
+        },
+        "model_id": {
+          "name": "model_id",
+          "data_type": "text",
+          "nullable": true,
+          "partition": false,
+          "cluster": false,
+          "sort": false,
+          "unique": false,
+          "primary_key": false,
+          "foreign_key": false
+        },
+        "environment": {
+          "name": "environment",
+          "data_type": "text",
+          "nullable": true,
+          "partition": false,
+          "cluster": false,
+          "sort": false,
+          "unique": false,
+          "primary_key": false,
+          "foreign_key": false
+        },
+        "_load_id": {
+          "name": "_load_id",
+          "data_type": "text",
+          "nullable": false,
+          "partition": false,
+          "cluster": false,
+          "sort": false,
+          "unique": false,
+          "primary_key": false,
+          "foreign_key": false
+        },
+        "_record_hash": {
+          "name": "_record_hash",
+          "data_type": "text",
+          "nullable": false,
+          "partition": false,
+          "cluster": false,
+          "sort": false,
+          "unique": true,
+          "primary_key": false,
+          "foreign_key": false
+        }
       },
-      "metadata__rasa_x_id": {
-        "data_type": "bigint",
-        "name": "metadata__rasa_x_id",
-        "nullable": true
+      "event_user": {
+        "event": {
+          "name": "event",
+          "data_type": "text",
+          "nullable": true,
+          "partition": false,
+          "cluster": false,
+          "sort": false,
+          "unique": false,
+          "primary_key": false,
+          "foreign_key": false
+        },
+        "timestamp": {
+          "name": "timestamp",
+          "data_type": "timestamp",
+          "nullable": false,
+          "partition": true,
+          "cluster": false,
+          "sort": true,
+          "unique": false,
+          "primary_key": false,
+          "foreign_key": false
+        },
+        "metadata__rasa_x_flagged": {
+          "name": "metadata__rasa_x_flagged",
+          "data_type": "bool",
+          "nullable": true,
+          "partition": false,
+          "cluster": false,
+          "sort": false,
+          "unique": false,
+          "primary_key": false,
+          "foreign_key": false
+        },
+        "metadata__rasa_x_id": {
+          "name": "metadata__rasa_x_id",
+          "data_type": "bigint",
+          "nullable": true,
+          "partition": false,
+          "cluster": false,
+          "sort": false,
+          "unique": false,
+          "primary_key": false,
+          "foreign_key": false
+        },
+        "text": {
+          "name": "text",
+          "data_type": "text",
+          "nullable": true,
+          "partition": false,
+          "cluster": false,
+          "sort": false,
+          "unique": false,
+          "primary_key": false,
+          "foreign_key": false
+        },
+        "parse_data__intent__id": {
+          "name": "parse_data__intent__id",
+          "data_type": "bigint",
+          "nullable": true,
+          "partition": false,
+          "cluster": false,
+          "sort": false,
+          "unique": false,
+          "primary_key": false,
+          "foreign_key": false
+        },
+        "parse_data__intent__name": {
+          "name": "parse_data__intent__name",
+          "data_type": "text",
+          "nullable": true,
+          "partition": false,
+          "cluster": false,
+          "sort": false,
+          "unique": false,
+          "primary_key": false,
+          "foreign_key": false
+        },
+        "parse_data__intent__confidence": {
+          "name": "parse_data__intent__confidence",
+          "data_type": "double",
+          "nullable": true,
+          "partition": false,
+          "cluster": false,
+          "sort": false,
+          "unique": false,
+          "primary_key": false,
+          "foreign_key": false
+        },
+        "parse_data__text": {
+          "name": "parse_data__text",
+          "data_type": "text",
+          "nullable": true,
+          "partition": false,
+          "cluster": false,
+          "sort": false,
+          "unique": false,
+          "primary_key": false,
+          "foreign_key": false
+        },
+        "parse_data__message_id": {
+          "name": "parse_data__message_id",
+          "data_type": "text",
+          "nullable": true,
+          "partition": false,
+          "cluster": false,
+          "sort": false,
+          "unique": false,
+          "primary_key": false,
+          "foreign_key": false
+        },
+        "input_channel": {
+          "name": "input_channel",
+          "data_type": "text",
+          "nullable": true,
+          "partition": false,
+          "cluster": false,
+          "sort": false,
+          "unique": false,
+          "primary_key": false,
+          "foreign_key": false
+        },
+        "message_id": {
+          "name": "message_id",
+          "data_type": "text",
+          "nullable": true,
+          "partition": false,
+          "cluster": false,
+          "sort": false,
+          "unique": false,
+          "primary_key": false,
+          "foreign_key": false
+        },
+        "is_flagged": {
+          "name": "is_flagged",
+          "data_type": "bool",
+          "nullable": true,
+          "partition": false,
+          "cluster": false,
+          "sort": false,
+          "unique": false,
+          "primary_key": false,
+          "foreign_key": false
+        },
+        "sender_id": {
+          "name": "sender_id",
+          "data_type": "text",
+          "nullable": false,
+          "partition": false,
+          "cluster": true,
+          "sort": false,
+          "unique": false,
+          "primary_key": false,
+          "foreign_key": false
+        },
+        "model_id": {
+          "name": "model_id",
+          "data_type": "text",
+          "nullable": true,
+          "partition": false,
+          "cluster": false,
+          "sort": false,
+          "unique": false,
+          "primary_key": false,
+          "foreign_key": false
+        },
+        "environment": {
+          "name": "environment",
+          "data_type": "text",
+          "nullable": true,
+          "partition": false,
+          "cluster": false,
+          "sort": false,
+          "unique": false,
+          "primary_key": false,
+          "foreign_key": false
+        },
+        "_load_id": {
+          "name": "_load_id",
+          "data_type": "text",
+          "nullable": false,
+          "partition": false,
+          "cluster": false,
+          "sort": false,
+          "unique": false,
+          "primary_key": false,
+          "foreign_key": false
+        },
+        "_record_hash": {
+          "name": "_record_hash",
+          "data_type": "text",
+          "nullable": false,
+          "partition": false,
+          "cluster": false,
+          "sort": false,
+          "unique": true,
+          "primary_key": false,
+          "foreign_key": false
+        }
       },
-      "model_id": {
-        "data_type": "text",
-        "name": "model_id",
-        "nullable": true
-      },
-      "name": {
-        "data_type": "text",
-        "name": "name",
-        "nullable": true
-      },
-      "policy": {
-        "data_type": "text",
-        "name": "policy",
-        "nullable": true
-      },
-      "sender_id": {
-        "data_type": "text",
-        "name": "sender_id",
-        "nullable": true
-      },
-      "timestamp": {
-        "data_type": "timestamp",
-        "name": "timestamp",
-        "nullable": true
+      "event_user__parse_data__intent_ranking": {
+        "id": {
+          "name": "id",
+          "data_type": "bigint",
+          "nullable": true,
+          "partition": false,
+          "cluster": false,
+          "sort": false,
+          "unique": false,
+          "primary_key": false,
+          "foreign_key": false
+        },
+        "name": {
+          "name": "name",
+          "data_type": "text",
+          "nullable": true,
+          "partition": false,
+          "cluster": false,
+          "sort": false,
+          "unique": false,
+          "primary_key": false,
+          "foreign_key": false
+        },
+        "confidence": {
+          "name": "confidence",
+          "data_type": "double",
+          "nullable": true,
+          "partition": false,
+          "cluster": false,
+          "sort": false,
+          "unique": false,
+          "primary_key": false,
+          "foreign_key": false
+        },
+        "_parent_hash": {
+          "name": "_parent_hash",
+          "data_type": "text",
+          "nullable": false,
+          "partition": false,
+          "cluster": false,
+          "sort": false,
+          "unique": false,
+          "primary_key": false,
+          "foreign_key": true
+        },
+        "_pos": {
+          "name": "_pos",
+          "data_type": "bigint",
+          "nullable": false,
+          "partition": false,
+          "cluster": false,
+          "sort": false,
+          "unique": false,
+          "primary_key": false,
+          "foreign_key": false
+        },
+        "_root_hash": {
+          "name": "_root_hash",
+          "data_type": "text",
+          "nullable": false,
+          "partition": false,
+          "cluster": false,
+          "sort": false,
+          "unique": false,
+          "primary_key": false,
+          "foreign_key": false
+        },
+        "_timestamp": {
+          "name": "_timestamp",
+          "data_type": "timestamp",
+          "nullable": false,
+          "partition": true,
+          "cluster": false,
+          "sort": true,
+          "unique": false,
+          "primary_key": false,
+          "foreign_key": false
+        },
+        "_dist_key": {
+          "name": "_dist_key",
+          "data_type": "text",
+          "nullable": false,
+          "partition": false,
+          "cluster": true,
+          "sort": false,
+          "unique": false,
+          "primary_key": false,
+          "foreign_key": false
+        },
+        "_record_hash": {
+          "name": "_record_hash",
+          "data_type": "text",
+          "nullable": false,
+          "partition": false,
+          "cluster": false,
+          "sort": false,
+          "unique": true,
+          "primary_key": false,
+          "foreign_key": false
+        }
       }
     },
-    "event_active_loop": {
-      "_record_hash": {
-        "data_type": "text",
-        "name": "_record_hash",
-        "nullable": true
-      },
-      "_root_hash": {
-        "data_type": "text",
-        "name": "_root_hash",
-        "nullable": true
-      },
-      "environment": {
-        "data_type": "text",
-        "name": "environment",
-        "nullable": true
-      },
-      "event": {
-        "data_type": "text",
-        "name": "event",
-        "nullable": true
-      },
-      "is_flagged": {
-        "data_type": "bool",
-        "name": "is_flagged",
-        "nullable": true
-      },
-      "metadata__rasa_x_flagged": {
-        "data_type": "bool",
-        "name": "metadata__rasa_x_flagged",
-        "nullable": true
-      },
-      "metadata__rasa_x_id": {
-        "data_type": "bigint",
-        "name": "metadata__rasa_x_id",
-        "nullable": true
-      },
-      "model_id": {
-        "data_type": "text",
-        "name": "model_id",
-        "nullable": true
-      },
-      "name": {
-        "data_type": "text",
-        "name": "name",
-        "nullable": true
-      },
-      "sender_id": {
-        "data_type": "text",
-        "name": "sender_id",
-        "nullable": true
-      },
-      "timestamp": {
-        "data_type": "timestamp",
-        "name": "timestamp",
-        "nullable": true
+    "normalizers": {
+      "names": "dlt.common.normalizers.names.snake_case",
+      "json": {
+        "module": "tests.unpacker.mock_rasa_json_normalizer",
+        "config": {
+          "propagation": {
+            "root": {
+              "_record_hash": "_root_hash",
+              "timestamp": "_timestamp",
+              "sender_id": "_dist_key"
+            }
+          }
+        }
       }
     },
-    "event_bot": {
-      "_record_hash": {
-        "data_type": "text",
-        "name": "_record_hash",
-        "nullable": true
-      },
-      "_root_hash": {
-        "data_type": "text",
-        "name": "_root_hash",
-        "nullable": true
-      },
-      "data__custom__handoff_host": {
-        "data_type": "text",
-        "name": "data__custom__handoff_host",
-        "nullable": true
-      },
-      "data__custom__title": {
-        "data_type": "text",
-        "name": "data__custom__title",
-        "nullable": true
-      },
-      "environment": {
-        "data_type": "text",
-        "name": "environment",
-        "nullable": true
-      },
-      "event": {
-        "data_type": "text",
-        "name": "event",
-        "nullable": true
-      },
-      "is_flagged": {
-        "data_type": "bool",
-        "name": "is_flagged",
-        "nullable": true
-      },
-      "metadata__PERSON": {
-        "data_type": "text",
-        "name": "metadata__PERSON",
-        "nullable": true
-      },
-      "metadata__account_balance": {
-        "data_type": "text",
-        "name": "metadata__account_balance",
-        "nullable": true
-      },
-      "metadata__amount_of_money": {
-        "data_type": "text",
-        "name": "metadata__amount_of_money",
-        "nullable": true
-      },
-      "metadata__amount_transferred": {
-        "data_type": "double",
-        "name": "metadata__amount_transferred",
-        "nullable": true
-      },
-      "metadata__credit_card": {
-        "data_type": "text",
-        "name": "metadata__credit_card",
-        "nullable": true
-      },
-      "metadata__credit_card_balance": {
-        "data_type": "text",
-        "name": "metadata__credit_card_balance",
-        "nullable": true
-      },
-      "metadata__credit_card_balance__credit_all__current_balance": {
-        "data_type": "double",
-        "name": "metadata__credit_card_balance__credit_all__current_balance",
-        "nullable": true
-      },
-      "metadata__credit_card_balance__credit_all__minimum_balance": {
-        "data_type": "bigint",
-        "name": "metadata__credit_card_balance__credit_all__minimum_balance",
-        "nullable": true
-      },
-      "metadata__credit_card_balance__emblem__current_balance": {
-        "data_type": "double",
-        "name": "metadata__credit_card_balance__emblem__current_balance",
-        "nullable": true
-      },
-      "metadata__credit_card_balance__emblem__minimum_balance": {
-        "data_type": "bigint",
-        "name": "metadata__credit_card_balance__emblem__minimum_balance",
-        "nullable": true
-      },
-      "metadata__credit_card_balance__gringotts__current_balance": {
-        "data_type": "double",
-        "name": "metadata__credit_card_balance__gringotts__current_balance",
-        "nullable": true
-      },
-      "metadata__credit_card_balance__gringotts__minimum_balance": {
-        "data_type": "bigint",
-        "name": "metadata__credit_card_balance__gringotts__minimum_balance",
-        "nullable": true
-      },
-      "metadata__credit_card_balance__iron_bank__current_balance": {
-        "data_type": "double",
-        "name": "metadata__credit_card_balance__iron_bank__current_balance",
-        "nullable": true
-      },
-      "metadata__credit_card_balance__iron_bank__minimum_balance": {
-        "data_type": "bigint",
-        "name": "metadata__credit_card_balance__iron_bank__minimum_balance",
-        "nullable": true
-      },
-      "metadata__credit_card_balance__justice_bank__current_balance": {
-        "data_type": "double",
-        "name": "metadata__credit_card_balance__justice_bank__current_balance",
-        "nullable": true
-      },
-      "metadata__credit_card_balance__justice_bank__minimum_balance": {
-        "data_type": "bigint",
-        "name": "metadata__credit_card_balance__justice_bank__minimum_balance",
-        "nullable": true
-      },
-      "metadata__currency": {
-        "data_type": "text",
-        "name": "metadata__currency",
-        "nullable": true
-      },
-      "metadata__end_time": {
-        "data_type": "text",
-        "name": "metadata__end_time",
-        "nullable": true
-      },
-      "metadata__end_time_formatted": {
-        "data_type": "text",
-        "name": "metadata__end_time_formatted",
-        "nullable": true
-      },
-      "metadata__formatted_recipients": {
-        "data_type": "text",
-        "name": "metadata__formatted_recipients",
-        "nullable": true
-      },
-      "metadata__grain": {
-        "data_type": "text",
-        "name": "metadata__grain",
-        "nullable": true
-      },
-      "metadata__handoffhost": {
-        "data_type": "text",
-        "name": "metadata__handoffhost",
-        "nullable": true
-      },
-      "metadata__init_account_balance": {
-        "data_type": "text",
-        "name": "metadata__init_account_balance",
-        "nullable": true
-      },
-      "metadata__numtransacts": {
-        "data_type": "bigint",
-        "name": "metadata__numtransacts",
-        "nullable": true
-      },
-      "metadata__payment_amount": {
-        "data_type": "text",
-        "name": "metadata__payment_amount",
-        "nullable": true
-      },
-      "metadata__payment_amount_type": {
-        "data_type": "text",
-        "name": "metadata__payment_amount_type",
-        "nullable": true
-      },
-      "metadata__rasa_x_flagged": {
-        "data_type": "bool",
-        "name": "metadata__rasa_x_flagged",
-        "nullable": true
-      },
-      "metadata__rasa_x_id": {
-        "data_type": "bigint",
-        "name": "metadata__rasa_x_id",
-        "nullable": true
-      },
-      "metadata__requested_slot": {
-        "data_type": "text",
-        "name": "metadata__requested_slot",
-        "nullable": true
-      },
-      "metadata__search_type": {
-        "data_type": "text",
-        "name": "metadata__search_type",
-        "nullable": true
-      },
-      "metadata__start_time": {
-        "data_type": "text",
-        "name": "metadata__start_time",
-        "nullable": true
-      },
-      "metadata__start_time_formatted": {
-        "data_type": "text",
-        "name": "metadata__start_time_formatted",
-        "nullable": true
-      },
-      "metadata__template": {
-        "data_type": "text",
-        "name": "metadata__template",
-        "nullable": true
-      },
-      "metadata__template_name": {
-        "data_type": "text",
-        "name": "metadata__template_name",
-        "nullable": true
-      },
-      "metadata__time": {
-        "data_type": "text",
-        "name": "metadata__time",
-        "nullable": true
-      },
-      "metadata__time_formatted": {
-        "data_type": "text",
-        "name": "metadata__time_formatted",
-        "nullable": true
-      },
-      "metadata__total": {
-        "data_type": "double",
-        "name": "metadata__total",
-        "nullable": true
-      },
-      "metadata__transact_grain": {
-        "data_type": "text",
-        "name": "metadata__transact_grain",
-        "nullable": true
-      },
-      "metadata__utter_action": {
-        "data_type": "text",
-        "name": "metadata__utter_action",
-        "nullable": true
-      },
-      "metadata__vendor_name": {
-        "data_type": "text",
-        "name": "metadata__vendor_name",
-        "nullable": true
-      },
-      "model_id": {
-        "data_type": "text",
-        "name": "model_id",
-        "nullable": true
-      },
-      "sender_id": {
-        "data_type": "text",
-        "name": "sender_id",
-        "nullable": true
-      },
-      "text": {
-        "data_type": "text",
-        "name": "text",
-        "nullable": true
-      },
-      "timestamp": {
-        "data_type": "timestamp",
-        "name": "timestamp",
-        "nullable": true
-      }
+    "preferred_types": {
+      "^timestamp$": "timestamp",
+      "^_timestamp$": "timestamp",
+      "^inserted_at$": "timestamp",
+      "confidence": "double",
+      "^_pos$": "bigint"
     },
-    "event_bot__data__buttons": {
-      "_parent": {
-        "data_type": "text",
-        "name": "_parent",
-        "nullable": true
-      },
-      "_parent_hash": {
-        "data_type": "text",
-        "name": "_parent_hash",
-        "nullable": true
-      },
-      "_pos": {
-        "data_type": "bigint",
-        "name": "_pos",
-        "nullable": true
-      },
-      "_record_hash": {
-        "data_type": "text",
-        "name": "_record_hash",
-        "nullable": true
-      },
-      "_root_hash": {
-        "data_type": "text",
-        "name": "_root_hash",
-        "nullable": true
-      },
-      "payload": {
-        "data_type": "text",
-        "name": "payload",
-        "nullable": true
-      },
-      "title": {
-        "data_type": "text",
-        "name": "title",
-        "nullable": true
-      }
+    "hints": {
+      "not_null": [
+        "^timestamp$",
+        "^_timestamp$",
+        "^_dist_key$",
+        "^_record_hash$",
+        "^_root_hash$",
+        "^_load_id$",
+        "^_parent_hash$",
+        "^_pos$",
+        "^sender_id$"
+      ],
+      "partition": [
+        "^_timestamp$",
+        "^timestamp$"
+      ],
+      "cluster": [
+        "^_dist_key$",
+        "^sender_id$"
+      ],
+      "primary_key": [],
+      "foreign_key": [
+        "^_parent_hash$"
+      ],
+      "sort": [
+        "^timestamp$",
+        "^_timestamp$"
+      ],
+      "unique": [
+        "^_record_hash$"
+      ]
     },
-    "event_bot__metadata__known_recipients": {
-      "_parent": {
-        "data_type": "text",
-        "name": "_parent",
-        "nullable": true
-      },
-      "_parent_hash": {
-        "data_type": "text",
-        "name": "_parent_hash",
-        "nullable": true
-      },
-      "_pos": {
-        "data_type": "bigint",
-        "name": "_pos",
-        "nullable": true
-      },
-      "_record_hash": {
-        "data_type": "text",
-        "name": "_record_hash",
-        "nullable": true
-      },
-      "_root_hash": {
-        "data_type": "text",
-        "name": "_root_hash",
-        "nullable": true
-      },
-      "value": {
-        "data_type": "text",
-        "name": "value",
-        "nullable": true
-      }
-    },
-    "event_bot__metadata__transaction_history__deposit__employer": {
-      "_parent": {
-        "data_type": "text",
-        "name": "_parent",
-        "nullable": true
-      },
-      "_parent_hash": {
-        "data_type": "text",
-        "name": "_parent_hash",
-        "nullable": true
-      },
-      "_pos": {
-        "data_type": "bigint",
-        "name": "_pos",
-        "nullable": true
-      },
-      "_record_hash": {
-        "data_type": "text",
-        "name": "_record_hash",
-        "nullable": true
-      },
-      "_root_hash": {
-        "data_type": "text",
-        "name": "_root_hash",
-        "nullable": true
-      },
-      "amount": {
-        "data_type": "double",
-        "name": "amount",
-        "nullable": true
-      },
-      "date": {
-        "data_type": "text",
-        "name": "date",
-        "nullable": true
-      }
-    },
-    "event_bot__metadata__transaction_history__deposit__interest": {
-      "_parent": {
-        "data_type": "text",
-        "name": "_parent",
-        "nullable": true
-      },
-      "_parent_hash": {
-        "data_type": "text",
-        "name": "_parent_hash",
-        "nullable": true
-      },
-      "_pos": {
-        "data_type": "bigint",
-        "name": "_pos",
-        "nullable": true
-      },
-      "_record_hash": {
-        "data_type": "text",
-        "name": "_record_hash",
-        "nullable": true
-      },
-      "_root_hash": {
-        "data_type": "text",
-        "name": "_root_hash",
-        "nullable": true
-      },
-      "amount": {
-        "data_type": "double",
-        "name": "amount",
-        "nullable": true
-      },
-      "date": {
-        "data_type": "text",
-        "name": "date",
-        "nullable": true
-      }
-    },
-    "event_bot__metadata__transaction_history__spend__amazon": {
-      "_parent": {
-        "data_type": "text",
-        "name": "_parent",
-        "nullable": true
-      },
-      "_parent_hash": {
-        "data_type": "text",
-        "name": "_parent_hash",
-        "nullable": true
-      },
-      "_pos": {
-        "data_type": "bigint",
-        "name": "_pos",
-        "nullable": true
-      },
-      "_record_hash": {
-        "data_type": "text",
-        "name": "_record_hash",
-        "nullable": true
-      },
-      "_root_hash": {
-        "data_type": "text",
-        "name": "_root_hash",
-        "nullable": true
-      },
-      "amount": {
-        "data_type": "double",
-        "name": "amount",
-        "nullable": true
-      },
-      "date": {
-        "data_type": "text",
-        "name": "date",
-        "nullable": true
-      }
-    },
-    "event_bot__metadata__transaction_history__spend__starbucks": {
-      "_parent": {
-        "data_type": "text",
-        "name": "_parent",
-        "nullable": true
-      },
-      "_parent_hash": {
-        "data_type": "text",
-        "name": "_parent_hash",
-        "nullable": true
-      },
-      "_pos": {
-        "data_type": "bigint",
-        "name": "_pos",
-        "nullable": true
-      },
-      "_record_hash": {
-        "data_type": "text",
-        "name": "_record_hash",
-        "nullable": true
-      },
-      "_root_hash": {
-        "data_type": "text",
-        "name": "_root_hash",
-        "nullable": true
-      },
-      "amount": {
-        "data_type": "double",
-        "name": "amount",
-        "nullable": true
-      },
-      "date": {
-        "data_type": "text",
-        "name": "date",
-        "nullable": true
-      }
-    },
-    "event_bot__metadata__transaction_history__spend__target": {
-      "_parent": {
-        "data_type": "text",
-        "name": "_parent",
-        "nullable": true
-      },
-      "_parent_hash": {
-        "data_type": "text",
-        "name": "_parent_hash",
-        "nullable": true
-      },
-      "_pos": {
-        "data_type": "bigint",
-        "name": "_pos",
-        "nullable": true
-      },
-      "_record_hash": {
-        "data_type": "text",
-        "name": "_record_hash",
-        "nullable": true
-      },
-      "_root_hash": {
-        "data_type": "text",
-        "name": "_root_hash",
-        "nullable": true
-      },
-      "amount": {
-        "data_type": "double",
-        "name": "amount",
-        "nullable": true
-      },
-      "date": {
-        "data_type": "text",
-        "name": "date",
-        "nullable": true
-      }
-    },
-    "event_bot__metadata__vendor_list": {
-      "_parent": {
-        "data_type": "text",
-        "name": "_parent",
-        "nullable": true
-      },
-      "_parent_hash": {
-        "data_type": "text",
-        "name": "_parent_hash",
-        "nullable": true
-      },
-      "_pos": {
-        "data_type": "bigint",
-        "name": "_pos",
-        "nullable": true
-      },
-      "_record_hash": {
-        "data_type": "text",
-        "name": "_record_hash",
-        "nullable": true
-      },
-      "_root_hash": {
-        "data_type": "text",
-        "name": "_root_hash",
-        "nullable": true
-      },
-      "value": {
-        "data_type": "text",
-        "name": "value",
-        "nullable": true
-      }
-    },
-    "event_followup": {
-      "_record_hash": {
-        "data_type": "text",
-        "name": "_record_hash",
-        "nullable": true
-      },
-      "_root_hash": {
-        "data_type": "text",
-        "name": "_root_hash",
-        "nullable": true
-      },
-      "environment": {
-        "data_type": "text",
-        "name": "environment",
-        "nullable": true
-      },
-      "event": {
-        "data_type": "text",
-        "name": "event",
-        "nullable": true
-      },
-      "is_flagged": {
-        "data_type": "bool",
-        "name": "is_flagged",
-        "nullable": true
-      },
-      "metadata__rasa_x_flagged": {
-        "data_type": "bool",
-        "name": "metadata__rasa_x_flagged",
-        "nullable": true
-      },
-      "metadata__rasa_x_id": {
-        "data_type": "bigint",
-        "name": "metadata__rasa_x_id",
-        "nullable": true
-      },
-      "model_id": {
-        "data_type": "text",
-        "name": "model_id",
-        "nullable": true
-      },
-      "name": {
-        "data_type": "text",
-        "name": "name",
-        "nullable": true
-      },
-      "sender_id": {
-        "data_type": "text",
-        "name": "sender_id",
-        "nullable": true
-      },
-      "timestamp": {
-        "data_type": "timestamp",
-        "name": "timestamp",
-        "nullable": true
-      }
-    },
-    "event_loop_interrupted": {
-      "_record_hash": {
-        "data_type": "text",
-        "name": "_record_hash",
-        "nullable": true
-      },
-      "_root_hash": {
-        "data_type": "text",
-        "name": "_root_hash",
-        "nullable": true
-      },
-      "environment": {
-        "data_type": "text",
-        "name": "environment",
-        "nullable": true
-      },
-      "event": {
-        "data_type": "text",
-        "name": "event",
-        "nullable": true
-      },
-      "is_flagged": {
-        "data_type": "bool",
-        "name": "is_flagged",
-        "nullable": true
-      },
-      "is_interrupted": {
-        "data_type": "bool",
-        "name": "is_interrupted",
-        "nullable": true
-      },
-      "metadata__rasa_x_flagged": {
-        "data_type": "bool",
-        "name": "metadata__rasa_x_flagged",
-        "nullable": true
-      },
-      "metadata__rasa_x_id": {
-        "data_type": "bigint",
-        "name": "metadata__rasa_x_id",
-        "nullable": true
-      },
-      "model_id": {
-        "data_type": "text",
-        "name": "model_id",
-        "nullable": true
-      },
-      "sender_id": {
-        "data_type": "text",
-        "name": "sender_id",
-        "nullable": true
-      },
-      "timestamp": {
-        "data_type": "timestamp",
-        "name": "timestamp",
-        "nullable": true
-      }
-    },
-    "event_reset_slots": {
-      "_record_hash": {
-        "data_type": "text",
-        "name": "_record_hash",
-        "nullable": true
-      },
-      "_root_hash": {
-        "data_type": "text",
-        "name": "_root_hash",
-        "nullable": true
-      },
-      "environment": {
-        "data_type": "text",
-        "name": "environment",
-        "nullable": true
-      },
-      "event": {
-        "data_type": "text",
-        "name": "event",
-        "nullable": true
-      },
-      "is_flagged": {
-        "data_type": "bool",
-        "name": "is_flagged",
-        "nullable": true
-      },
-      "metadata__rasa_x_flagged": {
-        "data_type": "bool",
-        "name": "metadata__rasa_x_flagged",
-        "nullable": true
-      },
-      "metadata__rasa_x_id": {
-        "data_type": "bigint",
-        "name": "metadata__rasa_x_id",
-        "nullable": true
-      },
-      "model_id": {
-        "data_type": "text",
-        "name": "model_id",
-        "nullable": true
-      },
-      "sender_id": {
-        "data_type": "text",
-        "name": "sender_id",
-        "nullable": true
-      },
-      "timestamp": {
-        "data_type": "timestamp",
-        "name": "timestamp",
-        "nullable": true
-      }
-    },
-    "event_restart": {
-      "_record_hash": {
-        "data_type": "text",
-        "name": "_record_hash",
-        "nullable": true
-      },
-      "_root_hash": {
-        "data_type": "text",
-        "name": "_root_hash",
-        "nullable": true
-      },
-      "environment": {
-        "data_type": "text",
-        "name": "environment",
-        "nullable": true
-      },
-      "event": {
-        "data_type": "text",
-        "name": "event",
-        "nullable": true
-      },
-      "is_flagged": {
-        "data_type": "bool",
-        "name": "is_flagged",
-        "nullable": true
-      },
-      "metadata__rasa_x_flagged": {
-        "data_type": "bool",
-        "name": "metadata__rasa_x_flagged",
-        "nullable": true
-      },
-      "metadata__rasa_x_id": {
-        "data_type": "bigint",
-        "name": "metadata__rasa_x_id",
-        "nullable": true
-      },
-      "model_id": {
-        "data_type": "text",
-        "name": "model_id",
-        "nullable": true
-      },
-      "sender_id": {
-        "data_type": "text",
-        "name": "sender_id",
-        "nullable": true
-      },
-      "timestamp": {
-        "data_type": "timestamp",
-        "name": "timestamp",
-        "nullable": true
-      }
-    },
-    "event_rewind": {
-      "_record_hash": {
-        "data_type": "text",
-        "name": "_record_hash",
-        "nullable": true
-      },
-      "_root_hash": {
-        "data_type": "text",
-        "name": "_root_hash",
-        "nullable": true
-      },
-      "environment": {
-        "data_type": "text",
-        "name": "environment",
-        "nullable": true
-      },
-      "event": {
-        "data_type": "text",
-        "name": "event",
-        "nullable": true
-      },
-      "is_flagged": {
-        "data_type": "bool",
-        "name": "is_flagged",
-        "nullable": true
-      },
-      "metadata__rasa_x_flagged": {
-        "data_type": "bool",
-        "name": "metadata__rasa_x_flagged",
-        "nullable": true
-      },
-      "metadata__rasa_x_id": {
-        "data_type": "bigint",
-        "name": "metadata__rasa_x_id",
-        "nullable": true
-      },
-      "model_id": {
-        "data_type": "text",
-        "name": "model_id",
-        "nullable": true
-      },
-      "sender_id": {
-        "data_type": "text",
-        "name": "sender_id",
-        "nullable": true
-      },
-      "timestamp": {
-        "data_type": "timestamp",
-        "name": "timestamp",
-        "nullable": true
-      }
-    },
-    "event_session_started": {
-      "_record_hash": {
-        "data_type": "text",
-        "name": "_record_hash",
-        "nullable": true
-      },
-      "_root_hash": {
-        "data_type": "text",
-        "name": "_root_hash",
-        "nullable": true
-      },
-      "environment": {
-        "data_type": "text",
-        "name": "environment",
-        "nullable": true
-      },
-      "event": {
-        "data_type": "text",
-        "name": "event",
-        "nullable": true
-      },
-      "is_flagged": {
-        "data_type": "bool",
-        "name": "is_flagged",
-        "nullable": true
-      },
-      "metadata__rasa_x_flagged": {
-        "data_type": "bool",
-        "name": "metadata__rasa_x_flagged",
-        "nullable": true
-      },
-      "metadata__rasa_x_id": {
-        "data_type": "bigint",
-        "name": "metadata__rasa_x_id",
-        "nullable": true
-      },
-      "model_id": {
-        "data_type": "text",
-        "name": "model_id",
-        "nullable": true
-      },
-      "sender_id": {
-        "data_type": "text",
-        "name": "sender_id",
-        "nullable": true
-      },
-      "timestamp": {
-        "data_type": "timestamp",
-        "name": "timestamp",
-        "nullable": true
-      }
-    },
-    "event_slot": {
-      "_record_hash": {
-        "data_type": "text",
-        "name": "_record_hash",
-        "nullable": true
-      },
-      "_root_hash": {
-        "data_type": "text",
-        "name": "_root_hash",
-        "nullable": true
-      },
-      "environment": {
-        "data_type": "text",
-        "name": "environment",
-        "nullable": true
-      },
-      "event": {
-        "data_type": "text",
-        "name": "event",
-        "nullable": true
-      },
-      "is_flagged": {
-        "data_type": "bool",
-        "name": "is_flagged",
-        "nullable": true
-      },
-      "metadata__rasa_x_flagged": {
-        "data_type": "bool",
-        "name": "metadata__rasa_x_flagged",
-        "nullable": true
-      },
-      "metadata__rasa_x_id": {
-        "data_type": "bigint",
-        "name": "metadata__rasa_x_id",
-        "nullable": true
-      },
-      "model_id": {
-        "data_type": "text",
-        "name": "model_id",
-        "nullable": true
-      },
-      "name": {
-        "data_type": "text",
-        "name": "name",
-        "nullable": true
-      },
-      "sender_id": {
-        "data_type": "text",
-        "name": "sender_id",
-        "nullable": true
-      },
-      "timestamp": {
-        "data_type": "timestamp",
-        "name": "timestamp",
-        "nullable": true
-      },
-      "value": {
-        "data_type": "text",
-        "name": "value",
-        "nullable": true
-      },
-      "value__credit_all__current_balance": {
-        "data_type": "double",
-        "name": "value__credit_all__current_balance",
-        "nullable": true
-      },
-      "value__credit_all__minimum_balance": {
-        "data_type": "bigint",
-        "name": "value__credit_all__minimum_balance",
-        "nullable": true
-      },
-      "value__emblem__current_balance": {
-        "data_type": "double",
-        "name": "value__emblem__current_balance",
-        "nullable": true
-      },
-      "value__emblem__minimum_balance": {
-        "data_type": "bigint",
-        "name": "value__emblem__minimum_balance",
-        "nullable": true
-      },
-      "value__from": {
-        "data_type": "text",
-        "name": "value__from",
-        "nullable": true
-      },
-      "value__gringotts__current_balance": {
-        "data_type": "double",
-        "name": "value__gringotts__current_balance",
-        "nullable": true
-      },
-      "value__gringotts__minimum_balance": {
-        "data_type": "bigint",
-        "name": "value__gringotts__minimum_balance",
-        "nullable": true
-      },
-      "value__iron_bank__current_balance": {
-        "data_type": "double",
-        "name": "value__iron_bank__current_balance",
-        "nullable": true
-      },
-      "value__iron_bank__minimum_balance": {
-        "data_type": "bigint",
-        "name": "value__iron_bank__minimum_balance",
-        "nullable": true
-      },
-      "value__justice_bank__current_balance": {
-        "data_type": "double",
-        "name": "value__justice_bank__current_balance",
-        "nullable": true
-      },
-      "value__justice_bank__minimum_balance": {
-        "data_type": "bigint",
-        "name": "value__justice_bank__minimum_balance",
-        "nullable": true
-      },
-      "value__to": {
-        "data_type": "text",
-        "name": "value__to",
-        "nullable": true
-      }
-    },
-    "event_slot__value": {
-      "_parent": {
-        "data_type": "text",
-        "name": "_parent",
-        "nullable": true
-      },
-      "_parent_hash": {
-        "data_type": "text",
-        "name": "_parent_hash",
-        "nullable": true
-      },
-      "_pos": {
-        "data_type": "bigint",
-        "name": "_pos",
-        "nullable": true
-      },
-      "_record_hash": {
-        "data_type": "text",
-        "name": "_record_hash",
-        "nullable": true
-      },
-      "_root_hash": {
-        "data_type": "text",
-        "name": "_root_hash",
-        "nullable": true
-      },
-      "value": {
-        "data_type": "text",
-        "name": "value",
-        "nullable": true
-      }
-    },
-    "event_slot__value__deposit__employer": {
-      "_parent": {
-        "data_type": "text",
-        "name": "_parent",
-        "nullable": true
-      },
-      "_parent_hash": {
-        "data_type": "text",
-        "name": "_parent_hash",
-        "nullable": true
-      },
-      "_pos": {
-        "data_type": "bigint",
-        "name": "_pos",
-        "nullable": true
-      },
-      "_record_hash": {
-        "data_type": "text",
-        "name": "_record_hash",
-        "nullable": true
-      },
-      "_root_hash": {
-        "data_type": "text",
-        "name": "_root_hash",
-        "nullable": true
-      },
-      "amount": {
-        "data_type": "double",
-        "name": "amount",
-        "nullable": true
-      },
-      "date": {
-        "data_type": "text",
-        "name": "date",
-        "nullable": true
-      }
-    },
-    "event_slot__value__deposit__interest": {
-      "_parent": {
-        "data_type": "text",
-        "name": "_parent",
-        "nullable": true
-      },
-      "_parent_hash": {
-        "data_type": "text",
-        "name": "_parent_hash",
-        "nullable": true
-      },
-      "_pos": {
-        "data_type": "bigint",
-        "name": "_pos",
-        "nullable": true
-      },
-      "_record_hash": {
-        "data_type": "text",
-        "name": "_record_hash",
-        "nullable": true
-      },
-      "_root_hash": {
-        "data_type": "text",
-        "name": "_root_hash",
-        "nullable": true
-      },
-      "amount": {
-        "data_type": "double",
-        "name": "amount",
-        "nullable": true
-      },
-      "date": {
-        "data_type": "text",
-        "name": "date",
-        "nullable": true
-      }
-    },
-    "event_slot__value__spend__amazon": {
-      "_parent": {
-        "data_type": "text",
-        "name": "_parent",
-        "nullable": true
-      },
-      "_parent_hash": {
-        "data_type": "text",
-        "name": "_parent_hash",
-        "nullable": true
-      },
-      "_pos": {
-        "data_type": "bigint",
-        "name": "_pos",
-        "nullable": true
-      },
-      "_record_hash": {
-        "data_type": "text",
-        "name": "_record_hash",
-        "nullable": true
-      },
-      "_root_hash": {
-        "data_type": "text",
-        "name": "_root_hash",
-        "nullable": true
-      },
-      "amount": {
-        "data_type": "double",
-        "name": "amount",
-        "nullable": true
-      },
-      "date": {
-        "data_type": "text",
-        "name": "date",
-        "nullable": true
-      }
-    },
-    "event_slot__value__spend__starbucks": {
-      "_parent": {
-        "data_type": "text",
-        "name": "_parent",
-        "nullable": true
-      },
-      "_parent_hash": {
-        "data_type": "text",
-        "name": "_parent_hash",
-        "nullable": true
-      },
-      "_pos": {
-        "data_type": "bigint",
-        "name": "_pos",
-        "nullable": true
-      },
-      "_record_hash": {
-        "data_type": "text",
-        "name": "_record_hash",
-        "nullable": true
-      },
-      "_root_hash": {
-        "data_type": "text",
-        "name": "_root_hash",
-        "nullable": true
-      },
-      "amount": {
-        "data_type": "double",
-        "name": "amount",
-        "nullable": true
-      },
-      "date": {
-        "data_type": "text",
-        "name": "date",
-        "nullable": true
-      }
-    },
-    "event_slot__value__spend__target": {
-      "_parent": {
-        "data_type": "text",
-        "name": "_parent",
-        "nullable": true
-      },
-      "_parent_hash": {
-        "data_type": "text",
-        "name": "_parent_hash",
-        "nullable": true
-      },
-      "_pos": {
-        "data_type": "bigint",
-        "name": "_pos",
-        "nullable": true
-      },
-      "_record_hash": {
-        "data_type": "text",
-        "name": "_record_hash",
-        "nullable": true
-      },
-      "_root_hash": {
-        "data_type": "text",
-        "name": "_root_hash",
-        "nullable": true
-      },
-      "amount": {
-        "data_type": "double",
-        "name": "amount",
-        "nullable": true
-      },
-      "date": {
-        "data_type": "text",
-        "name": "date",
-        "nullable": true
-      }
-    },
-    "event_user": {
-      "_record_hash": {
-        "data_type": "text",
-        "name": "_record_hash",
-        "nullable": true
-      },
-      "_root_hash": {
-        "data_type": "text",
-        "name": "_root_hash",
-        "nullable": true
-      },
-      "environment": {
-        "data_type": "text",
-        "name": "environment",
-        "nullable": true
-      },
-      "event": {
-        "data_type": "text",
-        "name": "event",
-        "nullable": true
-      },
-      "input_channel": {
-        "data_type": "text",
-        "name": "input_channel",
-        "nullable": true
-      },
-      "is_flagged": {
-        "data_type": "bool",
-        "name": "is_flagged",
-        "nullable": true
-      },
-      "message_id": {
-        "data_type": "text",
-        "name": "message_id",
-        "nullable": true
-      },
-      "metadata__rasa_x_flagged": {
-        "data_type": "bool",
-        "name": "metadata__rasa_x_flagged",
-        "nullable": true
-      },
-      "metadata__rasa_x_id": {
-        "data_type": "bigint",
-        "name": "metadata__rasa_x_id",
-        "nullable": true
-      },
-      "model_id": {
-        "data_type": "text",
-        "name": "model_id",
-        "nullable": true
-      },
-      "parse_data__intent__confidence": {
-        "data_type": "double",
-        "name": "parse_data__intent__confidence",
-        "nullable": true
-      },
-      "parse_data__intent__id": {
-        "data_type": "bigint",
-        "name": "parse_data__intent__id",
-        "nullable": true
-      },
-      "parse_data__intent__name": {
-        "data_type": "text",
-        "name": "parse_data__intent__name",
-        "nullable": true
-      },
-      "parse_data__message_id": {
-        "data_type": "text",
-        "name": "parse_data__message_id",
-        "nullable": true
-      },
-      "parse_data__metadata__rasa_x_flagged": {
-        "data_type": "bool",
-        "name": "parse_data__metadata__rasa_x_flagged",
-        "nullable": true
-      },
-      "parse_data__metadata__rasa_x_id": {
-        "data_type": "bigint",
-        "name": "parse_data__metadata__rasa_x_id",
-        "nullable": true
-      },
-      "parse_data__text": {
-        "data_type": "text",
-        "name": "parse_data__text",
-        "nullable": true
-      },
-      "sender_id": {
-        "data_type": "text",
-        "name": "sender_id",
-        "nullable": true
-      },
-      "text": {
-        "data_type": "text",
-        "name": "text",
-        "nullable": true
-      },
-      "timestamp": {
-        "data_type": "timestamp",
-        "name": "timestamp",
-        "nullable": true
-      }
-    },
-    "event_user__parse_data__entities": {
-      "_parent": {
-        "data_type": "text",
-        "name": "_parent",
-        "nullable": true
-      },
-      "_parent_hash": {
-        "data_type": "text",
-        "name": "_parent_hash",
-        "nullable": true
-      },
-      "_pos": {
-        "data_type": "bigint",
-        "name": "_pos",
-        "nullable": true
-      },
-      "_record_hash": {
-        "data_type": "text",
-        "name": "_record_hash",
-        "nullable": true
-      },
-      "_root_hash": {
-        "data_type": "text",
-        "name": "_root_hash",
-        "nullable": true
-      },
-      "additional_info__from__grain": {
-        "data_type": "text",
-        "name": "additional_info__from__grain",
-        "nullable": true
-      },
-      "additional_info__from__value": {
-        "data_type": "text",
-        "name": "additional_info__from__value",
-        "nullable": true
-      },
-      "additional_info__grain": {
-        "data_type": "text",
-        "name": "additional_info__grain",
-        "nullable": true
-      },
-      "additional_info__to__grain": {
-        "data_type": "text",
-        "name": "additional_info__to__grain",
-        "nullable": true
-      },
-      "additional_info__to__value": {
-        "data_type": "text",
-        "name": "additional_info__to__value",
-        "nullable": true
-      },
-      "additional_info__type": {
-        "data_type": "text",
-        "name": "additional_info__type",
-        "nullable": true
-      },
-      "additional_info__unit": {
-        "data_type": "text",
-        "name": "additional_info__unit",
-        "nullable": true
-      },
-      "additional_info__value": {
-        "data_type": "bigint",
-        "name": "additional_info__value",
-        "nullable": true
-      },
-      "additional_info__value_v_double": {
-        "data_type": "double",
-        "name": "additional_info__value_v_double",
-        "nullable": true
-      },
-      "additional_info__value_v_text": {
-        "data_type": "text",
-        "name": "additional_info__value_v_text",
-        "nullable": true
-      },
-      "confidence": {
-        "data_type": "double",
-        "name": "confidence",
-        "nullable": true
-      },
-      "confidence_entity": {
-        "data_type": "double",
-        "name": "confidence_entity",
-        "nullable": true
-      },
-      "end": {
-        "data_type": "bigint",
-        "name": "end",
-        "nullable": true
-      },
-      "entity": {
-        "data_type": "text",
-        "name": "entity",
-        "nullable": true
-      },
-      "extractor": {
-        "data_type": "text",
-        "name": "extractor",
-        "nullable": true
-      },
-      "start": {
-        "data_type": "bigint",
-        "name": "start",
-        "nullable": true
-      },
-      "text": {
-        "data_type": "text",
-        "name": "text",
-        "nullable": true
-      },
-      "value": {
-        "data_type": "text",
-        "name": "value",
-        "nullable": true
-      },
-      "value__from": {
-        "data_type": "text",
-        "name": "value__from",
-        "nullable": true
-      },
-      "value__to": {
-        "data_type": "text",
-        "name": "value__to",
-        "nullable": true
-      }
-    },
-    "event_user__parse_data__entities__additional_info__values": {
-      "_parent": {
-        "data_type": "text",
-        "name": "_parent",
-        "nullable": true
-      },
-      "_parent_hash": {
-        "data_type": "text",
-        "name": "_parent_hash",
-        "nullable": true
-      },
-      "_pos": {
-        "data_type": "bigint",
-        "name": "_pos",
-        "nullable": true
-      },
-      "_record_hash": {
-        "data_type": "text",
-        "name": "_record_hash",
-        "nullable": true
-      },
-      "_root_hash": {
-        "data_type": "text",
-        "name": "_root_hash",
-        "nullable": true
-      },
-      "from__grain": {
-        "data_type": "text",
-        "name": "from__grain",
-        "nullable": true
-      },
-      "from__value": {
-        "data_type": "text",
-        "name": "from__value",
-        "nullable": true
-      },
-      "grain": {
-        "data_type": "text",
-        "name": "grain",
-        "nullable": true
-      },
-      "to__grain": {
-        "data_type": "text",
-        "name": "to__grain",
-        "nullable": true
-      },
-      "to__value": {
-        "data_type": "text",
-        "name": "to__value",
-        "nullable": true
-      },
-      "type": {
-        "data_type": "text",
-        "name": "type",
-        "nullable": true
-      },
-      "value": {
-        "data_type": "text",
-        "name": "value",
-        "nullable": true
-      }
-    },
-    "event_user__parse_data__entities__processors": {
-      "_parent": {
-        "data_type": "text",
-        "name": "_parent",
-        "nullable": true
-      },
-      "_parent_hash": {
-        "data_type": "text",
-        "name": "_parent_hash",
-        "nullable": true
-      },
-      "_pos": {
-        "data_type": "bigint",
-        "name": "_pos",
-        "nullable": true
-      },
-      "_record_hash": {
-        "data_type": "text",
-        "name": "_record_hash",
-        "nullable": true
-      },
-      "_root_hash": {
-        "data_type": "text",
-        "name": "_root_hash",
-        "nullable": true
-      },
-      "value": {
-        "data_type": "text",
-        "name": "value",
-        "nullable": true
-      }
-    },
-    "event_user__parse_data__intent_ranking": {
-      "_parent": {
-        "data_type": "text",
-        "name": "_parent",
-        "nullable": true
-      },
-      "_parent_hash": {
-        "data_type": "text",
-        "name": "_parent_hash",
-        "nullable": true
-      },
-      "_pos": {
-        "data_type": "bigint",
-        "name": "_pos",
-        "nullable": true
-      },
-      "_record_hash": {
-        "data_type": "text",
-        "name": "_record_hash",
-        "nullable": true
-      },
-      "_root_hash": {
-        "data_type": "text",
-        "name": "_root_hash",
-        "nullable": true
-      },
-      "confidence": {
-        "data_type": "double",
-        "name": "confidence",
-        "nullable": true
-      },
-      "id": {
-        "data_type": "bigint",
-        "name": "id",
-        "nullable": true
-      },
-      "name": {
-        "data_type": "text",
-        "name": "name",
-        "nullable": true
-      }
-    },
-    "event_user_featurization": {
-      "_record_hash": {
-        "data_type": "text",
-        "name": "_record_hash",
-        "nullable": true
-      },
-      "_root_hash": {
-        "data_type": "text",
-        "name": "_root_hash",
-        "nullable": true
-      },
-      "environment": {
-        "data_type": "text",
-        "name": "environment",
-        "nullable": true
-      },
-      "event": {
-        "data_type": "text",
-        "name": "event",
-        "nullable": true
-      },
-      "is_flagged": {
-        "data_type": "bool",
-        "name": "is_flagged",
-        "nullable": true
-      },
-      "metadata__rasa_x_flagged": {
-        "data_type": "bool",
-        "name": "metadata__rasa_x_flagged",
-        "nullable": true
-      },
-      "metadata__rasa_x_id": {
-        "data_type": "bigint",
-        "name": "metadata__rasa_x_id",
-        "nullable": true
-      },
-      "model_id": {
-        "data_type": "text",
-        "name": "model_id",
-        "nullable": true
-      },
-      "sender_id": {
-        "data_type": "text",
-        "name": "sender_id",
-        "nullable": true
-      },
-      "timestamp": {
-        "data_type": "timestamp",
-        "name": "timestamp",
-        "nullable": true
-      },
-      "use_text_for_featurization": {
-        "data_type": "bool",
-        "name": "use_text_for_featurization",
-        "nullable": true
-      }
-    }
-  },
-  "version": 55
-}
+    "excludes": [
+      "^event_user__parse_data",
+      "^event_bot__data",
+      "^event_bot__metadata"
+    ],
+    "includes": [
+      "^event_user__parse_data__(intent|entities|message_id$|text$)",
+      "^event_bot__metadata__(utter_action|template_name|rasa_x_[a-z]+)$"
+    ]
+  }

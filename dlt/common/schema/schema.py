@@ -3,14 +3,15 @@ import yaml
 import re
 from re import Pattern
 from copy import deepcopy
-from typing import Dict, List, Set, Mapping, Optional, Sequence, Tuple, Any, cast
+from typing import Dict, List, Mapping, Optional, Sequence, Tuple, Any, cast
 
-from dlt.common.typing import DictStrAny, StrAny, TEvent
+from dlt.common.typing import DictStrAny, StrAny
 from dlt.common.normalizers.names import TNormalizeNameFunc
 from dlt.common.normalizers.json import TNormalizeJSONFunc
 from dlt.common.schema.typing import NormalizersConfig, StoredSchema, SchemaTables, Table, Column, ColumnProp, DataType, HintType
 from dlt.common.schema import utils
 from dlt.common.schema.exceptions import CannotCoerceColumnException, CannotCoerceNullException, InvalidSchemaName, SchemaCorruptedException
+
 
 class Schema:
 
@@ -189,7 +190,7 @@ class Schema:
         return next((m[1] for m in self._compiled_preferred_types if m[0].search(col_name)), None)
 
     def to_dict(self) -> StoredSchema:
-        return  {
+        return {
             "version": self._version,
             "engine_version": Schema.ENGINE_VERSION,
             "name": self._schema_name,

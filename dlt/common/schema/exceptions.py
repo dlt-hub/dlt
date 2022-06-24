@@ -3,6 +3,7 @@ from typing import Any
 from dlt.common.exceptions import DltException
 from dlt.common.schema.typing import DataType
 
+
 class SchemaException(DltException):
     pass
 
@@ -28,6 +29,7 @@ class InvalidTableNameException(SchemaException):
         self.schema_name = schema_name
         self.table_name = table_name
         super().__init__(f"All table names must start with '{schema_name}' so {table_name} is invalid")
+
 
 class SchemaCorruptedException(SchemaException):
     pass

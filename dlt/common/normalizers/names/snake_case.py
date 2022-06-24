@@ -29,4 +29,3 @@ def normalize_table_name(name: str) -> str:
 def normalize_column_name(name: str) -> str:
     # replace consecutive underscores with single one to prevent name clashes with parent child
     return RE_UNDERSCORES.sub("_", normalize_table_name(name))
-
