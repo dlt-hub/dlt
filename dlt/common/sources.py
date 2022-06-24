@@ -7,7 +7,6 @@ except ImportError:
     ParamSpec = lambda x: [x]  # type: ignore
 
 from dlt.common import logger
-from dlt.common.normalizers.names.snake_case import normalize_table_name
 from dlt.common.time import sleep
 from dlt.common.typing import DictStrAny, StrAny
 
@@ -41,7 +40,7 @@ def append_dlt_meta(item: TBoundItem, name: str, value: Any) -> TBoundItem:
 
 def with_table_name(item: TBoundItem, table_name: str) -> TBoundItem:
     # normalize table name before adding
-    return append_dlt_meta(item, "table_name", normalize_table_name(table_name))
+    return append_dlt_meta(item, "table_name", table_name)
 
 
 def get_table_name(item: StrAny) -> Optional[str]:

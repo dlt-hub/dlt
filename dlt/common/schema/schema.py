@@ -1,11 +1,14 @@
+from importlib import import_module
 import yaml
 import re
 from re import Pattern
 from copy import deepcopy
 from typing import Dict, List, Set, Mapping, Optional, Sequence, Tuple, Any, cast
 
-from dlt.common.typing import DictStrAny, StrAny
-from dlt.common.schema.typing import StoredSchema, SchemaTables, Table, Column, ColumnProp, DataType, HintType
+from dlt.common.typing import DictStrAny, StrAny, TEvent
+from dlt.common.normalizers.names import TNormalizeNameFunc
+from dlt.common.normalizers.json import TNormalizeJSONFunc
+from dlt.common.schema.typing import NormalizersConfig, StoredSchema, SchemaTables, Table, Column, ColumnProp, DataType, HintType
 from dlt.common.schema import utils
 from dlt.common.schema.exceptions import CannotCoerceColumnException, CannotCoerceNullException, InvalidSchemaName, SchemaCorruptedException
 
@@ -14,9 +17,9 @@ class Schema:
     VERSION_TABLE_NAME = "_version"
     VERSION_COLUMN_NAME = "version"
     LOADS_TABLE_NAME = "_loads"
-    ENGINE_VERSION = 2
+    ENGINE_VERSION = 3
 
-    def __init__(self, name: str) -> None:
+    def __init__(self, name: str, normalizers: NormalizersConfig = None) -> None:
         # verify schema name
         if name != utils.normalize_schema_name(name):
             raise InvalidSchemaName(name, utils.normalize_schema_name(name))
@@ -36,21 +39,28 @@ class Schema:
         # included paths
         self._includes: Sequence[str] = []
         self._compiled_includes: Sequence[Pattern[str]] = []
+        # normalizers config
+        self._normalizers_config: NormalizersConfig = normalizers
+        # name normalization functions
+        self.normalize_table_name: TNormalizeNameFunc = None
+        self.normalize_column_name: TNormalizeNameFunc = None
+        # json normalization function
+        self.json_normalize: TNormalizeJSONFunc = None
         # add version table
         self._add_standard_tables()
         # add standard hints
         self._add_standard_hints()
+        # configure normalizers, including custom config if present
+        self._configure_normalizers()
         # compile hints
         self._compile_regexes()
-        # normalization functions
-        # self.normalize_table_name:
 
     @classmethod
     def from_dict(cls, stored_schema: StoredSchema) -> "Schema":
         # upgrade engine if needed
         utils.upgrade_engine_version(stored_schema, stored_schema["engine_version"], cls.ENGINE_VERSION)
         # create new instance from dict
-        self: Schema = cls(stored_schema["name"])
+        self: Schema = cls(stored_schema["name"], normalizers=stored_schema.get("normalizers", None))
         self._schema_tables = stored_schema["tables"]
         # TODO: generate difference if STANDARD SCHEMAS are different than those and increase schema version
         if Schema.VERSION_TABLE_NAME not in self._schema_tables:
@@ -166,14 +176,15 @@ class Schema:
 
     def to_dict(self) -> StoredSchema:
         return  {
-            "tables": self._schema_tables,
-            "name": self._schema_name,
             "version": self._version,
+            "engine_version": Schema.ENGINE_VERSION,
+            "name": self._schema_name,
+            "tables": self._schema_tables,
+            "normalizers": self._normalizers_config,
             "preferred_types": self._preferred_types,
             "hints": self._hints,
             "excludes": self._excludes,
-            "includes": self._includes,
-            "engine_version": Schema.ENGINE_VERSION
+            "includes": self._includes
         }
 
     @property
@@ -300,6 +311,25 @@ class Schema:
 
     def _add_standard_hints(self) -> None:
         self._hints = utils.standard_hints()
+
+    def _configure_normalizers(self) -> None:
+        if not self._normalizers_config:
+            # create default normalizer config
+            self._normalizers_config = {
+                "names": "dlt.common.normalizers.names.snake_case",
+                "json": {
+                    "module": "dlt.common.normalizers.json.relational"
+                }
+            }
+        # import desired modules
+        naming_module = import_module(self._normalizers_config["names"])
+        json_module = import_module(self._normalizers_config["json"]["module"])
+        # name normalization functions
+        self.normalize_table_name = naming_module.normalize_table_name
+        self.normalize_column_name = naming_module.normalize_column_name
+        # json normalization function
+        self.json_normalize = json_module.normalize
+        json_module.extend_schema(self)
 
     def _compile_regexes(self) -> None:
         for pattern, dt in self._preferred_types.items():

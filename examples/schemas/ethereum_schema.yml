@@ -147,6 +147,7 @@ tables:
       name: block_number
       nullable: false
       primary_key: true
+      foreign_key: true
     transaction_index:
       data_type: bigint
       name: transaction_index
@@ -257,11 +258,13 @@ tables:
       name: block_number
       nullable: false
       primary_key: true
+      foreign_key: true
     transaction_index:
       data_type: bigint
       name: transaction_index
       nullable: false
       primary_key: true
+      foreign_key: true
     log_index:
       data_type: bigint
       name: log_index

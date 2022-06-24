@@ -92,7 +92,7 @@ def w_unpack_files(schema_name: str, load_id: str, events_files: Sequence[str]) 
             with unpack_storage.storage.open(events_file) as f:
                 events: Sequence[TEvent] = json.load(f)
             for event in events:
-                for table_name, row in extract_func(schema, event, load_id):
+                for (table_name, parent_table), row in extract_func(schema, event, load_id):
                     # filter row, may eliminate some or all fields
                     row = schema.filter_row(table_name, row, PATH_SEPARATOR)
                     # do not process empty rows

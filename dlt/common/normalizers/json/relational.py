@@ -2,9 +2,8 @@ from typing import Optional, cast, TypedDict, Any
 
 from dlt.common.schema import Schema
 from dlt.common.utils import uniq_id, digest128
-from dlt.common.typing import TEvent, StrAny
+from dlt.common.typing import StrStr, StrStrStr, TEvent, StrAny
 from dlt.common.normalizers.json import TUnpackedRowIterator
-from dlt.common.normalizers.names.snake_case import normalize_column_name
 from dlt.common.sources import DLT_METADATA_FIELD, TEventDLTMeta, get_table_name
 
 
@@ -26,6 +25,16 @@ class TEventRowChild(TEventRow, total=False):
     value: Any  # for lists of simple types
 
 
+class JSONNormalizerConfigProgapagtion(TypedDict, total=True):
+    default: StrStr
+    tables: StrStrStr
+
+
+class JSONNormalizerConfig(TypedDict, total=True):
+    generate_record_hash: bool
+    propagation: JSONNormalizerConfigProgapagtion
+
+
 # subsequent nested fields will be separated with the string below, applies both to field and table names
 PATH_SEPARATOR = "__"
 
@@ -38,12 +47,12 @@ def _should_preserve_complex_value(table: str, field_name: str) -> bool:
     return path in ["event_slot__value"]
 
 
-def _flatten(table: str, dict_row: TEventRowChild) -> TEventRowChild:
+def _flatten(schema: Schema, table: str, dict_row: TEventRowChild) -> TEventRowChild:
     out_rec_row: TEventRowChild = {}
 
     def unpack_row_dicts(dict_row: StrAny, parent_name: Optional[str]) -> None:
         for k, v in dict_row.items():
-            corrected_k = normalize_column_name(k)
+            corrected_k = schema.normalize_column_name(k)
             child_name = corrected_k if not parent_name else f'{parent_name}{PATH_SEPARATOR}{corrected_k}'
             if isinstance(v, dict):
                 unpack_row_dicts(v, parent_name=child_name)
@@ -67,6 +76,7 @@ def _unpack_row(
     dict_row: TEventRowChild,
     extend: TEventRowChild,
     table: str,
+    parent_table: Optional[str] = None,
     parent_hash: Optional[str] = None,
     pos: Optional[int] = None
     ) -> TUnpackedRowIterator:
@@ -78,10 +88,10 @@ def _unpack_row(
 
         return _row
 
-    is_top_level = parent_hash is None
+    is_top_level = parent_table is None
 
     # flatten current row
-    new_dict_row = _flatten(table, dict_row)
+    new_dict_row = _flatten(schema, table, dict_row)
     # infer record hash or leave existing primary key if present
     record_hash = new_dict_row.get("_record_hash", None)
     if not record_hash:
@@ -97,6 +107,7 @@ def _unpack_row(
             _append_child_meta(new_dict_row, record_hash, parent_hash, pos)
         else:
             # create random row id, note that incremental loads will not work with such tables
+            # TODO: create deterministic hash from all new_dict_row elements
             record_hash = uniq_id()
         new_dict_row["_record_hash"] = record_hash
 
@@ -114,7 +125,7 @@ def _unpack_row(
             # yield child table row
             tv = type(v)
             if tv is dict:
-                yield from _unpack_row(schema, v, extend, child_table, record_hash, idx)
+                yield from _unpack_row(schema, v, extend, child_table, table, record_hash, idx)
             elif tv is list:
                 # unpack lists of lists
                 raise ValueError(v)
@@ -122,12 +133,23 @@ def _unpack_row(
                 # list of simple types
                 child_row_hash = _get_child_row_hash(record_hash, child_table, idx)
                 e = _append_child_meta({"value": v, "_record_hash": child_row_hash}, child_row_hash, record_hash, idx)
-                yield child_table, e
+                yield (child_table, table), e
         if not _should_preserve_complex_value(table, k):
             # remove child list
             del new_dict_row[k]  # type: ignore
 
-    yield table, new_dict_row
+    yield (table, parent_table), new_dict_row
+
+
+def extend_schema(schema: Schema) -> None:
+    # extends schema instance
+    if "not_null" in schema._hints and "^_record_hash$" in schema._hints["not_null"]:
+        return
+    schema._hints = {
+        "not_null": ["^_record_hash$", "^_root_hash$", "^_parent_hash$", "^_pos$", "_load_id"],
+        "foreign_key": ["^_parent_hash$"],
+        "unique": ["^_record_hash$"]
+    }
 
 
 def normalize(schema: Schema, source_event: TEvent, load_id: str) -> TUnpackedRowIterator:
@@ -136,7 +158,7 @@ def normalize(schema: Schema, source_event: TEvent, load_id: str) -> TUnpackedRo
     # identify load id if loaded data must be processed after loading incrementally
     event["_load_id"] = load_id
     # find table name
-    table_name = get_table_name(event) or schema.schema_name
+    table_name = schema.normalize_table_name(get_table_name(event) or schema.schema_name)
     # drop dlt metadata before unpacking
     event.pop(DLT_METADATA_FIELD, None)  # type: ignore
     # TODO: if table_name exist get "_dist_key" and "_timestamp" from the table definition in schema and propagate, if not take them from global hints

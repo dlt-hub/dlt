@@ -13,7 +13,7 @@ def schema() -> Schema:
     return Schema("default")
 
 
-def test_flatten_fix_field_name() -> None:
+def test_flatten_fix_field_name(schema: Schema) -> None:
     row = {
         "f-1": "!  30",
         "f 2": [],
@@ -27,7 +27,7 @@ def test_flatten_fix_field_name() -> None:
             }
         }
     }
-    flattened_row = _flatten("mock_table", row)
+    flattened_row = _flatten(schema, "mock_table", row)
     assert "f_1" in flattened_row
     assert "f_2" in flattened_row
     assert "f_3__f4" in flattened_row
@@ -38,17 +38,17 @@ def test_flatten_fix_field_name() -> None:
     assert "f_3" not in flattened_row
 
 
-def test_preserve_complex_value() -> None:
+def test_preserve_complex_value(schema: Schema) -> None:
     row_1 = {
         "value": 1
     }
-    flattened_row = _flatten("event_slot", row_1)
+    flattened_row = _flatten(schema, "event_slot", row_1)
     assert flattened_row["value"] == 1
 
     row_2 = {
         "value": {"complex": True}
     }
-    flattened_row = _flatten("event_slot", row_2)
+    flattened_row = _flatten(schema, "event_slot", row_2)
     assert flattened_row["value"] == row_2["value"]
     assert flattened_row["value__complex"] is True
 

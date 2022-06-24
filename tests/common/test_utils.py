@@ -1,6 +1,6 @@
 import pytest
 
-from dlt.common.utils import flatten_list_of_str_or_dicts
+from dlt.common.utils import flatten_list_of_str_or_dicts, digest128
 
 
 def test_flatten_list_of_str_or_dicts() -> None:
@@ -11,3 +11,8 @@ def test_flatten_list_of_str_or_dicts() -> None:
     l_d = [{"a": "b"}, "a"]
     with pytest.raises(KeyError):
         d_d = flatten_list_of_str_or_dicts(l_d)
+
+
+def test_digest128_length() -> None:
+    print(digest128("hash it"))
+    assert len(digest128("hash it")) == 120/6

@@ -1,4 +1,5 @@
 import os
+import base64
 from contextlib import contextmanager
 import hashlib
 from os import environ
@@ -20,7 +21,7 @@ def uniq_id() -> str:
 
 
 def digest128(v: str) -> str:
-    return hashlib.shake_128(v.encode("utf-8")).hexdigest(16)
+    return base64.b64encode(hashlib.shake_128(v.encode("utf-8")).digest(15)).decode('ascii')
 
 
 def str2bool(v: str) -> bool:

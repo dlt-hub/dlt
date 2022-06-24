@@ -215,8 +215,5 @@ def load_table() -> Table:
 
 
 def standard_hints() -> Mapping[HintType, Sequence[str]]:
-    return {
-        "not_null": ["^_record_hash$", "^_root_hash$", "^_parent_hash$", "^_pos$", "_load_id"],
-        "foreign_key": ["^_parent_hash$"],
-        "unique": ["^_record_hash$"]
-    }
+    # no standard hints independent of json normalizer
+    return {}
