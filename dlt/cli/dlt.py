@@ -45,7 +45,7 @@ def main() -> None:
         run_f = dbt_run
     elif args.command == "schema":
         with open(args.file, "r") as f:
-            if os.path.splitext(args.file)[1][1:]:
+            if os.path.splitext(args.file)[1][1:] == "json":
                 schema_dict: DictStrAny = json.load(f)
             else:
                 schema_dict = yaml.safe_load(f)

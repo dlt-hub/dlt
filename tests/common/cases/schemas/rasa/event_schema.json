@@ -1,59 +1,131 @@
 {
-    "tables": {
-        "_version": {
-            "version": {
-                "name": "version",
-                "data_type": "bigint",
-                "nullable": false
-            },
-            "engine_version": {
-                "name": "engine_version",
-                "data_type": "bigint",
-                "nullable": false
-            },
-            "inserted_at": {
-                "name": "inserted_at",
-                "data_type": "timestamp",
-                "nullable": false
+  "version": 1,
+  "engine_version": 3,
+  "name": "event",
+  "tables": {
+    "_version": {
+      "columns": {
+        "version": {
+          "data_type": "bigint",
+          "nullable": false
+        },
+        "engine_version": {
+          "data_type": "bigint",
+          "nullable": false
+        },
+        "inserted_at": {
+          "data_type": "timestamp",
+          "nullable": false
+        }
+      },
+      "write_disposition": "append"
+    },
+    "_loads": {
+      "columns": {
+        "load_id": {
+          "data_type": "text",
+          "nullable": false
+        },
+        "status": {
+          "data_type": "bigint",
+          "nullable": false
+        },
+        "inserted_at": {
+          "data_type": "timestamp",
+          "nullable": false
+        }
+      },
+      "write_disposition": "append"
+    },
+    "event_slot": {
+        "columns": {
+            "value": {
+            "data_type": "complex",
+            "nullable": true
             }
         },
-        "_loads": {
-            "load_id": {
-                "name": "load_id",
-                "data_type": "text",
-                "nullable": false
-            },
-            "status": {
-                "name": "status",
-                "data_type": "bigint",
-                "nullable": false
-            },
-            "inserted_at": {
-                "name": "inserted_at",
-                "data_type": "timestamp",
-                "nullable": false
-            }
-        }
+        "write_disposition": "append"
     },
-    "version": 1,
-    "engine_version": 2,
-    "name": "event",
+    "event_user": {
+      "columns": {},
+      "write_disposition": "append",
+      "filters": {
+        "excludes": [
+          "re:^parse_data"
+        ],
+        "includes": [
+          "re:^parse_data__(intent|entities|message_id$|text$)"
+        ]
+      }
+    },
+    "event_bot": {
+      "columns": {},
+      "write_disposition": "append",
+      "filters": {
+        "excludes": [
+          "re:^data",
+          "re:^metadata"
+        ],
+        "includes": [
+          "re:^metadata__(utter_action|template_name|rasa_x_[a-z]+)$"
+        ]
+      }
+    }
+  },
+  "settings": {
+    "default_hints": {
+      "not_null": [
+        "re:^timestamp$",
+        "re:^_timestamp$",
+        "re:^_dist_key$",
+        "re:^_record_hash$",
+        "re:^_root_hash$",
+        "re:^_load_id$",
+        "re:^_parent_hash$",
+        "re:^_pos$",
+        "re:^sender_id$"
+      ],
+      "partition": [
+        "re:^_timestamp$",
+        "re:^timestamp$"
+      ],
+      "cluster": [
+        "re:^_dist_key$",
+        "re:^sender_id$"
+      ],
+      "primary_key": [],
+      "foreign_key": [
+        "re:^_parent_hash$"
+      ],
+      "sort": [
+        "re:^timestamp$",
+        "re:^_timestamp$"
+      ],
+      "unique": [
+        "re:^_record_hash$"
+      ]
+    },
     "preferred_types": {
-        "^timestamp$": "timestamp",
-        "^_timestamp$": "timestamp",
-        "^inserted_at$": "timestamp",
-        "confidence": "double",
-        "^_pos$": "bigint"
-    },
-    "hints": {
-        "not_null": ["^timestamp$", "^_timestamp$", "^_dist_key$", "^_record_hash$", "^_root_hash$", "^_load_id$", "^_parent_hash$", "^_pos$", "^sender_id$"],
-        "partition": ["^_timestamp$", "^timestamp$"],
-        "cluster": ["^_dist_key$", "^sender_id$"],
-        "primary_key": [],
-        "foreign_key": ["^_parent_hash$"],
-        "sort": ["^timestamp$", "^_timestamp$"],
-        "unique": ["^_record_hash$"]
-    },
-    "excludes": ["^event_user__parse_data", "^event_bot__data", "^event_bot__metadata"],
-    "includes": ["^event_user__parse_data__(intent|entities|message_id$|text$)", "^event_bot__metadata__(utter_action|template_name|rasa_x_[a-z]+)$"]
+      "re:^timestamp$": "timestamp",
+      "re:^_timestamp$": "timestamp",
+      "re:^inserted_at$": "timestamp",
+      "re:confidence": "double",
+      "re:^_pos$": "bigint"
+    }
+  },
+  "normalizers": {
+    "names": "dlt.common.normalizers.names.snake_case",
+    "json": {
+      "module": "dlt.common.normalizers.json.relational",
+      "config": {
+        "propagation": {
+          "root": {
+            "_record_hash": "_root_hash",
+            "timestamp": "_timestamp",
+            "sender_id": "_dist_key"
+          }
+        }
+      }
+    }
+  }
 }

@@ -1,779 +1,391 @@
 {
-    "version": 8,
-    "engine_version": 2,
-    "name": "event",
-    "tables": {
-      "_version": {
+  "version": 8,
+  "engine_version": 3,
+  "name": "event",
+  "tables": {
+    "_version": {
+      "columns": {
         "version": {
-          "partition": false,
-          "cluster": false,
-          "unique": false,
-          "sort": false,
-          "primary_key": false,
-          "foreign_key": false,
-          "name": "version",
           "data_type": "bigint",
           "nullable": false
         },
         "": {
-          "partition": false,
-          "cluster": false,
-          "unique": false,
-          "sort": false,
-          "primary_key": false,
-          "foreign_key": false,
-          "name": "engine_version",
           "data_type": "bigint",
           "nullable": false
         },
         "inserted_at": {
-          "partition": false,
-          "cluster": false,
-          "unique": false,
-          "sort": false,
-          "primary_key": false,
-          "foreign_key": false,
-          "name": "inserted_at",
           "data_type": "timestamp",
           "nullable": false
         }
       },
-      "_loads": {
+      "write_disposition": "append"
+    },
+    "_loads": {
+      "columns": {
         "load_id": {
-          "partition": false,
-          "cluster": false,
-          "unique": false,
-          "sort": false,
-          "primary_key": false,
-          "foreign_key": false,
-          "name": "load_id",
           "data_type": "text",
           "nullable": false
         },
         "status": {
-          "partition": false,
-          "cluster": false,
-          "unique": false,
-          "sort": false,
-          "primary_key": false,
-          "foreign_key": false,
-          "name": "status",
           "data_type": "bigint",
           "nullable": false
         },
         "inserted_at": {
-          "partition": false,
-          "cluster": false,
-          "unique": false,
-          "sort": false,
-          "primary_key": false,
-          "foreign_key": false,
-          "name": "inserted_at",
           "data_type": "timestamp",
           "nullable": false
         }
       },
-      "event_slot": {
+      "write_disposition": "append"
+    },
+    "event_slot": {
+      "columns": {
         "value": {
-          "partition": false,
-          "cluster": false,
-          "unique": false,
-          "sort": false,
-          "primary_key": false,
-          "foreign_key": false,
-          "name": "value",
           "data_type": "complex",
-          "nullable": "true"
+          "nullable": true
         }
       },
-      "event": {
+      "write_disposition": "append"
+    },
+    "event": {
+      "columns": {
         "sender_id": {
-          "name": "sender_id",
-          "data_type": "text",
-          "nullable": false,
-          "partition": false,
           "cluster": true,
-          "sort": false,
-          "unique": false,
-          "primary_key": false,
-          "foreign_key": false
+          "data_type": "text",
+          "nullable": false
         },
         "timestamp": {
-          "name": "timestamp",
-          "data_type": "timestamp",
-          "nullable": false,
           "partition": true,
-          "cluster": false,
           "sort": true,
-          "unique": false,
-          "primary_key": false,
-          "foreign_key": false
+          "data_type": "timestamp",
+          "nullable": false
         },
         "_load_id": {
-          "name": "_load_id",
           "data_type": "text",
-          "nullable": false,
-          "partition": false,
-          "cluster": false,
-          "sort": false,
-          "unique": false,
-          "primary_key": false,
-          "foreign_key": false
+          "nullable": false
         },
         "_record_hash": {
-          "name": "_record_hash",
-          "data_type": "text",
-          "nullable": false,
-          "partition": false,
-          "cluster": false,
-          "sort": false,
           "unique": true,
-          "primary_key": false,
-          "foreign_key": false
+          "data_type": "text",
+          "nullable": false
         }
       },
-      "event_action": {
+      "write_disposition": "append"
+    },
+    "event_action": {
+      "columns": {
         "event": {
-          "name": "event",
           "data_type": "text",
-          "nullable": true,
-          "partition": false,
-          "cluster": false,
-          "sort": false,
-          "unique": false,
-          "primary_key": false,
-          "foreign_key": false
+          "nullable": true
         },
         "timestamp": {
-          "name": "timestamp",
-          "data_type": "timestamp",
-          "nullable": false,
           "partition": true,
-          "cluster": false,
           "sort": true,
-          "unique": false,
-          "primary_key": false,
-          "foreign_key": false
+          "data_type": "timestamp",
+          "nullable": false
         },
         "metadata__rasa_x_flagged": {
-          "name": "metadata__rasa_x_flagged",
           "data_type": "bool",
-          "nullable": true,
-          "partition": false,
-          "cluster": false,
-          "sort": false,
-          "unique": false,
-          "primary_key": false,
-          "foreign_key": false
+          "nullable": true
         },
         "metadata__rasa_x_id": {
-          "name": "metadata__rasa_x_id",
           "data_type": "bigint",
-          "nullable": true,
-          "partition": false,
-          "cluster": false,
-          "sort": false,
-          "unique": false,
-          "primary_key": false,
-          "foreign_key": false
+          "nullable": true
         },
         "name": {
-          "name": "name",
           "data_type": "text",
-          "nullable": true,
-          "partition": false,
-          "cluster": false,
-          "sort": false,
-          "unique": false,
-          "primary_key": false,
-          "foreign_key": false
+          "nullable": true
         },
         "policy": {
-          "name": "policy",
           "data_type": "text",
-          "nullable": true,
-          "partition": false,
-          "cluster": false,
-          "sort": false,
-          "unique": false,
-          "primary_key": false,
-          "foreign_key": false
+          "nullable": true
         },
         "confidence": {
-          "name": "confidence",
           "data_type": "double",
-          "nullable": true,
-          "partition": false,
-          "cluster": false,
-          "sort": false,
-          "unique": false,
-          "primary_key": false,
-          "foreign_key": false
+          "nullable": true
         },
         "hide_rule_turn": {
-          "name": "hide_rule_turn",
           "data_type": "bool",
-          "nullable": true,
-          "partition": false,
-          "cluster": false,
-          "sort": false,
-          "unique": false,
-          "primary_key": false,
-          "foreign_key": false
+          "nullable": true
         },
         "is_flagged": {
-          "name": "is_flagged",
           "data_type": "bool",
-          "nullable": true,
-          "partition": false,
-          "cluster": false,
-          "sort": false,
-          "unique": false,
-          "primary_key": false,
-          "foreign_key": false
+          "nullable": true
         },
         "sender_id": {
-          "name": "sender_id",
-          "data_type": "text",
-          "nullable": false,
-          "partition": false,
           "cluster": true,
-          "sort": false,
-          "unique": false,
-          "primary_key": false,
-          "foreign_key": false
+          "data_type": "text",
+          "nullable": false
         },
         "model_id": {
-          "name": "model_id",
           "data_type": "text",
-          "nullable": true,
-          "partition": false,
-          "cluster": false,
-          "sort": false,
-          "unique": false,
-          "primary_key": false,
-          "foreign_key": false
+          "nullable": true
         },
         "environment": {
-          "name": "environment",
           "data_type": "text",
-          "nullable": true,
-          "partition": false,
-          "cluster": false,
-          "sort": false,
-          "unique": false,
-          "primary_key": false,
-          "foreign_key": false
+          "nullable": true
         },
         "_load_id": {
-          "name": "_load_id",
           "data_type": "text",
-          "nullable": false,
-          "partition": false,
-          "cluster": false,
-          "sort": false,
-          "unique": false,
-          "primary_key": false,
-          "foreign_key": false
+          "nullable": false
         },
         "_record_hash": {
-          "name": "_record_hash",
-          "data_type": "text",
-          "nullable": false,
-          "partition": false,
-          "cluster": false,
-          "sort": false,
           "unique": true,
-          "primary_key": false,
-          "foreign_key": false
+          "data_type": "text",
+          "nullable": false
         }
       },
-      "event_bot": {
+      "write_disposition": "append"
+    },
+    "event_bot": {
+      "columns": {
         "event": {
-          "name": "event",
           "data_type": "text",
-          "nullable": true,
-          "partition": false,
-          "cluster": false,
-          "sort": false,
-          "unique": false,
-          "primary_key": false,
-          "foreign_key": false
+          "nullable": true
         },
         "timestamp": {
-          "name": "timestamp",
-          "data_type": "timestamp",
-          "nullable": false,
           "partition": true,
-          "cluster": false,
           "sort": true,
-          "unique": false,
-          "primary_key": false,
-          "foreign_key": false
+          "data_type": "timestamp",
+          "nullable": false
         },
         "metadata__rasa_x_flagged": {
-          "name": "metadata__rasa_x_flagged",
           "data_type": "bool",
-          "nullable": true,
-          "partition": false,
-          "cluster": false,
-          "sort": false,
-          "unique": false,
-          "primary_key": false,
-          "foreign_key": false
+          "nullable": true
         },
         "metadata__rasa_x_id": {
-          "name": "metadata__rasa_x_id",
           "data_type": "bigint",
-          "nullable": true,
-          "partition": false,
-          "cluster": false,
-          "sort": false,
-          "unique": false,
-          "primary_key": false,
-          "foreign_key": false
+          "nullable": true
         },
         "text": {
-          "name": "text",
           "data_type": "text",
-          "nullable": true,
-          "partition": false,
-          "cluster": false,
-          "sort": false,
-          "unique": false,
-          "primary_key": false,
-          "foreign_key": false
+          "nullable": true
         },
         "is_flagged": {
-          "name": "is_flagged",
           "data_type": "bool",
-          "nullable": true,
-          "partition": false,
-          "cluster": false,
-          "sort": false,
-          "unique": false,
-          "primary_key": false,
-          "foreign_key": false
+          "nullable": true
         },
         "sender_id": {
-          "name": "sender_id",
-          "data_type": "text",
-          "nullable": false,
-          "partition": false,
           "cluster": true,
-          "sort": false,
-          "unique": false,
-          "primary_key": false,
-          "foreign_key": false
+          "data_type": "text",
+          "nullable": false
         },
         "model_id": {
-          "name": "model_id",
           "data_type": "text",
-          "nullable": true,
-          "partition": false,
-          "cluster": false,
-          "sort": false,
-          "unique": false,
-          "primary_key": false,
-          "foreign_key": false
+          "nullable": true
         },
         "environment": {
-          "name": "environment",
           "data_type": "text",
-          "nullable": true,
-          "partition": false,
-          "cluster": false,
-          "sort": false,
-          "unique": false,
-          "primary_key": false,
-          "foreign_key": false
+          "nullable": true
         },
         "_load_id": {
-          "name": "_load_id",
           "data_type": "text",
-          "nullable": false,
-          "partition": false,
-          "cluster": false,
-          "sort": false,
-          "unique": false,
-          "primary_key": false,
-          "foreign_key": false
+          "nullable": false
         },
         "_record_hash": {
-          "name": "_record_hash",
-          "data_type": "text",
-          "nullable": false,
-          "partition": false,
-          "cluster": false,
-          "sort": false,
           "unique": true,
-          "primary_key": false,
-          "foreign_key": false
+          "data_type": "text",
+          "nullable": false
         }
       },
-      "event_user": {
+      "write_disposition": "append",
+      "filters": {
+        "excludes": [
+          "re:^data",
+          "re:^metadata"
+        ],
+        "includes": [
+          "re:^metadata__(utter_action|template_name|rasa_x_[a-z]+)$"
+        ]
+      }
+    },
+    "event_user": {
+      "columns": {
         "event": {
-          "name": "event",
           "data_type": "text",
-          "nullable": true,
-          "partition": false,
-          "cluster": false,
-          "sort": false,
-          "unique": false,
-          "primary_key": false,
-          "foreign_key": false
+          "nullable": true
         },
         "timestamp": {
-          "name": "timestamp",
-          "data_type": "timestamp",
-          "nullable": false,
           "partition": true,
-          "cluster": false,
           "sort": true,
-          "unique": false,
-          "primary_key": false,
-          "foreign_key": false
+          "data_type": "timestamp",
+          "nullable": false
         },
         "metadata__rasa_x_flagged": {
-          "name": "metadata__rasa_x_flagged",
           "data_type": "bool",
-          "nullable": true,
-          "partition": false,
-          "cluster": false,
-          "sort": false,
-          "unique": false,
-          "primary_key": false,
-          "foreign_key": false
+          "nullable": true
         },
         "metadata__rasa_x_id": {
-          "name": "metadata__rasa_x_id",
           "data_type": "bigint",
-          "nullable": true,
-          "partition": false,
-          "cluster": false,
-          "sort": false,
-          "unique": false,
-          "primary_key": false,
-          "foreign_key": false
+          "nullable": true
         },
         "text": {
-          "name": "text",
           "data_type": "text",
-          "nullable": true,
-          "partition": false,
-          "cluster": false,
-          "sort": false,
-          "unique": false,
-          "primary_key": false,
-          "foreign_key": false
+          "nullable": true
         },
         "parse_data__intent__id": {
-          "name": "parse_data__intent__id",
           "data_type": "bigint",
-          "nullable": true,
-          "partition": false,
-          "cluster": false,
-          "sort": false,
-          "unique": false,
-          "primary_key": false,
-          "foreign_key": false
+          "nullable": true
         },
         "parse_data__intent__name": {
-          "name": "parse_data__intent__name",
           "data_type": "text",
-          "nullable": true,
-          "partition": false,
-          "cluster": false,
-          "sort": false,
-          "unique": false,
-          "primary_key": false,
-          "foreign_key": false
+          "nullable": true
         },
         "parse_data__intent__confidence": {
-          "name": "parse_data__intent__confidence",
           "data_type": "double",
-          "nullable": true,
-          "partition": false,
-          "cluster": false,
-          "sort": false,
-          "unique": false,
-          "primary_key": false,
-          "foreign_key": false
+          "nullable": true
         },
         "parse_data__text": {
-          "name": "parse_data__text",
           "data_type": "text",
-          "nullable": true,
-          "partition": false,
-          "cluster": false,
-          "sort": false,
-          "unique": false,
-          "primary_key": false,
-          "foreign_key": false
+          "nullable": true
         },
         "parse_data__message_id": {
-          "name": "parse_data__message_id",
           "data_type": "text",
-          "nullable": true,
-          "partition": false,
-          "cluster": false,
-          "sort": false,
-          "unique": false,
-          "primary_key": false,
-          "foreign_key": false
+          "nullable": true
         },
         "input_channel": {
-          "name": "input_channel",
           "data_type": "text",
-          "nullable": true,
-          "partition": false,
-          "cluster": false,
-          "sort": false,
-          "unique": false,
-          "primary_key": false,
-          "foreign_key": false
+          "nullable": true
         },
         "message_id": {
-          "name": "message_id",
           "data_type": "text",
-          "nullable": true,
-          "partition": false,
-          "cluster": false,
-          "sort": false,
-          "unique": false,
-          "primary_key": false,
-          "foreign_key": false
+          "nullable": true
         },
         "is_flagged": {
-          "name": "is_flagged",
           "data_type": "bool",
-          "nullable": true,
-          "partition": false,
-          "cluster": false,
-          "sort": false,
-          "unique": false,
-          "primary_key": false,
-          "foreign_key": false
+          "nullable": true
         },
         "sender_id": {
-          "name": "sender_id",
-          "data_type": "text",
-          "nullable": false,
-          "partition": false,
           "cluster": true,
-          "sort": false,
-          "unique": false,
-          "primary_key": false,
-          "foreign_key": false
+          "data_type": "text",
+          "nullable": false
         },
         "model_id": {
-          "name": "model_id",
           "data_type": "text",
-          "nullable": true,
-          "partition": false,
-          "cluster": false,
-          "sort": false,
-          "unique": false,
-          "primary_key": false,
-          "foreign_key": false
+          "nullable": true
         },
         "environment": {
-          "name": "environment",
           "data_type": "text",
-          "nullable": true,
-          "partition": false,
-          "cluster": false,
-          "sort": false,
-          "unique": false,
-          "primary_key": false,
-          "foreign_key": false
+          "nullable": true
         },
         "_load_id": {
-          "name": "_load_id",
           "data_type": "text",
-          "nullable": false,
-          "partition": false,
-          "cluster": false,
-          "sort": false,
-          "unique": false,
-          "primary_key": false,
-          "foreign_key": false
+          "nullable": false
         },
         "_record_hash": {
-          "name": "_record_hash",
-          "data_type": "text",
-          "nullable": false,
-          "partition": false,
-          "cluster": false,
-          "sort": false,
           "unique": true,
-          "primary_key": false,
-          "foreign_key": false
+          "data_type": "text",
+          "nullable": false
         }
       },
-      "event_user__parse_data__intent_ranking": {
+      "write_disposition": "append",
+      "filters": {
+        "excludes": [
+          "re:^parse_data"
+        ],
+        "includes": [
+          "re:^parse_data__(intent|entities|message_id$|text$)"
+        ]
+      }
+    },
+    "event_user__parse_data__intent_ranking": {
+      "columns": {
         "id": {
-          "name": "id",
           "data_type": "bigint",
-          "nullable": true,
-          "partition": false,
-          "cluster": false,
-          "sort": false,
-          "unique": false,
-          "primary_key": false,
-          "foreign_key": false
+          "nullable": true
         },
         "name": {
-          "name": "name",
           "data_type": "text",
-          "nullable": true,
-          "partition": false,
-          "cluster": false,
-          "sort": false,
-          "unique": false,
-          "primary_key": false,
-          "foreign_key": false
+          "nullable": true
         },
         "confidence": {
-          "name": "confidence",
           "data_type": "double",
-          "nullable": true,
-          "partition": false,
-          "cluster": false,
-          "sort": false,
-          "unique": false,
-          "primary_key": false,
-          "foreign_key": false
+          "nullable": true
         },
         "_parent_hash": {
-          "name": "_parent_hash",
+          "foreign_key": true,
           "data_type": "text",
-          "nullable": false,
-          "partition": false,
-          "cluster": false,
-          "sort": false,
-          "unique": false,
-          "primary_key": false,
-          "foreign_key": true
+          "nullable": false
         },
         "_pos": {
-          "name": "_pos",
           "data_type": "bigint",
-          "nullable": false,
-          "partition": false,
-          "cluster": false,
-          "sort": false,
-          "unique": false,
-          "primary_key": false,
-          "foreign_key": false
+          "nullable": false
         },
         "_root_hash": {
-          "name": "_root_hash",
           "data_type": "text",
-          "nullable": false,
-          "partition": false,
-          "cluster": false,
-          "sort": false,
-          "unique": false,
-          "primary_key": false,
-          "foreign_key": false
+          "nullable": false
         },
         "_timestamp": {
-          "name": "_timestamp",
-          "data_type": "timestamp",
-          "nullable": false,
           "partition": true,
-          "cluster": false,
           "sort": true,
-          "unique": false,
-          "primary_key": false,
-          "foreign_key": false
+          "data_type": "timestamp",
+          "nullable": false
         },
         "_dist_key": {
-          "name": "_dist_key",
-          "data_type": "text",
-          "nullable": false,
-          "partition": false,
           "cluster": true,
-          "sort": false,
-          "unique": false,
-          "primary_key": false,
-          "foreign_key": false
+          "data_type": "text",
+          "nullable": false
         },
         "_record_hash": {
-          "name": "_record_hash",
-          "data_type": "text",
-          "nullable": false,
-          "partition": false,
-          "cluster": false,
-          "sort": false,
           "unique": true,
-          "primary_key": false,
-          "foreign_key": false
+          "data_type": "text",
+          "nullable": false
         }
-      }
-    },
-    "normalizers": {
-      "names": "dlt.common.normalizers.names.snake_case",
-      "json": {
-        "module": "tests.unpacker.mock_rasa_json_normalizer",
-        "config": {
-          "propagation": {
-            "root": {
-              "_record_hash": "_root_hash",
-              "timestamp": "_timestamp",
-              "sender_id": "_dist_key"
-            }
-          }
-        }
-      }
-    },
-    "preferred_types": {
-      "^timestamp$": "timestamp",
-      "^_timestamp$": "timestamp",
-      "^inserted_at$": "timestamp",
-      "confidence": "double",
-      "^_pos$": "bigint"
-    },
-    "hints": {
+      },
+      "parent": "event_user"
+    }
+  },
+  "settings": {
+    "default_hints": {
       "not_null": [
-        "^timestamp$",
-        "^_timestamp$",
-        "^_dist_key$",
-        "^_record_hash$",
-        "^_root_hash$",
-        "^_load_id$",
-        "^_parent_hash$",
-        "^_pos$",
-        "^sender_id$"
+        "re:^timestamp$",
+        "re:^_timestamp$",
+        "re:^_dist_key$",
+        "re:^_record_hash$",
+        "re:^_root_hash$",
+        "re:^_load_id$",
+        "re:^_parent_hash$",
+        "re:^_pos$",
+        "re:^sender_id$"
       ],
       "partition": [
-        "^_timestamp$",
-        "^timestamp$"
+        "re:^_timestamp$",
+        "re:^timestamp$"
       ],
       "cluster": [
-        "^_dist_key$",
-        "^sender_id$"
+        "re:^_dist_key$",
+        "re:^sender_id$"
       ],
       "primary_key": [],
       "foreign_key": [
-        "^_parent_hash$"
+        "re:^_parent_hash$"
       ],
       "sort": [
-        "^timestamp$",
-        "^_timestamp$"
+        "re:^timestamp$",
+        "re:^_timestamp$"
       ],
       "unique": [
-        "^_record_hash$"
+        "re:^_record_hash$"
       ]
     },
-    "excludes": [
-      "^event_user__parse_data",
-      "^event_bot__data",
-      "^event_bot__metadata"
-    ],
-    "includes": [
-      "^event_user__parse_data__(intent|entities|message_id$|text$)",
-      "^event_bot__metadata__(utter_action|template_name|rasa_x_[a-z]+)$"
-    ]
+    "preferred_types": {
+      "re:^timestamp$": "timestamp",
+      "re:^_timestamp$": "timestamp",
+      "re:^inserted_at$": "timestamp",
+      "re:confidence": "double",
+      "re:^_pos$": "bigint"
+    }
+  },
+  "normalizers": {
+    "names": "dlt.common.normalizers.names.snake_case",
+    "json": {
+      "module": "dlt.common.normalizers.json.relational",
+      "config": {
+        "propagation": {
+          "root": {
+            "_record_hash": "_root_hash"
+          }
+        }
+      }
+    }
   }
+}
