@@ -1,4 +1,5 @@
 from dlt.common.normalizers.json import TUnpackedRowIterator
+from dlt.common.normalizers.names.snake_case import normalize_make_path, normalize_break_path  # import path functions from snake case
 from dlt.common.schema.schema import Schema
 from dlt.common.typing import TEvent
 
@@ -13,7 +14,8 @@ def normalize_column_name(name: str) -> str:
 
 def extend_schema(schema: Schema) -> None:
     json_config = schema._normalizers_config["json"]["config"]
-    schema._hints["not_null"] = json_config["not_null"]
+    d_h = schema._settings.setdefault("default_hints", {})
+    d_h["not_null"] = json_config["not_null"]
 
 
 def normalize(schema: Schema, source_event: TEvent, load_id: str) -> TUnpackedRowIterator:

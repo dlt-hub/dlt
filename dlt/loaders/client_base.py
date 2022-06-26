@@ -4,7 +4,7 @@ from typing import Any, Literal, Sequence, Type, TypeVar, AnyStr
 from pathlib import Path
 
 from dlt.common import pendulum, logger
-from dlt.common.schema import Column, Schema, Table
+from dlt.common.schema import TColumn, Schema, TTableColumns
 # from dlt.common.file_storage import FileStorage
 
 from dlt.loaders.local_types import LoadJobStatus
@@ -90,9 +90,9 @@ class ClientBase(ABC):
     def __exit__(self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: TracebackType) -> None:
         self._close_connection()
 
-    def _get_table_by_name(self, table_name: str, file_name: str) -> Table:
+    def _get_table_by_name(self, table_name: str, file_name: str) -> TTableColumns:
         try:
-            return self.schema.get_table(table_name)
+            return self.schema.get_table_columns(table_name)
         except KeyError:
             raise LoadUnknownTableException(table_name, file_name)
 
@@ -126,7 +126,7 @@ class SqlClientBase(ClientBase):
     def _to_canonical_schema_name(self) -> str:
         pass
 
-    def _create_table_update(self, table_name: str, storage_table: Table) -> Sequence[Column]:
+    def _create_table_update(self, table_name: str, storage_table: TTableColumns) -> Sequence[TColumn]:
         # compare table with stored schema and produce delta
         l = self.schema.get_schema_update_for(table_name, storage_table)
         logger.info(f"Found {len(l)} updates for {table_name} in {self.schema.schema_name}")

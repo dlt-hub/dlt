@@ -7,14 +7,14 @@ from dlt.common.typing import StrAny
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 from dlt.common.configuration import PostgresConfiguration
 from dlt.common.dataset_writers import TWriterType, escape_redshift_identifier
-from dlt.common.schema import COLUMN_HINTS, Column, ColumnBase, DataType, HintType, Schema, Table, add_missing_hints
+from dlt.common.schema import COLUMN_HINTS, TColumn, TColumnBase, TDataType, THintType, Schema, TTableColumns, add_missing_hints
 
 from dlt.loaders.exceptions import (LoadClientSchemaWillNotUpdate, LoadClientTerminalInnerException,
                                             LoadClientTransientInnerException, LoadFileTooBig)
 from dlt.loaders.local_types import LoadJobStatus
 from dlt.loaders.client_base import ClientBase, SqlClientBase, LoadJob
 
-SCT_TO_PGT: Dict[DataType, str] = {
+SCT_TO_PGT: Dict[TDataType, str] = {
     "complex": "varchar(max)",
     "text": "varchar(max)",
     "double": "double precision",
@@ -25,7 +25,7 @@ SCT_TO_PGT: Dict[DataType, str] = {
     "decimal": f"numeric({DEFAULT_NUMERIC_PRECISION},{DEFAULT_NUMERIC_SCALE})"
 }
 
-PGT_TO_SCT: Dict[str, DataType] = {
+PGT_TO_SCT: Dict[str, TDataType] = {
     "varchar(max)": "text",
     "double precision": "double",
     "boolean": "bool",
@@ -35,7 +35,7 @@ PGT_TO_SCT: Dict[str, DataType] = {
     "numeric": "decimal"
 }
 
-HINT_TO_REDSHIFT_ATTR: Dict[HintType, str] = {
+HINT_TO_REDSHIFT_ATTR: Dict[THintType, str] = {
     "cluster": "DISTKEY",
     # it is better to not enforce constraints in redshift
     # "primary_key": "PRIMARY KEY",
@@ -187,7 +187,7 @@ class RedshiftClient(SqlClientMixin, SqlClientBase):
                 sql_updates.append(sql)
         return sql_updates
 
-    def _get_table_update_sql(self, table_name: str, storage_table: Table, exists: bool) -> str:
+    def _get_table_update_sql(self, table_name: str, storage_table: TTableColumns, exists: bool) -> str:
         new_columns = self._create_table_update(table_name, storage_table)
         if len(new_columns) == 0:
             # no changes
@@ -214,13 +214,13 @@ class RedshiftClient(SqlClientMixin, SqlClientBase):
         sql += "\nCOMMIT TRANSACTION;"
         return sql
 
-    def _get_column_def_sql(self, c: Column) -> str:
+    def _get_column_def_sql(self, c: TColumn) -> str:
         hints_str = " ".join(HINT_TO_REDSHIFT_ATTR.get(h, "") for h in HINT_TO_REDSHIFT_ATTR.keys() if c.get(h, False) is True)
         column_name = escape_redshift_identifier(c["name"])
         return f"{column_name} {self._sc_t_to_pq_t(c['data_type'])} {hints_str} {self._gen_not_null(c['nullable'])}"
 
-    def _get_storage_table(self, table_name: str) -> Tuple[bool, Table]:
-        schema_table: Table = {}
+    def _get_storage_table(self, table_name: str) -> Tuple[bool, TTableColumns]:
+        schema_table: TTableColumns = {}
         query = f"""
                 SELECT column_name, data_type, is_nullable, numeric_precision, numeric_scale
                     FROM INFORMATION_SCHEMA.COLUMNS
@@ -234,7 +234,7 @@ class RedshiftClient(SqlClientMixin, SqlClientBase):
             return False, schema_table
         # TODO: pull more data to infer DISTKEY, PK and SORTKEY attributes/constraints
         for c in rows:
-            schema_c: ColumnBase = {
+            schema_c: TColumnBase = {
                 "name": c[0],
                 "nullable": self._null_to_bool(c[2]),
                 "data_type": self._pq_t_to_sc_t(c[1], c[3], c[4]),
@@ -262,13 +262,13 @@ class RedshiftClient(SqlClientMixin, SqlClientBase):
         return "NOT NULL" if not v else ""
 
     @staticmethod
-    def _sc_t_to_pq_t(sc_t: DataType) -> str:
+    def _sc_t_to_pq_t(sc_t: TDataType) -> str:
         if sc_t == "wei":
             return f"numeric({DEFAULT_NUMERIC_PRECISION},0)"
         return SCT_TO_PGT[sc_t]
 
     @staticmethod
-    def _pq_t_to_sc_t(pq_t: str, precision: Optional[int], scale: Optional[int]) -> DataType:
+    def _pq_t_to_sc_t(pq_t: str, precision: Optional[int], scale: Optional[int]) -> TDataType:
         if pq_t == "numeric":
             if precision == DEFAULT_NUMERIC_PRECISION and scale == 0:
                 return "wei"

@@ -14,9 +14,8 @@ from dlt.common.typing import TEvent
 from dlt.common.logger import process_internal_exception
 from dlt.common.exceptions import PoolException
 from dlt.common.storages import SchemaStorage
-from dlt.common.schema import SchemaUpdate, Schema
+from dlt.common.schema import TSchemaUpdate, Schema
 from dlt.common.schema.exceptions import CannotCoerceColumnException
-from dlt.common.normalizers.json.relational import PATH_SEPARATOR
 from dlt.common.storages.loader_storage import LoaderStorage
 
 from dlt.unpacker.configuration import configuration, UnpackerConfiguration
@@ -75,10 +74,10 @@ def load_or_create_schema(schema_name: str) -> Schema:
 
 
 # this is a worker process
-def w_unpack_files(schema_name: str, load_id: str, events_files: Sequence[str]) -> SchemaUpdate:
+def w_unpack_files(schema_name: str, load_id: str, events_files: Sequence[str]) -> TSchemaUpdate:
     unpacked_data: Dict[str, List[Any]] = {}
 
-    schema_update: SchemaUpdate = {}
+    schema_update: TSchemaUpdate = {}
     schema = load_or_create_schema(schema_name)
     file_id = uniq_id()
 
@@ -91,19 +90,19 @@ def w_unpack_files(schema_name: str, load_id: str, events_files: Sequence[str]) 
             for event in events:
                 for (table_name, parent_table), row in schema.normalize_json(schema, event, load_id):
                     # filter row, may eliminate some or all fields
-                    row = schema.filter_row(table_name, row, PATH_SEPARATOR)
+                    row = schema.filter_row(table_name, row)
                     # do not process empty rows
                     if row:
                         # decode pua types
                         for k, v in row.items():
                             row[k] = custom_pua_decode(v)  # type: ignore
                         # check if schema can be updated
-                        row, table_update = schema.coerce_row(table_name, row)
-                        if len(table_update) > 0:
+                        row, partial_table = schema.coerce_row(table_name, parent_table, row)
+                        if partial_table:
                             # update schema and save the change
-                            schema.update_schema(table_name, table_update)
+                            schema.update_schema(partial_table)
                             table_updates = schema_update.setdefault(table_name, [])
-                            table_updates.extend(table_update)
+                            table_updates.append(partial_table)
                         # store row
                         rows = unpacked_data.setdefault(table_name, [])
                         rows.append(row)
@@ -114,13 +113,13 @@ def w_unpack_files(schema_name: str, load_id: str, events_files: Sequence[str]) 
     # save rows and return schema changes to be gathered in parent process
     for table_name, rows in unpacked_data.items():
         # save into new jobs to processed as load
-        table = schema.get_table(table_name)
+        table = schema.get_table_columns(table_name)
         load_storage.write_temp_loading_file(load_id, table_name, table, file_id, rows)
 
     return schema_update
 
 
-TMapFuncRV = Tuple[List[SchemaUpdate], List[Sequence[str]]]
+TMapFuncRV = Tuple[List[TSchemaUpdate], List[Sequence[str]]]
 TMapFuncType = Callable[[ProcessPool, str, str, Sequence[str]], TMapFuncRV]
 
 def map_parallel(pool: ProcessPool, schema_name: str, load_id: str, files: Sequence[str]) -> TMapFuncRV:
@@ -141,13 +140,14 @@ def map_single(_: ProcessPool, schema_name: str, load_id: str, files: Sequence[s
     return [w_unpack_files(schema_name, load_id, chunk_files[0])], chunk_files
 
 
-def update_schema(schema_name: str, schema_updates: List[SchemaUpdate]) -> Schema:
+def update_schema(schema_name: str, schema_updates: List[TSchemaUpdate]) -> Schema:
     schema = load_or_create_schema(schema_name)
     # gather schema from all manifests, validate consistency and combine
     for schema_update in schema_updates:
         for table_name, table_updates in schema_update.items():
             logger.debug(f"Updating schema for table {table_name} with {len(table_updates)} deltas")
-            schema.update_schema(table_name, table_updates)
+            for partial_table in table_updates:
+                schema.update_schema(partial_table)
     return schema
 
 

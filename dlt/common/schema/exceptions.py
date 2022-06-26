@@ -1,7 +1,7 @@
 from typing import Any
 
 from dlt.common.exceptions import DltException
-from dlt.common.schema.typing import DataType
+from dlt.common.schema.typing import TDataType
 
 
 class SchemaException(DltException):
@@ -15,8 +15,13 @@ class InvalidSchemaName(SchemaException):
 
 
 class CannotCoerceColumnException(SchemaException):
-    def __init__(self, table_name: str, column_name: str, from_type: DataType, to_type: DataType, value: Any) -> None:
+    def __init__(self, table_name: str, column_name: str, from_type: TDataType, to_type: TDataType, value: Any) -> None:
         super().__init__(f"Cannot coerce type in table {table_name} column {column_name} existing type {from_type} coerced type {to_type} value: {value}")
+
+
+class TablePropertiesClashException(SchemaException):
+    def __init__(self, table_name: str, prop_name: str, val1: str, val2: str):
+        super().__init__(f"Cannot merge partial tables for {table_name} due to property {prop_name}: {val1} != {val2}")
 
 
 class CannotCoerceNullException(SchemaException):

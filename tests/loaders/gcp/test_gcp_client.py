@@ -5,7 +5,8 @@ from dlt.common import pendulum
 from dlt.common.file_storage import FileStorage
 from dlt.common.configuration import GcpClientConfiguration
 from dlt.common.utils import uniq_id
-from dlt.common.schema import Schema, Table
+from dlt.common.schema import Schema
+from dlt.common.schema.utils import new_table
 from dlt.common.storages.schema_storage import SchemaStorage
 from dlt.common.dataset_writers import write_jsonl
 
@@ -103,7 +104,7 @@ def test_schema_update_create_table(gcp_client: BigQueryClient) -> None:
     sender_id = schema._infer_column("sender_id", "982398490809324")
     # this will be not null
     record_hash = schema._infer_column("_record_hash", "m,i0392903jdlkasjdlk")
-    schema.update_schema("event_test_table", [timestamp, sender_id, record_hash])
+    schema.update_schema(new_table("event_test_table", columns=[timestamp, sender_id, record_hash]))
     gcp_client.update_storage_schema()
     exists, storage_table = gcp_client._get_storage_table("event_test_table")
     assert exists is True
@@ -120,17 +121,17 @@ def test_schema_update_alter_table(gcp_client: BigQueryClient) -> None:
     schema = gcp_client.schema
     col1 = schema._infer_column("col1", "string")
     table_name = "event_test_table" + uniq_id()
-    schema.update_schema(table_name, [col1])
+    schema.update_schema(new_table(table_name, columns=[col1]))
     gcp_client.update_storage_schema()
     # with single alter table
     col2 = schema._infer_column("col2", 1)
-    schema.update_schema(table_name, [col2])
+    schema.update_schema(new_table(table_name, columns=[col2]))
     gcp_client.update_storage_schema()
     # with 2 alter tables
     col3 = schema._infer_column("col3", 1.2)
     col4 = schema._infer_column("col4", 182879721.182912)
     col4["data_type"] = "timestamp"
-    schema.update_schema(table_name, [col3, col4])
+    schema.update_schema(new_table(table_name, columns=[col3, col4]))
     gcp_client.update_storage_schema()
     _, storage_table = gcp_client._get_storage_table(table_name)
     # 4 columns
@@ -142,7 +143,7 @@ def test_schema_update_alter_table(gcp_client: BigQueryClient) -> None:
 def test_get_storage_table_with_all_types(gcp_client: BigQueryClient) -> None:
     schema = gcp_client.schema
     table_name = "event_test_table" + uniq_id()
-    schema.update_schema(table_name, TABLE_UPDATE)
+    schema.update_schema(new_table(table_name, columns=TABLE_UPDATE))
     gcp_client.update_storage_schema()
     exists, storage_table = gcp_client._get_storage_table(table_name)
     assert exists is True
@@ -160,7 +161,7 @@ def test_get_storage_table_with_all_types(gcp_client: BigQueryClient) -> None:
 def test_load_with_all_types(gcp_client: BigQueryClient, file_storage: FileStorage) -> None:
     schema = gcp_client.schema
     table_name = "event_test_table" + uniq_id()
-    schema.update_schema(table_name, TABLE_UPDATE)
+    schema.update_schema(new_table(table_name, columns=TABLE_UPDATE))
     gcp_client.update_storage_schema()
     canonical_name = gcp_client._to_canonical_table_name(table_name)
     # write row

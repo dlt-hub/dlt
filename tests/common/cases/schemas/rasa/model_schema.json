@@ -35,14 +35,8 @@
             }
         }
     },
-    "normalizers": {
-        "names": "dlt.common.normalizers.names.snake_case",
-        "json": {
-            "module": "dlt.common.normalizers.json.relational"
-        }
-    },
     "version": 1,
-    "engine_version": 3,
+    "engine_version": 2,
     "name": "model",
     "preferred_types": {
         "^timestamp$": "timestamp",

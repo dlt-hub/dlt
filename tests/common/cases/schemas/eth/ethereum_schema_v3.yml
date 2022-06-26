@@ -1,5 +1,5 @@
 version: 8
-engine_version: 2
+engine_version: 3
 name: ethereum
 
 normalizers:
@@ -36,8 +36,8 @@ settings:
     partition:
       - block_timestamp
   preferred_types:
-    - timestamp: timestamp
-    - block_timestamp: timestamp
+    timestamp: timestamp
+    lock_timestamp: timestamp
 
 tables:
   _loads:
@@ -74,25 +74,27 @@ tables:
 
   # rasa example
   event_user:
-    filtering:
+    filters:
       excludes:
         - re:^parse_data
       includes:
-        - re: ^parse_data__(intent|entities|message_id$|text$)
+        - re:^parse_data__(intent|entities|message_id$|text$)
+    columns: {}
   event_bot:
-    filtering:
+    filters:
       excludes:
         - re:^data
         - re:^metadata
       includes:
         - re:^metadata__(utter_action|template_name|rasa_x_[a-z]+)$
+    columns: {}
 
   blocks:
     description: Ethereum blocks
     x-annotation: this will be preserved on save
     write_disposition: append
     table_sealed: true
-    filtering:
+    filters:
       includes: []
       excludes: []
     columns:

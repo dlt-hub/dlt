@@ -45,5 +45,5 @@ p.extract(chain(*sources))
 # unpack and load data
 p.unpack()
 # uncomment to see nice final schema
-print(p.get_default_schema().as_yaml(remove_default_hints=True))
+print(p.get_default_schema().as_yaml(remove_defaults=True))
 p.load()

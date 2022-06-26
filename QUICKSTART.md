@@ -127,7 +127,7 @@ pipeline.unpack()
 c. Save schema to `schema.yml` file
 ```
 schema = pipeline.get_default_schema()
-schema_yaml = schema.as_yaml(remove_default_hints=True)
+schema_yaml = schema.as_yaml(remove_default=True)
 with open(schema_file_path, 'w') as f:
     f.write(schema_yaml)
 ```

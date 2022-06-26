@@ -1,4 +1,4 @@
-from typing import AnyStr
+from typing import Any, AnyStr
 
 
 class DltException(Exception):
@@ -76,3 +76,11 @@ class TimeRangeExhaustedException(DltException):
         self.start_ts = start_ts
         self.end_ts = end_ts
         super().__init__(f"Timerange ({start_ts} to {end_ts}> exhausted")
+
+
+class DictValidationException(DltException):
+    def __init__(self, msg: str, path: str, field: str = None, value: Any = None):
+        self.path = path
+        self.field = field
+        self.value = value
+        super().__init__(msg)

@@ -4,7 +4,7 @@ from contextlib import contextmanager
 import hashlib
 from os import environ
 import secrets
-from typing import Any, Iterator, Sequence, TypeVar, Mapping, List, Union
+from typing import Any, Iterator, Sequence, TypeVar, Mapping, List, TypedDict, Union
 
 from dlt.common.typing import StrAny, DictStrAny, StrStr
 

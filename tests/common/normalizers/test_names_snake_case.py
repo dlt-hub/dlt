@@ -4,12 +4,12 @@ from dlt.common.normalizers.names.snake_case import normalize_column_name, norma
 def test_fix_field_name() -> None:
     assert normalize_column_name("event_value") == "event_value"
     assert normalize_column_name("event value") == "event_value"
-    assert normalize_column_name("event-.!:value") == "event_value"
-    # remove leading digits
-    assert normalize_column_name("1event_n'") == "_event_n_"
-    assert normalize_column_name("123event_n'") == "_event_n_"
+    assert normalize_column_name("event-.!:<>value") == "event_value"
+    # prefix leading digits
+    assert normalize_column_name("1event_n'") == "_1event_n_"
+    assert normalize_column_name("123event_n'") == "_123event_n_"
     # all lowercase and converted to snake
-    assert normalize_column_name("123BaNaNa") == "_ba_na_na"
+    assert normalize_column_name("123BaNaNa") == "_123_ba_na_na"
     # consecutive capital letters
     assert normalize_column_name("BANANA") == "banana"
     assert normalize_column_name("BAN_ANA") == "ban_ana"

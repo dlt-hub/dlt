@@ -2,8 +2,9 @@ import os
 import pytest
 from copy import deepcopy
 
-from dlt.common.schema import Schema
 from dlt.common.utils import uniq_id
+from dlt.common.schema import Schema
+from dlt.common.schema.utils import new_table
 from dlt.common.configuration import make_configuration, PostgresConfiguration
 
 from dlt.loaders.configuration import configuration
@@ -38,7 +39,7 @@ def test_configuration() -> None:
 
 
 def test_create_table(client: RedshiftClient) -> None:
-    client.schema.update_schema("event_test_table", TABLE_UPDATE)
+    client.schema.update_schema(new_table("event_test_table", columns=TABLE_UPDATE))
     sql = client._get_table_update_sql("event_test_table", {}, False)
     assert sql.startswith("BEGIN TRANSACTION;\n")
     assert "event_test_table" in sql
@@ -55,7 +56,7 @@ def test_create_table(client: RedshiftClient) -> None:
 
 
 def test_alter_table(client: RedshiftClient) -> None:
-    client.schema.update_schema("event_test_table", TABLE_UPDATE)
+    client.schema.update_schema(new_table("event_test_table", columns=TABLE_UPDATE))
     # table has no columns
     sql = client._get_table_update_sql("event_test_table", {}, True)
     canonical_name = client._to_canonical_table_name("event_test_table")
@@ -82,7 +83,7 @@ def test_create_table_with_hints(client: RedshiftClient) -> None:
     mod_update[0]["sort"] = True
     mod_update[1]["cluster"] = True
     mod_update[4]["cluster"] = True
-    client.schema.update_schema("event_test_table", mod_update)
+    client.schema.update_schema(new_table("event_test_table", columns=mod_update))
     sql = client._get_table_update_sql("event_test_table", {}, False)
     # PRIMARY KEY will not be present https://heap.io/blog/redshift-pitfalls-avoid
     assert '"col1" bigint SORTKEY NOT NULL' in sql
@@ -97,7 +98,7 @@ def test_hint_alter_table_exception(client: RedshiftClient) -> None:
     mod_update = deepcopy(TABLE_UPDATE)
     # timestamp
     mod_update[3]["sort"] = True
-    client.schema.update_schema("event_test_table", mod_update)
+    client.schema.update_schema(new_table("event_test_table", columns=mod_update))
     with pytest.raises(LoadClientSchemaWillNotUpdate) as excc:
         client._get_table_update_sql("event_test_table", {}, True)
     assert excc.value.columns == ["col4"]

@@ -12,7 +12,7 @@ from dlt.common.utils import uniq_id
 from dlt.common.typing import StrAny, TEvent
 from dlt.common.normalizers.json.relational import TUnpackedRowIterator, normalize
 from dlt.common.file_storage import FileStorage
-from dlt.common.schema import DataType, Schema
+from dlt.common.schema import TDataType, Schema
 from dlt.common.storages.loader_storage import LoaderStorage
 from dlt.common.storages.unpacker_storage import UnpackerStorage
 from dlt.common.storages import SchemaStorage
@@ -197,7 +197,7 @@ def test_unpack_typed_json(raw_unpacker: FileStorage) -> None:
     schema = schema_storage.load_folder_schema(unpacker.load_storage.get_load_path(loads[0]))
     assert schema.schema_name == "special"
     # named as schema - default fallback
-    table = schema.get_table("special")
+    table = schema.get_table_columns("special")
     # assert inferred types
     for k, v in JSON_TYPED_DICT_TYPES.items():
         assert table[k]["data_type"] == v
@@ -266,13 +266,13 @@ def expect_lines_file(load_file: str, line: int = 0) -> str:
     return lines[line], len(lines)
 
 
-def assert_timestamp_data_type(data_type: DataType) -> None:
+def assert_timestamp_data_type(data_type: TDataType) -> None:
     # load generated schema
     schema_storage = SchemaStorage(unpacker.load_storage.storage.storage_path)
     loads = unpacker.load_storage.list_loads()
     event_schema = schema_storage.load_folder_schema(unpacker.load_storage.get_load_path(loads[0]))
     # in raw unpacker timestamp column must not be coerced to timestamp
-    assert event_schema.get_table("event")["timestamp"]["data_type"] == data_type
+    assert event_schema.get_table_columns("event")["timestamp"]["data_type"] == data_type
 
 
 def test_version() -> None:

@@ -14,7 +14,7 @@ from dlt.common.runners import pool_runner as runner, TRunArgs, TRunMetrics
 from dlt.common.configuration import BasicConfiguration, make_configuration
 from dlt.common.file_storage import FileStorage
 from dlt.common.logger import process_internal_exception
-from dlt.common.schema import Schema, StoredSchema, normalize_schema_name
+from dlt.common.schema import Schema, normalize_schema_name
 from dlt.common.typing import DictStrAny, StrAny
 from dlt.common.utils import uniq_id, is_interactive
 from dlt.common.sources import DLT_METADATA_FIELD, TItem, with_table_name
@@ -302,12 +302,12 @@ class Pipeline:
         self.state.update(restored_state)
 
     @staticmethod
-    def save_schema_to_file(file_name: str, schema: Schema, remove_default_hints: bool = True) -> None:
+    def save_schema_to_file(file_name: str, schema: Schema, remove_defaults: bool = True) -> None:
         with open(file_name, "w") as f:
-            f.write(schema.as_yaml(remove_default_hints=remove_default_hints))
+            f.write(schema.as_yaml(remove_defaults=remove_defaults))
 
     @staticmethod
     def load_schema_from_file(file_name: str) -> Schema:
         with open(file_name, "r") as f:
-            schema_dict: StoredSchema = yaml.safe_load(f)
+            schema_dict: DictStrAny = yaml.safe_load(f)
         return Schema.from_dict(schema_dict)

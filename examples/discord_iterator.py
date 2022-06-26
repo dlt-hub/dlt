@@ -63,7 +63,7 @@ if __name__ == '__main__':
 
     # get inferred schema
     # schema = pipeline.get_current_schema()
-    # print(schema.as_yaml(remove_default_hints=True))
+    # print(schema.as_yaml(remove_default=True))
 
     # load packages
     pipeline.load()

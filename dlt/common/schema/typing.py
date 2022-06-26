@@ -1,54 +1,81 @@
-from typing import Dict, List, Literal, Mapping, Sequence, Set, TypedDict
+from typing import Dict, List, Literal, Optional, Set, TypedDict
 
 from dlt.common.typing import StrAny
 
 
-DataType = Literal["text", "double", "bool", "timestamp", "bigint", "binary", "complex", "decimal", "wei"]
-HintType = Literal["not_null", "partition", "cluster", "primary_key", "foreign_key", "sort", "unique"]
-ColumnProp = Literal["name", "data_type", "nullable", "partition", "cluster", "primary_key", "foreign_key", "sort", "unique"]
+TDataType = Literal["text", "double", "bool", "timestamp", "bigint", "binary", "complex", "decimal", "wei"]
+THintType = Literal["not_null", "partition", "cluster", "primary_key", "foreign_key", "sort", "unique"]
+TColumnProp = Literal["name", "data_type", "nullable", "partition", "cluster", "primary_key", "foreign_key", "sort", "unique"]
+TWriteDisposition = Literal["skip", "append", "replace", "merge"]
 
-DATA_TYPES: Set[DataType] = set(["text", "double", "bool", "timestamp", "bigint", "binary", "complex", "decimal", "wei"])
-COLUMN_PROPS: Set[ColumnProp] = set(["name", "data_type", "nullable", "partition", "cluster", "primary_key", "foreign_key", "sort", "unique"])
-COLUMN_HINTS: Set[HintType] = set(["partition", "cluster", "primary_key", "foreign_key", "sort", "unique"])
+DATA_TYPES: Set[TDataType] = set(["text", "double", "bool", "timestamp", "bigint", "binary", "complex", "decimal", "wei"])
+COLUMN_PROPS: Set[TColumnProp] = set(["name", "data_type", "nullable", "partition", "cluster", "primary_key", "foreign_key", "sort", "unique"])
+COLUMN_HINTS: Set[THintType] = set(["partition", "cluster", "primary_key", "foreign_key", "sort", "unique"])
+WRITE_DISPOSITIONS: Set[TWriteDisposition] = set(["skip", "append", "replace", "merge"])
 
 
-class ColumnBase(TypedDict, total=True):
-    name: str
-    data_type: DataType
+class TColumnBase(TypedDict, total=True):
+    name: Optional[str]
+    data_type: TDataType
     nullable: bool
 
 
-class Column(ColumnBase, total=True):
-    partition: bool
-    cluster: bool
-    unique: bool
-    sort: bool
-    primary_key: bool
-    foreign_key: bool
+class TColumn(TColumnBase, total=False):
+    description: Optional[str]
+    partition: Optional[bool]
+    cluster: Optional[bool]
+    unique: Optional[bool]
+    sort: Optional[bool]
+    primary_key: Optional[bool]
+    foreign_key: Optional[bool]
 
 
-Table = Dict[str, Column]
-SchemaTables = Dict[str, Table]
-SchemaUpdate = Dict[str, List[Column]]
+TTableColumns = Dict[str, TColumn]
 
 
-class JSONNormalizer(TypedDict, total=False):
+class TRowFilters(TypedDict, total=True):
+    excludes: Optional[List[str]]
+    includes: Optional[List[str]]
+
+
+class TTable(TypedDict, total=False):
+    name: Optional[str]
+    description: Optional[str]
+    write_disposition: Optional[TWriteDisposition]
+    table_sealed: Optional[bool]
+    parent: Optional[str]
+    filters: Optional[TRowFilters]
+    columns: TTableColumns
+
+
+class TPartialTable(TTable):
+    pass
+
+
+TSchemaTables = Dict[str, TTable]
+TSchemaUpdate = Dict[str, List[TPartialTable]]
+
+
+class TJSONNormalizer(TypedDict, total=False):
     module: str
-    config: StrAny  # config is a free form and is consumed by `module`
+    config: Optional[StrAny]  # config is a free form and is consumed by `module`
 
 
-class NormalizersConfig(TypedDict, total=True):
+class TNormalizersConfig(TypedDict, total=True):
     names: str
-    json: JSONNormalizer
+    json: TJSONNormalizer
 
 
-class StoredSchema(TypedDict, total=True):
+class TSchemaSettings(TypedDict, total=False):
+    schema_sealed: Optional[bool]
+    default_hints: Optional[Dict[THintType, List[str]]]
+    preferred_types: Optional[Dict[str, TDataType]]
+
+
+class TStoredSchema(TypedDict, total=True):
     version: int
     engine_version: int
     name: str
-    tables: SchemaTables
-    normalizers: NormalizersConfig
-    preferred_types: Mapping[str, DataType]
-    hints: Mapping[HintType, Sequence[str]]
-    excludes: Sequence[str]
-    includes: Sequence[str]
+    settings: Optional[TSchemaSettings]
+    tables: TSchemaTables
+    normalizers: TNormalizersConfig

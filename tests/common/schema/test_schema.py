@@ -3,9 +3,9 @@ import pytest
 import os
 
 from dlt.common import pendulum
-from dlt.common.typing import StrAny
+from dlt.common.typing import DictStrAny, StrAny
 from dlt.common.utils import uniq_id
-from dlt.common.schema import Column, Schema, StoredSchema, normalize_schema_name, utils
+from dlt.common.schema import TColumn, Schema, TStoredSchema, utils
 from dlt.common.schema.exceptions import InvalidSchemaName, SchemaEngineNoUpgradePathException
 from dlt.common.storages import SchemaStorage
 
@@ -42,37 +42,16 @@ def auto_delete_storage() -> None:
     delete_storage()
 
 
-def test_normalize_schema_name() -> None:
-    assert normalize_schema_name("BAN_ANA") == "banana"
-    assert normalize_schema_name("event-.!:value") == "eventvalue"
+def test_normalize_schema_name(schema: Schema) -> None:
+    assert schema.normalize_schema_name("BAN_ANA") == "banana"
+    assert schema.normalize_schema_name("event-.!:value") == "eventvalue"
+    assert schema.normalize_schema_name("123event-.!:value") == "s123eventvalue"
 
 
 def test_new_schema(schema: Schema) -> None:
     assert schema.schema_name == "event"
+    utils.validate_stored_schema(schema.to_dict())
     assert_new_schema_values(schema)
-
-
-def assert_new_schema_values(schema: Schema) -> None:
-    assert schema.schema_version == 1
-    assert schema.ENGINE_VERSION == 3
-    assert schema._preferred_types == {}
-    assert schema._excludes == []
-    assert schema._includes == []
-    # check normalizers config
-    assert schema._normalizers_config["names"] == "dlt.common.normalizers.names.snake_case"
-    assert schema._normalizers_config["json"]["module"] == "dlt.common.normalizers.json.relational"
-    # check if schema was extended by json normalizer
-    assert set(["^_record_hash$", "^_root_hash$", "^_parent_hash$", "^_pos$", "_load_id"]).issubset(schema._hints["not_null"])
-    # call normalizers
-    assert schema.normalize_column_name("A") == "a"
-    assert schema.normalize_table_name("A__B") == "a__b"
-    schema.normalize_json(schema, {}, "load_id")
-    # check default tables
-    tables = schema.schema_tables
-    assert "_version" in tables
-    assert "version" in tables["_version"]
-    assert "_loads" in tables
-    assert "load_id" in tables["_loads"]
 
 
 def test_new_schema_custom_normalizers(cn_schema: Schema) -> None:
@@ -84,10 +63,14 @@ def assert_new_schema_values_custom_normalizers(schema: Schema) -> None:
     assert schema._normalizers_config["names"] == "tests.common.schema.custom_normalizers"
     assert schema._normalizers_config["json"]["module"] == "tests.common.schema.custom_normalizers"
     # check if schema was extended by json normalizer
-    assert ["fake_id"] == schema._hints["not_null"]
+    assert ["fake_id"] == schema.schema_settings["default_hints"]["not_null"]
     # call normalizers
     assert schema.normalize_column_name("a") == "column_a"
     assert schema.normalize_table_name("a__b") == "A__b"
+    assert schema.normalize_schema_name("1A_b") == "s1ab"
+    # assumes elements are normalized
+    assert schema.normalize_make_path("A", "B", "!C") == "A__B__!C"
+    assert schema.normalize_break_path("A__B__!C") == ["A", "B", "!C"]
     row = list(schema.normalize_json(schema, {"bool": True}, "load_id"))
     assert row[0] == (("table", None), {"bool": True})
 
@@ -148,7 +131,7 @@ def test_save_folder_schema(schema: Schema) -> None:
 
 
 def test_upgrade_engine_v1_schema() -> None:
-    schema_dict: StoredSchema = load_json_case("schemas/ev1/event_schema")
+    schema_dict: DictStrAny = load_json_case("schemas/ev1/event_schema")
     # ensure engine v1
     assert schema_dict["engine_version"] == 1
     # schema_dict will be updated to new engine version
@@ -157,16 +140,17 @@ def test_upgrade_engine_v1_schema() -> None:
     # we have 27 tables
     assert len(schema_dict["tables"]) == 27
 
-    # when going to engine 3 we will fail, too many changes to make this upgrade work
-    schema_dict: StoredSchema = load_json_case("schemas/ev1/event_schema")
-    with pytest.raises(SchemaEngineNoUpgradePathException) as exc:
-        utils.upgrade_engine_version(schema_dict, from_engine=1, to_engine=3)
-    # stopped at engine v2
-    assert exc.value.from_engine == 2
+    # upgrade schema eng 2 -> 3
+    schema_dict: DictStrAny = load_json_case("schemas/ev2/event_schema")
+    assert schema_dict["engine_version"] == 2
+    upgraded = utils.upgrade_engine_version(schema_dict, from_engine=2, to_engine=3)
+    assert upgraded["engine_version"] == 3
+    utils.validate_stored_schema(upgraded)
+    # schema = Schema.from_dict(upgraded)
 
 
 def test_unknown_engine_upgrade() -> None:
-    schema_dict: StoredSchema = load_json_case("schemas/ev1/event_schema")
+    schema_dict: TStoredSchema = load_json_case("schemas/ev1/event_schema")
     # there's no path to migrate 3 -> 2
     schema_dict["engine_version"] = 3
     with pytest.raises(SchemaEngineNoUpgradePathException):
@@ -175,29 +159,29 @@ def test_unknown_engine_upgrade() -> None:
 
 def test_preserve_column_order(schema: Schema) -> None:
     # python dicts are ordered from v3.6, add 50 column with random names
-    update: List[Column] = [schema._infer_column(uniq_id(), pendulum.now().timestamp()) for _ in range(50)]
-    schema.update_schema("event_test_order", update)
+    update: List[TColumn] = [schema._infer_column(uniq_id(), pendulum.now().timestamp()) for _ in range(50)]
+    schema.update_schema(utils.new_table("event_test_order", columns=update))
 
     def verify_items(table, update) -> None:
         assert [i[0] for i in table.items()] == list(table.keys()) == [u["name"] for u in update]
         assert [i[1] for i in table.items()] == list(table.values()) == update
 
-    table = schema.get_table("event_test_order")
+    table = schema.get_table_columns("event_test_order")
     verify_items(table, update)
     # save and load
     schema_storage.save_store_schema(schema)
     loaded_schema = schema_storage.load_store_schema("event")
-    table = loaded_schema.get_table("event_test_order")
+    table = loaded_schema.get_table_columns("event_test_order")
     verify_items(table, update)
     # add more columns
-    update2: List[Column] = [schema._infer_column(uniq_id(), pendulum.now().timestamp()) for _ in range(50)]
-    loaded_schema.update_schema("event_test_order", update2)
-    table = loaded_schema.get_table("event_test_order")
+    update2: List[TColumn] = [schema._infer_column(uniq_id(), pendulum.now().timestamp()) for _ in range(50)]
+    loaded_schema.update_schema(utils.new_table("event_test_order", columns=update2))
+    table = loaded_schema.get_table_columns("event_test_order")
     verify_items(table, update + update2)
     # save and load
     schema_storage.save_store_schema(loaded_schema)
     loaded_schema = schema_storage.load_store_schema("event")
-    table = loaded_schema.get_table("event_test_order")
+    table = loaded_schema.get_table_columns("event_test_order")
     verify_items(table, update  + update2)
 
 
@@ -228,7 +212,8 @@ def test_rasa_event_hints(columns: Sequence[str], hint: str, value: bool) -> Non
 
 
 def test_filter_hints_table() -> None:
-    schema_dict: StoredSchema = load_json_case("schemas/rasa/event_schema")
+    # this schema contains event_bot table with expected hints
+    schema_dict: TStoredSchema = load_json_case("schemas/ev1/event_schema")
     schema = Schema.from_dict(schema_dict)
     # get all not_null columns on event
     bot_case: StrAny = load_json_case("mod_bot_case")
@@ -248,28 +233,34 @@ def test_filter_hints_table() -> None:
     assert list(rows.keys()) == ["sender_id"]
     rows = schema.filter_row_with_hint("event_bot", "sort", bot_case)
     assert list(rows.keys()) == ["timestamp"]
-    rows = schema.filter_row_with_hint("event_bot", "unique", bot_case)
+    rows = schema.filter_row_with_hint("event_bot", "primary_key", bot_case)
     assert list(rows.keys()) == []
     bot_case["_record_hash"] = uniq_id()
-    rows = schema.filter_row_with_hint("event_bot", "unique", bot_case)
+    rows = schema.filter_row_with_hint("event_bot", "primary_key", bot_case)
     assert list(rows.keys()) == ["_record_hash"]
 
 
 def test_filter_hints_no_table() -> None:
+    # this is empty schema without any tables
     schema_storage = SchemaStorage("tests/common/cases/schemas/rasa")
     schema = schema_storage.load_store_schema("event")
     bot_case: StrAny = load_json_case("mod_bot_case")
+    # actually the empty `event_bot` table exists (holds exclusion filters)
     rows = schema.filter_row_with_hint("event_bot", "not_null", bot_case)
-    # must be exactly in order of fields in row: timestamp is first
-    assert list(rows.keys()) == ["timestamp", "sender_id"]
-
-    rows = schema.filter_row_with_hint("event_bot", "primary_key", bot_case)
     assert list(rows.keys()) == []
 
-    # infer table, update schema
-    coerced_row, update = schema.coerce_row("event_bot", bot_case)
-    schema.update_schema("event_bot", update)
-    assert schema.get_table("event_bot") is not None
+    # must be exactly in order of fields in row: timestamp is first
+    rows = schema.filter_row_with_hint("event_action", "not_null", bot_case)
+    assert list(rows.keys()) == ["timestamp", "sender_id"]
+
+    rows = schema.filter_row_with_hint("event_action", "primary_key", bot_case)
+    assert list(rows.keys()) == []
+
+    # infer table, update schema for the empty bot table
+    coerced_row, update = schema.coerce_row("event_bot", None, bot_case)
+    schema.update_schema(update)
+    # not empty anymore
+    assert schema.get_table_columns("event_bot") is not None
 
     # make sure the column order is the same when inferring from newly created table
     rows = schema.filter_row_with_hint("event_bot", "not_null", coerced_row)
@@ -278,7 +269,7 @@ def test_filter_hints_no_table() -> None:
 
 def test_merge_hints(schema: Schema) -> None:
     # erase hints
-    schema._hints = {}
+    schema._settings["default_hints"] = {}
     schema._compiled_hints = {}
     new_hints = {
             "not_null": ["^_record_hash$", "^_root_hash$", "^_parent_hash$", "^_pos$", "_load_id"],
@@ -286,13 +277,13 @@ def test_merge_hints(schema: Schema) -> None:
             "unique": ["^_record_hash$"]
         }
     schema.merge_hints(new_hints)
-    assert schema._hints == new_hints
+    assert schema._settings["default_hints"] == new_hints
 
     # again does not change anything (just the order may be different)
     schema.merge_hints(new_hints)
-    assert len(new_hints) == len(schema._hints)
+    assert len(new_hints) == len(schema._settings["default_hints"])
     for k in new_hints:
-        assert set(new_hints[k]) == set(schema._hints[k])
+        assert set(new_hints[k]) == set(schema._settings["default_hints"][k])
 
     # add new stuff
     new_new_hints = {
@@ -306,9 +297,9 @@ def test_merge_hints(schema: Schema) -> None:
             "unique": ["^_record_hash$"],
             "primary_key": ["id"]
         }
-    assert len(expected_hints) == len(schema._hints)
+    assert len(expected_hints) == len(schema._settings["default_hints"])
     for k in expected_hints:
-        assert set(expected_hints[k]) == set(schema._hints[k])
+        assert set(expected_hints[k]) == set(schema._settings["default_hints"][k])
 
 
 def delete_storage() -> None:
@@ -317,3 +308,28 @@ def delete_storage() -> None:
         schema_storage.storage.delete(file)
     if schema_storage.storage.has_folder("copy"):
         schema_storage.storage.delete_folder("copy", recursively=True)
+
+
+def assert_new_schema_values(schema: Schema) -> None:
+    assert schema.schema_version == 1
+    assert schema.ENGINE_VERSION == 3
+    assert len(schema.schema_settings["default_hints"]) > 0
+    # check normalizers config
+    assert schema._normalizers_config["names"] == "dlt.common.normalizers.names.snake_case"
+    assert schema._normalizers_config["json"]["module"] == "dlt.common.normalizers.json.relational"
+    # check if schema was extended by json normalizer
+    assert set(["^_record_hash$", "^_root_hash$", "^_parent_hash$", "^_pos$", "_load_id"]).issubset(schema.schema_settings["default_hints"]["not_null"])
+    # call normalizers
+    assert schema.normalize_column_name("A") == "a"
+    assert schema.normalize_table_name("A__B") == "a__b"
+    assert schema.normalize_schema_name("1A_b") == "s1ab"
+    # assumes elements are normalized
+    assert schema.normalize_make_path("A", "B", "!C") == "A__B__!C"
+    assert schema.normalize_break_path("A__B__!C") == ["A", "B", "!C"]
+    schema.normalize_json(schema, {}, "load_id")
+    # check default tables
+    tables = schema.schema_tables
+    assert "_version" in tables
+    assert "version" in tables["_version"]["columns"]
+    assert "_loads" in tables
+    assert "load_id" in tables["_loads"]["columns"]

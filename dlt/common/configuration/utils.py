@@ -2,12 +2,12 @@ import sys
 import semver
 from os import environ
 from os.path import isdir, isfile
-from typing import Any, Dict, List, Mapping, NewType, Optional, Type, TypeVar, Union, Literal, IO, cast
+from typing import Any, Dict, List, Mapping, NewType, Optional, Type, TypeVar, IO, cast
 
-from dlt.common.typing import StrAny
+from dlt.common.typing import StrAny, is_optional_type, is_literal_type
 from dlt.common.configuration import BasicConfiguration
 from dlt.common.configuration.exceptions import (ConfigEntryMissingException,
-                                                         ConfigEnvValueCannotBeCoercedException, ConfigFileNotFoundException)
+                                                 ConfigEnvValueCannotBeCoercedException, ConfigFileNotFoundException)
 from dlt.common.utils import uniq_id
 
 SIMPLE_TYPES: List[Any] = [int, bool, list, dict, tuple, bytes, set, float]
@@ -129,7 +129,7 @@ def _get_key_value(key: str, hint: Type[Any]) -> Optional[str]:
 
 def _is_config_bounded(config: TConfiguration, keys_in_config: Mapping[str, type]) -> None:
     _unbound_attrs = [
-        key for key in keys_in_config if getattr(config, key) is None and not _is_optional_type(keys_in_config[key])
+        key for key in keys_in_config if getattr(config, key) is None and not is_optional_type(keys_in_config[key])
     ]
 
     if len(_unbound_attrs) > 0:
@@ -174,20 +174,6 @@ def _coerce_single_value(key: str, value: str, hint: Type[Any]) -> Any:
         raise ConfigEnvValueCannotBeCoercedException(key, value, hint) from exc
 
 
-def _extract_simple_type(hint: Type[Any]) -> Type[Any]:
-    # extract optional type and call recursively
-    if _is_literal_type(hint):
-        # assume that all literals are of the same type
-        return _extract_simple_type(type(hint.__args__[0]))
-    if _is_optional_type(hint):
-        # todo: use `get_args` in python 3.8
-        return _extract_simple_type(hint.__args__[0])
-    if not hasattr(hint, "__supertype__"):
-        return hint
-    # descend into supertypes of NewType
-    return _extract_simple_type(hint.__supertype__)
-
-
 def _get_config_attrs_with_hints(config: TConfiguration) -> Dict[str, type]:
     keys: Dict[str, type] = {}
     mro = type.mro(config)
@@ -202,13 +188,15 @@ def _get_config_attrs_with_hints(config: TConfiguration) -> Dict[str, type]:
     return keys
 
 
-def _is_optional_type(hint: Type[Any]) -> bool:
-    # todo: use typing get_args and get_origin in python 3.8
-    if hasattr(hint, "__origin__"):
-        return hint.__origin__ is Union and type(None) in hint.__args__
-    return False
-
-
-def _is_literal_type(hint: Type[Any]) -> bool:
-    return hasattr(hint, "__origin__") and hint.__origin__ is Literal
-
+def _extract_simple_type(hint: Type[Any]) -> Type[Any]:
+    # extract optional type and call recursively
+    if is_literal_type(hint):
+        # assume that all literals are of the same type
+        return _extract_simple_type(type(hint.__args__[0]))
+    if is_optional_type(hint):
+        # todo: use `get_args` in python 3.8
+        return _extract_simple_type(hint.__args__[0])
+    if not hasattr(hint, "__supertype__"):
+        return hint
+    # descend into supertypes of NewType
+    return _extract_simple_type(hint.__supertype__)

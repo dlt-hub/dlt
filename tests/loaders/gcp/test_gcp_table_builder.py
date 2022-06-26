@@ -4,7 +4,8 @@ from copy import deepcopy
 from typing import List
 
 from dlt.common.utils import uniq_id
-from dlt.common.schema import Column, Schema, Table
+from dlt.common.schema import Schema
+from dlt.common.schema.utils import new_table
 from dlt.common.configuration import make_configuration, GcpClientConfiguration
 
 from dlt.loaders.configuration import configuration
@@ -42,7 +43,7 @@ def gcp_client(schema: Schema) -> BigQueryClient:
 
 
 def test_create_table(gcp_client: BigQueryClient) -> None:
-    gcp_client.schema.update_schema("event_test_table", TABLE_UPDATE)
+    gcp_client.schema.update_schema(new_table("event_test_table", columns=TABLE_UPDATE))
     sql = gcp_client._get_table_update_sql("event_test_table", {}, False)
     assert sql.startswith("CREATE TABLE")
     assert "event_test_table" in sql
@@ -60,7 +61,7 @@ def test_create_table(gcp_client: BigQueryClient) -> None:
 
 
 def test_alter_table(gcp_client: BigQueryClient) -> None:
-    gcp_client.schema.update_schema("event_test_table", TABLE_UPDATE)
+    gcp_client.schema.update_schema(new_table("event_test_table", columns=TABLE_UPDATE))
     # table has no columns
     sql = gcp_client._get_table_update_sql("event_test_table", {}, True)
     assert sql.startswith("ALTER TABLE")
@@ -86,7 +87,7 @@ def test_create_table_with_partition_and_cluster(gcp_client: BigQueryClient) -> 
     mod_update[3]["partition"] = True
     mod_update[4]["cluster"] = True
     mod_update[1]["cluster"] = True
-    gcp_client.schema.update_schema("event_test_table", mod_update)
+    gcp_client.schema.update_schema(new_table("event_test_table", columns=mod_update))
     sql = gcp_client._get_table_update_sql("event_test_table", {}, False)
     # clustering must be the last
     assert sql.endswith("CLUSTER BY `col2`,`col5`")
@@ -99,7 +100,7 @@ def test_double_partition_exception(gcp_client: BigQueryClient) -> None:
     mod_update[3]["partition"] = True
     mod_update[4]["partition"] = True
     # double partition
-    gcp_client.schema.update_schema("event_test_table", mod_update)
+    gcp_client.schema.update_schema(new_table("event_test_table", columns=mod_update))
     with pytest.raises(LoadClientSchemaWillNotUpdate) as excc:
         gcp_client._get_table_update_sql("event_test_table", {}, False)
     assert excc.value.columns == ["`col4`", "`col5`"]
@@ -110,7 +111,7 @@ def test_partition_alter_table_exception(gcp_client: BigQueryClient) -> None:
     # timestamp
     mod_update[3]["partition"] = True
     # double partition
-    gcp_client.schema.update_schema("event_test_table", mod_update)
+    gcp_client.schema.update_schema(new_table("event_test_table", columns=mod_update))
     with pytest.raises(LoadClientSchemaWillNotUpdate) as excc:
         gcp_client._get_table_update_sql("event_test_table", {}, True)
     assert excc.value.columns == ["`col4`"]
@@ -121,7 +122,7 @@ def test_cluster_alter_table_exception(gcp_client: BigQueryClient) -> None:
     # timestamp
     mod_update[3]["cluster"] = True
     # double partition
-    gcp_client.schema.update_schema("event_test_table", mod_update)
+    gcp_client.schema.update_schema(new_table("event_test_table", columns=mod_update))
     with pytest.raises(LoadClientSchemaWillNotUpdate) as excc:
         gcp_client._get_table_update_sql("event_test_table", {}, True)
     assert excc.value.columns == ["`col4`"]

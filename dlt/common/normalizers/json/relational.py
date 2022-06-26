@@ -1,6 +1,7 @@
 from typing import Optional, cast, TypedDict, Any
 
 from dlt.common.schema import Schema
+from dlt.common.schema.typing import TColumn
 from dlt.common.utils import uniq_id, digest128
 from dlt.common.typing import DictStrAny, DictStrStr, StrStr, StrStrStr, TEvent, StrAny
 from dlt.common.normalizers.json import TUnpackedRowIterator
@@ -33,14 +34,13 @@ class JSONNormalizerConfig(TypedDict, total=True):
     propagation: JSONNormalizerConfigPropagation
 
 
-# subsequent nested fields will be separated with the string below, applies both to field and table names
-PATH_SEPARATOR = "__"
-
-
 # for those paths the complex nested objects should be left in place
 # current use case: we want to preserve event_slot__value in db even if it's an object
-def _is_complex_type(schema: Schema, table: str, field_name: str) -> bool:
-    column = schema._schema_tables.get(table, {}).get(field_name, None)
+def _is_complex_type(schema: Schema, table_name: str, field_name: str) -> bool:
+    column: TColumn = None
+    table = schema._schema_tables.get(table_name)
+    if table:
+        column = table["columns"].get(field_name, None)
     if column is None:
         data_type = schema.get_preferred_type(field_name)
     else:
@@ -54,7 +54,7 @@ def _flatten(schema: Schema, table: str, dict_row: TEventRow) -> TEventRow:
     def norm_row_dicts(dict_row: StrAny, parent_name: Optional[str]) -> None:
         for k, v in dict_row.items():
             corrected_k = schema.normalize_column_name(k)
-            child_name = corrected_k if not parent_name else f'{parent_name}{PATH_SEPARATOR}{corrected_k}'
+            child_name = corrected_k if not parent_name else schema.normalize_make_path(parent_name, corrected_k)
             if isinstance(v, dict):
                 if _is_complex_type(schema, table, child_name):
                     out_rec_row[child_name] = v
@@ -153,7 +153,7 @@ def _normalize_row(
 
     # generate child tables only for lists
     for k, list_content in lists.items():
-        child_table = f"{table}{PATH_SEPARATOR}{k}"
+        child_table = schema.normalize_make_path(table, k)
         # this will skip empty lists
         v: TEventRowChild = None
         for idx, v in enumerate(list_content):
@@ -172,9 +172,11 @@ def _normalize_row(
 
 
 def extend_schema(schema: Schema) -> None:
-    # extends schema instance
-    if "not_null" in schema._hints and "^_record_hash$" in schema._hints["not_null"]:
+    # quick check to see if hints are applied
+    default_hints = schema.schema_settings.get("default_hints", {})
+    if "not_null" in default_hints and "^_record_hash$" in default_hints["not_null"]:
         return
+    # add hints
     schema.merge_hints(
         {
             "not_null": ["^_record_hash$", "^_root_hash$", "^_parent_hash$", "^_pos$", "_load_id"],
