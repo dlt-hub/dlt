@@ -3,8 +3,8 @@
   "engine_version": 3,
   "name": "event",
   "tables": {
-    "_version": {
-      "name": "_version",
+    "_dlt_version": {
+      "name": "_dlt_version",
       "columns": {
         "version": {
           "partition": false,
@@ -42,8 +42,8 @@
       },
       "write_disposition": "append"
     },
-    "_loads": {
-      "name": "_loads",
+    "_dlt_loads": {
+      "name": "_dlt_loads",
       "columns": {
         "load_id": {
           "partition": false,
@@ -139,36 +139,36 @@
           "data_type": "text",
           "nullable": true
         },
-        "_record_hash": {
+        "_dlt_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": true,
           "foreign_key": false,
-          "name": "_record_hash",
+          "name": "_dlt_id",
           "data_type": "text",
           "nullable": false
         },
-        "_load_id": {
+        "_dlt_load_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": false,
-          "name": "_load_id",
+          "name": "_dlt_load_id",
           "data_type": "text",
           "nullable": false
         },
-        "_root_hash": {
+        "_dlt_root_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": false,
-          "name": "_root_hash",
+          "name": "_dlt_root_id",
           "data_type": "text",
           "nullable": false
         },
@@ -299,36 +299,36 @@
           "data_type": "text",
           "nullable": true
         },
-        "_load_id": {
+        "_dlt_load_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": false,
-          "name": "_load_id",
+          "name": "_dlt_load_id",
           "data_type": "text",
           "nullable": false
         },
-        "_root_hash": {
+        "_dlt_root_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": false,
-          "name": "_root_hash",
+          "name": "_dlt_root_id",
           "data_type": "text",
           "nullable": false
         },
-        "_record_hash": {
+        "_dlt_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": true,
           "foreign_key": false,
-          "name": "_record_hash",
+          "name": "_dlt_id",
           "data_type": "text",
           "nullable": false
         },
@@ -459,36 +459,36 @@
           "data_type": "text",
           "nullable": true
         },
-        "_load_id": {
+        "_dlt_load_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": false,
-          "name": "_load_id",
+          "name": "_dlt_load_id",
           "data_type": "text",
           "nullable": false
         },
-        "_root_hash": {
+        "_dlt_root_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": false,
-          "name": "_root_hash",
+          "name": "_dlt_root_id",
           "data_type": "text",
           "nullable": false
         },
-        "_record_hash": {
+        "_dlt_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": true,
           "foreign_key": false,
-          "name": "_record_hash",
+          "name": "_dlt_id",
           "data_type": "text",
           "nullable": false
         }
@@ -520,25 +520,25 @@
           "data_type": "double",
           "nullable": true
         },
-        "_record_hash": {
+        "_dlt_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": true,
           "foreign_key": false,
-          "name": "_record_hash",
+          "name": "_dlt_id",
           "data_type": "text",
           "nullable": false
         },
-        "_root_hash": {
+        "_dlt_root_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": false,
-          "name": "_root_hash",
+          "name": "_dlt_root_id",
           "data_type": "text",
           "nullable": false
         },
@@ -564,25 +564,25 @@
           "data_type": "timestamp",
           "nullable": false
         },
-        "_parent_hash": {
+        "_dlt_parent_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": true,
-          "name": "_parent_hash",
+          "name": "_dlt_parent_id",
           "data_type": "text",
           "nullable": false
         },
-        "_pos": {
+        "_dlt_list_idx": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": false,
-          "name": "_pos",
+          "name": "_dlt_list_idx",
           "data_type": "bigint",
           "nullable": false
         },
@@ -790,36 +790,36 @@
           "data_type": "text",
           "nullable": true
         },
-        "_load_id": {
+        "_dlt_load_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": false,
-          "name": "_load_id",
+          "name": "_dlt_load_id",
           "data_type": "text",
           "nullable": false
         },
-        "_root_hash": {
+        "_dlt_root_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": false,
-          "name": "_root_hash",
+          "name": "_dlt_root_id",
           "data_type": "text",
           "nullable": false
         },
-        "_record_hash": {
+        "_dlt_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": true,
           "foreign_key": false,
-          "name": "_record_hash",
+          "name": "_dlt_id",
           "data_type": "text",
           "nullable": false
         },
@@ -1016,36 +1016,36 @@
           "data_type": "text",
           "nullable": true
         },
-        "_load_id": {
+        "_dlt_load_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": false,
-          "name": "_load_id",
+          "name": "_dlt_load_id",
           "data_type": "text",
           "nullable": false
         },
-        "_root_hash": {
+        "_dlt_root_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": false,
-          "name": "_root_hash",
+          "name": "_dlt_root_id",
           "data_type": "text",
           "nullable": false
         },
-        "_record_hash": {
+        "_dlt_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": true,
           "foreign_key": false,
-          "name": "_record_hash",
+          "name": "_dlt_id",
           "data_type": "text",
           "nullable": false
         },
@@ -1374,36 +1374,36 @@
           "data_type": "text",
           "nullable": true
         },
-        "_load_id": {
+        "_dlt_load_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": false,
-          "name": "_load_id",
+          "name": "_dlt_load_id",
           "data_type": "text",
           "nullable": false
         },
-        "_root_hash": {
+        "_dlt_root_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": false,
-          "name": "_root_hash",
+          "name": "_dlt_root_id",
           "data_type": "text",
           "nullable": false
         },
-        "_record_hash": {
+        "_dlt_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": true,
           "foreign_key": false,
-          "name": "_record_hash",
+          "name": "_dlt_id",
           "data_type": "text",
           "nullable": false
         }
@@ -1435,25 +1435,25 @@
           "data_type": "double",
           "nullable": true
         },
-        "_record_hash": {
+        "_dlt_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": true,
           "foreign_key": false,
-          "name": "_record_hash",
+          "name": "_dlt_id",
           "data_type": "text",
           "nullable": false
         },
-        "_root_hash": {
+        "_dlt_root_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": false,
-          "name": "_root_hash",
+          "name": "_dlt_root_id",
           "data_type": "text",
           "nullable": false
         },
@@ -1479,25 +1479,25 @@
           "data_type": "timestamp",
           "nullable": false
         },
-        "_parent_hash": {
+        "_dlt_parent_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": true,
-          "name": "_parent_hash",
+          "name": "_dlt_parent_id",
           "data_type": "text",
           "nullable": false
         },
-        "_pos": {
+        "_dlt_list_idx": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": false,
-          "name": "_pos",
+          "name": "_dlt_list_idx",
           "data_type": "bigint",
           "nullable": false
         },
@@ -1628,25 +1628,25 @@
           "data_type": "text",
           "nullable": true
         },
-        "_record_hash": {
+        "_dlt_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": true,
           "foreign_key": false,
-          "name": "_record_hash",
+          "name": "_dlt_id",
           "data_type": "text",
           "nullable": false
         },
-        "_root_hash": {
+        "_dlt_root_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": false,
-          "name": "_root_hash",
+          "name": "_dlt_root_id",
           "data_type": "text",
           "nullable": false
         },
@@ -1672,25 +1672,25 @@
           "data_type": "timestamp",
           "nullable": false
         },
-        "_parent_hash": {
+        "_dlt_parent_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": true,
-          "name": "_parent_hash",
+          "name": "_dlt_parent_id",
           "data_type": "text",
           "nullable": false
         },
-        "_pos": {
+        "_dlt_list_idx": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": false,
-          "name": "_pos",
+          "name": "_dlt_list_idx",
           "data_type": "bigint",
           "nullable": false
         },
@@ -1854,25 +1854,25 @@
           "data_type": "text",
           "nullable": true
         },
-        "_record_hash": {
+        "_dlt_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": true,
           "foreign_key": false,
-          "name": "_record_hash",
+          "name": "_dlt_id",
           "data_type": "text",
           "nullable": false
         },
-        "_root_hash": {
+        "_dlt_root_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": false,
-          "name": "_root_hash",
+          "name": "_dlt_root_id",
           "data_type": "text",
           "nullable": false
         },
@@ -1898,25 +1898,25 @@
           "data_type": "timestamp",
           "nullable": false
         },
-        "_parent_hash": {
+        "_dlt_parent_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": true,
-          "name": "_parent_hash",
+          "name": "_dlt_parent_id",
           "data_type": "text",
           "nullable": false
         },
-        "_pos": {
+        "_dlt_list_idx": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": false,
-          "name": "_pos",
+          "name": "_dlt_list_idx",
           "data_type": "bigint",
           "nullable": false
         },
@@ -2047,36 +2047,36 @@
           "data_type": "text",
           "nullable": true
         },
-        "_load_id": {
+        "_dlt_load_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": false,
-          "name": "_load_id",
+          "name": "_dlt_load_id",
           "data_type": "text",
           "nullable": false
         },
-        "_root_hash": {
+        "_dlt_root_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": false,
-          "name": "_root_hash",
+          "name": "_dlt_root_id",
           "data_type": "text",
           "nullable": false
         },
-        "_record_hash": {
+        "_dlt_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": true,
           "foreign_key": false,
-          "name": "_record_hash",
+          "name": "_dlt_id",
           "data_type": "text",
           "nullable": false
         }
@@ -2185,36 +2185,36 @@
           "data_type": "text",
           "nullable": true
         },
-        "_load_id": {
+        "_dlt_load_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": false,
-          "name": "_load_id",
+          "name": "_dlt_load_id",
           "data_type": "text",
           "nullable": false
         },
-        "_root_hash": {
+        "_dlt_root_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": false,
-          "name": "_root_hash",
+          "name": "_dlt_root_id",
           "data_type": "text",
           "nullable": false
         },
-        "_record_hash": {
+        "_dlt_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": true,
           "foreign_key": false,
-          "name": "_record_hash",
+          "name": "_dlt_id",
           "data_type": "text",
           "nullable": false
         }
@@ -2235,25 +2235,25 @@
           "data_type": "text",
           "nullable": true
         },
-        "_record_hash": {
+        "_dlt_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": true,
           "foreign_key": false,
-          "name": "_record_hash",
+          "name": "_dlt_id",
           "data_type": "text",
           "nullable": false
         },
-        "_root_hash": {
+        "_dlt_root_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": false,
-          "name": "_root_hash",
+          "name": "_dlt_root_id",
           "data_type": "text",
           "nullable": false
         },
@@ -2279,25 +2279,25 @@
           "data_type": "timestamp",
           "nullable": false
         },
-        "_parent_hash": {
+        "_dlt_parent_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": true,
-          "name": "_parent_hash",
+          "name": "_dlt_parent_id",
           "data_type": "text",
           "nullable": false
         },
-        "_pos": {
+        "_dlt_list_idx": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": false,
-          "name": "_pos",
+          "name": "_dlt_list_idx",
           "data_type": "bigint",
           "nullable": false
         }
@@ -2318,25 +2318,25 @@
           "data_type": "text",
           "nullable": true
         },
-        "_record_hash": {
+        "_dlt_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": true,
           "foreign_key": false,
-          "name": "_record_hash",
+          "name": "_dlt_id",
           "data_type": "text",
           "nullable": false
         },
-        "_root_hash": {
+        "_dlt_root_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": false,
-          "name": "_root_hash",
+          "name": "_dlt_root_id",
           "data_type": "text",
           "nullable": false
         },
@@ -2362,25 +2362,25 @@
           "data_type": "timestamp",
           "nullable": false
         },
-        "_parent_hash": {
+        "_dlt_parent_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": true,
-          "name": "_parent_hash",
+          "name": "_dlt_parent_id",
           "data_type": "text",
           "nullable": false
         },
-        "_pos": {
+        "_dlt_list_idx": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": false,
-          "name": "_pos",
+          "name": "_dlt_list_idx",
           "data_type": "bigint",
           "nullable": false
         }
@@ -2511,36 +2511,36 @@
           "data_type": "text",
           "nullable": true
         },
-        "_load_id": {
+        "_dlt_load_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": false,
-          "name": "_load_id",
+          "name": "_dlt_load_id",
           "data_type": "text",
           "nullable": false
         },
-        "_root_hash": {
+        "_dlt_root_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": false,
-          "name": "_root_hash",
+          "name": "_dlt_root_id",
           "data_type": "text",
           "nullable": false
         },
-        "_record_hash": {
+        "_dlt_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": true,
           "foreign_key": false,
-          "name": "_record_hash",
+          "name": "_dlt_id",
           "data_type": "text",
           "nullable": false
         }
@@ -2561,25 +2561,25 @@
           "data_type": "text",
           "nullable": true
         },
-        "_record_hash": {
+        "_dlt_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": true,
           "foreign_key": false,
-          "name": "_record_hash",
+          "name": "_dlt_id",
           "data_type": "text",
           "nullable": false
         },
-        "_root_hash": {
+        "_dlt_root_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": false,
-          "name": "_root_hash",
+          "name": "_dlt_root_id",
           "data_type": "text",
           "nullable": false
         },
@@ -2605,25 +2605,25 @@
           "data_type": "timestamp",
           "nullable": false
         },
-        "_parent_hash": {
+        "_dlt_parent_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": true,
-          "name": "_parent_hash",
+          "name": "_dlt_parent_id",
           "data_type": "text",
           "nullable": false
         },
-        "_pos": {
+        "_dlt_list_idx": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": false,
-          "name": "_pos",
+          "name": "_dlt_list_idx",
           "data_type": "bigint",
           "nullable": false
         }
@@ -2644,25 +2644,25 @@
           "data_type": "text",
           "nullable": true
         },
-        "_record_hash": {
+        "_dlt_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": true,
           "foreign_key": false,
-          "name": "_record_hash",
+          "name": "_dlt_id",
           "data_type": "text",
           "nullable": false
         },
-        "_root_hash": {
+        "_dlt_root_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": false,
-          "name": "_root_hash",
+          "name": "_dlt_root_id",
           "data_type": "text",
           "nullable": false
         },
@@ -2688,25 +2688,25 @@
           "data_type": "timestamp",
           "nullable": false
         },
-        "_parent_hash": {
+        "_dlt_parent_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": true,
-          "name": "_parent_hash",
+          "name": "_dlt_parent_id",
           "data_type": "text",
           "nullable": false
         },
-        "_pos": {
+        "_dlt_list_idx": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": false,
-          "name": "_pos",
+          "name": "_dlt_list_idx",
           "data_type": "bigint",
           "nullable": false
         }
@@ -2727,25 +2727,25 @@
           "data_type": "text",
           "nullable": true
         },
-        "_record_hash": {
+        "_dlt_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": true,
           "foreign_key": false,
-          "name": "_record_hash",
+          "name": "_dlt_id",
           "data_type": "text",
           "nullable": false
         },
-        "_root_hash": {
+        "_dlt_root_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": false,
-          "name": "_root_hash",
+          "name": "_dlt_root_id",
           "data_type": "text",
           "nullable": false
         },
@@ -2771,25 +2771,25 @@
           "data_type": "timestamp",
           "nullable": false
         },
-        "_parent_hash": {
+        "_dlt_parent_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": true,
-          "name": "_parent_hash",
+          "name": "_dlt_parent_id",
           "data_type": "text",
           "nullable": false
         },
-        "_pos": {
+        "_dlt_list_idx": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": false,
-          "name": "_pos",
+          "name": "_dlt_list_idx",
           "data_type": "bigint",
           "nullable": false
         }
@@ -2898,36 +2898,36 @@
           "data_type": "text",
           "nullable": true
         },
-        "_load_id": {
+        "_dlt_load_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": false,
-          "name": "_load_id",
+          "name": "_dlt_load_id",
           "data_type": "text",
           "nullable": false
         },
-        "_root_hash": {
+        "_dlt_root_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": false,
-          "name": "_root_hash",
+          "name": "_dlt_root_id",
           "data_type": "text",
           "nullable": false
         },
-        "_record_hash": {
+        "_dlt_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": true,
           "foreign_key": false,
-          "name": "_record_hash",
+          "name": "_dlt_id",
           "data_type": "text",
           "nullable": false
         }
@@ -2981,25 +2981,25 @@
           "data_type": "text",
           "nullable": true
         },
-        "_record_hash": {
+        "_dlt_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": true,
           "foreign_key": false,
-          "name": "_record_hash",
+          "name": "_dlt_id",
           "data_type": "text",
           "nullable": false
         },
-        "_root_hash": {
+        "_dlt_root_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": false,
-          "name": "_root_hash",
+          "name": "_dlt_root_id",
           "data_type": "text",
           "nullable": false
         },
@@ -3025,25 +3025,25 @@
           "data_type": "timestamp",
           "nullable": false
         },
-        "_parent_hash": {
+        "_dlt_parent_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": true,
-          "name": "_parent_hash",
+          "name": "_dlt_parent_id",
           "data_type": "text",
           "nullable": false
         },
-        "_pos": {
+        "_dlt_list_idx": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": false,
-          "name": "_pos",
+          "name": "_dlt_list_idx",
           "data_type": "bigint",
           "nullable": false
         }
@@ -3064,25 +3064,25 @@
           "data_type": "text",
           "nullable": true
         },
-        "_record_hash": {
+        "_dlt_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": true,
           "foreign_key": false,
-          "name": "_record_hash",
+          "name": "_dlt_id",
           "data_type": "text",
           "nullable": false
         },
-        "_root_hash": {
+        "_dlt_root_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": false,
-          "name": "_root_hash",
+          "name": "_dlt_root_id",
           "data_type": "text",
           "nullable": false
         },
@@ -3108,25 +3108,25 @@
           "data_type": "timestamp",
           "nullable": false
         },
-        "_parent_hash": {
+        "_dlt_parent_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": true,
-          "name": "_parent_hash",
+          "name": "_dlt_parent_id",
           "data_type": "text",
           "nullable": false
         },
-        "_pos": {
+        "_dlt_list_idx": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": false,
-          "name": "_pos",
+          "name": "_dlt_list_idx",
           "data_type": "bigint",
           "nullable": false
         }
@@ -3235,36 +3235,36 @@
           "data_type": "text",
           "nullable": true
         },
-        "_load_id": {
+        "_dlt_load_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": false,
-          "name": "_load_id",
+          "name": "_dlt_load_id",
           "data_type": "text",
           "nullable": false
         },
-        "_root_hash": {
+        "_dlt_root_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": false,
-          "name": "_root_hash",
+          "name": "_dlt_root_id",
           "data_type": "text",
           "nullable": false
         },
-        "_record_hash": {
+        "_dlt_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": true,
           "foreign_key": false,
-          "name": "_record_hash",
+          "name": "_dlt_id",
           "data_type": "text",
           "nullable": false
         }
@@ -3318,25 +3318,25 @@
           "data_type": "text",
           "nullable": true
         },
-        "_record_hash": {
+        "_dlt_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": true,
           "foreign_key": false,
-          "name": "_record_hash",
+          "name": "_dlt_id",
           "data_type": "text",
           "nullable": false
         },
-        "_root_hash": {
+        "_dlt_root_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": false,
-          "name": "_root_hash",
+          "name": "_dlt_root_id",
           "data_type": "text",
           "nullable": false
         },
@@ -3362,25 +3362,25 @@
           "data_type": "timestamp",
           "nullable": false
         },
-        "_parent_hash": {
+        "_dlt_parent_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": true,
-          "name": "_parent_hash",
+          "name": "_dlt_parent_id",
           "data_type": "text",
           "nullable": false
         },
-        "_pos": {
+        "_dlt_list_idx": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": false,
-          "name": "_pos",
+          "name": "_dlt_list_idx",
           "data_type": "bigint",
           "nullable": false
         }
@@ -3401,25 +3401,25 @@
           "data_type": "text",
           "nullable": true
         },
-        "_record_hash": {
+        "_dlt_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": true,
           "foreign_key": false,
-          "name": "_record_hash",
+          "name": "_dlt_id",
           "data_type": "text",
           "nullable": false
         },
-        "_root_hash": {
+        "_dlt_root_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": false,
-          "name": "_root_hash",
+          "name": "_dlt_root_id",
           "data_type": "text",
           "nullable": false
         },
@@ -3445,25 +3445,25 @@
           "data_type": "timestamp",
           "nullable": false
         },
-        "_parent_hash": {
+        "_dlt_parent_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": true,
-          "name": "_parent_hash",
+          "name": "_dlt_parent_id",
           "data_type": "text",
           "nullable": false
         },
-        "_pos": {
+        "_dlt_list_idx": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": false,
-          "name": "_pos",
+          "name": "_dlt_list_idx",
           "data_type": "bigint",
           "nullable": false
         }
@@ -3561,36 +3561,36 @@
           "data_type": "text",
           "nullable": true
         },
-        "_load_id": {
+        "_dlt_load_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": false,
-          "name": "_load_id",
+          "name": "_dlt_load_id",
           "data_type": "text",
           "nullable": false
         },
-        "_root_hash": {
+        "_dlt_root_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": false,
-          "name": "_root_hash",
+          "name": "_dlt_root_id",
           "data_type": "text",
           "nullable": false
         },
-        "_record_hash": {
+        "_dlt_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": true,
           "foreign_key": false,
-          "name": "_record_hash",
+          "name": "_dlt_id",
           "data_type": "text",
           "nullable": false
         }
@@ -3611,25 +3611,25 @@
           "data_type": "text",
           "nullable": true
         },
-        "_record_hash": {
+        "_dlt_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": true,
           "foreign_key": false,
-          "name": "_record_hash",
+          "name": "_dlt_id",
           "data_type": "text",
           "nullable": false
         },
-        "_root_hash": {
+        "_dlt_root_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": false,
-          "name": "_root_hash",
+          "name": "_dlt_root_id",
           "data_type": "text",
           "nullable": false
         },
@@ -3655,25 +3655,25 @@
           "data_type": "timestamp",
           "nullable": false
         },
-        "_parent_hash": {
+        "_dlt_parent_id": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": true,
-          "name": "_parent_hash",
+          "name": "_dlt_parent_id",
           "data_type": "text",
           "nullable": false
         },
-        "_pos": {
+        "_dlt_list_idx": {
           "partition": false,
           "cluster": false,
           "unique": false,
           "sort": false,
           "primary_key": false,
           "foreign_key": false,
-          "name": "_pos",
+          "name": "_dlt_list_idx",
           "data_type": "bigint",
           "nullable": false
         }
@@ -3687,11 +3687,11 @@
         "re:^timestamp$",
         "re:^_timestamp$",
         "re:^_dist_key$",
-        "re:^_record_hash$",
-        "re:^_root_hash$",
-        "re:^_load_id$",
-        "re:^_parent_hash$",
-        "re:^_pos$",
+        "re:^_dlt_id$",
+        "re:^_dlt_root_id$",
+        "re:^_dlt_load_id$",
+        "re:^_dlt_parent_id$",
+        "re:^_dlt_list_idx$",
         "re:^sender_id$"
       ],
       "partition": [
@@ -3703,10 +3703,10 @@
         "re:^sender_id$"
       ],
       "primary_key": [
-        "re:^_record_hash$"
+        "re:^_dlt_id$"
       ],
       "foreign_key": [
-        "re:^_parent_hash$"
+        "re:^_dlt_parent_id$"
       ],
       "sort": [
         "re:^timestamp$",
@@ -3719,7 +3719,7 @@
       "re:^_timestamp$": "timestamp",
       "re:^inserted_at$": "timestamp",
       "re:confidence": "double",
-      "re:^_pos$": "bigint"
+      "re:^_dlt_list_idx$": "bigint"
     }
   },
   "normalizers": {
@@ -3729,7 +3729,7 @@
       "config": {
         "propagation": {
           "root": {
-            "_record_hash": "_root_hash"
+            "_dlt_id": "_dlt_root_id"
           }
         }
       }

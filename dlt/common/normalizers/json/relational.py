@@ -11,18 +11,18 @@ from dlt.common.validation import validate_dict
 
 
 class TEventRow(TypedDict, total=False):
-    _record_hash: str  # unique id of current row
+    _dlt_id: str  # unique id of current row
 
 
 class TEventRowRoot(TEventRow, total=False):
-    _load_id: str  # load id to identify records loaded together that ie. need to be processed
-    __dlt_meta: TEventDLTMeta  # stores metadata
+    _dlt_load_id: str  # load id to identify records loaded together that ie. need to be processed
+    _dlt_meta: TEventDLTMeta  # stores metadata, should never be sent to the normalizer
 
 
 class TEventRowChild(TEventRow, total=False):
-    _root_hash: str  # unique id of top level parent
-    _parent_hash: str  # unique id of parent row
-    _pos: int  # position in the list of rows
+    _dlt_root_id: str  # unique id of top level parent
+    _dlt_parent_id: str  # unique id of parent row
+    _dlt_list_idx: int  # position in the list of rows
     value: Any  # for lists of simple types
 
 
@@ -32,7 +32,7 @@ class JSONNormalizerConfigPropagation(TypedDict, total=True):
 
 
 class JSONNormalizerConfig(TypedDict, total=True):
-    generate_record_hash: Optional[bool]
+    generate_dlt_id: Optional[bool]
     propagation: Optional[JSONNormalizerConfigPropagation]
 
 
@@ -62,7 +62,6 @@ def _flatten(schema: Schema, table: str, dict_row: TEventRow) -> TEventRow:
                     out_rec_row[child_name] = v
                 else:
                     norm_row_dicts(v, parent_name=child_name)
-
             else:
                 out_rec_row[child_name] = v
 
@@ -112,8 +111,8 @@ def _normalize_row(
 ) -> TUnpackedRowIterator:
 
     def _add_linking(_child_row: TEventRowChild, _p_hash: str, _p_pos: int) -> TEventRowChild:
-        _child_row["_parent_hash"] = _p_hash
-        _child_row["_pos"] = _p_pos
+        _child_row["_dlt_parent_id"] = _p_hash
+        _child_row["_dlt_list_idx"] = _p_pos
         _child_row.update(extend)  # type: ignore
 
         return _child_row
@@ -123,7 +122,7 @@ def _normalize_row(
     # flatten current row
     flattened_row = _flatten(schema, table, dict_row)
     # infer record hash or leave existing primary key if present
-    record_hash = flattened_row.get("_record_hash", None)
+    record_hash = flattened_row.get("_dlt_id", None)
     if not record_hash:
         # check if we have primary key: if so use it
         primary_key = schema.filter_row_with_hint(table, "primary_key", flattened_row)
@@ -138,17 +137,22 @@ def _normalize_row(
         else:
             # create hash based on the content of the row
             record_hash = _get_content_hash(schema, table, flattened_row)
-        flattened_row["_record_hash"] = record_hash
+        flattened_row["_dlt_id"] = record_hash
 
     # find fields to propagate to child tables in config
     extend.update(_get_propagated_values(schema, table, flattened_row, is_top_level))
 
     # remove all lists from row before yielding
     lists = {k: flattened_row[k] for k in flattened_row if isinstance(flattened_row[k], list)}  # type: ignore
-    for k in lists:
+    for k in list(lists.keys()):
+        # leave complex lists in flattened_row
         if not _is_complex_type(schema, table, k):
             # remove child list
             del flattened_row[k]  # type: ignore
+        else:
+            pass
+            # delete complex types from
+            del lists[k]
 
     # yield parent table first
     yield (table, parent_table), flattened_row
@@ -169,7 +173,7 @@ def _normalize_row(
             else:
                 # list of simple types
                 child_row_hash = _get_child_row_hash(record_hash, child_table, idx)
-                e = _add_linking({"value": v, "_record_hash": child_row_hash}, record_hash, idx)
+                e = _add_linking({"value": v, "_dlt_id": child_row_hash}, record_hash, idx)
                 yield (child_table, table), e
 
 
@@ -180,17 +184,17 @@ def extend_schema(schema: Schema) -> None:
 
     # quick check to see if hints are applied
     default_hints = schema.schema_settings.get("default_hints", {})
-    if "not_null" in default_hints and "^_record_hash$" in default_hints["not_null"]:
+    if "not_null" in default_hints and "^_dlt_id$" in default_hints["not_null"]:
         return
     # add hints
     schema.merge_hints(
         {
             "not_null": [
-                TSimpleRegex("re:^_record_hash$"), TSimpleRegex("re:^_root_hash$"), TSimpleRegex("re:^_parent_hash$"),
-                TSimpleRegex("re:^_pos$"), TSimpleRegex("_load_id")
+                TSimpleRegex("re:^_dlt_id$"), TSimpleRegex("re:^_dlt_root_id$"), TSimpleRegex("re:^_dlt_parent_id$"),
+                TSimpleRegex("re:^_dlt_list_idx$"), TSimpleRegex("_dlt_load_id")
                 ],
-            "foreign_key": [TSimpleRegex("re:^_parent_hash$")],
-            "unique": [TSimpleRegex("re:^_record_hash$")]
+            "foreign_key": [TSimpleRegex("re:^_dlt_parent_id$")],
+            "unique": [TSimpleRegex("re:^_dlt_id$")]
         }
     )
 
@@ -199,10 +203,10 @@ def normalize(schema: Schema, source_event: TEvent, load_id: str) -> TUnpackedRo
     # we will extend event with all the fields necessary to load it as root row
     event = cast(TEventRowRoot, source_event)
     # identify load id if loaded data must be processed after loading incrementally
-    event["_load_id"] = load_id
+    event["_dlt_load_id"] = load_id
     # find table name
     table_name = schema.normalize_table_name(get_table_name(event) or schema.schema_name)
     # drop dlt metadata before normalizing
     event.pop(DLT_METADATA_FIELD, None)  # type: ignore
-    # use event type or schema name as table name, request _root_hash propagation
+    # use event type or schema name as table name, request _dlt_root_id propagation
     yield from _normalize_row(schema, cast(TEventRowChild, event), {}, table_name)

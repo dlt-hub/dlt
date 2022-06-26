@@ -2,7 +2,7 @@ version: 12
 engine_version: 3
 name: discord
 tables:
-  _version:
+  _dlt_version:
     columns:
       version:
         data_type: bigint
@@ -14,7 +14,7 @@ tables:
         data_type: timestamp
         nullable: false
     write_disposition: append
-  _loads:
+  _dlt_loads:
     columns:
       load_id:
         data_type: text
@@ -28,10 +28,10 @@ tables:
     write_disposition: append
   channels:
     columns:
-      _load_id:
+      _dlt_load_id:
         data_type: text
         nullable: false
-      _record_hash:
+      _dlt_id:
         unique: true
         data_type: text
         nullable: false
@@ -95,17 +95,17 @@ tables:
       deny:
         data_type: text
         nullable: true
-      _parent_hash:
+      _dlt_parent_id:
         foreign_key: true
         data_type: text
         nullable: false
-      _pos:
+      _dlt_list_idx:
         data_type: bigint
         nullable: false
-      _root_hash:
+      _dlt_root_id:
         data_type: text
         nullable: false
-      _record_hash:
+      _dlt_id:
         unique: true
         data_type: text
         nullable: false
@@ -157,10 +157,10 @@ tables:
       flags:
         data_type: bigint
         nullable: true
-      _load_id:
+      _dlt_load_id:
         data_type: text
         nullable: false
-      _record_hash:
+      _dlt_id:
         unique: true
         data_type: text
         nullable: false
@@ -196,17 +196,17 @@ tables:
       public_flags:
         data_type: bigint
         nullable: true
-      _parent_hash:
+      _dlt_parent_id:
         foreign_key: true
         data_type: text
         nullable: false
-      _pos:
+      _dlt_list_idx:
         data_type: bigint
         nullable: false
-      _root_hash:
+      _dlt_root_id:
         data_type: text
         nullable: false
-      _record_hash:
+      _dlt_id:
         unique: true
         data_type: text
         nullable: false
@@ -225,17 +225,17 @@ tables:
       me:
         data_type: bool
         nullable: true
-      _parent_hash:
+      _dlt_parent_id:
         foreign_key: true
         data_type: text
         nullable: false
-      _pos:
+      _dlt_list_idx:
         data_type: bigint
         nullable: false
-      _root_hash:
+      _dlt_root_id:
         data_type: text
         nullable: false
-      _record_hash:
+      _dlt_id:
         unique: true
         data_type: text
         nullable: false
@@ -294,17 +294,17 @@ tables:
       message_reference__message_id:
         data_type: text
         nullable: true
-      _parent_hash:
+      _dlt_parent_id:
         foreign_key: true
         data_type: text
         nullable: false
-      _pos:
+      _dlt_list_idx:
         data_type: bigint
         nullable: false
-      _root_hash:
+      _dlt_root_id:
         data_type: text
         nullable: false
-      _record_hash:
+      _dlt_id:
         unique: true
         data_type: text
         nullable: false
@@ -329,17 +329,17 @@ tables:
       public_flags:
         data_type: bigint
         nullable: true
-      _parent_hash:
+      _dlt_parent_id:
         foreign_key: true
         data_type: text
         nullable: false
-      _pos:
+      _dlt_list_idx:
         data_type: bigint
         nullable: false
-      _root_hash:
+      _dlt_root_id:
         data_type: text
         nullable: false
-      _record_hash:
+      _dlt_id:
         unique: true
         data_type: text
         nullable: false
@@ -370,17 +370,17 @@ tables:
       content_type:
         data_type: text
         nullable: true
-      _parent_hash:
+      _dlt_parent_id:
         foreign_key: true
         data_type: text
         nullable: false
-      _pos:
+      _dlt_list_idx:
         data_type: bigint
         nullable: false
-      _root_hash:
+      _dlt_root_id:
         data_type: text
         nullable: false
-      _record_hash:
+      _dlt_id:
         unique: true
         data_type: text
         nullable: false
@@ -423,17 +423,17 @@ tables:
       footer__proxy_icon_url:
         data_type: text
         nullable: true
-      _parent_hash:
+      _dlt_parent_id:
         foreign_key: true
         data_type: text
         nullable: false
-      _pos:
+      _dlt_list_idx:
         data_type: bigint
         nullable: false
-      _root_hash:
+      _dlt_root_id:
         data_type: text
         nullable: false
-      _record_hash:
+      _dlt_id:
         unique: true
         data_type: text
         nullable: false
@@ -485,17 +485,17 @@ tables:
       thumbnail__height:
         data_type: bigint
         nullable: true
-      _parent_hash:
+      _dlt_parent_id:
         foreign_key: true
         data_type: text
         nullable: false
-      _pos:
+      _dlt_list_idx:
         data_type: bigint
         nullable: false
-      _root_hash:
+      _dlt_root_id:
         data_type: text
         nullable: false
-      _record_hash:
+      _dlt_id:
         unique: true
         data_type: text
         nullable: false
@@ -526,17 +526,17 @@ tables:
       content_type:
         data_type: text
         nullable: true
-      _parent_hash:
+      _dlt_parent_id:
         foreign_key: true
         data_type: text
         nullable: false
-      _pos:
+      _dlt_list_idx:
         data_type: bigint
         nullable: false
-      _root_hash:
+      _dlt_root_id:
         data_type: text
         nullable: false
-      _record_hash:
+      _dlt_id:
         unique: true
         data_type: text
         nullable: false
@@ -544,15 +544,15 @@ tables:
 settings:
   default_hints:
     not_null:
-    - re:^_record_hash$
-    - re:^_root_hash$
-    - re:^_parent_hash$
-    - re:^_pos$
-    - re:_load_id
+    - re:^_dlt_id$
+    - re:^_dlt_root_id$
+    - re:^_dlt_parent_id$
+    - re:^_dlt_list_idx$
+    - re:_dlt_load_id
     foreign_key:
-    - re:^_parent_hash$
+    - re:^_dlt_parent_id$
     unique:
-    - re:^_record_hash$
+    - re:^_dlt_id$
   preferred_types: {}
 normalizers:
   names: dlt.common.normalizers.names.snake_case
@@ -561,5 +561,5 @@ normalizers:
     config:
       propagation:
         root:
-          _record_hash: _root_hash
+          _dlt_id: _dlt_root_id
 

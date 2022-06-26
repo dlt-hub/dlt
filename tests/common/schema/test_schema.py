@@ -99,9 +99,9 @@ def test_invalid_schema_name() -> None:
 
 
 @pytest.mark.parametrize("columns,hint,value", [
-    (["_record_hash", "_root_hash", "_load_id", "_parent_hash", "_pos"], "nullable", False),
-    (["_record_hash"], "unique", True),
-    (["_parent_hash"], "foreign_key", True),
+    (["_dlt_id", "_dlt_root_id", "_dlt_load_id", "_dlt_parent_id", "_dlt_list_idx"], "nullable", False),
+    (["_dlt_id"], "unique", True),
+    (["_dlt_parent_id"], "foreign_key", True),
 ])
 def test_relational_normalizer_schema_hints(columns: Sequence[str], hint: str, value: bool) -> None:
     schema_storage = SchemaStorage("tests/common/cases/schemas/rasa")
@@ -211,12 +211,12 @@ def test_get_schema_new_exist() -> None:
 
 
 @pytest.mark.parametrize("columns,hint,value", [
-    (["timestamp", "_timestamp", "_dist_key", "_record_hash", "_root_hash", "_load_id", "_parent_hash", "_pos", "sender_id"], "nullable", False),
+    (["timestamp", "_timestamp", "_dist_key", "_dlt_id", "_dlt_root_id", "_dlt_load_id", "_dlt_parent_id", "_dlt_list_idx", "sender_id"], "nullable", False),
     (["confidence", "_sender_id"], "nullable", True),
     (["timestamp", "_timestamp"], "partition", True),
     (["_dist_key", "sender_id"], "cluster", True),
-    (["_record_hash"], "unique", True),
-    (["_parent_hash"], "foreign_key", True),
+    (["_dlt_id"], "unique", True),
+    (["_dlt_parent_id"], "foreign_key", True),
     (["timestamp", "_timestamp"], "sort", True),
 ])
 def test_rasa_event_hints(columns: Sequence[str], hint: str, value: bool) -> None:
@@ -238,10 +238,10 @@ def test_filter_hints_table() -> None:
     # timestamp must be first because it is first on the column list
     assert list(rows.keys()) == ["timestamp", "sender_id"]
 
-    # add _root_hash
-    bot_case["_root_hash"] = uniq_id()
+    # add _dlt_root_id
+    bot_case["_dlt_root_id"] = uniq_id()
     rows = schema.filter_row_with_hint("event_bot", "not_null", bot_case)
-    assert list(rows.keys()) == ["timestamp", "sender_id", "_root_hash"]
+    assert list(rows.keys()) == ["timestamp", "sender_id", "_dlt_root_id"]
 
     # other hints
     rows = schema.filter_row_with_hint("event_bot", "partition", bot_case)
@@ -252,9 +252,9 @@ def test_filter_hints_table() -> None:
     assert list(rows.keys()) == ["timestamp"]
     rows = schema.filter_row_with_hint("event_bot", "primary_key", bot_case)
     assert list(rows.keys()) == []
-    bot_case["_record_hash"] = uniq_id()
+    bot_case["_dlt_id"] = uniq_id()
     rows = schema.filter_row_with_hint("event_bot", "primary_key", bot_case)
-    assert list(rows.keys()) == ["_record_hash"]
+    assert list(rows.keys()) == ["_dlt_id"]
 
 
 def test_filter_hints_no_table() -> None:
@@ -289,9 +289,9 @@ def test_merge_hints(schema: Schema) -> None:
     schema._settings["default_hints"] = {}
     schema._compiled_hints = {}
     new_hints = {
-            "not_null": ["_record_hash", "_root_hash", "_parent_hash", "_pos", "re:^_load_id$"],
-            "foreign_key": ["re:^_parent_hash$"],
-            "unique": ["re:^_record_hash$"]
+            "not_null": ["_dlt_id", "_dlt_root_id", "_dlt_parent_id", "_dlt_list_idx", "re:^_dlt_load_id$"],
+            "foreign_key": ["re:^_dlt_parent_id$"],
+            "unique": ["re:^_dlt_id$"]
         }
     schema.merge_hints(new_hints)
     assert schema._settings["default_hints"] == new_hints
@@ -309,9 +309,9 @@ def test_merge_hints(schema: Schema) -> None:
     }
     schema.merge_hints(new_new_hints)
     expected_hints = {
-            "not_null": ["_record_hash", "_root_hash", "_parent_hash", "_pos", "re:^_load_id$", "timestamp"],
-            "foreign_key": ["re:^_parent_hash$"],
-            "unique": ["re:^_record_hash$"],
+            "not_null": ["_dlt_id", "_dlt_root_id", "_dlt_parent_id", "_dlt_list_idx", "re:^_dlt_load_id$", "timestamp"],
+            "foreign_key": ["re:^_dlt_parent_id$"],
+            "unique": ["re:^_dlt_id$"],
             "primary_key": ["id"]
         }
     assert len(expected_hints) == len(schema._settings["default_hints"])
@@ -352,7 +352,7 @@ def assert_new_schema_values(schema: Schema) -> None:
     assert schema._normalizers_config["names"] == "dlt.common.normalizers.names.snake_case"
     assert schema._normalizers_config["json"]["module"] == "dlt.common.normalizers.json.relational"
     # check if schema was extended by json normalizer
-    assert set(["re:^_record_hash$", "re:^_root_hash$", "re:^_parent_hash$", "re:^_pos$", "_load_id"]).issubset(schema.schema_settings["default_hints"]["not_null"])
+    assert set(["re:^_dlt_id$", "re:^_dlt_root_id$", "re:^_dlt_parent_id$", "re:^_dlt_list_idx$", "_dlt_load_id"]).issubset(schema.schema_settings["default_hints"]["not_null"])
     # call normalizers
     assert schema.normalize_column_name("A") == "a"
     assert schema.normalize_table_name("A__B") == "a__b"
@@ -363,7 +363,7 @@ def assert_new_schema_values(schema: Schema) -> None:
     schema.normalize_json(schema, {}, "load_id")
     # check default tables
     tables = schema.schema_tables
-    assert "_version" in tables
-    assert "version" in tables["_version"]["columns"]
-    assert "_loads" in tables
-    assert "load_id" in tables["_loads"]["columns"]
+    assert "_dlt_version" in tables
+    assert "version" in tables["_dlt_version"]["columns"]
+    assert "_dlt_loads" in tables
+    assert "load_id" in tables["_dlt_loads"]["columns"]

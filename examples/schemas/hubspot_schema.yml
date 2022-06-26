@@ -2,7 +2,7 @@ version: 1
 engine_version: 3
 name: hubspot
 tables:
-  _version:
+  _dlt_version:
     columns:
       version:
         data_type: bigint
@@ -14,7 +14,7 @@ tables:
         data_type: timestamp
         nullable: false
     write_disposition: append
-  _loads:
+  _dlt_loads:
     columns:
       load_id:
         data_type: text
@@ -29,23 +29,23 @@ tables:
 settings:
   default_hints:
     not_null:
-    - re:^_record_hash$
-    - re:^_root_hash$
-    - re:^_load_id$
-    - re:^_parent_hash$
-    - re:^_pos$
+    - re:^_dlt_id$
+    - re:^_dlt_root_id$
+    - re:^_dlt_load_id$
+    - re:^_dlt_parent_id$
+    - re:^_dlt_list_idx$
     foreign_key:
-    - re:^_parent_hash$
+    - re:^_dlt_parent_id$
     sort:
     - re:^timestamp$
     unique:
-    - re:^_record_hash$
+    - re:^_dlt_id$
   preferred_types:
     re:timestamp: timestamp
     re:^inserted_at$: timestamp
     re:^created_at$: timestamp
     re:^updated_at$: timestamp
-    re:^_pos$: bigint
+    re:^_dlt_list_idx$: bigint
 normalizers:
   names: dlt.common.normalizers.names.snake_case
   json:
@@ -53,5 +53,5 @@ normalizers:
     config:
       propagation:
         root:
-          _record_hash: _root_hash
+          _dlt_id: _dlt_root_id
 

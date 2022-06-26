@@ -21,7 +21,7 @@ TDeferred = Callable[[], TBoundItem]
 _TFunParams = ParamSpec("_TFunParams")
 
 # name of dlt metadata as part of the item
-DLT_METADATA_FIELD = "__dlt_meta"
+DLT_METADATA_FIELD = "_dlt_meta"
 
 
 class TEventDLTMeta(TypedDict, total=False):

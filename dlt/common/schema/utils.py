@@ -131,7 +131,7 @@ def upgrade_engine_version(schema_dict: DictStrAny, from_engine: int, to_engine:
                 "config": {
                     "propagation": {
                         "root": {
-                            "_record_hash": "_root_hash"
+                            "_dlt_id": "_dlt_root_id"
                         }
                     }
                 }

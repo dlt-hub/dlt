@@ -103,14 +103,14 @@ def test_schema_update_create_table(gcp_client: BigQueryClient) -> None:
     # this will be cluster
     sender_id = schema._infer_column("sender_id", "982398490809324")
     # this will be not null
-    record_hash = schema._infer_column("_record_hash", "m,i0392903jdlkasjdlk")
+    record_hash = schema._infer_column("_dlt_id", "m,i0392903jdlkasjdlk")
     schema.update_schema(new_table("event_test_table", columns=[timestamp, sender_id, record_hash]))
     gcp_client.update_storage_schema()
     exists, storage_table = gcp_client._get_storage_table("event_test_table")
     assert exists is True
     assert storage_table["timestamp"]["partition"] is True
     assert storage_table["sender_id"]["cluster"] is True
-    exists, storage_table = gcp_client._get_storage_table("_version")
+    exists, storage_table = gcp_client._get_storage_table("_dlt_version")
     assert exists is True
     assert storage_table["version"]["partition"] is False
     assert storage_table["version"]["cluster"] is False
@@ -179,39 +179,39 @@ def test_load_with_all_types(gcp_client: BigQueryClient, file_storage: FileStora
 # def test_loading_errors(client: gcp_client, file_storage: FileStorage) -> None:
 #     user_table_name = prepare_event_user_table(client)
 #     # insert into unknown column
-#     insert_sql = "INSERT INTO {}(_record_hash, _root_hash, sender_id, timestamp, _unk_) VALUES\n"
+#     insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp, _unk_) VALUES\n"
 #     insert_values = f"('{uniq_id()}', '{uniq_id()}', '90238094809sajlkjxoiewjhduuiuehd', '{str(pendulum.now())}', NULL);"
 #     with pytest.raises(LoadClientTerminalInnerException) as exv:
 #         expect_load_file(client, file_storage, insert_sql+insert_values, user_table_name)
 #     assert type(exv.value.inner_exc) is psycopg2.errors.UndefinedColumn
 #     # insert null value
-#     insert_sql = "INSERT INTO {}(_record_hash, _root_hash, sender_id, timestamp) VALUES\n"
+#     insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp) VALUES\n"
 #     insert_values = f"('{uniq_id()}', '{uniq_id()}', '90238094809sajlkjxoiewjhduuiuehd', NULL);"
 #     with pytest.raises(LoadClientTerminalInnerException) as exv:
 #         expect_load_file(client, file_storage, insert_sql+insert_values, user_table_name)
 #     assert type(exv.value.inner_exc) is psycopg2.errors.InternalError_
 #     # insert wrong type
-#     insert_sql = "INSERT INTO {}(_record_hash, _root_hash, sender_id, timestamp) VALUES\n"
+#     insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp) VALUES\n"
 #     insert_values = f"('{uniq_id()}', '{uniq_id()}', '90238094809sajlkjxoiewjhduuiuehd', TRUE);"
 #     with pytest.raises(LoadClientTerminalInnerException) as exv:
 #         expect_load_file(client, file_storage, insert_sql+insert_values, user_table_name)
 #     assert type(exv.value.inner_exc) is psycopg2.errors.DatatypeMismatch
 #     # numeric overflow on bigint
-#     insert_sql = "INSERT INTO {}(_record_hash, _root_hash, sender_id, timestamp, metadata__rasa_x_id) VALUES\n"
+#     insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp, metadata__rasa_x_id) VALUES\n"
 #     # 2**64//2 - 1 is a maximum bigint value
 #     insert_values = f"('{uniq_id()}', '{uniq_id()}', '90238094809sajlkjxoiewjhduuiuehd', '{str(pendulum.now())}', {2**64//2});"
 #     with pytest.raises(LoadClientTerminalInnerException) as exv:
 #         expect_load_file(client, file_storage, insert_sql+insert_values, user_table_name)
 #     assert type(exv.value.inner_exc) is psycopg2.errors.NumericValueOutOfRange
 #     # numeric overflow on NUMERIC
-#     insert_sql = "INSERT INTO {}(_record_hash, _root_hash, sender_id, timestamp, parse_data__intent__id) VALUES\n"
+#     insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp, parse_data__intent__id) VALUES\n"
 #     # default redshift decimal is (18, 0) (64 bit)
 #     insert_values = f"('{uniq_id()}', '{uniq_id()}', '90238094809sajlkjxoiewjhduuiuehd', '{str(pendulum.now())}', {10**18});"
 #     with pytest.raises(LoadClientTerminalInnerException) as exv:
 #         expect_load_file(client, file_storage, insert_sql+insert_values, user_table_name)
 #     assert type(exv.value.inner_exc) is psycopg2.errors.InternalError_
 #     # max redshift decimal is (38, 0) (128 bit) = 10**38 - 1
-#     insert_sql = "INSERT INTO {}(_record_hash, _root_hash, sender_id, timestamp, parse_data__metadata__rasa_x_id) VALUES\n"
+#     insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp, parse_data__metadata__rasa_x_id) VALUES\n"
 #     insert_values = f"('{uniq_id()}', '{uniq_id()}', '90238094809sajlkjxoiewjhduuiuehd', '{str(pendulum.now())}', {10**38});"
 #     with pytest.raises(LoadClientTerminalInnerException) as exv:
 #         expect_load_file(client, file_storage, insert_sql+insert_values, user_table_name)

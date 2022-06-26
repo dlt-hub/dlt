@@ -10,4 +10,4 @@ pipeline.set_default_schema(schema)
 # will sync schema with the target
 # pipeline.sync_schema()
 # with pipeline.sql_client() as c:
-#     c._execute_sql("BEGIN TRANSACTION;\n INSERT INTO `mainnet_6_ethereum._loads` VALUES('2022-06-09 22:09:21.254700 UTC', '1654812536.548904', 1); COMMIT TRANSACTION;")
+#     c._execute_sql("BEGIN TRANSACTION;\n INSERT INTO `mainnet_6_ethereum._dlt_loads` VALUES('2022-06-09 22:09:21.254700 UTC', '1654812536.548904', 1); COMMIT TRANSACTION;")

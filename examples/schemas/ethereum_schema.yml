@@ -2,7 +2,7 @@ version: 8
 engine_version: 3
 name: ethereum
 tables:
-  _loads:
+  _dlt_loads:
     columns:
       inserted_at:
         data_type: timestamp
@@ -14,7 +14,7 @@ tables:
         data_type: bigint
         nullable: false
     write_disposition: append
-  _version:
+  _dlt_version:
     columns:
       engine_version:
         data_type: bigint
@@ -28,10 +28,10 @@ tables:
     write_disposition: append
   blocks:
     columns:
-      _load_id:
+      _dlt_load_id:
         data_type: text
         nullable: false
-      _record_hash:
+      _dlt_id:
         unique: true
         data_type: text
         nullable: false
@@ -100,7 +100,7 @@ tables:
     write_disposition: append
   blocks__transactions:
     columns:
-      _record_hash:
+      _dlt_id:
         unique: true
         data_type: text
         nullable: false
@@ -176,7 +176,7 @@ tables:
     parent: blocks
   blocks__transactions__logs:
     columns:
-      _record_hash:
+      _dlt_id:
         unique: true
         data_type: text
         nullable: false
@@ -217,18 +217,18 @@ tables:
     parent: blocks__transactions
   blocks__transactions__logs__topics:
     columns:
-      _parent_hash:
+      _dlt_parent_id:
         foreign_key: true
         data_type: text
         nullable: false
-      _pos:
+      _dlt_list_idx:
         data_type: bigint
         nullable: false
-      _record_hash:
+      _dlt_id:
         unique: true
         data_type: text
         nullable: false
-      _root_hash:
+      _dlt_root_id:
         data_type: text
         nullable: false
       value:
@@ -237,18 +237,18 @@ tables:
     parent: blocks__transactions__logs
   blocks__transactions__access_list:
     columns:
-      _parent_hash:
+      _dlt_parent_id:
         foreign_key: true
         data_type: text
         nullable: false
-      _pos:
+      _dlt_list_idx:
         data_type: bigint
         nullable: false
-      _record_hash:
+      _dlt_id:
         unique: true
         data_type: text
         nullable: false
-      _root_hash:
+      _dlt_root_id:
         data_type: text
         nullable: false
       address:
@@ -257,18 +257,18 @@ tables:
     parent: blocks__transactions
   blocks__transactions__access_list__storage_keys:
     columns:
-      _parent_hash:
+      _dlt_parent_id:
         foreign_key: true
         data_type: text
         nullable: false
-      _pos:
+      _dlt_list_idx:
         data_type: bigint
         nullable: false
-      _record_hash:
+      _dlt_id:
         unique: true
         data_type: text
         nullable: false
-      _root_hash:
+      _dlt_root_id:
         data_type: text
         nullable: false
       value:
@@ -277,18 +277,18 @@ tables:
     parent: blocks__transactions__access_list
   blocks__uncles:
     columns:
-      _parent_hash:
+      _dlt_parent_id:
         foreign_key: true
         data_type: text
         nullable: false
-      _pos:
+      _dlt_list_idx:
         data_type: bigint
         nullable: false
-      _record_hash:
+      _dlt_id:
         unique: true
         data_type: text
         nullable: false
-      _root_hash:
+      _dlt_root_id:
         data_type: text
         nullable: false
       value:
@@ -298,14 +298,14 @@ tables:
 settings:
   default_hints:
     foreign_key:
-    - re:^_parent_hash$
+    - re:^_dlt_parent_id$
     not_null:
-    - re:^_record_hash$
-    - re:^_root_hash$
-    - re:^_parent_hash$
-    - re:^_pos$
+    - re:^_dlt_id$
+    - re:^_dlt_root_id$
+    - re:^_dlt_parent_id$
+    - re:^_dlt_list_idx$
     unique:
-    - re:^_record_hash$
+    - re:^_dlt_id$
   preferred_types: {}
 normalizers:
   names: dlt.common.normalizers.names.snake_case
@@ -314,5 +314,5 @@ normalizers:
     config:
       propagation:
         root:
-          _record_hash: _root_hash
+          _dlt_id: _dlt_root_id
 

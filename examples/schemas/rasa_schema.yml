@@ -2,7 +2,7 @@ version: 1
 engine_version: 3
 name: rasa
 tables:
-  _version:
+  _dlt_version:
     columns:
       version:
         data_type: bigint
@@ -14,7 +14,7 @@ tables:
         data_type: timestamp
         nullable: false
     write_disposition: append
-  _loads:
+  _dlt_loads:
     columns:
       load_id:
         data_type: text
@@ -53,23 +53,31 @@ settings:
   default_hints:
     not_null:
     - re:^timestamp$
-    - re:^_record_hash$
-    - re:^_root_hash$
-    - re:^_load_id$
-    - re:^_parent_hash$
-    - re:^_pos$
+    - re:^_dlt_id$
+    - re:^_dlt_root_id$
+    - re:^_dlt_load_id$
+    - re:^_dlt_parent_id$
+    - re:^_dlt_list_idx$
     - re:^sender_id$
     foreign_key:
-    - re:^_parent_hash$
+    - re:^_dlt_parent_id$
+    unique:
+    - re:^_dlt_id$
+    partition:
+    - re:^_timestamp$
+    - re:^timestamp$
+    cluster:
+    - re:^_dist_key$
+    - re:^sender_id$
     sort:
     - re:^timestamp$
-    unique:
-    - re:^_record_hash$
+    - re:^_timestamp$
   preferred_types:
     re:^timestamp$: timestamp
+    re:^_timestamp$: timestamp
     re:^inserted_at$: timestamp
     re:confidence: double
-    re:^_pos$: bigint
+    re:^_dlt_list_idx$: bigint
 normalizers:
   names: dlt.common.normalizers.names.snake_case
   json:
@@ -77,6 +85,6 @@ normalizers:
     config:
       propagation:
         root:
-          _record_hash: _root_hash
+          _dlt_id: _dlt_root_id
           timestamp: _timestamp
           sender_id: _dist_key

@@ -14,9 +14,9 @@ from dlt.common.validation import validate_dict
 
 class Schema:
 
-    VERSION_TABLE_NAME = "_version"
+    VERSION_TABLE_NAME = "_dlt_version"
     VERSION_COLUMN_NAME = "version"
-    LOADS_TABLE_NAME = "_loads"
+    LOADS_TABLE_NAME = "_dlt_loads"
     ENGINE_VERSION = 3
 
     def __init__(self, name: str, normalizers: TNormalizersConfig = None) -> None:

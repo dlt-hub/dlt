@@ -3,7 +3,7 @@
   "engine_version": 3,
   "name": "model",
   "tables": {
-    "_version": {
+    "_dlt_version": {
       "columns": {
         "version": {
           "data_type": "bigint",
@@ -20,7 +20,7 @@
       },
       "write_disposition": "append"
     },
-    "_loads": {
+    "_dlt_loads": {
       "columns": {
         "load_id": {
           "data_type": "text",
@@ -42,24 +42,24 @@
     "default_hints": {
       "not_null": [
         "re:^timestamp$",
-        "re:^_record_hash$",
-        "re:^_root_hash$",
-        "re:^_load_id$",
-        "re:^_parent_hash$",
-        "re:^_pos$"
+        "re:^_dlt_id$",
+        "re:^_dlt_root_id$",
+        "re:^_dlt_load_id$",
+        "re:^_dlt_parent_id$",
+        "re:^_dlt_list_idx$"
       ],
       "unique": [
-        "re:^_record_hash$"
+        "re:^_dlt_id$"
       ],
       "foreign_key": [
-        "re:^_parent_hash$"
+        "re:^_dlt_parent_id$"
       ]
     },
     "preferred_types": {
       "re:^timestamp$": "timestamp",
       "re:trained_at$": "timestamp",
       "re:^inserted_at$": "timestamp",
-      "re:^_pos$": "bigint"
+      "re:^_dlt_list_idx$": "bigint"
     }
   },
   "normalizers": {
@@ -69,7 +69,7 @@
       "config": {
         "propagation": {
           "root": {
-            "_record_hash": "_root_hash"
+            "_dlt_id": "_dlt_root_id"
           }
         }
       }
