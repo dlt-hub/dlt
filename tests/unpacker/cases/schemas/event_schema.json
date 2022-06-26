@@ -51,10 +51,10 @@
       "write_disposition": "append",
       "filters": {
         "excludes": [
-          "^parse_data"
+          "re:^parse_data"
         ],
         "includes": [
-          "^parse_data__(intent|entities|message_id$|text$)"
+          "re:^parse_data__(intent|entities|message_id$|text$)"
         ]
       }
     },
@@ -63,11 +63,11 @@
       "write_disposition": "append",
       "filters": {
         "excludes": [
-          "^data",
-          "^metadata"
+          "re:^data",
+          "re:^metadata"
         ],
         "includes": [
-          "^metadata__(utter_action|template_name|rasa_x_[a-z]+)$"
+          "re:^metadata__(utter_action|template_name|rasa_x_[a-z]+)$"
         ]
       }
     }
@@ -75,42 +75,42 @@
   "settings": {
     "default_hints": {
       "not_null": [
-        "^timestamp$",
-        "^_timestamp$",
-        "^_dist_key$",
-        "^_record_hash$",
-        "^_root_hash$",
-        "^_load_id$",
-        "^_parent_hash$",
-        "^_pos$",
-        "^sender_id$"
+        "re:^timestamp$",
+        "re:^_timestamp$",
+        "re:^_dist_key$",
+        "re:^_record_hash$",
+        "re:^_root_hash$",
+        "re:^_load_id$",
+        "re:^_parent_hash$",
+        "re:^_pos$",
+        "re:^sender_id$"
       ],
       "partition": [
-        "^_timestamp$",
-        "^timestamp$"
+        "re:^_timestamp$",
+        "re:^timestamp$"
       ],
       "cluster": [
-        "^_dist_key$",
-        "^sender_id$"
+        "re:^_dist_key$",
+        "re:^sender_id$"
       ],
       "primary_key": [],
       "foreign_key": [
-        "^_parent_hash$"
+        "re:^_parent_hash$"
       ],
       "sort": [
-        "^timestamp$",
-        "^_timestamp$"
+        "re:^timestamp$",
+        "re:^_timestamp$"
       ],
       "unique": [
-        "^_record_hash$"
+        "re:^_record_hash$"
       ]
     },
     "preferred_types": {
-      "^timestamp$": "timestamp",
-      "^_timestamp$": "timestamp",
-      "^inserted_at$": "timestamp",
-      "confidence": "double",
-      "^_pos$": "bigint"
+      "re:^timestamp$": "timestamp",
+      "re:^_timestamp$": "timestamp",
+      "re:^inserted_at$": "timestamp",
+      "re:confidence": "double",
+      "re:^_pos$": "bigint"
     }
   },
   "normalizers": {

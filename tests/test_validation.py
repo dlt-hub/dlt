@@ -6,6 +6,7 @@ from typing import Dict, List, Literal, Mapping, Sequence, TypedDict, Optional
 from dlt.common import json
 from dlt.common.exceptions import DictValidationException
 from dlt.common.schema.typing import TStoredSchema, TColumn
+from dlt.common.schema.utils import simple_regex_validator
 from dlt.common.typing import DictStrStr, StrStr
 from dlt.common.validation import validate_dict
 
@@ -85,7 +86,7 @@ def test_validate_schema_cases() -> None:
     with open("tests/common/cases/schemas/eth/ethereum_schema_v3.yml") as f:
         schema_dict: TStoredSchema = yaml.safe_load(f)
 
-    validate_dict(TStoredSchema, schema_dict, ".", lambda k: not k.startswith("x-"))
+    validate_dict(TStoredSchema, schema_dict, ".", lambda k: not k.startswith("x-"), simple_regex_validator)
 
     # with open("tests/common/cases/schemas/rasa/event_schema.json") as f:
     #     schema_dict: TStoredSchema = json.load(f)

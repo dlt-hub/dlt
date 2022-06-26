@@ -1,4 +1,4 @@
-from typing import Dict, List, Literal, Optional, Set, TypedDict
+from typing import Dict, List, Literal, Optional, Set, TypedDict, NewType
 
 from dlt.common.typing import StrAny
 
@@ -31,11 +31,13 @@ class TColumn(TColumnBase, total=False):
 
 
 TTableColumns = Dict[str, TColumn]
+TSimpleRegex = NewType("TSimpleRegex", str)
+SIMPLE_REGEX_PREFIX = "re:"
 
 
 class TRowFilters(TypedDict, total=True):
-    excludes: Optional[List[str]]
-    includes: Optional[List[str]]
+    excludes: Optional[List[TSimpleRegex]]
+    includes: Optional[List[TSimpleRegex]]
 
 
 class TTable(TypedDict, total=False):
@@ -68,8 +70,8 @@ class TNormalizersConfig(TypedDict, total=True):
 
 class TSchemaSettings(TypedDict, total=False):
     schema_sealed: Optional[bool]
-    default_hints: Optional[Dict[THintType, List[str]]]
-    preferred_types: Optional[Dict[str, TDataType]]
+    default_hints: Optional[Dict[THintType, List[TSimpleRegex]]]
+    preferred_types: Optional[Dict[TSimpleRegex, TDataType]]
 
 
 class TStoredSchema(TypedDict, total=True):

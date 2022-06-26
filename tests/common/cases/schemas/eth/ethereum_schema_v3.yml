@@ -30,7 +30,7 @@ settings:
     - _parent_hash
     - _pos
     unique:
-    - ^_record_hash$
+    - _record_hash
     cluster:
       - block_hash
     partition:

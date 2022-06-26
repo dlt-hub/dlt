@@ -223,12 +223,12 @@ def test_corece_null_value_over_not_null(schema: Schema) -> None:
 
 def _add_preferred_types(schema: Schema) -> None:
     schema._settings["preferred_types"] = {}
-    schema._settings["preferred_types"]["^timestamp$"] = "timestamp"
+    schema._settings["preferred_types"]["timestamp"] = "timestamp"
     # any column with confidence should be float
-    schema._settings["preferred_types"]["confidence"] = "double"
+    schema._settings["preferred_types"]["re:confidence"] = "double"
     # value should be wei
-    schema._settings["preferred_types"]["^value$"] = "wei"
+    schema._settings["preferred_types"]["value"] = "wei"
     # number should be decimal
-    schema._settings["preferred_types"]["^number$"] = "decimal"
+    schema._settings["preferred_types"]["re:^number$"] = "decimal"
 
     schema._compile_regexes()

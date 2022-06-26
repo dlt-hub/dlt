@@ -3,6 +3,8 @@ import pytest
 import os
 
 from dlt.common import pendulum
+from dlt.common.exceptions import DictValidationException
+from dlt.common.schema.typing import TSimpleRegex
 from dlt.common.typing import DictStrAny, StrAny
 from dlt.common.utils import uniq_id
 from dlt.common.schema import TColumn, Schema, TStoredSchema, utils
@@ -58,21 +60,23 @@ def test_new_schema_custom_normalizers(cn_schema: Schema) -> None:
     assert_new_schema_values_custom_normalizers(cn_schema)
 
 
-def assert_new_schema_values_custom_normalizers(schema: Schema) -> None:
-    # check normalizers config
-    assert schema._normalizers_config["names"] == "tests.common.schema.custom_normalizers"
-    assert schema._normalizers_config["json"]["module"] == "tests.common.schema.custom_normalizers"
-    # check if schema was extended by json normalizer
-    assert ["fake_id"] == schema.schema_settings["default_hints"]["not_null"]
-    # call normalizers
-    assert schema.normalize_column_name("a") == "column_a"
-    assert schema.normalize_table_name("a__b") == "A__b"
-    assert schema.normalize_schema_name("1A_b") == "s1ab"
-    # assumes elements are normalized
-    assert schema.normalize_make_path("A", "B", "!C") == "A__B__!C"
-    assert schema.normalize_break_path("A__B__!C") == ["A", "B", "!C"]
-    row = list(schema.normalize_json(schema, {"bool": True}, "load_id"))
-    assert row[0] == (("table", None), {"bool": True})
+def test_simple_regex_validator() -> None:
+    # can validate only simple regexes
+    assert utils.simple_regex_validator(".", "k", "v", str) is False
+    assert utils.simple_regex_validator(".", "k", "v", TSimpleRegex) is True
+
+    # validate regex
+    assert utils.simple_regex_validator(".", "k", TSimpleRegex("re:^_record$"), TSimpleRegex) is True
+    # invalid regex
+    with pytest.raises(DictValidationException) as e:
+        assert utils.simple_regex_validator(".", "k", "re:[[^_record$", TSimpleRegex) is True
+    assert "[[^_record$" in str(e.value)
+    # regex not marked as re:
+    with pytest.raises(DictValidationException):
+        assert utils.simple_regex_validator(".", "k", "^_record$", TSimpleRegex) is True
+    # expected str as base type
+    with pytest.raises(DictValidationException):
+        assert utils.simple_regex_validator(".", "k", 1, TSimpleRegex) is True
 
 
 def test_invalid_schema_name() -> None:
@@ -272,9 +276,9 @@ def test_merge_hints(schema: Schema) -> None:
     schema._settings["default_hints"] = {}
     schema._compiled_hints = {}
     new_hints = {
-            "not_null": ["^_record_hash$", "^_root_hash$", "^_parent_hash$", "^_pos$", "_load_id"],
-            "foreign_key": ["^_parent_hash$"],
-            "unique": ["^_record_hash$"]
+            "not_null": ["_record_hash", "_root_hash", "_parent_hash", "_pos", "re:^_load_id$"],
+            "foreign_key": ["re:^_parent_hash$"],
+            "unique": ["re:^_record_hash$"]
         }
     schema.merge_hints(new_hints)
     assert schema._settings["default_hints"] == new_hints
@@ -292,9 +296,9 @@ def test_merge_hints(schema: Schema) -> None:
     }
     schema.merge_hints(new_new_hints)
     expected_hints = {
-            "not_null": ["^_record_hash$", "^_root_hash$", "^_parent_hash$", "^_pos$", "_load_id", "timestamp"],
-            "foreign_key": ["^_parent_hash$"],
-            "unique": ["^_record_hash$"],
+            "not_null": ["_record_hash", "_root_hash", "_parent_hash", "_pos", "re:^_load_id$", "timestamp"],
+            "foreign_key": ["re:^_parent_hash$"],
+            "unique": ["re:^_record_hash$"],
             "primary_key": ["id"]
         }
     assert len(expected_hints) == len(schema._settings["default_hints"])
@@ -310,6 +314,23 @@ def delete_storage() -> None:
         schema_storage.storage.delete_folder("copy", recursively=True)
 
 
+def assert_new_schema_values_custom_normalizers(schema: Schema) -> None:
+    # check normalizers config
+    assert schema._normalizers_config["names"] == "tests.common.schema.custom_normalizers"
+    assert schema._normalizers_config["json"]["module"] == "tests.common.schema.custom_normalizers"
+    # check if schema was extended by json normalizer
+    assert ["fake_id"] == schema.schema_settings["default_hints"]["not_null"]
+    # call normalizers
+    assert schema.normalize_column_name("a") == "column_a"
+    assert schema.normalize_table_name("a__b") == "A__b"
+    assert schema.normalize_schema_name("1A_b") == "s1ab"
+    # assumes elements are normalized
+    assert schema.normalize_make_path("A", "B", "!C") == "A__B__!C"
+    assert schema.normalize_break_path("A__B__!C") == ["A", "B", "!C"]
+    row = list(schema.normalize_json(schema, {"bool": True}, "load_id"))
+    assert row[0] == (("table", None), {"bool": True})
+
+
 def assert_new_schema_values(schema: Schema) -> None:
     assert schema.schema_version == 1
     assert schema.ENGINE_VERSION == 3
@@ -318,7 +339,7 @@ def assert_new_schema_values(schema: Schema) -> None:
     assert schema._normalizers_config["names"] == "dlt.common.normalizers.names.snake_case"
     assert schema._normalizers_config["json"]["module"] == "dlt.common.normalizers.json.relational"
     # check if schema was extended by json normalizer
-    assert set(["^_record_hash$", "^_root_hash$", "^_parent_hash$", "^_pos$", "_load_id"]).issubset(schema.schema_settings["default_hints"]["not_null"])
+    assert set(["re:^_record_hash$", "re:^_root_hash$", "re:^_parent_hash$", "re:^_pos$", "_load_id"]).issubset(schema.schema_settings["default_hints"]["not_null"])
     # call normalizers
     assert schema.normalize_column_name("A") == "a"
     assert schema.normalize_table_name("A__B") == "a__b"

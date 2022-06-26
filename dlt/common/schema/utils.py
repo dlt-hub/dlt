@@ -8,14 +8,16 @@ from typing import Dict, List, Sequence, Type, Any, cast
 
 from dlt.common import pendulum, json, Decimal
 from dlt.common.arithmetics import ConversionSyntax
-from dlt.common.typing import DictStrAny
+from dlt.common.exceptions import DictValidationException
+from dlt.common.typing import DictStrAny, REPattern
 from dlt.common.validation import validate_dict
-from dlt.common.schema.typing import TStoredSchema, TTable, TTableColumns, TColumnBase, TColumn, TColumnProp, TDataType, THintType
+from dlt.common.schema.typing import SIMPLE_REGEX_PREFIX, TSimpleRegex, TStoredSchema, TTable, TTableColumns, TColumnBase, TColumn, TColumnProp, TDataType, THintType
 from dlt.common.schema.exceptions import SchemaEngineNoUpgradePathException
 
 
 RE_LEADING_DIGITS = re.compile(r"^\d+")
 RE_NON_ALPHANUMERIC = re.compile(r"[^a-zA-Z\d]")
+RE_NON_ALPHANUMERIC_UNDERSCORE = re.compile(r"[^a-zA-Z\d_]")
 
 
 # fix a name so it is acceptable as schema name
@@ -59,9 +61,38 @@ def remove_defaults(stored_schema: TStoredSchema) -> None:
     stored_schema["tables"] = clean_tables
 
 
+def simple_regex_validator(path: str, pk: str, pv: Any, t: Any) -> bool:
+    # custom validator on type TSimpleRegex
+    if t is TSimpleRegex:
+        if not isinstance(pv, str):
+            raise DictValidationException(f"In {path}: field {pk} value {pv} has invalid type {type(pv).__name__} while str is expected", path, pk, pv)
+        if pv.startswith(SIMPLE_REGEX_PREFIX):
+            # check if regex
+            try:
+                re.compile(pv[3:])
+            except Exception as e:
+                raise DictValidationException(f"In {path}: field {pk} value {pv[3:]} does not compile as regex: {str(e)}", path, pk, pv)
+        else:
+            if RE_NON_ALPHANUMERIC_UNDERSCORE.match(pv):
+                raise DictValidationException(f"In {path}: field {pk} value {pv} looks like a regex, please prefix with re:", path, pk, pv)
+        # we know how to validate that type
+        return True
+    else:
+        # don't know how to validate t
+        return False
+
+
+def compile_simple_regex(r: TSimpleRegex) -> REPattern:
+    if r.startswith(SIMPLE_REGEX_PREFIX):
+        return re.compile(r[3:])
+    else:
+        # exact matches
+        return re.compile("^" + re.escape(r) + "$")
+
+
 def validate_stored_schema(stored_schema: TStoredSchema) -> None:
     # verify only non extra fields
-    validate_dict(TStoredSchema, stored_schema, ".", lambda k: not k.startswith("x-"))
+    validate_dict(TStoredSchema, stored_schema, ".", lambda k: not k.startswith("x-"), simple_regex_validator)
 
 
 def upgrade_engine_version(schema_dict: DictStrAny, from_engine: int, to_engine: int) -> TStoredSchema:
@@ -90,10 +121,16 @@ def upgrade_engine_version(schema_dict: DictStrAny, from_engine: int, to_engine:
                 }
             }
         }
-        # move settings
+        # move settings, convert strings to simple regexes
+        d_h: Dict[THintType, List[TSimpleRegex]] = schema_dict.pop("hints", {})
+        for h_k, h_l in d_h.items():
+            d_h[h_k] = list(map(lambda r: TSimpleRegex("re:" + r), h_l))
+        p_t: Dict[TSimpleRegex, TDataType] = schema_dict.pop("preferred_types", {})
+        p_t = {TSimpleRegex("re:" + k): v for k, v in p_t.items()}
+
         current["settings"] = {
-            "default_hints": schema_dict.pop("hints", {}),
-            "preferred_types": schema_dict.pop("preferred_types", {}),
+            "default_hints": d_h,
+            "preferred_types": p_t,
         }
         # repackage tables
         old_tables: Dict[str, TTableColumns] = schema_dict.pop("tables")
@@ -128,7 +165,7 @@ def upgrade_engine_version(schema_dict: DictStrAny, from_engine: int, to_engine:
                     # must add new table to hold filters
                     t = new_table(root)
                     current["tables"][root] = t
-                t.setdefault("filters", {}).setdefault(group, []).append("^" + path)  # type: ignore
+                t.setdefault("filters", {}).setdefault(group, []).append("re:^" + path)  # type: ignore
 
         excludes = schema_dict.pop("excludes", [])
         migrate_filters("excludes", excludes)
@@ -337,5 +374,5 @@ def load_table() -> TTable:
     }
 
 
-def standard_hints() -> Dict[THintType, List[str]]:
+def standard_hints() -> Dict[THintType, List[TSimpleRegex]]:
     return None

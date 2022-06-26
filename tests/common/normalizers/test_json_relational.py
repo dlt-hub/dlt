@@ -66,7 +66,7 @@ def test_preserve_complex_value(schema: Schema) -> None:
 
 def test_preserve_complex_value_with_hint(schema: Schema) -> None:
     # add preferred type for "value"
-    schema._settings.setdefault("preferred_types", {})["^value$"] = "complex"
+    schema._settings.setdefault("preferred_types", {})["re:^value$"] = "complex"
     schema._compile_regexes()
     print(schema._compiled_preferred_types)
 
@@ -147,7 +147,7 @@ def test_child_table_linking_primary_key(schema: Schema) -> None:
             "o": [{"a": 1}, {"a": 2}]
         }]
     }
-    schema.merge_hints({"primary_key": ["^id$"]})
+    schema.merge_hints({"primary_key": ["id"]})
     schema._compile_regexes()
 
     rows = list(_normalize_row(schema, row, {}, "table"))
@@ -198,7 +198,7 @@ def test_child_table_linking_compound_primary_key(schema: Schema) -> None:
             "o": [{"a": 1}, {"a": 2}]
         }]
     }
-    schema.merge_hints({"primary_key": ["^id$", "^offset$", "^item_no$"]})
+    schema.merge_hints({"primary_key": ["id", "offset", "item_no"]})
     schema._compile_regexes()
 
     rows = list(_normalize_row(schema, row, {}, "table"))
@@ -427,7 +427,7 @@ def test_table_name_meta_normalized() -> None:
 
 def test_parse_with_primary_key() -> None:
     schema = create_schema_with_name("discord")
-    schema.merge_hints({"primary_key": ["^id$"]})
+    schema.merge_hints({"primary_key": ["id"]})
     schema._compile_regexes()
     add_root_hash_propagation(schema)
 

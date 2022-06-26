@@ -4,8 +4,16 @@ from dlt.common.exceptions import DictValidationException
 from dlt.common.typing import StrAny, extract_optional_type, is_literal_type, is_optional_type, is_typeddict, is_list_generic_type, is_dict_generic_type, _TypedDict
 
 
-def validate_dict(schema: Type[_TypedDict], doc: StrAny, path: str, filter: Callable[[str], bool] = None) -> None:
+TFilterFuc = Callable[[str], bool]
+TCustomValidator = Callable[[str, str, Any, Any], bool]
+
+
+def validate_dict(schema: Type[_TypedDict], doc: StrAny, path: str, filter: TFilterFuc = None, validator: TCustomValidator = None) -> None:
+    # pass through filter
     filter = filter or (lambda _: True)
+    # cannot validate anything
+    validator = validator or (lambda p, pk, pv, t: False)
+
     allowed_props = get_type_hints(schema)
     required_props = {k: v for k, v in allowed_props.items() if not is_optional_type(v)}
     # remove optional props
@@ -33,7 +41,7 @@ def validate_dict(schema: Type[_TypedDict], doc: StrAny, path: str, filter: Call
         elif is_typeddict(t):
             if not isinstance(pv, dict):
                 raise DictValidationException(f"In {path}: field {pk} value {pv} has invalid type {type(pv).__name__} while dict is expected", path, pk, pv)
-            validate_dict(t, pv, path + "/" + pk, filter)
+            validate_dict(t, pv, path + "/" + pk, filter, validator)
         elif is_list_generic_type(t):
             if not isinstance(pv, list):
                 raise DictValidationException(f"In {path}: field {pk} value {pv} has invalid type {type(pv).__name__} while list is expected", path, pk, pv)
@@ -50,6 +58,12 @@ def validate_dict(schema: Type[_TypedDict], doc: StrAny, path: str, filter: Call
                 if not isinstance(d_k, str):
                     raise DictValidationException(f"In {path}: field {pk} key {d_k} must be a string", path, pk, d_k)
                 verify_prop(pk + f"[{d_k}]", d_v, d_v_t)
+        elif t is Any:
+            # pass everything with any type
+            pass
+        else:
+            if not validator(path, pk, pv, t):
+                raise DictValidationException(f"In {path}: field {pk} has expected type {t.__name__} which lacks validator", path, pk)
 
     # check allowed props
     for pk, pv in props.items():

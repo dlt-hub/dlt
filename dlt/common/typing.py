@@ -1,11 +1,14 @@
 from collections.abc import Mapping as C_Mapping, Sequence as C_Sequence
+from re import Pattern as _REPattern
 from typing import Callable, Dict, Any, Literal, Mapping, Type, TypeVar, TypedDict, TYPE_CHECKING, Union, get_args, get_origin
 if TYPE_CHECKING:
     from _typeshed import StrOrBytesPath
     from typing import _TypedDict
+    REPattern = _REPattern[str]
 else:
     StrOrBytesPath = Any
     from typing import _TypedDictMeta as _TypedDict
+    REPattern = _REPattern
 
 DictStrAny = Dict[str, Any]
 DictStrStr = Dict[str, str]

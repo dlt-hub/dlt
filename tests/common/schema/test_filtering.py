@@ -56,7 +56,7 @@ def test_whole_row_filter_with_exception(schema: Schema) -> None:
 
 def _add_excludes(schema: Schema) -> None:
     bot_table = new_table("event_bot")
-    bot_table.setdefault("filters", {})["excludes"] = ["^metadata", "^is_flagged$", "^data", "^custom_data"]
-    bot_table["filters"]["includes"] = ["^data__custom$", "^custom_data__included_object__"]
+    bot_table.setdefault("filters", {})["excludes"] = ["re:^metadata", "re:^is_flagged$", "re:^data", "re:^custom_data"]
+    bot_table["filters"]["includes"] = ["re:^data__custom$", "re:^custom_data__included_object__"]
     schema.update_schema(bot_table)
     schema._compile_regexes()

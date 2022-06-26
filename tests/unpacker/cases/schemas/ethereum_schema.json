@@ -394,16 +394,16 @@
   "settings": {
     "default_hints": {
       "foreign_key": [
-        "^_parent_hash$"
+        "re:^_parent_hash$"
       ],
       "not_null": [
-        "^_record_hash$",
-        "^_root_hash$",
-        "^_parent_hash$",
-        "^_pos$"
+        "re:^_record_hash$",
+        "re:^_root_hash$",
+        "re:^_parent_hash$",
+        "re:^_pos$"
       ],
       "unique": [
-        "^_record_hash$"
+        "re:^_record_hash$"
       ]
     },
     "preferred_types": {}

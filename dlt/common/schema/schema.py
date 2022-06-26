@@ -1,16 +1,15 @@
 from importlib import import_module
 import yaml
-import re
-from re import Pattern
 from copy import copy
 from typing import Dict, List, Mapping, Optional, Sequence, Tuple, Any, cast
 
-from dlt.common.typing import DictStrAny, StrAny
+from dlt.common.typing import DictStrAny, StrAny, REPattern
 from dlt.common.normalizers.names import TNormalizeBreakPath, TNormalizeMakePath, TNormalizeNameFunc
 from dlt.common.normalizers.json import TNormalizeJSONFunc
-from dlt.common.schema.typing import TNormalizersConfig, TPartialTable, TSchemaSettings, TStoredSchema, TSchemaTables, TTable, TTableColumns, TColumn, TColumnProp, TDataType, THintType
+from dlt.common.schema.typing import TNormalizersConfig, TPartialTable, TSchemaSettings, TSimpleRegex, TStoredSchema, TSchemaTables, TTable, TTableColumns, TColumn, TColumnProp, TDataType, THintType
 from dlt.common.schema import utils
 from dlt.common.schema.exceptions import CannotCoerceColumnException, CannotCoerceNullException, InvalidSchemaName, SchemaCorruptedException, TablePropertiesClashException
+from dlt.common.validation import validate_dict
 
 
 class Schema:
@@ -31,13 +30,13 @@ class Schema:
         self._settings: TSchemaSettings = {}
 
         # list of preferred types: map regex on columns into types
-        self._compiled_preferred_types: List[Tuple[Pattern[str], TDataType]] = []
+        self._compiled_preferred_types: List[Tuple[REPattern, TDataType]] = []
         # compiled default hints
-        self._compiled_hints: Dict[THintType, Sequence[Pattern[str]]] = {}
+        self._compiled_hints: Dict[THintType, Sequence[REPattern]] = {}
         # compiled exclude filters per table
-        self._compiled_excludes: Dict[str, Sequence[Pattern[str]]] = {}
+        self._compiled_excludes: Dict[str, Sequence[REPattern]] = {}
         # compiled include filters per table
-        self._compiled_includes: Dict[str, Sequence[Pattern[str]]] = {}
+        self._compiled_includes: Dict[str, Sequence[REPattern]] = {}
 
         # normalizers config
         self._normalizers_config: TNormalizersConfig = normalizers
@@ -91,7 +90,7 @@ class Schema:
         # note: the above is not very clean. the `parent` element of each table should be used but as the rules
         #  are typically used to prevent not only table fields but whole tables from being created it is not possible
 
-        def _exclude(path: str, excludes: Sequence[Pattern[str]], includes: Sequence[Pattern[str]]) -> bool:
+        def _exclude(path: str, excludes: Sequence[REPattern], includes: Sequence[REPattern]) -> bool:
             is_included = False
             is_excluded = any(exclude.search(path) for exclude in excludes)
             if is_excluded:
@@ -187,7 +186,9 @@ class Schema:
         # dicts are ordered and we will return the rows with hints in the same order as they appear in the columns
         return rv_row
 
-    def merge_hints(self, new_hints: Mapping[THintType, Sequence[str]]) -> None:
+    def merge_hints(self, new_hints: Mapping[THintType, Sequence[TSimpleRegex]]) -> None:
+        # validate regexes
+        validate_dict(TSchemaSettings, {"default_hints": new_hints}, ".", validator=utils.simple_regex_validator)
         # prepare hints to be added
         default_hints = self._settings.setdefault("default_hints", {})
         # add `new_hints` to existing hints
@@ -361,14 +362,14 @@ class Schema:
         if self._settings:
             for pattern, dt in self._settings.get("preferred_types", {}).items():
                 # add tuples to be searched in coercions
-                self._compiled_preferred_types.append((re.compile(pattern), dt))
+                self._compiled_preferred_types.append((utils.compile_simple_regex(pattern), dt))
             for hint_name, hint_list in self._settings.get("default_hints", {}).items():
                 # compile hints which are column matching regexes
-                self._compiled_hints[hint_name] = list(map(lambda hint: re.compile(hint), hint_list))
+                self._compiled_hints[hint_name] = list(map(lambda hint: utils.compile_simple_regex(hint), hint_list))
         if self._schema_tables:
             for table in self._schema_tables.values():
                 if "filters" in table:
                     if "excludes" in table["filters"]:
-                        self._compiled_excludes[table["name"]] = list(map(lambda exclude: re.compile(exclude), table["filters"]["excludes"]))
+                        self._compiled_excludes[table["name"]] = list(map(lambda exclude: utils.compile_simple_regex(exclude), table["filters"]["excludes"]))
                     if "includes" in table["filters"]:
-                        self._compiled_includes[table["name"]] = list(map(lambda exclude: re.compile(exclude), table["filters"]["includes"]))
+                        self._compiled_includes[table["name"]] = list(map(lambda exclude: utils.compile_simple_regex(exclude), table["filters"]["includes"]))

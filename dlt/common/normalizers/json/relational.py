@@ -1,7 +1,7 @@
 from typing import Optional, cast, TypedDict, Any
 
 from dlt.common.schema import Schema
-from dlt.common.schema.typing import TColumn
+from dlt.common.schema.typing import TColumn, TSimpleRegex
 from dlt.common.utils import uniq_id, digest128
 from dlt.common.typing import DictStrAny, DictStrStr, StrStr, StrStrStr, TEvent, StrAny
 from dlt.common.normalizers.json import TUnpackedRowIterator
@@ -179,9 +179,12 @@ def extend_schema(schema: Schema) -> None:
     # add hints
     schema.merge_hints(
         {
-            "not_null": ["^_record_hash$", "^_root_hash$", "^_parent_hash$", "^_pos$", "_load_id"],
-            "foreign_key": ["^_parent_hash$"],
-            "unique": ["^_record_hash$"]
+            "not_null": [
+                TSimpleRegex("re:^_record_hash$"), TSimpleRegex("re:^_root_hash$"), TSimpleRegex("re:^_parent_hash$"),
+                TSimpleRegex("re:^_pos$"), TSimpleRegex("_load_id")
+                ],
+            "foreign_key": [TSimpleRegex("re:^_parent_hash$")],
+            "unique": [TSimpleRegex("re:^_record_hash$")]
         }
     )
 
