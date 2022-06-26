@@ -9,9 +9,10 @@ from typing import Dict, List, Sequence, Type, Any, cast
 from dlt.common import pendulum, json, Decimal
 from dlt.common.arithmetics import ConversionSyntax
 from dlt.common.exceptions import DictValidationException
+from dlt.common.normalizers.names import TNormalizeNameFunc
 from dlt.common.typing import DictStrAny, REPattern
-from dlt.common.validation import validate_dict
-from dlt.common.schema.typing import SIMPLE_REGEX_PREFIX, TSimpleRegex, TStoredSchema, TTable, TTableColumns, TColumnBase, TColumn, TColumnProp, TDataType, THintType
+from dlt.common.validation import TCustomValidator, validate_dict
+from dlt.common.schema.typing import SIMPLE_REGEX_PREFIX, TColumnName, TSimpleRegex, TStoredSchema, TTable, TTableColumns, TColumnBase, TColumn, TColumnProp, TDataType, THintType
 from dlt.common.schema.exceptions import SchemaEngineNoUpgradePathException
 
 
@@ -80,6 +81,21 @@ def simple_regex_validator(path: str, pk: str, pv: Any, t: Any) -> bool:
     else:
         # don't know how to validate t
         return False
+
+
+def column_name_validator(normalize_func: TNormalizeNameFunc) -> TCustomValidator:
+
+    def validator(path: str, pk: str, pv: Any, t: Any) -> bool:
+        if t is TColumnName:
+            if not isinstance(pv, str):
+                raise DictValidationException(f"In {path}: field {pk} value {pv} has invalid type {type(pv).__name__} while str is expected", path, pk, pv)
+            if normalize_func(pv) != pv:
+                raise DictValidationException(f"In {path}: field {pk}: {pv} is not a valid column name", path, pk, pv)
+            return True
+        else:
+            return False
+
+    return validator
 
 
 def compile_simple_regex(r: TSimpleRegex) -> REPattern:

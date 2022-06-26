@@ -1,11 +1,13 @@
-from typing import Optional, cast, TypedDict, Any
+from typing import Mapping, Optional, cast, TypedDict, Any
 
 from dlt.common.schema import Schema
-from dlt.common.schema.typing import TColumn, TSimpleRegex
+from dlt.common.schema.typing import TColumn, TColumnName, TSimpleRegex
+from dlt.common.schema.utils import column_name_validator
 from dlt.common.utils import uniq_id, digest128
-from dlt.common.typing import DictStrAny, DictStrStr, StrStr, StrStrStr, TEvent, StrAny
+from dlt.common.typing import DictStrAny, DictStrStr, TEvent, StrAny
 from dlt.common.normalizers.json import TUnpackedRowIterator
 from dlt.common.sources import DLT_METADATA_FIELD, TEventDLTMeta, get_table_name
+from dlt.common.validation import validate_dict
 
 
 class TEventRow(TypedDict, total=False):
@@ -25,13 +27,13 @@ class TEventRowChild(TEventRow, total=False):
 
 
 class JSONNormalizerConfigPropagation(TypedDict, total=True):
-    root: StrStr
-    tables: StrStrStr
+    root: Optional[Mapping[str, TColumnName]]
+    tables: Optional[Mapping[str, Mapping[str, TColumnName]]]
 
 
 class JSONNormalizerConfig(TypedDict, total=True):
-    generate_record_hash: bool
-    propagation: JSONNormalizerConfigPropagation
+    generate_record_hash: Optional[bool]
+    propagation: Optional[JSONNormalizerConfigPropagation]
 
 
 # for those paths the complex nested objects should be left in place
@@ -172,6 +174,10 @@ def _normalize_row(
 
 
 def extend_schema(schema: Schema) -> None:
+    # validate config
+    config = schema._normalizers_config["json"].get("config", {})
+    validate_dict(JSONNormalizerConfig, config, "./normalizers/json/config", validator=column_name_validator(schema.normalize_column_name))
+
     # quick check to see if hints are applied
     default_hints = schema.schema_settings.get("default_hints", {})
     if "not_null" in default_hints and "^_record_hash$" in default_hints["not_null"]:

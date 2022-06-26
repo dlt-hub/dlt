@@ -4,7 +4,7 @@ import os
 
 from dlt.common import pendulum
 from dlt.common.exceptions import DictValidationException
-from dlt.common.schema.typing import TSimpleRegex
+from dlt.common.schema.typing import TColumnName, TSimpleRegex
 from dlt.common.typing import DictStrAny, StrAny
 from dlt.common.utils import uniq_id
 from dlt.common.schema import TColumn, Schema, TStoredSchema, utils
@@ -69,14 +69,27 @@ def test_simple_regex_validator() -> None:
     assert utils.simple_regex_validator(".", "k", TSimpleRegex("re:^_record$"), TSimpleRegex) is True
     # invalid regex
     with pytest.raises(DictValidationException) as e:
-        assert utils.simple_regex_validator(".", "k", "re:[[^_record$", TSimpleRegex) is True
+        utils.simple_regex_validator(".", "k", "re:[[^_record$", TSimpleRegex)
     assert "[[^_record$" in str(e.value)
     # regex not marked as re:
     with pytest.raises(DictValidationException):
-        assert utils.simple_regex_validator(".", "k", "^_record$", TSimpleRegex) is True
+        utils.simple_regex_validator(".", "k", "^_record$", TSimpleRegex)
     # expected str as base type
     with pytest.raises(DictValidationException):
-        assert utils.simple_regex_validator(".", "k", 1, TSimpleRegex) is True
+        utils.simple_regex_validator(".", "k", 1, TSimpleRegex)
+
+
+def test_column_name_validator(schema: Schema) -> None:
+    assert utils.column_name_validator(schema.normalize_column_name)(".", "k", "v", str) is False
+    assert utils.column_name_validator(schema.normalize_column_name)(".", "k", "v", TColumnName) is True
+
+    assert utils.column_name_validator(schema.normalize_column_name)(".", "k", "snake_case", TColumnName) is True
+    with pytest.raises(DictValidationException) as e:
+        utils.column_name_validator(schema.normalize_column_name)(".", "k", "1snake_case", TColumnName)
+    assert "not a valid column name" in str(e.value)
+    # expected str as base type
+    with pytest.raises(DictValidationException):
+        utils.column_name_validator(schema.normalize_column_name)(".", "k", 1, TColumnName)
 
 
 def test_invalid_schema_name() -> None:

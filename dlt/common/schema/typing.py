@@ -32,6 +32,7 @@ class TColumn(TColumnBase, total=False):
 
 TTableColumns = Dict[str, TColumn]
 TSimpleRegex = NewType("TSimpleRegex", str)
+TColumnName = NewType("TColumnName", str)
 SIMPLE_REGEX_PREFIX = "re:"
 
 
