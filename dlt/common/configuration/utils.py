@@ -8,7 +8,7 @@ from dlt.common.typing import StrAny, is_optional_type, is_literal_type
 from dlt.common.configuration import BasicConfiguration
 from dlt.common.configuration.exceptions import (ConfigEntryMissingException,
                                                  ConfigEnvValueCannotBeCoercedException, ConfigFileNotFoundException)
-from dlt.common.utils import uniq_id
+from dlt.common.utils import encoding_for_mode, uniq_id
 
 SIMPLE_TYPES: List[Any] = [int, bool, list, dict, tuple, bytes, set, float]
 # those types and Optionals of those types should not be passed to eval function
@@ -63,7 +63,7 @@ def open_configuration_file(name: str, mode: str, config: TConfiguration) -> IO[
     path = get_configuration_file_path(name, config)
     if not has_configuration_file(name, config):
         raise ConfigFileNotFoundException(path)
-    return open(path, mode)
+    return open(path, mode, encoding=encoding_for_mode(mode))
 
 
 def get_configuration_file_path(name: str, config: TConfiguration) -> str:
@@ -113,7 +113,7 @@ def _get_key_value(key: str, hint: Type[Any]) -> Optional[str]:
             # kubernetes stores secrets as files in a dir, docker compose plainly
             if isdir(secret_path):
                 secret_path += "/" + secret_name
-            with open(secret_path, "r") as f:
+            with open(secret_path, "r", encoding="utf-8") as f:
                 secret = f.read()
             # add secret to environ so forks have access
             # TODO: removing new lines is not always good. for password OK for PEMs not

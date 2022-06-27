@@ -4,7 +4,7 @@ from contextlib import contextmanager
 import hashlib
 from os import environ
 import secrets
-from typing import Any, Iterator, Sequence, TypeVar, Mapping, List, TypedDict, Union
+from typing import Any, Iterator, Optional, Sequence, TypeVar, Mapping, List, TypedDict, Union
 
 from dlt.common.typing import StrAny, DictStrAny, StrStr
 
@@ -135,3 +135,10 @@ def custom_environ(env: StrStr) -> Iterator[None]:
                 del os.environ[key]
             else:
                 os.environ[key] = value
+
+
+def encoding_for_mode(mode: str) -> Optional[str]:
+    if "b" in mode:
+        return None
+    else:
+        return "utf-8"

@@ -49,7 +49,7 @@ pipeline.unpack()
 # If you want to save the schema to curate it and re-use it, uncomment the below
 # schema = pipeline.get_default_schema()
 # schema_yaml = schema.as_yaml()
-# f = open(data_schema_file_path, "a")
+# f = open(data_schema_file_path, "a", encoding="utf-8")
 # f.write(schema_yaml)
 # f.close()
 

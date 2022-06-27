@@ -85,6 +85,6 @@ if __name__ == "__main__":
     # save schema
     schema = pipeline.get_default_schema()
     schema_yaml = schema.as_yaml()
-    f = open(data_schema_file_path, "a")
+    f = open(data_schema_file_path, "a", encoding="utf-8")
     f.write(schema_yaml)
     f.close()

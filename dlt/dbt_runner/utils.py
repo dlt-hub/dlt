@@ -35,7 +35,7 @@ class DBTProcessingError(DBTRunnerException):
 def git_custom_key_command(private_key: Optional[str]) -> Iterator[str]:
     if private_key:
         key_file = tempfile.mktemp(prefix=uniq_id())
-        with open(key_file, "w") as f:
+        with open(key_file, "w", encoding="utf-8") as f:
             f.write(private_key)
         try:
             # permissions so SSH does not complain
