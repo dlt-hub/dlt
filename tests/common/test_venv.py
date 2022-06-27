@@ -172,20 +172,22 @@ def test_create_over_venv() -> None:
 
 def test_start_command() -> None:
     with Venv.create(tempfile.mkdtemp()) as venv:
-        process = venv.start_command("pip", "freeze", "--all", stdout=PIPE, text=True)
-        assert process.wait() == 0
-        assert "pip" in process.stdout.read()
+        with venv.start_command("pip", "freeze", "--all", stdout=PIPE, text=True) as process:
+            output, _ = process.communicate()
+            assert process.poll() == 0
+            assert "pip" in output
 
         # custom environ
         with custom_environ({"_CUSTOM_ENV_VALUE": "uniq"}):
-            process = venv.start_command("python", "tests/common/scripts/environ.py", stdout=PIPE, text=True)
-            assert process.wait() == 0
-            assert "_CUSTOM_ENV_VALUE" in process.stdout.read()
+            with venv.start_command("python", "tests/common/scripts/environ.py", stdout=PIPE, text=True) as process:
+                output, _ = process.communicate()
+                assert process.poll() == 0
+                assert "_CUSTOM_ENV_VALUE" in output
 
         # command not found
         with pytest.raises(FileNotFoundError):
             venv.start_command("blip", "freeze", "--all", stdout=PIPE, text=True)
 
         # command exit code
-        process = venv.start_command("pip", "wrong_command", stdout=PIPE, text=True)
-        assert process.wait() == 1
+        with venv.start_command("pip", "wrong_command", stdout=PIPE, text=True) as process:
+            assert process.wait() == 1
