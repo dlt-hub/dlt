@@ -72,23 +72,6 @@ tables:
         name: version
         nullable: false
 
-  # rasa example
-  event_user:
-    filters:
-      excludes:
-        - re:^parse_data
-      includes:
-        - re:^parse_data__(intent|entities|message_id$|text$)
-    columns: {}
-  event_bot:
-    filters:
-      excludes:
-        - re:^data
-        - re:^metadata
-      includes:
-        - re:^metadata__(utter_action|template_name|rasa_x_[a-z]+)$
-    columns: {}
-
   blocks:
     description: Ethereum blocks
     x-annotation: this will be preserved on save

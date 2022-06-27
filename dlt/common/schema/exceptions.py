@@ -24,16 +24,16 @@ class TablePropertiesClashException(SchemaException):
         super().__init__(f"Cannot merge partial tables for {table_name} due to property {prop_name}: {val1} != {val2}")
 
 
+class ParentTableNotFoundException(SchemaException):
+    def __init__(self, table_name: str, parent_table_name: str, explanation: str = "") -> None:
+        self.table_name = table_name
+        self.parent_table_name = parent_table_name
+        super().__init__(f"Parent table {parent_table_name} for {table_name} was not found in the schema.{explanation}")
+
+
 class CannotCoerceNullException(SchemaException):
     def __init__(self, table_name: str, column_name: str) -> None:
         super().__init__(f"Cannot coerce NULL in table {table_name} column {column_name} which is not nullable")
-
-
-class InvalidTableNameException(SchemaException):
-    def __init__(self, schema_name: str, table_name: str) -> None:
-        self.schema_name = schema_name
-        self.table_name = table_name
-        super().__init__(f"All table names must start with '{schema_name}' so {table_name} is invalid")
 
 
 class SchemaCorruptedException(SchemaException):

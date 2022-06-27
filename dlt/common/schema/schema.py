@@ -8,7 +8,8 @@ from dlt.common.normalizers.names import TNormalizeBreakPath, TNormalizeMakePath
 from dlt.common.normalizers.json import TNormalizeJSONFunc
 from dlt.common.schema.typing import TNormalizersConfig, TPartialTable, TSchemaSettings, TSimpleRegex, TStoredSchema, TSchemaTables, TTable, TTableColumns, TColumn, TColumnProp, TDataType, THintType
 from dlt.common.schema import utils
-from dlt.common.schema.exceptions import CannotCoerceColumnException, CannotCoerceNullException, InvalidSchemaName, SchemaCorruptedException, TablePropertiesClashException
+from dlt.common.schema.exceptions import (CannotCoerceColumnException, CannotCoerceNullException, InvalidSchemaName,
+                                          ParentTableNotFoundException, SchemaCorruptedException, TablePropertiesClashException)
 from dlt.common.validation import validate_dict
 
 
@@ -144,6 +145,14 @@ class Schema:
 
     def update_schema(self, partial_table: TPartialTable) -> None:
         table_name = partial_table["name"]
+        parent_table_name = partial_table.get("parent")
+        # check if parent table present
+        if parent_table_name is not None:
+            if self._schema_tables.get(parent_table_name) is None:
+                raise ParentTableNotFoundException(
+                    table_name, parent_table_name,
+                    f" This may be due to misconfigured excludes filter that fully deletes content of the {parent_table_name}. Add includes that will preserve the parent table."
+                    )
         table = self._schema_tables.get(table_name)
         if table is None:
             # add the whole new table to SchemaTables

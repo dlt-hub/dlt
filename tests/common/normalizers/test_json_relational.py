@@ -85,7 +85,6 @@ def test_preserve_complex_value_with_hint(schema: Schema) -> None:
     assert "value__complex" not in flattened_row
 
 
-
 def test_child_table_linking(schema: Schema) -> None:
     row = {
         "f": [{
@@ -179,11 +178,76 @@ def test_yields_parents_first(schema: Schema) -> None:
             "l": ["a", "b", "c"],
             "v": 120,
             "o": [{"a": 1}, {"a": 2}]
+        }],
+        "g": [{
+            "id": "level2_g",
+            "l": ["a"]
         }]
     }
     rows = list(_normalize_row(schema, row, {}, "table"))
     tables = list(r[0][0] for r in rows)
-    assert ['table', 'table__f', 'table__f__l', 'table__f__l', 'table__f__l', 'table__f__o', 'table__f__o'] == tables
+    # child tables are always yielded before parent tables
+    expected_tables = ['table', 'table__f', 'table__f__l', 'table__f__l', 'table__f__l', 'table__f__o', 'table__f__o', 'table__g', 'table__g__l']
+    assert expected_tables == tables
+
+
+def test_yields_parent_relation(schema: Schema) -> None:
+    row = {
+        "id": "level0",
+        "f": [{
+            "id": "level1",
+            "l": ["a"],
+            "o": [{"a": 1}],
+            "b": {
+                "a": [ {"id": "level5"}],
+            }
+        }],
+        "d": {
+            "a": [ {"id": "level4"}],
+            "b": {
+                "a": [ {"id": "level5"}],
+            },
+            "c": "x"
+        },
+        "e": [{
+            "o": [{"a": 1}],
+            "b": {
+                "a": [ {"id": "level5"}],
+            }
+        }]
+    }
+    rows = list(_normalize_row(schema, row, {}, "table"))
+    # normalizer must return parent table first and move in order of the list elements when yielding child tables
+    # the yielding order if fully defined
+    expected_parents = [
+        ("table", None),
+        ("table__f", "table"),
+        ("table__f__l", "table__f"),
+        ("table__f__o", "table__f"),
+        # "table__f__b" is not yielded as it is fully flattened into table__f
+        ("table__f__b__a", "table__f"),
+        # same for table__d -> fully flattened into table
+        ("table__d__a", "table"),
+        ("table__d__b__a", "table"),
+        # table__e is yielded it however only contains linking information
+        ("table__e", "table"),
+        ("table__e__o", "table__e"),
+        ("table__e__b__a", "table__e")
+    ]
+    parents = list(r[0] for r in rows)
+    assert parents == expected_parents
+
+    # make sure that table__e is just linking
+    table__e = [r[1] for r in rows if r[0][0] == "table__e"]
+    assert all(not f.startswith("_dlt") for f in table__e.values()) is True
+
+    # check if linking is correct when not directly derived
+    table__e__b__a = [r[1] for r in rows if r[0][0] == "table__e__b__a"]
+    assert table__e__b__a["_dlt_parent_id"] == table__e["__dlt_id"]
+
+    table__f = [r[1] for r in rows if r[0][0] == "table__f"]
+    table__f__b__a = [r[1] for r in rows if r[0][0] == "table__f__b__a"]
+    assert table__f__b__a["_dlt_parent_id"] == table__f["__dlt_id"]
 
 
 def test_child_table_linking_compound_primary_key(schema: Schema) -> None:

@@ -37,7 +37,7 @@ settings:
     foreign_key:
     - re:^_dlt_parent_id$
     sort:
-    - re:^timestamp$
+    - re:timestamp
     unique:
     - re:^_dlt_id$
   preferred_types:
