@@ -1,9 +1,7 @@
 from typing import Type
 
 from dlt.common.typing import StrAny
-from dlt.common.configuration.pool_runner_configuration import TPoolType
 from dlt.common.dataset_writers import TWriterType
-
 from dlt.common.configuration import (PoolRunnerConfiguration, UnpackingVolumeConfiguration,
                                               LoadingVolumeConfiguration, SchemaVolumeConfiguration,
                                               ProductionLoadingVolumeConfiguration, ProductionUnpackingVolumeConfiguration,

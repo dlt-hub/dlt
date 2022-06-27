@@ -254,7 +254,7 @@ class RedshiftClient(SqlClientMixin, SqlClientBase):
         if v == "NO":
             return False
         elif v == "YES":
-            return True;
+            return True
         raise ValueError(v)
 
     @staticmethod

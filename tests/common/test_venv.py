@@ -100,7 +100,7 @@ raise Exception("always raises")
         with pytest.raises(CalledProcessError) as cpe:
             venv.run_command("python", "-c", script)
         assert cpe.value.returncode == 1
-        assert b"always raises" in cpe.value.stdout
+        assert "always raises" in cpe.value.stdout
 
 
 def test_run_module() -> None:
@@ -113,7 +113,7 @@ def test_run_module() -> None:
         with pytest.raises(CalledProcessError) as cpe:
             venv.run_module("blip")
         assert cpe.value.returncode == 1
-        assert b"blip" in cpe.value.stdout
+        assert "blip" in cpe.value.stdout
 
         # call module with wrong params
         with pytest.raises(CalledProcessError) as cpe:
@@ -154,7 +154,7 @@ def test_run_script() -> None:
         with pytest.raises(CalledProcessError) as cpe:
             venv.run_script("tests/common/scripts/raises.py")
         assert cpe.value.returncode == 1
-        assert b"always raises" in cpe.value.stdout
+        assert "always raises" in cpe.value.stdout
 
 
 def test_create_over_venv() -> None:
@@ -172,20 +172,20 @@ def test_create_over_venv() -> None:
 
 def test_start_command() -> None:
     with Venv.create(tempfile.mkdtemp()) as venv:
-        process = venv.start_command("pip", "freeze", "--all", stdout=PIPE)
+        process = venv.start_command("pip", "freeze", "--all", stdout=PIPE, text=True)
         assert process.wait() == 0
-        assert b"pip" in process.stdout.read()
+        assert "pip" in process.stdout.read()
 
         # custom environ
         with custom_environ({"_CUSTOM_ENV_VALUE": "uniq"}):
-            process = venv.start_command("python", "tests/common/scripts/environ.py", stdout=PIPE)
+            process = venv.start_command("python", "tests/common/scripts/environ.py", stdout=PIPE, text=True)
             assert process.wait() == 0
-            assert b"_CUSTOM_ENV_VALUE" in process.stdout.read()
+            assert "_CUSTOM_ENV_VALUE" in process.stdout.read()
 
         # command not found
         with pytest.raises(FileNotFoundError):
-            venv.start_command("blip", "freeze", "--all", stdout=PIPE)
+            venv.start_command("blip", "freeze", "--all", stdout=PIPE, text=True)
 
         # command exit code
-        process = venv.start_command("pip", "wrong_command", stdout=PIPE)
+        process = venv.start_command("pip", "wrong_command", stdout=PIPE, text=True)
         assert process.wait() == 1

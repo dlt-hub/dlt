@@ -27,7 +27,7 @@ class Venv():
             b.create(os.path.abspath(venv_dir))
             if dependencies:
                 Venv._install_deps(b.context, dependencies)
-        except:
+        except Exception:
             if os.path.isdir(venv_dir):
                 shutil.rmtree(venv_dir)
             raise
@@ -60,13 +60,13 @@ class Venv():
         # runs one of installed entry points typically CLIS coming with packages and installed into PATH
         command = os.path.join(self.context.bin_path, entry_point)
         cmd = [command, *script_args]
-        return subprocess.check_output(cmd, stderr=subprocess.STDOUT).decode("utf-8")
+        return subprocess.check_output(cmd, stderr=subprocess.STDOUT, text=True)
 
     def run_script(self, script_path: str, *script_args: Any) -> str:
         # os.environ is passed to executed process
         cmd = [self.context.env_exe, "-I", os.path.abspath(script_path), *script_args]
         try:
-            return subprocess.check_output(cmd, stderr=subprocess.STDOUT).decode("utf-8")
+            return subprocess.check_output(cmd, stderr=subprocess.STDOUT, text=True)
         except subprocess.CalledProcessError as cpe:
             if cpe.returncode == 2:
                 raise FileNotFoundError(script_path)
@@ -75,7 +75,7 @@ class Venv():
 
     def run_module(self, module: str, *module_args: Any) -> str:
         cmd = [self.context.env_exe, "-Im", module, *module_args]
-        return subprocess.check_output(cmd, stderr=subprocess.STDOUT).decode("utf-8")
+        return subprocess.check_output(cmd, stderr=subprocess.STDOUT, text=True)
 
     def add_dependencies(self, dependencies: List[str] = None) -> None:
         Venv._install_deps(self.context, dependencies)

@@ -148,14 +148,13 @@ def run_pool(C: Type[PoolRunnerConfiguration], run_f: Callable[[TPool], TRunMetr
 
             # exit due to exception and flag
             if run_metrics.has_failed and C.EXIT_ON_EXCEPTION:
-                logger.warning(f"Exiting runner due to EXIT_ON_EXCEPTION flag set")
+                logger.warning("Exiting runner due to EXIT_ON_EXCEPTION flag set")
                 return -1
 
             # single run may be forced but at least wait_runs must pass
-            if RUN_ARGS.single_run and (health_props["runs_count"] >= RUN_ARGS.wait_runs and
-                # and was all the time idle or (was not idle but now pending is 0)
-                (health_props["runs_not_idle_count"] == 0 or run_metrics.pending_items == 0)):
-                logger.warning(f"Stopping runner due to single run override")
+            # and was all the time idle or (was not idle but now pending is 0)
+            if RUN_ARGS.single_run and (health_props["runs_count"] >= RUN_ARGS.wait_runs and (health_props["runs_not_idle_count"] == 0 or run_metrics.pending_items == 0)):
+                logger.warning("Stopping runner due to single run override")
                 return 0
 
             if run_metrics.has_failed:

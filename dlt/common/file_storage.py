@@ -30,7 +30,8 @@ class FileStorage:
             f.write(data)
         try:
             dest_path = os.path.join(storage_path, relative_path)
-            os.rename(tmp_path, dest_path)
+            # os.rename reverts to os.replace on posix. on windows this operation is not atomic!
+            os.replace(tmp_path, dest_path)
             return dest_path
         except Exception:
             if os.path.isfile(tmp_path):
@@ -132,4 +133,3 @@ class FileStorage:
 
     def _make_path(self, relative_path: str) -> str:
         return os.path.join(self.storage_path, relative_path)
-

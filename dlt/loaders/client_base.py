@@ -128,9 +128,9 @@ class SqlClientBase(ClientBase):
 
     def _create_table_update(self, table_name: str, storage_table: TTableColumns) -> Sequence[TColumn]:
         # compare table with stored schema and produce delta
-        l = self.schema.get_schema_update_for(table_name, storage_table)
-        logger.info(f"Found {len(l)} updates for {table_name} in {self.schema.schema_name}")
-        return l
+        updates = self.schema.get_schema_update_for(table_name, storage_table)
+        logger.info(f"Found {len(updates)} updates for {table_name} in {self.schema.schema_name}")
+        return updates
 
     def _to_canonical_table_name(self, table_name: str) -> str:
         return f"{self._to_canonical_schema_name()}.{table_name}"

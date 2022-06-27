@@ -121,8 +121,8 @@ def _get_key_value(key: str, hint: Type[Any]) -> Optional[str]:
             environ[key] = secret.strip()
             # do not strip returned secret
             return secret
-
-        except FileNotFoundError:
+        # includes FileNotFound
+        except OSError:
             pass
     return environ.get(key, None)
 

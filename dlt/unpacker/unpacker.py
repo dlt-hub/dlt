@@ -166,7 +166,7 @@ def spool_files(pool: ProcessPool, schema_name: str, load_id: str, map_f: TMapFu
     load_storage.save_schema_updates(load_id, schema_updates)
     # files must be renamed and deleted together so do not attempt that when process is about to be terminated
     signals.raise_if_signalled()
-    logger.info(f"Committing storage, do not kill this process")
+    logger.info("Committing storage, do not kill this process")
     # rename temp folder to processing
     load_storage.commit_temp_load_folder(load_id)
     # delete event files and count events to provide metrics
@@ -203,7 +203,7 @@ def spool_schema_files(pool: ProcessPool, schema_name: str, files: Sequence[str]
 
 
 def unpack(pool: ProcessPool) -> TRunMetrics:
-    logger.info(f"Running file unpacking")
+    logger.info("Running file unpacking")
     # list files and group by schema name, list must be sorted for group by to actually work
     files = unpack_storage.list_files_to_unpack_sorted()
     logger.info(f"Found {len(files)} files, will process in chunks of {CONFIG.MAX_EVENTS_IN_CHUNK} of events")

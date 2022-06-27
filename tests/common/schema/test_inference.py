@@ -149,7 +149,6 @@ def test_coerce_complex_variant(schema: Schema) -> None:
     # create two columns to which complex type cannot be coerced
     row = {"floatX": 78172.128, "confidenceX": 1.2, "strX": "STR"}
     new_row, new_table = schema.coerce_row("event_user", None, row)
-    new_columns = list(new_table["columns"].values())
     assert new_row == row
     schema.update_schema(new_table)
 

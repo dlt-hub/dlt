@@ -1,3 +1,4 @@
+import functools
 from .pendulum import pendulum  # noqa: F401
 from .json import json  # noqa: F401, I251
 from .time import sleep   # noqa: F401

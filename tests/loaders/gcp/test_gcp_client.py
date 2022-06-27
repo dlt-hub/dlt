@@ -70,7 +70,7 @@ def test_get_update_basic_schema(gcp_client: BigQueryClient) -> None:
     assert version == 1
     # check if tables are present and identical
     exists, version_storage_table = gcp_client._get_storage_table(Schema.VERSION_TABLE_NAME)
-    version_schema_table = gcp_client._get_table_by_name(Schema.VERSION_TABLE_NAME, "");
+    version_schema_table = gcp_client._get_table_by_name(Schema.VERSION_TABLE_NAME, "")
     assert exists is True
     # schema version must be contained in storage version (schema may not have all hints)
     assert version_schema_table.keys() == version_storage_table.keys()
@@ -87,7 +87,7 @@ def test_complete_load(gcp_client: BigQueryClient) -> None:
     assert len(load_rows) == 1
     assert load_rows[0][0] == load_id
     assert load_rows[0][1] == 0
-    import datetime
+    import datetime  # noqa: I251
     assert type(load_rows[0][2]) is datetime.datetime
     gcp_client.complete_load("load2")
     load_rows = list(gcp_client._execute_sql(f"SELECT * FROM {load_table}"))
