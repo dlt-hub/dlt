@@ -13,7 +13,7 @@ from dlt.common.normalizers.names import TNormalizeNameFunc
 from dlt.common.typing import DictStrAny, REPattern
 from dlt.common.validation import TCustomValidator, validate_dict
 from dlt.common.schema.typing import SIMPLE_REGEX_PREFIX, TColumnName, TSimpleRegex, TStoredSchema, TTable, TTableColumns, TColumnBase, TColumn, TColumnProp, TDataType, THintType
-from dlt.common.schema.exceptions import SchemaEngineNoUpgradePathException
+from dlt.common.schema.exceptions import ParentTableNotFoundException, SchemaEngineNoUpgradePathException
 
 
 RE_LEADING_DIGITS = re.compile(r"^\d+")
@@ -107,8 +107,14 @@ def compile_simple_regex(r: TSimpleRegex) -> REPattern:
 
 
 def validate_stored_schema(stored_schema: TStoredSchema) -> None:
-    # verify only non extra fields
+    # use lambda to verify only non extra fields
     validate_dict(TStoredSchema, stored_schema, ".", lambda k: not k.startswith("x-"), simple_regex_validator)
+    # check child parent relationships
+    for table_name, table in stored_schema["tables"].items():
+        parent_table_name = table.get("parent")
+        if parent_table_name:
+            if parent_table_name not in stored_schema["tables"]:
+                raise ParentTableNotFoundException(table_name, parent_table_name)
 
 
 def upgrade_engine_version(schema_dict: DictStrAny, from_engine: int, to_engine: int) -> TStoredSchema:

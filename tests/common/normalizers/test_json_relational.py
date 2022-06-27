@@ -238,16 +238,17 @@ def test_yields_parent_relation(schema: Schema) -> None:
     assert parents == expected_parents
 
     # make sure that table__e is just linking
-    table__e = [r[1] for r in rows if r[0][0] == "table__e"]
-    assert all(not f.startswith("_dlt") for f in table__e.values()) is True
+    table__e = [r[1] for r in rows if r[0][0] == "table__e"][0]
+    print(table__e)
+    assert all(f.startswith("_dlt") for f in table__e.keys()) is True
 
     # check if linking is correct when not directly derived
-    table__e__b__a = [r[1] for r in rows if r[0][0] == "table__e__b__a"]
-    assert table__e__b__a["_dlt_parent_id"] == table__e["__dlt_id"]
+    table__e__b__a = [r[1] for r in rows if r[0][0] == "table__e__b__a"][0]
+    assert table__e__b__a["_dlt_parent_id"] == table__e["_dlt_id"]
 
-    table__f = [r[1] for r in rows if r[0][0] == "table__f"]
-    table__f__b__a = [r[1] for r in rows if r[0][0] == "table__f__b__a"]
-    assert table__f__b__a["_dlt_parent_id"] == table__f["__dlt_id"]
+    table__f = [r[1] for r in rows if r[0][0] == "table__f"][0]
+    table__f__b__a = [r[1] for r in rows if r[0][0] == "table__f__b__a"][0]
+    assert table__f__b__a["_dlt_parent_id"] == table__f["_dlt_id"]
 
 
 def test_child_table_linking_compound_primary_key(schema: Schema) -> None:

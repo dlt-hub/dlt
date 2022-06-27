@@ -2,16 +2,18 @@ from typing import List, Sequence
 import pytest
 import os
 
+from yaml import load
+
 from dlt.common import pendulum
 from dlt.common.exceptions import DictValidationException
 from dlt.common.schema.typing import TColumnName, TSimpleRegex
 from dlt.common.typing import DictStrAny, StrAny
 from dlt.common.utils import uniq_id
 from dlt.common.schema import TColumn, Schema, TStoredSchema, utils
-from dlt.common.schema.exceptions import InvalidSchemaName, SchemaEngineNoUpgradePathException
+from dlt.common.schema.exceptions import InvalidSchemaName, ParentTableNotFoundException, SchemaEngineNoUpgradePathException
 from dlt.common.storages import SchemaStorage
 
-from tests.common.utils import load_json_case
+from tests.common.utils import load_json_case, load_yml_case
 
 from tests.utils import TEST_STORAGE
 
@@ -77,6 +79,13 @@ def test_simple_regex_validator() -> None:
     # expected str as base type
     with pytest.raises(DictValidationException):
         utils.simple_regex_validator(".", "k", 1, TSimpleRegex)
+
+
+def test_load_corrupted_schema() -> None:
+    eth_v2: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v3")
+    del eth_v2["tables"]["blocks"]
+    with pytest.raises(ParentTableNotFoundException):
+        utils.validate_stored_schema(eth_v2)
 
 
 def test_column_name_validator(schema: Schema) -> None:
@@ -163,7 +172,13 @@ def test_upgrade_engine_v1_schema() -> None:
     upgraded = utils.upgrade_engine_version(schema_dict, from_engine=2, to_engine=3)
     assert upgraded["engine_version"] == 3
     utils.validate_stored_schema(upgraded)
-    # schema = Schema.from_dict(upgraded)
+
+    # upgrade 1 -> 3
+    schema_dict: DictStrAny = load_json_case("schemas/ev1/event_schema")
+    assert schema_dict["engine_version"] == 1
+    upgraded = utils.upgrade_engine_version(schema_dict, from_engine=1, to_engine=3)
+    assert upgraded["engine_version"] == 3
+    utils.validate_stored_schema(upgraded)
 
 
 def test_unknown_engine_upgrade() -> None:
