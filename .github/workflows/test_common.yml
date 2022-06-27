@@ -11,7 +11,14 @@ jobs:
 
   run_lint:
     name: Tests common dlt code
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ["ubuntu-latest", "macos-latest", "windows-latest"]
+    defaults:
+      run:
+        shell: bash
+    runs-on: ${{ matrix.os }}
 
     steps:
 
@@ -24,6 +31,7 @@ jobs:
           python-version: "3.9.x"
 
       - name: Install Poetry
+        # https://github.com/snok/install-poetry#running-on-windows
         uses: snok/install-poetry@v1
         with:
           virtualenvs-create: true
@@ -34,8 +42,9 @@ jobs:
         id: cached-poetry-dependencies
         uses: actions/cache@v2
         with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
+          # For some reason, caching your venv does not seem to work as expected on Windows runners. You can see an example of what happens here, where a workflow stalls and runs for over 3 hours before it was manually cancelled.
+          path: ~/.cache
+          key: cache-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
 
       - name: Install dependencies
         if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
