@@ -1,9 +1,9 @@
 
 from dataclasses import dataclass
-from typing import Callable, Dict, Iterable, Iterator, List, Literal, Sequence, Tuple, TypeVar, Union, Generic
+from typing import Literal
 from dlt.common import json
 
-from dlt.common.typing import DictStrAny, StrAny
+from dlt.common.typing import StrAny
 from dlt.common.configuration.utils import TConfigSecret
 
 TLoaderType = Literal["gcp", "redshift"]

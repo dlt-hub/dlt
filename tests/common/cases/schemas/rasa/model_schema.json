@@ -1,54 +1,78 @@
 {
-    "tables": {
-        "_version": {
-            "version": {
-                "name": "version",
-                "data_type": "bigint",
-                "nullable": false
-            },
-            "engine_version": {
-                "name": "engine_version",
-                "data_type": "bigint",
-                "nullable": false
-            },
-            "inserted_at": {
-                "name": "inserted_at",
-                "data_type": "timestamp",
-                "nullable": false
-            }
+  "version": 1,
+  "engine_version": 3,
+  "name": "model",
+  "tables": {
+    "_dlt_version": {
+      "columns": {
+        "version": {
+          "data_type": "bigint",
+          "nullable": false
         },
-        "_loads": {
-            "load_id": {
-                "name": "load_id",
-                "data_type": "text",
-                "nullable": false
-            },
-            "status": {
-                "name": "status",
-                "data_type": "bigint",
-                "nullable": false
-            },
-            "inserted_at": {
-                "name": "inserted_at",
-                "data_type": "timestamp",
-                "nullable": false
-            }
+        "engine_version": {
+          "data_type": "bigint",
+          "nullable": false
+        },
+        "inserted_at": {
+          "data_type": "timestamp",
+          "nullable": false
         }
+      },
+      "write_disposition": "append"
     },
-    "version": 1,
-    "engine_version": 2,
-    "name": "model",
+    "_dlt_loads": {
+      "columns": {
+        "load_id": {
+          "data_type": "text",
+          "nullable": false
+        },
+        "status": {
+          "data_type": "bigint",
+          "nullable": false
+        },
+        "inserted_at": {
+          "data_type": "timestamp",
+          "nullable": false
+        }
+      },
+      "write_disposition": "append"
+    }
+  },
+  "settings": {
+    "default_hints": {
+      "not_null": [
+        "re:^timestamp$",
+        "re:^_dlt_id$",
+        "re:^_dlt_root_id$",
+        "re:^_dlt_load_id$",
+        "re:^_dlt_parent_id$",
+        "re:^_dlt_list_idx$"
+      ],
+      "unique": [
+        "re:^_dlt_id$"
+      ],
+      "foreign_key": [
+        "re:^_dlt_parent_id$"
+      ]
+    },
     "preferred_types": {
-        "^timestamp$": "timestamp",
-        "trained_at$": "timestamp",
-        "^inserted_at$": "timestamp",
-        "^_pos$": "bigint"
-    },
-    "hints": {
-        "not_null": ["^timestamp$", "^_record_hash$", "^_root_hash$", "^_load_id$", "^_parent_hash$", "^_pos$"],
-        "unique": ["^_record_hash$"],
-        "foreign_key": ["^_parent_hash$"]
-    },
-    "excludes": [],
-    "includes": []
+      "re:^timestamp$": "timestamp",
+      "re:trained_at$": "timestamp",
+      "re:^inserted_at$": "timestamp",
+      "re:^_dlt_list_idx$": "bigint"
+    }
+  },
+  "normalizers": {
+    "names": "dlt.common.normalizers.names.snake_case",
+    "json": {
+      "module": "dlt.common.normalizers.json.relational",
+      "config": {
+        "propagation": {
+          "root": {
+            "_dlt_id": "_dlt_root_id"
+          }
+        }
+      }
+    }
+  }
 }

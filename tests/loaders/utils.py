@@ -2,13 +2,14 @@ from typing import List, cast
 
 from dlt.common import json, Decimal
 from dlt.common.file_storage import FileStorage
-from dlt.common.schema import Column, Table
+from dlt.common.schema import TColumn, TTableColumns
+from dlt.common.schema.utils import new_table
 from dlt.common.time import sleep
 from dlt.common.utils import uniq_id
 from dlt.loaders.client_base import ClientBase
 
 
-TABLE_UPDATE: List[Column] = [
+TABLE_UPDATE: List[TColumn] = [
     {
         "name": "col1",
         "data_type": "bigint",
@@ -48,7 +49,12 @@ TABLE_UPDATE: List[Column] = [
         "name": "col8",
         "data_type": "wei",
         "nullable": True
-    }
+    },
+    {
+        "name": "col9",
+        "data_type": "complex",
+        "nullable": False
+    },
 ]
 
 TABLE_ROW = {
@@ -59,12 +65,13 @@ TABLE_ROW = {
     "col5": "string data",
     "col6": Decimal("2323.34"),
     "col7": b'binary data',
-    "col8": 2**56 + 92093890840
+    "col8": 2**56 + 92093890840,
+    "col9": "{complex: [1,2,3]}"
 }
 
-def load_table(name: str) -> Table:
+def load_table(name: str) -> TTableColumns:
     with open(f"./tests/loaders/cases/{name}.json", "tr") as f:
-        return cast(Table, json.load(f))
+        return cast(TTableColumns, json.load(f))
 
 
 def expect_load_file(client: ClientBase, file_storage: FileStorage, query: str, table_name: str) -> None:
@@ -82,6 +89,6 @@ def prepare_event_user_table(client: ClientBase) -> None:
     client.update_storage_schema()
     user_table = load_table("event_user")["event_user"]
     user_table_name = "event_user_" + uniq_id()
-    client.schema.update_schema(user_table_name, user_table.values())
+    client.schema.update_schema(new_table(user_table_name, columns=user_table.values()))
     client.update_storage_schema()
     return user_table_name

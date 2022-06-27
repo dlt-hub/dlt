@@ -1,43 +1,57 @@
-tables:
-  _version:
-    version:
-      data_type: bigint
-      nullable: false
-    engine_version:
-      data_type: bigint
-      nullable: false
-    inserted_at:
-      data_type: timestamp
-      nullable: false
-  _loads:
-    load_id:
-      data_type: text
-      nullable: false
-    status:
-      data_type: bigint
-      nullable: false
-    inserted_at:
-      data_type: timestamp
-      nullable: false
-name: hubspot
 version: 1
-preferred_types:
-  timestamp: timestamp
-  ^inserted_at$: timestamp
-  ^created_at$: timestamp
-  ^updated_at$: timestamp
-  ^_pos$: bigint
-hints:
-  not_null:
-  - ^_record_hash$
-  - ^_root_hash$
-  - ^_load_id$
-  - ^_parent_hash$
-  - ^_pos$
-  foreign_key:
-  - ^_parent_hash$
-  sort:
-  - ^timestamp$
-  unique:
-  - ^_record_hash$
-engine_version: 2
+engine_version: 3
+name: hubspot
+tables:
+  _dlt_version:
+    columns:
+      version:
+        data_type: bigint
+        nullable: false
+      engine_version:
+        data_type: bigint
+        nullable: false
+      inserted_at:
+        data_type: timestamp
+        nullable: false
+    write_disposition: append
+  _dlt_loads:
+    columns:
+      load_id:
+        data_type: text
+        nullable: false
+      status:
+        data_type: bigint
+        nullable: false
+      inserted_at:
+        data_type: timestamp
+        nullable: false
+    write_disposition: append
+settings:
+  default_hints:
+    not_null:
+    - re:^_dlt_id$
+    - re:^_dlt_root_id$
+    - re:^_dlt_load_id$
+    - re:^_dlt_parent_id$
+    - re:^_dlt_list_idx$
+    foreign_key:
+    - re:^_dlt_parent_id$
+    sort:
+    - re:timestamp
+    unique:
+    - re:^_dlt_id$
+  preferred_types:
+    re:timestamp: timestamp
+    re:^inserted_at$: timestamp
+    re:^created_at$: timestamp
+    re:^updated_at$: timestamp
+    re:^_dlt_list_idx$: bigint
+normalizers:
+  names: dlt.common.normalizers.names.snake_case
+  json:
+    module: dlt.common.normalizers.json.relational
+    config:
+      propagation:
+        root:
+          _dlt_id: _dlt_root_id
+

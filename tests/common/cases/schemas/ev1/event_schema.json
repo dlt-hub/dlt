@@ -1,6 +1,6 @@
 {
   "tables": {
-    "_version": {
+    "_dlt_version": {
       "version": {
         "name": "version",
         "data_type": "bigint",
@@ -17,7 +17,7 @@
         "nullable": false
       }
     },
-    "_loads": {
+    "_dlt_loads": {
       "load_id": {
         "name": "load_id",
         "data_type": "text",
@@ -90,8 +90,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_record_hash": {
-        "name": "_record_hash",
+      "_dlt_id": {
+        "name": "_dlt_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -101,8 +101,8 @@
         "primary_key": true,
         "foreign_key": false
       },
-      "_load_id": {
-        "name": "_load_id",
+      "_dlt_load_id": {
+        "name": "_dlt_load_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -112,8 +112,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_root_hash": {
-        "name": "_root_hash",
+      "_dlt_root_id": {
+        "name": "_dlt_root_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -257,8 +257,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_load_id": {
-        "name": "_load_id",
+      "_dlt_load_id": {
+        "name": "_dlt_load_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -268,8 +268,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_root_hash": {
-        "name": "_root_hash",
+      "_dlt_root_id": {
+        "name": "_dlt_root_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -279,8 +279,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_record_hash": {
-        "name": "_record_hash",
+      "_dlt_id": {
+        "name": "_dlt_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -424,8 +424,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_load_id": {
-        "name": "_load_id",
+      "_dlt_load_id": {
+        "name": "_dlt_load_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -435,8 +435,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_root_hash": {
-        "name": "_root_hash",
+      "_dlt_root_id": {
+        "name": "_dlt_root_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -446,8 +446,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_record_hash": {
-        "name": "_record_hash",
+      "_dlt_id": {
+        "name": "_dlt_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -558,8 +558,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_load_id": {
-        "name": "_load_id",
+      "_dlt_load_id": {
+        "name": "_dlt_load_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -569,8 +569,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_root_hash": {
-        "name": "_root_hash",
+      "_dlt_root_id": {
+        "name": "_dlt_root_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -580,8 +580,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_record_hash": {
-        "name": "_record_hash",
+      "_dlt_id": {
+        "name": "_dlt_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -615,8 +615,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_record_hash": {
-        "name": "_record_hash",
+      "_dlt_id": {
+        "name": "_dlt_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -626,8 +626,8 @@
         "primary_key": true,
         "foreign_key": false
       },
-      "_root_hash": {
-        "name": "_root_hash",
+      "_dlt_root_id": {
+        "name": "_dlt_root_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -659,8 +659,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_parent_hash": {
-        "name": "_parent_hash",
+      "_dlt_parent_id": {
+        "name": "_dlt_parent_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -670,8 +670,8 @@
         "primary_key": false,
         "foreign_key": true
       },
-      "_pos": {
-        "name": "_pos",
+      "_dlt_list_idx": {
+        "name": "_dlt_list_idx",
         "data_type": "bigint",
         "nullable": false,
         "partition": false,
@@ -903,8 +903,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_load_id": {
-        "name": "_load_id",
+      "_dlt_load_id": {
+        "name": "_dlt_load_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -914,8 +914,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_root_hash": {
-        "name": "_root_hash",
+      "_dlt_root_id": {
+        "name": "_dlt_root_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -925,8 +925,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_record_hash": {
-        "name": "_record_hash",
+      "_dlt_id": {
+        "name": "_dlt_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -1213,8 +1213,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_load_id": {
-        "name": "_load_id",
+      "_dlt_load_id": {
+        "name": "_dlt_load_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -1224,8 +1224,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_root_hash": {
-        "name": "_root_hash",
+      "_dlt_root_id": {
+        "name": "_dlt_root_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -1235,8 +1235,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_record_hash": {
-        "name": "_record_hash",
+      "_dlt_id": {
+        "name": "_dlt_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -1358,8 +1358,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_load_id": {
-        "name": "_load_id",
+      "_dlt_load_id": {
+        "name": "_dlt_load_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -1369,8 +1369,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_root_hash": {
-        "name": "_root_hash",
+      "_dlt_root_id": {
+        "name": "_dlt_root_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -1380,8 +1380,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_record_hash": {
-        "name": "_record_hash",
+      "_dlt_id": {
+        "name": "_dlt_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -1492,8 +1492,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_load_id": {
-        "name": "_load_id",
+      "_dlt_load_id": {
+        "name": "_dlt_load_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -1503,8 +1503,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_root_hash": {
-        "name": "_root_hash",
+      "_dlt_root_id": {
+        "name": "_dlt_root_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -1514,8 +1514,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_record_hash": {
-        "name": "_record_hash",
+      "_dlt_id": {
+        "name": "_dlt_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -1681,8 +1681,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_record_hash": {
-        "name": "_record_hash",
+      "_dlt_id": {
+        "name": "_dlt_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -1692,8 +1692,8 @@
         "primary_key": true,
         "foreign_key": false
       },
-      "_root_hash": {
-        "name": "_root_hash",
+      "_dlt_root_id": {
+        "name": "_dlt_root_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -1725,8 +1725,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_parent_hash": {
-        "name": "_parent_hash",
+      "_dlt_parent_id": {
+        "name": "_dlt_parent_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -1736,8 +1736,8 @@
         "primary_key": false,
         "foreign_key": true
       },
-      "_pos": {
-        "name": "_pos",
+      "_dlt_list_idx": {
+        "name": "_dlt_list_idx",
         "data_type": "bigint",
         "nullable": false,
         "partition": false,
@@ -1870,8 +1870,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_load_id": {
-        "name": "_load_id",
+      "_dlt_load_id": {
+        "name": "_dlt_load_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -1881,8 +1881,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_root_hash": {
-        "name": "_root_hash",
+      "_dlt_root_id": {
+        "name": "_dlt_root_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -1892,8 +1892,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_record_hash": {
-        "name": "_record_hash",
+      "_dlt_id": {
+        "name": "_dlt_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -1916,8 +1916,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_record_hash": {
-        "name": "_record_hash",
+      "_dlt_id": {
+        "name": "_dlt_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -1927,8 +1927,8 @@
         "primary_key": true,
         "foreign_key": false
       },
-      "_root_hash": {
-        "name": "_root_hash",
+      "_dlt_root_id": {
+        "name": "_dlt_root_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -1960,8 +1960,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_parent_hash": {
-        "name": "_parent_hash",
+      "_dlt_parent_id": {
+        "name": "_dlt_parent_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -1971,8 +1971,8 @@
         "primary_key": false,
         "foreign_key": true
       },
-      "_pos": {
-        "name": "_pos",
+      "_dlt_list_idx": {
+        "name": "_dlt_list_idx",
         "data_type": "bigint",
         "nullable": false,
         "partition": false,
@@ -1995,8 +1995,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_record_hash": {
-        "name": "_record_hash",
+      "_dlt_id": {
+        "name": "_dlt_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -2006,8 +2006,8 @@
         "primary_key": true,
         "foreign_key": false
       },
-      "_root_hash": {
-        "name": "_root_hash",
+      "_dlt_root_id": {
+        "name": "_dlt_root_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -2039,8 +2039,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_parent_hash": {
-        "name": "_parent_hash",
+      "_dlt_parent_id": {
+        "name": "_dlt_parent_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -2050,8 +2050,8 @@
         "primary_key": false,
         "foreign_key": true
       },
-      "_pos": {
-        "name": "_pos",
+      "_dlt_list_idx": {
+        "name": "_dlt_list_idx",
         "data_type": "bigint",
         "nullable": false,
         "partition": false,
@@ -2074,8 +2074,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_record_hash": {
-        "name": "_record_hash",
+      "_dlt_id": {
+        "name": "_dlt_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -2085,8 +2085,8 @@
         "primary_key": true,
         "foreign_key": false
       },
-      "_root_hash": {
-        "name": "_root_hash",
+      "_dlt_root_id": {
+        "name": "_dlt_root_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -2118,8 +2118,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_parent_hash": {
-        "name": "_parent_hash",
+      "_dlt_parent_id": {
+        "name": "_dlt_parent_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -2129,8 +2129,8 @@
         "primary_key": false,
         "foreign_key": true
       },
-      "_pos": {
-        "name": "_pos",
+      "_dlt_list_idx": {
+        "name": "_dlt_list_idx",
         "data_type": "bigint",
         "nullable": false,
         "partition": false,
@@ -2175,8 +2175,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_record_hash": {
-        "name": "_record_hash",
+      "_dlt_id": {
+        "name": "_dlt_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -2186,8 +2186,8 @@
         "primary_key": true,
         "foreign_key": false
       },
-      "_root_hash": {
-        "name": "_root_hash",
+      "_dlt_root_id": {
+        "name": "_dlt_root_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -2219,8 +2219,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_parent_hash": {
-        "name": "_parent_hash",
+      "_dlt_parent_id": {
+        "name": "_dlt_parent_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -2230,8 +2230,8 @@
         "primary_key": false,
         "foreign_key": true
       },
-      "_pos": {
-        "name": "_pos",
+      "_dlt_list_idx": {
+        "name": "_dlt_list_idx",
         "data_type": "bigint",
         "nullable": false,
         "partition": false,
@@ -2254,8 +2254,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_record_hash": {
-        "name": "_record_hash",
+      "_dlt_id": {
+        "name": "_dlt_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -2265,8 +2265,8 @@
         "primary_key": true,
         "foreign_key": false
       },
-      "_root_hash": {
-        "name": "_root_hash",
+      "_dlt_root_id": {
+        "name": "_dlt_root_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -2298,8 +2298,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_parent_hash": {
-        "name": "_parent_hash",
+      "_dlt_parent_id": {
+        "name": "_dlt_parent_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -2309,8 +2309,8 @@
         "primary_key": false,
         "foreign_key": true
       },
-      "_pos": {
-        "name": "_pos",
+      "_dlt_list_idx": {
+        "name": "_dlt_list_idx",
         "data_type": "bigint",
         "nullable": false,
         "partition": false,
@@ -2333,8 +2333,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_record_hash": {
-        "name": "_record_hash",
+      "_dlt_id": {
+        "name": "_dlt_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -2344,8 +2344,8 @@
         "primary_key": true,
         "foreign_key": false
       },
-      "_root_hash": {
-        "name": "_root_hash",
+      "_dlt_root_id": {
+        "name": "_dlt_root_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -2377,8 +2377,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_parent_hash": {
-        "name": "_parent_hash",
+      "_dlt_parent_id": {
+        "name": "_dlt_parent_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -2388,8 +2388,8 @@
         "primary_key": false,
         "foreign_key": true
       },
-      "_pos": {
-        "name": "_pos",
+      "_dlt_list_idx": {
+        "name": "_dlt_list_idx",
         "data_type": "bigint",
         "nullable": false,
         "partition": false,
@@ -2434,8 +2434,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_record_hash": {
-        "name": "_record_hash",
+      "_dlt_id": {
+        "name": "_dlt_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -2445,8 +2445,8 @@
         "primary_key": true,
         "foreign_key": false
       },
-      "_root_hash": {
-        "name": "_root_hash",
+      "_dlt_root_id": {
+        "name": "_dlt_root_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -2478,8 +2478,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_parent_hash": {
-        "name": "_parent_hash",
+      "_dlt_parent_id": {
+        "name": "_dlt_parent_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -2489,8 +2489,8 @@
         "primary_key": false,
         "foreign_key": true
       },
-      "_pos": {
-        "name": "_pos",
+      "_dlt_list_idx": {
+        "name": "_dlt_list_idx",
         "data_type": "bigint",
         "nullable": false,
         "partition": false,
@@ -2513,8 +2513,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_record_hash": {
-        "name": "_record_hash",
+      "_dlt_id": {
+        "name": "_dlt_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -2524,8 +2524,8 @@
         "primary_key": true,
         "foreign_key": false
       },
-      "_root_hash": {
-        "name": "_root_hash",
+      "_dlt_root_id": {
+        "name": "_dlt_root_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -2557,8 +2557,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_parent_hash": {
-        "name": "_parent_hash",
+      "_dlt_parent_id": {
+        "name": "_dlt_parent_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -2568,8 +2568,8 @@
         "primary_key": false,
         "foreign_key": true
       },
-      "_pos": {
-        "name": "_pos",
+      "_dlt_list_idx": {
+        "name": "_dlt_list_idx",
         "data_type": "bigint",
         "nullable": false,
         "partition": false,
@@ -2592,8 +2592,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_record_hash": {
-        "name": "_record_hash",
+      "_dlt_id": {
+        "name": "_dlt_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -2603,8 +2603,8 @@
         "primary_key": true,
         "foreign_key": false
       },
-      "_root_hash": {
-        "name": "_root_hash",
+      "_dlt_root_id": {
+        "name": "_dlt_root_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -2636,8 +2636,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_parent_hash": {
-        "name": "_parent_hash",
+      "_dlt_parent_id": {
+        "name": "_dlt_parent_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -2647,8 +2647,8 @@
         "primary_key": false,
         "foreign_key": true
       },
-      "_pos": {
-        "name": "_pos",
+      "_dlt_list_idx": {
+        "name": "_dlt_list_idx",
         "data_type": "bigint",
         "nullable": false,
         "partition": false,
@@ -2693,8 +2693,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_record_hash": {
-        "name": "_record_hash",
+      "_dlt_id": {
+        "name": "_dlt_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -2704,8 +2704,8 @@
         "primary_key": true,
         "foreign_key": false
       },
-      "_root_hash": {
-        "name": "_root_hash",
+      "_dlt_root_id": {
+        "name": "_dlt_root_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -2737,8 +2737,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_parent_hash": {
-        "name": "_parent_hash",
+      "_dlt_parent_id": {
+        "name": "_dlt_parent_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -2748,8 +2748,8 @@
         "primary_key": false,
         "foreign_key": true
       },
-      "_pos": {
-        "name": "_pos",
+      "_dlt_list_idx": {
+        "name": "_dlt_list_idx",
         "data_type": "bigint",
         "nullable": false,
         "partition": false,
@@ -2805,8 +2805,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_record_hash": {
-        "name": "_record_hash",
+      "_dlt_id": {
+        "name": "_dlt_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -2816,8 +2816,8 @@
         "primary_key": true,
         "foreign_key": false
       },
-      "_root_hash": {
-        "name": "_root_hash",
+      "_dlt_root_id": {
+        "name": "_dlt_root_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -2849,8 +2849,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_parent_hash": {
-        "name": "_parent_hash",
+      "_dlt_parent_id": {
+        "name": "_dlt_parent_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -2860,8 +2860,8 @@
         "primary_key": false,
         "foreign_key": true
       },
-      "_pos": {
-        "name": "_pos",
+      "_dlt_list_idx": {
+        "name": "_dlt_list_idx",
         "data_type": "bigint",
         "nullable": false,
         "partition": false,
@@ -2906,8 +2906,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_record_hash": {
-        "name": "_record_hash",
+      "_dlt_id": {
+        "name": "_dlt_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -2917,8 +2917,8 @@
         "primary_key": true,
         "foreign_key": false
       },
-      "_root_hash": {
-        "name": "_root_hash",
+      "_dlt_root_id": {
+        "name": "_dlt_root_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -2950,8 +2950,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_parent_hash": {
-        "name": "_parent_hash",
+      "_dlt_parent_id": {
+        "name": "_dlt_parent_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -2961,8 +2961,8 @@
         "primary_key": false,
         "foreign_key": true
       },
-      "_pos": {
-        "name": "_pos",
+      "_dlt_list_idx": {
+        "name": "_dlt_list_idx",
         "data_type": "bigint",
         "nullable": false,
         "partition": false,
@@ -3062,8 +3062,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_load_id": {
-        "name": "_load_id",
+      "_dlt_load_id": {
+        "name": "_dlt_load_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -3073,8 +3073,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_root_hash": {
-        "name": "_root_hash",
+      "_dlt_root_id": {
+        "name": "_dlt_root_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -3084,8 +3084,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_record_hash": {
-        "name": "_record_hash",
+      "_dlt_id": {
+        "name": "_dlt_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -3185,8 +3185,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_load_id": {
-        "name": "_load_id",
+      "_dlt_load_id": {
+        "name": "_dlt_load_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -3196,8 +3196,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_root_hash": {
-        "name": "_root_hash",
+      "_dlt_root_id": {
+        "name": "_dlt_root_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -3207,8 +3207,8 @@
         "primary_key": false,
         "foreign_key": false
       },
-      "_record_hash": {
-        "name": "_record_hash",
+      "_dlt_id": {
+        "name": "_dlt_id",
         "data_type": "text",
         "nullable": false,
         "partition": false,
@@ -3227,18 +3227,18 @@
     "^_timestamp$": "timestamp",
     "^inserted_at$": "timestamp",
     "confidence": "double",
-    "^_pos$": "bigint"
+    "^_dlt_list_idx$": "bigint"
   },
   "hints": {
     "not_null": [
       "^timestamp$",
       "^_timestamp$",
       "^_dist_key$",
-      "^_record_hash$",
-      "^_root_hash$",
-      "^_load_id$",
-      "^_parent_hash$",
-      "^_pos$",
+      "^_dlt_id$",
+      "^_dlt_root_id$",
+      "^_dlt_load_id$",
+      "^_dlt_parent_id$",
+      "^_dlt_list_idx$",
       "^sender_id$"
     ],
     "partition": [
@@ -3250,10 +3250,10 @@
       "^sender_id$"
     ],
     "primary_key": [
-      "^_record_hash$"
+      "^_dlt_id$"
     ],
     "foreign_key": [
-      "^_parent_hash$"
+      "^_dlt_parent_id$"
     ],
     "sort": [
       "^timestamp$",

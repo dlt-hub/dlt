@@ -20,7 +20,7 @@ from dlt.pipeline import Pipeline, PostgresPipelineCredentials
 if __name__ == '__main__':
     # working redshift creds, you can pass password as last parameter or via PG_PASSWORD env variable ie.
     # LOG_LEVEL=INFO PG_PASSWORD=.... python examples/discord_iterator.py
-    credentials = PostgresPipelineCredentials("redshift", "chat_analytics_rasa", "gamma_guild_7", "loader", "3.73.90.3")
+    credentials = PostgresPipelineCredentials("redshift", "chat_analytics_rasa", "gamma_guild_8", "loader", "3.73.90.3")
 
     pipeline = Pipeline("discord")
     schema: Schema = None
@@ -63,7 +63,7 @@ if __name__ == '__main__':
 
     # get inferred schema
     # schema = pipeline.get_current_schema()
-    # print(schema.as_yaml(remove_default_hints=True))
+    # print(schema.as_yaml(remove_default=True))
 
     # load packages
     pipeline.load()

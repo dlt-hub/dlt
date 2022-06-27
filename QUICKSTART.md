@@ -127,7 +127,7 @@ pipeline.unpack()
 c. Save schema to `schema.yml` file
 ```
 schema = pipeline.get_default_schema()
-schema_yaml = schema.as_yaml(remove_default_hints=True)
+schema_yaml = schema.as_yaml(remove_default=True)
 with open(schema_file_path, 'w') as f:
     f.write(schema_yaml)
 ```
@@ -185,10 +185,10 @@ with pipeline.sql_client() as c:
     # Join previous two queries via auto generated keys
     query = f"""
         select p.name, p.age, p.id as parent_id,
-            c.name as child_name, c.id as child_id, c._pos as child_order_in_list
+            c.name as child_name, c.id as child_id, c._dlt_list_idx as child_order_in_list
         from `{schema_prefix}_example.json_doc` as p
         left join `{schema_prefix}_example.json_doc__children`  as c
-            on p._record_hash = c._parent_hash
+            on p._dlt_id = c._dlt_parent_id
     """
     run_query(query)
 ```
@@ -197,20 +197,20 @@ b. See results like the following
 
 table: json_doc
 ```
-{  "name": "Ana",  "age": "30",  "id": "456",  "_load_id": "1654787700.406905",  "_record_hash": "5b018c1ba3364279a0ca1a231fbd8d90"}
-{  "name": "Bob",  "age": "30",  "id": "455",  "_load_id": "1654787700.406905",  "_record_hash": "afc8506472a14a529bf3e6ebba3e0a9e"}
+{  "name": "Ana",  "age": "30",  "id": "456",  "_dlt_load_id": "1654787700.406905",  "_dlt_id": "5b018c1ba3364279a0ca1a231fbd8d90"}
+{  "name": "Bob",  "age": "30",  "id": "455",  "_dlt_load_id": "1654787700.406905",  "_dlt_id": "afc8506472a14a529bf3e6ebba3e0a9e"}
 ```
 
 table: json_doc__children
 ```
-    # {"name": "Bill", "id": "625", "_parent_hash": "5b018c1ba3364279a0ca1a231fbd8d90", "_pos": "0", "_root_hash": "5b018c1ba3364279a0ca1a231fbd8d90",
-    #   "_record_hash": "7993452627a98814cc7091f2c51faf5c"}
-    # {"name": "Bill", "id": "625", "_parent_hash": "afc8506472a14a529bf3e6ebba3e0a9e", "_pos": "0", "_root_hash": "afc8506472a14a529bf3e6ebba3e0a9e",
-    #   "_record_hash": "9a2fd144227e70e3aa09467e2358f934"}
-    # {"name": "Dave", "id": "621", "_parent_hash": "afc8506472a14a529bf3e6ebba3e0a9e", "_pos": "1", "_root_hash": "afc8506472a14a529bf3e6ebba3e0a9e",
-    #   "_record_hash": "28002ed6792470ea8caf2d6b6393b4f9"}
-    # {"name": "Elli", "id": "591", "_parent_hash": "5b018c1ba3364279a0ca1a231fbd8d90", "_pos": "1", "_root_hash": "5b018c1ba3364279a0ca1a231fbd8d90",
-    #   "_record_hash": "d18172353fba1a492c739a7789a786cf"}
+    # {"name": "Bill", "id": "625", "_dlt_parent_id": "5b018c1ba3364279a0ca1a231fbd8d90", "_dlt_list_idx": "0", "_dlt_root_id": "5b018c1ba3364279a0ca1a231fbd8d90",
+    #   "_dlt_id": "7993452627a98814cc7091f2c51faf5c"}
+    # {"name": "Bill", "id": "625", "_dlt_parent_id": "afc8506472a14a529bf3e6ebba3e0a9e", "_dlt_list_idx": "0", "_dlt_root_id": "afc8506472a14a529bf3e6ebba3e0a9e",
+    #   "_dlt_id": "9a2fd144227e70e3aa09467e2358f934"}
+    # {"name": "Dave", "id": "621", "_dlt_parent_id": "afc8506472a14a529bf3e6ebba3e0a9e", "_dlt_list_idx": "1", "_dlt_root_id": "afc8506472a14a529bf3e6ebba3e0a9e",
+    #   "_dlt_id": "28002ed6792470ea8caf2d6b6393b4f9"}
+    # {"name": "Elli", "id": "591", "_dlt_parent_id": "5b018c1ba3364279a0ca1a231fbd8d90", "_dlt_list_idx": "1", "_dlt_root_id": "5b018c1ba3364279a0ca1a231fbd8d90",
+    #   "_dlt_id": "d18172353fba1a492c739a7789a786cf"}
 ```
 
 SQL result:

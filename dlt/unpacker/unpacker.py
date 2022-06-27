@@ -14,14 +14,12 @@ from dlt.common.typing import TEvent
 from dlt.common.logger import process_internal_exception
 from dlt.common.exceptions import PoolException
 from dlt.common.storages import SchemaStorage
-from dlt.common.schema import CannotCoerceColumnException, SchemaUpdate, Schema
-from dlt.common.parser import PATH_SEPARATOR
+from dlt.common.schema import TSchemaUpdate, Schema
+from dlt.common.schema.exceptions import CannotCoerceColumnException
 from dlt.common.storages.loader_storage import LoaderStorage
 
-from dlt.common.parser import extract, TExtractFunc
 from dlt.unpacker.configuration import configuration, UnpackerConfiguration
 
-extract_func: TExtractFunc = extract
 CONFIG: Type[UnpackerConfiguration] = None
 unpack_storage: UnpackerStorage = None
 load_storage: LoaderStorage = None
@@ -76,10 +74,10 @@ def load_or_create_schema(schema_name: str) -> Schema:
 
 
 # this is a worker process
-def w_unpack_files(schema_name: str, load_id: str, events_files: Sequence[str]) -> SchemaUpdate:
+def w_unpack_files(schema_name: str, load_id: str, events_files: Sequence[str]) -> TSchemaUpdate:
     unpacked_data: Dict[str, List[Any]] = {}
 
-    schema_update: SchemaUpdate = {}
+    schema_update: TSchemaUpdate = {}
     schema = load_or_create_schema(schema_name)
     file_id = uniq_id()
 
@@ -90,21 +88,21 @@ def w_unpack_files(schema_name: str, load_id: str, events_files: Sequence[str]) 
             with unpack_storage.storage.open(events_file) as f:
                 events: Sequence[TEvent] = json.load(f)
             for event in events:
-                for table_name, row in extract_func(schema, event, load_id, CONFIG.ADD_EVENT_JSON):
+                for (table_name, parent_table), row in schema.normalize_json(schema, event, load_id):
                     # filter row, may eliminate some or all fields
-                    row = schema.filter_row(table_name, row, PATH_SEPARATOR)
+                    row = schema.filter_row(table_name, row)
                     # do not process empty rows
                     if row:
                         # decode pua types
                         for k, v in row.items():
                             row[k] = custom_pua_decode(v)  # type: ignore
                         # check if schema can be updated
-                        row, table_update = schema.coerce_row(table_name, row)
-                        if len(table_update) > 0:
+                        row, partial_table = schema.coerce_row(table_name, parent_table, row)
+                        if partial_table:
                             # update schema and save the change
-                            schema.update_schema(table_name, table_update)
+                            schema.update_schema(partial_table)
                             table_updates = schema_update.setdefault(table_name, [])
-                            table_updates.extend(table_update)
+                            table_updates.append(partial_table)
                         # store row
                         rows = unpacked_data.setdefault(table_name, [])
                         rows.append(row)
@@ -115,13 +113,13 @@ def w_unpack_files(schema_name: str, load_id: str, events_files: Sequence[str]) 
     # save rows and return schema changes to be gathered in parent process
     for table_name, rows in unpacked_data.items():
         # save into new jobs to processed as load
-        table = schema.get_table(table_name)
+        table = schema.get_table_columns(table_name)
         load_storage.write_temp_loading_file(load_id, table_name, table, file_id, rows)
 
     return schema_update
 
 
-TMapFuncRV = Tuple[List[SchemaUpdate], List[Sequence[str]]]
+TMapFuncRV = Tuple[List[TSchemaUpdate], List[Sequence[str]]]
 TMapFuncType = Callable[[ProcessPool, str, str, Sequence[str]], TMapFuncRV]
 
 def map_parallel(pool: ProcessPool, schema_name: str, load_id: str, files: Sequence[str]) -> TMapFuncRV:
@@ -142,13 +140,14 @@ def map_single(_: ProcessPool, schema_name: str, load_id: str, files: Sequence[s
     return [w_unpack_files(schema_name, load_id, chunk_files[0])], chunk_files
 
 
-def update_schema(schema_name: str, schema_updates: List[SchemaUpdate]) -> Schema:
+def update_schema(schema_name: str, schema_updates: List[TSchemaUpdate]) -> Schema:
     schema = load_or_create_schema(schema_name)
     # gather schema from all manifests, validate consistency and combine
     for schema_update in schema_updates:
         for table_name, table_updates in schema_update.items():
             logger.debug(f"Updating schema for table {table_name} with {len(table_updates)} deltas")
-            schema.update_schema(table_name, table_updates)
+            for partial_table in table_updates:
+                schema.update_schema(partial_table)
     return schema
 
 
@@ -218,15 +217,12 @@ def unpack(pool: ProcessPool) -> TRunMetrics:
     return TRunMetrics(False, False, len(unpack_storage.list_files_to_unpack_sorted()))
 
 
-def configure(C: Type[UnpackerConfiguration], collector: CollectorRegistry, extract_f: TExtractFunc, default_schemas_path: str = None, schema_names: List[str] = None) -> None:
+def configure(C: Type[UnpackerConfiguration], collector: CollectorRegistry, default_schemas_path: str = None, schema_names: List[str] = None) -> None:
     global CONFIG
     global unpack_storage, load_storage, schema_storage, load_schema_storage
     global event_counter, event_gauge, schema_version_gauge, load_package_counter
-    global extract_func
 
     CONFIG = C
-    # set extracting parser function
-    extract_func = extract_f
     # setup singletons
     unpack_storage, load_storage, schema_storage, load_schema_storage = create_folders()
     try:
@@ -239,13 +235,13 @@ def configure(C: Type[UnpackerConfiguration], collector: CollectorRegistry, extr
         install_schemas(default_schemas_path, schema_names)
 
 
-def main(args: TRunArgs, extract_f: TExtractFunc, default_schemas_path: str = None, schema_names: List[str] = None) -> int:
+def main(args: TRunArgs, default_schemas_path: str = None, schema_names: List[str] = None) -> int:
     # initialize runner
     C = configuration()
     initialize_runner(C, args)
     # create objects and gauges
     try:
-        configure(C, REGISTRY, extract_f, default_schemas_path, schema_names)
+        configure(C, REGISTRY, default_schemas_path, schema_names)
     except Exception:
         process_internal_exception("init module")
         return -1
@@ -254,4 +250,4 @@ def main(args: TRunArgs, extract_f: TExtractFunc, default_schemas_path: str = No
 
 
 def run_main(args: TRunArgs) -> None:
-    exit(main(args, extract))
+    exit(main(args))
