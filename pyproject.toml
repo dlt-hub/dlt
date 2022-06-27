@@ -63,6 +63,7 @@ types-protobuf = "^3.19.8"
 types-simplejson = "^3.17.0"
 types-requests = "^2.25.6"
 types-python-dateutil = "^2.8.15"
+flake8-tidy-imports = "^4.8.0"
 
 [tool.poetry.extras]
 dbt = ["dbt-core", "GitPython", "dbt-redshift", "dbt-bigquery"]
