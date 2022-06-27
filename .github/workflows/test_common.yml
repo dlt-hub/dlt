@@ -53,5 +53,11 @@ jobs:
       - name: Install self
         run: poetry install --no-interaction
 
-      - name: Run tests
-        run: LOG_LEVEL=ERROR poetry run pytest tests --ignore=tests/loaders --ignore=tests/dbt_runner
+      - run: |
+          LOG_LEVEL=ERROR poetry run pytest tests --ignore=tests/loaders --ignore=tests/dbt_runner
+        if: runner.os != 'Windows'
+        name: Run tests Linux/MAC
+      - run: |
+          LOG_LEVEL=ERROR poetry run pytest tests --ignore=tests/loaders --ignore=tests/dbt_runner -m 'not forked'
+        if: runner.os == 'Windows'
+        name: Run tests Windows

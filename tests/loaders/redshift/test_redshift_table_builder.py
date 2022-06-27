@@ -2,7 +2,7 @@ import os
 import pytest
 from copy import deepcopy
 
-from dlt.common.utils import uniq_id
+from dlt.common.utils import custom_environ, uniq_id
 from dlt.common.schema import Schema
 from dlt.common.schema.utils import new_table
 from dlt.common.configuration import make_configuration, PostgresConfiguration
@@ -27,15 +27,12 @@ def client(schema: Schema) -> RedshiftClient:
     return RedshiftClient(schema, CLIENT_CONFIG)
 
 
-# run in forked mode so config overrides do not apply
-@pytest.mark.forked
 def test_configuration() -> None:
     # check names normalized
-    os.environ["PG_DATABASE_NAME"] = "UPPER_CASE_DATABASE"
-    os.environ["PG_PASSWORD"] = " pass\n"
-    C = make_configuration(PostgresConfiguration, PostgresConfiguration)
-    assert C.PG_DATABASE_NAME == "upper_case_database"
-    assert C.PG_PASSWORD == "pass"
+    with custom_environ({"PG_DATABASE_NAME": "UPPER_CASE_DATABASE", "PG_PASSWORD": " pass\n"}):
+        C = make_configuration(PostgresConfiguration, PostgresConfiguration)
+        assert C.PG_DATABASE_NAME == "upper_case_database"
+        assert C.PG_PASSWORD == "pass"
 
 
 def test_create_table(client: RedshiftClient) -> None:

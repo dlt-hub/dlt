@@ -18,7 +18,7 @@ def clear_signal() -> None:
 def test_sleep() -> None:
     start = time.time()
     sleep(0.5)
-    assert time.time() - start - 0.5 < 0.01
+    assert time.time() - start - 0.5 < 0.1
 
 
 def test_sleep_raises_if_signalled() -> None:
