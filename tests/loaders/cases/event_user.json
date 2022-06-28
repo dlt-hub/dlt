@@ -1,12 +1,12 @@
 {"event_user": {
-    "_record_hash": {
+    "_dlt_id": {
       "data_type": "text",
-      "name": "_record_hash",
+      "name": "_dlt_id",
       "nullable": false
     },
-    "_root_hash": {
+    "_dlt_root_id": {
       "data_type": "text",
-      "name": "_root_hash",
+      "name": "_dlt_root_id",
       "nullable": false
     },
     "environment": {

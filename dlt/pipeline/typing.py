@@ -1,9 +1,9 @@
 
 from dataclasses import dataclass
-from typing import Callable, Dict, Iterable, Iterator, List, Literal, Sequence, Tuple, TypeVar, Union, Generic
+from typing import Literal
 from dlt.common import json
 
-from dlt.common.typing import DictStrAny, StrAny
+from dlt.common.typing import StrAny
 from dlt.common.configuration.utils import TConfigSecret
 
 TLoaderType = Literal["gcp", "redshift"]
@@ -38,7 +38,7 @@ class GCPPipelineCredentials(PipelineCredentials):
 
     @classmethod
     def from_services_file(cls, services_path: str, dataset_prefix: str) -> "GCPPipelineCredentials":
-        with open(services_path, "r") as f:
+        with open(services_path, "r", encoding="utf-8") as f:
             services = json.load(f)
         return GCPPipelineCredentials.from_services_dict(services, dataset_prefix)
 

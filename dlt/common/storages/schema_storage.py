@@ -1,9 +1,9 @@
 import os
-from typing import Optional
 
 from dlt.common import json
 from dlt.common.file_storage import FileStorage
-from dlt.common.schema import Schema, StoredSchema
+from dlt.common.schema import Schema, TStoredSchema
+from dlt.common.typing import DictStrAny
 
 
 class SchemaStorage:
@@ -17,13 +17,13 @@ class SchemaStorage:
     def load_store_schema(self, name: str) -> Schema:
         # loads a schema from a store holding many schemas
         schema_file = self._get_file_by_name(name)
-        stored_schema: StoredSchema = json.loads(self.storage.load(schema_file))
+        stored_schema: DictStrAny = json.loads(self.storage.load(schema_file))
         return Schema.from_dict(stored_schema)
 
     def load_folder_schema(self, from_folder: str) -> Schema:
         # loads schema from a folder containing one default schema
         schema_path = self._get_file_in_folder(from_folder)
-        stored_schema: StoredSchema = json.loads(self.storage.load(schema_path))
+        stored_schema: DictStrAny = json.loads(self.storage.load(schema_path))
         return Schema.from_dict(stored_schema)
 
     def save_store_schema(self, schema: Schema) -> str:

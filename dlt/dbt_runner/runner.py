@@ -9,7 +9,7 @@ from dlt.common.typing import DictStrAny, DictStrStr, StrAny
 from dlt.common.logger import process_internal_exception, is_json_logging
 from dlt.common.telemetry import get_logging_extras
 from dlt.common.file_storage import FileStorage
-from dlt.common.runners import TRunArgs, create_default_args, initialize_runner, pool_runner
+from dlt.common.runners import TRunArgs, initialize_runner, run_pool
 from dlt.common.telemetry import TRunMetrics
 
 from dlt.dbt_runner.configuration import DBTRunnerConfiguration, gen_configuration_variant
@@ -111,7 +111,7 @@ def initialize_package(with_git_command: Optional[str]) -> None:
         logger.info(f"Will clone {CONFIG.PACKAGE_REPOSITORY_URL} head {CONFIG.PACKAGE_REPOSITORY_BRANCH} into {repo_path}")
         clone_repo(CONFIG.PACKAGE_REPOSITORY_URL, repo_path, branch=CONFIG.PACKAGE_REPOSITORY_BRANCH, with_git_command=with_git_command)
         run_dbt("deps")
-    except Exception as e:
+    except Exception:
         # delete folder so we start clean next time
         if storage.has_folder(CLONED_PACKAGE_NAME):
             storage.delete_folder(CLONED_PACKAGE_NAME, recursively=True)
@@ -162,7 +162,7 @@ def run(_: None) -> TRunMetrics:
         log_dbt_run_results(results)
         return TRunMetrics(False, False, 0)
     except PrerequisitesException:
-        logger.warning(f"Raw schema test failed, it may yet not be created")
+        logger.warning("Raw schema test failed, it may yet not be created")
         # run failed and loads possibly still pending
         return TRunMetrics(False, True, 1)
     except DBTProcessingError as runerr:
@@ -196,7 +196,7 @@ def main(args: TRunArgs) -> int:
         process_internal_exception("init module")
         return -1
 
-    return pool_runner(C, run)
+    return run_pool(C, run)
 
 
 def run_main(args: TRunArgs) -> None:

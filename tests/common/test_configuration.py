@@ -284,7 +284,7 @@ def test_initial_values(environment: Any) -> None:
     assert C.BYTES_VAL == b"str"
     assert C.NONE_VAL == type(environment)
     # new prop overridden from env
-    environment["CREATED_VAL"] == "12837"
+    assert environment["CREATED_VAL"] == "12837"
 
 
 def test_finds_version(environment: Any) -> None:

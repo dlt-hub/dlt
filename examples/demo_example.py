@@ -31,7 +31,7 @@ data_schema = None
 data_schema_file_path = "/Users/adrian/PycharmProjects/sv/dlt/examples/schemas/inferred_demo_schema.yml"
 
 # or pass a saved data schema file
-# f = open(data_schema_file_path, "r")
+# f = open(data_schema_file_path, "r", encoding="utf-8")
 # data_schema = f.read()
 #
 #
@@ -41,18 +41,18 @@ to get your data in a flat table, you need to join the sub-json back to the pare
 example sql:
 
 SELECT
-    b.* EXCEPT(_load_id, _record_hash, _root_hash),
-    bc.* EXCEPT(_parent_hash, _record_hash, _root_hash),
+    b.* EXCEPT(_dlt_load_id, _dlt_id, _dlt_root_id),
+    bc.* EXCEPT(_dlt_parent_id, _dlt_id, _dlt_root_id),
 FROM `scalevector.library_documents_prod.books` as b
 left join `scalevector.library_documents_prod.books__category` as bc
-on b._record_hash = bc._parent_hash
+on b._dlt_id = bc._dlt_parent_id
 
 SQL result rows:
-{  "isbn": "123-456-222",  "author__lastname": "Panda",  "author__firstname": "Jane",  "editor__lastname": "Smite",  "editor__firstname": "Jane",  "title": "The Ultimate Database Study Guide",  "value": "Non-Fiction",  "_pos": "0"}
-{  "isbn": "123-456-222",  "author__lastname": "Panda",  "author__firstname": "Jane",  "editor__lastname": "Smite",  "editor__firstname": "Jane",  "title": "The Ultimate Database Study Guide",  "value": "Technology",  "_pos": "1"}
-{  "isbn": "123-456-789",  "author__lastname": "Jayson",  "author__firstname": "Joe",  "editor__lastname": "Smite",  "editor__firstname": "Jane",  "title": "Json for big data",  "value": "SF",  "_pos": "0"}
-{  "isbn": "123-456-789",  "author__lastname": "Jayson",  "author__firstname": "Joe",  "editor__lastname": "Smite",  "editor__firstname": "Jane",  "title": "Json for big data",  "value": "Horror",  "_pos": "1"}
-{  "isbn": "123-456-789",  "author__lastname": "Jayson",  "author__firstname": "Joe",  "editor__lastname": "Smite",  "editor__firstname": "Jane",  "title": "Json for big data",  "value": "Dystopia",  "_pos": "2"}
+{  "isbn": "123-456-222",  "author__lastname": "Panda",  "author__firstname": "Jane",  "editor__lastname": "Smite",  "editor__firstname": "Jane",  "title": "The Ultimate Database Study Guide",  "value": "Non-Fiction",  "_dlt_list_idx": "0"}
+{  "isbn": "123-456-222",  "author__lastname": "Panda",  "author__firstname": "Jane",  "editor__lastname": "Smite",  "editor__firstname": "Jane",  "title": "The Ultimate Database Study Guide",  "value": "Technology",  "_dlt_list_idx": "1"}
+{  "isbn": "123-456-789",  "author__lastname": "Jayson",  "author__firstname": "Joe",  "editor__lastname": "Smite",  "editor__firstname": "Jane",  "title": "Json for big data",  "value": "SF",  "_dlt_list_idx": "0"}
+{  "isbn": "123-456-789",  "author__lastname": "Jayson",  "author__firstname": "Joe",  "editor__lastname": "Smite",  "editor__firstname": "Jane",  "title": "Json for big data",  "value": "Horror",  "_dlt_list_idx": "1"}
+{  "isbn": "123-456-789",  "author__lastname": "Jayson",  "author__firstname": "Joe",  "editor__lastname": "Smite",  "editor__firstname": "Jane",  "title": "Json for big data",  "value": "Dystopia",  "_dlt_list_idx": "2"}
 """  # noqa: E501
 
 
@@ -61,7 +61,7 @@ if __name__ == "__main__":
     # loading and error handling below:
 
     def get_json_file_data(path: str) -> Sequence[DictStrAny]:
-        with open(path, "r") as f:
+        with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
         return data  # type: ignore
 
@@ -102,7 +102,7 @@ if __name__ == "__main__":
 
     schema = pipeline.get_default_schema()
     schema_yaml = schema.as_yaml()
-    f = open(data_schema_file_path, "a")
+    f = open(data_schema_file_path, "a", encoding="utf-8")
     f.write(schema_yaml)
     f.close()
     # pipeline.save_schema_to_file(data_schema_file_path, schema)

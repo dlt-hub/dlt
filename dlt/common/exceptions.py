@@ -1,3 +1,6 @@
+from typing import Any, AnyStr
+
+
 class DltException(Exception):
     pass
 
@@ -25,6 +28,23 @@ class UnsupportedProcessStartMethodException(DltException):
     def __init__(self, method: str) -> None:
         self.method = method
         super().__init__(f"Process pool supports only fork start method, {method} not supported. Switch the pool type to threading")
+
+
+class CannotInstallDependency(DltException):
+    def __init__(self, dependency: str, interpreter: str, output: AnyStr) -> None:
+        self.dependency = dependency
+        self.interpreter = interpreter
+        if isinstance(output, bytes):
+            str_output = output.decode("utf-8")
+        else:
+            str_output = output
+        super().__init__(f"Cannot install dependency {dependency} with {interpreter} and pip:\n{str_output}\n")
+
+
+class VenvNotFound(DltException):
+    def __init__(self, interpreter: str) -> None:
+        self.interpreter = interpreter
+        super().__init__(f"Venv with interpreter {interpreter} not found in path")
 
 
 class TerminalException(Exception):
@@ -56,3 +76,11 @@ class TimeRangeExhaustedException(DltException):
         self.start_ts = start_ts
         self.end_ts = end_ts
         super().__init__(f"Timerange ({start_ts} to {end_ts}> exhausted")
+
+
+class DictValidationException(DltException):
+    def __init__(self, msg: str, path: str, field: str = None, value: Any = None):
+        self.path = path
+        self.field = field
+        self.value = value
+        super().__init__(msg)

@@ -5,7 +5,7 @@ includes: []
 name: prod
 preferred_types: {}
 tables:
-  _loads:
+  _dlt_loads:
     inserted_at:
       cluster: false
       data_type: timestamp
@@ -36,7 +36,7 @@ tables:
       primary_key: false
       sort: false
       unique: false
-  _version:
+  _dlt_version:
     engine_version:
       cluster: false
       data_type: bigint
@@ -68,31 +68,31 @@ tables:
       sort: false
       unique: false
   books:
-    _load_id:
+    _dlt_load_id:
       cluster: false
       data_type: text
       foreign_key: false
-      name: _load_id
+      name: _dlt_load_id
       nullable: true
       partition: false
       primary_key: false
       sort: false
       unique: false
-    _record_hash:
+    _dlt_id:
       cluster: false
       data_type: text
       foreign_key: false
-      name: _record_hash
+      name: _dlt_id
       nullable: true
       partition: false
       primary_key: false
       sort: false
       unique: false
-    _root_hash:
+    _dlt_root_id:
       cluster: false
       data_type: text
       foreign_key: false
-      name: _root_hash
+      name: _dlt_root_id
       nullable: true
       partition: false
       primary_key: false
@@ -159,41 +159,41 @@ tables:
       sort: false
       unique: false
   books__category:
-    _parent_hash:
+    _dlt_parent_id:
       cluster: false
       data_type: text
       foreign_key: false
-      name: _parent_hash
+      name: _dlt_parent_id
       nullable: true
       partition: false
       primary_key: false
       sort: false
       unique: false
-    _pos:
+    _dlt_list_idx:
       cluster: false
       data_type: bigint
       foreign_key: false
-      name: _pos
+      name: _dlt_list_idx
       nullable: true
       partition: false
       primary_key: false
       sort: false
       unique: false
-    _record_hash:
+    _dlt_id:
       cluster: false
       data_type: text
       foreign_key: false
-      name: _record_hash
+      name: _dlt_id
       nullable: true
       partition: false
       primary_key: false
       sort: false
       unique: false
-    _root_hash:
+    _dlt_root_id:
       cluster: false
       data_type: text
       foreign_key: false
-      name: _root_hash
+      name: _dlt_root_id
       nullable: true
       partition: false
       primary_key: false

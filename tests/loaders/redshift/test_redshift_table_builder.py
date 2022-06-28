@@ -2,8 +2,9 @@ import os
 import pytest
 from copy import deepcopy
 
+from dlt.common.utils import custom_environ, uniq_id
 from dlt.common.schema import Schema
-from dlt.common.utils import uniq_id
+from dlt.common.schema.utils import new_table
 from dlt.common.configuration import make_configuration, PostgresConfiguration
 
 from dlt.loaders.configuration import configuration
@@ -26,19 +27,16 @@ def client(schema: Schema) -> RedshiftClient:
     return RedshiftClient(schema, CLIENT_CONFIG)
 
 
-# run in forked mode so config overrides do not apply
-@pytest.mark.forked
 def test_configuration() -> None:
     # check names normalized
-    os.environ["PG_DATABASE_NAME"] = "UPPER_CASE_DATABASE"
-    os.environ["PG_PASSWORD"] = " pass\n"
-    C = make_configuration(PostgresConfiguration, PostgresConfiguration)
-    assert C.PG_DATABASE_NAME == "upper_case_database"
-    assert C.PG_PASSWORD == "pass"
+    with custom_environ({"PG_DATABASE_NAME": "UPPER_CASE_DATABASE", "PG_PASSWORD": " pass\n"}):
+        C = make_configuration(PostgresConfiguration, PostgresConfiguration)
+        assert C.PG_DATABASE_NAME == "upper_case_database"
+        assert C.PG_PASSWORD == "pass"
 
 
 def test_create_table(client: RedshiftClient) -> None:
-    client.schema.update_schema("event_test_table", TABLE_UPDATE)
+    client.schema.update_schema(new_table("event_test_table", columns=TABLE_UPDATE))
     sql = client._get_table_update_sql("event_test_table", {}, False)
     assert sql.startswith("BEGIN TRANSACTION;\n")
     assert "event_test_table" in sql
@@ -50,11 +48,12 @@ def test_create_table(client: RedshiftClient) -> None:
     assert '"col6" numeric(38,9)  NOT NULL' in sql
     assert '"col7" varbinary' in sql
     assert '"col8" numeric(38,0)' in sql
+    assert '"col9" varchar(max)  NOT NULL' in sql
     assert sql.endswith('\nCOMMIT TRANSACTION;')
 
 
 def test_alter_table(client: RedshiftClient) -> None:
-    client.schema.update_schema("event_test_table", TABLE_UPDATE)
+    client.schema.update_schema(new_table("event_test_table", columns=TABLE_UPDATE))
     # table has no columns
     sql = client._get_table_update_sql("event_test_table", {}, True)
     canonical_name = client._to_canonical_table_name("event_test_table")
@@ -70,6 +69,7 @@ def test_alter_table(client: RedshiftClient) -> None:
     assert '"col6" numeric(38,9)  NOT NULL' in sql
     assert '"col7" varbinary' in sql
     assert '"col8" numeric(38,0)' in sql
+    assert '"col9" varchar(max)  NOT NULL' in sql
     assert sql.endswith("\nCOMMIT TRANSACTION;")
 
 
@@ -80,7 +80,7 @@ def test_create_table_with_hints(client: RedshiftClient) -> None:
     mod_update[0]["sort"] = True
     mod_update[1]["cluster"] = True
     mod_update[4]["cluster"] = True
-    client.schema.update_schema("event_test_table", mod_update)
+    client.schema.update_schema(new_table("event_test_table", columns=mod_update))
     sql = client._get_table_update_sql("event_test_table", {}, False)
     # PRIMARY KEY will not be present https://heap.io/blog/redshift-pitfalls-avoid
     assert '"col1" bigint SORTKEY NOT NULL' in sql
@@ -95,7 +95,7 @@ def test_hint_alter_table_exception(client: RedshiftClient) -> None:
     mod_update = deepcopy(TABLE_UPDATE)
     # timestamp
     mod_update[3]["sort"] = True
-    client.schema.update_schema("event_test_table", mod_update)
+    client.schema.update_schema(new_table("event_test_table", columns=mod_update))
     with pytest.raises(LoadClientSchemaWillNotUpdate) as excc:
         client._get_table_update_sql("event_test_table", {}, True)
     assert excc.value.columns == ["col4"]

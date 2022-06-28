@@ -5,7 +5,8 @@ from dlt.common import pendulum
 from dlt.common.file_storage import FileStorage
 from dlt.common.configuration import GcpClientConfiguration
 from dlt.common.utils import uniq_id
-from dlt.common.schema import Schema, Table
+from dlt.common.schema import Schema
+from dlt.common.schema.utils import new_table
 from dlt.common.storages.schema_storage import SchemaStorage
 from dlt.common.dataset_writers import write_jsonl
 
@@ -69,7 +70,7 @@ def test_get_update_basic_schema(gcp_client: BigQueryClient) -> None:
     assert version == 1
     # check if tables are present and identical
     exists, version_storage_table = gcp_client._get_storage_table(Schema.VERSION_TABLE_NAME)
-    version_schema_table = gcp_client._get_table_by_name(Schema.VERSION_TABLE_NAME, "");
+    version_schema_table = gcp_client._get_table_by_name(Schema.VERSION_TABLE_NAME, "")
     assert exists is True
     # schema version must be contained in storage version (schema may not have all hints)
     assert version_schema_table.keys() == version_storage_table.keys()
@@ -86,7 +87,7 @@ def test_complete_load(gcp_client: BigQueryClient) -> None:
     assert len(load_rows) == 1
     assert load_rows[0][0] == load_id
     assert load_rows[0][1] == 0
-    import datetime
+    import datetime  # noqa: I251
     assert type(load_rows[0][2]) is datetime.datetime
     gcp_client.complete_load("load2")
     load_rows = list(gcp_client._execute_sql(f"SELECT * FROM {load_table}"))
@@ -102,14 +103,14 @@ def test_schema_update_create_table(gcp_client: BigQueryClient) -> None:
     # this will be cluster
     sender_id = schema._infer_column("sender_id", "982398490809324")
     # this will be not null
-    record_hash = schema._infer_column("_record_hash", "m,i0392903jdlkasjdlk")
-    schema.update_schema("event_test_table", [timestamp, sender_id, record_hash])
+    record_hash = schema._infer_column("_dlt_id", "m,i0392903jdlkasjdlk")
+    schema.update_schema(new_table("event_test_table", columns=[timestamp, sender_id, record_hash]))
     gcp_client.update_storage_schema()
     exists, storage_table = gcp_client._get_storage_table("event_test_table")
     assert exists is True
     assert storage_table["timestamp"]["partition"] is True
     assert storage_table["sender_id"]["cluster"] is True
-    exists, storage_table = gcp_client._get_storage_table("_version")
+    exists, storage_table = gcp_client._get_storage_table("_dlt_version")
     assert exists is True
     assert storage_table["version"]["partition"] is False
     assert storage_table["version"]["cluster"] is False
@@ -120,17 +121,17 @@ def test_schema_update_alter_table(gcp_client: BigQueryClient) -> None:
     schema = gcp_client.schema
     col1 = schema._infer_column("col1", "string")
     table_name = "event_test_table" + uniq_id()
-    schema.update_schema(table_name, [col1])
+    schema.update_schema(new_table(table_name, columns=[col1]))
     gcp_client.update_storage_schema()
     # with single alter table
     col2 = schema._infer_column("col2", 1)
-    schema.update_schema(table_name, [col2])
+    schema.update_schema(new_table(table_name, columns=[col2]))
     gcp_client.update_storage_schema()
     # with 2 alter tables
     col3 = schema._infer_column("col3", 1.2)
     col4 = schema._infer_column("col4", 182879721.182912)
     col4["data_type"] = "timestamp"
-    schema.update_schema(table_name, [col3, col4])
+    schema.update_schema(new_table(table_name, columns=[col3, col4]))
     gcp_client.update_storage_schema()
     _, storage_table = gcp_client._get_storage_table(table_name)
     # 4 columns
@@ -142,7 +143,7 @@ def test_schema_update_alter_table(gcp_client: BigQueryClient) -> None:
 def test_get_storage_table_with_all_types(gcp_client: BigQueryClient) -> None:
     schema = gcp_client.schema
     table_name = "event_test_table" + uniq_id()
-    schema.update_schema(table_name, TABLE_UPDATE)
+    schema.update_schema(new_table(table_name, columns=TABLE_UPDATE))
     gcp_client.update_storage_schema()
     exists, storage_table = gcp_client._get_storage_table(table_name)
     assert exists is True
@@ -150,14 +151,17 @@ def test_get_storage_table_with_all_types(gcp_client: BigQueryClient) -> None:
     storage_columns = list(storage_table.values())
     for c, s_c in zip(TABLE_UPDATE, storage_columns):
         assert c["name"] == s_c["name"]
-        assert c["data_type"] == s_c["data_type"]
+        if c["data_type"] == "complex":
+            assert s_c["data_type"] == "text"
+        else:
+            assert c["data_type"] == s_c["data_type"]
 
 
 @pytest.mark.order(8)
 def test_load_with_all_types(gcp_client: BigQueryClient, file_storage: FileStorage) -> None:
     schema = gcp_client.schema
     table_name = "event_test_table" + uniq_id()
-    schema.update_schema(table_name, TABLE_UPDATE)
+    schema.update_schema(new_table(table_name, columns=TABLE_UPDATE))
     gcp_client.update_storage_schema()
     canonical_name = gcp_client._to_canonical_table_name(table_name)
     # write row
@@ -175,39 +179,39 @@ def test_load_with_all_types(gcp_client: BigQueryClient, file_storage: FileStora
 # def test_loading_errors(client: gcp_client, file_storage: FileStorage) -> None:
 #     user_table_name = prepare_event_user_table(client)
 #     # insert into unknown column
-#     insert_sql = "INSERT INTO {}(_record_hash, _root_hash, sender_id, timestamp, _unk_) VALUES\n"
+#     insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp, _unk_) VALUES\n"
 #     insert_values = f"('{uniq_id()}', '{uniq_id()}', '90238094809sajlkjxoiewjhduuiuehd', '{str(pendulum.now())}', NULL);"
 #     with pytest.raises(LoadClientTerminalInnerException) as exv:
 #         expect_load_file(client, file_storage, insert_sql+insert_values, user_table_name)
 #     assert type(exv.value.inner_exc) is psycopg2.errors.UndefinedColumn
 #     # insert null value
-#     insert_sql = "INSERT INTO {}(_record_hash, _root_hash, sender_id, timestamp) VALUES\n"
+#     insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp) VALUES\n"
 #     insert_values = f"('{uniq_id()}', '{uniq_id()}', '90238094809sajlkjxoiewjhduuiuehd', NULL);"
 #     with pytest.raises(LoadClientTerminalInnerException) as exv:
 #         expect_load_file(client, file_storage, insert_sql+insert_values, user_table_name)
 #     assert type(exv.value.inner_exc) is psycopg2.errors.InternalError_
 #     # insert wrong type
-#     insert_sql = "INSERT INTO {}(_record_hash, _root_hash, sender_id, timestamp) VALUES\n"
+#     insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp) VALUES\n"
 #     insert_values = f"('{uniq_id()}', '{uniq_id()}', '90238094809sajlkjxoiewjhduuiuehd', TRUE);"
 #     with pytest.raises(LoadClientTerminalInnerException) as exv:
 #         expect_load_file(client, file_storage, insert_sql+insert_values, user_table_name)
 #     assert type(exv.value.inner_exc) is psycopg2.errors.DatatypeMismatch
 #     # numeric overflow on bigint
-#     insert_sql = "INSERT INTO {}(_record_hash, _root_hash, sender_id, timestamp, metadata__rasa_x_id) VALUES\n"
+#     insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp, metadata__rasa_x_id) VALUES\n"
 #     # 2**64//2 - 1 is a maximum bigint value
 #     insert_values = f"('{uniq_id()}', '{uniq_id()}', '90238094809sajlkjxoiewjhduuiuehd', '{str(pendulum.now())}', {2**64//2});"
 #     with pytest.raises(LoadClientTerminalInnerException) as exv:
 #         expect_load_file(client, file_storage, insert_sql+insert_values, user_table_name)
 #     assert type(exv.value.inner_exc) is psycopg2.errors.NumericValueOutOfRange
 #     # numeric overflow on NUMERIC
-#     insert_sql = "INSERT INTO {}(_record_hash, _root_hash, sender_id, timestamp, parse_data__intent__id) VALUES\n"
+#     insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp, parse_data__intent__id) VALUES\n"
 #     # default redshift decimal is (18, 0) (64 bit)
 #     insert_values = f"('{uniq_id()}', '{uniq_id()}', '90238094809sajlkjxoiewjhduuiuehd', '{str(pendulum.now())}', {10**18});"
 #     with pytest.raises(LoadClientTerminalInnerException) as exv:
 #         expect_load_file(client, file_storage, insert_sql+insert_values, user_table_name)
 #     assert type(exv.value.inner_exc) is psycopg2.errors.InternalError_
 #     # max redshift decimal is (38, 0) (128 bit) = 10**38 - 1
-#     insert_sql = "INSERT INTO {}(_record_hash, _root_hash, sender_id, timestamp, parse_data__metadata__rasa_x_id) VALUES\n"
+#     insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp, parse_data__metadata__rasa_x_id) VALUES\n"
 #     insert_values = f"('{uniq_id()}', '{uniq_id()}', '90238094809sajlkjxoiewjhduuiuehd', '{str(pendulum.now())}', {10**38});"
 #     with pytest.raises(LoadClientTerminalInnerException) as exv:
 #         expect_load_file(client, file_storage, insert_sql+insert_values, user_table_name)

@@ -1,7 +1,10 @@
+import os
+import base64
+from contextlib import contextmanager
 import hashlib
 from os import environ
 import secrets
-from typing import Any, Iterator, Sequence, TypeVar, Mapping, List, Union
+from typing import Any, Iterator, Optional, Sequence, TypeVar, Mapping, List, TypedDict, Union
 
 from dlt.common.typing import StrAny, DictStrAny, StrStr
 
@@ -18,7 +21,7 @@ def uniq_id() -> str:
 
 
 def digest128(v: str) -> str:
-    return hashlib.shake_128(v.encode("utf-8")).hexdigest(16)
+    return base64.b64encode(hashlib.shake_128(v.encode("utf-8")).digest(15)).decode('ascii')
 
 
 def str2bool(v: str) -> bool:
@@ -115,3 +118,27 @@ def update_dict_with_prune(dest: DictStrAny, update: StrAny) -> None:
 def is_interactive() -> bool:
     import __main__ as main
     return not hasattr(main, '__file__')
+
+
+@contextmanager
+def custom_environ(env: StrStr) -> Iterator[None]:
+    """Temporarily set environment variables inside the context manager and
+    fully restore previous environment afterwards
+    """
+    original_env = {key: os.getenv(key) for key in env}
+    os.environ.update(env)
+    try:
+        yield
+    finally:
+        for key, value in original_env.items():
+            if value is None:
+                del os.environ[key]
+            else:
+                os.environ[key] = value
+
+
+def encoding_for_mode(mode: str) -> Optional[str]:
+    if "b" in mode:
+        return None
+    else:
+        return "utf-8"

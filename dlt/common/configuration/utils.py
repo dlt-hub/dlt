@@ -2,13 +2,13 @@ import sys
 import semver
 from os import environ
 from os.path import isdir, isfile
-from typing import Any, Dict, List, Mapping, NewType, Optional, Type, TypeVar, Union, Literal, IO, cast
+from typing import Any, Dict, List, Mapping, NewType, Optional, Type, TypeVar, IO, cast
 
-from dlt.common.typing import StrAny
+from dlt.common.typing import StrAny, is_optional_type, is_literal_type
 from dlt.common.configuration import BasicConfiguration
 from dlt.common.configuration.exceptions import (ConfigEntryMissingException,
-                                                         ConfigEnvValueCannotBeCoercedException, ConfigFileNotFoundException)
-from dlt.common.utils import uniq_id
+                                                 ConfigEnvValueCannotBeCoercedException, ConfigFileNotFoundException)
+from dlt.common.utils import encoding_for_mode, uniq_id
 
 SIMPLE_TYPES: List[Any] = [int, bool, list, dict, tuple, bytes, set, float]
 # those types and Optionals of those types should not be passed to eval function
@@ -63,7 +63,7 @@ def open_configuration_file(name: str, mode: str, config: TConfiguration) -> IO[
     path = get_configuration_file_path(name, config)
     if not has_configuration_file(name, config):
         raise ConfigFileNotFoundException(path)
-    return open(path, mode)
+    return open(path, mode, encoding=encoding_for_mode(mode))
 
 
 def get_configuration_file_path(name: str, config: TConfiguration) -> str:
@@ -113,7 +113,7 @@ def _get_key_value(key: str, hint: Type[Any]) -> Optional[str]:
             # kubernetes stores secrets as files in a dir, docker compose plainly
             if isdir(secret_path):
                 secret_path += "/" + secret_name
-            with open(secret_path, "r") as f:
+            with open(secret_path, "r", encoding="utf-8") as f:
                 secret = f.read()
             # add secret to environ so forks have access
             # TODO: removing new lines is not always good. for password OK for PEMs not
@@ -121,15 +121,15 @@ def _get_key_value(key: str, hint: Type[Any]) -> Optional[str]:
             environ[key] = secret.strip()
             # do not strip returned secret
             return secret
-
-        except FileNotFoundError:
+        # includes FileNotFound
+        except OSError:
             pass
     return environ.get(key, None)
 
 
 def _is_config_bounded(config: TConfiguration, keys_in_config: Mapping[str, type]) -> None:
     _unbound_attrs = [
-        key for key in keys_in_config if getattr(config, key) is None and not _is_optional_type(keys_in_config[key])
+        key for key in keys_in_config if getattr(config, key) is None and not is_optional_type(keys_in_config[key])
     ]
 
     if len(_unbound_attrs) > 0:
@@ -174,20 +174,6 @@ def _coerce_single_value(key: str, value: str, hint: Type[Any]) -> Any:
         raise ConfigEnvValueCannotBeCoercedException(key, value, hint) from exc
 
 
-def _extract_simple_type(hint: Type[Any]) -> Type[Any]:
-    # extract optional type and call recursively
-    if _is_literal_type(hint):
-        # assume that all literals are of the same type
-        return _extract_simple_type(type(hint.__args__[0]))
-    if _is_optional_type(hint):
-        # todo: use `get_args` in python 3.8
-        return _extract_simple_type(hint.__args__[0])
-    if not hasattr(hint, "__supertype__"):
-        return hint
-    # descend into supertypes of NewType
-    return _extract_simple_type(hint.__supertype__)
-
-
 def _get_config_attrs_with_hints(config: TConfiguration) -> Dict[str, type]:
     keys: Dict[str, type] = {}
     mro = type.mro(config)
@@ -202,13 +188,15 @@ def _get_config_attrs_with_hints(config: TConfiguration) -> Dict[str, type]:
     return keys
 
 
-def _is_optional_type(hint: Type[Any]) -> bool:
-    # todo: use typing get_args and get_origin in python 3.8
-    if hasattr(hint, "__origin__"):
-        return hint.__origin__ is Union and type(None) in hint.__args__
-    return False
-
-
-def _is_literal_type(hint: Type[Any]) -> bool:
-    return hasattr(hint, "__origin__") and hint.__origin__ is Literal
-
+def _extract_simple_type(hint: Type[Any]) -> Type[Any]:
+    # extract optional type and call recursively
+    if is_literal_type(hint):
+        # assume that all literals are of the same type
+        return _extract_simple_type(type(hint.__args__[0]))
+    if is_optional_type(hint):
+        # todo: use `get_args` in python 3.8
+        return _extract_simple_type(hint.__args__[0])
+    if not hasattr(hint, "__supertype__"):
+        return hint
+    # descend into supertypes of NewType
+    return _extract_simple_type(hint.__supertype__)

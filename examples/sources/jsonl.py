@@ -1,14 +1,10 @@
 import jsonlines
-from typing import Iterator, TYPE_CHECKING, Any
-if TYPE_CHECKING:
-    from _typeshed import StrOrBytesPath
-else:
-    StrOrBytesPath = Any
+from typing import Iterator
 
 from dlt.common import json
-from dlt.common.typing import DictStrAny
+from dlt.common.typing import DictStrAny, StrOrBytesPath
 
 
 def get_source(path: StrOrBytesPath) -> Iterator[DictStrAny]:
-    with open(path, "r") as f:
+    with open(path, "r", encoding="utf-8") as f:
         yield from jsonlines.Reader(f, loads=json.loads)

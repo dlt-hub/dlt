@@ -1,13 +1,13 @@
 import os
 import logging
 import tempfile
-from typing import Any, Iterator, List, Sequence
-from git import Repo, Git, RepositoryDirtyError
+from typing import Any, Iterator, List, Sequence, Optional
+from git import Repo, RepositoryDirtyError
 from contextlib import contextmanager
 
 from dlt.common import json
 from dlt.common.utils import uniq_id
-from dlt.common.typing import StrAny, Optional
+from dlt.common.typing import StrAny
 from dlt.dbt_runner.exceptions import DBTRunnerException
 
 # block disabling root logger
@@ -35,7 +35,7 @@ class DBTProcessingError(DBTRunnerException):
 def git_custom_key_command(private_key: Optional[str]) -> Iterator[str]:
     if private_key:
         key_file = tempfile.mktemp(prefix=uniq_id())
-        with open(key_file, "w") as f:
+        with open(key_file, "w", encoding="utf-8") as f:
             f.write(private_key)
         try:
             # permissions so SSH does not complain

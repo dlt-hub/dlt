@@ -6,7 +6,7 @@ from prometheus_client import REGISTRY, Counter, Gauge, CollectorRegistry, Summa
 from prometheus_client.metrics import MetricWrapperBase
 
 from dlt.common import sleep, logger
-from dlt.common.runners import TRunArgs, TRunMetrics, create_default_args, initialize_runner, pool_runner
+from dlt.common.runners import TRunArgs, TRunMetrics, initialize_runner, run_pool
 from dlt.common.logger import process_internal_exception, pretty_format_exception
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.dataset_writers import TWriterType
@@ -114,7 +114,7 @@ def retrieve_jobs(client: ClientBase, load_id: str) -> Tuple[int, List[LoadJob]]
             process_internal_exception(f"Job retrieval for {file_path} failed, job will be terminated")
             job = ClientBase.make_job_with_status(file_path, "failed", pretty_format_exception())
             # proceed to appending job, do not reraise
-        except (LoadClientTransientException, Exception) as e:
+        except (LoadClientTransientException, Exception):
             # raise on all temporary exceptions, typically network / server problems
             raise
         jobs.append(job)
@@ -166,7 +166,7 @@ def complete_jobs(load_id: str, jobs: List[LoadJob]) -> List[LoadJob]:
 
 
 def load(pool: ThreadPool) -> TRunMetrics:
-    logger.info(f"Running file loading")
+    logger.info("Running file loading")
     # get list of loads and order by name ASC to execute schema updates
     loads = load_storage.list_loads()
     logger.info(f"Found {len(loads)} load packages")
@@ -248,7 +248,7 @@ def main(args: TRunArgs) -> int:
     except Exception:
         process_internal_exception("run")
         return -1
-    return pool_runner(C, load)
+    return run_pool(C, load)
 
 
 def run_main(args: TRunArgs) -> None:

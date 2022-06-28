@@ -1,7 +1,7 @@
-import decimal
+import decimal # noqa: I251
 from contextlib import contextmanager
 from typing import Iterator
-from decimal import ROUND_HALF_UP, Decimal, DefaultContext, DivisionByZero, InvalidOperation, localcontext, Context, ConversionSyntax
+from decimal import ROUND_HALF_UP, Decimal, DefaultContext, DivisionByZero, InvalidOperation, localcontext, Context, ConversionSyntax  # noqa: I251
 
 
 DefaultContext.rounding = ROUND_HALF_UP

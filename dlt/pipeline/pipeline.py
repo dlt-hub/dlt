@@ -6,20 +6,17 @@ from collections import abc
 from dataclasses import asdict as dtc_asdict
 import tempfile
 import os.path
-from typing import Callable, Dict, Iterable, Iterator, List, Literal, Sequence, Tuple, TypeVar, Union, Generic
+from typing import Iterator, List, Sequence, Tuple
 from prometheus_client import REGISTRY
 
-from dlt.common import json, runners
-from dlt.common import logger
+from dlt.common import json
+from dlt.common.runners import pool_runner as runner, TRunArgs, TRunMetrics
 from dlt.common.configuration import BasicConfiguration, make_configuration
 from dlt.common.file_storage import FileStorage
 from dlt.common.logger import process_internal_exception
-from dlt.common.names import normalize_schema_name
-from dlt.common.runners import TRunArgs, TRunMetrics
-from dlt.common.schema import Schema, StoredSchema
+from dlt.common.schema import Schema, normalize_schema_name
 from dlt.common.typing import DictStrAny, StrAny
 from dlt.common.utils import uniq_id, is_interactive
-from dlt.common.parser import extract as default_parser
 from dlt.common.sources import DLT_METADATA_FIELD, TItem, with_table_name
 
 from dlt.extractors.extractor_storage import ExtractorStorageBase
@@ -29,7 +26,7 @@ from dlt.loaders.configuration import configuration as loader_configuration
 from dlt.unpacker import unpacker
 from dlt.loaders import loader
 from dlt.pipeline.exceptions import InvalidPipelineContextException, MissingDependencyException, NoPipelineException, PipelineStepFailed, CannotRestorePipelineException
-from dlt.pipeline.typing import PipelineCredentials, GCPPipelineCredentials
+from dlt.pipeline.typing import PipelineCredentials
 
 
 class Pipeline:
@@ -51,7 +48,7 @@ class Pipeline:
             "NAME": pipeline_name,
             "LOG_LEVEL": log_level
         })
-        runners.initialize_runner(C, TRunArgs(True, 0))
+        runner.initialize_runner(C, TRunArgs(True, 0))
 
     def create_pipeline(self, credentials: PipelineCredentials, working_dir: str = None, schema: Schema = None) -> None:
         # initialize root storage
@@ -117,8 +114,8 @@ class Pipeline:
 
             try:
                 self._extract_iterator(default_table_name, all_items)
-            except:
-                raise PipelineStepFailed("extract", self.last_run_exception, runners.LAST_RUN_METRICS)
+            except Exception:
+                raise PipelineStepFailed("extract", self.last_run_exception, runner.LAST_RUN_METRICS)
 
     def unpack(self, workers: int = 1, max_events_in_chunk: int = 100000) -> None:
         if is_interactive() and workers > 1:
@@ -129,16 +126,16 @@ class Pipeline:
         unpacker.CONFIG.MAX_EVENTS_IN_CHUNK = max_events_in_chunk
         # switch to thread pool for single worker
         unpacker.CONFIG.POOL_TYPE = "thread" if workers == 1 else "process"
-        runners.pool_runner(unpacker.CONFIG, unpacker.unpack)
-        if runners.LAST_RUN_METRICS.has_failed:
-            raise PipelineStepFailed("unpack", self.last_run_exception, runners.LAST_RUN_METRICS)
+        runner.run_pool(unpacker.CONFIG, unpacker.unpack)
+        if runner.LAST_RUN_METRICS.has_failed:
+            raise PipelineStepFailed("unpack", self.last_run_exception, runner.LAST_RUN_METRICS)
 
     def load(self, max_parallel_loads: int = 20) -> None:
         self._verify_loader_instance()
         loader.CONFIG.MAX_PARALLELISM = loader.CONFIG.MAX_PARALLEL_LOADS = max_parallel_loads
-        runners.pool_runner(loader.CONFIG, loader.load)
-        if runners.LAST_RUN_METRICS.has_failed:
-            raise PipelineStepFailed("load", self.last_run_exception, runners.LAST_RUN_METRICS)
+        runner.run_pool(loader.CONFIG, loader.load)
+        if runner.LAST_RUN_METRICS.has_failed:
+            raise PipelineStepFailed("load", self.last_run_exception, runner.LAST_RUN_METRICS)
 
     def flush(self) -> None:
         self.unpack()
@@ -146,7 +143,7 @@ class Pipeline:
 
     @property
     def last_run_exception(self) -> BaseException:
-        return runners.LAST_RUN_EXCEPTION
+        return runner.LAST_RUN_EXCEPTION
 
     def list_extracted_loads(self) -> Sequence[str]:
         return unpacker.unpack_storage.list_files_to_unpack_sorted()
@@ -212,7 +209,7 @@ class Pipeline:
         }
         unpacker_initial.update(self._configure_runner())
         C = unpacker_configuration(initial_values=unpacker_initial)
-        unpacker.configure(C, REGISTRY, default_parser)
+        unpacker.configure(C, REGISTRY)
         self._unpacker_instance = id(unpacker.CONFIG)
 
     def _configure_load(self) -> None:
@@ -224,7 +221,11 @@ class Pipeline:
         try:
             loader.configure(C, REGISTRY, is_storage_owner=True)
         except ImportError:
-            raise MissingDependencyException(f"{self.credentials.CLIENT_TYPE} loader", [f"python-dlt[{self.credentials.CLIENT_TYPE}]"], "Dependencies for specific loaders are available as extras of python-dlt")
+            raise MissingDependencyException(
+                f"{self.credentials.CLIENT_TYPE} loader",
+                [f"python-dlt[{self.credentials.CLIENT_TYPE}]"],
+                "Dependencies for specific loaders are available as extras of python-dlt"
+            )
         self._loader_instance = id(loader.CONFIG)
 
     # def _only_active(f: TFun) -> TFun:
@@ -267,18 +268,18 @@ class Pipeline:
             load_id = uniq_id()
             self.extractor_storage.save_json(f"{load_id}.json", items)
             self.extractor_storage.commit_events(
-                self.pipeline_name,
+                self.default_schema_name,
                 self.extractor_storage.storage._make_path(f"{load_id}.json"),
                 default_table_name,
                 len(items),
                 load_id
             )
 
-            runners.LAST_RUN_METRICS = TRunMetrics(was_idle=False, has_failed=False, pending_items=0)
+            runner.LAST_RUN_METRICS = TRunMetrics(was_idle=False, has_failed=False, pending_items=0)
         except Exception as ex:
             process_internal_exception("extracting iterator failed")
-            runners.LAST_RUN_METRICS = TRunMetrics(was_idle=False, has_failed=True, pending_items=0)
-            runners.LAST_RUN_EXCEPTION = ex
+            runner.LAST_RUN_METRICS = TRunMetrics(was_idle=False, has_failed=True, pending_items=0)
+            runner.LAST_RUN_EXCEPTION = ex
             raise
 
     @contextmanager
@@ -301,12 +302,12 @@ class Pipeline:
         self.state.update(restored_state)
 
     @staticmethod
-    def save_schema_to_file(file_name: str, schema: Schema, remove_default_hints: bool = True) -> None:
-        with open(file_name, "w") as f:
-            f.write(schema.as_yaml(remove_default_hints=remove_default_hints))
+    def save_schema_to_file(file_name: str, schema: Schema, remove_defaults: bool = True) -> None:
+        with open(file_name, "w", encoding="utf-8") as f:
+            f.write(schema.as_yaml(remove_defaults=remove_defaults))
 
     @staticmethod
     def load_schema_from_file(file_name: str) -> Schema:
-        with open(file_name, "r") as f:
-            schema_dict: StoredSchema = yaml.safe_load(f)
+        with open(file_name, "r", encoding="utf-8") as f:
+            schema_dict: DictStrAny = yaml.safe_load(f)
         return Schema.from_dict(schema_dict)

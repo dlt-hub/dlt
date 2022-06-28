@@ -1,0 +1,134 @@
+{
+  "streams": [
+    {
+      "tap_stream_id": "annotations_202205",
+      "replication_method": "FULL_TABLE",
+      "key_properties": [
+        "message id"
+      ],
+      "schema": {
+        "properties": {
+          "sender id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "message id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "annotation": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "confidence": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "count": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "added at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reviewed": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "stream": "annotations_202205",
+      "metadata": [
+        {
+          "breadcrumb": [
+            "properties",
+            "sender id"
+          ],
+          "metadata": {
+            "inclusion": "available"
+          }
+        },
+        {
+          "breadcrumb": [
+            "properties",
+            "message id"
+          ],
+          "metadata": {
+            "inclusion": "automatic"
+          }
+        },
+        {
+          "breadcrumb": [
+            "properties",
+            "annotation"
+          ],
+          "metadata": {
+            "inclusion": "available"
+          }
+        },
+        {
+          "breadcrumb": [
+            "properties",
+            "confidence"
+          ],
+          "metadata": {
+            "inclusion": "available"
+          }
+        },
+        {
+          "breadcrumb": [
+            "properties",
+            "count"
+          ],
+          "metadata": {
+            "inclusion": "available"
+          }
+        },
+        {
+          "breadcrumb": [
+            "properties",
+            "added at"
+          ],
+          "metadata": {
+            "inclusion": "available"
+          }
+        },
+        {
+          "breadcrumb": [
+            "properties",
+            "reviewed"
+          ],
+          "metadata": {
+            "inclusion": "available"
+          }
+        },
+        {
+          "breadcrumb": [],
+          "metadata": {
+            "inclusion": "available",
+            "selected": true,
+            "table-key-properties": [
+              "message id"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

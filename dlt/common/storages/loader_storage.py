@@ -7,7 +7,7 @@ from dlt.common.file_storage import FileStorage
 from dlt.common.dataset_writers import TWriterType, write_jsonl, write_insert_values
 from dlt.common.configuration import LoadingVolumeConfiguration
 from dlt.common.exceptions import TerminalValueError
-from dlt.common.schema import SchemaUpdate, Table
+from dlt.common.schema import TSchemaUpdate, TTableColumns
 from dlt.common.storages.versioned_storage import VersionedStorage
 from dlt.common.typing import StrAny
 
@@ -54,16 +54,16 @@ class LoaderStorage(VersionedStorage):
         self.storage.create_folder(f"{load_id}/{LoaderStorage.FAILED_JOBS_FOLDER}")
         self.storage.create_folder(f"{load_id}/{LoaderStorage.STARTED_JOBS_FOLDER}")
 
-    def write_temp_loading_file(self, load_id: str, table_name: str, table: Table, file_id: str, rows: Sequence[StrAny]) -> str:
+    def write_temp_loading_file(self, load_id: str, table_name: str, table: TTableColumns, file_id: str, rows: Sequence[StrAny]) -> str:
         file_name = self.build_loading_file_name(load_id, table_name, file_id)
-        with self.storage.open(file_name, mode = "w") as f:
+        with self.storage.open(file_name, mode="w") as f:
             if self.writer_type == "jsonl":
                 write_jsonl(f, rows)
             elif self.writer_type == "insert_values":
                 write_insert_values(f, rows, table.keys())
         return Path(file_name).name
 
-    def save_schema_updates(self, load_id: str, schema_updates: Sequence[SchemaUpdate]) -> None:
+    def save_schema_updates(self, load_id: str, schema_updates: Sequence[TSchemaUpdate]) -> None:
         with self.storage.open(f"{load_id}/{LoaderStorage.LOAD_SCHEMA_UPDATE_FILE_NAME}", mode="w") as f:
             json.dump(schema_updates, f)
 
@@ -97,10 +97,10 @@ class LoaderStorage(VersionedStorage):
     def list_archived_failed_jobs(self, load_id: str) -> Sequence[str]:
         return self.storage.list_folder_files(f"{self.get_archived_path(load_id)}/{LoaderStorage.FAILED_JOBS_FOLDER}")
 
-    def begin_schema_update(self, load_id: str) -> Optional[SchemaUpdate]:
+    def begin_schema_update(self, load_id: str) -> Optional[TSchemaUpdate]:
         schema_update_file = f"{self.get_load_path(load_id)}/{LoaderStorage.LOAD_SCHEMA_UPDATE_FILE_NAME}"
         if self.storage.has_file(schema_update_file):
-            schema_update: SchemaUpdate = json.loads(self.storage.load(schema_update_file))
+            schema_update: TSchemaUpdate = json.loads(self.storage.load(schema_update_file))
             return schema_update
         else:
             return None

@@ -91,7 +91,7 @@ def test_dbt_run_full_refresh() -> None:
     # _loads are MERGE - always go to the raw schema
     assert metrics["_loads"].startswith("CREATE TABLE")
     # all tests should pass
-    test_results = runner.run_dbt("test")
+    runner.run_dbt("test")
 
 
 def test_dbt_run_error_via_additional_vars() -> None:

@@ -20,7 +20,7 @@ from dlt.pipeline import Pipeline, PostgresPipelineCredentials
 if __name__ == '__main__':
     # working redshift creds, you can pass password as last parameter or via PG_PASSWORD env variable ie.
     # LOG_LEVEL=INFO PG_PASSWORD=.... python examples/discord_iterator.py
-    credentials = PostgresPipelineCredentials("redshift", "chat_analytics_rasa", "gamma_guild_7", "loader", "3.73.90.3")
+    credentials = PostgresPipelineCredentials("redshift", "chat_analytics_rasa", "gamma_guild_8", "loader", "3.73.90.3")
 
     pipeline = Pipeline("discord")
     schema: Schema = None
@@ -33,12 +33,12 @@ if __name__ == '__main__':
     print(pipeline.root_path)
 
     # load our sample data - list of discord channels
-    with open("examples/data/channels.json", "r") as f:
+    with open("examples/data/channels.json", "r", encoding="utf-8") as f:
         channels = json.load(f)
     # and extract it
     pipeline.extract(channels, table_name="channels")
     # load list of messages
-    with open("examples/data/messages.json", "r") as f:
+    with open("examples/data/messages.json", "r", encoding="utf-8") as f:
         messages = json.load(f)
 
     # but we actually want to process messages before processing so pass mapping function instead
@@ -63,7 +63,7 @@ if __name__ == '__main__':
 
     # get inferred schema
     # schema = pipeline.get_current_schema()
-    # print(schema.as_yaml(remove_default_hints=True))
+    # print(schema.as_yaml(remove_default=True))
 
     # load packages
     pipeline.load()

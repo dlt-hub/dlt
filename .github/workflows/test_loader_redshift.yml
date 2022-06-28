@@ -18,7 +18,14 @@ jobs:
 
   run_lint:
     name: Tests redshift loader
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ["ubuntu-latest", "macos-latest", "windows-latest"]
+    defaults:
+      run:
+        shell: bash
+    runs-on: ${{ matrix.os }}
 
     steps:
 
@@ -37,12 +44,18 @@ jobs:
           virtualenvs-in-project: true
           installer-parallel: true
 
+      - name: Get pip cache dir
+        id: pip-cache
+        run: |
+          echo "::set-output name=dir::$(poetry run pip cache dir)"
+          echo "$(poetry run pip cache dir)"
+
       - name: Load cached venv
         id: cached-poetry-dependencies
         uses: actions/cache@v2
         with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}-redshift
+          path: ${{ steps.pip-cache.outputs.dir }}
+          key: pip-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}-redshift
 
       - name: Install dependencies
         if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
@@ -51,5 +64,12 @@ jobs:
       - name: Install self
         run: poetry install --no-interaction
 
-      - name: Run tests
-        run: LOG_LEVEL=ERROR poetry run pytest tests --ignore=tests/common --ignore=tests/unpacker --ignore=tests/loaders/gcp --ignore=tests/dbt_runner
+      - run: |
+          LOG_LEVEL=ERROR poetry run pytest tests --ignore=tests/common --ignore=tests/unpacker --ignore=tests/loaders/gcp --ignore=tests/dbt_runner
+        if: runner.os != 'Windows'
+        name: Run tests Linux/MAC
+      - run: |
+          poetry run pytest tests --ignore=tests/common --ignore=tests/unpacker --ignore=tests/loaders/gcp --ignore=tests/dbt_runner -m "not forked"
+        if: runner.os == 'Windows'
+        name: Run tests Windows
+        shell: cmd

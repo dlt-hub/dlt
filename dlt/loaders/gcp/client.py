@@ -1,7 +1,7 @@
 
 from pathlib import Path
 from typing import Any, AnyStr, Dict, List, Literal, Optional, Tuple, Type
-import google.cloud.bigquery as bigquery
+import google.cloud.bigquery as bigquery  # noqa: I250
 from google.cloud import exceptions as gcp_exceptions
 from google.oauth2 import service_account
 from google.api_core import exceptions as api_core_exceptions
@@ -12,12 +12,13 @@ from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SC
 from dlt.common.configuration import GcpClientConfiguration
 from dlt.common.dataset_writers import TWriterType, escape_bigquery_identifier
 from dlt.loaders.local_types import LoadJobStatus
-from dlt.common.schema import Column, DataType, Schema, Table
+from dlt.common.schema import TColumn, TDataType, Schema, TTableColumns
 
 from dlt.loaders.client_base import SqlClientBase, LoadJob
 from dlt.loaders.exceptions import LoadClientSchemaWillNotUpdate, LoadJobNotExistsException, LoadJobServerTerminalException, LoadUnknownTableException
 
-SCT_TO_BQT: Dict[DataType, str] = {
+SCT_TO_BQT: Dict[TDataType, str] = {
+    "complex": "STRING",
     "text": "STRING",
     "double": "FLOAT64",
     "bool": "BOOLEAN",
@@ -28,7 +29,7 @@ SCT_TO_BQT: Dict[DataType, str] = {
     "wei": "BIGNUMERIC"  # non parametrized should hold wei values
 }
 
-BQT_TO_SCT: Dict[str, DataType] = {
+BQT_TO_SCT: Dict[str, TDataType] = {
     "STRING": "text",
     "FLOAT": "double",
     "BOOLEAN": "bool",
@@ -150,7 +151,7 @@ class BigQueryClient(SqlClientBase):
                 sql_updates.append(sql)
         return sql_updates
 
-    def _get_table_update_sql(self, table_name: str, storage_table: Table, exists: bool) -> str:
+    def _get_table_update_sql(self, table_name: str, storage_table: TTableColumns, exists: bool) -> str:
         new_columns = self._create_table_update(table_name, storage_table)
         if len(new_columns) == 0:
             # no changes
@@ -185,17 +186,17 @@ class BigQueryClient(SqlClientBase):
 
         return sql
 
-    def _get_column_def_sql(self, c: Column) -> str:
+    def _get_column_def_sql(self, c: TColumn) -> str:
         name = escape_bigquery_identifier(c["name"])
         return f"{name} {self._sc_t_to_bq_t(c['data_type'])} {self._gen_not_null(c['nullable'])}"
 
-    def _get_storage_table(self, table_name: str) -> Tuple[bool, Table]:
-        schema_table: Table = {}
+    def _get_storage_table(self, table_name: str) -> Tuple[bool, TTableColumns]:
+        schema_table: TTableColumns = {}
         try:
             table = self._client.get_table(self._to_canonical_table_name(table_name), retry=self.default_retry, timeout=self.C.TIMEOUT)
             partition_field = table.time_partitioning.field if table.time_partitioning else None
             for c in table.schema:
-                schema_c: Column = {
+                schema_c: TColumn = {
                     "name": c.name,
                     "nullable": c.is_nullable,
                     "data_type": self._bq_t_to_sc_t(c.field_type, c.precision, c.scale),
@@ -250,11 +251,11 @@ class BigQueryClient(SqlClientBase):
         return "NOT NULL" if not v else ""
 
     @staticmethod
-    def _sc_t_to_bq_t(sc_t: DataType) -> str:
+    def _sc_t_to_bq_t(sc_t: TDataType) -> str:
         return SCT_TO_BQT[sc_t]
 
     @staticmethod
-    def _bq_t_to_sc_t(bq_t: str, precision: Optional[int], scale: Optional[int]) -> DataType:
+    def _bq_t_to_sc_t(bq_t: str, precision: Optional[int], scale: Optional[int]) -> TDataType:
         if bq_t == "BIGNUMERIC":
             if precision is None:  # biggest numeric possible
                 return "wei"
