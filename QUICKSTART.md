@@ -44,12 +44,12 @@ source ./env/bin/activate
 
 Install DLT using pip:
 ```
-pip3 install python-dlt
+pip3 install -U python-dlt
 ```
 
 Install support for Google BigQuery:
 ```
-pip3 install python-dlt[gcp]
+pip3 install -U python-dlt[gcp]
 ```
 
 ## Understanding the code
