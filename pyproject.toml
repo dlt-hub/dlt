@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "python-dlt"
-version = "0.1.0rc4"
+version = "0.1.0rc5"
 description = "DLT is an open-source python-native scalable data loading framework that does not require any devops efforts to run."
 authors = ["ScaleVector <services@scalevector.ai>"]
 maintainers = [ "Marcin Rudolf <marcin@scalevector.ai>", "Adrian Brudaru <adrian@scalevector.ai>",]

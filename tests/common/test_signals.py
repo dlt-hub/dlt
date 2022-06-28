@@ -18,7 +18,8 @@ def clear_signal() -> None:
 def test_sleep() -> None:
     start = time.time()
     sleep(0.5)
-    assert time.time() - start - 0.5 < 0.1
+    # why delta is so big? (0.2) -> tests on mac require that
+    assert time.time() - start - 0.5 < 0.2
 
 
 def test_sleep_raises_if_signalled() -> None:
