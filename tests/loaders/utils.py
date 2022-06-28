@@ -70,7 +70,7 @@ TABLE_ROW = {
 }
 
 def load_table(name: str) -> TTableColumns:
-    with open(f"./tests/loaders/cases/{name}.json", "tr") as f:
+    with open(f"./tests/loaders/cases/{name}.json", "tr", encoding="utf-8") as f:
         return cast(TTableColumns, json.load(f))
 
 

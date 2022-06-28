@@ -1,4 +1,3 @@
-from datetime import time
 import random
 from typing import Dict, Literal, Type
 from dlt.common.dataset_writers import TWriterType

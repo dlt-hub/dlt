@@ -38,7 +38,7 @@ class GCPPipelineCredentials(PipelineCredentials):
 
     @classmethod
     def from_services_file(cls, services_path: str, dataset_prefix: str) -> "GCPPipelineCredentials":
-        with open(services_path, "r") as f:
+        with open(services_path, "r", encoding="utf-8") as f:
             services = json.load(f)
         return GCPPipelineCredentials.from_services_dict(services, dataset_prefix)
 

@@ -2,7 +2,7 @@ from copy import deepcopy
 import re
 import base64
 import binascii
-import datetime
+import datetime  # noqa: I251
 from dateutil.parser import isoparse
 from typing import Dict, List, Sequence, Type, Any, cast
 

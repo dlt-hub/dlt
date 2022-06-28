@@ -30,7 +30,7 @@ def load_secret(name: str) -> str:
 def modify_and_commit_file(repo_path: str, file_name: str, content: str = "NEW README CONTENT") -> None:
     file_path = os.path.join(repo_path, file_name)
 
-    with open(file_path, "w") as f:
+    with open(file_path, "w", encoding="utf-8") as f:
         f.write(content)
 
     repo = Repo(repo_path)

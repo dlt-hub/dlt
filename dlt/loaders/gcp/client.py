@@ -1,7 +1,7 @@
 
 from pathlib import Path
 from typing import Any, AnyStr, Dict, List, Literal, Optional, Tuple, Type
-import google.cloud.bigquery as bigquery
+import google.cloud.bigquery as bigquery  # noqa: I250
 from google.cloud import exceptions as gcp_exceptions
 from google.oauth2 import service_account
 from google.api_core import exceptions as api_core_exceptions

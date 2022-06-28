@@ -303,11 +303,11 @@ class Pipeline:
 
     @staticmethod
     def save_schema_to_file(file_name: str, schema: Schema, remove_defaults: bool = True) -> None:
-        with open(file_name, "w") as f:
+        with open(file_name, "w", encoding="utf-8") as f:
             f.write(schema.as_yaml(remove_defaults=remove_defaults))
 
     @staticmethod
     def load_schema_from_file(file_name: str) -> Schema:
-        with open(file_name, "r") as f:
+        with open(file_name, "r", encoding="utf-8") as f:
             schema_dict: DictStrAny = yaml.safe_load(f)
         return Schema.from_dict(schema_dict)

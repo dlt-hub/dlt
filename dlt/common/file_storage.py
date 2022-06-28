@@ -4,6 +4,8 @@ import shutil
 from pathlib import Path
 from typing import IO, Any, List
 
+from dlt.common.utils import encoding_for_mode
+
 
 class FileStorage:
     def __init__(self,
@@ -25,12 +27,14 @@ class FileStorage:
 
     @staticmethod
     def save_atomic(storage_path: str, relative_path: str, data: Any, file_type: str = "t") -> str:
-        with tempfile.NamedTemporaryFile(dir=storage_path, mode="w" + file_type, delete=False) as f:
+        mode = "w" + file_type
+        with tempfile.NamedTemporaryFile(dir=storage_path, mode=mode, delete=False, encoding=encoding_for_mode(mode)) as f:
             tmp_path = f.name
             f.write(data)
         try:
             dest_path = os.path.join(storage_path, relative_path)
-            os.rename(tmp_path, dest_path)
+            # os.rename reverts to os.replace on posix. on windows this operation is not atomic!
+            os.replace(tmp_path, dest_path)
             return dest_path
         except Exception:
             if os.path.isfile(tmp_path):
@@ -60,11 +64,12 @@ class FileStorage:
             raise NotADirectoryError(folder_path)
 
     def open(self, realtive_path: str, mode: str = "r") -> IO[Any]:
-        return open(self._make_path(realtive_path), mode + self.file_type)
+        mode = mode + self.file_type
+        return open(self._make_path(realtive_path), mode, encoding=encoding_for_mode(mode))
 
     def open_temp(self, delete: bool = False, mode: str = "w", file_type: str = None) -> IO[Any]:
-        ft = file_type or self.file_type
-        return tempfile.NamedTemporaryFile(dir=self.storage_path, mode=mode + ft, delete=delete)
+        mode = mode + file_type or self.file_type
+        return tempfile.NamedTemporaryFile(dir=self.storage_path, mode=mode, delete=delete, encoding=encoding_for_mode(mode))
 
     def has_file(self, relative_path: str) -> bool:
         return os.path.isfile(self._make_path(relative_path))
@@ -132,4 +137,3 @@ class FileStorage:
 
     def _make_path(self, relative_path: str) -> str:
         return os.path.join(self.storage_path, relative_path)
-

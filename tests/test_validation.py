@@ -83,7 +83,7 @@ def test_doc() -> TTestRecord:
 
 
 def test_validate_schema_cases() -> None:
-    with open("tests/common/cases/schemas/eth/ethereum_schema_v3.yml") as f:
+    with open("tests/common/cases/schemas/eth/ethereum_schema_v3.yml", mode="r", encoding="utf-8") as f:
         schema_dict: TStoredSchema = yaml.safe_load(f)
 
     validate_dict(TStoredSchema, schema_dict, ".", lambda k: not k.startswith("x-"), simple_regex_validator)

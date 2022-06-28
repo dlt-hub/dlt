@@ -113,7 +113,7 @@ class RedshiftInsertLoadJob(SqlClientMixin, LoadJob):
         if os.stat(file_path).st_size >= SqlClientMixin.MAX_STATEMENT_SIZE:
             # terminal exception
             raise LoadFileTooBig(file_path, SqlClientMixin.MAX_STATEMENT_SIZE)
-        with open(file_path, "r") as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             header = f.readline()
             content = f.read()
         sql = Composed(
@@ -254,7 +254,7 @@ class RedshiftClient(SqlClientMixin, SqlClientBase):
         if v == "NO":
             return False
         elif v == "YES":
-            return True;
+            return True
         raise ValueError(v)
 
     @staticmethod

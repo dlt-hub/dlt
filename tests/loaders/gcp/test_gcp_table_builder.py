@@ -3,7 +3,7 @@ import pytest
 from copy import deepcopy
 from typing import List
 
-from dlt.common.utils import uniq_id
+from dlt.common.utils import custom_environ, uniq_id
 from dlt.common.schema import Schema
 from dlt.common.schema.utils import new_table
 from dlt.common.configuration import make_configuration, GcpClientConfiguration
@@ -21,17 +21,15 @@ def schema() -> Schema:
     return Schema("event")
 
 
-# run in forked mode so config overrides do not apply
-@pytest.mark.forked
 def test_configuration() -> None:
     # check names normalized
-    os.environ["BQ_CRED_PRIVATE_KEY"] = "---NO NEWLINE---"
-    C = make_configuration(GcpClientConfiguration, GcpClientConfiguration)
-    assert C.BQ_CRED_PRIVATE_KEY == "---NO NEWLINE---\n"
+    with custom_environ({"BQ_CRED_PRIVATE_KEY": "---NO NEWLINE---\n"}):
+        C = make_configuration(GcpClientConfiguration, GcpClientConfiguration)
+        assert C.BQ_CRED_PRIVATE_KEY == "---NO NEWLINE---\n"
 
-    os.environ["BQ_CRED_PRIVATE_KEY"] = "---WITH NEWLINE---\n"
-    C = make_configuration(GcpClientConfiguration, GcpClientConfiguration)
-    assert C.BQ_CRED_PRIVATE_KEY == "---WITH NEWLINE---\n"
+    with custom_environ({"BQ_CRED_PRIVATE_KEY": "---WITH NEWLINE---\n"}):
+        C = make_configuration(GcpClientConfiguration, GcpClientConfiguration)
+        assert C.BQ_CRED_PRIVATE_KEY == "---WITH NEWLINE---\n"
 
 
 @pytest.fixture

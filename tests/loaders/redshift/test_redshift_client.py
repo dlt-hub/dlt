@@ -73,7 +73,7 @@ def test_get_update_basic_schema(client: RedshiftClient) -> None:
     assert version == 1
     # check if tables are present and identical
     exists, version_storage_table = client._get_storage_table(Schema.VERSION_TABLE_NAME)
-    version_schema_table = client._get_table_by_name(Schema.VERSION_TABLE_NAME, "");
+    version_schema_table = client._get_table_by_name(Schema.VERSION_TABLE_NAME, "")
     assert exists is True
     # schema version must be contained in storage version (schema may not have all hints)
     assert version_schema_table.keys() == version_storage_table.keys()
@@ -90,7 +90,7 @@ def test_complete_load(client: RedshiftClient) -> None:
     assert len(load_rows) == 1
     assert load_rows[0][0] == load_id
     assert load_rows[0][1] == 0
-    import datetime
+    import datetime  # noqa: I251
     assert type(load_rows[0][2]) is datetime.datetime
     client.complete_load("load2")
     load_rows = list(client._execute_sql(f"SELECT * FROM {load_table}"))
@@ -143,7 +143,7 @@ def test_schema_update_alter_table(client: RedshiftClient) -> None:
 @pytest.mark.order(7)
 def test_recover_tx_rollback(client: RedshiftClient) -> None:
     client.update_storage_schema()
-    version_table = client._to_canonical_table_name("_dlt_version");
+    version_table = client._to_canonical_table_name("_dlt_version")
     # simple syntax error
     sql = f"SELEXT * FROM {version_table}"
     with pytest.raises(psycopg2.errors.SyntaxError):

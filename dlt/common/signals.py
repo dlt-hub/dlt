@@ -22,7 +22,7 @@ def signal_receiver(signal: int, frame: Any) -> None:
     # awake all threads sleeping on event
     exit_event.set()
 
-    logger.info(f"Sleeping threads signalled")
+    logger.info("Sleeping threads signalled")
 
 
 def raise_if_signalled() -> None:

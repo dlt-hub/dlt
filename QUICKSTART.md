@@ -84,7 +84,7 @@ schema_file_path = 'schema.yml'
 
 f. Load credentials
 ```
-with open('credentials.json', 'r') as f:
+with open('credentials.json', 'r', encoding="utf-8") as f:
     gcp_credentials_json = json.load(f)
 
 # Private key needs to be decoded (because we don't want to store it as plain text)
@@ -108,7 +108,7 @@ pipeline.create_pipeline(credentials)
 
 a. Load JSON document into a dictionary
 ```
-with open('data.json', 'r') as f:
+with open('data.json', 'r', encoding="utf-8") as f:
     data = json.load(f)
 ```
 
@@ -128,7 +128,7 @@ c. Save schema to `schema.yml` file
 ```
 schema = pipeline.get_default_schema()
 schema_yaml = schema.as_yaml(remove_default=True)
-with open(schema_file_path, 'w') as f:
+with open(schema_file_path, 'w', encoding="utf-8") as f:
     f.write(schema_yaml)
 ```
 
