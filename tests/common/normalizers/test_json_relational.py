@@ -28,15 +28,18 @@ def test_flatten_fix_field_name(schema: Schema) -> None:
             }
         }
     }
-    flattened_row = _flatten(schema, "mock_table", row)
+    flattened_row, lists = _flatten(schema, "mock_table", row)
     assert "f_1" in flattened_row
-    assert "f_2" in flattened_row
+    # assert "f_2" in flattened_row
     assert "f_3__f4" in flattened_row
     assert "f_3__f_5" in flattened_row
     assert "f_3__f_6__c" in flattened_row
     assert "f_3__f_6__c_v" in flattened_row
-    assert "f_3__f_6__c_x" in flattened_row
+    # assert "f_3__f_6__c_x" in flattened_row
     assert "f_3" not in flattened_row
+
+    assert "f_2" in lists
+    assert "f_3__f_6__c_x" in lists
 
 
 def test_preserve_complex_value(schema: Schema) -> None:
@@ -52,13 +55,13 @@ def test_preserve_complex_value(schema: Schema) -> None:
     row_1 = {
         "value": 1
     }
-    flattened_row = _flatten(schema, "with_complex", row_1)
+    flattened_row, _ = _flatten(schema, "with_complex", row_1)
     assert flattened_row["value"] == 1
 
     row_2 = {
         "value": {"complex": True}
     }
-    flattened_row = _flatten(schema, "with_complex", row_2)
+    flattened_row, _ = _flatten(schema, "with_complex", row_2)
     assert flattened_row["value"] == row_2["value"]
     # complex value is not flattened
     assert "value__complex" not in flattened_row
@@ -68,18 +71,17 @@ def test_preserve_complex_value_with_hint(schema: Schema) -> None:
     # add preferred type for "value"
     schema._settings.setdefault("preferred_types", {})["re:^value$"] = "complex"
     schema._compile_regexes()
-    print(schema._compiled_preferred_types)
 
     row_1 = {
         "value": 1
     }
-    flattened_row = _flatten(schema, "any_table", row_1)
+    flattened_row, _ = _flatten(schema, "any_table", row_1)
     assert flattened_row["value"] == 1
 
     row_2 = {
         "value": {"complex": True}
     }
-    flattened_row = _flatten(schema, "any_table", row_2)
+    flattened_row, _ = _flatten(schema, "any_table", row_2)
     assert flattened_row["value"] == row_2["value"]
     # complex value is not flattened
     assert "value__complex" not in flattened_row
@@ -302,6 +304,20 @@ def test_list_position(schema: Schema) -> None:
         assert row["_dlt_list_idx"] == pos
 
 
+def test_list_of_lists(schema: Schema) -> None:
+    row = {
+        "l":[
+            ["a", "b", "c"],
+            [
+                ["a", "b", "b"]
+            ],
+            "a", 1, 1.1
+        ]
+    }
+    rows = list(_normalize_row(schema, row, {}, "table"))
+    print(rows)
+
+
 def test_child_row_deterministic_hash(schema: Schema) -> None:
     row_id = uniq_id()
     # directly set record hash so it will be adopted in unpacker as top level hash
@@ -452,6 +468,66 @@ def test_preserves_complex_types_list(schema: Schema) -> None:
     # value is kept in root row -> market as complex
     root_row = next(r for r in normalized_rows if r[0][1] is None)
     assert root_row[1]["value"] == row["value"]
+
+    # same should work for a list
+    row = {
+        "value": ["from", ["complex", True]]
+    }
+    normalized_rows = list(_normalize_row(schema, row, {}, "event_slot"))
+    # make sure only 1 row is emitted, the list is not unpacked
+    assert len(normalized_rows) == 1
+    # value is kept in root row -> market as complex
+    root_row = next(r for r in normalized_rows if r[0][1] is None)
+    assert root_row[1]["value"] == row["value"]
+
+
+def test_complex_types_for_recursion_level(schema: Schema) -> None:
+    add_dlt_root_id_propagation(schema)
+    # if max recursion depth is set, nested elements will be kept as complex
+    row = {
+        "_dlt_id": "row_id",
+        "f": [{
+            "l": ["a"],  # , "b", "c"
+            "v": 120,
+            "lo": [{"e": {"v": 1}}]  # , {"e": {"v": 2}}, {"e":{"v":3 }}
+        }]
+    }
+    n_rows_nl = list(schema.normalize_json(schema, row, "load_id"))
+    # all nested elements were yielded
+    assert ["default", "default__f", "default__f__l", "default__f__lo"] == [r[0][0] for r in n_rows_nl]
+
+    # set max nesting to 0
+    schema._normalizers_config["json"]["config"]["max_nesting"] = 0
+    n_rows = list(schema.normalize_json(schema, row, "load_id"))
+    # the "f" element is left as complex type and not normalized
+    assert len(n_rows) == 1
+    assert n_rows[0][0][0] == "default"
+    assert "f" in n_rows[0][1]
+    assert type(n_rows[0][1]["f"]) is list
+
+    # max nesting 1
+    schema._normalizers_config["json"]["config"]["max_nesting"] = 1
+    n_rows = list(schema.normalize_json(schema, row, "load_id"))
+    assert len(n_rows) == 2
+    assert ["default", "default__f"] == [r[0][0] for r in n_rows]
+    # on level f, "l" and "lo" are not normalized
+    assert "l" in n_rows[1][1]
+    assert type(n_rows[1][1]["l"]) is list
+    assert "lo" in n_rows[1][1]
+    assert type(n_rows[1][1]["lo"]) is list
+
+    # max nesting 2
+    schema._normalizers_config["json"]["config"]["max_nesting"] = 2
+    n_rows = list(schema.normalize_json(schema, row, "load_id"))
+    assert len(n_rows) == 4
+    # in default__f__lo the dicts that would be flattened are complex types
+    last_row = n_rows[3]
+    assert last_row[1]["e"] == {"v": 1}
+
+    # max nesting 3
+    schema._normalizers_config["json"]["config"]["max_nesting"] = 3
+    n_rows = list(schema.normalize_json(schema, row, "load_id"))
+    assert n_rows_nl == n_rows
 
 
 def test_extract_with_table_name_meta() -> None:
