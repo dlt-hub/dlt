@@ -65,6 +65,7 @@ types-requests = "^2.25.6"
 types-python-dateutil = "^2.8.15"
 flake8-tidy-imports = "^4.8.0"
 flake8-encodings = "^0.5.0"
+flake8-builtins = "^1.5.3"
 
 [tool.poetry.extras]
 dbt = ["dbt-core", "GitPython", "dbt-redshift", "dbt-bigquery"]

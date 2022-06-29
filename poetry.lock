@@ -321,6 +321,20 @@ flake8 = ">=3.0.0"
 dev = ["coverage", "hypothesis", "hypothesmith (>=0.2)", "pre-commit"]
 
 [[package]]
+name = "flake8-builtins"
+version = "1.5.3"
+description = "Check for python builtins being used as variables or parameters."
+category = "dev"
+optional = false
+python-versions = "*"
+
+[package.dependencies]
+flake8 = "*"
+
+[package.extras]
+test = ["coverage", "coveralls", "mock", "pytest", "pytest-cov"]
+
+[[package]]
 name = "flake8-encodings"
 version = "0.5.0.post1"
 description = "A Flake8 plugin to identify incorrect use of encodings."
@@ -1358,7 +1372,7 @@ redshift = ["psycopg2-binary"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8,<3.11"
-content-hash = "b919ccc29a9271c32772c4182f4eb5f4f22be195b21020f22816a6842e871f89"
+content-hash = "448cd68c50ebcca752249710d391fdba109746633be811523894c02b0e7da60f"
 
 [metadata.files]
 agate = [
@@ -1518,6 +1532,10 @@ flake8 = [
 flake8-bugbear = [
     {file = "flake8-bugbear-21.11.29.tar.gz", hash = "sha256:8b04cb2fafc6a78e1a9d873bd3988e4282f7959bb6b0d7c1ae648ec09b937a7b"},
     {file = "flake8_bugbear-21.11.29-py36.py37.py38-none-any.whl", hash = "sha256:179e41ddae5de5e3c20d1f61736feeb234e70958fbb56ab3c28a67739c8e9a82"},
+]
+flake8-builtins = [
+    {file = "flake8-builtins-1.5.3.tar.gz", hash = "sha256:09998853b2405e98e61d2ff3027c47033adbdc17f9fe44ca58443d876eb00f3b"},
+    {file = "flake8_builtins-1.5.3-py2.py3-none-any.whl", hash = "sha256:7706babee43879320376861897e5d1468e396a40b8918ed7bccf70e5f90b8687"},
 ]
 flake8-encodings = [
     {file = "flake8_encodings-0.5.0.post1-py3-none-any.whl", hash = "sha256:d2fecca0e89ba09c86e5d61cf6bdb1b337f0d74746aac67bbcf0c517b4cb6cba"},
