@@ -1,4 +1,4 @@
-from typing import Dict, List, Literal, Optional, Set, TypedDict, NewType
+from typing import Any, Callable, Dict, List, Literal, Optional, Set, Type, TypedDict, NewType
 
 from dlt.common.typing import StrAny
 
@@ -7,6 +7,8 @@ TDataType = Literal["text", "double", "bool", "timestamp", "bigint", "binary", "
 THintType = Literal["not_null", "partition", "cluster", "primary_key", "foreign_key", "sort", "unique"]
 TColumnProp = Literal["name", "data_type", "nullable", "partition", "cluster", "primary_key", "foreign_key", "sort", "unique"]
 TWriteDisposition = Literal["skip", "append", "replace", "merge"]
+TTypeDetections = Literal["timestamp", "iso_timestamp"]
+TTypeDetectionFunc = Callable[[Type[Any], Any], Optional[TDataType]]
 
 DATA_TYPES: Set[TDataType] = set(["text", "double", "bool", "timestamp", "bigint", "binary", "complex", "decimal", "wei"])
 COLUMN_PROPS: Set[TColumnProp] = set(["name", "data_type", "nullable", "partition", "cluster", "primary_key", "foreign_key", "sort", "unique"])
@@ -66,6 +68,7 @@ class TJSONNormalizer(TypedDict, total=False):
 
 class TNormalizersConfig(TypedDict, total=True):
     names: str
+    detections: Optional[List[TTypeDetections]]
     json: TJSONNormalizer
 
 
