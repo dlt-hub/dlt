@@ -28,7 +28,7 @@ def test_flatten_fix_field_name(schema: Schema) -> None:
             }
         }
     }
-    flattened_row, lists = _flatten(schema, "mock_table", row)
+    flattened_row, lists = _flatten(schema, "mock_table", row, 0)
     assert "f_1" in flattened_row
     # assert "f_2" in flattened_row
     assert "f_3__f4" in flattened_row
@@ -55,13 +55,13 @@ def test_preserve_complex_value(schema: Schema) -> None:
     row_1 = {
         "value": 1
     }
-    flattened_row, _ = _flatten(schema, "with_complex", row_1)
+    flattened_row, _ = _flatten(schema, "with_complex", row_1, 0)
     assert flattened_row["value"] == 1
 
     row_2 = {
         "value": {"complex": True}
     }
-    flattened_row, _ = _flatten(schema, "with_complex", row_2)
+    flattened_row, _ = _flatten(schema, "with_complex", row_2, 0)
     assert flattened_row["value"] == row_2["value"]
     # complex value is not flattened
     assert "value__complex" not in flattened_row
@@ -75,13 +75,13 @@ def test_preserve_complex_value_with_hint(schema: Schema) -> None:
     row_1 = {
         "value": 1
     }
-    flattened_row, _ = _flatten(schema, "any_table", row_1)
+    flattened_row, _ = _flatten(schema, "any_table", row_1, 0)
     assert flattened_row["value"] == 1
 
     row_2 = {
         "value": {"complex": True}
     }
-    flattened_row, _ = _flatten(schema, "any_table", row_2)
+    flattened_row, _ = _flatten(schema, "any_table", row_2, 0)
     assert flattened_row["value"] == row_2["value"]
     # complex value is not flattened
     assert "value__complex" not in flattened_row

@@ -43,7 +43,7 @@ class FileStorage:
 
     def load(self, relative_path: str) -> Any:
         # raises on file not existing
-        with self.open(relative_path) as text_file:
+        with self.open_file(relative_path) as text_file:
             return text_file.read()
 
     def delete(self, relative_path: str) -> None:
@@ -63,7 +63,7 @@ class FileStorage:
         else:
             raise NotADirectoryError(folder_path)
 
-    def open(self, realtive_path: str, mode: str = "r") -> IO[Any]:
+    def open_file(self, realtive_path: str, mode: str = "r") -> IO[Any]:
         mode = mode + self.file_type
         return open(self._make_path(realtive_path), mode, encoding=encoding_for_mode(mode))
 

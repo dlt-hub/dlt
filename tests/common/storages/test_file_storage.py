@@ -17,14 +17,14 @@ def test_save_atomic_encode() -> None:
     tstr = "data'ऄअआइ''ईउऊऋऌऍऎए');"
     FileStorage.save_atomic(TEST_STORAGE, "file.txt", tstr)
     storage = FileStorage(TEST_STORAGE)
-    with storage.open("file.txt") as f:
+    with storage.open_file("file.txt") as f:
         assert f.encoding == "utf-8"
         assert f.read() == tstr
 
     bstr = b"axa\0x0\0x0"
     FileStorage.save_atomic(TEST_STORAGE, "file.bin", bstr, file_type="b")
     storage = FileStorage(TEST_STORAGE, file_type="b")
-    with storage.open("file.bin", mode="r") as f:
+    with storage.open_file("file.bin", mode="r") as f:
         assert hasattr(f, "encoding") is False
         assert f.read() == bstr
 

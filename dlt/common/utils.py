@@ -11,9 +11,9 @@ from dlt.common.typing import StrAny, DictStrAny, StrStr
 T = TypeVar("T")
 
 
-def chunks(list: Sequence[T], n: int) -> Iterator[Sequence[T]]:
-    for i in range(0, len(list), n):
-        yield list[i:i + n]
+def chunks(seq: Sequence[T], n: int) -> Iterator[Sequence[T]]:
+    for i in range(0, len(seq), n):
+        yield seq[i:i + n]
 
 
 def uniq_id() -> str:
@@ -103,8 +103,8 @@ def tuplify_list_of_dicts(dicts: Sequence[DictStrAny]) -> Sequence[DictStrAny]:
     return dicts
 
 
-def filter_env_vars(vars: List[str]) -> StrStr:
-    return {k.lower(): environ[k] for k in vars if k in environ}
+def filter_env_vars(envs: List[str]) -> StrStr:
+    return {k.lower(): environ[k] for k in envs if k in environ}
 
 
 def update_dict_with_prune(dest: DictStrAny, update: StrAny) -> None:

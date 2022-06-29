@@ -72,7 +72,7 @@ def run_dbt(command: str, command_args: Sequence[str] = None) -> Sequence[dbt_re
         profile_name=profile_name,
         command_args=command_args,
         global_args=global_args,
-        vars=dbt_package_vars
+        dbt_vars=dbt_package_vars
     )
 
 

@@ -99,14 +99,14 @@ def is_incremental_schema_out_of_sync_error(error: dbt_results.RunResult) -> boo
 
 
 def run_dbt_command(package_path: str, command: str, profiles_dir: str, profile_name: Optional[str] = None,
-                    global_args: Sequence[str] = None, command_args: Sequence[str] = None, vars: StrAny = None) -> Sequence[dbt_results.BaseResult]:
+                    global_args: Sequence[str] = None, command_args: Sequence[str] = None, dbt_vars: StrAny = None) -> Sequence[dbt_results.BaseResult]:
     args = ["--profiles-dir", profiles_dir]
     # add profile name if provided
     if profile_name:
         args += ["--profile", profile_name]
     # serialize dbt variables to pass to package
-    if vars:
-        args += ["--vars", json.dumps(vars)]
+    if dbt_vars:
+        args += ["--vars", json.dumps(dbt_vars)]
     if command_args:
         args += command_args
 

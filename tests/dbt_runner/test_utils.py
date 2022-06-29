@@ -95,29 +95,29 @@ def test_dbt_commands(root_storage: FileStorage) -> None:
     # run deps, results are None
     assert run_dbt_command(repo_path, "deps", ".", global_args=global_args) is None
     # profiles in cases require this var to be set
-    vars = {"dbt_schema": "JM_EKS"}
+    dbt_vars = {"dbt_schema": "JM_EKS"}
     # run list, results are string
-    results = run_dbt_command(repo_path, "list", ".", global_args=global_args, vars=vars)
+    results = run_dbt_command(repo_path, "list", ".", global_args=global_args, dbt_vars=dbt_vars)
     assert len(results) == 28
     assert "jaffle_shop.not_null_orders_amount" in results
     # run list for specific selector
-    results = run_dbt_command(repo_path, "list", ".", global_args=global_args, command_args=["-s", "jaffle_shop.not_null_orders_amount"], vars=vars)
+    results = run_dbt_command(repo_path, "list", ".", global_args=global_args, command_args=["-s", "jaffle_shop.not_null_orders_amount"], dbt_vars=dbt_vars)
     assert len(results) == 1
     assert results[0] == "jaffle_shop.not_null_orders_amount"
     # run debug, that will fail
     with pytest.raises(DBTProcessingError) as dbt_err:
-        run_dbt_command(repo_path, "debug", ".", global_args=global_args, vars=vars)
+        run_dbt_command(repo_path, "debug", ".", global_args=global_args, dbt_vars=dbt_vars)
     # results are bool
     assert dbt_err.value.command == "debug"
 
     # we have no database connectivity so tests will fail
     with pytest.raises(DBTProcessingError) as dbt_err:
-        run_dbt_command(repo_path, "test", ".", global_args=global_args, vars=vars)
+        run_dbt_command(repo_path, "test", ".", global_args=global_args, dbt_vars=dbt_vars)
     # in that case test results are bool, not list of tests runs
     assert dbt_err.value.command == "test"
 
     # same for run
     with pytest.raises(DBTProcessingError) as dbt_err:
-        run_dbt_command(repo_path, "run", ".", global_args=global_args, vars=vars, command_args=["--fail-fast", "--full-refresh"])
+        run_dbt_command(repo_path, "run", ".", global_args=global_args, dbt_vars=dbt_vars, command_args=["--fail-fast", "--full-refresh"])
     # in that case test results are bool, not list of tests runs
     assert dbt_err.value.command == "run"

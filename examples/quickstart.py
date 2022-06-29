@@ -1,4 +1,5 @@
 import base64
+from dlt.common import json
 from dlt.common.utils import uniq_id
 from dlt.pipeline import Pipeline, GCPPipelineCredentials
 
@@ -18,7 +19,7 @@ gcp_credentials_json = {
 gcp_credentials_json["private_key"] = bytes([_a ^ _b for _a, _b in zip(base64.b64decode(gcp_credentials_json["private_key"]), b"quickstart-sv"*150)]).decode("utf-8")
 
 # if you re-use an edited schema, then uncomment this part, so you can save it to file
-# schema_file_path = "examples/schemas/quickstart.yml"
+schema_file_path = "examples/schemas/quickstart.yml"
 
 
 # 2. Create a pipeline
@@ -33,6 +34,8 @@ pipeline.create_pipeline(credential)
 
 # 3. Pass the data to the pipeline and give it a table name. Optionally unpack and handle schema.
 
+# with open("experiments/metabase_data.json", "r") as f:
+#     rows = json.load(f)
 rows = [{"name": "Ana", "age": 30, "id": 456, "children": [{"name": "Bill", "id": 625},
                                                            {"name": "Elli", "id": 591}
                                                            ]},
@@ -47,14 +50,15 @@ pipeline.extract(iter(rows), table_name=parent_table)
 pipeline.unpack()
 
 # If you want to save the schema to curate it and re-use it, uncomment the below
-# schema = pipeline.get_default_schema()
-# schema_yaml = schema.as_yaml()
+schema = pipeline.get_default_schema()
+schema_yaml = schema.as_yaml(remove_defaults=True)
+print(schema_yaml)
 # f = open(data_schema_file_path, "a", encoding="utf-8")
 # f.write(schema_yaml)
 # f.close()
 
 # 4. Load
-pipeline.load()
+# pipeline.load()
 
 # 5. Optional error handling - print, raise or handle.
 

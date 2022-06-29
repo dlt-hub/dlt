@@ -4,7 +4,7 @@ import base64
 import binascii
 import datetime  # noqa: I251
 from dateutil.parser import isoparse
-from typing import Dict, List, Sequence, Type, Any, cast
+from typing import Callable, Dict, List, Sequence, Type, Any, Union, cast, Optional
 
 from dlt.common import pendulum, json, Decimal
 from dlt.common.arithmetics import ConversionSyntax
@@ -12,7 +12,8 @@ from dlt.common.exceptions import DictValidationException
 from dlt.common.normalizers.names import TNormalizeNameFunc
 from dlt.common.typing import DictStrAny, REPattern
 from dlt.common.validation import TCustomValidator, validate_dict
-from dlt.common.schema.typing import SIMPLE_REGEX_PREFIX, TColumnName, TSimpleRegex, TStoredSchema, TTable, TTableColumns, TColumnBase, TColumn, TColumnProp, TDataType, THintType
+from dlt.common.schema import detections
+from dlt.common.schema.typing import SIMPLE_REGEX_PREFIX, TColumnName, TNormalizersConfig, TSimpleRegex, TStoredSchema, TTable, TTableColumns, TColumnBase, TColumn, TColumnProp, TDataType, THintType, TTypeDetectionFunc, TTypeDetections
 from dlt.common.schema.exceptions import ParentTableNotFoundException, SchemaEngineNoUpgradePathException
 
 
@@ -130,19 +131,14 @@ def upgrade_engine_version(schema_dict: DictStrAny, from_engine: int, to_engine:
         # current version of the schema
         current = cast(TStoredSchema, schema_dict)
         # add default normalizers and root hash propagation
-        current["normalizers"] = {
-            "names": "dlt.common.normalizers.names.snake_case",
-            "json": {
-                "module": "dlt.common.normalizers.json.relational",
-                "config": {
+        current["normalizers"] = default_normalizers()
+        current["normalizers"]["json"]["config"] = {
                     "propagation": {
                         "root": {
                             "_dlt_id": "_dlt_root_id"
                         }
                     }
                 }
-            }
-        }
         # move settings, convert strings to simple regexes
         d_h: Dict[THintType, List[TSimpleRegex]] = schema_dict.pop("hints", {})
         for h_k, h_l in d_h.items():
@@ -216,6 +212,17 @@ def add_missing_hints(column: TColumnBase) -> TColumn:
         },
         **column
     }
+
+
+def autodetect_sc_type(detection_fs: Sequence[TTypeDetections], t: Type[Any], v: Any) -> TDataType:
+    if detection_fs:
+        for detection_fn in detection_fs:
+            # the method must exist in the module
+            detection_f: TTypeDetectionFunc = getattr(detections, "is_" + detection_fn)
+            dt = detection_f(t, v)
+            if dt is not None:
+                return dt
+    return None
 
 
 def py_type_to_sc_type(t: Type[Any]) -> TDataType:
@@ -394,6 +401,16 @@ def load_table() -> TTable:
             })
         }
     }
+
+
+def default_normalizers() -> TNormalizersConfig:
+    return {
+                "detections": ["timestamp", "iso_timestamp"],
+                "names": "dlt.common.normalizers.names.snake_case",
+                "json": {
+                    "module": "dlt.common.normalizers.json.relational"
+                }
+            }
 
 
 def standard_hints() -> Dict[THintType, List[TSimpleRegex]]:

@@ -57,7 +57,7 @@ def _add_logging_level(level_name: str, level: int, method_name:str = None) -> N
 
 
 class _MetricsFormatter(logging.Formatter):
-    def format(self, record: LogRecord) -> str:
+    def format(self, record: LogRecord) -> str:  # noqa: A003
         s = super(_MetricsFormatter, self).format(record)
         if record.exc_text:
             s = s + '|'
@@ -78,7 +78,7 @@ class _CustomJsonFormatter(json_logging.JSONLogFormatter):
         return json_log_object
 
 
-def _init_logging(logger_name: str, level: str, format: str, component: str, version: StrStr) -> Logger:
+def _init_logging(logger_name: str, level: str, fmt: str, component: str, version: StrStr) -> Logger:
     if logger_name == "root":
         logging.basicConfig(level=level)
         handler = logging.getLogger().handlers[0]
@@ -93,7 +93,7 @@ def _init_logging(logger_name: str, level: str, format: str, component: str, ver
         logger.addHandler(handler)
 
     # set right formatter
-    if is_json_logging(format):
+    if is_json_logging(fmt):
         json_logging.COMPONENT_NAME = component
         json_logging.JSON_SERIALIZER = json.dumps
         json_logging.RECORD_ATTR_SKIP_LIST.remove("process")
@@ -104,7 +104,7 @@ def _init_logging(logger_name: str, level: str, format: str, component: str, ver
         if logger_name == "root":
             json_logging.config_root_logger()
     else:
-        handler.setFormatter(_MetricsFormatter(fmt=format, style='{'))
+        handler.setFormatter(_MetricsFormatter(fmt=fmt, style='{'))
 
     return logger
 
