@@ -56,7 +56,7 @@ class LoaderStorage(VersionedStorage):
 
     def write_temp_loading_file(self, load_id: str, table_name: str, table: TTableColumns, file_id: str, rows: Sequence[StrAny]) -> str:
         file_name = self.build_loading_file_name(load_id, table_name, file_id)
-        with self.storage.open(file_name, mode="w") as f:
+        with self.storage.open_file(file_name, mode="w") as f:
             if self.writer_type == "jsonl":
                 write_jsonl(f, rows)
             elif self.writer_type == "insert_values":
@@ -64,7 +64,7 @@ class LoaderStorage(VersionedStorage):
         return Path(file_name).name
 
     def save_schema_updates(self, load_id: str, schema_updates: Sequence[TSchemaUpdate]) -> None:
-        with self.storage.open(f"{load_id}/{LoaderStorage.LOAD_SCHEMA_UPDATE_FILE_NAME}", mode="w") as f:
+        with self.storage.open_file(f"{load_id}/{LoaderStorage.LOAD_SCHEMA_UPDATE_FILE_NAME}", mode="w") as f:
             json.dump(schema_updates, f)
 
     def commit_temp_load_folder(self, load_id: str) -> None:

@@ -197,7 +197,7 @@ class Schema:
 
     def merge_hints(self, new_hints: Mapping[THintType, Sequence[TSimpleRegex]]) -> None:
         # validate regexes
-        validate_dict(TSchemaSettings, {"default_hints": new_hints}, ".", validator=utils.simple_regex_validator)
+        validate_dict(TSchemaSettings, {"default_hints": new_hints}, ".", validator_f=utils.simple_regex_validator)
         # prepare hints to be added
         default_hints = self._settings.setdefault("default_hints", {})
         # add `new_hints` to existing hints
@@ -315,7 +315,12 @@ class Schema:
         return variant_col_name, new_column, rv
 
     def _map_value_to_column_type(self, v: Any, k: str) -> TDataType:
-        mapped_type = utils.py_type_to_sc_type(type(v))
+        tv = type(v)
+        # try to autodetect data type
+        mapped_type = utils.autodetect_sc_type(self._normalizers_config.get("detections"), tv, v)
+        # if not try standard type mapping
+        if mapped_type is None:
+            mapped_type = utils.py_type_to_sc_type(tv)
         # get preferred type based on column name
         preferred_type = self.get_preferred_type(k)
         # try to match python type to preferred
@@ -348,12 +353,7 @@ class Schema:
     def _configure_normalizers(self) -> None:
         if not self._normalizers_config:
             # create default normalizer config
-            self._normalizers_config = {
-                "names": "dlt.common.normalizers.names.snake_case",
-                "json": {
-                    "module": "dlt.common.normalizers.json.relational"
-                }
-            }
+            self._normalizers_config = utils.default_normalizers()
         # import desired modules
         naming_module = import_module(self._normalizers_config["names"])
         json_module = import_module(self._normalizers_config["json"]["module"])

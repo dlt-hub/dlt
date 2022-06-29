@@ -14,7 +14,7 @@ FilePathOrDict = Union[StrAny, StrOrBytesPath]
 
 
 class SingerMessage(TypedDict):
-    type: str
+    type: str  # noqa: A003
 
 
 class SingerRecord(SingerMessage):

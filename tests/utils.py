@@ -83,5 +83,5 @@ def create_schema_with_name(schema_name) -> Schema:
     return schema
 
 
-def assert_no_dict_key_starts_with(dict: StrAny, key_prefix: str) -> None:
-    assert all(not key.startswith(key_prefix) for key in dict.keys())
+def assert_no_dict_key_starts_with(d: StrAny, key_prefix: str) -> None:
+    assert all(not key.startswith(key_prefix) for key in d.keys())

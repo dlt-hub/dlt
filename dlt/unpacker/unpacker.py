@@ -85,7 +85,7 @@ def w_unpack_files(schema_name: str, load_id: str, events_files: Sequence[str]) 
     for events_file in events_files:
         try:
             logger.debug(f"Processing events file {events_file} in load_id {load_id} with file_id {file_id}")
-            with unpack_storage.storage.open(events_file) as f:
+            with unpack_storage.storage.open_file(events_file) as f:
                 events: Sequence[TEvent] = json.load(f)
             for event in events:
                 for (table_name, parent_table), row in schema.normalize_json(schema, event, load_id):

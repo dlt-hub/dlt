@@ -44,21 +44,22 @@ jobs:
           virtualenvs-in-project: true
           installer-parallel: true
 
-      - name: Get pip cache dir
-        id: pip-cache
-        run: |
-          echo "::set-output name=dir::$(poetry run pip cache dir)"
-          echo "$(poetry run pip cache dir)"
+      # - name: Get pip cache dir
+      #   id: pip-cache
+      #   run: |
+      #     echo "::set-output name=dir::$(poetry env info -p)"
+      #     echo "$(poetry env info -p)"
 
       - name: Load cached venv
         id: cached-poetry-dependencies
         uses: actions/cache@v2
         with:
-          path: ${{ steps.pip-cache.outputs.dir }}
-          key: pip-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}-gcp
+          # path: ${{ steps.pip-cache.outputs.dir }}
+          path: .venv
+          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}-gcp
 
       - name: Install dependencies
-        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+        # if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
         run: poetry install --no-interaction --no-root -E gcp
 
       - name: Install self

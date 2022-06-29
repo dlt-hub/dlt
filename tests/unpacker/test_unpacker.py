@@ -261,7 +261,7 @@ def expect_load_package(load_id: str, expected_tables: Sequence[str]) -> Dict[st
 
 
 def expect_lines_file(load_file: str, line: int = 0) -> str:
-    with unpacker.load_storage.storage.open(load_file) as f:
+    with unpacker.load_storage.storage.open_file(load_file) as f:
         lines = f.readlines()
     return lines[line], len(lines)
 

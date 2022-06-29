@@ -1,6 +1,6 @@
 import pytest
 
-from dlt.common import Decimal, json
+from dlt.common import Decimal, json, pendulum
 from dlt.common.schema import Schema
 from dlt.common.schema.exceptions import CannotCoerceColumnException, CannotCoerceNullException
 
@@ -218,6 +218,14 @@ def test_corece_null_value_over_not_null(schema: Schema) -> None:
     row = {"timestamp": None}
     with pytest.raises(CannotCoerceNullException):
         schema.coerce_row("event_user", None, row)
+
+
+def test_infer_with_autodetection(schema: Schema) -> None:
+    c = schema._infer_column("ts", pendulum.now().timestamp())
+    assert c["data_type"] == "timestamp"
+    schema._normalizers_config["detections"] = None
+    c = schema._infer_column("ts", pendulum.now().timestamp())
+    assert c["data_type"] == "double"
 
 
 def _add_preferred_types(schema: Schema) -> None:

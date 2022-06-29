@@ -1,7 +1,9 @@
 import pytest
+import datetime  # noqa: I251
 
-from dlt.common import Decimal, json
+from dlt.common import Decimal, json, pendulum
 from dlt.common.schema import utils
+
 
 def test_coerce_type() -> None:
     # same type coercion
@@ -83,6 +85,12 @@ def test_coerce_type_binary() -> None:
     # can't broken base64
     with pytest.raises(ValueError):
         assert utils.coerce_type("binary", "text", "!YmluYXJ5IHN0cmluZw==")
+
+
+def test_py_type_to_sc_type() -> None:
+    assert utils.py_type_to_sc_type(type(pendulum.now())) == "timestamp"
+    assert utils.py_type_to_sc_type(type(datetime.datetime(1988, 12, 1))) == "timestamp"
+    assert utils.py_type_to_sc_type(type(Decimal(1))) == "decimal"
 
 
 def test_coerce_type_complex() -> None:

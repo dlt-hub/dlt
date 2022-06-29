@@ -225,4 +225,4 @@ def test_optional(test_doc: TTestRecord) -> None:
 def test_filter(test_doc: TTestRecord) -> None:
     test_doc["x-extra"] = "x-annotation"
     # remove x-extra with a filter
-    validate_dict(TTestRecord, test_doc, ".", filter=lambda k: k != "x-extra")
+    validate_dict(TTestRecord, test_doc, ".", filter_f=lambda k: k != "x-extra")

@@ -14,5 +14,4 @@ def test_flatten_list_of_str_or_dicts() -> None:
 
 
 def test_digest128_length() -> None:
-    print(digest128("hash it"))
     assert len(digest128("hash it")) == 120/6
