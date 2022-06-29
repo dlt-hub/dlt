@@ -41,19 +41,18 @@ jobs:
       - name: Get pip cache dir
         id: pip-cache
         run: |
-          echo "::set-output name=dir::$(poetry run pip cache dir)"
-          echo "$(poetry run pip cache dir)"
+          echo "::set-output name=dir::$(poetry env info -p)"
+          echo "$(poetry env info -p)"
 
       - name: Load cached venv
         id: cached-poetry-dependencies
         uses: actions/cache@v2
         with:
-          # For some reason, caching your venv does not seem to work as expected on Windows runners. You can see an example of what happens here, where a workflow stalls and runs for over 3 hours before it was manually cancelled.
           path: ${{ steps.pip-cache.outputs.dir }}
           key: pip-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
 
       - name: Install dependencies
-        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+        # if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
         run: poetry install --no-interaction --no-root
 
       - name: Install self

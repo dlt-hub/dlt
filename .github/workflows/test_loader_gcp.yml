@@ -47,8 +47,8 @@ jobs:
       - name: Get pip cache dir
         id: pip-cache
         run: |
-          echo "::set-output name=dir::$(poetry run pip cache dir)"
-          echo "$(poetry run pip cache dir)"
+          echo "::set-output name=dir::$(poetry env info -p)"
+          echo "$(poetry env info -p)"
 
       - name: Load cached venv
         id: cached-poetry-dependencies
@@ -58,7 +58,7 @@ jobs:
           key: pip-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}-gcp
 
       - name: Install dependencies
-        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+        # if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
         run: poetry install --no-interaction --no-root -E gcp
 
       - name: Install self
