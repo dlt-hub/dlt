@@ -16,7 +16,7 @@ from dlt.common.storages.loader_storage import LoaderStorage
 from dlt.common.telemetry import get_logging_extras, set_gauge_all_labels
 
 from dlt.loaders.exceptions import LoadClientTerminalException, LoadClientTransientException, LoadJobNotExistsException
-from dlt.loaders.client_base import ClientBase, LoadJob
+from dlt.loaders.client_base import JobClientBase, LoadJob
 from dlt.loaders.local_types import LoadJobStatus
 from dlt.loaders.configuration import configuration, LoaderConfiguration
 
@@ -30,11 +30,11 @@ job_counter: Counter = None
 job_wait_summary: Summary = None
 
 
-def client_impl(client_type: str) -> ModuleType:
+def import_client(client_type: str) -> ModuleType:
     return import_module(f".{client_type}.client", "dlt.loaders")
 
 
-def create_client(schema: Schema) -> ClientBase:
+def make_client(schema: Schema) -> JobClientBase:
     return client_module.make_client(schema, CONFIG)  # type: ignore
 
 
@@ -61,14 +61,14 @@ def spool_job(file_path: str, load_id: str, schema: Schema) -> Optional[LoadJob]
     # open new connection for each upload
     job: LoadJob = None
     try:
-        with create_client(schema) as client:
+        with make_client(schema) as client:
             table_name, _ = load_storage.parse_load_file_name(file_path)
             logger.info(f"Will load file {file_path} with table name {table_name}")
             job = client.start_file_load(table_name, load_storage.storage._make_path(file_path))
     except (LoadClientTerminalException, TerminalValueError):
         # if job irreversible cannot be started, mark it as failed
         process_internal_exception(f"Terminal problem with spooling job {file_path}")
-        job = ClientBase.make_job_with_status(file_path, "failed", pretty_format_exception())
+        job = JobClientBase.make_job_with_status(file_path, "failed", pretty_format_exception())
     except (LoadClientTransientException, Exception):
         # return no job so file stays in new jobs (root) folder
         process_internal_exception(f"Temporary problem with spooling job {file_path}")
@@ -97,7 +97,7 @@ def spool_new_jobs(pool: ThreadPool, load_id: str, schema: Schema) -> Tuple[int,
     return file_count, [job for job in jobs if job is not None]
 
 
-def retrieve_jobs(client: ClientBase, load_id: str) -> Tuple[int, List[LoadJob]]:
+def retrieve_jobs(client: JobClientBase, load_id: str) -> Tuple[int, List[LoadJob]]:
     jobs: List[LoadJob] = []
 
     # list all files that were started but not yet completed
@@ -109,10 +109,10 @@ def retrieve_jobs(client: ClientBase, load_id: str) -> Tuple[int, List[LoadJob]]
     for file_path in started_jobs:
         try:
             logger.info(f"Will retrieve {file_path}")
-            job = client.get_file_load(file_path)
+            job = client.restore_file_load(file_path)
         except LoadClientTerminalException:
             process_internal_exception(f"Job retrieval for {file_path} failed, job will be terminated")
-            job = ClientBase.make_job_with_status(file_path, "failed", pretty_format_exception())
+            job = JobClientBase.make_job_with_status(file_path, "failed", pretty_format_exception())
             # proceed to appending job, do not reraise
         except (LoadClientTransientException, Exception):
             # raise on all temporary exceptions, typically network / server problems
@@ -181,7 +181,7 @@ def load(pool: ThreadPool) -> TRunMetrics:
     schema = schema_storage.load_folder_schema(load_storage.get_load_path(load_id))
     logger.info(f"Loaded schema name {schema.schema_name} and version {schema.schema_version}")
     # initialize analytical storage ie. create dataset required by passed schema
-    with create_client(schema) as client:
+    with make_client(schema) as client:
         logger.info(f"Client {CONFIG.CLIENT_TYPE} will start load")
         client.initialize_storage()
         schema_update = load_storage.begin_schema_update(load_id)
@@ -204,7 +204,7 @@ def load(pool: ThreadPool) -> TRunMetrics:
         )
     # if there are no existing or new jobs we archive the package
     if jobs_count == 0:
-        with create_client(schema) as client:
+        with make_client(schema) as client:
             remaining_jobs = client.complete_load(load_id)
         load_storage.archive_load(load_id)
         logger.info(f"All jobs completed, archiving package {load_id}")
@@ -229,7 +229,7 @@ def configure(C: Type[LoaderConfiguration], collector: CollectorRegistry, is_sto
     global load_counter, job_gauge, job_counter, job_wait_summary
 
     CONFIG = C
-    client_module = client_impl(C.CLIENT_TYPE)
+    client_module = import_client(C.CLIENT_TYPE)
     load_storage = create_folders(is_storage_owner)
     try:
         load_counter, job_gauge, job_counter, job_wait_summary = create_gauges(collector)

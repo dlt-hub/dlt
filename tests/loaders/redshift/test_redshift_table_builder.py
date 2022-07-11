@@ -56,7 +56,7 @@ def test_alter_table(client: RedshiftClient) -> None:
     client.schema.update_schema(new_table("event_test_table", columns=TABLE_UPDATE))
     # table has no columns
     sql = client._get_table_update_sql("event_test_table", {}, True)
-    canonical_name = client._to_canonical_table_name("event_test_table")
+    canonical_name = client.sql_client.fully_qualified_table_name("event_test_table")
     assert sql.startswith("BEGIN TRANSACTION;\n")
     # must have several ALTER TABLE statements
     assert sql.count(f"ALTER TABLE {canonical_name}\nADD COLUMN") == len(TABLE_UPDATE)

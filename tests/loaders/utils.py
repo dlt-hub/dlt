@@ -1,13 +1,18 @@
-from typing import List, cast
+from typing import Any, Iterable, Iterator, List, Sequence, cast, IO
 
 from dlt.common import json, Decimal
+from dlt.common.dataset_writers import write_insert_values, write_jsonl
 from dlt.common.file_storage import FileStorage
 from dlt.common.schema import TColumn, TTableColumns
+from dlt.common.storages.schema_storage import SchemaStorage
 from dlt.common.schema.utils import new_table
 from dlt.common.time import sleep
+from dlt.common.typing import StrAny
 from dlt.common.utils import uniq_id
-from dlt.loaders.client_base import ClientBase
 
+from dlt.loaders.loader import import_client
+from dlt.loaders.configuration import LoaderConfiguration, configuration
+from dlt.loaders.client_base import JobClientBase, LoadJob, SqlJobClientBase
 
 TABLE_UPDATE: List[TColumn] = [
     {
@@ -74,21 +79,50 @@ def load_table(name: str) -> TTableColumns:
         return cast(TTableColumns, json.load(f))
 
 
-def expect_load_file(client: ClientBase, file_storage: FileStorage, query: str, table_name: str) -> None:
+def expect_load_file(client: JobClientBase, file_storage: FileStorage, query: str, table_name: str, status = "completed") -> LoadJob:
     file_name = uniq_id()
     file_storage.save(file_name, query.encode("utf-8"))
     # redshift insert jobs execute immediately
     job = client.start_file_load(table_name, file_storage._make_path(file_name))
     while job.status() == "running":
         sleep(0.5)
-    assert job.status() ==  "completed"
     assert job.file_name() == file_name
+    assert job.status() ==  status
+    return job
 
 
-def prepare_event_user_table(client: ClientBase) -> None:
+def prepare_event_user_table(client: JobClientBase) -> None:
     client.update_storage_schema()
     user_table = load_table("event_user")["event_user"]
     user_table_name = "event_user_" + uniq_id()
     client.schema.update_schema(new_table(user_table_name, columns=user_table.values()))
     client.update_storage_schema()
     return user_table_name
+
+
+def yield_client_with_storage(client_type: str) -> Iterator[SqlJobClientBase]:
+    # create dataset with random name
+    schema_prefix = "test_" + uniq_id()
+    CLIENT_CONFIG: LoaderConfiguration = configuration({"CLIENT_TYPE": client_type})
+    if client_type == "gcp":
+        CLIENT_CONFIG.DATASET = schema_prefix
+    else:
+        CLIENT_CONFIG.PG_SCHEMA_PREFIX = schema_prefix
+    # get event default schema
+    schema_storage = SchemaStorage("tests/common/cases/schemas/rasa")
+    schema = schema_storage.load_store_schema("event")
+    # create client and dataset
+    client: SqlJobClientBase = None
+    with import_client(client_type).make_client(schema, CLIENT_CONFIG) as client:
+        client.initialize_storage()
+        yield client
+        client.sql_client.drop_schema()
+
+
+def write_dataset(client: JobClientBase, f: IO[Any], rows: Sequence[StrAny], headers: Iterable[str]) -> None:
+    if client.capabilities["writer_type"] == "jsonl":
+        write_jsonl(f, rows)
+    elif client.capabilities["writer_type"] == "insert_values":
+        write_insert_values(f, rows, headers)
+    else:
+        raise ValueError(client.capabilities["writer_type"])
