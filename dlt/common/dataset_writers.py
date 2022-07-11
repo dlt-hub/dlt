@@ -6,6 +6,7 @@ from dlt.common.typing import StrAny
 
 TWriterType = Literal["jsonl", "insert_values"]
 
+
 def write_jsonl(f: IO[Any], rows: Sequence[Any]) -> None:
     # use jsonl to write load files https://jsonlines.org/
     with jsonlines.Writer(f, dumps=json.dumps) as w:

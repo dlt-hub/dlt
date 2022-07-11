@@ -57,6 +57,11 @@ def test_intialize(rasa_unpacker: FileStorage) -> None:
     pass
 
 
+def test_empty_schema_name(raw_unpacker: FileStorage) -> None:
+    schema = unpacker.load_or_create_schema("")
+    assert schema.schema_name == ""
+
+
 def test_unpack_single_user_event_jsonl(raw_unpacker: FileStorage) -> None:
     expected_tables, load_files = unpack_event_user("event_user_load_1", EXPECTED_USER_TABLES)
     # load, parse and verify jsonl
@@ -238,6 +243,8 @@ def unpack_cases(cases: Sequence[str]) -> str:
     unpacker.load_storage.create_temp_load_folder(load_id)
     # pool not required for map_single
     dest_cases = [f"{UnpackerStorage.UNPACKING_FOLDER}/{c}.unpack.json" for c in cases]
+    # create schema if it does not exist
+    unpacker.load_or_create_schema("event")
     unpacker.spool_files(None, "event", load_id, unpacker.map_single, dest_cases)
     return load_id
 

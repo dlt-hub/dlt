@@ -74,7 +74,7 @@ def test_coerce_row(schema: Schema) -> None:
     assert new_columns[2]["data_type"] == "wei"
     assert new_columns[3]["data_type"] == "decimal"
     # also rows values should be coerced (confidence)
-    assert new_row_1 == {"timestamp": timestamp_str, "confidence": 0.1, "value": 255, "number": Decimal("128.67")}
+    assert new_row_1 == {"timestamp": pendulum.parse(timestamp_str), "confidence": 0.1, "value": 255, "number": Decimal("128.67")}
 
     # update schema
     schema.update_schema(new_table)
@@ -83,13 +83,13 @@ def test_coerce_row(schema: Schema) -> None:
     row_2 = {"timestamp": timestamp_float, "confidence": 0.18721}
     new_row_2, new_table = schema.coerce_row("event_user", None, row_2)
     assert new_table is None
-    assert new_row_2 == {"timestamp": timestamp_str, "confidence": 0.18721}
+    assert new_row_2 == {"timestamp": pendulum.parse(timestamp_str), "confidence": 0.18721}
 
     # all coerced
     row_3 = {"timestamp": "78172.128", "confidence": 1}
     new_row_3, new_table = schema.coerce_row("event_user", None, row_3)
     assert new_table is None
-    assert new_row_3 == {"timestamp": timestamp_str, "confidence": 1.0}
+    assert new_row_3 == {"timestamp": pendulum.parse(timestamp_str), "confidence": 1.0}
 
     # create variant column where variant column will have preferred
     # variant column should not be checked against preferred
@@ -98,13 +98,13 @@ def test_coerce_row(schema: Schema) -> None:
     new_columns = list(new_table["columns"].values())
     assert new_columns[0]["data_type"] == "text"
     assert new_columns[0]["name"] == "confidence_v_text"
-    assert new_row_4 == {"timestamp": timestamp_str, "confidence_v_text": "STR"}
+    assert new_row_4 == {"timestamp": pendulum.parse(timestamp_str), "confidence_v_text": "STR"}
     schema.update_schema(new_table)
 
     # add against variant
     new_row_4, new_table = schema.coerce_row("event_user", None, row_4)
     assert new_table is None
-    assert new_row_4 == {"timestamp": timestamp_str, "confidence_v_text": "STR"}
+    assert new_row_4 == {"timestamp": pendulum.parse(timestamp_str), "confidence_v_text": "STR"}
 
     # another variant
     new_row_5, new_table = schema.coerce_row("event_user", None, {"confidence": False})

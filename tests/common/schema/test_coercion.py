@@ -62,14 +62,28 @@ def test_coerce_type_from_hex_text() -> None:
 
 def test_coerce_type_timestamp() -> None:
     # timestamp cases
-    assert utils.coerce_type("timestamp", "text", " 1580405246 ") == "2020-01-30T17:27:26+00:00"
+    assert utils.coerce_type("timestamp", "text", " 1580405246 ") == pendulum.parse("2020-01-30T17:27:26+00:00")
     # the tenths of microseconds will be ignored
-    assert utils.coerce_type("timestamp", "double", 1633344898.7415245) == "2021-10-04T10:54:58.741524+00:00"
+    assert utils.coerce_type("timestamp", "double", 1633344898.7415245) == pendulum.parse("2021-10-04T10:54:58.741524+00:00")
     # if text is ISO string it will be coerced
-    assert utils.coerce_type("timestamp", "text", "2022-05-10T03:41:31.466000+00:00") == "2022-05-10T03:41:31.466000+00:00"
+    assert utils.coerce_type("timestamp", "text", "2022-05-10T03:41:31.466000+00:00") == pendulum.parse("2022-05-10T03:41:31.466000+00:00")
+    # parse almost ISO compliant string
+    assert utils.coerce_type("timestamp", "text", "2022-04-26 10:36") == pendulum.parse("2022-04-26T10:36:00+00:00")
+    # parse date string
+    assert utils.coerce_type("timestamp", "text", "2021-04-25") == pendulum.parse("2021-04-25", exact=True)
+    # parse RFC 822 string
+    assert utils.coerce_type("timestamp", "text", "Wed, 06 Jul 2022 11:58:08 +0000") == pendulum.parse("2022-07-06T11:58:08Z")
+    # parse RFC RFC 2822
+    # the case above interprets the year as 2006
+    # assert utils.coerce_type("timestamp", "text", "Wednesday, 06-Jul-22 11:58:08 UTC") == pendulum.parse("2022-07-06T11:58:08Z")
+
+    # time data type not supported yet
+    with pytest.raises(ValueError):
+        utils.coerce_type("timestamp", "text", "10:36")
+
     # non parsable datetime
     with pytest.raises(ValueError):
-        utils.coerce_type("timestamp", "text", "2022-05-10T03:41:31.466000X+00:00")
+        utils.coerce_type("timestamp", "text", "x2022-05-10T03:41:31.466000X+00:00")
 
 
 def test_coerce_type_binary() -> None:

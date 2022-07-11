@@ -16,6 +16,8 @@ PATH_SEPARATOR = "__"
 
 # fix a name so it's acceptable as database table name
 def normalize_table_name(name: str) -> str:
+    if not name:
+        raise ValueError(name)
 
     def camel_to_snake(name: str) -> str:
         name = SNAKE_CASE_BREAK_1.sub(r'\1_\2', name)
@@ -35,6 +37,15 @@ def normalize_table_name(name: str) -> str:
 def normalize_column_name(name: str) -> str:
     # replace consecutive underscores with single one to prevent name clashes with PATH_SEPARATOR
     return RE_UNDERSCORES.sub("_", normalize_table_name(name))
+
+
+# build full db schema name out of (normalized) schema prefix and schema name
+def normalize_make_schema_name(schema_prefix: str, schema_name: str) -> str:
+    name = normalize_column_name(schema_prefix)
+    if schema_name:
+        name += "_" + schema_name
+
+    return name
 
 
 # this function builds path out of path elements using PATH_SEPARATOR

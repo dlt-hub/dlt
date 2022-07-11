@@ -2,7 +2,7 @@ import os
 
 from dlt.common import json
 from dlt.common.file_storage import FileStorage
-from dlt.common.schema import Schema, TStoredSchema
+from dlt.common.schema import Schema
 from dlt.common.typing import DictStrAny
 
 
