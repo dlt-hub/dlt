@@ -45,6 +45,7 @@ class Schema:
         self.normalize_table_name: TNormalizeNameFunc = None
         self.normalize_column_name: TNormalizeNameFunc = None
         self.normalize_schema_name: TNormalizeNameFunc = None
+        self.normalize_make_schema_name: TNormalizeMakePath = None
         self.normalize_make_path: TNormalizeMakePath = None
         self.normalize_break_path: TNormalizeBreakPath = None
         # json normalization function
@@ -225,6 +226,9 @@ class Schema:
     def get_table_columns(self, table_name: str) -> TTableColumns:
         return self._schema_tables[table_name]["columns"]
 
+    def all_tables(self, with_dlt_tables: bool = False) -> List[TTable]:
+        return [t for t in self._schema_tables.values() if not t["name"].startswith("_dlt") or with_dlt_tables]
+
     def get_preferred_type(self, col_name: str) -> Optional[TDataType]:
         return next((m[1] for m in self._compiled_preferred_types if m[0].search(col_name)), None)
 
@@ -361,6 +365,7 @@ class Schema:
         self.normalize_table_name = naming_module.normalize_table_name
         self.normalize_column_name = naming_module.normalize_column_name
         self.normalize_schema_name = utils.normalize_schema_name
+        self.normalize_make_schema_name = naming_module.normalize_make_schema_name
         self.normalize_make_path = naming_module.normalize_make_path
         self.normalize_break_path = naming_module.normalize_break_path
         # json normalization function

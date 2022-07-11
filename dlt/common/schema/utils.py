@@ -3,8 +3,7 @@ import re
 import base64
 import binascii
 import datetime  # noqa: I251
-from dateutil.parser import isoparse
-from typing import Callable, Dict, List, Sequence, Type, Any, Union, cast, Optional
+from typing import Dict, List, Sequence, Type, Any, cast
 
 from dlt.common import pendulum, json, Decimal
 from dlt.common.arithmetics import ConversionSyntax
@@ -24,6 +23,9 @@ RE_NON_ALPHANUMERIC_UNDERSCORE = re.compile(r"[^a-zA-Z\d_]")
 
 # fix a name so it is acceptable as schema name
 def normalize_schema_name(name: str) -> str:
+    if name is None:
+        raise ValueError(name)
+
     # prefix the name starting with digits
     if RE_LEADING_DIGITS.match(name):
         name = "s" + name
@@ -313,13 +315,15 @@ def coerce_type(to_type: TDataType, from_type: TDataType, value: Any) -> Any:
     if to_type == "timestamp":
         if from_type in ["bigint", "double"]:
             # returns ISO datetime with timezone
-            return str(pendulum.from_timestamp(value))
+            return pendulum.from_timestamp(value)
 
         if from_type == "text":
             # if parses as ISO date then pass it
             try:
-                isoparse(value)
-                return value
+                dtv = pendulum.parse(value, strict=False, exact=True)
+                if isinstance(dtv, datetime.time):
+                    raise ValueError(value)
+                return dtv
             except ValueError:
                 # try to convert string to integer, or float
                 try:
@@ -327,7 +331,7 @@ def coerce_type(to_type: TDataType, from_type: TDataType, value: Any) -> Any:
                 except ValueError:
                     # raises ValueError if not parsing correctly
                     value = float(value)
-                return str(pendulum.from_timestamp(value))
+                return pendulum.from_timestamp(value)
 
     raise ValueError(value)
 
@@ -343,27 +347,51 @@ def hint_to_column_prop(h: THintType) -> TColumnProp:
 
 
 def version_table() -> TTable:
-    return {
-        "description": "Created by DLT. Tracks schema updates",
-        "write_disposition": "skip",
-        "columns": {
-            "version": add_missing_hints({
+    table = new_table("_dlt_version", columns=[
+            add_missing_hints({
                 "name": "version",
                 "data_type": "bigint",
                 "nullable": False,
             }),
-            "engine_version": add_missing_hints({
+            add_missing_hints({
                 "name": "engine_version",
                 "data_type": "bigint",
                 "nullable": False
             }),
-            "inserted_at": add_missing_hints({
+            add_missing_hints({
                 "name": "inserted_at",
                 "data_type": "timestamp",
                 "nullable": False
             })
-        }
-    }
+        ]
+    )
+    table["write_disposition"] = "skip"
+    table["description"] = "Created by DLT. Tracks schema updates"
+    return table
+
+
+def load_table() -> TTable:
+    table = new_table("_dlt_loads", columns=[
+            add_missing_hints({
+                "name": "load_id",
+                "data_type": "text",
+                "nullable": False
+            }),
+            add_missing_hints({
+                "name": "status",
+                "data_type": "bigint",
+                "nullable": False
+            }),
+            add_missing_hints({
+                "name": "inserted_at",
+                "data_type": "timestamp",
+                "nullable": False
+            })
+        ]
+    )
+    table["write_disposition"] = "skip"
+    table["description"] = "Created by DLT. Tracks completed loads"
+    return table
 
 
 def new_table(table_name: str, parent_name: str = None, columns: Sequence[TColumn] = None) -> TTable:
@@ -377,30 +405,6 @@ def new_table(table_name: str, parent_name: str = None, columns: Sequence[TColum
         # set write disposition only for root tables
         table["write_disposition"] = "append"
     return table
-
-
-def load_table() -> TTable:
-    return {
-        "description": "Created by DLT. Tracks completed loads",
-        "write_disposition": "skip",
-        "columns": {
-            "load_id": add_missing_hints({
-                "name": "load_id",
-                "data_type": "text",
-                "nullable": False
-            }),
-            "status": add_missing_hints({
-                "name": "status",
-                "data_type": "bigint",
-                "nullable": False
-            }),
-            "inserted_at": add_missing_hints({
-                "name": "inserted_at",
-                "data_type": "timestamp",
-                "nullable": False
-            })
-        }
-    }
 
 
 def default_normalizers() -> TNormalizersConfig:

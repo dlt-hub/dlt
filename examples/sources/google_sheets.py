@@ -12,6 +12,7 @@ except ImportError:
 
 # gets spreadsheet values from a single sheet preserving original typing for schema generation
 # TODO: write schema discovery to better handle dates
+# TODO: consider using https://github.com/burnash/gspread for spreadsheet discovery
 
 
 def get_source(credentials: ServiceAccountCredentials,  spreadsheet_id: str, sheet_name: str) -> Iterator[DictStrAny]:

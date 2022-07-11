@@ -15,7 +15,7 @@ from dlt.common.arithmetics import Decimal
 def custom_encode(obj: Any) -> Union[RawJSON, str]:
     if isinstance(obj, Decimal):
         # always return decimals as string (not RawJSON) so they are not deserialized back to float
-        return str(obj.normalize())
+        return str(obj)
     # this works both for standard datetime and pendulum
     elif isinstance(obj, datetime):
         # See "Date Time String Format" in the ECMA-262 specification.

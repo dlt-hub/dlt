@@ -1,5 +1,6 @@
 import argparse
 import multiprocessing
+import threading
 from prometheus_client import Counter, Gauge, Summary, CollectorRegistry, REGISTRY
 from typing import Callable, Dict, NamedTuple, Optional, Type, TypeVar, Union, cast
 from multiprocessing.pool import ThreadPool, Pool
@@ -84,7 +85,10 @@ def initialize_runner(C: Type[BasicConfiguration], run_args: Optional[TRunArgs] 
     if not HEALTH_PROPS_GAUGES:
         init_telemetry(C)
         create_gauges(REGISTRY)
-        register_signals()
+        if threading.current_thread() is threading.main_thread():
+            register_signals()
+        else:
+            logger.info("Running in daemon thread, signals not enabled")
 
 
 

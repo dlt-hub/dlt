@@ -1,4 +1,4 @@
-from typing import Sequence
+from typing import Any, Sequence
 from dlt.common.exceptions import DltException
 from dlt.common.telemetry import TRunMetrics
 from dlt.pipeline.typing import TPipelineStage
@@ -41,6 +41,21 @@ class InvalidPipelineContextException(PipelineException):
 class CannotRestorePipelineException(PipelineException):
     def __init__(self, reason: str) -> None:
         super().__init__(reason)
+
+
+class SqlClientNotAvailable(PipelineException):
+    def __init__(self, client_type: str) -> None:
+        super().__init__(f"SQL Client not available in {client_type}")
+
+
+class InvalidIteratorException(PipelineException):
+    def __init__(self, iterator: Any) -> None:
+        super().__init__(f"Unsupported source iterator or iterable type: {type(iterator).__name__}")
+
+
+class InvalidItemException(PipelineException):
+    def __init__(self, item: Any) -> None:
+        super().__init__(f"Source yielded unsupported item type: {type(item).__name}. Only dictionaries, sequences and deferred items allowed.")
 
 
 class PipelineStepFailed(PipelineException):

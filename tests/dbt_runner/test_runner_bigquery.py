@@ -9,7 +9,7 @@ from dlt.common.utils import uniq_id
 
 from dlt.dbt_runner.utils import DBTProcessingError
 from dlt.dbt_runner import runner
-from dlt.loaders.gcp.client import BigQueryClient
+from dlt.loaders.gcp.client import BigQuerySqlClient
 
 from tests.utils import add_config_to_env, init_logger
 from tests.dbt_runner.utils import setup_runner
@@ -31,23 +31,23 @@ def module_autouse() -> None:
     init_logger(runner.CONFIG)
 
     # create client and dataset
-    with BigQueryClient(None, runner.CONFIG) as client:
+    with BigQuerySqlClient("event", runner.CONFIG) as client:
         yield
         # delete temp datasets
-        dataset_name = f"{runner.CONFIG.PROJECT_ID}.{DEST_SCHEMA_PREFIX}_staging"
+        dataset_name = f"{DEST_SCHEMA_PREFIX}_staging"
         try:
-            client._client.delete_dataset(dataset_name, not_found_ok=False, delete_contents=True, retry=client.default_retry, timeout=client.C.TIMEOUT)
+            client.drop_schema(dataset_name)
         except Exception as ex1:
             logger.error(f"Error when deleting temp dataset {dataset_name}: {str(ex1)}")
 
-        dataset_name = f"{runner.CONFIG.PROJECT_ID}.{DEST_SCHEMA_PREFIX}_views"
+        dataset_name = f"{DEST_SCHEMA_PREFIX}_views"
         try:
-            client._client.delete_dataset(dataset_name, not_found_ok=False, delete_contents=True, retry=client.default_retry, timeout=client.C.TIMEOUT)
+            client.drop_schema(dataset_name)
         except Exception as ex2:
             logger.error(f"Error when deleting temp dataset {dataset_name}: {str(ex2)}")
-        dataset_name = f"{runner.CONFIG.PROJECT_ID}.{DEST_SCHEMA_PREFIX}_event"
+        dataset_name = f"{DEST_SCHEMA_PREFIX}_event"
         try:
-            client._client.delete_dataset(dataset_name, not_found_ok=False, delete_contents=True, retry=client.default_retry, timeout=client.C.TIMEOUT)
+            client.drop_schema(dataset_name)
         except Exception as ex2:
             logger.error(f"Error when deleting temp dataset {dataset_name}: {str(ex2)}")
 

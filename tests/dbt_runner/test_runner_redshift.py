@@ -14,7 +14,7 @@ from dlt.common.utils import uniq_id
 from dlt.dbt_runner.utils import DBTProcessingError
 from dlt.dbt_runner.configuration import DBTRunnerConfiguration
 from dlt.dbt_runner import runner
-from dlt.loaders.redshift.client import RedshiftClient
+from dlt.loaders.redshift.client import RedshiftSqlClient
 
 from tests.utils import add_config_to_env, clean_storage, init_logger
 from tests.dbt_runner.utils import modify_and_commit_file, load_secret, setup_runner
@@ -36,24 +36,24 @@ def module_autouse() -> None:
     init_logger(runner.CONFIG)
 
     # create client and dataset
-    with RedshiftClient(None, runner.CONFIG) as client:
+    with RedshiftSqlClient("event", runner.CONFIG) as client:
         yield
         # delete temp schemas
         schema_name = f"{DEST_SCHEMA_PREFIX}_views"
         try:
-            client._execute_sql(f"DROP SCHEMA {schema_name} CASCADE")
+            client.drop_schema(schema_name)
         except Exception as ex1:
             logger.error(f"Error when deleting temp dataset {schema_name}: {str(ex1)}")
 
         schema_name = f"{DEST_SCHEMA_PREFIX}_staging"
         try:
-            client._execute_sql(f"DROP SCHEMA {schema_name} CASCADE")
+            client.drop_schema(schema_name)
         except Exception as ex2:
             logger.error(f"Error when deleting temp dataset {schema_name}: {str(ex2)}")
 
         schema_name = f"{DEST_SCHEMA_PREFIX}_event"
         try:
-            client._execute_sql(f"DROP SCHEMA {schema_name} CASCADE")
+            client.drop_schema(schema_name)
         except Exception as ex2:
             logger.error(f"Error when deleting temp dataset {schema_name}: {str(ex2)}")
 

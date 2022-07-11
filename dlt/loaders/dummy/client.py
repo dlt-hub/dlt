@@ -1,12 +1,12 @@
 import random
+from types import TracebackType
 from typing import Dict, Literal, Type
 from dlt.common.dataset_writers import TWriterType
 
 from dlt.common import pendulum
 from dlt.common.schema import Schema
-from dlt.common.typing import StrAny
 
-from dlt.loaders.client_base import ClientBase, LoadJob
+from dlt.loaders.client_base import JobClientBase, LoadJob, TJobClientCapabilities
 from dlt.loaders.local_types import LoadJobStatus
 from dlt.loaders.exceptions import (LoadJobNotExistsException, LoadJobInvalidStateTransitionException,
                                             LoadClientTerminalException, LoadClientTransientException)
@@ -71,7 +71,7 @@ class LoadDummyJob(LoadJob):
 JOBS: Dict[str, LoadDummyJob] = {}
 
 
-class DummyClient(ClientBase):
+class DummyClient(JobClientBase):
     """
     dummy client storing jobs in memory
     """
@@ -87,8 +87,8 @@ class DummyClient(ClientBase):
 
     def start_file_load(self, table_name: str, file_path: str) -> LoadJob:
         self._get_table_by_name(table_name, file_path)
-        job_id = ClientBase.get_file_name_from_file_path(file_path)
-        file_name = ClientBase.get_file_name_from_file_path(file_path)
+        job_id = JobClientBase.get_file_name_from_file_path(file_path)
+        file_name = JobClientBase.get_file_name_from_file_path(file_path)
         # return existing job if already there
         if job_id not in JOBS:
             JOBS[job_id] = self._create_job(file_name)
@@ -99,8 +99,8 @@ class DummyClient(ClientBase):
 
         return JOBS[job_id]
 
-    def get_file_load(self, file_path: str) -> LoadJob:
-        job_id = ClientBase.get_file_name_from_file_path(file_path)
+    def restore_file_load(self, file_path: str) -> LoadJob:
+        job_id = JobClientBase.get_file_name_from_file_path(file_path)
         if job_id not in JOBS:
             raise LoadJobNotExistsException(job_id)
         return JOBS[job_id]
@@ -108,10 +108,16 @@ class DummyClient(ClientBase):
     def complete_load(self, load_id: str) -> None:
         pass
 
-    def _open_connection(self) -> None:
-        pass
+    @property
+    def capabilities(self) -> TJobClientCapabilities:
+        return {
+            "writer_type": supported_writer(self.C)
+        }
 
-    def _close_connection(self) -> None:
+    def __enter__(self) -> "DummyClient":
+        return self
+
+    def __exit__(self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: TracebackType) -> None:
         pass
 
     def _create_job(self, job_id: str) -> LoadDummyJob:
@@ -125,7 +131,7 @@ class DummyClient(ClientBase):
 
 
 
-def make_client(schema: Schema, C: Type[DummyClientConfiguration]) -> ClientBase:
+def make_client(schema: Schema, C: Type[DummyClientConfiguration]) -> JobClientBase:
     return DummyClient(schema, C)
 
 

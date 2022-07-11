@@ -16,6 +16,7 @@ def test_iso_timestamp_detection() -> None:
     assert is_iso_timestamp(str, str(pendulum.now())) == "timestamp"
     assert is_iso_timestamp(str, "1975-05-21T22:00:00Z") == "timestamp"
     assert is_iso_timestamp(str, "1975-0521T22:00:00Z") == "timestamp"
+    assert is_iso_timestamp(str, "2021-07-24 10:51") == "timestamp"
     # dates and times are not accepted
     assert is_iso_timestamp(str, "1975-05-21") is None
     assert is_iso_timestamp(str, "22:00:00") is None
@@ -24,6 +25,7 @@ def test_iso_timestamp_detection() -> None:
     assert is_iso_timestamp(str, "") is None
     assert is_iso_timestamp(str, "1975-05-01T27:00:00Z") is None
     assert is_iso_timestamp(str, "1975-0521T22 00:00") is None
+    # culture specific RFCs will not be recognized
     assert is_iso_timestamp(str, "Wed, 29 Jun 2022 13:56:34 +0000") is None
     # wrong type
     assert is_iso_timestamp(float, str(pendulum.now())) is None

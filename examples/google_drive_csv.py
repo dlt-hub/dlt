@@ -30,6 +30,7 @@ def _initialize_drive() -> Any:
     return service
 
 
+# TODO: consider using https://pythonhosted.org/PyDrive/index.html or https://github.com/wkentaro/gdown
 def download_csv_as_json(file_id: str, csv_options: StrAny = None) -> Iterator[DictStrAny]:
     if csv_options is None:
         csv_options = {}

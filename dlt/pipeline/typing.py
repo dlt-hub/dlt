@@ -21,6 +21,13 @@ TPipelineStage = Literal["extract", "unpack", "load"]
 class PipelineCredentials:
     CLIENT_TYPE: TLoaderType
 
+    @property
+    def schema_prefix(self) -> str:
+        pass
+
+    @schema_prefix.setter
+    def schema_prefix(self, new_value: str) -> None:
+        pass
 
 @dataclass
 class GCPPipelineCredentials(PipelineCredentials):
@@ -29,6 +36,14 @@ class GCPPipelineCredentials(PipelineCredentials):
     BQ_CRED_CLIENT_EMAIL: str
     BQ_CRED_PRIVATE_KEY: TConfigSecret = None
     TIMEOUT: float = 30.0
+
+    @property
+    def schema_prefix(self) -> str:
+        return self.DATASET
+
+    @schema_prefix.setter
+    def schema_prefix(self, new_value: str) -> None:
+        self.DATASET = new_value
 
     @classmethod
     def from_services_dict(cls, services: StrAny, dataset_prefix: str) -> "GCPPipelineCredentials":
@@ -52,3 +67,11 @@ class PostgresPipelineCredentials(PipelineCredentials):
     PG_PASSWORD: TConfigSecret = None
     PG_PORT: int = 5439
     PG_CONNECTION_TIMEOUT: int = 15
+
+    @property
+    def schema_prefix(self) -> str:
+        return self.PG_SCHEMA_PREFIX
+
+    @schema_prefix.setter
+    def schema_prefix(self, new_value: str) -> None:
+        self.PG_SCHEMA_PREFIX = new_value

@@ -203,11 +203,11 @@ def extend_schema(schema: Schema) -> None:
     schema.merge_hints(
         {
             "not_null": [
-                TSimpleRegex("re:^_dlt_id$"), TSimpleRegex("re:^_dlt_root_id$"), TSimpleRegex("re:^_dlt_parent_id$"),
-                TSimpleRegex("re:^_dlt_list_idx$"), TSimpleRegex("_dlt_load_id")
+                TSimpleRegex("_dlt_id"), TSimpleRegex("_dlt_root_id"), TSimpleRegex("_dlt_parent_id"),
+                TSimpleRegex("_dlt_list_idx"), TSimpleRegex("_dlt_load_id")
                 ],
-            "foreign_key": [TSimpleRegex("re:^_dlt_parent_id$")],
-            "unique": [TSimpleRegex("re:^_dlt_id$")]
+            "foreign_key": [TSimpleRegex("_dlt_parent_id")],
+            "unique": [TSimpleRegex("_dlt_id")]
         }
     )
 

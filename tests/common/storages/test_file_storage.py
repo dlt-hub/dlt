@@ -1,8 +1,10 @@
-from attr import has
 from dlt.common.file_storage import FileStorage
 from dlt.common.utils import encoding_for_mode
 
 from tests.utils import TEST_STORAGE
+
+
+FileStorage(TEST_STORAGE, makedirs=True)
 
 
 def test_encoding_for_mode() -> None:

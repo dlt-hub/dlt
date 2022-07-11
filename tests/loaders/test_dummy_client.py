@@ -14,7 +14,7 @@ from dlt.common.storages.loader_storage import JobWithUnsupportedWriterException
 from dlt.common.storages.schema_storage import SchemaStorage
 from dlt.common.typing import StrAny
 from dlt.common.utils import uniq_id
-from dlt.loaders.client_base import ClientBase, LoadEmptyJob, LoadJob
+from dlt.loaders.client_base import JobClientBase, LoadEmptyJob, LoadJob
 
 from dlt.loaders.configuration import configuration, ProductionLoaderConfiguration, LoaderConfiguration
 from dlt.loaders.dummy import client
@@ -151,10 +151,10 @@ def test_try_retrieve_job() -> None:
     # manually move jobs to started
     files = loader.load_storage.list_new_jobs(load_id)
     for f in files:
-        loader.load_storage.start_job(load_id, ClientBase.get_file_name_from_file_path(f))
+        loader.load_storage.start_job(load_id, JobClientBase.get_file_name_from_file_path(f))
     # dummy client may retrieve jobs that it created itself, jobs in started folder are unknown
     # and returned as terminal
-    with loader.create_client(schema) as c:
+    with loader.make_client(schema) as c:
         job_count, jobs = loader.retrieve_jobs(c, load_id)
         assert job_count == 2
         for j in jobs:
@@ -167,7 +167,7 @@ def test_try_retrieve_job() -> None:
     jobs_count, jobs = loader.spool_new_jobs(ThreadPool(), load_id, schema)
     assert jobs_count == 2
     # now jobs are known
-    with loader.create_client(schema) as c:
+    with loader.make_client(schema) as c:
         job_count, jobs = loader.retrieve_jobs(c, load_id)
         assert job_count == 2
         for j in jobs:

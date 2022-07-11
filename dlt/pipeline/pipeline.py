@@ -6,7 +6,7 @@ from collections import abc
 from dataclasses import asdict as dtc_asdict
 import tempfile
 import os.path
-from typing import Iterator, List, Sequence, Tuple
+from typing import Any, Iterator, List, Sequence, Tuple
 from prometheus_client import REGISTRY
 
 from dlt.common import json
@@ -20,12 +20,12 @@ from dlt.common.utils import uniq_id, is_interactive
 from dlt.common.sources import DLT_METADATA_FIELD, TItem, with_table_name
 
 from dlt.extractors.extractor_storage import ExtractorStorageBase
-from dlt.loaders.client_base import SqlClientBase
+from dlt.loaders.client_base import SqlClientBase, SqlJobClientBase
 from dlt.unpacker.configuration import configuration as unpacker_configuration
 from dlt.loaders.configuration import configuration as loader_configuration
 from dlt.unpacker import unpacker
 from dlt.loaders import loader
-from dlt.pipeline.exceptions import InvalidPipelineContextException, MissingDependencyException, NoPipelineException, PipelineStepFailed, CannotRestorePipelineException
+from dlt.pipeline.exceptions import InvalidPipelineContextException, MissingDependencyException, NoPipelineException, PipelineStepFailed, CannotRestorePipelineException, SqlClientNotAvailable
 from dlt.pipeline.typing import PipelineCredentials
 
 
@@ -55,6 +55,16 @@ class Pipeline:
         if not working_dir:
             working_dir = tempfile.mkdtemp()
         self.root_storage = FileStorage(working_dir, makedirs=True)
+
+        # check if directory contains restorable pipeline
+        try:
+            self._restore_state()
+            # wipe out the old pipeline
+            self.root_storage.delete_folder("", recursively=True)
+            self.root_storage.create_folder("")
+        except FileNotFoundError:
+            pass
+
         self.root_path = self.root_storage.storage_path
         self.credentials = credentials
         self._load_modules()
@@ -69,11 +79,16 @@ class Pipeline:
             self.state = {
                 "default_schema_name": self.default_schema_name,
                 "pipeline_name": self.pipeline_name,
-                "loader_client_type": credentials.CLIENT_TYPE
+                # TODO: must come from resolved configuration
+                "loader_client_type": credentials.CLIENT_TYPE,
+                # TODO: must take schema prefix from resolved configuration
+                "loader_schema_prefix": credentials.schema_prefix
             }
 
     def restore_pipeline(self, credentials: PipelineCredentials, working_dir: str) -> None:
         try:
+            # do not create extractor dir - it must exist
+            self.root_storage = FileStorage(working_dir, makedirs=False)
             # restore state
             try:
                 self._restore_state()
@@ -83,21 +98,22 @@ class Pipeline:
             if self.pipeline_name != restored_name:
                 raise CannotRestorePipelineException(f"Expected pipeline {self.pipeline_name}, found {restored_name} pipeline instead")
             self.default_schema_name = self.state["default_schema_name"]
+            credentials.schema_prefix = self.state["loader_schema_prefix"]
+            self.root_path = self.root_storage.storage_path
+            self.credentials = credentials
+            self._load_modules()
             # schema must exist
             try:
                 self.get_default_schema()
             except (FileNotFoundError):
                 raise CannotRestorePipelineException(f"Default schema with name {self.default_schema_name} not found")
-            # do not create extractor dir - it must exist
-            self.root_storage = FileStorage(working_dir, makedirs=False)
-            self.root_path = self.root_storage.storage_path
-            self.credentials = credentials
-            self._load_modules()
             self.extractor_storage = ExtractorStorageBase("1.0.0", True, FileStorage(os.path.join(self.root_path, "extractor"), makedirs=False), unpacker.unpack_storage)
         except CannotRestorePipelineException:
             pass
 
     def extract(self, items: Iterator[TItem], schema_name: str = None, table_name: str = None) -> None:
+        # check if iterator or iterable is supported
+        # if isinstance(items, str) or isinstance(items, dict) or not
         # TODO: check if schema exists
         with self._managed_state():
             default_table_name = table_name or self.pipeline_name
@@ -142,19 +158,27 @@ class Pipeline:
         self.load()
 
     @property
+    def working_dir(self) -> str:
+        return os.path.abspath(self.root_path)
+
+    @property
     def last_run_exception(self) -> BaseException:
         return runner.LAST_RUN_EXCEPTION
 
     def list_extracted_loads(self) -> Sequence[str]:
+        self._verify_loader_instance()
         return unpacker.unpack_storage.list_files_to_unpack_sorted()
 
     def list_unpacked_loads(self) -> Sequence[str]:
+        self._verify_loader_instance()
         return loader.load_storage.list_loads()
 
     def list_completed_loads(self) -> Sequence[str]:
+        self._verify_loader_instance()
         return loader.load_storage.list_completed_loads()
 
     def list_failed_jobs(self, load_id: str) -> Sequence[Tuple[str, str]]:
+        self._verify_loader_instance()
         failed_jobs: List[Tuple[str, str]] = []
         for file in loader.load_storage.list_archived_failed_jobs(load_id):
             if not file.endswith(".exception"):
@@ -166,6 +190,7 @@ class Pipeline:
         return failed_jobs
 
     def get_default_schema(self) -> Schema:
+        self._verify_unpacker_instance()
         return unpacker.schema_storage.load_store_schema(self.default_schema_name)
 
     def set_default_schema(self, new_schema: Schema) -> None:
@@ -189,15 +214,20 @@ class Pipeline:
         unpacker.schema_storage.remove_store_schema(name)
 
     def sync_schema(self) -> None:
+        self._verify_loader_instance()
         schema = unpacker.schema_storage.load_store_schema(self.default_schema_name)
-        with loader.create_client(schema) as client:
+        with loader.make_client(schema) as client:
             client.initialize_storage()
             client.update_storage_schema()
 
-    def sql_client(self) -> SqlClientBase:
+    def sql_client(self) -> SqlClientBase[Any]:
+        self._verify_loader_instance()
         schema = unpacker.schema_storage.load_store_schema(self.default_schema_name)
-        with loader.create_client(schema) as c:
-            return c  # type: ignore
+        with loader.make_client(schema) as c:
+            if isinstance(c, SqlJobClientBase):
+                return c.sql_client
+            else:
+                raise SqlClientNotAvailable(loader.CONFIG.CLIENT_TYPE)
 
     def _configure_unpack(self) -> None:
         # create unpacker config
@@ -260,7 +290,10 @@ class Pipeline:
 
     def _extract_iterator(self, default_table_name: str, items: Sequence[DictStrAny]) -> None:
         try:
-            for i in items:
+            for idx, i in enumerate(items):
+                if not isinstance(i, dict):
+                    # TODO: convert non dict types into dict
+                    items[idx] = i = {"v": i}
                 if DLT_METADATA_FIELD not in i or i.get(DLT_METADATA_FIELD, None) is None:
                     # set default table name
                     with_table_name(i, default_table_name)

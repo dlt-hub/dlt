@@ -58,7 +58,7 @@ print(schema_yaml)
 # f.close()
 
 # 4. Load
-# pipeline.load()
+pipeline.load()
 
 # 5. Optional error handling - print, raise or handle.
 
@@ -76,16 +76,16 @@ for load_id in completed_loads:
 # Tables created:
 
 with pipeline.sql_client() as c:
-    query = f"SELECT * FROM `{schema_prefix}_example.my_json_doc`"
-    df = c._execute_sql(query)
-    print(f"SELECT * FROM `{schema_prefix}_example.my_json_doc`")
+    query = "SELECT * FROM my_json_doc"
+    df = c.execute_sql(query)
+    print(query)
     print(list(df))
     print()
     # {  "name": "Ana",  "age": "30",  "id": "456",  "_dlt_load_id": "1654787700.406905",  "_dlt_id": "5b018c1ba3364279a0ca1a231fbd8d90"}
     # {  "name": "Bob",  "age": "30",  "id": "455",  "_dlt_load_id": "1654787700.406905",  "_dlt_id": "afc8506472a14a529bf3e6ebba3e0a9e"}
 
-    query = f"SELECT * FROM `{schema_prefix}_example.my_json_doc__children` LIMIT 1000"
-    df = c._execute_sql(query)
+    query = "SELECT * FROM my_json_doc__children LIMIT 1000"
+    df = c.execute_sql(query)
     print(query)
     print(list(df))
     print()
@@ -99,15 +99,17 @@ with pipeline.sql_client() as c:
     #   "_dlt_id": "d18172353fba1a492c739a7789a786cf"}
 
     # and we can join them via auto generated keys
-    query = f"""
+    query = """
         select p.name, p.age, p.id as parent_id,
             c.name as child_name, c.id as child_id, c._dlt_list_idx as child_order_in_list
-        from `{schema_prefix}_example.my_json_doc` as p
-        left join `{schema_prefix}_example.my_json_doc__children`  as c
+        from my_json_doc as p
+        left join my_json_doc__children  as c
             on p._dlt_id = c._dlt_parent_id
     """
-    df = c._execute_sql(query)
+    df = c.execute_sql(query)
+    print(query)
     print(list(df))
+    print()
     # {  "name": "Ana",  "age": "30",  "parent_id": "456",  "child_name": "Bill",  "child_id": "625",  "child_order_in_list": "0"}
     # {  "name": "Ana",  "age": "30",  "parent_id": "456",  "child_name": "Elli",  "child_id": "591",  "child_order_in_list": "1"}
     # {  "name": "Bob",  "age": "30",  "parent_id": "455",  "child_name": "Bill",  "child_id": "625",  "child_order_in_list": "0"}

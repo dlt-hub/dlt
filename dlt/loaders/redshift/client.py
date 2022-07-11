@@ -1,9 +1,9 @@
+from contextlib import contextmanager
 import os
 import psycopg2
 from psycopg2.sql import SQL, Identifier, Composed, Literal as SQLLiteral
-from typing import Any, AnyStr, Dict, List, Literal, Optional, Tuple, Type
+from typing import Any, AnyStr, Dict, Iterator, List, Literal, Optional, Sequence, Tuple, Type, final
 
-from dlt.common.typing import StrAny
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 from dlt.common.configuration import PostgresConfiguration
 from dlt.common.dataset_writers import TWriterType, escape_redshift_identifier
@@ -12,7 +12,8 @@ from dlt.common.schema import COLUMN_HINTS, TColumn, TColumnBase, TDataType, THi
 from dlt.loaders.exceptions import (LoadClientSchemaWillNotUpdate, LoadClientTerminalInnerException,
                                             LoadClientTransientInnerException, LoadFileTooBig)
 from dlt.loaders.local_types import LoadJobStatus
-from dlt.loaders.client_base import ClientBase, SqlClientBase, LoadJob
+from dlt.loaders.client_base import JobClientBase, SqlClientBase, SqlJobClientBase, LoadJob, DBCursor, TJobClientCapabilities, TNativeConn
+
 
 SCT_TO_PGT: Dict[TDataType, str] = {
     "complex": "varchar(max)",
@@ -43,57 +44,103 @@ HINT_TO_REDSHIFT_ATTR: Dict[THintType, str] = {
 }
 
 
-class SqlClientMixin:
+class RedshiftSqlClient(SqlClientBase["psycopg2.connection"]):
 
     MAX_STATEMENT_SIZE = 16 * 1024 * 1204
 
-    def __init__(self, CONFIG: Type[PostgresConfiguration], *args: Any, **kwargs: Any) -> None:
-        super().__init__(*args, **kwargs)
+    def __init__(self, schema_name: str, CREDENTIALS: Type[PostgresConfiguration]) -> None:
+        super().__init__(schema_name)
         self._conn: psycopg2.connection = None
-        self.C = CONFIG
+        self.C = CREDENTIALS
 
-    def _open_connection(self) -> None:
+    def open_connection(self) -> None:
         self._conn = psycopg2.connect(dbname=self.C.PG_DATABASE_NAME,
                              user=self.C.PG_USER,
                              host=self.C.PG_HOST,
                              port=self.C.PG_PORT,
                              password=self.C.PG_PASSWORD,
-                             connect_timeout=self.C.PG_CONNECTION_TIMEOUT
+                             connect_timeout=self.C.PG_CONNECTION_TIMEOUT,
+                             options=f"-c search_path={self.fully_qualified_schema_name()},public"
                              )
         # we'll provide explicit transactions
         self._conn.set_session(autocommit=True)
 
-    def _close_connection(self) -> None:
+    def close_connection(self) -> None:
         if self._conn:
             self._conn.close()
             self._conn = None
 
-    def _execute_sql(self, query: AnyStr) -> Any:
-        curr: psycopg2.cursor
+    @property
+    def native_connection(self) -> "psycopg2.connection":
+        return self._conn
+
+    def has_schema(self, schema_name: str = None) -> bool:
+        schema_name = self.fully_qualified_schema_name(schema_name)
+        query = """
+                SELECT 1
+                    FROM INFORMATION_SCHEMA.SCHEMATA
+                    WHERE schema_name = {};
+                """
+        rows = self.execute_sql(SQL(query).format(SQLLiteral(schema_name)))
+        return len(rows) > 0
+
+    def create_schema(self, schema_name: str = None) -> None:
+        schema_name = self.fully_qualified_schema_name(schema_name)
+        self.execute_sql(
+            SQL("CREATE SCHEMA {};").format(Identifier(schema_name))
+            )
+
+    def drop_schema(self, schema_name: str = None) -> None:
+        schema_name = self.fully_qualified_schema_name(schema_name)
+        self.execute_sql(
+            SQL("DROP SCHEMA {} CASCADE;").format(Identifier(schema_name))
+            )
+
+    def execute_sql(self, sql: AnyStr, *args: Any, **kwargs: Any) -> Optional[Sequence[Sequence[Any]]]:
+        curr: DBCursor = None
         with self._conn.cursor() as curr:
             try:
-                curr.execute(query)
+                curr.execute(sql, *args, **kwargs)
+                if curr.description is None:
+                    return None
+                else:
+                    f = curr.fetchall()
+                    return f
             except psycopg2.Error as outer:
                 try:
                     self._conn.rollback()
                     self._conn.reset()
                 except psycopg2.Error:
-                    self._close_connection()
-                    self._open_connection()
+                    self.close_connection()
+                    self.open_connection()
                 raise outer
-            if curr.description is None:
-                return None
-            else:
-                f = curr.fetchall()
-                return f
+
+    @contextmanager
+    def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBCursor]:  # type: ignore
+        curr: DBCursor = None
+        with self._conn.cursor() as curr:
+            try:
+                curr.execute(query, *args, **kwargs)
+                yield curr
+            except psycopg2.Error as outer:
+                try:
+                    self._conn.rollback()
+                    self._conn.reset()
+                except psycopg2.Error:
+                    self.close_connection()
+                    self.open_connection()
+                raise outer
+
+    def fully_qualified_schema_name(self, schema_name: str = None) -> str:
+        return schema_name or self._qualified_default_schema_name
 
 
-class RedshiftInsertLoadJob(SqlClientMixin, LoadJob):
-    def __init__(self, canonical_table_name: str, file_path: str, conn: Any, CONFIG: Type[PostgresConfiguration]) -> None:
-        super().__init__(CONFIG, ClientBase.get_file_name_from_file_path(file_path))
-        self._conn = conn
+class RedshiftInsertLoadJob(LoadJob):
+    def __init__(self, table_name: str, file_path: str, sql_client: SqlClientBase["psycopg2.connection"]) -> None:
+        super().__init__(JobClientBase.get_file_name_from_file_path(file_path))
+        self._sql_client = sql_client
         # insert file content immediately
-        self._insert(canonical_table_name, file_path)
+        self._insert(sql_client.fully_qualified_table_name(table_name), file_path)
 
     def status(self) -> LoadJobStatus:
         # this job is always done
@@ -106,51 +153,46 @@ class RedshiftInsertLoadJob(SqlClientMixin, LoadJob):
         # this part of code should be never reached
         raise NotImplementedError()
 
-    def _insert(self, canonical_table_name: str, file_path: str) -> None:
+    def _insert(self, qualified_table_name: str, file_path: str) -> None:
         # TODO: implement tracking of jobs in storage, both completed and failed
         # WARNING: maximum redshift statement is 16MB https://docs.aws.amazon.com/redshift/latest/dg/c_redshift-sql.html
         # in case of postgres: 2GiB
-        if os.stat(file_path).st_size >= SqlClientMixin.MAX_STATEMENT_SIZE:
+        if os.stat(file_path).st_size >= RedshiftSqlClient.MAX_STATEMENT_SIZE:
             # terminal exception
-            raise LoadFileTooBig(file_path, SqlClientMixin.MAX_STATEMENT_SIZE)
+            raise LoadFileTooBig(file_path, RedshiftSqlClient.MAX_STATEMENT_SIZE)
         with open(file_path, "r", encoding="utf-8") as f:
             header = f.readline()
             content = f.read()
         sql = Composed(
             [SQL("BEGIN TRANSACTION;"),
-            SQL(header).format(SQL(canonical_table_name)),
+            SQL(header).format(SQL(qualified_table_name)),
             SQL(content),
             SQL("COMMIT TRANSACTION;")]
         )
-        self._execute_sql(sql)
+        self._sql_client.execute_sql(sql)
 
-
-class RedshiftClient(SqlClientMixin, SqlClientBase):
+class RedshiftClient(SqlJobClientBase):
     def __init__(self, schema: Schema, CONFIG: Type[PostgresConfiguration]) -> None:
-        super().__init__(CONFIG, schema)
+        self.C = CONFIG
+        sql_client = RedshiftSqlClient(schema.normalize_make_schema_name(CONFIG.PG_SCHEMA_PREFIX, schema.schema_name), CONFIG)
+        super().__init__(schema, sql_client)
+        self.sql_client = sql_client
 
     def initialize_storage(self) -> None:
-        schema_name = self._to_canonical_schema_name()
-        query = """
-                SELECT 1
-                    FROM INFORMATION_SCHEMA.SCHEMATA
-                    WHERE schema_name = {};
-                """
-        rows = self._execute_sql(SQL(query).format(SQLLiteral(schema_name)))
-        if len(rows) == 0:
-            self._execute_sql(SQL("CREATE SCHEMA {};").format(Identifier(schema_name)))
+        if not self.sql_client.has_schema():
+            self.sql_client.create_schema()
 
-    def get_file_load(self, file_path: str) -> LoadJob:
+    def restore_file_load(self, file_path: str) -> LoadJob:
         # always returns completed jobs as RedshiftInsertLoadJob is executed
         # atomically in start_file_load so any jobs that should be recreated are already completed
         # in case of bugs in loader (asking for jobs that were never created) we are not able to detect that
-        return ClientBase.make_job_with_status(file_path, "completed")
+        return JobClientBase.make_job_with_status(file_path, "completed")
 
     def start_file_load(self, table_name: str, file_path: str) -> LoadJob:
         # verify that table exists in the schema
         self._get_table_by_name(table_name, file_path)
         try:
-            return RedshiftInsertLoadJob(self._to_canonical_table_name(table_name), file_path, self._conn, self.C)
+            return RedshiftInsertLoadJob(table_name, file_path, self.sql_client)
         except (psycopg2.OperationalError, psycopg2.InternalError) as tr_ex:
             if tr_ex.pgerror is not None:
                 if "Cannot insert a NULL value into column" in tr_ex.pgerror:
@@ -164,12 +206,12 @@ class RedshiftClient(SqlClientMixin, SqlClientBase):
         except (psycopg2.DataError, psycopg2.ProgrammingError, psycopg2.IntegrityError) as ter_ex:
             raise LoadClientTerminalInnerException("Terminal error, file will not load", ter_ex)
 
-    def update_storage_schema(self) -> None:
-        storage_version = self._get_schema_version_from_storage()
-        if storage_version < self.schema.schema_version:
-            for sql in self._build_schema_update_sql():
-                self._execute_sql(sql)
-            self._update_schema_version(self.schema.schema_version)
+    @property
+    def capabilities(self) -> TJobClientCapabilities:
+        return {
+            "writer_type": supported_writer(None)
+        }
+
 
     def _get_schema_version_from_storage(self) -> int:
         try:
@@ -193,7 +235,7 @@ class RedshiftClient(SqlClientMixin, SqlClientBase):
             # no changes
             return None
         # build sql
-        canonical_name = self._to_canonical_table_name(table_name)
+        canonical_name = self.sql_client.fully_qualified_table_name(table_name)
         sql = "BEGIN TRANSACTION;\n"
         if not exists:
             # build CREATE
@@ -224,10 +266,10 @@ class RedshiftClient(SqlClientMixin, SqlClientBase):
         query = f"""
                 SELECT column_name, data_type, is_nullable, numeric_precision, numeric_scale
                     FROM INFORMATION_SCHEMA.COLUMNS
-                WHERE table_schema = '{self._to_canonical_schema_name()}' AND table_name = '{table_name}'
+                WHERE table_schema = '{self.sql_client.fully_qualified_schema_name()}' AND table_name = '{table_name}'
                 ORDER BY ordinal_position;
                 """
-        rows = self._execute_sql(query)
+        rows = self.sql_client.execute_sql(query)
         # if no rows we assume that table does not exist
         if len(rows) == 0:
             # TODO: additionally check if table exists
@@ -241,13 +283,6 @@ class RedshiftClient(SqlClientMixin, SqlClientBase):
             }
             schema_table[c[0]] = add_missing_hints(schema_c)
         return True, schema_table
-
-
-    def _to_canonical_schema_name(self) -> str:
-        return f"{self.C.PG_SCHEMA_PREFIX}_{self.schema.schema_name}"
-
-    def _to_canonical_table_name(self, table_name: str) -> str:
-        return f"{self._to_canonical_schema_name()}.{table_name}"
 
     @staticmethod
     def _null_to_bool(v: str) -> bool:
