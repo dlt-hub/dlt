@@ -67,11 +67,11 @@ jobs:
         run: poetry install --no-interaction
 
       - run: |
-          LOG_LEVEL=ERROR poetry run pytest tests --ignore=tests/common --ignore=tests/unpacker --ignore=tests/loaders/gcp --ignore=tests/dbt_runner
+          LOG_LEVEL=ERROR poetry run pytest tests --ignore=tests/common --ignore=tests/unpacker --ignore=tests/loaders/gcp --ignore=tests/dbt_runner -k'(not bigquery_client)'
         if: runner.os != 'Windows'
         name: Run tests Linux/MAC
       - run: |
-          poetry run pytest tests --ignore=tests/common --ignore=tests/unpacker --ignore=tests/loaders/gcp --ignore=tests/dbt_runner -m "not forked"
+          poetry run pytest tests --ignore=tests/common --ignore=tests/unpacker --ignore=tests/loaders/gcp --ignore=tests/dbt_runner -m "not forked" -k'(not bigquery_client)'
         if: runner.os == 'Windows'
         name: Run tests Windows
         shell: cmd
