@@ -50,6 +50,9 @@ def test_normalize_schema_name(schema: Schema) -> None:
     assert schema.normalize_schema_name("BAN_ANA") == "banana"
     assert schema.normalize_schema_name("event-.!:value") == "eventvalue"
     assert schema.normalize_schema_name("123event-.!:value") == "s123eventvalue"
+    assert schema.normalize_schema_name("") == ""
+    with pytest.raises(ValueError):
+        schema.normalize_schema_name(None)
 
 
 def test_new_schema(schema: Schema) -> None:
@@ -335,11 +338,14 @@ def test_merge_hints(schema: Schema) -> None:
 
 
 def delete_storage() -> None:
-    files = schema_storage.storage.list_folder_files(".")
-    for file in files:
-        schema_storage.storage.delete(file)
-    if schema_storage.storage.has_folder("copy"):
-        schema_storage.storage.delete_folder("copy", recursively=True)
+    if not schema_storage.storage.has_folder(""):
+        SchemaStorage(TEST_STORAGE, makedirs=True)
+    else:
+        files = schema_storage.storage.list_folder_files(".")
+        for file in files:
+            schema_storage.storage.delete(file)
+        if schema_storage.storage.has_folder("copy"):
+            schema_storage.storage.delete_folder("copy", recursively=True)
 
 
 def assert_new_schema_values_custom_normalizers(schema: Schema) -> None:
@@ -367,7 +373,7 @@ def assert_new_schema_values(schema: Schema) -> None:
     assert schema._normalizers_config["names"] == "dlt.common.normalizers.names.snake_case"
     assert schema._normalizers_config["json"]["module"] == "dlt.common.normalizers.json.relational"
     # check if schema was extended by json normalizer
-    assert set(["re:^_dlt_id$", "re:^_dlt_root_id$", "re:^_dlt_parent_id$", "re:^_dlt_list_idx$", "_dlt_load_id"]).issubset(schema.schema_settings["default_hints"]["not_null"])
+    assert set(["_dlt_id", "_dlt_root_id", "_dlt_parent_id", "_dlt_list_idx", "_dlt_load_id"]).issubset(schema.schema_settings["default_hints"]["not_null"])
     # call normalizers
     assert schema.normalize_column_name("A") == "a"
     assert schema.normalize_table_name("A__B") == "a__b"

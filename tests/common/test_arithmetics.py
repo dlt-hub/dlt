@@ -24,11 +24,11 @@ def test_default_numeric_quantize() -> None:
 
 def test_numeric_default_context() -> None:
     # we reach (38,9) numeric
-    with numeric_default_context():
-        v = Decimal(10**29-1) + Decimal("0.532701079")
-        assert str(v) == "99999999999999999999999999999.532701079"
-        assert numeric_default_quantize(v) == v
+    v = Decimal(10**29-1) + Decimal("0.532701079")
+    assert str(v) == "99999999999999999999999999999.532701079"
+    assert numeric_default_quantize(v) == v
 
-    # without context this is 28
-    v = Decimal(10**27 - 1) + Decimal("0.5432701079")
-    assert str(v) == "999999999999999999999999999.5"
+    # the original python precision is 28
+    with numeric_default_context(precision=28):
+        v = Decimal(10**27 - 1) + Decimal("0.5432701079")
+        assert str(v) == "999999999999999999999999999.5"
