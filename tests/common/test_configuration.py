@@ -7,8 +7,8 @@ from dlt.common.configuration import (
     BasicConfiguration, ConfigEntryMissingException, ConfigFileNotFoundException,
     ConfigEnvValueCannotBeCoercedException, utils)
 from dlt.common.configuration.utils import (_coerce_single_value, IS_DEVELOPMENT_CONFIG_KEY,
-                                                           _get_config_attrs_with_hints, TConfigSecret,
-                                                           is_direct_descendant, make_configuration)
+                                                           _get_config_attrs_with_hints, TSecretValue,
+                                                           is_direct_descendant, config_as_dict, make_configuration)
 
 # used to test version
 __version__ = "1.0.5"
@@ -75,12 +75,12 @@ class WrongConfiguration(BasicConfiguration):
 
 class SecretConfiguration(BasicConfiguration):
     NAME: str = "secret"
-    SECRET_VALUE: TConfigSecret = None
+    SECRET_VALUE: TSecretValue = None
 
 
 class SecretKubeConfiguration(BasicConfiguration):
     NAME: str = "secret kube"
-    SECRET_KUBE: TConfigSecret = None
+    SECRET_KUBE: TSecretValue = None
 
 
 class TestCoercionConfiguration(BasicConfiguration):
@@ -143,6 +143,34 @@ def preserve_environ() -> None:
 def environment() -> Any:
     environ.clear()
     return environ
+
+
+def test_basic_configuration_gen_name(environment: Any) -> None:
+    C = make_configuration(BasicConfiguration, BasicConfiguration)
+    assert C.NAME.startswith("dlt_")
+
+
+def test_configuration_to_dict(environment: Any) -> None:
+    expected_dict = {
+        'CONFIG_FILES_STORAGE_PATH': '_storage/config/%s',
+        'IS_DEVELOPMENT_CONFIG': True,
+        'LOG_FORMAT': '{asctime}|[{levelname:<21}]|{process}|{name}|{filename}|{funcName}:{lineno}|{message}',
+        'LOG_LEVEL': 'DEBUG',
+        'NAME': 'secret',
+        'PROMETHEUS_PORT': None,
+        'REQUEST_TIMEOUT': (15, 300),
+        'SECRET_VALUE': None,
+        'SENTRY_DSN': None
+    }
+    assert config_as_dict(SecretConfiguration) == {k.lower():v for k,v in expected_dict.items()}
+    assert config_as_dict(SecretConfiguration, lowercase=False) == expected_dict
+
+    environment["SECRET_VALUE"] = "secret"
+    C = make_configuration(SecretConfiguration, SecretConfiguration)
+    d = config_as_dict(C, lowercase=False)
+    expected_dict["_VERSION"] = d["_VERSION"]
+    expected_dict["SECRET_VALUE"] = "secret"
+    assert d == expected_dict
 
 
 def test_configuration_rise_exception_when_config_is_not_complete() -> None:

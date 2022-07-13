@@ -2,9 +2,9 @@ import sys
 import semver
 from os import environ
 from os.path import isdir, isfile
-from typing import Any, Dict, List, Mapping, NewType, Optional, Type, TypeVar, IO, cast
+from typing import Any, Dict, List, Mapping, Optional, Type, TypeVar, IO, cast
 
-from dlt.common.typing import StrAny, is_optional_type, is_literal_type
+from dlt.common.typing import StrAny, TSecretValue, is_optional_type, is_literal_type
 from dlt.common.configuration import BasicConfiguration
 from dlt.common.configuration.exceptions import (ConfigEntryMissingException,
                                                  ConfigEnvValueCannotBeCoercedException, ConfigFileNotFoundException)
@@ -21,7 +21,6 @@ SECRET_STORAGE_PATH: str = "/run/secrets/%s"
 
 TConfiguration = TypeVar("TConfiguration", bound=Type[BasicConfiguration])
 TProductionConfiguration = TypeVar("TProductionConfiguration", bound=Type[BasicConfiguration])
-TConfigSecret = NewType("TConfigSecret", str)
 
 
 def make_configuration(config: TConfiguration,
@@ -41,7 +40,10 @@ def make_configuration(config: TConfiguration,
     # apply initial values while preserving hints
     if initial_values:
         for k, v in initial_values.items():
-            setattr(derived_config, k, v)
+            k = k.upper()
+            # overwrite only declared values
+            if hasattr(derived_config, k):
+                setattr(derived_config, k.upper(), v)
 
     _apply_environ_to_config(derived_config, possible_keys_in_config)
     try:
@@ -104,7 +106,7 @@ def _apply_environ_to_config(config: TConfiguration, keys_in_config: Mapping[str
 
 
 def _get_key_value(key: str, hint: Type[Any]) -> Optional[str]:
-    if hint is TConfigSecret:
+    if hint is TSecretValue:
         # try secret storage
         try:
             # must conform to RFC1123
@@ -200,3 +202,8 @@ def _extract_simple_type(hint: Type[Any]) -> Type[Any]:
         return hint
     # descend into supertypes of NewType
     return _extract_simple_type(hint.__supertype__)
+
+
+def config_as_dict(config: TConfiguration, lowercase: bool = True) -> StrAny:
+    may_lower = lambda k: k.lower() if lowercase else k
+    return {may_lower(k):getattr(config, k) for k in dir(config) if not callable(getattr(config, k)) and not k.startswith("__")}
