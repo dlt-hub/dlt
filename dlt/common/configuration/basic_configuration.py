@@ -1,10 +1,12 @@
+import randomname
+
 from typing import Optional, Tuple
 
 DEVELOPMENT_CONFIG_FILES_STORAGE_PATH = "_storage/config/%s"
 PRODUCTION_CONFIG_FILES_STORAGE_PATH = "/run/config/%s"
 
 class BasicConfiguration:
-    NAME: str = None  # the name of the component, must be supplied
+    NAME: Optional[str] = None  # the name of the component
     SENTRY_DSN: Optional[str] = None  # keep None to disable Sentry
     PROMETHEUS_PORT: Optional[int] = None  # keep None to disable Prometheus
     LOG_FORMAT: str = '{asctime}|[{levelname:<21}]|{process}|{name}|{filename}|{funcName}:{lineno}|{message}'
@@ -15,6 +17,9 @@ class BasicConfiguration:
 
     @classmethod
     def check_integrity(cls) -> None:
+        # generate random name if missing
+        if not cls.NAME:
+            cls.NAME = "dlt_" + randomname.get_name().replace("-", "_")
         # if CONFIG_FILES_STORAGE_PATH not overwritten and we are in production mode
         if cls.CONFIG_FILES_STORAGE_PATH == DEVELOPMENT_CONFIG_FILES_STORAGE_PATH and not cls.IS_DEVELOPMENT_CONFIG:
             # set to mount where config files will be present
