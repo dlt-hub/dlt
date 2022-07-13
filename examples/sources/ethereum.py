@@ -29,7 +29,7 @@ def get_deferred_source(node_url: str, no_blocks: int, last_block: int = None, l
     return _get_source(True, node_url, no_blocks, last_block, lag, state)  # type: ignore
 
 
-def _get_source(is_deferred: bool, node_url: str, no_blocks: int, last_block: int, lag: int, state: DictStrAny) -> Union[Iterator[TItem], Iterator[TDeferred[DictStrAny]]]:
+def _get_source(is_deferred: bool, node_url: str, no_blocks: int, last_block: int, lag: int, state: DictStrAny = None) -> Union[Iterator[TItem], Iterator[TDeferred[DictStrAny]]]:
 
     # this code is run only once
     w3 = Web3(Web3.HTTPProvider(node_url))

@@ -4,7 +4,7 @@ from typing import Literal
 from dlt.common import json
 
 from dlt.common.typing import StrAny
-from dlt.common.configuration.utils import TConfigSecret
+from dlt.common.configuration.utils import TSecretValue
 
 TLoaderType = Literal["gcp", "redshift"]
 TPipelineStage = Literal["extract", "unpack", "load"]
@@ -34,7 +34,7 @@ class GCPPipelineCredentials(PipelineCredentials):
     PROJECT_ID: str
     DATASET: str
     BQ_CRED_CLIENT_EMAIL: str
-    BQ_CRED_PRIVATE_KEY: TConfigSecret = None
+    BQ_CRED_PRIVATE_KEY: TSecretValue = None
     TIMEOUT: float = 30.0
 
     @property
@@ -64,7 +64,7 @@ class PostgresPipelineCredentials(PipelineCredentials):
     PG_SCHEMA_PREFIX: str
     PG_USER: str
     PG_HOST: str
-    PG_PASSWORD: TConfigSecret = None
+    PG_PASSWORD: TSecretValue = None
     PG_PORT: int = 5439
     PG_CONNECTION_TIMEOUT: int = 15
 

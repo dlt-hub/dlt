@@ -5,7 +5,7 @@ from .schema_volume_configuration import SchemaVolumeConfiguration, ProductionSc
 from .pool_runner_configuration import PoolRunnerConfiguration, TPoolType  # noqa: F401
 from .gcp_client_configuration import GcpClientConfiguration, GcpClientProductionConfiguration  # noqa: F401
 from .postgres_configuration import PostgresConfiguration, PostgresProductionConfiguration  # noqa: F401
-from .utils import make_configuration, TConfigSecret, open_configuration_file  # noqa: F401
+from .utils import make_configuration, TSecretValue, open_configuration_file  # noqa: F401
 
 from .exceptions import (  # noqa: F401
     ConfigEntryMissingException, ConfigEnvValueCannotBeCoercedException, ConfigIntegrityException, ConfigFileNotFoundException)

@@ -1,10 +1,10 @@
-from dlt.common.configuration.utils import TConfigSecret
+from dlt.common.configuration.utils import TSecretValue
 
 
 class PostgresConfiguration:
     PG_DATABASE_NAME: str = None
     PG_SCHEMA_PREFIX: str = None
-    PG_PASSWORD: TConfigSecret = None
+    PG_PASSWORD: TSecretValue = None
     PG_USER: str = None
     PG_HOST: str = None
     PG_PORT: int = 5439
@@ -14,12 +14,12 @@ class PostgresConfiguration:
     def check_integrity(cls) -> None:
         cls.PG_DATABASE_NAME = cls.PG_DATABASE_NAME.lower()
         cls.PG_SCHEMA_PREFIX = cls.PG_SCHEMA_PREFIX.lower()
-        cls.PG_PASSWORD = TConfigSecret(cls.PG_PASSWORD.strip())
+        cls.PG_PASSWORD = TSecretValue(cls.PG_PASSWORD.strip())
 
 
 class PostgresProductionConfiguration(PostgresConfiguration):
     PG_DATABASE_NAME: str = None
     PG_SCHEMA_PREFIX: str = None
-    PG_PASSWORD: TConfigSecret = None
+    PG_PASSWORD: TSecretValue = None
     PG_USER: str = None
     PG_HOST: str = None
