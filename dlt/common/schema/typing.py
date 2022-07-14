@@ -1,4 +1,4 @@
-from typing import Any, Callable, Dict, List, Literal, Optional, Set, Type, TypedDict, NewType
+from typing import Any, Callable, Dict, List, Literal, Optional, Set, Type, TypedDict, NewType, get_args
 
 from dlt.common.typing import StrAny
 
@@ -6,14 +6,14 @@ from dlt.common.typing import StrAny
 TDataType = Literal["text", "double", "bool", "timestamp", "bigint", "binary", "complex", "decimal", "wei"]
 THintType = Literal["not_null", "partition", "cluster", "primary_key", "foreign_key", "sort", "unique"]
 TColumnProp = Literal["name", "data_type", "nullable", "partition", "cluster", "primary_key", "foreign_key", "sort", "unique"]
-TWriteDisposition = Literal["skip", "append", "replace", "merge"]
+TWriteDisposition = Literal["skip", "append", "replace", "merge", "upsert"]
 TTypeDetections = Literal["timestamp", "iso_timestamp"]
 TTypeDetectionFunc = Callable[[Type[Any], Any], Optional[TDataType]]
 
-DATA_TYPES: Set[TDataType] = set(["text", "double", "bool", "timestamp", "bigint", "binary", "complex", "decimal", "wei"])
-COLUMN_PROPS: Set[TColumnProp] = set(["name", "data_type", "nullable", "partition", "cluster", "primary_key", "foreign_key", "sort", "unique"])
+DATA_TYPES: Set[TDataType] = set(get_args(TDataType))
+COLUMN_PROPS: Set[TColumnProp] = set(get_args(TColumnProp))
 COLUMN_HINTS: Set[THintType] = set(["partition", "cluster", "primary_key", "foreign_key", "sort", "unique"])
-WRITE_DISPOSITIONS: Set[TWriteDisposition] = set(["skip", "append", "replace", "merge"])
+WRITE_DISPOSITIONS: Set[TWriteDisposition] = set(get_args(TWriteDisposition))
 
 
 class TColumnBase(TypedDict, total=True):

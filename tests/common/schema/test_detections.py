@@ -15,6 +15,7 @@ def test_timestamp_detection() -> None:
 def test_iso_timestamp_detection() -> None:
     assert is_iso_timestamp(str, str(pendulum.now())) == "timestamp"
     assert is_iso_timestamp(str, "1975-05-21T22:00:00Z") == "timestamp"
+    assert is_iso_timestamp(str, "2022-06-01T00:48:35.040Z") == "timestamp"
     assert is_iso_timestamp(str, "1975-0521T22:00:00Z") == "timestamp"
     assert is_iso_timestamp(str, "2021-07-24 10:51") == "timestamp"
     # dates and times are not accepted

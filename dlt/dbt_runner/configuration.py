@@ -1,7 +1,7 @@
 from typing import List, Optional, Type
 
 from dlt.common.typing import StrAny
-from dlt.common.configuration.utils import TConfigSecret, make_configuration, _get_key_value
+from dlt.common.configuration.utils import TSecretValue, make_configuration, _get_key_value
 from dlt.common.configuration import PoolRunnerConfiguration, TPoolType, PostgresConfiguration, PostgresProductionConfiguration, GcpClientConfiguration, GcpClientProductionConfiguration
 
 from . import __version__
@@ -13,7 +13,7 @@ class DBTRunnerConfiguration(PoolRunnerConfiguration):
     PACKAGE_VOLUME_PATH: str = "_storage/dbt_runner"
     PACKAGE_REPOSITORY_URL: str = "https://github.com/scale-vector/rasa_semantic_schema_customization.git"
     PACKAGE_REPOSITORY_BRANCH: Optional[str] = None
-    PACKAGE_REPOSITORY_SSH_KEY: TConfigSecret = TConfigSecret("")  # the default is empty value which will disable custom SSH KEY
+    PACKAGE_REPOSITORY_SSH_KEY: TSecretValue = TSecretValue("")  # the default is empty value which will disable custom SSH KEY
     PACKAGE_PROFILES_DIR: str = "."
     PACKAGE_PROFILE_PREFIX: str = "rasa_semantic_schema"
     PACKAGE_SOURCE_TESTS_SELECTOR: str = "tag:prerequisites"
@@ -28,7 +28,7 @@ class DBTRunnerConfiguration(PoolRunnerConfiguration):
     def check_integrity(cls) -> None:
         if cls.PACKAGE_REPOSITORY_SSH_KEY and cls.PACKAGE_REPOSITORY_SSH_KEY[-1] != "\n":
             # must end with new line, otherwise won't be parsed by Crypto
-            cls.PACKAGE_REPOSITORY_SSH_KEY = TConfigSecret(cls.PACKAGE_REPOSITORY_SSH_KEY + "\n")
+            cls.PACKAGE_REPOSITORY_SSH_KEY = TSecretValue(cls.PACKAGE_REPOSITORY_SSH_KEY + "\n")
         if cls.STOP_AFTER_RUNS != 1:
             # always stop after one run
             cls.STOP_AFTER_RUNS = 1

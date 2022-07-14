@@ -18,7 +18,7 @@
           "nullable": false
         }
       },
-      "write_disposition": "append"
+      "write_disposition": "skip"
     },
     "_dlt_loads": {
       "columns": {
@@ -35,7 +35,7 @@
           "nullable": false
         }
       },
-      "write_disposition": "append"
+      "write_disposition": "skip"
     },
     "event_slot": {
         "columns": {

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "python-dlt"
-version = "0.1.0rc8"
+version = "0.1.0rc9"
 description = "DLT is an open-source python-native scalable data loading framework that does not require any devops efforts to run."
 authors = ["ScaleVector <services@scalevector.ai>"]
 maintainers = [ "Marcin Rudolf <marcin@scalevector.ai>", "Adrian Brudaru <adrian@scalevector.ai>",]
@@ -40,11 +40,15 @@ psycopg2-binary = {version = "^2.9.1", optional = true}
 
 grpcio = {version = "1.43.0", optional = true}
 google-cloud-bigquery = {version = "^2.26.0", optional = true}
+google-cloud-bigquery-storage = {version = "^2.13.0", optional = true}
+pyarrow = {version = "^8.0.0", optional = true}
 
 GitPython = {version = "^3.1.26", optional = true}
 dbt-core = {version = "1.0.6", optional = true}
 dbt-redshift = {version = "1.0.1", optional = true}
 dbt-bigquery = {version = "1.0.0", optional = true}
+randomname = "^0.1.5"
+tzdata = "^2022.1"
 
 
 [tool.poetry.dev-dependencies]
@@ -69,7 +73,7 @@ flake8-builtins = "^1.5.3"
 
 [tool.poetry.extras]
 dbt = ["dbt-core", "GitPython", "dbt-redshift", "dbt-bigquery"]
-gcp = ["grpcio", "google-cloud-bigquery"]
+gcp = ["grpcio", "google-cloud-bigquery", "google-cloud-bigquery-storage", "pyarrow"]
 postgres = ["psycopg2-binary"]
 redshift = ["psycopg2-binary"]
 

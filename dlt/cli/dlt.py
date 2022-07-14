@@ -31,6 +31,7 @@ def main() -> None:
     schema.add_argument("--format", choices=["json", "yaml"], default="yaml", help="Display schema in this format")
     schema.add_argument("--remove-defaults", action="store_true", help="Does not show default hint values")
 
+    # TODO: consider using fire: https://github.com/google/python-fire
     args = parser.parse_args()
     run_f: Callable[[TRunArgs], None] = None
 

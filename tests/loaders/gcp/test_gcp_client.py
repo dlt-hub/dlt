@@ -7,6 +7,7 @@ from dlt.common.arithmetics import numeric_default_context
 from dlt.common.file_storage import FileStorage
 from dlt.common.schema.schema import Schema
 from dlt.common.utils import uniq_id
+from dlt.loaders.exceptions import LoadJobNotExistsException, LoadJobServerTerminalException, LoadUnknownTableException
 
 from dlt.loaders.loader import import_client
 from dlt.loaders.gcp.client import BigQueryClient
@@ -42,6 +43,40 @@ def test_empty_schema_name_init_storage(client: BigQueryClient) -> None:
             assert e_client._get_schema_version_from_storage() == 1
         finally:
             e_client.sql_client.drop_schema()
+
+
+def test_bigquery_job_errors(client: BigQueryClient, file_storage: FileStorage) -> None:
+    # non existing job
+    with pytest.raises(LoadJobNotExistsException):
+        client.restore_file_load(uniq_id() + ".")
+
+    # bad name
+    with pytest.raises(LoadJobServerTerminalException):
+        client.restore_file_load("!!&*aaa")
+
+    user_table_name = prepare_event_user_table(client)
+
+    # start job with non existing file
+    with pytest.raises(FileNotFoundError):
+        client.start_file_load(client.schema.get_table(user_table_name), uniq_id() + ".")
+
+    # start job with invalid name
+    dest_path = file_storage.save("!!aaaa", b"data")
+    with pytest.raises(LoadJobServerTerminalException):
+        client.start_file_load(client.schema.get_table(user_table_name), dest_path)
+
+    user_table_name = prepare_event_user_table(client)
+    load_json = {
+        "_dlt_id": uniq_id(),
+        "_dlt_root_id": uniq_id(),
+        "sender_id":'90238094809sajlkjxoiewjhduuiuehd',
+        "timestamp": str(pendulum.now())
+    }
+    job = expect_load_file(client, file_storage, json.dumps(load_json), user_table_name)
+
+    # start a job from the same file. it should fallback to retrieve job silently
+    r_job = client.start_file_load(client.schema.get_table(user_table_name), file_storage._make_path(job.file_name()))
+    assert r_job.status() == "completed"
 
 
 def test_loading_errors(client: BigQueryClient, file_storage: FileStorage) -> None:

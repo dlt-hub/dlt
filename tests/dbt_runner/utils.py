@@ -21,7 +21,7 @@ def restore_secret_storage_path() -> None:
 
 def load_secret(name: str) -> str:
     utils.SECRET_STORAGE_PATH = "./tests/dbt_runner/secrets/%s"
-    secret = utils._get_key_value(name, utils.TConfigSecret)
+    secret = utils._get_key_value(name, utils.TSecretValue)
     if not secret:
         raise FileNotFoundError(utils.SECRET_STORAGE_PATH % name)
     return secret

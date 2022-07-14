@@ -8,6 +8,7 @@ from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SC
 from dlt.common.configuration import PostgresConfiguration
 from dlt.common.dataset_writers import TWriterType, escape_redshift_identifier
 from dlt.common.schema import COLUMN_HINTS, TColumn, TColumnBase, TDataType, THintType, Schema, TTableColumns, add_missing_hints
+from dlt.common.schema.typing import TTable, TWriteDisposition
 
 from dlt.loaders.exceptions import (LoadClientSchemaWillNotUpdate, LoadClientTerminalInnerException,
                                             LoadClientTransientInnerException, LoadFileTooBig)
@@ -136,11 +137,11 @@ class RedshiftSqlClient(SqlClientBase["psycopg2.connection"]):
 
 
 class RedshiftInsertLoadJob(LoadJob):
-    def __init__(self, table_name: str, file_path: str, sql_client: SqlClientBase["psycopg2.connection"]) -> None:
+    def __init__(self, table_name: str, write_disposition: TWriteDisposition, file_path: str, sql_client: SqlClientBase["psycopg2.connection"]) -> None:
         super().__init__(JobClientBase.get_file_name_from_file_path(file_path))
         self._sql_client = sql_client
         # insert file content immediately
-        self._insert(sql_client.fully_qualified_table_name(table_name), file_path)
+        self._insert(sql_client.fully_qualified_table_name(table_name), write_disposition, file_path)
 
     def status(self) -> LoadJobStatus:
         # this job is always done
@@ -153,7 +154,7 @@ class RedshiftInsertLoadJob(LoadJob):
         # this part of code should be never reached
         raise NotImplementedError()
 
-    def _insert(self, qualified_table_name: str, file_path: str) -> None:
+    def _insert(self, qualified_table_name: str, write_disposition: TWriteDisposition, file_path: str) -> None:
         # TODO: implement tracking of jobs in storage, both completed and failed
         # WARNING: maximum redshift statement is 16MB https://docs.aws.amazon.com/redshift/latest/dg/c_redshift-sql.html
         # in case of postgres: 2GiB
@@ -163,13 +164,15 @@ class RedshiftInsertLoadJob(LoadJob):
         with open(file_path, "r", encoding="utf-8") as f:
             header = f.readline()
             content = f.read()
-        sql = Composed(
-            [SQL("BEGIN TRANSACTION;"),
-            SQL(header).format(SQL(qualified_table_name)),
+        insert_sql = [SQL("BEGIN TRANSACTION;")]
+        if write_disposition == "replace":
+            insert_sql.append(SQL("DELETE FROM {};").format(SQL(qualified_table_name)))
+        insert_sql.extend(
+            [SQL(header).format(SQL(qualified_table_name)),
             SQL(content),
             SQL("COMMIT TRANSACTION;")]
         )
-        self._sql_client.execute_sql(sql)
+        self._sql_client.execute_sql(Composed(insert_sql))
 
 class RedshiftClient(SqlJobClientBase):
     def __init__(self, schema: Schema, CONFIG: Type[PostgresConfiguration]) -> None:
@@ -188,11 +191,9 @@ class RedshiftClient(SqlJobClientBase):
         # in case of bugs in loader (asking for jobs that were never created) we are not able to detect that
         return JobClientBase.make_job_with_status(file_path, "completed")
 
-    def start_file_load(self, table_name: str, file_path: str) -> LoadJob:
-        # verify that table exists in the schema
-        self._get_table_by_name(table_name, file_path)
+    def start_file_load(self, table: TTable, file_path: str) -> LoadJob:
         try:
-            return RedshiftInsertLoadJob(table_name, file_path, self.sql_client)
+            return RedshiftInsertLoadJob(table["name"], table["write_disposition"], file_path, self.sql_client)
         except (psycopg2.OperationalError, psycopg2.InternalError) as tr_ex:
             if tr_ex.pgerror is not None:
                 if "Cannot insert a NULL value into column" in tr_ex.pgerror:

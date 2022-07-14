@@ -67,6 +67,22 @@ class LoadClientSchemaWillNotUpdate(LoadClientTerminalException):
         super().__init__(f"Schema for table {table_name} column(s) {columns} will not update: {msg}")
 
 
+class LoadClientUnsupportedWriter(LoadClientTerminalException):
+    def __init__(self, writer_type: str, supported_writers: Sequence[str], file_path: str) -> None:
+        self.writer_type = writer_type
+        self.supported_types = supported_writers
+        self.file_path = file_path
+        super().__init__(f"Loader does not support writer {writer_type} in  file {file_path}. Supported writers: {supported_writers}")
+
+
+class LoadClientUnsupportedWriteDisposition(LoadClientTerminalException):
+    def __init__(self, table_name: str, write_disposition: str, file_name: str) -> None:
+        self.table_name = table_name
+        self.write_disposition = write_disposition
+        self.file_name = file_name
+        super().__init__(f"Loader does not support {write_disposition} in table {table_name} when loading file {file_name}")
+
+
 class LoadFileTooBig(LoadClientTerminalException):
     def __init__(self, file_name: str, max_size: int) -> None:
         super().__init__(f"File {file_name} exceedes {max_size} and cannot be loaded. Split the file and try again.")

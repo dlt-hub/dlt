@@ -20,6 +20,7 @@ from dlt.loaders.configuration import configuration, ProductionLoaderConfigurati
 from dlt.loaders.dummy import client
 from dlt.loaders import loader, __version__
 from dlt.loaders.dummy.configuration import DummyClientConfiguration
+from dlt.loaders.exceptions import LoadClientUnsupportedWriteDisposition
 
 from tests.utils import TEST_STORAGE, clean_storage, init_logger
 
@@ -65,6 +66,29 @@ def test_spool_job_started() -> None:
     # still running
     remaining_jobs = loader.complete_jobs(load_id, jobs)
     assert len(remaining_jobs) == 2
+
+
+def test_unsupported_writer_type() -> None:
+    setup_loader()
+    load_id, _ = prepare_load_package(["event_bot.181291798a78198.unsupported_format"])
+    with pytest.raises(TerminalValueError):
+        loader.load_storage.list_new_jobs(load_id)
+
+
+def test_unsupported_write_disposition() -> None:
+    setup_loader()
+    load_id, schema = prepare_load_package(
+        ["event_user.839c6e6b514e427687586ccc65bf133f.jsonl"]
+    )
+    # mock unsupported disposition
+    schema.get_table("event_user")["write_disposition"] = "merge"
+    # write back schema
+    schema_storage = SchemaStorage(loader.load_storage.storage.storage_path)
+    schema_storage.save_folder_schema(schema, loader.load_storage.get_load_path(load_id))
+    loader.load(ThreadPool())
+    # job with unsupported write disp. is failed
+    exception = [f for f in loader.load_storage.list_failed_jobs(load_id) if f.endswith(".exception")][0]
+    assert "LoadClientUnsupportedWriteDisposition" in loader.load_storage.storage.load(exception)
 
 
 def test_spool_job_failed() -> None:

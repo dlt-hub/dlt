@@ -12,13 +12,14 @@ from dlt.common.normalizers.names import TNormalizeNameFunc
 from dlt.common.typing import DictStrAny, REPattern
 from dlt.common.validation import TCustomValidator, validate_dict
 from dlt.common.schema import detections
-from dlt.common.schema.typing import SIMPLE_REGEX_PREFIX, TColumnName, TNormalizersConfig, TSimpleRegex, TStoredSchema, TTable, TTableColumns, TColumnBase, TColumn, TColumnProp, TDataType, THintType, TTypeDetectionFunc, TTypeDetections
+from dlt.common.schema.typing import SIMPLE_REGEX_PREFIX, TColumnName, TNormalizersConfig, TSimpleRegex, TStoredSchema, TTable, TTableColumns, TColumnBase, TColumn, TColumnProp, TDataType, THintType, TTypeDetectionFunc, TTypeDetections, TWriteDisposition
 from dlt.common.schema.exceptions import ParentTableNotFoundException, SchemaEngineNoUpgradePathException
 
 
 RE_LEADING_DIGITS = re.compile(r"^\d+")
 RE_NON_ALPHANUMERIC = re.compile(r"[^a-zA-Z\d]")
 RE_NON_ALPHANUMERIC_UNDERSCORE = re.compile(r"[^a-zA-Z\d_]")
+DEFAULT_WRITE_DISPOSITION: TWriteDisposition = "append"
 
 
 # fix a name so it is acceptable as schema name
@@ -39,7 +40,7 @@ def apply_defaults(stored_schema: TStoredSchema) -> None:
         table["name"] = table_name
         # add default write disposition to root tables
         if table.get("parent") is None and table.get("write_disposition") is None:
-            table["write_disposition"] = "append"
+            table["write_disposition"] = DEFAULT_WRITE_DISPOSITION
         # add missing hints to columns
         for column_name in table["columns"]:
             # add default hints to tables
@@ -394,7 +395,7 @@ def load_table() -> TTable:
     return table
 
 
-def new_table(table_name: str, parent_name: str = None, columns: Sequence[TColumn] = None) -> TTable:
+def new_table(table_name: str, parent_name: str = None, write_disposition: TWriteDisposition = None, columns: Sequence[TColumn] = None) -> TTable:
     table: TTable = {
         "name": table_name,
         "columns": {} if columns is None else {c["name"]: c for c in columns}
@@ -403,7 +404,7 @@ def new_table(table_name: str, parent_name: str = None, columns: Sequence[TColum
         table["parent"] = parent_name
     else:
         # set write disposition only for root tables
-        table["write_disposition"] = "append"
+        table["write_disposition"] = write_disposition or DEFAULT_WRITE_DISPOSITION
     return table
 
 

@@ -1,6 +1,6 @@
 from collections.abc import Mapping as C_Mapping, Sequence as C_Sequence
 from re import Pattern as _REPattern
-from typing import Callable, Dict, Any, Literal, Mapping, Type, TypeVar, TypedDict, TYPE_CHECKING, Union, get_args, get_origin
+from typing import Callable, Dict, Any, Literal, Mapping, NewType, Type, TypeVar, TypedDict, TYPE_CHECKING, Union, get_args, get_origin
 if TYPE_CHECKING:
     from _typeshed import StrOrBytesPath
     from typing import _TypedDict
@@ -16,6 +16,7 @@ StrAny = Mapping[str, Any]  # immutable, covariant entity
 StrStr = Mapping[str, str]  # immutable, covariant entity
 StrStrStr = Mapping[str, Mapping[str, str]]  # immutable, covariant entity
 TFun = TypeVar("TFun", bound=Callable[..., Any])
+TSecretValue = NewType("TSecretValue", str)  # represent secret value ie. coming from Kubernetes/Docker secrets or other providers
 
 
 class TEvent(TypedDict, total=False):
