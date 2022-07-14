@@ -6,7 +6,7 @@ from typing import Dict, List, Mapping, Optional, Sequence, Tuple, Any, cast
 from dlt.common.typing import DictStrAny, StrAny, REPattern
 from dlt.common.normalizers.names import TNormalizeBreakPath, TNormalizeMakePath, TNormalizeNameFunc
 from dlt.common.normalizers.json import TNormalizeJSONFunc
-from dlt.common.schema.typing import TNormalizersConfig, TPartialTable, TSchemaSettings, TSimpleRegex, TStoredSchema, TSchemaTables, TTable, TTableColumns, TColumn, TColumnProp, TDataType, THintType
+from dlt.common.schema.typing import TNormalizersConfig, TPartialTable, TSchemaSettings, TSimpleRegex, TStoredSchema, TSchemaTables, TTable, TTableColumns, TColumn, TColumnProp, TDataType, THintType, TWriteDisposition
 from dlt.common.schema import utils
 from dlt.common.schema.exceptions import (CannotCoerceColumnException, CannotCoerceNullException, InvalidSchemaName,
                                           ParentTableNotFoundException, SchemaCorruptedException, TablePropertiesClashException)
@@ -228,6 +228,13 @@ class Schema:
 
     def all_tables(self, with_dlt_tables: bool = False) -> List[TTable]:
         return [t for t in self._schema_tables.values() if not t["name"].startswith("_dlt") or with_dlt_tables]
+
+    def get_write_disposition(self, table_name: str) -> TWriteDisposition:
+        table = self.get_table(table_name)
+        w_d = table.get("write_disposition")
+        if w_d:
+            return w_d
+        return self.get_write_disposition(table["parent"])
 
     def get_preferred_type(self, col_name: str) -> Optional[TDataType]:
         return next((m[1] for m in self._compiled_preferred_types if m[0].search(col_name)), None)

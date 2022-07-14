@@ -337,6 +337,39 @@ def test_merge_hints(schema: Schema) -> None:
         assert set(expected_hints[k]) == set(schema._settings["default_hints"][k])
 
 
+def test_all_tables(schema: Schema) -> None:
+    assert schema.all_tables() == []
+    dlt_tables = schema.all_tables(with_dlt_tables=True)
+    assert set([t["name"] for t in dlt_tables]) == set([Schema.LOADS_TABLE_NAME, Schema.VERSION_TABLE_NAME])
+    # with tables
+    schema_storage = SchemaStorage("tests/common/cases/schemas/rasa")
+    schema = schema_storage.load_store_schema("event")
+    assert [t["name"] for t in schema.all_tables()] == ['event_slot', 'event_user', 'event_bot']
+
+
+def test_write_disposition() -> None:
+    schema_storage = SchemaStorage("tests/common/cases/schemas/rasa")
+    schema = schema_storage.load_store_schema("event")
+    assert schema.get_write_disposition("event_slot") == "append"
+    assert schema.get_write_disposition(Schema.LOADS_TABLE_NAME) == "skip"
+
+    # child tables
+    schema.get_table("event_user")["write_disposition"] = "replace"
+    schema.update_schema(utils.new_table("event_user__intents", "event_user"))
+    assert schema.get_table("event_user__intents").get("write_disposition") is None
+    assert schema.get_write_disposition("event_user__intents") == "replace"
+    schema.get_table("event_user__intents")["write_disposition"] = "append"
+    assert schema.get_write_disposition("event_user__intents") == "append"
+
+    # same but with merge
+    schema.get_table("event_bot")["write_disposition"] = "merge"
+    schema.update_schema(utils.new_table("event_bot__message", "event_bot"))
+    assert schema.get_write_disposition("event_bot__message") == "merge"
+    schema.get_table("event_bot")["write_disposition"] = "skip"
+    assert schema.get_write_disposition("event_bot__message") == "skip"
+
+
+
 def delete_storage() -> None:
     if not schema_storage.storage.has_folder(""):
         SchemaStorage(TEST_STORAGE, makedirs=True)
