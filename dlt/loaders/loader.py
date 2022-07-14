@@ -11,11 +11,12 @@ from dlt.common.logger import process_internal_exception, pretty_format_exceptio
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.dataset_writers import TWriterType
 from dlt.common.schema import Schema
+from dlt.common.schema.typing import TTable
 from dlt.common.storages import SchemaStorage
 from dlt.common.storages.loader_storage import LoaderStorage
 from dlt.common.telemetry import get_logging_extras, set_gauge_all_labels
 
-from dlt.loaders.exceptions import LoadClientTerminalException, LoadClientTransientException, LoadJobNotExistsException
+from dlt.loaders.exceptions import LoadClientTerminalException, LoadClientTransientException, LoadClientUnsupportedWriteDisposition, LoadClientUnsupportedWriter, LoadJobNotExistsException, LoadUnknownTableException
 from dlt.loaders.client_base import JobClientBase, LoadJob
 from dlt.loaders.local_types import LoadJobStatus
 from dlt.loaders.configuration import configuration, LoaderConfiguration
@@ -57,14 +58,30 @@ def create_gauges(registry: CollectorRegistry) -> Tuple[MetricWrapperBase, Metri
     )
 
 
+def get_load_table(schema: Schema, table_name: str, file_name: str) -> TTable:
+    try:
+        table = schema.get_table(table_name)
+        # add write disposition if not specified - in child tables
+        if "write_disposition" not in table:
+            table["write_disposition"] = schema.get_write_disposition(table_name)
+        return table
+    except KeyError:
+        raise LoadUnknownTableException(table_name, file_name)
+
+
 def spool_job(file_path: str, load_id: str, schema: Schema) -> Optional[LoadJob]:
     # open new connection for each upload
     job: LoadJob = None
     try:
         with make_client(schema) as client:
-            table_name, _ = load_storage.parse_load_file_name(file_path)
+            table_name, writer_type = load_storage.parse_load_file_name(file_path)
+            if writer_type != client.capabilities["writer_type"]:
+                raise LoadClientUnsupportedWriter(writer_type, [client.capabilities["writer_type"]], file_path)
             logger.info(f"Will load file {file_path} with table name {table_name}")
-            job = client.start_file_load(table_name, load_storage.storage._make_path(file_path))
+            table = get_load_table(schema, table_name, file_path)
+            if table["write_disposition"] not in ["append", "replace"]:
+                raise LoadClientUnsupportedWriteDisposition(table_name, table["write_disposition"], file_path)
+            job = client.start_file_load(table, load_storage.storage._make_path(file_path))
     except (LoadClientTerminalException, TerminalValueError):
         # if job irreversible cannot be started, mark it as failed
         process_internal_exception(f"Terminal problem with spooling job {file_path}")
@@ -187,6 +204,7 @@ def load(pool: ThreadPool) -> TRunMetrics:
         schema_update = load_storage.begin_schema_update(load_id)
         if schema_update:
             logger.info(f"Client {CONFIG.CLIENT_TYPE} will update schema to package schema")
+            # TODO: this should rather generate an SQL job(s) to be executed PRE loading
             client.update_storage_schema()
             load_storage.commit_schema_update(load_id)
         # spool or retrieve unfinished jobs
@@ -205,6 +223,8 @@ def load(pool: ThreadPool) -> TRunMetrics:
     # if there are no existing or new jobs we archive the package
     if jobs_count == 0:
         with make_client(schema) as client:
+            # TODO: this script should be executed as a job (and contain also code to merge/upsert data and drop temp tables)
+            # TODO: post loading jobs
             remaining_jobs = client.complete_load(load_id)
         load_storage.archive_load(load_id)
         logger.info(f"All jobs completed, archiving package {load_id}")

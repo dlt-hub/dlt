@@ -1,8 +1,9 @@
+from copy import deepcopy
 import io
 import pytest
 from typing import Iterator
 
-from dlt.common import pendulum
+from dlt.common import json, pendulum
 from dlt.common.schema import Schema
 from dlt.common.schema.utils import new_table
 from dlt.common.file_storage import FileStorage
@@ -13,7 +14,7 @@ from dlt.loaders.client_base import DBCursor, SqlJobClientBase
 
 from tests.utils import TEST_STORAGE, delete_storage
 from tests.common.utils import load_json_case
-from tests.loaders.utils import TABLE_UPDATE, TABLE_ROW, expect_load_file, yield_client_with_storage, write_dataset
+from tests.loaders.utils import TABLE_UPDATE, TABLE_ROW, expect_load_file, yield_client_with_storage, write_dataset, prepare_event_user_table
 
 
 ALL_CLIENTS = ['redshift_client', 'bigquery_client']
@@ -73,7 +74,7 @@ def test_get_update_basic_schema(client: SqlJobClientBase) -> None:
     assert version == 1
     # check if tables are present and identical
     exists, version_storage_table = client._get_storage_table(Schema.VERSION_TABLE_NAME)
-    version_schema_table = client._get_table_by_name(Schema.VERSION_TABLE_NAME, "")
+    version_schema_table = client.schema.get_table_columns(Schema.VERSION_TABLE_NAME)
     assert exists is True
     # schema version must be contained in storage version (schema may not have all hints)
     assert version_schema_table.keys() == version_storage_table.keys()
@@ -249,11 +250,12 @@ def test_data_writer_string_escape(client: SqlJobClientBase, file_storage: FileS
         assert db_row[0][0] == rows[i-1]["str"]
 
 
+@pytest.mark.parametrize('write_disposition', ["append", "replace"])
 @pytest.mark.parametrize('client', ALL_CLIENTS, indirect=True)
-def test_load_with_all_types(client: SqlJobClientBase, file_storage: FileStorage) -> None:
-    schema = client.schema
+def test_load_with_all_types(client: SqlJobClientBase, write_disposition: str, file_storage: FileStorage) -> None:
     table_name = "event_test_table" + uniq_id()
-    schema.update_schema(new_table(table_name, columns=TABLE_UPDATE))
+    # we should have identical content with all disposition types
+    client.schema.update_schema(new_table(table_name, write_disposition=write_disposition, columns=TABLE_UPDATE))
     client.update_storage_schema()
     canonical_name = client.sql_client.fully_qualified_table_name(table_name)
     # write row
@@ -268,6 +270,61 @@ def test_load_with_all_types(client: SqlJobClientBase, file_storage: FileStorage
         db_row[6] = bytes.fromhex(db_row[6])  # redshift returns binary as hex string
 
     assert db_row == list(TABLE_ROW.values())
+
+
+@pytest.mark.parametrize('write_disposition', ["append", "replace"])
+@pytest.mark.parametrize('client', ALL_CLIENTS, indirect=True)
+def test_write_dispositions(client: SqlJobClientBase, write_disposition: str, file_storage: FileStorage) -> None:
+    table_name = "event_test_table" + uniq_id()
+    client.schema.update_schema(
+        new_table(table_name, write_disposition=write_disposition, columns=TABLE_UPDATE)
+        )
+    child_table = client.schema.normalize_make_path(table_name, "child")
+    # add child table without write disposition so it will be inferred from the parent
+    client.schema.update_schema(
+        new_table(child_table, columns=TABLE_UPDATE, parent_name=table_name)
+        )
+    client.update_storage_schema()
+    for idx in range(2):
+        for t in [table_name, child_table]:
+            # write row, use col1 (INT) as row number
+            table_row = deepcopy(TABLE_ROW)
+            table_row["col1"] = idx
+            with io.StringIO() as f:
+                write_dataset(client, f, [table_row], TABLE_ROW.keys())
+                query = f.getvalue()
+            expect_load_file(client, file_storage, query, t)
+            db_rows = list(client.sql_client.execute_sql(f"SELECT * FROM {t} ORDER BY col1 ASC"))
+            if write_disposition == "append":
+                # we append 1 row to tables in each iteration
+                assert len(db_rows) == idx + 1
+            else:
+                # we overwrite with the same row
+                assert len(db_rows) == 1
+            # last row must have our last idx - make sure we append and overwrite
+            assert db_rows[-1][0] == idx
+
+
+@pytest.mark.parametrize('client', ALL_CLIENTS, indirect=True)
+def test_retrieve_job(client: SqlJobClientBase, file_storage: FileStorage) -> None:
+    user_table_name = prepare_event_user_table(client)
+    load_json = {
+        "_dlt_id": uniq_id(),
+        "_dlt_root_id": uniq_id(),
+        "sender_id":'90238094809sajlkjxoiewjhduuiuehd',
+        "timestamp": str(pendulum.now())
+    }
+    with io.StringIO() as f:
+        write_dataset(client, f, [load_json], load_json.keys())
+        dataset = f.getvalue()
+    job = expect_load_file(client, file_storage, dataset, user_table_name)
+    # now try to retrieve the job
+    # TODO: we should re-create client instance as this call is intended to be run after some disruption ie. stopped loader process
+    r_job = client.restore_file_load(file_storage._make_path(job.file_name()))
+    assert r_job.status() == "completed"
+    # use just file name to restore
+    r_job = client.restore_file_load(job.file_name())
+    assert r_job.status() == "completed"
 
 
 def prepare_schema(client: SqlJobClientBase, case: str) -> None:

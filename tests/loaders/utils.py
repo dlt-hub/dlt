@@ -10,7 +10,7 @@ from dlt.common.time import sleep
 from dlt.common.typing import StrAny
 from dlt.common.utils import uniq_id
 
-from dlt.loaders.loader import import_client
+from dlt.loaders.loader import import_client, get_load_table
 from dlt.loaders.configuration import LoaderConfiguration, configuration
 from dlt.loaders.client_base import JobClientBase, LoadJob, SqlJobClientBase
 
@@ -82,8 +82,8 @@ def load_table(name: str) -> TTableColumns:
 def expect_load_file(client: JobClientBase, file_storage: FileStorage, query: str, table_name: str, status = "completed") -> LoadJob:
     file_name = uniq_id()
     file_storage.save(file_name, query.encode("utf-8"))
-    # redshift insert jobs execute immediately
-    job = client.start_file_load(table_name, file_storage._make_path(file_name))
+    table = get_load_table(client.schema, table_name, file_name)
+    job = client.start_file_load(table, file_storage._make_path(file_name))
     while job.status() == "running":
         sleep(0.5)
     assert job.file_name() == file_name

@@ -5,6 +5,7 @@ from dlt.common.dataset_writers import TWriterType
 
 from dlt.common import pendulum
 from dlt.common.schema import Schema
+from dlt.common.schema.typing import TTable
 
 from dlt.loaders.client_base import JobClientBase, LoadJob, TJobClientCapabilities
 from dlt.loaders.local_types import LoadJobStatus
@@ -85,8 +86,7 @@ class DummyClient(JobClientBase):
     def update_storage_schema(self) -> None:
         pass
 
-    def start_file_load(self, table_name: str, file_path: str) -> LoadJob:
-        self._get_table_by_name(table_name, file_path)
+    def start_file_load(self, table: TTable, file_path: str) -> LoadJob:
         job_id = JobClientBase.get_file_name_from_file_path(file_path)
         file_name = JobClientBase.get_file_name_from_file_path(file_path)
         # return existing job if already there

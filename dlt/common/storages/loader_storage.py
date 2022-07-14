@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from typing import List, Literal, Optional, Sequence, Tuple, Type
+from typing import List, Literal, Optional, Sequence, Tuple, Type, get_args
 
 from dlt.common import json, pendulum
 from dlt.common.file_storage import FileStorage
@@ -30,7 +30,7 @@ class LoaderStorage(VersionedStorage):
 
     LOAD_SCHEMA_UPDATE_FILE_NAME = "schema_updates.json"
 
-    SUPPORTED_WRITERS: List[TWriterType] = ["jsonl", "insert_values"]
+    SUPPORTED_WRITERS: Sequence[TWriterType] = get_args(TWriterType)
 
     def __init__(self, is_owner: bool,  C: Type[LoadingVolumeConfiguration], writer_type: TWriterType) -> None:
         if writer_type not in LoaderStorage.SUPPORTED_WRITERS:

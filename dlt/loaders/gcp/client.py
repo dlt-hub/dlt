@@ -1,6 +1,7 @@
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, AnyStr, Dict, Iterator, List, Literal, Optional, Sequence, Tuple, Type
+from dlt.common.schema.typing import TTable, TWriteDisposition
 import google.cloud.bigquery as bigquery  # noqa: I250
 from google.cloud.bigquery.dbapi import Connection as DbApiConnection
 from google.cloud import exceptions as gcp_exceptions
@@ -175,20 +176,18 @@ class BigQueryClient(SqlJobClientBase):
         except (api_core_exceptions.BadRequest, api_core_exceptions.NotFound):
             raise LoadJobServerTerminalException(file_path)
 
-    def start_file_load(self, table_name: str, file_path: str) -> LoadJob:
-        # verify that table exists in the schema
-        self._get_table_by_name(table_name, file_path)
+    def start_file_load(self, table: TTable, file_path: str) -> LoadJob:
         try:
             return BigQueryLoadJob(
                 JobClientBase.get_file_name_from_file_path(file_path),
-                self._create_load_job(table_name, file_path),
+                self._create_load_job(table["name"], table["write_disposition"], file_path),
                 self.C
             )
         except api_core_exceptions.NotFound:
-            # google.api_core.exceptions.BadRequest - will not be processed ie bad job name
-            raise LoadUnknownTableException(table_name, file_path)
-        except (api_core_exceptions.BadRequest, api_core_exceptions.NotFound):
             # google.api_core.exceptions.NotFound: 404 - table not found
+            raise LoadUnknownTableException(table["name"], file_path)
+        except (api_core_exceptions.BadRequest, api_core_exceptions.NotFound):
+            # google.api_core.exceptions.BadRequest - will not be processed ie bad job name
             raise LoadJobServerTerminalException(file_path)
         except api_core_exceptions.Conflict:
             # google.api_core.exceptions.Conflict: 409 PUT - already exists
@@ -279,11 +278,12 @@ class BigQueryClient(SqlJobClientBase):
         except gcp_exceptions.NotFound:
             return False, schema_table
 
-    def _create_load_job(self, table_name: str, file_path: str) -> bigquery.LoadJob:
+    def _create_load_job(self, table_name: str, write_disposition: TWriteDisposition, file_path: str) -> bigquery.LoadJob:
+        bq_wd = bigquery.WriteDisposition.WRITE_APPEND if write_disposition == "append" else bigquery.WriteDisposition.WRITE_TRUNCATE
         job_id = BigQueryClient._get_job_id_from_file_path(file_path)
         job_config = bigquery.LoadJobConfig(
             autodetect=False,
-            write_disposition=bigquery.WriteDisposition.WRITE_APPEND,
+            write_disposition=bq_wd,
             create_disposition=bigquery.CreateDisposition.CREATE_NEVER,
             source_format=bigquery.SourceFormat.NEWLINE_DELIMITED_JSON,
             ignore_unknown_values=False,

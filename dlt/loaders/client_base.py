@@ -6,6 +6,7 @@ from pathlib import Path
 from dlt.common import pendulum, logger
 from dlt.common.dataset_writers import TWriterType
 from dlt.common.schema import TColumn, Schema, TTableColumns
+from dlt.common.schema.typing import TTable, TWriteDisposition
 
 from dlt.loaders.local_types import LoadJobStatus
 from dlt.loaders.exceptions import LoadClientSchemaVersionCorrupted, LoadUnknownTableException
@@ -83,7 +84,7 @@ class JobClientBase(ABC):
         pass
 
     @abstractmethod
-    def start_file_load(self, table_name: str, file_path: str) -> LoadJob:
+    def start_file_load(self, table: TTable, file_path: str) -> LoadJob:
         pass
 
     @abstractmethod
@@ -106,12 +107,6 @@ class JobClientBase(ABC):
     @abstractmethod
     def __exit__(self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: TracebackType) -> None:
         pass
-
-    def _get_table_by_name(self, table_name: str, file_name: str) -> TTableColumns:
-        try:
-            return self.schema.get_table_columns(table_name)
-        except KeyError:
-            raise LoadUnknownTableException(table_name, file_name)
 
     @staticmethod
     def get_file_name_from_file_path(file_path: str) -> str:
