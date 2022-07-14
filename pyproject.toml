@@ -40,6 +40,7 @@ psycopg2-binary = {version = "^2.9.1", optional = true}
 
 grpcio = {version = "1.43.0", optional = true}
 google-cloud-bigquery = {version = "^2.26.0", optional = true}
+google-cloud-bigquery-storage = {version = "^2.14.0", optional = true}
 
 GitPython = {version = "^3.1.26", optional = true}
 dbt-core = {version = "1.0.6", optional = true}
@@ -69,7 +70,7 @@ flake8-encodings = "^0.5.0"
 flake8-builtins = "^1.5.3"
 
 [tool.poetry.extras]
-dbt = ["dbt-core", "GitPython", "dbt-redshift", "dbt-bigquery"]
+dbt = ["dbt-core", "GitPython", "dbt-redshift", "dbt-bigquery", "google-cloud-bigquery-storage"]
 gcp = ["grpcio", "google-cloud-bigquery"]
 postgres = ["psycopg2-binary"]
 redshift = ["psycopg2-binary"]
