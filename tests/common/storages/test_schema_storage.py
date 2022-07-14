@@ -28,7 +28,7 @@ def test_save_empty_schema_name(storage: SchemaStorage) -> None:
     schema = Schema("")
     schema.schema_settings["schema_sealed"] = True
     storage.save_store_schema(schema)
-    assert storage.storage.has_file(SchemaStorage.STORE_SCHEMA_FILE_PATTERN % "")
+    assert storage.storage.has_file(SchemaStorage.FOLDER_SCHEMA_FILE)
     schema = storage.load_store_schema("")
     assert schema.schema_settings["schema_sealed"] is True
 
