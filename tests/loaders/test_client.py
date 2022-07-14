@@ -105,13 +105,13 @@ def test_query_iterator(client: SqlJobClientBase) -> None:
     client.complete_load(load_id)
     curr: DBCursor
     # get data from unqualified name
-    with client.sql_client.execute_query(f"SELECT * FROM {Schema.LOADS_TABLE_NAME}") as curr:
+    with client.sql_client.execute_query(f"SELECT * FROM {Schema.LOADS_TABLE_NAME} ORDER BY inserted_at") as curr:
         columns = [c[0] for c in curr.description]
         data = curr.fetchall()
 
     # get data from qualified name
     load_table = client.sql_client.fully_qualified_table_name(Schema.LOADS_TABLE_NAME)
-    with client.sql_client.execute_query(f"SELECT * FROM {load_table}") as curr:
+    with client.sql_client.execute_query(f"SELECT * FROM {load_table} ORDER BY inserted_at") as curr:
         assert [c[0] for c in curr.description] == columns
         assert curr.fetchall() == data
 
