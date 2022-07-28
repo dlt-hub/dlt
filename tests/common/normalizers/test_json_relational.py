@@ -241,7 +241,6 @@ def test_yields_parent_relation(schema: Schema) -> None:
 
     # make sure that table__e is just linking
     table__e = [r[1] for r in rows if r[0][0] == "table__e"][0]
-    print(table__e)
     assert all(f.startswith("_dlt") for f in table__e.keys()) is True
 
     # check if linking is correct when not directly derived

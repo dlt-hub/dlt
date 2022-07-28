@@ -7,7 +7,7 @@ from dlt.common.runners.venv import Venv
 from examples.sources.singer_tap import get_source
 
 p = Pipeline("singer_csv")
-p.create_pipeline(GCPPipelineCredentials.from_services_file("_secrets/project1234_service.json", "load_1"))
+p.create_pipeline(GCPPipelineCredentials.from_services_file("_secrets/project1234_service.json", "load_1"), working_dir="_storage/pipeline_singer")
 
 # create Venv with desired dependencies, in this case csv tap
 # venv creation costs time so it should be created only once and reused

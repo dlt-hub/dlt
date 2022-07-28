@@ -1,7 +1,7 @@
 from typing import Dict, Mapping, Optional, Sequence, Tuple, cast, TypedDict, Any
 
 from dlt.common.schema import Schema
-from dlt.common.schema.typing import TColumn, TColumnName, TSimpleRegex
+from dlt.common.schema.typing import TColumnSchema, TColumnName, TSimpleRegex
 from dlt.common.schema.utils import column_name_validator
 from dlt.common.utils import uniq_id, digest128
 from dlt.common.typing import DictStrAny, DictStrStr, TEvent, StrAny
@@ -45,7 +45,7 @@ def _is_complex_type(schema: Schema, table_name: str, field_name: str, _r_lvl: i
     if _r_lvl == max_nesting:
         return True
     # or use definition in the schema
-    column: TColumn = None
+    column: TColumnSchema = None
     table = schema._schema_tables.get(table_name)
     if table:
         column = table["columns"].get(field_name, None)

@@ -44,7 +44,8 @@ def create_folders() -> Tuple[UnpackerStorage, LoaderStorage, SchemaStorage, Sch
     unpack_storage = UnpackerStorage(True, CONFIG)
     schema_storage = SchemaStorage(CONFIG.SCHEMA_VOLUME_PATH, makedirs=True)
     load_schema_storage = SchemaStorage(CONFIG.LOADING_VOLUME_PATH, makedirs=False)
-    load_storage = LoaderStorage(True, CONFIG, CONFIG.WRITER_TYPE)
+    # unpacker saves in preferred format but can read all supported formats
+    load_storage = LoaderStorage(True, CONFIG, CONFIG.LOADER_FILE_FORMAT, LoaderStorage.ALL_SUPPORTED_FILE_FORMATS)
 
     unpack_storage.initialize_storage()
     load_storage.initialize_storage()

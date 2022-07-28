@@ -43,7 +43,7 @@ def init_unpacker(default_schemas_path: str = None, schema_names: List[str] = No
     storage = clean_storage()
     unpacker.configure(unpacker.configuration({"NAME": "test"}), CollectorRegistry(), default_schemas_path, schema_names)
     # set jsonl as default writer
-    unpacker.load_storage.writer_type = unpacker.CONFIG.WRITER_TYPE = "jsonl"
+    unpacker.load_storage.preferred_file_format = unpacker.CONFIG.LOADER_FILE_FORMAT = "jsonl"
     return storage
 
 
@@ -83,7 +83,7 @@ def test_unpack_single_user_event_jsonl(raw_unpacker: FileStorage) -> None:
 
 
 def test_unpack_single_user_event_insert(raw_unpacker: FileStorage) -> None:
-    unpacker.load_storage.writer_type = unpacker.CONFIG.WRITER_TYPE = "insert_values"
+    unpacker.load_storage.preferred_file_format = unpacker.CONFIG.LOADER_FILE_FORMAT = "insert_values"
     expected_tables, load_files = unpack_event_user("event_user_load_1", EXPECTED_USER_TABLES)
     # verify values line
     for expected_table in expected_tables:
@@ -122,7 +122,7 @@ def test_unpack_filter_bot_event(rasa_unpacker: FileStorage) -> None:
 
 
 def test_preserve_slot_complex_value_json_l(rasa_unpacker: FileStorage) -> None:
-    # unpacker.load_storage.writer_type = unpacker.CONFIG.WRITER_TYPE = "insert_values"
+    # unpacker.load_storage.preferred_file_format = unpacker.CONFIG.LOADER_FILE_FORMAT = "insert_values"
     load_id = unpack_cases(["event_slot_session_metadata_1"])
     load_files = expect_load_package(load_id, ["event", "event_slot"])
     event_text, lines = expect_lines_file(load_files["event_slot"], 0)
@@ -136,7 +136,7 @@ def test_preserve_slot_complex_value_json_l(rasa_unpacker: FileStorage) -> None:
 
 
 def test_preserve_slot_complex_value_insert(rasa_unpacker: FileStorage) -> None:
-    unpacker.load_storage.writer_type = unpacker.CONFIG.WRITER_TYPE = "insert_values"
+    unpacker.load_storage.preferred_file_format = unpacker.CONFIG.LOADER_FILE_FORMAT = "insert_values"
     load_id = unpack_cases(["event_slot_session_metadata_1"])
     load_files = expect_load_package(load_id, ["event", "event_slot"])
     event_text, lines = expect_lines_file(load_files["event_slot"], 2)
@@ -159,7 +159,7 @@ def test_unpack_raw_type_hints(rasa_unpacker: FileStorage) -> None:
 
 
 def test_unpack_many_events_insert(rasa_unpacker: FileStorage) -> None:
-    unpacker.load_storage.writer_type = unpacker.CONFIG.WRITER_TYPE = "insert_values"
+    unpacker.load_storage.preferred_file_format = unpacker.CONFIG.LOADER_FILE_FORMAT = "insert_values"
     load_id = unpack_cases(["event_many_load_2", "event_user_load_1"])
     expected_tables = EXPECTED_USER_TABLES_RASA_NORMALIZER + ["event_bot", "event_action"]
     load_files = expect_load_package(load_id, expected_tables)
@@ -170,7 +170,7 @@ def test_unpack_many_events_insert(rasa_unpacker: FileStorage) -> None:
 
 
 def test_unpack_many_schemas(rasa_unpacker: FileStorage) -> None:
-    unpacker.load_storage.writer_type = unpacker.CONFIG.WRITER_TYPE = "insert_values"
+    unpacker.load_storage.preferred_file_format = unpacker.CONFIG.LOADER_FILE_FORMAT = "insert_values"
     copy_cases(["event_many_load_2", "event_user_load_1", "ethereum_blocks_9c1d9b504ea240a482b007788d5cd61c_2"])
     unpacker.unpack(ThreadPool(processes=1))
     # must have two loading groups with model and event schemas
@@ -192,7 +192,7 @@ def test_unpack_many_schemas(rasa_unpacker: FileStorage) -> None:
 
 
 def test_unpack_typed_json(raw_unpacker: FileStorage) -> None:
-    unpacker.load_storage.writer_type = unpacker.CONFIG.WRITER_TYPE = "jsonl"
+    unpacker.load_storage.preferred_file_format = unpacker.CONFIG.LOADER_FILE_FORMAT = "jsonl"
     extract_items([JSON_TYPED_DICT], "special")
     unpacker.unpack(ThreadPool(processes=1))
     loads = unpacker.load_storage.list_loads()

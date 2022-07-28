@@ -7,5 +7,5 @@ from dlt.common.configuration import SchemaVolumeConfiguration
 
 
 UnpackerStorage(True, UnpackingVolumeConfiguration)
-LoaderStorage(True, LoadingVolumeConfiguration, "jsonl")
+LoaderStorage(True, LoadingVolumeConfiguration, "jsonl", LoaderStorage.ALL_SUPPORTED_FILE_FORMATS)
 SchemaStorage(SchemaVolumeConfiguration.SCHEMA_VOLUME_PATH, makedirs=True)

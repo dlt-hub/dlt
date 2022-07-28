@@ -45,6 +45,14 @@ def autouse_root_storage() -> FileStorage:
     return clean_storage()
 
 
+@pytest.fixture(scope="module", autouse=True)
+def preserve_environ() -> None:
+    saved_environ = environ.copy()
+    yield
+    environ.clear()
+    environ.update(saved_environ)
+
+
 def init_logger(C: Type[BasicConfiguration] = None) -> None:
     if not hasattr(logging, "health"):
         if not C:
@@ -63,7 +71,7 @@ def clean_storage(init_unpacker: bool = False, init_loader: bool = False) -> Fil
     if init_loader:
         from dlt.common.storages.loader_storage import LoaderStorage
         from dlt.common.configuration import LoadingVolumeConfiguration
-        LoaderStorage(True, LoadingVolumeConfiguration, "jsonl")
+        LoaderStorage(True, LoadingVolumeConfiguration, "jsonl", LoaderStorage.ALL_SUPPORTED_FILE_FORMATS)
     return storage
 
 

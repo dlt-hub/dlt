@@ -99,12 +99,12 @@ def run_pool(C: Type[PoolRunnerConfiguration], run_f: Callable[[TPool], TRunMetr
         # our pool implementation do not work on spawn
         if multiprocessing.get_start_method() != "fork":
             raise UnsupportedProcessStartMethodException(multiprocessing.get_start_method())
-        pool = Pool(processes=C.MAX_PARALLELISM)
+        pool = Pool(processes=C.WORKERS)
     elif C.POOL_TYPE == "thread":
-        pool = ThreadPool(processes=C.MAX_PARALLELISM)
+        pool = ThreadPool(processes=C.WORKERS)
     else:
         pool = None
-    logger.info(f"Created {C.POOL_TYPE} pool with {C.MAX_PARALLELISM or 'default no.'} workers")
+    logger.info(f"Created {C.POOL_TYPE} pool with {C.WORKERS or 'default no.'} workers")
 
 
     try:

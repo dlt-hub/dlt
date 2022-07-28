@@ -13,7 +13,7 @@ env:
   PG_USER: loader
   PG_PASSWORD: ${{ secrets.PG_PASSWORD }}
   PG_DATABASE_NAME: chat_analytics_rasa_ci
-  PG_SCHEMA_PREFIX: workflowtest
+  DEFAULT_DATASET: workflowtest
 
 jobs:
 
