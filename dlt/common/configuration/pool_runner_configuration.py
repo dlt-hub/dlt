@@ -4,7 +4,7 @@ from dlt.common.configuration import BasicConfiguration
 TPoolType = Literal["process", "thread", "none"]
 
 class PoolRunnerConfiguration(BasicConfiguration):
-    MAX_PARALLELISM: Optional[int] = None  # how many threads/processes in the pool
+    WORKERS: Optional[int] = None  # how many threads/processes in the pool
     EXIT_ON_EXCEPTION: bool = False  # should exit on exception
     STOP_AFTER_RUNS: int = 10000  # will stop runner with exit code -2 after so many runs, that prevents memory fragmentation
     POOL_TYPE: TPoolType = None  # type of pool to run, must be set in derived configs

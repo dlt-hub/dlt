@@ -9,6 +9,7 @@ from dlt.common.configuration import (
 from dlt.common.configuration.utils import (_coerce_single_value, IS_DEVELOPMENT_CONFIG_KEY,
                                                            _get_config_attrs_with_hints, TSecretValue,
                                                            is_direct_descendant, config_as_dict, make_configuration)
+from tests.utils import preserve_environ
 
 # used to test version
 __version__ = "1.0.5"
@@ -129,14 +130,6 @@ class MockProdConfigurationVar(BasicConfiguration):
 LongInteger = NewType("LongInteger", int)
 FirstOrderStr = NewType("FirstOrderStr", str)
 SecondOrderStr = NewType("SecondOrderStr", FirstOrderStr)
-
-
-@pytest.fixture(scope="module", autouse=True)
-def preserve_environ() -> None:
-    saved_environ = environ.copy()
-    yield
-    environ.clear()
-    environ.update(saved_environ)
 
 
 @pytest.fixture(scope="function")
@@ -424,10 +417,10 @@ def test_configuration_files(environment: Any) -> None:
     environment["CONFIG_FILES_STORAGE_PATH"] = "./tests/common/cases/schemas/ev1/%s"
     C = utils.make_configuration(MockProdConfigurationVar, MockProdConfigurationVar)
     assert C.CONFIG_FILES_STORAGE_PATH == environment["CONFIG_FILES_STORAGE_PATH"]
-    assert utils.has_configuration_file("hasn't", C) is False
-    assert utils.has_configuration_file("event_schema.json", C) is True
-    assert utils.get_configuration_file_path("event_schema.json", C) == "./tests/common/cases/schemas/ev1/event_schema.json"
-    with utils.open_configuration_file("event_schema.json", "r", C) as f:
+    assert C.has_configuration_file("hasn't") is False
+    assert C.has_configuration_file("event_schema.json") is True
+    assert C.get_configuration_file_path("event_schema.json") == "./tests/common/cases/schemas/ev1/event_schema.json"
+    with C.open_configuration_file("event_schema.json", "r") as f:
         f.read()
     with pytest.raises(ConfigFileNotFoundException):
-        utils.open_configuration_file("hasn't", "r", C)
+        C.open_configuration_file("hasn't", "r")
