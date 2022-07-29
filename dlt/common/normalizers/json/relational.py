@@ -4,7 +4,7 @@ from dlt.common.schema import Schema
 from dlt.common.schema.typing import TColumnSchema, TColumnName, TSimpleRegex
 from dlt.common.schema.utils import column_name_validator
 from dlt.common.utils import uniq_id, digest128
-from dlt.common.typing import DictStrAny, DictStrStr, TEvent, StrAny
+from dlt.common.typing import DictStrAny, DictStrStr, TDataItem, StrAny
 from dlt.common.normalizers.json import TNormalizedRowIterator
 from dlt.common.sources import DLT_METADATA_FIELD, TEventDLTMeta, get_table_name
 from dlt.common.validation import validate_dict
@@ -212,7 +212,7 @@ def extend_schema(schema: Schema) -> None:
     )
 
 
-def normalize_data_item(schema: Schema, source_event: TEvent, load_id: str) -> TNormalizedRowIterator:
+def normalize_data_item(schema: Schema, source_event: TDataItem, load_id: str) -> TNormalizedRowIterator:
     # we will extend event with all the fields necessary to load it as root row
     event = cast(TEventRowRoot, source_event)
     # identify load id if loaded data must be processed after loading incrementally

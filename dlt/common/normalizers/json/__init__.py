@@ -1,7 +1,7 @@
 
 from typing import Iterator, Tuple, Callable, TYPE_CHECKING
 
-from dlt.common.typing import TEvent, StrAny
+from dlt.common.typing import TDataItem, StrAny
 if TYPE_CHECKING:
     from dlt.common.schema import Schema
 
@@ -11,4 +11,4 @@ if TYPE_CHECKING:
 TNormalizedRowIterator = Iterator[Tuple[Tuple[str, str], StrAny]]
 
 # normalization function signature
-TNormalizeJSONFunc = Callable[["Schema", TEvent, str], TNormalizedRowIterator]
+TNormalizeJSONFunc = Callable[["Schema", TDataItem, str], TNormalizedRowIterator]

@@ -10,7 +10,7 @@ from dlt.common.runners import TRunArgs, TRunMetrics, run_pool, initialize_runne
 from dlt.common.storages.normalize_storage import NormalizeStorage
 from dlt.common.telemetry import get_logging_extras
 from dlt.common.utils import uniq_id
-from dlt.common.typing import TEvent
+from dlt.common.typing import TDataItem
 from dlt.common.logger import process_internal_exception
 from dlt.common.exceptions import PoolException
 from dlt.common.storages import SchemaStorage
@@ -87,7 +87,7 @@ def w_normalize_files(schema_name: str, load_id: str, events_files: Sequence[str
         try:
             logger.debug(f"Processing events file {events_file} in load_id {load_id} with file_id {file_id}")
             with normalize_storage.storage.open_file(events_file) as f:
-                events: Sequence[TEvent] = json.load(f)
+                events: Sequence[TDataItem] = json.load(f)
             for event in events:
                 for (table_name, parent_table), row in schema.normalize_data_item(schema, event, load_id):
                     # filter row, may eliminate some or all fields
