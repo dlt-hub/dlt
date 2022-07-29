@@ -7,7 +7,7 @@ from dlt.common.typing import StrAny
 from dlt.common.configuration.utils import TSecretValue
 
 TLoaderType = Literal["gcp", "redshift"]
-TPipelineStage = Literal["extract", "unpack", "load"]
+TPipelineStage = Literal["extract", "normalize", "load"]
 
 # extractor generator yields functions that returns list of items of the type (table) when called
 # this allows generator to implement retry logic

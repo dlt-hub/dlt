@@ -1,9 +1,9 @@
 from typing import Literal, Optional
-from dlt.common.configuration import BasicConfiguration
+from dlt.common.configuration import RunConfiguration
 
 TPoolType = Literal["process", "thread", "none"]
 
-class PoolRunnerConfiguration(BasicConfiguration):
+class PoolRunnerConfiguration(RunConfiguration):
     WORKERS: Optional[int] = None  # how many threads/processes in the pool
     EXIT_ON_EXCEPTION: bool = False  # should exit on exception
     STOP_AFTER_RUNS: int = 10000  # will stop runner with exit code -2 after so many runs, that prevents memory fragmentation

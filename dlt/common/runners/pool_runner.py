@@ -6,7 +6,7 @@ from typing import Callable, Dict, NamedTuple, Optional, Type, TypeVar, Union, c
 from multiprocessing.pool import ThreadPool, Pool
 
 from dlt.common import logger, signals
-from dlt.common.configuration.basic_configuration import BasicConfiguration
+from dlt.common.configuration.run_configuration import RunConfiguration
 from dlt.common.time import sleep
 from dlt.common.telemetry import TRunHealth, TRunMetrics, get_logging_extras, get_metrics_from_prometheus
 from dlt.common.logger import init_logging_from_config, init_telemetry, process_internal_exception
@@ -61,7 +61,7 @@ def str2bool_a(v: str) -> bool:
 
 
 def create_default_args(C: Type[PoolRunnerConfiguration]) -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description=f"Default runner for {C.NAME}")
+    parser = argparse.ArgumentParser(description=f"Default runner for {C.PIPELINE_NAME}")
     add_pool_cli_arguments(parser)
     return parser
 
@@ -72,7 +72,7 @@ def add_pool_cli_arguments(parser: argparse.ArgumentParser) -> None:
 
 
 
-def initialize_runner(C: Type[BasicConfiguration], run_args: Optional[TRunArgs] = None) -> None:
+def initialize_runner(C: Type[RunConfiguration], run_args: Optional[TRunArgs] = None) -> None:
     global RUN_ARGS
 
     if run_args is not None:

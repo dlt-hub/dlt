@@ -27,7 +27,7 @@ from tests.utils import TEST_STORAGE, clean_storage, init_logger
 
 @pytest.fixture(autouse=True)
 def storage() -> FileStorage:
-    clean_storage(init_unpacker=True, init_loader=True)
+    clean_storage(init_normalize=True, init_loader=True)
 
 
 @pytest.fixture(scope="module", autouse=True)

@@ -8,7 +8,7 @@ LoadJobStatus = Literal["running", "failed", "retry", "completed"]
 TNativeConn = TypeVar("TNativeConn", bound="object")
 
 
-class TJobClientCapabilities(TypedDict):
+class TLoaderCapabilities(TypedDict):
     preferred_loader_file_format: TLoaderFileFormat
     supported_loader_file_formats: List[TLoaderFileFormat]
 

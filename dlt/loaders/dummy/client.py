@@ -9,7 +9,7 @@ from dlt.common.schema.typing import TTableSchema
 from dlt.common.storages.loader_storage import LoaderStorage
 from dlt.common.typing import StrAny
 
-from dlt.loaders.client_base import JobClientBase, LoadJob, TJobClientCapabilities
+from dlt.loaders.client_base import JobClientBase, LoadJob, TLoaderCapabilities
 from dlt.loaders.typing import LoadJobStatus
 from dlt.loaders.exceptions import (LoadJobNotExistsException, LoadJobInvalidStateTransitionException,
                                             LoadClientTerminalException, LoadClientTransientException)
@@ -127,7 +127,7 @@ class DummyClient(JobClientBase):
             )
 
     @classmethod
-    def capabilities(cls) -> TJobClientCapabilities:
+    def capabilities(cls) -> TLoaderCapabilities:
         return {
             "preferred_loader_file_format": cls.CONFIG.LOADER_FILE_FORMAT,
             "supported_loader_file_formats": [cls.CONFIG.LOADER_FILE_FORMAT]

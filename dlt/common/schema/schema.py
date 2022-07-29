@@ -49,7 +49,7 @@ class Schema:
         self.normalize_make_path: TNormalizeMakePath = None
         self.normalize_break_path: TNormalizeBreakPath = None
         # json normalization function
-        self.normalize_json: TNormalizeJSONFunc = None
+        self.normalize_data_item: TNormalizeJSONFunc = None
 
         # add version tables
         self._add_standard_tables()
@@ -375,8 +375,8 @@ class Schema:
         self.normalize_make_dataset_name = naming_module.normalize_make_dataset_name
         self.normalize_make_path = naming_module.normalize_make_path
         self.normalize_break_path = naming_module.normalize_break_path
-        # json normalization function
-        self.normalize_json = json_module.normalize
+        # data item normalization function
+        self.normalize_data_item = json_module.normalize_data_item
         json_module.extend_schema(self)
 
     def _compile_regexes(self) -> None:

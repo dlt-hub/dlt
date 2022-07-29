@@ -13,7 +13,7 @@ from dlt.common.typing import StrAny
 
 from dlt.loaders.exceptions import (LoadClientSchemaWillNotUpdate, LoadClientTerminalInnerException,
                                             LoadClientTransientInnerException, LoadFileTooBig)
-from dlt.loaders.typing import LoadJobStatus, DBCursor, TJobClientCapabilities, TNativeConn
+from dlt.loaders.typing import LoadJobStatus, DBCursor, TLoaderCapabilities, TNativeConn
 from dlt.loaders.client_base import JobClientBase, SqlClientBase, SqlJobClientBase, LoadJob
 
 
@@ -304,7 +304,7 @@ class RedshiftClient(SqlJobClientBase):
         return PGT_TO_SCT.get(pq_t, "text")
 
     @classmethod
-    def capabilities(cls) -> TJobClientCapabilities:
+    def capabilities(cls) -> TLoaderCapabilities:
         return {
             "preferred_loader_file_format": "insert_values",
             "supported_loader_file_formats": ["insert_values"]

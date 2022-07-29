@@ -25,7 +25,7 @@ DLT_METADATA_FIELD = "_dlt_meta"
 
 
 class TEventDLTMeta(TypedDict, total=False):
-    table_name: str  # a root table to which unpack the event
+    table_name: str  # a root table in which store the event
 
 
 def append_dlt_meta(item: TBoundItem, name: str, value: Any) -> TBoundItem:

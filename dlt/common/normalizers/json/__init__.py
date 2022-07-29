@@ -8,7 +8,7 @@ if TYPE_CHECKING:
 # type definitions for json normalization function
 
 # iterator of form ((table_name, parent_table), dict) must be returned from normalization function
-TUnpackedRowIterator = Iterator[Tuple[Tuple[str, str], StrAny]]
+TNormalizedRowIterator = Iterator[Tuple[Tuple[str, str], StrAny]]
 
 # normalization function signature
-TNormalizeJSONFunc = Callable[["Schema", TEvent, str], TUnpackedRowIterator]
+TNormalizeJSONFunc = Callable[["Schema", TEvent, str], TNormalizedRowIterator]

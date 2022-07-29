@@ -182,8 +182,3 @@ def _extract_simple_type(hint: Type[Any]) -> Type[Any]:
         return hint
     # descend into supertypes of NewType
     return _extract_simple_type(hint.__supertype__)
-
-
-def config_as_dict(config: TConfiguration, lowercase: bool = True) -> StrAny:
-   return config.as_dict(lowercase)
-

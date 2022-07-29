@@ -18,7 +18,7 @@ from dlt.common.typing import StrAny
 
 from dlt.loaders.exceptions import LoadClientTerminalException, LoadClientTransientException, LoadClientUnsupportedWriteDisposition, LoadClientUnsupportedFileFormats, LoadJobNotExistsException, LoadUnknownTableException
 from dlt.loaders.client_base import JobClientBase, LoadJob
-from dlt.loaders.typing import LoadJobStatus
+from dlt.loaders.typing import LoadJobStatus, TLoaderCapabilities
 from dlt.loaders.configuration import configuration, LoaderConfiguration
 
 
@@ -33,6 +33,11 @@ job_wait_summary: Summary = None
 
 class SupportsLoadClient(Protocol):
     CLIENT: Type[JobClientBase]
+
+
+def loader_capabilities(client_type: str) -> TLoaderCapabilities:
+    m: SupportsLoadClient = import_module(f"dlt.loaders.{client_type}.client")
+    return m.CLIENT.capabilities()
 
 
 def import_client_cls(client_type: str, initial_values: StrAny = None) -> Type[JobClientBase]:

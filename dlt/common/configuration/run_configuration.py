@@ -28,8 +28,8 @@ class BaseConfiguration:
                 setattr(config, k, v)
 
 
-class BasicConfiguration(BaseConfiguration):
-    NAME: Optional[str] = None  # the name of the component
+class RunConfiguration(BaseConfiguration):
+    PIPELINE_NAME: Optional[str] = None  # the name of the component
     SENTRY_DSN: Optional[str] = None  # keep None to disable Sentry
     PROMETHEUS_PORT: Optional[int] = None  # keep None to disable Prometheus
     LOG_FORMAT: str = '{asctime}|[{levelname:<21}]|{process}|{name}|{filename}|{funcName}:{lineno}|{message}'
@@ -41,8 +41,8 @@ class BasicConfiguration(BaseConfiguration):
     @classmethod
     def check_integrity(cls) -> None:
         # generate random name if missing
-        if not cls.NAME:
-            cls.NAME = "dlt_" + randomname.get_name().replace("-", "_")
+        if not cls.PIPELINE_NAME:
+            cls.PIPELINE_NAME = "dlt_" + randomname.get_name().replace("-", "_")
         # if CONFIG_FILES_STORAGE_PATH not overwritten and we are in production mode
         if cls.CONFIG_FILES_STORAGE_PATH == DEVELOPMENT_CONFIG_FILES_STORAGE_PATH and not cls.IS_DEVELOPMENT_CONFIG:
             # set to mount where config files will be present

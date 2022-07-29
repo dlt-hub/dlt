@@ -16,7 +16,7 @@ from dlt.common.configuration import GcpClientConfiguration, GcpClientProduction
 from dlt.common.dataset_writers import TLoaderFileFormat, escape_bigquery_identifier
 from dlt.common.schema import TColumnSchema, TDataType, Schema, TTableSchemaColumns
 
-from dlt.loaders.typing import LoadJobStatus, DBCursor, TJobClientCapabilities
+from dlt.loaders.typing import LoadJobStatus, DBCursor, TLoaderCapabilities
 from dlt.loaders.client_base import JobClientBase, SqlClientBase, SqlJobClientBase, LoadJob
 from dlt.loaders.exceptions import LoadClientSchemaWillNotUpdate, LoadJobNotExistsException, LoadJobServerTerminalException, LoadUnknownTableException
 
@@ -324,7 +324,7 @@ class BigQueryClient(SqlJobClientBase):
         return BQT_TO_SCT.get(bq_t, "text")
 
     @classmethod
-    def capabilities(cls) -> TJobClientCapabilities:
+    def capabilities(cls) -> TLoaderCapabilities:
         return {
             "preferred_loader_file_format": "jsonl",
             "supported_loader_file_formats": ["jsonl"]

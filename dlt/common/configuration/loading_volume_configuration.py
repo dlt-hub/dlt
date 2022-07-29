@@ -1,4 +1,4 @@
-from dlt.common.configuration.basic_configuration import BaseConfiguration
+from dlt.common.configuration.run_configuration import BaseConfiguration
 
 
 class LoadingVolumeConfiguration(BaseConfiguration):

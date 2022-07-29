@@ -10,7 +10,7 @@ from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns
 from dlt.common.schema.typing import TTableSchema
 from dlt.common.typing import StrAny
 
-from dlt.loaders.typing import LoadJobStatus, TNativeConn, TJobClientCapabilities, DBCursor
+from dlt.loaders.typing import LoadJobStatus, TNativeConn, TLoaderCapabilities, DBCursor
 from dlt.loaders.exceptions import LoadClientSchemaVersionCorrupted
 
 
@@ -96,7 +96,7 @@ class JobClientBase(ABC):
 
     @classmethod
     @abstractmethod
-    def capabilities(cls) -> TJobClientCapabilities:
+    def capabilities(cls) -> TLoaderCapabilities:
         pass
 
     @classmethod
