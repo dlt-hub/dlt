@@ -10,9 +10,13 @@ def load_json_case(name: str) -> Mapping:
 
 
 def load_yml_case(name: str) -> Mapping:
-    with open(f"./tests/common/cases/{name}.yml", "tr", encoding="utf-8") as f:
+    with open(yml_case_path(name), "tr", encoding="utf-8") as f:
         return cast(Mapping, yaml.safe_load(f))
 
 
 def json_case_path(name: str) -> str:
     return f"./tests/common/cases/{name}.json"
+
+
+def yml_case_path(name: str) -> str:
+    return f"./tests/common/cases/{name}.yml"

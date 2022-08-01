@@ -177,7 +177,7 @@ class RedshiftClient(SqlJobClientBase):
     CONFIG: Type[PostgresConfiguration] = None
 
     def __init__(self, schema: Schema) -> None:
-        sql_client = RedshiftSqlClient(schema.normalize_make_dataset_name(self.CONFIG.DEFAULT_DATASET, schema.schema_name), self.CONFIG)
+        sql_client = RedshiftSqlClient(schema.normalize_make_dataset_name(self.CONFIG.DEFAULT_DATASET, schema.name), self.CONFIG)
         super().__init__(schema, sql_client)
         self.sql_client = sql_client
 
@@ -216,7 +216,7 @@ class RedshiftClient(SqlJobClientBase):
 
     def _build_schema_update_sql(self) -> List[str]:
         sql_updates = []
-        for table_name in self.schema.schema_tables:
+        for table_name in self.schema.tables:
             exists, storage_table = self._get_storage_table(table_name)
             sql = self._get_table_update_sql(table_name, storage_table, exists)
             if sql:

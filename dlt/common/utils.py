@@ -25,6 +25,11 @@ def digest128(v: str) -> str:
     return base64.b64encode(hashlib.shake_128(v.encode("utf-8")).digest(15)).decode('ascii')
 
 
+def digest256(v: str) -> str:
+    digest = hashlib.sha3_256(v.encode("utf-8")).digest()
+    return base64.b64encode(digest).decode('ascii')
+
+
 def str2bool(v: str) -> bool:
     if isinstance(v, bool):
         return v

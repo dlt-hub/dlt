@@ -1,14 +1,15 @@
+import os
 import pytest
 from typing import Sequence, Tuple
 
-from dlt.common.file_storage import FileStorage
+from dlt.common.schema import Schema
 from dlt.common.storages.loader_storage import LoaderStorage
 from dlt.common.configuration import LoadingVolumeConfiguration, make_configuration
 from dlt.common.storages.exceptions import NoMigrationPathException
 from dlt.common.typing import StrAny
 from dlt.common.utils import uniq_id
 
-from tests.utils import write_version, autouse_root_storage
+from tests.utils import TEST_STORAGE, write_version, autouse_root_storage
 
 
 @pytest.fixture
@@ -53,6 +54,19 @@ def test_archive_failed(storage: LoaderStorage) -> None:
     assert not storage.storage.has_folder(storage.get_load_path(load_id))
     # present in archive
     assert storage.storage.has_folder(storage.get_archived_path(load_id))
+
+
+def test_save_load_schema(storage: LoaderStorage) -> None:
+    # mock schema version to some random number so we know we load what we save
+    schema = Schema("event")
+    schema._stored_version = 762171
+
+    storage.create_temp_load_folder("copy")
+    saved_file_name = storage.save_temp_schema(schema, "copy")
+    assert saved_file_name.endswith(os.path.join(storage.storage.storage_path, "copy", LoaderStorage.SCHEMA_FILE_NAME))
+    assert storage.storage.has_file(f"copy/{LoaderStorage.SCHEMA_FILE_NAME}")
+    schema_copy = storage.load_temp_schema("copy")
+    assert schema.stored_version == schema_copy.stored_version
 
 
 def test_full_migration_path() -> None:

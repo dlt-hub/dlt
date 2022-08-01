@@ -9,9 +9,7 @@ from prometheus_client import CollectorRegistry
 from dlt.common.file_storage import FileStorage
 from dlt.common.exceptions import TerminalException, TerminalValueError
 from dlt.common.schema import Schema
-from dlt.common.storages import schema_storage
 from dlt.common.storages.loader_storage import JobWithUnsupportedWriterException, LoaderStorage
-from dlt.common.storages.schema_storage import SchemaStorage
 from dlt.common.typing import StrAny
 from dlt.common.utils import uniq_id
 from dlt.loaders.client_base import JobClientBase, LoadEmptyJob, LoadJob
@@ -20,9 +18,8 @@ from dlt.loaders.configuration import configuration, ProductionLoaderConfigurati
 from dlt.loaders.dummy import client
 from dlt.loaders import loader, __version__
 from dlt.loaders.dummy.configuration import DummyClientConfiguration
-from dlt.loaders.exceptions import LoadClientUnsupportedWriteDisposition
 
-from tests.utils import TEST_STORAGE, clean_storage, init_logger
+from tests.utils import clean_storage, init_logger
 
 
 @pytest.fixture(autouse=True)
@@ -83,8 +80,7 @@ def test_unsupported_write_disposition() -> None:
     # mock unsupported disposition
     schema.get_table("event_user")["write_disposition"] = "merge"
     # write back schema
-    schema_storage = SchemaStorage(loader.load_storage.storage.storage_path)
-    schema_storage.save_folder_schema(schema, loader.load_storage.get_load_path(load_id))
+    loader.load_storage._save_schema(schema, load_id)
     loader.load(ThreadPool())
     # job with unsupported write disp. is failed
     exception = [f for f in loader.load_storage.list_failed_jobs(load_id) if f.endswith(".exception")][0]
@@ -303,8 +299,7 @@ def prepare_load_package(cases: Sequence[str]) -> Tuple[str, Schema]:
         path = f"./tests/loaders/cases/loading/{f}"
         shutil.copy(path, loader.load_storage.storage._make_path(load_id))
     loader.load_storage.commit_temp_load_folder(load_id)
-    schema_storage = SchemaStorage(loader.load_storage.storage.storage_path)
-    schema = schema_storage.load_folder_schema(loader.load_storage.get_load_path(load_id))
+    schema = loader.load_storage.load_schema(load_id)
     return load_id, schema
 
 

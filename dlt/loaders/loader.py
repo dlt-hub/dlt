@@ -200,11 +200,8 @@ def load(pool: ThreadPool) -> TRunMetrics:
 
     load_id = loads[0]
     logger.info(f"Loading schema from load package in {load_id}")
-    # one load package contains table from one schema
-    schema_storage = SchemaStorage(load_storage.storage.storage_path)
-    # get relative path to load schema from load package
-    schema = schema_storage.load_folder_schema(load_storage.get_load_path(load_id))
-    logger.info(f"Loaded schema name {schema.schema_name} and version {schema.schema_version}")
+    schema = load_storage.load_schema(load_id)
+    logger.info(f"Loaded schema name {schema.name} and version {schema.stored_version}")
     # initialize analytical storage ie. create dataset required by passed schema
     with load_client_cls(schema) as client:
         logger.info(f"Client {CONFIG.CLIENT_TYPE} will start load")

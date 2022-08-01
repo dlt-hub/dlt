@@ -2,6 +2,8 @@ import os
 from typing import Any, Iterable, Iterator, List, Sequence, cast, IO
 
 from dlt.common import json, Decimal
+from dlt.common.configuration import make_configuration
+from dlt.common.configuration.schema_volume_configuration import SchemaVolumeConfiguration
 from dlt.common.dataset_writers import write_insert_values, write_jsonl
 from dlt.common.file_storage import FileStorage
 from dlt.common.schema import TColumnSchema, TTableSchemaColumns
@@ -96,6 +98,7 @@ def prepare_event_user_table(client: JobClientBase) -> None:
     user_table = load_table("event_user")["event_user"]
     user_table_name = "event_user_" + uniq_id()
     client.schema.update_schema(new_table(user_table_name, columns=user_table.values()))
+    client.schema.bump_version()
     client.update_storage_schema()
     return user_table_name
 
@@ -106,8 +109,11 @@ def yield_client_with_storage(client_type: str) -> Iterator[SqlJobClientBase]:
     default_dataset = "test_" + uniq_id()
     initial_values = {"DEFAULT_DATASET": default_dataset}
     # get event default schema
-    schema_storage = SchemaStorage("tests/common/cases/schemas/rasa")
-    schema = schema_storage.load_store_schema("event")
+    C = make_configuration(SchemaVolumeConfiguration, SchemaVolumeConfiguration, initial_values={
+        "SCHEMA_VOLUME_PATH": "tests/common/cases/schemas/rasa"
+    })
+    schema_storage = SchemaStorage(C)
+    schema = schema_storage.load_schema("event")
     # create client and dataset
     client: SqlJobClientBase = None
     with import_client_cls(client_type, initial_values=initial_values)(schema) as client:

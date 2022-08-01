@@ -7,11 +7,11 @@ from dlt.common.file_storage import FileStorage
 from dlt.common.dataset_writers import TLoaderFileFormat, write_jsonl, write_insert_values
 from dlt.common.configuration import LoadingVolumeConfiguration
 from dlt.common.exceptions import TerminalValueError
-from dlt.common.schema import TSchemaUpdate, TTableSchemaColumns
+from dlt.common.schema import Schema, TSchemaUpdate, TTableSchemaColumns
 from dlt.common.storages.versioned_storage import VersionedStorage
-from dlt.common.typing import StrAny
+from dlt.common.typing import DictStrAny, StrAny
 
-from dlt.common.storages.exceptions import StorageException
+from dlt.common.storages.exceptions import JobWithUnsupportedWriterException
 
 
 # folders to manage load jobs in a single load package
@@ -29,6 +29,7 @@ class LoaderStorage(VersionedStorage):
     COMPLETED_JOBS_FOLDER: TWorkingFolder = "completed_jobs"
 
     LOAD_SCHEMA_UPDATE_FILE_NAME = "schema_updates.json"
+    SCHEMA_FILE_NAME = "schema.json"
 
     ALL_SUPPORTED_FILE_FORMATS: Set[TLoaderFileFormat] = set(get_args(TLoaderFileFormat))
 
@@ -72,7 +73,22 @@ class LoaderStorage(VersionedStorage):
                 write_insert_values(f, rows, table.keys())
         return Path(file_name).name
 
-    def save_schema_updates(self, load_id: str, schema_updates: Sequence[TSchemaUpdate]) -> None:
+    def load_schema(self, load_id: str) -> Schema:
+        # load schema from a load package to be processed
+        schema_path = f"{self.get_load_path(load_id)}/{LoaderStorage.SCHEMA_FILE_NAME}"
+        return self._load_schema(schema_path)
+
+    def load_temp_schema(self, load_id: str) -> Schema:
+        # load schema from a temporary load package
+        schema_path = f"{load_id}/{LoaderStorage.SCHEMA_FILE_NAME}"
+        return self._load_schema(schema_path)
+
+    def save_temp_schema(self, schema: Schema, load_id: str) -> str:
+        # save a schema to a temporary load package
+        dump = json.dumps(schema.to_dict())
+        return self.storage.save(f"{load_id}/{LoaderStorage.SCHEMA_FILE_NAME}", dump)
+
+    def save_temp_schema_updates(self, load_id: str, schema_updates: Sequence[TSchemaUpdate]) -> None:
         with self.storage.open_file(f"{load_id}/{LoaderStorage.LOAD_SCHEMA_UPDATE_FILE_NAME}", mode="w") as f:
             json.dump(schema_updates, f)
 
@@ -155,6 +171,15 @@ class LoaderStorage(VersionedStorage):
         file_name = f"{table_name}.{file_id}.{self.preferred_file_format}"
         return f"{load_id}/{LoaderStorage.NEW_JOBS_FOLDER}/{file_name}"
 
+    def _save_schema(self, schema: Schema, load_id: str) -> str:
+        dump = json.dumps(schema.to_dict())
+        schema_path = f"{self.get_load_path(load_id)}/{LoaderStorage.SCHEMA_FILE_NAME}"
+        return self.storage.save(schema_path, dump)
+
+    def _load_schema(self, schema_path: str) -> Schema:
+        stored_schema: DictStrAny = json.loads(self.storage.load(schema_path))
+        return Schema.from_dict(stored_schema)
+
     def _move_file(self, load_id: str, source_folder: TWorkingFolder, dest_folder: TWorkingFolder, file_name: str) -> str:
         load_path = self.get_load_path(load_id)
         dest_path = f"{load_path}/{dest_folder}/{file_name}"
@@ -177,14 +202,3 @@ class LoaderStorage(VersionedStorage):
 
         parts = p.stem.split(".")
         return (parts[0], ext)
-
-
-class LoaderStorageException(StorageException):
-    pass
-
-
-class JobWithUnsupportedWriterException(LoaderStorageException):
-    def __init__(self, load_id: str, expected_file_format: Iterable[TLoaderFileFormat], wrong_job: str) -> None:
-        self.load_id = load_id
-        self.expected_file_format = expected_file_format
-        self.wrong_job = wrong_job

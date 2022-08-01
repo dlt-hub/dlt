@@ -175,10 +175,10 @@ class SqlJobClientBase(JobClientBase):
 
     def update_storage_schema(self) -> None:
         storage_version = self._get_schema_version_from_storage()
-        if storage_version < self.schema.schema_version:
+        if storage_version < self.schema.stored_version:
             for sql in self._build_schema_update_sql():
                 self.sql_client.execute_sql(sql)
-            self._update_schema_version(self.schema.schema_version)
+            self._update_schema_version(self.schema.stored_version)
 
     def complete_load(self, load_id: str) -> None:
         name = self.sql_client.make_qualified_table_name(Schema.LOADS_TABLE_NAME)
@@ -199,7 +199,7 @@ class SqlJobClientBase(JobClientBase):
     def _create_table_update(self, table_name: str, storage_table: TTableSchemaColumns) -> Sequence[TColumnSchema]:
         # compare table with stored schema and produce delta
         updates = self.schema.get_schema_update_for(table_name, storage_table)
-        logger.info(f"Found {len(updates)} updates for {table_name} in {self.schema.schema_name}")
+        logger.info(f"Found {len(updates)} updates for {table_name} in {self.schema.name}")
         return updates
 
     def _get_schema_version_from_storage(self) -> int:

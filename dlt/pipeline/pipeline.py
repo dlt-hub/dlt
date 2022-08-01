@@ -200,7 +200,7 @@ class Pipeline:
             self.default_schema_name = None
         # save new schema
         normalize.schema_storage.save_store_schema(new_schema)
-        self.default_schema_name = new_schema.schema_name
+        self.default_schema_name = new_schema.name
         with self._managed_state():
             self.state["default_schema_name"] = self.default_schema_name
 
@@ -340,7 +340,7 @@ class Pipeline:
     @staticmethod
     def save_schema_to_file(file_name: str, schema: Schema, remove_defaults: bool = True) -> None:
         with open(file_name, "w", encoding="utf-8") as f:
-            f.write(schema.as_yaml(remove_defaults=remove_defaults))
+            f.write(schema.to_pretty_yaml(remove_defaults=remove_defaults))
 
     @staticmethod
     def load_schema_from_file(file_name: str) -> Schema:

@@ -78,6 +78,15 @@ class FileStorage:
         return os.path.isdir(self._make_path(relative_path))
 
     def list_folder_files(self, relative_path: str, to_root: bool = True) -> List[str]:
+        """List all files in ``relative_path`` folder
+
+        Args:
+            relative_path (str): A path to folder, relative to storage root
+            to_root (bool, optional): If True returns paths to files in relation to root, if False, returns just file names. Defaults to True.
+
+        Returns:
+            List[str]: A list of file names with optional path as per ``to_root`` parameter
+        """
         scan_path = self._make_path(relative_path)
         if to_root:
             # list files in relative path, returning paths relative to storage root

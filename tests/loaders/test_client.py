@@ -130,6 +130,7 @@ def test_schema_update_create_table_redshift(client: SqlJobClientBase) -> None:
     record_hash = schema._infer_column("_dlt_id", "m,i0392903jdlkasjdlk")
     assert record_hash["unique"] is True
     schema.update_schema(new_table(table_name, columns=[timestamp, sender_id, record_hash]))
+    schema.bump_version()
     client.update_storage_schema()
     exists, _ = client._get_storage_table(table_name)
     assert exists is True
@@ -146,6 +147,7 @@ def test_schema_update_create_table_bigquery(client: SqlJobClientBase) -> None:
     # this will be not null
     record_hash = schema._infer_column("_dlt_id", "m,i0392903jdlkasjdlk")
     schema.update_schema(new_table("event_test_table", columns=[timestamp, sender_id, record_hash]))
+    schema.bump_version()
     client.update_storage_schema()
     exists, storage_table = client._get_storage_table("event_test_table")
     assert exists is True
@@ -163,16 +165,19 @@ def test_schema_update_alter_table(client: SqlJobClientBase) -> None:
     col1 = schema._infer_column("col1", "string")
     table_name = "event_test_table" + uniq_id()
     schema.update_schema(new_table(table_name, columns=[col1]))
+    schema.bump_version()
     client.update_storage_schema()
     # with single alter table
     col2 = schema._infer_column("col2", 1)
     schema.update_schema(new_table(table_name, columns=[col2]))
+    schema.bump_version()
     client.update_storage_schema()
     # with 2 alter tables
     col3 = schema._infer_column("col3", 1.2)
     col4 = schema._infer_column("col4", 182879721.182912)
     col4["data_type"] = "timestamp"
     schema.update_schema(new_table(table_name, columns=[col3, col4]))
+    schema.bump_version()
     client.update_storage_schema()
     _, storage_table = client._get_storage_table(table_name)
     # 4 columns
@@ -185,6 +190,7 @@ def test_get_storage_table_with_all_types(client: SqlJobClientBase) -> None:
     schema = client.schema
     table_name = "event_test_table" + uniq_id()
     schema.update_schema(new_table(table_name, columns=TABLE_UPDATE))
+    schema.bump_version()
     client.update_storage_schema()
     exists, storage_table = client._get_storage_table(table_name)
     assert exists is True
@@ -255,6 +261,7 @@ def test_load_with_all_types(client: SqlJobClientBase, write_disposition: str, f
     table_name = "event_test_table" + uniq_id()
     # we should have identical content with all disposition types
     client.schema.update_schema(new_table(table_name, write_disposition=write_disposition, columns=TABLE_UPDATE))
+    client.schema.bump_version()
     client.update_storage_schema()
     canonical_name = client.sql_client.make_qualified_table_name(table_name)
     # write row
@@ -283,6 +290,7 @@ def test_write_dispositions(client: SqlJobClientBase, write_disposition: str, fi
     client.schema.update_schema(
         new_table(child_table, columns=TABLE_UPDATE, parent_name=table_name)
         )
+    client.schema.bump_version()
     client.update_storage_schema()
     for idx in range(2):
         for t in [table_name, child_table]:
@@ -333,5 +341,6 @@ def prepare_schema(client: SqlJobClientBase, case: str) -> None:
     table: TTableSchemaColumns = {k: client.schema._infer_column(k, v) for k, v in rows[0].items()}
     table_name = f"event_{case}_{uniq_id()}"
     client.schema.update_schema(new_table(table_name, columns=table.values()))
+    client.schema.bump_version()
     client.update_storage_schema()
     return rows, table_name

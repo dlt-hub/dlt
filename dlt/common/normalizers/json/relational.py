@@ -196,7 +196,7 @@ def extend_schema(schema: Schema) -> None:
     validate_dict(JSONNormalizerConfig, config, "./normalizers/json/config", validator_f=column_name_validator(schema.normalize_column_name))
 
     # quick check to see if hints are applied
-    default_hints = schema.schema_settings.get("default_hints", {})
+    default_hints = schema.settings.get("default_hints", {})
     if "not_null" in default_hints and "^_dlt_id$" in default_hints["not_null"]:
         return
     # add hints
@@ -218,7 +218,7 @@ def normalize_data_item(schema: Schema, source_event: TDataItem, load_id: str) -
     # identify load id if loaded data must be processed after loading incrementally
     event["_dlt_load_id"] = load_id
     # find table name
-    table_name = schema.normalize_table_name(get_table_name(event) or schema.schema_name)
+    table_name = schema.normalize_table_name(get_table_name(event) or schema.name)
     # drop dlt metadata before normalizing
     event.pop(DLT_METADATA_FIELD, None)  # type: ignore
     # use event type or schema name as table name, request _dlt_root_id propagation
