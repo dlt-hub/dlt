@@ -1,3 +1,4 @@
+import multiprocessing
 import requests
 from typing import Type
 import pytest
@@ -93,3 +94,8 @@ def create_schema_with_name(schema_name) -> Schema:
 
 def assert_no_dict_key_starts_with(d: StrAny, key_prefix: str) -> None:
     assert all(not key.startswith(key_prefix) for key in d.keys())
+
+
+skipifspawn = pytest.mark.skipif(
+    multiprocessing.get_start_method() != "fork", reason=f"process fork not supported"
+)

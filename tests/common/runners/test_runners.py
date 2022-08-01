@@ -1,17 +1,19 @@
 import pytest
 import multiprocessing
 from prometheus_client import registry
+from dlt.common.configuration.pool_runner_configuration import TPoolType
 
 from dlt.common.exceptions import DltException, SignalReceivedException, TimeRangeExhaustedException, UnsupportedProcessStartMethodException
 from dlt.common.configuration import PoolRunnerConfiguration
 from dlt.common.runners import pool_runner as runner
 from dlt.common import signals
+from tests.common.runners.utils import _TestRunnable
 
 from tests.utils import init_logger
 
 class ModPoolRunnerConfiguration(PoolRunnerConfiguration):
     PIPELINE_NAME: str = "testrunners"
-    POOL_TYPE = "none"
+    POOL_TYPE: TPoolType = "none"
     RUN_SLEEP: float = 0.1
     RUN_SLEEP_IDLE: float = 0.1
     RUN_SLEEP_WHEN_FAILED: float = 0.1
@@ -25,8 +27,12 @@ class LimitedPoolRunnerConfiguration(ModPoolRunnerConfiguration):
     STOP_AFTER_RUNS: int = 5
 
 
-class ProcessPolConfiguration(ModPoolRunnerConfiguration):
-    POOL_TYPE = "process"
+class ProcessPoolConfiguration(ModPoolRunnerConfiguration):
+    POOL_TYPE: TPoolType = "process"
+
+
+class ThreadPoolConfiguration(ModPoolRunnerConfiguration):
+    POOL_TYPE: TPoolType = "thread"
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -252,9 +258,17 @@ def test_single_run_short_wl() -> None:
     }
 
 
+def test_runnable_with_runner() -> None:
+    r = _TestRunnable(4)
+    runner.RUN_ARGS = runner.TRunArgs(True, 0)
+    code = runner.run_pool(ThreadPoolConfiguration, r)
+    assert code == 0
+    assert [v[0] for v in r.rv] == list(range(4))
+
+
 @pytest.mark.forked
 def test_spawn_pool() -> None:
     multiprocessing.set_start_method("spawn", force=True)
     with pytest.raises(UnsupportedProcessStartMethodException) as exc:
-        runner.run_pool(ProcessPolConfiguration, idle_run)
+        runner.run_pool(ProcessPoolConfiguration, idle_run)
     assert exc.value.method == "spawn"

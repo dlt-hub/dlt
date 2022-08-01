@@ -7,6 +7,7 @@ from multiprocessing.pool import ThreadPool, Pool
 
 from dlt.common import logger, signals
 from dlt.common.configuration.run_configuration import RunConfiguration
+from dlt.common.runners.runnable import Runnable
 from dlt.common.time import sleep
 from dlt.common.telemetry import TRunHealth, TRunMetrics, get_logging_extras, get_metrics_from_prometheus
 from dlt.common.logger import init_logging_from_config, init_telemetry, process_internal_exception
@@ -92,7 +93,7 @@ def initialize_runner(C: Type[RunConfiguration], run_args: Optional[TRunArgs] = 
 
 
 
-def run_pool(C: Type[PoolRunnerConfiguration], run_f: Callable[[TPool], TRunMetrics]) -> int:
+def run_pool(C: Type[PoolRunnerConfiguration], run_f: Union[Runnable, Callable[[TPool], TRunMetrics]]) -> int:
     # start pool
     pool: Pool = None
     if C.POOL_TYPE == "process":
@@ -106,7 +107,6 @@ def run_pool(C: Type[PoolRunnerConfiguration], run_f: Callable[[TPool], TRunMetr
         pool = None
     logger.info(f"Created {C.POOL_TYPE} pool with {C.WORKERS or 'default no.'} workers")
 
-
     try:
         while True:
             run_metrics: TRunMetrics = None
@@ -114,7 +114,12 @@ def run_pool(C: Type[PoolRunnerConfiguration], run_f: Callable[[TPool], TRunMetr
                 HEALTH_PROPS_GAUGES["runs_count"].inc()
                 # run pool logic
                 with RUN_DURATION_SUMMARY.time(), RUN_DURATION_GAUGE.time():
-                    run_metrics = run_f(cast(TPool, pool))
+                    if callable(run_f):
+                        run_metrics = run_f(cast(TPool, pool))
+                    elif isinstance(run_f, Runnable):
+                        run_metrics = run_f.run(pool)
+                    else:
+                        raise SignalReceivedException(-1)
             except Exception as exc:
                 if (type(exc) is SignalReceivedException) or (type(exc) is TimeRangeExhaustedException):
                     # always exit
@@ -157,6 +162,7 @@ def run_pool(C: Type[PoolRunnerConfiguration], run_f: Callable[[TPool], TRunMetr
 
             # single run may be forced but at least wait_runs must pass
             # and was all the time idle or (was not idle but now pending is 0)
+            print(RUN_ARGS)
             if RUN_ARGS.single_run and (health_props["runs_count"] >= RUN_ARGS.wait_runs and (health_props["runs_not_idle_count"] == 0 or run_metrics.pending_items == 0)):
                 logger.warning("Stopping runner due to single run override")
                 return 0
