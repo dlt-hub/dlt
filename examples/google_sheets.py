@@ -18,4 +18,4 @@ p.extract(
 )
 p.flush()
 # display inferred schema
-print(p.get_default_schema().as_yaml(remove_defaults=True))
+print(p.get_default_schema().to_pretty_yaml(remove_defaults=True))

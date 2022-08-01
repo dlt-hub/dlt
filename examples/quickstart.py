@@ -51,7 +51,7 @@ pipeline.normalize()
 
 # If you want to save the schema to curate it and re-use it, uncomment the below
 schema = pipeline.get_default_schema()
-schema_yaml = schema.as_yaml(remove_defaults=True)
+schema_yaml = schema.to_pretty_yaml(remove_defaults=True)
 print(schema_yaml)
 # f = open(data_schema_file_path, "a", encoding="utf-8")
 # f.write(schema_yaml)

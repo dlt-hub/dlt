@@ -101,7 +101,7 @@ if __name__ == "__main__":
     pipeline.normalize()
 
     schema = pipeline.get_default_schema()
-    schema_yaml = schema.as_yaml()
+    schema_yaml = schema.to_pretty_yaml()
     f = open(data_schema_file_path, "a", encoding="utf-8")
     f.write(schema_yaml)
     f.close()
