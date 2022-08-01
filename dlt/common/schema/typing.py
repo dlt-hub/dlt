@@ -78,8 +78,10 @@ class TSchemaSettings(TypedDict, total=False):
     preferred_types: Optional[Dict[TSimpleRegex, TDataType]]
 
 
-class TStoredSchema(TypedDict, total=True):
+class TStoredSchema(TypedDict, total=False):
     version: int
+    version_hash: str
+    imported_version_hash: Optional[str]
     engine_version: int
     name: str
     settings: Optional[TSchemaSettings]

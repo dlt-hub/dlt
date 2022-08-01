@@ -2,14 +2,16 @@ from copy import deepcopy
 import re
 import base64
 import binascii
+import hashlib
 import datetime  # noqa: I251
-from typing import Dict, List, Sequence, Type, Any, cast
+from typing import Dict, List, Sequence, Tuple, Type, Any, cast
 
 from dlt.common import pendulum, json, Decimal
 from dlt.common.arithmetics import ConversionSyntax
 from dlt.common.exceptions import DictValidationException
 from dlt.common.normalizers.names import TNormalizeNameFunc
 from dlt.common.typing import DictStrAny, REPattern
+from dlt.common.utils import digest256
 from dlt.common.validation import TCustomValidator, validate_dict
 from dlt.common.schema import detections
 from dlt.common.schema.typing import SIMPLE_REGEX_PREFIX, TColumnName, TNormalizersConfig, TSimpleRegex, TStoredSchema, TTableSchema, TTableSchemaColumns, TColumnSchemaBase, TColumnSchema, TColumnProp, TDataType, THintType, TTypeDetectionFunc, TTypeDetections, TWriteDisposition
@@ -64,6 +66,49 @@ def remove_defaults(stored_schema: TStoredSchema) -> None:
                     del c[h]  # type: ignore
 
     stored_schema["tables"] = clean_tables
+
+
+def bump_version_if_modified(stored_schema: TStoredSchema) -> Tuple[int, str]:
+    # if any change to schema document is detected then bump version and write new hash
+    hash = generate_version_hash(stored_schema)
+    previous_hash = stored_schema.get("version_hash")
+    if not previous_hash:
+        # if hash was not set, set it without bumping the version, that's initial schema
+        pass
+    elif hash != previous_hash:
+        stored_schema["version"] += 1
+    stored_schema["version_hash"] = hash
+    return stored_schema["version"], hash
+
+def generate_version_hash(stored_schema: TStoredSchema) -> str:
+    # generates hash out of stored schema content, excluding the hash itself and version
+    schema_copy = deepcopy(stored_schema)
+    schema_copy.pop("version")
+    schema_copy.pop("version_hash", None)
+    schema_copy.pop("imported_version_hash", None)
+    # ignore order of elements when computing the hash
+    content = json.dumps(schema_copy, sort_keys=True)
+    h = hashlib.sha3_256(content.encode("utf-8"))
+    # additionally check column order
+    table_names = sorted(schema_copy.get("tables", {}).keys())
+    if table_names:
+        for tn in table_names:
+            t = schema_copy["tables"][tn]
+            h.update(tn.encode("utf-8"))
+            # add column names to hash in order
+            for cn in t.get("columns", {}).keys():
+                h.update(cn.encode("utf-8"))
+    return base64.b64encode(h.digest()).decode('ascii')
+
+
+def verify_schema_hash(stored_schema: DictStrAny, empty_hash_verifies: bool = True) -> bool:
+    # generates content hash and compares with existing
+    current_hash: str = stored_schema.get("version_hash")
+    if not current_hash and empty_hash_verifies:
+        return True
+    # if hash is present we can assume at least v4 engine version so hash is computable
+    hash = generate_version_hash(cast(TStoredSchema, stored_schema))
+    return hash == current_hash
 
 
 def simple_regex_validator(path: str, pk: str, pv: Any, t: Any) -> bool:
@@ -196,8 +241,11 @@ def upgrade_engine_version(schema_dict: DictStrAny, from_engine: int, to_engine:
         # upgraded
         schema_dict["engine_version"] = 3
         from_engine = 3
-    if from_engine == 3:
-        pass
+    if from_engine == 3 and to_engine > 3:
+        # set empty version hash to pass validation, in engine 4 this hash is mandatory
+        schema_dict.setdefault("version_hash", "")
+        schema_dict["engine_version"] = 4
+        from_engine = 4
     if from_engine != to_engine:
         raise SchemaEngineNoUpgradePathException(schema_dict["name"], schema_dict["engine_version"], from_engine, to_engine)
     return cast(TStoredSchema, schema_dict)

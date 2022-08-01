@@ -54,7 +54,7 @@ def main() -> None:
         if args.format == "json":
             schema_str = json.dumps(s.to_dict(remove_defaults=args.remove_defaults), indent=2)
         else:
-            schema_str = s.as_yaml(remove_defaults=args.remove_defaults)
+            schema_str = s.to_pretty_yaml(remove_defaults=args.remove_defaults)
         print(schema_str)
         exit(0)
     else:

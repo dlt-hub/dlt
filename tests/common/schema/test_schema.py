@@ -1,10 +1,8 @@
 from typing import List, Sequence
 import pytest
-import os
-
-from yaml import load
 
 from dlt.common import pendulum
+from dlt.common.configuration import SchemaVolumeConfiguration, make_configuration
 from dlt.common.exceptions import DictValidationException
 from dlt.common.schema.typing import TColumnName, TSimpleRegex
 from dlt.common.typing import DictStrAny, StrAny
@@ -13,14 +11,23 @@ from dlt.common.schema import TColumnSchema, Schema, TStoredSchema, utils
 from dlt.common.schema.exceptions import InvalidSchemaName, ParentTableNotFoundException, SchemaEngineNoUpgradePathException
 from dlt.common.storages import SchemaStorage
 
+from tests.utils import autouse_root_storage
 from tests.common.utils import load_json_case, load_yml_case
-
-from tests.utils import TEST_STORAGE
-
-schema_storage = SchemaStorage(TEST_STORAGE, makedirs=True)
 
 SCHEMA_NAME = "event"
 EXPECTED_FILE_NAME = f"{SCHEMA_NAME}_schema.json"
+
+
+@pytest.fixture
+def schema_storage() -> SchemaStorage:
+    C = make_configuration(
+        SchemaVolumeConfiguration,
+        SchemaVolumeConfiguration,
+        initial_values={
+            "import_schema_path": "tests/common/cases/schemas/rasa",
+            "external_schema_format": "json"
+        })
+    return SchemaStorage(C, makedirs=True)
 
 
 @pytest.fixture
@@ -41,9 +48,9 @@ def cn_schema() -> Schema:
     })
 
 
-@pytest.fixture(autouse=True)
-def auto_delete_storage() -> None:
-    delete_storage()
+# @pytest.fixture(autouse=True)
+# def auto_delete_storage() -> None:
+#     delete_storage()
 
 
 def test_normalize_schema_name(schema: Schema) -> None:
@@ -56,8 +63,11 @@ def test_normalize_schema_name(schema: Schema) -> None:
 
 
 def test_new_schema(schema: Schema) -> None:
-    assert schema.schema_name == "event"
-    utils.validate_stored_schema(schema.to_dict())
+    assert schema.name == "event"
+    stored_schema = schema.to_dict()
+    # version hash is present
+    assert len(stored_schema["version_hash"]) > 0
+    utils.validate_stored_schema(stored_schema)
     assert_new_schema_values(schema)
 
 
@@ -85,10 +95,10 @@ def test_simple_regex_validator() -> None:
 
 
 def test_load_corrupted_schema() -> None:
-    eth_v2: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v3")
-    del eth_v2["tables"]["blocks"]
+    eth_v4: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v4")
+    del eth_v4["tables"]["blocks"]
     with pytest.raises(ParentTableNotFoundException):
-        utils.validate_stored_schema(eth_v2)
+        utils.validate_stored_schema(eth_v4)
 
 
 def test_column_name_validator(schema: Schema) -> None:
@@ -115,9 +125,8 @@ def test_invalid_schema_name() -> None:
     (["_dlt_id"], "unique", True),
     (["_dlt_parent_id"], "foreign_key", True),
 ])
-def test_relational_normalizer_schema_hints(columns: Sequence[str], hint: str, value: bool) -> None:
-    schema_storage = SchemaStorage("tests/common/cases/schemas/rasa")
-    schema = schema_storage.load_store_schema("event")
+def test_relational_normalizer_schema_hints(columns: Sequence[str], hint: str, value: bool, schema_storage: SchemaStorage) -> None:
+    schema = schema_storage.load_schema("event")
     for name in columns:
         # infer column hints
         c = schema._infer_column(name, "x")
@@ -126,37 +135,25 @@ def test_relational_normalizer_schema_hints(columns: Sequence[str], hint: str, v
 
 def test_new_schema_alt_name() -> None:
     schema = Schema("model")
-    assert schema.schema_name == "model"
+    assert schema.name == "model"
 
 
-def test_save_store_schema(schema: Schema) -> None:
+def test_save_store_schema(schema: Schema, schema_storage: SchemaStorage) -> None:
     assert not schema_storage.storage.has_file(EXPECTED_FILE_NAME)
-    saved_file_name = schema_storage.save_store_schema(schema)
+    saved_file_name = schema_storage.save_schema(schema)
     # return absolute path
     assert saved_file_name == schema_storage.storage._make_path(EXPECTED_FILE_NAME)
     assert schema_storage.storage.has_file(EXPECTED_FILE_NAME)
-    schema_copy = schema_storage.load_store_schema("event")
-    assert schema.schema_name == schema_copy.schema_name
-    assert schema.schema_version == schema_copy.schema_version
+    schema_copy = schema_storage.load_schema("event")
+    assert schema.name == schema_copy.name
+    assert schema.version == schema_copy.version
     assert_new_schema_values(schema_copy)
 
 
-def test_save_store_schema_custom_normalizers(cn_schema: Schema) -> None:
-    schema_storage.save_store_schema(cn_schema)
-    schema_copy = schema_storage.load_store_schema("default")
+def test_save_store_schema_custom_normalizers(cn_schema: Schema, schema_storage: SchemaStorage) -> None:
+    schema_storage.save_schema(cn_schema)
+    schema_copy = schema_storage.load_schema("default")
     assert_new_schema_values_custom_normalizers(schema_copy)
-
-
-def test_save_folder_schema(schema: Schema) -> None:
-    # mock schema version to some random number so we know we load what we save
-    schema._version = 762171
-
-    schema_storage.storage.create_folder("copy")
-    saved_file_name = schema_storage.save_folder_schema(schema, "copy")
-    assert saved_file_name.endswith(os.path.join(TEST_STORAGE, "copy", SchemaStorage.FOLDER_SCHEMA_FILE))
-    assert schema_storage.storage.has_file(f"copy/{SchemaStorage.FOLDER_SCHEMA_FILE}")
-    schema_copy = schema_storage.load_folder_schema("copy")
-    assert schema.schema_version == schema_copy.schema_version
 
 
 def test_upgrade_engine_v1_schema() -> None:
@@ -169,18 +166,18 @@ def test_upgrade_engine_v1_schema() -> None:
     # we have 27 tables
     assert len(schema_dict["tables"]) == 27
 
-    # upgrade schema eng 2 -> 3
+    # upgrade schema eng 2 -> 4
     schema_dict: DictStrAny = load_json_case("schemas/ev2/event_schema")
     assert schema_dict["engine_version"] == 2
-    upgraded = utils.upgrade_engine_version(schema_dict, from_engine=2, to_engine=3)
-    assert upgraded["engine_version"] == 3
+    upgraded = utils.upgrade_engine_version(schema_dict, from_engine=2, to_engine=4)
+    assert upgraded["engine_version"] == 4
     utils.validate_stored_schema(upgraded)
 
-    # upgrade 1 -> 3
+    # upgrade 1 -> 4
     schema_dict: DictStrAny = load_json_case("schemas/ev1/event_schema")
     assert schema_dict["engine_version"] == 1
-    upgraded = utils.upgrade_engine_version(schema_dict, from_engine=1, to_engine=3)
-    assert upgraded["engine_version"] == 3
+    upgraded = utils.upgrade_engine_version(schema_dict, from_engine=1, to_engine=4)
+    assert upgraded["engine_version"] == 4
     utils.validate_stored_schema(upgraded)
 
 
@@ -192,7 +189,7 @@ def test_unknown_engine_upgrade() -> None:
         utils.upgrade_engine_version(schema_dict, 3, 2)
 
 
-def test_preserve_column_order(schema: Schema) -> None:
+def test_preserve_column_order(schema: Schema, schema_storage: SchemaStorage) -> None:
     # python dicts are ordered from v3.6, add 50 column with random names
     update: List[TColumnSchema] = [schema._infer_column(uniq_id(), pendulum.now().timestamp()) for _ in range(50)]
     schema.update_schema(utils.new_table("event_test_order", columns=update))
@@ -204,8 +201,8 @@ def test_preserve_column_order(schema: Schema) -> None:
     table = schema.get_table_columns("event_test_order")
     verify_items(table, update)
     # save and load
-    schema_storage.save_store_schema(schema)
-    loaded_schema = schema_storage.load_store_schema("event")
+    schema_storage.save_schema(schema)
+    loaded_schema = schema_storage.load_schema("event")
     table = loaded_schema.get_table_columns("event_test_order")
     verify_items(table, update)
     # add more columns
@@ -214,18 +211,15 @@ def test_preserve_column_order(schema: Schema) -> None:
     table = loaded_schema.get_table_columns("event_test_order")
     verify_items(table, update + update2)
     # save and load
-    schema_storage.save_store_schema(loaded_schema)
-    loaded_schema = schema_storage.load_store_schema("event")
+    schema_storage.save_schema(loaded_schema)
+    loaded_schema = schema_storage.load_schema("event")
     table = loaded_schema.get_table_columns("event_test_order")
     verify_items(table, update  + update2)
 
 
-def test_get_schema_new_exist() -> None:
+def test_get_schema_new_exist(schema_storage: SchemaStorage) -> None:
     with pytest.raises(FileNotFoundError):
-        schema_storage.load_store_schema("wrongschema")
-
-    with pytest.raises(FileNotFoundError):
-        schema_storage.load_folder_schema(".")
+        schema_storage.load_schema("wrongschema")
 
 
 @pytest.mark.parametrize("columns,hint,value", [
@@ -237,9 +231,8 @@ def test_get_schema_new_exist() -> None:
     (["_dlt_parent_id"], "foreign_key", True),
     (["timestamp", "_timestamp"], "sort", True),
 ])
-def test_rasa_event_hints(columns: Sequence[str], hint: str, value: bool) -> None:
-    schema_storage = SchemaStorage("tests/common/cases/schemas/rasa")
-    schema = schema_storage.load_store_schema("event")
+def test_rasa_event_hints(columns: Sequence[str], hint: str, value: bool, schema_storage: SchemaStorage) -> None:
+    schema = schema_storage.load_schema("event")
     for name in columns:
         # infer column hints
         c = schema._infer_column(name, "x")
@@ -275,10 +268,9 @@ def test_filter_hints_table() -> None:
     assert list(rows.keys()) == ["_dlt_id"]
 
 
-def test_filter_hints_no_table() -> None:
+def test_filter_hints_no_table(schema_storage: SchemaStorage) -> None:
     # this is empty schema without any tables
-    schema_storage = SchemaStorage("tests/common/cases/schemas/rasa")
-    schema = schema_storage.load_store_schema("event")
+    schema = schema_storage.load_schema("event")
     bot_case: StrAny = load_json_case("mod_bot_case")
     # actually the empty `event_bot` table exists (holds exclusion filters)
     rows = schema.filter_row_with_hint("event_bot", "not_null", bot_case)
@@ -337,19 +329,17 @@ def test_merge_hints(schema: Schema) -> None:
         assert set(expected_hints[k]) == set(schema._settings["default_hints"][k])
 
 
-def test_all_tables(schema: Schema) -> None:
+def test_all_tables(schema: Schema, schema_storage: SchemaStorage) -> None:
     assert schema.all_tables() == []
     dlt_tables = schema.all_tables(with_dlt_tables=True)
     assert set([t["name"] for t in dlt_tables]) == set([Schema.LOADS_TABLE_NAME, Schema.VERSION_TABLE_NAME])
     # with tables
-    schema_storage = SchemaStorage("tests/common/cases/schemas/rasa")
-    schema = schema_storage.load_store_schema("event")
+    schema = schema_storage.load_schema("event")
     assert [t["name"] for t in schema.all_tables()] == ['event_slot', 'event_user', 'event_bot']
 
 
-def test_write_disposition() -> None:
-    schema_storage = SchemaStorage("tests/common/cases/schemas/rasa")
-    schema = schema_storage.load_store_schema("event")
+def test_write_disposition(schema_storage: SchemaStorage) -> None:
+    schema = schema_storage.load_schema("event")
     assert schema.get_write_disposition("event_slot") == "append"
     assert schema.get_write_disposition(Schema.LOADS_TABLE_NAME) == "skip"
 
@@ -370,15 +360,15 @@ def test_write_disposition() -> None:
 
 
 
-def delete_storage() -> None:
-    if not schema_storage.storage.has_folder(""):
-        SchemaStorage(TEST_STORAGE, makedirs=True)
-    else:
-        files = schema_storage.storage.list_folder_files(".")
-        for file in files:
-            schema_storage.storage.delete(file)
-        if schema_storage.storage.has_folder("copy"):
-            schema_storage.storage.delete_folder("copy", recursively=True)
+# def delete_storage() -> None:
+#     if not schema_storage.storage.has_folder(""):
+#         SchemaStorage(SchemaVolumeConfiguration, makedirs=True)
+#     else:
+#         files = schema_storage.storage.list_folder_files(".")
+#         for file in files:
+#             schema_storage.storage.delete(file)
+#         if schema_storage.storage.has_folder("copy"):
+#             schema_storage.storage.delete_folder("copy", recursively=True)
 
 
 def assert_new_schema_values_custom_normalizers(schema: Schema) -> None:
@@ -386,7 +376,7 @@ def assert_new_schema_values_custom_normalizers(schema: Schema) -> None:
     assert schema._normalizers_config["names"] == "tests.common.schema.custom_normalizers"
     assert schema._normalizers_config["json"]["module"] == "tests.common.schema.custom_normalizers"
     # check if schema was extended by json normalizer
-    assert ["fake_id"] == schema.schema_settings["default_hints"]["not_null"]
+    assert ["fake_id"] == schema.settings["default_hints"]["not_null"]
     # call normalizers
     assert schema.normalize_column_name("a") == "column_a"
     assert schema.normalize_table_name("a__b") == "A__b"
@@ -399,14 +389,17 @@ def assert_new_schema_values_custom_normalizers(schema: Schema) -> None:
 
 
 def assert_new_schema_values(schema: Schema) -> None:
-    assert schema.schema_version == 1
-    assert schema.ENGINE_VERSION == 3
-    assert len(schema.schema_settings["default_hints"]) > 0
+    assert schema.version == 1
+    assert schema.stored_version == 1
+    assert schema.stored_version_hash is not None
+    assert schema.version_hash is not None
+    assert schema.ENGINE_VERSION == 4
+    assert len(schema.settings["default_hints"]) > 0
     # check normalizers config
     assert schema._normalizers_config["names"] == "dlt.common.normalizers.names.snake_case"
     assert schema._normalizers_config["json"]["module"] == "dlt.common.normalizers.json.relational"
     # check if schema was extended by json normalizer
-    assert set(["_dlt_id", "_dlt_root_id", "_dlt_parent_id", "_dlt_list_idx", "_dlt_load_id"]).issubset(schema.schema_settings["default_hints"]["not_null"])
+    assert set(["_dlt_id", "_dlt_root_id", "_dlt_parent_id", "_dlt_list_idx", "_dlt_load_id"]).issubset(schema.settings["default_hints"]["not_null"])
     # call normalizers
     assert schema.normalize_column_name("A") == "a"
     assert schema.normalize_table_name("A__B") == "a__b"
@@ -416,7 +409,7 @@ def assert_new_schema_values(schema: Schema) -> None:
     assert schema.normalize_break_path("A__B__!C") == ["A", "B", "!C"]
     schema.normalize_data_item(schema, {}, "load_id")
     # check default tables
-    tables = schema.schema_tables
+    tables = schema.tables
     assert "_dlt_version" in tables
     assert "version" in tables["_dlt_version"]["columns"]
     assert "_dlt_loads" in tables
