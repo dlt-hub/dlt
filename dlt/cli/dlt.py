@@ -39,7 +39,7 @@ def main() -> None:
         from dlt.normalize.normalize import run_main as normalize_run
         run_f = normalize_run
     elif args.command == "load":
-        from dlt.loaders.loader import run_main as loader_run
+        from dlt.load.loader import run_main as loader_run
         run_f = loader_run
     elif args.command == "dbt":
         from dlt.dbt_runner.runner import run_main as dbt_run

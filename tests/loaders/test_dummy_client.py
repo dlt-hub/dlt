@@ -9,15 +9,15 @@ from prometheus_client import CollectorRegistry
 from dlt.common.file_storage import FileStorage
 from dlt.common.exceptions import TerminalException, TerminalValueError
 from dlt.common.schema import Schema
-from dlt.common.storages.loader_storage import JobWithUnsupportedWriterException, LoaderStorage
+from dlt.common.storages.load_storage import JobWithUnsupportedWriterException, LoadStorage
 from dlt.common.typing import StrAny
 from dlt.common.utils import uniq_id
-from dlt.loaders.client_base import JobClientBase, LoadEmptyJob, LoadJob
+from dlt.load.client_base import JobClientBase, LoadEmptyJob, LoadJob
 
-from dlt.loaders.configuration import configuration, ProductionLoaderConfiguration, LoaderConfiguration
-from dlt.loaders.dummy import client
-from dlt.loaders import loader, __version__
-from dlt.loaders.dummy.configuration import DummyClientConfiguration
+from dlt.load.configuration import configuration, ProductionLoaderConfiguration, LoaderConfiguration
+from dlt.load.dummy import client
+from dlt.load import loader, __version__
+from dlt.load.dummy.configuration import DummyClientConfiguration
 
 from tests.utils import clean_storage, init_logger
 
@@ -39,7 +39,7 @@ def test_gen_configuration() -> None:
     # for production config
     with patch.dict(environ, {"IS_DEVELOPMENT_CONFIG": "False"}):
         # mock missing config values
-        setup_loader(initial_values={"LOADING_VOLUME_PATH": LoaderConfiguration.LOADING_VOLUME_PATH})
+        setup_loader(initial_values={"LOADING_VOLUME_PATH": LoaderConfiguration.LOAD_VOLUME_PATH})
         assert ProductionLoaderConfiguration in loader.CONFIG.mro()
         assert LoaderConfiguration in loader.CONFIG.mro()
 
@@ -58,7 +58,7 @@ def test_spool_job_started() -> None:
         job = loader.spool_job(f, load_id, schema)
         assert type(job) is client.LoadDummyJob
         assert job.status() == "running"
-        assert loader.load_storage.storage.has_file(loader.load_storage._get_file_path(load_id, LoaderStorage.STARTED_JOBS_FOLDER, job.file_name()))
+        assert loader.load_storage.storage.has_file(loader.load_storage._get_file_path(load_id, LoadStorage.STARTED_JOBS_FOLDER, job.file_name()))
         jobs.append(job)
     # still running
     remaining_jobs = loader.complete_jobs(load_id, jobs)
@@ -100,14 +100,14 @@ def test_spool_job_failed() -> None:
         job = loader.spool_job(f, load_id, schema)
         assert type(job) is LoadEmptyJob
         assert job.status() == "failed"
-        assert loader.load_storage.storage.has_file(loader.load_storage._get_file_path(load_id, LoaderStorage.STARTED_JOBS_FOLDER, job.file_name()))
+        assert loader.load_storage.storage.has_file(loader.load_storage._get_file_path(load_id, LoadStorage.STARTED_JOBS_FOLDER, job.file_name()))
         jobs.append(job)
     # complete files
     remaining_jobs = loader.complete_jobs(load_id, jobs)
     assert len(remaining_jobs) == 0
     for job in jobs:
-        assert loader.load_storage.storage.has_file(loader.load_storage._get_file_path(load_id, LoaderStorage.FAILED_JOBS_FOLDER, job.file_name()))
-        assert loader.load_storage.storage.has_file(loader.load_storage._get_file_path(load_id, LoaderStorage.FAILED_JOBS_FOLDER, job.file_name() + ".exception"))
+        assert loader.load_storage.storage.has_file(loader.load_storage._get_file_path(load_id, LoadStorage.FAILED_JOBS_FOLDER, job.file_name()))
+        assert loader.load_storage.storage.has_file(loader.load_storage._get_file_path(load_id, LoadStorage.FAILED_JOBS_FOLDER, job.file_name() + ".exception"))
     started_files = loader.load_storage.list_started_jobs(load_id)
     assert len(started_files) == 0
 
@@ -144,7 +144,7 @@ def test_spool_job_retry_started() -> None:
         job = loader.spool_job(f, load_id, schema)
         assert type(job) is client.LoadDummyJob
         assert job.status() == "running"
-        assert  loader.load_storage.storage.has_file(loader.load_storage._get_file_path(load_id, LoaderStorage.STARTED_JOBS_FOLDER, job.file_name()))
+        assert  loader.load_storage.storage.has_file(loader.load_storage._get_file_path(load_id, LoadStorage.STARTED_JOBS_FOLDER, job.file_name()))
         # mock job config to make it retry
         job.retry_prob = 1.0
         jobs.append(job)
@@ -273,7 +273,7 @@ def assert_complete_job(storage: FileStorage, should_delete_completed: bool = Fa
     with patch.object(client.DummyClient, "complete_load") as complete_load:
         loader.load(ThreadPool())
         # did process schema update
-        assert storage.has_file(loader.load_storage._get_file_path(load_id, LoaderStorage.COMPLETED_JOBS_FOLDER, LoaderStorage.LOAD_SCHEMA_UPDATE_FILE_NAME))
+        assert storage.has_file(loader.load_storage._get_file_path(load_id, LoadStorage.COMPLETED_JOBS_FOLDER, LoadStorage.LOAD_SCHEMA_UPDATE_FILE_NAME))
         # will finalize the whole package
         loader.load(ThreadPool())
         # moved to loaded
@@ -294,7 +294,7 @@ def prepare_load_package(cases: Sequence[str]) -> Tuple[str, Schema]:
     loader.load_storage.create_temp_load_folder(load_id)
     for case in cases:
         path = f"./tests/loaders/cases/loading/{case}"
-        shutil.copy(path, loader.load_storage.storage._make_path(f"{load_id}/{LoaderStorage.NEW_JOBS_FOLDER}"))
+        shutil.copy(path, loader.load_storage.storage._make_path(f"{load_id}/{LoadStorage.NEW_JOBS_FOLDER}"))
     for f in ["schema_updates.json", "schema.json"]:
         path = f"./tests/loaders/cases/loading/{f}"
         shutil.copy(path, loader.load_storage.storage._make_path(load_id))

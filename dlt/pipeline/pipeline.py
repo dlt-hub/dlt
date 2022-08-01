@@ -20,11 +20,11 @@ from dlt.common.utils import uniq_id, is_interactive
 from dlt.common.sources import DLT_METADATA_FIELD, TItem, with_table_name
 
 from dlt.extractors.extractor_storage import ExtractorStorageBase
-from dlt.loaders.client_base import SqlClientBase, SqlJobClientBase
+from dlt.load.client_base import SqlClientBase, SqlJobClientBase
 from dlt.normalize.configuration import configuration as normalize_configuration
-from dlt.loaders.configuration import configuration as loader_configuration
+from dlt.load.configuration import configuration as loader_configuration
 from dlt.normalize import normalize
-from dlt.loaders import loader
+from dlt.load import loader
 from dlt.pipeline.exceptions import InvalidPipelineContextException, MissingDependencyException, NoPipelineException, PipelineStepFailed, CannotRestorePipelineException, SqlClientNotAvailable
 from dlt.pipeline.typing import PipelineCredentials
 
@@ -282,7 +282,7 @@ class Pipeline:
         return {
             "PIPELINE_NAME": self.pipeline_name,
             "EXIT_ON_EXCEPTION": True,
-            "LOADING_VOLUME_PATH": os.path.join(self.root_path, "loading")
+            "LOADING_VOLUME_PATH": os.path.join(self.root_path, "normalized")
         }
 
     def _load_modules(self) -> None:

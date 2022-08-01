@@ -1,7 +1,7 @@
 from typing import Sequence
 from dlt.common.exceptions import DltException, TerminalException, TransientException
 
-from dlt.loaders.typing import LoadJobStatus
+from dlt.load.typing import LoadJobStatus
 
 
 class LoadException(DltException):

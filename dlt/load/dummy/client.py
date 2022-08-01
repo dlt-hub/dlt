@@ -6,15 +6,15 @@ from dlt.common.dataset_writers import TLoaderFileFormat
 from dlt.common import pendulum
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TTableSchema
-from dlt.common.storages.loader_storage import LoaderStorage
+from dlt.common.storages.load_storage import LoadStorage
 from dlt.common.typing import StrAny
 
-from dlt.loaders.client_base import JobClientBase, LoadJob, TLoaderCapabilities
-from dlt.loaders.typing import LoadJobStatus
-from dlt.loaders.exceptions import (LoadJobNotExistsException, LoadJobInvalidStateTransitionException,
+from dlt.load.client_base import JobClientBase, LoadJob, TLoaderCapabilities
+from dlt.load.typing import LoadJobStatus
+from dlt.load.exceptions import (LoadJobNotExistsException, LoadJobInvalidStateTransitionException,
                                             LoadClientTerminalException, LoadClientTransientException)
 
-from dlt.loaders.dummy.configuration import DummyClientConfiguration, configuration
+from dlt.load.dummy.configuration import DummyClientConfiguration, configuration
 
 
 class LoadDummyJob(LoadJob):

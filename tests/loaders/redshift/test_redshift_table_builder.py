@@ -6,8 +6,8 @@ from dlt.common.schema import Schema
 from dlt.common.schema.utils import new_table
 from dlt.common.configuration import PostgresConfiguration, make_configuration
 
-from dlt.loaders.exceptions import LoadClientSchemaWillNotUpdate
-from dlt.loaders.redshift.client import RedshiftClient
+from dlt.load.exceptions import LoadClientSchemaWillNotUpdate
+from dlt.load.redshift.client import RedshiftClient
 
 from tests.loaders.utils import TABLE_UPDATE
 

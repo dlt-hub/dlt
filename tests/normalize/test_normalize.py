@@ -11,7 +11,7 @@ from dlt.common.utils import uniq_id
 from dlt.common.typing import StrAny
 from dlt.common.file_storage import FileStorage
 from dlt.common.schema import TDataType
-from dlt.common.storages.loader_storage import LoaderStorage
+from dlt.common.storages.load_storage import LoadStorage
 from dlt.common.storages.normalize_storage import NormalizeStorage
 from dlt.common.storages import SchemaStorage
 from dlt.extractors.extractor_storage import ExtractorStorageBase
@@ -260,25 +260,25 @@ def copy_cases(normalize_storage: NormalizeStorage, cases: Sequence[str]) -> Non
         shutil.copy(event_user_path, normalize_storage.storage._make_path(NormalizeStorage.EXTRACTED_FOLDER))
 
 
-def expect_load_package(load_storage: LoaderStorage, load_id: str, expected_tables: Sequence[str]) -> Dict[str, str]:
+def expect_load_package(load_storage: LoadStorage, load_id: str, expected_tables: Sequence[str]) -> Dict[str, str]:
     files = load_storage.list_new_jobs(load_id)
     assert len(files) == len(expected_tables)
     ofl: Dict[str, str] = {}
     for expected_table in expected_tables:
         file_mask = load_storage.build_loading_file_name(load_id, expected_table, "*")
-        candidates = [f for f in files if fnmatch(f, f"{LoaderStorage.LOADING_FOLDER}/{file_mask}")]
+        candidates = [f for f in files if fnmatch(f, f"{LoadStorage.NORMALIZED_FOLDER}/{file_mask}")]
         assert len(candidates) == 1
         ofl[expected_table] = candidates[0]
     return ofl
 
 
-def expect_lines_file(load_storage: LoaderStorage, load_file: str, line: int = 0) -> str:
+def expect_lines_file(load_storage: LoadStorage, load_file: str, line: int = 0) -> str:
     with load_storage.storage.open_file(load_file) as f:
         lines = f.readlines()
     return lines[line], len(lines)
 
 
-def assert_timestamp_data_type(load_storage: LoaderStorage, data_type: TDataType) -> None:
+def assert_timestamp_data_type(load_storage: LoadStorage, data_type: TDataType) -> None:
     # load generated schema
     loads = load_storage.list_loads()
     event_schema = load_storage.load_schema(loads[0])

@@ -16,9 +16,9 @@ from dlt.common.configuration import GcpClientConfiguration, GcpClientProduction
 from dlt.common.dataset_writers import TLoaderFileFormat, escape_bigquery_identifier
 from dlt.common.schema import TColumnSchema, TDataType, Schema, TTableSchemaColumns
 
-from dlt.loaders.typing import LoadJobStatus, DBCursor, TLoaderCapabilities
-from dlt.loaders.client_base import JobClientBase, SqlClientBase, SqlJobClientBase, LoadJob
-from dlt.loaders.exceptions import LoadClientSchemaWillNotUpdate, LoadJobNotExistsException, LoadJobServerTerminalException, LoadUnknownTableException
+from dlt.load.typing import LoadJobStatus, DBCursor, TLoaderCapabilities
+from dlt.load.client_base import JobClientBase, SqlClientBase, SqlJobClientBase, LoadJob
+from dlt.load.exceptions import LoadClientSchemaWillNotUpdate, LoadJobNotExistsException, LoadJobServerTerminalException, LoadUnknownTableException
 
 SCT_TO_BQT: Dict[TDataType, str] = {
     "complex": "STRING",

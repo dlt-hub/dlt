@@ -12,18 +12,18 @@ from dlt.common.dataset_writers import TLoaderFileFormat
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TTableSchema
 from dlt.common.storages import SchemaStorage
-from dlt.common.storages.loader_storage import LoaderStorage
+from dlt.common.storages.load_storage import LoadStorage
 from dlt.common.telemetry import get_logging_extras, set_gauge_all_labels
 from dlt.common.typing import StrAny
 
-from dlt.loaders.exceptions import LoadClientTerminalException, LoadClientTransientException, LoadClientUnsupportedWriteDisposition, LoadClientUnsupportedFileFormats, LoadJobNotExistsException, LoadUnknownTableException
-from dlt.loaders.client_base import JobClientBase, LoadJob
-from dlt.loaders.typing import LoadJobStatus, TLoaderCapabilities
-from dlt.loaders.configuration import configuration, LoaderConfiguration
+from dlt.load.exceptions import LoadClientTerminalException, LoadClientTransientException, LoadClientUnsupportedWriteDisposition, LoadClientUnsupportedFileFormats, LoadJobNotExistsException, LoadUnknownTableException
+from dlt.load.client_base import JobClientBase, LoadJob
+from dlt.load.typing import LoadJobStatus, TLoaderCapabilities
+from dlt.load.configuration import configuration, LoaderConfiguration
 
 
 CONFIG: Type[LoaderConfiguration] = None
-load_storage: LoaderStorage = None
+load_storage: LoadStorage = None
 load_client_cls: Type[JobClientBase] = None
 load_counter: Counter = None
 job_gauge: Gauge = None
@@ -36,18 +36,18 @@ class SupportsLoadClient(Protocol):
 
 
 def loader_capabilities(client_type: str) -> TLoaderCapabilities:
-    m: SupportsLoadClient = import_module(f"dlt.loaders.{client_type}.client")
+    m: SupportsLoadClient = import_module(f"dlt.load.{client_type}.client")
     return m.CLIENT.capabilities()
 
 
 def import_client_cls(client_type: str, initial_values: StrAny = None) -> Type[JobClientBase]:
-    m: SupportsLoadClient = import_module(f"dlt.loaders.{client_type}.client")
+    m: SupportsLoadClient = import_module(f"dlt.load.{client_type}.client")
     m.CLIENT.configure(initial_values)
     return m.CLIENT
 
 
-def create_folders(is_storage_owner: bool) -> LoaderStorage:
-    load_storage = LoaderStorage(
+def create_folders(is_storage_owner: bool) -> LoadStorage:
+    load_storage = LoadStorage(
         is_storage_owner,
         CONFIG,
         load_client_cls.capabilities()["preferred_loader_file_format"],

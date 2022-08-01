@@ -10,7 +10,7 @@ from dlt.common.file_storage import FileStorage
 from dlt.common.schema import TTableSchemaColumns
 from dlt.common.utils import uniq_id
 
-from dlt.loaders.client_base import DBCursor, SqlJobClientBase
+from dlt.load.client_base import DBCursor, SqlJobClientBase
 
 from tests.utils import TEST_STORAGE, delete_storage
 from tests.common.utils import load_json_case

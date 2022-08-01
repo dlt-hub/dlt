@@ -11,6 +11,7 @@ experiments/*
 !experiments/
 !experiments/pipeline/
 !experiments/pipeline/*
+secrets.toml
 
 # Byte-compiled / optimized / DLL files
 **/__pycache__/

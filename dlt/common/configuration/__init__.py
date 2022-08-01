@@ -1,6 +1,6 @@
 from .run_configuration import RunConfiguration, BaseConfiguration  # noqa: F401
 from .normalize_volume_configuration import NormalizeVolumeConfiguration, ProductionNormalizeVolumeConfiguration  # noqa: F401
-from .loading_volume_configuration import LoadingVolumeConfiguration, ProductionLoadingVolumeConfiguration  # noqa: F401
+from .load_volume_configuration import LoadVolumeConfiguration, ProductionLoadVolumeConfiguration  # noqa: F401
 from .schema_volume_configuration import SchemaVolumeConfiguration, ProductionSchemaVolumeConfiguration  # noqa: F401
 from .pool_runner_configuration import PoolRunnerConfiguration, TPoolType  # noqa: F401
 from .gcp_client_configuration import GcpClientConfiguration, GcpClientProductionConfiguration  # noqa: F401

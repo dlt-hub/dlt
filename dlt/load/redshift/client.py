@@ -11,10 +11,10 @@ from dlt.common.schema import COLUMN_HINTS, TColumnSchema, TColumnSchemaBase, TD
 from dlt.common.schema.typing import TTableSchema, TWriteDisposition
 from dlt.common.typing import StrAny
 
-from dlt.loaders.exceptions import (LoadClientSchemaWillNotUpdate, LoadClientTerminalInnerException,
+from dlt.load.exceptions import (LoadClientSchemaWillNotUpdate, LoadClientTerminalInnerException,
                                             LoadClientTransientInnerException, LoadFileTooBig)
-from dlt.loaders.typing import LoadJobStatus, DBCursor, TLoaderCapabilities, TNativeConn
-from dlt.loaders.client_base import JobClientBase, SqlClientBase, SqlJobClientBase, LoadJob
+from dlt.load.typing import LoadJobStatus, DBCursor, TLoaderCapabilities, TNativeConn
+from dlt.load.client_base import JobClientBase, SqlClientBase, SqlJobClientBase, LoadJob
 
 
 SCT_TO_PGT: Dict[TDataType, str] = {

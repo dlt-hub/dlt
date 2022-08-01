@@ -17,7 +17,7 @@ from dlt.common.exceptions import PoolException
 from dlt.common.storages import SchemaStorage
 from dlt.common.schema import TSchemaUpdate, Schema
 from dlt.common.schema.exceptions import CannotCoerceColumnException
-from dlt.common.storages.loader_storage import LoaderStorage
+from dlt.common.storages.load_storage import LoadStorage
 
 from dlt.normalize.configuration import configuration, NormalizeConfiguration
 
@@ -37,7 +37,7 @@ class Normalize(Runnable):
         self.CONFIG = C
         self.pool: ProcessPool = None
         self.normalize_storage: NormalizeStorage = None
-        self.load_storage: LoaderStorage = None
+        self.load_storage: LoadStorage = None
         self.schema_storage: SchemaStorage = None
 
         # setup singletons
@@ -60,7 +60,7 @@ class Normalize(Runnable):
         self.normalize_storage = NormalizeStorage(True, self.CONFIG)
         self.schema_storage = SchemaStorage(self.CONFIG, makedirs=True)
         # normalize saves in preferred format but can read all supported formats
-        self.load_storage = LoaderStorage(True, self.CONFIG, self.CONFIG.LOADER_FILE_FORMAT, LoaderStorage.ALL_SUPPORTED_FILE_FORMATS)
+        self.load_storage = LoadStorage(True, self.CONFIG, self.CONFIG.LOADER_FILE_FORMAT, LoadStorage.ALL_SUPPORTED_FILE_FORMATS)
 
         self.normalize_storage.initialize_storage()
         self.load_storage.initialize_storage()

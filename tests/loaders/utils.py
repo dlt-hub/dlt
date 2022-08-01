@@ -13,8 +13,8 @@ from dlt.common.time import sleep
 from dlt.common.typing import StrAny
 from dlt.common.utils import uniq_id
 
-from dlt.loaders.loader import get_load_table, import_client_cls
-from dlt.loaders.client_base import JobClientBase, LoadJob, SqlJobClientBase
+from dlt.load.loader import get_load_table, import_client_cls
+from dlt.load.client_base import JobClientBase, LoadJob, SqlJobClientBase
 
 TABLE_UPDATE: List[TColumnSchema] = [
     {

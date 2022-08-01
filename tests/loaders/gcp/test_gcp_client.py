@@ -7,10 +7,10 @@ from dlt.common.arithmetics import numeric_default_context
 from dlt.common.file_storage import FileStorage
 from dlt.common.schema.schema import Schema
 from dlt.common.utils import uniq_id
-from dlt.loaders.exceptions import LoadJobNotExistsException, LoadJobServerTerminalException
+from dlt.load.exceptions import LoadJobNotExistsException, LoadJobServerTerminalException
 
-from dlt.loaders.loader import import_client_cls
-from dlt.loaders.gcp.client import BigQueryClient
+from dlt.load.loader import import_client_cls
+from dlt.load.gcp.client import BigQueryClient
 
 from tests.utils import TEST_STORAGE, delete_storage
 from tests.loaders.utils import expect_load_file, prepare_event_user_table, yield_client_with_storage

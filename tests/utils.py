@@ -70,9 +70,9 @@ def clean_storage(init_normalize: bool = False, init_loader: bool = False) -> Fi
         from dlt.common.configuration import NormalizeVolumeConfiguration
         NormalizeStorage(True, NormalizeVolumeConfiguration)
     if init_loader:
-        from dlt.common.storages.loader_storage import LoaderStorage
-        from dlt.common.configuration import LoadingVolumeConfiguration
-        LoaderStorage(True, LoadingVolumeConfiguration, "jsonl", LoaderStorage.ALL_SUPPORTED_FILE_FORMATS)
+        from dlt.common.storages.load_storage import LoadStorage
+        from dlt.common.configuration import LoadVolumeConfiguration
+        LoadStorage(True, LoadVolumeConfiguration, "jsonl", LoadStorage.ALL_SUPPORTED_FILE_FORMATS)
     return storage
 
 

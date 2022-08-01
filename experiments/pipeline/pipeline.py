@@ -22,12 +22,12 @@ from dlt.common.file_storage import FileStorage
 from dlt.common.utils import is_interactive, uniq_id
 
 from dlt.extractors.extractor_storage import ExtractorStorageBase
-from dlt.loaders.typing import TLoaderCapabilities
+from dlt.load.typing import TLoaderCapabilities
 from dlt.normalize.configuration import NormalizeConfiguration, configuration as normalize_configuration
 from dlt.normalize import Normalize
-from dlt.loaders.client_base import SqlClientBase, SqlJobClientBase
-from dlt.loaders.configuration import LoaderConfiguration, configuration as loader_configuration
-from dlt.loaders import loader
+from dlt.load.client_base import SqlClientBase, SqlJobClientBase
+from dlt.load.configuration import LoaderConfiguration, configuration as loader_configuration
+from dlt.load import loader
 
 from experiments.pipeline.configuration import get_config
 from experiments.pipeline.exceptions import InvalidPipelineContextException, PipelineConfigMissing, PipelineConfiguredException, MissingDependencyException, PipelineStepFailed
@@ -346,7 +346,7 @@ class Pipeline:
         return {
             "PIPELINE_NAME": self.state["pipeline_name"],
             "EXIT_ON_EXCEPTION": True,
-            "LOADING_VOLUME_PATH": os.path.join(self.working_dir, "loading"),
+            "LOADING_VOLUME_PATH": os.path.join(self.working_dir, "normalized"),
             "NORMALIZE_VOLUME_PATH": os.path.join(self.working_dir, "normalize")
         }
 

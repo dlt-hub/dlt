@@ -10,8 +10,8 @@ from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns
 from dlt.common.schema.typing import TTableSchema
 from dlt.common.typing import StrAny
 
-from dlt.loaders.typing import LoadJobStatus, TNativeConn, TLoaderCapabilities, DBCursor
-from dlt.loaders.exceptions import LoadClientSchemaVersionCorrupted
+from dlt.load.typing import LoadJobStatus, TNativeConn, TLoaderCapabilities, DBCursor
+from dlt.load.exceptions import LoadClientSchemaVersionCorrupted
 
 
 class LoadJob:
