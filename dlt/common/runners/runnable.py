@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from functools import wraps
-from typing import Any, Dict, Type, TypeVar, TYPE_CHECKING
+from typing import Any, Dict, Type, TypeVar, TYPE_CHECKING, Union
 from multiprocessing.pool import Pool
 from weakref import WeakValueDictionary
 
@@ -50,7 +50,9 @@ def workermethod(f: TFun) -> TFun:
         TFun: wrapped worker function
     """
     @wraps(f)
-    def _wrap(rid: int, *args: Any, **kwargs: Any) -> Any:
-        return f(Runnable.RUNNING[rid], *args, **kwargs)
+    def _wrap(rid: Union[int, Runnable], *args: Any, **kwargs: Any) -> Any:
+        if isinstance(rid, int):
+            rid = Runnable.RUNNING[rid]
+        return f(rid, *args, **kwargs)
 
     return _wrap  # type: ignore

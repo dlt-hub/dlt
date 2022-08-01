@@ -15,7 +15,8 @@ from . import __version__
 
 class LoaderConfiguration(PoolRunnerConfiguration, LoadVolumeConfiguration):
     CLIENT_TYPE: str = "dummy"  # which destination to load data to
-    # MAX_PARALLEL_LOADS: int = 20  # how many parallel loads can be executed
+    WORKERS: int = 20  # how many parallel loads can be executed
+    DEFAULT_DATASET: str = None
     # MAX_PARALLELISM: int = 20  # in 20 separate threads
     POOL_TYPE: TPoolType = "thread"  # mostly i/o (upload) so may be thread pool
 

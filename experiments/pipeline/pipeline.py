@@ -27,7 +27,7 @@ from dlt.normalize.configuration import NormalizeConfiguration, configuration as
 from dlt.normalize import Normalize
 from dlt.load.client_base import SqlClientBase, SqlJobClientBase
 from dlt.load.configuration import LoaderConfiguration, configuration as loader_configuration
-from dlt.load import loader
+from dlt.load import Load
 
 from experiments.pipeline.configuration import get_config
 from experiments.pipeline.exceptions import InvalidPipelineContextException, PipelineConfigMissing, PipelineConfiguredException, MissingDependencyException, PipelineStepFailed
@@ -41,7 +41,7 @@ TCredentials = Union[TConnectionString, StrAny]
 
 class TPipelineState(TypedDict):
     pipeline_name: str
-    default_dataset_name: str
+    default_dataset: str
     # is_transient: bool
     default_schema_name: Optional[str]
     # pipeline_secret: TSecretValue
@@ -138,9 +138,6 @@ class Pipeline:
         # go through configuration to resolve config via registered providers
         C = get_config(PipelineConfiguration, PipelineConfiguration, initial_values=locals())
         pipeline_name, working_dir, pipeline_secret, overwrite_existing = itemgetter("pipeline_name", "working_dir", "pipeline_secret", "overwrite_existing")(C.as_dict())
-        # get partial config for load
-        C = get_config(LoaderConfiguration, initial_values={"client_type": destination_name}, accept_partial=True)
-        destination_name = itemgetter("client_type")(C.as_dict())
 
         # create root storage with full pipeline state
         if not working_dir:
@@ -159,11 +156,12 @@ class Pipeline:
 
         self.state = {
             # "default_dataset_name": normalize_schema_name(name),
-            "destination_name": destination_name,
+            # "destination_name": self._ensure_destination_name(destination_name),
             # "is_transient": is_transient,
             "pipeline_name": pipeline_name,
             # "schema_sync_path": schema_sync_path
         }
+        self._resolve_load_config(destination_name)
 
         # restore pipeline if folder exists and is not empty
         # if self.pipeline_storage.has_folder("."):
@@ -230,7 +228,7 @@ class Pipeline:
         schema: Schema = None
     ) -> None:
         self._schema_storage.save_schema(schema)
-        self.state["default_dataset_name"] = schema.name
+        self.state["default_schema_name"] = schema.name
 
         if isinstance(data, SourceTables):
             # extract many
@@ -263,6 +261,7 @@ class Pipeline:
     def load(
         self,
         destination_name: str = None,
+        default_dataset: str = None,
         credentials: TCredentials = None,
         raise_on_failed_jobs = False,
         raise_on_incompatible_schema = False,
@@ -271,9 +270,13 @@ class Pipeline:
         max_parallel_loads: int = 20,
         normalize_workers: int = 1
     ) -> None:
+        self._resolve_load_config(
+            destination_name or self._ensure_destination_name(),
+            default_dataset or self._ensure_default_dataset()
+            )
         # check if anything to normalize
         # then load
-        pass
+        self._configure_load(credentials or {})
 
     def activate(self) -> None:
         # make this instance the active one
@@ -323,7 +326,7 @@ class Pipeline:
         # shares schema storage with the pipeline so we do not need to install
         return Normalize(C)
 
-    def _configure_load(self, credenitials: TCredentials) -> None:
+    def _configure_load(self, credenitials: TCredentials) -> Load:
         # get destination or raise
         destination_name = self._ensure_destination_name()
         # import load client for given destination or raise
@@ -336,11 +339,10 @@ class Pipeline:
         loader_initial.update(self._common_initial())
 
         loader_client_initial = deepcopy(credenitials)
-        loader_client_initial.update({"DEFAULT_DATASET": self._ensure_default_dataset_name()})
+        loader_client_initial.update({"DEFAULT_DATASET": self._ensure_default_dataset()})
 
         C = loader_configuration(initial_values=loader_initial)
-        loader.configure(C, REGISTRY, client_initial_values=loader_client_initial, is_storage_owner=True)
-        self._load_instance = id(loader.CONFIG)
+        return Load(C, REGISTRY, client_initial_values=loader_client_initial, is_storage_owner=False)
 
     def _common_initial(self) -> StrAny:
         return {
@@ -352,7 +354,7 @@ class Pipeline:
 
     def _get_loader_capabilities(self, destination_name: str) -> TLoaderCapabilities:
         try:
-            return loader.loader_capabilities(destination_name)
+            return Load.loader_capabilities(destination_name)
         except ImportError:
             raise MissingDependencyException(
                 f"{destination_name} destination",
@@ -360,8 +362,23 @@ class Pipeline:
                 "Dependencies for specific destinations are available as extras of python-dlt"
             )
 
-    def _ensure_destination_name(self, maybe_new_destination_name: str = None) -> str:
-        d_n = self.state.setdefault("destination_name", maybe_new_destination_name)
+    def _resolve_load_config(self, maybe_new_destination_name: str = None, maybe_default_dataset: str = None) -> None:
+        C = get_config(
+            LoaderConfiguration,
+            initial_values={
+                "client_type": maybe_new_destination_name,
+                "default_dataset": maybe_default_dataset
+            },
+            accept_partial=True
+        )
+        maybe_new_destination_name, maybe_default_dataset = itemgetter("client_type", "default_dataset")(C.as_dict())
+        self.state.update({
+            "destination_name": maybe_new_destination_name,
+            "default_dataset": maybe_default_dataset
+        })
+
+    def _ensure_destination_name(self) -> str:
+        d_n = self.state.get("destination_name")
         if not d_n:
                 raise PipelineConfigMissing(
                     "destination_name",
@@ -370,8 +387,8 @@ class Pipeline:
                 )
         return d_n
 
-    def _ensure_default_dataset_name(self, maybe_new_dataset_name: str = None) -> str:
-        d_n = self.state.setdefault("default_dataset_name", maybe_new_dataset_name)
+    def _ensure_default_dataset(self) -> str:
+        d_n = self.state.get("default_dataset")
         if not d_n:
             d_n = normalize_schema_name(self.state["pipeline_name"])
         return d_n

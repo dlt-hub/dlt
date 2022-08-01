@@ -36,6 +36,11 @@ def test_runnable_thread_pool() -> None:
     assert len(set(v[1] for v in rv)) == 1
 
 
+def test_runnable_direct_worker_call() -> None:
+    r = _TestRunnable(4)
+    rv = _TestRunnable.worker(r, 199)
+    assert rv[0] == 199
+
 
 @skipifspawn
 def test_fail_on_process_worker_started_early() -> None:

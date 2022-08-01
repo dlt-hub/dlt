@@ -9,7 +9,7 @@ from dlt.common.schema.schema import Schema
 from dlt.common.utils import uniq_id
 
 from dlt.load.exceptions import LoadClientTerminalInnerException
-from dlt.load.loader import import_client_cls
+from dlt.load import Load
 from dlt.load.redshift.client import RedshiftClient
 
 from tests.utils import TEST_STORAGE, delete_storage
@@ -34,7 +34,7 @@ def client() -> Iterator[RedshiftClient]:
 def test_empty_schema_name_init_storage(client: RedshiftClient) -> None:
     e_client: RedshiftClient = None
     # will reuse same configuration
-    with import_client_cls("redshift", initial_values={"DEFAULT_DATASET": client.CONFIG.DEFAULT_DATASET})(Schema("")) as e_client:
+    with Load.import_client_cls("redshift", initial_values={"DEFAULT_DATASET": client.CONFIG.DEFAULT_DATASET})(Schema("")) as e_client:
         e_client.initialize_storage()
         try:
             # schema was created with the name of just schema prefix

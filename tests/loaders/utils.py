@@ -13,7 +13,7 @@ from dlt.common.time import sleep
 from dlt.common.typing import StrAny
 from dlt.common.utils import uniq_id
 
-from dlt.load.loader import get_load_table, import_client_cls
+from dlt.load import Load
 from dlt.load.client_base import JobClientBase, LoadJob, SqlJobClientBase
 
 TABLE_UPDATE: List[TColumnSchema] = [
@@ -84,7 +84,7 @@ def load_table(name: str) -> TTableSchemaColumns:
 def expect_load_file(client: JobClientBase, file_storage: FileStorage, query: str, table_name: str, status = "completed") -> LoadJob:
     file_name = uniq_id()
     file_storage.save(file_name, query.encode("utf-8"))
-    table = get_load_table(client.schema, table_name, file_name)
+    table = Load.get_load_table(client.schema, table_name, file_name)
     job = client.start_file_load(table, file_storage._make_path(file_name))
     while job.status() == "running":
         sleep(0.5)
@@ -116,7 +116,7 @@ def yield_client_with_storage(client_type: str) -> Iterator[SqlJobClientBase]:
     schema = schema_storage.load_schema("event")
     # create client and dataset
     client: SqlJobClientBase = None
-    with import_client_cls(client_type, initial_values=initial_values)(schema) as client:
+    with Load.import_client_cls(client_type, initial_values=initial_values)(schema) as client:
         client.initialize_storage()
         yield client
         client.sql_client.drop_dataset()
