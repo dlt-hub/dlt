@@ -6,7 +6,7 @@ from dlt.common.typing import TDataItem
 
 
 def normalize_data_item(schema: Schema, source_event: TDataItem, load_id: str) -> TNormalizedRowIterator:
-    if schema.schema_name == "event":
+    if schema.name == "event":
         # this emulates rasa parser on standard parser
         event = {"sender_id": source_event["sender_id"], "timestamp": source_event["timestamp"]}
         yield from relational_normalize(schema, event, load_id)
