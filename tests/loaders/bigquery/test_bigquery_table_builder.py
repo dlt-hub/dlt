@@ -1,14 +1,12 @@
-import os
 import pytest
 from copy import deepcopy
-from typing import List
 
 from dlt.common.utils import custom_environ, uniq_id
 from dlt.common.schema import Schema
 from dlt.common.schema.utils import new_table
 from dlt.common.configuration import make_configuration, GcpClientConfiguration
 
-from dlt.load.gcp.client import BigQueryClient
+from dlt.load.bigquery.client import BigQueryClient
 from dlt.load.exceptions import LoadClientSchemaWillNotUpdate
 
 from tests.loaders.utils import TABLE_UPDATE

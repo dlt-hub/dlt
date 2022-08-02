@@ -60,7 +60,7 @@ jobs:
 
       - name: Install dependencies
         # if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction --no-root -E gcp
+        run: poetry install --no-interaction --no-root -E bigquery
 
       - name: Install self
         run: poetry install --no-interaction

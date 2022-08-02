@@ -74,6 +74,9 @@ flake8-builtins = "^1.5.3"
 [tool.poetry.extras]
 dbt = ["dbt-core", "GitPython", "dbt-redshift", "dbt-bigquery"]
 gcp = ["grpcio", "google-cloud-bigquery", "google-cloud-bigquery-storage", "pyarrow"]
+# bigquery is alias on gcp extras
+bigquery = ["grpcio", "google-cloud-bigquery", "google-cloud-bigquery-storage", "pyarrow"]
+
 postgres = ["psycopg2-binary"]
 redshift = ["psycopg2-binary"]
 

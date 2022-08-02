@@ -37,7 +37,7 @@ def redshift_client() -> Iterator[SqlJobClientBase]:
 
 @pytest.fixture(scope="module")
 def bigquery_client() -> Iterator[SqlJobClientBase]:
-    yield from yield_client_with_storage("gcp")
+    yield from yield_client_with_storage("bigquery")
 
 
 @pytest.fixture(scope="module")
