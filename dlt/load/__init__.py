@@ -1,2 +1,2 @@
 from dlt._version import loader_version as __version__
-from dlt.load.loader import Load
+from dlt.load.load import Load

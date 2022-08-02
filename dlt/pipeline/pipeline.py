@@ -24,7 +24,7 @@ from dlt.load.client_base import SqlClientBase, SqlJobClientBase
 from dlt.normalize.configuration import configuration as normalize_configuration
 from dlt.load.configuration import configuration as loader_configuration
 from dlt.normalize import normalize
-from dlt.load import loader
+from dlt.load import load
 from dlt.pipeline.exceptions import InvalidPipelineContextException, MissingDependencyException, NoPipelineException, PipelineStepFailed, CannotRestorePipelineException, SqlClientNotAvailable
 from dlt.pipeline.typing import PipelineCredentials
 
@@ -148,8 +148,8 @@ class Pipeline:
 
     def load(self, max_parallel_loads: int = 20) -> None:
         self._verify_loader_instance()
-        loader.CONFIG.WORKERS = max_parallel_loads
-        runner.run_pool(loader.CONFIG, loader.load)
+        load.CONFIG.WORKERS = max_parallel_loads
+        runner.run_pool(load.CONFIG, load.load)
         if runner.LAST_RUN_METRICS.has_failed:
             raise PipelineStepFailed("load", self.last_run_exception, runner.LAST_RUN_METRICS)
 
@@ -171,19 +171,19 @@ class Pipeline:
 
     def list_normalized_loads(self) -> Sequence[str]:
         self._verify_loader_instance()
-        return loader.load_storage.list_loads()
+        return load.load_storage.list_loads()
 
     def list_completed_loads(self) -> Sequence[str]:
         self._verify_loader_instance()
-        return loader.load_storage.list_completed_loads()
+        return load.load_storage.list_completed_loads()
 
     def list_failed_jobs(self, load_id: str) -> Sequence[Tuple[str, str]]:
         self._verify_loader_instance()
         failed_jobs: List[Tuple[str, str]] = []
-        for file in loader.load_storage.list_archived_failed_jobs(load_id):
+        for file in load.load_storage.list_archived_failed_jobs(load_id):
             if not file.endswith(".exception"):
                 try:
-                    failed_message = loader.load_storage.storage.load(file + ".exception")
+                    failed_message = load.load_storage.storage.load(file + ".exception")
                 except FileNotFoundError:
                     failed_message = None
                 failed_jobs.append((file, failed_message))
@@ -216,25 +216,25 @@ class Pipeline:
     def sync_schema(self) -> None:
         self._verify_loader_instance()
         schema = normalize.schema_storage.load_store_schema(self.default_schema_name)
-        with loader.load_client_cls(schema) as client:
+        with load.load_client_cls(schema) as client:
             client.initialize_storage()
             client.update_storage_schema()
 
     def sql_client(self) -> SqlClientBase[Any]:
         self._verify_loader_instance()
         schema = normalize.schema_storage.load_store_schema(self.default_schema_name)
-        with loader.load_client_cls(schema) as c:
+        with load.load_client_cls(schema) as c:
             if isinstance(c, SqlJobClientBase):
                 return c.sql_client
             else:
-                raise SqlClientNotAvailable(loader.CONFIG.CLIENT_TYPE)
+                raise SqlClientNotAvailable(load.CONFIG.CLIENT_TYPE)
 
     def _configure_normalize(self) -> None:
         # create normalize config
         normalize_initial = {
             "NORMALIZE_VOLUME_PATH": os.path.join(self.root_path, "normalize"),
             "SCHEMA_VOLUME_PATH": os.path.join(self.root_path, "schemas"),
-            "LOADER_FILE_FORMAT": loader.load_client_cls.capabilities()["preferred_loader_file_format"],
+            "LOADER_FILE_FORMAT": load.load_client_cls.capabilities()["preferred_loader_file_format"],
             "ADD_EVENT_JSON": False
         }
         normalize_initial.update(self._configure_runner())
@@ -252,14 +252,14 @@ class Pipeline:
         loader_initial["DELETE_COMPLETED_JOBS"] = True
         C = loader_configuration(initial_values=loader_initial)
         try:
-            loader.configure(C, REGISTRY, client_initial_values=loader_client_initial, is_storage_owner=True)
+            load.configure(C, REGISTRY, client_initial_values=loader_client_initial, is_storage_owner=True)
         except ImportError:
             raise MissingDependencyException(
                 f"{self.credentials.CLIENT_TYPE} loader",
                 [f"python-dlt[{self.credentials.CLIENT_TYPE}]"],
                 "Dependencies for specific loaders are available as extras of python-dlt"
             )
-        self._loader_instance = id(loader.CONFIG)
+        self._loader_instance = id(load.CONFIG)
 
     # def _only_active(f: TFun) -> TFun:
     #     def _wrapper(self) -> Any
@@ -267,7 +267,7 @@ class Pipeline:
     def _verify_loader_instance(self) -> None:
         if self._loader_instance is None:
             raise NoPipelineException()
-        if self._loader_instance != id(loader.CONFIG):
+        if self._loader_instance != id(load.CONFIG):
             # TODO: consider restoring pipeline from current work dir instead
             raise InvalidPipelineContextException()
 

@@ -275,8 +275,10 @@ class Pipeline:
             default_dataset or self._ensure_default_dataset()
             )
         # check if anything to normalize
+        if len(self._extractor_storage.normalize_storage.list_files_to_normalize_sorted()) > 0:
+            self.normalize(dry_run=dry_run, workers=normalize_workers)
         # then load
-        self._configure_load(credentials or {})
+        self._configure_load(locals(), credentials or {})
 
     def activate(self) -> None:
         # make this instance the active one
@@ -326,20 +328,23 @@ class Pipeline:
         # shares schema storage with the pipeline so we do not need to install
         return Normalize(C)
 
-    def _configure_load(self, credenitials: TCredentials) -> Load:
+    def _configure_load(self, loader_initial: StrAny, credenitials: TCredentials = None) -> Load:
         # get destination or raise
         destination_name = self._ensure_destination_name()
         # import load client for given destination or raise
         self._get_loader_capabilities(destination_name)
+        # get default dataset or raise
+        default_dataset = self._ensure_default_dataset()
 
-        loader_initial = {
+        loader_initial.update({
             "DELETE_COMPLETED_JOBS": True,
-            "CLIENT_TYPE": destination_name
-        }
+            "CLIENT_TYPE": destination_name,
+            "DEFAULT_DATASET": default_dataset
+        })
         loader_initial.update(self._common_initial())
 
         loader_client_initial = deepcopy(credenitials)
-        loader_client_initial.update({"DEFAULT_DATASET": self._ensure_default_dataset()})
+        loader_client_initial.update({"DEFAULT_DATASET": default_dataset})
 
         C = loader_configuration(initial_values=loader_initial)
         return Load(C, REGISTRY, client_initial_values=loader_client_initial, is_storage_owner=False)
