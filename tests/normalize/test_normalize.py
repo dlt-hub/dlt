@@ -14,7 +14,7 @@ from dlt.common.schema import TDataType
 from dlt.common.storages.load_storage import LoadStorage
 from dlt.common.storages.normalize_storage import NormalizeStorage
 from dlt.common.storages import SchemaStorage
-from dlt.extractors.extractor_storage import ExtractorStorageBase
+from dlt.extract.extractor_storage import ExtractorStorageBase
 
 from dlt.normalize import Normalize, configuration as normalize_configuration, __version__
 

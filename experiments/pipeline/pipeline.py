@@ -21,7 +21,7 @@ from dlt.common.schema.schema import Schema
 from dlt.common.file_storage import FileStorage
 from dlt.common.utils import is_interactive, uniq_id
 
-from dlt.extractors.extractor_storage import ExtractorStorageBase
+from dlt.extract.extractor_storage import ExtractorStorageBase
 from dlt.load.typing import TLoaderCapabilities
 from dlt.normalize.configuration import NormalizeConfiguration, configuration as normalize_configuration
 from dlt.normalize import Normalize
