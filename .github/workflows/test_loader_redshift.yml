@@ -8,10 +8,10 @@ on:
   workflow_dispatch:
 
 env:
-  PG_HOST: 3.73.90.3
-  PG_USER: loader
-  PG_PASSWORD: ${{ secrets.PG_PASSWORD }}
-  PG_DATABASE_NAME: chat_analytics_rasa_ci
+  HOST: 3.73.90.3
+  USER: loader
+  PASSWORD: ${{ secrets.PG_PASSWORD }}
+  DBNAME: chat_analytics_rasa_ci
   DEFAULT_DATASET: workflowtest
 
 jobs:

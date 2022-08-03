@@ -33,15 +33,17 @@ class Normalize(Runnable):
     schema_version_gauge: Gauge = None
     load_package_counter: Counter = None
 
-    def __init__(self, C: Type[NormalizeConfiguration], collector: CollectorRegistry = REGISTRY) -> None:
+    def __init__(self, C: Type[NormalizeConfiguration], collector: CollectorRegistry = REGISTRY, schema_storage: SchemaStorage = None) -> None:
         self.CONFIG = C
         self.pool: ProcessPool = None
         self.normalize_storage: NormalizeStorage = None
         self.load_storage: LoadStorage = None
         self.schema_storage: SchemaStorage = None
 
-        # setup singletons
-        self.create_folders()
+        # setup storages
+        self.create_storages()
+        # create schema storage with give type
+        self.schema_storage = schema_storage or SchemaStorage(self.CONFIG, makedirs=True)
         try:
             self.create_gauges(collector)
         except ValueError as v:
@@ -56,9 +58,8 @@ class Normalize(Runnable):
         Normalize.schema_version_gauge = Gauge("normalize_schema_version", "Current schema version", ["schema"], registry=registry)
         Normalize.load_package_counter = Gauge("normalize_load_packages_created_count", "Count of load package created", ["schema"], registry=registry)
 
-    def create_folders(self) -> None:
+    def create_storages(self) -> None:
         self.normalize_storage = NormalizeStorage(True, self.CONFIG)
-        self.schema_storage = SchemaStorage(self.CONFIG, makedirs=True)
         # normalize saves in preferred format but can read all supported formats
         self.load_storage = LoadStorage(True, self.CONFIG, self.CONFIG.LOADER_FILE_FORMAT, LoadStorage.ALL_SUPPORTED_FILE_FORMATS)
 

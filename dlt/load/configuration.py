@@ -1,22 +1,26 @@
-from typing import Any, Type
+from typing import Any, Optional, Type
+from dlt.common.configuration.run_configuration import BaseConfiguration
 
 from dlt.common.utils import uniq_id
 from dlt.common.typing import StrAny
 from dlt.common.configuration import (PoolRunnerConfiguration,
                                               LoadVolumeConfiguration,
                                               ProductionLoadVolumeConfiguration,
-                                              PostgresConfiguration, PostgresProductionConfiguration,
-                                              GcpClientConfiguration, GcpClientProductionConfiguration,
                                               TPoolType, make_configuration)
-
-from dlt.load.dummy.configuration import DummyClientConfiguration
-
 from . import __version__
 
-class LoaderConfiguration(PoolRunnerConfiguration, LoadVolumeConfiguration):
-    CLIENT_TYPE: str = "dummy"  # which destination to load data to
+
+class LoaderClientConfiguration(BaseConfiguration):
+    CLIENT_TYPE: str = None  # which destination to load data to
+
+
+class LoaderClientDwhConfiguration(LoaderClientConfiguration):
+    DEFAULT_DATASET: str = None  # dataset name in the destination to load data to, for schemas that are not default schema, it is used as dataset prefix
+    DEFAULT_SCHEMA_NAME: Optional[str] = None  # name of default schema to be used to name effective dataset to load data to
+
+
+class LoaderConfiguration(PoolRunnerConfiguration, LoadVolumeConfiguration, LoaderClientConfiguration):
     WORKERS: int = 20  # how many parallel loads can be executed
-    DEFAULT_DATASET: str = None
     # MAX_PARALLELISM: int = 20  # in 20 separate threads
     POOL_TYPE: TPoolType = "thread"  # mostly i/o (upload) so may be thread pool
 

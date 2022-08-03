@@ -13,7 +13,7 @@ from dlt.load import Load
 from dlt.load.redshift.client import RedshiftClient
 
 from tests.utils import TEST_STORAGE, delete_storage
-from tests.loaders.utils import expect_load_file, prepare_event_user_table, yield_client_with_storage
+from tests.load.utils import expect_load_file, prepare_event_user_table, yield_client_with_storage
 
 
 @pytest.fixture
@@ -31,10 +31,16 @@ def client() -> Iterator[RedshiftClient]:
     yield from yield_client_with_storage("redshift")
 
 
-def test_empty_schema_name_init_storage(client: RedshiftClient) -> None:
+def test_default_schema_name_init_storage(client: RedshiftClient) -> None:
     e_client: RedshiftClient = None
     # will reuse same configuration
-    with Load.import_client_cls("redshift", initial_values={"DEFAULT_DATASET": client.CONFIG.DEFAULT_DATASET})(Schema("")) as e_client:
+    with Load.import_client_cls(
+        "redshift",
+        initial_values={
+            "DEFAULT_DATASET": client.CONFIG.DEFAULT_DATASET,
+            "DEFAULT_SCHEMA_NAME": "default"
+        })(Schema("default")
+    ) as e_client:
         e_client.initialize_storage()
         try:
             # schema was created with the name of just schema prefix

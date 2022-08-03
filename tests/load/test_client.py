@@ -14,7 +14,7 @@ from dlt.load.client_base import DBCursor, SqlJobClientBase
 
 from tests.utils import TEST_STORAGE, delete_storage
 from tests.common.utils import load_json_case
-from tests.loaders.utils import TABLE_UPDATE, TABLE_ROW, expect_load_file, yield_client_with_storage, write_dataset, prepare_event_user_table
+from tests.load.utils import TABLE_UPDATE, TABLE_ROW, expect_load_file, yield_client_with_storage, write_dataset, prepare_event_user_table
 
 
 ALL_CLIENTS = ['redshift_client', 'bigquery_client']

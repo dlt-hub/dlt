@@ -1,11 +1,14 @@
 from typing import Type
 
 from dlt.common.typing import StrAny
-from dlt.common.configuration import BaseConfiguration, make_configuration
+from dlt.common.configuration import make_configuration
 from dlt.common.dataset_writers import TLoaderFileFormat
 
+from dlt.load.configuration import LoaderClientConfiguration
 
-class DummyClientConfiguration(BaseConfiguration):
+
+class DummyClientConfiguration(LoaderClientConfiguration):
+    CLIENT_TYPE: str = "dummy"
     LOADER_FILE_FORMAT: TLoaderFileFormat = "jsonl"
     FAIL_PROB: float = 0.0
     RETRY_PROB: float = 0.0

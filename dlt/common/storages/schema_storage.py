@@ -55,7 +55,7 @@ class SchemaStorage(Mapping[str, Schema]):
                 pass
         path = self._save_schema(schema)
         if self.C.EXPORT_SCHEMA_PATH:
-            self._export_schema(schema)
+            self._export_schema(schema, self.C.EXPORT_SCHEMA_PATH)
         return path
 
     def remove_schema(self, name: str) -> None:
@@ -131,7 +131,7 @@ class SchemaStorage(Mapping[str, Schema]):
             raise ValueError(self.C.EXTERNAL_SCHEMA_FORMAT)
         return imported_schema
 
-    def _export_schema(self, schema: Schema) -> None:
+    def _export_schema(self, schema: Schema, export_path: str) -> None:
         if self.C.EXTERNAL_SCHEMA_FORMAT == "json":
             exported_schema_s = schema.to_pretty_json(remove_defaults=self.C.EXTERNAL_SCHEMA_FORMAT_REMOVE_DEFAULTS)
         elif self.C.EXTERNAL_SCHEMA_FORMAT == "yaml":
@@ -139,10 +139,10 @@ class SchemaStorage(Mapping[str, Schema]):
         else:
             raise ValueError(self.C.EXTERNAL_SCHEMA_FORMAT)
 
-        export_storage = FileStorage(self.C.EXPORT_SCHEMA_PATH, makedirs=True)
+        export_storage = FileStorage(export_path, makedirs=True)
         schema_file = self._file_name_in_store(schema.name, self.C.EXTERNAL_SCHEMA_FORMAT)
         export_storage.save(schema_file, exported_schema_s)
-        logger.info(f"Schema {schema.name} exported to {self.C.EXPORT_SCHEMA_PATH} with version {schema.stored_version} as {self.C.EXTERNAL_SCHEMA_FORMAT}")
+        logger.info(f"Schema {schema.name} exported to {export_path} with version {schema.stored_version} as {self.C.EXTERNAL_SCHEMA_FORMAT}")
 
     def _save_schema(self, schema: Schema) -> str:
         # save a schema to schema store

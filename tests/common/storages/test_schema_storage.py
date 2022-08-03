@@ -11,7 +11,7 @@ from dlt.common.schema.typing import TStoredSchema
 from dlt.common.schema.utils import default_normalizers
 from dlt.common.configuration import SchemaVolumeConfiguration
 from dlt.common.storages.exceptions import InStorageSchemaModified, SchemaNotFoundError
-from dlt.common.storages.schema_storage import SchemaStorage
+from dlt.common.storages import SchemaStorage, LiveSchemaStorage
 from dlt.common.typing import DictStrAny
 
 from tests.utils import autouse_root_storage, TEST_STORAGE
@@ -37,7 +37,8 @@ def ie_storage() -> SchemaStorage:
 
 def init_storage(initial: DictStrAny = None) -> SchemaStorage:
     C = make_configuration(SchemaVolumeConfiguration, SchemaVolumeConfiguration, initial_values=initial)
-    s = SchemaStorage(C, makedirs=True)
+    # use live schema storage for test which must be backward compatible with schema storage
+    s = LiveSchemaStorage(C, makedirs=True)
     if C.EXPORT_SCHEMA_PATH:
         os.makedirs(C.EXPORT_SCHEMA_PATH, exist_ok=True)
     if C.IMPORT_SCHEMA_PATH:
@@ -85,7 +86,7 @@ def test_skip_import_if_not_modified(synced_storage: SchemaStorage, storage: Sch
     # the import schema gets modified
     storage_schema.tables["_dlt_loads"]["write_disposition"] = "append"
     storage_schema.tables.pop("event_user")
-    synced_storage._export_schema(storage_schema)
+    synced_storage._export_schema(storage_schema, synced_storage.C.EXPORT_SCHEMA_PATH)
     # now load will import again
     reloaded_schema = synced_storage.load_schema("ethereum")
     # we have overwritten storage schema
@@ -129,19 +130,19 @@ def test_list_schemas(storage: SchemaStorage) -> None:
     schema = Schema("ethereum")
     storage.save_schema(schema)
     assert storage.list_schemas() == ["ethereum"]
-    schema = Schema("")
+    schema = Schema("event")
     storage.save_schema(schema)
-    assert set(storage.list_schemas()) == set(["ethereum", ""])
-    storage.remove_schema("")
+    assert set(storage.list_schemas()) == set(["ethereum", "event"])
+    storage.remove_schema("event")
     assert storage.list_schemas() == ["ethereum"]
 
 
 def test_remove_schema(storage: SchemaStorage) -> None:
     schema = Schema("ethereum")
     storage.save_schema(schema)
-    schema = Schema("")
+    schema = Schema("event")
     storage.save_schema(schema)
-    storage.remove_schema("")
+    storage.remove_schema("event")
     storage.remove_schema("ethereum")
     assert storage.list_schemas() == []
 
@@ -161,20 +162,20 @@ def test_mapping_interface(storage: SchemaStorage) -> None:
     # add elements
     schema = Schema("ethereum")
     storage.save_schema(schema)
-    schema = Schema("")
+    schema = Schema("event")
     storage.save_schema(schema)
 
     assert len(storage) == 2
     assert "ethereum" in storage
     assert storage["ethereum"].name == "ethereum"
-    assert storage[""].name == ""
-    assert set(storage.keys()) == set(["ethereum", ""])
-    assert set(name for name in storage) == set(["ethereum", ""])
+    assert storage["event"].name == "event"
+    assert set(storage.keys()) == set(["ethereum", "event"])
+    assert set(name for name in storage) == set(["ethereum", "event"])
     values = storage.values()
-    assert set(s.name for s in values) == set(["ethereum", ""])
+    assert set(s.name for s in values) == set(["ethereum", "event"])
     items = storage.items()
-    assert set(i[1].name for i in items) == set(["ethereum", ""])
-    assert set(i[0] for i in items) == set(["ethereum", ""])
+    assert set(i[1].name for i in items) == set(["ethereum", "event"])
+    assert set(i[0] for i in items) == set(["ethereum", "event"])
 
 
 def test_save_store_schema_over_import(ie_storage: SchemaStorage) -> None:
@@ -231,13 +232,13 @@ def test_save_store_schema(storage: SchemaStorage) -> None:
     assert loaded_schema.to_dict() == schema.to_dict()
 
 
-def test_save_empty_schema_name(storage: SchemaStorage) -> None:
-    schema = Schema("")
-    schema.settings["schema_sealed"] = True
-    storage.save_schema(schema)
-    assert storage.storage.has_file(SchemaStorage.SCHEMA_FILE_NAME % "json")
-    schema = storage.load_schema("")
-    assert schema.settings["schema_sealed"] is True
+# def test_save_empty_schema_name(storage: SchemaStorage) -> None:
+#     schema = Schema("")
+#     schema.settings["schema_sealed"] = True
+#     storage.save_schema(schema)
+#     assert storage.storage.has_file(SchemaStorage.SCHEMA_FILE_NAME % "json")
+#     schema = storage.load_schema("")
+#     assert schema.settings["schema_sealed"] is True
 
 
 def prepare_import_folder(storage: SchemaStorage) -> None:

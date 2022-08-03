@@ -44,6 +44,8 @@ def make_configuration(config: TConfiguration,
     try:
         _is_config_bounded(derived_config, possible_keys_in_config)
         _check_configuration_integrity(derived_config)
+        # full configuration was resolved
+        derived_config.__is_partial__ = False
     except ConfigEntryMissingException:
         if not accept_partial:
             raise

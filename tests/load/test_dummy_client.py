@@ -274,7 +274,7 @@ def test_exceptions() -> None:
 
 
 def test_version() -> None:
-    assert configuration()._VERSION == __version__
+    assert configuration({"CLIENT_TYPE": "dummy"})._VERSION == __version__
 
 
 def assert_complete_job(load: Load, storage: FileStorage, should_delete_completed: bool = False) -> None:
@@ -307,10 +307,10 @@ def prepare_load_package(load_storage: LoadStorage, cases: Sequence[str]) -> Tup
     load_id = uniq_id()
     load_storage.create_temp_load_folder(load_id)
     for case in cases:
-        path = f"./tests/loaders/cases/loading/{case}"
+        path = f"./tests/load/cases/loading/{case}"
         shutil.copy(path, load_storage.storage._make_path(f"{load_id}/{LoadStorage.NEW_JOBS_FOLDER}"))
     for f in ["schema_updates.json", "schema.json"]:
-        path = f"./tests/loaders/cases/loading/{f}"
+        path = f"./tests/load/cases/loading/{f}"
         shutil.copy(path, load_storage.storage._make_path(load_id))
     load_storage.commit_temp_load_folder(load_id)
     schema = load_storage.load_schema(load_id)

@@ -4,12 +4,12 @@ from copy import deepcopy
 from dlt.common.utils import custom_environ, uniq_id
 from dlt.common.schema import Schema
 from dlt.common.schema.utils import new_table
-from dlt.common.configuration import make_configuration, GcpClientConfiguration
+from dlt.common.configuration import make_configuration, GcpClientCredentials
 
 from dlt.load.bigquery.client import BigQueryClient
 from dlt.load.exceptions import LoadClientSchemaWillNotUpdate
 
-from tests.loaders.utils import TABLE_UPDATE
+from tests.load.utils import TABLE_UPDATE
 
 
 @pytest.fixture
@@ -19,13 +19,13 @@ def schema() -> Schema:
 
 def test_configuration() -> None:
     # check names normalized
-    with custom_environ({"BQ_CRED_PRIVATE_KEY": "---NO NEWLINE---\n"}):
-        C = make_configuration(GcpClientConfiguration, GcpClientConfiguration)
-        assert C.BQ_CRED_PRIVATE_KEY == "---NO NEWLINE---\n"
+    with custom_environ({"PRIVATE_KEY": "---NO NEWLINE---\n"}):
+        C = make_configuration(GcpClientCredentials, GcpClientCredentials)
+        assert C.PRIVATE_KEY == "---NO NEWLINE---\n"
 
-    with custom_environ({"BQ_CRED_PRIVATE_KEY": "---WITH NEWLINE---\n"}):
-        C = make_configuration(GcpClientConfiguration, GcpClientConfiguration)
-        assert C.BQ_CRED_PRIVATE_KEY == "---WITH NEWLINE---\n"
+    with custom_environ({"PRIVATE_KEY": "---WITH NEWLINE---\n"}):
+        C = make_configuration(GcpClientCredentials, GcpClientCredentials)
+        assert C.PRIVATE_KEY == "---WITH NEWLINE---\n"
 
 
 @pytest.fixture

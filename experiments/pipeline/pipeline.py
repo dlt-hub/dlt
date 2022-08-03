@@ -13,6 +13,7 @@ from dlt.common.configuration.schema_volume_configuration import SchemaVolumeCon
 from dlt.common.runners import pool_runner as runner, TRunArgs, TRunMetrics
 from dlt.common.dataset_writers import TLoaderFileFormat
 from dlt.common.schema.utils import normalize_schema_name
+from dlt.common.storages.live_schema_storage import LiveSchemaStorage
 from dlt.common.storages.normalize_storage import NormalizeStorage
 from dlt.common.storages.schema_storage import SchemaStorage
 from dlt.common.typing import DictStrAny, StrAny, TFun, TSecretValue
@@ -26,7 +27,7 @@ from dlt.load.typing import TLoaderCapabilities
 from dlt.normalize.configuration import NormalizeConfiguration, configuration as normalize_configuration
 from dlt.normalize import Normalize
 from dlt.load.client_base import SqlClientBase, SqlJobClientBase
-from dlt.load.configuration import LoaderConfiguration, configuration as loader_configuration
+from dlt.load.configuration import LoaderClientDwhConfiguration, LoaderConfiguration, configuration as loader_configuration
 from dlt.load import Load
 
 from experiments.pipeline.configuration import get_config
@@ -88,7 +89,7 @@ class Pipeline:
         self.state: TPipelineState = {}
 
         self._extractor_storage: ExtractorStorageBase = None
-        self._schema_storage: SchemaStorage = None
+        self._schema_storage: LiveSchemaStorage = None
 
     def only_not_configured(f: TFun) -> TFun:
 
@@ -116,6 +117,17 @@ class Pipeline:
         def _wrap(self: "Pipeline", *args: Any, **kwargs: Any) -> Any:
             with self._managed_state():
                 return f(self, *args, **kwargs)
+
+        return _wrap
+
+    def with_schemas_sync(f: TFun) -> TFun:
+
+        @wraps(f)
+        def _wrap(self: "Pipeline", *args: Any, **kwargs: Any) -> Any:
+            for name in self._schema_storage.live_schemas:
+                # refresh live schemas in storage or import schema path
+                self._schema_storage.commit_live_schema(name)
+            return f(self, *args, **kwargs)
 
         return _wrap
 
@@ -161,7 +173,7 @@ class Pipeline:
             "pipeline_name": pipeline_name,
             # "schema_sync_path": schema_sync_path
         }
-        self._resolve_load_config(destination_name)
+        self._resolve_load_client_config(destination_name)
 
         # restore pipeline if folder exists and is not empty
         # if self.pipeline_storage.has_folder("."):
@@ -214,7 +226,7 @@ class Pipeline:
         ...
 
     @maybe_default_config
-    # @with_schemas_sync
+    @with_schemas_sync
     @with_state_sync
     def extract(
         self,
@@ -238,12 +250,12 @@ class Pipeline:
             pass
 
     @maybe_default_config
-    # @with_schemas_sync
+    @with_schemas_sync
     @with_state_sync
     def extract_many() -> None:
         pass
 
-    # @with_schemas_sync
+    @with_schemas_sync
     def normalize(self, dry_run: bool = False, workers: int = 1, max_events_in_chunk: int = 100000) -> None:
         if is_interactive() and workers > 1:
             raise NotImplementedError("Do not use workers in interactive mode ie. in notebook")
@@ -257,6 +269,7 @@ class Pipeline:
         if runner.LAST_RUN_METRICS.has_failed:
             raise PipelineStepFailed("normalize", self.last_run_exception, runner.LAST_RUN_METRICS)
 
+    @with_schemas_sync
     @with_state_sync
     def load(
         self,
@@ -270,7 +283,7 @@ class Pipeline:
         max_parallel_loads: int = 20,
         normalize_workers: int = 1
     ) -> None:
-        self._resolve_load_config(
+        self._resolve_load_client_config(
             destination_name or self._ensure_destination_name(),
             default_dataset or self._ensure_default_dataset()
             )
@@ -295,7 +308,6 @@ class Pipeline:
     def _create_pipeline(self):
         pass
 
-
     def _restore_pipeline(self):
         # pipeline state takes precedence over passed settings
         # schemas are preserved
@@ -306,11 +318,11 @@ class Pipeline:
         C = get_config(NormalizeVolumeConfiguration, ProductionNormalizeVolumeConfiguration, initial_values=self._common_initial())
         return NormalizeStorage(True, C)
 
-    def _ensure_schema_storage(self, import_schema_path: str = None, export_schema_path: str = None) -> SchemaStorage:
+    def _ensure_schema_storage(self, import_schema_path: str = None, export_schema_path: str = None) -> LiveSchemaStorage:
         initial = {"SCHEMA_VOLUME_PATH": os.path.join(self.working_dir, "schemas")}
         initial.update(locals())
         C = get_config(SchemaVolumeConfiguration, initial_values=initial)
-        return SchemaStorage(C, makedirs=True)
+        return LiveSchemaStorage(C, makedirs=True)
 
     def _configure_normalize(self, initial_values: StrAny) -> Normalize:
         destination_name = self._ensure_destination_name()
@@ -326,7 +338,7 @@ class Pipeline:
         initial_values.update(self._common_initial())
         C = normalize_configuration(initial_values=initial_values)
         # shares schema storage with the pipeline so we do not need to install
-        return Normalize(C)
+        return Normalize(C, schema_storage=self._schema_storage)
 
     def _configure_load(self, loader_initial: StrAny, credenitials: TCredentials = None) -> Load:
         # get destination or raise
@@ -338,13 +350,15 @@ class Pipeline:
 
         loader_initial.update({
             "DELETE_COMPLETED_JOBS": True,
-            "CLIENT_TYPE": destination_name,
-            "DEFAULT_DATASET": default_dataset
+            "CLIENT_TYPE": destination_name
         })
         loader_initial.update(self._common_initial())
 
         loader_client_initial = deepcopy(credenitials)
-        loader_client_initial.update({"DEFAULT_DATASET": default_dataset})
+        loader_client_initial.update({
+            "DEFAULT_DATASET": default_dataset,
+            "DEFAULT_SCHEMA_NAME": self.state.get("default_schema_name")
+        })
 
         C = loader_configuration(initial_values=loader_initial)
         return Load(C, REGISTRY, client_initial_values=loader_client_initial, is_storage_owner=False)
@@ -367,9 +381,9 @@ class Pipeline:
                 "Dependencies for specific destinations are available as extras of python-dlt"
             )
 
-    def _resolve_load_config(self, maybe_new_destination_name: str = None, maybe_default_dataset: str = None) -> None:
+    def _resolve_load_client_config(self, maybe_new_destination_name: str = None, maybe_default_dataset: str = None) -> None:
         C = get_config(
-            LoaderConfiguration,
+            LoaderClientDwhConfiguration,
             initial_values={
                 "client_type": maybe_new_destination_name,
                 "default_dataset": maybe_default_dataset

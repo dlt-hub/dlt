@@ -2,7 +2,7 @@ from typing import List, Optional, Type
 
 from dlt.common.typing import StrAny
 from dlt.common.configuration.utils import TSecretValue, make_configuration, _get_key_value
-from dlt.common.configuration import PoolRunnerConfiguration, TPoolType, PostgresConfiguration, PostgresProductionConfiguration, GcpClientConfiguration, GcpClientProductionConfiguration
+from dlt.common.configuration import PoolRunnerConfiguration, TPoolType, PostgresCredentials, GcpClientCredentials
 
 from . import __version__
 
@@ -47,21 +47,21 @@ def gen_configuration_variant(initial_values: StrAny = None) -> Type[DBTRunnerCo
     source_schema_prefix = _get_key_value("DEFAULT_DATASET", type(str))
 
     if _get_key_value("PROJECT_ID", type(str)):
-        class DBTRunnerConfigurationPostgres(PostgresConfiguration, DBTRunnerConfiguration):
+        class DBTRunnerConfigurationPostgres(PostgresCredentials, DBTRunnerConfiguration):
             SOURCE_SCHEMA_PREFIX: str = source_schema_prefix
         DBTRunnerConfigurationImpl = DBTRunnerConfigurationPostgres
 
-        class DBTRunnerProductionConfigurationPostgres(DBTRunnerProductionConfiguration, PostgresProductionConfiguration, DBTRunnerConfigurationPostgres):
+        class DBTRunnerProductionConfigurationPostgres(DBTRunnerProductionConfiguration, DBTRunnerConfigurationPostgres):
             pass
             # SOURCE_SCHEMA_PREFIX: str = source_schema_prefix
         DBTRunnerProductionConfigurationImpl = DBTRunnerProductionConfigurationPostgres
 
     else:
-        class DBTRunnerConfigurationGcp(GcpClientConfiguration, DBTRunnerConfiguration):
+        class DBTRunnerConfigurationGcp(GcpClientCredentials, DBTRunnerConfiguration):
             SOURCE_SCHEMA_PREFIX: str = source_schema_prefix
         DBTRunnerConfigurationImpl = DBTRunnerConfigurationGcp
 
-        class DBTRunnerProductionConfigurationGcp(DBTRunnerProductionConfiguration, GcpClientProductionConfiguration, DBTRunnerConfigurationGcp):
+        class DBTRunnerProductionConfigurationGcp(DBTRunnerProductionConfiguration, DBTRunnerConfigurationGcp):
             pass
             # SOURCE_SCHEMA_PREFIX: str = source_schema_prefix
         DBTRunnerProductionConfigurationImpl = DBTRunnerProductionConfigurationGcp

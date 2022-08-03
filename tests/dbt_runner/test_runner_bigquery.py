@@ -2,7 +2,7 @@ from os import environ
 import pytest
 
 from dlt.common import logger
-from dlt.common.configuration import GcpClientConfiguration
+from dlt.common.configuration import GcpClientCredentials
 from dlt.common.telemetry import TRunMetrics, get_metrics_from_prometheus
 from dlt.common.typing import StrStr
 from dlt.common.utils import uniq_id, with_custom_environ
@@ -23,7 +23,7 @@ def module_autouse() -> None:
     # del environ["PG_SCHEMA_PREFIX"]
     # set the test case for the unit tests
     environ["DEFAULT_DATASET"] = "test_fixture_carbon_bot_session_cases"
-    add_config_to_env(GcpClientConfiguration)
+    add_config_to_env(GcpClientCredentials)
 
     setup_runner(DEST_SCHEMA_PREFIX)
     init_logger(runner.CONFIG)

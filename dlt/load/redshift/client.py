@@ -3,18 +3,20 @@ import os
 import psycopg2
 from psycopg2.sql import SQL, Identifier, Composed, Literal as SQLLiteral
 from typing import Any, AnyStr, Dict, Iterator, List, Literal, Optional, Sequence, Tuple, Type
+from dlt.common.configuration.postgres_credentials import PostgresCredentials
 
+from dlt.common.typing import StrAny
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
-from dlt.common.configuration import PostgresConfiguration, PostgresProductionConfiguration, make_configuration
 from dlt.common.dataset_writers import escape_redshift_identifier
 from dlt.common.schema import COLUMN_HINTS, TColumnSchema, TColumnSchemaBase, TDataType, THintType, Schema, TTableSchemaColumns, add_missing_hints
 from dlt.common.schema.typing import TTableSchema, TWriteDisposition
-from dlt.common.typing import StrAny
 
 from dlt.load.exceptions import (LoadClientSchemaWillNotUpdate, LoadClientTerminalInnerException,
                                             LoadClientTransientInnerException, LoadFileTooBig)
-from dlt.load.typing import LoadJobStatus, DBCursor, TLoaderCapabilities, TNativeConn
+from dlt.load.typing import LoadJobStatus, DBCursor, TLoaderCapabilities
 from dlt.load.client_base import JobClientBase, SqlClientBase, SqlJobClientBase, LoadJob
+
+from dlt.load.redshift.configuration import configuration, RedshiftClientConfiguration
 
 
 SCT_TO_PGT: Dict[TDataType, str] = {
@@ -50,18 +52,14 @@ class RedshiftSqlClient(SqlClientBase["psycopg2.connection"]):
 
     MAX_STATEMENT_SIZE = 16 * 1024 * 1204
 
-    def __init__(self, default_dataset_name: str, CREDENTIALS: Type[PostgresConfiguration]) -> None:
+    def __init__(self, default_dataset_name: str, CREDENTIALS: Type[PostgresCredentials]) -> None:
         super().__init__(default_dataset_name)
         self._conn: psycopg2.connection = None
         self.C = CREDENTIALS
 
     def open_connection(self) -> None:
-        self._conn = psycopg2.connect(dbname=self.C.PG_DATABASE_NAME,
-                             user=self.C.PG_USER,
-                             host=self.C.PG_HOST,
-                             port=self.C.PG_PORT,
-                             password=self.C.PG_PASSWORD,
-                             connect_timeout=self.C.PG_CONNECTION_TIMEOUT,
+        self._conn = psycopg2.connect(
+                             **self.C.as_dict(),
                              options=f"-c search_path={self.fully_qualified_dataset_name()},public"
                              )
         # we'll provide explicit transactions
@@ -174,10 +172,14 @@ class RedshiftInsertLoadJob(LoadJob):
 
 class RedshiftClient(SqlJobClientBase):
 
-    CONFIG: Type[PostgresConfiguration] = None
+    CONFIG: Type[RedshiftClientConfiguration] = None
+    CREDENTIALS: Type[PostgresCredentials] = None
 
     def __init__(self, schema: Schema) -> None:
-        sql_client = RedshiftSqlClient(schema.normalize_make_dataset_name(self.CONFIG.DEFAULT_DATASET, schema.name), self.CONFIG)
+        sql_client = RedshiftSqlClient(
+            schema.normalize_make_dataset_name(self.CONFIG.DEFAULT_DATASET, self.CONFIG.DEFAULT_SCHEMA_NAME, schema.name),
+            self.CREDENTIALS
+        )
         super().__init__(schema, sql_client)
         self.sql_client = sql_client
 
@@ -311,8 +313,8 @@ class RedshiftClient(SqlJobClientBase):
         }
 
     @classmethod
-    def configure(cls, initial_values: StrAny = None) -> Type[PostgresConfiguration]:
-        cls.CONFIG = make_configuration(PostgresConfiguration, PostgresProductionConfiguration, initial_values=initial_values)
+    def configure(cls, initial_values: StrAny = None) -> Type[RedshiftClientConfiguration]:
+        cls.CONFIG, cls.CREDENTIALS = configuration(initial_values=initial_values)
         return cls.CONFIG
 
 

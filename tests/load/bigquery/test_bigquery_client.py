@@ -13,7 +13,7 @@ from dlt.load import Load
 from dlt.load.bigquery.client import BigQueryClient
 
 from tests.utils import TEST_STORAGE, delete_storage
-from tests.loaders.utils import expect_load_file, prepare_event_user_table, yield_client_with_storage
+from tests.load.utils import expect_load_file, prepare_event_user_table, yield_client_with_storage
 
 
 @pytest.fixture(scope="module")
@@ -31,10 +31,16 @@ def auto_delete_storage() -> None:
     delete_storage()
 
 
-def test_empty_schema_name_init_storage(client: BigQueryClient) -> None:
+def test_default_schema_name_init_storage(client: BigQueryClient) -> None:
     e_client: BigQueryClient = None
-    # will reuse same configuration
-    with Load.import_client_cls("bigquery", initial_values={"DEFAULT_DATASET": client.CONFIG.DEFAULT_DATASET})(Schema("")) as e_client:
+    # pass the schema that is a default schema. that should create dataset with the name `DEFAULT_DATASET`
+    with Load.import_client_cls(
+        "bigquery",
+        initial_values={
+            "DEFAULT_DATASET": client.CONFIG.DEFAULT_DATASET,
+            "DEFAULT_SCHEMA_NAME": "default"
+        })(Schema("default")
+    ) as e_client:
         e_client.initialize_storage()
         try:
             # schema was created with the name of just schema prefix

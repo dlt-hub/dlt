@@ -9,9 +9,9 @@ on:
 
 env:
   PROJECT_ID: chat-analytics-rasa-ci
-  BQ_CRED_CLIENT_EMAIL: chat-analytics-loader@chat-analytics-rasa-ci.iam.gserviceaccount.com
-  BQ_CRED_PRIVATE_KEY: ${{ secrets.BQ_CRED_PRIVATE_KEY }}
-  BQ_CRED_TOKEN_URI: https://oauth2.googleapis.com/token
+  CLIENT_EMAIL: chat-analytics-loader@chat-analytics-rasa-ci.iam.gserviceaccount.com
+  PRIVATE_KEY: ${{ secrets.BQ_CRED_PRIVATE_KEY }}
+  TOKEN_URI: https://oauth2.googleapis.com/token
   DEFAULT_DATASET: workflowtest
 
 jobs:

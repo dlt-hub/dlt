@@ -4,7 +4,7 @@ import pytest
 from prometheus_client import CollectorRegistry
 
 from dlt.common import logger
-from dlt.common.configuration import PostgresConfiguration
+from dlt.common.configuration import PostgresCredentials
 from dlt.common.configuration.utils import make_configuration
 from dlt.common.file_storage import FileStorage
 from dlt.common.telemetry import TRunMetrics, get_metrics_from_prometheus
@@ -28,7 +28,7 @@ def module_autouse() -> None:
     del environ["PROJECT_ID"]
     # set the test case for the unit tests
     environ["DEFAULT_DATASET"] = "test_fixture_carbon_bot_session_cases"
-    add_config_to_env(PostgresConfiguration)
+    add_config_to_env(PostgresCredentials)
 
     setup_runner(DEST_SCHEMA_PREFIX)
     init_logger(runner.CONFIG)

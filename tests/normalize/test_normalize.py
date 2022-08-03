@@ -58,9 +58,9 @@ def test_intialize(rasa_normalize: Normalize) -> None:
     pass
 
 
-def test_empty_schema_name(raw_normalize: Normalize) -> None:
-    schema = raw_normalize.load_or_create_schema("")
-    assert schema.name == ""
+# def test_empty_schema_name(raw_normalize: Normalize) -> None:
+#     schema = raw_normalize.load_or_create_schema("")
+#     assert schema.name == ""
 
 
 def test_normalize_single_user_event_jsonl(raw_normalize: Normalize) -> None:
