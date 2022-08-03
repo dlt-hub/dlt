@@ -66,11 +66,11 @@ jobs:
         run: poetry install --no-interaction
 
       - run: |
-          LOG_LEVEL=ERROR poetry run pytest tests --ignore=tests/common --ignore=tests/unpacker --ignore=tests/loaders/redshift --ignore=tests/dbt_runner -k '(not redshift_client)'
+          LOG_LEVEL=ERROR poetry run pytest tests --ignore=tests/common --ignore=tests/normalize --ignore=tests/load/redshift --ignore=tests/dbt_runner -k '(not redshift_client)'
         if: runner.os != 'Windows'
         name: Run tests Linux/MAC
       - run: |
-          poetry run pytest tests --ignore=tests/common --ignore=tests/unpacker --ignore=tests/loaders/redshift --ignore=tests/dbt_runner -m "not forked" -k "(not redshift_client)"
+          poetry run pytest tests --ignore=tests/common --ignore=tests/normalize --ignore=tests/load/redshift --ignore=tests/dbt_runner -m "not forked" -k "(not redshift_client)"
         if: runner.os == 'Windows'
         name: Run tests Windows
         shell: cmd

@@ -255,9 +255,9 @@ class Pipeline:
             load.configure(C, REGISTRY, client_initial_values=loader_client_initial, is_storage_owner=True)
         except ImportError:
             raise MissingDependencyException(
-                f"{self.credentials.CLIENT_TYPE} loader",
+                f"{self.credentials.CLIENT_TYPE} destination",
                 [f"python-dlt[{self.credentials.CLIENT_TYPE}]"],
-                "Dependencies for specific loaders are available as extras of python-dlt"
+                "Dependencies for specific destination are available as extras of python-dlt"
             )
         self._loader_instance = id(load.CONFIG)
 

@@ -327,7 +327,7 @@ class Pipeline:
     def _configure_normalize(self, initial_values: StrAny) -> Normalize:
         destination_name = self._ensure_destination_name()
         format = self._get_loader_capabilities(destination_name)["preferred_loader_file_format"]
-        # create unpacker config
+        # create normalize config
         initial_values.update({
             "LOADER_FILE_FORMAT": format,
             "ADD_EVENT_JSON": False
