@@ -11,6 +11,10 @@ PRODUCTION_CONFIG_FILES_STORAGE_PATH = "/run/config/%s"
 
 
 class BaseConfiguration:
+
+    # will be set to true if not all config entries could be resolved
+    __is_partial__: bool = True
+
     @classmethod
     def as_dict(config, lowercase: bool = True) -> StrAny:
         may_lower = lambda k: k.lower() if lowercase else k

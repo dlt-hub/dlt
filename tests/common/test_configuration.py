@@ -199,7 +199,7 @@ def test_configuration_apply_adds_environment_variable_to_config(environment: An
     assert WrongConfiguration.NoneConfigVar == environment[NONE_CONFIG_VAR]
 
 
-def test_conf(environment: Any) -> None:
+def test_configuration_resolve(environment: Any) -> None:
     environment[IS_DEVELOPMENT_CONFIG] = 'True'
 
     keys = _get_config_attrs_with_hints(SimpleConfiguration)
@@ -270,8 +270,10 @@ def test_development_config_detection(environment: Any) -> None:
 def test_make_configuration(environment: Any) -> None:
     # fill up configuration
     environment['INT_VAL'] = "1"
+    C = utils.make_configuration(WrongConfiguration, VeryWrongConfiguration)
+    assert not C.__is_partial__
     # default is true
-    assert is_direct_descendant(utils.make_configuration(WrongConfiguration, VeryWrongConfiguration), WrongConfiguration)
+    assert is_direct_descendant(C, WrongConfiguration)
     environment[IS_DEVELOPMENT_CONFIG_KEY] = "False"
     assert is_direct_descendant(utils.make_configuration(WrongConfiguration, VeryWrongConfiguration), VeryWrongConfiguration)
     environment[IS_DEVELOPMENT_CONFIG_KEY] = "True"
@@ -306,6 +308,14 @@ def test_initial_values(environment: Any) -> None:
     assert C.NONE_VAL == type(environment)
     # new prop overridden from env
     assert environment["CREATED_VAL"] == "12837"
+
+
+def test_accept_partial(environment: Any) -> None:
+    WrongConfiguration.NoneConfigVar = None
+    C = make_configuration(WrongConfiguration, WrongConfiguration, accept_partial=True)
+    assert C.NoneConfigVar is None
+    # partial resolution
+    assert C.__is_partial__
 
 
 def test_finds_version(environment: Any) -> None:
