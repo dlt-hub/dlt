@@ -25,11 +25,11 @@ def test_normalizes_underscores() -> None:
 
 def test_normalize_make_dataset_name() -> None:
     # second part is not normalized, a proper schema name is assumed to be used
-    assert normalize_make_dataset_name("BAN_ANA", "BANANA") == "ban_ana_BANANA"
-    assert normalize_make_dataset_name("BAN_ANA", "") == "ban_ana"
-    assert normalize_make_dataset_name("BAN_ANA", None) == "ban_ana"
+    assert normalize_make_dataset_name("BAN_ANA", "default", "BANANA") == "ban_ana_BANANA"
+    assert normalize_make_dataset_name("BAN_ANA", "default", "default") == "ban_ana"
+    assert normalize_make_dataset_name("BAN_ANA", None, None) == "ban_ana"
 
     with pytest.raises(ValueError):
-        normalize_make_dataset_name("", "BAN_ANA")
+        normalize_make_dataset_name("", "BAN_ANA", "BAN_ANA")
     with pytest.raises(ValueError):
-        normalize_make_dataset_name(None, "BAN_ANA")
+        normalize_make_dataset_name(None, "BAN_ANA", "BAN_ANA")

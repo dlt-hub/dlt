@@ -40,9 +40,11 @@ def normalize_column_name(name: str) -> str:
 
 
 # build full db dataset (dataset) name out of (normalized) default dataset and schema name
-def normalize_make_dataset_name(default_dataset: str, schema_name: str) -> str:
+def normalize_make_dataset_name(default_dataset: str, default_schema_name: str, schema_name: str) -> str:
+    if schema_name is None:
+        raise ValueError("schema_name is None")
     name = normalize_column_name(default_dataset)
-    if schema_name:
+    if default_schema_name is None or schema_name != default_schema_name:
         name += "_" + schema_name
 
     return name

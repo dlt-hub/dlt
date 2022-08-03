@@ -26,7 +26,8 @@ DEFAULT_WRITE_DISPOSITION: TWriteDisposition = "append"
 
 # fix a name so it is acceptable as schema name
 def normalize_schema_name(name: str) -> str:
-    if name is None:
+    # empty and None schema names are not allowed
+    if not name:
         raise ValueError(name)
 
     # prefix the name starting with digits

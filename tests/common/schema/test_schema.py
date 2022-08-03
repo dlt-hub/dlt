@@ -57,7 +57,8 @@ def test_normalize_schema_name(schema: Schema) -> None:
     assert schema.normalize_schema_name("BAN_ANA") == "banana"
     assert schema.normalize_schema_name("event-.!:value") == "eventvalue"
     assert schema.normalize_schema_name("123event-.!:value") == "s123eventvalue"
-    assert schema.normalize_schema_name("") == ""
+    with pytest.raises(ValueError):
+        assert schema.normalize_schema_name("")
     with pytest.raises(ValueError):
         schema.normalize_schema_name(None)
 
