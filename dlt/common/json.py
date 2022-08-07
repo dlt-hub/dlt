@@ -12,7 +12,7 @@ from dlt.common.arithmetics import Decimal
 
 # simplejson._toggle_speedups(False)
 
-def custom_encode(obj: Any) -> Union[RawJSON, str]:
+def custom_encode(obj: Any) -> str:
     if isinstance(obj, Decimal):
         # always return decimals as string (not RawJSON) so they are not deserialized back to float
         return str(obj)

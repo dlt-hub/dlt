@@ -1,3 +1,4 @@
+from hexbytes import HexBytes
 import pytest
 
 from dlt.common import Decimal, json, pendulum
@@ -48,6 +49,7 @@ def test_map_column_type(schema: Schema) -> None:
     assert schema._map_value_to_column_type(0x72, "_column_name") == "bigint"
     assert schema._map_value_to_column_type(b"bytes str", "_column_name") == "binary"
     assert schema._map_value_to_column_type(b"bytes str", "_column_name") == "binary"
+    assert schema._map_value_to_column_type(HexBytes(b"bytes str"), "_column_name") == "binary"
 
 
 def test_map_column_type_complex(schema: Schema) -> None:

@@ -7,6 +7,7 @@ import datetime  # noqa: I251
 from typing import Dict, List, Sequence, Tuple, Type, Any, cast
 
 from dlt.common import pendulum, json, Decimal
+from dlt.common.json import custom_encode as json_custom_encode
 from dlt.common.arithmetics import ConversionSyntax
 from dlt.common.exceptions import DictValidationException
 from dlt.common.normalizers.names import TNormalizeNameFunc
@@ -307,7 +308,12 @@ def coerce_type(to_type: TDataType, from_type: TDataType, value: Any) -> Any:
         if from_type == "complex":
             return json.dumps(value)
         else:
-            return str(value)
+            # use the same string encoding as in json
+            try:
+                return json_custom_encode(value)
+            except TypeError:
+                # for other types use internal conversion
+                return str(value)
 
     if to_type == "binary":
         if from_type == "text":
