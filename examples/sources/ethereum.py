@@ -1,4 +1,4 @@
-from typing import Any, Dict, Iterator, List, Tuple, Type, TypedDict, Union, cast, Sequence
+from typing import Any, Callable, Dict, Iterator, List, Tuple, Type, TypedDict, Union, cast, Sequence
 from hexbytes import HexBytes
 import requests
 
@@ -68,7 +68,7 @@ def _get_source(is_deferred: bool, node_url: str, no_blocks: int, last_block: in
 
     assert current_block >= 0
     if current_block > last_block:
-        print(f"Nothing to do")
+        print("Nothing to do")
         return
 
     # get chain id
@@ -133,7 +133,7 @@ def _get_block(w3: Web3, current_block: int, chain_id: int, supports_batching: b
     block["logsBloom"] = bytes(cast(HexBytes, block["logsBloom"]))  # serialize as bytes
 
     receipts = []
-    log_formatters = get_result_formatters(RPC.eth_getLogs, w3.eth)
+    log_formatters: Callable[..., Any] = get_result_formatters(RPC.eth_getLogs, w3.eth)  # type: ignore
     provider = cast(HTTPProvider, w3.provider)
     rpc_endpoint_url = provider.endpoint_uri
     if supports_batching:

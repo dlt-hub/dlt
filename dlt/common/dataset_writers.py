@@ -5,7 +5,7 @@ from typing import Any, Iterable, Literal, Sequence, IO
 from dlt.common import json
 from dlt.common.typing import StrAny
 
-TLoaderFileFormat = Literal["jsonl", "insert_values"]
+TWriterType = Literal["jsonl", "insert_values"]
 
 
 def write_jsonl(f: IO[Any], rows: Sequence[Any]) -> None:
