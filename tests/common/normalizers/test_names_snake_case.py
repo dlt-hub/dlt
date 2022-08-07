@@ -1,9 +1,9 @@
 import pytest
 
-from dlt.common.normalizers.names.snake_case import normalize_column_name, normalize_table_name, normalize_make_dataset_name
+from dlt.common.normalizers.names.snake_case import normalize_column_name, normalize_table_name, normalize_make_dataset_name, RE_NON_ALPHANUMERIC
 
 
-def test_fix_field_name() -> None:
+def test_normalize_column_name() -> None:
     assert normalize_column_name("event_value") == "event_value"
     assert normalize_column_name("event value") == "event_value"
     assert normalize_column_name("event-.!:<>value") == "event_value"
@@ -16,6 +16,23 @@ def test_fix_field_name() -> None:
     assert normalize_column_name("BANANA") == "banana"
     assert normalize_column_name("BAN_ANA") == "ban_ana"
     assert normalize_column_name("BANaNA") == "ba_na_na"
+    # handling spaces
+    assert normalize_column_name("Small Love Potion") == "small_love_potion"
+
+
+def test_normalize_table_name() -> None:
+    assert normalize_table_name("small_love_potion") == "small_love_potion"
+    assert normalize_table_name("small__love__potion") == "small__love__potion"
+    assert normalize_table_name("Small_Love_Potion") == "small_love_potion"
+    assert normalize_table_name("Small__Love__Potion") == "small__love__potion"
+    assert normalize_table_name("Small Love Potion") == "small_love_potion"
+    assert normalize_table_name("Small  Love  Potion") == "small_love_potion"
+
+
+def test_normalize_non_alpha_single_underscore() -> None:
+    assert RE_NON_ALPHANUMERIC.sub("_", "-=!*") == "_"
+    assert RE_NON_ALPHANUMERIC.sub("_", "1-=!0*-") == "1_0_"
+    assert RE_NON_ALPHANUMERIC.sub("_", "1-=!_0*-") == "1__0_"
 
 
 def test_normalizes_underscores() -> None:

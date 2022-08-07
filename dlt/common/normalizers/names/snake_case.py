@@ -5,8 +5,8 @@ from typing import Any, Sequence
 RE_UNDERSCORES = re.compile("_+")
 RE_DOUBLE_UNDERSCORES = re.compile("__+")
 RE_LEADING_DIGITS = re.compile(r"^\d+")
-RE_NON_ALPHANUMERIC = re.compile(r"[^a-zA-Z\d_]")
-SNAKE_CASE_BREAK_1 = re.compile("(.)([A-Z][a-z]+)")
+RE_NON_ALPHANUMERIC = re.compile(r"[^a-zA-Z\d_]+")
+SNAKE_CASE_BREAK_1 = re.compile("([^_])([A-Z][a-z]+)")
 SNAKE_CASE_BREAK_2 = re.compile("([a-z0-9])([A-Z])")
 
 
