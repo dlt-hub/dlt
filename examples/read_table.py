@@ -8,7 +8,7 @@ from examples.sources.sql_query import get_source
 credentials = PostgresPipelineCredentials("redshift", "chat_analytics_rasa", "gamma_guild_7", "loader", "chat-analytics.czwteevq7bpe.eu-central-1.redshift.amazonaws.com")
 
 # create sql alchemy connector
-conn_str = f"redshift+redshift_connector://{credentials.PG_USER}:{os.environ['PG_PASSWORD']}@{credentials.PG_HOST}:{credentials.PG_PORT}/{credentials.PG_DATABASE_NAME}"
+conn_str = f"redshift+redshift_connector://{credentials.USER}:{os.environ['PASSWORD']}@{credentials.HOST}:{credentials.PORT}/{credentials.DBNAME}"
 
 # items = get_source("select *  from test_fixture_carbon_bot_session_cases_views.users limit 1", conn_str)
 

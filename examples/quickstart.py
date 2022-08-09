@@ -1,5 +1,4 @@
 import base64
-from dlt.common import json
 from dlt.common.utils import uniq_id
 from dlt.pipeline import Pipeline, GCPPipelineCredentials
 

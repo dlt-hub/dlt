@@ -79,8 +79,8 @@ if __name__ == "__main__":
     # working BQ creds
     # credentials = Pipeline.load_gcp_credentials("_secrets/project1234_service.json", "gamma_guild")
 
-    # working redshift creds, you can pass password as last parameter or via PG_PASSWORD env variable ie.
-    # LOG_LEVEL=INFO PG_PASSWORD=.... python examples/discord_iterator.py
+    # working redshift creds, you can pass password as last parameter or via PASSWORD env variable ie.
+    # LOG_LEVEL=INFO PASSWORD=.... python examples/discord_iterator.py
     credentials = GCPPipelineCredentials.from_services_file(gcp_credential_json_file_path, schema_prefix)
 
     pipeline = Pipeline(schema_source_suffix)
