@@ -11,7 +11,7 @@ from prometheus_client import REGISTRY
 
 from dlt.common import json
 from dlt.common.runners import pool_runner as runner, TRunArgs, TRunMetrics
-from dlt.common.configuration import BasicConfiguration, make_configuration
+from dlt.common.configuration import RunConfiguration, make_configuration
 from dlt.common.file_storage import FileStorage
 from dlt.common.logger import process_internal_exception
 from dlt.common.schema import Schema, normalize_schema_name
@@ -19,12 +19,12 @@ from dlt.common.typing import DictStrAny, StrAny
 from dlt.common.utils import uniq_id, is_interactive
 from dlt.common.sources import DLT_METADATA_FIELD, TItem, with_table_name
 
-from dlt.extractors.extractor_storage import ExtractorStorageBase
-from dlt.loaders.client_base import SqlClientBase, SqlJobClientBase
-from dlt.unpacker.configuration import configuration as unpacker_configuration
-from dlt.loaders.configuration import configuration as loader_configuration
-from dlt.unpacker import unpacker
-from dlt.loaders import loader
+from dlt.extract.extractor_storage import ExtractorStorageBase
+from dlt.load.client_base import SqlClientBase, SqlJobClientBase
+from dlt.normalize.configuration import configuration as normalize_configuration
+from dlt.load.configuration import configuration as loader_configuration
+from dlt.normalize import Normalize
+from dlt.load import Load
 from dlt.pipeline.exceptions import InvalidPipelineContextException, MissingDependencyException, NoPipelineException, PipelineStepFailed, CannotRestorePipelineException, SqlClientNotAvailable
 from dlt.pipeline.typing import PipelineCredentials
 
@@ -40,12 +40,12 @@ class Pipeline:
         self.state: DictStrAny = {}
 
         # addresses of pipeline components to be verified before they are run
-        self._unpacker_instance: int = None
-        self._loader_instance: int = None
+        self._normalize_instance: Normalize = None
+        self._loader_instance: Load = None
 
         # patch config and initialize pipeline
-        C = make_configuration(BasicConfiguration, BasicConfiguration, initial_values={
-            "NAME": pipeline_name,
+        C = make_configuration(RunConfiguration, RunConfiguration, initial_values={
+            "PIPELINE_NAME": pipeline_name,
             "LOG_LEVEL": log_level
         })
         runner.initialize_runner(C, TRunArgs(True, 0))
@@ -68,7 +68,11 @@ class Pipeline:
         self.root_path = self.root_storage.storage_path
         self.credentials = credentials
         self._load_modules()
-        self.extractor_storage = ExtractorStorageBase("1.0.0", True, FileStorage(os.path.join(self.root_path, "extractor"), makedirs=True), unpacker.unpack_storage)
+        self.extractor_storage = ExtractorStorageBase(
+            "1.0.0",
+            True,
+            FileStorage(os.path.join(self.root_path, "extractor"), makedirs=True),
+            self._normalize_instance.normalize_storage)
         # create new schema if no default supplied
         if schema is None:
             schema = Schema(normalize_schema_name(self.pipeline_name))
@@ -82,7 +86,7 @@ class Pipeline:
                 # TODO: must come from resolved configuration
                 "loader_client_type": credentials.CLIENT_TYPE,
                 # TODO: must take schema prefix from resolved configuration
-                "loader_schema_prefix": credentials.schema_prefix
+                "loader_schema_prefix": credentials.default_dataset
             }
 
     def restore_pipeline(self, credentials: PipelineCredentials, working_dir: str) -> None:
@@ -98,7 +102,7 @@ class Pipeline:
             if self.pipeline_name != restored_name:
                 raise CannotRestorePipelineException(f"Expected pipeline {self.pipeline_name}, found {restored_name} pipeline instead")
             self.default_schema_name = self.state["default_schema_name"]
-            credentials.schema_prefix = self.state["loader_schema_prefix"]
+            credentials.default_dataset = self.state["loader_schema_prefix"]
             self.root_path = self.root_storage.storage_path
             self.credentials = credentials
             self._load_modules()
@@ -107,9 +111,14 @@ class Pipeline:
                 self.get_default_schema()
             except (FileNotFoundError):
                 raise CannotRestorePipelineException(f"Default schema with name {self.default_schema_name} not found")
-            self.extractor_storage = ExtractorStorageBase("1.0.0", True, FileStorage(os.path.join(self.root_path, "extractor"), makedirs=False), unpacker.unpack_storage)
+            self.extractor_storage = ExtractorStorageBase(
+                "1.0.0",
+                True,
+                FileStorage(os.path.join(self.root_path, "extractor"), makedirs=False),
+                self._normalize_instance.normalize_storage
+            )
         except CannotRestorePipelineException:
-            pass
+            raise
 
     def extract(self, items: Iterator[TItem], schema_name: str = None, table_name: str = None) -> None:
         # check if iterator or iterable is supported
@@ -133,28 +142,28 @@ class Pipeline:
             except Exception:
                 raise PipelineStepFailed("extract", self.last_run_exception, runner.LAST_RUN_METRICS)
 
-    def unpack(self, workers: int = 1, max_events_in_chunk: int = 100000) -> None:
+    def normalize(self, workers: int = 1, max_events_in_chunk: int = 100000) -> None:
         if is_interactive() and workers > 1:
             raise NotImplementedError("Do not use workers in interactive mode ie. in notebook")
-        self._verify_unpacker_instance()
+        self._verify_normalize_instance()
         # set runtime parameters
-        unpacker.CONFIG.MAX_PARALLELISM = workers
-        unpacker.CONFIG.MAX_EVENTS_IN_CHUNK = max_events_in_chunk
+        self._normalize_instance.CONFIG.WORKERS = workers
+        self._normalize_instance.CONFIG.MAX_EVENTS_IN_CHUNK = max_events_in_chunk
         # switch to thread pool for single worker
-        unpacker.CONFIG.POOL_TYPE = "thread" if workers == 1 else "process"
-        runner.run_pool(unpacker.CONFIG, unpacker.unpack)
+        self._normalize_instance.CONFIG.POOL_TYPE = "thread" if workers == 1 else "process"
+        runner.run_pool(self._normalize_instance.CONFIG, self._normalize_instance)
         if runner.LAST_RUN_METRICS.has_failed:
-            raise PipelineStepFailed("unpack", self.last_run_exception, runner.LAST_RUN_METRICS)
+            raise PipelineStepFailed("normalize", self.last_run_exception, runner.LAST_RUN_METRICS)
 
     def load(self, max_parallel_loads: int = 20) -> None:
         self._verify_loader_instance()
-        loader.CONFIG.MAX_PARALLELISM = loader.CONFIG.MAX_PARALLEL_LOADS = max_parallel_loads
-        runner.run_pool(loader.CONFIG, loader.load)
+        self._loader_instance.CONFIG.WORKERS = max_parallel_loads
+        runner.run_pool(self._loader_instance.CONFIG, self._loader_instance)
         if runner.LAST_RUN_METRICS.has_failed:
             raise PipelineStepFailed("load", self.last_run_exception, runner.LAST_RUN_METRICS)
 
     def flush(self) -> None:
-        self.unpack()
+        self.normalize()
         self.load()
 
     @property
@@ -167,126 +176,118 @@ class Pipeline:
 
     def list_extracted_loads(self) -> Sequence[str]:
         self._verify_loader_instance()
-        return unpacker.unpack_storage.list_files_to_unpack_sorted()
+        return self._normalize_instance.normalize_storage.list_files_to_normalize_sorted()
 
-    def list_unpacked_loads(self) -> Sequence[str]:
+    def list_normalized_loads(self) -> Sequence[str]:
         self._verify_loader_instance()
-        return loader.load_storage.list_loads()
+        return self._loader_instance.load_storage.list_loads()
 
     def list_completed_loads(self) -> Sequence[str]:
         self._verify_loader_instance()
-        return loader.load_storage.list_completed_loads()
+        return self._loader_instance.load_storage.list_completed_loads()
 
     def list_failed_jobs(self, load_id: str) -> Sequence[Tuple[str, str]]:
         self._verify_loader_instance()
         failed_jobs: List[Tuple[str, str]] = []
-        for file in loader.load_storage.list_archived_failed_jobs(load_id):
+        for file in self._loader_instance.load_storage.list_archived_failed_jobs(load_id):
             if not file.endswith(".exception"):
                 try:
-                    failed_message = loader.load_storage.storage.load(file + ".exception")
+                    failed_message = self._loader_instance.load_storage.storage.load(file + ".exception")
                 except FileNotFoundError:
                     failed_message = None
                 failed_jobs.append((file, failed_message))
         return failed_jobs
 
     def get_default_schema(self) -> Schema:
-        self._verify_unpacker_instance()
-        return unpacker.schema_storage.load_store_schema(self.default_schema_name)
+        self._verify_normalize_instance()
+        return self._normalize_instance.schema_storage.load_schema(self.default_schema_name)
 
     def set_default_schema(self, new_schema: Schema) -> None:
         if self.default_schema_name:
             # delete old schema
-            unpacker.schema_storage.remove_store_schema(self.default_schema_name)
+            self._normalize_instance.schema_storage.remove_schema(self.default_schema_name)
             self.default_schema_name = None
         # save new schema
-        unpacker.schema_storage.save_store_schema(new_schema)
-        self.default_schema_name = new_schema.schema_name
+        self._normalize_instance.schema_storage.save_schema(new_schema)
+        self.default_schema_name = new_schema.name
         with self._managed_state():
             self.state["default_schema_name"] = self.default_schema_name
 
     def add_schema(self, aux_schema: Schema) -> None:
-        unpacker.schema_storage.save_store_schema(aux_schema)
+        self._normalize_instance.schema_storage.save_schema(aux_schema)
 
     def get_schema(self, name: str) -> Schema:
-        return unpacker.schema_storage.load_store_schema(name)
+        return self._normalize_instance.schema_storage.load_schema(name)
 
     def remove_schema(self, name: str) -> None:
-        unpacker.schema_storage.remove_store_schema(name)
+        self._normalize_instance.schema_storage.remove_schema(name)
 
     def sync_schema(self) -> None:
         self._verify_loader_instance()
-        schema = unpacker.schema_storage.load_store_schema(self.default_schema_name)
-        with loader.make_client(schema) as client:
+        schema = self._normalize_instance.schema_storage.load_schema(self.default_schema_name)
+        with self._loader_instance.load_client_cls(schema) as client:
             client.initialize_storage()
             client.update_storage_schema()
 
     def sql_client(self) -> SqlClientBase[Any]:
         self._verify_loader_instance()
-        schema = unpacker.schema_storage.load_store_schema(self.default_schema_name)
-        with loader.make_client(schema) as c:
+        schema = self._normalize_instance.schema_storage.load_schema(self.default_schema_name)
+        with self._loader_instance.load_client_cls(schema) as c:
             if isinstance(c, SqlJobClientBase):
                 return c.sql_client
             else:
-                raise SqlClientNotAvailable(loader.CONFIG.CLIENT_TYPE)
+                raise SqlClientNotAvailable(self._loader_instance.CONFIG.CLIENT_TYPE)
 
-    def _configure_unpack(self) -> None:
-        # create unpacker config
-        unpacker_initial = {
-            "UNPACKING_VOLUME_PATH": os.path.join(self.root_path, "unpacking"),
+    def _configure_normalize(self) -> None:
+        # create normalize config
+        normalize_initial = {
+            "NORMALIZE_VOLUME_PATH": os.path.join(self.root_path, "normalize"),
             "SCHEMA_VOLUME_PATH": os.path.join(self.root_path, "schemas"),
-            "WRITER_TYPE": loader.supported_writer(),
+            "LOADER_FILE_FORMAT": self._loader_instance.load_client_cls.capabilities()["preferred_loader_file_format"],
             "ADD_EVENT_JSON": False
         }
-        unpacker_initial.update(self._configure_runner())
-        C = unpacker_configuration(initial_values=unpacker_initial)
-        unpacker.configure(C, REGISTRY)
-        self._unpacker_instance = id(unpacker.CONFIG)
+        normalize_initial.update(self._configure_runner())
+        C = normalize_configuration(initial_values=normalize_initial)
+        # shares schema storage with the pipeline so we do not need to install
+        self._normalize_instance = Normalize(C)
 
     def _configure_load(self) -> None:
-        # use credentials to populate loader config, it includes also client type
-        loader_initial = dtc_asdict(self.credentials)
+        # use credentials to populate loader client config, it includes also client type
+        loader_client_initial = dtc_asdict(self.credentials)
+        # but client type must be passed to loader config
+        loader_initial = {"CLIENT_TYPE": loader_client_initial["CLIENT_TYPE"]}
         loader_initial.update(self._configure_runner())
         loader_initial["DELETE_COMPLETED_JOBS"] = True
-        C = loader_configuration(initial_values=loader_initial)
         try:
-            loader.configure(C, REGISTRY, is_storage_owner=True)
+            C = loader_configuration(initial_values=loader_initial)
+            self._loader_instance = Load(C, REGISTRY, client_initial_values=loader_client_initial, is_storage_owner=True)
         except ImportError:
             raise MissingDependencyException(
-                f"{self.credentials.CLIENT_TYPE} loader",
+                f"{self.credentials.CLIENT_TYPE} destination",
                 [f"python-dlt[{self.credentials.CLIENT_TYPE}]"],
-                "Dependencies for specific loaders are available as extras of python-dlt"
+                "Dependencies for specific destination are available as extras of python-dlt"
             )
-        self._loader_instance = id(loader.CONFIG)
-
-    # def _only_active(f: TFun) -> TFun:
-    #     def _wrapper(self) -> Any
 
     def _verify_loader_instance(self) -> None:
         if self._loader_instance is None:
             raise NoPipelineException()
-        if self._loader_instance != id(loader.CONFIG):
-            # TODO: consider restoring pipeline from current work dir instead
-            raise InvalidPipelineContextException()
 
-    def _verify_unpacker_instance(self) -> None:
+    def _verify_normalize_instance(self) -> None:
         if self._loader_instance is None:
             raise NoPipelineException()
-        if self._unpacker_instance != id(unpacker.CONFIG):
-            # TODO: consider restoring pipeline from current work dir instead
-            raise InvalidPipelineContextException()
 
     def _configure_runner(self) -> StrAny:
         return {
-            "NAME": self.pipeline_name,
+            "PIPELINE_NAME": self.pipeline_name,
             "EXIT_ON_EXCEPTION": True,
-            "LOADING_VOLUME_PATH": os.path.join(self.root_path, "loading")
+            "LOAD_VOLUME_PATH": os.path.join(self.root_path, "normalized")
         }
 
     def _load_modules(self) -> None:
         # configure loader
         self._configure_load()
-        # configure unpacker
-        self._configure_unpack()
+        # configure normalize
+        self._configure_normalize()
 
     def _extract_iterator(self, default_table_name: str, items: Sequence[DictStrAny]) -> None:
         try:
@@ -337,7 +338,7 @@ class Pipeline:
     @staticmethod
     def save_schema_to_file(file_name: str, schema: Schema, remove_defaults: bool = True) -> None:
         with open(file_name, "w", encoding="utf-8") as f:
-            f.write(schema.as_yaml(remove_defaults=remove_defaults))
+            f.write(schema.to_pretty_yaml(remove_defaults=remove_defaults))
 
     @staticmethod
     def load_schema_from_file(file_name: str) -> Schema:

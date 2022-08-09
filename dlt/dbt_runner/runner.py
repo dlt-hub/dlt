@@ -2,7 +2,7 @@ from typing import Optional, Sequence, Tuple, Type
 from git import GitError
 from prometheus_client import REGISTRY, Gauge, CollectorRegistry, Info
 from prometheus_client.metrics import MetricWrapperBase
-from dlt.common.configuration import GcpClientConfiguration
+from dlt.common.configuration import GcpClientCredentials
 
 from dlt.common import logger
 from dlt.common.typing import DictStrAny, DictStrStr, StrAny
@@ -49,7 +49,7 @@ def create_folders() -> Tuple[FileStorage, StrAny, Sequence[str], str, str]:
     # generate profile name
     profile_name: str = None
     if CONFIG.PACKAGE_PROFILE_PREFIX:
-        if issubclass(CONFIG, GcpClientConfiguration):
+        if issubclass(CONFIG, GcpClientCredentials):
             profile_name = "%s_bigquery" % (CONFIG.PACKAGE_PROFILE_PREFIX)
         else:
             profile_name = "%s_redshift" % (CONFIG.PACKAGE_PROFILE_PREFIX)
@@ -92,7 +92,7 @@ def log_dbt_run_results(results: dbt_results.RunExecutionResult) -> None:
         message = res.message
         time = res.execution_time
         if res.status == dbt_results.RunStatus.Error:
-            logger.error(f"Model {name} errored! Error: {message}")
+            logger.error(f"Model {name} error! Error: {message}")
         else:
             logger.info(f"Model {name} {res.status} in {time} seconds with {message}")
         model_elapsed_gauge.labels(name).set(time)

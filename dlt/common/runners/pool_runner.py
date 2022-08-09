@@ -6,7 +6,8 @@ from typing import Callable, Dict, NamedTuple, Optional, Type, TypeVar, Union, c
 from multiprocessing.pool import ThreadPool, Pool
 
 from dlt.common import logger, signals
-from dlt.common.configuration.basic_configuration import BasicConfiguration
+from dlt.common.configuration.run_configuration import RunConfiguration
+from dlt.common.runners.runnable import Runnable, TPool
 from dlt.common.time import sleep
 from dlt.common.telemetry import TRunHealth, TRunMetrics, get_logging_extras, get_metrics_from_prometheus
 from dlt.common.logger import init_logging_from_config, init_telemetry, process_internal_exception
@@ -14,8 +15,6 @@ from dlt.common.signals import register_signals
 from dlt.common.utils import str2bool
 from dlt.common.exceptions import SignalReceivedException, TimeRangeExhaustedException, UnsupportedProcessStartMethodException
 from dlt.common.configuration import PoolRunnerConfiguration
-
-TPool = TypeVar("TPool", bound=Pool)
 
 
 class TRunArgs(NamedTuple):
@@ -61,7 +60,7 @@ def str2bool_a(v: str) -> bool:
 
 
 def create_default_args(C: Type[PoolRunnerConfiguration]) -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description=f"Default runner for {C.NAME}")
+    parser = argparse.ArgumentParser(description=f"Default runner for {C.PIPELINE_NAME}")
     add_pool_cli_arguments(parser)
     return parser
 
@@ -72,7 +71,7 @@ def add_pool_cli_arguments(parser: argparse.ArgumentParser) -> None:
 
 
 
-def initialize_runner(C: Type[BasicConfiguration], run_args: Optional[TRunArgs] = None) -> None:
+def initialize_runner(C: Type[RunConfiguration], run_args: Optional[TRunArgs] = None) -> None:
     global RUN_ARGS
 
     if run_args is not None:
@@ -91,21 +90,19 @@ def initialize_runner(C: Type[BasicConfiguration], run_args: Optional[TRunArgs] 
             logger.info("Running in daemon thread, signals not enabled")
 
 
-
-def run_pool(C: Type[PoolRunnerConfiguration], run_f: Callable[[TPool], TRunMetrics]) -> int:
+def run_pool(C: Type[PoolRunnerConfiguration], run_f: Union[Runnable[TPool], Callable[[TPool], TRunMetrics]]) -> int:
     # start pool
     pool: Pool = None
     if C.POOL_TYPE == "process":
         # our pool implementation do not work on spawn
         if multiprocessing.get_start_method() != "fork":
             raise UnsupportedProcessStartMethodException(multiprocessing.get_start_method())
-        pool = Pool(processes=C.MAX_PARALLELISM)
+        pool = Pool(processes=C.WORKERS)
     elif C.POOL_TYPE == "thread":
-        pool = ThreadPool(processes=C.MAX_PARALLELISM)
+        pool = ThreadPool(processes=C.WORKERS)
     else:
         pool = None
-    logger.info(f"Created {C.POOL_TYPE} pool with {C.MAX_PARALLELISM or 'default no.'} workers")
-
+    logger.info(f"Created {C.POOL_TYPE} pool with {C.WORKERS or 'default no.'} workers")
 
     try:
         while True:
@@ -114,7 +111,12 @@ def run_pool(C: Type[PoolRunnerConfiguration], run_f: Callable[[TPool], TRunMetr
                 HEALTH_PROPS_GAUGES["runs_count"].inc()
                 # run pool logic
                 with RUN_DURATION_SUMMARY.time(), RUN_DURATION_GAUGE.time():
-                    run_metrics = run_f(cast(TPool, pool))
+                    if callable(run_f):
+                        run_metrics = run_f(cast(TPool, pool))
+                    elif isinstance(run_f, Runnable):
+                        run_metrics = run_f.run(cast(TPool, pool))
+                    else:
+                        raise SignalReceivedException(-1)
             except Exception as exc:
                 if (type(exc) is SignalReceivedException) or (type(exc) is TimeRangeExhaustedException):
                     # always exit
@@ -157,6 +159,7 @@ def run_pool(C: Type[PoolRunnerConfiguration], run_f: Callable[[TPool], TRunMetr
 
             # single run may be forced but at least wait_runs must pass
             # and was all the time idle or (was not idle but now pending is 0)
+            print(RUN_ARGS)
             if RUN_ARGS.single_run and (health_props["runs_count"] >= RUN_ARGS.wait_runs and (health_props["runs_not_idle_count"] == 0 or run_metrics.pending_items == 0)):
                 logger.warning("Stopping runner due to single run override")
                 return 0

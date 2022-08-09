@@ -1,0 +1,76 @@
+
+name: test loader bigquery
+
+on:
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
+
+env:
+  PROJECT_ID: chat-analytics-rasa-ci
+  CLIENT_EMAIL: chat-analytics-loader@chat-analytics-rasa-ci.iam.gserviceaccount.com
+  PRIVATE_KEY: ${{ secrets.BQ_CRED_PRIVATE_KEY }}
+  TOKEN_URI: https://oauth2.googleapis.com/token
+  DEFAULT_DATASET: workflowtest
+
+jobs:
+
+  run_lint:
+    name: Tests BigQuery loader
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ["ubuntu-latest", "macos-latest", "windows-latest"]
+    defaults:
+      run:
+        shell: bash
+    runs-on: ${{ matrix.os }}
+
+    steps:
+
+      - name: Check out
+        uses: actions/checkout@master
+
+      - name: Setup Python
+        uses: actions/setup-python@v1
+        with:
+          python-version: "3.10.x"
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+          installer-parallel: true
+
+      # - name: Get pip cache dir
+      #   id: pip-cache
+      #   run: |
+      #     echo "::set-output name=dir::$(poetry env info -p)"
+      #     echo "$(poetry env info -p)"
+
+      - name: Load cached venv
+        id: cached-poetry-dependencies
+        uses: actions/cache@v2
+        with:
+          # path: ${{ steps.pip-cache.outputs.dir }}
+          path: .venv
+          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}-gcp
+
+      - name: Install dependencies
+        # if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+        run: poetry install --no-interaction --no-root -E bigquery
+
+      - name: Install self
+        run: poetry install --no-interaction
+
+      - run: |
+          LOG_LEVEL=ERROR poetry run pytest tests --ignore=tests/common --ignore=tests/normalize --ignore=tests/load/redshift --ignore=tests/dbt_runner -k '(not redshift_client)'
+        if: runner.os != 'Windows'
+        name: Run tests Linux/MAC
+      - run: |
+          poetry run pytest tests --ignore=tests/common --ignore=tests/normalize --ignore=tests/load/redshift --ignore=tests/dbt_runner -m "not forked" -k "(not redshift_client)"
+        if: runner.os == 'Windows'
+        name: Run tests Windows
+        shell: cmd

@@ -5,7 +5,7 @@ from typing import Dict, List, Literal, Mapping, Sequence, TypedDict, Optional
 
 from dlt.common import json
 from dlt.common.exceptions import DictValidationException
-from dlt.common.schema.typing import TStoredSchema, TColumn
+from dlt.common.schema.typing import TStoredSchema, TColumnSchema
 from dlt.common.schema.utils import simple_regex_validator
 from dlt.common.typing import DictStrStr, StrStr
 from dlt.common.validation import validate_dict
@@ -23,11 +23,11 @@ class TTestRecord(TypedDict):
     f_seq_simple: Sequence[str]
     f_seq_optional_str: Optional[Sequence[str]]
     f_seq_of_optional_int: Sequence[Optional[int]]
-    f_list_of_dict: Optional[Sequence[TColumn]]
+    f_list_of_dict: Optional[Sequence[TColumnSchema]]
     f_dict_simple: DictStrStr
     f_map_simple: StrStr
-    f_map_of_dict: Mapping[str, TColumn]
-    f_column: TColumn
+    f_map_of_dict: Mapping[str, TColumnSchema]
+    f_column: TColumnSchema
     f_literal: TLiteral
     f_literal_optional: Optional[TLiteral]
     f_seq_literal: Sequence[Optional[TLiteral]]
@@ -83,7 +83,7 @@ def test_doc() -> TTestRecord:
 
 
 def test_validate_schema_cases() -> None:
-    with open("tests/common/cases/schemas/eth/ethereum_schema_v3.yml", mode="r", encoding="utf-8") as f:
+    with open("tests/common/cases/schemas/eth/ethereum_schema_v4.yml", mode="r", encoding="utf-8") as f:
         schema_dict: TStoredSchema = yaml.safe_load(f)
 
     validate_dict(TStoredSchema, schema_dict, ".", lambda k: not k.startswith("x-"), simple_regex_validator)

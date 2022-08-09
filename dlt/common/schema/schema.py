@@ -1,12 +1,13 @@
-from importlib import import_module
 import yaml
+from importlib import import_module
 from copy import copy
 from typing import Dict, List, Mapping, Optional, Sequence, Tuple, Any, cast
+from dlt.common import json
 
 from dlt.common.typing import DictStrAny, StrAny, REPattern
 from dlt.common.normalizers.names import TNormalizeBreakPath, TNormalizeMakePath, TNormalizeNameFunc
 from dlt.common.normalizers.json import TNormalizeJSONFunc
-from dlt.common.schema.typing import TNormalizersConfig, TPartialTable, TSchemaSettings, TSimpleRegex, TStoredSchema, TSchemaTables, TTable, TTableColumns, TColumn, TColumnProp, TDataType, THintType, TWriteDisposition
+from dlt.common.schema.typing import TNormalizersConfig, TPartialTableSchema, TSchemaSettings, TSimpleRegex, TStoredSchema, TSchemaTables, TTableSchema, TTableSchemaColumns, TColumnSchema, TColumnProp, TDataType, THintType, TWriteDisposition
 from dlt.common.schema import utils
 from dlt.common.schema.exceptions import (CannotCoerceColumnException, CannotCoerceNullException, InvalidSchemaName,
                                           ParentTableNotFoundException, SchemaCorruptedException, TablePropertiesClashException)
@@ -18,7 +19,7 @@ class Schema:
     VERSION_TABLE_NAME = "_dlt_version"
     VERSION_COLUMN_NAME = "version"
     LOADS_TABLE_NAME = "_dlt_loads"
-    ENGINE_VERSION = 3
+    ENGINE_VERSION = 4
 
     def __init__(self, name: str, normalizers: TNormalizersConfig = None) -> None:
         # verify schema name
@@ -26,7 +27,9 @@ class Schema:
             raise InvalidSchemaName(name, utils.normalize_schema_name(name))
         self._schema_tables: TSchemaTables = {}
         self._schema_name: str = name
-        self._version = 1
+        self._stored_version = 1  # version at load/creation time
+        self._stored_version_hash: str = None  # version hash at load/creation time
+        self._imported_version_hash: str = None  # version hash of recently imported schema
         # schema settings to hold default hints, preferred types and other settings
         self._settings: TSchemaSettings = {}
 
@@ -45,11 +48,11 @@ class Schema:
         self.normalize_table_name: TNormalizeNameFunc = None
         self.normalize_column_name: TNormalizeNameFunc = None
         self.normalize_schema_name: TNormalizeNameFunc = None
-        self.normalize_make_schema_name: TNormalizeMakePath = None
+        self.normalize_make_dataset_name: TNormalizeMakePath = None
         self.normalize_make_path: TNormalizeMakePath = None
         self.normalize_break_path: TNormalizeBreakPath = None
         # json normalization function
-        self.normalize_json: TNormalizeJSONFunc = None
+        self.normalize_data_item: TNormalizeJSONFunc = None
 
         # add version tables
         self._add_standard_tables()
@@ -59,6 +62,8 @@ class Schema:
         self._configure_normalizers()
         # compile all known regexes
         self._compile_regexes()
+        # set initial version hash
+        self._stored_version_hash = self.version_hash
 
     @classmethod
     def from_dict(cls, d: DictStrAny) -> "Schema":
@@ -69,20 +74,43 @@ class Schema:
         # add defaults
         utils.apply_defaults(stored_schema)
 
+        # bump version if modified
+        utils.bump_version_if_modified(stored_schema)
+
         # create new instance from dict
         self: Schema = cls(stored_schema["name"], normalizers=stored_schema.get("normalizers", None))
         self._schema_tables = stored_schema.get("tables", {})
-        # TODO: generate difference if STANDARD SCHEMAS are different than those and increase schema version
         if Schema.VERSION_TABLE_NAME not in self._schema_tables:
             raise SchemaCorruptedException(f"Schema must contain table {Schema.VERSION_TABLE_NAME}")
         if Schema.LOADS_TABLE_NAME not in self._schema_tables:
             raise SchemaCorruptedException(f"Schema must contain table {Schema.LOADS_TABLE_NAME}")
-        self._version = stored_schema["version"]
+        self._stored_version = stored_schema["version"]
+        self._stored_version_hash = stored_schema["version_hash"]
+        self._imported_version_hash = stored_schema.get("imported_version_hash")
         self._settings = stored_schema.get("settings", {})
         # compile regexes
         self._compile_regexes()
 
         return self
+
+    def to_dict(self, remove_defaults: bool = False) -> TStoredSchema:
+        stored_schema: TStoredSchema = {
+            "version": self._stored_version,
+            "version_hash": self._stored_version_hash,
+            "engine_version": Schema.ENGINE_VERSION,
+            "name": self._schema_name,
+            "tables": self._schema_tables,
+            "settings": self._settings,
+            "normalizers": self._normalizers_config
+        }
+        if self._imported_version_hash and not remove_defaults:
+            stored_schema["imported_version_hash"] = self._imported_version_hash
+        # bump version if modified
+        utils.bump_version_if_modified(stored_schema)
+        # remove defaults after bumping version
+        if remove_defaults:
+            utils.remove_defaults(stored_schema)
+        return stored_schema
 
     def filter_row(self, table_name: str, row: StrAny) -> StrAny:
         # exclude row elements according to the rules in `filter` elements of the table
@@ -121,12 +149,12 @@ class Schema:
                 break
         return row
 
-    def coerce_row(self, table_name: str, parent_table: str, row: StrAny) -> Tuple[StrAny, TPartialTable]:
+    def coerce_row(self, table_name: str, parent_table: str, row: StrAny) -> Tuple[StrAny, TPartialTableSchema]:
         # get existing or create a new table
         table = self._schema_tables.get(table_name, utils.new_table(table_name, parent_table))
         table_columns = table["columns"]
 
-        partial_table: TPartialTable = None
+        partial_table: TPartialTableSchema = None
         new_row: DictStrAny = {}
         for col_name, v in row.items():
             # skip None values, we should infer the types later
@@ -144,7 +172,7 @@ class Schema:
 
         return new_row, partial_table
 
-    def update_schema(self, partial_table: TPartialTable) -> None:
+    def update_schema(self, partial_table: TPartialTableSchema) -> None:
         table_name = partial_table["name"]
         parent_table_name = partial_table.get("parent")
         # check if parent table present
@@ -175,8 +203,18 @@ class Schema:
                         raise CannotCoerceColumnException(table_name, column_name, table_columns[column_name]["data_type"], column["data_type"], None)
                 else:
                     table_columns[column_name] = column
-        # bump schema version
-        self._version += 1
+
+    def bump_version(self) -> Tuple[int, str]:
+        """Computes schema hash in order to check if schema content was modified. In such case the schema ``stored_version`` and ``stored_version_hash`` are updated.
+
+        Should not be used in production code. The method ``to_dict`` will generate TStoredSchema with correct value, only once before persisting schema to storage.
+
+        Returns:
+            Tuple[int, str]: Current (``stored_version``, ``stored_version_hash``) tuple
+        """
+        version = utils.bump_version_if_modified(self.to_dict())
+        self._stored_version, self._stored_version_hash = version
+        return version
 
     def filter_row_with_hint(self, table_name: str, hint_type: THintType, row: StrAny) -> StrAny:
         rv_row: DictStrAny = {}
@@ -211,22 +249,22 @@ class Schema:
                 default_hints[h] = l  # type: ignore
         self._compile_regexes()
 
-    def get_schema_update_for(self, table_name: str, t: TTableColumns) -> List[TColumn]:
+    def get_schema_update_for(self, table_name: str, t: TTableSchemaColumns) -> List[TColumnSchema]:
         # gets new columns to be added to "t" to bring up to date with stored schema
-        diff_c: List[TColumn] = []
+        diff_c: List[TColumnSchema] = []
         s_t = self.get_table_columns(table_name)
         for c in s_t.values():
             if c["name"] not in t:
                 diff_c.append(c)
         return diff_c
 
-    def get_table(self, table_name: str) -> TTable:
+    def get_table(self, table_name: str) -> TTableSchema:
         return self._schema_tables[table_name]
 
-    def get_table_columns(self, table_name: str) -> TTableColumns:
+    def get_table_columns(self, table_name: str) -> TTableSchemaColumns:
         return self._schema_tables[table_name]["columns"]
 
-    def all_tables(self, with_dlt_tables: bool = False) -> List[TTable]:
+    def all_tables(self, with_dlt_tables: bool = False) -> List[TTableSchema]:
         return [t for t in self._schema_tables.values() if not t["name"].startswith("_dlt") or with_dlt_tables]
 
     def get_write_disposition(self, table_name: str) -> TWriteDisposition:
@@ -239,41 +277,55 @@ class Schema:
     def get_preferred_type(self, col_name: str) -> Optional[TDataType]:
         return next((m[1] for m in self._compiled_preferred_types if m[0].search(col_name)), None)
 
-    def to_dict(self, remove_defaults: bool = False) -> TStoredSchema:
-        stored_schema: TStoredSchema = {
-            "version": self._version,
-            "engine_version": Schema.ENGINE_VERSION,
-            "name": self._schema_name,
-            "tables": self._schema_tables,
-            "settings": self._settings,
-            "normalizers": self._normalizers_config
-        }
-        if remove_defaults:
-            utils.remove_defaults(stored_schema)
-        return stored_schema
+    @property
+    def version(self) -> int:
+        """Version of the schema content that takes into account changes from the time of schema loading/creation.
+        The stored version is increased by one if content was modified
+
+        Returns:
+            int: Current schema version
+        """
+        return utils.bump_version_if_modified(self.to_dict())[0]
 
     @property
-    def schema_version(self) -> int:
-        return self._version
+    def stored_version(self) -> int:
+        """Version of the schema content form the time of schema loading/creation.
+
+        Returns:
+            int: Stored schema version
+        """
+        return self._stored_version
 
     @property
-    def schema_name(self) -> str:
+    def version_hash(self) -> str:
+        return utils.bump_version_if_modified(self.to_dict())[1]
+
+    @property
+    def stored_version_hash(self) -> str:
+        return self._stored_version_hash
+
+    @property
+    def name(self) -> str:
         return self._schema_name
 
     @property
-    def schema_tables(self) -> TSchemaTables:
+    def tables(self) -> TSchemaTables:
         return self._schema_tables
 
     @property
-    def schema_settings(self) -> TSchemaSettings:
+    def settings(self) -> TSchemaSettings:
         return self._settings
 
-    def as_yaml(self, remove_defaults: bool = False) -> str:
+    def to_pretty_json(self, remove_defaults: bool = True) -> str:
+        d = self.to_dict(remove_defaults=remove_defaults)
+        return json.dumps(d, indent=2)
+
+    def to_pretty_yaml(self, remove_defaults: bool = True) -> str:
         d = self.to_dict(remove_defaults=remove_defaults)
         return cast(str, yaml.dump(d, allow_unicode=True, default_flow_style=False, sort_keys=False))
 
-    def _infer_column(self, k: str, v: Any) -> TColumn:
-        return TColumn(
+    def _infer_column(self, k: str, v: Any) -> TColumnSchema:
+        return TColumnSchema(
             name=k,
             data_type=self._map_value_to_column_type(v, k),
             nullable=not self._infer_hint("not_null", v, k),
@@ -285,14 +337,14 @@ class Schema:
             foreign_key=self._infer_hint("foreign_key", v, k)
         )
 
-    def _coerce_null_value(self, table_columns: TTableColumns, table_name: str, col_name: str) -> None:
+    def _coerce_null_value(self, table_columns: TTableSchemaColumns, table_name: str, col_name: str) -> None:
         if col_name in table_columns:
             existing_column = table_columns[col_name]
             if not existing_column["nullable"]:
                 raise CannotCoerceNullException(table_name, col_name)
 
-    def _coerce_non_null_value(self, table_columns: TTableColumns, table_name: str, col_name: str, v: Any) -> Tuple[str, TColumn, Any]:
-        new_column: TColumn = None
+    def _coerce_non_null_value(self, table_columns: TTableSchemaColumns, table_name: str, col_name: str, v: Any) -> Tuple[str, TColumnSchema, Any]:
+        new_column: TColumnSchema = None
         variant_col_name = col_name
 
         if col_name in table_columns:
@@ -372,11 +424,11 @@ class Schema:
         self.normalize_table_name = naming_module.normalize_table_name
         self.normalize_column_name = naming_module.normalize_column_name
         self.normalize_schema_name = utils.normalize_schema_name
-        self.normalize_make_schema_name = naming_module.normalize_make_schema_name
+        self.normalize_make_dataset_name = naming_module.normalize_make_dataset_name
         self.normalize_make_path = naming_module.normalize_make_path
         self.normalize_break_path = naming_module.normalize_break_path
-        # json normalization function
-        self.normalize_json = json_module.normalize
+        # data item normalization function
+        self.normalize_data_item = json_module.normalize_data_item
         json_module.extend_schema(self)
 
     def _compile_regexes(self) -> None:
@@ -394,3 +446,6 @@ class Schema:
                         self._compiled_excludes[table["name"]] = list(map(lambda exclude: utils.compile_simple_regex(exclude), table["filters"]["excludes"]))
                     if "includes" in table["filters"]:
                         self._compiled_includes[table["name"]] = list(map(lambda exclude: utils.compile_simple_regex(exclude), table["filters"]["includes"]))
+
+    def __repr__(self) -> str:
+        return f"Schema {self.name} at {id(self)}"

@@ -1,25 +1,26 @@
+import os
 import pytest
 from typing import Sequence, Tuple
 
-from dlt.common.file_storage import FileStorage
-from dlt.common.storages.loader_storage import LoaderStorage
-from dlt.common.configuration import LoadingVolumeConfiguration, make_configuration
+from dlt.common.schema import Schema
+from dlt.common.storages.load_storage import LoadStorage
+from dlt.common.configuration import LoadVolumeConfiguration, make_configuration
 from dlt.common.storages.exceptions import NoMigrationPathException
 from dlt.common.typing import StrAny
 from dlt.common.utils import uniq_id
 
-from tests.utils import write_version, autouse_root_storage
+from tests.utils import TEST_STORAGE, write_version, autouse_root_storage
 
 
 @pytest.fixture
-def storage() -> LoaderStorage:
-    C = make_configuration(LoadingVolumeConfiguration, LoadingVolumeConfiguration)
-    s = LoaderStorage(True, C, "jsonl")
+def storage() -> LoadStorage:
+    C = make_configuration(LoadVolumeConfiguration, LoadVolumeConfiguration)
+    s = LoadStorage(True, C, "jsonl", LoadStorage.ALL_SUPPORTED_FILE_FORMATS)
     s.initialize_storage()
     return s
 
 
-def test_archive_completed(storage: LoaderStorage) -> None:
+def test_archive_completed(storage: LoadStorage) -> None:
     # should delete archive in full
     storage.delete_completed_jobs = True
     load_id, file_name = start_loading_file(storage, [{"content": "a"}, {"content": "b"}])
@@ -42,7 +43,7 @@ def test_archive_completed(storage: LoaderStorage) -> None:
     assert storage.storage.has_folder(storage.get_archived_path(load_id))
 
 
-def test_archive_failed(storage: LoaderStorage) -> None:
+def test_archive_failed(storage: LoadStorage) -> None:
     # loads with failed jobs are always archived
     storage.delete_completed_jobs = True
     load_id, file_name = start_loading_file(storage, [{"content": "a"}, {"content": "b"}])
@@ -55,27 +56,40 @@ def test_archive_failed(storage: LoaderStorage) -> None:
     assert storage.storage.has_folder(storage.get_archived_path(load_id))
 
 
+def test_save_load_schema(storage: LoadStorage) -> None:
+    # mock schema version to some random number so we know we load what we save
+    schema = Schema("event")
+    schema._stored_version = 762171
+
+    storage.create_temp_load_folder("copy")
+    saved_file_name = storage.save_temp_schema(schema, "copy")
+    assert saved_file_name.endswith(os.path.join(storage.storage.storage_path, "copy", LoadStorage.SCHEMA_FILE_NAME))
+    assert storage.storage.has_file(os.path.join("copy",LoadStorage.SCHEMA_FILE_NAME))
+    schema_copy = storage.load_temp_schema("copy")
+    assert schema.stored_version == schema_copy.stored_version
+
+
 def test_full_migration_path() -> None:
     # create directory structure
-    s = LoaderStorage(True, LoadingVolumeConfiguration, "jsonl")
+    s = LoadStorage(True, LoadVolumeConfiguration, "jsonl", LoadStorage.ALL_SUPPORTED_FILE_FORMATS)
     # overwrite known initial version
     write_version(s.storage, "1.0.0")
     # must be able to migrate to current version
-    s = LoaderStorage(False, LoadingVolumeConfiguration, "jsonl")
-    assert s.version == LoaderStorage.STORAGE_VERSION
+    s = LoadStorage(False, LoadVolumeConfiguration, "jsonl", LoadStorage.ALL_SUPPORTED_FILE_FORMATS)
+    assert s.version == LoadStorage.STORAGE_VERSION
 
 
 def test_unknown_migration_path() -> None:
     # create directory structure
-    s = LoaderStorage(True, LoadingVolumeConfiguration, "jsonl")
+    s = LoadStorage(True, LoadVolumeConfiguration, "jsonl", LoadStorage.ALL_SUPPORTED_FILE_FORMATS)
     # overwrite known initial version
     write_version(s.storage, "10.0.0")
     # must be able to migrate to current version
     with pytest.raises(NoMigrationPathException):
-        LoaderStorage(False, LoadingVolumeConfiguration, "jsonl")
+        LoadStorage(False, LoadVolumeConfiguration, "jsonl", LoadStorage.ALL_SUPPORTED_FILE_FORMATS)
 
 
-def start_loading_file(s: LoaderStorage, content: Sequence[StrAny]) -> Tuple[str, str]:
+def start_loading_file(s: LoadStorage, content: Sequence[StrAny]) -> Tuple[str, str]:
     load_id = uniq_id()
     s.create_temp_load_folder(load_id)
     file_name = s.write_temp_loading_file(load_id, "mock_table", None, uniq_id(), content)

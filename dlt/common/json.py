@@ -12,7 +12,7 @@ from dlt.common.arithmetics import Decimal
 
 # simplejson._toggle_speedups(False)
 
-def custom_encode(obj: Any) -> Union[RawJSON, str]:
+def custom_encode(obj: Any) -> str:
     if isinstance(obj, Decimal):
         # always return decimals as string (not RawJSON) so they are not deserialized back to float
         return str(obj)
@@ -86,11 +86,11 @@ def custom_pua_decode(obj: Any) -> Any:
 simplejson.loads = partial(simplejson.loads, use_decimal=False)
 simplejson.load = partial(simplejson.load, use_decimal=False)
 # prevent default decimal serializer (use_decimal=False) and binary serializer (encoding=None)
-simplejson.dumps = partial(simplejson.dumps, use_decimal=False, default=custom_encode, encoding=None)
-simplejson.dump = partial(simplejson.dump, use_decimal=False, default=custom_encode, encoding=None)
+simplejson.dumps = partial(simplejson.dumps, use_decimal=False, default=custom_encode, encoding=None, ensure_ascii=False)
+simplejson.dump = partial(simplejson.dump, use_decimal=False, default=custom_encode, encoding=None, ensure_ascii=False)
 
 # provide drop-in replacement
 json = simplejson
 # helpers for typed dump
-json_typed_dumps: Callable[..., str] = partial(simplejson.dumps, use_decimal=False, default=custom_pua_encode, encoding=None)
-json_typed_dump: Callable[..., None] = partial(simplejson.dump, use_decimal=False, default=custom_pua_encode, encoding=None)
+json_typed_dumps: Callable[..., str] = partial(simplejson.dumps, use_decimal=False, default=custom_pua_encode, encoding=None, ensure_ascii=False)
+json_typed_dump: Callable[..., None] = partial(simplejson.dump, use_decimal=False, default=custom_pua_encode, encoding=None, ensure_ascii=False)

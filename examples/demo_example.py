@@ -79,8 +79,8 @@ if __name__ == "__main__":
     # working BQ creds
     # credentials = Pipeline.load_gcp_credentials("_secrets/project1234_service.json", "gamma_guild")
 
-    # working redshift creds, you can pass password as last parameter or via PG_PASSWORD env variable ie.
-    # LOG_LEVEL=INFO PG_PASSWORD=.... python examples/discord_iterator.py
+    # working redshift creds, you can pass password as last parameter or via PASSWORD env variable ie.
+    # LOG_LEVEL=INFO PASSWORD=.... python examples/discord_iterator.py
     credentials = GCPPipelineCredentials.from_services_file(gcp_credential_json_file_path, schema_prefix)
 
     pipeline = Pipeline(schema_source_suffix)
@@ -98,10 +98,10 @@ if __name__ == "__main__":
     pipeline.extract(iter(data), table_name=parent_table)
 
     # now create loading packages and infer the schema
-    pipeline.unpack()
+    pipeline.normalize()
 
     schema = pipeline.get_default_schema()
-    schema_yaml = schema.as_yaml()
+    schema_yaml = schema.to_pretty_yaml()
     f = open(data_schema_file_path, "a", encoding="utf-8")
     f.write(schema_yaml)
     f.close()
@@ -109,14 +109,14 @@ if __name__ == "__main__":
 
     # show loads, each load contains a copy of the schema that corresponds to the data inside
     # and a set of directories for job states (new -> in progress -> failed|completed)
-    new_loads = pipeline.list_unpacked_loads()
+    new_loads = pipeline.list_normalized_loads()
     print(new_loads)
 
     # load packages
     pipeline.load()
 
     # should be empty
-    new_loads = pipeline.list_unpacked_loads()
+    new_loads = pipeline.list_normalized_loads()
     print(new_loads)
 
     # now enumerate all complete loads if we have any failed packages

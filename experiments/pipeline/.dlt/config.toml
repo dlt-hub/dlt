@@ -1,0 +1,20 @@
+[pipeline]
+WORKING_DIR: Optional[str] = None
+PIPELINE_SECRET: Optional[TSecretValue] = None
+OVERWRITE_EXISTING: bool = False
+
+[schema]
+
+[schema.normalizer]
+max_nexting = 2
+
+[extractor]
+
+[normalizer]
+sync_schema_dir = "dir"
+
+[loader]
+LOADER_TYPE: Optional[str] = None
+
+[loader.redshift]
+truncate_max_varchar = true

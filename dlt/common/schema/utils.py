@@ -2,17 +2,20 @@ from copy import deepcopy
 import re
 import base64
 import binascii
+import hashlib
 import datetime  # noqa: I251
-from typing import Dict, List, Sequence, Type, Any, cast
+from typing import Dict, List, Sequence, Tuple, Type, Any, cast
 
 from dlt.common import pendulum, json, Decimal
+from dlt.common.json import custom_encode as json_custom_encode
 from dlt.common.arithmetics import ConversionSyntax
 from dlt.common.exceptions import DictValidationException
 from dlt.common.normalizers.names import TNormalizeNameFunc
 from dlt.common.typing import DictStrAny, REPattern
+from dlt.common.utils import str2bool
 from dlt.common.validation import TCustomValidator, validate_dict
 from dlt.common.schema import detections
-from dlt.common.schema.typing import SIMPLE_REGEX_PREFIX, TColumnName, TNormalizersConfig, TSimpleRegex, TStoredSchema, TTable, TTableColumns, TColumnBase, TColumn, TColumnProp, TDataType, THintType, TTypeDetectionFunc, TTypeDetections, TWriteDisposition
+from dlt.common.schema.typing import SIMPLE_REGEX_PREFIX, TColumnName, TNormalizersConfig, TSimpleRegex, TStoredSchema, TTableSchema, TTableSchemaColumns, TColumnSchemaBase, TColumnSchema, TColumnProp, TDataType, THintType, TTypeDetectionFunc, TTypeDetections, TWriteDisposition
 from dlt.common.schema.exceptions import ParentTableNotFoundException, SchemaEngineNoUpgradePathException
 
 
@@ -24,7 +27,8 @@ DEFAULT_WRITE_DISPOSITION: TWriteDisposition = "append"
 
 # fix a name so it is acceptable as schema name
 def normalize_schema_name(name: str) -> str:
-    if name is None:
+    # empty and None schema names are not allowed
+    if not name:
         raise ValueError(name)
 
     # prefix the name starting with digits
@@ -64,6 +68,49 @@ def remove_defaults(stored_schema: TStoredSchema) -> None:
                     del c[h]  # type: ignore
 
     stored_schema["tables"] = clean_tables
+
+
+def bump_version_if_modified(stored_schema: TStoredSchema) -> Tuple[int, str]:
+    # if any change to schema document is detected then bump version and write new hash
+    hash_ = generate_version_hash(stored_schema)
+    previous_hash = stored_schema.get("version_hash")
+    if not previous_hash:
+        # if hash was not set, set it without bumping the version, that's initial schema
+        pass
+    elif hash_ != previous_hash:
+        stored_schema["version"] += 1
+    stored_schema["version_hash"] = hash_
+    return stored_schema["version"], hash_
+
+def generate_version_hash(stored_schema: TStoredSchema) -> str:
+    # generates hash out of stored schema content, excluding the hash itself and version
+    schema_copy = deepcopy(stored_schema)
+    schema_copy.pop("version")
+    schema_copy.pop("version_hash", None)
+    schema_copy.pop("imported_version_hash", None)
+    # ignore order of elements when computing the hash
+    content = json.dumps(schema_copy, sort_keys=True)
+    h = hashlib.sha3_256(content.encode("utf-8"))
+    # additionally check column order
+    table_names = sorted(schema_copy.get("tables", {}).keys())
+    if table_names:
+        for tn in table_names:
+            t = schema_copy["tables"][tn]
+            h.update(tn.encode("utf-8"))
+            # add column names to hash in order
+            for cn in t.get("columns", {}).keys():
+                h.update(cn.encode("utf-8"))
+    return base64.b64encode(h.digest()).decode('ascii')
+
+
+def verify_schema_hash(stored_schema: DictStrAny, empty_hash_verifies: bool = True) -> bool:
+    # generates content hash and compares with existing
+    current_hash: str = stored_schema.get("version_hash")
+    if not current_hash and empty_hash_verifies:
+        return True
+    # if hash is present we can assume at least v4 engine version so hash is computable
+    hash_ = generate_version_hash(cast(TStoredSchema, stored_schema))
+    return hash_ == current_hash
 
 
 def simple_regex_validator(path: str, pk: str, pv: Any, t: Any) -> bool:
@@ -154,7 +201,7 @@ def upgrade_engine_version(schema_dict: DictStrAny, from_engine: int, to_engine:
             "preferred_types": p_t,
         }
         # repackage tables
-        old_tables: Dict[str, TTableColumns] = schema_dict.pop("tables")
+        old_tables: Dict[str, TTableSchemaColumns] = schema_dict.pop("tables")
         current["tables"] = {}
         for name, columns in old_tables.items():
             # find last path separator
@@ -196,14 +243,17 @@ def upgrade_engine_version(schema_dict: DictStrAny, from_engine: int, to_engine:
         # upgraded
         schema_dict["engine_version"] = 3
         from_engine = 3
-    if from_engine == 3:
-        pass
+    if from_engine == 3 and to_engine > 3:
+        # set empty version hash to pass validation, in engine 4 this hash is mandatory
+        schema_dict.setdefault("version_hash", "")
+        schema_dict["engine_version"] = 4
+        from_engine = 4
     if from_engine != to_engine:
         raise SchemaEngineNoUpgradePathException(schema_dict["name"], schema_dict["engine_version"], from_engine, to_engine)
     return cast(TStoredSchema, schema_dict)
 
 
-def add_missing_hints(column: TColumnBase) -> TColumn:
+def add_missing_hints(column: TColumnSchemaBase) -> TColumnSchema:
     return {
         **{  # type:ignore
             "partition": False,
@@ -258,7 +308,12 @@ def coerce_type(to_type: TDataType, from_type: TDataType, value: Any) -> Any:
         if from_type == "complex":
             return json.dumps(value)
         else:
-            return str(value)
+            # use the same string encoding as in json
+            try:
+                return json_custom_encode(value)
+            except TypeError:
+                # for other types use internal conversion
+                return str(value)
 
     if to_type == "binary":
         if from_type == "text":
@@ -334,10 +389,17 @@ def coerce_type(to_type: TDataType, from_type: TDataType, value: Any) -> Any:
                     value = float(value)
                 return pendulum.from_timestamp(value)
 
+    if to_type == "bool":
+        if from_type == "text":
+            return str2bool(value)
+        if from_type not in ["complex", "binary", "datetime"]:
+            # all the numeric types will convert to bool on 0 - False, 1 - True
+            return bool(value)
+
     raise ValueError(value)
 
 
-def compare_columns(a: TColumn, b: TColumn) -> bool:
+def compare_columns(a: TColumnSchema, b: TColumnSchema) -> bool:
     return a["data_type"] == b["data_type"] and a["nullable"] == b["nullable"]
 
 
@@ -347,7 +409,7 @@ def hint_to_column_prop(h: THintType) -> TColumnProp:
     return h
 
 
-def version_table() -> TTable:
+def version_table() -> TTableSchema:
     table = new_table("_dlt_version", columns=[
             add_missing_hints({
                 "name": "version",
@@ -371,7 +433,7 @@ def version_table() -> TTable:
     return table
 
 
-def load_table() -> TTable:
+def load_table() -> TTableSchema:
     table = new_table("_dlt_loads", columns=[
             add_missing_hints({
                 "name": "load_id",
@@ -395,10 +457,10 @@ def load_table() -> TTable:
     return table
 
 
-def new_table(table_name: str, parent_name: str = None, write_disposition: TWriteDisposition = None, columns: Sequence[TColumn] = None) -> TTable:
-    table: TTable = {
+def new_table(table_name: str, parent_name: str = None, write_disposition: TWriteDisposition = None, columns: Sequence[TColumnSchema] = None) -> TTableSchema:
+    table: TTableSchema = {
         "name": table_name,
-        "columns": {} if columns is None else {c["name"]: c for c in columns}
+        "columns": {} if columns is None else {c["name"]: add_missing_hints(c) for c in columns}
     }
     if parent_name:
         table["parent"] = parent_name

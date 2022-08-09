@@ -20,8 +20,8 @@ def str2bool_a(v: str) -> bool:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Runs various DLT modules", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     subparsers = parser.add_subparsers(dest="command")
-    unpack = subparsers.add_parser("unpack", help="Runs unpacker")
-    add_pool_cli_arguments(unpack)
+    normalize = subparsers.add_parser("normalize", help="Runs normalize")
+    add_pool_cli_arguments(normalize)
     load = subparsers.add_parser("load", help="Runs loader")
     add_pool_cli_arguments(load)
     dbt = subparsers.add_parser("dbt", help="Executes dbt package")
@@ -35,11 +35,11 @@ def main() -> None:
     args = parser.parse_args()
     run_f: Callable[[TRunArgs], None] = None
 
-    if args.command == "unpack":
-        from dlt.unpacker.unpacker import run_main as unpacker_run
-        run_f = unpacker_run
+    if args.command == "normalize":
+        from dlt.normalize.normalize import run_main as normalize_run
+        run_f = normalize_run
     elif args.command == "load":
-        from dlt.loaders.loader import run_main as loader_run
+        from dlt.load.load import run_main as loader_run
         run_f = loader_run
     elif args.command == "dbt":
         from dlt.dbt_runner.runner import run_main as dbt_run
@@ -54,7 +54,7 @@ def main() -> None:
         if args.format == "json":
             schema_str = json.dumps(s.to_dict(remove_defaults=args.remove_defaults), indent=2)
         else:
-            schema_str = s.as_yaml(remove_defaults=args.remove_defaults)
+            schema_str = s.to_pretty_yaml(remove_defaults=args.remove_defaults)
         print(schema_str)
         exit(0)
     else:

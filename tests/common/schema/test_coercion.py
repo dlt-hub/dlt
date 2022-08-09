@@ -1,22 +1,52 @@
 import pytest
 import datetime  # noqa: I251
+from hexbytes import HexBytes
 
 from dlt.common import Decimal, json, pendulum
 from dlt.common.schema import utils
 
 
-def test_coerce_type() -> None:
+def test_coerce_type_others() -> None:
     # same type coercion
     assert utils.coerce_type("double", "double", 8721.1) == 8721.1
     # anything into text
     assert utils.coerce_type("text", "bool", False) == str(False)
 
 
-def test_coerce_type_float() -> None:
-    # bigint into float
+def test_coerce_type_bool() -> None:
+    # text into bool
+    assert utils.coerce_type("bool", "text", "False") is False
+    assert utils.coerce_type("bool", "text", "yes") is True
+    assert utils.coerce_type("bool", "text", "no") is False
+    # some numeric types
+    assert utils.coerce_type("bool", "bigint", 1) is True
+    assert utils.coerce_type("bool", "bigint", 0) is False
+    assert utils.coerce_type("bool", "decimal", Decimal(1)) is True
+    assert utils.coerce_type("bool", "decimal", Decimal(0)) is False
+
+    # no coercions
+    with pytest.raises(ValueError):
+        utils.coerce_type("bool", "complex", {"a": True})
+    with pytest.raises(ValueError):
+        utils.coerce_type("bool", "binary", b'True')
+    with pytest.raises(ValueError):
+        utils.coerce_type("bool", "datetime", pendulum.now())
+
+
+def test_coerce_type_double() -> None:
+    # bigint into double
     assert utils.coerce_type("double", "bigint", 762162) == 762162.0
-    # text into float if parsable
+    # text into double if parsable
     assert utils.coerce_type("double", "text", " -1726.1288 ") == -1726.1288
+    # hex text into double
+    assert utils.coerce_type("double", "text", "0xff") == 255.0
+    # double into text
+    assert utils.coerce_type("text", "double", -1726.1288) == "-1726.1288"
+    # double into bigint when not round
+    with pytest.raises(ValueError):
+        utils.coerce_type("bigint", "double", 762162.1)
+    # works when round
+    assert utils.coerce_type("bigint", "double", -762162.0) == -762162
 
 
 def test_coerce_type_integer() -> None:
@@ -27,7 +57,7 @@ def test_coerce_type_integer() -> None:
     assert utils.coerce_type("wei", "double", 1276.0) == 1276
     assert utils.coerce_type("wei", "decimal", Decimal(1276.0)) == 1276
     assert utils.coerce_type("bigint", "decimal", 1276.0) == 1276
-    # float into bigint raises
+    # double into bigint raises
     with pytest.raises(ValueError):
         utils.coerce_type("bigint", "double", 912.12)
     with pytest.raises(ValueError):
@@ -99,12 +129,17 @@ def test_coerce_type_binary() -> None:
     # can't broken base64
     with pytest.raises(ValueError):
         assert utils.coerce_type("binary", "text", "!YmluYXJ5IHN0cmluZw==")
+    # bytes to text (base64)
+    assert utils.coerce_type("text", "binary", b'binary string') == "YmluYXJ5IHN0cmluZw=="
+    # HexBytes to text (hex with prefix)
+    assert utils.coerce_type("text", "binary", HexBytes(b'binary string')) == "0x62696e61727920737472696e67"
 
 
 def test_py_type_to_sc_type() -> None:
     assert utils.py_type_to_sc_type(type(pendulum.now())) == "timestamp"
     assert utils.py_type_to_sc_type(type(datetime.datetime(1988, 12, 1))) == "timestamp"
     assert utils.py_type_to_sc_type(type(Decimal(1))) == "decimal"
+    assert utils.py_type_to_sc_type(type(HexBytes("0xFF"))) == "binary"
 
 
 def test_coerce_type_complex() -> None:

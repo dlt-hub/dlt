@@ -5,8 +5,8 @@ from typing import Any, Sequence
 RE_UNDERSCORES = re.compile("_+")
 RE_DOUBLE_UNDERSCORES = re.compile("__+")
 RE_LEADING_DIGITS = re.compile(r"^\d+")
-RE_NON_ALPHANUMERIC = re.compile(r"[^a-zA-Z\d_]")
-SNAKE_CASE_BREAK_1 = re.compile("(.)([A-Z][a-z]+)")
+RE_NON_ALPHANUMERIC = re.compile(r"[^a-zA-Z\d_]+")
+SNAKE_CASE_BREAK_1 = re.compile("([^_])([A-Z][a-z]+)")
 SNAKE_CASE_BREAK_2 = re.compile("([a-z0-9])([A-Z])")
 
 
@@ -39,10 +39,12 @@ def normalize_column_name(name: str) -> str:
     return RE_UNDERSCORES.sub("_", normalize_table_name(name))
 
 
-# build full db schema name out of (normalized) schema prefix and schema name
-def normalize_make_schema_name(schema_prefix: str, schema_name: str) -> str:
-    name = normalize_column_name(schema_prefix)
-    if schema_name:
+# build full db dataset (dataset) name out of (normalized) default dataset and schema name
+def normalize_make_dataset_name(default_dataset: str, default_schema_name: str, schema_name: str) -> str:
+    if schema_name is None:
+        raise ValueError("schema_name is None")
+    name = normalize_column_name(default_dataset)
+    if default_schema_name is None or schema_name != default_schema_name:
         name += "_" + schema_name
 
     return name

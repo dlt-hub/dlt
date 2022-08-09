@@ -6,8 +6,8 @@ from dlt.common import json
 from dlt.common.typing import StrAny
 from dlt.common.configuration.utils import TSecretValue
 
-TLoaderType = Literal["gcp", "redshift"]
-TPipelineStage = Literal["extract", "unpack", "load"]
+TLoaderType = Literal["bigquery", "redshift"]
+TPipelineStage = Literal["extract", "normalize", "load"]
 
 # extractor generator yields functions that returns list of items of the type (table) when called
 # this allows generator to implement retry logic
@@ -22,34 +22,35 @@ class PipelineCredentials:
     CLIENT_TYPE: TLoaderType
 
     @property
-    def schema_prefix(self) -> str:
+    def default_dataset(self) -> str:
         pass
 
-    @schema_prefix.setter
-    def schema_prefix(self, new_value: str) -> None:
+    @default_dataset.setter
+    def default_dataset(self, new_value: str) -> None:
         pass
 
 @dataclass
 class GCPPipelineCredentials(PipelineCredentials):
     PROJECT_ID: str
-    DATASET: str
-    BQ_CRED_CLIENT_EMAIL: str
-    BQ_CRED_PRIVATE_KEY: TSecretValue = None
-    TIMEOUT: float = 30.0
+    DEFAULT_DATASET: str
+    CLIENT_EMAIL: str
+    PRIVATE_KEY: TSecretValue = None
+    HTTP_TIMEOUT: float = 15.0
+    RETRY_DEADLINE: float = 600
 
     @property
-    def schema_prefix(self) -> str:
-        return self.DATASET
+    def default_dataset(self) -> str:
+        return self.DEFAULT_DATASET
 
-    @schema_prefix.setter
-    def schema_prefix(self, new_value: str) -> None:
-        self.DATASET = new_value
+    @default_dataset.setter
+    def default_dataset(self, new_value: str) -> None:
+        self.DEFAULT_DATASET = new_value
 
     @classmethod
     def from_services_dict(cls, services: StrAny, dataset_prefix: str) -> "GCPPipelineCredentials":
         assert dataset_prefix is not None
 
-        return cls("gcp", services["project_id"], dataset_prefix, services["client_email"], services["private_key"])
+        return cls("bigquery", services["project_id"], dataset_prefix, services["client_email"], services["private_key"])
 
     @classmethod
     def from_services_file(cls, services_path: str, dataset_prefix: str) -> "GCPPipelineCredentials":
@@ -57,21 +58,25 @@ class GCPPipelineCredentials(PipelineCredentials):
             services = json.load(f)
         return GCPPipelineCredentials.from_services_dict(services, dataset_prefix)
 
+    @classmethod
+    def default_credentials(cls, dataset_prefix: str) -> "GCPPipelineCredentials":
+        return cls("bigquery", None, dataset_prefix, None)
+
 
 @dataclass
 class PostgresPipelineCredentials(PipelineCredentials):
-    PG_DATABASE_NAME: str
-    PG_SCHEMA_PREFIX: str
-    PG_USER: str
-    PG_HOST: str
-    PG_PASSWORD: TSecretValue = None
-    PG_PORT: int = 5439
-    PG_CONNECTION_TIMEOUT: int = 15
+    DBNAME: str
+    DEFAULT_DATASET: str
+    USER: str
+    HOST: str
+    PASSWORD: TSecretValue = None
+    PORT: int = 5439
+    CONNECT_TIMEOUT: int = 15
 
     @property
-    def schema_prefix(self) -> str:
-        return self.PG_SCHEMA_PREFIX
+    def default_dataset(self) -> str:
+        return self.DEFAULT_DATASET
 
-    @schema_prefix.setter
-    def schema_prefix(self, new_value: str) -> None:
-        self.PG_SCHEMA_PREFIX = new_value
+    @default_dataset.setter
+    def default_dataset(self, new_value: str) -> None:
+        self.DEFAULT_DATASET = new_value

@@ -1,5 +1,4 @@
 import base64
-from dlt.common import json
 from dlt.common.utils import uniq_id
 from dlt.pipeline import Pipeline, GCPPipelineCredentials
 
@@ -32,7 +31,7 @@ pipeline.create_pipeline(credential)
 # pipeline.create_pipeline(credential, schema=schema)
 
 
-# 3. Pass the data to the pipeline and give it a table name. Optionally unpack and handle schema.
+# 3. Pass the data to the pipeline and give it a table name. Optionally normalize and handle schema.
 
 # with open("experiments/metabase_data.json", "r") as f:
 #     rows = json.load(f)
@@ -47,11 +46,11 @@ rows = [{"name": "Ana", "age": 30, "id": 456, "children": [{"name": "Bill", "id"
 
 pipeline.extract(iter(rows), table_name=parent_table)
 # tell the pipeline to un-nest the json into a relational structure
-pipeline.unpack()
+pipeline.normalize()
 
 # If you want to save the schema to curate it and re-use it, uncomment the below
 schema = pipeline.get_default_schema()
-schema_yaml = schema.as_yaml(remove_defaults=True)
+schema_yaml = schema.to_pretty_yaml(remove_defaults=True)
 print(schema_yaml)
 # f = open(data_schema_file_path, "a", encoding="utf-8")
 # f.write(schema_yaml)
