@@ -40,7 +40,7 @@ def is_large_integer(t: Type[Any], v: Any) -> Optional[TDataType]:
     if t is int:
         # TODO: this is bigquery limit, we need to implement better wei type
         # if integer does not find in maximum wei then convert to string
-        if v > Decimal("5.7896044618658097711785492504343953926634992332820282019728792003956564819967E+38"):
+        if v > 578960446186580977117854925043439539266:
             return "text"
         # if integer does not fit into 64 bit unsigned int
         if v > 2**64 // 2 - 1:
@@ -49,7 +49,7 @@ def is_large_integer(t: Type[Any], v: Any) -> Optional[TDataType]:
     return None
 
 
-def is_hexbytes_text(t: Type[Any], v: Any) -> Optional[TDataType]:
+def is_hexbytes_to_text(t: Type[Any], v: Any) -> Optional[TDataType]:
     # HexBytes should be converted to text
     if t is HexBytes:
         return "text"

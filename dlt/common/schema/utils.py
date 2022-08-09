@@ -12,7 +12,7 @@ from dlt.common.arithmetics import ConversionSyntax
 from dlt.common.exceptions import DictValidationException
 from dlt.common.normalizers.names import TNormalizeNameFunc
 from dlt.common.typing import DictStrAny, REPattern
-from dlt.common.utils import digest256
+from dlt.common.utils import str2bool
 from dlt.common.validation import TCustomValidator, validate_dict
 from dlt.common.schema import detections
 from dlt.common.schema.typing import SIMPLE_REGEX_PREFIX, TColumnName, TNormalizersConfig, TSimpleRegex, TStoredSchema, TTableSchema, TTableSchemaColumns, TColumnSchemaBase, TColumnSchema, TColumnProp, TDataType, THintType, TTypeDetectionFunc, TTypeDetections, TWriteDisposition
@@ -388,6 +388,13 @@ def coerce_type(to_type: TDataType, from_type: TDataType, value: Any) -> Any:
                     # raises ValueError if not parsing correctly
                     value = float(value)
                 return pendulum.from_timestamp(value)
+
+    if to_type == "bool":
+        if from_type == "text":
+            return str2bool(value)
+        if from_type not in ["complex", "binaray"]:
+            # all the numeric types will convert to bool on 0 - False, 1 - True
+            return bool(value)
 
     raise ValueError(value)
 
