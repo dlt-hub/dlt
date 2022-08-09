@@ -25,7 +25,8 @@ from dlt.load.configuration import configuration, LoaderConfiguration
 class SupportsLoadClient(Protocol):
     CLIENT: Type[JobClientBase]
 
-class Load(Runnable):
+
+class Load(Runnable[ThreadPool]):
 
     load_counter: Counter = None
     job_gauge: Gauge = None
@@ -258,11 +259,11 @@ def main(args: TRunArgs) -> int:
     C = configuration()
     initialize_runner(C, args)
     try:
-        l = Load(C, REGISTRY)
+        load = Load(C, REGISTRY)
     except Exception:
         process_internal_exception("run")
         return -1
-    return run_pool(C, l)
+    return run_pool(C, load)
 
 
 def run_main(args: TRunArgs) -> None:

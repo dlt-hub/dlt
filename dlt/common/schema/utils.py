@@ -72,15 +72,15 @@ def remove_defaults(stored_schema: TStoredSchema) -> None:
 
 def bump_version_if_modified(stored_schema: TStoredSchema) -> Tuple[int, str]:
     # if any change to schema document is detected then bump version and write new hash
-    hash = generate_version_hash(stored_schema)
+    hash_ = generate_version_hash(stored_schema)
     previous_hash = stored_schema.get("version_hash")
     if not previous_hash:
         # if hash was not set, set it without bumping the version, that's initial schema
         pass
-    elif hash != previous_hash:
+    elif hash_ != previous_hash:
         stored_schema["version"] += 1
-    stored_schema["version_hash"] = hash
-    return stored_schema["version"], hash
+    stored_schema["version_hash"] = hash_
+    return stored_schema["version"], hash_
 
 def generate_version_hash(stored_schema: TStoredSchema) -> str:
     # generates hash out of stored schema content, excluding the hash itself and version
@@ -109,8 +109,8 @@ def verify_schema_hash(stored_schema: DictStrAny, empty_hash_verifies: bool = Tr
     if not current_hash and empty_hash_verifies:
         return True
     # if hash is present we can assume at least v4 engine version so hash is computable
-    hash = generate_version_hash(cast(TStoredSchema, stored_schema))
-    return hash == current_hash
+    hash_ = generate_version_hash(cast(TStoredSchema, stored_schema))
+    return hash_ == current_hash
 
 
 def simple_regex_validator(path: str, pk: str, pv: Any, t: Any) -> bool:
@@ -392,7 +392,7 @@ def coerce_type(to_type: TDataType, from_type: TDataType, value: Any) -> Any:
     if to_type == "bool":
         if from_type == "text":
             return str2bool(value)
-        if from_type not in ["complex", "binaray"]:
+        if from_type not in ["complex", "binary", "datetime"]:
             # all the numeric types will convert to bool on 0 - False, 1 - True
             return bool(value)
 

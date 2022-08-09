@@ -39,7 +39,7 @@ def test_gen_configuration() -> None:
     # for production config
     with patch.dict(environ, {"IS_DEVELOPMENT_CONFIG": "False"}):
         # mock missing config values
-        load = setup_loader(initial_values={"LOADING_VOLUME_PATH": LoaderConfiguration.LOAD_VOLUME_PATH})
+        load = setup_loader(initial_values={"LOAD_VOLUME_PATH": LoaderConfiguration.LOAD_VOLUME_PATH})
         assert ProductionLoaderConfiguration in load.CONFIG.mro()
         assert LoaderConfiguration in load.CONFIG.mro()
 

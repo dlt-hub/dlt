@@ -149,8 +149,8 @@ class SchemaStorage(Mapping[str, Schema]):
         schema_file = self._file_name_in_store(schema.name, "json")
         return self.storage.save(schema_file, schema.to_pretty_json(remove_defaults=False))
 
-    def _file_name_in_store(self, name: str, format: TSchemaFileFormat) -> str:
+    def _file_name_in_store(self, name: str, fmt: TSchemaFileFormat) -> str:
         if name:
-            return SchemaStorage.NAMED_SCHEMA_FILE_PATTERN % (name, format)
+            return SchemaStorage.NAMED_SCHEMA_FILE_PATTERN % (name, fmt)
         else:
-            return SchemaStorage.SCHEMA_FILE_NAME % format
+            return SchemaStorage.SCHEMA_FILE_NAME % fmt

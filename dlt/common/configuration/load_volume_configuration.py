@@ -6,4 +6,4 @@ class LoadVolumeConfiguration(BaseConfiguration):
     DELETE_COMPLETED_JOBS: bool = False  # if set to true the folder with completed jobs will be deleted
 
 class ProductionLoadVolumeConfiguration(LoadVolumeConfiguration):
-    LOADING_VOLUME_PATH: str = None
+    LOAD_VOLUME_PATH: str = None

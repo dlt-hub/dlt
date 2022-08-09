@@ -25,7 +25,7 @@ TMapFuncRV = Tuple[List[TSchemaUpdate], List[Sequence[str]]]
 TMapFuncType = Callable[[str, str, Sequence[str]], TMapFuncRV]
 
 
-class Normalize(Runnable):
+class Normalize(Runnable[ProcessPool]):
 
     # make our gauges static
     event_counter: Counter = None
@@ -127,6 +127,7 @@ class Normalize(Runnable):
         configured_processes = self.pool._processes  # type: ignore
         chunk_files = NormalizeStorage.chunk_by_events(files, self.CONFIG.MAX_EVENTS_IN_CHUNK, configured_processes)
         logger.info(f"Obtained {len(chunk_files)} processing chunks")
+        # use id of self to pass the self instance. see `Runnable` class docstrings
         param_chunk = [(id(self), schema_name, load_id, files) for files in chunk_files]
         return self.pool.starmap(Normalize.w_normalize_files, param_chunk), chunk_files
 
@@ -135,7 +136,9 @@ class Normalize(Runnable):
         # get in one chunk
         assert len(chunk_files) == 1
         logger.info(f"Obtained {len(chunk_files)} processing chunks")
-        return [Normalize.w_normalize_files(id(self), schema_name, load_id, chunk_files[0])], chunk_files
+        # use id of self to pass the self instance. see `Runnable` class docstrings
+        self_id: Any = id(self)
+        return [Normalize.w_normalize_files(self_id, schema_name, load_id, chunk_files[0])], chunk_files
 
     def update_schema(self, schema_name: str, schema_updates: List[TSchemaUpdate]) -> Schema:
         # gather schema from all manifests, validate consistency and combine
@@ -214,13 +217,13 @@ class Normalize(Runnable):
         return TRunMetrics(False, False, len(self.normalize_storage.list_files_to_normalize_sorted()))
 
 
-def main(args: TRunArgs, default_schemas_path: str = None, schema_names: List[str] = None) -> int:
+def main(args: TRunArgs) -> int:
     # initialize runner
     C = configuration()
     initialize_runner(C, args)
     # create objects and gauges
     try:
-        n = Normalize(C, REGISTRY, default_schemas_path, schema_names)
+        n = Normalize(C, REGISTRY)
     except Exception:
         process_internal_exception("init module")
         return -1

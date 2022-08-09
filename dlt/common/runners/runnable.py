@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from functools import wraps
-from typing import Any, Dict, Type, TypeVar, TYPE_CHECKING, Union
+from typing import Any, Dict, Type, TypeVar, TYPE_CHECKING, Union, Generic
 from multiprocessing.pool import Pool
 from weakref import WeakValueDictionary
 
@@ -10,16 +10,16 @@ from dlt.common.typing import TFun
 TPool = TypeVar("TPool", bound=Pool)
 
 
-class Runnable(ABC):
+class Runnable(ABC, Generic[TPool]):
     if TYPE_CHECKING:
-        TWeakValueDictionary = WeakValueDictionary[int, "Runnable"]
+        TWeakValueDictionary = WeakValueDictionary[int, "Runnable[Any]"]
     else:
         TWeakValueDictionary = Dict[int, "Runnable"]
 
     # use weak reference container, once other references are dropped the referenced object is garbage collected
     RUNNING: TWeakValueDictionary = WeakValueDictionary({})
 
-    def __new__(cls: Type["Runnable"], *args: Any, **kwargs: Any) -> "Runnable":
+    def __new__(cls: Type["Runnable[TPool]"], *args: Any, **kwargs: Any) -> "Runnable[TPool]":
         """Registers Runnable instance as running for a time when context is active.
         Used with `~workermethod` decorator to pass a class instance to decorator function that must be static thus avoiding pickling such instance.
 
@@ -50,7 +50,7 @@ def workermethod(f: TFun) -> TFun:
         TFun: wrapped worker function
     """
     @wraps(f)
-    def _wrap(rid: Union[int, Runnable], *args: Any, **kwargs: Any) -> Any:
+    def _wrap(rid: Union[int, Runnable[TPool]], *args: Any, **kwargs: Any) -> Any:
         if isinstance(rid, int):
             rid = Runnable.RUNNING[rid]
         return f(rid, *args, **kwargs)

@@ -97,5 +97,5 @@ def assert_no_dict_key_starts_with(d: StrAny, key_prefix: str) -> None:
 
 
 skipifspawn = pytest.mark.skipif(
-    multiprocessing.get_start_method() != "fork", reason=f"process fork not supported"
+    multiprocessing.get_start_method() != "fork", reason="process fork not supported"
 )

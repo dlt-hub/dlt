@@ -7,7 +7,7 @@ from multiprocessing.pool import ThreadPool, Pool
 
 from dlt.common import logger, signals
 from dlt.common.configuration.run_configuration import RunConfiguration
-from dlt.common.runners.runnable import Runnable
+from dlt.common.runners.runnable import Runnable, TPool
 from dlt.common.time import sleep
 from dlt.common.telemetry import TRunHealth, TRunMetrics, get_logging_extras, get_metrics_from_prometheus
 from dlt.common.logger import init_logging_from_config, init_telemetry, process_internal_exception
@@ -15,8 +15,6 @@ from dlt.common.signals import register_signals
 from dlt.common.utils import str2bool
 from dlt.common.exceptions import SignalReceivedException, TimeRangeExhaustedException, UnsupportedProcessStartMethodException
 from dlt.common.configuration import PoolRunnerConfiguration
-
-TPool = TypeVar("TPool", bound=Pool)
 
 
 class TRunArgs(NamedTuple):
@@ -92,8 +90,7 @@ def initialize_runner(C: Type[RunConfiguration], run_args: Optional[TRunArgs] = 
             logger.info("Running in daemon thread, signals not enabled")
 
 
-
-def run_pool(C: Type[PoolRunnerConfiguration], run_f: Union[Runnable, Callable[[TPool], TRunMetrics]]) -> int:
+def run_pool(C: Type[PoolRunnerConfiguration], run_f: Union[Runnable[TPool], Callable[[TPool], TRunMetrics]]) -> int:
     # start pool
     pool: Pool = None
     if C.POOL_TYPE == "process":
@@ -117,7 +114,7 @@ def run_pool(C: Type[PoolRunnerConfiguration], run_f: Union[Runnable, Callable[[
                     if callable(run_f):
                         run_metrics = run_f(cast(TPool, pool))
                     elif isinstance(run_f, Runnable):
-                        run_metrics = run_f.run(pool)
+                        run_metrics = run_f.run(cast(TPool, pool))
                     else:
                         raise SignalReceivedException(-1)
             except Exception as exc:

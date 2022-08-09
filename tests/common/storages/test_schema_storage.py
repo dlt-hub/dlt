@@ -157,7 +157,7 @@ def test_mapping_interface(storage: SchemaStorage) -> None:
         storage[None]
     assert storage.get("ethereum") is None
     for _ in storage:
-        assert False
+        raise AssertionError()
 
     # add elements
     schema = Schema("ethereum")
@@ -250,7 +250,7 @@ def assert_schema_imported(synced_storage: SchemaStorage, storage: SchemaStorage
     eth_v4: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v4")
     schema = synced_storage.load_schema("ethereum")
     # is linked to imported schema
-    schema._imported_version_hash == eth_v4["version_hash"]
+    schema._imported_version_hash = eth_v4["version_hash"]
     # also was saved in storage
     assert synced_storage.has_schema("ethereum")
     # and has link to imported schema s well (load without import)
