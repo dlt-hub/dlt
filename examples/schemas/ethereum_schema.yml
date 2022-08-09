@@ -312,7 +312,7 @@ normalizers:
   detections:
     - timestamp
     - large_integer
-    - hexbytes_text
+    - hexbytes_to_text
   json:
     module: dlt.common.normalizers.json.relational
     config:

@@ -166,6 +166,21 @@ def decode_tx(codec: ABIDecoder, abi: ABIFunction, params: HexBytes) -> DictStrA
 
 
 def decode_log(codec: ABIDecoder, abi: ABIEvent, log: LogReceipt) -> EventData:
+    """Decodes raw log data using provided ABI. In case of missing indexes it will figure out the right combination by trying out all possibilities
+
+    Args:
+        codec (ABIDecoder): ABI decoder
+        abi (ABIEvent): ABI of the event
+        log (LogReceipt): raw log data
+
+    Raises:
+        ValueError: DecodeError or ValueError if no right combination of indexes could not be found
+
+    Returns:
+        EventData: Decoded data
+
+        Will also add/remove indexes in `abi`
+    """
     log_topics = log["topics"][1:]
     log_topics_abi = get_indexed_event_inputs(abi)
     log_topic_normalized_inputs = normalize_event_input_types(log_topics_abi)
@@ -182,6 +197,7 @@ def decode_log(codec: ABIDecoder, abi: ABIEvent, log: LogReceipt) -> EventData:
 
             try:
                 print(abi)
+                # codec detects the incorrect padding, for example it does not allow any other byte to be set for uint8, just the LSB
                 rv: EventData = get_event_data(codec, abi, log)
                 print("recovered indexes in abi: ")
                 print(abi)
