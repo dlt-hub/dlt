@@ -33,9 +33,10 @@ class PipelineCredentials:
 class GCPPipelineCredentials(PipelineCredentials):
     PROJECT_ID: str
     DEFAULT_DATASET: str
-    BQ_CRED_CLIENT_EMAIL: str
-    BQ_CRED_PRIVATE_KEY: TSecretValue = None
-    TIMEOUT: float = 30.0
+    CLIENT_EMAIL: str
+    PRIVATE_KEY: TSecretValue = None
+    HTTP_TIMEOUT: float = 15.0
+    RETRY_DEADLINE: float = 600
 
     @property
     def default_dataset(self) -> str:
@@ -57,16 +58,20 @@ class GCPPipelineCredentials(PipelineCredentials):
             services = json.load(f)
         return GCPPipelineCredentials.from_services_dict(services, dataset_prefix)
 
+    @classmethod
+    def default_credentials(cls, dataset_prefix: str) -> "GCPPipelineCredentials":
+        return cls("bigquery", None, dataset_prefix, None)
+
 
 @dataclass
 class PostgresPipelineCredentials(PipelineCredentials):
-    PG_DATABASE_NAME: str
+    DBNAME: str
     DEFAULT_DATASET: str
-    PG_USER: str
-    PG_HOST: str
-    PG_PASSWORD: TSecretValue = None
-    PG_PORT: int = 5439
-    PG_CONNECTION_TIMEOUT: int = 15
+    USER: str
+    HOST: str
+    PASSWORD: TSecretValue = None
+    PORT: int = 5439
+    CONNECT_TIMEOUT: int = 15
 
     @property
     def default_dataset(self) -> str:

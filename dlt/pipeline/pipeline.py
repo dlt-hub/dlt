@@ -23,8 +23,8 @@ from dlt.extract.extractor_storage import ExtractorStorageBase
 from dlt.load.client_base import SqlClientBase, SqlJobClientBase
 from dlt.normalize.configuration import configuration as normalize_configuration
 from dlt.load.configuration import configuration as loader_configuration
-from dlt.normalize import normalize
-from dlt.load import load
+from dlt.normalize import Normalize
+from dlt.load import Load
 from dlt.pipeline.exceptions import InvalidPipelineContextException, MissingDependencyException, NoPipelineException, PipelineStepFailed, CannotRestorePipelineException, SqlClientNotAvailable
 from dlt.pipeline.typing import PipelineCredentials
 
@@ -40,8 +40,8 @@ class Pipeline:
         self.state: DictStrAny = {}
 
         # addresses of pipeline components to be verified before they are run
-        self._normalize_instance: int = None
-        self._loader_instance: int = None
+        self._normalize_instance: Normalize = None
+        self._loader_instance: Load = None
 
         # patch config and initialize pipeline
         C = make_configuration(RunConfiguration, RunConfiguration, initial_values={
@@ -68,7 +68,11 @@ class Pipeline:
         self.root_path = self.root_storage.storage_path
         self.credentials = credentials
         self._load_modules()
-        self.extractor_storage = ExtractorStorageBase("1.0.0", True, FileStorage(os.path.join(self.root_path, "extractor"), makedirs=True), normalize.normalize_storage)
+        self.extractor_storage = ExtractorStorageBase(
+            "1.0.0",
+            True,
+            FileStorage(os.path.join(self.root_path, "extractor"), makedirs=True),
+            self._normalize_instance.normalize_storage)
         # create new schema if no default supplied
         if schema is None:
             schema = Schema(normalize_schema_name(self.pipeline_name))
@@ -107,9 +111,14 @@ class Pipeline:
                 self.get_default_schema()
             except (FileNotFoundError):
                 raise CannotRestorePipelineException(f"Default schema with name {self.default_schema_name} not found")
-            self.extractor_storage = ExtractorStorageBase("1.0.0", True, FileStorage(os.path.join(self.root_path, "extractor"), makedirs=False), normalize.normalize_storage)
+            self.extractor_storage = ExtractorStorageBase(
+                "1.0.0",
+                True,
+                FileStorage(os.path.join(self.root_path, "extractor"), makedirs=False),
+                self._normalize_instance.normalize_storage
+            )
         except CannotRestorePipelineException:
-            pass
+            raise
 
     def extract(self, items: Iterator[TItem], schema_name: str = None, table_name: str = None) -> None:
         # check if iterator or iterable is supported
@@ -138,18 +147,18 @@ class Pipeline:
             raise NotImplementedError("Do not use workers in interactive mode ie. in notebook")
         self._verify_normalize_instance()
         # set runtime parameters
-        normalize.CONFIG.WORKERS = workers
-        normalize.CONFIG.MAX_EVENTS_IN_CHUNK = max_events_in_chunk
+        self._normalize_instance.CONFIG.WORKERS = workers
+        self._normalize_instance.CONFIG.MAX_EVENTS_IN_CHUNK = max_events_in_chunk
         # switch to thread pool for single worker
-        normalize.CONFIG.POOL_TYPE = "thread" if workers == 1 else "process"
-        runner.run_pool(normalize.CONFIG, normalize.normalize)
+        self._normalize_instance.CONFIG.POOL_TYPE = "thread" if workers == 1 else "process"
+        runner.run_pool(self._normalize_instance.CONFIG, self._normalize_instance)
         if runner.LAST_RUN_METRICS.has_failed:
             raise PipelineStepFailed("normalize", self.last_run_exception, runner.LAST_RUN_METRICS)
 
     def load(self, max_parallel_loads: int = 20) -> None:
         self._verify_loader_instance()
-        load.CONFIG.WORKERS = max_parallel_loads
-        runner.run_pool(load.CONFIG, load.load)
+        self._loader_instance.CONFIG.WORKERS = max_parallel_loads
+        runner.run_pool(self._loader_instance.CONFIG, self._loader_instance)
         if runner.LAST_RUN_METRICS.has_failed:
             raise PipelineStepFailed("load", self.last_run_exception, runner.LAST_RUN_METRICS)
 
@@ -167,23 +176,23 @@ class Pipeline:
 
     def list_extracted_loads(self) -> Sequence[str]:
         self._verify_loader_instance()
-        return normalize.normalize_storage.list_files_to_normalize_sorted()
+        return self._normalize_instance.normalize_storage.list_files_to_normalize_sorted()
 
     def list_normalized_loads(self) -> Sequence[str]:
         self._verify_loader_instance()
-        return load.load_storage.list_loads()
+        return self._loader_instance.load_storage.list_loads()
 
     def list_completed_loads(self) -> Sequence[str]:
         self._verify_loader_instance()
-        return load.load_storage.list_completed_loads()
+        return self._loader_instance.load_storage.list_completed_loads()
 
     def list_failed_jobs(self, load_id: str) -> Sequence[Tuple[str, str]]:
         self._verify_loader_instance()
         failed_jobs: List[Tuple[str, str]] = []
-        for file in load.load_storage.list_archived_failed_jobs(load_id):
+        for file in self._loader_instance.load_storage.list_archived_failed_jobs(load_id):
             if not file.endswith(".exception"):
                 try:
-                    failed_message = load.load_storage.storage.load(file + ".exception")
+                    failed_message = self._loader_instance.load_storage.storage.load(file + ".exception")
                 except FileNotFoundError:
                     failed_message = None
                 failed_jobs.append((file, failed_message))
@@ -191,57 +200,56 @@ class Pipeline:
 
     def get_default_schema(self) -> Schema:
         self._verify_normalize_instance()
-        return normalize.schema_storage.load_store_schema(self.default_schema_name)
+        return self._normalize_instance.schema_storage.load_schema(self.default_schema_name)
 
     def set_default_schema(self, new_schema: Schema) -> None:
         if self.default_schema_name:
             # delete old schema
-            normalize.schema_storage.remove_store_schema(self.default_schema_name)
+            self._normalize_instance.schema_storage.remove_schema(self.default_schema_name)
             self.default_schema_name = None
         # save new schema
-        normalize.schema_storage.save_store_schema(new_schema)
+        self._normalize_instance.schema_storage.save_schema(new_schema)
         self.default_schema_name = new_schema.name
         with self._managed_state():
             self.state["default_schema_name"] = self.default_schema_name
 
     def add_schema(self, aux_schema: Schema) -> None:
-        normalize.schema_storage.save_store_schema(aux_schema)
+        self._normalize_instance.schema_storage.save_schema(aux_schema)
 
     def get_schema(self, name: str) -> Schema:
-        return normalize.schema_storage.load_store_schema(name)
+        return self._normalize_instance.schema_storage.load_schema(name)
 
     def remove_schema(self, name: str) -> None:
-        normalize.schema_storage.remove_store_schema(name)
+        self._normalize_instance.schema_storage.remove_schema(name)
 
     def sync_schema(self) -> None:
         self._verify_loader_instance()
-        schema = normalize.schema_storage.load_store_schema(self.default_schema_name)
-        with load.load_client_cls(schema) as client:
+        schema = self._normalize_instance.schema_storage.load_schema(self.default_schema_name)
+        with self._loader_instance.load_client_cls(schema) as client:
             client.initialize_storage()
             client.update_storage_schema()
 
     def sql_client(self) -> SqlClientBase[Any]:
         self._verify_loader_instance()
-        schema = normalize.schema_storage.load_store_schema(self.default_schema_name)
-        with load.load_client_cls(schema) as c:
+        schema = self._normalize_instance.schema_storage.load_schema(self.default_schema_name)
+        with self._loader_instance.load_client_cls(schema) as c:
             if isinstance(c, SqlJobClientBase):
                 return c.sql_client
             else:
-                raise SqlClientNotAvailable(load.CONFIG.CLIENT_TYPE)
+                raise SqlClientNotAvailable(self._loader_instance.CONFIG.CLIENT_TYPE)
 
     def _configure_normalize(self) -> None:
         # create normalize config
         normalize_initial = {
             "NORMALIZE_VOLUME_PATH": os.path.join(self.root_path, "normalize"),
             "SCHEMA_VOLUME_PATH": os.path.join(self.root_path, "schemas"),
-            "LOADER_FILE_FORMAT": load.load_client_cls.capabilities()["preferred_loader_file_format"],
+            "LOADER_FILE_FORMAT": self._loader_instance.load_client_cls.capabilities()["preferred_loader_file_format"],
             "ADD_EVENT_JSON": False
         }
         normalize_initial.update(self._configure_runner())
         C = normalize_configuration(initial_values=normalize_initial)
         # shares schema storage with the pipeline so we do not need to install
-        normalize.configure(C, REGISTRY)
-        self._normalize_instance = id(normalize.CONFIG)
+        self._normalize_instance = Normalize(C)
 
     def _configure_load(self) -> None:
         # use credentials to populate loader client config, it includes also client type
@@ -250,39 +258,29 @@ class Pipeline:
         loader_initial = {"CLIENT_TYPE": loader_client_initial["CLIENT_TYPE"]}
         loader_initial.update(self._configure_runner())
         loader_initial["DELETE_COMPLETED_JOBS"] = True
-        C = loader_configuration(initial_values=loader_initial)
         try:
-            load.configure(C, REGISTRY, client_initial_values=loader_client_initial, is_storage_owner=True)
+            C = loader_configuration(initial_values=loader_initial)
+            self._loader_instance = Load(C, REGISTRY, client_initial_values=loader_client_initial, is_storage_owner=True)
         except ImportError:
             raise MissingDependencyException(
                 f"{self.credentials.CLIENT_TYPE} destination",
                 [f"python-dlt[{self.credentials.CLIENT_TYPE}]"],
                 "Dependencies for specific destination are available as extras of python-dlt"
             )
-        self._loader_instance = id(load.CONFIG)
-
-    # def _only_active(f: TFun) -> TFun:
-    #     def _wrapper(self) -> Any
 
     def _verify_loader_instance(self) -> None:
         if self._loader_instance is None:
             raise NoPipelineException()
-        if self._loader_instance != id(load.CONFIG):
-            # TODO: consider restoring pipeline from current work dir instead
-            raise InvalidPipelineContextException()
 
     def _verify_normalize_instance(self) -> None:
         if self._loader_instance is None:
             raise NoPipelineException()
-        if self._normalize_instance != id(normalize.CONFIG):
-            # TODO: consider restoring pipeline from current work dir instead
-            raise InvalidPipelineContextException()
 
     def _configure_runner(self) -> StrAny:
         return {
             "PIPELINE_NAME": self.pipeline_name,
             "EXIT_ON_EXCEPTION": True,
-            "LOADING_VOLUME_PATH": os.path.join(self.root_path, "normalized")
+            "LOAD_VOLUME_PATH": os.path.join(self.root_path, "normalized")
         }
 
     def _load_modules(self) -> None:
