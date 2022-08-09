@@ -11,7 +11,6 @@ from dlt.common import json
 from dlt.common.configuration.schema_volume_configuration import SchemaVolumeConfiguration
 
 from dlt.common.runners import pool_runner as runner, TRunArgs, TRunMetrics
-from dlt.common.dataset_writers import TLoaderFileFormat
 from dlt.common.schema.utils import normalize_schema_name
 from dlt.common.storages.live_schema_storage import LiveSchemaStorage
 from dlt.common.storages.normalize_storage import NormalizeStorage
@@ -24,15 +23,15 @@ from dlt.common.utils import is_interactive, uniq_id
 
 from dlt.extract.extractor_storage import ExtractorStorageBase
 from dlt.load.typing import TLoaderCapabilities
-from dlt.normalize.configuration import NormalizeConfiguration, configuration as normalize_configuration
+from dlt.normalize.configuration import configuration as normalize_configuration
 from dlt.normalize import Normalize
 from dlt.load.client_base import SqlClientBase, SqlJobClientBase
-from dlt.load.configuration import LoaderClientDwhConfiguration, LoaderConfiguration, configuration as loader_configuration
+from dlt.load.configuration import LoaderClientDwhConfiguration, configuration as loader_configuration
 from dlt.load import Load
 
 from experiments.pipeline.configuration import get_config
-from experiments.pipeline.exceptions import InvalidPipelineContextException, PipelineConfigMissing, PipelineConfiguredException, MissingDependencyException, PipelineStepFailed
-from experiments.pipeline.sources import SourceTables, TDataItem
+from experiments.pipeline.exceptions import PipelineConfigMissing, PipelineConfiguredException, MissingDependencyException, PipelineStepFailed
+from experiments.pipeline.sources import SourceTables, TPendingDataItem
 
 
 TConnectionString = NewType("TConnectionString",  str)
@@ -205,7 +204,7 @@ class Pipeline:
     @overload
     def extract(
         self,
-        data: Union[Iterator[TDataItem], Iterable[TDataItem]],
+        data: Union[Iterator[TPendingDataItem], Iterable[TPendingDataItem]],
         table_name = None,
         write_disposition = None,
         parent = None,
@@ -230,7 +229,7 @@ class Pipeline:
     @with_state_sync
     def extract(
         self,
-        data: Union[SourceTables, Iterator[TDataItem], Iterable[TDataItem]],
+        data: Union[SourceTables, Iterator[TPendingDataItem], Iterable[TPendingDataItem]],
         table_name = None,
         write_disposition = None,
         parent = None,
@@ -249,16 +248,16 @@ class Pipeline:
             # extract single
             pass
 
-    @maybe_default_config
-    @with_schemas_sync
-    @with_state_sync
-    def extract_many() -> None:
-        pass
+    # @maybe_default_config
+    # @with_schemas_sync
+    # @with_state_sync
+    # def extract_many() -> None:
+    #     pass
 
     @with_schemas_sync
     def normalize(self, dry_run: bool = False, workers: int = 1, max_events_in_chunk: int = 100000) -> None:
         if is_interactive() and workers > 1:
-            raise NotImplementedError("Do not use workers in interactive mode ie. in notebook")
+            raise NotImplementedError("Do not use normalize workers in interactive mode ie. in notebook")
         # set parameters to be passed to config
         normalize = self._configure_normalize({
             "WORKERS": workers,
@@ -291,7 +290,11 @@ class Pipeline:
         if len(self._extractor_storage.normalize_storage.list_files_to_normalize_sorted()) > 0:
             self.normalize(dry_run=dry_run, workers=normalize_workers)
         # then load
-        self._configure_load(locals(), credentials or {})
+        print(locals())
+        load = self._configure_load(locals(), credentials)
+        runner.run_pool(load.CONFIG, load)
+        if runner.LAST_RUN_METRICS.has_failed:
+            raise PipelineStepFailed("load", self.last_run_exception, runner.LAST_RUN_METRICS)
 
     def activate(self) -> None:
         # make this instance the active one
@@ -340,7 +343,7 @@ class Pipeline:
         # shares schema storage with the pipeline so we do not need to install
         return Normalize(C, schema_storage=self._schema_storage)
 
-    def _configure_load(self, loader_initial: StrAny, credenitials: TCredentials = None) -> Load:
+    def _configure_load(self, loader_initial: StrAny, credentials: TCredentials = None) -> Load:
         # get destination or raise
         destination_name = self._ensure_destination_name()
         # import load client for given destination or raise
@@ -354,11 +357,12 @@ class Pipeline:
         })
         loader_initial.update(self._common_initial())
 
-        loader_client_initial = deepcopy(credenitials)
-        loader_client_initial.update({
+        loader_client_initial = {
             "DEFAULT_DATASET": default_dataset,
             "DEFAULT_SCHEMA_NAME": self.state.get("default_schema_name")
-        })
+        }
+        if credentials:
+            loader_client_initial.update(credentials)
 
         C = loader_configuration(initial_values=loader_initial)
         return Load(C, REGISTRY, client_initial_values=loader_client_initial, is_storage_owner=False)
@@ -367,7 +371,7 @@ class Pipeline:
         return {
             "PIPELINE_NAME": self.state["pipeline_name"],
             "EXIT_ON_EXCEPTION": True,
-            "LOADING_VOLUME_PATH": os.path.join(self.working_dir, "normalized"),
+            "LOAD_VOLUME_PATH": os.path.join(self.working_dir, "normalized"),
             "NORMALIZE_VOLUME_PATH": os.path.join(self.working_dir, "normalize")
         }
 

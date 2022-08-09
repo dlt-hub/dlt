@@ -187,15 +187,6 @@ def source(schema=None):
 
 
 def table(name = None, write_disposition = None, parent = None, columns: Sequence[TColumnSchema] = None, schema = None):
-    """Create a table .
-
-    Args:
-        name ([type], optional): [description]. Defaults to None.
-        write_disposition ([type], optional): [description]. Defaults to None.
-        parent ([type], optional): [description]. Defaults to None.
-        columns (Sequence[TColumn], optional): [description]. Defaults to None.
-        schema ([type], optional): [description]. Defaults to None.
-    """
     def _dec(f: callable):
         global _i_schema
 
