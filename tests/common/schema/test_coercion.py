@@ -11,8 +11,26 @@ def test_coerce_type_others() -> None:
     assert utils.coerce_type("double", "double", 8721.1) == 8721.1
     # anything into text
     assert utils.coerce_type("text", "bool", False) == str(False)
+
+
+def test_coerce_type_bool() -> None:
     # text into bool
-    assert utils.coerce_type("bool", "text", "False") == False
+    assert utils.coerce_type("bool", "text", "False") is False
+    assert utils.coerce_type("bool", "text", "yes") is True
+    assert utils.coerce_type("bool", "text", "no") is False
+    # some numeric types
+    assert utils.coerce_type("bool", "bigint", 1) is True
+    assert utils.coerce_type("bool", "bigint", 0) is False
+    assert utils.coerce_type("bool", "decimal", Decimal(1)) is True
+    assert utils.coerce_type("bool", "decimal", Decimal(0)) is False
+
+    # no coercions
+    with pytest.raises(ValueError):
+        utils.coerce_type("bool", "complex", {"a": True})
+    with pytest.raises(ValueError):
+        utils.coerce_type("bool", "binary", b'True')
+    with pytest.raises(ValueError):
+        utils.coerce_type("bool", "datetime", pendulum.now())
 
 
 def test_coerce_type_double() -> None:

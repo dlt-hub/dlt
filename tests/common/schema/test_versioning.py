@@ -11,11 +11,11 @@ from tests.common.utils import load_json_case, load_yml_case
 
 def test_content_hash() -> None:
     eth_v4: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v4")
-    hash = utils.generate_version_hash(eth_v4)
+    hash_ = utils.generate_version_hash(eth_v4)
     # change content
     eth_v4["tables"]["_dlt_loads"]["write_disposition"] = "append"
     hash2 = utils.generate_version_hash(eth_v4)
-    assert hash != hash2
+    assert hash_ != hash2
     # version and version_hash are excluded from hash computation
     eth_v4["version"] += 1
     assert utils.generate_version_hash(eth_v4) == hash2

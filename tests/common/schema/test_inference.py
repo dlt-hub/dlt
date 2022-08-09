@@ -116,11 +116,12 @@ def test_coerce_row(schema: Schema) -> None:
     assert new_row_5 == {"confidence_v_bool": False}
     schema.update_schema(new_table)
 
-    # variant column clashes with existing column
-    _, new_table = schema.coerce_row("event_user", None, {"new_colbool": False, "new_colbool_v_bigint": "not bigint"})
+    # variant column clashes with existing column - create new_colbool_v_binary column that would be created for binary variant, but give it a type text
+    _, new_table = schema.coerce_row("event_user", None, {"new_colbool": False, "new_colbool_v_binary": "not bigint"})
     schema.update_schema(new_table)
     with pytest.raises(CannotCoerceColumnException):
-        schema.coerce_row("event_user", None, {"new_colbool": 123})
+        # now pass the binary that would create binary variant - but the column is occupied by text type
+        schema.coerce_row("event_user", None, {"new_colbool": b'not fit'})
 
 
 def test_coerce_row_iso_timestamp(schema: Schema) -> None:
