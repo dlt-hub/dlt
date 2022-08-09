@@ -1,5 +1,4 @@
 from typing import Tuple, Type
-from google.oauth2 import service_account
 from google.auth import default as default_credentials
 from google.auth.exceptions import DefaultCredentialsError
 
@@ -22,9 +21,12 @@ def configuration(initial_values: StrAny = None) -> Tuple[Type[BigQueryClientCon
         except ConfigEntryMissingException as cfex:
             # if config is missing check if credentials can be obtained from defaults
             try:
-                default_credentials()
+                _, project_id = default_credentials()
                 # if so then return partial so we can access timeouts
-                return make_configuration(GcpClientCredentials, GcpClientCredentials, initial_values=initial_values, accept_partial = True)
+                C_PARTIAL = make_configuration(GcpClientCredentials, GcpClientCredentials, initial_values=initial_values, accept_partial = True)
+                # set the project id - it needs to be known by the client
+                C_PARTIAL.PROJECT_ID = project_id
+                return C_PARTIAL
             except DefaultCredentialsError:
                 raise cfex
 

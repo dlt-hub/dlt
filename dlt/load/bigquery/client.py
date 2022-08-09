@@ -5,7 +5,6 @@ import google.cloud.bigquery as bigquery  # noqa: I250
 from google.cloud.bigquery.dbapi import Connection as DbApiConnection
 from google.cloud import exceptions as gcp_exceptions
 from google.oauth2 import service_account
-from google.auth import default as default_credentials
 from google.api_core import exceptions as api_core_exceptions
 
 
