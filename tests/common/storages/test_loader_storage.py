@@ -64,7 +64,7 @@ def test_save_load_schema(storage: LoadStorage) -> None:
     storage.create_temp_load_folder("copy")
     saved_file_name = storage.save_temp_schema(schema, "copy")
     assert saved_file_name.endswith(os.path.join(storage.storage.storage_path, "copy", LoadStorage.SCHEMA_FILE_NAME))
-    assert storage.storage.has_file(f"copy/{LoadStorage.SCHEMA_FILE_NAME}")
+    assert storage.storage.has_file(os.path.join("copy",LoadStorage.SCHEMA_FILE_NAME))
     schema_copy = storage.load_temp_schema("copy")
     assert schema.stored_version == schema_copy.stored_version
 
