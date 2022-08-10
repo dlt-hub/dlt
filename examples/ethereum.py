@@ -288,5 +288,5 @@ pipeline.restore_pipeline(credentials, working_dir)
 # print(pipeline.state)
 
 # this will unpack and load all extracted data
-pipeline.unpack()
+pipeline.normalize()
 # pipeline.flush()

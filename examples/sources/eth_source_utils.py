@@ -174,7 +174,7 @@ def decode_log(codec: ABIDecoder, abi: ABIEvent, log: LogReceipt) -> EventData:
         log (LogReceipt): raw log data
 
     Raises:
-        ValueError: DecodeError or ValueError if no right combination of indexes could not be found
+        ValueError: DecodeError or ValueError if no right combination of indexes could be found
 
     Returns:
         EventData: Decoded data
