@@ -59,8 +59,8 @@ class GCPPipelineCredentials(PipelineCredentials):
         return GCPPipelineCredentials.from_services_dict(services, dataset_prefix)
 
     @classmethod
-    def default_credentials(cls, dataset_prefix: str) -> "GCPPipelineCredentials":
-        return cls("bigquery", None, dataset_prefix, None)
+    def default_credentials(cls, dataset_prefix: str, project_id: str = None) -> "GCPPipelineCredentials":
+        return cls("bigquery", project_id, dataset_prefix, None)
 
 
 @dataclass
