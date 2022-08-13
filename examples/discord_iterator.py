@@ -18,8 +18,8 @@ from dlt.pipeline import Pipeline, PostgresPipelineCredentials
 # credentials = Pipeline.load_gcp_credentials("_secrets/project1234_service.json", "gamma_guild")
 
 if __name__ == '__main__':
-    # working redshift creds, you can pass password as last parameter or via PASSWORD env variable ie.
-    # LOG_LEVEL=INFO PASSWORD=.... python examples/discord_iterator.py
+    # working redshift creds, you can pass password as last parameter or via PG__PASSWORD env variable ie.
+    # LOG_LEVEL=INFO PG__PASSWORD=.... python examples/discord_iterator.py
     credentials = PostgresPipelineCredentials("redshift", "chat_analytics_rasa", "gamma_guild_8", "loader", "3.73.90.3")
 
     pipeline = Pipeline("discord")

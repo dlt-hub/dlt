@@ -1,7 +1,8 @@
 from typing import List, Optional, Type
 
-from dlt.common.typing import StrAny
-from dlt.common.configuration.utils import TSecretValue, make_configuration, _get_key_value
+from dlt.common.typing import StrAny, TSecretValue
+from dlt.common.configuration import make_configuration
+from dlt.common.configuration.providers import environ
 from dlt.common.configuration import PoolRunnerConfiguration, TPoolType, PostgresCredentials, GcpClientCredentials
 
 from . import __version__
@@ -44,9 +45,9 @@ def gen_configuration_variant(initial_values: StrAny = None) -> Type[DBTRunnerCo
     DBTRunnerConfigurationImpl: Type[DBTRunnerConfiguration]
     DBTRunnerProductionConfigurationImpl: Type[DBTRunnerProductionConfiguration]
 
-    source_schema_prefix = _get_key_value("DEFAULT_DATASET", type(str))
+    source_schema_prefix = environ.get_key("DEFAULT_DATASET", type(str))
 
-    if _get_key_value("PROJECT_ID", type(str)):
+    if environ.get_key("PROJECT_ID", type(str), namespace=GcpClientCredentials.__namespace__):
         class DBTRunnerConfigurationPostgres(PostgresCredentials, DBTRunnerConfiguration):
             SOURCE_SCHEMA_PREFIX: str = source_schema_prefix
         DBTRunnerConfigurationImpl = DBTRunnerConfigurationPostgres
