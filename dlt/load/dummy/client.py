@@ -1,12 +1,12 @@
 import random
 from types import TracebackType
-from typing import Dict, Literal, Type
+from typing import Dict, Tuple, Type
 from dlt.common.dataset_writers import TLoaderFileFormat
 
 from dlt.common import pendulum
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TTableSchema
-from dlt.common.storages.load_storage import LoadStorage
+from dlt.common.configuration import CredentialsConfiguration
 from dlt.common.typing import StrAny
 
 from dlt.load.client_base import JobClientBase, LoadJob, TLoaderCapabilities
@@ -134,9 +134,9 @@ class DummyClient(JobClientBase):
         }
 
     @classmethod
-    def configure(cls, initial_values: StrAny = None) -> Type[DummyClientConfiguration]:
+    def configure(cls, initial_values: StrAny = None) -> Tuple[Type[DummyClientConfiguration], Type[CredentialsConfiguration]]:
         cls.CONFIG = configuration(initial_values=initial_values)
-        return cls.CONFIG
+        return cls.CONFIG, None
 
 
 CLIENT = DummyClient

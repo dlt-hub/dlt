@@ -1,11 +1,11 @@
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from types import TracebackType
-from typing import Any, Generic, Iterator, List, Optional, Sequence, Type, AnyStr
+from typing import Any, ContextManager, Generic, Iterator, List, Optional, Sequence, Tuple, Type, AnyStr
 from pathlib import Path
 
 from dlt.common import pendulum, logger
-from dlt.common.configuration import BaseConfiguration
+from dlt.common.configuration import BaseConfiguration, CredentialsConfiguration
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns
 from dlt.common.schema.typing import TTableSchema
 from dlt.common.typing import StrAny
@@ -101,7 +101,7 @@ class JobClientBase(ABC):
 
     @classmethod
     @abstractmethod
-    def configure(cls, initial_values: StrAny = None) -> Type[BaseConfiguration]:
+    def configure(cls, initial_values: StrAny = None) -> Tuple[Type[BaseConfiguration], Type[CredentialsConfiguration]]:
         pass
 
 
@@ -147,7 +147,7 @@ class SqlClientBase(ABC, Generic[TNativeConn]):
         pass
 
     @abstractmethod
-    def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBCursor]:
+    def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> ContextManager[DBCursor]:
         pass
 
     @abstractmethod

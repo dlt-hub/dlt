@@ -43,6 +43,12 @@ class CannotRestorePipelineException(PipelineException):
         super().__init__(reason)
 
 
+class PipelineBackupNotFound(PipelineException):
+    def __init__(self, method: str) -> None:
+        self.method = method
+        super().__init__(f"Backup not found for method {method}")
+
+
 class SqlClientNotAvailable(PipelineException):
     def __init__(self, client_type: str) -> None:
         super().__init__(f"SQL Client not available in {client_type}")

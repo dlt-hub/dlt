@@ -3,8 +3,7 @@ from dataclasses import dataclass
 from typing import Literal
 from dlt.common import json
 
-from dlt.common.typing import StrAny
-from dlt.common.configuration.utils import TSecretValue
+from dlt.common.typing import StrAny, TSecretValue
 
 TLoaderType = Literal["bigquery", "redshift"]
 TPipelineStage = Literal["extract", "normalize", "load"]
@@ -35,6 +34,8 @@ class GCPPipelineCredentials(PipelineCredentials):
     DEFAULT_DATASET: str
     CLIENT_EMAIL: str
     PRIVATE_KEY: TSecretValue = None
+    CRED_TYPE: str = "service_account"
+    TOKEN_URI: str = "https://oauth2.googleapis.com/token"
     HTTP_TIMEOUT: float = 15.0
     RETRY_DEADLINE: float = 600
 
@@ -80,3 +81,13 @@ class PostgresPipelineCredentials(PipelineCredentials):
     @default_dataset.setter
     def default_dataset(self, new_value: str) -> None:
         self.DEFAULT_DATASET = new_value
+
+
+def credentials_from_dict(credentials: StrAny) -> PipelineCredentials:
+    client_type = credentials.get("CLIENT_TYPE")
+    if client_type == "bigquery":
+        return GCPPipelineCredentials(**credentials)
+    elif client_type == "redshift":
+        return PostgresPipelineCredentials(**credentials)
+    else:
+        raise ValueError(f"CLIENT_TYPE: {client_type}")
