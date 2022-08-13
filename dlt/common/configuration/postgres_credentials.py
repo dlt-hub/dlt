@@ -1,9 +1,11 @@
-from dlt.common.configuration import BaseConfiguration
-from dlt.common.configuration.utils import TSecretValue
-from dlt.common.typing import StrAny
+from dlt.common.typing import StrAny, TSecretValue
+from dlt.common.configuration import CredentialsConfiguration
 
 
-class PostgresCredentials(BaseConfiguration):
+class PostgresCredentials(CredentialsConfiguration):
+
+    __namespace__: str = "PG"
+
     DBNAME: str = None
     PASSWORD: TSecretValue = None
     USER: str = None

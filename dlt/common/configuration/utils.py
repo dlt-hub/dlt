@@ -1,11 +1,10 @@
 import sys
 import semver
-from os import environ
-from os.path import isdir
-from typing import Any, Dict, List, Mapping, Optional, Type, TypeVar, cast
+from typing import Any, Dict, List, Mapping, Type, TypeVar, cast
 
-from dlt.common.typing import StrAny, TSecretValue, is_optional_type, is_literal_type
+from dlt.common.typing import StrAny, is_optional_type, is_literal_type
 from dlt.common.configuration import BaseConfiguration
+from dlt.common.configuration.providers import environ
 from dlt.common.configuration.exceptions import (ConfigEntryMissingException,
                                                  ConfigEnvValueCannotBeCoercedException)
 from dlt.common.utils import uniq_id
@@ -17,9 +16,9 @@ NON_EVAL_TYPES = [str, None, Any]
 ALLOWED_TYPE_COERCIONS = [(float, int), (str, int), (str, float)]
 IS_DEVELOPMENT_CONFIG_KEY: str = "IS_DEVELOPMENT_CONFIG"
 CHECK_INTEGRITY_F: str = "check_integrity"
-SECRET_STORAGE_PATH: str = "/run/secrets/%s"
 
 TConfiguration = TypeVar("TConfiguration", bound=Type[BaseConfiguration])
+# TODO: remove production configuration support
 TProductionConfiguration = TypeVar("TProductionConfiguration", bound=Type[BaseConfiguration])
 
 
@@ -61,12 +60,18 @@ def is_direct_descendant(child: Type[Any], base: Type[Any]) -> bool:
 
 
 def _is_development_config() -> bool:
-    is_dev_config = True
-
     # get from environment
-    if IS_DEVELOPMENT_CONFIG_KEY in environ:
-        is_dev_config = _coerce_single_value(IS_DEVELOPMENT_CONFIG_KEY, environ[IS_DEVELOPMENT_CONFIG_KEY], bool)
-    return is_dev_config
+    is_dev_config: bool = None
+    try:
+        is_dev_config = _coerce_single_value(IS_DEVELOPMENT_CONFIG_KEY, environ.get_key(IS_DEVELOPMENT_CONFIG_KEY, bool), bool)
+    except ConfigEnvValueCannotBeCoercedException as coer_exc:
+        # pass for None: this key may not be present
+        if coer_exc.env_value is None:
+            pass
+        else:
+            # anything else that cannot corece must raise
+            raise
+    return True if is_dev_config is None else is_dev_config
 
 
 def _add_module_version(config: TConfiguration) -> None:
@@ -80,44 +85,21 @@ def _add_module_version(config: TConfiguration) -> None:
 
 def _apply_environ_to_config(config: TConfiguration, keys_in_config: Mapping[str, type]) -> None:
     for key, hint in keys_in_config.items():
-        value = _get_key_value(key, hint)
+        value = environ.get_key(key, hint, config.__namespace__)
         if value is not None:
             value_from_environment_variable = _coerce_single_value(key, value, hint)
             # set value
             setattr(config, key, value_from_environment_variable)
 
 
-def _get_key_value(key: str, hint: Type[Any]) -> Optional[str]:
-    if hint is TSecretValue:
-        # try secret storage
-        try:
-            # must conform to RFC1123
-            secret_name = key.lower().replace("_", "-")
-            secret_path = SECRET_STORAGE_PATH % secret_name
-            # kubernetes stores secrets as files in a dir, docker compose plainly
-            if isdir(secret_path):
-                secret_path += "/" + secret_name
-            with open(secret_path, "r", encoding="utf-8") as f:
-                secret = f.read()
-            # add secret to environ so forks have access
-            # TODO: removing new lines is not always good. for password OK for PEMs not
-            # TODO: in regular secrets that is dealt with in particular configuration logic
-            environ[key] = secret.strip()
-            # do not strip returned secret
-            return secret
-        # includes FileNotFound
-        except OSError:
-            pass
-    return environ.get(key, None)
-
-
 def _is_config_bounded(config: TConfiguration, keys_in_config: Mapping[str, type]) -> None:
+    # TODO: here we assume all keys are taken from environ provider, that should change when we introduce more providers
     _unbound_attrs = [
-        key for key in keys_in_config if getattr(config, key) is None and not is_optional_type(keys_in_config[key])
+        environ.get_key_name(key, config.__namespace__) for key in keys_in_config if getattr(config, key) is None and not is_optional_type(keys_in_config[key])
     ]
 
     if len(_unbound_attrs) > 0:
-        raise ConfigEntryMissingException(_unbound_attrs)
+        raise ConfigEntryMissingException(_unbound_attrs, config.__namespace__)
 
 
 def _check_configuration_integrity(config: TConfiguration) -> None:
