@@ -25,7 +25,7 @@ def configuration(initial_values: StrAny = None) -> Tuple[Type[BigQueryClientCon
                 # if so then return partial so we can access timeouts
                 C_PARTIAL = make_configuration(GcpClientCredentials, GcpClientCredentials, initial_values=initial_values, accept_partial = True)
                 # set the project id - it needs to be known by the client
-                C_PARTIAL.PROJECT_ID = project_id
+                C_PARTIAL.PROJECT_ID = C_PARTIAL.PROJECT_ID or project_id
                 return C_PARTIAL
             except DefaultCredentialsError:
                 raise cfex

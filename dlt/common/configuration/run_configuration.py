@@ -2,7 +2,7 @@ import randomname
 from os.path import isfile
 from typing import Any, Optional, Tuple, IO
 
-from dlt.common.typing import StrAny
+from dlt.common.typing import StrAny, DictStrAny
 from dlt.common.utils import encoding_for_mode
 from dlt.common.configuration.exceptions import ConfigFileNotFoundException
 
@@ -14,9 +14,10 @@ class BaseConfiguration:
 
     # will be set to true if not all config entries could be resolved
     __is_partial__: bool = True
+    __namespace__: str = None
 
     @classmethod
-    def as_dict(config, lowercase: bool = True) -> StrAny:
+    def as_dict(config, lowercase: bool = True) -> DictStrAny:
         may_lower = lambda k: k.lower() if lowercase else k
         return {may_lower(k):getattr(config, k) for k in dir(config) if not callable(getattr(config, k)) and not k.startswith("__")}
 
@@ -30,6 +31,10 @@ class BaseConfiguration:
             # overwrite only declared values
             if not apply_non_spec and hasattr(config, k):
                 setattr(config, k, v)
+
+
+class CredentialsConfiguration(BaseConfiguration):
+    pass
 
 
 class RunConfiguration(BaseConfiguration):

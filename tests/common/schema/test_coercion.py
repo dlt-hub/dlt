@@ -11,6 +11,8 @@ def test_coerce_type_others() -> None:
     assert utils.coerce_type("double", "double", 8721.1) == 8721.1
     # anything into text
     assert utils.coerce_type("text", "bool", False) == str(False)
+    # text into bool
+    assert utils.coerce_type("bool", "text", "False") is False
 
 
 def test_coerce_type_bool() -> None:

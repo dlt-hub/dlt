@@ -113,7 +113,7 @@ class RedshiftSqlClient(SqlClientBase["psycopg2.connection"]):
                 raise outer
 
     @contextmanager
-    def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBCursor]:  # type: ignore
+    def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBCursor]:
         curr: DBCursor = None
         with self._conn.cursor() as curr:
             try:
@@ -313,9 +313,9 @@ class RedshiftClient(SqlJobClientBase):
         }
 
     @classmethod
-    def configure(cls, initial_values: StrAny = None) -> Type[RedshiftClientConfiguration]:
+    def configure(cls, initial_values: StrAny = None) -> Tuple[Type[RedshiftClientConfiguration], Type[PostgresCredentials]]:
         cls.CONFIG, cls.CREDENTIALS = configuration(initial_values=initial_values)
-        return cls.CONFIG
+        return cls.CONFIG, cls.CREDENTIALS
 
 
 CLIENT = RedshiftClient

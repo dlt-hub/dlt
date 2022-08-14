@@ -1330,6 +1330,14 @@ optional = false
 python-versions = ">=3.7"
 
 [[package]]
+name = "tomlkit"
+version = "0.11.3"
+description = "Style preserving TOML library"
+category = "main"
+optional = false
+python-versions = ">=3.6,<4.0"
+
+[[package]]
 name = "types-cachetools"
 version = "4.2.10"
 description = "Typing stubs for cachetools"
@@ -1450,7 +1458,7 @@ redshift = ["psycopg2-binary"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8,<3.11"
-content-hash = "d63ff982a91d006f55782e5ca026932f87a870d63156335f1f3a62063959d2d8"
+content-hash = "11e680ca7b04ac6a81bbcdaa0de674c117636db96f46cda91f462bae30516749"
 
 [metadata.files]
 agate = [
@@ -2366,6 +2374,7 @@ tomli = [
     {file = "tomli-2.0.1-py3-none-any.whl", hash = "sha256:939de3e7a6161af0c887ef91b7d41a53e7c5a1ca976325f429cb46ea9bc30ecc"},
     {file = "tomli-2.0.1.tar.gz", hash = "sha256:de526c12914f0c550d15924c62d72abc48d6fe7364aa87328337a31007fe8a4f"},
 ]
+tomlkit = []
 types-cachetools = [
     {file = "types-cachetools-4.2.10.tar.gz", hash = "sha256:b1cb18aaff25d2ad47a060413c660c39fadddb01f72012dd1134584b1fdaada5"},
     {file = "types_cachetools-4.2.10-py3-none-any.whl", hash = "sha256:48301115189d4879d0960baac5a8a2b2d31ce6129b2ce3b915000ed337284898"},

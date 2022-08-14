@@ -1,14 +1,16 @@
+import pytest
 from os import environ
 from typing import Any, Dict, List, NewType, Optional, Tuple
 
-import pytest
-
+from dlt.common.typing import TSecretValue
 from dlt.common.configuration import (
     RunConfiguration, ConfigEntryMissingException, ConfigFileNotFoundException,
-    ConfigEnvValueCannotBeCoercedException, utils)
+    ConfigEnvValueCannotBeCoercedException, BaseConfiguration, utils)
 from dlt.common.configuration.utils import (_coerce_single_value, IS_DEVELOPMENT_CONFIG_KEY,
-                                                           _get_config_attrs_with_hints, TSecretValue,
+                                                           _get_config_attrs_with_hints,
                                                            is_direct_descendant, make_configuration)
+from dlt.common.configuration.providers import environ as environ_provider
+
 from tests.utils import preserve_environ
 
 # used to test version
@@ -125,6 +127,12 @@ class MockProdConfiguration(RunConfiguration):
 
 class MockProdConfigurationVar(RunConfiguration):
     PIPELINE_NAME: str = "comp"
+
+
+class NamespacedConfiguration(BaseConfiguration):
+    __namespace__ = "DLT_TEST"
+
+    PASSWORD: str = None
 
 
 LongInteger = NewType("LongInteger", int)
@@ -342,17 +350,17 @@ def test_secret(environment: Any) -> None:
     assert C.SECRET_VALUE == "1"
     # mock the path to point to secret storage
     # from dlt.common.configuration import config_utils
-    path = utils.SECRET_STORAGE_PATH
+    path = environ_provider.SECRET_STORAGE_PATH
     del environment['SECRET_VALUE']
     try:
         # must read a secret file
-        utils.SECRET_STORAGE_PATH = "./tests/common/cases/%s"
+        environ_provider.SECRET_STORAGE_PATH = "./tests/common/cases/%s"
         C = utils.make_configuration(SecretConfiguration, SecretConfiguration)
         assert C.SECRET_VALUE == "BANANA"
 
         # set some weird path, no secret file at all
         del environment['SECRET_VALUE']
-        utils.SECRET_STORAGE_PATH = "!C:\\PATH%s"
+        environ_provider.SECRET_STORAGE_PATH = "!C:\\PATH%s"
         with pytest.raises(ConfigEntryMissingException):
             utils.make_configuration(SecretConfiguration, SecretConfiguration)
 
@@ -361,20 +369,20 @@ def test_secret(environment: Any) -> None:
         C = utils.make_configuration(SecretConfiguration, SecretConfiguration)
         assert C.SECRET_VALUE == "1"
     finally:
-        utils.SECRET_STORAGE_PATH = path
+        environ_provider.SECRET_STORAGE_PATH = path
 
 
 def test_secret_kube_fallback(environment: Any) -> None:
-    path = utils.SECRET_STORAGE_PATH
+    path = environ_provider.SECRET_STORAGE_PATH
     try:
-        utils.SECRET_STORAGE_PATH = "./tests/common/cases/%s"
+        environ_provider.SECRET_STORAGE_PATH = "./tests/common/cases/%s"
         C = utils.make_configuration(SecretKubeConfiguration, SecretKubeConfiguration)
         # all unix editors will add x10 at the end of file, it will be preserved
         assert C.SECRET_KUBE == "kube\n"
         # we propagate secrets back to environ and strip the whitespace
         assert environment['SECRET_KUBE'] == "kube"
     finally:
-        utils.SECRET_STORAGE_PATH = path
+        environ_provider.SECRET_STORAGE_PATH = path
 
 
 def test_configuration_must_be_subclass_of_prod(environment: Any) -> None:
@@ -434,3 +442,22 @@ def test_configuration_files(environment: Any) -> None:
         f.read()
     with pytest.raises(ConfigFileNotFoundException):
         C.open_configuration_file("hasn't", "r")
+
+
+def test_namespaced_configuration(environment: Any) -> None:
+    with pytest.raises(ConfigEntryMissingException) as exc_val:
+        utils.make_configuration(NamespacedConfiguration, NamespacedConfiguration)
+    assert exc_val.value.missing_set == ["DLT_TEST__PASSWORD"]
+    assert exc_val.value.namespace == "DLT_TEST"
+
+    # init vars work without namespace
+    C = utils.make_configuration(NamespacedConfiguration, NamespacedConfiguration, initial_values={"PASSWORD": "PASS"})
+    assert C.PASSWORD == "PASS"
+
+    # env var must be prefixed
+    environment["PASSWORD"] = "PASS"
+    with pytest.raises(ConfigEntryMissingException) as exc_val:
+        utils.make_configuration(NamespacedConfiguration, NamespacedConfiguration)
+    environment["DLT_TEST__PASSWORD"] = "PASS"
+    C = utils.make_configuration(NamespacedConfiguration, NamespacedConfiguration)
+    assert C.PASSWORD == "PASS"

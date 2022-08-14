@@ -3,7 +3,7 @@ from git import Repo
 import pytest
 from prometheus_client import CollectorRegistry
 
-from dlt.common.configuration import utils
+from dlt.common.configuration.providers import environ
 from dlt.common.typing import StrAny
 from dlt.dbt_runner.configuration import gen_configuration_variant
 from dlt.dbt_runner import runner
@@ -11,19 +11,19 @@ from dlt.dbt_runner import runner
 from tests.utils import clean_storage
 
 
-SECRET_STORAGE_PATH = utils.SECRET_STORAGE_PATH
+SECRET_STORAGE_PATH = environ.SECRET_STORAGE_PATH
 
 
 @pytest.fixture(autouse=True)
 def restore_secret_storage_path() -> None:
-    utils.SECRET_STORAGE_PATH = SECRET_STORAGE_PATH
+    environ.SECRET_STORAGE_PATH = SECRET_STORAGE_PATH
 
 
 def load_secret(name: str) -> str:
-    utils.SECRET_STORAGE_PATH = "./tests/dbt_runner/secrets/%s"
-    secret = utils._get_key_value(name, utils.TSecretValue)
+    environ.SECRET_STORAGE_PATH = "./tests/dbt_runner/secrets/%s"
+    secret = environ._get_key_value(name, environ.TSecretValue)
     if not secret:
-        raise FileNotFoundError(utils.SECRET_STORAGE_PATH % name)
+        raise FileNotFoundError(environ.SECRET_STORAGE_PATH % name)
     return secret
 
 

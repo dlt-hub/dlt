@@ -11,9 +11,14 @@ class ConfigurationException(DltException):
 class ConfigEntryMissingException(ConfigurationException):
     """thrown when not all required config elements are present"""
 
-    def __init__(self, missing_set: Iterable[str]) -> None:
+    def __init__(self, missing_set: Iterable[str], namespace: str = None) -> None:
         self.missing_set = missing_set
-        super().__init__('Missing config keys: ' + str(missing_set))
+        self.namespace = namespace
+
+        msg = 'Missing config keys: ' + str(missing_set)
+        if namespace:
+            msg += ". Note that required namespace for that keys is " + namespace + " and namespace separator is two underscores"
+        super().__init__(msg)
 
 
 class ConfigEnvValueCannotBeCoercedException(ConfigurationException):

@@ -5,7 +5,7 @@ from contextlib import contextmanager
 import hashlib
 from os import environ
 import secrets
-from typing import Any, Iterator, Optional, Sequence, TypeVar, Mapping, List, TypedDict, Union
+from typing import Any, Dict, Iterator, Optional, Sequence, TypeVar, Mapping, List, TypedDict, Union
 
 from dlt.common.typing import StrAny, DictStrAny, StrStr, TFun
 
@@ -124,6 +124,13 @@ def update_dict_with_prune(dest: DictStrAny, update: StrAny) -> None:
 def is_interactive() -> bool:
     import __main__ as main
     return not hasattr(main, '__file__')
+
+
+def dict_remove_nones_in_place(d: Dict[Any, Any]) -> Dict[Any, Any]:
+    for k in list(d.keys()):
+        if d[k] is None:
+            del d[k]
+    return d
 
 
 @contextmanager

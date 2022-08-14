@@ -114,7 +114,7 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client]):
             return None
 
     @contextmanager
-    def execute_query(self, query: AnyStr,  *args: Any, **kwargs: Any) -> Iterator[DBCursor]:  # type: ignore
+    def execute_query(self, query: AnyStr,  *args: Any, **kwargs: Any) -> Iterator[DBCursor]:
         conn: DbApiConnection = None
         def_kwargs = {
             "job_config": self.default_query
@@ -343,9 +343,9 @@ class BigQueryClient(SqlJobClientBase):
         }
 
     @classmethod
-    def configure(cls, initial_values: StrAny = None) -> Type[BigQueryClientConfiguration]:
+    def configure(cls, initial_values: StrAny = None) -> Tuple[Type[BigQueryClientConfiguration], Type[GcpClientCredentials]]:
         cls.CONFIG, cls.CREDENTIALS = configuration(initial_values=initial_values)
-        return cls.CONFIG
+        return cls.CONFIG, cls.CREDENTIALS
 
 
 CLIENT = BigQueryClient

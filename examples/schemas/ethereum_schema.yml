@@ -49,7 +49,7 @@ tables:
         nullable: false
       base_fee_per_gas:
         data_type: wei
-        nullable: false
+        nullable: true
       difficulty:
         data_type: wei
         nullable: false
@@ -309,6 +309,10 @@ settings:
   preferred_types: {}
 normalizers:
   names: dlt.common.normalizers.names.snake_case
+  detections:
+    - timestamp
+    - large_integer
+    - hexbytes_to_text
   json:
     module: dlt.common.normalizers.json.relational
     config:

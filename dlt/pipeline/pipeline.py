@@ -229,9 +229,9 @@ class Pipeline:
             client.initialize_storage()
             client.update_storage_schema()
 
-    def sql_client(self) -> SqlClientBase[Any]:
+    def sql_client(self, schema_name: str = None) -> SqlClientBase[Any]:
         self._verify_loader_instance()
-        schema = self._normalize_instance.schema_storage.load_schema(self.default_schema_name)
+        schema = self._normalize_instance.schema_storage.load_schema(schema_name or self.default_schema_name)
         with self._loader_instance.load_client_cls(schema) as c:
             if isinstance(c, SqlJobClientBase):
                 return c.sql_client

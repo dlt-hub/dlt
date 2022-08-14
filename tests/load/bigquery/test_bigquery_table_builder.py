@@ -19,11 +19,11 @@ def schema() -> Schema:
 
 def test_configuration() -> None:
     # check names normalized
-    with custom_environ({"PRIVATE_KEY": "---NO NEWLINE---\n"}):
+    with custom_environ({"GCP__PRIVATE_KEY": "---NO NEWLINE---\n"}):
         C = make_configuration(GcpClientCredentials, GcpClientCredentials)
         assert C.PRIVATE_KEY == "---NO NEWLINE---\n"
 
-    with custom_environ({"PRIVATE_KEY": "---WITH NEWLINE---\n"}):
+    with custom_environ({"GCP__PRIVATE_KEY": "---WITH NEWLINE---\n"}):
         C = make_configuration(GcpClientCredentials, GcpClientCredentials)
         assert C.PRIVATE_KEY == "---WITH NEWLINE---\n"
 
