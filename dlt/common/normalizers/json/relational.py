@@ -1,10 +1,10 @@
 from typing import Dict, Mapping, Optional, Sequence, Tuple, cast, TypedDict, Any
 
+from dlt.common.typing import DictStrAny, DictStrStr, TDataItem, StrAny
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TColumnSchema, TColumnName, TSimpleRegex
 from dlt.common.schema.utils import column_name_validator
 from dlt.common.utils import uniq_id, digest128
-from dlt.common.typing import DictStrAny, DictStrStr, TDataItem, StrAny
 from dlt.common.normalizers.json import TNormalizedRowIterator
 from dlt.common.sources import DLT_METADATA_FIELD, TEventDLTMeta, get_table_name
 from dlt.common.validation import validate_dict
@@ -65,7 +65,7 @@ def _flatten(schema: Schema, table: str, dict_row: TEventRow, _r_lvl: int) -> Tu
             corrected_k = schema.normalize_column_name(k)
             child_name = corrected_k if not parent_name else schema.normalize_make_path(parent_name, corrected_k)
             # for lists and dicts we must check if type is possibly complex
-            if isinstance(v, dict) or isinstance(v, list):
+            if isinstance(v, (dict, list)):
                 if not _is_complex_type(schema, table, child_name, __r_lvl):
                     if isinstance(v, dict):
                         # flatten the dict more
