@@ -15,12 +15,21 @@ class InvalidSchemaName(SchemaException):
 
 
 class CannotCoerceColumnException(SchemaException):
-    def __init__(self, table_name: str, column_name: str, from_type: TDataType, to_type: TDataType, value: Any) -> None:
-        super().__init__(f"Cannot coerce type in table {table_name} column {column_name} existing type {from_type} coerced type {to_type} value: {value}")
+    def __init__(self, table_name: str, column_name: str, from_type: TDataType, to_type: TDataType, coerced_value: Any) -> None:
+        self.table_name = table_name
+        self.column_name = column_name
+        self.from_type = from_type
+        self.to_type = to_type
+        self.coerced_value = coerced_value
+        super().__init__(f"Cannot coerce type in table {table_name} column {column_name} existing type {from_type} coerced type {to_type} value: {coerced_value}")
 
 
-class TablePropertiesClashException(SchemaException):
+class TablePropertiesConflictException(SchemaException):
     def __init__(self, table_name: str, prop_name: str, val1: str, val2: str):
+        self.table_name = table_name
+        self.prop_name = prop_name
+        self.val1 = val1
+        self.val2 = val2
         super().__init__(f"Cannot merge partial tables for {table_name} due to property {prop_name}: {val1} != {val2}")
 
 

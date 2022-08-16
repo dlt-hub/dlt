@@ -4,13 +4,15 @@ from copy import copy
 from typing import Dict, List, Mapping, Optional, Sequence, Tuple, Any, cast
 from dlt.common import json
 
-from dlt.common.typing import DictStrAny, StrAny, REPattern
+from dlt.common.typing import DictStrAny, StrAny, REPattern, SupportsVariant, VARIANT_FIELD_FORMAT
 from dlt.common.normalizers.names import TNormalizeBreakPath, TNormalizeMakePath, TNormalizeNameFunc
 from dlt.common.normalizers.json import TNormalizeJSONFunc
-from dlt.common.schema.typing import TNormalizersConfig, TPartialTableSchema, TSchemaSettings, TSimpleRegex, TStoredSchema, TSchemaTables, TTableSchema, TTableSchemaColumns, TColumnSchema, TColumnProp, TDataType, THintType, TWriteDisposition
+from dlt.common.schema.typing import (TNormalizersConfig, TPartialTableSchema, TSchemaSettings, TSimpleRegex, TStoredSchema,
+                                      TSchemaTables, TTableSchema, TTableSchemaColumns, TColumnSchema, TColumnProp, TDataType,
+                                      THintType, TWriteDisposition)
 from dlt.common.schema import utils
 from dlt.common.schema.exceptions import (CannotCoerceColumnException, CannotCoerceNullException, InvalidSchemaName,
-                                          ParentTableNotFoundException, SchemaCorruptedException, TablePropertiesClashException)
+                                          ParentTableNotFoundException, SchemaCorruptedException, TablePropertiesConflictException)
 from dlt.common.validation import validate_dict
 
 
@@ -189,9 +191,14 @@ class Schema:
         else:
             # check if table properties can be merged
             if table.get("parent") != partial_table.get("parent"):
-                raise TablePropertiesClashException(table_name, "parent", table.get("parent"), partial_table.get("parent"))
-            if table.get("write_disposition") != partial_table.get("write_disposition"):
-                raise TablePropertiesClashException(table_name, "write_disposition", table.get("write_disposition"), partial_table.get("write_disposition"))
+                raise TablePropertiesConflictException(table_name, "parent", table.get("parent"), partial_table.get("parent"))
+            # check if partial table has write disposition set
+            partial_w_d = partial_table.get("write_disposition")
+            if partial_w_d:
+                # get write disposition recursively for existing table
+                existing_w_d = self.get_write_disposition(table_name)
+                if existing_w_d != partial_w_d:
+                    raise TablePropertiesConflictException(table_name, "write_disposition", existing_w_d, partial_w_d)
             # add several columns to existing table
             table_columns = table["columns"]
             for column in partial_table["columns"].values():
@@ -200,7 +207,7 @@ class Schema:
                     # we do not support changing existing columns
                     if not utils.compare_columns(table_columns[column_name], column):
                         # attempt to update to incompatible columns
-                        raise CannotCoerceColumnException(table_name, column_name, table_columns[column_name]["data_type"], column["data_type"], None)
+                        raise CannotCoerceColumnException(table_name, column_name, column["data_type"], table_columns[column_name]["data_type"], None)
                 else:
                     table_columns[column_name] = column
 
@@ -324,10 +331,10 @@ class Schema:
         d = self.to_dict(remove_defaults=remove_defaults)
         return cast(str, yaml.dump(d, allow_unicode=True, default_flow_style=False, sort_keys=False))
 
-    def _infer_column(self, k: str, v: Any) -> TColumnSchema:
+    def _infer_column(self, k: str, v: Any, data_type: TDataType = None) -> TColumnSchema:
         return TColumnSchema(
             name=k,
-            data_type=self._map_value_to_column_type(v, k),
+            data_type=data_type or self._infer_column_type(v, k),
             nullable=not self._infer_hint("not_null", v, k),
             partition=self._infer_hint("partition", v, k),
             cluster=self._infer_hint("cluster", v, k),
@@ -343,41 +350,42 @@ class Schema:
             if not existing_column["nullable"]:
                 raise CannotCoerceNullException(table_name, col_name)
 
-    def _coerce_non_null_value(self, table_columns: TTableSchemaColumns, table_name: str, col_name: str, v: Any) -> Tuple[str, TColumnSchema, Any]:
+    def _coerce_non_null_value(self, table_columns: TTableSchemaColumns, table_name: str, col_name: str, v: Any, final: bool = False) -> Tuple[str, TColumnSchema, Any]:
         new_column: TColumnSchema = None
-        variant_col_name = col_name
+        existing_column = table_columns.get(col_name)
 
-        if col_name in table_columns:
-            existing_column = table_columns[col_name]
-            # existing columns cannot be changed so we must update row
-            py_data_type = utils.py_type_to_sc_type(type(v))
-            # first try to coerce existing value into destination type
-            try:
-                rv = utils.coerce_type(existing_column["data_type"], py_data_type, v)
-            except (ValueError, SyntaxError):
-                # if that does not work we must create variant extension to the table
-                variant_col_name = f"{col_name}_v_{py_data_type}"
-                # if variant exists check type, coercions are not required
-                if variant_col_name in table_columns:
-                    if table_columns[variant_col_name]["data_type"] != py_data_type:
-                        raise CannotCoerceColumnException(table_name, variant_col_name, table_columns[variant_col_name]["data_type"], py_data_type, v)
-                else:
-                    # add new column
-                    new_column = self._infer_column(variant_col_name, v)
-                    # must have variant type, not preferred or coerced type
-                    new_column["data_type"] = py_data_type
-                # coerce even if types are the same (complex case)
-                rv = utils.coerce_type(py_data_type, py_data_type, v)
-        else:
-            # infer new column
-            new_column = self._infer_column(col_name, v)
-            # and coerce type if inference changed the python type
-            py_type = utils.py_type_to_sc_type(type(v))
-            rv = utils.coerce_type(new_column["data_type"], py_type, v)
+        # infer type or get it from existing table
+        col_type = existing_column.get("data_type") if existing_column else self._infer_column_type(v, col_name)
+        # get real python type
+        py_type = utils.py_type_to_sc_type(type(v))
+        # and coerce type if inference changed the python type
+        try:
+            coerced_v = utils.coerce_type(col_type, py_type, v)
+            # print(f"co: {py_type} -> {col_type} {v}")
+        except (ValueError, SyntaxError):
+            if final:
+                # this is final call: we cannot generate any more auto-variants
+                raise CannotCoerceColumnException(table_name, col_name, py_type, table_columns[col_name]["data_type"], v)
+            # otherwise we must create variant extension to the table
+            # pass final=True so no more auto-variants can be created recursively
+            # TODO: generate callback so DLT user can decide what to do
+            variant_col_name = self.normalize_make_path(col_name, VARIANT_FIELD_FORMAT % py_type)
+            return self._coerce_non_null_value(table_columns, table_name, variant_col_name, v, final=True)
 
-        return variant_col_name, new_column, rv
+        # if coerced value is variant, then extract variant value
+        if isinstance(coerced_v, SupportsVariant):
+            coerced_v = coerced_v()
+            if isinstance(coerced_v, tuple):
+                # variant recovered so call recursively with variant column name and variant value
+                variant_col_name = self.normalize_make_path(col_name, VARIANT_FIELD_FORMAT % coerced_v[0])
+                return self._coerce_non_null_value(table_columns, table_name, variant_col_name, coerced_v[1])
 
-    def _map_value_to_column_type(self, v: Any, k: str) -> TDataType:
+        if not existing_column:
+            new_column = self._infer_column(col_name, v, data_type=col_type)
+
+        return col_name, new_column, coerced_v
+
+    def _infer_column_type(self, v: Any, col_name: str) -> TDataType:
         tv = type(v)
         # try to autodetect data type
         mapped_type = utils.autodetect_sc_type(self._normalizers_config.get("detections"), tv, v)
@@ -385,7 +393,7 @@ class Schema:
         if mapped_type is None:
             mapped_type = utils.py_type_to_sc_type(tv)
         # get preferred type based on column name
-        preferred_type = self.get_preferred_type(k)
+        preferred_type = self.get_preferred_type(col_name)
         # try to match python type to preferred
         if preferred_type:
             # try to coerce to destination type
@@ -398,9 +406,9 @@ class Schema:
                 pass
         return mapped_type
 
-    def _infer_hint(self, hint_type: THintType, _: Any, k: str) -> bool:
+    def _infer_hint(self, hint_type: THintType, _: Any, col_name: str) -> bool:
         if hint_type in self._compiled_hints:
-            return any(h.search(k) for h in self._compiled_hints[hint_type])
+            return any(h.search(col_name) for h in self._compiled_hints[hint_type])
         else:
             return False
 

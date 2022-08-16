@@ -6,9 +6,9 @@ import hashlib
 import datetime  # noqa: I251
 from typing import Dict, List, Sequence, Tuple, Type, Any, cast
 
-from dlt.common import pendulum, json, Decimal
+from dlt.common import pendulum, json, Decimal, Wei
 from dlt.common.json import custom_encode as json_custom_encode
-from dlt.common.arithmetics import ConversionSyntax
+from dlt.common.arithmetics import InvalidOperation
 from dlt.common.exceptions import DictValidationException
 from dlt.common.normalizers.names import TNormalizeNameFunc
 from dlt.common.typing import DictStrAny, REPattern
@@ -212,7 +212,6 @@ def upgrade_engine_version(schema_dict: DictStrAny, from_engine: int, to_engine:
                 if idx > 0:
                     parent = parent[:idx]
                     if parent not in old_tables:
-                        # print(f"candidate {parent} for {name} not found")
                         continue
                 else:
                     parent = None
@@ -279,16 +278,20 @@ def autodetect_sc_type(detection_fs: Sequence[TTypeDetections], t: Type[Any], v:
 
 
 def py_type_to_sc_type(t: Type[Any]) -> TDataType:
-    if t is float:
+    if issubclass(t, float):
         return "double"
-    elif t is int:
-        return "bigint"
+    # bool is subclass of int so must go first
     elif t is bool:
         return "bool"
+    elif issubclass(t, int):
+        return "bigint"
     elif issubclass(t, bytes):
         return "binary"
-    elif issubclass(t, dict) or issubclass(t, list):
+    elif issubclass(t, (dict, list)):
         return "complex"
+    # wei is subclass of decimal and must be checked first
+    elif issubclass(t, Wei):
+        return "wei"
     elif issubclass(t, Decimal):
         return "decimal"
     elif issubclass(t, datetime.datetime):
@@ -326,10 +329,8 @@ def coerce_type(to_type: TDataType, from_type: TDataType, value: Any) -> Any:
         if from_type == "bigint":
             return value.to_bytes((value.bit_length() + 7) // 8, 'little')
 
-    if to_type in ["wei", "bigint"]:
-        if from_type == "bigint":
-            return value
-        if from_type in ["decimal", "double"]:
+    if to_type == "bigint":
+        if from_type in ["wei", "decimal", "double"]:
             if value % 1 != 0:
                 # only integer decimals and floats can be coerced
                 raise ValueError(value)
@@ -351,21 +352,23 @@ def coerce_type(to_type: TDataType, from_type: TDataType, value: Any) -> Any:
             else:
                 return float(trim_value)
 
-    if to_type == "decimal":
-        if from_type in ["bigint", "wei"]:
-            return value
-        if from_type == "double":
-            return Decimal(value)
+    # decimal and wei behave identically when converted from/to
+    if to_type in ["decimal", "wei"]:
+        # get target class
+        decimal_cls = Decimal if to_type == "decimal" else Wei
+
+        if from_type in ["bigint", "wei", "decimal", "double"]:
+            return decimal_cls(value)
         if from_type == "text":
             trim_value = value.strip()
             if trim_value.startswith("0x"):
-                return int(trim_value[2:], 16)
-            elif "." not in trim_value and "e" not in trim_value:
-                return int(trim_value)
+                return decimal_cls(int(trim_value[2:], 16))
+            # elif "." not in trim_value and "e" not in trim_value:
+            #     return int(trim_value)
             else:
                 try:
-                    return Decimal(trim_value)
-                except ConversionSyntax:
+                    return decimal_cls(trim_value)
+                except InvalidOperation:
                     raise ValueError(trim_value)
 
     if to_type == "timestamp":
@@ -392,7 +395,7 @@ def coerce_type(to_type: TDataType, from_type: TDataType, value: Any) -> Any:
     if to_type == "bool":
         if from_type == "text":
             return str2bool(value)
-        if from_type not in ["complex", "binary", "datetime"]:
+        if from_type not in ["complex", "binary", "timestamp"]:
             # all the numeric types will convert to bool on 0 - False, 1 - True
             return bool(value)
 
@@ -464,6 +467,7 @@ def new_table(table_name: str, parent_name: str = None, write_disposition: TWrit
     }
     if parent_name:
         table["parent"] = parent_name
+        assert write_disposition is None
     else:
         # set write disposition only for root tables
         table["write_disposition"] = write_disposition or DEFAULT_WRITE_DISPOSITION
