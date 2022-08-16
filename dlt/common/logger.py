@@ -130,6 +130,7 @@ def _extract_version_info(config: Type[RunConfiguration]) -> StrStr:
 def _extract_pod_info() -> StrStr:
     return filter_env_vars(["KUBE_NODE_NAME", "KUBE_POD_NAME", "KUBE_POD_NAMESPACE"])
 
+
 class _SentryHttpTransport(HttpTransport):
 
     timeout: int = 0
