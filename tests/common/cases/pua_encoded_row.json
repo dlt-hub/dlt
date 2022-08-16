@@ -1,0 +1,13 @@
+[{
+    "guy": "0xffF9Ce5f71ca6178D3BEEcEDB61e7Eff1602950E",
+    "wad": "115792089237316195423570985008687907853269984665640564039457584007913129639935",
+    "_dlt_meta": {
+        "table_name": "Ronin WETH_calls_approve"
+    },
+    "_tx_blockNumber": 16344816,
+    "_tx_blockTimestamp": 1660639260,
+    "_tx_transactionHash": "0xc51cd360f6d9e256cf517b48cb724dd56a430d73ccb4aff9835bdfa271a5c62c",
+    "_tx_transactionIndex": "0x2",
+    "_tx_address": "0xc99a6A985eD2Cac1ef41640596C5A5f9F4E19Ef5",
+    "_tx_status": "0x1"
+}]

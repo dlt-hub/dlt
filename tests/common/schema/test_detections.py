@@ -1,7 +1,8 @@
 from hexbytes import HexBytes
-from dlt.common import pendulum
+
+from dlt.common import pendulum, Decimal, Wei
 from dlt.common.schema.utils import autodetect_sc_type
-from dlt.common.schema.detections import is_hexbytes_to_text, is_timestamp, is_iso_timestamp, is_large_integer, _FLOAT_TS_RANGE, _NOW_TS
+from dlt.common.schema.detections import is_hexbytes_to_text, is_timestamp, is_iso_timestamp, is_large_integer, is_wei_to_double, _FLOAT_TS_RANGE, _NOW_TS
 
 
 def test_timestamp_detection() -> None:
@@ -46,6 +47,11 @@ def test_detection_hexbytes_to_text() -> None:
     assert is_hexbytes_to_text(HexBytes, b'hey') == "text"
 
 
+def test_wei_to_double() -> None:
+    assert is_wei_to_double(Wei, Wei(1)) == "double"
+    assert is_wei_to_double(Decimal, Decimal(1)) is None
+
+
 def test_detection_function() -> None:
     assert autodetect_sc_type(None, str, str(pendulum.now())) is None
     assert autodetect_sc_type(["iso_timestamp"], str, str(pendulum.now())) == "timestamp"
@@ -54,3 +60,4 @@ def test_detection_function() -> None:
     assert autodetect_sc_type(["timestamp", "iso_timestamp"], float, pendulum.now().timestamp()) == "timestamp"
     assert autodetect_sc_type(["timestamp", "large_integer"], int, 2**64) == "wei"
     assert autodetect_sc_type(["large_integer", "hexbytes_to_text"], HexBytes, b'hey') == "text"
+    assert autodetect_sc_type(["large_integer", "wei_to_double"], Wei, Wei(10**18)) == "double"

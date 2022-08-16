@@ -1,6 +1,6 @@
 from dlt.common import json, Decimal, pendulum
 from dlt.common.arithmetics import numeric_default_context
-from dlt.common.json import _DECIMAL, custom_pua_decode, json_typed_dumps
+from dlt.common.json import _DECIMAL, _WEI, custom_pua_decode, json_typed_dumps
 
 from tests.cases import JSON_TYPED_DICT
 
@@ -57,6 +57,7 @@ def test_json_typed_encode() -> None:
     d = json.loads(j)
     # we have pua chars
     assert d["decimal"][0] == _DECIMAL
+    assert d["wei"][0] == _WEI
     # decode all
     d_d = {k: custom_pua_decode(v) for k,v in d.items()}
     assert d_d == JSON_TYPED_DICT

@@ -1,9 +1,9 @@
 import pytest
-from dlt.common.sources import DLT_METADATA_FIELD, with_table_name
 
 from dlt.common.utils import digest128, uniq_id
 from dlt.common.schema import Schema
 from dlt.common.schema.utils import new_table
+from dlt.common.sources import DLT_METADATA_FIELD, with_table_name
 
 from dlt.common.normalizers.json.relational import JSONNormalizerConfigPropagation, _flatten, _get_child_row_hash, _normalize_row, normalize_data_item
 
