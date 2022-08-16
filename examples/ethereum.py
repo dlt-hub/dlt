@@ -250,36 +250,36 @@ pipeline = Pipeline("ethereum")
 
 # "https://mainnet.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161"
 rpc_url = "https://api.roninchain.com/rpc"
-working_dir = "experiments/pipeline/ronin"
+working_dir = "experiments/data/pipelines/ronin"
 abi_dir="experiments/data/ronin/abi"
-# pipeline.create_pipeline(credentials, schema=discover_schema(), working_dir=working_dir)
-# i = get_source(rpc_url, 4, abi_dir=abi_dir, is_poa=True, supports_batching=False, state=pipeline.state)
+pipeline.create_pipeline(credentials, schema=discover_schema(), working_dir=working_dir)
+i = get_source(rpc_url, 2, abi_dir=abi_dir, is_poa=True, supports_batching=False, state=pipeline.state)
 
 # you can transform the blocks by defining mapping function
-def from_wei_to_eth(block: DictStrAny) -> DictStrAny:
-    # convert wei to eth providing with numeric precision at the target
-    with numeric_default_context():
-        for tx in block["transactions"]:
-            v_wei = tx["value"]
-            if v_wei > 0:
-                # 9 scale vs 18 digits ether scale: a no go for any financial operations
-                # TODO: better support for decimal types
-                tx["eth_value"] = numeric_default_quantize(Decimal(v_wei) / 10**18)
-                # print(f"Produced nice decimal {tx['eth_value']}")
-    return block
+# def from_wei_to_eth(block: DictStrAny) -> DictStrAny:
+#     # convert wei to eth providing with numeric precision at the target
+#     with numeric_default_context():
+#         for tx in block["transactions"]:
+#             v_wei = tx["value"]
+#             if v_wei > 0:
+#                 # 9 scale vs 18 digits ether scale: a no go for any financial operations
+#                 # TODO: better support for decimal types
+#                 tx["eth_value"] = numeric_default_quantize(Decimal(v_wei) / 10**18)
+#                 # print(f"Produced nice decimal {tx['eth_value']}")
+#     return block
 
 
 # extract data from the source. operation is atomic and like all atomic operations in pipeline, it does not raise but returns
 # execution status
 # map(from_wei_to_eth, i)
-# pipeline.extract(i, table_name="blocks")
+pipeline.extract(i, table_name="blocks")
 # print(pipeline.state)
 
 # wait for ethereum network to produce some more blocks
 # sleep(20)
 
 # restore the pipeline from the working directory (simulate continuation from the saved state)
-pipeline.restore_pipeline(credentials, working_dir)
+# pipeline.restore_pipeline(credentials, working_dir)
 # while True:
 #     # obtain new iterator (the old one is expired), this time use deferred iterator to allow parallel block reading
 #     i = get_source(rpc_url, 8, abi_dir=abi_dir, is_poa=True, supports_batching=False, state=pipeline.state)

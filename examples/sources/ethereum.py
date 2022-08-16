@@ -2,6 +2,7 @@ from typing import Any, Callable, Dict, Iterator, List, Tuple, Type, TypedDict, 
 from hexbytes import HexBytes
 import requests
 
+from dlt.common import Wei
 from dlt.common.typing import DictStrAny, StrAny
 from dlt.common.sources import TDeferred, TItem, defer_iterator, with_retry, with_table_name
 
@@ -126,6 +127,8 @@ def _get_block(w3: Web3, current_block: int, chain_id: int, supports_batching: b
             tx["accessList"] = [dict(al) for al in tx["accessList"]]
         # propagate sorting and clustering info (we could also do it in unpacker: TODO:!)
         tx["blockTimestamp"] = block["timestamp"]
+        # set value as wei
+        tx["value"] = Wei.from_int256(tx["value"], 18)
         # overwrite chain_id which is not provided in all cases
         tx["chainId"] = chain_id
 
@@ -203,14 +206,14 @@ def _decode_block(w3: Web3, block: StrAny, contracts: Dict[ChecksumAddress, TABI
             else:
                 if abi_info["unknown_selectors"].get(selector.hex()) is None:
                     # try to decode with an api
-                    sig, fn_name, tx_args, tx_abi = fetch_sig_and_decode_tx(w3.codec, tx_input)
+                    _, fn_name, tx_args, tx_abi = fetch_sig_and_decode_tx(w3.codec, tx_input)
                     maybe_update_abi(abi_info, selector, tx_abi, block["number"])
 
             if tx_args:
                 tx_args =  with_table_name(tx_args, abi_info["name"] + "_calls_" + fn_name)
                 # yield arguments with reference to transaction
                 tx_args.update(tx_info)
-                yield prettify_decoded(tx_args, tx_abi)
+                yield prettify_decoded(tx_args, tx_abi, selector)
 
         # decode logs
         log: LogReceipt
@@ -225,7 +228,7 @@ def _decode_block(w3: Web3, block: StrAny, contracts: Dict[ChecksumAddress, TABI
                 else:
                     if abi_info["unknown_selectors"].get(selector.hex()) is None:
                         # try to decode with an api
-                        sig, event_data, event_abi = fetch_sig_and_decode_log(w3.codec, log)
+                        _, event_data, event_abi = fetch_sig_and_decode_log(w3.codec, log)
                         maybe_update_abi(abi_info, selector, event_abi, block["number"])
 
                 if event_data:
@@ -235,4 +238,4 @@ def _decode_block(w3: Web3, block: StrAny, contracts: Dict[ChecksumAddress, TABI
                     ev_args.update({
                         "_tx_logIndex": event_data["logIndex"]
                     })
-                    yield prettify_decoded(ev_args, event_abi)
+                    yield prettify_decoded(ev_args, event_abi, selector)

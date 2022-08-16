@@ -1,7 +1,5 @@
 import os
-import re
 import itertools
-from textwrap import indent
 from hexbytes import HexBytes
 import requests
 from typing import Any, Dict, Iterable, Iterator, List, Sequence, Type, TypedDict, Tuple, cast
@@ -15,10 +13,11 @@ from eth_typing import HexStr
 from eth_typing.evm import ChecksumAddress
 from eth_abi.codec import ABIDecoder
 from eth_abi.exceptions import DecodingError
+from eth_abi.grammar import parse as parse_abi_type
 from eth_utils.abi import function_abi_to_4byte_selector, event_abi_to_log_topic
 
-from dlt.common import json
-from dlt.common.typing import DictStrAny, StrAny, StrStr
+from dlt.common import json, Wei
+from dlt.common.typing import DictStrAny, StrAny
 
 
 class TABIInfo(TypedDict):
@@ -125,7 +124,6 @@ def signature_to_abi(sig_type: str, sig: str) -> ABIElement:
         while tok := next(tokens_gen):
             if tok == "(":
                 # step into component parsing
-                # tok = tok[1:]
                 input_def["components"] = []
                 _to_components(input_def["components"], f"{param}_{i}")  # type: ignore
                 typ_ = "tuple"
@@ -261,11 +259,43 @@ def fetch_sig_and_decode_tx(codec: ABIDecoder, tx_input: HexBytes) -> Tuple[str,
     return None, None, None, None
 
 
-def prettify_decoded(decoded: DictStrAny, abi: ABIElement) -> DictStrAny:
-    # TODO: detect ERC20 and format decimals properly
+def prettify_decoded(decoded: DictStrAny, abi: ABIElement, selector: HexBytes) -> DictStrAny:
+    uint_to_wei(decoded, abi, selector)
     recode_tuples(decoded, abi)
     flatten_batches(decoded, abi)
     return decoded
+
+
+# ERC20
+# TODO: we should probably take decimals on chain
+KNOWN_SELECTORS_DECIMALS = {
+    # Transfer
+    (HexBytes("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"), 2): 18,
+    # Approval
+    (HexBytes("0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925"), 2): 18,
+    # approve
+    (HexBytes("0x095ea7b3"), 1): 18,
+    # transfer
+    (HexBytes("0xa9059cbb"), 1): 18
+}
+
+
+def uint_to_wei(decoded: DictStrAny, abi: ABIElement, selector: HexBytes) -> None:
+    # converts all integer types > 2**64 into Wei type
+    for idx, input_ in enumerate(abi["inputs"]):
+        parsed_type = parse_abi_type(input_["type"])
+        bit_size = 0
+        if parsed_type.base in ["uint", "int"]:
+            bit_size = int(parsed_type.sub)
+        elif parsed_type.base in ["ufixed", "fixed"]:
+            bit_size = int(parsed_type[0])
+        if bit_size > 64:
+            # not fitting in int -> convert to wei
+            decimals = KNOWN_SELECTORS_DECIMALS.get((selector, idx), 0)
+            int_v = decoded[input_["name"]]
+            assert isinstance(int_v, int)
+            decoded[input_["name"]] = Wei.from_int256(int_v, decimals=decimals)
+            print(f"converted {input_['name']} {int_v} to Wei")
 
 
 def flatten_batches(decoded: DictStrAny, abi: ABIElement) -> None:
