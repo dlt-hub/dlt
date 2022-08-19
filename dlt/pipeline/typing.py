@@ -30,9 +30,9 @@ class PipelineCredentials:
 
 @dataclass
 class GCPPipelineCredentials(PipelineCredentials):
-    PROJECT_ID: str
-    DEFAULT_DATASET: str
-    CLIENT_EMAIL: str
+    PROJECT_ID: str = None
+    DEFAULT_DATASET: str = None
+    CLIENT_EMAIL: str = None
     PRIVATE_KEY: TSecretValue = None
     CRED_TYPE: str = "service_account"
     TOKEN_URI: str = "https://oauth2.googleapis.com/token"
@@ -66,10 +66,10 @@ class GCPPipelineCredentials(PipelineCredentials):
 
 @dataclass
 class PostgresPipelineCredentials(PipelineCredentials):
-    DBNAME: str
-    DEFAULT_DATASET: str
-    USER: str
-    HOST: str
+    DBNAME: str = None
+    DEFAULT_DATASET: str = None
+    USER: str = None
+    HOST: str = None
     PASSWORD: TSecretValue = None
     PORT: int = 5439
     CONNECT_TIMEOUT: int = 15
