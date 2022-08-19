@@ -34,6 +34,7 @@ class Pipeline:
         self.pipeline_name = pipeline_name
         self.default_schema_name: str = None
         self.root_path: str = None
+        self.export_schema_path: str = None
         self.root_storage: FileStorage = None
         self.credentials: PipelineCredentials = None
         self.extractor_storage: ExtractorStorageBase = None
@@ -50,11 +51,12 @@ class Pipeline:
         })
         runner.initialize_runner(C, TRunArgs(True, 0))
 
-    def create_pipeline(self, credentials: PipelineCredentials, working_dir: str = None, schema: Schema = None) -> None:
+    def create_pipeline(self, credentials: PipelineCredentials, working_dir: str = None, schema: Schema = None, export_schema_path: str = None) -> None:
         # initialize root storage
         if not working_dir:
             working_dir = tempfile.mkdtemp()
         self.root_storage = FileStorage(working_dir, makedirs=True)
+        self.export_schema_path = export_schema_path
 
         # check if directory contains restorable pipeline
         try:
@@ -78,7 +80,7 @@ class Pipeline:
             schema = Schema(normalize_schema_name(self.pipeline_name))
         # persist schema with the pipeline
         self.set_default_schema(schema)
-        # initialize empty state
+        # initialize empty state, this must be last operation when creating pipeline so restore reads only fully created ones
         with self._managed_state():
             self.state = {
                 "default_schema_name": self.default_schema_name,
@@ -89,11 +91,11 @@ class Pipeline:
                 "loader_schema_prefix": credentials.default_dataset
             }
 
-    def restore_pipeline(self, credentials: PipelineCredentials, working_dir: str) -> None:
+    def restore_pipeline(self, credentials: PipelineCredentials, working_dir: str, export_schema_path: str = None) -> None:
         try:
             # do not create extractor dir - it must exist
             self.root_storage = FileStorage(working_dir, makedirs=False)
-            # restore state
+            # restore state, this must be a first operation when restoring pipeline
             try:
                 self._restore_state()
             except FileNotFoundError:
@@ -105,6 +107,7 @@ class Pipeline:
             credentials.default_dataset = self.state["loader_schema_prefix"]
             self.root_path = self.root_storage.storage_path
             self.credentials = credentials
+            self.export_schema_path = export_schema_path
             self._load_modules()
             # schema must exist
             try:
@@ -243,6 +246,7 @@ class Pipeline:
         normalize_initial = {
             "NORMALIZE_VOLUME_PATH": os.path.join(self.root_path, "normalize"),
             "SCHEMA_VOLUME_PATH": os.path.join(self.root_path, "schemas"),
+            "EXPORT_SCHEMA_PATH": os.path.abspath(self.export_schema_path) if self.export_schema_path else None,
             "LOADER_FILE_FORMAT": self._loader_instance.load_client_cls.capabilities()["preferred_loader_file_format"],
             "ADD_EVENT_JSON": False
         }

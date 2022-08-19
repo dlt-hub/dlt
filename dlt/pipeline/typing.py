@@ -1,6 +1,6 @@
 
-from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, Type, Any
+from dataclasses import dataclass, fields as dtc_fields
 from dlt.common import json
 
 from dlt.common.typing import StrAny, TSecretValue
@@ -84,10 +84,15 @@ class PostgresPipelineCredentials(PipelineCredentials):
 
 
 def credentials_from_dict(credentials: StrAny) -> PipelineCredentials:
+
+    def ignore_unknown_props(typ_: Type[Any], props: StrAny) -> StrAny:
+        fields = {f.name: f for f in dtc_fields(typ_)}
+        return {k:v for k,v in props.items() if k in fields}
+
     client_type = credentials.get("CLIENT_TYPE")
     if client_type == "bigquery":
-        return GCPPipelineCredentials(**credentials)
+        return GCPPipelineCredentials(**ignore_unknown_props(GCPPipelineCredentials, credentials))
     elif client_type == "redshift":
-        return PostgresPipelineCredentials(**credentials)
+        return PostgresPipelineCredentials(**ignore_unknown_props(PostgresPipelineCredentials, credentials))
     else:
         raise ValueError(f"CLIENT_TYPE: {client_type}")
