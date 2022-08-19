@@ -19,10 +19,11 @@ class Wei(Decimal,SupportsVariant[Decimal]):
     @classmethod
     def from_int256(cls, value: int, decimals: int = 0) -> "Wei":
         d: "Wei" = None
-        if decimals == 0:
-            d = cls(value)
-        else:
-            d = cls(Decimal(value, context=cls.ctx) / 10**decimals)
+        with decimal.localcontext(Wei.ctx):
+            if decimals == 0:
+                d = cls(value)
+            else:
+                d = cls(Decimal(value) / 10**decimals)
 
         return d
 

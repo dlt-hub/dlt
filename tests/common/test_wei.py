@@ -7,6 +7,9 @@ def test_init() -> None:
     assert Wei.from_int256(10**18, decimals=18) == 1
     # make sure the wei scale is supported
     assert Wei.from_int256(1, decimals=18) == Decimal("0.000000000000000001")
+    assert Wei.from_int256(2**256-1) == 2**256-1
+    assert str(Wei.from_int256(2**256-1, decimals=18)) == "115792089237316195423570985008687907853269984665640564039457.584007913129639935"
+    assert str(Wei.from_int256(2**256-1)) == str(2**256-1)
     assert type(Wei.from_int256(1)) is Wei
 
 
