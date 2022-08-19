@@ -161,7 +161,7 @@ def run_pool(C: Type[PoolRunnerConfiguration], run_f: Union[Runnable[TPool], Cal
             # and was all the time idle or (was not idle but now pending is 0)
             print(RUN_ARGS)
             if RUN_ARGS.single_run and (health_props["runs_count"] >= RUN_ARGS.wait_runs and (health_props["runs_not_idle_count"] == 0 or run_metrics.pending_items == 0)):
-                logger.warning("Stopping runner due to single run override")
+                logger.info("Stopping runner due to single run override")
                 return 0
 
             if run_metrics.has_failed:

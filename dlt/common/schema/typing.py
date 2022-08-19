@@ -7,7 +7,7 @@ TDataType = Literal["text", "double", "bool", "timestamp", "bigint", "binary", "
 THintType = Literal["not_null", "partition", "cluster", "primary_key", "foreign_key", "sort", "unique"]
 TColumnProp = Literal["name", "data_type", "nullable", "partition", "cluster", "primary_key", "foreign_key", "sort", "unique"]
 TWriteDisposition = Literal["skip", "append", "replace", "merge"]
-TTypeDetections = Literal["timestamp", "iso_timestamp", "large_integer", "hexbytes_to_text"]
+TTypeDetections = Literal["timestamp", "iso_timestamp", "large_integer", "hexbytes_to_text", "wei_to_double"]
 TTypeDetectionFunc = Callable[[Type[Any], Any], Optional[TDataType]]
 
 DATA_TYPES: Set[TDataType] = set(get_args(TDataType))
