@@ -9,6 +9,8 @@ from dlt.common.runners.pool_runner import TRunArgs, add_pool_cli_arguments
 from dlt.common.typing import DictStrAny
 from dlt.common.utils import str2bool
 
+from dlt.pipeline import Pipeline, PostgresPipelineCredentials
+
 
 def str2bool_a(v: str) -> bool:
     try:
@@ -30,6 +32,10 @@ def main() -> None:
     schema.add_argument("file", help="Schema file name, in yaml or json format, will autodetect based on extension")
     schema.add_argument("--format", choices=["json", "yaml"], default="yaml", help="Display schema in this format")
     schema.add_argument("--remove-defaults", action="store_true", help="Does not show default hint values")
+    pipeline = subparsers.add_parser("pipeline", help="Operations on the pipelines")
+    pipeline.add_argument("name", help="Pipeline name")
+    pipeline.add_argument("workdir", help="Pipeline working directory")
+    pipeline.add_argument("operation", choices=["failed_loads"], default="failed_loads", help="Show failed loads for a pipeline")
 
     # TODO: consider using fire: https://github.com/google/python-fire
     args = parser.parse_args()
@@ -56,6 +62,15 @@ def main() -> None:
         else:
             schema_str = s.to_pretty_yaml(remove_defaults=args.remove_defaults)
         print(schema_str)
+        exit(0)
+    elif args.command == "pipeline":
+        p = Pipeline(args.name)
+        p.restore_pipeline(PostgresPipelineCredentials("dummy"), args.workdir)
+        completed_loads = p.list_completed_loads()
+        for load_id in completed_loads:
+            print(f"Checking failed jobs in {load_id}")
+            for job, failed_message in p.list_failed_jobs(load_id):
+                print(f"JOB: {job}\nMSG: {failed_message}")
         exit(0)
     else:
         parser.print_help()
