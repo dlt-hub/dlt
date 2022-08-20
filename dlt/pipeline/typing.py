@@ -5,7 +5,7 @@ from dlt.common import json
 
 from dlt.common.typing import StrAny, TSecretValue
 
-TLoaderType = Literal["bigquery", "redshift"]
+TLoaderType = Literal["bigquery", "redshift", "dummy"]
 TPipelineStage = Literal["extract", "normalize", "load"]
 
 # extractor generator yields functions that returns list of items of the type (table) when called

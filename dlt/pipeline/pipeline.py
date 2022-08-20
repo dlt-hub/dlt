@@ -9,9 +9,9 @@ import os.path
 from typing import Any, Iterator, List, Sequence, Tuple
 from prometheus_client import REGISTRY
 
-from dlt.common import json
+from dlt.common import json, sleep, signals
 from dlt.common.runners import pool_runner as runner, TRunArgs, TRunMetrics
-from dlt.common.configuration import RunConfiguration, make_configuration
+from dlt.common.configuration import PoolRunnerConfiguration, make_configuration
 from dlt.common.file_storage import FileStorage
 from dlt.common.logger import process_internal_exception
 from dlt.common.schema import Schema, normalize_schema_name
@@ -25,7 +25,7 @@ from dlt.normalize.configuration import configuration as normalize_configuration
 from dlt.load.configuration import configuration as loader_configuration
 from dlt.normalize import Normalize
 from dlt.load import Load
-from dlt.pipeline.exceptions import InvalidPipelineContextException, MissingDependencyException, NoPipelineException, PipelineStepFailed, CannotRestorePipelineException, SqlClientNotAvailable
+from dlt.pipeline.exceptions import MissingDependencyException, NoPipelineException, PipelineStepFailed, CannotRestorePipelineException, SqlClientNotAvailable
 from dlt.pipeline.typing import PipelineCredentials
 
 
@@ -45,11 +45,12 @@ class Pipeline:
         self._loader_instance: Load = None
 
         # patch config and initialize pipeline
-        C = make_configuration(RunConfiguration, RunConfiguration, initial_values={
+        self.C = make_configuration(PoolRunnerConfiguration, PoolRunnerConfiguration, initial_values={
             "PIPELINE_NAME": pipeline_name,
-            "LOG_LEVEL": log_level
+            "LOG_LEVEL": log_level,
+            "POOL_TYPE": "None"
         })
-        runner.initialize_runner(C, TRunArgs(True, 0))
+        runner.initialize_runner(self.C, TRunArgs(True, 0))
 
     def create_pipeline(self, credentials: PipelineCredentials, working_dir: str = None, schema: Schema = None, export_schema_path: str = None) -> None:
         # initialize root storage
@@ -139,6 +140,8 @@ class Pipeline:
                     all_items.append(item)
                 elif isinstance(item, abc.Sequence):
                     all_items.extend(item)
+                # react to CTRL-C and shutdowns from controllers
+                signals.raise_if_signalled()
 
             try:
                 self._extract_iterator(default_table_name, all_items)
@@ -240,6 +243,9 @@ class Pipeline:
                 return c.sql_client
             else:
                 raise SqlClientNotAvailable(self._loader_instance.CONFIG.CLIENT_TYPE)
+
+    def sleep(self, seconds: float = None) -> None:
+        sleep(seconds or self.C.RUN_SLEEP)
 
     def _configure_normalize(self) -> None:
         # create normalize config
