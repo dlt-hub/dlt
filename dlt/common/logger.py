@@ -5,10 +5,10 @@ import sentry_sdk
 from sentry_sdk.transport import HttpTransport
 from sentry_sdk.integrations.logging import LoggingIntegration
 from logging import LogRecord, Logger
-from typing import Any, Callable, Dict, Type
+from typing import Any, Type, Protocol
 
 from dlt.common.json import json
-from dlt.common.typing import DictStrAny, DictStrStr, StrStr
+from dlt.common.typing import DictStrAny, StrStr
 from dlt.common.configuration import RunConfiguration
 from dlt.common.utils import filter_env_vars
 from dlt._version import common_version as __version__
@@ -108,7 +108,12 @@ def _init_logging(logger_name: str, level: str, fmt: str, component: str, versio
     return logger
 
 
-def __getattr__(name: str) -> Callable[..., Any]:
+class LogMethod(Protocol):
+    def __call__(self, msg: str, *args: Any, **kwds: Any) -> None:
+        ...
+
+
+def __getattr__(name: str) -> LogMethod:
     # a catch all function for a module that forwards calls to unknown methods to LOGGER
     def wrapper(msg: str, *args: Any, **kwargs: Any) -> None:
         if LOGGER:

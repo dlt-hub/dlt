@@ -122,7 +122,7 @@ def run_pool(C: Type[PoolRunnerConfiguration], run_f: Union[Runnable[TPool], Cal
                     # always exit
                     raise
                 else:
-                    logger.exception()
+                    logger.exception("run")
                     # the run failed
                     run_metrics = TRunMetrics(True, True, -1)
                     # preserve exception
