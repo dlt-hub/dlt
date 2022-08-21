@@ -379,9 +379,9 @@ def test_propagate_hardcoded_context(schema: Schema) -> None:
     rows = list(_normalize_row(schema, row, {"_timestamp": 1238.9, "_dist_key": "SENDER_3000"}, "table"))
     # context is not added to root element
     root = next(t for t in rows if t[0][0] == "table")[1]
-    assert "_timestamp" not in root
-    assert "_dist_key" not in root
-    # the original _timestamp field will be overwritten in children
+    assert "_timestamp" in root
+    assert "_dist_key" in root
+    # the original _timestamp field will be overwritten in children and added to lists
     assert all(e[1]["_timestamp"] == 1238.9 and e[1]["_dist_key"] == "SENDER_3000" for e in rows if e[0][0] != "table")
 
 
@@ -612,14 +612,16 @@ def test_parse_with_primary_key() -> None:
     root = next(t[1] for t in rows if t[0][0] == "discord")
     assert root["_dlt_id"] == digest128("817949077341208606")
     assert "_dlt_parent_id" not in root
+    assert "_dlt_root_id" not in root
     assert root["_dlt_load_id"] == "load_id"
 
     el_w_id = next(t[1] for t in rows if t[0][0] == "discord__w_id")
     # this also has primary key
     assert el_w_id["_dlt_id"] == digest128("9128918293891111")
-    assert "_dlt_root_id" not in el_w_id
     assert "_dlt_parent_id" not in el_w_id
     assert "_dlt_list_idx" not in el_w_id
+    # if enabled, dlt_root is always propagated
+    assert "_dlt_root_id" in el_w_id
 
     # this must have deterministic child key
     f_wo_id = next(t[1] for t in rows if t[0][0] == "discord__w_id__wo_id" and t[1]["_dlt_list_idx"] == 2)
