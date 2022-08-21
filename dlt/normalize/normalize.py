@@ -12,7 +12,6 @@ from dlt.common.storages.normalize_storage import NormalizeStorage
 from dlt.common.telemetry import get_logging_extras
 from dlt.common.utils import uniq_id
 from dlt.common.typing import TDataItem
-from dlt.common.logger import process_internal_exception
 from dlt.common.exceptions import PoolException
 from dlt.common.storages import SchemaStorage
 from dlt.common.schema import TSchemaUpdate, Schema
@@ -110,7 +109,7 @@ class Normalize(Runnable[ProcessPool]):
                             rows = normalized_data.setdefault(table_name, [])
                             rows.append(row)
             except Exception:
-                process_internal_exception(f"Exception when processing file {events_file}")
+                logger.exception(f"Exception when processing file {events_file}")
                 raise PoolException("normalize_files", events_file)
 
         # save rows and return schema changes to be gathered in parent process
@@ -225,7 +224,7 @@ def main(args: TRunArgs) -> int:
     try:
         n = Normalize(C, REGISTRY)
     except Exception:
-        process_internal_exception("init module")
+        logger.exception("init module")
         return -1
     return run_pool(C, n)
 

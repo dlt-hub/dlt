@@ -9,11 +9,10 @@ import os.path
 from typing import Any, Iterator, List, Sequence, Tuple
 from prometheus_client import REGISTRY
 
-from dlt.common import json, sleep, signals
+from dlt.common import json, sleep, signals, logger
 from dlt.common.runners import pool_runner as runner, TRunArgs, TRunMetrics
 from dlt.common.configuration import PoolRunnerConfiguration, make_configuration
 from dlt.common.file_storage import FileStorage
-from dlt.common.logger import process_internal_exception
 from dlt.common.schema import Schema, normalize_schema_name
 from dlt.common.typing import DictStrAny, StrAny
 from dlt.common.utils import uniq_id, is_interactive
@@ -321,7 +320,7 @@ class Pipeline:
 
             runner.LAST_RUN_METRICS = TRunMetrics(was_idle=False, has_failed=False, pending_items=0)
         except Exception as ex:
-            process_internal_exception("extracting iterator failed")
+            logger.exception("extracting iterator failed")
             runner.LAST_RUN_METRICS = TRunMetrics(was_idle=False, has_failed=True, pending_items=0)
             runner.LAST_RUN_EXCEPTION = ex
             raise
