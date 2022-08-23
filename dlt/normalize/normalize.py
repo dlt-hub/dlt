@@ -139,28 +139,32 @@ class Normalize(Runnable[ProcessPool]):
         self_id: Any = id(self)
         return [Normalize.w_normalize_files(self_id, schema_name, load_id, chunk_files[0])], chunk_files
 
-    def update_schema(self, schema_name: str, schema_updates: List[TSchemaUpdate]) -> Schema:
-        # gather schema from all manifests, validate consistency and combine
-        schema = self.load_or_create_schema(schema_name)
+    def update_schema(self, schema: Schema, schema_updates: List[TSchemaUpdate]) -> int:
+        updates_count = 0
         for schema_update in schema_updates:
             for table_name, table_updates in schema_update.items():
                 logger.debug(f"Updating schema for table {table_name} with {len(table_updates)} deltas")
                 for partial_table in table_updates:
+                    updates_count += 1
                     schema.update_schema(partial_table)
-        return schema
+        return updates_count
 
     def spool_files(self, schema_name: str, load_id: str, map_f: TMapFuncType, files: Sequence[str]) -> None:
         # process files in parallel or in single thread, depending on map_f
         schema_updates, chunk_files = map_f(schema_name, load_id, files)
 
-        schema = self.update_schema(schema_name, schema_updates)
+        schema = self.load_or_create_schema(schema_name)
+        # gather schema from all manifests, validate consistency and combine
+        updates_count = self.update_schema(schema, schema_updates)
         self.schema_version_gauge.labels(schema_name).set(schema.version)
         logger.metrics("Normalize metrics", extra=get_logging_extras([self.schema_version_gauge.labels(schema_name)]))
         logger.info(f"Saving schema {schema_name} with version {schema.version}, writing manifest files")
-        # schema is updated, save it to schema volume
-        self.schema_storage.save_schema(schema)
-        # save schema and schema updates to temp load folder
+        if updates_count > 0:
+            # schema is updated, save it to schema volume
+            self.schema_storage.save_schema(schema)
+        # save schema to temp load folder
         self.load_storage.save_temp_schema(schema, load_id)
+        # save schema updates even if empty
         self.load_storage.save_temp_schema_updates(load_id, schema_updates)
         # files must be renamed and deleted together so do not attempt that when process is about to be terminated
         signals.raise_if_signalled()

@@ -110,6 +110,7 @@ def run_pool(C: Type[PoolRunnerConfiguration], run_f: Union[Runnable[TPool], Cal
             try:
                 HEALTH_PROPS_GAUGES["runs_count"].inc()
                 # run pool logic
+                logger.debug("Running pool")
                 with RUN_DURATION_SUMMARY.time(), RUN_DURATION_GAUGE.time():
                     if callable(run_f):
                         run_metrics = run_f(cast(TPool, pool))
@@ -126,29 +127,12 @@ def run_pool(C: Type[PoolRunnerConfiguration], run_f: Union[Runnable[TPool], Cal
                     # the run failed
                     run_metrics = TRunMetrics(True, True, -1)
                     # preserve exception
+                    # TODO: convert it to callback
                     global LAST_RUN_EXCEPTION
                     LAST_RUN_EXCEPTION = exc
+            logger.debug(f"Pool ran with {run_metrics}")
 
-            # gather and emit metrics
-            if not run_metrics.was_idle:
-                HEALTH_PROPS_GAUGES["runs_not_idle_count"].inc()
-            if run_metrics.has_failed:
-                HEALTH_PROPS_GAUGES["runs_failed_count"].inc()
-                HEALTH_PROPS_GAUGES["runs_cs_failed_gauge"].inc()
-                HEALTH_PROPS_GAUGES["runs_cs_healthy_gauge"].set(0)
-            else:
-                HEALTH_PROPS_GAUGES["runs_healthy_count"].inc()
-                HEALTH_PROPS_GAUGES["runs_cs_healthy_gauge"].inc()
-                HEALTH_PROPS_GAUGES["runs_cs_failed_gauge"].set(0)
-            HEALTH_PROPS_GAUGES["runs_pending_items_gauge"].set(run_metrics.pending_items)
-            health_props = update_gauges()
-            logger.health("run health counters", extra={"metrics": health_props})
-            logger.metrics("run metrics", extra=get_logging_extras([RUN_DURATION_GAUGE, RUN_DURATION_SUMMARY]))
-
-            # preserve last run metrics
-            global LAST_RUN_METRICS
-            LAST_RUN_METRICS = run_metrics
-
+            health_props = _update_metrics(run_metrics)
             # exit due to signal
             signals.raise_if_signalled()
 
@@ -191,3 +175,27 @@ def run_pool(C: Type[PoolRunnerConfiguration], run_f: Union[Runnable[TPool], Cal
             pool.close()
             pool.join()
             pool = None
+
+
+def _update_metrics(run_metrics: TRunMetrics) -> TRunHealth:
+    # gather and emit metrics
+    if not run_metrics.was_idle:
+        HEALTH_PROPS_GAUGES["runs_not_idle_count"].inc()
+    if run_metrics.has_failed:
+        HEALTH_PROPS_GAUGES["runs_failed_count"].inc()
+        HEALTH_PROPS_GAUGES["runs_cs_failed_gauge"].inc()
+        HEALTH_PROPS_GAUGES["runs_cs_healthy_gauge"].set(0)
+    else:
+        HEALTH_PROPS_GAUGES["runs_healthy_count"].inc()
+        HEALTH_PROPS_GAUGES["runs_cs_healthy_gauge"].inc()
+        HEALTH_PROPS_GAUGES["runs_cs_failed_gauge"].set(0)
+    HEALTH_PROPS_GAUGES["runs_pending_items_gauge"].set(run_metrics.pending_items)
+    health_props = update_gauges()
+    logger.health("run health counters", extra={"metrics": health_props})
+    logger.metrics("run metrics", extra=get_logging_extras([RUN_DURATION_GAUGE, RUN_DURATION_SUMMARY]))
+
+    # preserve last run metrics
+    global LAST_RUN_METRICS
+    LAST_RUN_METRICS = run_metrics
+
+    return health_props
