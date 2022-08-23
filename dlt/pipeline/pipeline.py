@@ -78,8 +78,6 @@ class Pipeline:
         # create new schema if no default supplied
         if schema is None:
             schema = Schema(normalize_schema_name(self.pipeline_name))
-        # persist schema with the pipeline
-        self.set_default_schema(schema)
         # initialize empty state, this must be last operation when creating pipeline so restore reads only fully created ones
         with self._managed_state():
             self.state = {
@@ -90,6 +88,8 @@ class Pipeline:
                 # TODO: must take schema prefix from resolved configuration
                 "loader_schema_prefix": credentials.default_dataset
             }
+        # persist schema with the pipeline
+        self.set_default_schema(schema)
 
     def restore_pipeline(self, credentials: PipelineCredentials, working_dir: str, export_schema_path: str = None) -> None:
         try:
@@ -163,6 +163,7 @@ class Pipeline:
     def load(self, max_parallel_loads: int = 20) -> None:
         self._verify_loader_instance()
         self._loader_instance.CONFIG.WORKERS = max_parallel_loads
+        self._loader_instance.load_client_cls.CONFIG.DEFAULT_SCHEMA_NAME = self.default_schema_name  # type: ignore
         runner.run_pool(self._loader_instance.CONFIG, self._loader_instance)
         if runner.LAST_RUN_METRICS.has_failed:
             raise PipelineStepFailed("load", self.last_run_exception, runner.LAST_RUN_METRICS)
@@ -263,6 +264,7 @@ class Pipeline:
     def _configure_load(self) -> None:
         # use credentials to populate loader client config, it includes also client type
         loader_client_initial = dtc_asdict(self.credentials)
+        loader_client_initial["DEFAULT_SCHEMA_NAME"] = self.default_schema_name
         # but client type must be passed to loader config
         loader_initial = {"CLIENT_TYPE": loader_client_initial["CLIENT_TYPE"]}
         loader_initial.update(self._configure_runner())
