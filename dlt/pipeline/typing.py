@@ -1,11 +1,11 @@
 
-from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, Type, Any
+from dataclasses import dataclass, fields as dtc_fields
 from dlt.common import json
 
 from dlt.common.typing import StrAny, TSecretValue
 
-TLoaderType = Literal["bigquery", "redshift"]
+TLoaderType = Literal["bigquery", "redshift", "dummy"]
 TPipelineStage = Literal["extract", "normalize", "load"]
 
 # extractor generator yields functions that returns list of items of the type (table) when called
@@ -30,9 +30,9 @@ class PipelineCredentials:
 
 @dataclass
 class GCPPipelineCredentials(PipelineCredentials):
-    PROJECT_ID: str
-    DEFAULT_DATASET: str
-    CLIENT_EMAIL: str
+    PROJECT_ID: str = None
+    DEFAULT_DATASET: str = None
+    CLIENT_EMAIL: str = None
     PRIVATE_KEY: TSecretValue = None
     CRED_TYPE: str = "service_account"
     TOKEN_URI: str = "https://oauth2.googleapis.com/token"
@@ -66,10 +66,10 @@ class GCPPipelineCredentials(PipelineCredentials):
 
 @dataclass
 class PostgresPipelineCredentials(PipelineCredentials):
-    DBNAME: str
-    DEFAULT_DATASET: str
-    USER: str
-    HOST: str
+    DBNAME: str = None
+    DEFAULT_DATASET: str = None
+    USER: str = None
+    HOST: str = None
     PASSWORD: TSecretValue = None
     PORT: int = 5439
     CONNECT_TIMEOUT: int = 15
@@ -84,10 +84,15 @@ class PostgresPipelineCredentials(PipelineCredentials):
 
 
 def credentials_from_dict(credentials: StrAny) -> PipelineCredentials:
+
+    def ignore_unknown_props(typ_: Type[Any], props: StrAny) -> StrAny:
+        fields = {f.name: f for f in dtc_fields(typ_)}
+        return {k:v for k,v in props.items() if k in fields}
+
     client_type = credentials.get("CLIENT_TYPE")
     if client_type == "bigquery":
-        return GCPPipelineCredentials(**credentials)
+        return GCPPipelineCredentials(**ignore_unknown_props(GCPPipelineCredentials, credentials))
     elif client_type == "redshift":
-        return PostgresPipelineCredentials(**credentials)
+        return PostgresPipelineCredentials(**ignore_unknown_props(PostgresPipelineCredentials, credentials))
     else:
         raise ValueError(f"CLIENT_TYPE: {client_type}")

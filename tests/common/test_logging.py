@@ -1,7 +1,7 @@
 import pytest
+import logging
 import json_logging
 from os import environ
-from typing import Any
 
 from dlt import __version__ as auto_version
 from dlt.common import logger, sleep
@@ -25,6 +25,10 @@ class JsonLoggerConfiguration(PureBasicConfigurationProc):
 
 class SentryLoggerConfiguration(JsonLoggerConfiguration):
     SENTRY_DSN: str = "http://user:pass@localhost/818782"
+
+
+class SentryLoggerCriticalConfiguration(SentryLoggerConfiguration):
+    LOG_LEVEL: str = "CRITICAL"
 
 
 @pytest.fixture(scope="function")
@@ -65,7 +69,7 @@ def test_text_logger_init(environment: StrStr) -> None:
     try:
         1 / 0
     except ZeroDivisionError:
-        logger.process_internal_exception("DIV")
+        logger.exception("DIV")
 
 
 @pytest.mark.forked
@@ -81,7 +85,22 @@ def test_json_logger_init(environment: StrStr) -> None:
     try:
         1 / 0
     except ZeroDivisionError:
-        logger.process_internal_exception("DIV")
+        logger.exception("DIV")
+
+
+def test_sentry_log_level() -> None:
+    SentryLoggerCriticalConfiguration.LOG_LEVEL = "CRITICAL"
+    sll = logger._get_sentry_log_level(SentryLoggerCriticalConfiguration)
+    assert sll._handler.level == logging._nameToLevel["CRITICAL"]
+    SentryLoggerCriticalConfiguration.LOG_LEVEL = "ERROR"
+    sll = logger._get_sentry_log_level(SentryLoggerCriticalConfiguration)
+    assert sll._handler.level == logging._nameToLevel["ERROR"]
+    SentryLoggerCriticalConfiguration.LOG_LEVEL = "WARNING"
+    sll = logger._get_sentry_log_level(SentryLoggerCriticalConfiguration)
+    assert sll._handler.level == logging._nameToLevel["WARNING"]
+    SentryLoggerCriticalConfiguration.LOG_LEVEL = "INFO"
+    sll = logger._get_sentry_log_level(SentryLoggerCriticalConfiguration)
+    assert sll._handler.level == logging._nameToLevel["WARNING"]
 
 
 @pytest.mark.forked
@@ -92,7 +111,7 @@ def test_sentry_init(environment: StrStr) -> None:
     try:
         1 / 0
     except ZeroDivisionError:
-        logger.process_internal_exception("DIV")
+        logger.exception("DIV")
     sleep(1)
 
 

@@ -3,11 +3,12 @@ import json_logging
 import traceback
 import sentry_sdk
 from sentry_sdk.transport import HttpTransport
+from sentry_sdk.integrations.logging import LoggingIntegration
 from logging import LogRecord, Logger
-from typing import Any, Callable, Dict, Type
+from typing import Any, Type, Protocol
 
 from dlt.common.json import json
-from dlt.common.typing import DictStrAny, DictStrStr, StrStr
+from dlt.common.typing import DictStrAny, StrStr
 from dlt.common.configuration import RunConfiguration
 from dlt.common.utils import filter_env_vars
 from dlt._version import common_version as __version__
@@ -59,8 +60,6 @@ def _add_logging_level(level_name: str, level: int, method_name:str = None) -> N
 class _MetricsFormatter(logging.Formatter):
     def format(self, record: LogRecord) -> str:  # noqa: A003
         s = super(_MetricsFormatter, self).format(record)
-        if record.exc_text:
-            s = s + '|'
         # dump metrics dictionary nicely
         if "metrics" in record.__dict__:
             s = s + ": " + json.dumps(record.__dict__["metrics"])
@@ -109,11 +108,21 @@ def _init_logging(logger_name: str, level: str, fmt: str, component: str, versio
     return logger
 
 
-def __getattr__(name: str) -> Callable[..., Any]:
+class LogMethod(Protocol):
+    def __call__(self, msg: str, *args: Any, **kwds: Any) -> None:
+        ...
+
+
+def __getattr__(name: str) -> LogMethod:
     # a catch all function for a module that forwards calls to unknown methods to LOGGER
     def wrapper(msg: str, *args: Any, **kwargs: Any) -> None:
         if LOGGER:
-            getattr(LOGGER, name)(msg, *args, **kwargs, stacklevel=2)
+            # skip stack frames when displaying log so the original logging frame is displayed
+            stacklevel = 2
+            if name == "exception":
+                # exception has one more frame
+                stacklevel = 3
+            getattr(LOGGER, name)(msg, *args, **kwargs, stacklevel=stacklevel)
     return wrapper
 
 
@@ -130,6 +139,7 @@ def _extract_version_info(config: Type[RunConfiguration]) -> StrStr:
 def _extract_pod_info() -> StrStr:
     return filter_env_vars(["KUBE_NODE_NAME", "KUBE_POD_NAME", "KUBE_POD_NAMESPACE"])
 
+
 class _SentryHttpTransport(HttpTransport):
 
     timeout: int = 0
@@ -140,21 +150,34 @@ class _SentryHttpTransport(HttpTransport):
         return rv
 
 
-def _init_sentry(config: Type[RunConfiguration], version: StrStr) -> None:
-    if config.SENTRY_DSN:
-        sys_ver = version["version"]
-        release = sys_ver + "_" + version.get("commit_sha", "")
-        _SentryHttpTransport.timeout = config.REQUEST_TIMEOUT[0]
-        # TODO: setup automatic sending of log messages by log level (ie. we send a lot dbt trash logs)
-        # https://docs.sentry.io/platforms/python/guides/logging/
-        sentry_sdk.init(config.SENTRY_DSN, release=release, transport=_SentryHttpTransport)
-        # add version tags
-        for k, v in version.items():
-            sentry_sdk.set_tag(k, v)
-        # add kubernetes tags
-        pod_tags = _extract_pod_info()
-        for k, v in pod_tags.items():
-            sentry_sdk.set_tag(k, v)
+def _get_sentry_log_level(C: Type[RunConfiguration]) -> LoggingIntegration:
+    log_level = logging._nameToLevel[C.LOG_LEVEL]
+    event_level = logging.WARNING if log_level <= logging.WARNING else log_level
+    return LoggingIntegration(
+        level=logging.INFO,        # Capture info and above as breadcrumbs
+        event_level=event_level  # Send errors as events
+    )
+
+
+def _init_sentry(C: Type[RunConfiguration], version: StrStr) -> None:
+    sys_ver = version["version"]
+    release = sys_ver + "_" + version.get("commit_sha", "")
+    _SentryHttpTransport.timeout = C.REQUEST_TIMEOUT[0]
+    # TODO: ignore certain loggers ie. dbt loggers
+    # https://docs.sentry.io/platforms/python/guides/logging/
+    sentry_sdk.init(
+        C.SENTRY_DSN,
+        integrations=[_get_sentry_log_level(C)],
+        release=release,
+        transport=_SentryHttpTransport
+    )
+    # add version tags
+    for k, v in version.items():
+        sentry_sdk.set_tag(k, v)
+    # add kubernetes tags
+    pod_tags = _extract_pod_info()
+    for k, v in pod_tags.items():
+        sentry_sdk.set_tag(k, v)
 
 
 def init_telemetry(config: Type[RunConfiguration]) -> None:
@@ -182,23 +205,12 @@ def init_logging_from_config(C: Type[RunConfiguration]) -> None:
         C.LOG_FORMAT,
         C.PIPELINE_NAME,
         version)
-    _init_sentry(C, version)
+    if C.SENTRY_DSN:
+        _init_sentry(C, version)
 
 
 def is_json_logging(log_format: str) -> bool:
     return log_format == "JSON"
-
-
-def process_internal_exception(msg: str, exc_info: Any = True) -> None:
-    # Passing default True value will cause implementation to use data provided by sys.exc_info
-    if LOGGER:
-        LOGGER.error(msg, exc_info=exc_info, stacklevel=2)
-    report_exception()
-
-
-def report_exception() -> None:
-    if sentry_sdk.Hub.current:
-        sentry_sdk.capture_exception()
 
 
 def pretty_format_exception() -> str:

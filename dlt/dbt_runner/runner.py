@@ -6,7 +6,7 @@ from dlt.common.configuration import GcpClientCredentials
 
 from dlt.common import logger
 from dlt.common.typing import DictStrAny, DictStrStr, StrAny
-from dlt.common.logger import process_internal_exception, is_json_logging
+from dlt.common.logger import is_json_logging
 from dlt.common.telemetry import get_logging_extras
 from dlt.common.file_storage import FileStorage
 from dlt.common.runners import TRunArgs, initialize_runner, run_pool
@@ -193,7 +193,7 @@ def main(args: TRunArgs) -> int:
     try:
         configure(C, REGISTRY)
     except Exception:
-        process_internal_exception("init module")
+        logger.exception("init module")
         return -1
 
     return run_pool(C, run)

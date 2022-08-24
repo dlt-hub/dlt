@@ -6,7 +6,7 @@ LABEL org.label-schema.vendor="ScaleVector" \
     org.label-schema.name="DLT" \
     org.label-schema.description="DLT is an open-source python-native scalable data loading framework that does not require any devops efforts to run."
 
-# prepare dirs to install autopoieses
+# prepare dirs to install dlt
 RUN mkdir -p /tmp/pydlt
 
 WORKDIR /tmp/pydlt

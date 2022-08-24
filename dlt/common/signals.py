@@ -1,8 +1,11 @@
 import signal
 from threading import Event
-from typing import Any
+from typing import Any, Callable, TYPE_CHECKING
 
-from dlt.common import logger
+if not TYPE_CHECKING:
+    from dlt.common import logger
+else:
+    logger: Any = None
 from dlt.common.exceptions import SignalReceivedException
 
 _received_signal: int = 0

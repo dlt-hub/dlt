@@ -1,9 +1,10 @@
 import pytest
-from dlt.common.sources import DLT_METADATA_FIELD, with_table_name
+from dlt.common.schema.typing import TSimpleRegex
 
 from dlt.common.utils import digest128, uniq_id
 from dlt.common.schema import Schema
 from dlt.common.schema.utils import new_table
+from dlt.common.sources import DLT_METADATA_FIELD, with_table_name
 
 from dlt.common.normalizers.json.relational import JSONNormalizerConfigPropagation, _flatten, _get_child_row_hash, _normalize_row, normalize_data_item
 
@@ -378,9 +379,9 @@ def test_propagate_hardcoded_context(schema: Schema) -> None:
     rows = list(_normalize_row(schema, row, {"_timestamp": 1238.9, "_dist_key": "SENDER_3000"}, "table"))
     # context is not added to root element
     root = next(t for t in rows if t[0][0] == "table")[1]
-    assert "_timestamp" not in root
-    assert "_dist_key" not in root
-    # the original _timestamp field will be overwritten in children
+    assert "_timestamp" in root
+    assert "_dist_key" in root
+    # the original _timestamp field will be overwritten in children and added to lists
     assert all(e[1]["_timestamp"] == 1238.9 and e[1]["_dist_key"] == "SENDER_3000" for e in rows if e[0][0] != "table")
 
 
@@ -400,7 +401,8 @@ def test_propagates_root_context(schema: Schema) -> None:
     assert all("__not_found" not in r[1] for r in non_root)
 
 
-def test_propagates_table_context(schema: Schema) -> None:
+@pytest.mark.parametrize("add_pk,add_dlt_id", [(False, False), (True, False), (True, True)])
+def test_propagates_table_context(schema: Schema, add_pk: bool, add_dlt_id: bool) -> None:
     add_dlt_root_id_propagation(schema)
     prop_config: JSONNormalizerConfigPropagation = schema._normalizers_config["json"]["config"]["propagation"]
     prop_config["root"]["timestamp"] = "_partition_ts"
@@ -410,6 +412,10 @@ def test_propagates_table_context(schema: Schema) -> None:
         "partition_ovr": "_partition_ts",
         "__not_found": "__not_found"
     }
+
+    if add_pk:
+        # also add primary key on "vx" to reproduce bug where propagation was disabled for tables with PK
+        schema.merge_hints({"primary_key": [TSimpleRegex("vx")]})
 
     row = {
             "_dlt_id": "###",
@@ -422,6 +428,9 @@ def test_propagates_table_context(schema: Schema) -> None:
                     }]
                 }]
             }
+    if add_dlt_id:
+        # to reproduce a bug where rows with _dlt_id set were not extended
+        row["lvl1"][0]["_dlt_id"] = "row_id_lvl1"
 
     normalized_rows = list(_normalize_row(schema, row, {}, "table"))
     non_root = [r for r in normalized_rows if r[0][1] is not None]
@@ -434,6 +443,25 @@ def test_propagates_table_context(schema: Schema) -> None:
     # _partition_ts == partition_ovr and __vx only at lvl2
     assert all(r[1]["_partition_ts"] == 1283.12 and r[1]["__vx"] == "ax" for r in non_root if r[0][0] == "table__lvl1__lvl2")
     assert any(r[1]["_partition_ts"] == 1283.12 and r[1]["__vx"] == "ax" for r in non_root if r[0][0] != "table__lvl1__lvl2") is False
+
+
+def test_propagates_table_context_to_lists(schema: Schema) -> None:
+    add_dlt_root_id_propagation(schema)
+    prop_config: JSONNormalizerConfigPropagation = schema._normalizers_config["json"]["config"]["propagation"]
+    prop_config["root"]["timestamp"] = "_partition_ts"
+
+    row = {
+            "_dlt_id": "###",
+            "timestamp": 12918291.1212,
+            "lvl1": [1, 2, 3, [4, 5, 6]]
+    }
+    normalized_rows = list(_normalize_row(schema, row, {}, "table"))
+    # _partition_ts == timestamp on all child tables
+    non_root = [r for r in normalized_rows if r[0][1] is not None]
+    assert all(r[1]["_partition_ts"] == 12918291.1212 for r in non_root)
+    # just make sure that list of lists are present
+    assert len([r for r in non_root if r[0][0] == "table__lvl1__list"]) == 3
+    assert len(non_root) == 6
 
 
 def test_removes_normalized_list(schema: Schema) -> None:
@@ -584,14 +612,16 @@ def test_parse_with_primary_key() -> None:
     root = next(t[1] for t in rows if t[0][0] == "discord")
     assert root["_dlt_id"] == digest128("817949077341208606")
     assert "_dlt_parent_id" not in root
+    assert "_dlt_root_id" not in root
     assert root["_dlt_load_id"] == "load_id"
 
     el_w_id = next(t[1] for t in rows if t[0][0] == "discord__w_id")
     # this also has primary key
     assert el_w_id["_dlt_id"] == digest128("9128918293891111")
-    assert "_dlt_root_id" not in el_w_id
     assert "_dlt_parent_id" not in el_w_id
     assert "_dlt_list_idx" not in el_w_id
+    # if enabled, dlt_root is always propagated
+    assert "_dlt_root_id" in el_w_id
 
     # this must have deterministic child key
     f_wo_id = next(t[1] for t in rows if t[0][0] == "discord__w_id__wo_id" and t[1]["_dlt_list_idx"] == 2)

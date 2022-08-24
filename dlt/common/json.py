@@ -3,12 +3,13 @@ import pendulum
 from datetime import date, datetime  # noqa: I251
 from functools import partial
 from typing import Any, Callable, Union
-from uuid import UUID, uuid4
+from uuid import UUID
 from hexbytes import HexBytes
 import simplejson
 from simplejson.raw_json import RawJSON
 
 from dlt.common.arithmetics import Decimal
+from dlt.common.wei import Wei
 
 # simplejson._toggle_speedups(False)
 
@@ -44,6 +45,7 @@ _DATE = u'\uF028'
 _UUIDT = u'\uF029'
 _HEXBYTES = u'\uF02A'
 _B64BYTES = u'\uF02B'
+_WEI = u'\uF02C'
 
 DECODERS = [
     lambda s: Decimal(s),
@@ -51,13 +53,17 @@ DECODERS = [
     lambda s: pendulum.parse(s).date(),  # type: ignore
     lambda s: UUID(s),
     lambda s: HexBytes(s),
-    lambda s: base64.b64decode(s)
+    lambda s: base64.b64decode(s),
+    lambda s: Wei(s)
 ]
 
 
 def custom_pua_encode(obj: Any) -> Union[RawJSON, str]:
-    if isinstance(obj, Decimal):
-        return _DECIMAL + str(obj.normalize())
+    # wei is subclass of decimal and must be checked first
+    if isinstance(obj, Wei):
+        return _WEI + str(obj)
+    elif isinstance(obj, Decimal):
+        return _DECIMAL + str(obj)
     # this works both for standard datetime and pendulum
     elif isinstance(obj, datetime):
         r = obj.isoformat()
@@ -78,7 +84,8 @@ def custom_pua_encode(obj: Any) -> Union[RawJSON, str]:
 def custom_pua_decode(obj: Any) -> Any:
     if isinstance(obj, str) and len(obj) > 1:
         c = ord(obj[0]) - 0xF026
-        if c >= 0 and c <= 5:
+        # decode only the PUA space defined in DECODERS
+        if c >=0 and c <= 6:
             return DECODERS[c](obj[1:])
     return obj
 

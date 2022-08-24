@@ -6,13 +6,13 @@
 [![LINT Badge](https://github.com/scale-vector/dlt/actions/workflows/lint.yml/badge.svg)](https://github.com/scale-vector/dlt/actions/workflows/lint.yml)
 [![TEST COMMON Badge](https://github.com/scale-vector/dlt/actions/workflows/test_common.yml/badge.svg)](https://github.com/scale-vector/dlt/actions/workflows/test_common.yml)
 [![TEST REDSHIFT Badge](https://github.com/scale-vector/dlt/actions/workflows/test_loader_redshift.yml/badge.svg)](https://github.com/scale-vector/dlt/actions/workflows/test_loader_redshift.yml)
-[![TEST GCP Badge](https://github.com/scale-vector/dlt/actions/workflows/test_loader_gcp.yml/badge.svg)](https://github.com/scale-vector/dlt/actions/workflows/test_loader_gcp.yml)
+[![TEST BIGQUERY Badge](https://github.com/scale-vector/dlt/actions/workflows/test_loader_bigquery.yml/badge.svg)](https://github.com/scale-vector/dlt/actions/workflows/test_loader_bigquery.yml)
 
 </p>
 
 # Data Load Tool (DLT)
 
-Data Load Tool (DLT) enables simple, python-native data pipelining for data professionals. 
+Data Load Tool (DLT) enables simple, python-native data pipelining for data professionals.
 
 It is an open source, scalable data loading framework that does not require any help from DevOps.
 
@@ -110,10 +110,10 @@ Advanced, commercial-grade use of DLT requires only some configuration.
 
 ## Supported data warehouses
 
-Google BigQuery: 
+Google BigQuery:
 ```pip3 install python-dlt[gcp]```
 
-Amazon Redshift: 
+Amazon Redshift:
 ```pip install python-dlt[redshift]```
 
 ## How to load very large sources?

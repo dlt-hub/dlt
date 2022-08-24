@@ -5,7 +5,7 @@ from prometheus_client import REGISTRY, Counter, Gauge, CollectorRegistry, Summa
 
 from dlt.common import sleep, logger
 from dlt.common.runners import TRunArgs, TRunMetrics, initialize_runner, run_pool
-from dlt.common.logger import process_internal_exception, pretty_format_exception
+from dlt.common.logger import pretty_format_exception
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.dataset_writers import TLoaderFileFormat
 from dlt.common.runners import Runnable, workermethod
@@ -101,11 +101,11 @@ class Load(Runnable[ThreadPool]):
                 job = client.start_file_load(table, self.load_storage.storage._make_path(file_path))
         except (LoadClientTerminalException, TerminalValueError):
             # if job irreversible cannot be started, mark it as failed
-            process_internal_exception(f"Terminal problem with spooling job {file_path}")
+            logger.exception(f"Terminal problem with spooling job {file_path}")
             job = JobClientBase.make_job_with_status(file_path, "failed", pretty_format_exception())
         except (LoadClientTransientException, Exception):
             # return no job so file stays in new jobs (root) folder
-            process_internal_exception(f"Temporary problem with spooling job {file_path}")
+            logger.exception(f"Temporary problem with spooling job {file_path}")
             return None
         self.load_storage.start_job(load_id, job.file_name())
         return job
@@ -143,7 +143,7 @@ class Load(Runnable[ThreadPool]):
                 logger.info(f"Will retrieve {file_path}")
                 job = client.restore_file_load(file_path)
             except LoadClientTerminalException:
-                process_internal_exception(f"Job retrieval for {file_path} failed, job will be terminated")
+                logger.exception(f"Job retrieval for {file_path} failed, job will be terminated")
                 job = JobClientBase.make_job_with_status(file_path, "failed", pretty_format_exception())
                 # proceed to appending job, do not reraise
             except (LoadClientTransientException, Exception):
@@ -261,7 +261,7 @@ def main(args: TRunArgs) -> int:
     try:
         load = Load(C, REGISTRY)
     except Exception:
-        process_internal_exception("run")
+        logger.exception("init module")
         return -1
     return run_pool(C, load)
 

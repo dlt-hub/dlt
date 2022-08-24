@@ -9,11 +9,10 @@ import os.path
 from typing import Any, Iterator, List, Sequence, Tuple
 from prometheus_client import REGISTRY
 
-from dlt.common import json
+from dlt.common import json, sleep, signals, logger
 from dlt.common.runners import pool_runner as runner, TRunArgs, TRunMetrics
-from dlt.common.configuration import RunConfiguration, make_configuration
+from dlt.common.configuration import PoolRunnerConfiguration, make_configuration
 from dlt.common.file_storage import FileStorage
-from dlt.common.logger import process_internal_exception
 from dlt.common.schema import Schema, normalize_schema_name
 from dlt.common.typing import DictStrAny, StrAny
 from dlt.common.utils import uniq_id, is_interactive
@@ -25,7 +24,7 @@ from dlt.normalize.configuration import configuration as normalize_configuration
 from dlt.load.configuration import configuration as loader_configuration
 from dlt.normalize import Normalize
 from dlt.load import Load
-from dlt.pipeline.exceptions import InvalidPipelineContextException, MissingDependencyException, NoPipelineException, PipelineStepFailed, CannotRestorePipelineException, SqlClientNotAvailable
+from dlt.pipeline.exceptions import MissingDependencyException, NoPipelineException, PipelineStepFailed, CannotRestorePipelineException, SqlClientNotAvailable
 from dlt.pipeline.typing import PipelineCredentials
 
 
@@ -34,6 +33,7 @@ class Pipeline:
         self.pipeline_name = pipeline_name
         self.default_schema_name: str = None
         self.root_path: str = None
+        self.export_schema_path: str = None
         self.root_storage: FileStorage = None
         self.credentials: PipelineCredentials = None
         self.extractor_storage: ExtractorStorageBase = None
@@ -44,17 +44,19 @@ class Pipeline:
         self._loader_instance: Load = None
 
         # patch config and initialize pipeline
-        C = make_configuration(RunConfiguration, RunConfiguration, initial_values={
+        self.C = make_configuration(PoolRunnerConfiguration, PoolRunnerConfiguration, initial_values={
             "PIPELINE_NAME": pipeline_name,
-            "LOG_LEVEL": log_level
+            "LOG_LEVEL": log_level,
+            "POOL_TYPE": "None"
         })
-        runner.initialize_runner(C, TRunArgs(True, 0))
+        runner.initialize_runner(self.C, TRunArgs(True, 0))
 
-    def create_pipeline(self, credentials: PipelineCredentials, working_dir: str = None, schema: Schema = None) -> None:
+    def create_pipeline(self, credentials: PipelineCredentials, working_dir: str = None, schema: Schema = None, export_schema_path: str = None) -> None:
         # initialize root storage
         if not working_dir:
             working_dir = tempfile.mkdtemp()
         self.root_storage = FileStorage(working_dir, makedirs=True)
+        self.export_schema_path = export_schema_path
 
         # check if directory contains restorable pipeline
         try:
@@ -76,9 +78,7 @@ class Pipeline:
         # create new schema if no default supplied
         if schema is None:
             schema = Schema(normalize_schema_name(self.pipeline_name))
-        # persist schema with the pipeline
-        self.set_default_schema(schema)
-        # initialize empty state
+        # initialize empty state, this must be last operation when creating pipeline so restore reads only fully created ones
         with self._managed_state():
             self.state = {
                 "default_schema_name": self.default_schema_name,
@@ -88,12 +88,14 @@ class Pipeline:
                 # TODO: must take schema prefix from resolved configuration
                 "loader_schema_prefix": credentials.default_dataset
             }
+        # persist schema with the pipeline
+        self.set_default_schema(schema)
 
-    def restore_pipeline(self, credentials: PipelineCredentials, working_dir: str) -> None:
+    def restore_pipeline(self, credentials: PipelineCredentials, working_dir: str, export_schema_path: str = None) -> None:
         try:
             # do not create extractor dir - it must exist
             self.root_storage = FileStorage(working_dir, makedirs=False)
-            # restore state
+            # restore state, this must be a first operation when restoring pipeline
             try:
                 self._restore_state()
             except FileNotFoundError:
@@ -105,6 +107,7 @@ class Pipeline:
             credentials.default_dataset = self.state["loader_schema_prefix"]
             self.root_path = self.root_storage.storage_path
             self.credentials = credentials
+            self.export_schema_path = export_schema_path
             self._load_modules()
             # schema must exist
             try:
@@ -136,6 +139,8 @@ class Pipeline:
                     all_items.append(item)
                 elif isinstance(item, abc.Sequence):
                     all_items.extend(item)
+                # react to CTRL-C and shutdowns from controllers
+                signals.raise_if_signalled()
 
             try:
                 self._extract_iterator(default_table_name, all_items)
@@ -158,6 +163,7 @@ class Pipeline:
     def load(self, max_parallel_loads: int = 20) -> None:
         self._verify_loader_instance()
         self._loader_instance.CONFIG.WORKERS = max_parallel_loads
+        self._loader_instance.load_client_cls.CONFIG.DEFAULT_SCHEMA_NAME = self.default_schema_name  # type: ignore
         runner.run_pool(self._loader_instance.CONFIG, self._loader_instance)
         if runner.LAST_RUN_METRICS.has_failed:
             raise PipelineStepFailed("load", self.last_run_exception, runner.LAST_RUN_METRICS)
@@ -238,11 +244,15 @@ class Pipeline:
             else:
                 raise SqlClientNotAvailable(self._loader_instance.CONFIG.CLIENT_TYPE)
 
+    def sleep(self, seconds: float = None) -> None:
+        sleep(seconds or self.C.RUN_SLEEP)
+
     def _configure_normalize(self) -> None:
         # create normalize config
         normalize_initial = {
             "NORMALIZE_VOLUME_PATH": os.path.join(self.root_path, "normalize"),
             "SCHEMA_VOLUME_PATH": os.path.join(self.root_path, "schemas"),
+            "EXPORT_SCHEMA_PATH": os.path.abspath(self.export_schema_path) if self.export_schema_path else None,
             "LOADER_FILE_FORMAT": self._loader_instance.load_client_cls.capabilities()["preferred_loader_file_format"],
             "ADD_EVENT_JSON": False
         }
@@ -254,6 +264,7 @@ class Pipeline:
     def _configure_load(self) -> None:
         # use credentials to populate loader client config, it includes also client type
         loader_client_initial = dtc_asdict(self.credentials)
+        loader_client_initial["DEFAULT_SCHEMA_NAME"] = self.default_schema_name
         # but client type must be passed to loader config
         loader_initial = {"CLIENT_TYPE": loader_client_initial["CLIENT_TYPE"]}
         loader_initial.update(self._configure_runner())
@@ -311,7 +322,7 @@ class Pipeline:
 
             runner.LAST_RUN_METRICS = TRunMetrics(was_idle=False, has_failed=False, pending_items=0)
         except Exception as ex:
-            process_internal_exception("extracting iterator failed")
+            logger.exception("extracting iterator failed")
             runner.LAST_RUN_METRICS = TRunMetrics(was_idle=False, has_failed=True, pending_items=0)
             runner.LAST_RUN_EXCEPTION = ex
             raise

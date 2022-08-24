@@ -3,7 +3,7 @@ from typing import Any, Optional, Type
 
 from hexbytes import HexBytes
 
-from dlt.common import pendulum, Decimal
+from dlt.common import pendulum, Wei
 from dlt.common.schema.typing import TDataType
 
 
@@ -21,7 +21,7 @@ def is_timestamp(t: Type[Any], v: Any) -> Optional[TDataType]:
 
 def is_iso_timestamp(t: Type[Any], v: Any) -> Optional[TDataType]:
     # only strings can be converted
-    if t is not str:
+    if not issubclass(t, str):
         return None
     if not v:
         return None
@@ -37,7 +37,7 @@ def is_iso_timestamp(t: Type[Any], v: Any) -> Optional[TDataType]:
 
 def is_large_integer(t: Type[Any], v: Any) -> Optional[TDataType]:
     # only ints can be converted
-    if t is int:
+    if issubclass(t, int):
         # TODO: this is bigquery limit, we need to implement better wei type
         # if integer does not find in maximum wei then convert to string
         if v > 578960446186580977117854925043439539266:
@@ -51,6 +51,13 @@ def is_large_integer(t: Type[Any], v: Any) -> Optional[TDataType]:
 
 def is_hexbytes_to_text(t: Type[Any], v: Any) -> Optional[TDataType]:
     # HexBytes should be converted to text
-    if t is HexBytes:
+    if issubclass(t, HexBytes):
         return "text"
+    return None
+
+
+def is_wei_to_double(t: Type[Any], v: Any) -> Optional[TDataType]:
+    # Wei should be converted to double, use this only for aggregate non-financial reporting
+    if issubclass(t, Wei):
+        return "double"
     return None

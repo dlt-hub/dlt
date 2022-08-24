@@ -1,10 +1,10 @@
 from typing import Dict, Mapping, Optional, Sequence, Tuple, cast, TypedDict, Any
 
+from dlt.common.typing import DictStrAny, DictStrStr, TDataItem, StrAny
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TColumnSchema, TColumnName, TSimpleRegex
 from dlt.common.schema.utils import column_name_validator
 from dlt.common.utils import uniq_id, digest128
-from dlt.common.typing import DictStrAny, DictStrStr, TDataItem, StrAny
 from dlt.common.normalizers.json import TNormalizedRowIterator
 from dlt.common.sources import DLT_METADATA_FIELD, TEventDLTMeta, get_table_name
 from dlt.common.validation import validate_dict
@@ -65,7 +65,7 @@ def _flatten(schema: Schema, table: str, dict_row: TEventRow, _r_lvl: int) -> Tu
             corrected_k = schema.normalize_column_name(k)
             child_name = corrected_k if not parent_name else schema.normalize_make_path(parent_name, corrected_k)
             # for lists and dicts we must check if type is possibly complex
-            if isinstance(v, dict) or isinstance(v, list):
+            if isinstance(v, (dict, list)):
                 if not _is_complex_type(schema, table, child_name, __r_lvl):
                     if isinstance(v, dict):
                         # flatten the dict more
@@ -93,7 +93,6 @@ def _get_child_row_hash(parent_row_id: str, child_table: str, list_idx: int) -> 
 def _add_linking(row: TEventRowChild, extend: DictStrAny, parent_row_id: str, list_idx: int) -> TEventRowChild:
         row["_dlt_parent_id"] = parent_row_id
         row["_dlt_list_idx"] = list_idx
-        row.update(extend)  # type: ignore
 
         return row
 
@@ -120,6 +119,10 @@ def _get_propagated_values(schema: Schema, table: str, row: TEventRow, is_top_le
     return extend
 
 
+def _extend_row(extend: DictStrAny, row: TEventRow) -> None:
+    row.update(extend)  # type: ignore
+
+
 # generate child tables only for lists
 def _normalize_list(
     schema: Schema,
@@ -144,6 +147,7 @@ def _normalize_list(
             # list of simple types
             child_row_hash = _get_child_row_hash(parent_row_id, table, idx)
             e = _add_linking({"value": v, "_dlt_id": child_row_hash}, extend, parent_row_id, idx)
+            _extend_row(extend, e)
             yield (table, parent_table), e
 
 
@@ -161,6 +165,8 @@ def _normalize_row(
     is_top_level = parent_table is None
     # flatten current row and extract all lists to recur into
     flattened_row, lists = _flatten(schema, table, dict_row, _r_lvl)
+    # always extend row
+    _extend_row(extend, flattened_row)
     # infer record hash or leave existing primary key if present
     row_id = flattened_row.get("_dlt_id", None)
     if not row_id:

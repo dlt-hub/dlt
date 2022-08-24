@@ -6,7 +6,6 @@ from decimal import ROUND_HALF_UP, Decimal, Inexact, DivisionByZero, DefaultCont
 
 DEFAULT_NUMERIC_PRECISION = 38
 DEFAULT_NUMERIC_SCALE = 9
-
 NUMERIC_DEFAULT_QUANTIZER = Decimal("1." + "0" * DEFAULT_NUMERIC_SCALE)
 
 

@@ -4,7 +4,7 @@ import pytest
 from dlt.common import pendulum
 from dlt.common.configuration import SchemaVolumeConfiguration, make_configuration
 from dlt.common.exceptions import DictValidationException
-from dlt.common.schema.typing import TColumnName, TSimpleRegex
+from dlt.common.schema.typing import TColumnName, TSimpleRegex, COLUMN_HINTS
 from dlt.common.typing import DictStrAny, StrAny
 from dlt.common.utils import uniq_id
 from dlt.common.schema import TColumnSchema, Schema, TStoredSchema, utils
@@ -360,16 +360,25 @@ def test_write_disposition(schema_storage: SchemaStorage) -> None:
     assert schema.get_write_disposition("event_bot__message") == "skip"
 
 
-
-# def delete_storage() -> None:
-#     if not schema_storage.storage.has_folder(""):
-#         SchemaStorage(SchemaVolumeConfiguration, makedirs=True)
-#     else:
-#         files = schema_storage.storage.list_folder_files(".")
-#         for file in files:
-#             schema_storage.storage.delete(file)
-#         if schema_storage.storage.has_folder("copy"):
-#             schema_storage.storage.delete_folder("copy", recursively=True)
+def test_compare_columns() -> None:
+    table = utils.new_table("test_table", columns=[
+        {"name": "col1", "data_type": "text", "nullable": True},
+        {"name": "col2", "data_type": "text", "nullable": False},
+        {"name": "col3", "data_type": "timestamp", "nullable": True},
+        {"name": "col4", "data_type": "timestamp", "nullable": True}
+    ])
+    # columns identical with self
+    for c in table["columns"].values():
+        assert utils.compare_columns(c, c) is True
+    assert utils.compare_columns(table["columns"]["col3"], table["columns"]["col4"]) is True
+    # data type may not differ
+    assert utils.compare_columns(table["columns"]["col1"], table["columns"]["col3"]) is False
+    # nullability may not differ
+    assert utils.compare_columns(table["columns"]["col1"], table["columns"]["col2"]) is False
+    # any of the hints may differ
+    for hint in COLUMN_HINTS:
+        table["columns"]["col3"][hint] = True
+        assert utils.compare_columns(table["columns"]["col3"], table["columns"]["col4"]) is True
 
 
 def assert_new_schema_values_custom_normalizers(schema: Schema) -> None:

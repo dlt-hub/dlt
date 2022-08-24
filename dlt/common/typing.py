@@ -1,6 +1,6 @@
 from collections.abc import Mapping as C_Mapping, Sequence as C_Sequence
 from re import Pattern as _REPattern
-from typing import Callable, Dict, Any, Literal, Mapping, NewType, Type, TypeVar, TypedDict, TYPE_CHECKING, Union, get_args, get_origin
+from typing import Callable, Dict, Any, Literal, Mapping, NewType, Tuple, Type, TypeVar, Generic, Protocol, TYPE_CHECKING, Union, runtime_checkable, get_args, get_origin
 if TYPE_CHECKING:
     from _typeshed import StrOrBytesPath
     from typing import _TypedDict
@@ -19,6 +19,22 @@ TFun = TypeVar("TFun", bound=Callable[..., Any])
 TAny = TypeVar("TAny", bound=Any)
 TSecretValue = NewType("TSecretValue", str)  # represent secret value ie. coming from Kubernetes/Docker secrets or other providers
 TDataItem = DictStrAny
+
+
+TVariantBase = TypeVar("TVariantBase", covariant=True)
+TVariantRV = Tuple[str, Any]
+VARIANT_FIELD_FORMAT = "v_%s"
+
+
+@runtime_checkable
+class SupportsVariant(Protocol, Generic[TVariantBase]):
+    """Defines variant type protocol that should be recognized by normalizers
+
+        Variant types behave like TVariantBase type (ie. Decimal) but also implement the protocol below that is used to extract the variant value from it.
+        See `Wei` type declaration which returns Decimal or str for values greater than supported by destination warehouse.
+    """
+    def __call__(self) -> Union[TVariantBase, TVariantRV]:
+        ...
 
 
 def is_optional_type(t: Type[Any]) -> bool:
