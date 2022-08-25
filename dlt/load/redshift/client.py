@@ -2,7 +2,7 @@ from contextlib import contextmanager
 import os
 import psycopg2
 from psycopg2.sql import SQL, Identifier, Composed, Literal as SQLLiteral
-from typing import Any, AnyStr, Dict, Iterator, List, Literal, Optional, Sequence, Tuple, Type
+from typing import Any, AnyStr, Dict, Iterator, List, Optional, Sequence, Tuple, Type
 from dlt.common.configuration.postgres_credentials import PostgresCredentials
 
 from dlt.common.typing import StrAny
@@ -12,7 +12,7 @@ from dlt.common.schema import COLUMN_HINTS, TColumnSchema, TColumnSchemaBase, TD
 from dlt.common.schema.typing import TTableSchema, TWriteDisposition
 
 from dlt.load.exceptions import (LoadClientSchemaWillNotUpdate, LoadClientTerminalInnerException,
-                                            LoadClientTransientInnerException, LoadFileTooBig)
+                                            LoadClientTransientInnerException)
 from dlt.load.typing import LoadJobStatus, DBCursor, TLoaderCapabilities
 from dlt.load.client_base import JobClientBase, SqlClientBase, SqlJobClientBase, LoadJob
 
@@ -49,8 +49,6 @@ HINT_TO_REDSHIFT_ATTR: Dict[THintType, str] = {
 
 
 class RedshiftSqlClient(SqlClientBase["psycopg2.connection"]):
-
-    MAX_STATEMENT_SIZE = 16 * 1024 * 1204
 
     def __init__(self, default_dataset_name: str, CREDENTIALS: Type[PostgresCredentials]) -> None:
         super().__init__(default_dataset_name)
@@ -133,6 +131,10 @@ class RedshiftSqlClient(SqlClientBase["psycopg2.connection"]):
 
 
 class RedshiftInsertLoadJob(LoadJob):
+
+    MAX_STATEMENT_SIZE = 8 * 1024 * 1024
+
+
     def __init__(self, table_name: str, write_disposition: TWriteDisposition, file_path: str, sql_client: SqlClientBase["psycopg2.connection"]) -> None:
         super().__init__(JobClientBase.get_file_name_from_file_path(file_path))
         self._sql_client = sql_client
@@ -153,21 +155,43 @@ class RedshiftInsertLoadJob(LoadJob):
     def _insert(self, qualified_table_name: str, write_disposition: TWriteDisposition, file_path: str) -> None:
         # TODO: implement tracking of jobs in storage, both completed and failed
         # WARNING: maximum redshift statement is 16MB https://docs.aws.amazon.com/redshift/latest/dg/c_redshift-sql.html
-        # in case of postgres: 2GiB
-        if os.stat(file_path).st_size >= RedshiftSqlClient.MAX_STATEMENT_SIZE:
-            # terminal exception
-            raise LoadFileTooBig(file_path, RedshiftSqlClient.MAX_STATEMENT_SIZE)
+        # the procedure below will split the inserts into 4MB packs
         with open(file_path, "r", encoding="utf-8") as f:
             header = f.readline()
-            content = f.read()
-        insert_sql = [SQL("BEGIN TRANSACTION;")]
-        if write_disposition == "replace":
-            insert_sql.append(SQL("DELETE FROM {};").format(SQL(qualified_table_name)))
-        insert_sql.extend(
-            [SQL(header).format(SQL(qualified_table_name)),
-            SQL(content),
-            SQL("COMMIT TRANSACTION;")]
-        )
+            values_mark = f.readline()
+            # properly formatted file has a values marker at the beginning
+            assert values_mark == "VALUES\n"
+            # begin the transaction
+            insert_sql = [SQL("BEGIN TRANSACTION;")]
+            if write_disposition == "replace":
+                insert_sql.append(SQL("DELETE FROM {};").format(SQL(qualified_table_name)))
+            # is_eof = False
+            while content := f.read(RedshiftInsertLoadJob.MAX_STATEMENT_SIZE):
+                # read one more line in order to
+                # 1. complete the content which ends at "random" position, not an end line
+                # 2. to modify it's ending without a need to re-allocating the 8MB of "content"
+                until_nl = f.readline().strip("\n")
+                # write INSERT
+                insert_sql.extend(
+                    [SQL(header).format(SQL(qualified_table_name)),
+                    SQL(values_mark),
+                    SQL(content)]
+                )
+                # are we at end of file
+                is_eof = len(until_nl) == 0 or until_nl[-1] == ";"
+                if not is_eof:
+                    # replace the "," with ";"
+                    until_nl = until_nl[:-1] + ";\n"
+                # actually this may be empty if we were able to read a full file into content
+                if until_nl:
+                    insert_sql.append(SQL(until_nl))
+                if not is_eof:
+                    # execute chunk of insert
+                    self._sql_client.execute_sql(Composed(insert_sql))
+                    insert_sql.clear()
+
+        # on EOF add COMMIT TX and execute
+        insert_sql.append(SQL("COMMIT TRANSACTION;"))
         self._sql_client.execute_sql(Composed(insert_sql))
 
 class RedshiftClient(SqlJobClientBase):

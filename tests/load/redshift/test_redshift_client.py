@@ -10,7 +10,7 @@ from dlt.common.utils import uniq_id
 
 from dlt.load.exceptions import LoadClientTerminalInnerException
 from dlt.load import Load
-from dlt.load.redshift.client import RedshiftClient
+from dlt.load.redshift.client import RedshiftClient, RedshiftInsertLoadJob
 
 from tests.utils import TEST_STORAGE, delete_storage
 from tests.load.utils import expect_load_file, prepare_event_user_table, yield_client_with_storage
@@ -82,7 +82,7 @@ def test_simple_load(client: RedshiftClient, file_storage: FileStorage) -> None:
     user_table_name = prepare_event_user_table(client)
     canonical_name = client.sql_client.make_qualified_table_name(user_table_name)
     # create insert
-    insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp) VALUES\n"
+    insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp)\nVALUES\n"
     insert_values = f"('{uniq_id()}', '{uniq_id()}', '90238094809sajlkjxoiewjhduuiuehd', '{str(pendulum.now())}')"
     expect_load_file(client, file_storage, insert_sql+insert_values+";", user_table_name)
     rows_count = client.sql_client.execute_sql(f"SELECT COUNT(1) FROM {canonical_name}")[0][0]
@@ -93,7 +93,7 @@ def test_simple_load(client: RedshiftClient, file_storage: FileStorage) -> None:
     rows_count = client.sql_client.execute_sql(f"SELECT COUNT(1) FROM {canonical_name}")[0][0]
     assert rows_count == 101
     # insert null value
-    insert_sql_nc = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp, text) VALUES\n"
+    insert_sql_nc = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp, text)\nVALUES\n"
     insert_values_nc = f"('{uniq_id()}', '{uniq_id()}', '90238094809sajlkjxoiewjhduuiuehd', '{str(pendulum.now())}', NULL);"
     expect_load_file(client, file_storage, insert_sql_nc+insert_values_nc, user_table_name)
     rows_count = client.sql_client.execute_sql(f"SELECT COUNT(1) FROM {canonical_name}")[0][0]
@@ -103,32 +103,32 @@ def test_simple_load(client: RedshiftClient, file_storage: FileStorage) -> None:
 def test_loading_errors(client: RedshiftClient, file_storage: FileStorage) -> None:
     user_table_name = prepare_event_user_table(client)
     # insert into unknown column
-    insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp, _unk_) VALUES\n"
+    insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp, _unk_)\nVALUES\n"
     insert_values = f"('{uniq_id()}', '{uniq_id()}', '90238094809sajlkjxoiewjhduuiuehd', '{str(pendulum.now())}', NULL);"
     with pytest.raises(LoadClientTerminalInnerException) as exv:
         expect_load_file(client, file_storage, insert_sql+insert_values, user_table_name)
     assert type(exv.value.inner_exc) is psycopg2.errors.UndefinedColumn
     # insert null value
-    insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp) VALUES\n"
+    insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp)\nVALUES\n"
     insert_values = f"('{uniq_id()}', '{uniq_id()}', '90238094809sajlkjxoiewjhduuiuehd', NULL);"
     with pytest.raises(LoadClientTerminalInnerException) as exv:
         expect_load_file(client, file_storage, insert_sql+insert_values, user_table_name)
     assert type(exv.value.inner_exc) is psycopg2.errors.InternalError_
     # insert wrong type
-    insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp) VALUES\n"
+    insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp)\nVALUES\n"
     insert_values = f"('{uniq_id()}', '{uniq_id()}', '90238094809sajlkjxoiewjhduuiuehd', TRUE);"
     with pytest.raises(LoadClientTerminalInnerException) as exv:
         expect_load_file(client, file_storage, insert_sql+insert_values, user_table_name)
     assert type(exv.value.inner_exc) is psycopg2.errors.DatatypeMismatch
     # numeric overflow on bigint
-    insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp, metadata__rasa_x_id) VALUES\n"
+    insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp, metadata__rasa_x_id)\nVALUES\n"
     # 2**64//2 - 1 is a maximum bigint value
     insert_values = f"('{uniq_id()}', '{uniq_id()}', '90238094809sajlkjxoiewjhduuiuehd', '{str(pendulum.now())}', {2**64//2});"
     with pytest.raises(LoadClientTerminalInnerException) as exv:
         expect_load_file(client, file_storage, insert_sql+insert_values, user_table_name)
     assert type(exv.value.inner_exc) is psycopg2.errors.NumericValueOutOfRange
     # numeric overflow on NUMERIC
-    insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp, parse_data__intent__id) VALUES\n"
+    insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp, parse_data__intent__id)\nVALUES\n"
     # default decimal is (38, 9) (128 bit), use local context to generate decimals with 38 precision
     with numeric_default_context():
         below_limit = Decimal(10**29) - Decimal('0.001')
@@ -142,8 +142,38 @@ def test_loading_errors(client: RedshiftClient, file_storage: FileStorage) -> No
         expect_load_file(client, file_storage, insert_sql+insert_values, user_table_name)
     assert type(exv.value.inner_exc) is psycopg2.errors.InternalError_
     # max redshift decimal is (38, 0) (128 bit) = 10**38 - 1
-    insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp, parse_data__metadata__rasa_x_id) VALUES\n"
+    insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp, parse_data__metadata__rasa_x_id)\nVALUES\n"
     insert_values = f"('{uniq_id()}', '{uniq_id()}', '90238094809sajlkjxoiewjhduuiuehd', '{str(pendulum.now())}', {10**38});"
     with pytest.raises(LoadClientTerminalInnerException) as exv:
         expect_load_file(client, file_storage, insert_sql+insert_values, user_table_name)
     assert type(exv.value.inner_exc) is psycopg2.errors.InternalError_
+
+
+def test_query_split(client: RedshiftClient, file_storage: FileStorage) -> None:
+    max_statement_size = RedshiftInsertLoadJob.MAX_STATEMENT_SIZE
+    try:
+        # this guarantees that we execute inserts line by line
+        RedshiftInsertLoadJob.MAX_STATEMENT_SIZE = 1
+        user_table_name = prepare_event_user_table(client)
+        insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp)\nVALUES\n"
+        insert_values = "('{}', '{}', '90238094809sajlkjxoiewjhduuiuehd', '{}')"
+        ids = []
+        for i in range(10):
+            id_ = uniq_id()
+            ids.append(id_)
+            insert_sql += insert_values.format(id_, uniq_id(), str(pendulum.now().add(seconds=i)))
+            if i < 10:
+                insert_sql += ",\n"
+            else:
+                insert_sql + ";"
+        expect_load_file(client, file_storage, insert_sql, user_table_name)
+        rows_count = client.sql_client.execute_sql(f"SELECT COUNT(1) FROM {user_table_name}")[0][0]
+        assert rows_count == 10
+        # get all uniq ids in order
+        with client.sql_client.execute_query(f"SELECT _dlt_id FROM {user_table_name} ORDER BY timestamp ASC;") as c:
+            v_ids = list(map(lambda i: i[0], c.fetchall()))
+        assert ids == v_ids
+
+
+    finally:
+        RedshiftInsertLoadJob.MAX_STATEMENT_SIZE = max_statement_size
