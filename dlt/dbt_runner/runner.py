@@ -9,7 +9,8 @@ from dlt.common.typing import DictStrAny, DictStrStr, StrAny
 from dlt.common.logger import is_json_logging
 from dlt.common.telemetry import get_logging_extras
 from dlt.common.file_storage import FileStorage
-from dlt.common.runners import TRunArgs, initialize_runner, run_pool
+from dlt.cli import TRunnerArgs
+from dlt.common.runners import initialize_runner, run_pool
 from dlt.common.telemetry import TRunMetrics
 
 from dlt.dbt_runner.configuration import DBTRunnerConfiguration, gen_configuration_variant
@@ -186,10 +187,10 @@ def configure(C: Type[DBTRunnerConfiguration], collector: CollectorRegistry) -> 
             raise
 
 
-def main(args: TRunArgs) -> int:
-    C = gen_configuration_variant()
+def main(args: TRunnerArgs) -> int:
+    C = gen_configuration_variant(args._asdict())
     # we should force single run
-    initialize_runner(C, args)
+    initialize_runner(C)
     try:
         configure(C, REGISTRY)
     except Exception:
@@ -199,5 +200,5 @@ def main(args: TRunArgs) -> int:
     return run_pool(C, run)
 
 
-def run_main(args: TRunArgs) -> None:
+def run_main(args: TRunnerArgs) -> None:
     exit(main(args))

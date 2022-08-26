@@ -1,3 +1,4 @@
 from . import pool_runner
-from .pool_runner import TRunArgs, TRunMetrics, initialize_runner, run_pool
+from .pool_runner import TRunMetrics, run_pool
 from .runnable import Runnable, workermethod
+from .init import initialize_runner
