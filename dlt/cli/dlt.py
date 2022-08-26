@@ -4,19 +4,24 @@ import argparse
 from typing import Callable
 
 from dlt.common import json
+from dlt.cli import TRunnerArgs
 from dlt.common.schema import Schema
-from dlt.common.runners.pool_runner import TRunArgs, add_pool_cli_arguments
 from dlt.common.typing import DictStrAny
 from dlt.common.utils import str2bool
 
 from dlt.pipeline import Pipeline, PostgresPipelineCredentials
 
 
-def str2bool_a(v: str) -> bool:
-    try:
-        return str2bool(v)
-    except ValueError:
-        raise argparse.ArgumentTypeError('Boolean value expected.')
+def add_pool_cli_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--is-single-run", action="store_true", help="exit when all pending items are processed")
+    parser.add_argument("--wait-runs", type=int, nargs='?', const=True, default=1, help="maximum idle runs to wait for incoming data")
+
+
+# def str2bool_a(v: str) -> bool:
+#     try:
+#         return str2bool(v)
+#     except ValueError:
+#         raise argparse.ArgumentTypeError('Boolean value expected.')
 
 
 def main() -> None:
@@ -39,7 +44,7 @@ def main() -> None:
 
     # TODO: consider using fire: https://github.com/google/python-fire
     args = parser.parse_args()
-    run_f: Callable[[TRunArgs], None] = None
+    run_f: Callable[[TRunnerArgs], None] = None
 
     if args.command == "normalize":
         from dlt.normalize.normalize import run_main as normalize_run
@@ -76,7 +81,7 @@ def main() -> None:
         parser.print_help()
         exit(-1)
 
-    run_args = TRunArgs(args.single_run, args.wait_runs)
+    run_args = TRunnerArgs(args.is_single_run, args.wait_runs)
     run_f(run_args)
 
 if __name__ == "__main__":

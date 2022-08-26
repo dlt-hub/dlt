@@ -1,17 +1,22 @@
 import pytest
 import multiprocessing
+from typing import Type
 from prometheus_client import registry
-from dlt.common.configuration.pool_runner_configuration import TPoolType
 
-from dlt.common.exceptions import DltException, SignalReceivedException, TimeRangeExhaustedException, UnsupportedProcessStartMethodException
-from dlt.common.configuration import PoolRunnerConfiguration
-from dlt.common.runners import pool_runner as runner
+from dlt.cli import TRunnerArgs
 from dlt.common import signals
-from tests.common.runners.utils import _TestRunnable
+from dlt.common.typing import StrAny
+from dlt.common.configuration import PoolRunnerConfiguration, make_configuration
+from dlt.common.configuration.pool_runner_configuration import TPoolType
+from dlt.common.exceptions import DltException, SignalReceivedException, TimeRangeExhaustedException, UnsupportedProcessStartMethodException
+from dlt.common.runners import pool_runner as runner
 
+from tests.common.runners.utils import _TestRunnable
 from tests.utils import init_logger
 
 class ModPoolRunnerConfiguration(PoolRunnerConfiguration):
+    IS_SINGLE_RUN: bool = True
+    WAIT_RUNS: int = 1
     PIPELINE_NAME: str = "testrunners"
     POOL_TYPE: TPoolType = "none"
     RUN_SLEEP: float = 0.1
@@ -35,6 +40,10 @@ class ThreadPoolConfiguration(ModPoolRunnerConfiguration):
     POOL_TYPE: TPoolType = "thread"
 
 
+def configure(C: Type[PoolRunnerConfiguration], args: TRunnerArgs) -> Type[PoolRunnerConfiguration]:
+    return make_configuration(C, C, initial_values=args._asdict())
+
+
 @pytest.fixture(scope="module", autouse=True)
 def logger_autouse() -> None:
     init_logger(ModPoolRunnerConfiguration)
@@ -43,7 +52,6 @@ def logger_autouse() -> None:
 @pytest.fixture(autouse=True)
 def default_args() -> None:
     signals._received_signal = 0
-    runner.RUN_ARGS = runner.TRunArgs(True, 1)
     runner.create_gauges(registry.CollectorRegistry(auto_describe=True))
 
 
@@ -129,9 +137,11 @@ def test_single_failing_run() -> None:
 
 
 def test_good_then_failing_run() -> None:
-    runner.RUN_ARGS = runner.TRunArgs(False, 0)
     # end after 5 runs
-    code = runner.run_pool(LimitedPoolRunnerConfiguration, good_then_failing_run)
+    code = runner.run_pool(
+        configure(LimitedPoolRunnerConfiguration, TRunnerArgs(False, 0)),
+        good_then_failing_run
+    )
     assert code == -2
     assert runner.update_gauges() == {
         "runs_count": 5,
@@ -145,9 +155,11 @@ def test_good_then_failing_run() -> None:
 
 
 def test_failing_then_good_run() -> None:
-    runner.RUN_ARGS = runner.TRunArgs(False, 0)
     # end after 5 runs
-    code = runner.run_pool(LimitedPoolRunnerConfiguration, failing_then_good_run)
+    code = runner.run_pool(
+        configure(LimitedPoolRunnerConfiguration, TRunnerArgs(False, 0)),
+        failing_then_good_run
+    )
     assert code == -2
     assert runner.update_gauges() == {
         "runs_count": 5,
@@ -161,9 +173,13 @@ def test_failing_then_good_run() -> None:
 
 
 def test_stop_on_exception() -> None:
-    runner.RUN_ARGS = runner.TRunArgs(False, 0)
-    code = runner.run_pool(StopExceptionRunnerConfiguration, good_then_failing_run)
-    assert code == -1
+    # stop on exception will pass the exception to the run_pool host
+    with pytest.raises(DltException):
+        runner.run_pool(
+            configure(StopExceptionRunnerConfiguration, TRunnerArgs(False, 0)),
+            good_then_failing_run
+        )
+    # gauges must be updated in finally
     assert runner.update_gauges() == {
         "runs_count": 3,
         "runs_not_idle_count": 2,
@@ -176,8 +192,10 @@ def test_stop_on_exception() -> None:
 
 
 def test_stop_on_signal_pending_run() -> None:
-    runner.RUN_ARGS = runner.TRunArgs(False, 0)
-    code = runner.run_pool(StopExceptionRunnerConfiguration, signal_pending_run)
+    code = runner.run_pool(
+        configure(StopExceptionRunnerConfiguration, TRunnerArgs(False, 0)),
+        signal_pending_run
+    )
     assert code == 9
     assert runner.update_gauges() == {
         "runs_count": 1,
@@ -191,16 +209,20 @@ def test_stop_on_signal_pending_run() -> None:
 
 
 def test_stop_after_max_runs() -> None:
-    runner.RUN_ARGS = runner.TRunArgs(False, 0)
     # end after 5 runs
-    code = runner.run_pool(LimitedPoolRunnerConfiguration, failing_then_good_run)
+    code = runner.run_pool(
+        configure(LimitedPoolRunnerConfiguration, TRunnerArgs(False, 0)),
+        failing_then_good_run
+    )
     assert code == -2
     assert runner.update_gauges()["runs_count"] == 5
 
 
 def test_signal_exception_run() -> None:
-    runner.RUN_ARGS = runner.TRunArgs(False, 0)
-    code = runner.run_pool(ModPoolRunnerConfiguration, signal_exception_run)
+    code = runner.run_pool(
+        configure(ModPoolRunnerConfiguration, TRunnerArgs(False, 0)),
+        signal_exception_run
+    )
     assert code == 9
     assert runner.update_gauges() == {
         "runs_count": 1,
@@ -214,8 +236,10 @@ def test_signal_exception_run() -> None:
 
 
 def test_timerange_exhausted_run() -> None:
-    runner.RUN_ARGS = runner.TRunArgs(False, 0)
-    code = runner.run_pool(ModPoolRunnerConfiguration, timerange_exhausted_run)
+    code = runner.run_pool(
+        configure(ModPoolRunnerConfiguration, TRunnerArgs(False, 0)),
+        timerange_exhausted_run
+    )
     assert code == 0
     assert runner.update_gauges() == {
         "runs_count": 1,
@@ -244,8 +268,10 @@ def test_single_non_idle_run() -> None:
 
 def test_single_run_short_wl() -> None:
     # so we get into pending but not past it
-    runner.RUN_ARGS = runner.TRunArgs(True, 3)
-    code = runner.run_pool(ModPoolRunnerConfiguration, short_workload_run)
+    code = runner.run_pool(
+        configure(ModPoolRunnerConfiguration, TRunnerArgs(True, 3)),
+        short_workload_run
+    )
     assert code == 0
     assert runner.update_gauges() == {
         "runs_count": 5,
@@ -260,8 +286,10 @@ def test_single_run_short_wl() -> None:
 
 def test_runnable_with_runner() -> None:
     r = _TestRunnable(4)
-    runner.RUN_ARGS = runner.TRunArgs(True, 0)
-    code = runner.run_pool(ThreadPoolConfiguration, r)
+    code = runner.run_pool(
+        configure(ThreadPoolConfiguration, TRunnerArgs(True, 0)),
+        r
+    )
     assert code == 0
     assert [v[0] for v in r.rv] == list(range(4))
 

@@ -5,8 +5,8 @@ from prometheus_client import Counter, CollectorRegistry, REGISTRY, Gauge
 
 from dlt.common import pendulum, signals, json, logger
 from dlt.common.json import custom_pua_decode
-from dlt.common.runners import TRunArgs, TRunMetrics, Runnable, run_pool, initialize_runner
-from dlt.common.runners.runnable import workermethod
+from dlt.cli import TRunnerArgs
+from dlt.common.runners import TRunMetrics, Runnable, run_pool, initialize_runner, workermethod
 from dlt.common.storages.exceptions import SchemaNotFoundError
 from dlt.common.storages.normalize_storage import NormalizeStorage
 from dlt.common.telemetry import get_logging_extras
@@ -220,10 +220,10 @@ class Normalize(Runnable[ProcessPool]):
         return TRunMetrics(False, False, len(self.normalize_storage.list_files_to_normalize_sorted()))
 
 
-def main(args: TRunArgs) -> int:
+def main(args: TRunnerArgs) -> int:
     # initialize runner
-    C = configuration()
-    initialize_runner(C, args)
+    C = configuration(args._asdict())
+    initialize_runner(C)
     # create objects and gauges
     try:
         n = Normalize(C, REGISTRY)
@@ -233,5 +233,5 @@ def main(args: TRunArgs) -> int:
     return run_pool(C, n)
 
 
-def run_main(args: TRunArgs) -> None:
+def run_main(args: TRunnerArgs) -> None:
     exit(main(args))

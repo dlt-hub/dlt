@@ -10,7 +10,7 @@ from prometheus_client import REGISTRY
 from dlt.common import json
 from dlt.common.configuration.schema_volume_configuration import SchemaVolumeConfiguration
 
-from dlt.common.runners import pool_runner as runner, TRunArgs, TRunMetrics
+from dlt.common.runners import pool_runner as runner, TRunMetrics, initialize_runner
 from dlt.common.schema.utils import normalize_schema_name
 from dlt.common.storages.live_schema_storage import LiveSchemaStorage
 from dlt.common.storages.normalize_storage import NormalizeStorage
@@ -195,7 +195,7 @@ class Pipeline:
         )
 
         self.is_configured = True
-        runner.initialize_runner(C, TRunArgs(True, 0))
+        initialize_runner(C)
 
     @only_not_configured
     def restore(self, working_dir: str) -> None:

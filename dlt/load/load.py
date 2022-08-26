@@ -4,14 +4,12 @@ from importlib import import_module
 from prometheus_client import REGISTRY, Counter, Gauge, CollectorRegistry, Summary
 
 from dlt.common import sleep, logger
-from dlt.common.runners import TRunArgs, TRunMetrics, initialize_runner, run_pool
+from dlt.cli import TRunnerArgs
+from dlt.common.runners import TRunMetrics, initialize_runner, run_pool, Runnable, workermethod
 from dlt.common.logger import pretty_format_exception
 from dlt.common.exceptions import TerminalValueError
-from dlt.common.dataset_writers import TLoaderFileFormat
-from dlt.common.runners import Runnable, workermethod
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TTableSchema
-from dlt.common.storages import SchemaStorage
 from dlt.common.storages.load_storage import LoadStorage
 from dlt.common.telemetry import get_logging_extras, set_gauge_all_labels
 from dlt.common.typing import StrAny
@@ -255,9 +253,9 @@ class Load(Runnable[ThreadPool]):
         return TRunMetrics(False, False, len(self.load_storage.list_loads()))
 
 
-def main(args: TRunArgs) -> int:
-    C = configuration()
-    initialize_runner(C, args)
+def main(args: TRunnerArgs) -> int:
+    C = configuration(args._asdict())
+    initialize_runner(C)
     try:
         load = Load(C, REGISTRY)
     except Exception:
@@ -266,5 +264,5 @@ def main(args: TRunArgs) -> int:
     return run_pool(C, load)
 
 
-def run_main(args: TRunArgs) -> None:
+def run_main(args: TRunnerArgs) -> None:
     exit(main(args))
