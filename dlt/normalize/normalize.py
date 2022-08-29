@@ -81,7 +81,7 @@ class Normalize(Runnable[ProcessPool]):
 
         schema_update: TSchemaUpdate = {}
         schema = self.load_or_create_schema(schema_name)
-        file_id = uniq_id()
+        file_id = uniq_id(5)
 
         # process all event files and store rows in memory
         for events_file in events_files:
@@ -116,7 +116,7 @@ class Normalize(Runnable[ProcessPool]):
         for table_name, rows in normalized_data.items():
             # save into new jobs to processed as load
             table = schema.get_table_columns(table_name)
-            self.load_storage.write_temp_loading_file(load_id, table_name, table, file_id, rows)
+            self.load_storage.write_temp_job_file(load_id, table_name, table, file_id, rows)
 
         return schema_update
 
@@ -170,7 +170,7 @@ class Normalize(Runnable[ProcessPool]):
         signals.raise_if_signalled()
         logger.info("Committing storage, do not kill this process")
         # rename temp folder to processing
-        self.load_storage.commit_temp_load_folder(load_id)
+        self.load_storage.commit_temp_load_package(load_id)
         # delete event files and count events to provide metrics
         total_events = 0
         for event_file in chain.from_iterable(chunk_files):  # flatten chunks
@@ -187,7 +187,7 @@ class Normalize(Runnable[ProcessPool]):
     def spool_schema_files(self, schema_name: str, files: Sequence[str]) -> str:
         # normalized files will go here before being atomically renamed
         load_id = str(pendulum.now().timestamp())
-        self.load_storage.create_temp_load_folder(load_id)
+        self.load_storage.create_temp_load_package(load_id)
         logger.info(f"Created temp load folder {load_id} on loading volume")
 
         try:
@@ -197,7 +197,7 @@ class Normalize(Runnable[ProcessPool]):
             # schema conflicts resulting from parallel executing
             logger.warning(f"Parallel schema update conflict, switching to single thread ({str(exc)}")
             # start from scratch
-            self.load_storage.create_temp_load_folder(load_id)
+            self.load_storage.create_temp_load_package(load_id)
             self.spool_files(schema_name, load_id, self.map_single, files)
 
         return load_id

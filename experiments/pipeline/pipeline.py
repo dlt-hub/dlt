@@ -371,7 +371,7 @@ class Pipeline:
         return {
             "PIPELINE_NAME": self.state["pipeline_name"],
             "EXIT_ON_EXCEPTION": True,
-            "LOAD_VOLUME_PATH": os.path.join(self.working_dir, "normalized"),
+            "LOAD_VOLUME_PATH": os.path.join(self.working_dir, "load"),
             "NORMALIZE_VOLUME_PATH": os.path.join(self.working_dir, "normalize")
         }
 
