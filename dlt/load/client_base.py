@@ -15,6 +15,16 @@ from dlt.load.exceptions import LoadClientSchemaVersionCorrupted
 
 
 class LoadJob:
+    """Represents a job that loads a single file
+
+        Each job starts in "running" state and ends in one of terminal states: "retry", "failed" or "completed".
+        Each job is uniquely identified by a file name. The file is guaranteed to exist in "running" state. In terminal state, the file may not be present.
+        In "running" state, the loader component periodically gets the state via `status()` method. When terminal state is reached, load job is discarded and not called again.
+        `exception` method is called to get error information in "failed" and "retry" states.
+
+        The `__init__` method is responsible to put the Job in "running" state. It may raise `LoadClientTerminalException` and `LoadClientTransientException` tp
+        immediately transition job into "failed" or "retry" state respectively.
+    """
     def __init__(self, file_name: str) -> None:
         """
         File name is also a job id (or job id is deterministically derived) so it must be globally unique

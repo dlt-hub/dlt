@@ -46,6 +46,10 @@ BQT_TO_SCT: Dict[str, TDataType] = {
     "BIGNUMERIC": "decimal"
 }
 
+# terminal reasons as returned in BQ gRPC error response
+# https://cloud.google.com/bigquery/docs/error-messages
+BQ_TERMINAL_REASONS = ["billingTierLimitExceeded", "duplicate", "invalid", "invalidQuery", "notFound", "notImplemented", "stopped", "tableUnavailable"]
+
 
 class BigQuerySqlClient(SqlClientBase[bigquery.Client]):
     def __init__(self, default_dataset_name: str, CREDENTIALS: Type[GcpClientCredentials]) -> None:
@@ -149,7 +153,17 @@ class BigQueryLoadJob(LoadJob):
             if self.bq_load_job.output_rows is not None and self.bq_load_job.error_result is None:
                 return "completed"
             else:
-                return "failed"
+                reason = self.bq_load_job.error_result.get("reason")
+                if reason in BQ_TERMINAL_REASONS:
+                    # the job permanently failed for the reason above
+                    return "failed"
+                elif reason in ["backendError", "internalError"]:
+                    logger.warning(f"Got reason {reason} for job {self.file_name}, job considered still running. ({self.bq_load_job.error_result})")
+                    # status of the job could not be obtained, job still running
+                    return "running"
+                else:
+                    # retry on all other reasons
+                    return "retry"
         else:
             return "running"
 
@@ -191,10 +205,14 @@ class BigQueryClient(SqlJobClientBase):
                 self._retrieve_load_job(file_path),
                 self.CREDENTIALS
             )
-        except api_core_exceptions.NotFound:
-            raise LoadJobNotExistsException(file_path)
-        except (api_core_exceptions.BadRequest, api_core_exceptions.NotFound):
-            raise LoadJobServerTerminalException(file_path)
+        except api_core_exceptions.GoogleAPICallError as gace:
+            reason = self._get_reason_from_errors(gace)
+            if reason == "notFound":
+                raise LoadJobNotExistsException(file_path)
+            elif reason in BQ_TERMINAL_REASONS:
+                raise LoadJobServerTerminalException(file_path)
+            else:
+                raise
 
     def start_file_load(self, table: TTableSchema, file_path: str) -> LoadJob:
         try:
@@ -203,15 +221,20 @@ class BigQueryClient(SqlJobClientBase):
                 self._create_load_job(table["name"], table["write_disposition"], file_path),
                 self.CREDENTIALS
             )
-        except api_core_exceptions.NotFound:
-            # google.api_core.exceptions.NotFound: 404 - table not found
-            raise LoadUnknownTableException(table["name"], file_path)
-        except (api_core_exceptions.BadRequest, api_core_exceptions.NotFound):
-            # google.api_core.exceptions.BadRequest - will not be processed ie bad job name
-            raise LoadJobServerTerminalException(file_path)
-        except api_core_exceptions.Conflict:
-            # google.api_core.exceptions.Conflict: 409 PUT - already exists
-            return self.restore_file_load(file_path)
+        except api_core_exceptions.GoogleAPICallError as gace:
+            reason = self._get_reason_from_errors(gace)
+            if reason == "notFound":
+                # google.api_core.exceptions.NotFound: 404 - table not found
+                raise LoadUnknownTableException(table["name"], file_path)
+            elif reason == "duplicate":
+                # google.api_core.exceptions.Conflict: 409 PUT - already exists
+                return self.restore_file_load(file_path)
+            elif reason in BQ_TERMINAL_REASONS:
+                # google.api_core.exceptions.BadRequest - will not be processed ie bad job name
+                raise LoadJobServerTerminalException(file_path)
+            else:
+                raise
+
 
     def _get_schema_version_from_storage(self) -> int:
         try:
@@ -315,6 +338,13 @@ class BigQueryClient(SqlJobClientBase):
     def _retrieve_load_job(self, file_path: str) -> bigquery.LoadJob:
         job_id = BigQueryClient._get_job_id_from_file_path(file_path)
         return self.sql_client.native_connection.get_job(job_id)
+
+    @staticmethod
+    def _get_reason_from_errors(gace: api_core_exceptions.GoogleAPICallError) -> Optional[str]:
+        errors: List[StrAny] = getattr(gace, "errors", None)
+        if errors and isinstance(errors, Sequence):
+            return errors[0].get("reason")  # type: ignore
+        return None
 
     @staticmethod
     def _get_job_id_from_file_path(file_path: str) -> str:
