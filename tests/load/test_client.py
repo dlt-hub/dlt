@@ -243,14 +243,14 @@ def test_data_writer_string_escape(client: SqlJobClientBase, file_storage: FileS
 
 
 @pytest.mark.parametrize('client', ALL_CLIENTS, indirect=True)
-def test_data_writer_string_escape(client: SqlJobClientBase, file_storage: FileStorage) -> None:
+def test_data_writer_string_escape_edge(client: SqlJobClientBase, file_storage: FileStorage) -> None:
     rows, table_name = prepare_schema(client, "weird_rows")
     canonical_name = client.sql_client.make_qualified_table_name(table_name)
     with io.StringIO() as f:
         write_dataset(client, f, rows, rows[0].keys())
         query = f.getvalue()
     expect_load_file(client, file_storage, query, table_name)
-    for i in range(1,4):
+    for i in range(1,len(rows) + 1):
         db_row = client.sql_client.execute_sql(f"SELECT str FROM {canonical_name} WHERE idx = {i}")
         assert db_row[0][0] == rows[i-1]["str"]
 

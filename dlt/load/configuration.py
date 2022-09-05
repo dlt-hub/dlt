@@ -1,7 +1,6 @@
 from typing import Any, Optional, Type
 from dlt.common.configuration.run_configuration import BaseConfiguration
 
-from dlt.common.utils import uniq_id
 from dlt.common.typing import StrAny
 from dlt.common.configuration import (PoolRunnerConfiguration,
                                               LoadVolumeConfiguration,
