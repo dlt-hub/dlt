@@ -120,7 +120,7 @@ def run_pool(C: Type[PoolRunnerConfiguration], run_f: Union[Runnable[TPool], Cal
             # exit after runners sleeps so we keep the running period
             if runs_count == C.STOP_AFTER_RUNS:
                 logger.warning(f"Stopping runner due to max runs {runs_count} exceeded")
-                return -2
+                return 0
     except SignalReceivedException as sigex:
         # sleep this may raise SignalReceivedException
         logger.warning(f"Exiting runner due to signal {sigex.signal_code}")
