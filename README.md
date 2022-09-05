@@ -12,56 +12,61 @@
 
 # Data Load Tool (DLT)
 
-Data Load Tool (DLT) enables simple, python-native data pipelining for data professionals.
+## What is DLT?
 
-It is an open source, scalable data loading framework that does not require any help from DevOps.
+Data Load Tool (DLT) is an open source python library for building data pipelines.
+
+It's goal is to enable faster building of low-maintenance data pipelines.
+
+It's designed to run anywhere (python 3.8+) and it can fit in your existing workflows or be scheduled independently.
 
 Learn more with the **[Quickstart Guide](QUICKSTART.md)** and check out **[Example Sources](examples/README.md)** to get started.
+
+## Who is DLT for?
+
+DLT is for data professionals who use Python to build pipelines.
+- dlt enables non-engineers to build commercial-grade pipelines.
+- dlt minimises maintenance by design.
+- dlt is a better replacement for most home-baked custom pipelines.
+- Community pipeline packages are a good resource for typical needs.
+
+## Why use DLT?
+
+DLT is the first python data-pipelining library, meant to be a pip-installable easy to use pipeline creatoon and deployment kit.
+
+If you end up creating your own pipeline in python, then create it with DLT and benefit from
+- automatic schema inference, deployment, evolution, and data contracts - so you do not have to maintain schemas
+- configurable loading - append, replace, or merge.
+- configurable normalisation engine - decide how to unpack nested documents or specify date formats
+- commercial-grade engineering - dlt implements data engineering best practices such as idempotent, atomic loading.
 
 ## How does it work?
 
 DLT aims to simplify data loading for everyone.
 
-
 To achieve this, we take into account the progressive steps of data pipelining:
 
-![](docs/DLT_Diagram_1.jpg)
-### 1. Data discovery, typing, schema, metadata
+![](docs/DLT_Diagram_2.jpg)
+### 1. Data extraction
 
-When we create a pipeline, we start by grabbing data from the source.
+DLT accepts json or json-producing functions as input, including nested, unstructured data.
 
-Usually, the source metadata is lacking, so we need to look at the actual data to understand what it is and how to ingest it.
+### 2. Data normalisation
 
-In order to facilitate this, DLT includes several features
-* Auto-unpack nested json if desired
-* generate an inferred schema with data types and load data as-is for inspection in your warehouse.
-* Use an adjusted schema for follow up loads, to better type and filter your data after visual inspection (this also solves dynamic typing of Pandas dfs)
+DLT features a configurable normalisation engine - it can recursively unpack nested structures into relational tables, or handle various data type conversions.
 
-### 2. Safe, scalable loading
+### 3. Low effort, Safe & scalable loading
 
 When we load data, many things can intrrerupt the process, so we want to make sure we can safely retry without generating artefacts in the data.
 
 Additionally, it's not uncommon to not know the data size in advance, making it a challenge to match data size to loading infrastructure.
 
 With good pipelining design, safe loading becomes a non-issue.
-
+* Schema evolution - configurable strategy for schema changes: automatic migration or fail&alert.
 * Idempotency: The data pipeline supports idempotency on load, so no risk of data duplication.
 * Atomicity: The data is either loaded, or not. Partial loading occurs in the s3/storage buffer, which is then fully committed to warehouse/catalogue once finished. If something fails, the buffer is not partially-committed further.
 * Data-size agnostic: By using generators (like incremental downloading) and online storage as a buffer, it can incrementally process sources of any size without running into worker-machine size limitations.
 
-
-### 3. Modelling and analysis
-
-* Instantiate a dbt package with the source schema, enabling you to skip the dbt setup part and go right to SQL modelling.
-
-
-### 4. Data contracts
-
-* If using an explicit schema, you are able to validate the incoming data against it. Particularly useful when ingesting untyped data such as pandas dataframes, json from apis, documents from nosql etc.
-
-### 5. Maintenance & Updates
-
-* Auto schema migration: What do you do when a new field appears, or if it changes type? With auto schema migration you can default to ingest this data, or throw a validation error.
 
 ## Why?
 
@@ -69,43 +74,19 @@ Data loading is at the base of the data work pyramid.
 
 The current ecosystem of tools follows an old paradigm where the data pipeline creator is a software engineer, while the data pipeline user is an analyst.
 
-In the current world, the data analyst needs to solve problems end to end, including loading.
+In the real world, the data analyst needs to solve problems end to end, including loading.
 
-Currently there are no simple frameworks to achieve this, but only clunky applications that need engineering and devops expertise to run, install, manage and scale. The reason for this is often an artificial monetisation insert (open source but pay to manage).
+Currently, there are no simple frameworks to achieve this, but only clunky applications that need engineering and devops expertise to run, install, manage and scale. The reason for this is often an artificial monetisation insert (open source but pay to manage).
 
-Additionally, these existing loaders only load data sources for which somebody developed an extractor, requiring a software developer once again.
-
-DLT aims to bring loading into the hands of analysts with none of the unreasonable redundacy waste of the modern data platform.
-
-Additionally, the source schemas will be compatible across the community, creating the possiblity to share reusable analysis and modelling back to the open source community without creating tool-based vendor locks.
-
+DLT aims to simplify pipeline building, making it easier and faster to build low-maintenance pipelines with evolving schemas.
 
 ## Why not an OOP framework?
 
-```
-import this
-```
-[The zen of python](!https://peps.python.org/pep-0020/#the-zen-of-python) and the idea of "pythonic" programming ask for simplicity.
-
 Data people operate at the intersection between business, mathematics and functional programming.
 
-Such, the learning curve to write OOP sources in a very complex SDK is too steep for all but the most tech-interested.
+Such, the learning curve to write OOP sources in a very complex SDK/framework is too steep for all but the most tech-interested.
 
-In contast, DLT allows you to throw json or other iterable data into the database, with zero learning curve.
-
-## Why not something simpler?
-
-> “Everything should be as simple as it can be, but not simpler” – a scientist’s defense of art and knowledge – of lightness, completeness and accuracy.
-
-DLT aims to make data pipelining as simple as possible by defaulting to simple loading.
-
-At the same time, it can also be configured for high parallelism, incremental loading, custom types, performance hints, keys, filtering fields in/out, schema migration strategies, etc.
-
-It can also test the data or initiate a dbt package.
-
-In short, DLT does not require any specialist knowledge to use
-
-Advanced, commercial-grade use of DLT requires only some configuration.
+In contrast, DLT allows you to throw json or other iterable data into the database, with zero learning curve.
 
 
 ## Supported data warehouses
@@ -115,7 +96,3 @@ Google BigQuery:
 
 Amazon Redshift:
 ```pip install python-dlt[redshift]```
-
-## How to load very large sources?
-
-You will want to use a generator instead of an iterator.
