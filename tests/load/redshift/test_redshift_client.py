@@ -102,6 +102,20 @@ def test_simple_load(client: RedshiftClient, file_storage: FileStorage) -> None:
 
 def test_loading_errors(client: RedshiftClient, file_storage: FileStorage) -> None:
     user_table_name = prepare_event_user_table(client)
+    # insert string longer than redshift maximum
+    insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp)\nVALUES\n"
+    # try some unicode value - redshift checks the max length based on utf-8 representation, not the number of characters
+    # max_len_str = 'उ' * (65535 // 3) + 1 -> does not fit
+    # max_len_str = 'a' * 65535 + 1 -> does not fit
+    max_len_str = 'उ' * ((65535 // 3) + 1)
+    # max_len_str_b = max_len_str.encode("utf-8")
+    # print(len(max_len_str_b))
+    row_id = uniq_id()
+    insert_values = f"('{row_id}', '{uniq_id()}', '{max_len_str}' , '{str(pendulum.now())}');"
+    with pytest.raises(LoadClientTerminalInnerException) as exv:
+        expect_load_file(client, file_storage, insert_sql+insert_values, user_table_name)
+    assert type(exv.value.inner_exc) is psycopg2.errors.StringDataRightTruncation
+
     # insert into unknown column
     insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp, _unk_)\nVALUES\n"
     insert_values = f"('{uniq_id()}', '{uniq_id()}', '90238094809sajlkjxoiewjhduuiuehd', '{str(pendulum.now())}', NULL);"
@@ -177,3 +191,18 @@ def test_query_split(client: RedshiftClient, file_storage: FileStorage) -> None:
 
     finally:
         RedshiftInsertLoadJob.MAX_STATEMENT_SIZE = max_statement_size
+
+
+@pytest.mark.skip()
+def test_maximum_statement(client: RedshiftClient, file_storage: FileStorage) -> None:
+    # to enable this test, you must increase RedshiftInsertLoadJob.MAX_STATEMENT_SIZE = 20 * 1024 * 1024
+    insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp)\nVALUES\n"
+    insert_values = "('{}', '{}', '90238094809sajlkjxoiewjhduuiuehd', '{}'){}"
+    insert_sql = insert_sql + insert_values.format(uniq_id(), uniq_id(), str(pendulum.now()), ",\n") * 150000
+    insert_sql += insert_values.format(uniq_id(), uniq_id(), str(pendulum.now()), ";")
+
+    user_table_name = prepare_event_user_table(client)
+    with pytest.raises(LoadClientTerminalInnerException) as exv:
+        expect_load_file(client, file_storage, insert_sql, user_table_name)
+    # psycopg2.errors.SyntaxError: Statement is too large. Statement Size: 20971754 bytes. Maximum Allowed: 16777216 bytes
+    assert type(exv.value.inner_exc) is psycopg2.errors.SyntaxError
