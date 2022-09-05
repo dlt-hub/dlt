@@ -303,7 +303,10 @@ class Pipeline:
 
         # run the fun
         ec = runner.run_pool(self.C, _run)
-        if runner.LAST_RUN_METRICS.has_failed:
+        # ec > 0 - signalled
+        # -1 - runner was not able to start
+
+        if runner.LAST_RUN_METRICS is not None and runner.LAST_RUN_METRICS.has_failed:
             raise self.last_run_exception
         return ec
 
