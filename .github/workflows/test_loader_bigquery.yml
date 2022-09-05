@@ -60,10 +60,10 @@ jobs:
 
       - name: Install dependencies
         # if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction --no-root -E bigquery
+        run: poetry install --no-interaction -E bigquery
 
-      - name: Install self
-        run: poetry install --no-interaction
+      # - name: Install self
+      #   run: poetry install --no-interaction
 
       - run: |
           LOG_LEVEL=ERROR poetry run pytest tests --ignore=tests/common --ignore=tests/normalize --ignore=tests/load/redshift --ignore=tests/dbt_runner -k '(not redshift_client)'
