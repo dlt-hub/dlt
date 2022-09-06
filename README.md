@@ -32,7 +32,7 @@ DLT is for data professionals who use Python to build pipelines.
 
 ## Why use DLT?
 
-DLT is the first python data-pipelining library, meant to be a pip-installable easy to use pipeline creatoon and deployment kit.
+DLT is the first python data-pipelining library, meant to be a pip-installable easy to use pipeline creation and deployment kit.
 
 If you end up creating your own pipeline in python, then create it with DLT and benefit from
 - automatic schema inference, deployment, evolution, and data contracts - so you do not have to maintain schemas
