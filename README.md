@@ -46,7 +46,7 @@ DLT aims to simplify data loading for everyone.
 
 To achieve this, we take into account the progressive steps of data pipelining:
 
-![](docs/DLT_Diagram_2.png)
+![](docs/DLT-Diagram_2.png)
 ### 1. Data extraction
 
 DLT accepts json or json-producing functions as input, including nested, unstructured data.
