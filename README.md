@@ -63,8 +63,7 @@ Additionally, it's not uncommon to not know the data size in advance, making it 
 
 With good pipelining design, safe loading becomes a non-issue.
 * Schema evolution - configurable strategy for schema changes: automatic migration or fail&alert.
-* Idempotency: The data pipeline supports idempotency on load, so no risk of data duplication.
-* Atomicity: The data is either loaded, or not. Partial loading occurs in the s3/storage buffer, which is then fully committed to warehouse/catalogue once finished. If something fails, the buffer is not partially-committed further.
+* Idempotency & Atomicity: Built in best practices of Atomic loading (all or nothing), and configurable Idempotency (do not double load, incurs a table "read" cost)
 * Data-size agnostic: By using generators (like incremental downloading) and online storage as a buffer, it can incrementally process sources of any size without running into worker-machine size limitations.
 
 
@@ -76,7 +75,7 @@ The current ecosystem of tools follows an old paradigm where the data pipeline c
 
 In the real world, the data analyst needs to solve problems end to end, including loading.
 
-Currently, there are no simple frameworks to achieve this, but only clunky applications that need engineering and devops expertise to run, install, manage and scale. The reason for this is often an artificial monetisation insert (open source but pay to manage).
+Currently, there are no simple frameworks to achieve this, but only clunky applications that need engineering and devops expertise to run, install, manage and scale.
 
 DLT aims to simplify pipeline building, making it easier and faster to build low-maintenance pipelines with evolving schemas.
 
