@@ -57,7 +57,7 @@ DLT features a configurable normalisation engine - it can recursively unpack nes
 
 ### 3. Low effort, Safe & scalable loading
 
-When we load data, many things can intrrerupt the process, so we want to make sure we can safely retry without generating artefacts in the data.
+When we load data, many things can interrupt the process, so we want to make sure we can safely retry without generating artefacts in the data.
 
 Additionally, it's not uncommon to not know the data size in advance, making it a challenge to match data size to loading infrastructure.
 
