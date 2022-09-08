@@ -52,7 +52,7 @@ DLT accepts json and json-producing functions as input, including nested, unstru
 
 ### 2. Data normalisation
 
-DLT features a configurable normalisation engine - it can recursively unpack nested structures into relational tables, or handle various data type conversions.
+DLT features a configurable normalisation engine that can recursively unpack nested structures into relational tables, handle various data type conversions, etc.
 
 ### 3. Data loading
 
