@@ -61,6 +61,7 @@ When we load data, many things can interrupt the process, so we want to make sur
 Additionally, it's not uncommon to not know the data size in advance, making it a challenge to match data size to loading infrastructure.
 
 With good pipelining design, safe loading becomes a non-issue.
+
 * Schema evolution - configurable strategy for schema changes: automatic migration or fail&alert.
 * Idempotency & Atomicity: Built in best practices of Atomic loading (all or nothing), and configurable Idempotency (do not double load, incurs a table "read" cost)
 * Data-size agnostic: By using generators (like incremental downloading) and online storage as a buffer, it can incrementally process sources of any size without running into worker-machine size limitations.
