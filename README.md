@@ -35,13 +35,13 @@ DLT takes the Python scripts you already write to the next level with a library 
 
 If you end up creating your own pipeline in python, then create it with DLT and benefit from
 - Automatic schema maintenance (i.e. schema inference, deployment, evolution, data contracts, etc.)
-- configurable loading - append, replace, or merge.
-- configurable normalisation engine - decide how to unpack nested documents or specify date formats
-- commercial-grade engineering - dlt implements data engineering best practices such as idempotent, atomic loading.
+- Configurable loading (e.g. append, replace, merge, etc.)
+- Configurable normalisation (i.e. decide how to unpack nested documents, specify date formats, etc.)
+- High performance loading engine (i.e. data engineering best practices like idempotent, atomic, scalable loading)
 
 ## How does it work?
 
-DLT aims to simplify data loading for everyone.
+DLT aims to simplify data loading for the millions of people who have taken at least one Python course
 
 To achieve this, we take into account the progressive steps of data pipelining:
 
@@ -69,23 +69,23 @@ With good pipelining design, safe loading becomes a non-issue.
 
 ## Why?
 
-Data loading is at the base of the data work pyramid.
+Data loading is how all data works starts.
 
-The current ecosystem of tools follows an old paradigm where the data pipeline creator is a software engineer, while the data pipeline user is an analyst.
+The current ecosystem of tools follows an old paradigm, where the data pipeline creator is a software engineer, while the data pipeline user is an analyst.
 
 In the real world, the data analyst needs to solve problems end to end, including loading.
 
-Currently, there are no simple frameworks to achieve this, but only clunky applications that need engineering and devops expertise to run, install, manage and scale.
+Currently, there are no simple libraries to achieve this, only clunky frameworks that require engineering expertise to host, run, manage, scale, and maintain.
 
-DLT aims to simplify pipeline building, making it easier and faster to build low-maintenance pipelines with evolving schemas.
+DLT aims to simplify data pipeline building, making it easier and faster to build low-maintenance pipelines with evolving schemas.
 
 ## Why not an OOP framework?
 
-Data people operate at the intersection between business, mathematics and functional programming.
+Data professionals operate at the intersection between business, statistics, and APIs.
 
-Such, the learning curve to write OOP sources in a very complex SDK/framework is too steep for all but the most tech-interested.
+As a result, the learning curve to create data pipelines using complex Object Oriented Programming (OOP) frameworks / SDKs (e.g. Airbyte, Singer, etc.) is too steep for all but the most tech savvy people.
 
-In contrast, DLT allows you to throw json or other iterable data into the database, with zero learning curve.
+In contrast, DLT allows you to throw JSON into a database with little to no learning curve.
 
 
 ## Supported data warehouses
