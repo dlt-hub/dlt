@@ -25,7 +25,7 @@ Learn more with the **[Quickstart Guide](QUICKSTART.md)** and check out **[Examp
 ## Who is DLT for?
 
 DLT is for data professionals who use Python to build pipelines.
-- dlt enables non-engineers to build commercial-grade pipelines.
+- DLT enables anyone who knows a bit of Python to build commercial-grade pipelines
 - dlt minimises maintenance by design.
 - dlt is a better replacement for most home-baked custom pipelines.
 - Community pipeline packages are a good resource for typical needs.
