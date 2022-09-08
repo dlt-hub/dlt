@@ -33,7 +33,7 @@ DLT is for data professionals who use Python to build pipelines.
 
 DLT takes the Python scripts you already write to the next level with a library you install using pip in order to create highly scalable, easily maintainable pipelines that are straightforward to deploy.
 
-If you end up creating your own pipeline in python, then create it with DLT and benefit from
+If you end up creating your own pipeline in python, then create it with DLT and your loading scripts will benefit from
 - Automatic schema maintenance (i.e. schema inference, deployment, evolution, data contracts, etc.)
 - Configurable loading (e.g. append, replace, merge, etc.)
 - Configurable normalisation (i.e. decide how to unpack nested documents, specify date formats, etc.)
