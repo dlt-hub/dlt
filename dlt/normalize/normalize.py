@@ -62,9 +62,6 @@ class Normalize(Runnable[ProcessPool]):
         # normalize saves in preferred format but can read all supported formats
         self.load_storage = LoadStorage(True, self.CONFIG, self.CONFIG.LOADER_FILE_FORMAT, LoadStorage.ALL_SUPPORTED_FILE_FORMATS)
 
-        self.normalize_storage.initialize_storage()
-        self.load_storage.initialize_storage()
-
     def load_or_create_schema(self, schema_name: str) -> Schema:
         try:
             schema = self.schema_storage.load_schema(schema_name)

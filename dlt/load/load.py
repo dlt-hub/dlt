@@ -61,7 +61,6 @@ class Load(Runnable[ThreadPool]):
             self.load_client_cls.capabilities()["preferred_loader_file_format"],
             self.load_client_cls.capabilities()["supported_loader_file_formats"]
         )
-        load_storage.initialize_storage()
         return load_storage
 
     @staticmethod

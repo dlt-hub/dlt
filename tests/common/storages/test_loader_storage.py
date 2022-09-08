@@ -18,7 +18,6 @@ from tests.utils import TEST_STORAGE, write_version, autouse_root_storage
 def storage() -> LoadStorage:
     C = make_configuration(LoadVolumeConfiguration, LoadVolumeConfiguration)
     s = LoadStorage(True, C, "jsonl", LoadStorage.ALL_SUPPORTED_FILE_FORMATS)
-    s.initialize_storage()
     return s
 
 

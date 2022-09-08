@@ -1,22 +1,24 @@
 import os
+from collections import abc
 import tempfile
 from contextlib import contextmanager
 from copy import deepcopy
 from functools import wraps
-from typing import Any, Dict, Iterable, Iterator, Mapping, NewType, Optional, Type, TypedDict, Union, overload
+from typing import Any, List, Iterable, Iterator, Mapping, NewType, Optional, Sequence, Type, TypedDict, Union, overload
 from operator import itemgetter
 from prometheus_client import REGISTRY
 
-from dlt.common import json
-from dlt.common.configuration.schema_volume_configuration import SchemaVolumeConfiguration
+from dlt.common import json, logger, signals
+from dlt.common.sources import DLT_METADATA_FIELD, with_table_name
+from dlt.common.typing import DictStrAny, StrAny, TFun, TSecretValue, TAny
 
 from dlt.common.runners import pool_runner as runner, TRunMetrics, initialize_runner
 from dlt.common.schema.utils import normalize_schema_name
 from dlt.common.storages.live_schema_storage import LiveSchemaStorage
 from dlt.common.storages.normalize_storage import NormalizeStorage
 from dlt.common.storages.schema_storage import SchemaStorage
-from dlt.common.typing import DictStrAny, StrAny, TFun, TSecretValue
-from dlt.common.configuration import RunConfiguration, NormalizeVolumeConfiguration, ProductionNormalizeVolumeConfiguration
+
+from dlt.common.configuration import make_configuration, RunConfiguration, NormalizeVolumeConfiguration, SchemaVolumeConfiguration, ProductionNormalizeVolumeConfiguration
 from dlt.common.schema.schema import Schema
 from dlt.common.file_storage import FileStorage
 from dlt.common.utils import is_interactive, uniq_id
@@ -31,7 +33,7 @@ from dlt.load import Load
 
 from experiments.pipeline.configuration import get_config
 from experiments.pipeline.exceptions import PipelineConfigMissing, PipelineConfiguredException, MissingDependencyException, PipelineStepFailed
-from experiments.pipeline.sources import SourceTables, TPendingDataItem
+from experiments.pipeline.sources import SourceTables, TResolvableDataItem
 
 
 TConnectionString = NewType("TConnectionString",  str)
@@ -56,9 +58,7 @@ class TPipelineState(TypedDict):
 class PipelineConfiguration(RunConfiguration):
     WORKING_DIR: Optional[str] = None
     PIPELINE_SECRET: Optional[TSecretValue] = None
-    OVERWRITE_EXISTING: bool = False
-    # LOADER_TYPE: Optional[str] = None
-    # SYNC_SCHEMA_DIR: Optional[str] = None
+    drop_existing_data: bool = False
 
     @classmethod
     def check_integrity(cls) -> None:
@@ -69,6 +69,7 @@ class PipelineConfiguration(RunConfiguration):
 class Pipeline:
 
     ACTIVE_INSTANCE: "Pipeline" = None
+    STATE_FILE = "state.json"
 
     def __new__(cls: Type["Pipeline"]) -> "Pipeline":
         cls.ACTIVE_INSTANCE = super().__new__(cls)
@@ -76,17 +77,19 @@ class Pipeline:
 
     def __init__(self):
         # pipeline is not configured yet
-        self.is_configured = False
+        # self.is_configured = False
         # self.pipeline_name: str = None
-        self.pipeline_secret: str = None
+        # self.pipeline_secret: str = None
         # self.default_schema_name: str = None
         # self.default_dataset_name: str = None
-        self.working_dir: str = None
-        self.is_transient: bool = None
-        self.pipeline_storage: FileStorage = None
-        self.credentials: TCredentials = None
-        self.state: TPipelineState = {}
+        # self.working_dir: str = None
+        # self.is_transient: bool = None
+        self.CONFIG: Type[PipelineConfiguration] = None
+        self.root_folder: str = None
 
+        self._initial_values: DictStrAny = {}
+        self._state: TPipelineState = {}
+        self._pipeline_storage: FileStorage = None
         self._extractor_storage: ExtractorStorageBase = None
         self._schema_storage: LiveSchemaStorage = None
 
@@ -94,7 +97,7 @@ class Pipeline:
 
         @wraps(f)
         def _wrap(self: "Pipeline", *args: Any, **kwargs: Any) -> Any:
-            if self.is_configured:
+            if self.CONFIG:
                 raise PipelineConfiguredException(f.__name__)
             return f(self, *args, **kwargs)
 
@@ -104,7 +107,7 @@ class Pipeline:
 
         @wraps(f)
         def _wrap(self: "Pipeline", *args: Any, **kwargs: Any) -> Any:
-            if not self.is_configured:
+            if not self.CONFIG:
                 self.configure()
             return f(self, *args, **kwargs)
 
@@ -130,81 +133,70 @@ class Pipeline:
 
         return _wrap
 
-    @only_not_configured
-    @with_state_sync
+
+    @overload
     def configure(self,
         pipeline_name: str = None,
         working_dir: str = None,
         pipeline_secret: TSecretValue = None,
-        overwrite_existing: bool = False,
+        drop_existing_data: bool = False,
         import_schema_path: str = None,
         export_schema_path: str = None,
-        # initial_state: TPipelineState = None,
         destination_name: str = None,
-        # credentials: TCredentials = None,
         log_level: str = "INFO"
     ) -> None:
-        # cannot has_pending_loads: cannot reconfigure when loads are pending (?)
+        ...
 
-        # go through configuration to resolve config via registered providers
-        C = get_config(PipelineConfiguration, PipelineConfiguration, initial_values=locals())
-        pipeline_name, working_dir, pipeline_secret, overwrite_existing = itemgetter("pipeline_name", "working_dir", "pipeline_secret", "overwrite_existing")(C.as_dict())
 
-        # create root storage with full pipeline state
-        if not working_dir:
-            working_dir = tempfile.mkdtemp()
-            self.is_transient = True
+    @only_not_configured
+    @with_state_sync
+    def configure(self, **kwargs: Any) -> None:
+        # keep the locals to be able to initialize configs at any time
+        self._initial_values.update(**kwargs)
+        # resolve pipeline configuration
+        self.CONFIG = self._get_config(PipelineConfiguration)
+
+        # use system temp folder if not specified
+        if not self.CONFIG.WORKING_DIR:
+            self.CONFIG.WORKING_DIR = tempfile.gettempdir()
+        self.root_folder = os.path.join(self.CONFIG.WORKING_DIR, self.CONFIG.PIPELINE_NAME)
+        self._set_common_initial_values()
+
+        # create pipeline working dir
+        self._pipeline_storage = FileStorage(self.root_folder, makedirs=False)
+
+        # remove existing pipeline if requested
+        if self._pipeline_storage.has_folder(".") and self.CONFIG.drop_existing_data:
+            self._pipeline_storage.delete_folder(".")
+
+        # restore pipeline if folder exists and contains state
+        if self._pipeline_storage.has_file(Pipeline.STATE_FILE):
+            self._restore_pipeline()
         else:
-            self.is_transient = False
+            self._create_pipeline()
 
-        self.pipeline_storage = FileStorage(working_dir, makedirs=False)
-        self.working_dir = self.pipeline_storage.storage_path
-        # self.pipeline_name = pipeline_name
-        # self.default_dataset_name = normalize_schema_name(name)
-        self.pipeline_secret = pipeline_secret
-        # self.destination_name = destination_name
-        # self.credentials = credentials
-
-        self.state = {
-            # "default_dataset_name": normalize_schema_name(name),
-            # "destination_name": self._ensure_destination_name(destination_name),
-            # "is_transient": is_transient,
-            "pipeline_name": pipeline_name,
-            # "schema_sync_path": schema_sync_path
-        }
-        self._resolve_load_client_config(destination_name)
-
-        # restore pipeline if folder exists and is not empty
-        # if self.pipeline_storage.has_folder("."):
-        #     if overwrite_existing:
-        #         self.pipeline_storage.delete_folder(".")
-        #     elif not self.pipeline_storage.is_empty("."):
-        #         self._restore_pipeline()
-
-        # create new pipeline
-        # if not self.is_ready:
-        self._create_pipeline()
         # create schema storage
-        self._schema_storage = self._ensure_schema_storage(import_schema_path, export_schema_path)
+        self._schema_storage = LiveSchemaStorage(self._get_config(SchemaVolumeConfiguration), makedirs=True)
         # create extractor storage
         self._extractor_storage = ExtractorStorageBase(
             "1.0.0",
             True,
-            FileStorage(os.path.join(self.working_dir, "extract"), makedirs=True),
+            FileStorage(os.path.join(self.root_folder, "extract"), makedirs=True),
             self._ensure_normalize_storage()
         )
 
-        self.is_configured = True
-        initialize_runner(C)
+        initialize_runner(self.CONFIG)
 
-    @only_not_configured
-    def restore(self, working_dir: str) -> None:
-        pass
+
+    def _get_config(self, spec: Type[TAny], accept_partial: bool = False) -> Type[TAny]:
+        print(self._initial_values)
+        return make_configuration(spec, spec, initial_values=self._initial_values, accept_partial=accept_partial)
+
 
     @overload
     def extract(
         self,
-        data: Union[Iterator[TPendingDataItem], Iterable[TPendingDataItem]],
+        data: Union[Iterator[TResolvableDataItem], Iterable[TResolvableDataItem]],
         table_name = None,
         write_disposition = None,
         parent = None,
@@ -229,7 +221,7 @@ class Pipeline:
     @with_state_sync
     def extract(
         self,
-        data: Union[SourceTables, Iterator[TPendingDataItem], Iterable[TPendingDataItem]],
+        data: Union[SourceTables, Iterator[TResolvableDataItem], Iterable[TResolvableDataItem]],
         table_name = None,
         write_disposition = None,
         parent = None,
@@ -239,14 +231,31 @@ class Pipeline:
         schema: Schema = None
     ) -> None:
         self._schema_storage.save_schema(schema)
-        self.state["default_schema_name"] = schema.name
+        self._state["default_schema_name"] = schema.name
+        # TODO: apply hints to table
 
-        if isinstance(data, SourceTables):
-            # extract many
-            pass
-        else:
-            # extract single
-            pass
+        # check if iterator or iterable is supported
+        # if isinstance(items, str) or isinstance(items, dict) or not
+        # TODO: check if schema exists
+        with self._managed_state():
+            default_table_name = table_name or self.CONFIG.PIPELINE_NAME
+            # TODO: this is not very effective - we consume iterator right away, better implementation needed where we stream iterator to files directly
+            all_items: List[DictStrAny] = []
+            for item in data:
+                # dispatch items by type
+                if callable(item):
+                    item = item()
+                if isinstance(item, dict):
+                    all_items.append(item)
+                elif isinstance(item, abc.Sequence):
+                    all_items.extend(item)
+                # react to CTRL-C and shutdowns from controllers
+                signals.raise_if_signalled()
+
+            try:
+                self._extract_iterator(default_table_name, all_items)
+            except Exception:
+                raise PipelineStepFailed("extract", self.last_run_exception, runner.LAST_RUN_METRICS)
 
     # @maybe_default_config
     # @with_schemas_sync
@@ -264,9 +273,17 @@ class Pipeline:
             "MAX_EVENTS_IN_CHUNK": max_events_in_chunk,
             "POOL_TYPE": "thread" if workers == 1 else "process"
         })
-        runner.run_pool(normalize.CONFIG, normalize)
-        if runner.LAST_RUN_METRICS.has_failed:
-            raise PipelineStepFailed("normalize", self.last_run_exception, runner.LAST_RUN_METRICS)
+        try:
+            ec = runner.run_pool(normalize.CONFIG, normalize)
+            # in any other case we raise if runner exited with status failed
+            if runner.LAST_RUN_METRICS.has_failed:
+                raise PipelineStepFailed("normalize", self.last_run_exception, runner.LAST_RUN_METRICS)
+            return ec
+        except Exception as r_ex:
+            # if EXIT_ON_EXCEPTION flag is set, exception will bubble up directly
+            raise PipelineStepFailed("normalize", self.last_run_exception, runner.LAST_RUN_METRICS) from r_ex
+        finally:
+            signals.raise_if_signalled()
 
     @with_schemas_sync
     @with_state_sync
@@ -282,10 +299,7 @@ class Pipeline:
         max_parallel_loads: int = 20,
         normalize_workers: int = 1
     ) -> None:
-        self._resolve_load_client_config(
-            destination_name or self._ensure_destination_name(),
-            default_dataset or self._ensure_default_dataset()
-            )
+        self._resolve_load_client_config()
         # check if anything to normalize
         if len(self._extractor_storage.normalize_storage.list_files_to_normalize_sorted()) > 0:
             self.normalize(dry_run=dry_run, workers=normalize_workers)
@@ -306,28 +320,22 @@ class Pipeline:
 
     @property
     def default_schema(self) -> Schema:
-        return self.schemas[self.state.get("default_schema_name")]
+        return self.schemas[self._state.get("default_schema_name")]
 
-    def _create_pipeline(self):
-        pass
+    @property
+    def last_run_exception(self) -> BaseException:
+        return runner.LAST_RUN_EXCEPTION
 
-    def _restore_pipeline(self):
-        # pipeline state takes precedence over passed settings
-        # schemas are preserved
-        # loader type
-        pass
+    def _create_pipeline(self) -> None:
+        self._pipeline_storage.create_folder(".", exists_ok=True)
+
+    def _restore_pipeline(self) -> None:
+        self._restore_state()
 
     def _ensure_normalize_storage(self) -> NormalizeStorage:
-        C = get_config(NormalizeVolumeConfiguration, ProductionNormalizeVolumeConfiguration, initial_values=self._common_initial())
-        return NormalizeStorage(True, C)
+        return NormalizeStorage(True, self._get_config(NormalizeVolumeConfiguration))
 
-    def _ensure_schema_storage(self, import_schema_path: str = None, export_schema_path: str = None) -> LiveSchemaStorage:
-        initial = {"SCHEMA_VOLUME_PATH": os.path.join(self.working_dir, "schemas")}
-        initial.update(locals())
-        C = get_config(SchemaVolumeConfiguration, initial_values=initial)
-        return LiveSchemaStorage(C, makedirs=True)
-
-    def _configure_normalize(self, initial_values: StrAny) -> Normalize:
+    def _configure_normalize(self, initial_values: DictStrAny) -> Normalize:
         destination_name = self._ensure_destination_name()
         format = self._get_loader_capabilities(destination_name)["preferred_loader_file_format"]
         # create normalize config
@@ -336,14 +344,15 @@ class Pipeline:
             "ADD_EVENT_JSON": False
         })
         # apply schema storage config
-        initial_values.update(self._schema_storage.C.as_dict())
+        # initial_values.update(self._schema_storage.C.as_dict())
         # apply common initial settings
-        initial_values.update(self._common_initial())
+        initial_values.update(self._initial_values)
         C = normalize_configuration(initial_values=initial_values)
+        print(C.as_dict())
         # shares schema storage with the pipeline so we do not need to install
         return Normalize(C, schema_storage=self._schema_storage)
 
-    def _configure_load(self, loader_initial: StrAny, credentials: TCredentials = None) -> Load:
+    def _configure_load(self, loader_initial: DictStrAny, credentials: TCredentials = None) -> Load:
         # get destination or raise
         destination_name = self._ensure_destination_name()
         # import load client for given destination or raise
@@ -355,11 +364,11 @@ class Pipeline:
             "DELETE_COMPLETED_JOBS": True,
             "CLIENT_TYPE": destination_name
         })
-        loader_initial.update(self._common_initial())
+        loader_initial.update(self._initial_values)
 
         loader_client_initial = {
             "DEFAULT_DATASET": default_dataset,
-            "DEFAULT_SCHEMA_NAME": self.state.get("default_schema_name")
+            "DEFAULT_SCHEMA_NAME": self._state.get("default_schema_name")
         }
         if credentials:
             loader_client_initial.update(credentials)
@@ -367,13 +376,14 @@ class Pipeline:
         C = loader_configuration(initial_values=loader_initial)
         return Load(C, REGISTRY, client_initial_values=loader_client_initial, is_storage_owner=False)
 
-    def _common_initial(self) -> StrAny:
-        return {
-            "PIPELINE_NAME": self.state["pipeline_name"],
+    def _set_common_initial_values(self) -> None:
+        self._initial_values.update({
+            "IS_SINGLE_RUN": True,
             "EXIT_ON_EXCEPTION": True,
-            "LOAD_VOLUME_PATH": os.path.join(self.working_dir, "load"),
-            "NORMALIZE_VOLUME_PATH": os.path.join(self.working_dir, "normalize")
-        }
+            "LOAD_VOLUME_PATH": os.path.join(self.root_folder, "load"),
+            "NORMALIZE_VOLUME_PATH": os.path.join(self.root_folder, "normalize"),
+            "SCHEMA_VOLUME_PATH": os.path.join(self.root_folder, "schemas")
+        })
 
     def _get_loader_capabilities(self, destination_name: str) -> TLoaderCapabilities:
         try:
@@ -385,23 +395,18 @@ class Pipeline:
                 "Dependencies for specific destinations are available as extras of python-dlt"
             )
 
-    def _resolve_load_client_config(self, maybe_new_destination_name: str = None, maybe_default_dataset: str = None) -> None:
-        C = get_config(
+    def _resolve_load_client_config(self) -> Type[LoaderClientDwhConfiguration]:
+        return get_config(
             LoaderClientDwhConfiguration,
             initial_values={
-                "client_type": maybe_new_destination_name,
-                "default_dataset": maybe_default_dataset
+                "client_type": self._initial_values.get("destination_name"),
+                "default_dataset": self._initial_values.get("default_dataset")
             },
             accept_partial=True
         )
-        maybe_new_destination_name, maybe_default_dataset = itemgetter("client_type", "default_dataset")(C.as_dict())
-        self.state.update({
-            "destination_name": maybe_new_destination_name,
-            "default_dataset": maybe_default_dataset
-        })
 
     def _ensure_destination_name(self) -> str:
-        d_n = self.state.get("destination_name")
+        d_n = self._resolve_load_client_config().CLIENT_TYPE
         if not d_n:
                 raise PipelineConfigMissing(
                     "destination_name",
@@ -411,36 +416,61 @@ class Pipeline:
         return d_n
 
     def _ensure_default_dataset(self) -> str:
-        d_n = self.state.get("default_dataset")
+        d_n = self._resolve_load_client_config().DEFAULT_DATASET
         if not d_n:
-            d_n = normalize_schema_name(self.state["pipeline_name"])
+            d_n = normalize_schema_name(self.CONFIG.PIPELINE_NAME)
         return d_n
+
+    def _extract_iterator(self, default_table_name: str, items: Sequence[DictStrAny]) -> None:
+        try:
+            for idx, i in enumerate(items):
+                if not isinstance(i, dict):
+                    # TODO: convert non dict types into dict
+                    items[idx] = i = {"v": i}
+                if DLT_METADATA_FIELD not in i or i.get(DLT_METADATA_FIELD, None) is None:
+                    # set default table name
+                    with_table_name(i, default_table_name)
+
+            load_id = uniq_id()
+            self._extractor_storage.save_json(f"{load_id}.json", items)
+            self._extractor_storage.commit_events(
+                self.default_schema.name,
+                self._extractor_storage.storage._make_path(f"{load_id}.json"),
+                default_table_name,
+                len(items),
+                load_id
+            )
+
+            runner.LAST_RUN_METRICS = TRunMetrics(was_idle=False, has_failed=False, pending_items=0)
+        except Exception as ex:
+            logger.exception("extracting iterator failed")
+            runner.LAST_RUN_METRICS = TRunMetrics(was_idle=False, has_failed=True, pending_items=0)
+            runner.LAST_RUN_EXCEPTION = ex
+            raise
 
     @contextmanager
     def _managed_state(self) -> Iterator[None]:
-        backup_state = deepcopy(self.state)
+        backup_state = deepcopy(self._state)
         try:
             yield
         except Exception:
             # restore old state
-            self.state.clear()
-            self.state.update(backup_state)
+            self._state.clear()
+            self._state.update(backup_state)
             raise
         else:
             # persist old state
-            self.pipeline_storage.save("state.json", json.dumps(self.state))
+            # TODO: compare backup and new state, save only if different
+            self._pipeline_storage.save(Pipeline.STATE_FILE, json.dumps(self._state))
+
+    def _restore_state(self) -> None:
+        self._state.clear()
+        restored_state: DictStrAny = json.loads(self._pipeline_storage.load(Pipeline.STATE_FILE))
+        self._state.update(restored_state)
 
     @property
-    def name(self) -> str:
-        pass
-
-    @property
-    def is_active(self) -> str:
+    def is_active(self) -> bool:
         return id(self) == id(Pipeline.ACTIVE_INSTANCE)
-
-    # @property
-    # def is_configured(self) -> bool:
-    #     return self.
 
     @property
     def has_pending_loads(self) -> bool:

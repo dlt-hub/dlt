@@ -56,6 +56,8 @@ class LoadStorage(VersionedStorage):
         self.supported_file_formats = supported_file_formats
         self.delete_completed_jobs = C.DELETE_COMPLETED_JOBS
         super().__init__(LoadStorage.STORAGE_VERSION, is_owner, FileStorage(C.LOAD_VOLUME_PATH, "t", makedirs=is_owner))
+        if is_owner:
+            self.initialize_storage()
 
     def initialize_storage(self) -> None:
         self.storage.create_folder(LoadStorage.LOADED_FOLDER, exists_ok=True)
