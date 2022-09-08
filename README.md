@@ -54,7 +54,7 @@ DLT accepts json and json-producing functions as input, including nested, unstru
 
 DLT features a configurable normalisation engine - it can recursively unpack nested structures into relational tables, or handle various data type conversions.
 
-### 3. Low effort, Safe & scalable loading
+### 3. Data loading
 
 When we load data, many things can interrupt the process, so we want to make sure we can safely retry without generating artefacts in the data.
 
