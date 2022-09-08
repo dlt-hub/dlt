@@ -48,7 +48,7 @@ To achieve this, we take into account the progressive steps of data pipelining:
 ![](docs/DLT-Diagram_2.png)
 ### 1. Data extraction
 
-DLT accepts json or json-producing functions as input, including nested, unstructured data.
+DLT accepts json and json-producing functions as input, including nested, unstructured data.
 
 ### 2. Data normalisation
 
