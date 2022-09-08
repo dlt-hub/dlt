@@ -27,7 +27,7 @@ Learn more with the **[Quickstart Guide](QUICKSTART.md)** and check out **[Examp
 DLT is for data professionals who use Python to build pipelines.
 - DLT enables anyone who knows a bit of Python to build commercial-grade pipelines
 - DLT minimises maintenance requirements by design
-- Community pipeline packages are a good resource for typical needs.
+- The DLT community shares pipelines with each other, so frequently you'll be able to just use a pipeline created by someone else
 
 ## Why use DLT?
 
