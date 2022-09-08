@@ -18,7 +18,7 @@ Data Load Tool (DLT) is an open source python library for building data pipeline
 
 The goal of DLT is to make it easier and faster to build low-maintenance data pipelines.
 
-It's designed to run anywhere (python 3.8+) and it can fit in your existing workflows or be scheduled independently.
+It's designed to run anywhere (Python 3.8+), so it can fit into your existing workflows or be scheduled independently (e.g. using GitHub Actions)
 
 Learn more with the **[Quickstart Guide](QUICKSTART.md)** and check out **[Example Sources](examples/README.md)** to get started.
 
