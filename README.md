@@ -70,7 +70,7 @@ With good pipelining design, safe loading becomes a non-issue.
 
 ## Why?
 
-Data loading is how all data works starts.
+Data loading is how all data work starts.
 
 The current ecosystem of tools follows an old paradigm, where the data pipeline creator is a software engineer, while the data pipeline user is an analyst.
 
