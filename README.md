@@ -14,13 +14,9 @@
 
 ## What is DLT?
 
-Data Load Tool (DLT) is an open source python library for building data pipelines.
+Data Load Tool (DLT) is an open source python library for building data pipelines. The goal of DLT is to make it easier and faster to build low-maintenance data pipelines. It's designed to run anywhere (Python 3.8+), so it can fit into your existing workflows or be scheduled independently (e.g. using GitHub Actions).
 
-The goal of DLT is to make it easier and faster to build low-maintenance data pipelines.
-
-It's designed to run anywhere (Python 3.8+), so it can fit into your existing workflows or be scheduled independently (e.g. using GitHub Actions)
-
-Learn more with the **[Quickstart Guide](QUICKSTART.md)** and check out **[Example Sources](examples/README.md)** to get started.
+If you are interested in trying DLT out, please email tyler@scalevector.ai :)
 
 ## Who is DLT for?
 
@@ -46,6 +42,7 @@ DLT aims to simplify data loading for the millions of people who have taken at l
 To achieve this, we take into account the progressive steps of data pipelining:
 
 ![](docs/DLT-Diagram_2.png)
+
 ### 1. Data extraction
 
 DLT accepts json and json-producing functions as input, including nested, unstructured data.
@@ -56,29 +53,19 @@ DLT features a configurable normalisation engine that can recursively unpack nes
 
 ### 3. Data loading
 
-When we load data, many things can interrupt the process, so we want to make sure we can safely retry without generating artifacts in the data.
-
-Additionally, it's not uncommon to not know the data size in advance, making it a challenge to match data size to loading infrastructure.
-
-With good pipelining design, safe loading becomes a non-issue.
-
+When we load data, many things can interrupt the process, so we want to make sure we can safely retry without generating artifacts in the data. Additionally, it's not uncommon to not know the data size in advance, making it a challenge to match data size to loading infrastructure. With good pipelining design, safe loading becomes a non-issue.
 
 * Schema evolution - configurable strategy for schema changes: automatic migration or fail&alert.
 * Idempotency & Atomicity: Built in best practices of Atomic loading (all or nothing), and configurable Idempotency (do not double load, incurs a table "read" cost)
 * Data-size agnostic: By using generators (like incremental downloading) and online storage as a buffer, it can incrementally process sources of any size without running into worker-machine size limitations.
 
-
 ## Why?
 
 Data loading is how all data work starts.
 
-The current ecosystem of tools follows an old paradigm, where the data pipeline creator is a software engineer, while the data pipeline user is an analyst.
+The current ecosystem of tools follows an old paradigm, where the data pipeline creator is a software engineer, while the data pipeline user is an analyst. In the real world, the data analyst needs to solve problems end to end, including loading.
 
-In the real world, the data analyst needs to solve problems end to end, including loading.
-
-Currently, there are no simple libraries to achieve this, only clunky frameworks that require engineering expertise to host, run, manage, scale, and maintain.
-
-DLT aims to simplify data pipeline building, making it easier and faster to build low-maintenance pipelines with evolving schemas.
+Currently, there are no simple libraries to achieve this, only clunky frameworks that require engineering expertise to host, run, manage, scale, and maintain. DLT aims to simplify data pipeline building, making it easier and faster to build low-maintenance pipelines with evolving schemas.
 
 ## Why not an OOP framework?
 
@@ -87,7 +74,6 @@ Data professionals operate at the intersection between business, statistics, and
 As a result, the learning curve to create data pipelines using complex Object Oriented Programming (OOP) frameworks / SDKs (e.g. Airbyte, Singer, etc.) is too steep for all but the most tech savvy people.
 
 In contrast, DLT allows you to throw JSON into a database with little to no learning curve.
-
 
 ## Supported data warehouses
 
