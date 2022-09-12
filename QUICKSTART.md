@@ -66,13 +66,13 @@ pip3 install -U python-dlt[gcp]
 
 ## Running the code
 
-Run the script:
+Run the quickstart script in `/examples` folder:
 
 ```
 python3 quickstart.py
 ```
 
-Inspect `schema.yml` that has been generated:
+Inspect `schema.yml` that has been printed by the script or the generated file:
 ```
 vim schema.yml
 ```
