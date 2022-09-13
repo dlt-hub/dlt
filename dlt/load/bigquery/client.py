@@ -66,7 +66,7 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client]):
             credentials = None
         else:
             credentials = service_account.Credentials.from_service_account_info(self.C.as_credentials())
-        self._client = bigquery.Client(self.C.PROJECT_ID, credentials=credentials)
+        self._client = bigquery.Client(self.C.PROJECT_ID, credentials=credentials, location=self.C.LOCATION)
 
     def close_connection(self) -> None:
         if self._client:
