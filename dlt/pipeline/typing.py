@@ -49,12 +49,12 @@ class GCPPipelineCredentials(PipelineCredentials):
         self.DEFAULT_DATASET = new_value
 
     @classmethod
-    def from_services_dict(cls, services: StrAny, dataset_prefix: str, location: str) -> "GCPPipelineCredentials":
+    def from_services_dict(cls, services: StrAny, dataset_prefix: str, location: str = "US") -> "GCPPipelineCredentials":
         assert dataset_prefix is not None
         return cls("bigquery", services["project_id"], dataset_prefix, services["client_email"], services["private_key"], location or cls.LOCATION)
 
     @classmethod
-    def from_services_file(cls, services_path: str, dataset_prefix: str, location: str) -> "GCPPipelineCredentials":
+    def from_services_file(cls, services_path: str, dataset_prefix: str, location: str = "US") -> "GCPPipelineCredentials":
         with open(services_path, "r", encoding="utf-8") as f:
             services = json.load(f)
         return GCPPipelineCredentials.from_services_dict(services, dataset_prefix, location)
