@@ -51,7 +51,7 @@ class GCPPipelineCredentials(PipelineCredentials):
     @classmethod
     def from_services_dict(cls, services: StrAny, dataset_prefix: str, location: str) -> "GCPPipelineCredentials":
         assert dataset_prefix is not None
-        return cls("bigquery", services["project_id"], dataset_prefix, services["client_email"], services["private_key"], location)
+        return cls("bigquery", services["project_id"], dataset_prefix, services["client_email"], services["private_key"], location or cls.LOCATION)
 
     @classmethod
     def from_services_file(cls, services_path: str, dataset_prefix: str, location: str) -> "GCPPipelineCredentials":
@@ -61,7 +61,7 @@ class GCPPipelineCredentials(PipelineCredentials):
 
     @classmethod
     def default_credentials(cls, dataset_prefix: str, project_id: str = None, location: str = None) -> "GCPPipelineCredentials":
-        return cls("bigquery", project_id, dataset_prefix, None, None, location)
+        return cls("bigquery", project_id, dataset_prefix, None, None, location or cls.LOCATION)
 
 
 @dataclass
