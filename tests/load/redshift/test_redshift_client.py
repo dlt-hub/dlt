@@ -101,6 +101,9 @@ def test_simple_load(client: RedshiftClient, file_storage: FileStorage) -> None:
 
 def test_long_names(client: RedshiftClient) -> None:
     long_table_name = prepare_table(client, "long_names", "prospects_external_data__data365_member__member__feed_activities_created_post__items__comments__items__comments__items__author_details__educations")
+    # remove the table from the schema so further tests are not affected.
+    # TODO: remove line when we handle too long names correctly
+    client.schema._schema_tables.pop(long_table_name)
     exists, _ = client._get_storage_table(long_table_name)
     assert exists is False
     exists, table_def = client._get_storage_table(long_table_name[:client.capabilities()["max_identifier_length"]])
