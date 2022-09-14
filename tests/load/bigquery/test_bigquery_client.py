@@ -86,6 +86,25 @@ def test_bigquery_job_errors(client: BigQueryClient, file_storage: FileStorage) 
     assert r_job.status() == "completed"
 
 
+@pytest.mark.skip()
+def test_bigquery_location(client: BigQueryClient, file_storage: FileStorage) -> None:
+    user_table_name = prepare_event_user_table(client)
+    load_json = {
+        "_dlt_id": uniq_id(),
+        "_dlt_root_id": uniq_id(),
+        "sender_id":'90238094809sajlkjxoiewjhduuiuehd',
+        "timestamp": str(pendulum.now())
+    }
+    job = expect_load_file(client, file_storage, json.dumps(load_json), user_table_name)
+
+    # start a job from the same file. it should fallback to retrieve job silently
+    r_job = client.start_file_load(client.schema.get_table(user_table_name), file_storage._make_path(job.file_name()))
+    assert r_job.status() == "completed"
+
+    # client.sql_client.default_dataset_name  - take dataset name
+    # client.sql_client.native_connection()
+
+
 def test_loading_errors(client: BigQueryClient, file_storage: FileStorage) -> None:
     user_table_name = prepare_table(client)
     # insert into unknown column
