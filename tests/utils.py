@@ -1,4 +1,5 @@
 import multiprocessing
+import platform
 import requests
 from typing import Type
 import pytest
@@ -98,4 +99,8 @@ def assert_no_dict_key_starts_with(d: StrAny, key_prefix: str) -> None:
 
 skipifspawn = pytest.mark.skipif(
     multiprocessing.get_start_method() != "fork", reason="process fork not supported"
+)
+
+skipifpypy = pytest.mark.skipif(
+    platform.python_implementation() == "PyPy", reason="won't run in PyPy interpreter"
 )
