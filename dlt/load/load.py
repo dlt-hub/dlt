@@ -89,16 +89,16 @@ class Load(Runnable[ThreadPool]):
         job: LoadJob = None
         try:
             with self.load_client_cls(schema) as client:
-                table_name, loader_file_type = self.load_storage.parse_load_file_name(file_path)
-                if loader_file_type not in client.capabilities()["supported_loader_file_formats"]:
-                    raise LoadClientUnsupportedFileFormats(loader_file_type, client.capabilities()["supported_loader_file_formats"], file_path)
-                logger.info(f"Will load file {file_path} with table name {table_name}")
-                table = self.get_load_table(schema, table_name, file_path)
+                job_info = self.load_storage.parse_job_file_name(file_path)
+                if job_info.file_format not in client.capabilities()["supported_loader_file_formats"]:
+                    raise LoadClientUnsupportedFileFormats(job_info.file_format, client.capabilities()["supported_loader_file_formats"], file_path)
+                logger.info(f"Will load file {file_path} with table name {job_info.table_name}")
+                table = self.get_load_table(schema, job_info.table_name, file_path)
                 if table["write_disposition"] not in ["append", "replace"]:
-                    raise LoadClientUnsupportedWriteDisposition(table_name, table["write_disposition"], file_path)
+                    raise LoadClientUnsupportedWriteDisposition(job_info.table_name, table["write_disposition"], file_path)
                 job = client.start_file_load(table, self.load_storage.storage._make_path(file_path))
         except (LoadClientTerminalException, TerminalValueError):
-            # if job irreversible cannot be started, mark it as failed
+            # if job irreversibly cannot be started, mark it as failed
             logger.exception(f"Terminal problem with spooling job {file_path}")
             job = JobClientBase.make_job_with_status(file_path, "failed", pretty_format_exception())
         except (LoadClientTransientException, Exception):
@@ -177,14 +177,14 @@ class Load(Runnable[ThreadPool]):
                 # try to get exception message from job
                 retry_message = job.exception()
                 # move back to new folder to try again
-                final_location = self.load_storage.retry_job(load_id, job.file_name())
+                self.load_storage.retry_job(load_id, job.file_name())
                 logger.error(f"Job for {job.file_name()} retried in load {load_id} with message {retry_message}")
             elif status == "completed":
                 # move to completed folder
                 final_location = self.load_storage.complete_job(load_id, job.file_name())
                 logger.info(f"Job for {job.file_name()} completed in load {load_id}")
 
-            if status != "running":
+            if status in ["failed", "completed"]:
                 self.job_gauge.labels(status).inc()
                 self.job_counter.labels(status).inc()
                 self.job_wait_summary.observe(self.load_storage.job_elapsed_time_seconds(final_location))
@@ -198,14 +198,14 @@ class Load(Runnable[ThreadPool]):
 
         logger.info("Running file loading")
         # get list of loads and order by name ASC to execute schema updates
-        loads = self.load_storage.list_loads()
+        loads = self.load_storage.list_packages()
         logger.info(f"Found {len(loads)} load packages")
         if len(loads) == 0:
             return TRunMetrics(True, False, 0)
 
         load_id = loads[0]
         logger.info(f"Loading schema from load package in {load_id}")
-        schema = self.load_storage.load_schema(load_id)
+        schema = self.load_storage.load_package_schema(load_id)
         logger.info(f"Loaded schema name {schema.name} and version {schema.stored_version}")
         # initialize analytical storage ie. create dataset required by passed schema
         with self.load_client_cls(schema) as client:
@@ -230,13 +230,13 @@ class Load(Runnable[ThreadPool]):
                 logger.metrics("New jobs metrics",
                                 extra=get_logging_extras([self.job_counter.labels("running"), self.job_gauge.labels("running")])
             )
-        # if there are no existing or new jobs we archive the package
+        # if there are no existing or new jobs we complete the package
         if jobs_count == 0:
             with self.load_client_cls(schema) as client:
                 # TODO: this script should be executed as a job (and contain also code to merge/upsert data and drop temp tables)
                 # TODO: post loading jobs
                 remaining_jobs = client.complete_load(load_id)
-            self.load_storage.archive_load(load_id)
+            self.load_storage.complete_load_package(load_id)
             logger.info(f"All jobs completed, archiving package {load_id}")
             self.load_counter.inc()
             logger.metrics("Load package metrics", extra=get_logging_extras([self.load_counter]))
@@ -250,7 +250,7 @@ class Load(Runnable[ThreadPool]):
                 # this will raise on signal
                 sleep(1)
 
-        return TRunMetrics(False, False, len(self.load_storage.list_loads()))
+        return TRunMetrics(False, False, len(self.load_storage.list_packages()))
 
 
 def main(args: TRunnerArgs) -> int:

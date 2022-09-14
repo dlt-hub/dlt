@@ -10,5 +10,13 @@
     {
         "idx": 3,
         "str": "ऄअआइ'ईउऊऋऌऍऎए"
+    },
+    {
+        "idx": 4,
+        "str": "hello\nworld\t\t\t\r\u0006"
+    },
+    {
+        "idx": 5,
+        "str": "\"'Company name: IVCi. We create, build and support collaborative environments with  those who what to lead, people who want to connect, and companies that want to evolve;\n'\"'"
     }
 ]

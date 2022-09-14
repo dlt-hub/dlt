@@ -181,12 +181,12 @@ def test_normalize_many_schemas(rasa_normalize: Normalize) -> None:
     )
     rasa_normalize.run(ThreadPool(processes=4))
     # must have two loading groups with model and event schemas
-    loads = rasa_normalize.load_storage.list_loads()
+    loads = rasa_normalize.load_storage.list_packages()
     assert len(loads) == 2
     schemas = []
     # load all schemas
     for load_id in loads:
-        schema = rasa_normalize.load_storage.load_schema(load_id)
+        schema = rasa_normalize.load_storage.load_package_schema(load_id)
         schemas.append(schema.name)
         # expect event tables
         if schema.name == "event":
@@ -201,10 +201,10 @@ def test_normalize_typed_json(raw_normalize: Normalize) -> None:
     raw_normalize.load_storage.preferred_file_format = raw_normalize.CONFIG.LOADER_FILE_FORMAT = "jsonl"
     extract_items(raw_normalize.normalize_storage, [JSON_TYPED_DICT], "special")
     raw_normalize.run(ThreadPool(processes=1))
-    loads = raw_normalize.load_storage.list_loads()
+    loads = raw_normalize.load_storage.list_packages()
     assert len(loads) == 1
     # load all schemas
-    schema = raw_normalize.load_storage.load_schema(loads[0])
+    schema = raw_normalize.load_storage.load_package_schema(loads[0])
     assert schema.name == "special"
     # named as schema - default fallback
     table = schema.get_table_columns("special")
@@ -245,7 +245,7 @@ def normalize_event_user(normalize: Normalize, case: str, expected_user_tables: 
 def normalize_cases(normalize: Normalize, cases: Sequence[str]) -> str:
     copy_cases(normalize.normalize_storage, cases)
     load_id = uniq_id()
-    normalize.load_storage.create_temp_load_folder(load_id)
+    normalize.load_storage.create_temp_load_package(load_id)
     # pool not required for map_single
     dest_cases = [f"{NormalizeStorage.EXTRACTED_FOLDER}/{c}.extracted.json" for c in cases]
     # create schema if it does not exist
@@ -265,8 +265,11 @@ def expect_load_package(load_storage: LoadStorage, load_id: str, expected_tables
     assert len(files) == len(expected_tables)
     ofl: Dict[str, str] = {}
     for expected_table in expected_tables:
-        file_mask = load_storage.build_loading_file_name(load_id, expected_table, "*")
-        candidates = [f for f in files if fnmatch(f, f"{LoadStorage.NORMALIZED_FOLDER}/{file_mask}")]
+        # find all files for particular table, ignoring file id
+        file_mask = load_storage.build_job_file_name(expected_table, "*")
+        # files are in normalized/<load_id>/new_jobs
+        file_path = load_storage._get_job_file_path(load_id, "new_jobs", file_mask)
+        candidates = [f for f in files if fnmatch(f, file_path)]
         assert len(candidates) == 1
         ofl[expected_table] = candidates[0]
     return ofl
@@ -280,8 +283,8 @@ def expect_lines_file(load_storage: LoadStorage, load_file: str, line: int = 0) 
 
 def assert_timestamp_data_type(load_storage: LoadStorage, data_type: TDataType) -> None:
     # load generated schema
-    loads = load_storage.list_loads()
-    event_schema = load_storage.load_schema(loads[0])
+    loads = load_storage.list_packages()
+    event_schema = load_storage.load_package_schema(loads[0])
     # in raw normalize timestamp column must not be coerced to timestamp
     assert event_schema.get_table_columns("event")["timestamp"]["data_type"] == data_type
 

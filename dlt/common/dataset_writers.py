@@ -1,3 +1,4 @@
+import re
 import jsonlines
 from datetime import date, datetime  # noqa: I251
 from typing import Any, Iterable, Literal, Sequence, IO
@@ -6,6 +7,10 @@ from dlt.common import json
 from dlt.common.typing import StrAny
 
 TLoaderFileFormat = Literal["jsonl", "insert_values"]
+
+# use regex to escape characters in single pass
+SQL_ESCAPE_DICT = {"'": "''", "\\": "\\\\", "\n": "\\n", "\r": "\\r"}
+SQL_ESCAPE_RE = re.compile("|".join([re.escape(k) for k in sorted(SQL_ESCAPE_DICT, key=len, reverse=True)]), flags=re.DOTALL)
 
 
 def write_jsonl(f: IO[Any], rows: Sequence[Any]) -> None:
@@ -50,7 +55,7 @@ def escape_redshift_literal(v: str) -> str:
     # https://www.postgresql.org/docs/9.3/sql-syntax-lexical.html
     # looks like this is the only thing we need to escape for Postgres > 9.1
     # redshift keeps \ as escape character which is pre 9 behavior
-    return "'" + v.replace("'", "''").replace("\\", "\\\\") + "'"
+    return "{}{}{}".format("'", SQL_ESCAPE_RE.sub(lambda x: SQL_ESCAPE_DICT[x.group(0)], v), "'")
 
 
 def escape_redshift_identifier(v: str) -> str:

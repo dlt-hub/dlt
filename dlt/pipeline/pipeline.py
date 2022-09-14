@@ -223,16 +223,16 @@ class Pipeline:
 
     def list_normalized_loads(self) -> Sequence[str]:
         self._verify_loader_instance()
-        return self._loader_instance.load_storage.list_loads()
+        return self._loader_instance.load_storage.list_packages()
 
     def list_completed_loads(self) -> Sequence[str]:
         self._verify_loader_instance()
-        return self._loader_instance.load_storage.list_completed_loads()
+        return self._loader_instance.load_storage.list_completed_packages()
 
     def list_failed_jobs(self, load_id: str) -> Sequence[Tuple[str, str]]:
         self._verify_loader_instance()
         failed_jobs: List[Tuple[str, str]] = []
-        for file in self._loader_instance.load_storage.list_archived_failed_jobs(load_id):
+        for file in self._loader_instance.load_storage.list_completed_failed_jobs(load_id):
             if not file.endswith(".exception"):
                 try:
                     failed_message = self._loader_instance.load_storage.storage.load(file + ".exception")
@@ -284,7 +284,7 @@ class Pipeline:
             else:
                 raise SqlClientNotAvailable(self._loader_instance.CONFIG.CLIENT_TYPE)
 
-    def run_in_pool(self, run_f: Callable[..., None]) -> int:
+    def run_in_pool(self, run_f: Callable[..., Any]) -> int:
         # internal runners should work in single mode
         self._loader_instance.CONFIG.IS_SINGLE_RUN = True
         self._loader_instance.CONFIG.EXIT_ON_EXCEPTION = True
@@ -292,12 +292,21 @@ class Pipeline:
         self._normalize_instance.CONFIG.EXIT_ON_EXCEPTION = True
 
         def _run(_: Any) -> TRunMetrics:
-            run_f()
-            return TRunMetrics(False, False, 0)
+            rv = run_f()
+            if isinstance(rv, TRunMetrics):
+                return rv
+            if isinstance(rv, int):
+                pending = rv
+            else:
+                pending = 1
+            return TRunMetrics(False, False, int(pending))
 
         # run the fun
         ec = runner.run_pool(self.C, _run)
-        if runner.LAST_RUN_METRICS.has_failed:
+        # ec > 0 - signalled
+        # -1 - runner was not able to start
+
+        if runner.LAST_RUN_METRICS is not None and runner.LAST_RUN_METRICS.has_failed:
             raise self.last_run_exception
         return ec
 

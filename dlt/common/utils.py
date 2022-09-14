@@ -17,8 +17,8 @@ def chunks(seq: Sequence[T], n: int) -> Iterator[Sequence[T]]:
         yield seq[i:i + n]
 
 
-def uniq_id() -> str:
-    return secrets.token_hex(16)
+def uniq_id(len_: int = 16) -> str:
+    return secrets.token_hex(len_)
 
 
 def digest128(v: str) -> str:

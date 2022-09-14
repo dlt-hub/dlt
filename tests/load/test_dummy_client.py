@@ -1,4 +1,5 @@
 import shutil
+import os
 from os import environ
 from multiprocessing.pool import ThreadPool
 from typing import List, Sequence, Tuple
@@ -20,6 +21,12 @@ from dlt.load import Load, __version__
 from dlt.load.dummy.configuration import DummyClientConfiguration
 
 from tests.utils import clean_storage, init_logger
+
+
+NORMALIZED_FILES = [
+    "event_user.839c6e6b514e427687586ccc65bf133f.0.jsonl",
+    "event_loop_interrupted.839c6e6b514e427687586ccc65bf133f.0.jsonl"
+]
 
 
 @pytest.fixture(autouse=True)
@@ -49,8 +56,7 @@ def test_spool_job_started() -> None:
     load = setup_loader()
     load_id, schema = prepare_load_package(
         load.load_storage,
-        ["event_user.839c6e6b514e427687586ccc65bf133f.jsonl",
-        "event_loop_interrupted.839c6e6b514e427687586ccc65bf133f.jsonl"]
+        NORMALIZED_FILES
     )
     files = load.load_storage.list_new_jobs(load_id)
     assert len(files) == 2
@@ -59,7 +65,7 @@ def test_spool_job_started() -> None:
         job = Load.w_spool_job(load, f, load_id, schema)
         assert type(job) is client.LoadDummyJob
         assert job.status() == "running"
-        assert load.load_storage.storage.has_file(load.load_storage._get_file_path(load_id, LoadStorage.STARTED_JOBS_FOLDER, job.file_name()))
+        assert load.load_storage.storage.has_file(load.load_storage._get_job_file_path(load_id, LoadStorage.STARTED_JOBS_FOLDER, job.file_name()))
         jobs.append(job)
     # still running
     remaining_jobs = load.complete_jobs(load_id, jobs)
@@ -70,7 +76,7 @@ def test_unsupported_writer_type() -> None:
     load = setup_loader()
     load_id, _ = prepare_load_package(
         load.load_storage,
-        ["event_bot.181291798a78198.unsupported_format"]
+        ["event_bot.181291798a78198.0.unsupported_format"]
     )
     with pytest.raises(TerminalValueError):
         load.load_storage.list_new_jobs(load_id)
@@ -80,7 +86,7 @@ def test_unsupported_write_disposition() -> None:
     load = setup_loader()
     load_id, schema = prepare_load_package(
         load.load_storage,
-        ["event_user.839c6e6b514e427687586ccc65bf133f.jsonl"]
+        [NORMALIZED_FILES[0]]
     )
     # mock unsupported disposition
     schema.get_table("event_user")["write_disposition"] = "merge"
@@ -97,8 +103,7 @@ def test_spool_job_failed() -> None:
     load = setup_loader(initial_client_values={"FAIL_PROB" : 1.0})
     load_id, schema = prepare_load_package(
         load.load_storage,
-        ["event_user.839c6e6b514e427687586ccc65bf133f.jsonl",
-        "event_loop_interrupted.839c6e6b514e427687586ccc65bf133f.jsonl"]
+        NORMALIZED_FILES
     )
     files = load.load_storage.list_new_jobs(load_id)
     jobs: List[LoadJob] = []
@@ -106,14 +111,14 @@ def test_spool_job_failed() -> None:
         job = Load.w_spool_job(load, f, load_id, schema)
         assert type(job) is LoadEmptyJob
         assert job.status() == "failed"
-        assert load.load_storage.storage.has_file(load.load_storage._get_file_path(load_id, LoadStorage.STARTED_JOBS_FOLDER, job.file_name()))
+        assert load.load_storage.storage.has_file(load.load_storage._get_job_file_path(load_id, LoadStorage.STARTED_JOBS_FOLDER, job.file_name()))
         jobs.append(job)
     # complete files
     remaining_jobs = load.complete_jobs(load_id, jobs)
     assert len(remaining_jobs) == 0
     for job in jobs:
-        assert load.load_storage.storage.has_file(load.load_storage._get_file_path(load_id, LoadStorage.FAILED_JOBS_FOLDER, job.file_name()))
-        assert load.load_storage.storage.has_file(load.load_storage._get_file_path(load_id, LoadStorage.FAILED_JOBS_FOLDER, job.file_name() + ".exception"))
+        assert load.load_storage.storage.has_file(load.load_storage._get_job_file_path(load_id, LoadStorage.FAILED_JOBS_FOLDER, job.file_name()))
+        assert load.load_storage.storage.has_file(load.load_storage._get_job_file_path(load_id, LoadStorage.FAILED_JOBS_FOLDER, job.file_name() + ".exception"))
     started_files = load.load_storage.list_started_jobs(load_id)
     assert len(started_files) == 0
 
@@ -123,8 +128,7 @@ def test_spool_job_retry_new() -> None:
     load = setup_loader(initial_client_values={"RETRY_PROB" : 1.0})
     load_id, schema = prepare_load_package(
         load.load_storage,
-        ["event_user.839c6e6b514e427687586ccc65bf133f.jsonl",
-        "event_loop_interrupted.839c6e6b514e427687586ccc65bf133f.jsonl"]
+        NORMALIZED_FILES
     )
     files = load.load_storage.list_new_jobs(load_id)
     for f in files:
@@ -144,8 +148,7 @@ def test_spool_job_retry_started() -> None:
     client.CLIENT_CONFIG = DummyClientConfiguration
     load_id, schema = prepare_load_package(
         load.load_storage,
-        ["event_user.839c6e6b514e427687586ccc65bf133f.jsonl",
-        "event_loop_interrupted.839c6e6b514e427687586ccc65bf133f.jsonl"]
+        NORMALIZED_FILES
     )
     files = load.load_storage.list_new_jobs(load_id)
     jobs: List[LoadJob] = []
@@ -153,7 +156,7 @@ def test_spool_job_retry_started() -> None:
         job = Load.w_spool_job(load, f, load_id, schema)
         assert type(job) is client.LoadDummyJob
         assert job.status() == "running"
-        assert  load.load_storage.storage.has_file(load.load_storage._get_file_path(load_id, LoadStorage.STARTED_JOBS_FOLDER, job.file_name()))
+        assert  load.load_storage.storage.has_file(load.load_storage._get_job_file_path(load_id, LoadStorage.STARTED_JOBS_FOLDER, job.file_name()))
         # mock job config to make it retry
         job.retry_prob = 1.0
         jobs.append(job)
@@ -166,6 +169,10 @@ def test_spool_job_retry_started() -> None:
     client.JOBS = {}
     files = load.load_storage.list_new_jobs(load_id)
     assert len(files) == 2
+    # parse the new job names
+    for fn in load.load_storage.list_new_jobs(load_id):
+        # we failed when already running the job so retry count will increase
+        assert LoadStorage.parse_job_file_name(fn).retry_count == 1
     for f in files:
         job = Load.w_spool_job(load, f, load_id, schema)
         assert job.status() == "running"
@@ -175,8 +182,7 @@ def test_try_retrieve_job() -> None:
     load = setup_loader()
     load_id, schema = prepare_load_package(
         load.load_storage,
-        ["event_user.839c6e6b514e427687586ccc65bf133f.jsonl",
-        "event_loop_interrupted.839c6e6b514e427687586ccc65bf133f.jsonl"]
+        NORMALIZED_FILES
     )
     # manually move jobs to started
     files = load.load_storage.list_new_jobs(load_id)
@@ -192,8 +198,7 @@ def test_try_retrieve_job() -> None:
     # new load package
     load_id, schema = prepare_load_package(
         load.load_storage,
-        ["event_user.839c6e6b514e427687586ccc65bf133f.jsonl",
-        "event_loop_interrupted.839c6e6b514e427687586ccc65bf133f.jsonl"]
+        NORMALIZED_FILES
     )
     load.pool = ThreadPool()
     jobs_count, jobs = load.spool_new_jobs(load_id, schema)
@@ -230,8 +235,7 @@ def test_retry_on_new_loop() -> None:
     load = setup_loader(initial_client_values={"RETRY_PROB" : 1.0})
     load_id, schema = prepare_load_package(
         load.load_storage,
-        ["event_user.839c6e6b514e427687586ccc65bf133f.jsonl",
-        "event_loop_interrupted.839c6e6b514e427687586ccc65bf133f.jsonl"]
+        NORMALIZED_FILES
     )
     load.run(ThreadPool())
     files = load.load_storage.list_new_jobs(load_id)
@@ -249,15 +253,20 @@ def test_retry_on_new_loop() -> None:
     files = load.load_storage.list_new_jobs(load_id)
     assert len(files) == 0
     load.run(ThreadPool())
-    assert not load.load_storage.storage.has_folder(load.load_storage.get_load_path(load_id))
+    assert not load.load_storage.storage.has_folder(load.load_storage.get_package_path(load_id))
+    # parse the completed job names
+    completed_path = load.load_storage.get_completed_package_path(load_id)
+    for fn in load.load_storage.storage.list_folder_files(os.path.join(completed_path, LoadStorage.COMPLETED_JOBS_FOLDER)):
+        # we failed on initializing a job, in that case the retry count will not be updated
+        assert LoadStorage.parse_job_file_name(fn).retry_count == 0
 
 
 def test_wrong_writer_type() -> None:
     load = setup_loader()
     load_id, _ = prepare_load_package(
         load.load_storage,
-        ["event_bot.b1d32c6660b242aaabbf3fc27245b7e6.insert_values",
-        "event_user.b1d32c6660b242aaabbf3fc27245b7e6.insert_values"]
+        ["event_bot.b1d32c6660b242aaabbf3fc27245b7e6.0.insert_values",
+        "event_user.b1d32c6660b242aaabbf3fc27245b7e6.0.insert_values"]
     )
     with pytest.raises(JobWithUnsupportedWriterException) as exv:
         load.run(ThreadPool())
@@ -280,40 +289,39 @@ def test_version() -> None:
 def assert_complete_job(load: Load, storage: FileStorage, should_delete_completed: bool = False) -> None:
     load_id, _ = prepare_load_package(
         load.load_storage,
-        ["event_user.839c6e6b514e427687586ccc65bf133f.jsonl",
-        "event_loop_interrupted.839c6e6b514e427687586ccc65bf133f.jsonl"]
+        NORMALIZED_FILES
     )
     # will complete all jobs
     with patch.object(client.DummyClient, "complete_load") as complete_load:
         load.run(ThreadPool())
         # did process schema update
-        assert storage.has_file(load.load_storage._get_file_path(load_id, LoadStorage.COMPLETED_JOBS_FOLDER, LoadStorage.LOAD_SCHEMA_UPDATE_FILE_NAME))
+        assert storage.has_file(os.path.join(load.load_storage.get_package_path(load_id), LoadStorage.PROCESSED_SCHEMA_UPDATES_FILE_NAME))
         # will finalize the whole package
         load.run(ThreadPool())
         # moved to loaded
-        assert not storage.has_folder(load.load_storage.get_load_path(load_id))
-        archived_path = load.load_storage.get_archived_path(load_id)
+        assert not storage.has_folder(load.load_storage.get_package_path(load_id))
+        completed_path = load.load_storage.get_completed_package_path(load_id)
         if should_delete_completed:
-            # archive was deleted
-            assert not storage.has_folder(archived_path)
+            # package was deleted
+            assert not storage.has_folder(completed_path)
         else:
-            # archive not deleted
-            assert storage.has_folder(archived_path)
+            # package not deleted
+            assert storage.has_folder(completed_path)
         # complete load on client was called
         complete_load.assert_called_once_with(load_id)
 
 
 def prepare_load_package(load_storage: LoadStorage, cases: Sequence[str]) -> Tuple[str, Schema]:
     load_id = uniq_id()
-    load_storage.create_temp_load_folder(load_id)
+    load_storage.create_temp_load_package(load_id)
     for case in cases:
         path = f"./tests/load/cases/loading/{case}"
         shutil.copy(path, load_storage.storage._make_path(f"{load_id}/{LoadStorage.NEW_JOBS_FOLDER}"))
     for f in ["schema_updates.json", "schema.json"]:
         path = f"./tests/load/cases/loading/{f}"
         shutil.copy(path, load_storage.storage._make_path(load_id))
-    load_storage.commit_temp_load_folder(load_id)
-    schema = load_storage.load_schema(load_id)
+    load_storage.commit_temp_load_package(load_id)
+    schema = load_storage.load_package_schema(load_id)
     return load_id, schema
 
 
@@ -322,7 +330,8 @@ def setup_loader(initial_values: StrAny = None, initial_client_values: StrAny = 
     client.JOBS = {}
 
     default_values = {
-        "CLIENT_TYPE": "dummy"
+        "CLIENT_TYPE": "dummy",
+        "DELETE_COMPLETED_JOBS": False
     }
     default_client_values = {
         "LOADER_FILE_FORMAT": "jsonl"

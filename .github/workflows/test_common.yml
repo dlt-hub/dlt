@@ -54,10 +54,10 @@ jobs:
 
       - name: Install dependencies
         # if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction --no-root
-
-      - name: Install self
         run: poetry install --no-interaction
+
+      # - name: Install self
+      #   run: poetry install --no-interaction
 
       - run: |
           LOG_LEVEL=ERROR poetry run pytest tests --ignore=tests/load --ignore=tests/dbt_runner

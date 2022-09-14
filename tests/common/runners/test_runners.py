@@ -142,7 +142,7 @@ def test_good_then_failing_run() -> None:
         configure(LimitedPoolRunnerConfiguration, TRunnerArgs(False, 0)),
         good_then_failing_run
     )
-    assert code == -2
+    assert code == 0
     assert runner.update_gauges() == {
         "runs_count": 5,
         "runs_not_idle_count": 2,
@@ -160,7 +160,7 @@ def test_failing_then_good_run() -> None:
         configure(LimitedPoolRunnerConfiguration, TRunnerArgs(False, 0)),
         failing_then_good_run
     )
-    assert code == -2
+    assert code == 0
     assert runner.update_gauges() == {
         "runs_count": 5,
         "runs_not_idle_count": 3,
@@ -214,7 +214,7 @@ def test_stop_after_max_runs() -> None:
         configure(LimitedPoolRunnerConfiguration, TRunnerArgs(False, 0)),
         failing_then_good_run
     )
-    assert code == -2
+    assert code == 0
     assert runner.update_gauges()["runs_count"] == 5
 
 
