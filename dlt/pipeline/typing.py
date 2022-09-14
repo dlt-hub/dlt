@@ -34,7 +34,7 @@ class GCPPipelineCredentials(PipelineCredentials):
     DEFAULT_DATASET: str = None
     CLIENT_EMAIL: str = None
     PRIVATE_KEY: TSecretValue = None
-    LOCATION: str = None
+    LOCATION: str = "US"
     CRED_TYPE: str = "service_account"
     TOKEN_URI: str = "https://oauth2.googleapis.com/token"
     HTTP_TIMEOUT: float = 15.0
