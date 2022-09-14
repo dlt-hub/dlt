@@ -82,11 +82,13 @@ class Normalize(Runnable[ProcessPool]):
 
         # process all event files and store rows in memory
         for events_file in events_files:
+            i: int = 0
+            event: TDataItem = None
             try:
                 logger.debug(f"Processing events file {events_file} in load_id {load_id} with file_id {file_id}")
                 with self.normalize_storage.storage.open_file(events_file) as f:
                     events: Sequence[TDataItem] = json.load(f)
-                for event in events:
+                for i, event in enumerate(events):
                     for (table_name, parent_table), row in schema.normalize_data_item(schema, event, load_id):
                         # filter row, may eliminate some or all fields
                         row = schema.filter_row(table_name, row)
@@ -105,8 +107,11 @@ class Normalize(Runnable[ProcessPool]):
                             # store row
                             rows = normalized_data.setdefault(table_name, [])
                             rows.append(row)
+                    if i % 100 == 0:
+                        logger.debug(f"Processed {i} of {len(events)} events")
             except Exception:
-                logger.exception(f"Exception when processing file {events_file}")
+                logger.exception(f"Exception when processing file {events_file}, event idx {i}")
+                logger.debug(f"Affected event: {event}")
                 raise PoolException("normalize_files", events_file)
 
         # save rows and return schema changes to be gathered in parent process

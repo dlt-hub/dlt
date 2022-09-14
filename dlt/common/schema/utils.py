@@ -1,12 +1,15 @@
-from copy import deepcopy
 import re
 import base64
 import binascii
 import hashlib
 import datetime  # noqa: I251
+import contextlib
+from copy import deepcopy
 from typing import Dict, List, Sequence, Tuple, Type, Any, cast
 
 from dlt.common import pendulum, json, Decimal, Wei
+from pendulum.parsing import parse_iso8601, _parse_common as parse_datetime_common
+from pendulum.tz import UTC
 from dlt.common.json import custom_encode as json_custom_encode
 from dlt.common.arithmetics import InvalidOperation
 from dlt.common.exceptions import DictValidationException
@@ -372,25 +375,52 @@ def coerce_type(to_type: TDataType, from_type: TDataType, value: Any) -> Any:
                     raise ValueError(trim_value)
 
     if to_type == "timestamp":
-        if from_type in ["bigint", "double"]:
-            # returns ISO datetime with timezone
-            return pendulum.from_timestamp(value)
-
-        if from_type == "text":
-            # if parses as ISO date then pass it
-            try:
-                dtv = pendulum.parse(value, strict=False, exact=True)
-                if isinstance(dtv, datetime.time):
-                    raise ValueError(value)
-                return dtv
-            except ValueError:
-                # try to convert string to integer, or float
-                try:
-                    value = int(value)
-                except ValueError:
-                    # raises ValueError if not parsing correctly
-                    value = float(value)
+        try:
+            if from_type in ["bigint", "double"]:
+                # returns ISO datetime with timezone
                 return pendulum.from_timestamp(value)
+
+            if from_type == "text":
+                try:
+                    # we use internal pendulum parse function. the generic function for example parses string "now" as now()
+                    # it also tries to parse ISO intervals but the code is very low quality
+                    # so it does not seem to be under control
+
+                    # only iso dates are allowed
+                    dtv = None
+                    with contextlib.suppress(ValueError):
+                        dtv = parse_iso8601(value)
+                    # now try to parse a set of ISO like dates
+                    if not dtv:
+                        dtv = parse_datetime_common(value)
+                    if isinstance(dtv, datetime.time):
+                        raise ValueError(value)
+                    if isinstance(dtv, datetime.datetime):
+                        return pendulum.datetime(
+                            dtv.year,
+                            dtv.month,
+                            dtv.day,
+                            dtv.hour,
+                            dtv.minute,
+                            dtv.second,
+                            dtv.microsecond,
+                            tz=dtv.tzinfo or UTC  # type: ignore
+                        )
+                    return dtv
+                except ValueError:
+                    # try to convert string to integer, or float
+                    try:
+                        value = float(value)
+                        return pendulum.from_timestamp(value)
+                    except ValueError:
+                        raise ValueError(value)
+        except OverflowError:
+            # when parsed data is converted to integer and must stay within some size
+            # id that is not possible OverflowError is raised and text cannot be represented as datetime
+            raise ValueError(value)
+        except Exception:
+            # catch all problems in pendulum
+            raise ValueError(value)
 
     if to_type == "bool":
         if from_type == "text":
