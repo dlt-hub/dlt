@@ -43,6 +43,7 @@ def main() -> None:
     pipeline.add_argument("operation", choices=["failed_loads"], default="failed_loads", help="Show failed loads for a pipeline")
 
     # TODO: consider using fire: https://github.com/google/python-fire
+    # TODO: this also looks better https://click.palletsprojects.com/en/8.1.x/complex/#complex-guide
     args = parser.parse_args()
     run_f: Callable[[TRunnerArgs], None] = None
 

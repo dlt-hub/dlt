@@ -369,7 +369,9 @@ class BigQueryClient(SqlJobClientBase):
     def capabilities(cls) -> TLoaderCapabilities:
         return {
             "preferred_loader_file_format": "jsonl",
-            "supported_loader_file_formats": ["jsonl"]
+            "supported_loader_file_formats": ["jsonl"],
+            "max_identifier_length": 1024,
+            "max_column_length": 300
         }
 
     @classmethod

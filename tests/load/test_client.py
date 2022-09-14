@@ -14,7 +14,7 @@ from dlt.load.client_base import DBCursor, SqlJobClientBase
 
 from tests.utils import TEST_STORAGE, delete_storage
 from tests.common.utils import load_json_case
-from tests.load.utils import TABLE_UPDATE, TABLE_ROW, expect_load_file, yield_client_with_storage, write_dataset, prepare_event_user_table
+from tests.load.utils import TABLE_UPDATE, TABLE_ROW, expect_load_file, yield_client_with_storage, write_dataset, prepare_table
 
 
 ALL_CLIENTS = ['redshift_client', 'bigquery_client']
@@ -314,7 +314,7 @@ def test_write_dispositions(client: SqlJobClientBase, write_disposition: str, fi
 
 @pytest.mark.parametrize('client', ALL_CLIENTS, indirect=True)
 def test_retrieve_job(client: SqlJobClientBase, file_storage: FileStorage) -> None:
-    user_table_name = prepare_event_user_table(client)
+    user_table_name = prepare_table(client)
     load_json = {
         "_dlt_id": uniq_id(),
         "_dlt_root_id": uniq_id(),

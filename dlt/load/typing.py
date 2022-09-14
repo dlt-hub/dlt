@@ -11,6 +11,8 @@ TNativeConn = TypeVar("TNativeConn", bound="object")
 class TLoaderCapabilities(TypedDict):
     preferred_loader_file_format: TLoaderFileFormat
     supported_loader_file_formats: List[TLoaderFileFormat]
+    max_identifier_length: int
+    max_column_length: int
 
 
 # type for dbapi cursor

@@ -1,5 +1,4 @@
 from typing import Iterator
-import psycopg2
 import pytest
 
 from dlt.common import pendulum, Decimal
@@ -10,10 +9,10 @@ from dlt.common.utils import uniq_id
 
 from dlt.load.exceptions import LoadClientTerminalInnerException
 from dlt.load import Load
-from dlt.load.redshift.client import RedshiftClient, RedshiftInsertLoadJob
+from dlt.load.redshift.client import RedshiftClient, RedshiftInsertLoadJob, psycopg2
 
-from tests.utils import TEST_STORAGE, delete_storage
-from tests.load.utils import expect_load_file, prepare_event_user_table, yield_client_with_storage
+from tests.utils import TEST_STORAGE, delete_storage, skipifpypy
+from tests.load.utils import expect_load_file, prepare_table, yield_client_with_storage
 
 
 @pytest.fixture
@@ -57,21 +56,21 @@ def test_recover_tx_rollback(client: RedshiftClient) -> None:
     version_table = client.sql_client.make_qualified_table_name("_dlt_version")
     # simple syntax error
     sql = f"SELEXT * FROM {version_table}"
-    with pytest.raises(psycopg2.errors.SyntaxError):
+    with pytest.raises(psycopg2.ProgrammingError):
         client.sql_client.execute_sql(sql)
     # still can execute tx and selects
     client._get_schema_version_from_storage()
     client._update_schema_version(3)
     # syntax error within tx
     sql = f"BEGIN TRANSACTION;INVERT INTO {version_table} VALUES(1);COMMIT TRANSACTION;"
-    with pytest.raises(psycopg2.errors.SyntaxError):
+    with pytest.raises(psycopg2.ProgrammingError):
         client.sql_client.execute_sql(sql)
     client._get_schema_version_from_storage()
     client._update_schema_version(4)
     # wrong value inserted
     sql = f"BEGIN TRANSACTION;INSERT INTO {version_table}(version) VALUES(1);COMMIT TRANSACTION;"
     # cannot insert NULL value
-    with pytest.raises(psycopg2.errors.InternalError_):
+    with pytest.raises(psycopg2.InternalError):
         client.sql_client.execute_sql(sql)
     client._get_schema_version_from_storage()
     # lower the schema version in storage so subsequent tests can run
@@ -79,7 +78,7 @@ def test_recover_tx_rollback(client: RedshiftClient) -> None:
 
 
 def test_simple_load(client: RedshiftClient, file_storage: FileStorage) -> None:
-    user_table_name = prepare_event_user_table(client)
+    user_table_name = prepare_table(client)
     canonical_name = client.sql_client.make_qualified_table_name(user_table_name)
     # create insert
     insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp)\nVALUES\n"
@@ -100,8 +99,20 @@ def test_simple_load(client: RedshiftClient, file_storage: FileStorage) -> None:
     assert rows_count == 102
 
 
+def test_long_names(client: RedshiftClient) -> None:
+    long_table_name = prepare_table(client, "long_names", "prospects_external_data__data365_member__member__feed_activities_created_post__items__comments__items__comments__items__author_details__educations")
+    exists, _ = client._get_storage_table(long_table_name)
+    assert exists is False
+    exists, table_def = client._get_storage_table(long_table_name[:client.capabilities()["max_identifier_length"]])
+    assert exists is True
+    long_column_name = "prospects_external_data__data365_member__member__feed_activities_created_post__items__comments__items__comments__items__author_details__educations__school_name"
+    assert long_column_name not in table_def
+    assert long_column_name[:client.capabilities()["max_column_length"]] in table_def
+
+
+@skipifpypy
 def test_loading_errors(client: RedshiftClient, file_storage: FileStorage) -> None:
-    user_table_name = prepare_event_user_table(client)
+    user_table_name = prepare_table(client)
     # insert string longer than redshift maximum
     insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp)\nVALUES\n"
     # try some unicode value - redshift checks the max length based on utf-8 representation, not the number of characters
@@ -168,7 +179,7 @@ def test_query_split(client: RedshiftClient, file_storage: FileStorage) -> None:
     try:
         # this guarantees that we execute inserts line by line
         RedshiftInsertLoadJob.MAX_STATEMENT_SIZE = 1
-        user_table_name = prepare_event_user_table(client)
+        user_table_name = prepare_table(client)
         insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp)\nVALUES\n"
         insert_values = "('{}', '{}', '90238094809sajlkjxoiewjhduuiuehd', '{}')"
         ids = []
@@ -192,17 +203,16 @@ def test_query_split(client: RedshiftClient, file_storage: FileStorage) -> None:
     finally:
         RedshiftInsertLoadJob.MAX_STATEMENT_SIZE = max_statement_size
 
-
-@pytest.mark.skip()
+@pytest.mark.skip
 def test_maximum_statement(client: RedshiftClient, file_storage: FileStorage) -> None:
-    # to enable this test, you must increase RedshiftInsertLoadJob.MAX_STATEMENT_SIZE = 20 * 1024 * 1024
+    assert RedshiftInsertLoadJob.MAX_STATEMENT_SIZE == 20 * 1024 * 1024, "to enable this test, you must increase RedshiftInsertLoadJob.MAX_STATEMENT_SIZE = 20 * 1024 * 1024"
     insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp)\nVALUES\n"
     insert_values = "('{}', '{}', '90238094809sajlkjxoiewjhduuiuehd', '{}'){}"
     insert_sql = insert_sql + insert_values.format(uniq_id(), uniq_id(), str(pendulum.now()), ",\n") * 150000
     insert_sql += insert_values.format(uniq_id(), uniq_id(), str(pendulum.now()), ";")
 
-    user_table_name = prepare_event_user_table(client)
+    user_table_name = prepare_table(client)
     with pytest.raises(LoadClientTerminalInnerException) as exv:
         expect_load_file(client, file_storage, insert_sql, user_table_name)
     # psycopg2.errors.SyntaxError: Statement is too large. Statement Size: 20971754 bytes. Maximum Allowed: 16777216 bytes
-    assert type(exv.value.inner_exc) is psycopg2.errors.SyntaxError
+    assert type(exv.value.inner_exc) is psycopg2.ProgrammingError
