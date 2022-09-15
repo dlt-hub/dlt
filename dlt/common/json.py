@@ -7,11 +7,15 @@ from uuid import UUID
 from hexbytes import HexBytes
 import simplejson
 from simplejson.raw_json import RawJSON
+import platform
+
+if platform.python_implementation() == "PyPy":
+    # disable speedups on PyPy, it can be actually faster than Python C
+    simplejson._toggle_speedups(False)  # type: ignore
 
 from dlt.common.arithmetics import Decimal
 from dlt.common.wei import Wei
 
-# simplejson._toggle_speedups(False)
 
 def custom_encode(obj: Any) -> str:
     if isinstance(obj, Decimal):

@@ -93,10 +93,10 @@ def expect_load_file(client: JobClientBase, file_storage: FileStorage, query: st
     return job
 
 
-def prepare_event_user_table(client: JobClientBase) -> None:
+def prepare_table(client: JobClientBase, case_name: str = "event_user", table_name: str = "event_user") -> None:
     client.update_storage_schema()
-    user_table = load_table("event_user")["event_user"]
-    user_table_name = "event_user_" + uniq_id()
+    user_table = load_table(case_name)[table_name]
+    user_table_name = table_name + uniq_id()
     client.schema.update_schema(new_table(user_table_name, columns=user_table.values()))
     client.schema.bump_version()
     client.update_storage_schema()

@@ -135,15 +135,39 @@ def test_coerce_type_to_timestamp() -> None:
     assert utils.coerce_type("timestamp", "double", 1633344898.7415245) == pendulum.parse("2021-10-04T10:54:58.741524+00:00")
     # if text is ISO string it will be coerced
     assert utils.coerce_type("timestamp", "text", "2022-05-10T03:41:31.466000+00:00") == pendulum.parse("2022-05-10T03:41:31.466000+00:00")
+    assert utils.coerce_type("timestamp", "text", "2022-05-10T03:41:31.466+02:00") == pendulum.parse("2022-05-10T01:41:31.466Z")
+    assert utils.coerce_type("timestamp", "text", "2022-05-10T03:41:31.466+0200") == pendulum.parse("2022-05-10T01:41:31.466Z")
     # parse almost ISO compliant string
+    assert utils.coerce_type("timestamp", "text", "2022-04-26 10:36+02") == pendulum.parse("2022-04-26T10:36:00+02:00")
     assert utils.coerce_type("timestamp", "text", "2022-04-26 10:36") == pendulum.parse("2022-04-26T10:36:00+00:00")
     # parse date string
     assert utils.coerce_type("timestamp", "text", "2021-04-25") == pendulum.parse("2021-04-25", exact=True)
-    # parse RFC 822 string
-    assert utils.coerce_type("timestamp", "text", "Wed, 06 Jul 2022 11:58:08 +0000") == pendulum.parse("2022-07-06T11:58:08Z")
-    # parse RFC RFC 2822
-    # the case above interprets the year as 2006
-    # assert utils.coerce_type("timestamp", "text", "Wednesday, 06-Jul-22 11:58:08 UTC") == pendulum.parse("2022-07-06T11:58:08Z")
+
+    # fails on "now" - yes pendulum by default parses "now" as .now()
+    with pytest.raises(ValueError):
+        utils.coerce_type("timestamp", "text", "now")
+
+    # fails on intervals - pendulum by default parses a string into: datetime, data, time or interval
+    with pytest.raises(ValueError):
+        utils.coerce_type("timestamp", "text", "2007-03-01T13:00:00Z/2008-05-11T15:30:00Z")
+    with pytest.raises(ValueError):
+        utils.coerce_type("timestamp", "text", "2011--20012")
+
+    # test wrong unix timestamps
+    with pytest.raises(ValueError):
+        print(utils.coerce_type("timestamp", "double", -1000000000000000000000000000))
+    with pytest.raises(ValueError):
+        print(utils.coerce_type("timestamp", "double", 1000000000000000000000000000))
+
+    # formats with timezones are not parsed
+    with pytest.raises(ValueError):
+        print(utils.coerce_type("timestamp", "text", "06/04/22, 11:15PM IST"))
+
+    # we do not parse RFC 822, 2822, 850 etc.
+    with pytest.raises(ValueError):
+        utils.coerce_type("timestamp", "text", "Wed, 06 Jul 2022 11:58:08 +0200")
+    with pytest.raises(ValueError):
+        utils.coerce_type("timestamp", "text", "Tuesday, 13-Sep-22 18:42:31 UTC")
 
     # time data type not supported yet
     with pytest.raises(ValueError):

@@ -13,7 +13,7 @@ from dlt.load import Load
 from dlt.load.bigquery.client import BigQueryClient
 
 from tests.utils import TEST_STORAGE, delete_storage
-from tests.load.utils import expect_load_file, prepare_event_user_table, yield_client_with_storage
+from tests.load.utils import expect_load_file, prepare_table, yield_client_with_storage
 
 
 @pytest.fixture(scope="module")
@@ -61,7 +61,7 @@ def test_bigquery_job_errors(client: BigQueryClient, file_storage: FileStorage) 
     with pytest.raises(LoadJobServerTerminalException):
         client.restore_file_load("!!&*aaa")
 
-    user_table_name = prepare_event_user_table(client)
+    user_table_name = prepare_table(client)
 
     # start job with non existing file
     with pytest.raises(FileNotFoundError):
@@ -72,7 +72,7 @@ def test_bigquery_job_errors(client: BigQueryClient, file_storage: FileStorage) 
     with pytest.raises(LoadJobServerTerminalException):
         client.start_file_load(client.schema.get_table(user_table_name), dest_path)
 
-    user_table_name = prepare_event_user_table(client)
+    user_table_name = prepare_table(client)
     load_json = {
         "_dlt_id": uniq_id(),
         "_dlt_root_id": uniq_id(),
@@ -87,7 +87,7 @@ def test_bigquery_job_errors(client: BigQueryClient, file_storage: FileStorage) 
 
 
 def test_loading_errors(client: BigQueryClient, file_storage: FileStorage) -> None:
-    user_table_name = prepare_event_user_table(client)
+    user_table_name = prepare_table(client)
     # insert into unknown column
     load_json = {
         "_dlt_id": uniq_id(),

@@ -9,7 +9,7 @@ from dlt.common.typing import TDataItem
 TDirectDataItem = Union[TDataItem, Sequence[TDataItem]]
 TDeferredDataItem = Callable[[], TDirectDataItem]
 TAwaitableDataItem = Awaitable[TDirectDataItem]
-TPendingDataItem = Union[TDirectDataItem, TDeferredDataItem, TAwaitableDataItem]
+TResolvableDataItem = Union[TDirectDataItem, TDeferredDataItem, TAwaitableDataItem]
 
 # TBoundItem = TypeVar("TBoundItem", bound=TDataItem)
 # TDeferreBoundItem = Callable[[], TBoundItem]
@@ -32,12 +32,12 @@ class TableMetadataMixin:
 _i_info: TableMetadataMixin = None
 
 
-def extractor_resolver(i: Union[Iterator[TPendingDataItem], Iterable[TPendingDataItem]], selected_tables: List[str] = None) -> Iterator[TDataItem]:
+def extractor_resolver(i: Union[Iterator[TResolvableDataItem], Iterable[TResolvableDataItem]], selected_tables: List[str] = None) -> Iterator[TDataItem]:
 
     if not isinstance(i, abc.Iterator):
         i = iter(i)
 
-    for item in i:
+    # for item in i:
 
 
 
@@ -59,26 +59,28 @@ class TableIterator(abc.Iterator, TableMetadataMixin):
         self.i = i
         super().__init__(table, schema, selected_tables)
 
-    def __next__(self):
-        # export metadata to global variable so it can be read by extractor
-        # TODO: remove this hack if possible
-        global _i_info
-        _i_info = cast(self, TableMetadataMixin)
+    # def __next__(self):
+    #     # export metadata to global variable so it can be read by extractor
+    #     # TODO: remove this hack if possible
+    #     global _i_info
+    #     _i_info = cast(self, TableMetadataMixin)
 
-        if callable(self._table_name):
-            else:
+        # if callable(self._table_name):
+        #     else:
         # if no table filter selected
-        return next(self.i)
-        while True:
-        ni = next(self.i)
-        if callable(self._table_name):
-            # table name is a lambda, so resolve table name
-            t_n = self._table_name(ni)
-        return
+    #     return next(self.i)
+    #     while True:
+    #     ni = next(self.i)
+    #     if callable(self._table_name):
+    #         # table name is a lambda, so resolve table name
+    #         t_n = self._table_name(ni)
+    #     return
 
-    def __iter__(self):
-        return self
+    # def __iter__(self):
+    #     return self
 
 
-class SourceTables(list, List[TableIterable]):
+class SourceTables(List[TableIterable]):
+    pass
+
 

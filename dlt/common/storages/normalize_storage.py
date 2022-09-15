@@ -17,6 +17,8 @@ class NormalizeStorage(VersionedStorage):
 
     def __init__(self, is_owner: bool, C: Type[NormalizeVolumeConfiguration]) -> None:
         super().__init__(NormalizeStorage.STORAGE_VERSION, is_owner, FileStorage(C.NORMALIZE_VOLUME_PATH, "t", makedirs=is_owner))
+        if is_owner:
+            self.initialize_storage()
 
     def initialize_storage(self) -> None:
         self.storage.create_folder(NormalizeStorage.EXTRACTED_FOLDER, exists_ok=True)

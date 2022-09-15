@@ -128,7 +128,8 @@ class Pipeline:
             if self.pipeline_name != restored_name:
                 raise CannotRestorePipelineException(f"Expected pipeline {self.pipeline_name}, found {restored_name} pipeline instead")
             self.default_schema_name = self.state["default_schema_name"]
-            credentials.default_dataset = self.state["loader_schema_prefix"]
+            if not credentials.default_dataset:
+                credentials.default_dataset = self.state["loader_schema_prefix"]
             self.root_path = self.root_storage.storage_path
             self.credentials = credentials
             self.export_schema_path = export_schema_path

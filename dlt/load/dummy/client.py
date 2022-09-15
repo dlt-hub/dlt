@@ -130,7 +130,9 @@ class DummyClient(JobClientBase):
     def capabilities(cls) -> TLoaderCapabilities:
         return {
             "preferred_loader_file_format": cls.CONFIG.LOADER_FILE_FORMAT,
-            "supported_loader_file_formats": [cls.CONFIG.LOADER_FILE_FORMAT]
+            "supported_loader_file_formats": [cls.CONFIG.LOADER_FILE_FORMAT],
+            "max_identifier_length": 127,
+            "max_column_length": 127
         }
 
     @classmethod

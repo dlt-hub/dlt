@@ -1,7 +1,14 @@
+import platform
+
+if platform.python_implementation() == "PyPy":
+    import psycopg2cffi as psycopg2
+    from psycopg2cffi.sql import SQL, Identifier, Composed, Literal as SQLLiteral
+else:
+    import psycopg2
+    from psycopg2.sql import SQL, Identifier, Composed, Literal as SQLLiteral
+
+
 from contextlib import contextmanager
-import os
-import psycopg2
-from psycopg2.sql import SQL, Identifier, Composed, Literal as SQLLiteral
 from typing import Any, AnyStr, Dict, Iterator, List, Optional, Sequence, Tuple, Type
 from dlt.common.configuration.postgres_credentials import PostgresCredentials
 
@@ -61,7 +68,8 @@ class RedshiftSqlClient(SqlClientBase["psycopg2.connection"]):
                              options=f"-c search_path={self.fully_qualified_dataset_name()},public"
                              )
         # we'll provide explicit transactions
-        self._conn.set_session(autocommit=True)
+        self._conn.reset()
+        self._conn.autocommit = True
 
     def close_connection(self) -> None:
         if self._conn:
@@ -333,7 +341,9 @@ class RedshiftClient(SqlJobClientBase):
     def capabilities(cls) -> TLoaderCapabilities:
         return {
             "preferred_loader_file_format": "insert_values",
-            "supported_loader_file_formats": ["insert_values"]
+            "supported_loader_file_formats": ["insert_values"],
+            "max_identifier_length": 127,
+            "max_column_length": 127
         }
 
     @classmethod
