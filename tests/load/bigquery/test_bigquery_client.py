@@ -95,14 +95,14 @@ def test_bigquery_location(client: BigQueryClient, file_storage: FileStorage) ->
         "sender_id":'90238094809sajlkjxoiewjhduuiuehd',
         "timestamp": str(pendulum.now())
     }
-    job = expect_load_file(client, file_storage, json.dumps(load_json), user_table_name)
+    #job = expect_load_file(client, file_storage, json.dumps(load_json), user_table_name)
 
     # start a job from the same file. it should fallback to retrieve job silently
-    r_job = client.start_file_load(client.schema.get_table(user_table_name), file_storage._make_path(job.file_name()))
-    assert r_job.status() == "completed"
-
-    # client.sql_client.default_dataset_name  - take dataset name
-    # client.sql_client.native_connection()
+    #r_job = client.start_file_load(client.schema.get_table(user_table_name), file_storage._make_path(job.file_name()))
+    #canonical_name = client.sql_client.make_qualified_table_name(user_table_name)
+    #native_client = client.sql_client.native_connection()
+    #t = native_client.get_table(canonical_name)
+    #assert t.location == 'US'
 
 
 def test_loading_errors(client: BigQueryClient, file_storage: FileStorage) -> None:
