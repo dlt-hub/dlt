@@ -14,9 +14,7 @@ from dlt.common.typing import DictStrAny, StrAny, TFun, TSecretValue, TAny
 
 from dlt.common.runners import pool_runner as runner, TRunMetrics, initialize_runner
 from dlt.common.schema.utils import normalize_schema_name
-from dlt.common.storages.live_schema_storage import LiveSchemaStorage
-from dlt.common.storages.normalize_storage import NormalizeStorage
-from dlt.common.storages.schema_storage import SchemaStorage
+from dlt.common.storages import LiveSchemaStorage, NormalizeStorage
 
 from dlt.common.configuration import make_configuration, RunConfiguration, NormalizeVolumeConfiguration, SchemaVolumeConfiguration, ProductionNormalizeVolumeConfiguration
 from dlt.common.schema.schema import Schema
@@ -33,7 +31,7 @@ from dlt.load import Load
 
 from experiments.pipeline.configuration import get_config
 from experiments.pipeline.exceptions import PipelineConfigMissing, PipelineConfiguredException, MissingDependencyException, PipelineStepFailed
-from experiments.pipeline.sources import SourceTables, TResolvableDataItem
+from experiments.pipeline.sources import DltSource, TResolvableDataItem
 
 
 TConnectionString = NewType("TConnectionString",  str)
@@ -209,7 +207,7 @@ class Pipeline:
     @overload
     def extract(
         self,
-        data: SourceTables,
+        data: DltSource,
         max_parallel_iterators: int = 1,
         max_parallel_data_items: int =  20,
         schema: Schema = None
@@ -221,7 +219,7 @@ class Pipeline:
     @with_state_sync
     def extract(
         self,
-        data: Union[SourceTables, Iterator[TResolvableDataItem], Iterable[TResolvableDataItem]],
+        data: Union[DltSource, Iterator[TResolvableDataItem], Iterable[TResolvableDataItem]],
         table_name = None,
         write_disposition = None,
         parent = None,
@@ -435,7 +433,7 @@ class Pipeline:
             self._extractor_storage.save_json(f"{load_id}.json", items)
             self._extractor_storage.commit_events(
                 self.default_schema.name,
-                self._extractor_storage.storage._make_path(f"{load_id}.json"),
+                self._extractor_storage.storage.make_full_path(f"{load_id}.json"),
                 default_table_name,
                 len(items),
                 load_id
