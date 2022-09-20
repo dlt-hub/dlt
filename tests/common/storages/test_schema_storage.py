@@ -14,7 +14,7 @@ from dlt.common.storages.exceptions import InStorageSchemaModified, SchemaNotFou
 from dlt.common.storages import SchemaStorage, LiveSchemaStorage
 from dlt.common.typing import DictStrAny
 
-from tests.utils import autouse_root_storage, TEST_STORAGE
+from tests.utils import autouse_test_storage, TEST_STORAGE_ROOT
 from tests.common.utils import load_yml_case, yml_case_path
 
 
@@ -26,13 +26,13 @@ def storage() -> SchemaStorage:
 @pytest.fixture
 def synced_storage() -> SchemaStorage:
     # will be created in /schemas
-    return init_storage({"IMPORT_SCHEMA_PATH": TEST_STORAGE + "/import", "EXPORT_SCHEMA_PATH": TEST_STORAGE + "/import"})
+    return init_storage({"IMPORT_SCHEMA_PATH": TEST_STORAGE_ROOT + "/import", "EXPORT_SCHEMA_PATH": TEST_STORAGE_ROOT + "/import"})
 
 
 @pytest.fixture
 def ie_storage() -> SchemaStorage:
     # will be created in /schemas
-    return init_storage({"IMPORT_SCHEMA_PATH": TEST_STORAGE + "/import", "EXPORT_SCHEMA_PATH": TEST_STORAGE + "/export"})
+    return init_storage({"IMPORT_SCHEMA_PATH": TEST_STORAGE_ROOT + "/import", "EXPORT_SCHEMA_PATH": TEST_STORAGE_ROOT + "/export"})
 
 
 def init_storage(initial: DictStrAny = None) -> SchemaStorage:
@@ -242,7 +242,7 @@ def test_save_store_schema(storage: SchemaStorage) -> None:
 
 
 def prepare_import_folder(storage: SchemaStorage) -> None:
-    shutil.copy(yml_case_path("schemas/eth/ethereum_schema_v4"), storage.storage._make_path("../import/ethereum_schema.yaml"))
+    shutil.copy(yml_case_path("schemas/eth/ethereum_schema_v4"), storage.storage.make_full_path("../import/ethereum_schema.yaml"))
 
 
 def assert_schema_imported(synced_storage: SchemaStorage, storage: SchemaStorage) -> Schema:

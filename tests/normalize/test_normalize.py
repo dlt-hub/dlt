@@ -11,15 +11,13 @@ from dlt.common.utils import uniq_id
 from dlt.common.typing import StrAny
 from dlt.common.file_storage import FileStorage
 from dlt.common.schema import TDataType
-from dlt.common.storages.load_storage import LoadStorage
-from dlt.common.storages.normalize_storage import NormalizeStorage
-from dlt.common.storages import SchemaStorage
+from dlt.common.storages import NormalizeStorage, LoadStorage
 from dlt.extract.extractor_storage import ExtractorStorageBase
 
 from dlt.normalize import Normalize, configuration as normalize_configuration, __version__
 
 from tests.cases import JSON_TYPED_DICT, JSON_TYPED_DICT_TYPES
-from tests.utils import TEST_STORAGE, assert_no_dict_key_starts_with, write_version, clean_storage, init_logger
+from tests.utils import TEST_STORAGE_ROOT, assert_no_dict_key_starts_with, write_version, clean_test_storage, init_logger
 from tests.normalize.utils import json_case_path
 
 
@@ -38,7 +36,7 @@ def rasa_normalize() -> Normalize:
 
 
 def init_normalize(default_schemas_path: str = None) -> Normalize:
-    clean_storage()
+    clean_test_storage()
     initial = {}
     if default_schemas_path:
         initial = {"IMPORT_SCHEMA_PATH": default_schemas_path, "EXTERNAL_SCHEMA_FORMAT": "json"}
@@ -225,12 +223,12 @@ EXPECTED_USER_TABLES = ["event", "event__parse_data__intent_ranking", "event__pa
 
 
 def extract_items(normalize_storage: NormalizeStorage, items: Sequence[StrAny], schema_name: str) -> None:
-    extractor = ExtractorStorageBase("1.0.0", True, FileStorage(os.path.join(TEST_STORAGE, "extractor"), makedirs=True), normalize_storage)
+    extractor = ExtractorStorageBase("1.0.0", True, FileStorage(os.path.join(TEST_STORAGE_ROOT, "extractor"), makedirs=True), normalize_storage)
     load_id = uniq_id()
     extractor.save_json(f"{load_id}.json", items)
     extractor.commit_events(
         schema_name,
-        extractor.storage._make_path(f"{load_id}.json"),
+        extractor.storage.make_full_path(f"{load_id}.json"),
         "items",
         len(items),
         load_id
@@ -257,7 +255,7 @@ def normalize_cases(normalize: Normalize, cases: Sequence[str]) -> str:
 def copy_cases(normalize_storage: NormalizeStorage, cases: Sequence[str]) -> None:
     for case in cases:
         event_user_path = json_case_path(f"{case}.extracted")
-        shutil.copy(event_user_path, normalize_storage.storage._make_path(NormalizeStorage.EXTRACTED_FOLDER))
+        shutil.copy(event_user_path, normalize_storage.storage.make_full_path(NormalizeStorage.EXTRACTED_FOLDER))
 
 
 def expect_load_package(load_storage: LoadStorage, load_id: str, expected_tables: Sequence[str]) -> Dict[str, str]:
@@ -266,7 +264,7 @@ def expect_load_package(load_storage: LoadStorage, load_id: str, expected_tables
     ofl: Dict[str, str] = {}
     for expected_table in expected_tables:
         # find all files for particular table, ignoring file id
-        file_mask = load_storage.build_job_file_name(expected_table, "*")
+        file_mask = load_storage.build_job_file_name(expected_table, "*", validate_components=False)
         # files are in normalized/<load_id>/new_jobs
         file_path = load_storage._get_job_file_path(load_id, "new_jobs", file_mask)
         candidates = [f for f in files if fnmatch(f, file_path)]

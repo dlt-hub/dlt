@@ -1,7 +1,7 @@
 from typing import Type
 
 from dlt.common.typing import StrAny
-from dlt.common.dataset_writers import TLoaderFileFormat
+from dlt.common.data_writers import TLoaderFileFormat
 from dlt.common.configuration import (PoolRunnerConfiguration, NormalizeVolumeConfiguration,
                                               LoadVolumeConfiguration, SchemaVolumeConfiguration,
                                               ProductionLoadVolumeConfiguration, ProductionNormalizeVolumeConfiguration,

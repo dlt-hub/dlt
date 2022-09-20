@@ -5,7 +5,7 @@ from typing import Iterable, NamedTuple, Literal, Optional, Sequence, Set, Tuple
 
 from dlt.common import json, pendulum
 from dlt.common.file_storage import FileStorage
-from dlt.common.dataset_writers import TLoaderFileFormat, write_jsonl, write_insert_values
+from dlt.common.data_writers import TLoaderFileFormat, DataWriter
 from dlt.common.configuration import LoadVolumeConfiguration
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema import Schema, TSchemaUpdate, TTableSchemaColumns
@@ -77,10 +77,12 @@ class LoadStorage(VersionedStorage):
     def write_temp_job_file(self, load_id: str, table_name: str, table: TTableSchemaColumns, file_id: str, rows: Sequence[StrAny]) -> str:
         file_name = self.build_job_file_name(table_name, file_id)
         with self.storage.open_file(join(load_id, LoadStorage.NEW_JOBS_FOLDER, file_name), mode="w") as f:
-            if self.preferred_file_format == "jsonl":
-                write_jsonl(f, rows)
-            elif self.preferred_file_format == "insert_values":
-                write_insert_values(f, rows, table.keys())
+            writer = DataWriter.from_file_format(self.preferred_file_format, f)
+            writer.write_all(table, rows)
+            # if self.preferred_file_format == "jsonl":
+            #     write_jsonl(f, rows)
+            # elif self.preferred_file_format == "insert_values":
+            #     write_insert_values(f, rows, table.keys())
         return Path(file_name).name
 
     def load_package_schema(self, load_id: str) -> Schema:
@@ -188,13 +190,6 @@ class LoadStorage(VersionedStorage):
     def get_completed_package_path(self, load_id: str) -> str:
         return join(LoadStorage.LOADED_FOLDER, load_id)
 
-    def build_job_file_name(self, table_name: str, file_id: str, retry_count: int = 0) -> str:
-        if "." in table_name:
-            raise ValueError(table_name)
-        if "." in file_id:
-            raise ValueError(file_id)
-        return f"{table_name}.{file_id}.{int(retry_count)}.{self.preferred_file_format}"
-
     def job_elapsed_time_seconds(self, file_path: str) -> float:
         return pendulum.now().timestamp() - os.path.getmtime(file_path)  # type: ignore
 
@@ -211,13 +206,19 @@ class LoadStorage(VersionedStorage):
         load_path = self.get_package_path(load_id)
         dest_path = join(load_path, dest_folder, new_file_name or file_name)
         self.storage.atomic_rename(join(load_path, source_folder, file_name), dest_path)
-        return self.storage._make_path(dest_path)
+        return self.storage.make_full_path(dest_path)
 
     def _get_job_folder_path(self, load_id: str, folder: TWorkingFolder) -> str:
         return join(self.get_package_path(load_id), folder)
 
     def _get_job_file_path(self, load_id: str, folder: TWorkingFolder, file_name: str) -> str:
         return join(self._get_job_folder_path(load_id, folder), file_name)
+
+    def build_job_file_name(self, table_name: str, file_id: str, retry_count: int = 0, validate_components: bool = True) -> str:
+        if validate_components:
+            FileStorage.validate_file_name_component(table_name)
+            FileStorage.validate_file_name_component(file_id)
+        return f"{table_name}.{file_id}.{int(retry_count)}.{self.preferred_file_format}"
 
     @staticmethod
     def parse_job_file_name(file_name: str) -> TParsedJobFileName:

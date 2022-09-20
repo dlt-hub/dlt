@@ -1,11 +1,12 @@
 import pytest
 
 from dlt.common.storages.exceptions import NoMigrationPathException
-from dlt.common.storages.normalize_storage import NormalizeStorage
+from dlt.common.storages import NormalizeStorage
 from dlt.common.configuration import NormalizeVolumeConfiguration
+from dlt.common.storages.normalize_storage import TParsedNormalizeFileName
 from dlt.common.utils import uniq_id
 
-from tests.utils import write_version, autouse_root_storage
+from tests.utils import write_version, autouse_test_storage
 
 @pytest.mark.skip()
 def test_load_events_and_group_by_sender() -> None:
@@ -13,22 +14,15 @@ def test_load_events_and_group_by_sender() -> None:
     pass
 
 
-@pytest.mark.skip()
-def test_chunk_by_events() -> None:
-    # TODO: should distribute ~ N events evenly among m cores with fallback for small amounts of events
-    pass
-
-
 def test_build_extracted_file_name() -> None:
     load_id = uniq_id()
-    name = NormalizeStorage.build_extracted_file_name("event", "table", 121, load_id)
+    name = NormalizeStorage.build_extracted_file_stem("event", "table_with_parts__many", load_id) + ".jsonl"
     assert NormalizeStorage.get_schema_name(name) == "event"
-    assert NormalizeStorage.get_events_count(name) == 121
-    assert NormalizeStorage._parse_extracted_file_name(name) == (121, load_id, "event")
+    assert NormalizeStorage.parse_normalize_file_name(name) == TParsedNormalizeFileName("event", "table_with_parts__many", load_id)
 
     # empty schema should be supported
-    name = NormalizeStorage.build_extracted_file_name("", "table", 121, load_id)
-    assert NormalizeStorage._parse_extracted_file_name(name) == (121, load_id, "")
+    name = NormalizeStorage.build_extracted_file_stem("", "table", load_id) + ".jsonl"
+    assert NormalizeStorage.parse_normalize_file_name(name) == TParsedNormalizeFileName("", "table", load_id)
 
 
 def test_full_migration_path() -> None:

@@ -2,7 +2,7 @@ import semver
 from typing import Iterable
 
 from dlt.common.exceptions import DltException
-from dlt.common.dataset_writers import TLoaderFileFormat
+from dlt.common.data_writers import TLoaderFileFormat
 
 
 class StorageException(DltException):

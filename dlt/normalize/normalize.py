@@ -8,15 +8,13 @@ from dlt.common.json import custom_pua_decode
 from dlt.cli import TRunnerArgs
 from dlt.common.runners import TRunMetrics, Runnable, run_pool, initialize_runner, workermethod
 from dlt.common.storages.exceptions import SchemaNotFoundError
-from dlt.common.storages.normalize_storage import NormalizeStorage
+from dlt.common.storages import NormalizeStorage, SchemaStorage, LoadStorage
 from dlt.common.telemetry import get_logging_extras
 from dlt.common.utils import uniq_id
 from dlt.common.typing import TDataItem
 from dlt.common.exceptions import PoolException
-from dlt.common.storages import SchemaStorage
 from dlt.common.schema import TSchemaUpdate, Schema
 from dlt.common.schema.exceptions import CannotCoerceColumnException
-from dlt.common.storages.load_storage import LoadStorage
 
 from dlt.normalize.configuration import configuration, NormalizeConfiguration
 
@@ -177,7 +175,8 @@ class Normalize(Runnable[ProcessPool]):
         total_events = 0
         for event_file in chain.from_iterable(chunk_files):  # flatten chunks
             self.normalize_storage.storage.delete(event_file)
-            total_events += NormalizeStorage.get_events_count(event_file)
+            # TODO: get total events from worker function and make stats per table
+            # total_events += ....
         # log and update metrics
         logger.info(f"Chunk {load_id} processed")
         self.load_package_counter.labels(schema_name).inc()

@@ -11,7 +11,7 @@ from dlt.common.storages.exceptions import NoMigrationPathException
 from dlt.common.typing import StrAny
 from dlt.common.utils import uniq_id
 
-from tests.utils import TEST_STORAGE, write_version, autouse_root_storage
+from tests.utils import TEST_STORAGE_ROOT, write_version, autouse_test_storage
 
 
 @pytest.fixture
@@ -72,7 +72,7 @@ def test_save_load_schema(storage: LoadStorage) -> None:
 
 def test_job_elapsed_time_seconds(storage: LoadStorage) -> None:
     load_id, fn = start_loading_file(storage, "test file")
-    fp = storage.storage._make_path(storage._get_job_file_path(load_id, "started_jobs", fn))
+    fp = storage.storage.make_full_path(storage._get_job_file_path(load_id, "started_jobs", fn))
     elapsed = storage.job_elapsed_time_seconds(fp)
     sleep(0.3)
     # do not touch file
