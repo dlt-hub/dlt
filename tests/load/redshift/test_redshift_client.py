@@ -1,5 +1,6 @@
 from typing import Iterator
 import pytest
+from unittest.mock import patch
 
 from dlt.common import pendulum, Decimal
 from dlt.common.arithmetics import numeric_default_context
@@ -11,18 +12,18 @@ from dlt.load.exceptions import LoadClientTerminalInnerException
 from dlt.load import Load
 from dlt.load.redshift.client import RedshiftClient, RedshiftInsertLoadJob, psycopg2
 
-from tests.utils import TEST_STORAGE, delete_storage, skipifpypy
+from tests.utils import TEST_STORAGE_ROOT, delete_test_storage, skipifpypy
 from tests.load.utils import expect_load_file, prepare_table, yield_client_with_storage
 
 
 @pytest.fixture
 def file_storage() -> FileStorage:
-    return FileStorage(TEST_STORAGE, file_type="b", makedirs=True)
+    return FileStorage(TEST_STORAGE_ROOT, file_type="b", makedirs=True)
 
 
 @pytest.fixture(autouse=True)
 def auto_delete_storage() -> None:
-    delete_storage()
+    delete_test_storage()
 
 
 @pytest.fixture(scope="module")
@@ -94,13 +95,15 @@ def test_long_names(client: RedshiftClient) -> None:
 
 @skipifpypy
 def test_loading_errors(client: RedshiftClient, file_storage: FileStorage) -> None:
+    caps = client.capabilities()
+
     user_table_name = prepare_table(client)
     # insert string longer than redshift maximum
     insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp)\nVALUES\n"
     # try some unicode value - redshift checks the max length based on utf-8 representation, not the number of characters
     # max_len_str = 'उ' * (65535 // 3) + 1 -> does not fit
     # max_len_str = 'a' * 65535 + 1 -> does not fit
-    max_len_str = 'उ' * ((65535 // 3) + 1)
+    max_len_str = 'उ' * ((caps["max_text_data_type_length"] // 3) + 1)
     # max_len_str_b = max_len_str.encode("utf-8")
     # print(len(max_len_str_b))
     row_id = uniq_id()
@@ -157,10 +160,13 @@ def test_loading_errors(client: RedshiftClient, file_storage: FileStorage) -> No
 
 
 def test_query_split(client: RedshiftClient, file_storage: FileStorage) -> None:
-    max_statement_size = RedshiftInsertLoadJob.MAX_STATEMENT_SIZE
-    try:
-        # this guarantees that we execute inserts line by line
-        RedshiftInsertLoadJob.MAX_STATEMENT_SIZE = 1
+    mocked_caps = RedshiftClient.capabilities()
+    # this guarantees that we execute inserts line by line
+    mocked_caps["max_query_length"] = 2
+
+    with patch.object(RedshiftClient, "capabilities") as caps:
+        caps.return_value = mocked_caps
+        print(RedshiftClient.capabilities())
         user_table_name = prepare_table(client)
         insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp)\nVALUES\n"
         insert_values = "('{}', '{}', '90238094809sajlkjxoiewjhduuiuehd', '{}')"
@@ -182,19 +188,23 @@ def test_query_split(client: RedshiftClient, file_storage: FileStorage) -> None:
         assert ids == v_ids
 
 
-    finally:
-        RedshiftInsertLoadJob.MAX_STATEMENT_SIZE = max_statement_size
-
 @pytest.mark.skip
-def test_maximum_statement(client: RedshiftClient, file_storage: FileStorage) -> None:
-    assert RedshiftInsertLoadJob.MAX_STATEMENT_SIZE == 20 * 1024 * 1024, "to enable this test, you must increase RedshiftInsertLoadJob.MAX_STATEMENT_SIZE = 20 * 1024 * 1024"
-    insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp)\nVALUES\n"
-    insert_values = "('{}', '{}', '90238094809sajlkjxoiewjhduuiuehd', '{}'){}"
-    insert_sql = insert_sql + insert_values.format(uniq_id(), uniq_id(), str(pendulum.now()), ",\n") * 150000
-    insert_sql += insert_values.format(uniq_id(), uniq_id(), str(pendulum.now()), ";")
+@skipifpypy
+def test_maximum_query_size(client: RedshiftClient, file_storage: FileStorage) -> None:
+    mocked_caps = RedshiftClient.capabilities()
+    # this guarantees that we cross the redshift query limit
+    mocked_caps["max_query_length"] = 2 * 20 * 1024 * 1024
 
-    user_table_name = prepare_table(client)
-    with pytest.raises(LoadClientTerminalInnerException) as exv:
-        expect_load_file(client, file_storage, insert_sql, user_table_name)
-    # psycopg2.errors.SyntaxError: Statement is too large. Statement Size: 20971754 bytes. Maximum Allowed: 16777216 bytes
-    assert type(exv.value.inner_exc) is psycopg2.ProgrammingError
+    with patch.object(RedshiftClient, "capabilities") as caps:
+        caps.return_value = mocked_caps
+
+        insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp)\nVALUES\n"
+        insert_values = "('{}', '{}', '90238094809sajlkjxoiewjhduuiuehd', '{}'){}"
+        insert_sql = insert_sql + insert_values.format(uniq_id(), uniq_id(), str(pendulum.now()), ",\n") * 150000
+        insert_sql += insert_values.format(uniq_id(), uniq_id(), str(pendulum.now()), ";")
+
+        user_table_name = prepare_table(client)
+        with pytest.raises(LoadClientTerminalInnerException) as exv:
+            expect_load_file(client, file_storage, insert_sql, user_table_name)
+        # psycopg2.errors.SyntaxError: Statement is too large. Statement Size: 20971754 bytes. Maximum Allowed: 16777216 bytes
+        assert type(exv.value.inner_exc) is psycopg2.errors.SyntaxError

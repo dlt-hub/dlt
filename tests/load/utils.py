@@ -5,7 +5,7 @@ from typing import Any, ContextManager, Iterable, Iterator, List, Sequence, cast
 from dlt.common import json, Decimal
 from dlt.common.configuration import make_configuration
 from dlt.common.configuration.schema_volume_configuration import SchemaVolumeConfiguration
-from dlt.common.dataset_writers import write_insert_values, write_jsonl
+from dlt.common.data_writers import DataWriter
 from dlt.common.file_storage import FileStorage
 from dlt.common.schema import TColumnSchema, TTableSchemaColumns
 from dlt.common.storages.schema_storage import SchemaStorage
@@ -64,6 +64,7 @@ TABLE_UPDATE: List[TColumnSchema] = [
         "nullable": False
     },
 ]
+TABLE_UPDATE_COLUMNS_SCHEMA: TTableSchemaColumns = {t["name"]:t for t in TABLE_UPDATE}
 
 TABLE_ROW = {
     "col1": 989127831,
@@ -86,7 +87,7 @@ def expect_load_file(client: JobClientBase, file_storage: FileStorage, query: st
     file_name = uniq_id()
     file_storage.save(file_name, query.encode("utf-8"))
     table = Load.get_load_table(client.schema, table_name, file_name)
-    job = client.start_file_load(table, file_storage._make_path(file_name))
+    job = client.start_file_load(table, file_storage.make_full_path(file_name))
     while job.status() == "running":
         sleep(0.5)
     assert job.file_name() == file_name
@@ -131,10 +132,7 @@ def cm_yield_client_with_storage(client_type: str, initial_values: StrAny = None
     return yield_client_with_storage(client_type, initial_values)
 
 
-def write_dataset(client: JobClientBase, f: IO[Any], rows: Sequence[StrAny], headers: Iterable[str]) -> None:
-    if client.capabilities()["preferred_loader_file_format"] == "jsonl":
-        write_jsonl(f, rows)
-    elif client.capabilities()["preferred_loader_file_format"] == "insert_values":
-        write_insert_values(f, rows, headers)
-    else:
-        raise ValueError(client.capabilities()["preferred_loader_file_format"])
+def write_dataset(client: JobClientBase, f: IO[Any], rows: Sequence[StrAny], columns_schema: TTableSchemaColumns) -> None:
+    file_format = client.capabilities()["preferred_loader_file_format"]
+    writer = DataWriter.from_file_format(file_format, f)
+    writer.write_all(columns_schema, rows)

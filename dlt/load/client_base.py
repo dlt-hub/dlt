@@ -208,7 +208,7 @@ class SqlJobClientBase(JobClientBase):
 
     def _create_table_update(self, table_name: str, storage_table: TTableSchemaColumns) -> Sequence[TColumnSchema]:
         # compare table with stored schema and produce delta
-        updates = self.schema.get_schema_update_for(table_name, storage_table)
+        updates = self.schema.get_new_columns(table_name, storage_table)
         logger.info(f"Found {len(updates)} updates for {table_name} in {self.schema.name}")
         return updates
 

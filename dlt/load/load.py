@@ -10,7 +10,7 @@ from dlt.common.logger import pretty_format_exception
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TTableSchema
-from dlt.common.storages.load_storage import LoadStorage
+from dlt.common.storages import LoadStorage
 from dlt.common.telemetry import get_logging_extras, set_gauge_all_labels
 from dlt.common.typing import StrAny
 
@@ -95,7 +95,7 @@ class Load(Runnable[ThreadPool]):
                 table = self.get_load_table(schema, job_info.table_name, file_path)
                 if table["write_disposition"] not in ["append", "replace"]:
                     raise LoadClientUnsupportedWriteDisposition(job_info.table_name, table["write_disposition"], file_path)
-                job = client.start_file_load(table, self.load_storage.storage._make_path(file_path))
+                job = client.start_file_load(table, self.load_storage.storage.make_full_path(file_path))
         except (LoadClientTerminalException, TerminalValueError):
             # if job irreversibly cannot be started, mark it as failed
             logger.exception(f"Terminal problem with spooling job {file_path}")
@@ -240,6 +240,7 @@ class Load(Runnable[ThreadPool]):
             self.load_counter.inc()
             logger.metrics("Load package metrics", extra=get_logging_extras([self.load_counter]))
         else:
+            # TODO: this loop must be urgently removed.
             while True:
                 remaining_jobs = self.complete_jobs(load_id, jobs)
                 if len(remaining_jobs) == 0:

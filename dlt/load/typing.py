@@ -1,6 +1,6 @@
 from typing import Any, AnyStr, List, Literal, Optional, Tuple, TypeVar, TypedDict
 
-from dlt.common.dataset_writers import TLoaderFileFormat
+from dlt.common.data_writers import TLoaderFileFormat
 
 
 LoadJobStatus = Literal["running", "failed", "retry", "completed"]
@@ -13,6 +13,10 @@ class TLoaderCapabilities(TypedDict):
     supported_loader_file_formats: List[TLoaderFileFormat]
     max_identifier_length: int
     max_column_length: int
+    max_query_length: int
+    is_max_query_length_in_bytes: bool
+    max_text_data_type_length: int
+    is_max_text_data_type_length_in_bytes: bool
 
 
 # type for dbapi cursor

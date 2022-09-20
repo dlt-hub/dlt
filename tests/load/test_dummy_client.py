@@ -20,7 +20,7 @@ from dlt.load.dummy import client
 from dlt.load import Load, __version__
 from dlt.load.dummy.configuration import DummyClientConfiguration
 
-from tests.utils import clean_storage, init_logger
+from tests.utils import clean_test_storage, init_logger
 
 
 NORMALIZED_FILES = [
@@ -31,7 +31,7 @@ NORMALIZED_FILES = [
 
 @pytest.fixture(autouse=True)
 def storage() -> FileStorage:
-    clean_storage(init_normalize=True, init_loader=True)
+    clean_test_storage(init_normalize=True, init_loader=True)
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -316,10 +316,10 @@ def prepare_load_package(load_storage: LoadStorage, cases: Sequence[str]) -> Tup
     load_storage.create_temp_load_package(load_id)
     for case in cases:
         path = f"./tests/load/cases/loading/{case}"
-        shutil.copy(path, load_storage.storage._make_path(f"{load_id}/{LoadStorage.NEW_JOBS_FOLDER}"))
+        shutil.copy(path, load_storage.storage.make_full_path(f"{load_id}/{LoadStorage.NEW_JOBS_FOLDER}"))
     for f in ["schema_updates.json", "schema.json"]:
         path = f"./tests/load/cases/loading/{f}"
-        shutil.copy(path, load_storage.storage._make_path(load_id))
+        shutil.copy(path, load_storage.storage.make_full_path(load_id))
     load_storage.commit_temp_load_package(load_id)
     schema = load_storage.load_package_schema(load_id)
     return load_id, schema

@@ -12,8 +12,8 @@ from dlt.load.exceptions import LoadJobNotExistsException, LoadJobServerTerminal
 from dlt.load import Load
 from dlt.load.bigquery.client import BigQueryClient
 
-from tests.utils import TEST_STORAGE, delete_storage
-from tests.load.utils import cm_yield_client_with_storage, expect_load_file, prepare_table, yield_client_with_storage
+from tests.utils import TEST_STORAGE_ROOT, delete_test_storage
+from tests.load.utils import expect_load_file, prepare_table, yield_client_with_storage, cm_yield_client_with_storage
 
 
 @pytest.fixture(scope="module")
@@ -23,12 +23,12 @@ def client() -> Iterator[BigQueryClient]:
 
 @pytest.fixture
 def file_storage() -> FileStorage:
-    return FileStorage(TEST_STORAGE, file_type="b", makedirs=True)
+    return FileStorage(TEST_STORAGE_ROOT, file_type="b", makedirs=True)
 
 
 @pytest.fixture(autouse=True)
 def auto_delete_storage() -> None:
-    delete_storage()
+    delete_test_storage()
 
 
 def test_bigquery_job_errors(client: BigQueryClient, file_storage: FileStorage) -> None:
@@ -61,7 +61,7 @@ def test_bigquery_job_errors(client: BigQueryClient, file_storage: FileStorage) 
     job = expect_load_file(client, file_storage, json.dumps(load_json), user_table_name)
 
     # start a job from the same file. it should fallback to retrieve job silently
-    r_job = client.start_file_load(client.schema.get_table(user_table_name), file_storage._make_path(job.file_name()))
+    r_job = client.start_file_load(client.schema.get_table(user_table_name), file_storage.make_full_path(job.file_name()))
     assert r_job.status() == "completed"
 
 

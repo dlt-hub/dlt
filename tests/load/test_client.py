@@ -12,9 +12,9 @@ from dlt.common.utils import uniq_id
 
 from dlt.load.client_base import DBCursor, SqlJobClientBase
 
-from tests.utils import TEST_STORAGE, delete_storage
+from tests.utils import TEST_STORAGE_ROOT, delete_test_storage
 from tests.common.utils import load_json_case
-from tests.load.utils import TABLE_UPDATE, TABLE_ROW, expect_load_file, yield_client_with_storage, cm_yield_client_with_storage, write_dataset, prepare_table
+from tests.load.utils import TABLE_UPDATE, TABLE_UPDATE_COLUMNS_SCHEMA, TABLE_ROW, expect_load_file, yield_client_with_storage, cm_yield_client_with_storage, write_dataset, prepare_table
 
 
 ALL_CLIENTS = ['redshift_client', 'bigquery_client']
@@ -23,12 +23,12 @@ ALL_CLIENT_TYPES = ["bigquery", "redshift"]
 
 @pytest.fixture
 def file_storage() -> FileStorage:
-    return FileStorage(TEST_STORAGE, file_type="b", makedirs=True)
+    return FileStorage(TEST_STORAGE_ROOT, file_type="b", makedirs=True)
 
 
 @pytest.fixture(autouse=True)
 def auto_delete_storage() -> None:
-    delete_storage()
+    delete_test_storage()
 
 
 @pytest.fixture(scope="module")
@@ -211,7 +211,7 @@ def test_data_writer_load(client: SqlJobClientBase, file_storage: FileStorage) -
     canonical_name = client.sql_client.make_qualified_table_name(table_name)
     # write only first row
     with io.StringIO() as f:
-        write_dataset(client, f, [rows[0]], rows[0].keys())
+        write_dataset(client, f, [rows[0]], client.schema.get_table(table_name)["columns"])
         query = f.getvalue()
     expect_load_file(client, file_storage, query, table_name)
     db_row = client.sql_client.execute_sql(f"SELECT * FROM {canonical_name}")[0]
@@ -219,7 +219,7 @@ def test_data_writer_load(client: SqlJobClientBase, file_storage: FileStorage) -
     assert list(db_row) == list(rows[0].values())
     # write second row that contains two nulls
     with io.StringIO() as f:
-        write_dataset(client, f, [rows[1]], rows[0].keys())
+        write_dataset(client, f, [rows[1]], client.schema.get_table(table_name)["columns"])
         query = f.getvalue()
     expect_load_file(client, file_storage, query, table_name)
     db_row = client.sql_client.execute_sql(f"SELECT * FROM {canonical_name} WHERE f_int = {rows[1]['f_int']}")[0]
@@ -236,7 +236,7 @@ def test_data_writer_string_escape(client: SqlJobClientBase, file_storage: FileS
     inj_str = f", NULL'); DROP TABLE {canonical_name} --"
     row["f_str"] = inj_str
     with io.StringIO() as f:
-        write_dataset(client, f, [rows[0]], rows[0].keys())
+        write_dataset(client, f, [rows[0]], client.schema.get_table(table_name)["columns"])
         query = f.getvalue()
     expect_load_file(client, file_storage, query, table_name)
     db_row = client.sql_client.execute_sql(f"SELECT * FROM {canonical_name}")[0]
@@ -248,7 +248,7 @@ def test_data_writer_string_escape_edge(client: SqlJobClientBase, file_storage: 
     rows, table_name = prepare_schema(client, "weird_rows")
     canonical_name = client.sql_client.make_qualified_table_name(table_name)
     with io.StringIO() as f:
-        write_dataset(client, f, rows, rows[0].keys())
+        write_dataset(client, f, rows, client.schema.get_table(table_name)["columns"])
         query = f.getvalue()
     expect_load_file(client, file_storage, query, table_name)
     for i in range(1,len(rows) + 1):
@@ -267,7 +267,7 @@ def test_load_with_all_types(client: SqlJobClientBase, write_disposition: str, f
     canonical_name = client.sql_client.make_qualified_table_name(table_name)
     # write row
     with io.StringIO() as f:
-        write_dataset(client, f, [TABLE_ROW], TABLE_ROW.keys())
+        write_dataset(client, f, [TABLE_ROW], TABLE_UPDATE_COLUMNS_SCHEMA)
         query = f.getvalue()
     expect_load_file(client, file_storage, query, table_name)
     db_row = list(client.sql_client.execute_sql(f"SELECT * FROM {canonical_name}")[0])
@@ -299,7 +299,7 @@ def test_write_dispositions(client: SqlJobClientBase, write_disposition: str, fi
             table_row = deepcopy(TABLE_ROW)
             table_row["col1"] = idx
             with io.StringIO() as f:
-                write_dataset(client, f, [table_row], TABLE_ROW.keys())
+                write_dataset(client, f, [table_row], TABLE_UPDATE_COLUMNS_SCHEMA)
                 query = f.getvalue()
             expect_load_file(client, file_storage, query, t)
             db_rows = list(client.sql_client.execute_sql(f"SELECT * FROM {t} ORDER BY col1 ASC"))
@@ -323,12 +323,12 @@ def test_retrieve_job(client: SqlJobClientBase, file_storage: FileStorage) -> No
         "timestamp": str(pendulum.now())
     }
     with io.StringIO() as f:
-        write_dataset(client, f, [load_json], load_json.keys())
+        write_dataset(client, f, [load_json], client.schema.get_table(user_table_name)["columns"])
         dataset = f.getvalue()
     job = expect_load_file(client, file_storage, dataset, user_table_name)
     # now try to retrieve the job
     # TODO: we should re-create client instance as this call is intended to be run after some disruption ie. stopped loader process
-    r_job = client.restore_file_load(file_storage._make_path(job.file_name()))
+    r_job = client.restore_file_load(file_storage.make_full_path(job.file_name()))
     assert r_job.status() == "completed"
     # use just file name to restore
     r_job = client.restore_file_load(job.file_name())

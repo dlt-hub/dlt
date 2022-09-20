@@ -1,7 +1,7 @@
 import random
 from types import TracebackType
 from typing import Dict, Tuple, Type
-from dlt.common.dataset_writers import TLoaderFileFormat
+from dlt.common.data_writers import TLoaderFileFormat
 
 from dlt.common import pendulum
 from dlt.common.schema import Schema
@@ -132,7 +132,11 @@ class DummyClient(JobClientBase):
             "preferred_loader_file_format": cls.CONFIG.LOADER_FILE_FORMAT,
             "supported_loader_file_formats": [cls.CONFIG.LOADER_FILE_FORMAT],
             "max_identifier_length": 127,
-            "max_column_length": 127
+            "max_column_length": 127,
+            "max_query_length": 8 * 1024 * 1024,
+            "is_max_query_length_in_bytes": True,
+            "max_text_data_type_length": 65535,
+            "is_max_text_data_type_length_in_bytes": True
         }
 
     @classmethod

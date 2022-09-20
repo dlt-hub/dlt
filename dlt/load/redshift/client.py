@@ -14,7 +14,7 @@ from dlt.common.configuration.postgres_credentials import PostgresCredentials
 
 from dlt.common.typing import StrAny
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
-from dlt.common.dataset_writers import escape_redshift_identifier
+from dlt.common.data_writers import escape_redshift_identifier
 from dlt.common.schema import COLUMN_HINTS, TColumnSchema, TColumnSchemaBase, TDataType, THintType, Schema, TTableSchemaColumns, add_missing_hints
 from dlt.common.schema.typing import TTableSchema, TWriteDisposition
 
@@ -139,10 +139,6 @@ class RedshiftSqlClient(SqlClientBase["psycopg2.connection"]):
 
 
 class RedshiftInsertLoadJob(LoadJob):
-
-    MAX_STATEMENT_SIZE = 8 * 1024 * 1024
-
-
     def __init__(self, table_name: str, write_disposition: TWriteDisposition, file_path: str, sql_client: SqlClientBase["psycopg2.connection"]) -> None:
         super().__init__(JobClientBase.get_file_name_from_file_path(file_path))
         self._sql_client = sql_client
@@ -174,7 +170,7 @@ class RedshiftInsertLoadJob(LoadJob):
             if write_disposition == "replace":
                 insert_sql.append(SQL("DELETE FROM {};").format(SQL(qualified_table_name)))
             # is_eof = False
-            while content := f.read(RedshiftInsertLoadJob.MAX_STATEMENT_SIZE):
+            while content := f.read(RedshiftClient.capabilities()["max_query_length"] // 2):
                 # read one more line in order to
                 # 1. complete the content which ends at "random" position, not an end line
                 # 2. to modify it's ending without a need to re-allocating the 8MB of "content"
@@ -343,7 +339,11 @@ class RedshiftClient(SqlJobClientBase):
             "preferred_loader_file_format": "insert_values",
             "supported_loader_file_formats": ["insert_values"],
             "max_identifier_length": 127,
-            "max_column_length": 127
+            "max_column_length": 127,
+            "max_query_length": 16 * 1024 * 1024,
+            "is_max_query_length_in_bytes": True,
+            "max_text_data_type_length": 65535,
+            "is_max_text_data_type_length_in_bytes": True
         }
 
     @classmethod

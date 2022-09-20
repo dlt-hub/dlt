@@ -2,7 +2,7 @@ from typing import Type
 
 from dlt.common.typing import StrAny
 from dlt.common.configuration import make_configuration
-from dlt.common.dataset_writers import TLoaderFileFormat
+from dlt.common.data_writers import TLoaderFileFormat
 
 from dlt.load.configuration import LoaderClientConfiguration
 

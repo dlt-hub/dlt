@@ -13,7 +13,7 @@ from dlt.common.typing import StrAny
 from dlt.common.schema.typing import TTableSchema, TWriteDisposition
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 from dlt.common.configuration import GcpClientCredentials
-from dlt.common.dataset_writers import escape_bigquery_identifier
+from dlt.common.data_writers import escape_bigquery_identifier
 from dlt.common.schema import TColumnSchema, TDataType, Schema, TTableSchemaColumns
 
 from dlt.load.typing import LoadJobStatus, DBCursor, TLoaderCapabilities
@@ -372,7 +372,11 @@ class BigQueryClient(SqlJobClientBase):
             "preferred_loader_file_format": "jsonl",
             "supported_loader_file_formats": ["jsonl"],
             "max_identifier_length": 1024,
-            "max_column_length": 300
+            "max_column_length": 300,
+            "max_query_length": 1024 * 1024,
+            "is_max_query_length_in_bytes": False,
+            "max_text_data_type_length": 10 * 1024 * 1024,
+            "is_max_text_data_type_length_in_bytes": True
         }
 
     @classmethod
