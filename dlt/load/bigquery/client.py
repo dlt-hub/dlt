@@ -157,12 +157,12 @@ class BigQueryLoadJob(LoadJob):
                 if reason in BQ_TERMINAL_REASONS:
                     # the job permanently failed for the reason above
                     return "failed"
-                elif reason in ["backendError", "internalError"]:
+                elif reason in ["internalError"]:
                     logger.warning(f"Got reason {reason} for job {self.file_name}, job considered still running. ({self.bq_load_job.error_result})")
                     # status of the job could not be obtained, job still running
                     return "running"
                 else:
-                    # retry on all other reasons
+                    # retry on all other reasons, including `backendError` which requires retry when the job is done
                     return "retry"
         else:
             return "running"
