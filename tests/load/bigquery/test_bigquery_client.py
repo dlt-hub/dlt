@@ -86,7 +86,7 @@ def test_bigquery_job_errors(client: BigQueryClient, file_storage: FileStorage) 
     assert r_job.status() == "completed"
 
 
-#@pytest.mark.skip()
+@pytest.mark.skip()
 def test_bigquery_location(client: BigQueryClient, file_storage: FileStorage) -> None:
     user_table_name = prepare_event_user_table(client)
     load_json = {
