@@ -65,7 +65,7 @@ def test_bigquery_job_errors(client: BigQueryClient, file_storage: FileStorage) 
     assert r_job.status() == "completed"
 
 
-@pytest.mark.parametrize('location', ["US"])
+@pytest.mark.parametrize('location', ["US", "EU"])
 def test_bigquery_location(location: str, file_storage: FileStorage) -> None:
     with cm_yield_client_with_storage("bigquery", initial_values={"LOCATION": location}) as client:
         user_table_name = prepare_table(client)
