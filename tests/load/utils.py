@@ -1,5 +1,6 @@
+import contextlib
 import os
-from typing import Any, Iterable, Iterator, List, Sequence, cast, IO
+from typing import Any, ContextManager, Iterable, Iterator, List, Sequence, cast, IO
 
 from dlt.common import json, Decimal
 from dlt.common.configuration import make_configuration
@@ -103,11 +104,14 @@ def prepare_table(client: JobClientBase, case_name: str = "event_user", table_na
     return user_table_name
 
 
-def yield_client_with_storage(client_type: str) -> Iterator[SqlJobClientBase]:
+
+def yield_client_with_storage(client_type: str, initial_values: StrAny = None) -> Iterator[SqlJobClientBase]:
     os.environ.pop("DEFAULT_DATASET", None)
     # create dataset with random name
     default_dataset = "test_" + uniq_id()
-    initial_values = {"DEFAULT_DATASET": default_dataset}
+    client_initial_values = {"DEFAULT_DATASET": default_dataset}
+    if initial_values is not None:
+        client_initial_values.update(initial_values)
     # get event default schema
     C = make_configuration(SchemaVolumeConfiguration, SchemaVolumeConfiguration, initial_values={
         "SCHEMA_VOLUME_PATH": "tests/common/cases/schemas/rasa"
@@ -116,10 +120,15 @@ def yield_client_with_storage(client_type: str) -> Iterator[SqlJobClientBase]:
     schema = schema_storage.load_schema("event")
     # create client and dataset
     client: SqlJobClientBase = None
-    with Load.import_client_cls(client_type, initial_values=initial_values)(schema) as client:
+    with Load.import_client_cls(client_type, initial_values=client_initial_values)(schema) as client:
         client.initialize_storage()
         yield client
         client.sql_client.drop_dataset()
+
+
+@contextlib.contextmanager
+def cm_yield_client_with_storage(client_type: str, initial_values: StrAny = None) -> ContextManager[SqlJobClientBase]:
+    return yield_client_with_storage(client_type, initial_values)
 
 
 def write_dataset(client: JobClientBase, f: IO[Any], rows: Sequence[StrAny], headers: Iterable[str]) -> None:
