@@ -6,6 +6,8 @@ from copy import deepcopy
 from threading import Thread
 from typing import Optional, Sequence, Union, Callable, Iterable, Iterator, List, NamedTuple, Awaitable, Tuple, Type, TYPE_CHECKING
 
+from dlt.common.typing import TDataItem
+
 if TYPE_CHECKING:
     TItemFuture = Future[TDirectDataItem]
 else:
@@ -71,7 +73,7 @@ class ForkPipe:
 
 
 class FilterItem:
-    def __init__(self, filter_f: Callable[[TDirectDataItem], bool]) -> None:
+    def __init__(self, filter_f: Callable[[TDataItem], bool]) -> None:
         self._filter_f = filter_f
 
     def __call__(self, item: TDirectDataItem) -> Optional[TDirectDataItem]:
@@ -79,7 +81,7 @@ class FilterItem:
         if isinstance(item, list):
             item = [i for i in item if self._filter_f(i)]
             if not item:
-                # item was fully consumed by the filer
+                # item was fully consumed by the filter
                 return None
             return item
         else:
@@ -87,10 +89,12 @@ class FilterItem:
 
 
 class Pipe:
-    def __init__(self, name: str, steps: List[TPipeStep] = None, depends_on: "Pipe" = None) -> None:
+    def __init__(self, name: str, steps: List[TPipeStep] = None, parent: "Pipe" = None) -> None:
         self.name = name
         self._steps: List[TPipeStep] = steps or []
-        self.depends_on = depends_on
+        self._backup_steps: List[TPipeStep] = None
+        self._pipe_id = f"{name}_{id(self)}"
+        self.parent = parent
 
     @classmethod
     def from_iterable(cls, name: str, gen: Union[Iterable[TResolvableDataItem], Iterator[TResolvableDataItem]]) -> "Pipe":
@@ -129,10 +133,29 @@ class Pipe:
         return self
 
     def clone(self) -> "Pipe":
-        return Pipe(self.name, self._steps.copy(), self.depends_on)
+        p = Pipe(self.name, self._steps.copy(), self.parent)
+        # clone shares the id with the original
+        p._pipe_id = self._pipe_id
+        return p
+
+    # def backup(self) -> None:
+    #     if self.has_backup:
+    #         raise PipeBackupException("Pipe backup already exists, restore pipe first")
+    #     self._backup_steps = self._steps.copy()
+
+    # @property
+    # def has_backup(self) -> bool:
+    #     return self._backup_steps is not None
+
+
+    # def restore(self) -> None:
+    #     if not self.has_backup:
+    #         raise PipeBackupException("No pipe backup to restore")
+    #     self._steps = self._backup_steps
+    #     self._backup_steps = None
 
     def add_step(self, step: TPipeStep) -> "Pipe":
-        if len(self._steps) == 0 and self.depends_on is None:
+        if len(self._steps) == 0 and self.parent is None:
             # first element must be iterable or iterator
             if not isinstance(step, (Iterable, Iterator)):
                 raise CreatePipeException("First step of independent pipe must be Iterable or Iterator")
@@ -142,7 +165,7 @@ class Pipe:
                 self._steps.append(step)
         else:
             if isinstance(step, (Iterable, Iterator)):
-                if self.depends_on is not None:
+                if self.parent is not None:
                     raise CreatePipeException("Iterable or Iterator cannot be a step in dependent pipe")
                 else:
                     raise CreatePipeException("Iterable or Iterator can only be a first step in independent pipe")
@@ -152,14 +175,17 @@ class Pipe:
         return self
 
     def full_pipe(self) -> "Pipe":
-        if self.depends_on:
-            pipe = self.depends_on.full_pipe().steps
+        if self.parent:
+            pipe = self.parent.full_pipe().steps
         else:
             pipe = []
 
         # return pipe with resolved dependencies
         pipe.extend(self._steps)
         return Pipe(self.name, pipe)
+
+    def __repr__(self) -> str:
+        return f"Pipe {self.name} ({self._pipe_id}) at {id(self)}"
 
 
 class PipeIterator(Iterator[PipeItem]):
@@ -177,7 +203,7 @@ class PipeIterator(Iterator[PipeItem]):
 
     @classmethod
     def from_pipe(cls, pipe: Pipe, max_parallelism: int = 100, worker_threads: int = 5, futures_poll_interval: float = 0.01) -> "PipeIterator":
-        if pipe.depends_on:
+        if pipe.parent:
             pipe = pipe.full_pipe()
         # head must be iterator
         assert isinstance(pipe.head, Iterator)
@@ -189,21 +215,31 @@ class PipeIterator(Iterator[PipeItem]):
 
     @classmethod
     def from_pipes(cls, pipes: Sequence[Pipe], yield_parents: bool = True, max_parallelism: int = 100, worker_threads: int = 5, futures_poll_interval: float = 0.01) -> "PipeIterator":
-        # as we add fork steps below, pipes are cloned before use
-        pipes = [p.clone() for p in pipes]
         extract = cls(max_parallelism, worker_threads, futures_poll_interval)
-        for pipe in reversed(pipes):
-            if pipe.depends_on:
+        # clone all pipes before iterating (recursively) as we will fork them and this add steps
+        pipes = PipeIterator.clone_pipes(pipes)
+
+        def _fork_pipeline(pipe: Pipe) -> None:
+            if pipe.parent:
                 # fork the parent pipe
-                pipe.depends_on.fork(pipe)
+                pipe.parent.fork(pipe)
                 # make the parent yield by sending a clone of item to itself with position at the end
-                if yield_parents:
-                    pipe.depends_on.fork(pipe.depends_on, len(pipe.depends_on) - 1)
+                if yield_parents and pipe.parent in pipes:
+                    # fork is last step of the pipe so it will yield
+                    pipe.parent.fork(pipe.parent, len(pipe.parent) - 1)
+                _fork_pipeline(pipe.parent)
             else:
                 # head of independent pipe must be iterator
                 assert isinstance(pipe.head, Iterator)
-                # add every head as source
+                # add every head as source only once
+                if not any(i.pipe == pipe for i in extract._sources):
+                    print("add to sources: " + pipe.name)
                 extract._sources.append(SourcePipeItem(pipe.head, 0, pipe))
+
+
+        for pipe in reversed(pipes):
+            _fork_pipeline(pipe)
+
         return extract
 
     def __next__(self) -> PipeItem:
@@ -362,6 +398,31 @@ class PipeIterator(Iterator[PipeItem]):
             # remove empty iterator and try another source
             self._sources.pop()
             return self._get_source_item()
+
+    @staticmethod
+    def clone_pipes(pipes: Sequence[Pipe]) -> Sequence[Pipe]:
+        # will clone the pipes including the dependent ones
+        cloned_pipes = [p.clone() for p in pipes]
+        cloned_pairs = {id(p): c for p, c in zip(pipes, cloned_pipes)}
+
+        for clone in cloned_pipes:
+            while True:
+                if not clone.parent:
+                    break
+                # if already a clone
+                if clone.parent in cloned_pairs.values():
+                    break
+                # clone if parent pipe not yet cloned
+                if id(clone.parent) not in cloned_pairs:
+                    print("cloning:" + clone.parent.name)
+                    cloned_pairs[id(clone.parent)] = clone.parent.clone()
+                # replace with clone
+                print(f"replace depends on {clone.name} to {clone.parent.name}")
+                clone.parent = cloned_pairs[id(clone.parent)]
+                # recurr with clone
+                clone = clone.parent
+
+        return cloned_pipes
 
 
 class PipeException(DltException):

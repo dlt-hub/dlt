@@ -1,6 +1,6 @@
 from collections import abc
 from functools import wraps
-from typing import Any, Callable, Optional, Sequence, TypeVar, Union, TypedDict
+from typing import Any, Callable, Optional, Sequence, TypeVar, Union, TypedDict, List, Awaitable
 try:
     from typing_extensions import ParamSpec
 except ImportError:
@@ -19,6 +19,14 @@ TBoundItem = TypeVar("TBoundItem", bound=TItem)
 TDeferred = Callable[[], TBoundItem]
 
 _TFunParams = ParamSpec("_TFunParams")
+
+# TODO: cleanup those types
+TDirectDataItem = Union[TDataItem, List[TDataItem]]
+TDeferredDataItem = Callable[[], TDirectDataItem]
+TAwaitableDataItem = Awaitable[TDirectDataItem]
+TResolvableDataItem = Union[TDirectDataItem, TDeferredDataItem, TAwaitableDataItem]
+
+TFunDataItemDynHint = Callable[[TDataItem], Any]
 
 # name of dlt metadata as part of the item
 DLT_METADATA_FIELD = "_dlt_meta"

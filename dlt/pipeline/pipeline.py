@@ -13,7 +13,7 @@ from dlt.common import json, sleep, signals, logger
 from dlt.common.runners import pool_runner as runner, TRunMetrics, initialize_runner
 from dlt.common.configuration import PoolRunnerConfiguration, make_configuration
 from dlt.common.file_storage import FileStorage
-from dlt.common.schema import Schema, normalize_schema_name
+from dlt.common.schema import Schema
 from dlt.common.typing import DictStrAny, StrAny
 from dlt.common.utils import uniq_id, is_interactive
 from dlt.common.sources import DLT_METADATA_FIELD, TItem, with_table_name
@@ -90,7 +90,7 @@ class Pipeline:
         # create new schema if no default supplied
         if schema is None:
             # try to load schema, that will also import it
-            schema_name = normalize_schema_name(self.pipeline_name)
+            schema_name = self.pipeline_name
             try:
                 schema = self._normalize_instance.schema_storage.load_schema(schema_name)
             except FileNotFoundError:
@@ -382,7 +382,7 @@ class Pipeline:
             self.extractor_storage.save_json(f"{load_id}.json", items)
             self.extractor_storage.commit_events(
                 self.default_schema_name,
-                self.extractor_storage.storage._make_path(f"{load_id}.json"),
+                self.extractor_storage.storage.make_full_path(f"{load_id}.json"),
                 default_table_name,
                 len(items),
                 load_id

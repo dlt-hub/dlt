@@ -1,6 +1,6 @@
-from experiments.pipeline.pipeline import Pipeline
+# from experiments.pipeline.pipeline import Pipeline
 
-pipeline = Pipeline()
+# pipeline = Pipeline()
 
 # def __getattr__(name):
 #     if name == 'y':

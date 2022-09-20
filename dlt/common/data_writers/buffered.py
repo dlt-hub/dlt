@@ -74,8 +74,8 @@ class BufferedDataWriter:
         if self._writer:
             # write the footer of a file
             self._writer.write_footer()
+            self._file.close()
             # add file written to the list so we can commit all the files later
             self.all_files.append(self._file_name)
-            self._file.close()
             self._writer = None
             self._file = None
