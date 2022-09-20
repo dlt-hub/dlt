@@ -893,6 +893,17 @@ python-versions = "*"
 future = "*"
 
 [[package]]
+name = "pathvalidate"
+version = "2.5.2"
+description = "pathvalidate is a Python library to sanitize/validate a string such as filenames/file-paths/etc."
+category = "main"
+optional = false
+python-versions = ">=3.6"
+
+[package.extras]
+test = ["allpairspy", "click", "faker", "pytest (>=6.0.1)", "pytest-discord (>=0.0.6)", "pytest-md-report (>=0.0.12)"]
+
+[[package]]
 name = "pbr"
 version = "5.10.0"
 description = "Python Build Reasonableness"
@@ -1486,7 +1497,7 @@ redshift = ["psycopg2-binary", "psycopg2cffi"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8,<3.11"
-content-hash = "d04bbf2afa3c4f46ef5725465da8baad95da271da965408c208c2557b6af198a"
+content-hash = "e231693ee02a89e14e8168e0b4d74c284e3f9b0102f211d92efcb62723e19abb"
 
 [metadata.files]
 agate = [
@@ -1927,6 +1938,7 @@ parsedatetime = [
     {file = "parsedatetime-2.4-py2-none-any.whl", hash = "sha256:9ee3529454bf35c40a77115f5a596771e59e1aee8c53306f346c461b8e913094"},
     {file = "parsedatetime-2.4.tar.gz", hash = "sha256:3d817c58fb9570d1eec1dd46fa9448cd644eeed4fb612684b02dfda3a79cb84b"},
 ]
+pathvalidate = []
 pbr = []
 pendulum = [
     {file = "pendulum-2.1.2-cp27-cp27m-macosx_10_15_x86_64.whl", hash = "sha256:b6c352f4bd32dff1ea7066bd31ad0f71f8d8100b9ff709fb343f3b86cee43efe"},
