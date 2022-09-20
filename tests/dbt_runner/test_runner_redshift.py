@@ -16,7 +16,7 @@ from dlt.dbt_runner.configuration import DBTRunnerConfiguration
 from dlt.dbt_runner import runner
 from dlt.load.redshift.client import RedshiftSqlClient
 
-from tests.utils import add_config_to_env, clean_storage, init_logger, preserve_environ
+from tests.utils import add_config_to_env, clean_test_storage, init_logger, preserve_environ
 from tests.dbt_runner.utils import modify_and_commit_file, load_secret, setup_runner
 
 DEST_SCHEMA_PREFIX = "test_" + uniq_id()
@@ -178,7 +178,7 @@ def test_dbt_incremental_schema_out_of_sync_error() -> None:
 
 
 def get_runner() -> FileStorage:
-    clean_storage()
+    clean_test_storage()
     runner.storage, runner.dbt_package_vars, runner.global_args, runner.repo_path, runner.profile_name  = runner.create_folders()
     runner.model_elapsed_gauge, runner.model_exec_info = runner.create_gauges(CollectorRegistry(auto_describe=True))
     return runner.storage

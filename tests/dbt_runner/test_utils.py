@@ -7,7 +7,7 @@ from dlt.common.file_storage import FileStorage
 
 from dlt.dbt_runner.utils import DBTProcessingError, clone_repo, ensure_remote_head, git_custom_key_command, initialize_dbt_logging, run_dbt_command
 
-from tests.utils import root_storage
+from tests.utils import test_storage
 from tests.dbt_runner.utils import load_secret, modify_and_commit_file, restore_secret_storage_path
 
 
@@ -32,60 +32,60 @@ def test_no_ssh_key_context() -> None:
         assert git_command == 'ssh -o "StrictHostKeyChecking accept-new"'
 
 
-def test_clone(root_storage: FileStorage) -> None:
-    repo_path = root_storage._make_path("awesome_repo")
+def test_clone(test_storage: FileStorage) -> None:
+    repo_path = test_storage.make_full_path("awesome_repo")
     # clone a small public repo
     clone_repo(AWESOME_REPO, repo_path, with_git_command=None)
-    assert root_storage.has_folder("awesome_repo")
+    assert test_storage.has_folder("awesome_repo")
     # make sure directory clean
     ensure_remote_head(repo_path, with_git_command=None)
 
 
-def test_clone_with_commit_id(root_storage: FileStorage) -> None:
-    repo_path = root_storage._make_path("awesome_repo")
+def test_clone_with_commit_id(test_storage: FileStorage) -> None:
+    repo_path = test_storage.make_full_path("awesome_repo")
     # clone a small public repo
     clone_repo(AWESOME_REPO, repo_path, with_git_command=None, branch="7f88000be2d4f265c83465fec4b0b3613af347dd")
-    assert root_storage.has_folder("awesome_repo")
+    assert test_storage.has_folder("awesome_repo")
     ensure_remote_head(repo_path, with_git_command=None)
 
 
-def test_clone_with_wrong_branch(root_storage: FileStorage) -> None:
-    repo_path = root_storage._make_path("awesome_repo")
+def test_clone_with_wrong_branch(test_storage: FileStorage) -> None:
+    repo_path = test_storage.make_full_path("awesome_repo")
     # clone a small public repo
     with pytest.raises(GitCommandError):
         clone_repo(AWESOME_REPO, repo_path, with_git_command=None, branch="wrong_branch")
 
 
-def test_clone_with_deploy_key_access_denied(root_storage: FileStorage) -> None:
+def test_clone_with_deploy_key_access_denied(test_storage: FileStorage) -> None:
     secret = load_secret("deploy_key")
-    repo_path = root_storage._make_path("private_repo")
+    repo_path = test_storage.make_full_path("private_repo")
     with git_custom_key_command(secret) as git_command:
         with pytest.raises(GitCommandError):
             clone_repo(PRIVATE_REPO, repo_path, with_git_command=git_command)
 
 
-def test_clone_with_deploy_key(root_storage: FileStorage) -> None:
+def test_clone_with_deploy_key(test_storage: FileStorage) -> None:
     secret = load_secret("deploy_key")
-    repo_path = root_storage._make_path("private_repo_access")
+    repo_path = test_storage.make_full_path("private_repo_access")
     with git_custom_key_command(secret) as git_command:
         clone_repo(PRIVATE_REPO_WITH_ACCESS, repo_path, with_git_command=git_command)
         ensure_remote_head(repo_path, with_git_command=git_command)
 
 
-def test_repo_status_update(root_storage: FileStorage) -> None:
+def test_repo_status_update(test_storage: FileStorage) -> None:
     secret = load_secret("deploy_key")
-    repo_path = root_storage._make_path("private_repo_access")
+    repo_path = test_storage.make_full_path("private_repo_access")
     with git_custom_key_command(secret) as git_command:
         clone_repo(PRIVATE_REPO_WITH_ACCESS, repo_path, with_git_command=git_command)
         # modify README.md
         readme_path = modify_and_commit_file(repo_path, "README.md")
-        assert root_storage.has_file(readme_path)
+        assert test_storage.has_file(readme_path)
         with pytest.raises(RepositoryDirtyError):
             ensure_remote_head(repo_path, with_git_command=git_command)
 
 
-def test_dbt_commands(root_storage: FileStorage) -> None:
-    repo_path = root_storage._make_path("jaffle_shop")
+def test_dbt_commands(test_storage: FileStorage) -> None:
+    repo_path = test_storage.make_full_path("jaffle_shop")
     # clone jaffle shop for dbt 1.0.0
     clone_repo(JAFFLE_SHOP_REPO, repo_path, with_git_command=None, branch="core-v1.0.0")
     # copy profile

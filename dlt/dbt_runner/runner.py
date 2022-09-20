@@ -45,7 +45,7 @@ def create_folders() -> Tuple[FileStorage, StrAny, Sequence[str], str, str]:
     global_args = initialize_dbt_logging(CONFIG.LOG_LEVEL, is_json_logging(CONFIG.LOG_FORMAT))
 
     # generate path for the dbt package repo
-    repo_path = storage._make_path(CLONED_PACKAGE_NAME)
+    repo_path = storage.make_full_path(CLONED_PACKAGE_NAME)
 
     # generate profile name
     profile_name: str = None

@@ -8,7 +8,7 @@ from dlt.common.typing import StrAny
 from dlt.dbt_runner.configuration import gen_configuration_variant
 from dlt.dbt_runner import runner
 
-from tests.utils import clean_storage
+from tests.utils import clean_test_storage
 
 
 SECRET_STORAGE_PATH = environ.SECRET_STORAGE_PATH
@@ -45,7 +45,7 @@ def modify_and_commit_file(repo_path: str, file_name: str, content: str = "NEW R
 
 
 def setup_runner(dest_schema_prefix: str, override_values: StrAny = None) -> None:
-    clean_storage()
+    clean_test_storage()
     C = gen_configuration_variant(initial_values=override_values)
     # set unique dest schema prefix by default
     C.DEST_SCHEMA_PREFIX = dest_schema_prefix

@@ -1,9 +1,5 @@
-from dlt.common.storages.normalize_storage import NormalizeStorage
-from dlt.common.configuration import NormalizeVolumeConfiguration
-from dlt.common.storages.load_storage import LoadStorage
-from dlt.common.configuration import LoadVolumeConfiguration
-from dlt.common.storages.schema_storage import SchemaStorage
-from dlt.common.configuration import SchemaVolumeConfiguration
+from dlt.common.storages import NormalizeStorage, LoadStorage, SchemaStorage
+from dlt.common.configuration import NormalizeVolumeConfiguration, LoadVolumeConfiguration, SchemaVolumeConfiguration
 
 
 NormalizeStorage(True, NormalizeVolumeConfiguration)

@@ -15,7 +15,7 @@ from dlt.common.storages.versioned_storage import VersionedStorage
 from dlt.common.typing import StrAny
 
 
-TEST_STORAGE = "_storage"
+TEST_STORAGE_ROOT = "_storage"
 
 
 class MockHttpResponse():
@@ -31,20 +31,20 @@ def write_version(storage: FileStorage, version: str) -> None:
     storage.save(VersionedStorage.VERSION_FILE, str(version))
 
 
-def delete_storage() -> None:
-    storage = FileStorage(TEST_STORAGE)
+def delete_test_storage() -> None:
+    storage = FileStorage(TEST_STORAGE_ROOT)
     if storage.has_folder(""):
         storage.delete_folder("", recursively=True)
 
 
 @pytest.fixture()
-def root_storage() -> FileStorage:
-    return clean_storage()
+def test_storage() -> FileStorage:
+    return clean_test_storage()
 
 
 @pytest.fixture(autouse=True)
-def autouse_root_storage() -> FileStorage:
-    return clean_storage()
+def autouse_test_storage() -> FileStorage:
+    return clean_test_storage()
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -62,16 +62,16 @@ def init_logger(C: Type[RunConfiguration] = None) -> None:
         init_logging_from_config(C)
 
 
-def clean_storage(init_normalize: bool = False, init_loader: bool = False) -> FileStorage:
-    storage = FileStorage(TEST_STORAGE, "t", makedirs=True)
+def clean_test_storage(init_normalize: bool = False, init_loader: bool = False) -> FileStorage:
+    storage = FileStorage(TEST_STORAGE_ROOT, "t", makedirs=True)
     storage.delete_folder("", recursively=True)
     storage.create_folder(".")
     if init_normalize:
-        from dlt.common.storages.normalize_storage import NormalizeStorage
+        from dlt.common.storages import NormalizeStorage
         from dlt.common.configuration import NormalizeVolumeConfiguration
         NormalizeStorage(True, NormalizeVolumeConfiguration)
     if init_loader:
-        from dlt.common.storages.load_storage import LoadStorage
+        from dlt.common.storages import LoadStorage
         from dlt.common.configuration import LoadVolumeConfiguration
         LoadStorage(True, LoadVolumeConfiguration, "jsonl", LoadStorage.ALL_SUPPORTED_FILE_FORMATS)
     return storage
