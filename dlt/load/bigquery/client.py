@@ -203,8 +203,8 @@ class BigQueryClient(SqlJobClientBase):
             return BigQueryLoadJob(
                 JobClientBase.get_file_name_from_file_path(file_path),
                 self._retrieve_load_job(file_path),
-                #self.CREDENTIALS
-                self.sql_client.native_connection()
+                self.CREDENTIALS
+                #self.sql_client.native_connection()
             )
         except api_core_exceptions.GoogleAPICallError as gace:
             reason = self._get_reason_from_errors(gace)
