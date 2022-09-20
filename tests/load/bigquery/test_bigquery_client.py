@@ -13,7 +13,7 @@ from dlt.load import Load
 from dlt.load.bigquery.client import BigQueryClient
 
 from tests.utils import TEST_STORAGE, delete_storage
-from tests.load.utils import cm_yield_client_with_storage, expect_load_file, prepare_table, prepare_event_user_table, yield_client_with_storage
+from tests.load.utils import cm_yield_client_with_storage, expect_load_file, prepare_table, yield_client_with_storage
 
 
 @pytest.fixture(scope="module")
@@ -68,7 +68,7 @@ def test_bigquery_job_errors(client: BigQueryClient, file_storage: FileStorage) 
 @pytest.mark.parametrize('location', ["US"])
 def test_bigquery_location(location: str, file_storage: FileStorage) -> None:
     with cm_yield_client_with_storage("bigquery", initial_values={"LOCATION": location}) as client:
-        user_table_name = prepare_event_user_table(client)
+        user_table_name = prepare_table(client)
         load_json = {
             "_dlt_id": uniq_id(),
             "_dlt_root_id": uniq_id(),
