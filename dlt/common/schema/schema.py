@@ -12,7 +12,7 @@ from dlt.common.schema.typing import (TNormalizersConfig, TPartialTableSchema, T
                                       THintType, TWriteDisposition)
 from dlt.common.schema import utils
 from dlt.common.schema.exceptions import (CannotCoerceColumnException, CannotCoerceNullException, InvalidSchemaName,
-                                          ParentTableNotFoundException, SchemaCorruptedException, TablePropertiesConflictException)
+                                          ParentTableNotFoundException, SchemaCorruptedException)
 from dlt.common.validation import validate_dict
 
 
@@ -24,9 +24,6 @@ class Schema:
     ENGINE_VERSION = 4
 
     def __init__(self, name: str, normalizers: TNormalizersConfig = None) -> None:
-        # verify schema name
-        if name != utils.normalize_schema_name(name):
-            raise InvalidSchemaName(name, utils.normalize_schema_name(name))
         self._schema_tables: TSchemaTables = {}
         self._schema_name: str = name
         self._stored_version = 1  # version at load/creation time
@@ -62,6 +59,8 @@ class Schema:
         self._add_standard_hints()
         # configure normalizers, including custom config if present
         self._configure_normalizers()
+        # verify schema name after configuring normalizers
+        self._verify_schema_name(name)
         # compile all known regexes
         self._compile_regexes()
         # set initial version hash
@@ -189,27 +188,14 @@ class Schema:
             # add the whole new table to SchemaTables
             self._schema_tables[table_name] = partial_table
         else:
-            # check if table properties can be merged
-            if table.get("parent") != partial_table.get("parent"):
-                raise TablePropertiesConflictException(table_name, "parent", table.get("parent"), partial_table.get("parent"))
-            # check if partial table has write disposition set
-            partial_w_d = partial_table.get("write_disposition")
-            if partial_w_d:
-                # get write disposition recursively for existing table
-                existing_w_d = self.get_write_disposition(table_name)
-                if existing_w_d != partial_w_d:
-                    raise TablePropertiesConflictException(table_name, "write_disposition", existing_w_d, partial_w_d)
-            # add several columns to existing table
-            table_columns = table["columns"]
-            for column in partial_table["columns"].values():
-                column_name = column["name"]
-                if column_name in table_columns:
-                    # we do not support changing existing columns
-                    if not utils.compare_columns(table_columns[column_name], column):
-                        # attempt to update to incompatible columns
-                        raise CannotCoerceColumnException(table_name, column_name, column["data_type"], table_columns[column_name]["data_type"], None)
-                else:
-                    table_columns[column_name] = column
+            # partial_w_d = partial_table.get("write_disposition")
+            # if table.get("parent") and not table.get("write_disposition") and partial_w_d:
+            #     # get write disposition recursively for existing table and check if those fit
+            #     existing_w_d = self.get_write_disposition(table_name)
+            #     if existing_w_d != partial_table.get("write_disposition"):
+            #         raise TablePropertiesConflictException(table_name, "write_disposition", existing_w_d, partial_w_d)
+            # merge tables performing additional checks
+            utils.merge_tables(table, partial_table)
 
     def bump_version(self) -> Tuple[int, str]:
         """Computes schema hash in order to check if schema content was modified. In such case the schema ``stored_version`` and ``stored_version_hash`` are updated.
@@ -256,7 +242,21 @@ class Schema:
                 default_hints[h] = l  # type: ignore
         self._compile_regexes()
 
-    def get_schema_update_for(self, table_name: str, t: TTableSchemaColumns) -> List[TColumnSchema]:
+    def normalize_table_identifiers(self, table: TTableSchema) -> TTableSchema:
+        # normalize all identifiers in table according to name normalizer of the schema
+        table["name"] = self.normalize_table_name(table["name"])
+        parent = table.get("parent")
+        if parent:
+            table["parent"] = self.normalize_table_name(parent)
+        columns = table.get("columns")
+        if columns:
+            for c in columns.values():
+                c["name"] = self.normalize_column_name(c["name"])
+            # re-index columns as the name changed
+            table["columns"] = {c["name"]:c for c in columns.values()}
+        return table
+
+    def get_new_columns(self, table_name: str, t: TTableSchemaColumns) -> List[TColumnSchema]:
         # gets new columns to be added to "t" to bring up to date with stored schema
         diff_c: List[TColumnSchema] = []
         s_t = self.get_table_columns(table_name)
@@ -431,13 +431,17 @@ class Schema:
         # name normalization functions
         self.normalize_table_name = naming_module.normalize_table_name
         self.normalize_column_name = naming_module.normalize_column_name
-        self.normalize_schema_name = utils.normalize_schema_name
+        self.normalize_schema_name = naming_module.normalize_schema_name
         self.normalize_make_dataset_name = naming_module.normalize_make_dataset_name
         self.normalize_make_path = naming_module.normalize_make_path
         self.normalize_break_path = naming_module.normalize_break_path
         # data item normalization function
         self.normalize_data_item = json_module.normalize_data_item
         json_module.extend_schema(self)
+
+    def _verify_schema_name(self, name: str) -> None:
+        if name != self.normalize_schema_name(name):
+            raise InvalidSchemaName(name, self.normalize_schema_name(name))
 
     def _compile_regexes(self) -> None:
         if self._settings:

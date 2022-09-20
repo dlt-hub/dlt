@@ -67,6 +67,7 @@ def _flatten(schema: Schema, table: str, dict_row: TEventRow, _r_lvl: int) -> Tu
             # for lists and dicts we must check if type is possibly complex
             if isinstance(v, (dict, list)):
                 if not _is_complex_type(schema, table, child_name, __r_lvl):
+                    # TODO: if schema contains table {table}__{child_name} then convert v into single element list
                     if isinstance(v, dict):
                         # flatten the dict more
                         norm_row_dicts(v, __r_lvl + 1, parent_name=child_name)

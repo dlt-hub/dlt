@@ -1,5 +1,6 @@
 import re
 from typing import Any, Sequence
+from functools import lru_cache
 
 
 RE_UNDERSCORES = re.compile("_+")
@@ -15,6 +16,7 @@ PATH_SEPARATOR = "__"
 
 
 # fix a name so it's acceptable as database table name
+@lru_cache(maxsize=None)
 def normalize_table_name(name: str) -> str:
     if not name:
         raise ValueError(name)
@@ -34,9 +36,15 @@ def normalize_table_name(name: str) -> str:
 
 
 # fix a name so it's an acceptable name for a database column
+@lru_cache(maxsize=None)
 def normalize_column_name(name: str) -> str:
     # replace consecutive underscores with single one to prevent name clashes with PATH_SEPARATOR
     return RE_UNDERSCORES.sub("_", normalize_table_name(name))
+
+
+# fix a name so it is acceptable as schema name
+def normalize_schema_name(name: str) -> str:
+    return normalize_column_name(name)
 
 
 # build full db dataset (dataset) name out of (normalized) default dataset and schema name

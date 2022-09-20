@@ -12,6 +12,10 @@ def normalize_column_name(name: str) -> str:
     return "column_" + name.lower()
 
 
+def normalize_schema_name(name: str) -> str:
+    return name.lower()
+
+
 def extend_schema(schema: Schema) -> None:
     json_config = schema._normalizers_config["json"]["config"]
     d_h = schema._settings.setdefault("default_hints", {})

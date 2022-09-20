@@ -11,7 +11,7 @@ class SchemaException(DltException):
 class InvalidSchemaName(SchemaException):
     def __init__(self, name: str, normalized_name: str) -> None:
         self.name = name
-        super().__init__(f"{name} is invalid schema name. Only lowercase letters are allowed. Try {normalized_name} instead")
+        super().__init__(f"{name} is invalid schema name. Try {normalized_name} instead")
 
 
 class CannotCoerceColumnException(SchemaException):

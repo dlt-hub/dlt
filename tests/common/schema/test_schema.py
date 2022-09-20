@@ -11,7 +11,7 @@ from dlt.common.schema import TColumnSchema, Schema, TStoredSchema, utils
 from dlt.common.schema.exceptions import InvalidSchemaName, ParentTableNotFoundException, SchemaEngineNoUpgradePathException
 from dlt.common.storages import SchemaStorage
 
-from tests.utils import autouse_root_storage
+from tests.utils import autouse_test_storage
 from tests.common.utils import load_json_case, load_yml_case
 
 SCHEMA_NAME = "event"
@@ -54,9 +54,9 @@ def cn_schema() -> Schema:
 
 
 def test_normalize_schema_name(schema: Schema) -> None:
-    assert schema.normalize_schema_name("BAN_ANA") == "banana"
-    assert schema.normalize_schema_name("event-.!:value") == "eventvalue"
-    assert schema.normalize_schema_name("123event-.!:value") == "s123eventvalue"
+    assert schema.normalize_schema_name("BAN_ANA") == "ban_ana"
+    assert schema.normalize_schema_name("event-.!:value") == "event_value"
+    assert schema.normalize_schema_name("123event-.!:value") == "_123event_value"
     with pytest.raises(ValueError):
         assert schema.normalize_schema_name("")
     with pytest.raises(ValueError):
@@ -117,8 +117,8 @@ def test_column_name_validator(schema: Schema) -> None:
 
 def test_invalid_schema_name() -> None:
     with pytest.raises(InvalidSchemaName) as exc:
-        Schema("a_b")
-    assert exc.value.name == "a_b"
+        Schema("a!b")
+    assert exc.value.name == "a!b"
 
 
 @pytest.mark.parametrize("columns,hint,value", [
@@ -143,7 +143,7 @@ def test_save_store_schema(schema: Schema, schema_storage: SchemaStorage) -> Non
     assert not schema_storage.storage.has_file(EXPECTED_FILE_NAME)
     saved_file_name = schema_storage.save_schema(schema)
     # return absolute path
-    assert saved_file_name == schema_storage.storage._make_path(EXPECTED_FILE_NAME)
+    assert saved_file_name == schema_storage.storage.make_full_path(EXPECTED_FILE_NAME)
     assert schema_storage.storage.has_file(EXPECTED_FILE_NAME)
     schema_copy = schema_storage.load_schema("event")
     assert schema.name == schema_copy.name
@@ -369,16 +369,16 @@ def test_compare_columns() -> None:
     ])
     # columns identical with self
     for c in table["columns"].values():
-        assert utils.compare_columns(c, c) is True
-    assert utils.compare_columns(table["columns"]["col3"], table["columns"]["col4"]) is True
+        assert utils.compare_column(c, c) is True
+    assert utils.compare_column(table["columns"]["col3"], table["columns"]["col4"]) is True
     # data type may not differ
-    assert utils.compare_columns(table["columns"]["col1"], table["columns"]["col3"]) is False
+    assert utils.compare_column(table["columns"]["col1"], table["columns"]["col3"]) is False
     # nullability may not differ
-    assert utils.compare_columns(table["columns"]["col1"], table["columns"]["col2"]) is False
+    assert utils.compare_column(table["columns"]["col1"], table["columns"]["col2"]) is False
     # any of the hints may differ
     for hint in COLUMN_HINTS:
         table["columns"]["col3"][hint] = True
-        assert utils.compare_columns(table["columns"]["col3"], table["columns"]["col4"]) is True
+        assert utils.compare_column(table["columns"]["col3"], table["columns"]["col4"]) is True
 
 
 def assert_new_schema_values_custom_normalizers(schema: Schema) -> None:
@@ -390,7 +390,7 @@ def assert_new_schema_values_custom_normalizers(schema: Schema) -> None:
     # call normalizers
     assert schema.normalize_column_name("a") == "column_a"
     assert schema.normalize_table_name("a__b") == "A__b"
-    assert schema.normalize_schema_name("1A_b") == "s1ab"
+    assert schema.normalize_schema_name("1A_b") == "1a_b"
     # assumes elements are normalized
     assert schema.normalize_make_path("A", "B", "!C") == "A__B__!C"
     assert schema.normalize_break_path("A__B__!C") == ["A", "B", "!C"]
@@ -413,7 +413,7 @@ def assert_new_schema_values(schema: Schema) -> None:
     # call normalizers
     assert schema.normalize_column_name("A") == "a"
     assert schema.normalize_table_name("A__B") == "a__b"
-    assert schema.normalize_schema_name("1A_b") == "s1ab"
+    assert schema.normalize_schema_name("1A_b") == "_1_a_b"
     # assumes elements are normalized
     assert schema.normalize_make_path("A", "B", "!C") == "A__B__!C"
     assert schema.normalize_break_path("A__B__!C") == ["A", "B", "!C"]

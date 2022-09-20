@@ -27,6 +27,7 @@ def is_iso_timestamp(t: Type[Any], v: Any) -> Optional[TDataType]:
         return None
     # strict autodetection of iso timestamps
     try:
+        # TODO: use same functions as in coercions
         dt = pendulum.parse(v, strict=True, exact=True)
         if isinstance(dt, datetime.datetime):
             return "timestamp"
