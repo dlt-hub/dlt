@@ -18,27 +18,14 @@ from dlt.common.typing import DictStrAny, REPattern
 from dlt.common.utils import str2bool
 from dlt.common.validation import TCustomValidator, validate_dict
 from dlt.common.schema import detections
-from dlt.common.schema.typing import SIMPLE_REGEX_PREFIX, TColumnName, TNormalizersConfig, TSimpleRegex, TStoredSchema, TTableSchema, TTableSchemaColumns, TColumnSchemaBase, TColumnSchema, TColumnProp, TDataType, THintType, TTypeDetectionFunc, TTypeDetections, TWriteDisposition
-from dlt.common.schema.exceptions import ParentTableNotFoundException, SchemaEngineNoUpgradePathException
+from dlt.common.schema.typing import SIMPLE_REGEX_PREFIX, TColumnName, TNormalizersConfig, TPartialTableSchema, TSimpleRegex, TStoredSchema, TTableSchema, TTableSchemaColumns, TColumnSchemaBase, TColumnSchema, TColumnProp, TDataType, THintType, TTypeDetectionFunc, TTypeDetections, TWriteDisposition
+from dlt.common.schema.exceptions import CannotCoerceColumnException, ParentTableNotFoundException, SchemaEngineNoUpgradePathException, SchemaException, TablePropertiesConflictException
 
 
 RE_LEADING_DIGITS = re.compile(r"^\d+")
 RE_NON_ALPHANUMERIC = re.compile(r"[^a-zA-Z\d]")
 RE_NON_ALPHANUMERIC_UNDERSCORE = re.compile(r"[^a-zA-Z\d_]")
 DEFAULT_WRITE_DISPOSITION: TWriteDisposition = "append"
-
-
-# fix a name so it is acceptable as schema name
-def normalize_schema_name(name: str) -> str:
-    # empty and None schema names are not allowed
-    if not name:
-        raise ValueError(name)
-
-    # prefix the name starting with digits
-    if RE_LEADING_DIGITS.match(name):
-        name = "s" + name
-    # leave only alphanumeric
-    return RE_NON_ALPHANUMERIC.sub("", name).lower()
 
 
 def apply_defaults(stored_schema: TStoredSchema) -> None:
@@ -432,7 +419,58 @@ def coerce_type(to_type: TDataType, from_type: TDataType, value: Any) -> Any:
     raise ValueError(value)
 
 
-def compare_columns(a: TColumnSchema, b: TColumnSchema) -> bool:
+def diff_tables(tab_a: TTableSchema, tab_b: TTableSchema, ignore_table_name: bool = True) -> TPartialTableSchema:
+    table_name = tab_a["name"]
+    if not ignore_table_name and table_name != tab_b["name"]:
+        raise TablePropertiesConflictException(table_name, "name", table_name, tab_b["name"])
+
+    # check if table properties can be merged
+    if tab_a.get("parent") != tab_b.get("parent"):
+        raise TablePropertiesConflictException(table_name, "parent", tab_a.get("parent"), tab_b.get("parent"))
+    # check if partial table has write disposition set
+    partial_w_d = tab_b.get("write_disposition")
+    if partial_w_d:
+        existing_w_d = tab_a.get("write_disposition")
+        if existing_w_d != partial_w_d:
+            raise TablePropertiesConflictException(table_name, "write_disposition", existing_w_d, partial_w_d)
+
+    # get new columns, changes in the column data type or other properties are not allowed
+    table_columns = tab_a["columns"]
+    new_columns: List[TColumnSchema] = []
+    for column in tab_b["columns"].values():
+        column_name = column["name"]
+        if column_name in table_columns:
+            # we do not support changing existing columns
+            if not compare_column(table_columns[column_name], column):
+                # attempt to update to incompatible columns
+                raise CannotCoerceColumnException(table_name, column_name, column["data_type"], table_columns[column_name]["data_type"], None)
+        else:
+            new_columns.append(column)
+
+    # TODO: compare filters, description etc.
+
+    # return partial table containing only name and properties that differ (column, filters etc.)
+    return new_table(table_name, columns=new_columns)
+
+
+def compare_tables(tab_a: TTableSchema, tab_b: TTableSchema) -> bool:
+    try:
+        diff_table = diff_tables(tab_a, tab_b, ignore_table_name=False)
+        # columns cannot differ
+        return len(diff_table["columns"]) == 0
+    except SchemaException:
+        return False
+
+
+def merge_tables(table: TTableSchema, partial_table: TPartialTableSchema) -> TTableSchema:
+    # merges "partial_table" into "table", preserving the "table" name
+    diff_table = diff_tables(table, partial_table, ignore_table_name=True)
+    # add new columns when all checks passed
+    table["columns"].update(diff_table["columns"])
+    return table
+
+
+def compare_column(a: TColumnSchema, b: TColumnSchema) -> bool:
     return a["data_type"] == b["data_type"] and a["nullable"] == b["nullable"]
 
 
@@ -501,6 +539,7 @@ def new_table(table_name: str, parent_name: str = None, write_disposition: TWrit
     else:
         # set write disposition only for root tables
         table["write_disposition"] = write_disposition or DEFAULT_WRITE_DISPOSITION
+    print(f"new table {table_name} cid {id(table['columns'])}")
     return table
 
 

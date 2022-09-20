@@ -373,18 +373,15 @@ def test_update_schema_table_prop_conflict(schema: Schema) -> None:
     # without write disposition will merge
     del tab1_u2["write_disposition"]
     schema.update_schema(tab1_u2)
-    # child table merge checks recursively
-    child_tab1 = utils.new_table("child_tab", parent_name="tab_parent")
-    schema.update_schema(child_tab1)
-    child_tab1_u1 = deepcopy(child_tab1)
-    # parent table is replace
-    child_tab1_u1["write_disposition"] = "append"
+    # tab1 no write disposition, table update has write disposition
+    tab1["write_disposition"] = None
+    tab1_u2["write_disposition"] = "merge"
+    # this will not merge
     with pytest.raises(TablePropertiesConflictException) as exc_val:
-        schema.update_schema(child_tab1_u1)
-    assert exc_val.value.prop_name == "write_disposition"
-    # this will pass
-    child_tab1_u1["write_disposition"] = "replace"
-    schema.update_schema(child_tab1_u1)
+        schema.update_schema(tab1_u2)
+    # both write dispositions are None
+    tab1_u2["write_disposition"] = None
+    schema.update_schema(tab1_u2)
 
 
 def test_update_schema_column_conflict(schema: Schema) -> None:
