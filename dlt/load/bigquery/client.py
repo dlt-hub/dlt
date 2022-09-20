@@ -66,7 +66,7 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client]):
             credentials = None
         else:
             credentials = service_account.Credentials.from_service_account_info(self.C.as_credentials())
-        self._client = bigquery.Client(self.C.PROJECT_ID, credentials=credentials)
+        self._client = bigquery.Client(self.C.PROJECT_ID, credentials=credentials, location=self.C.LOCATION)
 
     def close_connection(self) -> None:
         if self._client:
@@ -157,12 +157,12 @@ class BigQueryLoadJob(LoadJob):
                 if reason in BQ_TERMINAL_REASONS:
                     # the job permanently failed for the reason above
                     return "failed"
-                elif reason in ["backendError", "internalError"]:
+                elif reason in ["internalError"]:
                     logger.warning(f"Got reason {reason} for job {self.file_name}, job considered still running. ({self.bq_load_job.error_result})")
                     # status of the job could not be obtained, job still running
                     return "running"
                 else:
-                    # retry on all other reasons
+                    # retry on all other reasons, including `backendError` which requires retry when the job is done
                     return "retry"
         else:
             return "running"
@@ -204,6 +204,7 @@ class BigQueryClient(SqlJobClientBase):
                 JobClientBase.get_file_name_from_file_path(file_path),
                 self._retrieve_load_job(file_path),
                 self.CREDENTIALS
+                #self.sql_client.native_connection()
             )
         except api_core_exceptions.GoogleAPICallError as gace:
             reason = self._get_reason_from_errors(gace)

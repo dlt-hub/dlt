@@ -34,6 +34,7 @@ class GCPPipelineCredentials(PipelineCredentials):
     DEFAULT_DATASET: str = None
     CLIENT_EMAIL: str = None
     PRIVATE_KEY: TSecretValue = None
+    LOCATION: str = "US"
     CRED_TYPE: str = "service_account"
     TOKEN_URI: str = "https://oauth2.googleapis.com/token"
     HTTP_TIMEOUT: float = 15.0
@@ -48,20 +49,19 @@ class GCPPipelineCredentials(PipelineCredentials):
         self.DEFAULT_DATASET = new_value
 
     @classmethod
-    def from_services_dict(cls, services: StrAny, dataset_prefix: str) -> "GCPPipelineCredentials":
+    def from_services_dict(cls, services: StrAny, dataset_prefix: str, location: str = "US") -> "GCPPipelineCredentials":
         assert dataset_prefix is not None
-
-        return cls("bigquery", services["project_id"], dataset_prefix, services["client_email"], services["private_key"])
+        return cls("bigquery", services["project_id"], dataset_prefix, services["client_email"], services["private_key"], location or cls.LOCATION)
 
     @classmethod
-    def from_services_file(cls, services_path: str, dataset_prefix: str) -> "GCPPipelineCredentials":
+    def from_services_file(cls, services_path: str, dataset_prefix: str, location: str = "US") -> "GCPPipelineCredentials":
         with open(services_path, "r", encoding="utf-8") as f:
             services = json.load(f)
-        return GCPPipelineCredentials.from_services_dict(services, dataset_prefix)
+        return GCPPipelineCredentials.from_services_dict(services, dataset_prefix, location)
 
     @classmethod
-    def default_credentials(cls, dataset_prefix: str, project_id: str = None) -> "GCPPipelineCredentials":
-        return cls("bigquery", project_id, dataset_prefix, None)
+    def default_credentials(cls, dataset_prefix: str, project_id: str = None, location: str = None) -> "GCPPipelineCredentials":
+        return cls("bigquery", project_id, dataset_prefix, None, None, location or cls.LOCATION)
 
 
 @dataclass

@@ -14,10 +14,11 @@ from dlt.load.client_base import DBCursor, SqlJobClientBase
 
 from tests.utils import TEST_STORAGE, delete_storage
 from tests.common.utils import load_json_case
-from tests.load.utils import TABLE_UPDATE, TABLE_ROW, expect_load_file, yield_client_with_storage, write_dataset, prepare_table
+from tests.load.utils import TABLE_UPDATE, TABLE_ROW, expect_load_file, yield_client_with_storage, cm_yield_client_with_storage, write_dataset, prepare_table
 
 
 ALL_CLIENTS = ['redshift_client', 'bigquery_client']
+ALL_CLIENT_TYPES = ["bigquery", "redshift"]
 
 
 @pytest.fixture
@@ -332,6 +333,14 @@ def test_retrieve_job(client: SqlJobClientBase, file_storage: FileStorage) -> No
     # use just file name to restore
     r_job = client.restore_file_load(job.file_name())
     assert r_job.status() == "completed"
+
+
+@pytest.mark.parametrize('client_type', ALL_CLIENT_TYPES)
+def test_default_schema_name_init_storage(client_type: str) -> None:
+    with cm_yield_client_with_storage(client_type, initial_values={
+            "DEFAULT_SCHEMA_NAME": "event"  # pass the schema that is a default schema. that should create dataset with the name `DEFAULT_DATASET`
+        }) as client:
+        assert client.sql_client.default_dataset_name == client.CONFIG.DEFAULT_DATASET
 
 
 def prepare_schema(client: SqlJobClientBase, case: str) -> None:

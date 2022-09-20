@@ -30,27 +30,6 @@ def client() -> Iterator[RedshiftClient]:
     yield from yield_client_with_storage("redshift")
 
 
-def test_default_schema_name_init_storage(client: RedshiftClient) -> None:
-    e_client: RedshiftClient = None
-    # will reuse same configuration
-    with Load.import_client_cls(
-        "redshift",
-        initial_values={
-            "DEFAULT_DATASET": client.CONFIG.DEFAULT_DATASET,
-            "DEFAULT_SCHEMA_NAME": "default"
-        })(Schema("default")
-    ) as e_client:
-        e_client.initialize_storage()
-        try:
-            # schema was created with the name of just schema prefix
-            assert e_client.sql_client.default_dataset_name == client.CONFIG.DEFAULT_DATASET
-            # update schema
-            e_client.update_storage_schema()
-            assert e_client._get_schema_version_from_storage() == 1
-        finally:
-            e_client.sql_client.drop_dataset()
-
-
 def test_recover_tx_rollback(client: RedshiftClient) -> None:
     client.update_storage_schema()
     version_table = client.sql_client.make_qualified_table_name("_dlt_version")

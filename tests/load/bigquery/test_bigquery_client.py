@@ -13,7 +13,7 @@ from dlt.load import Load
 from dlt.load.bigquery.client import BigQueryClient
 
 from tests.utils import TEST_STORAGE, delete_storage
-from tests.load.utils import expect_load_file, prepare_table, yield_client_with_storage
+from tests.load.utils import cm_yield_client_with_storage, expect_load_file, prepare_table, yield_client_with_storage
 
 
 @pytest.fixture(scope="module")
@@ -29,27 +29,6 @@ def file_storage() -> FileStorage:
 @pytest.fixture(autouse=True)
 def auto_delete_storage() -> None:
     delete_storage()
-
-
-def test_default_schema_name_init_storage(client: BigQueryClient) -> None:
-    e_client: BigQueryClient = None
-    # pass the schema that is a default schema. that should create dataset with the name `DEFAULT_DATASET`
-    with Load.import_client_cls(
-        "bigquery",
-        initial_values={
-            "DEFAULT_DATASET": client.CONFIG.DEFAULT_DATASET,
-            "DEFAULT_SCHEMA_NAME": "default"
-        })(Schema("default")
-    ) as e_client:
-        e_client.initialize_storage()
-        try:
-            # schema was created with the name of just schema prefix
-            assert e_client.sql_client.default_dataset_name == client.CONFIG.DEFAULT_DATASET
-            # update schema
-            e_client.update_storage_schema()
-            assert e_client._get_schema_version_from_storage() == 1
-        finally:
-            e_client.sql_client.drop_dataset()
 
 
 def test_bigquery_job_errors(client: BigQueryClient, file_storage: FileStorage) -> None:
@@ -84,6 +63,25 @@ def test_bigquery_job_errors(client: BigQueryClient, file_storage: FileStorage) 
     # start a job from the same file. it should fallback to retrieve job silently
     r_job = client.start_file_load(client.schema.get_table(user_table_name), file_storage._make_path(job.file_name()))
     assert r_job.status() == "completed"
+
+
+@pytest.mark.parametrize('location', ["US", "EU"])
+def test_bigquery_location(location: str, file_storage: FileStorage) -> None:
+    with cm_yield_client_with_storage("bigquery", initial_values={"LOCATION": location}) as client:
+        user_table_name = prepare_table(client)
+        load_json = {
+            "_dlt_id": uniq_id(),
+            "_dlt_root_id": uniq_id(),
+            "sender_id": '90238094809sajlkjxoiewjhduuiuehd',
+            "timestamp": str(pendulum.now())
+        }
+        job = expect_load_file(client, file_storage, json.dumps(load_json), user_table_name)
+
+        # start a job from the same file. it should fallback to retrieve job silently
+        client.start_file_load(client.schema.get_table(user_table_name), file_storage._make_path(job.file_name()))
+        canonical_name = client.sql_client.make_qualified_table_name(user_table_name)
+        t = client.sql_client.native_connection.get_table(canonical_name)
+        assert t.location == location
 
 
 def test_loading_errors(client: BigQueryClient, file_storage: FileStorage) -> None:

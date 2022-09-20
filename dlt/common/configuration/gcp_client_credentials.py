@@ -9,6 +9,7 @@ class GcpClientCredentials(CredentialsConfiguration):
     PROJECT_ID: str = None
     CRED_TYPE: str = "service_account"
     PRIVATE_KEY: TSecretValue = None
+    LOCATION: str = "US"
     TOKEN_URI: str = "https://oauth2.googleapis.com/token"
     CLIENT_EMAIL: str = None
 
