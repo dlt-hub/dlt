@@ -82,13 +82,13 @@ def generate_version_hash(stored_schema: TStoredSchema) -> str:
     content = json.dumps(schema_copy, sort_keys=True)
     h = hashlib.sha3_256(content.encode("utf-8"))
     # additionally check column order
-    table_names = sorted(schema_copy.get("tables", {}).keys())
+    table_names = sorted((schema_copy.get("tables") or {}).keys())
     if table_names:
         for tn in table_names:
             t = schema_copy["tables"][tn]
             h.update(tn.encode("utf-8"))
             # add column names to hash in order
-            for cn in t.get("columns", {}).keys():
+            for cn in (t.get("columns") or {}).keys():
                 h.update(cn.encode("utf-8"))
     return base64.b64encode(h.digest()).decode('ascii')
 
@@ -268,26 +268,39 @@ def autodetect_sc_type(detection_fs: Sequence[TTypeDetections], t: Type[Any], v:
 
 
 def py_type_to_sc_type(t: Type[Any]) -> TDataType:
-    if issubclass(t, float):
+    # start with most popular types
+    if t is str:
+        return "text"
+    if t is float:
         return "double"
     # bool is subclass of int so must go first
-    elif t is bool:
+    if t is bool:
         return "bool"
-    elif issubclass(t, int):
+    if t is int:
         return "bigint"
-    elif issubclass(t, bytes):
-        return "binary"
-    elif issubclass(t, (dict, list)):
+    if issubclass(t, (dict, list)):
         return "complex"
+
+    # those are special types that will not be present in json loaded dict
     # wei is subclass of decimal and must be checked first
-    elif issubclass(t, Wei):
+    if issubclass(t, Wei):
         return "wei"
-    elif issubclass(t, Decimal):
+    if issubclass(t, Decimal):
         return "decimal"
-    elif issubclass(t, datetime.datetime):
+    if issubclass(t, datetime.datetime):
         return "timestamp"
-    else:
+
+    # check again for subclassed basic types
+    if issubclass(t, str):
         return "text"
+    if issubclass(t, float):
+        return "double"
+    if issubclass(t, int):
+        return "bigint"
+    if issubclass(t, bytes):
+        return "binary"
+
+    return "text"
 
 
 def coerce_type(to_type: TDataType, from_type: TDataType, value: Any) -> Any:

@@ -80,7 +80,7 @@ class Schema:
 
         # create new instance from dict
         self: Schema = cls(stored_schema["name"], normalizers=stored_schema.get("normalizers", None))
-        self._schema_tables = stored_schema.get("tables", {})
+        self._schema_tables = stored_schema.get("tables") or {}
         if Schema.VERSION_TABLE_NAME not in self._schema_tables:
             raise SchemaCorruptedException(f"Schema must contain table {Schema.VERSION_TABLE_NAME}")
         if Schema.LOADS_TABLE_NAME not in self._schema_tables:
@@ -88,7 +88,7 @@ class Schema:
         self._stored_version = stored_schema["version"]
         self._stored_version_hash = stored_schema["version_hash"]
         self._imported_version_hash = stored_schema.get("imported_version_hash")
-        self._settings = stored_schema.get("settings", {})
+        self._settings = stored_schema.get("settings") or {}
         # compile regexes
         self._compile_regexes()
 
@@ -139,7 +139,7 @@ class Schema:
             excludes = self._compiled_excludes.get(c_t)
             # only if there's possibility to exclude, continue
             if excludes:
-                includes = self._compiled_includes.get(c_t, [])
+                includes = self._compiled_includes.get(c_t) or []
                 for field_name in list(row.keys()):
                     path = self.normalize_make_path(*branch[i:], field_name)
                     if _exclude(path, excludes, includes):
@@ -150,12 +150,14 @@ class Schema:
                 break
         return row
 
-    def coerce_row(self, table_name: str, parent_table: str, row: StrAny) -> Tuple[StrAny, TPartialTableSchema]:
+    def coerce_row(self, table_name: str, parent_table: str, row: StrAny) -> Tuple[DictStrAny, TPartialTableSchema]:
         # get existing or create a new table
-        table = self._schema_tables.get(table_name, utils.new_table(table_name, parent_table))
+        updated_table_partial: TPartialTableSchema = None
+        table = self._schema_tables.get(table_name)
+        if not table:
+            table = utils.new_table(table_name, parent_table)
         table_columns = table["columns"]
 
-        partial_table: TPartialTableSchema = None
         new_row: DictStrAny = {}
         for col_name, v in row.items():
             # skip None values, we should infer the types later
@@ -166,12 +168,13 @@ class Schema:
                 new_col_name, new_col_def, new_v = self._coerce_non_null_value(table_columns, table_name, col_name, v)
                 new_row[new_col_name] = new_v
                 if new_col_def:
-                    if not partial_table:
-                        partial_table = copy(table)
-                        partial_table["columns"] = {}
-                    partial_table["columns"][new_col_name] = new_col_def
+                    if not updated_table_partial:
+                        # create partial table with only the new columns
+                        updated_table_partial = copy(table)
+                        updated_table_partial["columns"] = {}
+                    updated_table_partial["columns"][new_col_name] = new_col_def
 
-        return new_row, partial_table
+        return new_row, updated_table_partial
 
     def update_schema(self, partial_table: TPartialTableSchema) -> None:
         table_name = partial_table["name"]
@@ -188,12 +191,6 @@ class Schema:
             # add the whole new table to SchemaTables
             self._schema_tables[table_name] = partial_table
         else:
-            # partial_w_d = partial_table.get("write_disposition")
-            # if table.get("parent") and not table.get("write_disposition") and partial_w_d:
-            #     # get write disposition recursively for existing table and check if those fit
-            #     existing_w_d = self.get_write_disposition(table_name)
-            #     if existing_w_d != partial_table.get("write_disposition"):
-            #         raise TablePropertiesConflictException(table_name, "write_disposition", existing_w_d, partial_w_d)
             # merge tables performing additional checks
             utils.merge_tables(table, partial_table)
 
@@ -356,7 +353,7 @@ class Schema:
 
         # infer type or get it from existing table
         col_type = existing_column.get("data_type") if existing_column else self._infer_column_type(v, col_name)
-        # get real python type
+        # get data type of value
         py_type = utils.py_type_to_sc_type(type(v))
         # and coerce type if inference changed the python type
         try:
@@ -373,7 +370,8 @@ class Schema:
             return self._coerce_non_null_value(table_columns, table_name, variant_col_name, v, final=True)
 
         # if coerced value is variant, then extract variant value
-        if isinstance(coerced_v, SupportsVariant):
+        # note: checking runtime protocols with isinstance(coerced_v, SupportsVariant): is extremely slow so we check if callable as every variant is callable
+        if callable(coerced_v) and isinstance(coerced_v, SupportsVariant):
             coerced_v = coerced_v()
             if isinstance(coerced_v, tuple):
                 # variant recovered so call recursively with variant column name and variant value

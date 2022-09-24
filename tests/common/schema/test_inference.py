@@ -208,7 +208,7 @@ def test_coerce_complex_variant(schema: Schema) -> None:
 
 def test_supports_variant_pua_decode(schema: Schema) -> None:
     rows = load_json_case("pua_encoded_row")
-    normalized_row = list(schema.normalize_data_item(schema, rows[0], "0912uhj222"))
+    normalized_row = list(schema.normalize_data_item(schema, rows[0], "0912uhj222", "event"))
     # pua encoding still present
     assert normalized_row[0][1]["wad"].startswith("")
     # decode pua
@@ -223,7 +223,7 @@ def test_supports_variant(schema: Schema) -> None:
     rows = [{"evm": Wei.from_int256(2137*10**16, decimals=18)}, {"evm": Wei.from_int256(2**256-1)}]
     normalized_rows = []
     for row in rows:
-        normalized_rows.extend(schema.normalize_data_item(schema, row, "128812.2131"))
+        normalized_rows.extend(schema.normalize_data_item(schema, row, "128812.2131", "event"))
     # row 1 contains Wei
     assert isinstance(normalized_rows[0][1]["evm"], Wei)
     assert normalized_rows[0][1]["evm"] == Wei("21.37")
@@ -281,7 +281,7 @@ def test_supports_variant_autovariant_conflict(schema: Schema) -> None:
     rows = [{"pv": PureVariant(3377)}, {"pv": PureVariant(21.37)}]
     normalized_rows = []
     for row in rows:
-        normalized_rows.extend(schema.normalize_data_item(schema, row, "128812.2131"))
+        normalized_rows.extend(schema.normalize_data_item(schema, row, "128812.2131", "event"))
     assert normalized_rows[0][1]["pv"]() == 3377
     assert normalized_rows[1][1]["pv"]() == ("text", 21.37)
     # first normalized row fits into schema (pv is int)

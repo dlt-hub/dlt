@@ -394,8 +394,8 @@ def assert_new_schema_values_custom_normalizers(schema: Schema) -> None:
     # assumes elements are normalized
     assert schema.normalize_make_path("A", "B", "!C") == "A__B__!C"
     assert schema.normalize_break_path("A__B__!C") == ["A", "B", "!C"]
-    row = list(schema.normalize_data_item(schema, {"bool": True}, "load_id"))
-    assert row[0] == (("table", None), {"bool": True})
+    row = list(schema.normalize_data_item(schema, {"bool": True}, "load_id", "a_table"))
+    assert row[0] == (("a_table", None), {"bool": True})
 
 
 def assert_new_schema_values(schema: Schema) -> None:
@@ -417,7 +417,7 @@ def assert_new_schema_values(schema: Schema) -> None:
     # assumes elements are normalized
     assert schema.normalize_make_path("A", "B", "!C") == "A__B__!C"
     assert schema.normalize_break_path("A__B__!C") == ["A", "B", "!C"]
-    schema.normalize_data_item(schema, {}, "load_id")
+    schema.normalize_data_item(schema, {}, "load_id", schema.name)
     # check default tables
     tables = schema.tables
     assert "_dlt_version" in tables
