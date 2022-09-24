@@ -371,7 +371,7 @@ class Schema:
 
         # if coerced value is variant, then extract variant value
         # note: checking runtime protocols with isinstance(coerced_v, SupportsVariant): is extremely slow so we check if callable as every variant is callable
-        if callable(coerced_v) and isinstance(coerced_v, SupportsVariant):
+        if callable(coerced_v):  # and isinstance(coerced_v, SupportsVariant):
             coerced_v = coerced_v()
             if isinstance(coerced_v, tuple):
                 # variant recovered so call recursively with variant column name and variant value
