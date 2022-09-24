@@ -4,32 +4,36 @@ from dlt.common.utils import uniq_id
 from dlt.common.typing import TDataItem
 from dlt.common.sources import TDirectDataItem
 from dlt.common.data_writers import TLoaderFileFormat
-from dlt.common.data_writers.exceptions import InvalidFileNameTemplateException
+from dlt.common.data_writers.exceptions import BufferedDataWriterClosed, InvalidFileNameTemplateException
 from dlt.common.data_writers.writers import DataWriter
 from dlt.common.schema.typing import TTableSchemaColumns
 
 
 class BufferedDataWriter:
-    def __init__(self, file_format: TLoaderFileFormat, file_name_template: str, buffer_max_items: int = 5000, file_max_bytes: int = None):
+    def __init__(self, file_format: TLoaderFileFormat, file_name_template: str, buffer_max_items: int = 5000, file_max_items: int = None, file_max_bytes: int = None):
         self.file_format = file_format
         self._file_format_spec = DataWriter.data_format_from_file_format(self.file_format)
         # validate if template has correct placeholders
         self.file_name_template = file_name_template
         self.all_files: List[str] = []
-        self.buffer_max_items = buffer_max_items
+        # buffered items must be less than max items in file
+        self.buffer_max_items = min(buffer_max_items, file_max_items or buffer_max_items)
         self.file_max_bytes = file_max_bytes
+        self.file_max_items = file_max_items
 
         self._current_columns: TTableSchemaColumns = None
         self._file_name: str = None
         self._buffered_items: List[TDataItem] = []
         self._writer: DataWriter = None
         self._file: IO[Any] = None
+        self._closed = False
         try:
             self._rotate_file()
         except TypeError:
             raise InvalidFileNameTemplateException(file_name_template)
 
     def write_data_item(self, item: TDirectDataItem, columns: TTableSchemaColumns) -> None:
+        self._ensure_open()
         # rotate file if columns changed and writer does not allow for that
         # as the only allowed change is to add new column (no updates/deletes), we detect the change by comparing lengths
         if self._writer and not self._writer.data_format().supports_schema_changes and len(columns) != len(self._current_columns):
@@ -42,15 +46,29 @@ class BufferedDataWriter:
         else:
             self._buffered_items.append(item)
         # flush if max buffer exceeded
-        if len(self._buffered_items) > self.buffer_max_items:
+        if len(self._buffered_items) >= self.buffer_max_items:
             self._flush_items()
         # rotate the file if max_bytes exceeded
-        if self.file_max_bytes and self._file and self._file.tell() > self.file_max_bytes:
-            self._rotate_file()
+        if self._file:
+            # rotate on max file size
+            if self.file_max_bytes and self._file.tell() >= self.file_max_bytes:
+                self._rotate_file()
+            # rotate on max items
+            if self.file_max_items and self._writer.items_count >= self.file_max_items:
+                self._rotate_file()
+
+    def close_writer(self) -> None:
+        self._ensure_open()
+        self._flush_and_close_file()
+        self._closed = True
+
+    @property
+    def closed(self) -> bool:
+        return self._closed
 
     def _rotate_file(self) -> None:
-        self.close_writer()
-        self._file_name = self.file_name_template % uniq_id() + "." + self._file_format_spec.file_extension
+        self._flush_and_close_file()
+        self._file_name = self.file_name_template % uniq_id(5) + "." + self._file_format_spec.file_extension
 
     def _flush_items(self) -> None:
         if len(self._buffered_items) > 0:
@@ -67,7 +85,7 @@ class BufferedDataWriter:
             self._writer.write_data(self._buffered_items)
             self._buffered_items.clear()
 
-    def close_writer(self) -> None:
+    def _flush_and_close_file(self) -> None:
         # if any buffered items exist, flush them
         self._flush_items()
         # if writer exists then close it
@@ -79,3 +97,7 @@ class BufferedDataWriter:
             self.all_files.append(self._file_name)
             self._writer = None
             self._file = None
+
+    def _ensure_open(self) -> None:
+        if self._closed:
+            raise BufferedDataWriterClosed(self._file_name)

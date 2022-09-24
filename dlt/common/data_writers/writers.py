@@ -24,14 +24,14 @@ class TFileFormatSpec:
 class DataWriter(abc.ABC):
     def __init__(self, f: IO[Any]) -> None:
         self._f = f
+        self.items_count = 0
 
     @abc.abstractmethod
     def write_header(self, columns_schema: TTableSchemaColumns) -> None:
         pass
 
-    @abc.abstractmethod
     def write_data(self, rows: Sequence[Any]) -> None:
-        pass
+        self.items_count += len(rows)
 
     @abc.abstractmethod
     def write_footer(self) -> None:
@@ -74,6 +74,7 @@ class JsonlWriter(DataWriter):
         pass
 
     def write_data(self, rows: Sequence[Any]) -> None:
+        super().write_data(rows)
         # use jsonl to write load files https://jsonlines.org/
         with jsonlines.Writer(self._f, dumps=json.dumps) as w:
             w.write_all(rows)
@@ -89,6 +90,8 @@ class JsonlWriter(DataWriter):
 class JsonlPUAEncodeWriter(JsonlWriter):
 
     def write_data(self, rows: Sequence[Any]) -> None:
+        # skip JsonlWriter when calling super
+        super(JsonlWriter, self).write_data(rows)
         # encode types with PUA characters
         with jsonlines.Writer(self._f, dumps=json_typed_dumps) as w:
             w.write_all(rows)
@@ -116,6 +119,7 @@ class InsertValuesWriter(DataWriter):
         self._f.write(")\nVALUES\n")
 
     def write_data(self, rows: Sequence[Any]) -> None:
+        super().write_data(rows)
 
         def stringify(v: Any) -> str:
             if isinstance(v, bytes):
