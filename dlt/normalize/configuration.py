@@ -12,7 +12,6 @@ from . import __version__
 
 
 class NormalizeConfiguration(PoolRunnerConfiguration, NormalizeVolumeConfiguration, LoadVolumeConfiguration, SchemaVolumeConfiguration):
-    MAX_EVENTS_IN_CHUNK: int = 40000  # maximum events to be processed in single chunk
     LOADER_FILE_FORMAT: TLoaderFileFormat = "jsonl"  # jsonp or insert commands will be generated
     POOL_TYPE: TPoolType = "process"
 
