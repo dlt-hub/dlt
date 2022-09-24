@@ -22,5 +22,5 @@ def extend_schema(schema: Schema) -> None:
     d_h["not_null"] = json_config["not_null"]
 
 
-def normalize_data_item(schema: Schema, source_event: TDataItem, load_id: str) -> TNormalizedRowIterator:
-    yield ("table", None), source_event
+def normalize_data_item(schema: Schema, source_event: TDataItem, load_id: str, table_name) -> TNormalizedRowIterator:
+    yield (table_name, None), source_event

@@ -5,8 +5,8 @@ from dlt.common.schema import Schema
 from dlt.common.schema.typing import TColumnSchema, TColumnName, TSimpleRegex
 from dlt.common.schema.utils import column_name_validator
 from dlt.common.utils import uniq_id, digest128
-from dlt.common.normalizers.json import TNormalizedRowIterator
-from dlt.common.sources import DLT_METADATA_FIELD, TEventDLTMeta, get_table_name
+from dlt.common.normalizers.json import TNormalizedRowIterator, wrap_in_dict
+from dlt.common.sources import TEventDLTMeta
 from dlt.common.validation import validate_dict
 
 
@@ -40,7 +40,7 @@ class JSONNormalizerConfig(TypedDict, total=True):
 # for those paths the complex nested objects should be left in place
 def _is_complex_type(schema: Schema, table_name: str, field_name: str, _r_lvl: int) -> bool:
     # turn everything at the recursion level into complex type
-    max_nesting  = schema._normalizers_config["json"].get("config", {}).get("max_nesting", 1000)
+    max_nesting  = (schema._normalizers_config["json"].get("config") or {}).get("max_nesting", 1000)
     assert _r_lvl <= max_nesting
     if _r_lvl == max_nesting:
         return True
@@ -48,7 +48,7 @@ def _is_complex_type(schema: Schema, table_name: str, field_name: str, _r_lvl: i
     column: TColumnSchema = None
     table = schema._schema_tables.get(table_name)
     if table:
-        column = table["columns"].get(field_name, None)
+        column = table["columns"].get(field_name)
     if column is None:
         data_type = schema.get_preferred_type(field_name)
     else:
@@ -103,14 +103,14 @@ def _get_content_hash(schema: Schema, table: str, row: StrAny) -> str:
 
 
 def _get_propagated_values(schema: Schema, table: str, row: TEventRow, is_top_level: bool) -> StrAny:
-    config: JSONNormalizerConfigPropagation = schema._normalizers_config["json"].get("config", {}).get("propagation", None)
+    config: JSONNormalizerConfigPropagation = (schema._normalizers_config["json"].get("config") or {}).get("propagation", None)
     extend: DictStrAny = {}
     if config:
         # mapping(k:v): propagate property with name "k" as property with name "v" in child table
         mappings: DictStrStr = {}
         if is_top_level:
-            mappings.update(config.get("root", {}))
-        if table in config.get("tables", {}):
+            mappings.update(config.get("root") or {})
+        if table in (config.get("tables") or {}):
             mappings.update(config["tables"][table])
         # look for keys and create propagation as values
         for prop_from, prop_as in mappings.items():
@@ -147,7 +147,9 @@ def _normalize_list(
         else:
             # list of simple types
             child_row_hash = _get_child_row_hash(parent_row_id, table, idx)
-            e = _add_linking({"value": v, "_dlt_id": child_row_hash}, extend, parent_row_id, idx)
+            wrap_v = wrap_in_dict(v)
+            wrap_v["_dlt_id"] = child_row_hash
+            e = _add_linking(wrap_v, extend, parent_row_id, idx)
             _extend_row(extend, e)
             yield (table, parent_table), e
 
@@ -199,11 +201,11 @@ def _normalize_row(
 
 def extend_schema(schema: Schema) -> None:
     # validate config
-    config = schema._normalizers_config["json"].get("config", {})
+    config = schema._normalizers_config["json"].get("config") or {}
     validate_dict(JSONNormalizerConfig, config, "./normalizers/json/config", validator_f=column_name_validator(schema.normalize_column_name))
 
     # quick check to see if hints are applied
-    default_hints = schema.settings.get("default_hints", {})
+    default_hints = schema.settings.get("default_hints") or {}
     if "not_null" in default_hints and "^_dlt_id$" in default_hints["not_null"]:
         return
     # add hints
@@ -219,14 +221,9 @@ def extend_schema(schema: Schema) -> None:
     )
 
 
-def normalize_data_item(schema: Schema, source_event: TDataItem, load_id: str) -> TNormalizedRowIterator:
+def normalize_data_item(schema: Schema, item: TDataItem, load_id: str, table_name: str) -> TNormalizedRowIterator:
     # we will extend event with all the fields necessary to load it as root row
-    event = cast(TEventRowRoot, source_event)
+    event = cast(TEventRowRoot, item)
     # identify load id if loaded data must be processed after loading incrementally
     event["_dlt_load_id"] = load_id
-    # find table name
-    table_name = schema.normalize_table_name(get_table_name(event) or schema.name)
-    # drop dlt metadata before normalizing
-    event.pop(DLT_METADATA_FIELD, None)  # type: ignore
-    # use event type or schema name as table name, request _dlt_root_id propagation
-    yield from _normalize_row(schema, cast(TEventRowChild, event), {}, table_name)
+    yield from _normalize_row(schema, cast(TEventRowChild, event), {}, schema.normalize_table_name(table_name))

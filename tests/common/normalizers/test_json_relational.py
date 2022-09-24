@@ -4,7 +4,6 @@ from dlt.common.schema.typing import TSimpleRegex
 from dlt.common.utils import digest128, uniq_id
 from dlt.common.schema import Schema
 from dlt.common.schema.utils import new_table
-from dlt.common.sources import DLT_METADATA_FIELD, with_table_name
 
 from dlt.common.normalizers.json.relational import JSONNormalizerConfigPropagation, _flatten, _get_child_row_hash, _normalize_row, normalize_data_item
 
@@ -519,13 +518,13 @@ def test_complex_types_for_recursion_level(schema: Schema) -> None:
             "lo": [{"e": {"v": 1}}]  # , {"e": {"v": 2}}, {"e":{"v":3 }}
         }]
     }
-    n_rows_nl = list(schema.normalize_data_item(schema, row, "load_id"))
+    n_rows_nl = list(schema.normalize_data_item(schema, row, "load_id", "default"))
     # all nested elements were yielded
     assert ["default", "default__f", "default__f__l", "default__f__lo"] == [r[0][0] for r in n_rows_nl]
 
     # set max nesting to 0
     schema._normalizers_config["json"]["config"]["max_nesting"] = 0
-    n_rows = list(schema.normalize_data_item(schema, row, "load_id"))
+    n_rows = list(schema.normalize_data_item(schema, row, "load_id", "default"))
     # the "f" element is left as complex type and not normalized
     assert len(n_rows) == 1
     assert n_rows[0][0][0] == "default"
@@ -534,7 +533,7 @@ def test_complex_types_for_recursion_level(schema: Schema) -> None:
 
     # max nesting 1
     schema._normalizers_config["json"]["config"]["max_nesting"] = 1
-    n_rows = list(schema.normalize_data_item(schema, row, "load_id"))
+    n_rows = list(schema.normalize_data_item(schema, row, "load_id", "default"))
     assert len(n_rows) == 2
     assert ["default", "default__f"] == [r[0][0] for r in n_rows]
     # on level f, "l" and "lo" are not normalized
@@ -545,7 +544,7 @@ def test_complex_types_for_recursion_level(schema: Schema) -> None:
 
     # max nesting 2
     schema._normalizers_config["json"]["config"]["max_nesting"] = 2
-    n_rows = list(schema.normalize_data_item(schema, row, "load_id"))
+    n_rows = list(schema.normalize_data_item(schema, row, "load_id", "default"))
     assert len(n_rows) == 4
     # in default__f__lo the dicts that would be flattened are complex types
     last_row = n_rows[3]
@@ -553,7 +552,7 @@ def test_complex_types_for_recursion_level(schema: Schema) -> None:
 
     # max nesting 3
     schema._normalizers_config["json"]["config"]["max_nesting"] = 3
-    n_rows = list(schema.normalize_data_item(schema, row, "load_id"))
+    n_rows = list(schema.normalize_data_item(schema, row, "load_id", "default"))
     assert n_rows_nl == n_rows
 
 
@@ -570,13 +569,11 @@ def test_extract_with_table_name_meta() -> None:
     }
     # force table name
     rows = list(
-        normalize_data_item(create_schema_with_name("discord"), with_table_name(row, "channel"), "load_id")
+        normalize_data_item(create_schema_with_name("discord"), row, "load_id", "channel")
     )
     # table is channel
     assert rows[0][0][0] == "channel"
     normalized_row = rows[0][1]
-    # _dlt_meta must be removed must be removed
-    assert DLT_METADATA_FIELD not in normalized_row
     assert normalized_row["guild_id"] == "815421435900198962"
     assert "_dlt_id" in normalized_row
     assert normalized_row["_dlt_load_id"] == "load_id"
@@ -588,7 +585,7 @@ def test_table_name_meta_normalized() -> None:
     }
     # force table name
     rows = list(
-        normalize_data_item(create_schema_with_name("discord"), with_table_name(row, "channelSURFING"), "load_id")
+        normalize_data_item(create_schema_with_name("discord"), row, "load_id", "channelSURFING")
     )
     # table is channel
     assert rows[0][0][0] == "channel_surfing"
@@ -607,7 +604,7 @@ def test_parse_with_primary_key() -> None:
             "wo_id": [1, 2, 3]
             }]
     }
-    rows = list(normalize_data_item(schema, row, "load_id"))
+    rows = list(normalize_data_item(schema, row, "load_id", "discord"))
     # get root
     root = next(t[1] for t in rows if t[0][0] == "discord")
     assert root["_dlt_id"] == digest128("817949077341208606")
@@ -633,7 +630,7 @@ def test_parse_with_primary_key() -> None:
 
 def test_keeps_none_values() -> None:
     row = {"a": None, "timestamp": 7}
-    rows = list(normalize_data_item(create_schema_with_name("other"), row, "1762162.1212"))
+    rows = list(normalize_data_item(create_schema_with_name("other"), row, "1762162.1212", "other"))
     table_name = rows[0][0][0]
     assert table_name == "other"
     normalized_row = rows[0][1]

@@ -1,7 +1,7 @@
 
-from typing import Iterator, Tuple, Callable, TYPE_CHECKING
+from typing import Any, Iterator, Tuple, Callable, TYPE_CHECKING
 
-from dlt.common.typing import TDataItem, StrAny
+from dlt.common.typing import DictStrAny, TDataItem, StrAny
 if TYPE_CHECKING:
     from dlt.common.schema import Schema
 
@@ -11,4 +11,9 @@ if TYPE_CHECKING:
 TNormalizedRowIterator = Iterator[Tuple[Tuple[str, str], StrAny]]
 
 # normalization function signature
-TNormalizeJSONFunc = Callable[["Schema", TDataItem, str], TNormalizedRowIterator]
+TNormalizeJSONFunc = Callable[["Schema", TDataItem, str, str], TNormalizedRowIterator]
+
+
+def wrap_in_dict(item: Any) -> DictStrAny:
+    """Wraps `item` that is not a dictionary into dictionary that can be json normalized"""
+    return {"value": item}
