@@ -1,7 +1,13 @@
 import gc
+from typing import Type
+import pytest
+from multiprocessing import get_start_method
 from multiprocessing.pool import Pool
 from multiprocessing.dummy import Pool as ThreadPool
-import pytest
+
+from dlt.common.runners.runnable import configuredworker
+from dlt.common.utils import uniq_id
+from dlt.normalize.configuration import NormalizeConfiguration
 
 from tests.common.runners.utils import _TestRunnable
 from tests.utils import skipifspawn
@@ -62,3 +68,40 @@ def test_weak_pool_ref() -> None:
     # weak reference will be removed from container
     with pytest.raises(KeyError):
         r = wref[rid]
+
+
+def test_configuredworker() -> None:
+
+    # call worker method with CONFIG values that should be restored into CONFIG type
+    config = NormalizeConfiguration.as_dict()
+    config["import_schema_path"] = "test_schema_path"
+    _worker_1(config, "PX1", par2="PX2")
+
+    # may also be called directly
+    NormT = type("TEST_" + uniq_id(), (NormalizeConfiguration, ), {})
+    NormT.IMPORT_SCHEMA_PATH = "test_schema_path"
+    _worker_1(NormT, "PX1", par2="PX2")
+
+    # must also work across process boundary
+    with Pool(1) as p:
+        p.starmap(_worker_1, [(config, "PX1", "PX2")])
+
+    # wrong signature error
+    with pytest.raises(ValueError):
+        _wrong_worker_sig(config)
+
+
+@configuredworker
+def _wrong_worker_sig(CONFIG: NormalizeConfiguration) -> None:
+    pass
+
+@configuredworker
+def _worker_1(CONFIG: Type[NormalizeConfiguration], par1: str, par2: str = "DEFAULT") -> None:
+    assert issubclass(CONFIG, NormalizeConfiguration)
+    # it is a subclass but not the same type
+    assert not CONFIG is NormalizeConfiguration
+    # check if config values are restored
+    assert CONFIG.IMPORT_SCHEMA_PATH == "test_schema_path"
+    # check if other parameters are correctly
+    assert par1 == "PX1"
+    assert par2 == "PX2"

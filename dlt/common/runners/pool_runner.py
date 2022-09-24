@@ -1,14 +1,12 @@
-import argparse
 import multiprocessing
 from prometheus_client import Counter, Gauge, Summary, CollectorRegistry, REGISTRY
-from typing import Callable, Dict, NamedTuple, Optional, Type, TypeVar, Union, cast
+from typing import Callable, Dict, Type, Union, cast
 from multiprocessing.pool import ThreadPool, Pool
 
 from dlt.common import logger, signals
 from dlt.common.runners.runnable import Runnable, TPool
 from dlt.common.time import sleep
 from dlt.common.telemetry import TRunHealth, TRunMetrics, get_logging_extras, get_metrics_from_prometheus
-from dlt.common.utils import str2bool
 from dlt.common.exceptions import SignalReceivedException, TimeRangeExhaustedException, UnsupportedProcessStartMethodException
 from dlt.common.configuration import PoolRunnerConfiguration
 

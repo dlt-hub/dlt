@@ -93,7 +93,7 @@ def flatten_dicts_of_dicts(dicts: Mapping[str, Any]) -> Sequence[Any]:
 
 def tuplify_list_of_dicts(dicts: Sequence[DictStrAny]) -> Sequence[DictStrAny]:
     """
-    Transform dicts with single key into {"key": orig_key, "value": orig_value}
+    Transform list of dictionaries with single key into single dictionary of {"key": orig_key, "value": orig_value}
     """
     for d in dicts:
         if len(d) > 1:
