@@ -4,14 +4,14 @@ from pathlib import Path
 from typing import Iterable, NamedTuple, Literal, Optional, Sequence, Set, Tuple, Type, get_args
 
 from dlt.common import json, pendulum
+from dlt.common.typing import DictStrAny, StrAny
 from dlt.common.file_storage import FileStorage
 from dlt.common.data_writers import TLoaderFileFormat, DataWriter
 from dlt.common.configuration import LoadVolumeConfiguration
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema import Schema, TSchemaUpdate, TTableSchemaColumns
 from dlt.common.storages.versioned_storage import VersionedStorage
-from dlt.common.typing import DictStrAny, StrAny
-
+from dlt.common.storages.data_item_storage import DataItemStorage
 from dlt.common.storages.exceptions import JobWithUnsupportedWriterException
 
 
@@ -24,7 +24,7 @@ class TParsedJobFileName(NamedTuple):
     file_format: TLoaderFileFormat
 
 
-class LoadStorage(VersionedStorage):
+class LoadStorage(DataItemStorage, VersionedStorage):
 
     STORAGE_VERSION = "1.0.0"
     NORMALIZED_FOLDER = "normalized"  # folder within the volume where load packages are stored
@@ -52,10 +52,13 @@ class LoadStorage(VersionedStorage):
             raise TerminalValueError(supported_file_formats)
         if preferred_file_format not in supported_file_formats:
             raise TerminalValueError(preferred_file_format)
-        self.preferred_file_format = preferred_file_format
         self.supported_file_formats = supported_file_formats
         self.delete_completed_jobs = C.DELETE_COMPLETED_JOBS
-        super().__init__(LoadStorage.STORAGE_VERSION, is_owner, FileStorage(C.LOAD_VOLUME_PATH, "t", makedirs=is_owner))
+        super().__init__(
+            preferred_file_format,
+            LoadStorage.STORAGE_VERSION,
+            is_owner, FileStorage(C.LOAD_VOLUME_PATH, "t", makedirs=is_owner)
+        )
         if is_owner:
             self.initialize_storage()
 
@@ -74,15 +77,15 @@ class LoadStorage(VersionedStorage):
         self.storage.create_folder(join(load_id, LoadStorage.FAILED_JOBS_FOLDER))
         self.storage.create_folder(join(load_id, LoadStorage.STARTED_JOBS_FOLDER))
 
+    def _get_data_item_path_template(self, load_id: str, _: str, table_name: str) -> str:
+        file_name = self.build_job_file_name(table_name, "%s", with_extension=False)
+        return self.storage.make_full_path(join(load_id, LoadStorage.NEW_JOBS_FOLDER, file_name))
+
     def write_temp_job_file(self, load_id: str, table_name: str, table: TTableSchemaColumns, file_id: str, rows: Sequence[StrAny]) -> str:
-        file_name = self.build_job_file_name(table_name, file_id)
-        with self.storage.open_file(join(load_id, LoadStorage.NEW_JOBS_FOLDER, file_name), mode="w") as f:
-            writer = DataWriter.from_file_format(self.preferred_file_format, f)
+        file_name = self._get_data_item_path_template(load_id, None, table_name) % file_id + "." + self.loader_file_format
+        with self.storage.open_file(file_name, mode="w") as f:
+            writer = DataWriter.from_file_format(self.loader_file_format, f)
             writer.write_all(table, rows)
-            # if self.preferred_file_format == "jsonl":
-            #     write_jsonl(f, rows)
-            # elif self.preferred_file_format == "insert_values":
-            #     write_insert_values(f, rows, table.keys())
         return Path(file_name).name
 
     def load_package_schema(self, load_id: str) -> Schema:
@@ -214,11 +217,14 @@ class LoadStorage(VersionedStorage):
     def _get_job_file_path(self, load_id: str, folder: TWorkingFolder, file_name: str) -> str:
         return join(self._get_job_folder_path(load_id, folder), file_name)
 
-    def build_job_file_name(self, table_name: str, file_id: str, retry_count: int = 0, validate_components: bool = True) -> str:
+    def build_job_file_name(self, table_name: str, file_id: str, retry_count: int = 0, validate_components: bool = True, with_extension: bool = True) -> str:
         if validate_components:
             FileStorage.validate_file_name_component(table_name)
             FileStorage.validate_file_name_component(file_id)
-        return f"{table_name}.{file_id}.{int(retry_count)}.{self.preferred_file_format}"
+        fn = f"{table_name}.{file_id}.{int(retry_count)}"
+        if with_extension:
+            return fn + f".{self.loader_file_format}"
+        return fn
 
     @staticmethod
     def parse_job_file_name(file_name: str) -> TParsedJobFileName:

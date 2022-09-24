@@ -21,6 +21,7 @@ class NormalizeStorage(VersionedStorage):
 
     def __init__(self, is_owner: bool, C: Type[NormalizeVolumeConfiguration]) -> None:
         super().__init__(NormalizeStorage.STORAGE_VERSION, is_owner, FileStorage(C.NORMALIZE_VOLUME_PATH, "t", makedirs=is_owner))
+        self.CONFIG = C
         if is_owner:
             self.initialize_storage()
 
@@ -32,31 +33,6 @@ class NormalizeStorage(VersionedStorage):
 
     def get_grouped_iterator(self, files: Sequence[str]) -> "groupby[str, str]":
         return groupby(files, lambda f: NormalizeStorage.get_schema_name(f))
-
-    @staticmethod
-    def chunk_by_events(files: Sequence[str], max_events: int, processing_cores: int) -> List[Sequence[str]]:
-        return [files]
-
-        # # should distribute ~ N events evenly among m cores with fallback for small amounts of events
-
-        # def count_events(file_name : str) -> int:
-        #     # return event count from file name
-        #     return NormalizeStorage.get_events_count(file_name)
-
-        # counts = list(map(count_events, files))
-        # # make a list of files containing ~max_events
-        # events_count = 0
-        # m = 0
-        # while events_count < max_events and m < len(files):
-        #     events_count += counts[m]
-        #     m += 1
-        # processing_chunks = round(m / processing_cores)
-        # if processing_chunks == 0:
-        #     # return one small chunk
-        #     return [files]
-        # else:
-        #     # should return ~ amount of chunks to fill all the cores
-        #     return list(chunks(files[:m], processing_chunks))
 
     @staticmethod
     def get_schema_name(file_name: str) -> str:
