@@ -268,7 +268,6 @@ class Pipeline:
         # set parameters to be passed to config
         normalize = self._configure_normalize({
             "WORKERS": workers,
-            "MAX_EVENTS_IN_CHUNK": max_events_in_chunk,
             "POOL_TYPE": "thread" if workers == 1 else "process"
         })
         try:

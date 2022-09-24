@@ -29,6 +29,7 @@ class DltResourceSchema:
         self._table_name_hint_fun: TFunDataItemDynHint = None
         self._table_has_other_dynamic_hints: bool = False
         self._table_schema_template: TTableSchemaTemplate = None
+        self._table_schema: TPartialTableSchema = None
         if table_schema_template:
             self._set_template(table_schema_template)
 
@@ -36,7 +37,9 @@ class DltResourceSchema:
 
         if not self._table_schema_template:
             # if table template is not present, generate partial table from name
-            return new_table(self.name)
+            if not self._table_schema:
+                self._table_schema = new_table(self.name)
+            return self._table_schema
 
         def _resolve_hint(hint: Union[Any, TFunDataItemDynHint]) -> Any:
             if callable(hint):

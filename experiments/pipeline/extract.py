@@ -1,13 +1,10 @@
 import os
-from typing import Dict, List, Sequence, Type
+from typing import List, Type
 
-from dlt.common import logger
-from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.utils import uniq_id
 from dlt.common.sources import TDirectDataItem, TDataItem
 from dlt.common.schema import utils, TSchemaUpdate
-from dlt.common.data_writers import BufferedDataWriter
-from dlt.common.storages import NormalizeStorage
+from dlt.common.storages import NormalizeStorage, DataItemStorage
 from dlt.common.configuration import NormalizeVolumeConfiguration
 
 
@@ -15,14 +12,13 @@ from experiments.pipeline.pipe import PipeIterator
 from experiments.pipeline.sources import DltResource, DltSource
 
 
-class ExtractorStorage(NormalizeStorage):
+class ExtractorStorage(DataItemStorage, NormalizeStorage):
     EXTRACT_FOLDER = "extract"
-    EXTRACT_FILE_NAME_TEMPLATE = ""
 
     def __init__(self, C: Type[NormalizeVolumeConfiguration]) -> None:
-        super().__init__(False, C)
+        # data item storage with jsonl with pua encoding
+        super().__init__("puae-jsonl", False, C)
         self.initialize_storage()
-        self.buffered_writers: Dict[str, BufferedDataWriter] = {}
 
     def initialize_storage(self) -> None:
         self.storage.create_folder(ExtractorStorage.EXTRACT_FOLDER, exists_ok=True)
@@ -45,25 +41,9 @@ class ExtractorStorage(NormalizeStorage):
         if with_delete:
             self.storage.delete_folder(extract_path, recursively=True)
 
-    def write_data_item(self, extract_id: str, schema_name: str, table_name: str, item: TDirectDataItem, columns: TTableSchemaColumns) -> None:
-        # unique writer id
-        writer_id = f"{extract_id}.{schema_name}.{table_name}"
-        writer = self.buffered_writers.get(writer_id, None)
-        if not writer:
-            # assign a jsonl writer with pua encoding for each table, use %s for file id to create required template
-            template = NormalizeStorage.build_extracted_file_stem(schema_name, table_name, "%s")
-            path = self.storage.make_full_path(os.path.join(self._get_extract_path(extract_id), template))
-            writer = BufferedDataWriter("puae-jsonl", path)
-            self.buffered_writers[writer_id] = writer
-        # write item(s)
-        writer.write_data_item(item, columns)
-
-    def close_writers(self, extract_id: str) -> None:
-        # flush and close all files
-        for name, writer in self.buffered_writers.items():
-            if name.startswith(extract_id):
-                logger.debug(f"Closing writer for {name} with file {writer._file} and actual name {writer._file_name}")
-                writer.close_writer()
+    def _get_data_item_path_template(self, load_id: str, schema_name: str, table_name: str) -> str:
+        template = NormalizeStorage.build_extracted_file_stem(schema_name, table_name, "%s")
+        return self.storage.make_full_path(os.path.join(self._get_extract_path(load_id), template))
 
     def _get_extract_path(self, extract_id: str) -> str:
         return os.path.join(ExtractorStorage.EXTRACT_FOLDER, extract_id)
@@ -78,6 +58,8 @@ def extract(source: DltSource, storage: ExtractorStorage) -> TSchemaUpdate:
         # normalize table name before writing so the name match the name in schema
         # note: normalize function should be cached so there's almost no penalty on frequent calling
         # note: column schema is not required for jsonl writer used here
+        # TODO: consider dropping DLT_METADATA_FIELD in all items before writing, this however takes CPU time
+        # event.pop(DLT_METADATA_FIELD, None)  # type: ignore
         storage.write_data_item(extract_id, schema.name, schema.normalize_table_name(table_name), item, None)
 
     def _write_dynamic_table(resource: DltResource, item: TDataItem) -> None:
@@ -100,7 +82,6 @@ def extract(source: DltSource, storage: ExtractorStorage) -> TSchemaUpdate:
     # yield from all selected pipes
     for pipe_item in PipeIterator.from_pipes(source.pipes):
         # get partial table from table template
-        print(pipe_item)
         resource = source.resource_by_pipe(pipe_item.pipe)
         if resource._table_name_hint_fun:
             if isinstance(pipe_item.item, List):
