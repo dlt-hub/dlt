@@ -48,12 +48,6 @@ def make_configuration(config: TConfiguration, initial_value: Any = None, accept
     return config
 
 
-# def is_direct_descendant(child: Type[Any], base: Type[Any]) -> bool:
-#     # TODO: there may be faster way to get direct descendant that mro
-#     # note: at index zero there's child
-#     return base == type.mro(child)[1]
-
-
 def _add_module_version(config: TConfiguration) -> None:
     try:
         v = sys._getframe(1).f_back.f_globals["__version__"]

@@ -53,7 +53,7 @@ class ConfigFileNotFoundException(ConfigurationException):
         super().__init__(f"Missing config file in {path}")
 
 
-class ConfigFieldTypingMissingException(ConfigurationException):
+class ConfigFieldMissingAnnotationException(ConfigurationException):
     """thrown when configuration specification does not have type annotation"""
 
     def __init__(self, field_name: str, typ_: Type[Any]) -> None:

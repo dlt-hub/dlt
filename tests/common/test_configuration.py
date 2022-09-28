@@ -8,6 +8,7 @@ from dlt.common.configuration import (
     ConfigEnvValueCannotBeCoercedException, BaseConfiguration, utils, configspec)
 from dlt.common.configuration.utils import make_configuration
 from dlt.common.configuration.providers import environ as environ_provider
+from dlt.common.utils import custom_environ
 
 from tests.utils import preserve_environ
 
@@ -148,6 +149,35 @@ class FieldWithNoDefaultConfiguration(RunConfiguration):
     no_default: str
 
 
+@configspec(init=True)
+class InstrumentedConfiguration(BaseConfiguration):
+    head: str
+    tube: List[str]
+    heels: str
+
+    def to_native_representation(self) -> Any:
+        return self.head + ">" + ">".join(self.tube) + ">" + self.heels
+
+    def from_native_representation(self, native_value: Any) -> None:
+        if not isinstance(native_value, str):
+            raise ValueError(native_value)
+        parts = native_value.split(">")
+        self.head = parts[0]
+        self.heels = parts[-1]
+        self.tube = parts[1:-1]
+
+    def check_integrity(self) -> None:
+        if self.head > self.heels:
+            raise RuntimeError("Head over heels")
+
+
+@configspec
+class EmbeddedConfiguration(BaseConfiguration):
+    default: str
+    instrumented: InstrumentedConfiguration
+    namespaced: NamespacedConfiguration
+
+
 LongInteger = NewType("LongInteger", int)
 FirstOrderStr = NewType("FirstOrderStr", str)
 SecondOrderStr = NewType("SecondOrderStr", FirstOrderStr)
@@ -157,6 +187,71 @@ SecondOrderStr = NewType("SecondOrderStr", FirstOrderStr)
 def environment() -> Any:
     environ.clear()
     return environ
+
+
+def test_initial_config_value() -> None:
+    # set from init method
+    C = make_configuration(InstrumentedConfiguration(head="h", tube=["a", "b"], heels="he"))
+    assert C.to_native_representation() == "h>a>b>he"
+    # set from native form
+    C = make_configuration(InstrumentedConfiguration(), initial_value="h>a>b>he")
+    assert C.head == "h"
+    assert C.tube == ["a", "b"]
+    assert C.heels == "he"
+    # set from dictionary
+    C = make_configuration(InstrumentedConfiguration(), initial_value={"head": "h", "tube": ["tu", "be"], "heels": "xhe"})
+    assert C.to_native_representation() == "h>tu>be>xhe"
+
+
+def test_check_integrity() -> None:
+    with pytest.raises(RuntimeError):
+        # head over hells
+        make_configuration(InstrumentedConfiguration(), initial_value="he>a>b>h")
+
+
+def test_embedded_config(environment: Any) -> None:
+    # resolve all embedded config, using initial value for instrumented config and initial dict for namespaced config
+    C = make_configuration(EmbeddedConfiguration(), initial_value={"default": "set", "instrumented": "h>tu>be>xhe", "namespaced": {"password": "pwd"}})
+    assert C.default == "set"
+    assert C.instrumented.to_native_representation() == "h>tu>be>xhe"
+    assert C.namespaced.password == "pwd"
+
+    # resolve but providing values via env
+    with custom_environ({"INSTRUMENTED": "h>tu>u>be>xhe", "DLT_TEST__PASSWORD": "passwd", "DEFAULT": "DEF"}):
+        C = make_configuration(EmbeddedConfiguration())
+        assert C.default == "DEF"
+        assert C.instrumented.to_native_representation() == "h>tu>u>be>xhe"
+        assert C.namespaced.password == "passwd"
+
+    # resolve partial, partial is passed to embedded
+    C = make_configuration(EmbeddedConfiguration(), accept_partial=True)
+    assert C.__is_partial__
+    assert C.namespaced.__is_partial__
+    assert C.instrumented.__is_partial__
+
+    # some are partial, some are not
+    with custom_environ({"DLT_TEST__PASSWORD": "passwd"}):
+        C = make_configuration(EmbeddedConfiguration(), accept_partial=True)
+        assert C.__is_partial__
+        assert not C.namespaced.__is_partial__
+        assert C.instrumented.__is_partial__
+
+    # single integrity error fails all the embeds
+    with custom_environ({"INSTRUMENTED": "he>tu>u>be>h"}):
+        with pytest.raises(RuntimeError):
+            make_configuration(EmbeddedConfiguration(), initial_value={"default": "set", "namespaced": {"password": "pwd"}})
+
+    # part via env part via initial values
+    with custom_environ({"INSTRUMENTED": "h>tu>u>be>he"}):
+        C = make_configuration(EmbeddedConfiguration(), initial_value={"default": "set", "namespaced": {"password": "pwd"}})
+        assert C.instrumented.to_native_representation() == "h>tu>u>be>he"
+
+
+def test_provider_values_over_initial(environment: Any) -> None:
+    with custom_environ({"INSTRUMENTED": "h>tu>u>be>he"}):
+        C = make_configuration(EmbeddedConfiguration(), initial_value={"instrumented": "h>tu>be>xhe"}, accept_partial=True)
+        assert C.instrumented.to_native_representation() == "h>tu>u>be>he"
+        assert not C.instrumented.__is_partial__
 
 
 def test_run_configuration_gen_name(environment: Any) -> None:

@@ -7,7 +7,7 @@ else:
     TDtcField = dataclasses.Field
 
 from dlt.common.typing import TAny
-from dlt.common.configuration.exceptions import ConfigFieldTypingMissingException
+from dlt.common.configuration.exceptions import ConfigFieldMissingAnnotationException
 
 
 def configspec(cls: Type[TAny] = None, /, *, init: bool = False) -> Type[TAny]:
@@ -15,12 +15,14 @@ def configspec(cls: Type[TAny] = None, /, *, init: bool = False) -> Type[TAny]:
     def wrap(cls: Type[TAny]) -> Type[TAny]:
         # get all annotations without corresponding attributes and set them to None
         for ann in cls.__annotations__:
-            if not hasattr(cls, ann):
+            if not hasattr(cls, ann) and not ann.startswith(("__", "_abc_impl")):
                 setattr(cls, ann, None)
         # get all attributes without corresponding annotations
         for att_name, att in cls.__dict__.items():
             if not callable(att) and not att_name.startswith(("__", "_abc_impl")) and att_name not in cls.__annotations__:
-                raise ConfigFieldTypingMissingException(att_name, cls)
+                print(att)
+                print(callable(att))
+                raise ConfigFieldMissingAnnotationException(att_name, cls)
         return dataclasses.dataclass(cls, init=init, eq=False)  # type: ignore
 
     # called with parenthesis
@@ -37,7 +39,6 @@ class BaseConfiguration(MutableMapping[str, Any]):
     __is_partial__: bool = dataclasses.field(default = True, init=False, repr=False)
     # namespace used by config providers when searching for keys
     __namespace__: str = dataclasses.field(default = None, init=False, repr=False)
-    __dataclass_fields__: Dict[str, TDtcField]
 
     def __init__(self) -> None:
         self.__ignore_set_unknown_keys = False
@@ -69,13 +70,13 @@ class BaseConfiguration(MutableMapping[str, Any]):
     # implement dictionary-compatible interface on top of dataclass
 
     def __getitem__(self, __key: str) -> Any:
-        if self._has_attr(__key):
+        if self.__has_attr(__key):
             return getattr(self, __key)
         else:
             raise KeyError(__key)
 
     def __setitem__(self, __key: str, __value: Any) -> None:
-        if self._has_attr(__key):
+        if self.__has_attr(__key):
             setattr(self, __key, __value)
         else:
             if not self.__ignore_set_unknown_keys:
@@ -85,7 +86,7 @@ class BaseConfiguration(MutableMapping[str, Any]):
         raise NotImplementedError("Configuration fields cannot be deleted")
 
     def __iter__(self) -> Iterator[str]:
-        return filter(lambda k: not k.startswith("__"), self.__dataclass_fields__.__iter__())
+        return filter(lambda k: not k.startswith("__"), self.__fields_dict().__iter__())
 
     def __len__(self) -> int:
         return sum(1 for _ in self.__iter__())
@@ -99,8 +100,11 @@ class BaseConfiguration(MutableMapping[str, Any]):
 
     # helper functions
 
-    def _has_attr(self, __key: str) -> bool:
-        return __key in self.__dataclass_fields__ and not __key.startswith("__")
+    def __has_attr(self, __key: str) -> bool:
+        return __key in self.__fields_dict() and not __key.startswith("__")
+
+    def __fields_dict(self) -> Dict[str, TDtcField]:
+        return self.__dataclass_fields__  # type: ignore
 
 
 @configspec
