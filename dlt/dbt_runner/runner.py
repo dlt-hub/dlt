@@ -1,13 +1,13 @@
-from typing import Optional, Sequence, Tuple, Type
+from typing import Optional, Sequence, Tuple
 from git import GitError
 from prometheus_client import REGISTRY, Gauge, CollectorRegistry, Info
 from prometheus_client.metrics import MetricWrapperBase
-from dlt.common.configuration import GcpClientCredentials
 
 from dlt.common import logger
 from dlt.common.typing import DictStrAny, DictStrStr, StrAny
 from dlt.common.logger import is_json_logging
 from dlt.common.telemetry import get_logging_extras
+from dlt.common.configuration import GcpClientCredentials
 from dlt.common.file_storage import FileStorage
 from dlt.cli import TRunnerArgs
 from dlt.common.runners import initialize_runner, run_pool
@@ -20,7 +20,7 @@ from dlt.dbt_runner.exceptions import PrerequisitesException
 
 CLONED_PACKAGE_NAME = "dbt_package"
 
-CONFIG: Type[DBTRunnerConfiguration] = None
+CONFIG: DBTRunnerConfiguration = None
 storage: FileStorage = None
 dbt_package_vars: StrAny = None
 global_args: Sequence[str] = None
@@ -32,28 +32,28 @@ model_exec_info: Info = None
 
 
 def create_folders() -> Tuple[FileStorage, StrAny, Sequence[str], str, str]:
-    storage = FileStorage(CONFIG.PACKAGE_VOLUME_PATH, makedirs=True)
+    storage = FileStorage(CONFIG.package_volume_path, makedirs=True)
     dbt_package_vars: DictStrAny = {
-        "source_schema_prefix": CONFIG.SOURCE_SCHEMA_PREFIX
+        "source_schema_prefix": CONFIG.source_schema_prefix
     }
-    if CONFIG.DEST_SCHEMA_PREFIX:
-        dbt_package_vars["dest_schema_prefix"] = CONFIG.DEST_SCHEMA_PREFIX
-    if CONFIG.PACKAGE_ADDITIONAL_VARS:
-        dbt_package_vars.update(CONFIG.PACKAGE_ADDITIONAL_VARS)
+    if CONFIG.dest_schema_prefix:
+        dbt_package_vars["dest_schema_prefix"] = CONFIG.dest_schema_prefix
+    if CONFIG.package_additional_vars:
+        dbt_package_vars.update(CONFIG.package_additional_vars)
 
     # initialize dbt logging, returns global parameters to dbt command
-    global_args = initialize_dbt_logging(CONFIG.LOG_LEVEL, is_json_logging(CONFIG.LOG_FORMAT))
+    global_args = initialize_dbt_logging(CONFIG.log_level, is_json_logging(CONFIG.log_format))
 
     # generate path for the dbt package repo
     repo_path = storage.make_full_path(CLONED_PACKAGE_NAME)
 
     # generate profile name
     profile_name: str = None
-    if CONFIG.PACKAGE_PROFILE_PREFIX:
-        if issubclass(CONFIG, GcpClientCredentials):
-            profile_name = "%s_bigquery" % (CONFIG.PACKAGE_PROFILE_PREFIX)
+    if CONFIG.package_profile_prefix:
+        if isinstance(CONFIG, GcpClientCredentials):
+            profile_name = "%s_bigquery" % (CONFIG.package_profile_prefix)
         else:
-            profile_name = "%s_redshift" % (CONFIG.PACKAGE_PROFILE_PREFIX)
+            profile_name = "%s_redshift" % (CONFIG.package_profile_prefix)
 
     return storage, dbt_package_vars, global_args, repo_path, profile_name
 
@@ -69,7 +69,7 @@ def run_dbt(command: str, command_args: Sequence[str] = None) -> Sequence[dbt_re
     logger.info(f"Exec dbt command: {global_args} {command} {command_args} {dbt_package_vars} on profile {profile_name or '<project_default>'}")
     return run_dbt_command(
         repo_path, command,
-        CONFIG.PACKAGE_PROFILES_DIR,
+        CONFIG.package_profiles_dir,
         profile_name=profile_name,
         command_args=command_args,
         global_args=global_args,
@@ -109,8 +109,8 @@ def initialize_package(with_git_command: Optional[str]) -> None:
         # cleanup package folder
         if storage.has_folder(CLONED_PACKAGE_NAME):
             storage.delete_folder(CLONED_PACKAGE_NAME, recursively=True)
-        logger.info(f"Will clone {CONFIG.PACKAGE_REPOSITORY_URL} head {CONFIG.PACKAGE_REPOSITORY_BRANCH} into {repo_path}")
-        clone_repo(CONFIG.PACKAGE_REPOSITORY_URL, repo_path, branch=CONFIG.PACKAGE_REPOSITORY_BRANCH, with_git_command=with_git_command)
+        logger.info(f"Will clone {CONFIG.package_repository_url} head {CONFIG.package_repository_branch} into {repo_path}")
+        clone_repo(CONFIG.package_repository_url, repo_path, branch=CONFIG.package_repository_branch, with_git_command=with_git_command)
         run_dbt("deps")
     except Exception:
         # delete folder so we start clean next time
@@ -120,7 +120,7 @@ def initialize_package(with_git_command: Optional[str]) -> None:
 
 
 def ensure_newest_package() -> None:
-    with git_custom_key_command(CONFIG.PACKAGE_REPOSITORY_SSH_KEY) as ssh_command:
+    with git_custom_key_command(CONFIG.package_repository_ssh_key) as ssh_command:
         try:
             ensure_remote_head(repo_path, with_git_command=ssh_command)
         except GitError as err:
@@ -134,8 +134,8 @@ def run_db_steps() -> Sequence[dbt_results.BaseResult]:
     ensure_newest_package()
     # check if raw schema exists
     try:
-        if CONFIG.PACKAGE_SOURCE_TESTS_SELECTOR:
-            run_dbt("test", ["-s", CONFIG.PACKAGE_SOURCE_TESTS_SELECTOR])
+        if CONFIG.package_source_tests_selector:
+            run_dbt("test", ["-s", CONFIG.package_source_tests_selector])
     except DBTProcessingError as err:
         raise PrerequisitesException() from err
 
@@ -143,12 +143,12 @@ def run_db_steps() -> Sequence[dbt_results.BaseResult]:
     run_dbt("seed")
     # throws DBTProcessingError
     try:
-        return run_dbt("run", CONFIG.PACKAGE_RUN_PARAMS)
+        return run_dbt("run", CONFIG.package_run_params)
     except DBTProcessingError as e:
         # detect incremental model out of sync
-        if is_incremental_schema_out_of_sync_error(e.results) and CONFIG.AUTO_FULL_REFRESH_WHEN_OUT_OF_SYNC:
+        if is_incremental_schema_out_of_sync_error(e.results) and CONFIG.auto_full_refresh_when_out_of_sync:
             logger.warning(f"Attempting full refresh due to incremental model out of sync on {e.results.message}")
-            return run_dbt("run", CONFIG.PACKAGE_RUN_PARAMS + ["--full-refresh"])
+            return run_dbt("run", CONFIG.package_run_params + ["--full-refresh"])
         else:
             raise
 
@@ -172,7 +172,7 @@ def run(_: None) -> TRunMetrics:
         raise
 
 
-def configure(C: Type[DBTRunnerConfiguration], collector: CollectorRegistry) -> None:
+def configure(C: DBTRunnerConfiguration, collector: CollectorRegistry) -> None:
     global CONFIG
     global storage, dbt_package_vars, global_args, repo_path, profile_name
     global model_elapsed_gauge, model_exec_info
@@ -183,7 +183,7 @@ def configure(C: Type[DBTRunnerConfiguration], collector: CollectorRegistry) -> 
         model_elapsed_gauge, model_exec_info = create_gauges(REGISTRY)
     except ValueError as v:
         # ignore re-creation of gauges
-        if "Duplicated timeseries" not in str(v):
+        if "Duplicated time-series" not in str(v):
             raise
 
 

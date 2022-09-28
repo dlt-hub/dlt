@@ -16,7 +16,7 @@ from tests.utils import TEST_STORAGE_ROOT, write_version, autouse_test_storage
 
 @pytest.fixture
 def storage() -> LoadStorage:
-    C = make_configuration(LoadVolumeConfiguration, LoadVolumeConfiguration)
+    C = make_configuration(LoadVolumeConfiguration())
     s = LoadStorage(True, C, "jsonl", LoadStorage.ALL_SUPPORTED_FILE_FORMATS)
     return s
 

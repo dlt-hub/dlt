@@ -1,17 +1,14 @@
 from typing import Optional, Literal
 
-from dlt.common.configuration import BaseConfiguration
+from dlt.common.configuration.base_configuration import BaseConfiguration, configspec
 
 TSchemaFileFormat = Literal["json", "yaml"]
 
 
+@configspec
 class SchemaVolumeConfiguration(BaseConfiguration):
-    SCHEMA_VOLUME_PATH: str = "_storage/schemas"  # path to volume with default schemas
-    IMPORT_SCHEMA_PATH: Optional[str] = None  # import schema from external location
-    EXPORT_SCHEMA_PATH: Optional[str] = None  # export schema to external location
-    EXTERNAL_SCHEMA_FORMAT: TSchemaFileFormat = "yaml"  # format in which to expect external schema
-    EXTERNAL_SCHEMA_FORMAT_REMOVE_DEFAULTS: bool = True  # remove default values when exporting schema
-
-
-class ProductionSchemaVolumeConfiguration(SchemaVolumeConfiguration):
-    SCHEMA_VOLUME_PATH: str = None
+    schema_volume_path: str = None  # path to volume with default schemas
+    import_schema_path: Optional[str] = None  # import schema from external location
+    export_schema_path: Optional[str] = None  # export schema to external location
+    external_schema_format: TSchemaFileFormat = "yaml"  # format in which to expect external schema
+    external_schema_format_remove_defaults: bool = True  # remove default values when exporting schema

@@ -10,7 +10,7 @@ from dlt.common.signals import register_signals
 _INITIALIZED = False
 
 
-def initialize_runner(C: Type[RunConfiguration]) -> None:
+def initialize_runner(C: RunConfiguration) -> None:
     global _INITIALIZED
 
     # initialize or re-initialize logging with new settings

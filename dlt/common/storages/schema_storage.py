@@ -1,7 +1,7 @@
 import os
 import re
 import yaml
-from typing import Iterator, List, Type, Mapping
+from typing import Iterator, List, Mapping
 
 from dlt.common import json, logger
 from dlt.common.configuration.schema_volume_configuration import TSchemaFileFormat
@@ -18,9 +18,9 @@ class SchemaStorage(Mapping[str, Schema]):
     SCHEMA_FILE_NAME = "schema.%s"
     NAMED_SCHEMA_FILE_PATTERN = f"%s_{SCHEMA_FILE_NAME}"
 
-    def __init__(self, C: Type[SchemaVolumeConfiguration], makedirs: bool = False) -> None:
+    def __init__(self, C: SchemaVolumeConfiguration, makedirs: bool = False) -> None:
         self.C = C
-        self.storage = FileStorage(C.SCHEMA_VOLUME_PATH, makedirs=makedirs)
+        self.storage = FileStorage(C.schema_volume_path, makedirs=makedirs)
 
     def load_schema(self, name: str) -> Schema:
         # loads a schema from a store holding many schemas
@@ -30,21 +30,21 @@ class SchemaStorage(Mapping[str, Schema]):
             storage_schema = json.loads(self.storage.load(schema_file))
             # prevent external modifications of schemas kept in storage
             if not verify_schema_hash(storage_schema, empty_hash_verifies=True):
-                raise InStorageSchemaModified(name, self.C.SCHEMA_VOLUME_PATH)
+                raise InStorageSchemaModified(name, self.C.schema_volume_path)
         except FileNotFoundError:
             # maybe we can import from external storage
             pass
 
         # try to import from external storage
-        if self.C.IMPORT_SCHEMA_PATH:
+        if self.C.import_schema_path:
             return self._maybe_import_schema(name, storage_schema)
         if storage_schema is None:
-            raise SchemaNotFoundError(name, self.C.SCHEMA_VOLUME_PATH)
+            raise SchemaNotFoundError(name, self.C.schema_volume_path)
         return Schema.from_dict(storage_schema)
 
     def save_schema(self, schema: Schema) -> str:
         # check if there's schema to import
-        if self.C.IMPORT_SCHEMA_PATH:
+        if self.C.import_schema_path:
             try:
                 imported_schema = Schema.from_dict(self._load_import_schema(schema.name))
                 # link schema being saved to current imported schema so it will not overwrite this save when loaded
@@ -53,8 +53,8 @@ class SchemaStorage(Mapping[str, Schema]):
                 # just save the schema
                 pass
         path = self._save_schema(schema)
-        if self.C.EXPORT_SCHEMA_PATH:
-            self._export_schema(schema, self.C.EXPORT_SCHEMA_PATH)
+        if self.C.export_schema_path:
+            self._export_schema(schema, self.C.export_schema_path)
         return path
 
     def remove_schema(self, name: str) -> None:
@@ -111,37 +111,37 @@ class SchemaStorage(Mapping[str, Schema]):
         except FileNotFoundError:
             # no schema to import -> skip silently and return the original
             if storage_schema is None:
-                raise SchemaNotFoundError(name, self.C.SCHEMA_VOLUME_PATH, self.C.IMPORT_SCHEMA_PATH, self.C.EXTERNAL_SCHEMA_FORMAT)
+                raise SchemaNotFoundError(name, self.C.schema_volume_path, self.C.import_schema_path, self.C.external_schema_format)
             rv_schema = Schema.from_dict(storage_schema)
 
         assert rv_schema is not None
         return rv_schema
 
     def _load_import_schema(self, name: str) -> DictStrAny:
-        import_storage = FileStorage(self.C.IMPORT_SCHEMA_PATH, makedirs=False)
-        schema_file = self._file_name_in_store(name, self.C.EXTERNAL_SCHEMA_FORMAT)
+        import_storage = FileStorage(self.C.import_schema_path, makedirs=False)
+        schema_file = self._file_name_in_store(name, self.C.external_schema_format)
         imported_schema: DictStrAny = None
         imported_schema_s = import_storage.load(schema_file)
-        if self.C.EXTERNAL_SCHEMA_FORMAT == "json":
+        if self.C.external_schema_format == "json":
             imported_schema = json.loads(imported_schema_s)
-        elif self.C.EXTERNAL_SCHEMA_FORMAT == "yaml":
+        elif self.C.external_schema_format == "yaml":
             imported_schema = yaml.safe_load(imported_schema_s)
         else:
-            raise ValueError(self.C.EXTERNAL_SCHEMA_FORMAT)
+            raise ValueError(self.C.external_schema_format)
         return imported_schema
 
     def _export_schema(self, schema: Schema, export_path: str) -> None:
-        if self.C.EXTERNAL_SCHEMA_FORMAT == "json":
-            exported_schema_s = schema.to_pretty_json(remove_defaults=self.C.EXTERNAL_SCHEMA_FORMAT_REMOVE_DEFAULTS)
-        elif self.C.EXTERNAL_SCHEMA_FORMAT == "yaml":
-            exported_schema_s = schema.to_pretty_yaml(remove_defaults=self.C.EXTERNAL_SCHEMA_FORMAT_REMOVE_DEFAULTS)
+        if self.C.external_schema_format == "json":
+            exported_schema_s = schema.to_pretty_json(remove_defaults=self.C.external_schema_format_remove_defaults)
+        elif self.C.external_schema_format == "yaml":
+            exported_schema_s = schema.to_pretty_yaml(remove_defaults=self.C.external_schema_format_remove_defaults)
         else:
-            raise ValueError(self.C.EXTERNAL_SCHEMA_FORMAT)
+            raise ValueError(self.C.external_schema_format)
 
         export_storage = FileStorage(export_path, makedirs=True)
-        schema_file = self._file_name_in_store(schema.name, self.C.EXTERNAL_SCHEMA_FORMAT)
+        schema_file = self._file_name_in_store(schema.name, self.C.external_schema_format)
         export_storage.save(schema_file, exported_schema_s)
-        logger.info(f"Schema {schema.name} exported to {export_path} with version {schema.stored_version} as {self.C.EXTERNAL_SCHEMA_FORMAT}")
+        logger.info(f"Schema {schema.name} exported to {export_path} with version {schema.stored_version} as {self.C.external_schema_format}")
 
     def _save_schema(self, schema: Schema) -> str:
         # save a schema to schema store

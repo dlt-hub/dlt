@@ -1,17 +1,18 @@
-from typing import Tuple, Type
+from typing import Tuple
 
 from dlt.common.typing import StrAny
-from dlt.common.configuration import make_configuration, PostgresCredentials
+from dlt.common.configuration import configspec, make_configuration, PostgresCredentials
 
 from dlt.load.configuration import LoaderClientDwhConfiguration
 
 
+@configspec
 class RedshiftClientConfiguration(LoaderClientDwhConfiguration):
-    CLIENT_TYPE: str = "redshift"
+    client_type: str = "redshift"
 
 
-def configuration(initial_values: StrAny = None) -> Tuple[Type[RedshiftClientConfiguration], Type[PostgresCredentials]]:
+def configuration(initial_values: StrAny = None) -> Tuple[RedshiftClientConfiguration, PostgresCredentials]:
     return (
-        make_configuration(RedshiftClientConfiguration, RedshiftClientConfiguration, initial_values=initial_values),
-        make_configuration(PostgresCredentials, PostgresCredentials, initial_values=initial_values)
+        make_configuration(RedshiftClientConfiguration(), initial_value=initial_values),
+        make_configuration(PostgresCredentials(), initial_value=initial_values)
     )

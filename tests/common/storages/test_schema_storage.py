@@ -26,23 +26,23 @@ def storage() -> SchemaStorage:
 @pytest.fixture
 def synced_storage() -> SchemaStorage:
     # will be created in /schemas
-    return init_storage({"IMPORT_SCHEMA_PATH": TEST_STORAGE_ROOT + "/import", "EXPORT_SCHEMA_PATH": TEST_STORAGE_ROOT + "/import"})
+    return init_storage({"import_schema_path": TEST_STORAGE_ROOT + "/import", "export_schema_path": TEST_STORAGE_ROOT + "/import"})
 
 
 @pytest.fixture
 def ie_storage() -> SchemaStorage:
     # will be created in /schemas
-    return init_storage({"IMPORT_SCHEMA_PATH": TEST_STORAGE_ROOT + "/import", "EXPORT_SCHEMA_PATH": TEST_STORAGE_ROOT + "/export"})
+    return init_storage({"import_schema_path": TEST_STORAGE_ROOT + "/import", "export_schema_path": TEST_STORAGE_ROOT + "/export"})
 
 
 def init_storage(initial: DictStrAny = None) -> SchemaStorage:
-    C = make_configuration(SchemaVolumeConfiguration, SchemaVolumeConfiguration, initial_values=initial)
+    C = make_configuration(SchemaVolumeConfiguration(), initial_value=initial)
     # use live schema storage for test which must be backward compatible with schema storage
     s = LiveSchemaStorage(C, makedirs=True)
-    if C.EXPORT_SCHEMA_PATH:
-        os.makedirs(C.EXPORT_SCHEMA_PATH, exist_ok=True)
-    if C.IMPORT_SCHEMA_PATH:
-        os.makedirs(C.IMPORT_SCHEMA_PATH, exist_ok=True)
+    if C.export_schema_path:
+        os.makedirs(C.export_schema_path, exist_ok=True)
+    if C.import_schema_path:
+        os.makedirs(C.import_schema_path, exist_ok=True)
     return s
 
 
@@ -86,7 +86,7 @@ def test_skip_import_if_not_modified(synced_storage: SchemaStorage, storage: Sch
     # the import schema gets modified
     storage_schema.tables["_dlt_loads"]["write_disposition"] = "append"
     storage_schema.tables.pop("event_user")
-    synced_storage._export_schema(storage_schema, synced_storage.C.EXPORT_SCHEMA_PATH)
+    synced_storage._export_schema(storage_schema, synced_storage.C.export_schema_path)
     # now load will import again
     reloaded_schema = synced_storage.load_schema("ethereum")
     # we have overwritten storage schema
@@ -113,7 +113,7 @@ def test_store_schema_tampered(synced_storage: SchemaStorage, storage: SchemaSto
 def test_schema_export(ie_storage: SchemaStorage) -> None:
     schema = Schema("ethereum")
 
-    fs = FileStorage(ie_storage.C.EXPORT_SCHEMA_PATH)
+    fs = FileStorage(ie_storage.C.export_schema_path)
     exported_name = ie_storage._file_name_in_store("ethereum", "yaml")
     # no exported schema
     assert not fs.has_file(exported_name)
@@ -192,7 +192,7 @@ def test_save_store_schema_over_import(ie_storage: SchemaStorage) -> None:
     assert schema.version_hash == schema_hash
     assert schema._imported_version_hash == "njJAySgJRs2TqGWgQXhP+3pCh1A1hXcqe77BpM7JtOU="
     # we have simple schema in export folder
-    fs = FileStorage(ie_storage.C.EXPORT_SCHEMA_PATH)
+    fs = FileStorage(ie_storage.C.export_schema_path)
     exported_name = ie_storage._file_name_in_store("ethereum", "yaml")
     exported_schema = yaml.safe_load(fs.load(exported_name))
     assert schema.version_hash == exported_schema["version_hash"]
@@ -206,7 +206,7 @@ def test_save_store_schema_over_import_sync(synced_storage: SchemaStorage) -> No
     synced_storage.save_schema(schema)
     assert schema._imported_version_hash == "njJAySgJRs2TqGWgQXhP+3pCh1A1hXcqe77BpM7JtOU="
     # import schema is overwritten
-    fs = FileStorage(synced_storage.C.IMPORT_SCHEMA_PATH)
+    fs = FileStorage(synced_storage.C.import_schema_path)
     exported_name = synced_storage._file_name_in_store("ethereum", "yaml")
     exported_schema = yaml.safe_load(fs.load(exported_name))
     assert schema.version_hash == exported_schema["version_hash"] == schema_hash

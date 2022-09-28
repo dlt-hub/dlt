@@ -1,4 +1,4 @@
-from typing import List, Sequence, Tuple, Type, NamedTuple
+from typing import List, Sequence, NamedTuple
 from itertools import groupby
 from pathlib import Path
 
@@ -19,8 +19,8 @@ class NormalizeStorage(VersionedStorage):
     STORAGE_VERSION = "1.0.0"
     EXTRACTED_FOLDER: str = "extracted"  # folder within the volume where extracted files to be normalized are stored
 
-    def __init__(self, is_owner: bool, C: Type[NormalizeVolumeConfiguration]) -> None:
-        super().__init__(NormalizeStorage.STORAGE_VERSION, is_owner, FileStorage(C.NORMALIZE_VOLUME_PATH, "t", makedirs=is_owner))
+    def __init__(self, is_owner: bool, C: NormalizeVolumeConfiguration) -> None:
+        super().__init__(NormalizeStorage.STORAGE_VERSION, is_owner, FileStorage(C.normalize_volume_path, "t", makedirs=is_owner))
         self.CONFIG = C
         if is_owner:
             self.initialize_storage()

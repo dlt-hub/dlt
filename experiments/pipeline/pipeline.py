@@ -56,12 +56,11 @@ class TPipelineState(TypedDict):
 class PipelineConfiguration(RunConfiguration):
     WORKING_DIR: Optional[str] = None
     PIPELINE_SECRET: Optional[TSecretValue] = None
-    drop_existing_data: bool = False
+    DROP_EXISTING_DATA: bool = False
 
-    @classmethod
-    def check_integrity(cls) -> None:
-        if cls.PIPELINE_SECRET:
-            cls.PIPELINE_SECRET = uniq_id()
+    def check_integrity(self) -> None:
+        if self.PIPELINE_SECRET:
+            self.PIPELINE_SECRET = uniq_id()
 
 
 class Pipeline:
@@ -157,7 +156,7 @@ class Pipeline:
         # use system temp folder if not specified
         if not self.CONFIG.WORKING_DIR:
             self.CONFIG.WORKING_DIR = tempfile.gettempdir()
-        self.root_folder = os.path.join(self.CONFIG.WORKING_DIR, self.CONFIG.PIPELINE_NAME)
+        self.root_folder = os.path.join(self.CONFIG.WORKING_DIR, self.CONFIG.pipeline_name)
         self._set_common_initial_values()
 
         # create pipeline working dir
@@ -236,7 +235,7 @@ class Pipeline:
         # if isinstance(items, str) or isinstance(items, dict) or not
         # TODO: check if schema exists
         with self._managed_state():
-            default_table_name = table_name or self.CONFIG.PIPELINE_NAME
+            default_table_name = table_name or self.CONFIG.pipeline_name
             # TODO: this is not very effective - we consume iterator right away, better implementation needed where we stream iterator to files directly
             all_items: List[DictStrAny] = []
             for item in data:
@@ -403,7 +402,7 @@ class Pipeline:
         )
 
     def _ensure_destination_name(self) -> str:
-        d_n = self._resolve_load_client_config().CLIENT_TYPE
+        d_n = self._resolve_load_client_config().client_type
         if not d_n:
                 raise PipelineConfigMissing(
                     "destination_name",
@@ -413,9 +412,9 @@ class Pipeline:
         return d_n
 
     def _ensure_default_dataset(self) -> str:
-        d_n = self._resolve_load_client_config().DEFAULT_DATASET
+        d_n = self._resolve_load_client_config().default_dataset
         if not d_n:
-            d_n = normalize_schema_name(self.CONFIG.PIPELINE_NAME)
+            d_n = normalize_schema_name(self.CONFIG.pipeline_name)
         return d_n
 
     def _extract_iterator(self, default_table_name: str, items: Sequence[DictStrAny]) -> None:

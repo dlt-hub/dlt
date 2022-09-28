@@ -111,7 +111,7 @@ class JobClientBase(ABC):
 
     @classmethod
     @abstractmethod
-    def configure(cls, initial_values: StrAny = None) -> Tuple[Type[BaseConfiguration], Type[CredentialsConfiguration]]:
+    def configure(cls, initial_values: StrAny = None) -> Tuple[BaseConfiguration, CredentialsConfiguration]:
         pass
 
 

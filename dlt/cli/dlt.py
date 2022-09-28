@@ -7,7 +7,6 @@ from dlt.common import json
 from dlt.cli import TRunnerArgs
 from dlt.common.schema import Schema
 from dlt.common.typing import DictStrAny
-from dlt.common.utils import str2bool
 
 from dlt.pipeline import Pipeline, PostgresPipelineCredentials
 

@@ -62,26 +62,24 @@ def module_autouse() -> None:
 def test_configuration() -> None:
     # check names normalized
     C = make_configuration(
-        DBTRunnerConfiguration,
-        DBTRunnerConfiguration,
-        initial_values={"PACKAGE_REPOSITORY_SSH_KEY": "---NO NEWLINE---", "SOURCE_SCHEMA_PREFIX": "schema"}
+        DBTRunnerConfiguration(),
+        initial_value={"PACKAGE_REPOSITORY_SSH_KEY": "---NO NEWLINE---", "SOURCE_SCHEMA_PREFIX": "schema"}
     )
-    assert C.PACKAGE_REPOSITORY_SSH_KEY == "---NO NEWLINE---\n"
+    assert C.package_repository_ssh_key == "---NO NEWLINE---\n"
 
     C = make_configuration(
-        DBTRunnerConfiguration,
-        DBTRunnerConfiguration,
-        initial_values={"PACKAGE_REPOSITORY_SSH_KEY": "---WITH NEWLINE---\n", "SOURCE_SCHEMA_PREFIX": "schema"}
+        DBTRunnerConfiguration(),
+        initial_value={"PACKAGE_REPOSITORY_SSH_KEY": "---WITH NEWLINE---\n", "SOURCE_SCHEMA_PREFIX": "schema"}
     )
-    assert C.PACKAGE_REPOSITORY_SSH_KEY == "---WITH NEWLINE---\n"
+    assert C.package_repository_ssh_key == "---WITH NEWLINE---\n"
 
 
 def test_create_folders() -> None:
     setup_runner("eks_dev_dest", override_values={
         "SOURCE_SCHEMA_PREFIX": "carbon_bot_3",
         "PACKAGE_ADDITIONAL_VARS": {"add_var_name": "add_var_value"},
-        "LOG_FORMAT": "JSON",
-        "LOG_LEVEL": "INFO"
+        "log_format": "JSON",
+        "log_level": "INFO"
     })
     assert runner.repo_path.endswith(runner.CLONED_PACKAGE_NAME)
     assert runner.profile_name == "rasa_semantic_schema_redshift"
@@ -94,7 +92,7 @@ def test_initialize_package_wrong_key() -> None:
         # private repo
         "PACKAGE_REPOSITORY_URL": "git@github.com:scale-vector/rasa_bot_experiments.git"
     })
-    runner.CONFIG.PACKAGE_REPOSITORY_SSH_KEY = load_secret("DEPLOY_KEY")
+    runner.CONFIG.package_repository_ssh_key = load_secret("DEPLOY_KEY")
 
     with pytest.raises(GitCommandError):
         runner.run(None)
@@ -104,12 +102,12 @@ def test_reinitialize_package() -> None:
     setup_runner(DEST_SCHEMA_PREFIX)
     runner.ensure_newest_package()
     # mod the package
-    readme_path = modify_and_commit_file(runner.repo_path, "README.md", content=runner.CONFIG.DEST_SCHEMA_PREFIX)
+    readme_path = modify_and_commit_file(runner.repo_path, "README.md", content=runner.CONFIG.dest_schema_prefix)
     assert runner.storage.has_file(readme_path)
     # this will wipe out old package and clone again
     runner.ensure_newest_package()
     # we have old file back
-    assert runner.storage.load(f"{runner.CLONED_PACKAGE_NAME}/README.md") != runner.CONFIG.DEST_SCHEMA_PREFIX
+    assert runner.storage.load(f"{runner.CLONED_PACKAGE_NAME}/README.md") != runner.CONFIG.dest_schema_prefix
 
 
 def test_dbt_test_no_raw_schema() -> None:

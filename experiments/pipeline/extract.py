@@ -1,5 +1,5 @@
 import os
-from typing import List, Type
+from typing import List
 
 from dlt.common.utils import uniq_id
 from dlt.common.sources import TDirectDataItem, TDataItem
@@ -15,7 +15,7 @@ from experiments.pipeline.sources import DltResource, DltSource
 class ExtractorStorage(DataItemStorage, NormalizeStorage):
     EXTRACT_FOLDER = "extract"
 
-    def __init__(self, C: Type[NormalizeVolumeConfiguration]) -> None:
+    def __init__(self, C: NormalizeVolumeConfiguration) -> None:
         # data item storage with jsonl with pua encoding
         super().__init__("puae-jsonl", False, C)
         self.initialize_storage()

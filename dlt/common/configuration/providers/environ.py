@@ -8,11 +8,12 @@ SECRET_STORAGE_PATH: str = "/run/secrets/%s"
 
 
 def get_key_name(key: str, namespace: str = None) -> str:
+    # env key is always upper case
     if namespace:
-        return namespace + "__" + key
+        env_key = namespace + "__" + key
     else:
-        return key
-
+        env_key = key
+    return env_key.upper()
 
 def get_key(key: str, hint: Type[Any], namespace: str = None) -> Optional[str]:
     # apply namespace to the key

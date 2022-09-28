@@ -78,7 +78,7 @@ class DummyClient(JobClientBase):
     """
     dummy client storing jobs in memory
     """
-    CONFIG: Type[DummyClientConfiguration] = None
+    CONFIG: DummyClientConfiguration = None
 
     def __init__(self, schema: Schema) -> None:
         super().__init__(schema)
@@ -120,17 +120,17 @@ class DummyClient(JobClientBase):
     def _create_job(self, job_id: str) -> LoadDummyJob:
         return LoadDummyJob(
             job_id,
-            fail_prob=self.CONFIG.FAIL_PROB,
-            retry_prob=self.CONFIG.RETRY_PROB,
-            completed_prob=self.CONFIG.COMPLETED_PROB,
-            timeout=self.CONFIG.TIMEOUT
+            fail_prob=self.CONFIG.fail_prob,
+            retry_prob=self.CONFIG.retry_prob,
+            completed_prob=self.CONFIG.completed_prob,
+            timeout=self.CONFIG.timeout
             )
 
     @classmethod
     def capabilities(cls) -> TLoaderCapabilities:
         return {
-            "preferred_loader_file_format": cls.CONFIG.LOADER_FILE_FORMAT,
-            "supported_loader_file_formats": [cls.CONFIG.LOADER_FILE_FORMAT],
+            "preferred_loader_file_format": cls.CONFIG.loader_file_format,
+            "supported_loader_file_formats": [cls.CONFIG.loader_file_format],
             "max_identifier_length": 127,
             "max_column_length": 127,
             "max_query_length": 8 * 1024 * 1024,
@@ -140,7 +140,7 @@ class DummyClient(JobClientBase):
         }
 
     @classmethod
-    def configure(cls, initial_values: StrAny = None) -> Tuple[Type[DummyClientConfiguration], Type[CredentialsConfiguration]]:
+    def configure(cls, initial_values: StrAny = None) -> Tuple[DummyClientConfiguration, CredentialsConfiguration]:
         cls.CONFIG = configuration(initial_values=initial_values)
         return cls.CONFIG, None
 

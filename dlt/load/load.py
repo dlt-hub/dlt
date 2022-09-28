@@ -31,9 +31,9 @@ class Load(Runnable[ThreadPool]):
     job_counter: Counter = None
     job_wait_summary: Summary = None
 
-    def __init__(self, C: Type[LoaderConfiguration], collector: CollectorRegistry, client_initial_values: StrAny = None, is_storage_owner: bool = False) -> None:
+    def __init__(self, C: LoaderConfiguration, collector: CollectorRegistry, client_initial_values: StrAny = None, is_storage_owner: bool = False) -> None:
         self.CONFIG = C
-        self.load_client_cls = self.import_client_cls(C.CLIENT_TYPE, initial_values=client_initial_values)
+        self.load_client_cls = self.import_client_cls(C.client_type, initial_values=client_initial_values)
         self.pool: ThreadPool = None
         self.load_storage: LoadStorage = self.create_storage(is_storage_owner)
         try:
@@ -113,7 +113,7 @@ class Load(Runnable[ThreadPool]):
         # use thread based pool as jobs processing is mostly I/O and we do not want to pickle jobs
         # TODO: combine files by providing a list of files pertaining to same table into job, so job must be
         # extended to accept a list
-        load_files = self.load_storage.list_new_jobs(load_id)[:self.CONFIG.WORKERS]
+        load_files = self.load_storage.list_new_jobs(load_id)[:self.CONFIG.workers]
         file_count = len(load_files)
         if file_count == 0:
             logger.info(f"No new jobs found in {load_id}")
@@ -208,11 +208,11 @@ class Load(Runnable[ThreadPool]):
         logger.info(f"Loaded schema name {schema.name} and version {schema.stored_version}")
         # initialize analytical storage ie. create dataset required by passed schema
         with self.load_client_cls(schema) as client:
-            logger.info(f"Client {self.CONFIG.CLIENT_TYPE} will start load")
+            logger.info(f"Client {self.CONFIG.client_type} will start load")
             client.initialize_storage()
             schema_update = self.load_storage.begin_schema_update(load_id)
             if schema_update:
-                logger.info(f"Client {self.CONFIG.CLIENT_TYPE} will update schema to package schema")
+                logger.info(f"Client {self.CONFIG.client_type} will update schema to package schema")
                 # TODO: this should rather generate an SQL job(s) to be executed PRE loading
                 client.update_storage_schema()
                 self.load_storage.commit_schema_update(load_id)

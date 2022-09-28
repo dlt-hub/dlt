@@ -1,70 +1,56 @@
+import dataclasses
 from typing import List, Optional, Type
 
 from dlt.common.typing import StrAny, TSecretValue
-from dlt.common.configuration import make_configuration
 from dlt.common.configuration.providers import environ
-from dlt.common.configuration import PoolRunnerConfiguration, TPoolType, PostgresCredentials, GcpClientCredentials
+from dlt.common.configuration import PoolRunnerConfiguration, TPoolType, PostgresCredentials, GcpClientCredentials, make_configuration, configspec
 
 from . import __version__
 
 
+@configspec
 class DBTRunnerConfiguration(PoolRunnerConfiguration):
-    POOL_TYPE: TPoolType = "none"
-    STOP_AFTER_RUNS: int = 1
-    PACKAGE_VOLUME_PATH: str = "_storage/dbt_runner"
-    PACKAGE_REPOSITORY_URL: str = "https://github.com/scale-vector/rasa_semantic_schema_customization.git"
-    PACKAGE_REPOSITORY_BRANCH: Optional[str] = None
-    PACKAGE_REPOSITORY_SSH_KEY: TSecretValue = TSecretValue("")  # the default is empty value which will disable custom SSH KEY
-    PACKAGE_PROFILES_DIR: str = "."
-    PACKAGE_PROFILE_PREFIX: str = "rasa_semantic_schema"
-    PACKAGE_SOURCE_TESTS_SELECTOR: str = "tag:prerequisites"
-    PACKAGE_ADDITIONAL_VARS: Optional[StrAny] = None
-    PACKAGE_RUN_PARAMS: List[str] = ["--fail-fast"]
-    AUTO_FULL_REFRESH_WHEN_OUT_OF_SYNC: bool = True
+    pool_type: TPoolType = "none"
+    stop_after_runs: int = 1
+    package_volume_path: str = "/var/local/app"
+    package_repository_url: str = "https://github.com/scale-vector/rasa_semantic_schema_customization.git"
+    package_repository_branch: Optional[str] = None
+    package_repository_ssh_key: TSecretValue = TSecretValue("")  # the default is empty value which will disable custom SSH KEY
+    package_profiles_dir: str = "."
+    package_profile_prefix: str = "rasa_semantic_schema"
+    package_source_tests_selector: str = "tag:prerequisites"
+    package_additional_vars: Optional[StrAny] = None
+    package_run_params: List[str] = dataclasses.field(default_factory=lambda: ["--fail-fast"])
+    auto_full_refresh_when_out_of_sync: bool = True
 
-    SOURCE_SCHEMA_PREFIX: str = None
-    DEST_SCHEMA_PREFIX: Optional[str] = None
+    source_schema_prefix: str = None
+    dest_schema_prefix: Optional[str] = None
 
-    @classmethod
-    def check_integrity(cls) -> None:
-        if cls.PACKAGE_REPOSITORY_SSH_KEY and cls.PACKAGE_REPOSITORY_SSH_KEY[-1] != "\n":
+    def check_integrity(self) -> None:
+        if self.package_repository_ssh_key and self.package_repository_ssh_key[-1] != "\n":
             # must end with new line, otherwise won't be parsed by Crypto
-            cls.PACKAGE_REPOSITORY_SSH_KEY = TSecretValue(cls.PACKAGE_REPOSITORY_SSH_KEY + "\n")
-        if cls.STOP_AFTER_RUNS != 1:
+            self.package_repository_ssh_key = TSecretValue(self.package_repository_ssh_key + "\n")
+        if self.stop_after_runs != 1:
             # always stop after one run
-            cls.STOP_AFTER_RUNS = 1
+            self.stop_after_runs = 1
 
 
-class DBTRunnerProductionConfiguration(DBTRunnerConfiguration):
-    PACKAGE_VOLUME_PATH: str = "/var/local/app"  # this is actually not exposed as volume
-    PACKAGE_REPOSITORY_URL: str = None
-
-
-def gen_configuration_variant(initial_values: StrAny = None) -> Type[DBTRunnerConfiguration]:
+def gen_configuration_variant(initial_values: StrAny = None) -> DBTRunnerConfiguration:
     # derive concrete config depending on env vars present
     DBTRunnerConfigurationImpl: Type[DBTRunnerConfiguration]
-    DBTRunnerProductionConfigurationImpl: Type[DBTRunnerProductionConfiguration]
 
-    source_schema_prefix = environ.get_key("DEFAULT_DATASET", type(str))
+    source_schema_prefix = environ.get_key("default_dataset", type(str))
 
-    if environ.get_key("PROJECT_ID", type(str), namespace=GcpClientCredentials.__namespace__):
+    if environ.get_key("project_id", type(str), namespace=GcpClientCredentials.__namespace__):
+        @configspec
         class DBTRunnerConfigurationPostgres(PostgresCredentials, DBTRunnerConfiguration):
             SOURCE_SCHEMA_PREFIX: str = source_schema_prefix
         DBTRunnerConfigurationImpl = DBTRunnerConfigurationPostgres
 
-        class DBTRunnerProductionConfigurationPostgres(DBTRunnerProductionConfiguration, DBTRunnerConfigurationPostgres):
-            pass
-            # SOURCE_SCHEMA_PREFIX: str = source_schema_prefix
-        DBTRunnerProductionConfigurationImpl = DBTRunnerProductionConfigurationPostgres
-
     else:
+        @configspec
         class DBTRunnerConfigurationGcp(GcpClientCredentials, DBTRunnerConfiguration):
             SOURCE_SCHEMA_PREFIX: str = source_schema_prefix
         DBTRunnerConfigurationImpl = DBTRunnerConfigurationGcp
 
-        class DBTRunnerProductionConfigurationGcp(DBTRunnerProductionConfiguration, DBTRunnerConfigurationGcp):
-            pass
-            # SOURCE_SCHEMA_PREFIX: str = source_schema_prefix
-        DBTRunnerProductionConfigurationImpl = DBTRunnerProductionConfigurationGcp
-
-    return make_configuration(DBTRunnerConfigurationImpl, DBTRunnerProductionConfigurationImpl, initial_values=initial_values)
+    return make_configuration(DBTRunnerConfigurationImpl(), initial_value=initial_values)

@@ -9,7 +9,7 @@ else:
 
 
 from contextlib import contextmanager
-from typing import Any, AnyStr, Dict, Iterator, List, Optional, Sequence, Tuple, Type
+from typing import Any, AnyStr, Dict, Iterator, List, Optional, Sequence, Tuple
 from dlt.common.configuration.postgres_credentials import PostgresCredentials
 
 from dlt.common.typing import StrAny
@@ -57,14 +57,14 @@ HINT_TO_REDSHIFT_ATTR: Dict[THintType, str] = {
 
 class RedshiftSqlClient(SqlClientBase["psycopg2.connection"]):
 
-    def __init__(self, default_dataset_name: str, CREDENTIALS: Type[PostgresCredentials]) -> None:
+    def __init__(self, default_dataset_name: str, CREDENTIALS: PostgresCredentials) -> None:
         super().__init__(default_dataset_name)
         self._conn: psycopg2.connection = None
         self.C = CREDENTIALS
 
     def open_connection(self) -> None:
         self._conn = psycopg2.connect(
-                             **self.C.as_dict(),
+                             **self.C,
                              options=f"-c search_path={self.fully_qualified_dataset_name()},public"
                              )
         # we'll provide explicit transactions
@@ -200,12 +200,12 @@ class RedshiftInsertLoadJob(LoadJob):
 
 class RedshiftClient(SqlJobClientBase):
 
-    CONFIG: Type[RedshiftClientConfiguration] = None
-    CREDENTIALS: Type[PostgresCredentials] = None
+    CONFIG: RedshiftClientConfiguration = None
+    CREDENTIALS: PostgresCredentials = None
 
     def __init__(self, schema: Schema) -> None:
         sql_client = RedshiftSqlClient(
-            schema.normalize_make_dataset_name(self.CONFIG.DEFAULT_DATASET, self.CONFIG.DEFAULT_SCHEMA_NAME, schema.name),
+            schema.normalize_make_dataset_name(self.CONFIG.default_dataset, self.CONFIG.default_schema_name, schema.name),
             self.CREDENTIALS
         )
         super().__init__(schema, sql_client)
@@ -347,7 +347,7 @@ class RedshiftClient(SqlJobClientBase):
         }
 
     @classmethod
-    def configure(cls, initial_values: StrAny = None) -> Tuple[Type[RedshiftClientConfiguration], Type[PostgresCredentials]]:
+    def configure(cls, initial_values: StrAny = None) -> Tuple[RedshiftClientConfiguration, PostgresCredentials]:
         cls.CONFIG, cls.CREDENTIALS = configuration(initial_values=initial_values)
         return cls.CONFIG, cls.CREDENTIALS
 

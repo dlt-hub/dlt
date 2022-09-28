@@ -1,7 +1,7 @@
 import os
 from os.path import join
 from pathlib import Path
-from typing import Iterable, NamedTuple, Literal, Optional, Sequence, Set, Tuple, Type, get_args
+from typing import Iterable, NamedTuple, Literal, Optional, Sequence, Set, get_args
 
 from dlt.common import json, pendulum
 from dlt.common.typing import DictStrAny, StrAny
@@ -44,7 +44,7 @@ class LoadStorage(DataItemStorage, VersionedStorage):
     def __init__(
         self,
         is_owner: bool,
-        C: Type[LoadVolumeConfiguration],
+        C: LoadVolumeConfiguration,
         preferred_file_format: TLoaderFileFormat,
         supported_file_formats: Iterable[TLoaderFileFormat]
     ) -> None:
@@ -53,11 +53,11 @@ class LoadStorage(DataItemStorage, VersionedStorage):
         if preferred_file_format not in supported_file_formats:
             raise TerminalValueError(preferred_file_format)
         self.supported_file_formats = supported_file_formats
-        self.delete_completed_jobs = C.DELETE_COMPLETED_JOBS
+        self.delete_completed_jobs = C.delete_completed_jobs
         super().__init__(
             preferred_file_format,
             LoadStorage.STORAGE_VERSION,
-            is_owner, FileStorage(C.LOAD_VOLUME_PATH, "t", makedirs=is_owner)
+            is_owner, FileStorage(C.load_volume_path, "t", makedirs=is_owner)
         )
         if is_owner:
             self.initialize_storage()

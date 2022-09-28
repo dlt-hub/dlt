@@ -1,10 +1,13 @@
-from functools import wraps
 import os
+from pathlib import Path
+import sys
 import base64
-from contextlib import contextmanager
 import hashlib
-from os import environ
 import secrets
+from contextlib import contextmanager
+from functools import wraps
+from os import environ
+
 from typing import Any, Dict, Iterator, Optional, Sequence, TypeVar, Mapping, List, TypedDict, Union
 
 from dlt.common.typing import StrAny, DictStrAny, StrStr, TFun
@@ -169,3 +172,9 @@ def encoding_for_mode(mode: str) -> Optional[str]:
         return None
     else:
         return "utf-8"
+
+
+def entry_point_file_stem() -> str:
+    if len(sys.argv) > 0 and os.path.isfile(sys.argv[0]):
+        return Path(sys.argv[0]).stem
+    return None

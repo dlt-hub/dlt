@@ -1,24 +1,30 @@
+from typing import Any
+
 from dlt.common.typing import StrAny, TSecretValue
-from dlt.common.configuration import CredentialsConfiguration
+from dlt.common.configuration.base_configuration import CredentialsConfiguration, configspec
 
 
+@configspec
 class PostgresCredentials(CredentialsConfiguration):
 
-    __namespace__: str = "PG"
+    __namespace__: str = "pg"
 
-    DBNAME: str = None
-    PASSWORD: TSecretValue = None
-    USER: str = None
-    HOST: str = None
-    PORT: int = 5439
-    CONNECT_TIMEOUT: int = 15
+    dbname: str = None
+    password: TSecretValue = None
+    user: str = None
+    host: str = None
+    port: int = 5439
+    connect_timeout: int = 15
 
-    @classmethod
-    def check_integrity(cls) -> None:
-        cls.DBNAME = cls.DBNAME.lower()
-        # cls.DEFAULT_DATASET = cls.DEFAULT_DATASET.lower()
-        cls.PASSWORD = TSecretValue(cls.PASSWORD.strip())
+    def from_native_repesentation(self, initial_value: Any) -> None:
+        if not isinstance(initial_value, str):
+            raise ValueError(initial_value)
+        # TODO: parse postgres connection string
+        raise NotImplementedError()
 
-    @classmethod
-    def as_credentials(cls) -> StrAny:
-        return cls.as_dict()
+    def check_integrity(self) -> None:
+        self.dbname = self.dbname.lower()
+        self.password = TSecretValue(self.password.strip())
+
+    def to_native_representation(self) -> StrAny:
+        raise NotImplementedError()

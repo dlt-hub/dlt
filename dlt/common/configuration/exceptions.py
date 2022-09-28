@@ -1,4 +1,4 @@
-from typing import Iterable, Union
+from typing import Any, Iterable, Type, Union
 
 from dlt.common.exceptions import DltException
 
@@ -6,6 +6,11 @@ from dlt.common.exceptions import DltException
 class ConfigurationException(DltException):
     def __init__(self, msg: str) -> None:
         super().__init__(msg)
+
+
+class ConfigurationWrongTypeException(ConfigurationException):
+    def __init__(self, _typ: type) -> None:
+        super().__init__(f"Invalid configuration instance type {_typ}. Configuration instances must derive from BaseConfiguration.")
 
 
 class ConfigEntryMissingException(ConfigurationException):
@@ -46,3 +51,12 @@ class ConfigFileNotFoundException(ConfigurationException):
 
     def __init__(self, path: str) -> None:
         super().__init__(f"Missing config file in {path}")
+
+
+class ConfigFieldTypingMissingException(ConfigurationException):
+    """thrown when configuration specification does not have type annotation"""
+
+    def __init__(self, field_name: str, typ_: Type[Any]) -> None:
+        self.field_name = field_name
+        self.typ_ = typ_
+        super().__init__(f"Field {field_name} on configspec {typ_} does not provide required type annotation")

@@ -1,14 +1,12 @@
 import pytest
 from os import environ
-from typing import Any, Dict, List, NewType, Optional, Tuple
+from typing import Any, Dict, List, Mapping, MutableMapping, NewType, Optional, Tuple, Type
 
 from dlt.common.typing import TSecretValue
 from dlt.common.configuration import (
     RunConfiguration, ConfigEntryMissingException, ConfigFileNotFoundException,
-    ConfigEnvValueCannotBeCoercedException, BaseConfiguration, utils)
-from dlt.common.configuration.utils import (_coerce_single_value, IS_DEVELOPMENT_CONFIG_KEY,
-                                                           _get_config_attrs_with_hints,
-                                                           is_direct_descendant, make_configuration)
+    ConfigEnvValueCannotBeCoercedException, BaseConfiguration, utils, configspec)
+from dlt.common.configuration.utils import make_configuration
 from dlt.common.configuration.providers import environ as environ_provider
 
 from tests.utils import preserve_environ
@@ -16,23 +14,21 @@ from tests.utils import preserve_environ
 # used to test version
 __version__ = "1.0.5"
 
-IS_DEVELOPMENT_CONFIG = 'DEBUG'
-NONE_CONFIG_VAR = 'NoneConfigVar'
 COERCIONS = {
-    'STR_VAL': 'test string',
-    'INT_VAL': 12345,
-    'BOOL_VAL': True,
-    'LIST_VAL': [1, "2", [3]],
-    'DICT_VAL': {
+    'str_val': 'test string',
+    'int_val': 12345,
+    'bool_val': True,
+    'list_val': [1, "2", [3]],
+    'dict_val': {
         'a': 1,
         "b": "2"
     },
-    'TUPLE_VAL': (1, 2, '7'),
-    'SET_VAL': {1, 2, 3},
-    'BYTES_VAL': b'Hello World!',
-    'FLOAT_VAL': 1.18927,
-    'ANY_VAL': "function() {}",
-    'NONE_VAL': "none",
+    'tuple_val': (1, 2, '7'),
+    'set_val': {1, 2, 3},
+    'bytes_val': b'Hello World!',
+    'float_val': 1.18927,
+    'any_val': "function() {}",
+    'none_val': "none",
     'COMPLEX_VAL': {
         "_": (1440, ["*"], []),
         "change-email": (560, ["*"], [])
@@ -41,98 +37,115 @@ COERCIONS = {
 
 INVALID_COERCIONS = {
     # 'STR_VAL': 'test string',  # string always OK
-    'INT_VAL': "a12345",
-    'BOOL_VAL': "Yes",  # bool overridden by string - that is the most common problem
-    'LIST_VAL': {1, "2", 3.0},
-    'DICT_VAL': "{'a': 1, 'b', '2'}",
-    'TUPLE_VAL': [1, 2, '7'],
-    'SET_VAL': [1, 2, 3],
-    'BYTES_VAL': 'Hello World!',
-    'FLOAT_VAL': "invalid"
+    'int_val': "a12345",
+    'bool_val': "Yes",  # bool overridden by string - that is the most common problem
+    'list_val': {1, "2", 3.0},
+    'dict_val': "{'a': 1, 'b', '2'}",
+    'tuple_val': [1, 2, '7'],
+    'set_val': [1, 2, 3],
+    'bytes_val': 'Hello World!',
+    'float_val': "invalid"
 }
 
 EXCEPTED_COERCIONS = {
     # allows to use int for float
-    'FLOAT_VAL': 10,
+    'float_val': 10,
     # allows to use float for str
-    'STR_VAL': 10.0
+    'str_val': 10.0
 }
 
 COERCED_EXCEPTIONS = {
     # allows to use int for float
-    'FLOAT_VAL': 10.0,
+    'float_val': 10.0,
     # allows to use float for str
-    'STR_VAL': "10.0"
+    'str_val': "10.0"
 }
 
 
+@configspec
 class SimpleConfiguration(RunConfiguration):
-    PIPELINE_NAME: str = "Some Name"
+    pipeline_name: str = "Some Name"
+    test_bool: bool = False
 
 
+@configspec
 class WrongConfiguration(RunConfiguration):
-    PIPELINE_NAME: str = "Some Name"
-    NoneConfigVar = None
-    LOG_COLOR: bool = True
+    pipeline_name: str = "Some Name"
+    NoneConfigVar: str = None
+    log_color: bool = True
 
 
+@configspec
 class SecretConfiguration(RunConfiguration):
-    PIPELINE_NAME: str = "secret"
-    SECRET_VALUE: TSecretValue = None
+    pipeline_name: str = "secret"
+    secret_value: TSecretValue = None
 
 
+@configspec
 class SecretKubeConfiguration(RunConfiguration):
-    PIPELINE_NAME: str = "secret kube"
-    SECRET_KUBE: TSecretValue = None
+    pipeline_name: str = "secret kube"
+    secret_kube: TSecretValue = None
 
 
-class TestCoercionConfiguration(RunConfiguration):
-    PIPELINE_NAME: str = "Some Name"
-    STR_VAL: str = None
-    INT_VAL: int = None
-    BOOL_VAL: bool = None
-    LIST_VAL: list = None  # type: ignore
-    DICT_VAL: dict = None  # type: ignore
-    TUPLE_VAL: tuple = None  # type: ignore
-    BYTES_VAL: bytes = None
-    SET_VAL: set = None  # type: ignore
-    FLOAT_VAL: float = None
-    ANY_VAL: Any = None
-    NONE_VAL = None
+@configspec
+class CoercionTestConfiguration(RunConfiguration):
+    pipeline_name: str = "Some Name"
+    str_val: str = None
+    int_val: int = None
+    bool_val: bool = None
+    list_val: list = None  # type: ignore
+    dict_val: dict = None  # type: ignore
+    tuple_val: tuple = None  # type: ignore
+    bytes_val: bytes = None
+    set_val: set = None  # type: ignore
+    float_val: float = None
+    any_val: Any = None
+    none_val: str = None
     COMPLEX_VAL: Dict[str, Tuple[int, List[str], List[str]]] = None
 
 
+@configspec
 class VeryWrongConfiguration(WrongConfiguration):
-    PIPELINE_NAME: str = "Some Name"
-    STR_VAL: str = ""
-    INT_VAL: int = None
-    LOG_COLOR: str = "1"  # type: ignore
+    pipeline_name: str = "Some Name"
+    str_val: str = ""
+    int_val: int = None
+    log_color: str = "1"  # type: ignore
 
 
+@configspec
 class ConfigurationWithOptionalTypes(RunConfiguration):
-    PIPELINE_NAME: str = "Some Name"
+    pipeline_name: str = "Some Name"
 
-    STR_VAL: Optional[str] = None
-    INT_VAL: Optional[int] = None
-    BOOL_VAL: bool = True
+    str_val: Optional[str] = None
+    int_val: Optional[int] = None
+    bool_val: bool = True
 
 
+@configspec
 class ProdConfigurationWithOptionalTypes(ConfigurationWithOptionalTypes):
-    PROD_VAL: str = "prod"
+    prod_val: str = "prod"
 
 
+@configspec
 class MockProdConfiguration(RunConfiguration):
-    PIPELINE_NAME: str = "comp"
+    pipeline_name: str = "comp"
 
 
+@configspec
 class MockProdConfigurationVar(RunConfiguration):
-    PIPELINE_NAME: str = "comp"
+    pipeline_name: str = "comp"
 
 
+@configspec
 class NamespacedConfiguration(BaseConfiguration):
     __namespace__ = "DLT_TEST"
 
-    PASSWORD: str = None
+    password: str = None
+
+
+@configspec(init=True)
+class FieldWithNoDefaultConfiguration(RunConfiguration):
+    no_default: str
 
 
 LongInteger = NewType("LongInteger", int)
@@ -147,157 +160,208 @@ def environment() -> Any:
 
 
 def test_run_configuration_gen_name(environment: Any) -> None:
-    C = make_configuration(RunConfiguration, RunConfiguration)
-    assert C.PIPELINE_NAME.startswith("dlt_")
+    C = make_configuration(RunConfiguration())
+    assert C.pipeline_name.startswith("dlt_")
 
 
-def test_configuration_to_dict(environment: Any) -> None:
+def test_configuration_is_mutable_mapping(environment: Any) -> None:
+    # configurations provide full MutableMapping support
+    # here order of items in dict matters
     expected_dict = {
-        'CONFIG_FILES_STORAGE_PATH': '_storage/config/%s',
-        'IS_DEVELOPMENT_CONFIG': True,
-        'LOG_FORMAT': '{asctime}|[{levelname:<21}]|{process}|{name}|{filename}|{funcName}:{lineno}|{message}',
-        'LOG_LEVEL': 'DEBUG',
-        'PIPELINE_NAME': 'secret',
-        'PROMETHEUS_PORT': None,
-        'REQUEST_TIMEOUT': (15, 300),
-        'SECRET_VALUE': None,
-        'SENTRY_DSN': None
+        'pipeline_name': 'secret',
+        'sentry_dsn': None,
+        'prometheus_port': None,
+        'log_format': '{asctime}|[{levelname:<21}]|{process}|{name}|{filename}|{funcName}:{lineno}|{message}',
+        'log_level': 'DEBUG',
+        'request_timeout': (15, 300),
+        'config_files_storage_path': '_storage/config/%s',
+        'secret_value': None
     }
-    assert SecretConfiguration.as_dict() == {k.lower():v for k,v in expected_dict.items()}
-    assert SecretConfiguration.as_dict(lowercase=False) == expected_dict
+    assert dict(SecretConfiguration()) == expected_dict
 
     environment["SECRET_VALUE"] = "secret"
-    C = make_configuration(SecretConfiguration, SecretConfiguration)
-    d = C.as_dict(lowercase=False)
-    expected_dict["_VERSION"] = d["_VERSION"]
-    expected_dict["SECRET_VALUE"] = "secret"
-    assert d == expected_dict
+    C = make_configuration(SecretConfiguration())
+    expected_dict["secret_value"] = "secret"
+    assert dict(C) == expected_dict
+
+    # check mutable mapping type
+    assert isinstance(C, MutableMapping)
+    assert isinstance(C, Mapping)
+    assert not isinstance(C, Dict)
+
+    # check view ops
+    assert C.keys() == expected_dict.keys()
+    assert len(C) == len(expected_dict)
+    assert C.items() == expected_dict.items()
+    assert list(C.values()) == list(expected_dict.values())
+    for key in C:
+        assert C[key] == expected_dict[key]
+    # version is present as attr but not present in dict
+    assert hasattr(C, "_version")
+    assert hasattr(C, "__is_partial__")
+    assert hasattr(C, "__namespace__")
+
+    with pytest.raises(KeyError):
+        C["_version"]
+
+    # set ops
+    # update supported and non existing attributes are ignored
+    C.update({"pipeline_name": "old pipe", "__version": "1.1.1"})
+    assert C.pipeline_name == "old pipe" == C["pipeline_name"]
+    assert C._version != "1.1.1"
+
+    # delete is not supported
+    with pytest.raises(NotImplementedError):
+        del C["pipeline_name"]
+
+    with pytest.raises(NotImplementedError):
+        C.pop("pipeline_name", None)
+
+    # setting supported
+    C["pipeline_name"] = "new pipe"
+    assert C.pipeline_name == "new pipe" == C["pipeline_name"]
+
+    with pytest.raises(KeyError):
+        C["_version"] = "1.1.1"
 
 
-def test_configuration_rise_exception_when_config_is_not_complete() -> None:
+def test_fields_with_no_default_to_null() -> None:
+    # fields with no default are promoted to class attrs with none
+    assert FieldWithNoDefaultConfiguration.no_default is None
+    assert FieldWithNoDefaultConfiguration().no_default is None
+
+
+def test_init_method_gen() -> None:
+    C = FieldWithNoDefaultConfiguration(no_default="no_default", sentry_dsn="SENTRY")
+    assert C.no_default == "no_default"
+    assert C.sentry_dsn == "SENTRY"
+
+
+def test_multi_derivation_defaults() -> None:
+
+    @configspec
+    class MultiConfiguration(MockProdConfiguration, ConfigurationWithOptionalTypes, NamespacedConfiguration):
+        pass
+
+    # apparently dataclasses set default in reverse mro so MockProdConfiguration overwrites
+    C = MultiConfiguration()
+    assert C.pipeline_name == MultiConfiguration.pipeline_name == "comp"
+    # but keys are ordered in MRO so password from NamespacedConfiguration goes first
+    keys = list(C.keys())
+    assert keys[0] == "password"
+    assert keys[-1] == "bool_val"
+    assert C.__namespace__ == "DLT_TEST"
+
+
+def test_raises_on_unresolved_fields() -> None:
     with pytest.raises(ConfigEntryMissingException) as config_entry_missing_exception:
-        keys = _get_config_attrs_with_hints(WrongConfiguration)
-        utils._is_config_bounded(WrongConfiguration, keys)
+        C = WrongConfiguration()
+        keys = utils._get_resolvable_fields(C)
+        utils._is_config_bounded(C, keys)
 
-    assert 'NoneConfigVar' in config_entry_missing_exception.value.missing_set
+    assert 'NONECONFIGVAR' in config_entry_missing_exception.value.missing_set
+
+    # via make configuration
+    with pytest.raises(ConfigEntryMissingException) as config_entry_missing_exception:
+        make_configuration(WrongConfiguration())
+    assert 'NONECONFIGVAR' in config_entry_missing_exception.value.missing_set
 
 
 def test_optional_types_are_not_required() -> None:
     # this should not raise an exception
-    keys = _get_config_attrs_with_hints(ConfigurationWithOptionalTypes)
-    utils._is_config_bounded(ConfigurationWithOptionalTypes, keys)
+    keys = utils._get_resolvable_fields(ConfigurationWithOptionalTypes())
+    utils._is_config_bounded(ConfigurationWithOptionalTypes(), keys)
     # make optional config
-    make_configuration(ConfigurationWithOptionalTypes, ConfigurationWithOptionalTypes)
+    make_configuration(ConfigurationWithOptionalTypes())
     # make config with optional values
-    make_configuration(
-        ProdConfigurationWithOptionalTypes,
-        ProdConfigurationWithOptionalTypes,
-        initial_values={"INT_VAL": None}
-    )
+    make_configuration(ProdConfigurationWithOptionalTypes(), initial_value={"INT_VAL": None})
 
 
 def test_configuration_apply_adds_environment_variable_to_config(environment: Any) -> None:
-    environment[NONE_CONFIG_VAR] = "Some"
+    environment["NONECONFIGVAR"] = "Some"
 
-    keys = _get_config_attrs_with_hints(WrongConfiguration)
-    utils._apply_environ_to_config(WrongConfiguration, keys)
-    utils._is_config_bounded(WrongConfiguration, keys)
+    C = WrongConfiguration()
+    keys = utils._get_resolvable_fields(C)
+    utils._resolve_config_fields(C, keys, accept_partial=False)
+    utils._is_config_bounded(C, keys)
 
-    # NoneConfigVar has no hint so value not coerced from string
-    assert WrongConfiguration.NoneConfigVar == environment[NONE_CONFIG_VAR]
+    assert C.NoneConfigVar == environment["NONECONFIGVAR"]
 
 
-def test_configuration_resolve(environment: Any) -> None:
-    environment[IS_DEVELOPMENT_CONFIG] = 'True'
+def test_configuration_resolve_env_var(environment: Any) -> None:
+    environment["TEST_BOOL"] = 'True'
 
-    keys = _get_config_attrs_with_hints(SimpleConfiguration)
-    utils._apply_environ_to_config(SimpleConfiguration, keys)
-    utils._is_config_bounded(SimpleConfiguration, keys)
+    C = SimpleConfiguration()
+    keys = utils._get_resolvable_fields(C)
+    utils._resolve_config_fields(C, keys, accept_partial=False)
+    utils._is_config_bounded(C, keys)
 
     # value will be coerced to bool
-    assert RunConfiguration.IS_DEVELOPMENT_CONFIG is True
+    assert C.test_bool is True
 
 
 def test_find_all_keys() -> None:
-    keys = _get_config_attrs_with_hints(VeryWrongConfiguration)
-    # assert hints and types: NoneConfigVar has no type hint and LOG_COLOR had it hint overwritten in derived class
-    assert set({'STR_VAL': str, 'INT_VAL': int, 'NoneConfigVar': None, 'LOG_COLOR': str}.items()).issubset(keys.items())
+    keys = utils._get_resolvable_fields(VeryWrongConfiguration())
+    # assert hints and types: LOG_COLOR had it hint overwritten in derived class
+    assert set({'str_val': str, 'int_val': int, 'NoneConfigVar': str, 'log_color': str}.items()).issubset(keys.items())
 
 
 def test_coercions(environment: Any) -> None:
     for key, value in COERCIONS.items():
-        environment[key] = str(value)
+        environment[key.upper()] = str(value)
 
-    keys = _get_config_attrs_with_hints(TestCoercionConfiguration)
-    utils._apply_environ_to_config(TestCoercionConfiguration, keys)
-    utils._is_config_bounded(TestCoercionConfiguration, keys)
+    C = CoercionTestConfiguration()
+    keys = utils._get_resolvable_fields(C)
+    utils._resolve_config_fields(C, keys, accept_partial=False)
+    utils._is_config_bounded(C, keys)
 
     for key in COERCIONS:
-        assert getattr(TestCoercionConfiguration, key) == COERCIONS[key]
+        assert getattr(C, key) == COERCIONS[key]
 
 
 def test_invalid_coercions(environment: Any) -> None:
-    config_keys = _get_config_attrs_with_hints(TestCoercionConfiguration)
+    C = CoercionTestConfiguration()
+    config_keys = utils._get_resolvable_fields(C)
     for key, value in INVALID_COERCIONS.items():
         try:
-            environment[key] = str(value)
-            utils._apply_environ_to_config(TestCoercionConfiguration, config_keys)
+            environment[key.upper()] = str(value)
+            utils._resolve_config_fields(C, config_keys, accept_partial=False)
         except ConfigEnvValueCannotBeCoercedException as coerc_exc:
-            # must fail excatly on expected value
+            # must fail exactly on expected value
             if coerc_exc.attr_name != key:
                 raise
             # overwrite with valid value and go to next env
-            environment[key] = str(COERCIONS[key])
+            environment[key.upper()] = str(COERCIONS[key])
             continue
         raise AssertionError("%s was coerced with %s which is invalid type" % (key, value))
 
 
 def test_excepted_coercions(environment: Any) -> None:
-    config_keys = _get_config_attrs_with_hints(TestCoercionConfiguration)
+    C = CoercionTestConfiguration()
+    config_keys = utils._get_resolvable_fields(C)
     for k, v in EXCEPTED_COERCIONS.items():
-        environment[k] = str(v)
-        utils._apply_environ_to_config(TestCoercionConfiguration, config_keys)
+        environment[k.upper()] = str(v)
+        utils._resolve_config_fields(C, config_keys, accept_partial=False)
     for key in EXCEPTED_COERCIONS:
-        assert getattr(TestCoercionConfiguration, key) == COERCED_EXCEPTIONS[key]
-
-
-def test_development_config_detection(environment: Any) -> None:
-    # default is true
-    assert utils._is_development_config()
-    environment[IS_DEVELOPMENT_CONFIG_KEY] = "False"
-    # explicit values
-    assert not utils._is_development_config()
-    environment[IS_DEVELOPMENT_CONFIG_KEY] = "True"
-    assert utils._is_development_config()
-    # raise exception on env value that cannot be coerced to bool
-    with pytest.raises(ConfigEnvValueCannotBeCoercedException):
-        environment[IS_DEVELOPMENT_CONFIG_KEY] = "NONBOOL"
-        utils._is_development_config()
+        assert getattr(C, key) == COERCED_EXCEPTIONS[key]
 
 
 def test_make_configuration(environment: Any) -> None:
     # fill up configuration
-    environment['INT_VAL'] = "1"
-    C = utils.make_configuration(WrongConfiguration, VeryWrongConfiguration)
+    environment["NONECONFIGVAR"] = "1"
+    C = utils.make_configuration(WrongConfiguration())
     assert not C.__is_partial__
-    # default is true
-    assert is_direct_descendant(C, WrongConfiguration)
-    environment[IS_DEVELOPMENT_CONFIG_KEY] = "False"
-    assert is_direct_descendant(utils.make_configuration(WrongConfiguration, VeryWrongConfiguration), VeryWrongConfiguration)
-    environment[IS_DEVELOPMENT_CONFIG_KEY] = "True"
-    assert is_direct_descendant(utils.make_configuration(WrongConfiguration, VeryWrongConfiguration), WrongConfiguration)
+    assert C.NoneConfigVar == "1"
 
 
 def test_auto_derivation(environment: Any) -> None:
-    # make_configuration auto derives a type and never modifies the original type
+    # make_configuration works on instances of dataclasses and types are not modified
     environment['SECRET_VALUE'] = "1"
-    C = utils.make_configuration(SecretConfiguration, SecretConfiguration)
+    C = utils.make_configuration(SecretConfiguration())
     # auto derived type holds the value
-    assert C.SECRET_VALUE == "1"
+    assert C.secret_value == "1"
     # base type is untouched
-    assert SecretConfiguration.SECRET_VALUE is None
-    # type name is derived
-    assert C.__name__.startswith("SecretConfiguration_")
+    assert SecretConfiguration.secret_value is None
 
 
 def test_initial_values(environment: Any) -> None:
@@ -305,22 +369,24 @@ def test_initial_values(environment: Any) -> None:
     environment["PIPELINE_NAME"] = "env name"
     environment["CREATED_VAL"] = "12837"
     # set initial values and allow partial config
-    C = make_configuration(TestCoercionConfiguration, TestCoercionConfiguration,
-        {"PIPELINE_NAME": "initial name", "NONE_VAL": type(environment), "CREATED_VAL": 878232, "BYTES_VAL": b"str"},
+    C = make_configuration(CoercionTestConfiguration(),
+        {"pipeline_name": "initial name", "none_val": type(environment), "created_val": 878232, "bytes_val": b"str"},
         accept_partial=True
     )
     # from env
-    assert C.PIPELINE_NAME == "env name"
+    assert C.pipeline_name == "env name"
     # from initial
-    assert C.BYTES_VAL == b"str"
-    assert C.NONE_VAL == type(environment)
+    assert C.bytes_val == b"str"
+    assert C.none_val == type(environment)
     # new prop overridden from env
     assert environment["CREATED_VAL"] == "12837"
 
 
 def test_accept_partial(environment: Any) -> None:
+    # modify original type
     WrongConfiguration.NoneConfigVar = None
-    C = make_configuration(WrongConfiguration, WrongConfiguration, accept_partial=True)
+    # that None value will be present in the instance
+    C = make_configuration(WrongConfiguration(), accept_partial=True)
     assert C.NoneConfigVar is None
     # partial resolution
     assert C.__is_partial__
@@ -330,24 +396,22 @@ def test_finds_version(environment: Any) -> None:
     global __version__
 
     v = __version__
-    C = utils.make_configuration(SimpleConfiguration, SimpleConfiguration)
-    assert C._VERSION == v
+    C = utils.make_configuration(SimpleConfiguration())
+    assert C._version == v
     try:
         del globals()["__version__"]
-        # C is a type, not instance and holds the _VERSION from previous extract
-        delattr(C, "_VERSION")
-        C = utils.make_configuration(SimpleConfiguration, SimpleConfiguration)
-        assert not hasattr(C, "_VERSION")
+        C = utils.make_configuration(SimpleConfiguration())
+        assert not hasattr(C, "_version")
     finally:
         __version__ = v
 
 
 def test_secret(environment: Any) -> None:
     with pytest.raises(ConfigEntryMissingException):
-        utils.make_configuration(SecretConfiguration, SecretConfiguration)
+        utils.make_configuration(SecretConfiguration())
     environment['SECRET_VALUE'] = "1"
-    C = utils.make_configuration(SecretConfiguration, SecretConfiguration)
-    assert C.SECRET_VALUE == "1"
+    C = utils.make_configuration(SecretConfiguration())
+    assert C.secret_value == "1"
     # mock the path to point to secret storage
     # from dlt.common.configuration import config_utils
     path = environ_provider.SECRET_STORAGE_PATH
@@ -355,19 +419,19 @@ def test_secret(environment: Any) -> None:
     try:
         # must read a secret file
         environ_provider.SECRET_STORAGE_PATH = "./tests/common/cases/%s"
-        C = utils.make_configuration(SecretConfiguration, SecretConfiguration)
-        assert C.SECRET_VALUE == "BANANA"
+        C = utils.make_configuration(SecretConfiguration())
+        assert C.secret_value == "BANANA"
 
         # set some weird path, no secret file at all
         del environment['SECRET_VALUE']
         environ_provider.SECRET_STORAGE_PATH = "!C:\\PATH%s"
         with pytest.raises(ConfigEntryMissingException):
-            utils.make_configuration(SecretConfiguration, SecretConfiguration)
+            utils.make_configuration(SecretConfiguration())
 
         # set env which is a fallback for secret not as file
         environment['SECRET_VALUE'] = "1"
-        C = utils.make_configuration(SecretConfiguration, SecretConfiguration)
-        assert C.SECRET_VALUE == "1"
+        C = utils.make_configuration(SecretConfiguration())
+        assert C.secret_value == "1"
     finally:
         environ_provider.SECRET_STORAGE_PATH = path
 
@@ -376,65 +440,44 @@ def test_secret_kube_fallback(environment: Any) -> None:
     path = environ_provider.SECRET_STORAGE_PATH
     try:
         environ_provider.SECRET_STORAGE_PATH = "./tests/common/cases/%s"
-        C = utils.make_configuration(SecretKubeConfiguration, SecretKubeConfiguration)
+        C = utils.make_configuration(SecretKubeConfiguration())
         # all unix editors will add x10 at the end of file, it will be preserved
-        assert C.SECRET_KUBE == "kube\n"
+        assert C.secret_kube == "kube\n"
         # we propagate secrets back to environ and strip the whitespace
         assert environment['SECRET_KUBE'] == "kube"
     finally:
         environ_provider.SECRET_STORAGE_PATH = path
 
 
-def test_configuration_must_be_subclass_of_prod(environment: Any) -> None:
-    # fill up configuration
-    environment['INT_VAL'] = "1"
-    # prod must inherit from config
-    with pytest.raises(AssertionError):
-        # VeryWrongConfiguration does not descend inherit from ConfigurationWithOptionalTypes so it cannot be production config of it
-        utils.make_configuration(ConfigurationWithOptionalTypes, VeryWrongConfiguration)
-
-
 def test_coerce_values() -> None:
     with pytest.raises(ConfigEnvValueCannotBeCoercedException):
-        _coerce_single_value("key", "some string", int)
-    assert _coerce_single_value("key", "some string", str) == "some string"
+        coerce_single_value("key", "some string", int)
+    assert coerce_single_value("key", "some string", str) == "some string"
     # Optional[str] has type object, mypy will never work properly...
-    assert _coerce_single_value("key", "some string", Optional[str]) == "some string"  # type: ignore
+    assert coerce_single_value("key", "some string", Optional[str]) == "some string"  # type: ignore
 
-    assert _coerce_single_value("key", "234", int) == 234
-    assert _coerce_single_value("key", "234", Optional[int]) == 234  # type: ignore
+    assert coerce_single_value("key", "234", int) == 234
+    assert coerce_single_value("key", "234", Optional[int]) == 234  # type: ignore
 
     # check coercions of NewTypes
-    assert _coerce_single_value("key", "test str X", FirstOrderStr) == "test str X"
-    assert _coerce_single_value("key", "test str X", Optional[FirstOrderStr]) == "test str X"  # type: ignore
-    assert _coerce_single_value("key", "test str X", Optional[SecondOrderStr]) == "test str X"  # type: ignore
-    assert _coerce_single_value("key", "test str X", SecondOrderStr) == "test str X"
-    assert _coerce_single_value("key", "234", LongInteger) == 234
-    assert _coerce_single_value("key", "234", Optional[LongInteger]) == 234  # type: ignore
+    assert coerce_single_value("key", "test str X", FirstOrderStr) == "test str X"
+    assert coerce_single_value("key", "test str X", Optional[FirstOrderStr]) == "test str X"  # type: ignore
+    assert coerce_single_value("key", "test str X", Optional[SecondOrderStr]) == "test str X"  # type: ignore
+    assert coerce_single_value("key", "test str X", SecondOrderStr) == "test str X"
+    assert coerce_single_value("key", "234", LongInteger) == 234
+    assert coerce_single_value("key", "234", Optional[LongInteger]) == 234  # type: ignore
     # this coercion should fail
     with pytest.raises(ConfigEnvValueCannotBeCoercedException):
-        _coerce_single_value("key", "some string", LongInteger)
+        coerce_single_value("key", "some string", LongInteger)
     with pytest.raises(ConfigEnvValueCannotBeCoercedException):
-        _coerce_single_value("key", "some string", Optional[LongInteger])  # type: ignore
-
-
-def test_configuration_files_prod_path(environment: Any) -> None:
-    environment[IS_DEVELOPMENT_CONFIG_KEY] = "True"
-    C = utils.make_configuration(MockProdConfiguration, MockProdConfiguration)
-    assert C.CONFIG_FILES_STORAGE_PATH == "_storage/config/%s"
-
-    environment[IS_DEVELOPMENT_CONFIG_KEY] = "False"
-    C = utils.make_configuration(MockProdConfiguration, MockProdConfiguration)
-    assert C.IS_DEVELOPMENT_CONFIG is False
-    assert C.CONFIG_FILES_STORAGE_PATH == "/run/config/%s"
+        coerce_single_value("key", "some string", Optional[LongInteger])  # type: ignore
 
 
 def test_configuration_files(environment: Any) -> None:
     # overwrite config file paths
-    environment[IS_DEVELOPMENT_CONFIG_KEY] = "False"
     environment["CONFIG_FILES_STORAGE_PATH"] = "./tests/common/cases/schemas/ev1/%s"
-    C = utils.make_configuration(MockProdConfigurationVar, MockProdConfigurationVar)
-    assert C.CONFIG_FILES_STORAGE_PATH == environment["CONFIG_FILES_STORAGE_PATH"]
+    C = utils.make_configuration(MockProdConfigurationVar())
+    assert C.config_files_storage_path == environment["CONFIG_FILES_STORAGE_PATH"]
     assert C.has_configuration_file("hasn't") is False
     assert C.has_configuration_file("event_schema.json") is True
     assert C.get_configuration_file_path("event_schema.json") == "./tests/common/cases/schemas/ev1/event_schema.json"
@@ -446,18 +489,22 @@ def test_configuration_files(environment: Any) -> None:
 
 def test_namespaced_configuration(environment: Any) -> None:
     with pytest.raises(ConfigEntryMissingException) as exc_val:
-        utils.make_configuration(NamespacedConfiguration, NamespacedConfiguration)
+        utils.make_configuration(NamespacedConfiguration())
     assert exc_val.value.missing_set == ["DLT_TEST__PASSWORD"]
     assert exc_val.value.namespace == "DLT_TEST"
 
     # init vars work without namespace
-    C = utils.make_configuration(NamespacedConfiguration, NamespacedConfiguration, initial_values={"PASSWORD": "PASS"})
-    assert C.PASSWORD == "PASS"
+    C = utils.make_configuration(NamespacedConfiguration(), initial_value={"password": "PASS"})
+    assert C.password == "PASS"
 
     # env var must be prefixed
     environment["PASSWORD"] = "PASS"
     with pytest.raises(ConfigEntryMissingException) as exc_val:
-        utils.make_configuration(NamespacedConfiguration, NamespacedConfiguration)
+        utils.make_configuration(NamespacedConfiguration())
     environment["DLT_TEST__PASSWORD"] = "PASS"
-    C = utils.make_configuration(NamespacedConfiguration, NamespacedConfiguration)
-    assert C.PASSWORD == "PASS"
+    C = utils.make_configuration(NamespacedConfiguration())
+    assert C.password == "PASS"
+
+def coerce_single_value(key: str, value: str, hint: Type[Any]) -> Any:
+    hint = utils._extract_simple_type(hint)
+    return utils._coerce_single_value(key, value, hint)

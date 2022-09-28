@@ -9,7 +9,6 @@ from dlt.common.configuration.run_configuration import BaseConfiguration
 from dlt.common.typing import StrAny, TFun
 from dlt.common.utils import uniq_id
 from dlt.common.telemetry import TRunMetrics
-from dlt.common.configuration.utils import TConfiguration
 
 TPool = TypeVar("TPool", bound=Pool)
 
@@ -62,40 +61,40 @@ def workermethod(f: TFun) -> TFun:
     return _wrap  # type: ignore
 
 
-def configuredworker(f: TFun) -> TFun:
-    """Decorator for a process/thread pool worker function facilitates passing bound configuration type across the process boundary. It requires the first method
-    of the worker function to be annotated with type derived from Type[BaseConfiguration] and the worker function to be called (typically by the Pool class) with a
-    configuration values serialized to dict (via `as_dict` method). The decorator will synthesize a new derived type and apply the serialized value, mimicking the
-    original type to be transferred across the process boundary.
+# def configuredworker(f: TFun) -> TFun:
+#     """Decorator for a process/thread pool worker function facilitates passing bound configuration type across the process boundary. It requires the first method
+#     of the worker function to be annotated with type derived from Type[BaseConfiguration] and the worker function to be called (typically by the Pool class) with a
+#     configuration values serialized to dict (via `as_dict` method). The decorator will synthesize a new derived type and apply the serialized value, mimicking the
+#     original type to be transferred across the process boundary.
 
-    Args:
-        f (TFun): worker function to be decorated
+#     Args:
+#         f (TFun): worker function to be decorated
 
-    Raises:
-        ValueError: raised when worker function signature does not contain required parameters or/and annotations
+#     Raises:
+#         ValueError: raised when worker function signature does not contain required parameters or/and annotations
 
 
-    Returns:
-        TFun: wrapped worker function
-    """
-    @wraps(f)
-    def _wrap(config: Union[StrAny, Type[BaseConfiguration]], *args: Any, **kwargs: Any) -> Any:
-        if isinstance(config, Mapping):
-            # worker process may run in separate process started with spawn and should not share any state with the parent process ie. global variables like config
-            # first function parameter should be of Type[BaseConfiguration]
-            sig = inspect.signature(f)
-            try:
-                first_param: inspect.Parameter = next(iter(sig.parameters.values()))
-                T = get_args(first_param.annotation)[0]
-                if not issubclass(T, BaseConfiguration):
-                    raise ValueError(T)
-            except Exception:
-                raise ValueError(f"First parameter of wrapped worker method {f.__name__} must by annotated as Type[BaseConfiguration]")
-            CONFIG = type(f.__name__ + uniq_id(), (T, ), {})
-            CONFIG.apply_dict(config)  # type: ignore
-            config = CONFIG
+#     Returns:
+#         TFun: wrapped worker function
+#     """
+#     @wraps(f)
+#     def _wrap(config: Union[StrAny, Type[BaseConfiguration]], *args: Any, **kwargs: Any) -> Any:
+#         if isinstance(config, Mapping):
+#             # worker process may run in separate process started with spawn and should not share any state with the parent process ie. global variables like config
+#             # first function parameter should be of Type[BaseConfiguration]
+#             sig = inspect.signature(f)
+#             try:
+#                 first_param: inspect.Parameter = next(iter(sig.parameters.values()))
+#                 T = get_args(first_param.annotation)[0]
+#                 if not issubclass(T, BaseConfiguration):
+#                     raise ValueError(T)
+#             except Exception:
+#                 raise ValueError(f"First parameter of wrapped worker method {f.__name__} must by annotated as Type[BaseConfiguration]")
+#             CONFIG = type(f.__name__ + uniq_id(), (T, ), {})
+#             CONFIG.apply_dict(config)  # type: ignore
+#             config = CONFIG
 
-        return f(config, *args, **kwargs)
+#         return f(config, *args, **kwargs)
 
-    return _wrap  # type: ignore
+#     return _wrap  # type: ignore
 

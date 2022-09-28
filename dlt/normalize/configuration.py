@@ -1,25 +1,17 @@
-from typing import Type
-
 from dlt.common.typing import StrAny
 from dlt.common.data_writers import TLoaderFileFormat
 from dlt.common.configuration import (PoolRunnerConfiguration, NormalizeVolumeConfiguration,
                                               LoadVolumeConfiguration, SchemaVolumeConfiguration,
-                                              ProductionLoadVolumeConfiguration, ProductionNormalizeVolumeConfiguration,
-                                              ProductionSchemaVolumeConfiguration,
-                                              TPoolType, make_configuration)
+                                              TPoolType, make_configuration, configspec)
 
 from . import __version__
 
 
+@configspec
 class NormalizeConfiguration(PoolRunnerConfiguration, NormalizeVolumeConfiguration, LoadVolumeConfiguration, SchemaVolumeConfiguration):
-    LOADER_FILE_FORMAT: TLoaderFileFormat = "jsonl"  # jsonp or insert commands will be generated
-    POOL_TYPE: TPoolType = "process"
+    loader_file_format: TLoaderFileFormat = "jsonl"  # jsonp or insert commands will be generated
+    pool_type: TPoolType = "process"
 
 
-class ProductionNormalizeConfiguration(ProductionNormalizeVolumeConfiguration, ProductionLoadVolumeConfiguration,
-                                      ProductionSchemaVolumeConfiguration, NormalizeConfiguration):
-    pass
-
-
-def configuration(initial_values: StrAny = None) -> Type[NormalizeConfiguration]:
-    return make_configuration(NormalizeConfiguration, ProductionNormalizeConfiguration, initial_values=initial_values)
+def configuration(initial_values: StrAny = None) -> NormalizeConfiguration:
+    return make_configuration(NormalizeConfiguration(), initial_value=initial_values)

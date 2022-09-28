@@ -20,16 +20,16 @@ def schema() -> Schema:
 @pytest.fixture
 def client(schema: Schema) -> RedshiftClient:
     # return client without opening connection
-    RedshiftClient.configure(initial_values={"DEFAULT_DATASET": "TEST" + uniq_id()})
+    RedshiftClient.configure(initial_values={"default_dataset": "TEST" + uniq_id()})
     return RedshiftClient(schema)
 
 
 def test_configuration() -> None:
     # check names normalized
     with custom_environ({"PG__DBNAME": "UPPER_CASE_DATABASE", "PG__PASSWORD": " pass\n"}):
-        C = make_configuration(PostgresCredentials, PostgresCredentials)
-        assert C.DBNAME == "upper_case_database"
-        assert C.PASSWORD == "pass"
+        C = make_configuration(PostgresCredentials())
+        assert C.dbname == "upper_case_database"
+        assert C.password == "pass"
 
 
 def test_create_table(client: RedshiftClient) -> None:

@@ -48,8 +48,8 @@ def setup_runner(dest_schema_prefix: str, override_values: StrAny = None) -> Non
     clean_test_storage()
     C = gen_configuration_variant(initial_values=override_values)
     # set unique dest schema prefix by default
-    C.DEST_SCHEMA_PREFIX = dest_schema_prefix
-    C.PACKAGE_RUN_PARAMS = ["--fail-fast", "--full-refresh"]
+    C.dest_schema_prefix = dest_schema_prefix
+    C.package_run_params = ["--fail-fast", "--full-refresh"]
     # override values including the defaults above
     if override_values:
         for k,v in override_values.items():

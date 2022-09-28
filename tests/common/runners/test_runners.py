@@ -5,8 +5,7 @@ from prometheus_client import registry
 
 from dlt.cli import TRunnerArgs
 from dlt.common import signals
-from dlt.common.typing import StrAny
-from dlt.common.configuration import PoolRunnerConfiguration, make_configuration
+from dlt.common.configuration import PoolRunnerConfiguration, make_configuration, configspec
 from dlt.common.configuration.pool_runner_configuration import TPoolType
 from dlt.common.exceptions import DltException, SignalReceivedException, TimeRangeExhaustedException, UnsupportedProcessStartMethodException
 from dlt.common.runners import pool_runner as runner
@@ -14,34 +13,40 @@ from dlt.common.runners import pool_runner as runner
 from tests.common.runners.utils import _TestRunnable
 from tests.utils import init_logger
 
+
+@configspec
 class ModPoolRunnerConfiguration(PoolRunnerConfiguration):
-    IS_SINGLE_RUN: bool = True
-    WAIT_RUNS: int = 1
-    PIPELINE_NAME: str = "testrunners"
-    POOL_TYPE: TPoolType = "none"
-    RUN_SLEEP: float = 0.1
-    RUN_SLEEP_IDLE: float = 0.1
-    RUN_SLEEP_WHEN_FAILED: float = 0.1
+    is_single_run: bool = True
+    wait_runs: int = 1
+    pipeline_name: str = "testrunners"
+    pool_type: TPoolType = "none"
+    run_sleep: float = 0.1
+    run_sleep_idle: float = 0.1
+    run_sleep_when_failed: float = 0.1
 
 
+@configspec
 class StopExceptionRunnerConfiguration(ModPoolRunnerConfiguration):
-    EXIT_ON_EXCEPTION: bool = True
+    exit_on_exception: bool = True
 
 
+@configspec
 class LimitedPoolRunnerConfiguration(ModPoolRunnerConfiguration):
-    STOP_AFTER_RUNS: int = 5
+    stop_after_runs: int = 5
 
 
+@configspec
 class ProcessPoolConfiguration(ModPoolRunnerConfiguration):
-    POOL_TYPE: TPoolType = "process"
+    pool_type: TPoolType = "process"
 
 
+@configspec
 class ThreadPoolConfiguration(ModPoolRunnerConfiguration):
-    POOL_TYPE: TPoolType = "thread"
+    pool_type: TPoolType = "thread"
 
 
-def configure(C: Type[PoolRunnerConfiguration], args: TRunnerArgs) -> Type[PoolRunnerConfiguration]:
-    return make_configuration(C, C, initial_values=args._asdict())
+def configure(C: Type[PoolRunnerConfiguration], args: TRunnerArgs) -> PoolRunnerConfiguration:
+    return make_configuration(C(), initial_value=args._asdict())
 
 
 @pytest.fixture(scope="module", autouse=True)

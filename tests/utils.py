@@ -6,7 +6,7 @@ import pytest
 import logging
 from os import environ
 
-from dlt.common.configuration.utils import _get_config_attrs_with_hints, make_configuration
+from dlt.common.configuration.utils import _get_resolvable_fields, make_configuration
 from dlt.common.configuration import RunConfiguration
 from dlt.common.logger import init_logging_from_config
 from dlt.common.file_storage import FileStorage
@@ -55,10 +55,10 @@ def preserve_environ() -> None:
     environ.update(saved_environ)
 
 
-def init_logger(C: Type[RunConfiguration] = None) -> None:
+def init_logger(C: RunConfiguration = None) -> None:
     if not hasattr(logging, "health"):
         if not C:
-            C = make_configuration(RunConfiguration, RunConfiguration)
+            C = make_configuration(RunConfiguration())
         init_logging_from_config(C)
 
 
@@ -77,15 +77,15 @@ def clean_test_storage(init_normalize: bool = False, init_loader: bool = False) 
     return storage
 
 
-def add_config_to_env(config: Type[RunConfiguration]) ->  None:
+def add_config_to_env(config: RunConfiguration) ->  None:
     # write back default values in configuration back into environment
-    possible_attrs = _get_config_attrs_with_hints(config).keys()
+    possible_attrs = _get_resolvable_fields(config).keys()
     for attr in possible_attrs:
-        if attr not in environ:
+        env_key = attr.upper()
+        if env_key not in environ:
             v = getattr(config, attr)
             if v is not None:
-                # print(f"setting {attr} to {v}")
-                environ[attr] = str(v)
+                environ[env_key] = str(v)
 
 
 def create_schema_with_name(schema_name) -> Schema:

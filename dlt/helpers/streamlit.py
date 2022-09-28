@@ -9,7 +9,7 @@ from dlt.pipeline import Pipeline
 from dlt.pipeline.typing import credentials_from_dict
 from dlt.pipeline.exceptions import MissingDependencyException, PipelineException
 from dlt.helpers.pandas import query_results_to_df, pd
-from dlt.common.configuration.run_configuration import BaseConfiguration, CredentialsConfiguration
+from dlt.common.configuration.base_configuration import BaseConfiguration, CredentialsConfiguration
 from dlt.common.utils import dict_remove_nones_in_place
 
 try:
@@ -35,8 +35,8 @@ def restore_pipeline() -> Pipeline:
         raise PipelineException("You must backup pipeline to Streamlit first")
     dlt_cfg = secrets["dlt"]
     credentials = deepcopy(dict(dlt_cfg["destination"]))
-    if "DEFAULT_SCHEMA_NAME" in credentials:
-        del credentials["DEFAULT_SCHEMA_NAME"]
+    if "default_schema_name" in credentials:
+        del credentials["default_schema_name"]
     credentials.update(dlt_cfg["credentials"])
     pipeline = Pipeline(dlt_cfg["pipeline_name"])
     pipeline.restore_pipeline(credentials_from_dict(credentials), dlt_cfg["working_dir"])
@@ -77,8 +77,8 @@ def backup_pipeline(pipeline: Pipeline) -> None:
     # save client config
     # print(dict_remove_nones_in_place(CONFIG.as_dict(lowercase=False)))
     dlt_c = cast(TomlContainer, secrets["dlt"])
-    dlt_c["destination"] = dict_remove_nones_in_place(CONFIG.as_dict(lowercase=False))
-    dlt_c["credentials"] = dict_remove_nones_in_place(CREDENTIALS.as_dict(lowercase=False))
+    dlt_c["destination"] = dict_remove_nones_in_place(dict(CONFIG))
+    dlt_c["credentials"] = dict_remove_nones_in_place(dict(CREDENTIALS))
 
     with open(SECRETS_FILE_LOC, "w", encoding="utf-8") as f:
         # use whitespace preserving parser

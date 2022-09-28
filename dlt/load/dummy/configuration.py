@@ -1,20 +1,19 @@
-from typing import Type
-
 from dlt.common.typing import StrAny
-from dlt.common.configuration import make_configuration
+from dlt.common.configuration import make_configuration, configspec
 from dlt.common.data_writers import TLoaderFileFormat
 
 from dlt.load.configuration import LoaderClientConfiguration
 
 
+@configspec
 class DummyClientConfiguration(LoaderClientConfiguration):
-    CLIENT_TYPE: str = "dummy"
-    LOADER_FILE_FORMAT: TLoaderFileFormat = "jsonl"
-    FAIL_PROB: float = 0.0
-    RETRY_PROB: float = 0.0
-    COMPLETED_PROB: float = 0.0
-    TIMEOUT: float = 10.0
+    client_type: str = "dummy"
+    loader_file_format: TLoaderFileFormat = "jsonl"
+    fail_prob: float = 0.0
+    retry_prob: float = 0.0
+    completed_prob: float = 0.0
+    timeout: float = 10.0
 
 
-def configuration(initial_values: StrAny = None) -> Type[DummyClientConfiguration]:
-    return make_configuration(DummyClientConfiguration, DummyClientConfiguration, initial_values=initial_values)
+def configuration(initial_values: StrAny = None) -> DummyClientConfiguration:
+    return make_configuration(DummyClientConfiguration(), initial_value=initial_values)

@@ -6,29 +6,34 @@ from os import environ
 from dlt import __version__ as auto_version
 from dlt.common import logger, sleep
 from dlt.common.typing import StrStr
-from dlt.common.configuration import RunConfiguration
+from dlt.common.configuration import RunConfiguration, configspec
 
 from tests.utils import preserve_environ
 
 
+@configspec
 class PureBasicConfiguration(RunConfiguration):
-    PIPELINE_NAME: str = "logger"
+    pipeline_name: str = "logger"
 
 
+@configspec
 class PureBasicConfigurationProc(PureBasicConfiguration):
-    _VERSION: str = "1.6.6"
+    _version: str = "1.6.6"
 
 
+@configspec
 class JsonLoggerConfiguration(PureBasicConfigurationProc):
-    LOG_FORMAT: str = "JSON"
+    log_format: str = "JSON"
 
 
+@configspec
 class SentryLoggerConfiguration(JsonLoggerConfiguration):
-    SENTRY_DSN: str = "http://user:pass@localhost/818782"
+    sentry_dsn: str = "http://user:pass@localhost/818782"
 
 
+@configspec(init=True)
 class SentryLoggerCriticalConfiguration(SentryLoggerConfiguration):
-    LOG_LEVEL: str = "CRITICAL"
+    log_level: str = "CRITICAL"
 
 
 @pytest.fixture(scope="function")
@@ -39,14 +44,14 @@ def environment() -> StrStr:
 
 
 def test_version_extract(environment: StrStr) -> None:
-    version = logger._extract_version_info(PureBasicConfiguration)
+    version = logger._extract_version_info(PureBasicConfiguration())
     # if component ver not avail use system version
     assert version == {'version': auto_version, 'component_name': 'logger'}
-    version = logger._extract_version_info(PureBasicConfigurationProc)
-    assert version["component_version"] == PureBasicConfigurationProc._VERSION
+    version = logger._extract_version_info(PureBasicConfigurationProc())
+    assert version["component_version"] == PureBasicConfigurationProc()._version
     # mock image info available in container
     _mock_image_env(environment)
-    version = logger._extract_version_info(PureBasicConfigurationProc)
+    version = logger._extract_version_info(PureBasicConfigurationProc())
     assert version == {'version': auto_version, 'commit_sha': '192891', 'component_name': 'logger', 'component_version': '1.6.6', 'image_version': 'scale/v:112'}
 
 
@@ -62,7 +67,7 @@ def test_pod_info_extract(environment: StrStr) -> None:
 def test_text_logger_init(environment: StrStr) -> None:
     _mock_image_env(environment)
     _mock_pod_env(environment)
-    logger.init_logging_from_config(PureBasicConfigurationProc)
+    logger.init_logging_from_config(PureBasicConfigurationProc())
     logger.health("HEALTH data", extra={"metrics": "props"})
     logger.metrics("METRICS data", extra={"metrics": "props"})
     logger.warning("Warning message here")
@@ -89,17 +94,13 @@ def test_json_logger_init(environment: StrStr) -> None:
 
 
 def test_sentry_log_level() -> None:
-    SentryLoggerCriticalConfiguration.LOG_LEVEL = "CRITICAL"
-    sll = logger._get_sentry_log_level(SentryLoggerCriticalConfiguration)
+    sll = logger._get_sentry_log_level(SentryLoggerCriticalConfiguration(log_level="CRITICAL"))
     assert sll._handler.level == logging._nameToLevel["CRITICAL"]
-    SentryLoggerCriticalConfiguration.LOG_LEVEL = "ERROR"
-    sll = logger._get_sentry_log_level(SentryLoggerCriticalConfiguration)
+    sll = logger._get_sentry_log_level(SentryLoggerCriticalConfiguration(log_level="ERROR"))
     assert sll._handler.level == logging._nameToLevel["ERROR"]
-    SentryLoggerCriticalConfiguration.LOG_LEVEL = "WARNING"
-    sll = logger._get_sentry_log_level(SentryLoggerCriticalConfiguration)
+    sll = logger._get_sentry_log_level(SentryLoggerCriticalConfiguration(log_level="WARNING"))
     assert sll._handler.level == logging._nameToLevel["WARNING"]
-    SentryLoggerCriticalConfiguration.LOG_LEVEL = "INFO"
-    sll = logger._get_sentry_log_level(SentryLoggerCriticalConfiguration)
+    sll = logger._get_sentry_log_level(SentryLoggerCriticalConfiguration(log_level="INFO"))
     assert sll._handler.level == logging._nameToLevel["WARNING"]
 
 
@@ -107,7 +108,7 @@ def test_sentry_log_level() -> None:
 def test_sentry_init(environment: StrStr) -> None:
     _mock_image_env(environment)
     _mock_pod_env(environment)
-    logger.init_logging_from_config(SentryLoggerConfiguration)
+    logger.init_logging_from_config(SentryLoggerConfiguration())
     try:
         1 / 0
     except ZeroDivisionError:

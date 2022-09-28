@@ -38,7 +38,7 @@ dev: has-poetry
 
 lint:
 	./check-package.sh
-	poetry run mypy --config-file mypy.ini dlt examples experiments/pipeline
+	poetry run mypy --config-file mypy.ini dlt
 	poetry run flake8 --max-line-length=200 examples dlt
 	poetry run flake8 --max-line-length=200 tests
 	# dlt/pipeline dlt/common/schema dlt/common/normalizers
@@ -50,7 +50,7 @@ lint-security:
 reset-test-storage:
 	-rm -r _storage
 	mkdir _storage
-	python3 test/tools/create_storages.py
+	python3 tests/tools/create_storages.py
 
 recreate-compiled-deps:
 	poetry export -f requirements.txt --output _gen_requirements.txt --without-hashes --extras gcp --extras redshift

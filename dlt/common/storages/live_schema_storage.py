@@ -1,4 +1,4 @@
-from typing import Dict, Type
+from typing import Dict
 
 from dlt.common.configuration import SchemaVolumeConfiguration
 from dlt.common.schema.schema import Schema
@@ -6,7 +6,7 @@ from dlt.common.storages.schema_storage import SchemaStorage
 
 
 class LiveSchemaStorage(SchemaStorage):
-    def __init__(self, C: Type[SchemaVolumeConfiguration], makedirs: bool = False) -> None:
+    def __init__(self, C: SchemaVolumeConfiguration, makedirs: bool = False) -> None:
         self.live_schemas: Dict[str, Schema] = {}
         super().__init__(C, makedirs)
 
@@ -36,9 +36,9 @@ class LiveSchemaStorage(SchemaStorage):
         if live_schema and live_schema.stored_version_hash != live_schema.version_hash:
             print("bumping and saving")
             live_schema.bump_version()
-            if self.C.IMPORT_SCHEMA_PATH:
+            if self.C.import_schema_path:
                 # overwrite import schemas if specified
-                self._export_schema(live_schema, self.C.IMPORT_SCHEMA_PATH)
+                self._export_schema(live_schema, self.C.import_schema_path)
             else:
                 # write directly to schema storage if no import schema folder configured
                 self._save_schema(live_schema)

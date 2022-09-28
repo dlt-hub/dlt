@@ -20,18 +20,18 @@ def schema() -> Schema:
 def test_configuration() -> None:
     # check names normalized
     with custom_environ({"GCP__PRIVATE_KEY": "---NO NEWLINE---\n"}):
-        C = make_configuration(GcpClientCredentials, GcpClientCredentials)
-        assert C.PRIVATE_KEY == "---NO NEWLINE---\n"
+        C = make_configuration(GcpClientCredentials())
+        assert C.private_key == "---NO NEWLINE---\n"
 
     with custom_environ({"GCP__PRIVATE_KEY": "---WITH NEWLINE---\n"}):
-        C = make_configuration(GcpClientCredentials, GcpClientCredentials)
-        assert C.PRIVATE_KEY == "---WITH NEWLINE---\n"
+        C = make_configuration(GcpClientCredentials())
+        assert C.private_key == "---WITH NEWLINE---\n"
 
 
 @pytest.fixture
 def gcp_client(schema: Schema) -> BigQueryClient:
     # return client without opening connection
-    BigQueryClient.configure(initial_values={"DEFAULT_DATASET": uniq_id()})
+    BigQueryClient.configure(initial_values={"default_dataset": uniq_id()})
     return BigQueryClient(schema)
 
 

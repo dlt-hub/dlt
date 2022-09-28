@@ -15,7 +15,7 @@ from dlt.common.typing import StrAny
 from dlt.common.utils import uniq_id
 from dlt.load.client_base import JobClientBase, LoadEmptyJob, LoadJob
 
-from dlt.load.configuration import configuration, ProductionLoaderConfiguration, LoaderConfiguration
+from dlt.load.configuration import configuration, LoaderConfiguration
 from dlt.load.dummy import client
 from dlt.load import Load, __version__
 from dlt.load.dummy.configuration import DummyClientConfiguration
@@ -41,14 +41,10 @@ def logger_autouse() -> None:
 
 def test_gen_configuration() -> None:
     load = setup_loader()
-    assert ProductionLoaderConfiguration not in load.CONFIG.mro()
-    assert LoaderConfiguration in load.CONFIG.mro()
-    # for production config
-    with patch.dict(environ, {"IS_DEVELOPMENT_CONFIG": "False"}):
-        # mock missing config values
-        load = setup_loader(initial_values={"LOAD_VOLUME_PATH": LoaderConfiguration.LOAD_VOLUME_PATH})
-        assert ProductionLoaderConfiguration in load.CONFIG.mro()
-        assert LoaderConfiguration in load.CONFIG.mro()
+    assert LoaderConfiguration in type(load.CONFIG).mro()
+    # mock missing config values
+    load = setup_loader(initial_values={"load_volume_path": LoaderConfiguration.load_volume_path})
+    assert LoaderConfiguration in type(load.CONFIG).mro()
 
 
 def test_spool_job_started() -> None:
@@ -100,7 +96,7 @@ def test_unsupported_write_disposition() -> None:
 
 def test_spool_job_failed() -> None:
     # this config fails job on start
-    load = setup_loader(initial_client_values={"FAIL_PROB" : 1.0})
+    load = setup_loader(initial_client_values={"fail_prob" : 1.0})
     load_id, schema = prepare_load_package(
         load.load_storage,
         NORMALIZED_FILES
@@ -125,7 +121,7 @@ def test_spool_job_failed() -> None:
 
 def test_spool_job_retry_new() -> None:
     # this config retries job on start (transient fail)
-    load = setup_loader(initial_client_values={"RETRY_PROB" : 1.0})
+    load = setup_loader(initial_client_values={"retry_prob" : 1.0})
     load_id, schema = prepare_load_package(
         load.load_storage,
         NORMALIZED_FILES
@@ -212,27 +208,27 @@ def test_try_retrieve_job() -> None:
 
 
 def test_completed_loop() -> None:
-    load = setup_loader(initial_client_values={"COMPLETED_PROB": 1.0})
+    load = setup_loader(initial_client_values={"completed_prob": 1.0})
     assert_complete_job(load, load.load_storage.storage)
 
 
 def test_failed_loop() -> None:
     # ask to delete completed
-    load = setup_loader(initial_values={"DELETE_COMPLETED_JOBS": True}, initial_client_values={"FAIL_PROB": 1.0})
+    load = setup_loader(initial_values={"delete_completed_jobs": True}, initial_client_values={"fail_prob": 1.0})
     # actually not deleted because one of the jobs failed
     assert_complete_job(load, load.load_storage.storage, should_delete_completed=False)
 
 
 def test_completed_loop_with_delete_completed() -> None:
-    load = setup_loader(initial_client_values={"COMPLETED_PROB": 1.0})
-    load.CONFIG.DELETE_COMPLETED_JOBS = True
+    load = setup_loader(initial_client_values={"completed_prob": 1.0})
+    load.CONFIG.delete_completed_jobs = True
     load.load_storage = load.create_storage(is_storage_owner=False)
     assert_complete_job(load, load.load_storage.storage, should_delete_completed=True)
 
 
 def test_retry_on_new_loop() -> None:
     # test job that retries sitting in new jobs
-    load = setup_loader(initial_client_values={"RETRY_PROB" : 1.0})
+    load = setup_loader(initial_client_values={"retry_prob" : 1.0})
     load_id, schema = prepare_load_package(
         load.load_storage,
         NORMALIZED_FILES
@@ -248,7 +244,7 @@ def test_retry_on_new_loop() -> None:
     files = load.load_storage.list_new_jobs(load_id)
     assert len(files) == 2
     # jobs will be completed
-    load = setup_loader(initial_client_values={"COMPLETED_PROB" : 1.0})
+    load = setup_loader(initial_client_values={"completed_prob" : 1.0})
     load.run(ThreadPool())
     files = load.load_storage.list_new_jobs(load_id)
     assert len(files) == 0
@@ -283,7 +279,7 @@ def test_exceptions() -> None:
 
 
 def test_version() -> None:
-    assert configuration({"CLIENT_TYPE": "dummy"})._VERSION == __version__
+    assert configuration({"client_type": "dummy"})._version == __version__
 
 
 def assert_complete_job(load: Load, storage: FileStorage, should_delete_completed: bool = False) -> None:
@@ -330,11 +326,11 @@ def setup_loader(initial_values: StrAny = None, initial_client_values: StrAny = 
     client.JOBS = {}
 
     default_values = {
-        "CLIENT_TYPE": "dummy",
-        "DELETE_COMPLETED_JOBS": False
+        "client_type": "dummy",
+        "delete_completed_jobs": False
     }
     default_client_values = {
-        "LOADER_FILE_FORMAT": "jsonl"
+        "loader_file_format": "jsonl"
     }
     if initial_values:
         default_values.update(initial_values)

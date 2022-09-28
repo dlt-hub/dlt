@@ -5,7 +5,7 @@ import sentry_sdk
 from sentry_sdk.transport import HttpTransport
 from sentry_sdk.integrations.logging import LoggingIntegration
 from logging import LogRecord, Logger
-from typing import Any, Type, Protocol
+from typing import Any, Protocol
 
 from dlt.common.json import json
 from dlt.common.typing import DictStrAny, StrStr
@@ -126,9 +126,9 @@ def __getattr__(name: str) -> LogMethod:
     return wrapper
 
 
-def _extract_version_info(config: Type[RunConfiguration]) -> StrStr:
-    version_info = {"version": __version__, "component_name": config.PIPELINE_NAME}
-    version = getattr(config, "_VERSION", None)
+def _extract_version_info(config: RunConfiguration) -> StrStr:
+    version_info = {"version": __version__, "component_name": config.pipeline_name}
+    version = getattr(config, "_version", None)
     if version:
         version_info["component_version"] = version
     # extract envs with build info
@@ -150,8 +150,8 @@ class _SentryHttpTransport(HttpTransport):
         return rv
 
 
-def _get_sentry_log_level(C: Type[RunConfiguration]) -> LoggingIntegration:
-    log_level = logging._nameToLevel[C.LOG_LEVEL]
+def _get_sentry_log_level(C: RunConfiguration) -> LoggingIntegration:
+    log_level = logging._nameToLevel[C.log_level]
     event_level = logging.WARNING if log_level <= logging.WARNING else log_level
     return LoggingIntegration(
         level=logging.INFO,        # Capture info and above as breadcrumbs
@@ -159,14 +159,14 @@ def _get_sentry_log_level(C: Type[RunConfiguration]) -> LoggingIntegration:
     )
 
 
-def _init_sentry(C: Type[RunConfiguration], version: StrStr) -> None:
+def _init_sentry(C: RunConfiguration, version: StrStr) -> None:
     sys_ver = version["version"]
     release = sys_ver + "_" + version.get("commit_sha", "")
-    _SentryHttpTransport.timeout = C.REQUEST_TIMEOUT[0]
+    _SentryHttpTransport.timeout = C.request_timeout[0]
     # TODO: ignore certain loggers ie. dbt loggers
     # https://docs.sentry.io/platforms/python/guides/logging/
     sentry_sdk.init(
-        C.SENTRY_DSN,
+        C.sentry_dsn,
         integrations=[_get_sentry_log_level(C)],
         release=release,
         transport=_SentryHttpTransport
@@ -180,17 +180,17 @@ def _init_sentry(C: Type[RunConfiguration], version: StrStr) -> None:
         sentry_sdk.set_tag(k, v)
 
 
-def init_telemetry(config: Type[RunConfiguration]) -> None:
-    if config.PROMETHEUS_PORT:
+def init_telemetry(config: RunConfiguration) -> None:
+    if config.prometheus_port:
         from prometheus_client import start_http_server, Info
 
-        logging.info(f"Starting prometheus server port {config.PROMETHEUS_PORT}")
-        start_http_server(config.PROMETHEUS_PORT)
+        logging.info(f"Starting prometheus server port {config.prometheus_port}")
+        start_http_server(config.prometheus_port)
         # collect info
         Info("runs_component_name", "Name of the executing component").info(_extract_version_info(config))
 
 
-def init_logging_from_config(C: Type[RunConfiguration]) -> None:
+def init_logging_from_config(C: RunConfiguration) -> None:
     global LOGGER
 
     # add HEALTH and METRICS log levels
@@ -201,11 +201,11 @@ def init_logging_from_config(C: Type[RunConfiguration]) -> None:
     version = _extract_version_info(C)
     LOGGER = _init_logging(
         DLT_LOGGER_NAME,
-        C.LOG_LEVEL,
-        C.LOG_FORMAT,
-        C.PIPELINE_NAME,
+        C.log_level,
+        C.log_format,
+        C.pipeline_name,
         version)
-    if C.SENTRY_DSN:
+    if C.sentry_dsn:
         _init_sentry(C, version)
 
 

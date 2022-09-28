@@ -110,12 +110,12 @@ def yield_client_with_storage(client_type: str, initial_values: StrAny = None) -
     os.environ.pop("DEFAULT_DATASET", None)
     # create dataset with random name
     default_dataset = "test_" + uniq_id()
-    client_initial_values = {"DEFAULT_DATASET": default_dataset}
+    client_initial_values = {"default_dataset": default_dataset}
     if initial_values is not None:
         client_initial_values.update(initial_values)
     # get event default schema
-    C = make_configuration(SchemaVolumeConfiguration, SchemaVolumeConfiguration, initial_values={
-        "SCHEMA_VOLUME_PATH": "tests/common/cases/schemas/rasa"
+    C = make_configuration(SchemaVolumeConfiguration(), initial_value={
+        "schema_volume_path": "tests/common/cases/schemas/rasa"
     })
     schema_storage = SchemaStorage(C)
     schema = schema_storage.load_schema("event")

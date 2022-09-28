@@ -1,6 +1,6 @@
 from collections.abc import Mapping as C_Mapping, Sequence as C_Sequence
 from re import Pattern as _REPattern
-from typing import Callable, Dict, Any, Literal, Mapping, NewType, Tuple, Type, TypeVar, Generic, Protocol, TYPE_CHECKING, Union, runtime_checkable, get_args, get_origin
+from typing import Callable, Dict, Any, Literal, Mapping, NewType, Tuple, Type, TypeVar, Generic, Protocol, Iterable, TYPE_CHECKING, Union, runtime_checkable, get_args, get_origin
 if TYPE_CHECKING:
     from _typeshed import StrOrBytesPath
     from typing import _TypedDict
@@ -24,7 +24,6 @@ TDataItem = DictStrAny
 TVariantBase = TypeVar("TVariantBase", covariant=True)
 TVariantRV = Tuple[str, Any]
 VARIANT_FIELD_FORMAT = "v_%s"
-
 
 @runtime_checkable
 class SupportsVariant(Protocol, Generic[TVariantBase]):

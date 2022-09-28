@@ -45,7 +45,7 @@ class Pipeline:
         self._loader_instance: Load = None
 
         # patch config and initialize pipeline
-        self.C = make_configuration(PoolRunnerConfiguration, PoolRunnerConfiguration, initial_values={
+        self.C = make_configuration(PoolRunnerConfiguration(), initial_value={
             "PIPELINE_NAME": pipeline_name,
             "LOG_LEVEL": log_level,
             "POOL_TYPE": "None",
@@ -178,10 +178,9 @@ class Pipeline:
             raise NotImplementedError("Do not use workers in interactive mode ie. in notebook")
         self._verify_normalize_instance()
         # set runtime parameters
-        self._normalize_instance.CONFIG.WORKERS = workers
-        self._normalize_instance.CONFIG.MAX_EVENTS_IN_CHUNK = max_events_in_chunk
+        self._normalize_instance.CONFIG.workers = workers
         # switch to thread pool for single worker
-        self._normalize_instance.CONFIG.POOL_TYPE = "thread" if workers == 1 else "process"
+        self._normalize_instance.CONFIG.pool_type = "thread" if workers == 1 else "process"
         try:
             ec = runner.run_pool(self._normalize_instance.CONFIG, self._normalize_instance)
             # in any other case we raise if runner exited with status failed
@@ -194,7 +193,7 @@ class Pipeline:
 
     def load(self, max_parallel_loads: int = 20) -> int:
         self._verify_loader_instance()
-        self._loader_instance.CONFIG.WORKERS = max_parallel_loads
+        self._loader_instance.CONFIG.workers = max_parallel_loads
         self._loader_instance.load_client_cls.CONFIG.DEFAULT_SCHEMA_NAME = self.default_schema_name  # type: ignore
         try:
             ec = runner.run_pool(self._loader_instance.CONFIG, self._loader_instance)
@@ -283,14 +282,14 @@ class Pipeline:
             if isinstance(c, SqlJobClientBase):
                 return c.sql_client
             else:
-                raise SqlClientNotAvailable(self._loader_instance.CONFIG.CLIENT_TYPE)
+                raise SqlClientNotAvailable(self._loader_instance.CONFIG.client_type)
 
     def run_in_pool(self, run_f: Callable[..., Any]) -> int:
         # internal runners should work in single mode
-        self._loader_instance.CONFIG.IS_SINGLE_RUN = True
-        self._loader_instance.CONFIG.EXIT_ON_EXCEPTION = True
-        self._normalize_instance.CONFIG.IS_SINGLE_RUN = True
-        self._normalize_instance.CONFIG.EXIT_ON_EXCEPTION = True
+        self._loader_instance.CONFIG.is_single_run = True
+        self._loader_instance.CONFIG.exit_on_exception = True
+        self._normalize_instance.CONFIG.is_single_run = True
+        self._normalize_instance.CONFIG.exit_on_exception = True
 
         def _run(_: Any) -> TRunMetrics:
             rv = run_f()

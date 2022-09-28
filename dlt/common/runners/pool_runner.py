@@ -1,6 +1,6 @@
 import multiprocessing
 from prometheus_client import Counter, Gauge, Summary, CollectorRegistry, REGISTRY
-from typing import Callable, Dict, Type, Union, cast
+from typing import Callable, Dict, Union, cast
 from multiprocessing.pool import ThreadPool, Pool
 
 from dlt.common import logger, signals
@@ -39,23 +39,23 @@ def update_gauges() -> TRunHealth:
     return get_metrics_from_prometheus(HEALTH_PROPS_GAUGES.values())  # type: ignore
 
 
-def run_pool(C: Type[PoolRunnerConfiguration], run_f: Union[Runnable[TPool], Callable[[TPool], TRunMetrics]]) -> int:
+def run_pool(C: PoolRunnerConfiguration, run_f: Union[Runnable[TPool], Callable[[TPool], TRunMetrics]]) -> int:
     # create health gauges
     if not HEALTH_PROPS_GAUGES:
         create_gauges(REGISTRY)
 
     # start pool
     pool: Pool = None
-    if C.POOL_TYPE == "process":
+    if C.pool_type == "process":
         # our pool implementation do not work on spawn
         if multiprocessing.get_start_method() != "fork":
             raise UnsupportedProcessStartMethodException(multiprocessing.get_start_method())
-        pool = Pool(processes=C.WORKERS)
-    elif C.POOL_TYPE == "thread":
-        pool = ThreadPool(processes=C.WORKERS)
+        pool = Pool(processes=C.workers)
+    elif C.pool_type == "thread":
+        pool = ThreadPool(processes=C.workers)
     else:
         pool = None
-    logger.info(f"Created {C.POOL_TYPE} pool with {C.WORKERS or 'default no.'} workers")
+    logger.info(f"Created {C.pool_type} pool with {C.workers or 'default no.'} workers")
     # track local stats
     runs_count = 0
     runs_not_idle_count = 0
@@ -88,7 +88,7 @@ def run_pool(C: Type[PoolRunnerConfiguration], run_f: Union[Runnable[TPool], Cal
                     global LAST_RUN_EXCEPTION
                     LAST_RUN_EXCEPTION = exc
                     # re-raise if EXIT_ON_EXCEPTION is requested
-                    if C.EXIT_ON_EXCEPTION:
+                    if C.exit_on_exception:
                         raise
             finally:
                 if run_metrics:
@@ -101,22 +101,22 @@ def run_pool(C: Type[PoolRunnerConfiguration], run_f: Union[Runnable[TPool], Cal
 
             # single run may be forced but at least wait_runs must pass
             # and was all the time idle or (was not idle but now pending is 0)
-            if C.IS_SINGLE_RUN and (runs_count >= C.WAIT_RUNS and (runs_not_idle_count == 0 or run_metrics.pending_items == 0)):
+            if C.is_single_run and (runs_count >= C.wait_runs and (runs_not_idle_count == 0 or run_metrics.pending_items == 0)):
                 logger.info("Stopping runner due to single run override")
                 return 0
 
             if run_metrics.has_failed:
-                sleep(C.RUN_SLEEP_WHEN_FAILED)
+                sleep(C.run_sleep_when_failed)
             elif run_metrics.pending_items == 0:
                 # nothing is pending so we can sleep longer
-                sleep(C.RUN_SLEEP_IDLE)
+                sleep(C.run_sleep_idle)
             else:
                 # more items are pending, sleep (typically) shorter
-                sleep(C.RUN_SLEEP)
+                sleep(C.run_sleep)
 
             # this allows to recycle long living process that get their memory fragmented
             # exit after runners sleeps so we keep the running period
-            if runs_count == C.STOP_AFTER_RUNS:
+            if runs_count == C.stop_after_runs:
                 logger.warning(f"Stopping runner due to max runs {runs_count} exceeded")
                 return 0
     except SignalReceivedException as sigex:
@@ -129,9 +129,13 @@ def run_pool(C: Type[PoolRunnerConfiguration], run_f: Union[Runnable[TPool], Cal
     finally:
         if pool:
             logger.info("Closing processing pool")
-            pool.close()
-            pool.join()
+            # terminate pool and do not join
+            pool.terminate()
+            # in very rare cases process hangs here, even with starmap terminating earlier
+            # pool.close()
+            # pool.join()
             pool = None
+            logger.info("Closing processing pool closed")
 
 
 def _update_metrics(run_metrics: TRunMetrics) -> TRunHealth:

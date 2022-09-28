@@ -57,8 +57,8 @@ def test_create_folders() -> None:
     setup_runner("eks_dev_dest", override_values={
         "SOURCE_SCHEMA_PREFIX": "carbon_bot_3",
         "PACKAGE_ADDITIONAL_VARS": {"add_var_name": "add_var_value"},
-        "LOG_FORMAT": "JSON",
-        "LOG_LEVEL": "INFO"
+        "log_format": "JSON",
+        "log_level": "INFO"
     })
 
     assert runner.repo_path.endswith(runner.CLONED_PACKAGE_NAME)

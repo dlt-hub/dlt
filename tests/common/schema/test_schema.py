@@ -21,9 +21,8 @@ EXPECTED_FILE_NAME = f"{SCHEMA_NAME}_schema.json"
 @pytest.fixture
 def schema_storage() -> SchemaStorage:
     C = make_configuration(
-        SchemaVolumeConfiguration,
-        SchemaVolumeConfiguration,
-        initial_values={
+        SchemaVolumeConfiguration(),
+        initial_value={
             "import_schema_path": "tests/common/cases/schemas/rasa",
             "external_schema_format": "json"
         })
