@@ -333,7 +333,7 @@ class BigQueryClient(SqlJobClientBase):
                                                      self.sql_client.make_qualified_table_name(table_name),
                                                      job_id=job_id,
                                                      job_config=job_config,
-                                                     timeout=self.CREDENTIALS.http_timeout
+                                                     timeout=self.CREDENTIALS.file_upload_timeout
                                                     )
 
     def _retrieve_load_job(self, file_path: str) -> bigquery.LoadJob:

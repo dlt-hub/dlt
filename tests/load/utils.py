@@ -4,7 +4,7 @@ from typing import Any, ContextManager, Iterable, Iterator, List, Sequence, cast
 
 from dlt.common import json, Decimal
 from dlt.common.configuration import make_configuration
-from dlt.common.configuration.schema_volume_configuration import SchemaVolumeConfiguration
+from dlt.common.configuration.specs.schema_volume_configuration import SchemaVolumeConfiguration
 from dlt.common.data_writers import DataWriter
 from dlt.common.file_storage import FileStorage
 from dlt.common.schema import TColumnSchema, TTableSchemaColumns

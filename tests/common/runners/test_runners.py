@@ -6,7 +6,7 @@ from prometheus_client import registry
 from dlt.cli import TRunnerArgs
 from dlt.common import signals
 from dlt.common.configuration import PoolRunnerConfiguration, make_configuration, configspec
-from dlt.common.configuration.pool_runner_configuration import TPoolType
+from dlt.common.configuration.specs.pool_runner_configuration import TPoolType
 from dlt.common.exceptions import DltException, SignalReceivedException, TimeRangeExhaustedException, UnsupportedProcessStartMethodException
 from dlt.common.runners import pool_runner as runner
 

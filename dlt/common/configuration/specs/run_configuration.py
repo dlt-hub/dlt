@@ -2,7 +2,7 @@ from os.path import isfile
 from typing import Any, Optional, Tuple, IO
 
 from dlt.common.utils import encoding_for_mode, entry_point_file_stem
-from dlt.common.configuration.base_configuration import BaseConfiguration, configspec
+from dlt.common.configuration.specs.base_configuration import BaseConfiguration, configspec
 from dlt.common.configuration.exceptions import ConfigFileNotFoundException
 
 

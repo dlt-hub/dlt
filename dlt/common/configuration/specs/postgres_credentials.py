@@ -1,7 +1,7 @@
 from typing import Any
 
 from dlt.common.typing import StrAny, TSecretValue
-from dlt.common.configuration.base_configuration import CredentialsConfiguration, configspec
+from dlt.common.configuration.specs.base_configuration import CredentialsConfiguration, configspec
 
 
 @configspec

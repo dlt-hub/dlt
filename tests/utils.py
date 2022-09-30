@@ -6,7 +6,7 @@ import pytest
 import logging
 from os import environ
 
-from dlt.common.configuration.utils import _get_resolvable_fields, make_configuration
+from dlt.common.configuration.resolve import _get_resolvable_fields, make_configuration
 from dlt.common.configuration import RunConfiguration
 from dlt.common.logger import init_logging_from_config
 from dlt.common.file_storage import FileStorage

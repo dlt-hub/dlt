@@ -5,8 +5,8 @@ from typing import Any, Dict, List, Mapping, MutableMapping, NewType, Optional, 
 from dlt.common.typing import TSecretValue
 from dlt.common.configuration import (
     RunConfiguration, ConfigEntryMissingException, ConfigFileNotFoundException,
-    ConfigEnvValueCannotBeCoercedException, BaseConfiguration, utils, configspec)
-from dlt.common.configuration.utils import make_configuration
+    ConfigEnvValueCannotBeCoercedException, BaseConfiguration, resolve, configspec)
+from dlt.common.configuration.resolve import make_configuration
 from dlt.common.configuration.providers import environ as environ_provider
 from dlt.common.utils import custom_environ
 
@@ -351,8 +351,8 @@ def test_multi_derivation_defaults() -> None:
 def test_raises_on_unresolved_fields() -> None:
     with pytest.raises(ConfigEntryMissingException) as config_entry_missing_exception:
         C = WrongConfiguration()
-        keys = utils._get_resolvable_fields(C)
-        utils._is_config_bounded(C, keys)
+        keys = resolve._get_resolvable_fields(C)
+        resolve._is_config_bounded(C, keys)
 
     assert 'NONECONFIGVAR' in config_entry_missing_exception.value.missing_set
 
@@ -364,8 +364,8 @@ def test_raises_on_unresolved_fields() -> None:
 
 def test_optional_types_are_not_required() -> None:
     # this should not raise an exception
-    keys = utils._get_resolvable_fields(ConfigurationWithOptionalTypes())
-    utils._is_config_bounded(ConfigurationWithOptionalTypes(), keys)
+    keys = resolve._get_resolvable_fields(ConfigurationWithOptionalTypes())
+    resolve._is_config_bounded(ConfigurationWithOptionalTypes(), keys)
     # make optional config
     make_configuration(ConfigurationWithOptionalTypes())
     # make config with optional values
@@ -376,9 +376,9 @@ def test_configuration_apply_adds_environment_variable_to_config(environment: An
     environment["NONECONFIGVAR"] = "Some"
 
     C = WrongConfiguration()
-    keys = utils._get_resolvable_fields(C)
-    utils._resolve_config_fields(C, keys, accept_partial=False)
-    utils._is_config_bounded(C, keys)
+    keys = resolve._get_resolvable_fields(C)
+    resolve._resolve_config_fields(C, keys, accept_partial=False)
+    resolve._is_config_bounded(C, keys)
 
     assert C.NoneConfigVar == environment["NONECONFIGVAR"]
 
@@ -387,16 +387,16 @@ def test_configuration_resolve_env_var(environment: Any) -> None:
     environment["TEST_BOOL"] = 'True'
 
     C = SimpleConfiguration()
-    keys = utils._get_resolvable_fields(C)
-    utils._resolve_config_fields(C, keys, accept_partial=False)
-    utils._is_config_bounded(C, keys)
+    keys = resolve._get_resolvable_fields(C)
+    resolve._resolve_config_fields(C, keys, accept_partial=False)
+    resolve._is_config_bounded(C, keys)
 
     # value will be coerced to bool
     assert C.test_bool is True
 
 
 def test_find_all_keys() -> None:
-    keys = utils._get_resolvable_fields(VeryWrongConfiguration())
+    keys = resolve._get_resolvable_fields(VeryWrongConfiguration())
     # assert hints and types: LOG_COLOR had it hint overwritten in derived class
     assert set({'str_val': str, 'int_val': int, 'NoneConfigVar': str, 'log_color': str}.items()).issubset(keys.items())
 
@@ -406,9 +406,9 @@ def test_coercions(environment: Any) -> None:
         environment[key.upper()] = str(value)
 
     C = CoercionTestConfiguration()
-    keys = utils._get_resolvable_fields(C)
-    utils._resolve_config_fields(C, keys, accept_partial=False)
-    utils._is_config_bounded(C, keys)
+    keys = resolve._get_resolvable_fields(C)
+    resolve._resolve_config_fields(C, keys, accept_partial=False)
+    resolve._is_config_bounded(C, keys)
 
     for key in COERCIONS:
         assert getattr(C, key) == COERCIONS[key]
@@ -416,11 +416,11 @@ def test_coercions(environment: Any) -> None:
 
 def test_invalid_coercions(environment: Any) -> None:
     C = CoercionTestConfiguration()
-    config_keys = utils._get_resolvable_fields(C)
+    config_keys = resolve._get_resolvable_fields(C)
     for key, value in INVALID_COERCIONS.items():
         try:
             environment[key.upper()] = str(value)
-            utils._resolve_config_fields(C, config_keys, accept_partial=False)
+            resolve._resolve_config_fields(C, config_keys, accept_partial=False)
         except ConfigEnvValueCannotBeCoercedException as coerc_exc:
             # must fail exactly on expected value
             if coerc_exc.attr_name != key:
@@ -433,10 +433,10 @@ def test_invalid_coercions(environment: Any) -> None:
 
 def test_excepted_coercions(environment: Any) -> None:
     C = CoercionTestConfiguration()
-    config_keys = utils._get_resolvable_fields(C)
+    config_keys = resolve._get_resolvable_fields(C)
     for k, v in EXCEPTED_COERCIONS.items():
         environment[k.upper()] = str(v)
-        utils._resolve_config_fields(C, config_keys, accept_partial=False)
+        resolve._resolve_config_fields(C, config_keys, accept_partial=False)
     for key in EXCEPTED_COERCIONS:
         assert getattr(C, key) == COERCED_EXCEPTIONS[key]
 
@@ -444,7 +444,7 @@ def test_excepted_coercions(environment: Any) -> None:
 def test_make_configuration(environment: Any) -> None:
     # fill up configuration
     environment["NONECONFIGVAR"] = "1"
-    C = utils.make_configuration(WrongConfiguration())
+    C = resolve.make_configuration(WrongConfiguration())
     assert not C.__is_partial__
     assert C.NoneConfigVar == "1"
 
@@ -452,7 +452,7 @@ def test_make_configuration(environment: Any) -> None:
 def test_auto_derivation(environment: Any) -> None:
     # make_configuration works on instances of dataclasses and types are not modified
     environment['SECRET_VALUE'] = "1"
-    C = utils.make_configuration(SecretConfiguration())
+    C = resolve.make_configuration(SecretConfiguration())
     # auto derived type holds the value
     assert C.secret_value == "1"
     # base type is untouched
@@ -491,11 +491,11 @@ def test_finds_version(environment: Any) -> None:
     global __version__
 
     v = __version__
-    C = utils.make_configuration(SimpleConfiguration())
+    C = resolve.make_configuration(SimpleConfiguration())
     assert C._version == v
     try:
         del globals()["__version__"]
-        C = utils.make_configuration(SimpleConfiguration())
+        C = resolve.make_configuration(SimpleConfiguration())
         assert not hasattr(C, "_version")
     finally:
         __version__ = v
@@ -503,9 +503,9 @@ def test_finds_version(environment: Any) -> None:
 
 def test_secret(environment: Any) -> None:
     with pytest.raises(ConfigEntryMissingException):
-        utils.make_configuration(SecretConfiguration())
+        resolve.make_configuration(SecretConfiguration())
     environment['SECRET_VALUE'] = "1"
-    C = utils.make_configuration(SecretConfiguration())
+    C = resolve.make_configuration(SecretConfiguration())
     assert C.secret_value == "1"
     # mock the path to point to secret storage
     # from dlt.common.configuration import config_utils
@@ -514,18 +514,18 @@ def test_secret(environment: Any) -> None:
     try:
         # must read a secret file
         environ_provider.SECRET_STORAGE_PATH = "./tests/common/cases/%s"
-        C = utils.make_configuration(SecretConfiguration())
+        C = resolve.make_configuration(SecretConfiguration())
         assert C.secret_value == "BANANA"
 
         # set some weird path, no secret file at all
         del environment['SECRET_VALUE']
         environ_provider.SECRET_STORAGE_PATH = "!C:\\PATH%s"
         with pytest.raises(ConfigEntryMissingException):
-            utils.make_configuration(SecretConfiguration())
+            resolve.make_configuration(SecretConfiguration())
 
         # set env which is a fallback for secret not as file
         environment['SECRET_VALUE'] = "1"
-        C = utils.make_configuration(SecretConfiguration())
+        C = resolve.make_configuration(SecretConfiguration())
         assert C.secret_value == "1"
     finally:
         environ_provider.SECRET_STORAGE_PATH = path
@@ -535,7 +535,7 @@ def test_secret_kube_fallback(environment: Any) -> None:
     path = environ_provider.SECRET_STORAGE_PATH
     try:
         environ_provider.SECRET_STORAGE_PATH = "./tests/common/cases/%s"
-        C = utils.make_configuration(SecretKubeConfiguration())
+        C = resolve.make_configuration(SecretKubeConfiguration())
         # all unix editors will add x10 at the end of file, it will be preserved
         assert C.secret_kube == "kube\n"
         # we propagate secrets back to environ and strip the whitespace
@@ -571,7 +571,7 @@ def test_coerce_values() -> None:
 def test_configuration_files(environment: Any) -> None:
     # overwrite config file paths
     environment["CONFIG_FILES_STORAGE_PATH"] = "./tests/common/cases/schemas/ev1/%s"
-    C = utils.make_configuration(MockProdConfigurationVar())
+    C = resolve.make_configuration(MockProdConfigurationVar())
     assert C.config_files_storage_path == environment["CONFIG_FILES_STORAGE_PATH"]
     assert C.has_configuration_file("hasn't") is False
     assert C.has_configuration_file("event_schema.json") is True
@@ -584,22 +584,22 @@ def test_configuration_files(environment: Any) -> None:
 
 def test_namespaced_configuration(environment: Any) -> None:
     with pytest.raises(ConfigEntryMissingException) as exc_val:
-        utils.make_configuration(NamespacedConfiguration())
+        resolve.make_configuration(NamespacedConfiguration())
     assert exc_val.value.missing_set == ["DLT_TEST__PASSWORD"]
     assert exc_val.value.namespace == "DLT_TEST"
 
     # init vars work without namespace
-    C = utils.make_configuration(NamespacedConfiguration(), initial_value={"password": "PASS"})
+    C = resolve.make_configuration(NamespacedConfiguration(), initial_value={"password": "PASS"})
     assert C.password == "PASS"
 
     # env var must be prefixed
     environment["PASSWORD"] = "PASS"
     with pytest.raises(ConfigEntryMissingException) as exc_val:
-        utils.make_configuration(NamespacedConfiguration())
+        resolve.make_configuration(NamespacedConfiguration())
     environment["DLT_TEST__PASSWORD"] = "PASS"
-    C = utils.make_configuration(NamespacedConfiguration())
+    C = resolve.make_configuration(NamespacedConfiguration())
     assert C.password == "PASS"
 
 def coerce_single_value(key: str, value: str, hint: Type[Any]) -> Any:
-    hint = utils._extract_simple_type(hint)
-    return utils._coerce_single_value(key, value, hint)
+    hint = resolve._extract_simple_type(hint)
+    return resolve._coerce_single_value(key, value, hint)

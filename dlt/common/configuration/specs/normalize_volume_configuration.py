@@ -1,4 +1,4 @@
-from dlt.common.configuration.base_configuration import BaseConfiguration, configspec
+from dlt.common.configuration.specs.base_configuration import BaseConfiguration, configspec
 
 
 @configspec

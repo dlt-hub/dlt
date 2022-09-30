@@ -1,13 +1,10 @@
-import inspect
 from abc import ABC, abstractmethod
 from functools import wraps
-from typing import Any, Dict, Mapping, Type, TypeVar, TYPE_CHECKING, Union, Generic, get_args
+from typing import Any, Dict, Type, TypeVar, TYPE_CHECKING, Union, Generic
 from multiprocessing.pool import Pool
 from weakref import WeakValueDictionary
-from dlt.common.configuration.run_configuration import BaseConfiguration
 
-from dlt.common.typing import StrAny, TFun
-from dlt.common.utils import uniq_id
+from dlt.common.typing import TFun
 from dlt.common.telemetry import TRunMetrics
 
 TPool = TypeVar("TPool", bound=Pool)

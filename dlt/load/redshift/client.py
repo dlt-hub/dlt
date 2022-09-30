@@ -10,7 +10,7 @@ else:
 
 from contextlib import contextmanager
 from typing import Any, AnyStr, Dict, Iterator, List, Optional, Sequence, Tuple
-from dlt.common.configuration.postgres_credentials import PostgresCredentials
+from dlt.common.configuration.specs.postgres_credentials import PostgresCredentials
 
 from dlt.common.typing import StrAny
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE

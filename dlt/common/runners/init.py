@@ -2,7 +2,7 @@ import threading
 from typing import Type
 
 from dlt.common import logger
-from dlt.common.configuration.run_configuration import RunConfiguration
+from dlt.common.configuration import RunConfiguration
 from dlt.common.logger import init_logging_from_config, init_telemetry
 from dlt.common.signals import register_signals
 

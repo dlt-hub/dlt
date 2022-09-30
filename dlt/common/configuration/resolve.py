@@ -5,7 +5,7 @@ import semver
 from typing import Any, Dict, List, Mapping, Type, TypeVar
 
 from dlt.common.typing import is_optional_type, is_literal_type
-from dlt.common.configuration import BaseConfiguration
+from dlt.common.configuration.specs.base_configuration import BaseConfiguration
 from dlt.common.configuration.providers import environ
 from dlt.common.configuration.exceptions import (ConfigEntryMissingException, ConfigurationWrongTypeException, ConfigEnvValueCannotBeCoercedException)
 
@@ -48,7 +48,7 @@ def make_configuration(config: TConfiguration, initial_value: Any = None, accept
     return config
 
 
-def _add_module_version(config: TConfiguration) -> None:
+def _add_module_version(config: BaseConfiguration) -> None:
     try:
         v = sys._getframe(1).f_back.f_globals["__version__"]
         semver.VersionInfo.parse(v)
@@ -57,7 +57,7 @@ def _add_module_version(config: TConfiguration) -> None:
         pass
 
 
-def _resolve_config_fields(config: TConfiguration, fields: Mapping[str, type], accept_partial: bool) -> None:
+def _resolve_config_fields(config: BaseConfiguration, fields: Mapping[str, type], accept_partial: bool) -> None:
     for key, hint in fields.items():
         # get default value
         resolved_value = getattr(config, key, None)
@@ -104,7 +104,7 @@ def _coerce_single_value(key: str, value: str, hint: Type[Any]) -> Any:
         raise ConfigEnvValueCannotBeCoercedException(key, value, hint) from exc
 
 
-def _is_config_bounded(config: TConfiguration, fields: Mapping[str, type]) -> None:
+def _is_config_bounded(config: BaseConfiguration, fields: Mapping[str, type]) -> None:
     # TODO: here we assume all keys are taken from environ provider, that should change when we introduce more providers
     _unbound_attrs = [
         environ.get_key_name(key, config.__namespace__) for key in fields if getattr(config, key) is None and not is_optional_type(fields[key])
@@ -114,7 +114,7 @@ def _is_config_bounded(config: TConfiguration, fields: Mapping[str, type]) -> No
         raise ConfigEntryMissingException(_unbound_attrs, config.__namespace__)
 
 
-def _check_configuration_integrity(config: TConfiguration) -> None:
+def _check_configuration_integrity(config: BaseConfiguration) -> None:
     # python multi-inheritance is cooperative and this would require that all configurations cooperatively
     # call each other check_integrity. this is not at all possible as we do not know which configs in the end will
     # be mixed together.
@@ -128,7 +128,7 @@ def _check_configuration_integrity(config: TConfiguration) -> None:
             c.__dict__[CHECK_INTEGRITY_F](config)
 
 
-def _get_resolvable_fields(config: TConfiguration) -> Dict[str, type]:
+def _get_resolvable_fields(config: BaseConfiguration) -> Dict[str, type]:
     return {f.name:f.type for f in dataclasses.fields(config) if not f.name.startswith("__")}
 
 

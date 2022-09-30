@@ -2,7 +2,7 @@ from typing import Any
 from dlt.common import json
 
 from dlt.common.typing import StrAny, TSecretValue
-from dlt.common.configuration.base_configuration import CredentialsConfiguration, configspec
+from dlt.common.configuration.specs.base_configuration import CredentialsConfiguration, configspec
 
 
 @configspec
@@ -18,7 +18,8 @@ class GcpClientCredentials(CredentialsConfiguration):
     client_email: str = None
 
     http_timeout: float = 15.0
-    retry_deadline: float = 600
+    file_upload_timeout: float = 30 * 60.0
+    retry_deadline: float = 600  # how long to retry the operation in case of error, the backoff 60s
 
     def from_native_representation(self, initial_value: Any) -> None:
         if not isinstance(initial_value, str):
