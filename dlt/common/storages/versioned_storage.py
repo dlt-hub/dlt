@@ -1,6 +1,6 @@
 import semver
 
-from dlt.common.file_storage import FileStorage
+from dlt.common.storages.file_storage import FileStorage
 from dlt.common.storages.exceptions import NoMigrationPathException, WrongStorageVersionException
 
 

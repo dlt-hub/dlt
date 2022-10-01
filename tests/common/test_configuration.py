@@ -304,10 +304,10 @@ def test_configuration_is_mutable_mapping(environment: Any) -> None:
     assert C._version != "1.1.1"
 
     # delete is not supported
-    with pytest.raises(NotImplementedError):
+    with pytest.raises(KeyError):
         del C["pipeline_name"]
 
-    with pytest.raises(NotImplementedError):
+    with pytest.raises(KeyError):
         C.pop("pipeline_name", None)
 
     # setting supported

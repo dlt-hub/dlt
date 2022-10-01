@@ -6,7 +6,6 @@ from prometheus_client import Counter, CollectorRegistry, REGISTRY, Gauge
 from dlt.common import pendulum, signals, json, logger
 from dlt.common.json import custom_pua_decode
 from dlt.cli import TRunnerArgs
-from dlt.common.normalizers.json import wrap_in_dict
 from dlt.common.runners import TRunMetrics, Runnable, run_pool, initialize_runner
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.storages.exceptions import SchemaNotFoundError
@@ -16,7 +15,6 @@ from dlt.common.typing import StrAny, TDataItem
 from dlt.common.exceptions import PoolException
 from dlt.common.schema import TSchemaUpdate, Schema
 from dlt.common.schema.exceptions import CannotCoerceColumnException
-from dlt.common.utils import uniq_id
 
 from dlt.normalize.configuration import configuration, NormalizeConfiguration
 
@@ -82,50 +80,24 @@ class Normalize(Runnable[ProcessPool]):
         normalize_storage = NormalizeStorage(False, CONFIG)
 
         schema_update: TSchemaUpdate = {}
-        column_schemas: Dict[str, TTableSchemaColumns] = {}  # quick access to column schema for writers below
         total_items = 0
 
         # process all files with data items and write to buffered item storage
         try:
             for extracted_items_file in extracted_items_files:
                 line_no: int = 0
-                item: TDataItem = None
-                parent_table_name = NormalizeStorage.parse_normalize_file_name(extracted_items_file).table_name
-                logger.debug(f"Processing extracted items in {extracted_items_file} in load_id {load_id} with table name {parent_table_name} and schema {schema_name}")
+                root_table_name = NormalizeStorage.parse_normalize_file_name(extracted_items_file).table_name
+                logger.debug(f"Processing extracted items in {extracted_items_file} in load_id {load_id} with table name {root_table_name} and schema {schema_name}")
                 with normalize_storage.storage.open_file(extracted_items_file) as f:
                     # enumerate jsonl file line by line
                     for line_no, line in enumerate(f):
-                        item = json.loads(line)
-                        if not isinstance(item, dict):
-                            item = wrap_in_dict(item)
-                        for (table_name, parent_table), row in schema.normalize_data_item(schema, item, load_id, parent_table_name):
-                            # filter row, may eliminate some or all fields
-                            row = schema.filter_row(table_name, row)
-                            # do not process empty rows
-                            if row:
-                                # decode pua types
-                                for k, v in row.items():
-                                    row[k] = custom_pua_decode(v)  # type: ignore
-                                # coerce row of values into schema table, generating partial table with new columns if any
-                                row, partial_table = schema.coerce_row(table_name, parent_table, row)
-                                if partial_table:
-                                    # update schema and save the change
-                                    schema.update_schema(partial_table)
-                                    table_updates = schema_update.setdefault(table_name, [])
-                                    table_updates.append(partial_table)
-                                # get current columns schema
-                                columns = column_schemas.get(table_name)
-                                if not columns:
-                                    columns = schema.get_table_columns(table_name)
-                                    column_schemas[table_name] = columns
-                                # store row
-                                load_storage.write_data_item(load_id, schema_name, table_name, row, columns)
-                                # count total items
-                                total_items += 1
-                        if line_no > 0 and line_no % 100 == 0:
-                            logger.debug(f"Processed {line_no} items from file {extracted_items_file}, total items {total_items}")
+                        items: List[TDataItem] = json.loads(line)
+                        partial_update, items_count = Normalize._w_normalize_chunk(load_storage, schema, load_id, root_table_name, items)
+                        schema_update.update(partial_update)
+                        total_items += items_count
+                        logger.debug(f"Processed {line_no} items from file {extracted_items_file}, items {items_count} of total {total_items}")
                     # if any item found in the file
-                    if item:
+                    if items_count > 0:
                         logger.debug(f"Processed total {line_no + 1} lines from file {extracted_items_file}, total items {total_items}")
         except Exception:
             logger.exception(f"Exception when processing file {extracted_items_file}, line {line_no}")
@@ -137,6 +109,40 @@ class Normalize(Runnable[ProcessPool]):
         logger.debug(f"Processed total {total_items} items in {len(extracted_items_files)} files")
 
         return schema_update, total_items
+
+    @staticmethod
+    def _w_normalize_chunk(load_storage: LoadStorage, schema: Schema, load_id: str, root_table_name: str, items: List[TDataItem]) -> Tuple[TSchemaUpdate, int]:
+        column_schemas: Dict[str, TTableSchemaColumns] = {}  # quick access to column schema for writers below
+        schema_update: TSchemaUpdate = {}
+        schema_name = schema.name
+        items_count = 0
+
+        for item in items:
+            for (table_name, parent_table), row in schema.normalize_data_item(schema, item, load_id, root_table_name):
+                # filter row, may eliminate some or all fields
+                row = schema.filter_row(table_name, row)
+                # do not process empty rows
+                if row:
+                    # decode pua types
+                    for k, v in row.items():
+                        row[k] = custom_pua_decode(v)  # type: ignore
+                    # coerce row of values into schema table, generating partial table with new columns if any
+                    row, partial_table = schema.coerce_row(table_name, parent_table, row)
+                    if partial_table:
+                        # update schema and save the change
+                        schema.update_schema(partial_table)
+                        table_updates = schema_update.setdefault(table_name, [])
+                        table_updates.append(partial_table)
+                    # get current columns schema
+                    columns = column_schemas.get(table_name)
+                    if not columns:
+                        columns = schema.get_table_columns(table_name)
+                        column_schemas[table_name] = columns
+                    # store row
+                    load_storage.write_data_item(load_id, schema_name, table_name, row, columns)
+                    # count total items
+                    items_count += 1
+        return schema_update, items_count
 
     def map_parallel(self, schema_name: str, load_id: str, files: Sequence[str]) -> TMapFuncRV:
         # TODO: maybe we should chunk by file size, now map all files to workers

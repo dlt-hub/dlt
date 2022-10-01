@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 from dlt.common import pendulum, Decimal
 from dlt.common.arithmetics import numeric_default_context
-from dlt.common.file_storage import FileStorage
+from dlt.common.storages import FileStorage
 from dlt.common.schema.schema import Schema
 from dlt.common.utils import uniq_id
 

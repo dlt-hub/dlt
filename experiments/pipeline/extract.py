@@ -5,7 +5,7 @@ from dlt.common.utils import uniq_id
 from dlt.common.sources import TDirectDataItem, TDataItem
 from dlt.common.schema import utils, TSchemaUpdate
 from dlt.common.storages import NormalizeStorage, DataItemStorage
-from dlt.common.configuration import NormalizeVolumeConfiguration
+from dlt.common.configuration.specs import NormalizeVolumeConfiguration
 
 
 from experiments.pipeline.pipe import PipeIterator

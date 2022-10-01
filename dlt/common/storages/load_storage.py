@@ -5,7 +5,7 @@ from typing import Iterable, NamedTuple, Literal, Optional, Sequence, Set, get_a
 
 from dlt.common import json, pendulum
 from dlt.common.typing import DictStrAny, StrAny
-from dlt.common.file_storage import FileStorage
+from dlt.common.storages.file_storage import FileStorage
 from dlt.common.data_writers import TLoaderFileFormat, DataWriter
 from dlt.common.configuration.specs import LoadVolumeConfiguration
 from dlt.common.exceptions import TerminalValueError

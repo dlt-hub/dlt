@@ -3,7 +3,7 @@ import shutil
 from git import GitCommandError, Repo, RepositoryDirtyError
 import pytest
 
-from dlt.common.file_storage import FileStorage
+from dlt.common.storages import FileStorage
 
 from dlt.dbt_runner.utils import DBTProcessingError, clone_repo, ensure_remote_head, git_custom_key_command, initialize_dbt_logging, run_dbt_command
 

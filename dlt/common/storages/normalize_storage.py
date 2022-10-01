@@ -2,7 +2,7 @@ from typing import List, Sequence, NamedTuple
 from itertools import groupby
 from pathlib import Path
 
-from dlt.common.file_storage import FileStorage
+from dlt.common.storages.file_storage import FileStorage
 from dlt.common.configuration.specs import NormalizeVolumeConfiguration
 from dlt.common.storages.versioned_storage import VersionedStorage
 

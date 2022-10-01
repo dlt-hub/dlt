@@ -61,7 +61,7 @@ class DataWriter(abc.ABC):
         if file_format == "jsonl":
             return JsonlWriter
         elif file_format == "puae-jsonl":
-            return JsonlPUAEncodeWriter
+            return JsonlListPUAEncodeWriter
         elif file_format == "insert_values":
             return InsertValuesWriter
         else:
@@ -87,14 +87,15 @@ class JsonlWriter(DataWriter):
         return TFileFormatSpec("jsonl", "jsonl", False, True)
 
 
-class JsonlPUAEncodeWriter(JsonlWriter):
+class JsonlListPUAEncodeWriter(JsonlWriter):
 
     def write_data(self, rows: Sequence[Any]) -> None:
         # skip JsonlWriter when calling super
         super(JsonlWriter, self).write_data(rows)
         # encode types with PUA characters
         with jsonlines.Writer(self._f, dumps=json_typed_dumps) as w:
-            w.write_all(rows)
+            # write all rows as one list which will require to write just one line
+            w.write_all([rows])
 
     @classmethod
     def data_format(cls) -> TFileFormatSpec:

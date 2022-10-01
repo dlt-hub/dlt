@@ -7,10 +7,10 @@ import pytest
 from unittest.mock import patch
 from prometheus_client import CollectorRegistry
 
-from dlt.common.file_storage import FileStorage
 from dlt.common.exceptions import TerminalException, TerminalValueError
 from dlt.common.schema import Schema
-from dlt.common.storages.load_storage import JobWithUnsupportedWriterException, LoadStorage
+from dlt.common.storages import FileStorage, LoadStorage
+from dlt.common.storages.load_storage import JobWithUnsupportedWriterException
 from dlt.common.typing import StrAny
 from dlt.common.utils import uniq_id
 from dlt.load.client_base import JobClientBase, LoadEmptyJob, LoadJob

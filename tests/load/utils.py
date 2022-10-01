@@ -6,9 +6,8 @@ from dlt.common import json, Decimal
 from dlt.common.configuration import make_configuration
 from dlt.common.configuration.specs.schema_volume_configuration import SchemaVolumeConfiguration
 from dlt.common.data_writers import DataWriter
-from dlt.common.file_storage import FileStorage
 from dlt.common.schema import TColumnSchema, TTableSchemaColumns
-from dlt.common.storages.schema_storage import SchemaStorage
+from dlt.common.storages import SchemaStorage, FileStorage
 from dlt.common.schema.utils import new_table
 from dlt.common.time import sleep
 from dlt.common.typing import StrAny

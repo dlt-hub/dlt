@@ -1,7 +1,7 @@
 import os
 import pytest
 
-from dlt.common.file_storage import FileStorage
+from dlt.common.storages.file_storage import FileStorage
 from dlt.common.utils import encoding_for_mode, uniq_id
 
 from tests.utils import TEST_STORAGE_ROOT, autouse_test_storage, test_storage

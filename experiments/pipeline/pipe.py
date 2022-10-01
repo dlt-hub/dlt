@@ -7,6 +7,7 @@ from threading import Thread
 from typing import Optional, Sequence, Union, Callable, Iterable, Iterator, List, NamedTuple, Awaitable, Tuple, Type, TYPE_CHECKING
 
 from dlt.common.typing import TDataItem
+from dlt.common.sources import TDirectDataItem, TResolvableDataItem
 
 if TYPE_CHECKING:
     TItemFuture = Future[TDirectDataItem]
@@ -15,7 +16,6 @@ else:
 
 from dlt.common.exceptions import DltException
 from dlt.common.time import sleep
-from dlt.common.sources import TDirectDataItem, TResolvableDataItem
 
 
 class PipeItem(NamedTuple):

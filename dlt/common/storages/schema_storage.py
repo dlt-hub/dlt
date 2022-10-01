@@ -5,7 +5,7 @@ from typing import Iterator, List, Mapping
 
 from dlt.common import json, logger
 from dlt.common.configuration.specs import SchemaVolumeConfiguration, TSchemaFileFormat
-from dlt.common.file_storage import FileStorage
+from dlt.common.storages.file_storage import FileStorage
 from dlt.common.schema import Schema, verify_schema_hash
 from dlt.common.typing import DictStrAny
 

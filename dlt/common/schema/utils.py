@@ -552,7 +552,7 @@ def new_table(table_name: str, parent_name: str = None, write_disposition: TWrit
     else:
         # set write disposition only for root tables
         table["write_disposition"] = write_disposition or DEFAULT_WRITE_DISPOSITION
-    print(f"new table {table_name} cid {id(table['columns'])}")
+    # print(f"new table {table_name} cid {id(table['columns'])}")
     return table
 
 

@@ -3,7 +3,7 @@ import semver
 from dlt.common.json import json_typed_dumps
 from dlt.common.typing import Any
 from dlt.common.utils import uniq_id
-from dlt.common.file_storage import FileStorage
+from dlt.common.storages.file_storage import FileStorage
 from dlt.common.storages import VersionedStorage, NormalizeStorage
 
 

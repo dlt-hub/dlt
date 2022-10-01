@@ -10,16 +10,16 @@ from dlt.common.sources import TEventDLTMeta
 from dlt.common.validation import validate_dict
 
 
-class TEventRow(TypedDict, total=False):
+class TDataItemRow(TypedDict, total=False):
     _dlt_id: str  # unique id of current row
 
 
-class TEventRowRoot(TEventRow, total=False):
+class TDataItemRowRoot(TDataItemRow, total=False):
     _dlt_load_id: str  # load id to identify records loaded together that ie. need to be processed
     _dlt_meta: TEventDLTMeta  # stores metadata, should never be sent to the normalizer
 
 
-class TEventRowChild(TEventRow, total=False):
+class TDataItemRowChild(TDataItemRow, total=False):
     _dlt_root_id: str  # unique id of top level parent
     _dlt_parent_id: str  # unique id of parent row
     _dlt_list_idx: int  # position in the list of rows
@@ -56,7 +56,7 @@ def _is_complex_type(schema: Schema, table_name: str, field_name: str, _r_lvl: i
     return data_type == "complex"
 
 
-def _flatten(schema: Schema, table: str, dict_row: TEventRow, _r_lvl: int) -> Tuple[TEventRow, Dict[str, Sequence[Any]]]:
+def _flatten(schema: Schema, table: str, dict_row: TDataItemRow, _r_lvl: int) -> Tuple[TDataItemRow, Dict[str, Sequence[Any]]]:
     out_rec_row: DictStrAny = {}
     out_rec_list: Dict[str, Sequence[Any]] = {}
 
@@ -82,7 +82,7 @@ def _flatten(schema: Schema, table: str, dict_row: TEventRow, _r_lvl: int) -> Tu
             out_rec_row[child_name] = v
 
     norm_row_dicts(dict_row, _r_lvl, None)
-    return cast(TEventRow, out_rec_row), out_rec_list
+    return cast(TDataItemRow, out_rec_row), out_rec_list
 
 
 def _get_child_row_hash(parent_row_id: str, child_table: str, list_idx: int) -> str:
@@ -91,18 +91,22 @@ def _get_child_row_hash(parent_row_id: str, child_table: str, list_idx: int) -> 
     return digest128(f"{parent_row_id}_{child_table}_{list_idx}")
 
 
-def _add_linking(row: TEventRowChild, extend: DictStrAny, parent_row_id: str, list_idx: int) -> TEventRowChild:
+def _link_row(row: TDataItemRowChild, parent_row_id: str, list_idx: int) -> TDataItemRowChild:
         row["_dlt_parent_id"] = parent_row_id
         row["_dlt_list_idx"] = list_idx
 
         return row
 
 
+def _extend_row(extend: DictStrAny, row: TDataItemRow) -> None:
+    row.update(extend)  # type: ignore
+
+
 def _get_content_hash(schema: Schema, table: str, row: StrAny) -> str:
     return digest128(uniq_id())
 
 
-def _get_propagated_values(schema: Schema, table: str, row: TEventRow, is_top_level: bool) -> StrAny:
+def _get_propagated_values(schema: Schema, table: str, row: TDataItemRow, is_top_level: bool) -> StrAny:
     config: JSONNormalizerConfigPropagation = (schema._normalizers_config["json"].get("config") or {}).get("propagation", None)
     extend: DictStrAny = {}
     if config:
@@ -120,10 +124,6 @@ def _get_propagated_values(schema: Schema, table: str, row: TEventRow, is_top_le
     return extend
 
 
-def _extend_row(extend: DictStrAny, row: TEventRow) -> None:
-    row.update(extend)  # type: ignore
-
-
 # generate child tables only for lists
 def _normalize_list(
     schema: Schema,
@@ -135,7 +135,7 @@ def _normalize_list(
     _r_lvl: int = 0
 ) -> TNormalizedRowIterator:
 
-    v: TEventRowChild = None
+    v: TDataItemRowChild = None
     for idx, v in enumerate(seq):
         # yield child table row
         if isinstance(v, dict):
@@ -149,14 +149,14 @@ def _normalize_list(
             child_row_hash = _get_child_row_hash(parent_row_id, table, idx)
             wrap_v = wrap_in_dict(v)
             wrap_v["_dlt_id"] = child_row_hash
-            e = _add_linking(wrap_v, extend, parent_row_id, idx)
+            e = _link_row(wrap_v, parent_row_id, idx)
             _extend_row(extend, e)
             yield (table, parent_table), e
 
 
 def _normalize_row(
     schema: Schema,
-    dict_row: TEventRow,
+    dict_row: TDataItemRow,
     extend: DictStrAny,
     table: str,
     parent_table: Optional[str] = None,
@@ -177,12 +177,12 @@ def _normalize_row(
         primary_key = schema.filter_row_with_hint(table, "primary_key", flattened_row)
         if primary_key:
             # create row id from primary key
-            row_id = digest128("_".join(map(lambda v: str(v), primary_key.values())))
+            row_id = digest128("_".join(map(str, primary_key.values())))
         elif not is_top_level:
             # child table row deterministic hash
             row_id = _get_child_row_hash(parent_row_id, table, pos)
             # link to parent table
-            _add_linking(cast(TEventRowChild, flattened_row), extend, parent_row_id, pos)
+            _link_row(cast(TDataItemRowChild, flattened_row), parent_row_id, pos)
         else:
             # create hash based on the content of the row
             row_id = _get_content_hash(schema, table, flattened_row)
@@ -222,8 +222,11 @@ def extend_schema(schema: Schema) -> None:
 
 
 def normalize_data_item(schema: Schema, item: TDataItem, load_id: str, table_name: str) -> TNormalizedRowIterator:
+    # wrap items that are not dictionaries in dictionary, otherwise they cannot be processed by the JSON normalizer
+    if not isinstance(item, dict):
+        item = wrap_in_dict(item)
     # we will extend event with all the fields necessary to load it as root row
-    event = cast(TEventRowRoot, item)
+    row = cast(TDataItemRowRoot, item)
     # identify load id if loaded data must be processed after loading incrementally
-    event["_dlt_load_id"] = load_id
-    yield from _normalize_row(schema, cast(TEventRowChild, event), {}, schema.normalize_table_name(table_name))
+    row["_dlt_load_id"] = load_id
+    yield from _normalize_row(schema, cast(TDataItemRowChild, row), {}, schema.normalize_table_name(table_name))

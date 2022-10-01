@@ -9,7 +9,7 @@ from os import environ
 from dlt.common.configuration.resolve import _get_resolvable_fields, make_configuration
 from dlt.common.configuration.specs import RunConfiguration
 from dlt.common.logger import init_logging_from_config
-from dlt.common.file_storage import FileStorage
+from dlt.common.storages import FileStorage
 from dlt.common.schema import Schema
 from dlt.common.storages.versioned_storage import VersionedStorage
 from dlt.common.typing import StrAny

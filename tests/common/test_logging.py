@@ -32,8 +32,6 @@ class SentryLoggerConfiguration(JsonLoggerConfiguration):
     sentry_dsn: str = "http://user:pass@localhost/818782"
 
 
-import dataclasses
-@dataclasses.dataclass
 @configspec(init=True)
 class SentryLoggerCriticalConfiguration(SentryLoggerConfiguration):
     log_level: str = "CRITICAL"

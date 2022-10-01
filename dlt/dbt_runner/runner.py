@@ -9,7 +9,7 @@ from dlt.common.typing import DictStrAny, DictStrStr, StrAny
 from dlt.common.logger import is_json_logging
 from dlt.common.telemetry import get_logging_extras
 from dlt.common.configuration.specs import GcpClientCredentials
-from dlt.common.file_storage import FileStorage
+from dlt.common.storages import FileStorage
 from dlt.common.runners import initialize_runner, run_pool
 from dlt.common.telemetry import TRunMetrics
 

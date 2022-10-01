@@ -6,7 +6,7 @@ from typing import Iterator
 from dlt.common import json, pendulum
 from dlt.common.schema import Schema
 from dlt.common.schema.utils import new_table
-from dlt.common.file_storage import FileStorage
+from dlt.common.storages import FileStorage
 from dlt.common.schema import TTableSchemaColumns
 from dlt.common.utils import uniq_id
 

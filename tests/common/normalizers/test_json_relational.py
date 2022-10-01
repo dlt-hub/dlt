@@ -507,6 +507,19 @@ def test_preserves_complex_types_list(schema: Schema) -> None:
     assert root_row[1]["value"] == row["value"]
 
 
+def test_wrap_in_dict(schema: Schema) -> None:
+    # json normalizer wraps in dict
+    row = list(schema.normalize_data_item(schema, 1, "load_id", "simplex"))[0][1]
+    assert row["value"] == 1
+    assert row["_dlt_load_id"] == "load_id"
+    # wrap a list
+    rows = list(schema.normalize_data_item(schema, [1, 2, 3, 4, "A"], "load_id", "listex"))
+    assert len(rows) == 6
+    assert rows[0][0] == ("listex", None,)
+    assert rows[1][0] == ("listex__value", "listex")
+    assert rows[-1][1]["value"] == "A"
+
+
 def test_complex_types_for_recursion_level(schema: Schema) -> None:
     add_dlt_root_id_propagation(schema)
     # if max recursion depth is set, nested elements will be kept as complex

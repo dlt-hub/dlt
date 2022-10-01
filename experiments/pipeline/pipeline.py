@@ -18,7 +18,7 @@ from dlt.common.storages import LiveSchemaStorage, NormalizeStorage
 
 from dlt.common.configuration import make_configuration, RunConfiguration, NormalizeVolumeConfiguration, SchemaVolumeConfiguration, ProductionNormalizeVolumeConfiguration
 from dlt.common.schema.schema import Schema
-from dlt.common.file_storage import FileStorage
+from dlt.common.storages.file_storage import FileStorage
 from dlt.common.utils import is_interactive, uniq_id
 
 from dlt.extract.extractor_storage import ExtractorStorageBase
