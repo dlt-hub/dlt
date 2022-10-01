@@ -5,7 +5,7 @@ def pytest_configure(config):
     # the dataclass implementation will use those patched values when creating instances (the values present
     # in the declaration are not frozen allowing patching)
 
-    from dlt.common.configuration import RunConfiguration, LoadVolumeConfiguration, NormalizeVolumeConfiguration, SchemaVolumeConfiguration
+    from dlt.common.configuration.specs import RunConfiguration, LoadVolumeConfiguration, NormalizeVolumeConfiguration, SchemaVolumeConfiguration
 
     test_storage_root = "_storage"
     RunConfiguration.config_files_storage_path = os.path.join(test_storage_root, "config/%s")

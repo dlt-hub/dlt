@@ -6,7 +6,8 @@ from os import environ
 from dlt import __version__ as auto_version
 from dlt.common import logger, sleep
 from dlt.common.typing import StrStr
-from dlt.common.configuration import RunConfiguration, configspec
+from dlt.common.configuration import configspec
+from dlt.common.configuration.specs import RunConfiguration
 
 from tests.utils import preserve_environ
 
@@ -31,6 +32,8 @@ class SentryLoggerConfiguration(JsonLoggerConfiguration):
     sentry_dsn: str = "http://user:pass@localhost/818782"
 
 
+import dataclasses
+@dataclasses.dataclass
 @configspec(init=True)
 class SentryLoggerCriticalConfiguration(SentryLoggerConfiguration):
     log_level: str = "CRITICAL"

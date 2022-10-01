@@ -4,15 +4,15 @@ import pytest
 import yaml
 from dlt.common import json
 
-from dlt.common.configuration import make_configuration
+from dlt.common.typing import DictStrAny
 from dlt.common.file_storage import FileStorage
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import TStoredSchema
 from dlt.common.schema.utils import default_normalizers
-from dlt.common.configuration import SchemaVolumeConfiguration
+from dlt.common.configuration import make_configuration
+from dlt.common.configuration.specs import SchemaVolumeConfiguration
 from dlt.common.storages.exceptions import InStorageSchemaModified, SchemaNotFoundError
 from dlt.common.storages import SchemaStorage, LiveSchemaStorage
-from dlt.common.typing import DictStrAny
 
 from tests.utils import autouse_test_storage, TEST_STORAGE_ROOT
 from tests.common.utils import load_yml_case, yml_case_path

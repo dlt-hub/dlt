@@ -4,7 +4,8 @@ from copy import deepcopy
 from dlt.common.utils import custom_environ, uniq_id
 from dlt.common.schema import Schema
 from dlt.common.schema.utils import new_table
-from dlt.common.configuration import make_configuration, GcpClientCredentials
+from dlt.common.configuration import make_configuration
+from dlt.common.configuration.specs import GcpClientCredentials
 
 from dlt.load.bigquery.client import BigQueryClient
 from dlt.load.exceptions import LoadClientSchemaWillNotUpdate

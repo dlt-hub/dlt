@@ -3,7 +3,8 @@ from google.auth import default as default_credentials
 from google.auth.exceptions import DefaultCredentialsError
 
 from dlt.common.typing import StrAny
-from dlt.common.configuration import make_configuration, GcpClientCredentials, configspec
+from dlt.common.configuration import make_configuration, configspec
+from dlt.common.configuration.specs import GcpClientCredentials
 from dlt.common.configuration.exceptions import ConfigEntryMissingException
 
 from dlt.load.configuration import LoaderClientDwhConfiguration

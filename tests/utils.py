@@ -7,7 +7,7 @@ import logging
 from os import environ
 
 from dlt.common.configuration.resolve import _get_resolvable_fields, make_configuration
-from dlt.common.configuration import RunConfiguration
+from dlt.common.configuration.specs import RunConfiguration
 from dlt.common.logger import init_logging_from_config
 from dlt.common.file_storage import FileStorage
 from dlt.common.schema import Schema
@@ -68,11 +68,11 @@ def clean_test_storage(init_normalize: bool = False, init_loader: bool = False) 
     storage.create_folder(".")
     if init_normalize:
         from dlt.common.storages import NormalizeStorage
-        from dlt.common.configuration import NormalizeVolumeConfiguration
+        from dlt.common.configuration.specs import NormalizeVolumeConfiguration
         NormalizeStorage(True, NormalizeVolumeConfiguration)
     if init_loader:
         from dlt.common.storages import LoadStorage
-        from dlt.common.configuration import LoadVolumeConfiguration
+        from dlt.common.configuration.specs import LoadVolumeConfiguration
         LoadStorage(True, LoadVolumeConfiguration, "jsonl", LoadStorage.ALL_SUPPORTED_FILE_FORMATS)
     return storage
 

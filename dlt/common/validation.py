@@ -34,7 +34,7 @@ def validate_dict(schema: Type[_TypedDict], doc: StrAny, path: str, filter_f: TF
         if is_literal_type(t):
             a_l = get_args(t)
             if pv not in a_l:
-              raise DictValidationException(f"In {path}: field {pk} value {pv} not in allowed {a_l}", path, pk, pv)
+                raise DictValidationException(f"In {path}: field {pk} value {pv} not in allowed {a_l}", path, pk, pv)
         elif t in [int, bool, str, float]:
             if not isinstance(pv, t):
                 raise DictValidationException(f"In {path}: field {pk} value {pv} has invalid type {type(pv).__name__} while {t.__name__} is expected", path, pk, pv)

@@ -448,14 +448,14 @@ class Schema:
                 self._compiled_preferred_types.append((utils.compile_simple_regex(pattern), dt))
             for hint_name, hint_list in self._settings.get("default_hints", {}).items():
                 # compile hints which are column matching regexes
-                self._compiled_hints[hint_name] = list(map(lambda hint: utils.compile_simple_regex(hint), hint_list))
+                self._compiled_hints[hint_name] = list(map(utils.compile_simple_regex, hint_list))
         if self._schema_tables:
             for table in self._schema_tables.values():
                 if "filters" in table:
                     if "excludes" in table["filters"]:
-                        self._compiled_excludes[table["name"]] = list(map(lambda exclude: utils.compile_simple_regex(exclude), table["filters"]["excludes"]))
+                        self._compiled_excludes[table["name"]] = list(map(utils.compile_simple_regex, table["filters"]["excludes"]))
                     if "includes" in table["filters"]:
-                        self._compiled_includes[table["name"]] = list(map(lambda exclude: utils.compile_simple_regex(exclude), table["filters"]["includes"]))
+                        self._compiled_includes[table["name"]] = list(map(utils.compile_simple_regex, table["filters"]["includes"]))
 
     def __repr__(self) -> str:
         return f"Schema {self.name} at {id(self)}"

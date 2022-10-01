@@ -1,6 +1,6 @@
 from typing import Dict
 
-from dlt.common.configuration import SchemaVolumeConfiguration
+from dlt.common.configuration.specs import SchemaVolumeConfiguration
 from dlt.common.schema.schema import Schema
 from dlt.common.storages.schema_storage import SchemaStorage
 

@@ -54,7 +54,7 @@ class BaseConfiguration(MutableMapping[str, Any]):
             NotImplementedError: This configuration does not have a native representation
             ValueError: The value provided cannot be parsed as native representation
         """
-        raise NotImplementedError()
+        raise ValueError()
 
     def to_native_representation(self) -> Any:
         """Represents the configuration instance in its native form ie. database connection string or JSON serialized GCP service credentials file.
@@ -65,7 +65,7 @@ class BaseConfiguration(MutableMapping[str, Any]):
         Returns:
             Any: A native representation of the configuration
         """
-        raise NotImplementedError()
+        raise ValueError()
 
     # implement dictionary-compatible interface on top of dataclass
 
@@ -83,7 +83,7 @@ class BaseConfiguration(MutableMapping[str, Any]):
                 raise KeyError(__key)
 
     def __delitem__(self, __key: str) -> None:
-        raise NotImplementedError("Configuration fields cannot be deleted")
+        raise KeyError("Configuration fields cannot be deleted")
 
     def __iter__(self) -> Iterator[str]:
         return filter(lambda k: not k.startswith("__"), self.__fields_dict().__iter__())

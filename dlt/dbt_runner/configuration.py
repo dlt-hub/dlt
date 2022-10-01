@@ -2,8 +2,9 @@ import dataclasses
 from typing import List, Optional, Type
 
 from dlt.common.typing import StrAny, TSecretValue
+from dlt.common.configuration import make_configuration, configspec
 from dlt.common.configuration.providers import environ
-from dlt.common.configuration import PoolRunnerConfiguration, TPoolType, PostgresCredentials, GcpClientCredentials, make_configuration, configspec
+from dlt.common.configuration.specs import PoolRunnerConfiguration, TPoolType, PostgresCredentials, GcpClientCredentials
 
 from . import __version__
 

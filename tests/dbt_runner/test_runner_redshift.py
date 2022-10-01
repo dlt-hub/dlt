@@ -4,8 +4,8 @@ import pytest
 from prometheus_client import CollectorRegistry
 
 from dlt.common import logger
-from dlt.common.configuration import PostgresCredentials
-from dlt.common.configuration.resolve import make_configuration
+from dlt.common.configuration import make_configuration
+from dlt.common.configuration.specs import PostgresCredentials
 from dlt.common.file_storage import FileStorage
 from dlt.common.telemetry import TRunMetrics, get_metrics_from_prometheus
 from dlt.common.typing import StrStr

@@ -31,7 +31,7 @@ class VersionedStorage:
             if is_owner:
                 self._save_version(version)
             else:
-               raise WrongStorageVersionException(storage.storage_path, semver.VersionInfo.parse("0.0.0"), version)
+                raise WrongStorageVersionException(storage.storage_path, semver.VersionInfo.parse("0.0.0"), version)
 
     def migrate_storage(self, from_version: semver.VersionInfo, to_version: semver.VersionInfo) -> None:
         # migration example:

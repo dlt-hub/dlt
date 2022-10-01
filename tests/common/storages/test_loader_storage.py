@@ -6,7 +6,8 @@ from typing import Sequence, Tuple
 from dlt.common import sleep
 from dlt.common.schema import Schema
 from dlt.common.storages.load_storage import LoadStorage, TParsedJobFileName
-from dlt.common.configuration import LoadVolumeConfiguration, make_configuration
+from dlt.common.configuration import make_configuration
+from dlt.common.configuration.specs import LoadVolumeConfiguration
 from dlt.common.storages.exceptions import NoMigrationPathException
 from dlt.common.typing import StrAny
 from dlt.common.utils import uniq_id

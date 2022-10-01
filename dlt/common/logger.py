@@ -9,12 +9,14 @@ from typing import Any, Protocol
 
 from dlt.common.json import json
 from dlt.common.typing import DictStrAny, StrStr
-from dlt.common.configuration import RunConfiguration
+from dlt.common.configuration.specs import RunConfiguration
 from dlt.common.utils import filter_env_vars
+
 from dlt._version import common_version as __version__
 
 DLT_LOGGER_NAME = "sv-dlt"
 LOGGER: Logger = None
+
 
 def _add_logging_level(level_name: str, level: int, method_name:str = None) -> None:
     """
@@ -36,11 +38,11 @@ def _add_logging_level(level_name: str, level: int, method_name:str = None) -> N
         method_name = level_name.lower()
 
     if hasattr(logging, level_name):
-       raise AttributeError('{} already defined in logging module'.format(level_name))
+        raise AttributeError('{} already defined in logging module'.format(level_name))
     if hasattr(logging, method_name):
-       raise AttributeError('{} already defined in logging module'.format(method_name))
+        raise AttributeError('{} already defined in logging module'.format(method_name))
     if hasattr(logging.getLoggerClass(), method_name):
-       raise AttributeError('{} already defined in logger class'.format(method_name))
+        raise AttributeError('{} already defined in logger class'.format(method_name))
 
     # This method was inspired by the answers to Stack Overflow post
     # http://stackoverflow.com/q/2183233/2988730, especially

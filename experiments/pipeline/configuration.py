@@ -8,7 +8,7 @@ from typing import Any, List, Type
 from functools import wraps
 
 from dlt.common.typing import DictStrAny, StrAny, TAny, TFun
-from dlt.common.configuration import BaseConfiguration
+from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.configuration.resolve import NON_EVAL_TYPES, make_configuration, SIMPLE_TYPES
 
 # _POS_PARAMETER_KINDS = (Parameter.POSITIONAL_ONLY, Parameter.POSITIONAL_OR_KEYWORD, Parameter.VAR_POSITIONAL)

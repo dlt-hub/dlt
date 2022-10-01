@@ -51,21 +51,18 @@ class TerminalException(Exception):
     """
     Marks an exception that cannot be recovered from, should be mixed in into concrete exception class
     """
-    pass
 
 
 class TransientException(Exception):
     """
     Marks an exception in operation that can be retried, should be mixed in into concrete exception class
     """
-    pass
 
 
 class TerminalValueError(ValueError, TerminalException):
     """
     ValueError that is unrecoverable
     """
-    pass
 
 
 class TimeRangeExhaustedException(DltException):

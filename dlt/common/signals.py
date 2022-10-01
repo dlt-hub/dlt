@@ -12,16 +12,16 @@ _received_signal: int = 0
 exit_event = Event()
 
 
-def signal_receiver(signal: int, frame: Any) -> None:
+def signal_receiver(sig: int, frame: Any) -> None:
     global _received_signal
 
-    logger.info(f"Signal {signal} received")
+    logger.info(f"Signal {sig} received")
 
     if _received_signal > 0:
         logger.info(f"Another signal received after {_received_signal}")
         return
 
-    _received_signal = signal
+    _received_signal = sig
     # awake all threads sleeping on event
     exit_event.set()
 

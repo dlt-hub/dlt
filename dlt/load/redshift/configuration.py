@@ -1,7 +1,8 @@
 from typing import Tuple
 
 from dlt.common.typing import StrAny
-from dlt.common.configuration import configspec, make_configuration, PostgresCredentials
+from dlt.common.configuration import configspec, make_configuration
+from dlt.common.configuration.specs import PostgresCredentials
 
 from dlt.load.configuration import LoaderClientDwhConfiguration
 

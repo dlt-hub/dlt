@@ -11,7 +11,8 @@ from prometheus_client import REGISTRY
 
 from dlt.common import json, sleep, signals, logger
 from dlt.common.runners import pool_runner as runner, TRunMetrics, initialize_runner
-from dlt.common.configuration import PoolRunnerConfiguration, make_configuration
+from dlt.common.configuration import make_configuration
+from dlt.common.configuration.specs import PoolRunnerConfiguration
 from dlt.common.file_storage import FileStorage
 from dlt.common.schema import Schema
 from dlt.common.typing import DictStrAny, StrAny

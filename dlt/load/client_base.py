@@ -5,7 +5,7 @@ from typing import Any, ContextManager, Generic, Iterator, List, Optional, Seque
 from pathlib import Path
 
 from dlt.common import pendulum, logger
-from dlt.common.configuration import BaseConfiguration, CredentialsConfiguration
+from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns
 from dlt.common.schema.typing import TTableSchema
 from dlt.common.typing import StrAny

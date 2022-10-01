@@ -2,9 +2,8 @@ from typing import List, Sequence, NamedTuple
 from itertools import groupby
 from pathlib import Path
 
-from dlt.common.utils import chunks
 from dlt.common.file_storage import FileStorage
-from dlt.common.configuration import NormalizeVolumeConfiguration
+from dlt.common.configuration.specs import NormalizeVolumeConfiguration
 from dlt.common.storages.versioned_storage import VersionedStorage
 
 
@@ -32,7 +31,7 @@ class NormalizeStorage(VersionedStorage):
         return sorted(self.storage.list_folder_files(NormalizeStorage.EXTRACTED_FOLDER))
 
     def get_grouped_iterator(self, files: Sequence[str]) -> "groupby[str, str]":
-        return groupby(files, lambda f: NormalizeStorage.get_schema_name(f))
+        return groupby(files, NormalizeStorage.get_schema_name)
 
     @staticmethod
     def get_schema_name(file_name: str) -> str:

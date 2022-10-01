@@ -1,8 +1,7 @@
 from typing import Union
 
-from dlt.common import Decimal
 from dlt.common.typing import TVariantRV, SupportsVariant
-from dlt.common.arithmetics import default_context, decimal
+from dlt.common.arithmetics import default_context, decimal, Decimal
 
 # default scale of EVM based blockchain
 WEI_SCALE = 18

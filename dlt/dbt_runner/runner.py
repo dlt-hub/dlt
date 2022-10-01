@@ -4,12 +4,12 @@ from prometheus_client import REGISTRY, Gauge, CollectorRegistry, Info
 from prometheus_client.metrics import MetricWrapperBase
 
 from dlt.common import logger
+from dlt.cli import TRunnerArgs
 from dlt.common.typing import DictStrAny, DictStrStr, StrAny
 from dlt.common.logger import is_json_logging
 from dlt.common.telemetry import get_logging_extras
-from dlt.common.configuration import GcpClientCredentials
+from dlt.common.configuration.specs import GcpClientCredentials
 from dlt.common.file_storage import FileStorage
-from dlt.cli import TRunnerArgs
 from dlt.common.runners import initialize_runner, run_pool
 from dlt.common.telemetry import TRunMetrics
 
@@ -32,30 +32,30 @@ model_exec_info: Info = None
 
 
 def create_folders() -> Tuple[FileStorage, StrAny, Sequence[str], str, str]:
-    storage = FileStorage(CONFIG.package_volume_path, makedirs=True)
-    dbt_package_vars: DictStrAny = {
+    storage_ = FileStorage(CONFIG.package_volume_path, makedirs=True)
+    dbt_package_vars_: DictStrAny = {
         "source_schema_prefix": CONFIG.source_schema_prefix
     }
     if CONFIG.dest_schema_prefix:
-        dbt_package_vars["dest_schema_prefix"] = CONFIG.dest_schema_prefix
+        dbt_package_vars_["dest_schema_prefix"] = CONFIG.dest_schema_prefix
     if CONFIG.package_additional_vars:
-        dbt_package_vars.update(CONFIG.package_additional_vars)
+        dbt_package_vars_.update(CONFIG.package_additional_vars)
 
     # initialize dbt logging, returns global parameters to dbt command
-    global_args = initialize_dbt_logging(CONFIG.log_level, is_json_logging(CONFIG.log_format))
+    global_args_ = initialize_dbt_logging(CONFIG.log_level, is_json_logging(CONFIG.log_format))
 
     # generate path for the dbt package repo
-    repo_path = storage.make_full_path(CLONED_PACKAGE_NAME)
+    repo_path_ = storage_.make_full_path(CLONED_PACKAGE_NAME)
 
     # generate profile name
-    profile_name: str = None
+    profile_name_: str = None
     if CONFIG.package_profile_prefix:
         if isinstance(CONFIG, GcpClientCredentials):
-            profile_name = "%s_bigquery" % (CONFIG.package_profile_prefix)
+            profile_name_ = "%s_bigquery" % (CONFIG.package_profile_prefix)
         else:
-            profile_name = "%s_redshift" % (CONFIG.package_profile_prefix)
+            profile_name_ = "%s_redshift" % (CONFIG.package_profile_prefix)
 
-    return storage, dbt_package_vars, global_args, repo_path, profile_name
+    return storage_, dbt_package_vars_, global_args_, repo_path_, profile_name_
 
 
 def create_gauges(registry: CollectorRegistry) -> Tuple[MetricWrapperBase, MetricWrapperBase]:

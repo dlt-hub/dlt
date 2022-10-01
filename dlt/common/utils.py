@@ -25,7 +25,11 @@ def uniq_id(len_: int = 16) -> str:
 
 
 def digest128(v: str) -> str:
-    return base64.b64encode(hashlib.shake_128(v.encode("utf-8")).digest(15)).decode('ascii')
+    return base64.b64encode(
+        hashlib.shake_128(
+            v.encode("utf-8")
+        ).digest(15)
+    ).decode('ascii')
 
 
 def digest256(v: str) -> str:
@@ -155,16 +159,16 @@ def custom_environ(env: StrStr) -> Iterator[None]:
 
 def with_custom_environ(f: TFun) -> TFun:
 
-        @wraps(f)
-        def _wrap(*args: Any, **kwargs: Any) -> Any:
-            saved_environ = os.environ.copy()
-            try:
-                return f(*args, **kwargs)
-            finally:
-                os.environ.clear()
-                os.environ.update(saved_environ)
+    @wraps(f)
+    def _wrap(*args: Any, **kwargs: Any) -> Any:
+        saved_environ = os.environ.copy()
+        try:
+            return f(*args, **kwargs)
+        finally:
+            os.environ.clear()
+            os.environ.update(saved_environ)
 
-        return _wrap  # type: ignore
+    return _wrap  # type: ignore
 
 
 def encoding_for_mode(mode: str) -> Optional[str]:

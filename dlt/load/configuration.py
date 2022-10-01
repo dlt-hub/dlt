@@ -1,7 +1,8 @@
 from typing import Optional
 
 from dlt.common.typing import StrAny
-from dlt.common.configuration import BaseConfiguration, PoolRunnerConfiguration, LoadVolumeConfiguration, TPoolType, make_configuration, configspec
+from dlt.common.configuration import configspec, make_configuration
+from dlt.common.configuration.specs import BaseConfiguration, PoolRunnerConfiguration, LoadVolumeConfiguration, TPoolType
 
 from . import __version__
 

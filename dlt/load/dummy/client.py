@@ -1,12 +1,11 @@
 import random
 from types import TracebackType
 from typing import Dict, Tuple, Type
-from dlt.common.data_writers import TLoaderFileFormat
 
 from dlt.common import pendulum
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TTableSchema
-from dlt.common.configuration import CredentialsConfiguration
+from dlt.common.configuration.specs import CredentialsConfiguration
 from dlt.common.typing import StrAny
 
 from dlt.load.client_base import JobClientBase, LoadJob, TLoaderCapabilities
@@ -81,7 +80,7 @@ class DummyClient(JobClientBase):
     CONFIG: DummyClientConfiguration = None
 
     def __init__(self, schema: Schema) -> None:
-        super().__init__(schema)
+        pass
 
     def initialize_storage(self) -> None:
         pass

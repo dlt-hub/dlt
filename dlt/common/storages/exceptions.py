@@ -32,10 +32,11 @@ class LoaderStorageException(StorageException):
 
 
 class JobWithUnsupportedWriterException(LoaderStorageException):
-    def __init__(self, load_id: str, expected_file_format: Iterable[TLoaderFileFormat], wrong_job: str) -> None:
+    def __init__(self, load_id: str, expected_file_formats: Iterable[TLoaderFileFormat], wrong_job: str) -> None:
         self.load_id = load_id
-        self.expected_file_format = expected_file_format
+        self.expected_file_formats = expected_file_formats
         self.wrong_job = wrong_job
+        super().__init__(f"Job {wrong_job} for load id {load_id} requires loader file format that is not one of {expected_file_formats}")
 
 
 class SchemaStorageException(StorageException):

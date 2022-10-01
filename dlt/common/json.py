@@ -2,7 +2,7 @@ import base64
 import pendulum
 from datetime import date, datetime  # noqa: I251
 from functools import partial
-from typing import Any, Callable, Union
+from typing import Any, Callable, List, Union
 from uuid import UUID
 from hexbytes import HexBytes
 import simplejson
@@ -43,22 +43,22 @@ def custom_encode(obj: Any) -> str:
 
 
 # use PUA range to encode additional types
-_DECIMAL = u'\uF026'
-_DATETIME = u'\uF027'
-_DATE = u'\uF028'
-_UUIDT = u'\uF029'
-_HEXBYTES = u'\uF02A'
-_B64BYTES = u'\uF02B'
-_WEI = u'\uF02C'
+_DECIMAL = '\uF026'
+_DATETIME = '\uF027'
+_DATE = '\uF028'
+_UUIDT = '\uF029'
+_HEXBYTES = '\uF02A'
+_B64BYTES = '\uF02B'
+_WEI = '\uF02C'
 
-DECODERS = [
-    lambda s: Decimal(s),
-    lambda s: pendulum.parse(s),
+DECODERS: List[Callable[[Any], Any]] = [
+    Decimal,
+    pendulum.parse,
     lambda s: pendulum.parse(s).date(),  # type: ignore
-    lambda s: UUID(s),
-    lambda s: HexBytes(s),
-    lambda s: base64.b64decode(s),
-    lambda s: Wei(s)
+    UUID,
+    HexBytes,
+    base64.b64decode,
+    Wei
 ]
 
 

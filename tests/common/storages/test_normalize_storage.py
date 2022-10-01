@@ -1,12 +1,13 @@
 import pytest
 
-from dlt.common.storages.exceptions import NoMigrationPathException
-from dlt.common.storages import NormalizeStorage
-from dlt.common.configuration import NormalizeVolumeConfiguration
-from dlt.common.storages.normalize_storage import TParsedNormalizeFileName
 from dlt.common.utils import uniq_id
+from dlt.common.storages import NormalizeStorage
+from dlt.common.storages.exceptions import NoMigrationPathException
+from dlt.common.configuration.specs import NormalizeVolumeConfiguration
+from dlt.common.storages.normalize_storage import TParsedNormalizeFileName
 
 from tests.utils import write_version, autouse_test_storage
+
 
 @pytest.mark.skip()
 def test_load_events_and_group_by_sender() -> None:

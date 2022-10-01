@@ -12,7 +12,7 @@ from dlt.common import json, logger
 from dlt.common.typing import StrAny
 from dlt.common.schema.typing import TTableSchema, TWriteDisposition
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
-from dlt.common.configuration import GcpClientCredentials
+from dlt.common.configuration.specs import GcpClientCredentials
 from dlt.common.data_writers import escape_bigquery_identifier
 from dlt.common.schema import TColumnSchema, TDataType, Schema, TTableSchemaColumns
 

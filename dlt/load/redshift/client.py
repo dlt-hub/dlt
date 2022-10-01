@@ -231,7 +231,7 @@ class RedshiftClient(SqlJobClientBase):
                     raise LoadClientTerminalInnerException("Terminal error, file will not load", tr_ex)
                 if "Numeric data overflow" in tr_ex.pgerror:
                     raise LoadClientTerminalInnerException("Terminal error, file will not load", tr_ex)
-                if "Precision exceeds maximum":
+                if "Precision exceeds maximum" in tr_ex.pgerror:
                     raise LoadClientTerminalInnerException("Terminal error, file will not load", tr_ex)
             raise LoadClientTransientInnerException("Error may go away, will retry", tr_ex)
         except (psycopg2.DataError, psycopg2.ProgrammingError, psycopg2.IntegrityError) as ter_ex:

@@ -21,7 +21,7 @@ def restore_secret_storage_path() -> None:
 
 def load_secret(name: str) -> str:
     environ.SECRET_STORAGE_PATH = "./tests/dbt_runner/secrets/%s"
-    secret = environ._get_key_value(name, environ.TSecretValue)
+    secret = environ.get_key(name, environ.TSecretValue)
     if not secret:
         raise FileNotFoundError(environ.SECRET_STORAGE_PATH % name)
     return secret

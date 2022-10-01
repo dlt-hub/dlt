@@ -2,7 +2,8 @@ from typing import List, Sequence
 import pytest
 
 from dlt.common import pendulum
-from dlt.common.configuration import SchemaVolumeConfiguration, make_configuration
+from dlt.common.configuration import make_configuration
+from dlt.common.configuration.specs import SchemaVolumeConfiguration
 from dlt.common.exceptions import DictValidationException
 from dlt.common.schema.typing import TColumnName, TSimpleRegex, COLUMN_HINTS
 from dlt.common.typing import DictStrAny, StrAny

@@ -2,10 +2,10 @@ from os import environ
 import pytest
 
 from dlt.common import logger
-from dlt.common.configuration import GcpClientCredentials
+from dlt.common.configuration.specs import GcpClientCredentials
 from dlt.common.telemetry import TRunMetrics, get_metrics_from_prometheus
 from dlt.common.typing import StrStr
-from dlt.common.utils import uniq_id, with_custom_environ
+from dlt.common.utils import uniq_id
 
 from dlt.dbt_runner.utils import DBTProcessingError
 from dlt.dbt_runner import runner

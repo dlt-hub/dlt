@@ -8,7 +8,7 @@ from dlt.common.runners.runnable import Runnable, TPool
 from dlt.common.time import sleep
 from dlt.common.telemetry import TRunHealth, TRunMetrics, get_logging_extras, get_metrics_from_prometheus
 from dlt.common.exceptions import SignalReceivedException, TimeRangeExhaustedException, UnsupportedProcessStartMethodException
-from dlt.common.configuration import PoolRunnerConfiguration
+from dlt.common.configuration.specs import PoolRunnerConfiguration
 
 
 HEALTH_PROPS_GAUGES: Dict[str, Union[Counter, Gauge]] = None

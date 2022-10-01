@@ -4,7 +4,8 @@ from copy import deepcopy
 from dlt.common.utils import uniq_id, custom_environ
 from dlt.common.schema import Schema
 from dlt.common.schema.utils import new_table
-from dlt.common.configuration import PostgresCredentials, make_configuration
+from dlt.common.configuration import make_configuration
+from dlt.common.configuration.specs import PostgresCredentials
 
 from dlt.load.exceptions import LoadClientSchemaWillNotUpdate
 from dlt.load.redshift.client import RedshiftClient
