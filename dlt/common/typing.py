@@ -18,7 +18,7 @@ StrStrStr = Mapping[str, Mapping[str, str]]  # immutable, covariant entity
 TFun = TypeVar("TFun", bound=Callable[..., Any])
 TAny = TypeVar("TAny", bound=Any)
 TSecretValue = NewType("TSecretValue", str)  # represent secret value ie. coming from Kubernetes/Docker secrets or other providers
-TDataItem = DictStrAny
+TDataItem = Any  # a single data item extracted from data source, normalized and loaded
 
 
 TVariantBase = TypeVar("TVariantBase", covariant=True)
