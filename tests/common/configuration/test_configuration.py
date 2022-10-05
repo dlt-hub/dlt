@@ -687,7 +687,7 @@ def test_namespaced_configuration(environment: Any) -> None:
     traces = exc_val.value.traces["password"]
     # only one provider and namespace was tried
     assert len(traces) == 1
-    assert traces[0] == LookupTrace("Environment Variables", ("DLT_TEST",), "DLT_TEST__PASSWORD", None)
+    assert traces[0] == LookupTrace("Environment Variables", ["DLT_TEST"], "DLT_TEST__PASSWORD", None)
 
     # init vars work without namespace
     C = resolve.make_configuration(NamespacedConfiguration(), initial_value={"password": "PASS"})
