@@ -1,6 +1,13 @@
-from typing import Any, Iterable, Type, Union
+from typing import Any, Iterable, Mapping, Type, Union, NamedTuple, Sequence
 
 from dlt.common.exceptions import DltException
+
+
+class LookupTrace(NamedTuple):
+    provider: str
+    namespaces: Sequence[str]
+    key: str
+    value: Any
 
 
 class ConfigurationException(DltException):
@@ -16,24 +23,26 @@ class ConfigurationWrongTypeException(ConfigurationException):
 class ConfigEntryMissingException(ConfigurationException):
     """thrown when not all required config elements are present"""
 
-    def __init__(self, missing_set: Iterable[str], namespace: str = None) -> None:
-        self.missing_set = missing_set
-        self.namespace = namespace
+    def __init__(self, spec_name: str, traces: Mapping[str, Sequence[LookupTrace]]) -> None:
+        self.traces = traces
+        self.spec_name = spec_name
 
-        msg = 'Missing config keys: ' + str(missing_set)
-        if namespace:
-            msg += ". Note that required namespace for that keys is " + namespace + " and namespace separator is two underscores"
+        msg = f"Following fields are missing: {str(list(traces.keys()))} in configuration with spec {spec_name}\n"
+        for f, traces in traces.items():
+            msg += f'\tfor field "{f}" config providers and keys were tried in following order\n'
+            for tr in traces:
+                msg += f'\t\tIn {tr.provider} key {tr.key} was not found.\n'
         super().__init__(msg)
 
 
 class ConfigEnvValueCannotBeCoercedException(ConfigurationException):
     """thrown when value from ENV cannot be coerced to hinted type"""
 
-    def __init__(self, attr_name: str, env_value: str, hint: type) -> None:
-        self.attr_name = attr_name
-        self.env_value = env_value
+    def __init__(self, field_name: str, field_value: Any, hint: type) -> None:
+        self.field_name = field_name
+        self.field_value = field_value
         self.hint = hint
-        super().__init__('env value %s cannot be coerced into type %s in attr %s' % (env_value, str(hint), attr_name))
+        super().__init__('env value %s cannot be coerced into type %s in attr %s' % (field_value, str(hint), field_name))
 
 
 class ConfigIntegrityException(ConfigurationException):
@@ -53,10 +62,26 @@ class ConfigFileNotFoundException(ConfigurationException):
         super().__init__(f"Missing config file in {path}")
 
 
-class ConfigFieldMissingAnnotationException(ConfigurationException):
-    """thrown when configuration specification does not have type annotation"""
+class ConfigFieldMissingTypeHintException(ConfigurationException):
+    """thrown when configuration specification does not have type hint"""
 
-    def __init__(self, field_name: str, typ_: Type[Any]) -> None:
+    def __init__(self, field_name: str, spec: Type[Any]) -> None:
         self.field_name = field_name
-        self.typ_ = typ_
-        super().__init__(f"Field {field_name} on configspec {typ_} does not provide required type annotation")
+        self.typ_ = spec
+        super().__init__(f"Field {field_name} on configspec {spec} does not provide required type hint")
+
+
+class ConfigFieldTypeHintNotSupported(ConfigurationException):
+    """thrown when configuration specification uses not supported type in hint"""
+
+    def __init__(self, field_name: str, spec: Type[Any], typ_: Type[Any]) -> None:
+        self.field_name = field_name
+        self.typ_ = spec
+        super().__init__(f"Field {field_name} on configspec {spec} has hint with unsupported type {typ_}")
+
+
+class ValueNotSecretException(ConfigurationException):
+    def __init__(self, provider_name: str, key: str) -> None:
+        self.provider_name = provider_name
+        self.key = key
+        super().__init__(f"Provider {provider_name} cannot hold secret values but key {key} with secret value is present")

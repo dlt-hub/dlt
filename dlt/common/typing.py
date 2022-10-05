@@ -37,10 +37,7 @@ class SupportsVariant(Protocol, Generic[TVariantBase]):
 
 
 def is_optional_type(t: Type[Any]) -> bool:
-    # todo: use typing get_args and get_origin in python 3.8
-    if hasattr(t, "__origin__"):
-        return t.__origin__ is Union and type(None) in t.__args__
-    return False
+    return get_origin(t) is Union and type(None) in get_args(t)
 
 
 def extract_optional_type(t: Type[Any]) -> Any:
@@ -48,7 +45,11 @@ def extract_optional_type(t: Type[Any]) -> Any:
 
 
 def is_literal_type(hint: Type[Any]) -> bool:
-    return hasattr(hint, "__origin__") and hint.__origin__ is Literal
+    return get_origin(hint) is Literal
+
+
+def is_newtype_type(t: Type[Any]) -> bool:
+    return hasattr(t, "__supertype__")
 
 
 def is_typeddict(t: Any) -> bool:
@@ -57,15 +58,35 @@ def is_typeddict(t: Any) -> bool:
 
 def is_list_generic_type(t: Any) -> bool:
     try:
-        o = get_origin(t)
-        return issubclass(o, list) or issubclass(o, C_Sequence)
-    except Exception:
+        return issubclass(get_origin(t), C_Sequence)
+    except TypeError:
         return False
 
 
 def is_dict_generic_type(t: Any) -> bool:
     try:
-        o = get_origin(t)
-        return issubclass(o, dict) or issubclass(o, C_Mapping)
-    except Exception:
+        return issubclass(get_origin(t), C_Mapping)
+    except TypeError:
         return False
+
+
+def extract_inner_type(hint: Type[Any]) -> Type[Any]:
+    """Gets the inner type from Literal, Optional and NewType
+
+    Args:
+        hint (Type[Any]): Any type
+
+    Returns:
+        Type[Any]: Inner type if hint was Literal, Optional or NewType, otherwise hint
+    """
+    if is_literal_type(hint):
+        # assume that all literals are of the same type
+        return extract_inner_type(type(get_args(hint)[0]))
+    if is_optional_type(hint):
+        # extract optional type and call recursively
+        return extract_inner_type(get_args(hint)[0])
+    if is_newtype_type(hint):
+        # descend into supertypes of NewType
+        return extract_inner_type(hint.__supertype__)
+    return hint
+

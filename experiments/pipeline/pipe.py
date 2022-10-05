@@ -190,8 +190,8 @@ class Pipe:
 
 class PipeIterator(Iterator[PipeItem]):
 
-    def __init__(self, max_parallelism: int = 100, worker_threads: int = 5, futures_poll_interval: float = 0.01) -> None:
-        self.max_parallelism = max_parallelism
+    def __init__(self, max_parallel_items: int = 100, worker_threads: int = 5, futures_poll_interval: float = 0.01) -> None:
+        self.max_parallel_items = max_parallel_items
         self.worker_threads = worker_threads
         self.futures_poll_interval = futures_poll_interval
 
@@ -275,7 +275,7 @@ class PipeIterator(Iterator[PipeItem]):
 
             if isinstance(pipe_item.item, Awaitable) or callable(pipe_item.item):
                 # do we have a free slot or one of the slots is done?
-                if len(self._futures) < self.max_parallelism or self._next_future() >= 0:
+                if len(self._futures) < self.max_parallel_items or self._next_future() >= 0:
                     if isinstance(pipe_item.item, Awaitable):
                         future = asyncio.run_coroutine_threadsafe(pipe_item.item, self._ensure_async_pool())
                     else:

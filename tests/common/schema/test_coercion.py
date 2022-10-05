@@ -1,3 +1,4 @@
+from collections.abc import Mapping, MutableSequence
 from typing import Any, Type
 import pytest
 import datetime  # noqa: I251
@@ -198,13 +199,24 @@ def test_py_type_to_sc_type() -> None:
     assert utils.py_type_to_sc_type(int) == "bigint"
     assert utils.py_type_to_sc_type(float) == "double"
     assert utils.py_type_to_sc_type(str) == "text"
-    # unknown types are recognized as text
-    assert utils.py_type_to_sc_type(Exception) == "text"
     assert utils.py_type_to_sc_type(type(pendulum.now())) == "timestamp"
     assert utils.py_type_to_sc_type(type(datetime.datetime(1988, 12, 1))) == "timestamp"
     assert utils.py_type_to_sc_type(type(Decimal(1))) == "decimal"
     assert utils.py_type_to_sc_type(type(HexBytes("0xFF"))) == "binary"
     assert utils.py_type_to_sc_type(type(Wei.from_int256(2137, decimals=2))) == "wei"
+    # unknown types raise TypeException
+    with pytest.raises(TypeError):
+        utils.py_type_to_sc_type(Any)
+    # none type raises TypeException
+    with pytest.raises(TypeError):
+        utils.py_type_to_sc_type(type(None))
+    # complex types
+    assert utils.py_type_to_sc_type(list) == "complex"
+    # assert utils.py_type_to_sc_type(set) == "complex"
+    assert utils.py_type_to_sc_type(dict) == "complex"
+    assert utils.py_type_to_sc_type(tuple) == "complex"
+    assert utils.py_type_to_sc_type(Mapping) == "complex"
+    assert utils.py_type_to_sc_type(MutableSequence) == "complex"
 
 
 def test_coerce_type_complex() -> None:

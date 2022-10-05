@@ -50,7 +50,7 @@ def git_custom_key_command(private_key: Optional[str]) -> Iterator[str]:
 def ensure_remote_head(repo_path: str, with_git_command: Optional[str] = None) -> None:
     # update remotes and check if heads are same. ignores locally modified files
     repo = Repo(repo_path)
-    # use custom environemnt if specified
+    # use custom environment if specified
     with repo.git.custom_environment(GIT_SSH_COMMAND=with_git_command):
         # update origin
         repo.remote().update()

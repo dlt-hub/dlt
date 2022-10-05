@@ -1,13 +1,28 @@
+import contextlib
 import dataclasses
-from typing import Any, Dict, Iterator, MutableMapping, Type, TYPE_CHECKING
+from typing import Any, Dict, Iterator, MutableMapping, Type, TYPE_CHECKING, get_origin
 
 if TYPE_CHECKING:
     TDtcField = dataclasses.Field[Any]
 else:
     TDtcField = dataclasses.Field
 
-from dlt.common.typing import TAny
-from dlt.common.configuration.exceptions import ConfigFieldMissingAnnotationException
+from dlt.common.typing import TAny, extract_inner_type, is_optional_type
+from dlt.common.schema.utils import py_type_to_sc_type
+from dlt.common.configuration.exceptions import ConfigFieldMissingTypeHintException, ConfigFieldTypeHintNotSupported
+
+
+def is_valid_hint(hint: Type[Any]) -> bool:
+    hint = extract_inner_type(hint)
+    hint = get_origin(hint) or hint
+    if hint is Any:
+        return True
+    if issubclass(hint, BaseConfiguration):
+        return True
+    with contextlib.suppress(TypeError):
+        py_type_to_sc_type(hint)
+        return True
+    return False
 
 
 def configspec(cls: Type[TAny] = None, /, *, init: bool = False) -> Type[TAny]:
@@ -19,10 +34,12 @@ def configspec(cls: Type[TAny] = None, /, *, init: bool = False) -> Type[TAny]:
                 setattr(cls, ann, None)
         # get all attributes without corresponding annotations
         for att_name, att in cls.__dict__.items():
-            if not callable(att) and not att_name.startswith(("__", "_abc_impl")) and att_name not in cls.__annotations__:
-                print(att)
-                print(callable(att))
-                raise ConfigFieldMissingAnnotationException(att_name, cls)
+            if not callable(att) and not att_name.startswith(("__", "_abc_impl")):
+                if att_name not in cls.__annotations__:
+                    raise ConfigFieldMissingTypeHintException(att_name, cls)
+                hint = cls.__annotations__[att_name]
+                if not is_valid_hint(hint):
+                    raise ConfigFieldTypeHintNotSupported(att_name, cls, hint)
         return dataclasses.dataclass(cls, init=init, eq=False)  # type: ignore
 
     # called with parenthesis
@@ -35,8 +52,8 @@ def configspec(cls: Type[TAny] = None, /, *, init: bool = False) -> Type[TAny]:
 @configspec
 class BaseConfiguration(MutableMapping[str, Any]):
 
-    # will be set to true if not all config entries could be resolved
-    __is_partial__: bool = dataclasses.field(default = True, init=False, repr=False)
+    # true when all config fields were resolved and have a specified value type
+    __is_resolved__: bool = dataclasses.field(default = False, init=False, repr=False)
     # namespace used by config providers when searching for keys
     __namespace__: str = dataclasses.field(default = None, init=False, repr=False)
 
@@ -66,6 +83,22 @@ class BaseConfiguration(MutableMapping[str, Any]):
             Any: A native representation of the configuration
         """
         raise ValueError()
+
+    def get_resolvable_fields(self) -> Dict[str, type]:
+        """Returns a mapping of fields to their type hints. Dunder should not be resolved and are not returned"""
+        return {f.name:f.type for f in self.__fields_dict().values() if not f.name.startswith("__")}
+
+    def is_resolved(self) -> bool:
+        return self.__is_resolved__
+
+    def is_partial(self) -> bool:
+        """Returns True when any required resolvable field has its value missing."""
+        if self.__is_resolved__:
+            return False
+        # check if all resolvable fields have value
+        return any(
+            field for field, hint in self.get_resolvable_fields().items() if getattr(self, field) is None and not is_optional_type(hint)
+        )
 
     # implement dictionary-compatible interface on top of dataclass
 

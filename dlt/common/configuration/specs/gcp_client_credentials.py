@@ -21,14 +21,14 @@ class GcpClientCredentials(CredentialsConfiguration):
     file_upload_timeout: float = 30 * 60.0
     retry_deadline: float = 600  # how long to retry the operation in case of error, the backoff 60s
 
-    def from_native_representation(self, initial_value: Any) -> None:
-        if not isinstance(initial_value, str):
-            raise ValueError(initial_value)
+    def from_native_representation(self, native_value: Any) -> None:
+        if not isinstance(native_value, str):
+            raise ValueError(native_value)
         try:
-            service_dict = json.loads(initial_value)
+            service_dict = json.loads(native_value)
             self.update(service_dict)
         except Exception:
-            raise ValueError(initial_value)
+            raise ValueError(native_value)
 
     def check_integrity(self) -> None:
         if self.private_key and self.private_key[-1] != "\n":

@@ -62,7 +62,7 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client]):
 
     def open_connection(self) -> None:
         # use default credentials if partial config
-        if self.C.__is_partial__:
+        if not self.C.is_resolved():
             credentials = None
         else:
             credentials = service_account.Credentials.from_service_account_info(self.C.to_native_representation())

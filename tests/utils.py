@@ -1,13 +1,14 @@
 import multiprocessing
 import platform
+from typing import Any, Mapping
 import requests
-from typing import Type
 import pytest
 import logging
 from os import environ
 
-from dlt.common.configuration.resolve import _get_resolvable_fields, make_configuration
-from dlt.common.configuration.specs import RunConfiguration
+from dlt.common.configuration.providers import EnvironProvider
+from dlt.common.configuration.resolve import make_configuration, serialize_value
+from dlt.common.configuration.specs import BaseConfiguration, RunConfiguration
 from dlt.common.logger import init_logging_from_config
 from dlt.common.storages import FileStorage
 from dlt.common.schema import Schema
@@ -77,15 +78,17 @@ def clean_test_storage(init_normalize: bool = False, init_loader: bool = False) 
     return storage
 
 
-def add_config_to_env(config: RunConfiguration) ->  None:
+def add_config_to_env(config: BaseConfiguration) ->  None:
     # write back default values in configuration back into environment
-    possible_attrs = _get_resolvable_fields(config).keys()
-    for attr in possible_attrs:
-        env_key = attr.upper()
-        if env_key not in environ:
-            v = getattr(config, attr)
+    return add_config_dict_to_env(dict(config), config.__namespace__)
+
+
+def add_config_dict_to_env(dict_: Mapping[str, Any], namespace: str = None, overwrite_keys: bool = False) -> None:
+    for k, v in dict_.items():
+        env_key = EnvironProvider.get_key_name(k, namespace)
+        if env_key not in environ or overwrite_keys:
             if v is not None:
-                environ[env_key] = str(v)
+                environ[env_key] = serialize_value(v)
 
 
 def create_schema_with_name(schema_name) -> Schema:

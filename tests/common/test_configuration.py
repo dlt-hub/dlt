@@ -1,14 +1,17 @@
 import pytest
 from os import environ
-from typing import Any, Dict, List, Mapping, MutableMapping, NewType, Optional, Tuple, Type
+import datetime  # noqa: I251
+from typing import Any, Dict, List, Mapping, MutableMapping, NewType, Optional, Sequence, Tuple, Type
 
-from dlt.common.typing import TSecretValue
+from dlt.common import pendulum, Decimal, Wei
+from dlt.common.configuration.exceptions import ConfigFieldMissingTypeHintException, ConfigFieldTypeHintNotSupported, LookupTrace
+from dlt.common.typing import StrAny, TSecretValue, extract_inner_type
 from dlt.common.configuration import configspec, ConfigEntryMissingException, ConfigFileNotFoundException, ConfigEnvValueCannotBeCoercedException, resolve
-from dlt.common.configuration.specs import RunConfiguration, BaseConfiguration
+from dlt.common.configuration.specs import BaseConfiguration, RunConfiguration
 from dlt.common.configuration.providers import environ as environ_provider
 from dlt.common.utils import custom_environ
 
-from tests.utils import preserve_environ
+from tests.utils import preserve_environ, add_config_dict_to_env
 
 # used to test version
 __version__ = "1.0.5"
@@ -22,28 +25,34 @@ COERCIONS = {
         'a': 1,
         "b": "2"
     },
-    'tuple_val': (1, 2, '7'),
-    'set_val': {1, 2, 3},
     'bytes_val': b'Hello World!',
     'float_val': 1.18927,
+    "tuple_val": (1, 2, {1: "complicated dicts allowed in literal eval"}),
     'any_val': "function() {}",
     'none_val': "none",
     'COMPLEX_VAL': {
-        "_": (1440, ["*"], []),
-        "change-email": (560, ["*"], [])
-    }
+        "_": [1440, ["*"], []],
+        "change-email": [560, ["*"], []]
+    },
+    "date_val": pendulum.now(),
+    "dec_val": Decimal("22.38"),
+    "sequence_val": ["A", "B", "KAPPA"],
+    "gen_list_val": ["C", "Z", "N"],
+    "mapping_val": {"FL": 1, "FR": {"1": 2}},
+    "mutable_mapping_val": {"str": "str"}
 }
 
 INVALID_COERCIONS = {
     # 'STR_VAL': 'test string',  # string always OK
     'int_val': "a12345",
-    'bool_val': "Yes",  # bool overridden by string - that is the most common problem
-    'list_val': {1, "2", 3.0},
+    'bool_val': "not_bool",  # bool overridden by string - that is the most common problem
+    'list_val': {2: 1, "2": 3.0},
     'dict_val': "{'a': 1, 'b', '2'}",
-    'tuple_val': [1, 2, '7'],
-    'set_val': [1, 2, 3],
     'bytes_val': 'Hello World!',
-    'float_val': "invalid"
+    'float_val': "invalid",
+    "tuple_val": "{1:2}",
+    "date_val": "01 May 2022",
+    "dec_val": True
 }
 
 EXCEPTED_COERCIONS = {
@@ -94,13 +103,19 @@ class CoercionTestConfiguration(RunConfiguration):
     bool_val: bool = None
     list_val: list = None  # type: ignore
     dict_val: dict = None  # type: ignore
-    tuple_val: tuple = None  # type: ignore
     bytes_val: bytes = None
-    set_val: set = None  # type: ignore
     float_val: float = None
+    tuple_val: Tuple[int, int, StrAny] = None
     any_val: Any = None
     none_val: str = None
     COMPLEX_VAL: Dict[str, Tuple[int, List[str], List[str]]] = None
+    date_val: datetime.datetime = None
+    dec_val: Decimal = None
+    sequence_val: Sequence[str] = None
+    gen_list_val: List[str] = None
+    mapping_val: StrAny = None
+    mutable_mapping_val: MutableMapping[str, str] = None
+
 
 
 @configspec
@@ -176,6 +191,11 @@ class EmbeddedConfiguration(BaseConfiguration):
     namespaced: NamespacedConfiguration
 
 
+@configspec
+class EmbeddedOptionalConfiguration(BaseConfiguration):
+    instrumented: Optional[InstrumentedConfiguration]
+
+
 LongInteger = NewType("LongInteger", int)
 FirstOrderStr = NewType("FirstOrderStr", str)
 SecondOrderStr = NewType("SecondOrderStr", FirstOrderStr)
@@ -187,7 +207,17 @@ def environment() -> Any:
     return environ
 
 
-def test_initial_config_value() -> None:
+def test_initial_config_state() -> None:
+    assert BaseConfiguration.__is_resolved__ is False
+    assert BaseConfiguration.__namespace__ is None
+    C = BaseConfiguration()
+    assert C.__is_resolved__ is False
+    assert C.is_resolved() is False
+    # base configuration has no resolvable fields so is never partial
+    assert C.is_partial() is False
+
+
+def test_set_initial_config_value(environment: Any) -> None:
     # set from init method
     C = resolve.make_configuration(InstrumentedConfiguration(head="h", tube=["a", "b"], heels="he"))
     assert C.to_native_representation() == "h>a>b>he"
@@ -201,7 +231,7 @@ def test_initial_config_value() -> None:
     assert C.to_native_representation() == "h>tu>be>xhe"
 
 
-def test_check_integrity() -> None:
+def test_check_integrity(environment: Any) -> None:
     with pytest.raises(RuntimeError):
         # head over hells
         resolve.make_configuration(InstrumentedConfiguration(), initial_value="he>a>b>h")
@@ -223,16 +253,16 @@ def test_embedded_config(environment: Any) -> None:
 
     # resolve partial, partial is passed to embedded
     C = resolve.make_configuration(EmbeddedConfiguration(), accept_partial=True)
-    assert C.__is_partial__
-    assert C.namespaced.__is_partial__
-    assert C.instrumented.__is_partial__
+    assert not C.__is_resolved__
+    assert not C.namespaced.__is_resolved__
+    assert not C.instrumented.__is_resolved__
 
     # some are partial, some are not
     with custom_environ({"DLT_TEST__PASSWORD": "passwd"}):
         C = resolve.make_configuration(EmbeddedConfiguration(), accept_partial=True)
-        assert C.__is_partial__
-        assert not C.namespaced.__is_partial__
-        assert C.instrumented.__is_partial__
+        assert not C.__is_resolved__
+        assert C.namespaced.__is_resolved__
+        assert not C.instrumented.__is_resolved__
 
     # single integrity error fails all the embeds
     with custom_environ({"INSTRUMENTED": "he>tu>u>be>h"}):
@@ -249,7 +279,13 @@ def test_provider_values_over_initial(environment: Any) -> None:
     with custom_environ({"INSTRUMENTED": "h>tu>u>be>he"}):
         C = resolve.make_configuration(EmbeddedConfiguration(), initial_value={"instrumented": "h>tu>be>xhe"}, accept_partial=True)
         assert C.instrumented.to_native_representation() == "h>tu>u>be>he"
-        assert not C.instrumented.__is_partial__
+        # parent configuration is not resolved
+        assert not C.is_resolved()
+        assert C.is_partial()
+        # but embedded is
+        assert C.instrumented.__is_resolved__
+        assert C.instrumented.is_resolved()
+        assert not C.instrumented.is_partial()
 
 
 def test_run_configuration_gen_name(environment: Any) -> None:
@@ -291,7 +327,7 @@ def test_configuration_is_mutable_mapping(environment: Any) -> None:
         assert C[key] == expected_dict[key]
     # version is present as attr but not present in dict
     assert hasattr(C, "_version")
-    assert hasattr(C, "__is_partial__")
+    assert hasattr(C, "__is_resolved__")
     assert hasattr(C, "__namespace__")
 
     with pytest.raises(KeyError):
@@ -318,19 +354,19 @@ def test_configuration_is_mutable_mapping(environment: Any) -> None:
         C["_version"] = "1.1.1"
 
 
-def test_fields_with_no_default_to_null() -> None:
+def test_fields_with_no_default_to_null(environment: Any) -> None:
     # fields with no default are promoted to class attrs with none
     assert FieldWithNoDefaultConfiguration.no_default is None
     assert FieldWithNoDefaultConfiguration().no_default is None
 
 
-def test_init_method_gen() -> None:
+def test_init_method_gen(environment: Any) -> None:
     C = FieldWithNoDefaultConfiguration(no_default="no_default", sentry_dsn="SENTRY")
     assert C.no_default == "no_default"
     assert C.sentry_dsn == "SENTRY"
 
 
-def test_multi_derivation_defaults() -> None:
+def test_multi_derivation_defaults(environment: Any) -> None:
 
     @configspec
     class MultiConfiguration(MockProdConfiguration, ConfigurationWithOptionalTypes, NamespacedConfiguration):
@@ -346,104 +382,165 @@ def test_multi_derivation_defaults() -> None:
     assert C.__namespace__ == "DLT_TEST"
 
 
-def test_raises_on_unresolved_fields() -> None:
-    with pytest.raises(ConfigEntryMissingException) as config_entry_missing_exception:
-        C = WrongConfiguration()
-        keys = resolve._get_resolvable_fields(C)
-        resolve._is_config_bounded(C, keys)
-
-    assert 'NONECONFIGVAR' in config_entry_missing_exception.value.missing_set
-
+def test_raises_on_unresolved_field(environment: Any) -> None:
     # via make configuration
-    with pytest.raises(ConfigEntryMissingException) as config_entry_missing_exception:
+    with pytest.raises(ConfigEntryMissingException) as cf_missing_exc:
         resolve.make_configuration(WrongConfiguration())
-    assert 'NONECONFIGVAR' in config_entry_missing_exception.value.missing_set
+    assert cf_missing_exc.value.spec_name == "WrongConfiguration"
+    assert "NoneConfigVar" in cf_missing_exc.value.traces
+    # has only one trace
+    trace = cf_missing_exc.value.traces["NoneConfigVar"]
+    assert len(trace) == 1
+    assert trace[0] == LookupTrace("Environment Variables", [], "NONECONFIGVAR", None)
 
 
-def test_optional_types_are_not_required() -> None:
-    # this should not raise an exception
-    keys = resolve._get_resolvable_fields(ConfigurationWithOptionalTypes())
-    resolve._is_config_bounded(ConfigurationWithOptionalTypes(), keys)
+def test_raises_on_many_unresolved_fields(environment: Any) -> None:
+    # via make configuration
+    with pytest.raises(ConfigEntryMissingException) as cf_missing_exc:
+        resolve.make_configuration(CoercionTestConfiguration())
+    assert cf_missing_exc.value.spec_name == "CoercionTestConfiguration"
+    # get all fields that must be set
+    val_fields = [f for f in CoercionTestConfiguration().get_resolvable_fields() if f.lower().endswith("_val")]
+    traces = cf_missing_exc.value.traces
+    assert len(traces) == len(val_fields)
+    for tr_field, exp_field in zip(traces, val_fields):
+        assert len(traces[tr_field]) == 1
+        assert traces[tr_field][0] == LookupTrace("Environment Variables", [], environ_provider.EnvironProvider.get_key_name(exp_field), None)
+
+
+def test_accepts_optional_missing_fields(environment: Any) -> None:
+    # ConfigurationWithOptionalTypes has values for all non optional fields present
+    C = ConfigurationWithOptionalTypes()
+    assert not C.is_partial()
     # make optional config
     resolve.make_configuration(ConfigurationWithOptionalTypes())
     # make config with optional values
-    resolve.make_configuration(ProdConfigurationWithOptionalTypes(), initial_value={"INT_VAL": None})
+    resolve.make_configuration(ProdConfigurationWithOptionalTypes(), initial_value={"int_val": None})
+    # make config with optional embedded config
+    C = resolve.make_configuration(EmbeddedOptionalConfiguration())
+    # embedded config was not fully resolved
+    assert not C.instrumented.__is_resolved__
+    assert not C.instrumented.is_resolved()
+    assert C.instrumented.is_partial()
 
 
-def test_configuration_apply_adds_environment_variable_to_config(environment: Any) -> None:
+def test_resolves_from_environ(environment: Any) -> None:
     environment["NONECONFIGVAR"] = "Some"
 
     C = WrongConfiguration()
-    keys = resolve._get_resolvable_fields(C)
-    resolve._resolve_config_fields(C, keys, accept_partial=False)
-    resolve._is_config_bounded(C, keys)
+    resolve._resolve_config_fields(C, accept_partial=False)
+    assert not C.is_partial()
 
     assert C.NoneConfigVar == environment["NONECONFIGVAR"]
 
 
-def test_configuration_resolve_env_var(environment: Any) -> None:
-    environment["TEST_BOOL"] = 'True'
+def test_resolves_from_environ_with_coercion(environment: Any) -> None:
+    environment["TEST_BOOL"] = 'yes'
 
     C = SimpleConfiguration()
-    keys = resolve._get_resolvable_fields(C)
-    resolve._resolve_config_fields(C, keys, accept_partial=False)
-    resolve._is_config_bounded(C, keys)
+    resolve._resolve_config_fields(C, accept_partial=False)
+    assert not C.is_partial()
 
     # value will be coerced to bool
     assert C.test_bool is True
 
 
 def test_find_all_keys() -> None:
-    keys = resolve._get_resolvable_fields(VeryWrongConfiguration())
+    keys = VeryWrongConfiguration().get_resolvable_fields()
     # assert hints and types: LOG_COLOR had it hint overwritten in derived class
     assert set({'str_val': str, 'int_val': int, 'NoneConfigVar': str, 'log_color': str}.items()).issubset(keys.items())
 
 
-def test_coercions(environment: Any) -> None:
-    for key, value in COERCIONS.items():
-        environment[key.upper()] = str(value)
+def test_coercion_to_hint_types(environment: Any) -> None:
+    add_config_dict_to_env(COERCIONS)
 
     C = CoercionTestConfiguration()
-    keys = resolve._get_resolvable_fields(C)
-    resolve._resolve_config_fields(C, keys, accept_partial=False)
-    resolve._is_config_bounded(C, keys)
+    resolve._resolve_config_fields(C, accept_partial=False)
 
     for key in COERCIONS:
         assert getattr(C, key) == COERCIONS[key]
 
 
+def test_values_serialization() -> None:
+    # test tuple
+    t_tuple = (1, 2, 3, "A")
+    v = resolve.serialize_value(t_tuple)
+    assert v == "(1, 2, 3, 'A')"  # literal serialization
+    assert resolve.deserialize_value("K", v, tuple) == t_tuple
+
+    # test list
+    t_list = ["a", 3, True]
+    v = resolve.serialize_value(t_list)
+    assert v == '["a", 3, true]'  # json serialization
+    assert resolve.deserialize_value("K", v, list) == t_list
+
+    # test datetime
+    t_date = pendulum.now()
+    v = resolve.serialize_value(t_date)
+    assert resolve.deserialize_value("K", v, datetime.datetime) == t_date
+
+    # test wei
+    t_wei = Wei.from_int256(10**16, decimals=18)
+    v = resolve.serialize_value(t_wei)
+    assert v == "0.01"
+    # can be deserialized into
+    assert resolve.deserialize_value("K", v, float) == 0.01
+    assert resolve.deserialize_value("K", v, Decimal) == Decimal("0.01")
+    assert resolve.deserialize_value("K", v, Wei) == Wei("0.01")
+
+
 def test_invalid_coercions(environment: Any) -> None:
     C = CoercionTestConfiguration()
-    config_keys = resolve._get_resolvable_fields(C)
+    add_config_dict_to_env(INVALID_COERCIONS)
     for key, value in INVALID_COERCIONS.items():
         try:
-            environment[key.upper()] = str(value)
-            resolve._resolve_config_fields(C, config_keys, accept_partial=False)
+            resolve._resolve_config_fields(C, accept_partial=False)
         except ConfigEnvValueCannotBeCoercedException as coerc_exc:
             # must fail exactly on expected value
-            if coerc_exc.attr_name != key:
+            if coerc_exc.field_name != key:
                 raise
             # overwrite with valid value and go to next env
-            environment[key.upper()] = str(COERCIONS[key])
+            environment[key.upper()] = resolve.serialize_value(COERCIONS[key])
             continue
         raise AssertionError("%s was coerced with %s which is invalid type" % (key, value))
 
 
 def test_excepted_coercions(environment: Any) -> None:
     C = CoercionTestConfiguration()
-    config_keys = resolve._get_resolvable_fields(C)
-    for k, v in EXCEPTED_COERCIONS.items():
-        environment[k.upper()] = str(v)
-        resolve._resolve_config_fields(C, config_keys, accept_partial=False)
+    add_config_dict_to_env(COERCIONS)
+    add_config_dict_to_env(EXCEPTED_COERCIONS, overwrite_keys=True)
+    resolve._resolve_config_fields(C, accept_partial=False)
     for key in EXCEPTED_COERCIONS:
         assert getattr(C, key) == COERCED_EXCEPTIONS[key]
+
+
+def test_config_with_unsupported_types_in_hints(environment: Any) -> None:
+    with pytest.raises(ConfigFieldTypeHintNotSupported):
+
+        @configspec
+        class InvalidHintConfiguration(BaseConfiguration):
+            tuple_val: tuple = None  # type: ignore
+            set_val: set = None  # type: ignore
+        InvalidHintConfiguration()
+
+
+def test_config_with_no_hints(environment: Any) -> None:
+    with pytest.raises(ConfigFieldMissingTypeHintException):
+
+        @configspec
+        class NoHintConfiguration(BaseConfiguration):
+            tuple_val = None
+        NoHintConfiguration()
+
+
+
 
 
 def test_make_configuration(environment: Any) -> None:
     # fill up configuration
     environment["NONECONFIGVAR"] = "1"
     C = resolve.make_configuration(WrongConfiguration())
-    assert not C.__is_partial__
+    assert C.__is_resolved__
     assert C.NoneConfigVar == "1"
 
 
@@ -482,7 +579,8 @@ def test_accept_partial(environment: Any) -> None:
     C = resolve.make_configuration(WrongConfiguration(), accept_partial=True)
     assert C.NoneConfigVar is None
     # partial resolution
-    assert C.__is_partial__
+    assert not C.__is_resolved__
+    assert C.is_partial()
 
 
 def test_finds_version(environment: Any) -> None:
@@ -583,8 +681,13 @@ def test_configuration_files(environment: Any) -> None:
 def test_namespaced_configuration(environment: Any) -> None:
     with pytest.raises(ConfigEntryMissingException) as exc_val:
         resolve.make_configuration(NamespacedConfiguration())
-    assert exc_val.value.missing_set == ["DLT_TEST__PASSWORD"]
-    assert exc_val.value.namespace == "DLT_TEST"
+    assert list(exc_val.value.traces.keys()) == ["password"]
+    assert exc_val.value.spec_name == "NamespacedConfiguration"
+    # check trace
+    traces = exc_val.value.traces["password"]
+    # only one provider and namespace was tried
+    assert len(traces) == 1
+    assert traces[0] == LookupTrace("Environment Variables", ("DLT_TEST",), "DLT_TEST__PASSWORD", None)
 
     # init vars work without namespace
     C = resolve.make_configuration(NamespacedConfiguration(), initial_value={"password": "PASS"})
@@ -598,6 +701,7 @@ def test_namespaced_configuration(environment: Any) -> None:
     C = resolve.make_configuration(NamespacedConfiguration())
     assert C.password == "PASS"
 
+
 def coerce_single_value(key: str, value: str, hint: Type[Any]) -> Any:
-    hint = resolve._extract_simple_type(hint)
-    return resolve._coerce_single_value(key, value, hint)
+    hint = extract_inner_type(hint)
+    return resolve.deserialize_value(key, value, hint)

@@ -15,7 +15,7 @@ JSON_TYPED_DICT: StrAny = {
     "big_decimal": Decimal("115792089237316195423570985008687907853269984665640564039457584007913129639935.1"),
     "datetime": pendulum.parse("2005-04-02T20:37:37.358236Z"),
     "date": pendulum.parse("2022-02-02").date(),
-    "uuid": UUID(_UUID),
+    # "uuid": UUID(_UUID),
     "hexbytes": HexBytes("0x2137"),
     "bytes": b'2137',
     "wei": Wei.from_int256(2137, decimals=2)
@@ -26,8 +26,8 @@ JSON_TYPED_DICT_TYPES: Dict[str, TDataType] = {
     "decimal": "decimal",
     "big_decimal": "decimal",
     "datetime": "timestamp",
-    "date": "text",
-    "uuid": "text",
+    "date": "timestamp",
+    # "uuid": "text",
     "hexbytes": "binary",
     "bytes": "binary",
     "wei": "wei"

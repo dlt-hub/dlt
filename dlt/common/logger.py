@@ -14,7 +14,7 @@ from dlt.common.utils import filter_env_vars
 
 from dlt._version import common_version as __version__
 
-DLT_LOGGER_NAME = "sv-dlt"
+DLT_LOGGER_NAME = "dlt"
 LOGGER: Logger = None
 
 
@@ -209,6 +209,16 @@ def init_logging_from_config(C: RunConfiguration) -> None:
         version)
     if C.sentry_dsn:
         _init_sentry(C, version)
+
+
+def is_logging() -> bool:
+    return LOGGER is not None
+
+
+def log_level() -> str:
+    if not LOGGER:
+        raise RuntimeError("Logger not initialized")
+    return logging.getLevelName(LOGGER.level)
 
 
 def is_json_logging(log_format: str) -> bool:

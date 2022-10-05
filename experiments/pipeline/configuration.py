@@ -8,8 +8,8 @@ from typing import Any, List, Type
 from functools import wraps
 
 from dlt.common.typing import DictStrAny, StrAny, TAny, TFun
+from dlt.common.configuration import make_configuration, is_valid_hint
 from dlt.common.configuration.specs import BaseConfiguration
-from dlt.common.configuration.resolve import NON_EVAL_TYPES, make_configuration, SIMPLE_TYPES
 
 # _POS_PARAMETER_KINDS = (Parameter.POSITIONAL_ONLY, Parameter.POSITIONAL_OR_KEYWORD, Parameter.VAR_POSITIONAL)
 
@@ -44,7 +44,7 @@ def spec_from_signature(name: str, sig: Signature) -> Type[BaseConfiguration]:
         # skip *args and **kwargs
         if p.kind not in (Parameter.VAR_KEYWORD, Parameter.VAR_POSITIONAL) and p.name not in ["self", "cls"]:
             field_type = Any if p.annotation == Parameter.empty else p.annotation
-            if field_type in SIMPLE_TYPES or field_type in NON_EVAL_TYPES or issubclass(field_type, BaseConfiguration):
+            if is_valid_hint(field_type):
                 field_default = None if p.default == Parameter.empty else dataclasses.field(default=p.default)
                 if field_default:
                     # correct the type if Any

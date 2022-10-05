@@ -5,6 +5,7 @@ import hashlib
 import datetime  # noqa: I251
 import contextlib
 from copy import deepcopy
+from collections.abc import Mapping as C_Mapping, Sequence as C_Sequence
 from typing import Dict, List, Sequence, Tuple, Type, Any, cast
 
 from dlt.common import pendulum, json, Decimal, Wei
@@ -287,7 +288,8 @@ def py_type_to_sc_type(t: Type[Any]) -> TDataType:
         return "wei"
     if issubclass(t, Decimal):
         return "decimal"
-    if issubclass(t, datetime.datetime):
+    # TODO: implement new "date" type, currently assign "datetime"
+    if issubclass(t, (datetime.datetime, datetime.date)):
         return "timestamp"
 
     # check again for subclassed basic types
@@ -299,8 +301,10 @@ def py_type_to_sc_type(t: Type[Any]) -> TDataType:
         return "bigint"
     if issubclass(t, bytes):
         return "binary"
+    if issubclass(t, (C_Mapping, C_Sequence)):
+        return "complex"
 
-    return "text"
+    raise TypeError(t)
 
 
 def coerce_type(to_type: TDataType, from_type: TDataType, value: Any) -> Any:
