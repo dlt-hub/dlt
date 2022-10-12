@@ -1,13 +1,14 @@
 import contextlib
 import dataclasses
-from typing import Any, Dict, Iterator, MutableMapping, Type, TYPE_CHECKING, get_origin
+
+from typing import Callable, Optional, Union, Any, Dict, Iterator, MutableMapping, Type, TYPE_CHECKING, get_origin, overload
 
 if TYPE_CHECKING:
     TDtcField = dataclasses.Field[Any]
 else:
     TDtcField = dataclasses.Field
 
-from dlt.common.typing import TAny, extract_inner_type, is_optional_type
+from dlt.common.typing import TAnyClass, extract_inner_type, is_optional_type
 from dlt.common.schema.utils import py_type_to_sc_type
 from dlt.common.configuration.exceptions import ConfigFieldMissingTypeHintException, ConfigFieldTypeHintNotSupported
 
@@ -25,9 +26,25 @@ def is_valid_hint(hint: Type[Any]) -> bool:
     return False
 
 
-def configspec(cls: Type[TAny] = None, /, *, init: bool = False) -> Type[TAny]:
+@overload
+def configspec(cls: Type[TAnyClass], /, *, init: bool = False) -> Type[TAnyClass]:
+    ...
 
-    def wrap(cls: Type[TAny]) -> Type[TAny]:
+
+@overload
+def configspec(cls: None = ..., /, *, init: bool = False) -> Callable[[Type[TAnyClass]], Type[TAnyClass]]:
+    ...
+
+
+def configspec(cls: Optional[Type[Any]] = None, /, *, init: bool = False) -> Union[Type[TAnyClass], Callable[[Type[TAnyClass]], Type[TAnyClass]]]:
+
+    def wrap(cls: Type[TAnyClass]) -> Type[TAnyClass]:
+        # if type does not derive from BaseConfiguration then derive it
+        with contextlib.suppress(NameError):
+            if not issubclass(cls, BaseConfiguration):
+                # keep the original module
+                fields = {"__module__": cls.__module__, "__annotations__": getattr(cls, "__annotations__", {})}
+                cls = type(cls.__name__, (cls, BaseConfiguration), fields)
         # get all annotations without corresponding attributes and set them to None
         for ann in cls.__annotations__:
             if not hasattr(cls, ann) and not ann.startswith(("__", "_abc_impl")):
@@ -40,11 +57,12 @@ def configspec(cls: Type[TAny] = None, /, *, init: bool = False) -> Type[TAny]:
                 hint = cls.__annotations__[att_name]
                 if not is_valid_hint(hint):
                     raise ConfigFieldTypeHintNotSupported(att_name, cls, hint)
-        return dataclasses.dataclass(cls, init=init, eq=False)  # type: ignore
+        # do not generate repr as it may contain secret values
+        return dataclasses.dataclass(cls, init=init, eq=False, repr=False)  # type: ignore
 
     # called with parenthesis
     if cls is None:
-        return wrap  # type: ignore
+        return wrap
 
     return wrap(cls)
 
@@ -142,4 +160,6 @@ class BaseConfiguration(MutableMapping[str, Any]):
 
 @configspec
 class CredentialsConfiguration(BaseConfiguration):
+    """Base class for all credentials. Credentials are configurations that may be stored only by providers supporting secrets."""
     pass
+

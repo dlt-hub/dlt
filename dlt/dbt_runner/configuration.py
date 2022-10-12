@@ -1,9 +1,10 @@
 import dataclasses
+from os import environ
 from typing import List, Optional, Type
 
 from dlt.common.typing import StrAny, TSecretValue
 from dlt.common.configuration import make_configuration, configspec
-from dlt.common.configuration.providers import environ
+from dlt.common.configuration.providers import EnvironProvider
 from dlt.common.configuration.specs import PoolRunnerConfiguration, TPoolType, PostgresCredentials, GcpClientCredentials
 
 from . import __version__
@@ -39,10 +40,11 @@ class DBTRunnerConfiguration(PoolRunnerConfiguration):
 def gen_configuration_variant(initial_values: StrAny = None) -> DBTRunnerConfiguration:
     # derive concrete config depending on env vars present
     DBTRunnerConfigurationImpl: Type[DBTRunnerConfiguration]
+    environ = EnvironProvider()
 
-    source_schema_prefix = environ.get_key("default_dataset", type(str))
+    source_schema_prefix: str = environ.get_value("default_dataset", type(str))  # type: ignore
 
-    if environ.get_key("project_id", type(str), namespace=GcpClientCredentials.__namespace__):
+    if environ.get_value("project_id", type(str), GcpClientCredentials.__namespace__):
         @configspec
         class DBTRunnerConfigurationPostgres(PostgresCredentials, DBTRunnerConfiguration):
             SOURCE_SCHEMA_PREFIX: str = source_schema_prefix

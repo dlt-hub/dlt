@@ -218,7 +218,7 @@ def is_logging() -> bool:
 def log_level() -> str:
     if not LOGGER:
         raise RuntimeError("Logger not initialized")
-    return logging.getLevelName(LOGGER.level)
+    return logging.getLevelName(LOGGER.level)  # type: ignore
 
 
 def is_json_logging(log_format: str) -> bool:

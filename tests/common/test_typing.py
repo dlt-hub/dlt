@@ -59,7 +59,7 @@ def test_extract_inner_type() -> None:
     assert extract_inner_type(str) is str
     assert extract_inner_type(NewType("NT1", str)) is str
     assert extract_inner_type(NewType("NT2", NewType("NT3", int))) is int
-    assert extract_inner_type(Optional[NewType("NT3", bool)]) is bool
+    assert extract_inner_type(Optional[NewType("NT3", bool)]) is bool  # noqa
     l_1 = Literal[1, 2, 3]
     assert extract_inner_type(l_1) is int
     nt_l_2 = NewType("NTL2", float)

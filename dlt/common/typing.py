@@ -1,6 +1,10 @@
 from collections.abc import Mapping as C_Mapping, Sequence as C_Sequence
 from re import Pattern as _REPattern
 from typing import Callable, Dict, Any, Literal, Mapping, NewType, Tuple, Type, TypeVar, Generic, Protocol, Iterable, TYPE_CHECKING, Union, runtime_checkable, get_args, get_origin
+try:
+    from typing_extensions import ParamSpec, TypeAlias, TypeGuard
+except ImportError:
+    ParamSpec = lambda x: [x]  # type: ignore
 if TYPE_CHECKING:
     from _typeshed import StrOrBytesPath
     from typing import _TypedDict
@@ -10,13 +14,15 @@ else:
     from typing import _TypedDictMeta as _TypedDict
     REPattern = _REPattern
 
-DictStrAny = Dict[str, Any]
-DictStrStr = Dict[str, str]
-StrAny = Mapping[str, Any]  # immutable, covariant entity
-StrStr = Mapping[str, str]  # immutable, covariant entity
-StrStrStr = Mapping[str, Mapping[str, str]]  # immutable, covariant entity
-TFun = TypeVar("TFun", bound=Callable[..., Any])
+DictStrAny: TypeAlias = Dict[str, Any]
+DictStrStr: TypeAlias = Dict[str, str]
+StrAny: TypeAlias = Mapping[str, Any]  # immutable, covariant entity
+StrStr: TypeAlias = Mapping[str, str]  # immutable, covariant entity
+StrStrStr: TypeAlias = Mapping[str, Mapping[str, str]]  # immutable, covariant entity
+AnyFun: TypeAlias = Callable[..., Any]
+TFun = TypeVar("TFun", bound=AnyFun)  # any function
 TAny = TypeVar("TAny", bound=Any)
+TAnyClass = TypeVar("TAnyClass", bound=object)
 TSecretValue = NewType("TSecretValue", str)  # represent secret value ie. coming from Kubernetes/Docker secrets or other providers
 TDataItem = Any  # a single data item extracted from data source, normalized and loaded
 
@@ -89,4 +95,3 @@ def extract_inner_type(hint: Type[Any]) -> Type[Any]:
         # descend into supertypes of NewType
         return extract_inner_type(hint.__supertype__)
     return hint
-

@@ -1,4 +1,4 @@
-from typing import Any, Iterable, Mapping, Type, Union, NamedTuple, Sequence
+from typing import Any, Mapping, Type, Union, NamedTuple, Sequence
 
 from dlt.common.exceptions import DltException
 
@@ -28,9 +28,9 @@ class ConfigEntryMissingException(ConfigurationException):
         self.spec_name = spec_name
 
         msg = f"Following fields are missing: {str(list(traces.keys()))} in configuration with spec {spec_name}\n"
-        for f, traces in traces.items():
-            msg += f'\tfor field "{f}" config providers and keys were tried in following order\n'
-            for tr in traces:
+        for f, field_traces in traces.items():
+            msg += f'\tfor field "{f}" config providers and keys were tried in following order:\n'
+            for tr in field_traces:
                 msg += f'\t\tIn {tr.provider} key {tr.key} was not found.\n'
         super().__init__(msg)
 
@@ -85,3 +85,18 @@ class ValueNotSecretException(ConfigurationException):
         self.provider_name = provider_name
         self.key = key
         super().__init__(f"Provider {provider_name} cannot hold secret values but key {key} with secret value is present")
+
+
+class InvalidInitialValue(ConfigurationException):
+    def __init__(self, spec: Type[Any], initial_value_type: Type[Any]) -> None:
+        self.spec = spec
+        self.initial_value_type = initial_value_type
+        super().__init__(f"Initial value of type {initial_value_type} is not valid for {spec.__name__}")
+
+
+class ContainerInjectableConfigurationMangled(ConfigurationException):
+    def __init__(self, spec: Type[Any], existing_config: Any, expected_config: Any) -> None:
+        self.spec = spec
+        self.existing_config = existing_config
+        self.expected_config = expected_config
+        super().__init__(f"When restoring injectable config {spec.__name__}, instance {expected_config} was expected, instead instance {existing_config} was found.")

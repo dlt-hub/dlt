@@ -1,17 +1,18 @@
 import pytest
-from os import environ
 import datetime  # noqa: I251
 from typing import Any, Dict, List, Mapping, MutableMapping, NewType, Optional, Sequence, Tuple, Type
 
 from dlt.common import pendulum, Decimal, Wei
-from dlt.common.configuration.exceptions import ConfigFieldMissingTypeHintException, ConfigFieldTypeHintNotSupported, LookupTrace
-from dlt.common.typing import StrAny, TSecretValue, extract_inner_type
-from dlt.common.configuration import configspec, ConfigEntryMissingException, ConfigFileNotFoundException, ConfigEnvValueCannotBeCoercedException, resolve
-from dlt.common.configuration.specs import BaseConfiguration, RunConfiguration
-from dlt.common.configuration.providers import environ as environ_provider
 from dlt.common.utils import custom_environ
+from dlt.common.typing import StrAny, TSecretValue, extract_inner_type
+from dlt.common.configuration.exceptions import ConfigFieldMissingTypeHintException, ConfigFieldTypeHintNotSupported, InvalidInitialValue, LookupTrace, ValueNotSecretException
+from dlt.common.configuration import configspec, ConfigEntryMissingException, ConfigEnvValueCannotBeCoercedException, resolve
+from dlt.common.configuration.specs import BaseConfiguration, RunConfiguration
+from dlt.common.configuration.specs.base_configuration import is_valid_hint
+from dlt.common.configuration.providers import environ as environ_provider
 
 from tests.utils import preserve_environ, add_config_dict_to_env
+from tests.common.configuration.utils import MockProvider, WithCredentialsConfiguration, WrongConfiguration, SecretConfiguration, NamespacedConfiguration, environment, mock_provider
 
 # used to test version
 __version__ = "1.0.5"
@@ -71,31 +72,6 @@ COERCED_EXCEPTIONS = {
 
 
 @configspec
-class SimpleConfiguration(RunConfiguration):
-    pipeline_name: str = "Some Name"
-    test_bool: bool = False
-
-
-@configspec
-class WrongConfiguration(RunConfiguration):
-    pipeline_name: str = "Some Name"
-    NoneConfigVar: str = None
-    log_color: bool = True
-
-
-@configspec
-class SecretConfiguration(RunConfiguration):
-    pipeline_name: str = "secret"
-    secret_value: TSecretValue = None
-
-
-@configspec
-class SecretKubeConfiguration(RunConfiguration):
-    pipeline_name: str = "secret kube"
-    secret_kube: TSecretValue = None
-
-
-@configspec
 class CoercionTestConfiguration(RunConfiguration):
     pipeline_name: str = "Some Name"
     str_val: str = None
@@ -115,7 +91,6 @@ class CoercionTestConfiguration(RunConfiguration):
     gen_list_val: List[str] = None
     mapping_val: StrAny = None
     mutable_mapping_val: MutableMapping[str, str] = None
-
 
 
 @configspec
@@ -145,22 +120,9 @@ class MockProdConfiguration(RunConfiguration):
     pipeline_name: str = "comp"
 
 
-@configspec
-class MockProdConfigurationVar(RunConfiguration):
-    pipeline_name: str = "comp"
-
-
-@configspec
-class NamespacedConfiguration(BaseConfiguration):
-    __namespace__ = "DLT_TEST"
-
-    password: str = None
-
-
 @configspec(init=True)
 class FieldWithNoDefaultConfiguration(RunConfiguration):
     no_default: str
-
 
 @configspec(init=True)
 class InstrumentedConfiguration(BaseConfiguration):
@@ -201,12 +163,6 @@ FirstOrderStr = NewType("FirstOrderStr", str)
 SecondOrderStr = NewType("SecondOrderStr", FirstOrderStr)
 
 
-@pytest.fixture(scope="function")
-def environment() -> Any:
-    environ.clear()
-    return environ
-
-
 def test_initial_config_state() -> None:
     assert BaseConfiguration.__is_resolved__ is False
     assert BaseConfiguration.__namespace__ is None
@@ -229,6 +185,14 @@ def test_set_initial_config_value(environment: Any) -> None:
     # set from dictionary
     C = resolve.make_configuration(InstrumentedConfiguration(), initial_value={"head": "h", "tube": ["tu", "be"], "heels": "xhe"})
     assert C.to_native_representation() == "h>tu>be>xhe"
+
+
+def test_invalid_initial_config_value() -> None:
+    # 2137 cannot be parsed and also is not a dict that can initialize the fields
+    with pytest.raises(InvalidInitialValue) as py_ex:
+        resolve.make_configuration(InstrumentedConfiguration(), initial_value=2137)
+    assert py_ex.value.spec is InstrumentedConfiguration
+    assert py_ex.value.initial_value_type is int
 
 
 def test_check_integrity(environment: Any) -> None:
@@ -294,6 +258,14 @@ def test_run_configuration_gen_name(environment: Any) -> None:
 
 
 def test_configuration_is_mutable_mapping(environment: Any) -> None:
+
+
+    @configspec
+    class _SecretCredentials(RunConfiguration):
+        pipeline_name: Optional[str] = "secret"
+        secret_value: TSecretValue = None
+
+
     # configurations provide full MutableMapping support
     # here order of items in dict matters
     expected_dict = {
@@ -304,12 +276,12 @@ def test_configuration_is_mutable_mapping(environment: Any) -> None:
         'log_level': 'DEBUG',
         'request_timeout': (15, 300),
         'config_files_storage_path': '_storage/config/%s',
-        'secret_value': None
+        "secret_value": None
     }
-    assert dict(SecretConfiguration()) == expected_dict
+    assert dict(_SecretCredentials()) == expected_dict
 
     environment["SECRET_VALUE"] = "secret"
-    C = resolve.make_configuration(SecretConfiguration())
+    C = resolve.make_configuration(_SecretCredentials())
     expected_dict["secret_value"] = "secret"
     assert dict(C) == expected_dict
 
@@ -424,27 +396,6 @@ def test_accepts_optional_missing_fields(environment: Any) -> None:
     assert C.instrumented.is_partial()
 
 
-def test_resolves_from_environ(environment: Any) -> None:
-    environment["NONECONFIGVAR"] = "Some"
-
-    C = WrongConfiguration()
-    resolve._resolve_config_fields(C, accept_partial=False)
-    assert not C.is_partial()
-
-    assert C.NoneConfigVar == environment["NONECONFIGVAR"]
-
-
-def test_resolves_from_environ_with_coercion(environment: Any) -> None:
-    environment["TEST_BOOL"] = 'yes'
-
-    C = SimpleConfiguration()
-    resolve._resolve_config_fields(C, accept_partial=False)
-    assert not C.is_partial()
-
-    # value will be coerced to bool
-    assert C.test_bool is True
-
-
 def test_find_all_keys() -> None:
     keys = VeryWrongConfiguration().get_resolvable_fields()
     # assert hints and types: LOG_COLOR had it hint overwritten in derived class
@@ -455,7 +406,7 @@ def test_coercion_to_hint_types(environment: Any) -> None:
     add_config_dict_to_env(COERCIONS)
 
     C = CoercionTestConfiguration()
-    resolve._resolve_config_fields(C, accept_partial=False)
+    resolve._resolve_config_fields(C, namespaces=(), accept_partial=False)
 
     for key in COERCIONS:
         assert getattr(C, key) == COERCIONS[key]
@@ -494,7 +445,7 @@ def test_invalid_coercions(environment: Any) -> None:
     add_config_dict_to_env(INVALID_COERCIONS)
     for key, value in INVALID_COERCIONS.items():
         try:
-            resolve._resolve_config_fields(C, accept_partial=False)
+            resolve._resolve_config_fields(C, namespaces=(), accept_partial=False)
         except ConfigEnvValueCannotBeCoercedException as coerc_exc:
             # must fail exactly on expected value
             if coerc_exc.field_name != key:
@@ -509,7 +460,7 @@ def test_excepted_coercions(environment: Any) -> None:
     C = CoercionTestConfiguration()
     add_config_dict_to_env(COERCIONS)
     add_config_dict_to_env(EXCEPTED_COERCIONS, overwrite_keys=True)
-    resolve._resolve_config_fields(C, accept_partial=False)
+    resolve._resolve_config_fields(C, namespaces=(), accept_partial=False)
     for key in EXCEPTED_COERCIONS:
         assert getattr(C, key) == COERCED_EXCEPTIONS[key]
 
@@ -533,9 +484,6 @@ def test_config_with_no_hints(environment: Any) -> None:
         NoHintConfiguration()
 
 
-
-
-
 def test_make_configuration(environment: Any) -> None:
     # fill up configuration
     environment["NONECONFIGVAR"] = "1"
@@ -544,7 +492,7 @@ def test_make_configuration(environment: Any) -> None:
     assert C.NoneConfigVar == "1"
 
 
-def test_auto_derivation(environment: Any) -> None:
+def test_dataclass_instantiation(environment: Any) -> None:
     # make_configuration works on instances of dataclasses and types are not modified
     environment['SECRET_VALUE'] = "1"
     C = resolve.make_configuration(SecretConfiguration())
@@ -560,7 +508,7 @@ def test_initial_values(environment: Any) -> None:
     environment["CREATED_VAL"] = "12837"
     # set initial values and allow partial config
     C = resolve.make_configuration(CoercionTestConfiguration(),
-        {"pipeline_name": "initial name", "none_val": type(environment), "created_val": 878232, "bytes_val": b"str"},
+        initial_value={"pipeline_name": "initial name", "none_val": type(environment), "created_val": 878232, "bytes_val": b"str"},
         accept_partial=True
     )
     # from env
@@ -587,60 +535,17 @@ def test_finds_version(environment: Any) -> None:
     global __version__
 
     v = __version__
-    C = resolve.make_configuration(SimpleConfiguration())
+    C = resolve.make_configuration(BaseConfiguration())
     assert C._version == v
     try:
         del globals()["__version__"]
-        C = resolve.make_configuration(SimpleConfiguration())
+        C = resolve.make_configuration(BaseConfiguration())
         assert not hasattr(C, "_version")
     finally:
         __version__ = v
 
 
-def test_secret(environment: Any) -> None:
-    with pytest.raises(ConfigEntryMissingException):
-        resolve.make_configuration(SecretConfiguration())
-    environment['SECRET_VALUE'] = "1"
-    C = resolve.make_configuration(SecretConfiguration())
-    assert C.secret_value == "1"
-    # mock the path to point to secret storage
-    # from dlt.common.configuration import config_utils
-    path = environ_provider.SECRET_STORAGE_PATH
-    del environment['SECRET_VALUE']
-    try:
-        # must read a secret file
-        environ_provider.SECRET_STORAGE_PATH = "./tests/common/cases/%s"
-        C = resolve.make_configuration(SecretConfiguration())
-        assert C.secret_value == "BANANA"
-
-        # set some weird path, no secret file at all
-        del environment['SECRET_VALUE']
-        environ_provider.SECRET_STORAGE_PATH = "!C:\\PATH%s"
-        with pytest.raises(ConfigEntryMissingException):
-            resolve.make_configuration(SecretConfiguration())
-
-        # set env which is a fallback for secret not as file
-        environment['SECRET_VALUE'] = "1"
-        C = resolve.make_configuration(SecretConfiguration())
-        assert C.secret_value == "1"
-    finally:
-        environ_provider.SECRET_STORAGE_PATH = path
-
-
-def test_secret_kube_fallback(environment: Any) -> None:
-    path = environ_provider.SECRET_STORAGE_PATH
-    try:
-        environ_provider.SECRET_STORAGE_PATH = "./tests/common/cases/%s"
-        C = resolve.make_configuration(SecretKubeConfiguration())
-        # all unix editors will add x10 at the end of file, it will be preserved
-        assert C.secret_kube == "kube\n"
-        # we propagate secrets back to environ and strip the whitespace
-        assert environment['SECRET_KUBE'] == "kube"
-    finally:
-        environ_provider.SECRET_STORAGE_PATH = path
-
-
-def test_coerce_values() -> None:
+def test_coercion_rules() -> None:
     with pytest.raises(ConfigEnvValueCannotBeCoercedException):
         coerce_single_value("key", "some string", int)
     assert coerce_single_value("key", "some string", str) == "some string"
@@ -664,42 +569,53 @@ def test_coerce_values() -> None:
         coerce_single_value("key", "some string", Optional[LongInteger])  # type: ignore
 
 
-def test_configuration_files(environment: Any) -> None:
-    # overwrite config file paths
-    environment["CONFIG_FILES_STORAGE_PATH"] = "./tests/common/cases/schemas/ev1/%s"
-    C = resolve.make_configuration(MockProdConfigurationVar())
-    assert C.config_files_storage_path == environment["CONFIG_FILES_STORAGE_PATH"]
-    assert C.has_configuration_file("hasn't") is False
-    assert C.has_configuration_file("event_schema.json") is True
-    assert C.get_configuration_file_path("event_schema.json") == "./tests/common/cases/schemas/ev1/event_schema.json"
-    with C.open_configuration_file("event_schema.json", "r") as f:
-        f.read()
-    with pytest.raises(ConfigFileNotFoundException):
-        C.open_configuration_file("hasn't", "r")
+def test_is_valid_hint() -> None:
+    assert is_valid_hint(Any) is True
+    assert is_valid_hint(Optional[Any]) is True
+    assert is_valid_hint(RunConfiguration) is True
+    assert is_valid_hint(Optional[RunConfiguration]) is True
+    assert is_valid_hint(TSecretValue) is True
+    assert is_valid_hint(Optional[TSecretValue]) is True
+    # in case of generics, origin will be used and args are not checked
+    assert is_valid_hint(MutableMapping[TSecretValue, Any]) is True
+    # this is valid (args not checked)
+    assert is_valid_hint(MutableMapping[TSecretValue, ConfigEnvValueCannotBeCoercedException]) is True
+    assert is_valid_hint(Wei) is True
+    # any class type, except deriving from BaseConfiguration is wrong type
+    assert is_valid_hint(ConfigEntryMissingException) is False
 
 
-def test_namespaced_configuration(environment: Any) -> None:
-    with pytest.raises(ConfigEntryMissingException) as exc_val:
-        resolve.make_configuration(NamespacedConfiguration())
-    assert list(exc_val.value.traces.keys()) == ["password"]
-    assert exc_val.value.spec_name == "NamespacedConfiguration"
-    # check trace
-    traces = exc_val.value.traces["password"]
-    # only one provider and namespace was tried
-    assert len(traces) == 1
-    assert traces[0] == LookupTrace("Environment Variables", ["DLT_TEST"], "DLT_TEST__PASSWORD", None)
+def test_configspec_auto_base_config_derivation() -> None:
 
-    # init vars work without namespace
-    C = resolve.make_configuration(NamespacedConfiguration(), initial_value={"password": "PASS"})
-    assert C.password == "PASS"
+    @configspec(init=True)
+    class AutoBaseDerivationConfiguration:
+        auto: str
 
-    # env var must be prefixed
-    environment["PASSWORD"] = "PASS"
-    with pytest.raises(ConfigEntryMissingException) as exc_val:
-        resolve.make_configuration(NamespacedConfiguration())
-    environment["DLT_TEST__PASSWORD"] = "PASS"
-    C = resolve.make_configuration(NamespacedConfiguration())
-    assert C.password == "PASS"
+    assert issubclass(AutoBaseDerivationConfiguration, BaseConfiguration)
+    assert hasattr(AutoBaseDerivationConfiguration, "auto")
+
+    assert AutoBaseDerivationConfiguration().auto is None
+    assert AutoBaseDerivationConfiguration(auto="auto").auto == "auto"
+    assert AutoBaseDerivationConfiguration(auto="auto").get_resolvable_fields() == {"auto": str}
+    # we preserve original module
+    assert AutoBaseDerivationConfiguration.__module__ == __name__
+    assert not hasattr(BaseConfiguration, "auto")
+
+
+def test_secret_value_not_secret_provider(mock_provider: MockProvider) -> None:
+    mock_provider.value = "SECRET"
+
+    # TSecretValue will fail
+    with pytest.raises(ValueNotSecretException) as py_ex:
+        resolve.make_configuration(SecretConfiguration(), namespaces=("mock",))
+    assert py_ex.value.provider_name == "Mock Provider"
+    assert py_ex.value.key == "-secret_value"
+
+    # anything derived from CredentialsConfiguration will fail
+    with pytest.raises(ValueNotSecretException) as py_ex:
+        resolve.make_configuration(WithCredentialsConfiguration(), namespaces=("mock",))
+    assert py_ex.value.provider_name == "Mock Provider"
+    assert py_ex.value.key == "-credentials"
 
 
 def coerce_single_value(key: str, value: str, hint: Type[Any]) -> Any:

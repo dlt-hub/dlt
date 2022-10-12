@@ -1,25 +1,26 @@
 import ast
-import dataclasses
 import inspect
 import sys
 import semver
+import dataclasses
 from collections.abc import Mapping as C_Mapping
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Type, TypeVar, get_origin
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Type, TypeVar, get_origin
 
 from dlt.common import json, logger
 from dlt.common.typing import TSecretValue, is_optional_type, extract_inner_type
 from dlt.common.schema.utils import coerce_type, py_type_to_sc_type
 
 from dlt.common.configuration.specs.base_configuration import BaseConfiguration, CredentialsConfiguration, configspec
-from dlt.common.configuration.inject import Container
-from dlt.common.configuration.providers.configuration import ConfigProvidersConfiguration
-from dlt.common.configuration.exceptions import (LookupTrace, ConfigEntryMissingException, ConfigurationWrongTypeException, ConfigEnvValueCannotBeCoercedException, ValueNotSecretException)
+from dlt.common.configuration.container import Container, ContainerInjectableConfiguration
+from dlt.common.configuration.specs.config_providers_configuration import ConfigProvidersListConfiguration
+from dlt.common.configuration.providers.container import ContainerProvider
+from dlt.common.configuration.exceptions import (LookupTrace, ConfigEntryMissingException, ConfigurationWrongTypeException, ConfigEnvValueCannotBeCoercedException, ValueNotSecretException, InvalidInitialValue)
 
 CHECK_INTEGRITY_F: str = "check_integrity"
 TConfiguration = TypeVar("TConfiguration", bound=BaseConfiguration)
 
 
-def make_configuration(config: TConfiguration, initial_value: Any = None, accept_partial: bool = False) -> TConfiguration:
+def make_configuration(config: TConfiguration, *, namespaces: Tuple[str, ...] = (), initial_value: Any = None, accept_partial: bool = False) -> TConfiguration:
     if not isinstance(config, BaseConfiguration):
         raise ConfigurationWrongTypeException(type(config))
 
@@ -36,7 +37,7 @@ def make_configuration(config: TConfiguration, initial_value: Any = None, accept
                 raise InvalidInitialValue(type(config), type(initial_value))
 
     try:
-        _resolve_config_fields(config, accept_partial)
+        _resolve_config_fields(config, namespaces, accept_partial)
         _check_configuration_integrity(config)
         # full configuration was resolved
         config.__is_resolved__ = True
@@ -96,7 +97,7 @@ def _add_module_version(config: BaseConfiguration) -> None:
         pass
 
 
-def _resolve_config_fields(config: BaseConfiguration, accept_partial: bool) -> None:
+def _resolve_config_fields(config: BaseConfiguration, namespaces: Tuple[str, ...], accept_partial: bool) -> None:
     fields = config.get_resolvable_fields()
     unresolved_fields: Dict[str, Sequence[LookupTrace]] = {}
 
@@ -109,15 +110,18 @@ def _resolve_config_fields(config: BaseConfiguration, accept_partial: bool) -> N
         accept_partial = accept_partial or is_optional
         # if actual value is BaseConfiguration, resolve that instance
         if isinstance(current_value, BaseConfiguration):
-            current_value = make_configuration(current_value, accept_partial=accept_partial)
+            # add key as innermost namespace
+            current_value = make_configuration(current_value, namespaces=namespaces + (key,), accept_partial=accept_partial)
         else:
             # resolve key value via active providers
-            value, traces = _resolve_single_field(key, hint, config.__namespace__)
+            value, traces = _resolve_single_field(key, hint, config.__namespace__, *namespaces)
 
             # log trace
             if logger.is_logging() and logger.log_level() == "DEBUG":
                 logger.debug(f"Field {key} with type {hint} in {type(config).__name__} {'NOT RESOLVED' if value is None else 'RESOLVED'}")
+                # print(f"Field {key} with type {hint} in {type(config).__name__} {'NOT RESOLVED' if value is None else 'RESOLVED'}")
                 for tr in traces:
+                    # print(str(tr))
                     logger.debug(str(tr))
 
             # extract hint from Optional / Literal / NewType hints
@@ -126,8 +130,12 @@ def _resolve_config_fields(config: BaseConfiguration, accept_partial: bool) -> N
             hint = get_origin(hint) or hint
             # if hint is BaseConfiguration then resolve it recursively
             if inspect.isclass(hint) and issubclass(hint, BaseConfiguration):
-                # create new instance and pass value from the provider as initial
-                current_value = make_configuration(hint(), initial_value=value or current_value, accept_partial=accept_partial)
+                if isinstance(value, BaseConfiguration):
+                    # if value is base configuration already (ie. via ContainerProvider) return it directly
+                    current_value = value
+                else:
+                    # create new instance and pass value from the provider as initial, add key to namespaces
+                    current_value = make_configuration(hint(), namespaces=namespaces + (key,), initial_value=value or current_value, accept_partial=accept_partial)
             else:
                 if value is not None:
                     current_value = deserialize_value(key, value, hint)
@@ -138,17 +146,6 @@ def _resolve_config_fields(config: BaseConfiguration, accept_partial: bool) -> N
         setattr(config, key, current_value)
     if unresolved_fields:
         raise ConfigEntryMissingException(type(config).__name__, unresolved_fields)
-
-
-# def _is_config_bounded(config: BaseConfiguration, fields: Mapping[str, type]) -> None:
-#     # TODO: here we assume all keys are taken from environ provider, that should change when we introduce more providers
-#     # environ.get_key_name(key, config.__namespace__)
-#     _unbound_attrs = [
-#         key for key in fields if getattr(config, key) is None and not is_optional_type(fields[key])
-#     ]
-
-#     if len(_unbound_attrs) > 0:
-#         raise ConfigEntryMissingException(_unbound_attrs, config.__namespace__)
 
 
 def _check_configuration_integrity(config: BaseConfiguration) -> None:
@@ -165,42 +162,69 @@ def _check_configuration_integrity(config: BaseConfiguration) -> None:
             c.__dict__[CHECK_INTEGRITY_F](config)
 
 
-def _get_resolvable_fields(config: BaseConfiguration) -> Dict[str, type]:
-    return {f.name:f.type for f in dataclasses.fields(config) if not f.name.startswith("__")}
-
-
-@configspec
-class ConfigNamespacesConfiguration(BaseConfiguration):
+@configspec(init=True)
+class ConfigNamespacesConfiguration(ContainerInjectableConfiguration):
     pipeline_name: Optional[str]
-    namespaces: List[str]
-
-    def __init__(self) -> None:
-        super().__init__()
-        self.namespaces = []
+    namespaces: List[str] = dataclasses.field(default_factory=lambda: [])
 
 
-def _resolve_single_field(key: str, hint: Type[Any], namespace: str, *namespaces: str) -> Tuple[Optional[Any], List[LookupTrace]]:
+def _resolve_single_field(key: str, hint: Type[Any], config_namespace: str, *namespaces: str) -> Tuple[Optional[Any], List[LookupTrace]]:
+    container = Container()
     # get providers from container
-    providers = Container()[ConfigProvidersConfiguration].providers
+    providers = container[ConfigProvidersListConfiguration].providers
     # get additional namespaces to look in from container
-    context_namespaces = Container()[ConfigNamespacesConfiguration].namespaces
+    ctx_namespaces = container[ConfigNamespacesConfiguration]
+    # pipeline_name = ctx_namespaces.pipeline_name
 
     # start looking from the top provider with most specific set of namespaces first
     traces: List[LookupTrace] = []
     value = None
-    ns = [*namespaces, *context_namespaces]
-    for provider in providers:
-        while True:
-            # first namespace always present
-            _ns_t = (namespace, *ns) if namespace else ns
-            value, ns_key = provider.get_value(key, hint, *_ns_t)
-            # create trace
-            traces.append(LookupTrace(provider.name, _ns_t, ns_key, value))
-            # if secret is obtained from non secret provider, we must fail
-            if value is not None and not provider.is_secret and (hint is TSecretValue or (inspect.isclass(hint) and issubclass(hint, CredentialsConfiguration))):
-                raise ValueNotSecretException(provider.name, ns_key)
-            if len(ns) == 0 or value is not None:
-                break
-            ns.pop()
+
+    def look_namespaces(pipeline_name: str = None) -> Any:
+        for provider in providers:
+            if provider.supports_namespaces:
+                ns = [*ctx_namespaces.namespaces, *namespaces]
+            else:
+                # if provider does not support namespaces and pipeline name is set then ignore it
+                if pipeline_name:
+                    continue
+                else:
+                    # pass empty namespaces
+                    ns = []
+
+            value = None
+            while True:
+                if pipeline_name or config_namespace:
+                    full_ns = ns.copy()
+                    # pipeline, when provided, is the most outer and always present
+                    if pipeline_name:
+                        full_ns.insert(0, pipeline_name)
+                    # config namespace, when provided, is innermost and always present
+                    if config_namespace and provider.supports_namespaces:
+                        full_ns.append(config_namespace)
+                else:
+                    full_ns = ns
+                value, ns_key = provider.get_value(key, hint, *full_ns)
+                # create trace, ignore container provider
+                if provider.name != ContainerProvider.NAME:
+                    traces.append(LookupTrace(provider.name, full_ns, ns_key, value))
+                # if secret is obtained from non secret provider, we must fail
+                if value is not None and not provider.supports_secrets and (hint is TSecretValue or (inspect.isclass(hint) and issubclass(hint, CredentialsConfiguration))):
+                    raise ValueNotSecretException(provider.name, ns_key)
+                if value is not None:
+                    # value found, ignore other providers
+                    return value
+                if len(ns) == 0:
+                    # check next provider
+                    break
+                # pop optional namespaces for less precise lookup
+                ns.pop()
+
+    # first try with pipeline name as namespace, if present
+    if ctx_namespaces.pipeline_name:
+        value = look_namespaces(ctx_namespaces.pipeline_name)
+    # then without it
+    if value is None:
+        value = look_namespaces()
 
     return value, traces
