@@ -1,4 +1,4 @@
-from typing import List, IO, Any
+from typing import List, IO, Any, Optional
 
 from dlt.common.utils import uniq_id
 from dlt.common.typing import TDataItem
@@ -7,10 +7,13 @@ from dlt.common.data_writers import TLoaderFileFormat
 from dlt.common.data_writers.exceptions import BufferedDataWriterClosed, InvalidFileNameTemplateException
 from dlt.common.data_writers.writers import DataWriter
 from dlt.common.schema.typing import TTableSchemaColumns
+from dlt.common.configuration import with_config
 
 
 class BufferedDataWriter:
-    def __init__(self, file_format: TLoaderFileFormat, file_name_template: str, buffer_max_items: int = 5000, file_max_items: int = None, file_max_bytes: int = None):
+
+    @with_config(only_kw=True, namespaces=("data_writer",))
+    def __init__(self, file_format: TLoaderFileFormat, file_name_template: str, *, buffer_max_items: int = 5000, file_max_items: int = None, file_max_bytes: int = None):
         self.file_format = file_format
         self._file_format_spec = DataWriter.data_format_from_file_format(self.file_format)
         # validate if template has correct placeholders

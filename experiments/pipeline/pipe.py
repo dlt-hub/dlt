@@ -5,6 +5,8 @@ from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from threading import Thread
 from typing import Optional, Sequence, Union, Callable, Iterable, Iterator, List, NamedTuple, Awaitable, Tuple, Type, TYPE_CHECKING
+from dlt.common.configuration.inject import with_config
+from dlt.common.configuration.specs.base_configuration import BaseConfiguration, configspec
 
 from dlt.common.typing import TDataItem
 from dlt.common.sources import TDirectDataItem, TResolvableDataItem
@@ -190,7 +192,14 @@ class Pipe:
 
 class PipeIterator(Iterator[PipeItem]):
 
-    def __init__(self, max_parallel_items: int = 100, worker_threads: int = 5, futures_poll_interval: float = 0.01) -> None:
+    @configspec
+    class PipeIteratorConfiguration:
+        max_parallel_items: int = 100
+        worker_threads: int = 5
+        futures_poll_interval: float = 0.01
+
+
+    def __init__(self, max_parallel_items: int, worker_threads, futures_poll_interval: float) -> None:
         self.max_parallel_items = max_parallel_items
         self.worker_threads = worker_threads
         self.futures_poll_interval = futures_poll_interval
@@ -202,7 +211,8 @@ class PipeIterator(Iterator[PipeItem]):
         self._futures: List[FuturePipeItem] = []
 
     @classmethod
-    def from_pipe(cls, pipe: Pipe, max_parallelism: int = 100, worker_threads: int = 5, futures_poll_interval: float = 0.01) -> "PipeIterator":
+    @with_config(spec=PipeIteratorConfiguration)
+    def from_pipe(cls, pipe: Pipe, *, max_parallelism: int = 100, worker_threads: int = 5, futures_poll_interval: float = 0.01) -> "PipeIterator":
         if pipe.parent:
             pipe = pipe.full_pipe()
         # head must be iterator
@@ -214,7 +224,8 @@ class PipeIterator(Iterator[PipeItem]):
         return extract
 
     @classmethod
-    def from_pipes(cls, pipes: Sequence[Pipe], yield_parents: bool = True, max_parallelism: int = 100, worker_threads: int = 5, futures_poll_interval: float = 0.01) -> "PipeIterator":
+    @with_config(spec=PipeIteratorConfiguration)
+    def from_pipes(cls, pipes: Sequence[Pipe], yield_parents: bool = True, *, max_parallelism: int = 100, worker_threads: int = 5, futures_poll_interval: float = 0.01) -> "PipeIterator":
         extract = cls(max_parallelism, worker_threads, futures_poll_interval)
         # clone all pipes before iterating (recursively) as we will fork them and this add steps
         pipes = PipeIterator.clone_pipes(pipes)
