@@ -14,7 +14,7 @@ class EnvironProvider(Provider):
     def get_key_name(key: str, *namespaces: str) -> str:
         # env key is always upper case
         if namespaces:
-            namespaces = filter(lambda x: bool(x), namespaces)
+            namespaces = filter(lambda x: bool(x), namespaces)  # type: ignore
             env_key = "__".join((*namespaces, key))
         else:
             env_key = key
@@ -50,5 +50,9 @@ class EnvironProvider(Provider):
         return environ.get(key, None), key
 
     @property
-    def is_secret(self) -> bool:
+    def supports_secrets(self) -> bool:
+        return True
+
+    @property
+    def supports_namespaces(self) -> bool:
         return True
