@@ -2,7 +2,7 @@ import re
 import inspect
 from makefun import wraps
 from types import ModuleType
-from typing import Callable, List, Dict, Type, Any, Optional, Tuple, overload
+from typing import Callable, Dict, Type, Any, Optional, Tuple, TypeVar, overload
 from inspect import Signature, Parameter
 
 from dlt.common.typing import StrAny, TFun, AnyFun
@@ -11,6 +11,8 @@ from dlt.common.configuration.specs.base_configuration import BaseConfiguration,
 
 # [^.^_]+ splits by . or _
 _SLEEPING_CAT_SPLIT = re.compile("[^.^_]+")
+_LAST_DLT_CONFIG = "_last_dlt_config"
+TConfiguration = TypeVar("TConfiguration", bound=BaseConfiguration)
 
 
 @overload
@@ -33,44 +35,54 @@ def with_config(func: Optional[AnyFun] = None, /, spec: Type[BaseConfiguration] 
     def decorator(f: TFun) -> TFun:
         SPEC: Type[BaseConfiguration] = None
         sig: Signature = inspect.signature(f)
-        kwargs_par = next((p for p in sig.parameters.values() if p.kind == Parameter.VAR_KEYWORD), None)
+        kwargs_arg = next((p for p in sig.parameters.values() if p.kind == Parameter.VAR_KEYWORD), None)
+        spec_arg: Parameter = None
 
         if spec is None:
             SPEC = _spec_from_signature(_get_spec_name_from_f(f), inspect.getmodule(f), sig, only_kw)
         else:
             SPEC = spec
 
-        # for all positional parameters that do not have default value, set default
         for p in sig.parameters.values():
+            # for all positional parameters that do not have default value, set default
             if hasattr(SPEC, p.name) and p.default == Parameter.empty:
                 p._default = None  # type: ignore
+            if p.annotation is SPEC:
+                # if any argument has type SPEC then us it to take initial value
+                spec_arg = p
 
         @wraps(f, new_sig=sig)
         def _wrap(*args: Any, **kwargs: Any) -> Any:
-            # for calls providing all parameters to the func, configuration may not be resolved
-            # if len(args) + len(kwargs) == len(sig.parameters):
-            #     return f(*args, **kwargs)
-
             # bind parameters to signature
             bound_args = sig.bind_partial(*args, **kwargs)
             bound_args.apply_defaults()
-            # if namespace derivation function was provided then call it
-            nonlocal namespaces
-            if namespace_f:
-                namespaces = (namespace_f(bound_args.arguments), )
-            # namespaces may be a string
-            if isinstance(namespaces, str):
-                namespaces = (namespaces,)
-            # resolve SPEC
-            config = make_configuration(SPEC(), namespaces=namespaces, initial_value=bound_args.arguments)
+            # for calls containing resolved spec in the kwargs, we do not need to resolve again
+            config: BaseConfiguration = None
+            if _LAST_DLT_CONFIG in kwargs:
+                config = last_config(**kwargs)
+            else:
+                # if namespace derivation function was provided then call it
+                nonlocal namespaces
+                if namespace_f:
+                    namespaces = (namespace_f(bound_args.arguments), )
+                # namespaces may be a string
+                if isinstance(namespaces, str):
+                    namespaces = (namespaces,)
+                # resolve SPEC
+                if spec_arg:
+                    config = bound_args.arguments.get(spec_arg.name, None)
+                config = make_configuration(config or SPEC(), namespaces=namespaces, initial_value=bound_args.arguments)
             resolved_params = dict(config)
             # overwrite or add resolved params
             for p in sig.parameters.values():
                 if p.name in resolved_params:
                     bound_args.arguments[p.name] = resolved_params.pop(p.name)
+                if p.annotation is SPEC:
+                    bound_args.arguments[p.name] = config
             # pass all other config parameters into kwargs if present
-            if kwargs_par is not None:
-                bound_args.arguments[kwargs_par.name].update(resolved_params)
+            if kwargs_arg is not None:
+                bound_args.arguments[kwargs_arg.name].update(resolved_params)
+                bound_args.arguments[kwargs_arg.name][_LAST_DLT_CONFIG] = config
             # call the function with injected config
             return f(*bound_args.args, **bound_args.kwargs)
 
@@ -86,6 +98,10 @@ def with_config(func: Optional[AnyFun] = None, /, spec: Type[BaseConfiguration] 
 
     # We're called as @with_config without parens.
     return decorator(func)
+
+
+def last_config(**kwargs: Any) -> TConfiguration:
+    return kwargs[_LAST_DLT_CONFIG]
 
 
 def _get_spec_name_from_f(f: AnyFun) -> str:

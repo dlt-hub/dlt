@@ -14,12 +14,14 @@ def pytest_configure(config):
     load_volume_configuration.LoadVolumeConfiguration.load_volume_path = os.path.join(test_storage_root, "load")
 
     normalize_volume_configuration.NormalizeVolumeConfiguration.normalize_volume_path = os.path.join(test_storage_root, "normalize")
-    if hasattr(normalize_volume_configuration.NormalizeVolumeConfiguration, "__init__"):
-        # delete __init__, otherwise it will not be recreated by dataclass
-        delattr(normalize_volume_configuration.NormalizeVolumeConfiguration, "__init__")
-        normalize_volume_configuration.NormalizeVolumeConfiguration = dataclasses.dataclass(normalize_volume_configuration.NormalizeVolumeConfiguration, init=True, repr=False)
+    # delete __init__, otherwise it will not be recreated by dataclass
+    delattr(normalize_volume_configuration.NormalizeVolumeConfiguration, "__init__")
+    normalize_volume_configuration.NormalizeVolumeConfiguration = dataclasses.dataclass(normalize_volume_configuration.NormalizeVolumeConfiguration, init=True, repr=False)
 
     schema_volume_configuration.SchemaVolumeConfiguration.schema_volume_path = os.path.join(test_storage_root, "schemas")
+    delattr(schema_volume_configuration.SchemaVolumeConfiguration, "__init__")
+    schema_volume_configuration.SchemaVolumeConfiguration = dataclasses.dataclass(schema_volume_configuration.SchemaVolumeConfiguration, init=True, repr=False)
+
 
     assert run_configuration.RunConfiguration.config_files_storage_path == os.path.join(test_storage_root, "config/%s")
     assert run_configuration.RunConfiguration().config_files_storage_path == os.path.join(test_storage_root, "config/%s")

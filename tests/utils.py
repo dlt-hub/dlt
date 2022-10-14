@@ -6,9 +6,11 @@ import pytest
 import logging
 from os import environ
 
-from dlt.common.configuration.providers import EnvironProvider
+from dlt.common.configuration.container import Container
+from dlt.common.configuration.providers import EnvironProvider, DictionaryProvider
 from dlt.common.configuration.resolve import make_configuration, serialize_value
 from dlt.common.configuration.specs import BaseConfiguration, RunConfiguration
+from dlt.common.configuration.specs.config_providers_configuration import ConfigProvidersListConfiguration
 from dlt.common.logger import init_logging_from_config
 from dlt.common.storages import FileStorage
 from dlt.common.schema import Schema
@@ -17,6 +19,12 @@ from dlt.common.typing import StrAny
 
 
 TEST_STORAGE_ROOT = "_storage"
+
+# add test dictionary provider
+TEST_DICT_CONFIG_PROVIDER = DictionaryProvider()
+providers_config = Container()[ConfigProvidersListConfiguration]
+providers_config.providers.append(TEST_DICT_CONFIG_PROVIDER)
+
 
 
 class MockHttpResponse():
@@ -69,12 +77,10 @@ def clean_test_storage(init_normalize: bool = False, init_loader: bool = False) 
     storage.create_folder(".")
     if init_normalize:
         from dlt.common.storages import NormalizeStorage
-        from dlt.common.configuration.specs import NormalizeVolumeConfiguration
-        NormalizeStorage(True, NormalizeVolumeConfiguration)
+        NormalizeStorage(True)
     if init_loader:
         from dlt.common.storages import LoadStorage
-        from dlt.common.configuration.specs import LoadVolumeConfiguration
-        LoadStorage(True, LoadVolumeConfiguration, "jsonl", LoadStorage.ALL_SUPPORTED_FILE_FORMATS)
+        LoadStorage(True, "jsonl", LoadStorage.ALL_SUPPORTED_FILE_FORMATS)
     return storage
 
 
@@ -107,3 +113,4 @@ skipifspawn = pytest.mark.skipif(
 skipifpypy = pytest.mark.skipif(
     platform.python_implementation() == "PyPy", reason="won't run in PyPy interpreter"
 )
+

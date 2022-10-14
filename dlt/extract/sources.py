@@ -10,7 +10,7 @@ from dlt.common.sources import TFunDataItemDynHint, TDirectDataItem
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import TPartialTableSchema, TTableSchema, TTableSchemaColumns, TWriteDisposition
 
-from experiments.pipeline.pipe import FilterItem, Pipe, CreatePipeException, PipeIterator
+from dlt.extract.pipe import FilterItem, Pipe, CreatePipeException, PipeIterator
 
 
 class TTableSchemaTemplate(TypedDict, total=False):

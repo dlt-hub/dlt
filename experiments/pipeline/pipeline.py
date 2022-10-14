@@ -31,7 +31,7 @@ from dlt.load import Load
 
 from experiments.pipeline.configuration import get_config
 from experiments.pipeline.exceptions import PipelineConfigMissing, PipelineConfiguredException, MissingDependencyException, PipelineStepFailed
-from experiments.pipeline.sources import DltSource, TResolvableDataItem
+from dlt.extract.sources import DltSource, TResolvableDataItem
 
 
 TConnectionString = NewType("TConnectionString",  str)
@@ -53,62 +53,22 @@ class TPipelineState(TypedDict):
 #     sources: Dict[str, TSourceState]
 
 
-class PipelineConfiguration(RunConfiguration):
-    WORKING_DIR: Optional[str] = None
-    PIPELINE_SECRET: Optional[TSecretValue] = None
-    DROP_EXISTING_DATA: bool = False
-
-    def check_integrity(self) -> None:
-        if self.PIPELINE_SECRET:
-            self.PIPELINE_SECRET = uniq_id()
-
-
 class Pipeline:
 
-    ACTIVE_INSTANCE: "Pipeline" = None
     STATE_FILE = "state.json"
 
-    def __new__(cls: Type["Pipeline"]) -> "Pipeline":
-        cls.ACTIVE_INSTANCE = super().__new__(cls)
-        return cls.ACTIVE_INSTANCE
-
-    def __init__(self):
-        # pipeline is not configured yet
-        # self.is_configured = False
-        # self.pipeline_name: str = None
-        # self.pipeline_secret: str = None
-        # self.default_schema_name: str = None
-        # self.default_dataset_name: str = None
-        # self.working_dir: str = None
-        # self.is_transient: bool = None
-        self.CONFIG: Type[PipelineConfiguration] = None
+    def __init__(self, pipeline_name: str, working_dir: str, pipeline_secret: TSecretValue, runtime: RunConfiguration):
+        self.pipeline_name = pipeline_name
+        self.working_dir = working_dir
+        self.pipeline_secret = pipeline_secret
+        self.runtime_config = runtime
         self.root_folder: str = None
 
-        self._initial_values: DictStrAny = {}
+        # self._initial_values: DictStrAny = {}
         self._state: TPipelineState = {}
         self._pipeline_storage: FileStorage = None
         self._extractor_storage: ExtractorStorageBase = None
         self._schema_storage: LiveSchemaStorage = None
-
-    def only_not_configured(f: TFun) -> TFun:
-
-        @wraps(f)
-        def _wrap(self: "Pipeline", *args: Any, **kwargs: Any) -> Any:
-            if self.CONFIG:
-                raise PipelineConfiguredException(f.__name__)
-            return f(self, *args, **kwargs)
-
-        return _wrap
-
-    def maybe_default_config(f: TFun) -> TFun:
-
-        @wraps(f)
-        def _wrap(self: "Pipeline", *args: Any, **kwargs: Any) -> Any:
-            if not self.CONFIG:
-                self.configure()
-            return f(self, *args, **kwargs)
-
-        return _wrap
 
     def with_state_sync(f: TFun) -> TFun:
 
@@ -130,41 +90,14 @@ class Pipeline:
 
         return _wrap
 
-
-    @overload
-    def configure(self,
-        pipeline_name: str = None,
-        working_dir: str = None,
-        pipeline_secret: TSecretValue = None,
-        drop_existing_data: bool = False,
-        import_schema_path: str = None,
-        export_schema_path: str = None,
-        destination_name: str = None,
-        log_level: str = "INFO"
-    ) -> None:
-        ...
-
-
-    @only_not_configured
     @with_state_sync
-    def configure(self, **kwargs: Any) -> None:
-        # keep the locals to be able to initialize configs at any time
-        self._initial_values.update(**kwargs)
-        # resolve pipeline configuration
-        self.CONFIG = self._get_config(PipelineConfiguration)
-
-        # use system temp folder if not specified
-        if not self.CONFIG.WORKING_DIR:
-            self.CONFIG.WORKING_DIR = tempfile.gettempdir()
-        self.root_folder = os.path.join(self.CONFIG.WORKING_DIR, self.CONFIG.pipeline_name)
-        self._set_common_initial_values()
+    def _configure(self) -> None:
+        # compute the folder that keeps all of the pipeline state
+        FileStorage.validate_file_name_component(self.pipeline_name)
+        self.root_folder = os.path.join(self.working_dir, self.pipeline_name)
 
         # create pipeline working dir
         self._pipeline_storage = FileStorage(self.root_folder, makedirs=False)
-
-        # remove existing pipeline if requested
-        if self._pipeline_storage.has_folder(".") and self.CONFIG.drop_existing_data:
-            self._pipeline_storage.delete_folder(".")
 
         # restore pipeline if folder exists and contains state
         if self._pipeline_storage.has_file(Pipeline.STATE_FILE):
@@ -173,7 +106,7 @@ class Pipeline:
             self._create_pipeline()
 
         # create schema storage
-        self._schema_storage = LiveSchemaStorage(self._get_config(SchemaVolumeConfiguration), makedirs=True)
+        self._schema_storage = LiveSchemaStorage(makedirs=True)
         # create extractor storage
         self._extractor_storage = ExtractorStorageBase(
             "1.0.0",
@@ -183,6 +116,11 @@ class Pipeline:
         )
 
         initialize_runner(self.CONFIG)
+
+
+    def drop() -> "Pipeline":
+        """Deletes existing pipeline state, schemas and drops datasets at the destination if present"""
+        pass
 
 
     def _get_config(self, spec: Type[TAny], accept_partial: bool = False) -> Type[TAny]:
@@ -270,7 +208,7 @@ class Pipeline:
             "POOL_TYPE": "thread" if workers == 1 else "process"
         })
         try:
-            ec = runner.run_pool(normalize.CONFIG, normalize)
+            ec = runner.run_pool(normalize.config, normalize)
             # in any other case we raise if runner exited with status failed
             if runner.LAST_RUN_METRICS.has_failed:
                 raise PipelineStepFailed("normalize", self.last_run_exception, runner.LAST_RUN_METRICS)
@@ -302,7 +240,7 @@ class Pipeline:
         # then load
         print(locals())
         load = self._configure_load(locals(), credentials)
-        runner.run_pool(load.CONFIG, load)
+        runner.run_pool(load.config, load)
         if runner.LAST_RUN_METRICS.has_failed:
             raise PipelineStepFailed("load", self.last_run_exception, runner.LAST_RUN_METRICS)
 

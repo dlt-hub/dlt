@@ -8,8 +8,8 @@ from dlt.common.storages import NormalizeStorage, DataItemStorage
 from dlt.common.configuration.specs import NormalizeVolumeConfiguration
 
 
-from experiments.pipeline.pipe import PipeIterator
-from experiments.pipeline.sources import DltResource, DltSource
+from dlt.extract.pipe import PipeIterator
+from dlt.extract.sources import DltResource, DltSource
 
 
 class ExtractorStorage(DataItemStorage, NormalizeStorage):

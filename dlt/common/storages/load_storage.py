@@ -1,10 +1,11 @@
 import os
 from os.path import join
 from pathlib import Path
-from typing import Iterable, NamedTuple, Literal, Optional, Sequence, Set, get_args
+from typing import Iterable, NamedTuple, Literal, Optional, Sequence, Set, get_args, overload
 
 from dlt.common import json, pendulum
-from dlt.common.typing import DictStrAny, StrAny
+from dlt.common.configuration.inject import with_config
+from dlt.common.typing import ConfigValue, DictStrAny, StrAny
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.data_writers import TLoaderFileFormat, DataWriter
 from dlt.common.configuration.specs import LoadVolumeConfiguration
@@ -41,23 +42,32 @@ class LoadStorage(DataItemStorage, VersionedStorage):
 
     ALL_SUPPORTED_FILE_FORMATS: Set[TLoaderFileFormat] = set(get_args(TLoaderFileFormat))
 
+    @overload
+    def __init__(self, is_owner: bool, preferred_file_format: TLoaderFileFormat, supported_file_formats: Iterable[TLoaderFileFormat], config: LoadVolumeConfiguration) -> None:
+        ...
+
+    @overload
+    def __init__(self, is_owner: bool, preferred_file_format: TLoaderFileFormat, supported_file_formats: Iterable[TLoaderFileFormat], config: LoadVolumeConfiguration = ConfigValue) -> None:
+        ...
+
+    @with_config(spec=LoadVolumeConfiguration, namespaces=("load",))
     def __init__(
         self,
         is_owner: bool,
-        C: LoadVolumeConfiguration,
         preferred_file_format: TLoaderFileFormat,
-        supported_file_formats: Iterable[TLoaderFileFormat]
+        supported_file_formats: Iterable[TLoaderFileFormat],
+        config: LoadVolumeConfiguration = ConfigValue
     ) -> None:
         if not LoadStorage.ALL_SUPPORTED_FILE_FORMATS.issuperset(supported_file_formats):
             raise TerminalValueError(supported_file_formats)
         if preferred_file_format not in supported_file_formats:
             raise TerminalValueError(preferred_file_format)
         self.supported_file_formats = supported_file_formats
-        self.delete_completed_jobs = C.delete_completed_jobs
+        self.config = config
         super().__init__(
             preferred_file_format,
             LoadStorage.STORAGE_VERSION,
-            is_owner, FileStorage(C.load_volume_path, "t", makedirs=is_owner)
+            is_owner, FileStorage(config.load_volume_path, "t", makedirs=is_owner)
         )
         if is_owner:
             self.initialize_storage()
@@ -181,7 +191,7 @@ class LoadStorage(DataItemStorage, VersionedStorage):
         load_path = self.get_package_path(load_id)
         has_failed_jobs = len(self.list_failed_jobs(load_id)) > 0
         # delete load that does not contain failed jobs
-        if self.delete_completed_jobs and not has_failed_jobs:
+        if self.config.delete_completed_jobs and not has_failed_jobs:
             self.storage.delete_folder(load_path, recursively=True)
         else:
             completed_path = self.get_completed_package_path(load_id)

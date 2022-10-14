@@ -1,10 +1,12 @@
-from typing import List, Sequence, NamedTuple
+from typing import List, Sequence, NamedTuple, overload
 from itertools import groupby
 from pathlib import Path
 
 from dlt.common.storages.file_storage import FileStorage
+from dlt.common.configuration import with_config
 from dlt.common.configuration.specs import NormalizeVolumeConfiguration
 from dlt.common.storages.versioned_storage import VersionedStorage
+from dlt.common.typing import ConfigValue
 
 
 class TParsedNormalizeFileName(NamedTuple):
@@ -18,9 +20,18 @@ class NormalizeStorage(VersionedStorage):
     STORAGE_VERSION = "1.0.0"
     EXTRACTED_FOLDER: str = "extracted"  # folder within the volume where extracted files to be normalized are stored
 
-    def __init__(self, is_owner: bool, C: NormalizeVolumeConfiguration) -> None:
-        super().__init__(NormalizeStorage.STORAGE_VERSION, is_owner, FileStorage(C.normalize_volume_path, "t", makedirs=is_owner))
-        self.CONFIG = C
+    @overload
+    def __init__(self, is_owner: bool, config: NormalizeVolumeConfiguration) -> None:
+        ...
+
+    @overload
+    def __init__(self, is_owner: bool, config: NormalizeVolumeConfiguration = ConfigValue) -> None:
+        ...
+
+    @with_config(spec=NormalizeVolumeConfiguration, namespaces=("normalize",))
+    def __init__(self, is_owner: bool, config: NormalizeVolumeConfiguration = ConfigValue) -> None:
+        super().__init__(NormalizeStorage.STORAGE_VERSION, is_owner, FileStorage(config.normalize_volume_path, "t", makedirs=is_owner))
+        self.config = config
         if is_owner:
             self.initialize_storage()
 

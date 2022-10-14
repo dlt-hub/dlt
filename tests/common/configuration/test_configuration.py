@@ -14,9 +14,6 @@ from dlt.common.configuration.providers import environ as environ_provider
 from tests.utils import preserve_environ, add_config_dict_to_env
 from tests.common.configuration.utils import MockProvider, WithCredentialsConfiguration, WrongConfiguration, SecretConfiguration, NamespacedConfiguration, environment, mock_provider
 
-# used to test version
-__version__ = "1.0.5"
-
 COERCIONS = {
     'str_val': 'test string',
     'int_val': 12345,
@@ -298,18 +295,13 @@ def test_configuration_is_mutable_mapping(environment: Any) -> None:
     for key in C:
         assert C[key] == expected_dict[key]
     # version is present as attr but not present in dict
-    assert hasattr(C, "_version")
     assert hasattr(C, "__is_resolved__")
     assert hasattr(C, "__namespace__")
-
-    with pytest.raises(KeyError):
-        C["_version"]
 
     # set ops
     # update supported and non existing attributes are ignored
     C.update({"pipeline_name": "old pipe", "__version": "1.1.1"})
     assert C.pipeline_name == "old pipe" == C["pipeline_name"]
-    assert C._version != "1.1.1"
 
     # delete is not supported
     with pytest.raises(KeyError):
@@ -321,9 +313,6 @@ def test_configuration_is_mutable_mapping(environment: Any) -> None:
     # setting supported
     C["pipeline_name"] = "new pipe"
     assert C.pipeline_name == "new pipe" == C["pipeline_name"]
-
-    with pytest.raises(KeyError):
-        C["_version"] = "1.1.1"
 
 
 def test_fields_with_no_default_to_null(environment: Any) -> None:
@@ -529,20 +518,6 @@ def test_accept_partial(environment: Any) -> None:
     # partial resolution
     assert not C.__is_resolved__
     assert C.is_partial()
-
-
-def test_finds_version(environment: Any) -> None:
-    global __version__
-
-    v = __version__
-    C = resolve.make_configuration(BaseConfiguration())
-    assert C._version == v
-    try:
-        del globals()["__version__"]
-        C = resolve.make_configuration(BaseConfiguration())
-        assert not hasattr(C, "_version")
-    finally:
-        __version__ = v
 
 
 def test_coercion_rules() -> None:

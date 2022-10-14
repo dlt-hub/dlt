@@ -132,6 +132,30 @@ def test_set_defaults_for_positional_args() -> None:
     pass
 
 
+def test_inject_spec_remainder_in_kwargs() -> None:
+    # if the wrapped func contains kwargs then all the fields from spec without matching func args must be injected in kwargs
+    pass
+
+
+def test_inject_spec_in_kwargs() -> None:
+    # the resolved spec is injected in kwargs
+    pass
+
+
+def test_resolved_spec_in_kwargs_pass_through() -> None:
+    # if last_config is in kwargs then use it and do not resolve it anew
+    pass
+
+
+def test_inject_spec_into_argument_with_spec_type() -> None:
+    # if signature contains argument with type of SPEC, it gets injected there
+    pass
+
+
+def test_initial_spec_from_arg_with_spec_type() -> None:
+    # if signature contains argument with type of SPEC, get its value to init SPEC (instead of calling the constructor())
+    pass
+
 
 def test_auto_derived_spec_type_name() -> None:
 

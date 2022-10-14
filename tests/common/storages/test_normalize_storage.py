@@ -28,19 +28,19 @@ def test_build_extracted_file_name() -> None:
 
 def test_full_migration_path() -> None:
     # create directory structure
-    s = NormalizeStorage(True, NormalizeVolumeConfiguration)
+    s = NormalizeStorage(True)
     # overwrite known initial version
     write_version(s.storage, "1.0.0")
     # must be able to migrate to current version
-    s = NormalizeStorage(True, NormalizeVolumeConfiguration)
+    s = NormalizeStorage(True)
     assert s.version == NormalizeStorage.STORAGE_VERSION
 
 
 def test_unknown_migration_path() -> None:
     # create directory structure
-    s = NormalizeStorage(True, NormalizeVolumeConfiguration)
+    s = NormalizeStorage(True)
     # overwrite known initial version
     write_version(s.storage, "10.0.0")
     # must be able to migrate to current version
     with pytest.raises(NoMigrationPathException):
-        NormalizeStorage(False, NormalizeVolumeConfiguration)
+        NormalizeStorage(False)

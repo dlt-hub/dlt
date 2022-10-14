@@ -19,25 +19,25 @@ from tests.common.utils import load_yml_case, yml_case_path
 
 @pytest.fixture
 def storage() -> SchemaStorage:
-    return init_storage()
+    return init_storage(SchemaVolumeConfiguration())
 
 
 @pytest.fixture
 def synced_storage() -> SchemaStorage:
     # will be created in /schemas
-    return init_storage({"import_schema_path": TEST_STORAGE_ROOT + "/import", "export_schema_path": TEST_STORAGE_ROOT + "/import"})
+    return init_storage(SchemaVolumeConfiguration(import_schema_path=TEST_STORAGE_ROOT + "/import", export_schema_path=TEST_STORAGE_ROOT + "/import"))
 
 
 @pytest.fixture
 def ie_storage() -> SchemaStorage:
     # will be created in /schemas
-    return init_storage({"import_schema_path": TEST_STORAGE_ROOT + "/import", "export_schema_path": TEST_STORAGE_ROOT + "/export"})
+    return init_storage(SchemaVolumeConfiguration(import_schema_path=TEST_STORAGE_ROOT + "/import", export_schema_path=TEST_STORAGE_ROOT + "/export"))
 
 
-def init_storage(initial: DictStrAny = None) -> SchemaStorage:
-    C = make_configuration(SchemaVolumeConfiguration(), initial_value=initial)
+def init_storage(C: SchemaVolumeConfiguration) -> SchemaStorage:
     # use live schema storage for test which must be backward compatible with schema storage
     s = LiveSchemaStorage(C, makedirs=True)
+    assert C is s.C
     if C.export_schema_path:
         os.makedirs(C.export_schema_path, exist_ok=True)
     if C.import_schema_path:

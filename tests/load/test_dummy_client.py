@@ -17,7 +17,7 @@ from dlt.load.client_base import JobClientBase, LoadEmptyJob, LoadJob
 
 from dlt.load.configuration import configuration, LoaderConfiguration
 from dlt.load.dummy import client
-from dlt.load import Load, __version__
+from dlt.load import Load
 from dlt.load.dummy.configuration import DummyClientConfiguration
 
 from tests.utils import clean_test_storage, init_logger
@@ -41,10 +41,10 @@ def logger_autouse() -> None:
 
 def test_gen_configuration() -> None:
     load = setup_loader()
-    assert LoaderConfiguration in type(load.CONFIG).mro()
+    assert LoaderConfiguration in type(load.config).mro()
     # mock missing config values
     load = setup_loader(initial_values={"load_volume_path": LoaderConfiguration.load_volume_path})
-    assert LoaderConfiguration in type(load.CONFIG).mro()
+    assert LoaderConfiguration in type(load.config).mro()
 
 
 def test_spool_job_started() -> None:
@@ -221,7 +221,7 @@ def test_failed_loop() -> None:
 
 def test_completed_loop_with_delete_completed() -> None:
     load = setup_loader(initial_client_values={"completed_prob": 1.0})
-    load.CONFIG.delete_completed_jobs = True
+    load.config.delete_completed_jobs = True
     load.load_storage = load.create_storage(is_storage_owner=False)
     assert_complete_job(load, load.load_storage.storage, should_delete_completed=True)
 
@@ -276,10 +276,6 @@ def test_exceptions() -> None:
         assert True
     else:
         raise AssertionError()
-
-
-def test_version() -> None:
-    assert configuration({"client_type": "dummy"})._version == __version__
 
 
 def assert_complete_job(load: Load, storage: FileStorage, should_delete_completed: bool = False) -> None:

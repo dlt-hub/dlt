@@ -7,8 +7,6 @@ from dlt.common.configuration import make_configuration, configspec
 from dlt.common.configuration.providers import EnvironProvider
 from dlt.common.configuration.specs import PoolRunnerConfiguration, TPoolType, PostgresCredentials, GcpClientCredentials
 
-from . import __version__
-
 
 @configspec
 class DBTRunnerConfiguration(PoolRunnerConfiguration):

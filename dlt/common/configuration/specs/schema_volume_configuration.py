@@ -5,7 +5,7 @@ from dlt.common.configuration.specs.base_configuration import BaseConfiguration,
 TSchemaFileFormat = Literal["json", "yaml"]
 
 
-@configspec
+@configspec(init=True)
 class SchemaVolumeConfiguration(BaseConfiguration):
     schema_volume_path: str = None  # path to volume with default schemas
     import_schema_path: Optional[str] = None  # import schema from external location

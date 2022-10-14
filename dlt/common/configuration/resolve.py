@@ -1,7 +1,5 @@
 import ast
 import inspect
-import sys
-import semver
 import dataclasses
 from collections.abc import Mapping as C_Mapping
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Type, TypeVar, get_origin
@@ -44,7 +42,7 @@ def make_configuration(config: TConfiguration, *, namespaces: Tuple[str, ...] = 
     except ConfigEntryMissingException:
         if not accept_partial:
             raise
-    _add_module_version(config)
+    # _add_module_version(config)
 
     return config
 
@@ -88,13 +86,13 @@ def serialize_value(value: Any) -> Any:
     return coerce_type("text", value_dt, value)
 
 
-def _add_module_version(config: BaseConfiguration) -> None:
-    try:
-        v = sys._getframe(1).f_back.f_globals["__version__"]
-        semver.VersionInfo.parse(v)
-        setattr(config, "_version", v)  # noqa: B010
-    except KeyError:
-        pass
+# def _add_module_version(config: BaseConfiguration) -> None:
+#     try:
+#         v = sys._getframe(1).f_back.f_globals["__version__"]
+#         semver.VersionInfo.parse(v)
+#         setattr(config, "_version", v)  # noqa: B010
+#     except KeyError:
+#         pass
 
 
 def _resolve_config_fields(config: BaseConfiguration, namespaces: Tuple[str, ...], accept_partial: bool) -> None:

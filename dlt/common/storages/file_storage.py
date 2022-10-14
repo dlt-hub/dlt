@@ -164,12 +164,3 @@ class FileStorage:
         # component cannot contain "."
         if "." in name:
             raise pathvalidate.error.InvalidCharError(reason="Component name cannot contain . (dots)")
-        pass
-
-    # @staticmethod
-    # def get_file_stem(path: str) ->  str:
-    #     return Path(os.path.basename(path)).stem
-
-    # @staticmethod
-    # def get_file_name(path: str) ->  str:
-    #     return Path(path).name

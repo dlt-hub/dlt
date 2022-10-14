@@ -4,8 +4,6 @@ from dlt.common.typing import StrAny
 from dlt.common.configuration import configspec, make_configuration
 from dlt.common.configuration.specs import BaseConfiguration, PoolRunnerConfiguration, LoadVolumeConfiguration, TPoolType
 
-from . import __version__
-
 @configspec
 class LoaderClientConfiguration(BaseConfiguration):
     client_type: str = None  # which destination to load data to

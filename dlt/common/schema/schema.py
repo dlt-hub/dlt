@@ -77,7 +77,10 @@ class Schema:
 
         # bump version if modified
         utils.bump_version_if_modified(stored_schema)
+        return cls.from_stored_schema(stored_schema)
 
+    @classmethod
+    def from_stored_schema(cls, stored_schema: TStoredSchema) -> "Schema":
         # create new instance from dict
         self: Schema = cls(stored_schema["name"], normalizers=stored_schema.get("normalizers", None))
         self._schema_tables = stored_schema.get("tables") or {}
