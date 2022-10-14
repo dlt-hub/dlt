@@ -1,6 +1,6 @@
-from typing import Dict, List, Sequence
 import pytest
 from fnmatch import fnmatch
+from typing import Dict, List, Sequence
 from prometheus_client import CollectorRegistry
 from multiprocessing import get_start_method, Pool
 from multiprocessing.dummy import Pool as ThreadPool
@@ -11,11 +11,11 @@ from dlt.common.typing import StrAny
 from dlt.common.schema import TDataType
 from dlt.common.storages import NormalizeStorage, LoadStorage
 
-from experiments.pipeline.extract import ExtractorStorage
-from dlt.normalize import Normalize, configuration as normalize_configuration, __version__
+from dlt.extract.extract import ExtractorStorage
+from dlt.normalize import Normalize
 
 from tests.cases import JSON_TYPED_DICT, JSON_TYPED_DICT_TYPES
-from tests.utils import TEST_STORAGE_ROOT, assert_no_dict_key_starts_with, write_version, clean_test_storage, init_logger
+from tests.utils import TEST_STORAGE_ROOT, TEST_DICT_CONFIG_PROVIDER, assert_no_dict_key_starts_with, write_version, clean_test_storage, init_logger
 from tests.normalize.utils import json_case_path
 
 
@@ -35,12 +35,10 @@ def rasa_normalize() -> Normalize:
 
 def init_normalize(default_schemas_path: str = None) -> Normalize:
     clean_test_storage()
-    initial = {}
-    if default_schemas_path:
-        initial = {"import_schema_path": default_schemas_path, "external_schema_format": "json"}
-    n = Normalize(normalize_configuration(initial), CollectorRegistry())
+    with TEST_DICT_CONFIG_PROVIDER.values({"import_schema_path": default_schemas_path, "external_schema_format": "json"}):
+        n = Normalize(collector=CollectorRegistry())
     # set jsonl as default writer
-    n.load_storage.loader_file_format = n.CONFIG.loader_file_format = "jsonl"
+    n.load_storage.loader_file_format = n.config.loader_file_format = "jsonl"
     return n
 
 
@@ -75,7 +73,7 @@ def test_normalize_single_user_event_jsonl(raw_normalize: Normalize) -> None:
 
 
 def test_normalize_single_user_event_insert(raw_normalize: Normalize) -> None:
-    raw_normalize.load_storage.loader_file_format = raw_normalize.CONFIG.loader_file_format = "insert_values"
+    raw_normalize.load_storage.loader_file_format = raw_normalize.config.loader_file_format = "insert_values"
     expected_tables, load_files = normalize_event_user(raw_normalize, "event.event.user_load_1", EXPECTED_USER_TABLES)
     # verify values line
     for expected_table in expected_tables:
@@ -131,7 +129,7 @@ def test_preserve_slot_complex_value_json_l(rasa_normalize: Normalize) -> None:
 
 
 def test_preserve_slot_complex_value_insert(rasa_normalize: Normalize) -> None:
-    rasa_normalize.load_storage.loader_file_format = rasa_normalize.CONFIG.loader_file_format = "insert_values"
+    rasa_normalize.load_storage.loader_file_format = rasa_normalize.config.loader_file_format = "insert_values"
     load_id = normalize_cases(rasa_normalize, ["event.event.slot_session_metadata_1"])
     load_files = expect_load_package(rasa_normalize.load_storage, load_id, ["event", "event_slot"])
     event_text, lines = expect_lines_file(rasa_normalize.load_storage, load_files["event_slot"], 2)
@@ -154,7 +152,7 @@ def test_normalize_raw_type_hints(rasa_normalize: Normalize) -> None:
 
 
 def test_normalize_many_events_insert(rasa_normalize: Normalize) -> None:
-    rasa_normalize.load_storage.loader_file_format = rasa_normalize.CONFIG.loader_file_format = "insert_values"
+    rasa_normalize.load_storage.loader_file_format = rasa_normalize.config.loader_file_format = "insert_values"
     load_id = normalize_cases(rasa_normalize, ["event.event.many_load_2", "event.event.user_load_1"])
     expected_tables = EXPECTED_USER_TABLES_RASA_NORMALIZER + ["event_bot", "event_action"]
     load_files = expect_load_package(rasa_normalize.load_storage, load_id, expected_tables)
@@ -177,7 +175,7 @@ def test_normalize_many_events(rasa_normalize: Normalize) -> None:
 
 
 def test_normalize_many_schemas(rasa_normalize: Normalize) -> None:
-    rasa_normalize.load_storage.loader_file_format = rasa_normalize.CONFIG.loader_file_format = "insert_values"
+    rasa_normalize.load_storage.loader_file_format = rasa_normalize.config.loader_file_format = "insert_values"
     extract_cases(
         rasa_normalize.normalize_storage,
         ["event.event.many_load_2", "event.event.user_load_1", "ethereum.blocks.9c1d9b504ea240a482b007788d5cd61c_2"]
@@ -206,7 +204,7 @@ def test_normalize_many_schemas(rasa_normalize: Normalize) -> None:
 
 
 def test_normalize_typed_json(raw_normalize: Normalize) -> None:
-    raw_normalize.load_storage.loader_file_format = raw_normalize.CONFIG.loader_file_format = "jsonl"
+    raw_normalize.load_storage.loader_file_format = raw_normalize.config.loader_file_format = "jsonl"
     extract_items(raw_normalize.normalize_storage, [JSON_TYPED_DICT], "special", "special")
     raw_normalize.run(ThreadPool(processes=1))
     loads = raw_normalize.load_storage.list_packages()
@@ -233,7 +231,7 @@ EXPECTED_USER_TABLES = ["event", "event__parse_data__intent_ranking", "event__pa
 
 
 def extract_items(normalize_storage: NormalizeStorage, items: Sequence[StrAny], schema_name: str, table_name: str) -> None:
-    extractor = ExtractorStorage(normalize_storage.CONFIG)
+    extractor = ExtractorStorage(normalize_storage.config)
     extract_id = extractor.create_extract_id()
     extractor.write_data_item(extract_id, schema_name, table_name, items, None)
     extractor.close_writers(extract_id)
@@ -293,7 +291,3 @@ def assert_timestamp_data_type(load_storage: LoadStorage, data_type: TDataType) 
     event_schema = load_storage.load_package_schema(loads[0])
     # in raw normalize timestamp column must not be coerced to timestamp
     assert event_schema.get_table_columns("event")["timestamp"]["data_type"] == data_type
-
-
-def test_version() -> None:
-    assert normalize_configuration()._version == __version__

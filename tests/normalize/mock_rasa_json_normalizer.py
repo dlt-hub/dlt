@@ -5,6 +5,7 @@ from dlt.common.typing import TDataItem
 
 
 def normalize_data_item(schema: Schema, source_event: TDataItem, load_id: str, table_name: str) -> TNormalizedRowIterator:
+    print(f"CUSTOM NORM: {schema.name} {table_name}")
     if schema.name == "event":
         # this emulates rasa parser on standard parser
         event = {"sender_id": source_event["sender_id"], "timestamp": source_event["timestamp"], "type": source_event["event"]}
