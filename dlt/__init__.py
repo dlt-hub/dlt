@@ -1,1 +1,1 @@
-from dlt._version import common_version as __version__
+__version__ = "0.1.0"

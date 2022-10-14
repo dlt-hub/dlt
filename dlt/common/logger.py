@@ -2,6 +2,7 @@ import logging
 import json_logging
 import traceback
 import sentry_sdk
+from importlib.metadata import version as pkg_version, PackageNotFoundError
 from sentry_sdk.transport import HttpTransport
 from sentry_sdk.integrations.logging import LoggingIntegration
 from logging import LogRecord, Logger
@@ -12,7 +13,7 @@ from dlt.common.typing import DictStrAny, StrStr
 from dlt.common.configuration.specs import RunConfiguration
 from dlt.common.utils import filter_env_vars
 
-from dlt._version import common_version as __version__
+from dlt import __version__
 
 DLT_LOGGER_NAME = "dlt"
 LOGGER: Logger = None
@@ -129,10 +130,12 @@ def __getattr__(name: str) -> LogMethod:
 
 
 def _extract_version_info(config: RunConfiguration) -> StrStr:
-    version_info = {"version": __version__, "component_name": config.pipeline_name}
-    version = getattr(config, "_version", None)
-    if version:
-        version_info["component_version"] = version
+    try:
+        version = pkg_version("python-dlt")
+    except PackageNotFoundError:
+        # if there's no package context, take the version from the code
+        version = __version__
+    version_info = {"dlt_version": version, "pipeline_name": config.pipeline_name}
     # extract envs with build info
     version_info.update(filter_env_vars(["COMMIT_SHA", "IMAGE_VERSION"]))
     return version_info
@@ -162,7 +165,7 @@ def _get_sentry_log_level(C: RunConfiguration) -> LoggingIntegration:
 
 
 def _init_sentry(C: RunConfiguration, version: StrStr) -> None:
-    sys_ver = version["version"]
+    sys_ver = version["dlt_version"]
     release = sys_ver + "_" + version.get("commit_sha", "")
     _SentryHttpTransport.timeout = C.request_timeout[0]
     # TODO: ignore certain loggers ie. dbt loggers

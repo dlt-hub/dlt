@@ -2,8 +2,9 @@ import pytest
 import logging
 import json_logging
 from os import environ
+from importlib.metadata import version as pkg_version
 
-from dlt import __version__ as auto_version
+from dlt import __version__ as code_version
 from dlt.common import logger, sleep
 from dlt.common.typing import StrStr
 from dlt.common.configuration import configspec
@@ -18,12 +19,7 @@ class PureBasicConfiguration(RunConfiguration):
 
 
 @configspec
-class PureBasicConfigurationProc(PureBasicConfiguration):
-    _version: str = "1.6.6"
-
-
-@configspec
-class JsonLoggerConfiguration(PureBasicConfigurationProc):
+class JsonLoggerConfiguration(PureBasicConfiguration):
     log_format: str = "JSON"
 
 
@@ -46,14 +42,13 @@ def environment() -> StrStr:
 
 def test_version_extract(environment: StrStr) -> None:
     version = logger._extract_version_info(PureBasicConfiguration())
-    # if component ver not avail use system version
-    assert version == {'version': auto_version, 'component_name': 'logger'}
-    version = logger._extract_version_info(PureBasicConfigurationProc())
-    assert version["component_version"] == PureBasicConfigurationProc()._version
+    assert version["dlt_version"].startswith(code_version)
+    lib_version = pkg_version("python-dlt")
+    assert version == {'dlt_version': lib_version, 'pipeline_name': 'logger'}
     # mock image info available in container
     _mock_image_env(environment)
-    version = logger._extract_version_info(PureBasicConfigurationProc())
-    assert version == {'version': auto_version, 'commit_sha': '192891', 'component_name': 'logger', 'component_version': '1.6.6', 'image_version': 'scale/v:112'}
+    version = logger._extract_version_info(PureBasicConfiguration())
+    assert version == {'dlt_version': lib_version, 'commit_sha': '192891', 'pipeline_name': 'logger', 'image_version': 'scale/v:112'}
 
 
 def test_pod_info_extract(environment: StrStr) -> None:
@@ -68,7 +63,7 @@ def test_pod_info_extract(environment: StrStr) -> None:
 def test_text_logger_init(environment: StrStr) -> None:
     _mock_image_env(environment)
     _mock_pod_env(environment)
-    logger.init_logging_from_config(PureBasicConfigurationProc())
+    logger.init_logging_from_config(PureBasicConfiguration())
     logger.health("HEALTH data", extra={"metrics": "props"})
     logger.metrics("METRICS data", extra={"metrics": "props"})
     logger.warning("Warning message here")

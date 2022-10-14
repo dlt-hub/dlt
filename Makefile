@@ -13,15 +13,11 @@ VERSION := ${AUTV}${VERSION_SUFFIX}
 VERSION_MM := ${AUTVMINMAJ}${VERSION_SUFFIX}
 
 
-# dbt runner version info
-DBT_AUTV=$(shell python3 -c "from dlt.dbt_runner._version import __version__;print(__version__)")
-DBT_AUTVMINMAJ=$(shell python3 -c "from dlt.dbt_runner._version import __version__;print('.'.join(__version__.split('.')[:-1]))")
-
 DBT_NAME   := scalevector/dlt-dbt-runner
 DBT_IMG    := ${DBT_NAME}:${TAG}
 DBT_LATEST := ${DBT_NAME}:latest${VERSION_SUFFIX}
-DBT_VERSION := ${DBT_AUTV}${VERSION_SUFFIX}
-DBT_VERSION_MM := ${DBT_AUTVMINMAJ}${VERSION_SUFFIX}
+DBT_VERSION := ${AUTV}${VERSION_SUFFIX}
+DBT_VERSION_MM := ${AUTVMINMAJ}${VERSION_SUFFIX}
 
 install-poetry:
 ifneq ($(VIRTUAL_ENV),)
