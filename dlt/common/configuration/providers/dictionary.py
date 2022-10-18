@@ -1,5 +1,5 @@
 from contextlib import contextmanager
-from typing import Any, Iterator, Optional, Type, Tuple
+from typing import Any, ClassVar, Iterator, Optional, Type, Tuple
 
 from dlt.common.typing import StrAny
 
@@ -8,13 +8,15 @@ from .provider import Provider
 
 class DictionaryProvider(Provider):
 
+    NAME: ClassVar[str] = "Dictionary Provider"
+
     def __init__(self) -> None:
         self._values: StrAny = {}
         pass
 
     @property
     def name(self) -> str:
-        return "Dictionary Provider"
+        return self.NAME
 
     def get_value(self, key: str, hint: Type[Any], *namespaces: str) -> Tuple[Optional[Any], str]:
         full_path = namespaces + (key,)

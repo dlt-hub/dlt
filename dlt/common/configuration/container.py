@@ -1,29 +1,22 @@
 from contextlib import contextmanager
 from typing import Dict, Iterator, Type, TypeVar
 
-from dlt.common.configuration.specs.base_configuration import BaseConfiguration, configspec
-from dlt.common.configuration.exceptions import ContainerInjectableConfigurationMangled
+from dlt.common.configuration.specs.base_configuration import ContainerInjectableContext
+from dlt.common.configuration.exceptions import ContainerInjectableContextMangled, ContextDefaultCannotBeCreated
 
-
-@configspec
-class ContainerInjectableConfiguration(BaseConfiguration):
-    """Base class for all configurations that may be injected from Container."""
-    pass
-
-
-TConfiguration = TypeVar("TConfiguration", bound=ContainerInjectableConfiguration)
+TConfiguration = TypeVar("TConfiguration", bound=ContainerInjectableContext)
 
 
 class Container:
 
     _INSTANCE: "Container" = None
 
-    configurations: Dict[Type[ContainerInjectableConfiguration], ContainerInjectableConfiguration]
+    contexts: Dict[Type[ContainerInjectableContext], ContainerInjectableContext]
 
     def __new__(cls: Type["Container"]) -> "Container":
         if not cls._INSTANCE:
             cls._INSTANCE = super().__new__(cls)
-            cls._INSTANCE.configurations = {}
+            cls._INSTANCE.contexts = {}
         return cls._INSTANCE
 
     def __init__(self) -> None:
@@ -31,32 +24,40 @@ class Container:
 
     def __getitem__(self, spec: Type[TConfiguration]) -> TConfiguration:
         # return existing config object or create it from spec
-        if not issubclass(spec, ContainerInjectableConfiguration):
-            raise KeyError(f"{spec.__name__} is not injectable")
+        if not issubclass(spec, ContainerInjectableContext):
+            raise KeyError(f"{spec.__name__} is not a context")
 
-        return self.configurations.setdefault(spec, spec())  # type: ignore
+        item = self.contexts.get(spec)
+        if item is None:
+            if spec.can_create_default:
+                item = spec()
+                self.contexts[spec] = item
+            else:
+                raise ContextDefaultCannotBeCreated(spec)
+
+        return item  # type: ignore
 
     def __contains__(self, spec: Type[TConfiguration]) -> bool:
-        return spec in self.configurations
+        return spec in self.contexts
 
     @contextmanager
-    def injectable_configuration(self, config: TConfiguration) -> Iterator[TConfiguration]:
+    def injectable_context(self, config: TConfiguration) -> Iterator[TConfiguration]:
         spec = type(config)
-        previous_config: ContainerInjectableConfiguration = None
-        if spec in self.configurations:
-            previous_config = self.configurations[spec]
+        previous_config: ContainerInjectableContext = None
+        if spec in self.contexts:
+            previous_config = self.contexts[spec]
         # set new config and yield context
         try:
-            self.configurations[spec] = config
+            self.contexts[spec] = config
             yield config
         finally:
             # before setting the previous config for given spec, check if there was no overlapping modification
-            if self.configurations[spec] is config:
+            if self.contexts[spec] is config:
                 # config is injected for spec so restore previous
                 if previous_config is None:
-                    del self.configurations[spec]
+                    del self.contexts[spec]
                 else:
-                    self.configurations[spec] = previous_config
+                    self.contexts[spec] = previous_config
             else:
                 # value was modified in the meantime and not restored
-                raise ContainerInjectableConfigurationMangled(spec, self.configurations[spec], config)
+                raise ContainerInjectableContextMangled(spec, self.contexts[spec], config)

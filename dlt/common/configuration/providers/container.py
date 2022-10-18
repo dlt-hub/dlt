@@ -1,26 +1,33 @@
+import contextlib
 from typing import Any, Optional, Type, Tuple
 
 from dlt.common.configuration.container import Container
+from dlt.common.configuration.specs import ContainerInjectableContext
 
 from .provider import Provider
 
 
-class ContainerProvider(Provider):
+class ContextProvider(Provider):
 
-    NAME = "Injectable Configuration"
+    NAME = "Injectable Context"
+
+    def __init__(self) -> None:
+        self.container = Container()
 
     @property
     def name(self) -> str:
-        return ContainerProvider.NAME
+        return ContextProvider.NAME
 
     def get_value(self, key: str, hint: Type[Any], *namespaces: str) -> Tuple[Optional[Any], str]:
         assert namespaces == ()
-        # get container singleton
-        container = Container()
-        if hint in container:
-            return Container()[hint], hint.__name__
-        else:
-            return None, str(hint)
+
+        # only context is a valid hint
+        with contextlib.suppress(TypeError):
+            if issubclass(hint, ContainerInjectableContext):
+                # contexts without defaults will raise ContextDefaultCannotBeCreated
+                return self.container[hint], hint.__name__
+
+        return None, str(hint)
 
     @property
     def supports_secrets(self) -> bool:

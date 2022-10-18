@@ -6,8 +6,9 @@ from typing import Callable, Dict, Type, Any, Optional, Tuple, TypeVar, overload
 from inspect import Signature, Parameter
 
 from dlt.common.typing import StrAny, TFun, AnyFun
-from dlt.common.configuration.resolve import make_configuration
+from dlt.common.configuration.resolve import resolve_configuration, inject_namespace
 from dlt.common.configuration.specs.base_configuration import BaseConfiguration, is_valid_hint, configspec
+from dlt.common.configuration.specs.config_namespace_context import ConfigNamespacesContext
 
 # [^.^_]+ splits by . or _
 _SLEEPING_CAT_SPLIT = re.compile("[^.^_]+")
@@ -16,16 +17,16 @@ TConfiguration = TypeVar("TConfiguration", bound=BaseConfiguration)
 
 
 @overload
-def with_config(func: TFun, /, spec: Type[BaseConfiguration] = None, only_kw: bool = False, namespaces: Tuple[str, ...] = ()) ->  TFun:
+def with_config(func: TFun, /, spec: Type[BaseConfiguration] = None, auto_namespace: bool = False, only_kw: bool = False, namespaces: Tuple[str, ...] = ()) ->  TFun:
     ...
 
 
 @overload
-def with_config(func: None = ..., /, spec: Type[BaseConfiguration] = None, only_kw: bool = False, namespaces: Tuple[str, ...] = ()) ->  Callable[[TFun], TFun]:
+def with_config(func: None = ..., /, spec: Type[BaseConfiguration] = None, auto_namespace: bool = False, only_kw: bool = False, namespaces: Tuple[str, ...] = ()) ->  Callable[[TFun], TFun]:
     ...
 
 
-def with_config(func: Optional[AnyFun] = None, /, spec: Type[BaseConfiguration] = None, only_kw: bool = False, namespaces: Tuple[str, ...] = ()) ->  Callable[[TFun], TFun]:
+def with_config(func: Optional[AnyFun] = None, /, spec: Type[BaseConfiguration] = None, auto_namespace: bool = False, only_kw: bool = False, namespaces: Tuple[str, ...] = ()) ->  Callable[[TFun], TFun]:
 
     namespace_f: Callable[[StrAny], str] = None
     # namespace may be a function from function arguments to namespace
@@ -37,6 +38,8 @@ def with_config(func: Optional[AnyFun] = None, /, spec: Type[BaseConfiguration] 
         sig: Signature = inspect.signature(f)
         kwargs_arg = next((p for p in sig.parameters.values() if p.kind == Parameter.VAR_KEYWORD), None)
         spec_arg: Parameter = None
+        pipeline_name_arg: Parameter = None
+        namespace_context = ConfigNamespacesContext()
 
         if spec is None:
             SPEC = _spec_from_signature(_get_spec_name_from_f(f), inspect.getmodule(f), sig, only_kw)
@@ -50,6 +53,10 @@ def with_config(func: Optional[AnyFun] = None, /, spec: Type[BaseConfiguration] 
             if p.annotation is SPEC:
                 # if any argument has type SPEC then us it to take initial value
                 spec_arg = p
+            if p.name == "pipeline_name" and auto_namespace:
+                # if argument has name pipeline_name and auto_namespace is used, use it to generate namespace context
+                pipeline_name_arg = p
+
 
         @wraps(f, new_sig=sig)
         def _wrap(*args: Any, **kwargs: Any) -> Any:
@@ -68,10 +75,14 @@ def with_config(func: Optional[AnyFun] = None, /, spec: Type[BaseConfiguration] 
                 # namespaces may be a string
                 if isinstance(namespaces, str):
                     namespaces = (namespaces,)
-                # resolve SPEC
+                # if one of arguments is spec the use it as initial value
                 if spec_arg:
                     config = bound_args.arguments.get(spec_arg.name, None)
-                config = make_configuration(config or SPEC(), namespaces=namespaces, initial_value=bound_args.arguments)
+                # resolve SPEC, also provide namespace_context with pipeline_name
+                if pipeline_name_arg:
+                    namespace_context.pipeline_name = bound_args.arguments.get(pipeline_name_arg.name, None)
+                with inject_namespace(namespace_context):
+                    config = resolve_configuration(config or SPEC(), namespaces=namespaces, initial_value=bound_args.arguments)
             resolved_params = dict(config)
             # overwrite or add resolved params
             for p in sig.parameters.values():
@@ -83,7 +94,7 @@ def with_config(func: Optional[AnyFun] = None, /, spec: Type[BaseConfiguration] 
             if kwargs_arg is not None:
                 bound_args.arguments[kwargs_arg.name].update(resolved_params)
                 bound_args.arguments[kwargs_arg.name][_LAST_DLT_CONFIG] = config
-            # call the function with injected config
+            # call the function with resolved config
             return f(*bound_args.args, **bound_args.kwargs)
 
         return _wrap  # type: ignore

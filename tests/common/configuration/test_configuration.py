@@ -121,6 +121,7 @@ class MockProdConfiguration(RunConfiguration):
 class FieldWithNoDefaultConfiguration(RunConfiguration):
     no_default: str
 
+
 @configspec(init=True)
 class InstrumentedConfiguration(BaseConfiguration):
     head: str
@@ -155,6 +156,11 @@ class EmbeddedOptionalConfiguration(BaseConfiguration):
     instrumented: Optional[InstrumentedConfiguration]
 
 
+@configspec
+class EmbeddedSecretConfiguration(BaseConfiguration):
+    secret: SecretConfiguration
+
+
 LongInteger = NewType("LongInteger", int)
 FirstOrderStr = NewType("FirstOrderStr", str)
 SecondOrderStr = NewType("SecondOrderStr", FirstOrderStr)
@@ -172,22 +178,22 @@ def test_initial_config_state() -> None:
 
 def test_set_initial_config_value(environment: Any) -> None:
     # set from init method
-    C = resolve.make_configuration(InstrumentedConfiguration(head="h", tube=["a", "b"], heels="he"))
+    C = resolve.resolve_configuration(InstrumentedConfiguration(head="h", tube=["a", "b"], heels="he"))
     assert C.to_native_representation() == "h>a>b>he"
     # set from native form
-    C = resolve.make_configuration(InstrumentedConfiguration(), initial_value="h>a>b>he")
+    C = resolve.resolve_configuration(InstrumentedConfiguration(), initial_value="h>a>b>he")
     assert C.head == "h"
     assert C.tube == ["a", "b"]
     assert C.heels == "he"
     # set from dictionary
-    C = resolve.make_configuration(InstrumentedConfiguration(), initial_value={"head": "h", "tube": ["tu", "be"], "heels": "xhe"})
+    C = resolve.resolve_configuration(InstrumentedConfiguration(), initial_value={"head": "h", "tube": ["tu", "be"], "heels": "xhe"})
     assert C.to_native_representation() == "h>tu>be>xhe"
 
 
 def test_invalid_initial_config_value() -> None:
     # 2137 cannot be parsed and also is not a dict that can initialize the fields
     with pytest.raises(InvalidInitialValue) as py_ex:
-        resolve.make_configuration(InstrumentedConfiguration(), initial_value=2137)
+        resolve.resolve_configuration(InstrumentedConfiguration(), initial_value=2137)
     assert py_ex.value.spec is InstrumentedConfiguration
     assert py_ex.value.initial_value_type is int
 
@@ -195,32 +201,32 @@ def test_invalid_initial_config_value() -> None:
 def test_check_integrity(environment: Any) -> None:
     with pytest.raises(RuntimeError):
         # head over hells
-        resolve.make_configuration(InstrumentedConfiguration(), initial_value="he>a>b>h")
+        resolve.resolve_configuration(InstrumentedConfiguration(), initial_value="he>a>b>h")
 
 
 def test_embedded_config(environment: Any) -> None:
     # resolve all embedded config, using initial value for instrumented config and initial dict for namespaced config
-    C = resolve.make_configuration(EmbeddedConfiguration(), initial_value={"default": "set", "instrumented": "h>tu>be>xhe", "namespaced": {"password": "pwd"}})
+    C = resolve.resolve_configuration(EmbeddedConfiguration(), initial_value={"default": "set", "instrumented": "h>tu>be>xhe", "namespaced": {"password": "pwd"}})
     assert C.default == "set"
     assert C.instrumented.to_native_representation() == "h>tu>be>xhe"
     assert C.namespaced.password == "pwd"
 
     # resolve but providing values via env
     with custom_environ({"INSTRUMENTED": "h>tu>u>be>xhe", "DLT_TEST__PASSWORD": "passwd", "DEFAULT": "DEF"}):
-        C = resolve.make_configuration(EmbeddedConfiguration())
+        C = resolve.resolve_configuration(EmbeddedConfiguration())
         assert C.default == "DEF"
         assert C.instrumented.to_native_representation() == "h>tu>u>be>xhe"
         assert C.namespaced.password == "passwd"
 
     # resolve partial, partial is passed to embedded
-    C = resolve.make_configuration(EmbeddedConfiguration(), accept_partial=True)
+    C = resolve.resolve_configuration(EmbeddedConfiguration(), accept_partial=True)
     assert not C.__is_resolved__
     assert not C.namespaced.__is_resolved__
     assert not C.instrumented.__is_resolved__
 
     # some are partial, some are not
     with custom_environ({"DLT_TEST__PASSWORD": "passwd"}):
-        C = resolve.make_configuration(EmbeddedConfiguration(), accept_partial=True)
+        C = resolve.resolve_configuration(EmbeddedConfiguration(), accept_partial=True)
         assert not C.__is_resolved__
         assert C.namespaced.__is_resolved__
         assert not C.instrumented.__is_resolved__
@@ -228,17 +234,17 @@ def test_embedded_config(environment: Any) -> None:
     # single integrity error fails all the embeds
     with custom_environ({"INSTRUMENTED": "he>tu>u>be>h"}):
         with pytest.raises(RuntimeError):
-            resolve.make_configuration(EmbeddedConfiguration(), initial_value={"default": "set", "namespaced": {"password": "pwd"}})
+            resolve.resolve_configuration(EmbeddedConfiguration(), initial_value={"default": "set", "namespaced": {"password": "pwd"}})
 
     # part via env part via initial values
     with custom_environ({"INSTRUMENTED": "h>tu>u>be>he"}):
-        C = resolve.make_configuration(EmbeddedConfiguration(), initial_value={"default": "set", "namespaced": {"password": "pwd"}})
+        C = resolve.resolve_configuration(EmbeddedConfiguration(), initial_value={"default": "set", "namespaced": {"password": "pwd"}})
         assert C.instrumented.to_native_representation() == "h>tu>u>be>he"
 
 
 def test_provider_values_over_initial(environment: Any) -> None:
     with custom_environ({"INSTRUMENTED": "h>tu>u>be>he"}):
-        C = resolve.make_configuration(EmbeddedConfiguration(), initial_value={"instrumented": "h>tu>be>xhe"}, accept_partial=True)
+        C = resolve.resolve_configuration(EmbeddedConfiguration(), initial_value={"instrumented": "h>tu>be>xhe"}, accept_partial=True)
         assert C.instrumented.to_native_representation() == "h>tu>u>be>he"
         # parent configuration is not resolved
         assert not C.is_resolved()
@@ -250,7 +256,7 @@ def test_provider_values_over_initial(environment: Any) -> None:
 
 
 def test_run_configuration_gen_name(environment: Any) -> None:
-    C = resolve.make_configuration(RunConfiguration())
+    C = resolve.resolve_configuration(RunConfiguration())
     assert C.pipeline_name.startswith("dlt_")
 
 
@@ -278,7 +284,7 @@ def test_configuration_is_mutable_mapping(environment: Any) -> None:
     assert dict(_SecretCredentials()) == expected_dict
 
     environment["SECRET_VALUE"] = "secret"
-    C = resolve.make_configuration(_SecretCredentials())
+    C = resolve.resolve_configuration(_SecretCredentials())
     expected_dict["secret_value"] = "secret"
     assert dict(C) == expected_dict
 
@@ -346,7 +352,7 @@ def test_multi_derivation_defaults(environment: Any) -> None:
 def test_raises_on_unresolved_field(environment: Any) -> None:
     # via make configuration
     with pytest.raises(ConfigEntryMissingException) as cf_missing_exc:
-        resolve.make_configuration(WrongConfiguration())
+        resolve.resolve_configuration(WrongConfiguration())
     assert cf_missing_exc.value.spec_name == "WrongConfiguration"
     assert "NoneConfigVar" in cf_missing_exc.value.traces
     # has only one trace
@@ -358,7 +364,7 @@ def test_raises_on_unresolved_field(environment: Any) -> None:
 def test_raises_on_many_unresolved_fields(environment: Any) -> None:
     # via make configuration
     with pytest.raises(ConfigEntryMissingException) as cf_missing_exc:
-        resolve.make_configuration(CoercionTestConfiguration())
+        resolve.resolve_configuration(CoercionTestConfiguration())
     assert cf_missing_exc.value.spec_name == "CoercionTestConfiguration"
     # get all fields that must be set
     val_fields = [f for f in CoercionTestConfiguration().get_resolvable_fields() if f.lower().endswith("_val")]
@@ -374,11 +380,11 @@ def test_accepts_optional_missing_fields(environment: Any) -> None:
     C = ConfigurationWithOptionalTypes()
     assert not C.is_partial()
     # make optional config
-    resolve.make_configuration(ConfigurationWithOptionalTypes())
+    resolve.resolve_configuration(ConfigurationWithOptionalTypes())
     # make config with optional values
-    resolve.make_configuration(ProdConfigurationWithOptionalTypes(), initial_value={"int_val": None})
+    resolve.resolve_configuration(ProdConfigurationWithOptionalTypes(), initial_value={"int_val": None})
     # make config with optional embedded config
-    C = resolve.make_configuration(EmbeddedOptionalConfiguration())
+    C = resolve.resolve_configuration(EmbeddedOptionalConfiguration())
     # embedded config was not fully resolved
     assert not C.instrumented.__is_resolved__
     assert not C.instrumented.is_resolved()
@@ -395,7 +401,7 @@ def test_coercion_to_hint_types(environment: Any) -> None:
     add_config_dict_to_env(COERCIONS)
 
     C = CoercionTestConfiguration()
-    resolve._resolve_config_fields(C, namespaces=(), accept_partial=False)
+    resolve._resolve_config_fields(C, explicit_namespaces=(), embedded_namespaces=(), accept_partial=False)
 
     for key in COERCIONS:
         assert getattr(C, key) == COERCIONS[key]
@@ -434,7 +440,7 @@ def test_invalid_coercions(environment: Any) -> None:
     add_config_dict_to_env(INVALID_COERCIONS)
     for key, value in INVALID_COERCIONS.items():
         try:
-            resolve._resolve_config_fields(C, namespaces=(), accept_partial=False)
+            resolve._resolve_config_fields(C, explicit_namespaces=(), embedded_namespaces=(), accept_partial=False)
         except ConfigEnvValueCannotBeCoercedException as coerc_exc:
             # must fail exactly on expected value
             if coerc_exc.field_name != key:
@@ -449,7 +455,7 @@ def test_excepted_coercions(environment: Any) -> None:
     C = CoercionTestConfiguration()
     add_config_dict_to_env(COERCIONS)
     add_config_dict_to_env(EXCEPTED_COERCIONS, overwrite_keys=True)
-    resolve._resolve_config_fields(C, namespaces=(), accept_partial=False)
+    resolve._resolve_config_fields(C, explicit_namespaces=(), embedded_namespaces=(), accept_partial=False)
     for key in EXCEPTED_COERCIONS:
         assert getattr(C, key) == COERCED_EXCEPTIONS[key]
 
@@ -473,18 +479,18 @@ def test_config_with_no_hints(environment: Any) -> None:
         NoHintConfiguration()
 
 
-def test_make_configuration(environment: Any) -> None:
+def test_resolve_configuration(environment: Any) -> None:
     # fill up configuration
     environment["NONECONFIGVAR"] = "1"
-    C = resolve.make_configuration(WrongConfiguration())
+    C = resolve.resolve_configuration(WrongConfiguration())
     assert C.__is_resolved__
     assert C.NoneConfigVar == "1"
 
 
 def test_dataclass_instantiation(environment: Any) -> None:
-    # make_configuration works on instances of dataclasses and types are not modified
+    # resolve_configuration works on instances of dataclasses and types are not modified
     environment['SECRET_VALUE'] = "1"
-    C = resolve.make_configuration(SecretConfiguration())
+    C = resolve.resolve_configuration(SecretConfiguration())
     # auto derived type holds the value
     assert C.secret_value == "1"
     # base type is untouched
@@ -496,7 +502,7 @@ def test_initial_values(environment: Any) -> None:
     environment["PIPELINE_NAME"] = "env name"
     environment["CREATED_VAL"] = "12837"
     # set initial values and allow partial config
-    C = resolve.make_configuration(CoercionTestConfiguration(),
+    C = resolve.resolve_configuration(CoercionTestConfiguration(),
         initial_value={"pipeline_name": "initial name", "none_val": type(environment), "created_val": 878232, "bytes_val": b"str"},
         accept_partial=True
     )
@@ -513,7 +519,7 @@ def test_accept_partial(environment: Any) -> None:
     # modify original type
     WrongConfiguration.NoneConfigVar = None
     # that None value will be present in the instance
-    C = resolve.make_configuration(WrongConfiguration(), accept_partial=True)
+    C = resolve.resolve_configuration(WrongConfiguration(), accept_partial=True)
     assert C.NoneConfigVar is None
     # partial resolution
     assert not C.__is_resolved__
@@ -582,15 +588,71 @@ def test_secret_value_not_secret_provider(mock_provider: MockProvider) -> None:
 
     # TSecretValue will fail
     with pytest.raises(ValueNotSecretException) as py_ex:
-        resolve.make_configuration(SecretConfiguration(), namespaces=("mock",))
+        resolve.resolve_configuration(SecretConfiguration(), namespaces=("mock",))
     assert py_ex.value.provider_name == "Mock Provider"
     assert py_ex.value.key == "-secret_value"
 
     # anything derived from CredentialsConfiguration will fail
     with pytest.raises(ValueNotSecretException) as py_ex:
-        resolve.make_configuration(WithCredentialsConfiguration(), namespaces=("mock",))
+        resolve.resolve_configuration(WithCredentialsConfiguration(), namespaces=("mock",))
     assert py_ex.value.provider_name == "Mock Provider"
     assert py_ex.value.key == "-credentials"
+
+
+def test_do_not_resolve_twice(environment: Any) -> None:
+    environment["SECRET_VALUE"] = "password"
+    c = resolve.resolve_configuration(SecretConfiguration())
+    assert c.secret_value == "password"
+    c2 = SecretConfiguration()
+    c2.secret_value = "other"
+    c2.__is_resolved__ = True
+    assert c2.is_resolved()
+    # will not overwrite with env
+    c3 = resolve.resolve_configuration(c2)
+    assert c3.secret_value == "other"
+    assert c3 is c2
+    # make it not resolved
+    c2.__is_resolved__ = False
+    c4 = resolve.resolve_configuration(c2)
+    assert c4.secret_value == "password"
+    assert c2 is c3 is c4
+    # also c is resolved so
+    c.secret_value = "else"
+    resolve.resolve_configuration(c).secret_value == "else"
+
+
+def test_do_not_resolve_embedded(environment: Any) -> None:
+    environment["SECRET__SECRET_VALUE"] = "password"
+    c = resolve.resolve_configuration(EmbeddedSecretConfiguration())
+    assert c.secret.secret_value == "password"
+    c2 = SecretConfiguration()
+    c2.secret_value = "other"
+    c2.__is_resolved__ = True
+    embed_c = EmbeddedSecretConfiguration()
+    embed_c.secret = c2
+    embed_c2 = resolve.resolve_configuration(embed_c)
+    assert embed_c2.secret.secret_value == "other"
+    assert embed_c2.secret is c2
+
+
+def test_last_resolve_exception(environment: Any) -> None:
+    # partial will set the ConfigEntryMissingException
+    c = resolve.resolve_configuration(EmbeddedConfiguration(), accept_partial=True)
+    assert isinstance(c.__exception__, ConfigEntryMissingException)
+    # missing keys
+    c = SecretConfiguration()
+    with pytest.raises(ConfigEntryMissingException) as py_ex:
+        resolve.resolve_configuration(c)
+    assert c.__exception__ is py_ex.value
+    # but if ran again exception is cleared
+    environment["SECRET_VALUE"] = "password"
+    resolve.resolve_configuration(c)
+    assert c.__exception__ is None
+    # initial value
+    c = InstrumentedConfiguration()
+    with pytest.raises(InvalidInitialValue) as py_ex:
+        resolve.resolve_configuration(c, initial_value=2137)
+    assert c.__exception__ is py_ex.value
 
 
 def coerce_single_value(key: str, value: str, hint: Type[Any]) -> Any:

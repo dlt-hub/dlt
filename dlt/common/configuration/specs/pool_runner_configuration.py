@@ -1,13 +1,12 @@
 from typing import Literal, Optional
 
-from dlt.common.configuration.specs.base_configuration import configspec
-from dlt.common.configuration.specs.run_configuration import RunConfiguration
+from dlt.common.configuration.specs.base_configuration import BaseConfiguration, configspec
 
 TPoolType = Literal["process", "thread", "none"]
 
 
 @configspec
-class PoolRunnerConfiguration(RunConfiguration):
+class PoolRunnerConfiguration(BaseConfiguration):
     pool_type: TPoolType = None  # type of pool to run, must be set in derived configs
     workers: Optional[int] = None  # how many threads/processes in the pool
     run_sleep: float = 0.5  # how long to sleep between runs with workload, seconds

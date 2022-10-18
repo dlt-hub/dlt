@@ -6,6 +6,8 @@ from dlt.common.typing import TSecretValue
 from dlt.common.configuration.inject import _spec_from_signature, _get_spec_name_from_f, with_config
 from dlt.common.configuration.specs import BaseConfiguration, RunConfiguration
 
+from tests.utils import preserve_environ
+from tests.common.configuration.utils import environment
 
 _DECIMAL_DEFAULT = Decimal("0.01")
 _SECRET_DEFAULT = TSecretValue("PASS")
@@ -106,6 +108,24 @@ def test_synthesize_spec_from_sig() -> None:
 def test_inject_with_non_injectable_param() -> None:
     # one of parameters in signature has not valid hint and is skipped (ie. from_pipe)
     pass
+
+
+def test_inject_without_spec() -> None:
+    pass
+
+
+def test_inject_without_spec_kw_only() -> None:
+    pass
+
+
+def test_inject_with_auto_namespace(environment: Any) -> None:
+    environment["PIPE__VALUE"] = "test"
+
+    @with_config(auto_namespace=True)
+    def f(pipeline_name, value):
+        assert value == "test"
+
+    f("pipe")
 
 
 def test_inject_with_spec() -> None:

@@ -8,7 +8,7 @@ from dlt.common.configuration.exceptions import ConfigFileNotFoundException
 
 @configspec
 class RunConfiguration(BaseConfiguration):
-    pipeline_name: Optional[str] = None  # the name of the component
+    pipeline_name: Optional[str] = None
     sentry_dsn: Optional[str] = None  # keep None to disable Sentry
     prometheus_port: Optional[int] = None  # keep None to disable Prometheus
     log_format: str = '{asctime}|[{levelname:<21}]|{process}|{name}|{filename}|{funcName}:{lineno}|{message}'

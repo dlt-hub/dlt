@@ -32,7 +32,7 @@ def test_resolves_from_environ(environment: Any) -> None:
     environment["NONECONFIGVAR"] = "Some"
 
     C = WrongConfiguration()
-    resolve._resolve_config_fields(C, namespaces=(), accept_partial=False)
+    resolve._resolve_config_fields(C, explicit_namespaces=(), embedded_namespaces=(), accept_partial=False)
     assert not C.is_partial()
 
     assert C.NoneConfigVar == environment["NONECONFIGVAR"]
@@ -42,7 +42,7 @@ def test_resolves_from_environ_with_coercion(environment: Any) -> None:
     environment["TEST_BOOL"] = 'yes'
 
     C = SimpleConfiguration()
-    resolve._resolve_config_fields(C, namespaces=(), accept_partial=False)
+    resolve._resolve_config_fields(C, explicit_namespaces=(), embedded_namespaces=(), accept_partial=False)
     assert not C.is_partial()
 
     # value will be coerced to bool
@@ -51,9 +51,9 @@ def test_resolves_from_environ_with_coercion(environment: Any) -> None:
 
 def test_secret(environment: Any) -> None:
     with pytest.raises(ConfigEntryMissingException):
-        resolve.make_configuration(SecretConfiguration())
+        resolve.resolve_configuration(SecretConfiguration())
     environment['SECRET_VALUE'] = "1"
-    C = resolve.make_configuration(SecretConfiguration())
+    C = resolve.resolve_configuration(SecretConfiguration())
     assert C.secret_value == "1"
     # mock the path to point to secret storage
     # from dlt.common.configuration import config_utils
@@ -62,18 +62,18 @@ def test_secret(environment: Any) -> None:
     try:
         # must read a secret file
         environ_provider.SECRET_STORAGE_PATH = "./tests/common/cases/%s"
-        C = resolve.make_configuration(SecretConfiguration())
+        C = resolve.resolve_configuration(SecretConfiguration())
         assert C.secret_value == "BANANA"
 
         # set some weird path, no secret file at all
         del environment['SECRET_VALUE']
         environ_provider.SECRET_STORAGE_PATH = "!C:\\PATH%s"
         with pytest.raises(ConfigEntryMissingException):
-            resolve.make_configuration(SecretConfiguration())
+            resolve.resolve_configuration(SecretConfiguration())
 
         # set env which is a fallback for secret not as file
         environment['SECRET_VALUE'] = "1"
-        C = resolve.make_configuration(SecretConfiguration())
+        C = resolve.resolve_configuration(SecretConfiguration())
         assert C.secret_value == "1"
     finally:
         environ_provider.SECRET_STORAGE_PATH = path
@@ -83,7 +83,7 @@ def test_secret_kube_fallback(environment: Any) -> None:
     path = environ_provider.SECRET_STORAGE_PATH
     try:
         environ_provider.SECRET_STORAGE_PATH = "./tests/common/cases/%s"
-        C = resolve.make_configuration(SecretKubeConfiguration())
+        C = resolve.resolve_configuration(SecretKubeConfiguration())
         # all unix editors will add x10 at the end of file, it will be preserved
         assert C.secret_kube == "kube\n"
         # we propagate secrets back to environ and strip the whitespace
@@ -95,7 +95,7 @@ def test_secret_kube_fallback(environment: Any) -> None:
 def test_configuration_files(environment: Any) -> None:
     # overwrite config file paths
     environment["CONFIG_FILES_STORAGE_PATH"] = "./tests/common/cases/schemas/ev1/%s"
-    C = resolve.make_configuration(MockProdConfigurationVar())
+    C = resolve.resolve_configuration(MockProdConfigurationVar())
     assert C.config_files_storage_path == environment["CONFIG_FILES_STORAGE_PATH"]
     assert C.has_configuration_file("hasn't") is False
     assert C.has_configuration_file("event_schema.json") is True

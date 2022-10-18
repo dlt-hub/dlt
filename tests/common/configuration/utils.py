@@ -2,7 +2,7 @@ import pytest
 from os import environ
 from typing import Any, List, Optional, Tuple, Type
 from dlt.common.configuration.container import Container
-from dlt.common.configuration.specs.config_providers_configuration import ConfigProvidersListConfiguration
+from dlt.common.configuration.specs.config_providers_context import ConfigProvidersListContext
 
 from dlt.common.typing import TSecretValue
 from dlt.common.configuration import configspec
@@ -48,7 +48,7 @@ def environment() -> Any:
 @pytest.fixture(scope="function")
 def mock_provider() -> "MockProvider":
     container = Container()
-    with container.injectable_configuration(ConfigProvidersListConfiguration()) as providers:
+    with container.injectable_context(ConfigProvidersListContext()) as providers:
         # replace all providers with MockProvider that does not support secrets
         mock_provider = MockProvider()
         providers.providers = [mock_provider]

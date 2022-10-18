@@ -1,7 +1,7 @@
+import inspect
 import contextlib
 import dataclasses
-
-from typing import Callable, Optional, Union, Any, Dict, Iterator, MutableMapping, Type, TYPE_CHECKING, get_origin, overload
+from typing import Callable, Optional, Union, Any, Dict, Iterator, MutableMapping, Type, TYPE_CHECKING, get_origin, overload, ClassVar
 
 if TYPE_CHECKING:
     TDtcField = dataclasses.Field[Any]
@@ -18,7 +18,10 @@ def is_valid_hint(hint: Type[Any]) -> bool:
     hint = get_origin(hint) or hint
     if hint is Any:
         return True
-    if issubclass(hint, BaseConfiguration):
+    if hint is ClassVar:
+        # class vars are skipped by dataclass
+        return True
+    if inspect.isclass(hint) and issubclass(hint, BaseConfiguration):
         return True
     with contextlib.suppress(TypeError):
         py_type_to_sc_type(hint)
@@ -50,8 +53,9 @@ def configspec(cls: Optional[Type[Any]] = None, /, *, init: bool = False) -> Uni
             if not hasattr(cls, ann) and not ann.startswith(("__", "_abc_impl")):
                 setattr(cls, ann, None)
         # get all attributes without corresponding annotations
-        for att_name, att in cls.__dict__.items():
-            if not callable(att) and not att_name.startswith(("__", "_abc_impl")):
+        for att_name, att_value in cls.__dict__.items():
+            # skip callables, dunder names, class variables and some special names
+            if not callable(att_value) and not att_name.startswith(("__", "_abc_impl")):
                 if att_name not in cls.__annotations__:
                     raise ConfigFieldMissingTypeHintException(att_name, cls)
                 hint = cls.__annotations__[att_name]
@@ -74,6 +78,8 @@ class BaseConfiguration(MutableMapping[str, Any]):
     __is_resolved__: bool = dataclasses.field(default = False, init=False, repr=False)
     # namespace used by config providers when searching for keys
     __namespace__: str = dataclasses.field(default = None, init=False, repr=False)
+    # holds the exception that prevented the full resolution
+    __exception__: Exception = dataclasses.field(default = None, init=False, repr=False)
 
     def __init__(self) -> None:
         self.__ignore_set_unknown_keys = False
@@ -163,3 +169,10 @@ class CredentialsConfiguration(BaseConfiguration):
     """Base class for all credentials. Credentials are configurations that may be stored only by providers supporting secrets."""
     pass
 
+
+@configspec
+class ContainerInjectableContext(BaseConfiguration):
+    """Base class for all configurations that may be injected from Container. Injectable configurations are called contexts"""
+
+    # If True, `Container` is allowed to create default context instance, if none exists
+    can_create_default: ClassVar[bool] = True

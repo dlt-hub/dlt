@@ -8,7 +8,7 @@ from typing import Any, List, Type
 from functools import wraps
 
 from dlt.common.typing import DictStrAny, StrAny, TAny, TFun
-from dlt.common.configuration import make_configuration, is_valid_hint
+from dlt.common.configuration import resolve_configuration, is_valid_hint
 from dlt.common.configuration.specs import BaseConfiguration
 
 

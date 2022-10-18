@@ -94,9 +94,15 @@ class InvalidInitialValue(ConfigurationException):
         super().__init__(f"Initial value of type {initial_value_type} is not valid for {spec.__name__}")
 
 
-class ContainerInjectableConfigurationMangled(ConfigurationException):
+class ContainerInjectableContextMangled(ConfigurationException):
     def __init__(self, spec: Type[Any], existing_config: Any, expected_config: Any) -> None:
         self.spec = spec
         self.existing_config = existing_config
         self.expected_config = expected_config
-        super().__init__(f"When restoring injectable config {spec.__name__}, instance {expected_config} was expected, instead instance {existing_config} was found.")
+        super().__init__(f"When restoring context {spec.__name__}, instance {expected_config} was expected, instead instance {existing_config} was found.")
+
+
+class ContextDefaultCannotBeCreated(ConfigurationException):
+    def __init__(self, spec: Type[Any]) -> None:
+        self.spec = spec
+        super().__init__(f"Container cannot create the default value of context {spec.__name__}.")
