@@ -2,7 +2,7 @@ from typing import List, Sequence
 import pytest
 
 from dlt.common import pendulum
-from dlt.common.configuration import make_configuration
+from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.specs import SchemaVolumeConfiguration
 from dlt.common.exceptions import DictValidationException
 from dlt.common.schema.typing import TColumnName, TSimpleRegex, COLUMN_HINTS
@@ -21,7 +21,7 @@ EXPECTED_FILE_NAME = f"{SCHEMA_NAME}_schema.json"
 
 @pytest.fixture
 def schema_storage() -> SchemaStorage:
-    C = make_configuration(
+    C = resolve_configuration(
         SchemaVolumeConfiguration(),
         initial_value={
             "import_schema_path": "tests/common/cases/schemas/rasa",

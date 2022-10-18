@@ -11,7 +11,7 @@ from prometheus_client import REGISTRY
 
 from dlt.common import json, sleep, signals, logger
 from dlt.common.runners import pool_runner as runner, TRunMetrics, initialize_runner
-from dlt.common.configuration import make_configuration
+from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.specs import PoolRunnerConfiguration
 from dlt.common.storages import FileStorage
 from dlt.common.schema import Schema
@@ -46,7 +46,7 @@ class Pipeline:
         self._loader_instance: Load = None
 
         # patch config and initialize pipeline
-        self.C = make_configuration(PoolRunnerConfiguration(), initial_value={
+        self.C = resolve_configuration(PoolRunnerConfiguration(), initial_value={
             "PIPELINE_NAME": pipeline_name,
             "LOG_LEVEL": log_level,
             "POOL_TYPE": "None",

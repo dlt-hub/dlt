@@ -18,10 +18,6 @@ class FileStorage:
         if makedirs:
             os.makedirs(storage_path, exist_ok=True)
 
-    # @classmethod
-    # def from_file(cls, file_path: str, file_type: str = "t",) -> "FileStorage":
-    #     return cls(os.path.dirname(file_path), file_type)
-
     def save(self, relative_path: str, data: Any) -> str:
         return self.save_atomic(self.storage_path, relative_path, data, file_type=self.file_type)
 
@@ -108,19 +104,6 @@ class FileStorage:
     def create_folder(self, relative_path: str, exists_ok: bool = False) -> None:
         os.makedirs(self.make_full_path(relative_path), exist_ok=exists_ok)
 
-    # def copy_cross_storage_atomically(self, dest_volume_root: str, dest_relative_path: str, source_path: str, dest_name: str) -> None:
-    #     external_tmp_file = tempfile.mktemp(dir=dest_volume_root)
-    #     # first copy to temp file
-    #     shutil.copy(self.make_full_path(source_path), external_tmp_file)
-    #     # then rename to dest name
-    #     external_dest = os.path.join(dest_volume_root, dest_relative_path, dest_name)
-    #     try:
-    #         os.rename(external_tmp_file, external_dest)
-    #     except Exception:
-    #         if os.path.isfile(external_tmp_file):
-    #             os.remove(external_tmp_file)
-    #         raise
-
     def link_hard(self, from_relative_path: str, to_relative_path: str) -> None:
         # note: some interesting stuff on links https://lightrun.com/answers/conan-io-conan-research-investigate-symlinks-and-hard-links
         os.link(
@@ -156,6 +139,10 @@ class FileStorage:
 
         # then assume that it is a path relative to storage root
         return os.path.join(self.storage_path, path)
+
+    @staticmethod
+    def get_file_name_from_file_path(file_path: str) -> str:
+        return os.path.basename(file_path)
 
     @staticmethod
     def validate_file_name_component(name: str) -> None:

@@ -5,7 +5,7 @@ from prometheus_client import registry
 
 from dlt.cli import TRunnerArgs
 from dlt.common import signals
-from dlt.common.configuration import make_configuration, configspec
+from dlt.common.configuration import resolve_configuration, configspec
 from dlt.common.configuration.specs import PoolRunnerConfiguration, TPoolType
 from dlt.common.exceptions import DltException, SignalReceivedException, TimeRangeExhaustedException, UnsupportedProcessStartMethodException
 from dlt.common.runners import pool_runner as runner
@@ -46,12 +46,12 @@ class ThreadPoolConfiguration(ModPoolRunnerConfiguration):
 
 
 def configure(C: Type[PoolRunnerConfiguration], args: TRunnerArgs) -> PoolRunnerConfiguration:
-    return make_configuration(C(), initial_value=args._asdict())
+    return resolve_configuration(C(), initial_value=args._asdict())
 
 
 @pytest.fixture(scope="module", autouse=True)
 def logger_autouse() -> None:
-    init_logger(ModPoolRunnerConfiguration)
+    init_logger()
 
 
 @pytest.fixture(autouse=True)

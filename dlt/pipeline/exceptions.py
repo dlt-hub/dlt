@@ -50,8 +50,8 @@ class PipelineBackupNotFound(PipelineException):
 
 
 class SqlClientNotAvailable(PipelineException):
-    def __init__(self, client_type: str) -> None:
-        super().__init__(f"SQL Client not available in {client_type}")
+    def __init__(self, destination_name: str) -> None:
+        super().__init__(f"SQL Client not available for {destination_name}")
 
 
 class InvalidIteratorException(PipelineException):

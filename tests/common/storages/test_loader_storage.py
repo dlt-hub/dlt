@@ -6,7 +6,7 @@ from typing import Sequence, Tuple
 from dlt.common import sleep
 from dlt.common.schema import Schema
 from dlt.common.storages.load_storage import LoadStorage, TParsedJobFileName
-from dlt.common.configuration import make_configuration
+from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.specs import LoadVolumeConfiguration
 from dlt.common.storages.exceptions import NoMigrationPathException
 from dlt.common.typing import StrAny
@@ -17,14 +17,14 @@ from tests.utils import TEST_STORAGE_ROOT, write_version, autouse_test_storage
 
 @pytest.fixture
 def storage() -> LoadStorage:
-    C = make_configuration(LoadVolumeConfiguration())
-    s = LoadStorage(True, C, "jsonl", LoadStorage.ALL_SUPPORTED_FILE_FORMATS)
+    C = resolve_configuration(LoadVolumeConfiguration())
+    s = LoadStorage(True, "jsonl", LoadStorage.ALL_SUPPORTED_FILE_FORMATS, C)
     return s
 
 
 def test_complete_successful_package(storage: LoadStorage) -> None:
     # should delete package in full
-    storage.delete_completed_jobs = True
+    storage.config.delete_completed_jobs = True
     load_id, file_name = start_loading_file(storage, [{"content": "a"}, {"content": "b"}])
     assert storage.storage.has_folder(storage.get_package_path(load_id))
     storage.complete_job(load_id, file_name)
@@ -35,7 +35,7 @@ def test_complete_successful_package(storage: LoadStorage) -> None:
     assert not storage.storage.has_folder(storage.get_completed_package_path(load_id))
 
     # do not delete completed jobs
-    storage.delete_completed_jobs = False
+    storage.config.delete_completed_jobs = False
     load_id, file_name = start_loading_file(storage, [{"content": "a"}, {"content": "b"}])
     storage.complete_job(load_id, file_name)
     storage.complete_load_package(load_id)
@@ -47,7 +47,7 @@ def test_complete_successful_package(storage: LoadStorage) -> None:
 
 def test_complete_package_failed_jobs(storage: LoadStorage) -> None:
     # loads with failed jobs are always persisted
-    storage.delete_completed_jobs = True
+    storage.config.delete_completed_jobs = True
     load_id, file_name = start_loading_file(storage, [{"content": "a"}, {"content": "b"}])
     assert storage.storage.has_folder(storage.get_package_path(load_id))
     storage.fail_job(load_id, file_name, "EXCEPTION")
@@ -142,22 +142,22 @@ def test_process_schema_update(storage: LoadStorage) -> None:
 
 def test_full_migration_path() -> None:
     # create directory structure
-    s = LoadStorage(True, LoadVolumeConfiguration, "jsonl", LoadStorage.ALL_SUPPORTED_FILE_FORMATS)
+    s = LoadStorage(True, "jsonl", LoadStorage.ALL_SUPPORTED_FILE_FORMATS)
     # overwrite known initial version
     write_version(s.storage, "1.0.0")
     # must be able to migrate to current version
-    s = LoadStorage(False, LoadVolumeConfiguration, "jsonl", LoadStorage.ALL_SUPPORTED_FILE_FORMATS)
+    s = LoadStorage(False, "jsonl", LoadStorage.ALL_SUPPORTED_FILE_FORMATS)
     assert s.version == LoadStorage.STORAGE_VERSION
 
 
 def test_unknown_migration_path() -> None:
     # create directory structure
-    s = LoadStorage(True, LoadVolumeConfiguration, "jsonl", LoadStorage.ALL_SUPPORTED_FILE_FORMATS)
+    s = LoadStorage(True, "jsonl", LoadStorage.ALL_SUPPORTED_FILE_FORMATS)
     # overwrite known initial version
     write_version(s.storage, "10.0.0")
     # must be able to migrate to current version
     with pytest.raises(NoMigrationPathException):
-        LoadStorage(False, LoadVolumeConfiguration, "jsonl", LoadStorage.ALL_SUPPORTED_FILE_FORMATS)
+        LoadStorage(False, "jsonl", LoadStorage.ALL_SUPPORTED_FILE_FORMATS)
 
 
 def start_loading_file(s: LoadStorage, content: Sequence[StrAny]) -> Tuple[str, str]:

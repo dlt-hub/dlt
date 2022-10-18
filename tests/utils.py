@@ -8,9 +8,9 @@ from os import environ
 
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.providers import EnvironProvider, DictionaryProvider
-from dlt.common.configuration.resolve import make_configuration, serialize_value
+from dlt.common.configuration.resolve import resolve_configuration, serialize_value
 from dlt.common.configuration.specs import BaseConfiguration, RunConfiguration
-from dlt.common.configuration.specs.config_providers_configuration import ConfigProvidersListConfiguration
+from dlt.common.configuration.specs.config_providers_context import ConfigProvidersListContext
 from dlt.common.logger import init_logging_from_config
 from dlt.common.storages import FileStorage
 from dlt.common.schema import Schema
@@ -21,10 +21,14 @@ from dlt.common.typing import StrAny
 TEST_STORAGE_ROOT = "_storage"
 
 # add test dictionary provider
-TEST_DICT_CONFIG_PROVIDER = DictionaryProvider()
-providers_config = Container()[ConfigProvidersListConfiguration]
-providers_config.providers.append(TEST_DICT_CONFIG_PROVIDER)
-
+def TEST_DICT_CONFIG_PROVIDER():
+    providers_context = Container()[ConfigProvidersListContext]
+    try:
+        return providers_context.get_provider(DictionaryProvider.NAME)
+    except KeyError:
+        provider = DictionaryProvider()
+        providers_context.add_provider(provider)
+        return provider
 
 
 class MockHttpResponse():
@@ -67,7 +71,7 @@ def preserve_environ() -> None:
 def init_logger(C: RunConfiguration = None) -> None:
     if not hasattr(logging, "health"):
         if not C:
-            C = make_configuration(RunConfiguration())
+            C = resolve_configuration(RunConfiguration())
         init_logging_from_config(C)
 
 

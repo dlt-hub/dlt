@@ -9,7 +9,7 @@ from dlt.common.utils import uniq_id
 
 from dlt.dbt_runner.utils import DBTProcessingError
 from dlt.dbt_runner import runner
-from dlt.load.bigquery.client import BigQuerySqlClient
+from dlt.load.bigquery.bigquery import BigQuerySqlClient
 
 from tests.utils import add_config_to_env, init_logger, preserve_environ
 from tests.dbt_runner.utils import setup_runner

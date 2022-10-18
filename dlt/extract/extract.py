@@ -1,5 +1,5 @@
 import os
-from typing import List
+from typing import ClassVar, List
 
 from dlt.common.utils import uniq_id
 from dlt.common.sources import TDirectDataItem, TDataItem
@@ -13,14 +13,11 @@ from dlt.extract.sources import DltResource, DltSource
 
 
 class ExtractorStorage(DataItemStorage, NormalizeStorage):
-    EXTRACT_FOLDER = "extract"
+    EXTRACT_FOLDER: ClassVar[str] = "extract"
 
     def __init__(self, C: NormalizeVolumeConfiguration) -> None:
         # data item storage with jsonl with pua encoding
-        super().__init__("puae-jsonl", False, C)
-        self.initialize_storage()
-
-    def initialize_storage(self) -> None:
+        super().__init__("puae-jsonl", True, C)
         self.storage.create_folder(ExtractorStorage.EXTRACT_FOLDER, exists_ok=True)
 
     def create_extract_id(self) -> str:
@@ -49,7 +46,8 @@ class ExtractorStorage(DataItemStorage, NormalizeStorage):
         return os.path.join(ExtractorStorage.EXTRACT_FOLDER, extract_id)
 
 
-def extract(source: DltSource, storage: ExtractorStorage) -> TSchemaUpdate:
+def extract(source: DltSource, storage: ExtractorStorage, *, max_parallel_items: int = 100, workers: int = 5, futures_poll_interval: float = 0.01) -> TSchemaUpdate:
+    # TODO: add metrics: number of items processed, also per resource and table
     dynamic_tables: TSchemaUpdate = {}
     schema = source.schema
     extract_id = storage.create_extract_id()
@@ -80,7 +78,7 @@ def extract(source: DltSource, storage: ExtractorStorage) -> TSchemaUpdate:
         _write_item(table_name, item)
 
     # yield from all selected pipes
-    for pipe_item in PipeIterator.from_pipes(source.pipes):
+    for pipe_item in PipeIterator.from_pipes(source.pipes, max_parallel_items=max_parallel_items, workers=workers, futures_poll_interval=futures_poll_interval):
         # get partial table from table template
         resource = source.resource_by_pipe(pipe_item.pipe)
         if resource._table_name_hint_fun:

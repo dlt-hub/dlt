@@ -1,81 +1,75 @@
 import os
-from collections import abc
-import tempfile
 from contextlib import contextmanager
 from copy import deepcopy
 from functools import wraps
-from typing import Any, List, Iterable, Iterator, Mapping, NewType, Optional, Sequence, Type, TypedDict, Union, overload
-from operator import itemgetter
-from prometheus_client import REGISTRY
+from typing import Any, Callable, ClassVar, List, Iterable, Iterator, Generator, Mapping, NewType, Optional, Sequence, Tuple, Type, TypedDict, Union, get_type_hints, overload
 
 from dlt.common import json, logger, signals
-from dlt.common.sources import DLT_METADATA_FIELD, with_table_name
+from dlt.common.configuration.container import Container
+from dlt.common.configuration.specs.config_namespace_context import ConfigNamespacesContext
+from dlt.common.runners.runnable import Runnable
+from dlt.common.sources import DLT_METADATA_FIELD, TResolvableDataItem, with_table_name
 from dlt.common.typing import DictStrAny, StrAny, TFun, TSecretValue, TAny
 
 from dlt.common.runners import pool_runner as runner, TRunMetrics, initialize_runner
-from dlt.common.schema.utils import normalize_schema_name
 from dlt.common.storages import LiveSchemaStorage, NormalizeStorage
 
-from dlt.common.configuration import make_configuration, RunConfiguration, NormalizeVolumeConfiguration, SchemaVolumeConfiguration, ProductionNormalizeVolumeConfiguration
+from dlt.common.configuration import inject_namespace
+from dlt.common.configuration.specs import RunConfiguration, NormalizeVolumeConfiguration, SchemaVolumeConfiguration, LoadVolumeConfiguration, PoolRunnerConfiguration, DestinationCapabilitiesContext
 from dlt.common.schema.schema import Schema
 from dlt.common.storages.file_storage import FileStorage
-from dlt.common.utils import is_interactive, uniq_id
+from dlt.common.utils import is_interactive
+from dlt.extract.extract import ExtractorStorage, extract
 
-from dlt.extract.extractor_storage import ExtractorStorageBase
-from dlt.load.typing import TLoaderCapabilities
-from dlt.normalize.configuration import configuration as normalize_configuration
 from dlt.normalize import Normalize
-from dlt.load.client_base import SqlClientBase, SqlJobClientBase
-from dlt.load.configuration import LoaderClientDwhConfiguration, configuration as loader_configuration
+from dlt.load.client_base import DestinationReference, JobClientBase, SqlClientBase
+from dlt.load.configuration import DestinationClientConfiguration, DestinationClientDwhConfiguration, LoaderConfiguration
 from dlt.load import Load
+from dlt.normalize.configuration import NormalizeConfiguration
 
-from experiments.pipeline.configuration import get_config
-from experiments.pipeline.exceptions import PipelineConfigMissing, PipelineConfiguredException, MissingDependencyException, PipelineStepFailed
-from dlt.extract.sources import DltSource, TResolvableDataItem
-
-
-TConnectionString = NewType("TConnectionString",  str)
-TSourceState = NewType("TSourceState", DictStrAny)
-
-TCredentials = Union[TConnectionString, StrAny]
-
-class TPipelineState(TypedDict):
-    pipeline_name: str
-    default_dataset: str
-    # is_transient: bool
-    default_schema_name: Optional[str]
-    # pipeline_secret: TSecretValue
-    destination_name: Optional[str]
-    # schema_sync_path: Optional[str]
-
-
-# class TPipelineState()
-#     sources: Dict[str, TSourceState]
+from experiments.pipeline.exceptions import PipelineConfigMissing, MissingDependencyException, PipelineStepFailed
+from dlt.extract.sources import DltResource, DltSource, TTableSchemaTemplate
+from experiments.pipeline.typing import TPipelineStep, TPipelineState
+from experiments.pipeline.configuration import StateInjectableContext
 
 
 class Pipeline:
 
-    STATE_FILE = "state.json"
+    STATE_FILE: ClassVar[str] = "state.json"
+    STATE_PROPS: ClassVar[List[str]] = list(get_type_hints(TPipelineState).keys())
 
-    def __init__(self, pipeline_name: str, working_dir: str, pipeline_secret: TSecretValue, runtime: RunConfiguration):
-        self.pipeline_name = pipeline_name
-        self.working_dir = working_dir
+    pipeline_name: str
+    dataset_name: str
+    default_schema_name: str
+    working_dir: str
+
+    def __init__(self, pipeline_name: str, working_dir: str, pipeline_secret: TSecretValue, destination: DestinationReference, runtime: RunConfiguration):
         self.pipeline_secret = pipeline_secret
         self.runtime_config = runtime
+        self.destination = destination
         self.root_folder: str = None
 
-        # self._initial_values: DictStrAny = {}
-        self._state: TPipelineState = {}
+        self._container = Container()
+        self._state: TPipelineState = {}  # type: ignore
         self._pipeline_storage: FileStorage = None
-        self._extractor_storage: ExtractorStorageBase = None
         self._schema_storage: LiveSchemaStorage = None
+        # self._pool_config: PoolRunnerConfiguration = None
+        self._schema_storage_config: SchemaVolumeConfiguration = None
+        self._normalize_storage_config: NormalizeVolumeConfiguration = None
+        self._load_storage_config: LoadVolumeConfiguration = None
+
+        initialize_runner(self.runtime_config)
+        self._configure(pipeline_name, working_dir)
 
     def with_state_sync(f: TFun) -> TFun:
 
         @wraps(f)
         def _wrap(self: "Pipeline", *args: Any, **kwargs: Any) -> Any:
-            with self._managed_state():
-                return f(self, *args, **kwargs)
+            # backup and restore state
+            with self._managed_state() as state:
+                # add the state to container as a context
+                with self._container.injectable_context(StateInjectableContext(state=state)):
+                    return f(self, *args, **kwargs)
 
         return _wrap
 
@@ -90,11 +84,33 @@ class Pipeline:
 
         return _wrap
 
+    def with_config_namespace(namespaces: Tuple[str, ...]) -> Callable[[TFun], TFun]:
+
+        def decorator(f: TFun) -> TFun:
+
+            @wraps(f)
+            def _wrap(self: "Pipeline", *args: Any, **kwargs: Any) -> Any:
+                # add namespace context to the container to be used by all configuration without explicit namespaces resolution
+                with inject_namespace(ConfigNamespacesContext(pipeline_name=self.pipeline_name, namespaces=namespaces)):
+                    return f(self, *args, **kwargs)
+
+            return _wrap
+
+        return decorator
+
     @with_state_sync
-    def _configure(self) -> None:
+    def _configure(self, pipeline_name: str, working_dir: str) -> None:
+        self.pipeline_name = pipeline_name
+        self.working_dir = working_dir
+
         # compute the folder that keeps all of the pipeline state
         FileStorage.validate_file_name_component(self.pipeline_name)
         self.root_folder = os.path.join(self.working_dir, self.pipeline_name)
+        # create default configs
+        # self._pool_config = PoolRunnerConfiguration(is_single_run=True, exit_on_exception=True)
+        self._schema_storage_config = SchemaVolumeConfiguration(schema_volume_path = os.path.join(self.root_folder, "schemas"))
+        self._normalize_storage_config = NormalizeVolumeConfiguration(normalize_volume_path=os.path.join(self.root_folder, "normalize"))
+        self._load_storage_config = LoadVolumeConfiguration(load_volume_path=os.path.join(self.root_folder, "load"),)
 
         # create pipeline working dir
         self._pipeline_storage = FileStorage(self.root_folder, makedirs=False)
@@ -106,147 +122,153 @@ class Pipeline:
             self._create_pipeline()
 
         # create schema storage
-        self._schema_storage = LiveSchemaStorage(makedirs=True)
-        # create extractor storage
-        self._extractor_storage = ExtractorStorageBase(
-            "1.0.0",
-            True,
-            FileStorage(os.path.join(self.root_folder, "extract"), makedirs=True),
-            self._ensure_normalize_storage()
-        )
-
-        initialize_runner(self.CONFIG)
+        self._schema_storage = LiveSchemaStorage(self._schema_storage_config, makedirs=True)
 
 
-    def drop() -> "Pipeline":
+    def drop(self) -> "Pipeline":
         """Deletes existing pipeline state, schemas and drops datasets at the destination if present"""
         pass
 
 
-    def _get_config(self, spec: Type[TAny], accept_partial: bool = False) -> Type[TAny]:
-        print(self._initial_values)
-        return make_configuration(spec, spec, initial_values=self._initial_values, accept_partial=accept_partial)
+    # @overload
+    # def extract(
+    #     self,
+    #     data: Union[Iterator[TResolvableDataItem], Iterable[TResolvableDataItem]],
+    #     table_name = None,
+    #     write_disposition = None,
+    #     parent = None,
+    #     columns = None,
+    #     max_parallel_data_items: int =  20,
+    #     schema: Schema = None
+    # ) -> None:
+    #     ...
 
+    # @overload
+    # def extract(
+    #     self,
+    #     data: DltSource,
+    #     max_parallel_iterators: int = 1,
+    #     max_parallel_data_items: int =  20,
+    #     schema: Schema = None
+    # ) -> None:
+    #     ...
 
-    @overload
-    def extract(
-        self,
-        data: Union[Iterator[TResolvableDataItem], Iterable[TResolvableDataItem]],
-        table_name = None,
-        write_disposition = None,
-        parent = None,
-        columns = None,
-        max_parallel_data_items: int =  20,
-        schema: Schema = None
-    ) -> None:
-        ...
-
-    @overload
-    def extract(
-        self,
-        data: DltSource,
-        max_parallel_iterators: int = 1,
-        max_parallel_data_items: int =  20,
-        schema: Schema = None
-    ) -> None:
-        ...
-
-    @maybe_default_config
     @with_schemas_sync
     @with_state_sync
+    @with_config_namespace(("extract",))
     def extract(
         self,
-        data: Union[DltSource, Iterator[TResolvableDataItem], Iterable[TResolvableDataItem]],
+        data: Union[DltSource, DltResource, Iterator[TResolvableDataItem], Iterable[TResolvableDataItem]],
         table_name = None,
         write_disposition = None,
         parent = None,
         columns = None,
-        max_parallel_iterators: int = 1,
-        max_parallel_data_items: int =  20,
-        schema: Schema = None
+        schema: Schema = None,
+        *,
+        max_parallel_items: int = 100,
+        workers: int = 5
     ) -> None:
-        self._schema_storage.save_schema(schema)
-        self._state["default_schema_name"] = schema.name
-        # TODO: apply hints to table
 
-        # check if iterator or iterable is supported
-        # if isinstance(items, str) or isinstance(items, dict) or not
-        # TODO: check if schema exists
-        with self._managed_state():
-            default_table_name = table_name or self.CONFIG.pipeline_name
-            # TODO: this is not very effective - we consume iterator right away, better implementation needed where we stream iterator to files directly
-            all_items: List[DictStrAny] = []
-            for item in data:
-                # dispatch items by type
-                if callable(item):
-                    item = item()
-                if isinstance(item, dict):
-                    all_items.append(item)
-                elif isinstance(item, abc.Sequence):
-                    all_items.extend(item)
-                # react to CTRL-C and shutdowns from controllers
-                signals.raise_if_signalled()
+        def only_data_args(with_schema: bool) -> None:
+            if not table_name or not write_disposition or not parent or not columns:
+                raise InvalidExtractArguments(with_schema)
+            if not with_schema and not schema:
+                raise InvalidExtractArguments(with_schema)
 
-            try:
-                self._extract_iterator(default_table_name, all_items)
-            except Exception:
-                raise PipelineStepFailed("extract", self.last_run_exception, runner.LAST_RUN_METRICS)
+        def choose_schema() -> Schema:
+            if schema:
+                return schema
+            if self.default_schema_name:
+                return self.default_schema
+            return Schema(self.pipeline_name)
 
-    # @maybe_default_config
-    # @with_schemas_sync
-    # @with_state_sync
-    # def extract_many() -> None:
-    #     pass
+        source: DltSource = None
+
+        if isinstance(data, DltSource):
+            # already a source
+            only_data_args(with_schema=False)
+            source = data
+        elif isinstance(data, DltResource):
+            # package resource in source
+            only_data_args(with_schema=True)
+            source = DltSource(choose_schema(), [data])
+        else:
+            table_schema: TTableSchemaTemplate = {
+                "name": table_name,
+                "parent": parent,
+                "write_disposition": write_disposition,
+                "columns": columns
+            }
+            # convert iterable to resource
+            data = DltResource.from_data(data, name=table_name, table_schema_template=table_schema)
+            # wrap resource in source
+            source = DltSource(choose_schema(), [data])
+
+        try:
+            self._extract_source(source, max_parallel_items, workers)
+        except Exception as exc:
+            raise PipelineStepFailed("extract", self.last_run_exception, runner.LAST_RUN_METRICS) from exc
+
 
     @with_schemas_sync
-    def normalize(self, dry_run: bool = False, workers: int = 1, max_events_in_chunk: int = 100000) -> None:
+    @with_config_namespace(("normalize",))
+    def normalize(self, workers: int = 1, dry_run: bool = False) -> None:
         if is_interactive() and workers > 1:
             raise NotImplementedError("Do not use normalize workers in interactive mode ie. in notebook")
-        # set parameters to be passed to config
-        normalize = self._configure_normalize({
-            "WORKERS": workers,
-            "POOL_TYPE": "thread" if workers == 1 else "process"
-        })
-        try:
-            ec = runner.run_pool(normalize.config, normalize)
-            # in any other case we raise if runner exited with status failed
-            if runner.LAST_RUN_METRICS.has_failed:
-                raise PipelineStepFailed("normalize", self.last_run_exception, runner.LAST_RUN_METRICS)
-            return ec
-        except Exception as r_ex:
-            # if EXIT_ON_EXCEPTION flag is set, exception will bubble up directly
-            raise PipelineStepFailed("normalize", self.last_run_exception, runner.LAST_RUN_METRICS) from r_ex
-        finally:
-            signals.raise_if_signalled()
+
+        # get destination capabilities
+        destination_caps = self._get_destination_capabilities()
+        # create default normalize config
+        normalize_config = NormalizeConfiguration(
+            is_single_run=True,
+            exit_on_exception=True,
+            workers=workers,
+            pool_type="none" if workers == 1 else "process",
+            schema_storage_config=self._schema_storage_config,
+            normalize_storage_config=self._normalize_storage_config,
+            load_storage_config=self._load_storage_config
+        )
+        # run with destination context
+        with self._container.injectable_context(destination_caps):
+            # shares schema storage with the pipeline so we do not need to install
+            normalize = Normalize(config=normalize_config, schema_storage=self._schema_storage)
+            self._run_step_in_pool("normalize", normalize, normalize.config)
 
     @with_schemas_sync
     @with_state_sync
+    @with_config_namespace(("load",))
     def load(
         self,
-        destination_name: str = None,
-        default_dataset: str = None,
-        credentials: TCredentials = None,
-        raise_on_failed_jobs = False,
-        raise_on_incompatible_schema = False,
-        always_drop_dataset = False,
-        dry_run: bool = False,
-        max_parallel_loads: int = 20,
-        normalize_workers: int = 1
+        destination: DestinationReference = None,
+        dataset_name: str = None,
+        credentials: Any = None,
+        # raise_on_failed_jobs = False,
+        # raise_on_incompatible_schema = False,
+        # always_drop_dataset = False,
+        *,
+        workers: int = 20
     ) -> None:
-        self._resolve_load_client_config()
-        # check if anything to normalize
-        if len(self._extractor_storage.normalize_storage.list_files_to_normalize_sorted()) > 0:
-            self.normalize(dry_run=dry_run, workers=normalize_workers)
-        # then load
-        print(locals())
-        load = self._configure_load(locals(), credentials)
-        runner.run_pool(load.config, load)
-        if runner.LAST_RUN_METRICS.has_failed:
-            raise PipelineStepFailed("load", self.last_run_exception, runner.LAST_RUN_METRICS)
 
-    def activate(self) -> None:
-        # make this instance the active one
-        pass
+        # set destination and default dataset if provided
+        self.destination = destination or self.destination
+        self.dataset_name = dataset_name or self.dataset_name
+        # check if any schema is present, if not then no data was extracted
+        if not self.default_schema_name:
+            return
+
+        # make sure that destination is set and client is importable and can be instantiated
+        client_initial_config = self._get_destination_client_initial_config(credentials)
+        self._get_destination_client(self.default_schema, client_initial_config)
+
+        # create initial loader config and the loader
+        load_config = LoaderConfiguration(
+            is_single_run=True,
+            exit_on_exception=True,
+            workers=workers,
+            load_storage_config=self._load_storage_config
+        )
+        load = Load(self.destination, is_storage_owner=False, config=load_config, initial_client_config=client_initial_config)
+        self._run_step_in_pool("load", load, load.config)
 
     @property
     def schemas(self) -> Mapping[str, Schema]:
@@ -254,7 +276,7 @@ class Pipeline:
 
     @property
     def default_schema(self) -> Schema:
-        return self.schemas[self._state.get("default_schema_name")]
+        return self.schemas[self.default_schema_name]
 
     @property
     def last_run_exception(self) -> BaseException:
@@ -266,150 +288,101 @@ class Pipeline:
     def _restore_pipeline(self) -> None:
         self._restore_state()
 
-    def _ensure_normalize_storage(self) -> NormalizeStorage:
-        return NormalizeStorage(True, self._get_config(NormalizeVolumeConfiguration))
+    def _restore_state(self) -> None:
+        self._state.clear()  # type: ignore
+        restored_state: TPipelineState = json.loads(self._pipeline_storage.load(Pipeline.STATE_FILE))
+        self._state.update(restored_state)
 
-    def _configure_normalize(self, initial_values: DictStrAny) -> Normalize:
-        destination_name = self._ensure_destination_name()
-        format = self._get_loader_capabilities(destination_name)["preferred_loader_file_format"]
-        # create normalize config
-        initial_values.update({
-            "LOADER_FILE_FORMAT": format,
-            "ADD_EVENT_JSON": False
-        })
-        # apply schema storage config
-        # initial_values.update(self._schema_storage.C.as_dict())
-        # apply common initial settings
-        initial_values.update(self._initial_values)
-        C = normalize_configuration(initial_values=initial_values)
-        print(C.as_dict())
-        # shares schema storage with the pipeline so we do not need to install
-        return Normalize(C, schema_storage=self._schema_storage)
+    def _extract_source(self, source: DltSource, max_parallel_items: int, workers: int) -> None:
+        storage = ExtractorStorage(self._normalize_storage_config)
 
-    def _configure_load(self, loader_initial: DictStrAny, credentials: TCredentials = None) -> Load:
-        # get destination or raise
-        destination_name = self._ensure_destination_name()
-        # import load client for given destination or raise
-        self._get_loader_capabilities(destination_name)
-        # get default dataset or raise
-        default_dataset = self._ensure_default_dataset()
+        for _, partials in extract(source, storage, max_parallel_items=max_parallel_items, workers=workers).items():
+            for partial in partials:
+                source.schema.update_schema(source.schema.normalize_table_identifiers(partial))
 
-        loader_initial.update({
-            "DELETE_COMPLETED_JOBS": True,
-            "CLIENT_TYPE": destination_name
-        })
-        loader_initial.update(self._initial_values)
+        # save schema and set as default if this is first one
+        self._schema_storage.save_schema(source.schema)
+        if not self.default_schema_name:
+            self.default_schema_name = source.schema.name
 
-        loader_client_initial = {
-            "DEFAULT_DATASET": default_dataset,
-            "DEFAULT_SCHEMA_NAME": self._state.get("default_schema_name")
-        }
-        if credentials:
-            loader_client_initial.update(credentials)
-
-        C = loader_configuration(initial_values=loader_initial)
-        return Load(C, REGISTRY, client_initial_values=loader_client_initial, is_storage_owner=False)
-
-    def _set_common_initial_values(self) -> None:
-        self._initial_values.update({
-            "IS_SINGLE_RUN": True,
-            "EXIT_ON_EXCEPTION": True,
-            "LOAD_VOLUME_PATH": os.path.join(self.root_folder, "load"),
-            "NORMALIZE_VOLUME_PATH": os.path.join(self.root_folder, "normalize"),
-            "SCHEMA_VOLUME_PATH": os.path.join(self.root_folder, "schemas")
-        })
-
-    def _get_loader_capabilities(self, destination_name: str) -> TLoaderCapabilities:
+    def _run_step_in_pool(self, step: TPipelineStep, runnable: Runnable[Any], config: PoolRunnerConfiguration) -> int:
         try:
-            return Load.loader_capabilities(destination_name)
+            ec = runner.run_pool(config, runnable)
+            # in any other case we raise if runner exited with status failed
+            if runner.LAST_RUN_METRICS.has_failed:
+                raise PipelineStepFailed(step, self.last_run_exception, runner.LAST_RUN_METRICS)
+            return ec
+        except Exception as r_ex:
+            # if EXIT_ON_EXCEPTION flag is set, exception will bubble up directly
+            raise PipelineStepFailed(step, self.last_run_exception, runner.LAST_RUN_METRICS) from r_ex
+        finally:
+            signals.raise_if_signalled()
+
+    def _get_destination_client_initial_config(self, credentials: Any) -> DestinationClientConfiguration:
+        if not self.destination:
+            raise PipelineConfigMissing(
+                "destination",
+                "load",
+                "Please provide `destination` argument to `config` or `load` method or via pipeline config file or environment var."
+            )
+        dataset_name = self._get_dataset_name()
+        # create initial destination client config
+        client_spec = self.destination.spec()
+        if issubclass(client_spec, DestinationClientDwhConfiguration):
+            # client support schemas and datasets
+            return client_spec(dataset_name=dataset_name, default_schema_name=self.default_schema_name, credentials=credentials)
+        else:
+            return client_spec(credentials=credentials)
+
+    def _get_destination_client(self, schema: Schema, initial_config: DestinationClientConfiguration = None) -> JobClientBase:
+        try:
+            return self.destination.client(schema, initial_config)
         except ImportError:
+            client_spec = self.destination.spec()
             raise MissingDependencyException(
-                f"{destination_name} destination",
-                [f"python-dlt[{destination_name}]"],
+                f"{client_spec.destination_name} destination",
+                [f"python-dlt[{client_spec.destination_name}]"],
                 "Dependencies for specific destinations are available as extras of python-dlt"
             )
 
-    def _resolve_load_client_config(self) -> Type[LoaderClientDwhConfiguration]:
-        return get_config(
-            LoaderClientDwhConfiguration,
-            initial_values={
-                "client_type": self._initial_values.get("destination_name"),
-                "default_dataset": self._initial_values.get("default_dataset")
-            },
-            accept_partial=True
-        )
-
-    def _ensure_destination_name(self) -> str:
-        d_n = self._resolve_load_client_config().client_type
-        if not d_n:
+    def _get_destination_capabilities(self) -> DestinationCapabilitiesContext:
+        if not self.destination:
                 raise PipelineConfigMissing(
-                    "destination_name",
+                    "destination",
                     "normalize",
-                    "Please provide `destination_name` argument to `config` or `load` method or via pipeline config file or environment var."
+                    "Please provide `destination` argument to `config` or `load` method or via pipeline config file or environment var."
                 )
-        return d_n
+        return self.destination.capabilities()
 
-    def _ensure_default_dataset(self) -> str:
-        d_n = self._resolve_load_client_config().default_dataset
-        if not d_n:
-            d_n = normalize_schema_name(self.CONFIG.pipeline_name)
-        return d_n
-
-    def _extract_iterator(self, default_table_name: str, items: Sequence[DictStrAny]) -> None:
-        try:
-            for idx, i in enumerate(items):
-                if not isinstance(i, dict):
-                    # TODO: convert non dict types into dict
-                    items[idx] = i = {"v": i}
-                if DLT_METADATA_FIELD not in i or i.get(DLT_METADATA_FIELD, None) is None:
-                    # set default table name
-                    with_table_name(i, default_table_name)
-
-            load_id = uniq_id()
-            self._extractor_storage.save_json(f"{load_id}.json", items)
-            self._extractor_storage.commit_events(
-                self.default_schema.name,
-                self._extractor_storage.storage.make_full_path(f"{load_id}.json"),
-                default_table_name,
-                len(items),
-                load_id
-            )
-
-            runner.LAST_RUN_METRICS = TRunMetrics(was_idle=False, has_failed=False, pending_items=0)
-        except Exception as ex:
-            logger.exception("extracting iterator failed")
-            runner.LAST_RUN_METRICS = TRunMetrics(was_idle=False, has_failed=True, pending_items=0)
-            runner.LAST_RUN_EXCEPTION = ex
-            raise
+    def _get_dataset_name(self) -> str:
+        return self.dataset_name or self.pipeline_name
 
     @contextmanager
-    def _managed_state(self) -> Iterator[None]:
+    def _managed_state(self) -> Iterator[TPipelineState]:
+        # write props to pipeline variables
+        for prop in Pipeline.STATE_PROPS:
+            setattr(self, prop, self._state.get(prop))
+        # backup the state
         backup_state = deepcopy(self._state)
         try:
-            yield
+            yield self._state
         except Exception:
             # restore old state
-            self._state.clear()
+            self._state.clear()  # type: ignore
             self._state.update(backup_state)
             raise
         else:
+            # update state props
+            for prop in Pipeline.STATE_PROPS:
+                self._state[prop] = getattr(self, prop)
+            # compare backup and new state, save only if different
+            new_state = json.dumps(self._state)
+            old_state = json.dumps(backup_state)
             # persist old state
-            # TODO: compare backup and new state, save only if different
-            self._pipeline_storage.save(Pipeline.STATE_FILE, json.dumps(self._state))
-
-    def _restore_state(self) -> None:
-        self._state.clear()
-        restored_state: DictStrAny = json.loads(self._pipeline_storage.load(Pipeline.STATE_FILE))
-        self._state.update(restored_state)
-
-    @property
-    def is_active(self) -> bool:
-        return id(self) == id(Pipeline.ACTIVE_INSTANCE)
+            if new_state != old_state:
+                self._pipeline_storage.save(Pipeline.STATE_FILE, new_state)
 
     @property
     def has_pending_loads(self) -> bool:
         # TODO: check if has pending normalizer and loader data
         pass
-
-# active instance always present
-Pipeline.ACTIVE_INSTANCE = Pipeline()

@@ -36,8 +36,9 @@ class Normalize(Runnable[ProcessPool]):
     load_package_counter: Counter = None
 
     @with_config(spec=NormalizeConfiguration, namespaces=("normalize",))
-    def __init__(self, config: NormalizeConfiguration = ConfigValue, collector: CollectorRegistry = REGISTRY, schema_storage: SchemaStorage = None) -> None:
+    def __init__(self, collector: CollectorRegistry = REGISTRY, schema_storage: SchemaStorage = None, config: NormalizeConfiguration = ConfigValue) -> None:
         self.config = config
+        self.loader_file_format = config.destination_capabilities.preferred_loader_file_format
         self.pool: ProcessPool = None
         self.normalize_storage: NormalizeStorage = None
         self.load_storage: LoadStorage = None
@@ -46,7 +47,7 @@ class Normalize(Runnable[ProcessPool]):
         # setup storages
         self.create_storages()
         # create schema storage with give type
-        self.schema_storage = schema_storage or SchemaStorage(makedirs=True)
+        self.schema_storage = schema_storage or SchemaStorage(self.config.schema_storage_config, makedirs=True)
         try:
             self.create_gauges(collector)
         except ValueError as v:
@@ -62,9 +63,10 @@ class Normalize(Runnable[ProcessPool]):
         Normalize.load_package_counter = Gauge("normalize_load_packages_created_count", "Count of load package created", ["schema"], registry=registry)
 
     def create_storages(self) -> None:
-        self.normalize_storage = NormalizeStorage(True)
+        # pass initial normalize storage config embedded in normalize config
+        self.normalize_storage = NormalizeStorage(True, config=self.config.normalize_storage_config)
         # normalize saves in preferred format but can read all supported formats
-        self.load_storage = LoadStorage(True, self.config.loader_file_format, LoadStorage.ALL_SUPPORTED_FILE_FORMATS)
+        self.load_storage = LoadStorage(True, self.loader_file_format, LoadStorage.ALL_SUPPORTED_FILE_FORMATS, config=self.config.load_storage_config)
 
 
     @staticmethod
@@ -159,7 +161,7 @@ class Normalize(Runnable[ProcessPool]):
         # TODO: maybe we should chunk by file size, now map all files to workers
         chunk_files = [files]
         schema_dict = schema.to_dict()
-        config_tuple = (self.normalize_storage.config, self.load_storage.config, self.config.loader_file_format, schema_dict)
+        config_tuple = (self.normalize_storage.config, self.load_storage.config, self.loader_file_format, schema_dict)
         param_chunk = [(*config_tuple, load_id, files) for files in chunk_files]
         processed_chunks = self.pool.starmap(Normalize.w_normalize_files, param_chunk)
         return sum([t[1] for t in processed_chunks]), [t[0] for t in processed_chunks], chunk_files
@@ -168,7 +170,7 @@ class Normalize(Runnable[ProcessPool]):
         processed_chunk = Normalize.w_normalize_files(
             self.normalize_storage.config,
             self.load_storage.config,
-            self.config.loader_file_format,
+            self.loader_file_format,
             schema.to_dict(),
             load_id,
             files

@@ -1,4 +1,4 @@
-from typing import List, Sequence, NamedTuple, overload
+from typing import ClassVar, Sequence, NamedTuple, overload
 from itertools import groupby
 from pathlib import Path
 
@@ -17,8 +17,8 @@ class TParsedNormalizeFileName(NamedTuple):
 
 class NormalizeStorage(VersionedStorage):
 
-    STORAGE_VERSION = "1.0.0"
-    EXTRACTED_FOLDER: str = "extracted"  # folder within the volume where extracted files to be normalized are stored
+    STORAGE_VERSION: ClassVar[str] = "1.0.0"
+    EXTRACTED_FOLDER: ClassVar[str] = "extracted"  # folder within the volume where extracted files to be normalized are stored
 
     @overload
     def __init__(self, is_owner: bool, config: NormalizeVolumeConfiguration) -> None:
@@ -32,10 +32,13 @@ class NormalizeStorage(VersionedStorage):
     def __init__(self, is_owner: bool, config: NormalizeVolumeConfiguration = ConfigValue) -> None:
         super().__init__(NormalizeStorage.STORAGE_VERSION, is_owner, FileStorage(config.normalize_volume_path, "t", makedirs=is_owner))
         self.config = config
+        print(is_owner)
         if is_owner:
             self.initialize_storage()
 
     def initialize_storage(self) -> None:
+        print(self.storage.storage_path)
+        print(NormalizeStorage.EXTRACTED_FOLDER)
         self.storage.create_folder(NormalizeStorage.EXTRACTED_FOLDER, exists_ok=True)
 
     def list_files_to_normalize_sorted(self) -> Sequence[str]:

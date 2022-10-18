@@ -9,8 +9,7 @@ from dlt.common.typing import StrAny
 from dlt.common.json import json_typed_dumps
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.data_writers.escape import escape_redshift_identifier, escape_redshift_literal
-
-TLoaderFileFormat = Literal["jsonl", "puae-jsonl", "insert_values"]
+from dlt.common.configuration.specs.destination_capabilities_context import TLoaderFileFormat
 
 
 @dataclass

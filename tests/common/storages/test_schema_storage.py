@@ -8,7 +8,7 @@ from dlt.common.typing import DictStrAny
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import TStoredSchema
 from dlt.common.schema.utils import default_normalizers
-from dlt.common.configuration import make_configuration
+from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.specs import SchemaVolumeConfiguration
 from dlt.common.storages.exceptions import InStorageSchemaModified, SchemaNotFoundError
 from dlt.common.storages import SchemaStorage, LiveSchemaStorage, FileStorage
@@ -37,7 +37,7 @@ def ie_storage() -> SchemaStorage:
 def init_storage(C: SchemaVolumeConfiguration) -> SchemaStorage:
     # use live schema storage for test which must be backward compatible with schema storage
     s = LiveSchemaStorage(C, makedirs=True)
-    assert C is s.C
+    assert C is s.config
     if C.export_schema_path:
         os.makedirs(C.export_schema_path, exist_ok=True)
     if C.import_schema_path:
@@ -85,7 +85,7 @@ def test_skip_import_if_not_modified(synced_storage: SchemaStorage, storage: Sch
     # the import schema gets modified
     storage_schema.tables["_dlt_loads"]["write_disposition"] = "append"
     storage_schema.tables.pop("event_user")
-    synced_storage._export_schema(storage_schema, synced_storage.C.export_schema_path)
+    synced_storage._export_schema(storage_schema, synced_storage.config.export_schema_path)
     # now load will import again
     reloaded_schema = synced_storage.load_schema("ethereum")
     # we have overwritten storage schema
@@ -112,7 +112,7 @@ def test_store_schema_tampered(synced_storage: SchemaStorage, storage: SchemaSto
 def test_schema_export(ie_storage: SchemaStorage) -> None:
     schema = Schema("ethereum")
 
-    fs = FileStorage(ie_storage.C.export_schema_path)
+    fs = FileStorage(ie_storage.config.export_schema_path)
     exported_name = ie_storage._file_name_in_store("ethereum", "yaml")
     # no exported schema
     assert not fs.has_file(exported_name)
@@ -191,7 +191,7 @@ def test_save_store_schema_over_import(ie_storage: SchemaStorage) -> None:
     assert schema.version_hash == schema_hash
     assert schema._imported_version_hash == "njJAySgJRs2TqGWgQXhP+3pCh1A1hXcqe77BpM7JtOU="
     # we have simple schema in export folder
-    fs = FileStorage(ie_storage.C.export_schema_path)
+    fs = FileStorage(ie_storage.config.export_schema_path)
     exported_name = ie_storage._file_name_in_store("ethereum", "yaml")
     exported_schema = yaml.safe_load(fs.load(exported_name))
     assert schema.version_hash == exported_schema["version_hash"]
@@ -205,7 +205,7 @@ def test_save_store_schema_over_import_sync(synced_storage: SchemaStorage) -> No
     synced_storage.save_schema(schema)
     assert schema._imported_version_hash == "njJAySgJRs2TqGWgQXhP+3pCh1A1hXcqe77BpM7JtOU="
     # import schema is overwritten
-    fs = FileStorage(synced_storage.C.import_schema_path)
+    fs = FileStorage(synced_storage.config.import_schema_path)
     exported_name = synced_storage._file_name_in_store("ethereum", "yaml")
     exported_schema = yaml.safe_load(fs.load(exported_name))
     assert schema.version_hash == exported_schema["version_hash"] == schema_hash

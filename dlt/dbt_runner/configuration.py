@@ -3,7 +3,7 @@ from os import environ
 from typing import List, Optional, Type
 
 from dlt.common.typing import StrAny, TSecretValue
-from dlt.common.configuration import make_configuration, configspec
+from dlt.common.configuration import resolve_configuration, configspec
 from dlt.common.configuration.providers import EnvironProvider
 from dlt.common.configuration.specs import PoolRunnerConfiguration, TPoolType, PostgresCredentials, GcpClientCredentials
 
@@ -40,7 +40,7 @@ def gen_configuration_variant(initial_values: StrAny = None) -> DBTRunnerConfigu
     DBTRunnerConfigurationImpl: Type[DBTRunnerConfiguration]
     environ = EnvironProvider()
 
-    source_schema_prefix: str = environ.get_value("default_dataset", type(str))  # type: ignore
+    source_schema_prefix: str = environ.get_value("dataset_name", type(str))  # type: ignore
 
     if environ.get_value("project_id", type(str), GcpClientCredentials.__namespace__):
         @configspec
@@ -54,4 +54,4 @@ def gen_configuration_variant(initial_values: StrAny = None) -> DBTRunnerConfigu
             SOURCE_SCHEMA_PREFIX: str = source_schema_prefix
         DBTRunnerConfigurationImpl = DBTRunnerConfigurationGcp
 
-    return make_configuration(DBTRunnerConfigurationImpl(), initial_value=initial_values)
+    return resolve_configuration(DBTRunnerConfigurationImpl(), initial_value=initial_values)

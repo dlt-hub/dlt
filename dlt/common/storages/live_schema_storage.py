@@ -1,5 +1,6 @@
-from typing import Any, Dict
+from typing import Any, Dict, overload
 
+from dlt.common.typing import ConfigValue
 from dlt.common.schema.schema import Schema
 from dlt.common.storages.schema_storage import SchemaStorage
 from dlt.common.configuration.specs import SchemaVolumeConfiguration
@@ -7,9 +8,17 @@ from dlt.common.configuration.specs import SchemaVolumeConfiguration
 
 class LiveSchemaStorage(SchemaStorage):
 
-    def __init__(self, C: SchemaVolumeConfiguration = None, makedirs: bool = False) -> None:
+    @overload
+    def __init__(self, config: SchemaVolumeConfiguration, makedirs: bool = False) -> None:
+        ...
+
+    @overload
+    def __init__(self, config: SchemaVolumeConfiguration = ConfigValue, makedirs: bool = False) -> None:
+        ...
+
+    def __init__(self, config: SchemaVolumeConfiguration = None, makedirs: bool = False) -> None:
         self.live_schemas: Dict[str, Schema] = {}
-        super().__init__(C, makedirs)
+        super().__init__(config, makedirs)
 
     def __getitem__(self, name: str) -> Schema:
         # disconnect live schema
@@ -36,9 +45,9 @@ class LiveSchemaStorage(SchemaStorage):
         live_schema = self.live_schemas.get(name)
         if live_schema and live_schema.stored_version_hash != live_schema.version_hash:
             live_schema.bump_version()
-            if self.C.import_schema_path:
+            if self.config.import_schema_path:
                 # overwrite import schemas if specified
-                self._export_schema(live_schema, self.C.import_schema_path)
+                self._export_schema(live_schema, self.config.import_schema_path)
             else:
                 # write directly to schema storage if no import schema folder configured
                 self._save_schema(live_schema)

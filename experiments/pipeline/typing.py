@@ -1,14 +1,16 @@
-from typing import Literal
+from typing import Literal, TypedDict, Optional
 
 
 TPipelineStep = Literal["extract", "normalize", "load"]
 
+class TPipelineState(TypedDict):
+    pipeline_name: str
+    dataset_name: str
+    default_schema_name: Optional[str]
+    # destination_name: Optional[str]
 
-# class TTableSchema(TTableSchema, total=False):
-#     name: Optional[str]
-#     description: Optional[str]
-#     write_disposition: Optional[TWriteDisposition]
-#     table_sealed: Optional[bool]
-#     parent: Optional[str]
-#     filters: Optional[TRowFilters]
-#     columns: TTableSchemaColumns
+
+# TSourceState = NewType("TSourceState", DictStrAny)
+
+# class TPipelineState()
+#     sources: Dict[str, TSourceState]

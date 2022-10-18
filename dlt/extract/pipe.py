@@ -193,15 +193,15 @@ class Pipe:
 class PipeIterator(Iterator[PipeItem]):
 
     @configspec
-    class PipeIteratorConfiguration:
+    class PipeIteratorConfiguration(BaseConfiguration):
         max_parallel_items: int = 100
-        worker_threads: int = 5
+        workers: int = 5
         futures_poll_interval: float = 0.01
 
 
-    def __init__(self, max_parallel_items: int, worker_threads, futures_poll_interval: float) -> None:
+    def __init__(self, max_parallel_items: int, workers: int, futures_poll_interval: float) -> None:
         self.max_parallel_items = max_parallel_items
-        self.worker_threads = worker_threads
+        self.workers = workers
         self.futures_poll_interval = futures_poll_interval
 
         self._async_pool: asyncio.AbstractEventLoop = None
@@ -212,21 +212,21 @@ class PipeIterator(Iterator[PipeItem]):
 
     @classmethod
     @with_config(spec=PipeIteratorConfiguration)
-    def from_pipe(cls, pipe: Pipe, *, max_parallelism: int = 100, worker_threads: int = 5, futures_poll_interval: float = 0.01) -> "PipeIterator":
+    def from_pipe(cls, pipe: Pipe, *, max_parallel_items: int = 100, workers: int = 5, futures_poll_interval: float = 0.01) -> "PipeIterator":
         if pipe.parent:
             pipe = pipe.full_pipe()
         # head must be iterator
         assert isinstance(pipe.head, Iterator)
         # create extractor
-        extract = cls(max_parallelism, worker_threads, futures_poll_interval)
+        extract = cls(max_parallel_items, workers, futures_poll_interval)
         # add as first source
         extract._sources.append(SourcePipeItem(pipe.head, 0, pipe))
         return extract
 
     @classmethod
     @with_config(spec=PipeIteratorConfiguration)
-    def from_pipes(cls, pipes: Sequence[Pipe], yield_parents: bool = True, *, max_parallelism: int = 100, worker_threads: int = 5, futures_poll_interval: float = 0.01) -> "PipeIterator":
-        extract = cls(max_parallelism, worker_threads, futures_poll_interval)
+    def from_pipes(cls, pipes: Sequence[Pipe], yield_parents: bool = True, *, max_parallel_items: int = 100, workers: int = 5, futures_poll_interval: float = 0.01) -> "PipeIterator":
+        extract = cls(max_parallel_items, workers, futures_poll_interval)
         # clone all pipes before iterating (recursively) as we will fork them and this add steps
         pipes = PipeIterator.clone_pipes(pipes)
 
@@ -246,7 +246,6 @@ class PipeIterator(Iterator[PipeItem]):
                 if not any(i.pipe == pipe for i in extract._sources):
                     print("add to sources: " + pipe.name)
                 extract._sources.append(SourcePipeItem(pipe.head, 0, pipe))
-
 
         for pipe in reversed(pipes):
             _fork_pipeline(pipe)
@@ -315,7 +314,7 @@ class PipeIterator(Iterator[PipeItem]):
             step = pipe_item.pipe[pipe_item.step + 1]
             assert callable(step)
             item = step(pipe_item.item)
-            pipe_item = ResolvablePipeItem(item, pipe_item.step + 1, pipe_item.pipe)  # type: ignore
+            pipe_item = ResolvablePipeItem(item, pipe_item.step + 1, pipe_item.pipe)
 
 
     def _ensure_async_pool(self) -> asyncio.AbstractEventLoop:
@@ -339,7 +338,7 @@ class PipeIterator(Iterator[PipeItem]):
         if self._thread_pool:
             return self._thread_pool
 
-        self._thread_pool = ThreadPoolExecutor(self.worker_threads)
+        self._thread_pool = ThreadPoolExecutor(self.workers)
         return self._thread_pool
 
     def __enter__(self) -> "PipeIterator":

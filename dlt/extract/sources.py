@@ -58,6 +58,10 @@ class DltResourceSchema:
             return cast(TPartialTableSchema, self._table_schema_template)
 
     def _set_template(self, table_schema_template: TTableSchemaTemplate) -> None:
+        # validate template
+        # TODO: name must be set if any other properties are set
+        # TODO: remove all none values
+
         # if "name" is callable in the template then the table schema requires actual data item to be inferred
         name_hint = table_schema_template.get("name")
         if callable(name_hint):
