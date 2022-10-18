@@ -10,7 +10,8 @@ from dlt.common.storages import FileStorage
 from dlt.common.schema import TTableSchemaColumns
 from dlt.common.utils import uniq_id
 
-from dlt.load.client_base import DBCursor, SqlJobClientBase
+from dlt.load.client_base import DBCursor
+from dlt.load.client_base_impl import SqlJobClientBase
 
 from tests.utils import TEST_STORAGE_ROOT, delete_test_storage
 from tests.common.utils import load_json_case
@@ -335,12 +336,12 @@ def test_retrieve_job(client: SqlJobClientBase, file_storage: FileStorage) -> No
     assert r_job.status() == "completed"
 
 
-@pytest.mark.parametrize('client_type', ALL_CLIENT_TYPES)
-def test_default_schema_name_init_storage(client_type: str) -> None:
-    with cm_yield_client_with_storage(client_type, initial_values={
-            "default_schema_name": "event"  # pass the schema that is a default schema. that should create dataset with the name `default_dataset`
+@pytest.mark.parametrize('destination_name', ALL_CLIENT_TYPES)
+def test_default_schema_name_init_storage(destination_name: str) -> None:
+    with cm_yield_client_with_storage(destination_name, initial_values={
+            "default_schema_name": "event"  # pass the schema that is a default schema. that should create dataset with the name `dataset_name`
         }) as client:
-        assert client.sql_client.default_dataset_name == client.CONFIG.default_dataset
+        assert client.sql_client.default_dataset_name == client.config.dataset_name
 
 
 def prepare_schema(client: SqlJobClientBase, case: str) -> None:

@@ -1,7 +1,7 @@
 from typing import Sequence
 from dlt.common.exceptions import DltException, TerminalException, TransientException
 
-from dlt.load.typing import LoadJobStatus
+from dlt.load.typing import TLoadJobStatus
 
 
 class LoadException(DltException):
@@ -44,7 +44,7 @@ class LoadUnknownTableException(LoadClientTerminalException):
 
 
 class LoadJobInvalidStateTransitionException(LoadClientTerminalException):
-    def __init__(self, from_state: LoadJobStatus, to_state: LoadJobStatus) -> None:
+    def __init__(self, from_state: TLoadJobStatus, to_state: TLoadJobStatus) -> None:
         self.from_state = from_state
         self.to_state = to_state
         super().__init__(f"Load job cannot transition form {from_state} to {to_state}")

@@ -1,5 +1,4 @@
 import platform
-
 if platform.python_implementation() == "PyPy":
     import psycopg2cffi as psycopg2
     from psycopg2cffi.sql import SQL, Identifier, Composed, Literal as SQLLiteral
@@ -10,20 +9,21 @@ else:
 
 from contextlib import contextmanager
 from typing import Any, AnyStr, Dict, Iterator, List, Optional, Sequence, Tuple
-from dlt.common.configuration.specs.postgres_credentials import PostgresCredentials
 
-from dlt.common.typing import StrAny
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
+from dlt.common.configuration.specs import PostgresCredentials, DestinationCapabilitiesContext
 from dlt.common.data_writers import escape_redshift_identifier
 from dlt.common.schema import COLUMN_HINTS, TColumnSchema, TColumnSchemaBase, TDataType, THintType, Schema, TTableSchemaColumns, add_missing_hints
 from dlt.common.schema.typing import TTableSchema, TWriteDisposition
+from dlt.common.storages.file_storage import FileStorage
 
-from dlt.load.exceptions import (LoadClientSchemaWillNotUpdate, LoadClientTerminalInnerException,
-                                            LoadClientTransientInnerException)
-from dlt.load.typing import LoadJobStatus, DBCursor, TLoaderCapabilities
-from dlt.load.client_base import JobClientBase, SqlClientBase, SqlJobClientBase, LoadJob
+from dlt.load.exceptions import LoadClientSchemaWillNotUpdate, LoadClientTerminalInnerException, LoadClientTransientInnerException
+from dlt.load.typing import TLoadJobStatus, DBCursor
+from dlt.load.client_base import SqlClientBase, LoadJob
+from dlt.load.client_base_impl import SqlJobClientBase, LoadEmptyJob
 
-from dlt.load.redshift.configuration import configuration, RedshiftClientConfiguration
+from dlt.load.redshift import capabilities
+from dlt.load.redshift.configuration import RedshiftClientConfiguration
 
 
 SCT_TO_PGT: Dict[TDataType, str] = {
@@ -57,14 +57,14 @@ HINT_TO_REDSHIFT_ATTR: Dict[THintType, str] = {
 
 class RedshiftSqlClient(SqlClientBase["psycopg2.connection"]):
 
-    def __init__(self, default_dataset_name: str, CREDENTIALS: PostgresCredentials) -> None:
+    def __init__(self, default_dataset_name: str, credentials: PostgresCredentials) -> None:
         super().__init__(default_dataset_name)
         self._conn: psycopg2.connection = None
-        self.C = CREDENTIALS
+        self.credentials = credentials
 
     def open_connection(self) -> None:
         self._conn = psycopg2.connect(
-                             **self.C,
+                             **self.credentials,
                              options=f"-c search_path={self.fully_qualified_dataset_name()},public"
                              )
         # we'll provide explicit transactions
@@ -140,12 +140,12 @@ class RedshiftSqlClient(SqlClientBase["psycopg2.connection"]):
 
 class RedshiftInsertLoadJob(LoadJob):
     def __init__(self, table_name: str, write_disposition: TWriteDisposition, file_path: str, sql_client: SqlClientBase["psycopg2.connection"]) -> None:
-        super().__init__(JobClientBase.get_file_name_from_file_path(file_path))
+        super().__init__(FileStorage.get_file_name_from_file_path(file_path))
         self._sql_client = sql_client
         # insert file content immediately
         self._insert(sql_client.make_qualified_table_name(table_name), write_disposition, file_path)
 
-    def status(self) -> LoadJobStatus:
+    def status(self) -> TLoadJobStatus:
         # this job is always done
         return "completed"
 
@@ -200,15 +200,16 @@ class RedshiftInsertLoadJob(LoadJob):
 
 class RedshiftClient(SqlJobClientBase):
 
-    CONFIG: RedshiftClientConfiguration = None
-    CREDENTIALS: PostgresCredentials = None
+    # CONFIG: RedshiftClientConfiguration = None
+    # CREDENTIALS: PostgresCredentials = None
 
-    def __init__(self, schema: Schema) -> None:
+    def __init__(self, schema: Schema, config: RedshiftClientConfiguration) -> None:
         sql_client = RedshiftSqlClient(
-            schema.normalize_make_dataset_name(self.CONFIG.default_dataset, self.CONFIG.default_schema_name, schema.name),
-            self.CREDENTIALS
+            schema.normalize_make_dataset_name(config.dataset_name, config.default_schema_name, schema.name),
+            config.credentials
         )
-        super().__init__(schema, sql_client)
+        super().__init__(schema, config, sql_client)
+        self.config: RedshiftClientConfiguration = config
         self.sql_client = sql_client
 
     def initialize_storage(self) -> None:
@@ -219,7 +220,7 @@ class RedshiftClient(SqlJobClientBase):
         # always returns completed jobs as RedshiftInsertLoadJob is executed
         # atomically in start_file_load so any jobs that should be recreated are already completed
         # in case of bugs in loader (asking for jobs that were never created) we are not able to detect that
-        return JobClientBase.make_job_with_status(file_path, "completed")
+        return LoadEmptyJob.from_file_path(file_path, "completed")
 
     def start_file_load(self, table: TTableSchema, file_path: str) -> LoadJob:
         try:
@@ -334,22 +335,5 @@ class RedshiftClient(SqlJobClientBase):
         return PGT_TO_SCT.get(pq_t, "text")
 
     @classmethod
-    def capabilities(cls) -> TLoaderCapabilities:
-        return {
-            "preferred_loader_file_format": "insert_values",
-            "supported_loader_file_formats": ["insert_values"],
-            "max_identifier_length": 127,
-            "max_column_length": 127,
-            "max_query_length": 16 * 1024 * 1024,
-            "is_max_query_length_in_bytes": True,
-            "max_text_data_type_length": 65535,
-            "is_max_text_data_type_length_in_bytes": True
-        }
-
-    @classmethod
-    def configure(cls, initial_values: StrAny = None) -> Tuple[RedshiftClientConfiguration, PostgresCredentials]:
-        cls.CONFIG, cls.CREDENTIALS = configuration(initial_values=initial_values)
-        return cls.CONFIG, cls.CREDENTIALS
-
-
-CLIENT = RedshiftClient
+    def capabilities(cls) -> DestinationCapabilitiesContext:
+        return capabilities()

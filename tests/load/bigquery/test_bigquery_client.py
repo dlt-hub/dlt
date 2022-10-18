@@ -10,7 +10,7 @@ from dlt.common.utils import uniq_id
 from dlt.load.exceptions import LoadJobNotExistsException, LoadJobServerTerminalException
 
 from dlt.load import Load
-from dlt.load.bigquery.client import BigQueryClient
+from dlt.load.bigquery.bigquery import BigQueryClient
 
 from tests.utils import TEST_STORAGE_ROOT, delete_test_storage
 from tests.load.utils import expect_load_file, prepare_table, yield_client_with_storage, cm_yield_client_with_storage

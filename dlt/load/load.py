@@ -1,27 +1,23 @@
-from typing import List, Optional, Tuple, Type, Protocol
+from typing import List, Optional, Tuple
 from multiprocessing.pool import ThreadPool
-from importlib import import_module
 from prometheus_client import REGISTRY, Counter, Gauge, CollectorRegistry, Summary
 
 from dlt.common import sleep, logger
-from dlt.cli import TRunnerArgs
-from dlt.common.runners import TRunMetrics, initialize_runner, run_pool, Runnable, workermethod
+from dlt.common.configuration import with_config
+from dlt.common.typing import ConfigValue
+from dlt.common.runners import TRunMetrics, Runnable, workermethod
 from dlt.common.logger import pretty_format_exception
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TTableSchema
 from dlt.common.storages import LoadStorage
 from dlt.common.telemetry import get_logging_extras, set_gauge_all_labels
-from dlt.common.typing import StrAny
 
+from dlt.load.client_base import JobClientBase, DestinationReference, LoadJob
+from dlt.load.client_base_impl import LoadEmptyJob
+from dlt.load.typing import TLoadJobStatus
+from dlt.load.configuration import LoaderConfiguration, DestinationClientConfiguration
 from dlt.load.exceptions import LoadClientTerminalException, LoadClientTransientException, LoadClientUnsupportedWriteDisposition, LoadClientUnsupportedFileFormats, LoadJobNotExistsException, LoadUnknownTableException
-from dlt.load.client_base import JobClientBase, LoadJob
-from dlt.load.typing import LoadJobStatus, TLoaderCapabilities
-from dlt.load.configuration import configuration, LoaderConfiguration
-
-
-class SupportsLoadClient(Protocol):
-    CLIENT: Type[JobClientBase]
 
 
 class Load(Runnable[ThreadPool]):
@@ -31,9 +27,19 @@ class Load(Runnable[ThreadPool]):
     job_counter: Counter = None
     job_wait_summary: Summary = None
 
-    def __init__(self, config: LoaderConfiguration, collector: CollectorRegistry, client_initial_values: StrAny = None, is_storage_owner: bool = False) -> None:
+    @with_config(spec=LoaderConfiguration, namespaces=("load",))
+    def __init__(
+        self,
+        destination: DestinationReference,
+        collector: CollectorRegistry = REGISTRY,
+        is_storage_owner: bool = False,
+        config: LoaderConfiguration = ConfigValue,
+        initial_client_config: DestinationClientConfiguration = ConfigValue
+    ) -> None:
         self.config = config
-        self.load_client_cls = self.import_client_cls(config.client_type, initial_values=client_initial_values)
+        self.initial_client_config = initial_client_config
+        self.destination = destination
+        self.capabilities = destination.capabilities()
         self.pool: ThreadPool = None
         self.load_storage: LoadStorage = self.create_storage(is_storage_owner)
         try:
@@ -43,22 +49,12 @@ class Load(Runnable[ThreadPool]):
             if "Duplicated timeseries" not in str(v):
                 raise
 
-    @staticmethod
-    def loader_capabilities(client_type: str) -> TLoaderCapabilities:
-        m: SupportsLoadClient = import_module(f"dlt.load.{client_type}.client")
-        return m.CLIENT.capabilities()
-
-    @staticmethod
-    def import_client_cls(client_type: str, initial_values: StrAny = None) -> Type[JobClientBase]:
-        m: SupportsLoadClient = import_module(f"dlt.load.{client_type}.client")
-        m.CLIENT.configure(initial_values)
-        return m.CLIENT
-
     def create_storage(self, is_storage_owner: bool) -> LoadStorage:
         load_storage = LoadStorage(
             is_storage_owner,
-            self.load_client_cls.capabilities()["preferred_loader_file_format"],
-            self.load_client_cls.capabilities()["supported_loader_file_formats"]
+            self.capabilities.preferred_loader_file_format,
+            self.capabilities.supported_loader_file_formats,
+            config=self.config.load_storage_config
         )
         return load_storage
 
@@ -86,10 +82,10 @@ class Load(Runnable[ThreadPool]):
         # open new connection for each upload
         job: LoadJob = None
         try:
-            with self.load_client_cls(schema) as client:
+            with self.destination.client(schema, self.initial_client_config) as client:
                 job_info = self.load_storage.parse_job_file_name(file_path)
-                if job_info.file_format not in client.capabilities()["supported_loader_file_formats"]:
-                    raise LoadClientUnsupportedFileFormats(job_info.file_format, client.capabilities()["supported_loader_file_formats"], file_path)
+                if job_info.file_format not in self.capabilities.supported_loader_file_formats:
+                    raise LoadClientUnsupportedFileFormats(job_info.file_format, self.capabilities.supported_loader_file_formats, file_path)
                 logger.info(f"Will load file {file_path} with table name {job_info.table_name}")
                 table = self.get_load_table(schema, job_info.table_name, file_path)
                 if table["write_disposition"] not in ["append", "replace"]:
@@ -98,7 +94,7 @@ class Load(Runnable[ThreadPool]):
         except (LoadClientTerminalException, TerminalValueError):
             # if job irreversibly cannot be started, mark it as failed
             logger.exception(f"Terminal problem with spooling job {file_path}")
-            job = JobClientBase.make_job_with_status(file_path, "failed", pretty_format_exception())
+            job = LoadEmptyJob.from_file_path(file_path, "failed", pretty_format_exception())
         except (LoadClientTransientException, Exception):
             # return no job so file stays in new jobs (root) folder
             logger.exception(f"Temporary problem with spooling job {file_path}")
@@ -140,7 +136,7 @@ class Load(Runnable[ThreadPool]):
                 job = client.restore_file_load(file_path)
             except LoadClientTerminalException:
                 logger.exception(f"Job retrieval for {file_path} failed, job will be terminated")
-                job = JobClientBase.make_job_with_status(file_path, "failed", pretty_format_exception())
+                job = LoadEmptyJob.from_file_path(file_path, "failed", pretty_format_exception())
                 # proceed to appending job, do not reraise
             except (LoadClientTransientException, Exception):
                 # raise on all temporary exceptions, typically network / server problems
@@ -160,7 +156,7 @@ class Load(Runnable[ThreadPool]):
         for ii in range(len(jobs)):
             job = jobs[ii]
             logger.debug(f"Checking status for job {job.file_name()}")
-            status: LoadJobStatus = job.status()
+            status: TLoadJobStatus = job.status()
             final_location: str = None
             if status == "running":
                 # ask again
@@ -206,12 +202,12 @@ class Load(Runnable[ThreadPool]):
         schema = self.load_storage.load_package_schema(load_id)
         logger.info(f"Loaded schema name {schema.name} and version {schema.stored_version}")
         # initialize analytical storage ie. create dataset required by passed schema
-        with self.load_client_cls(schema) as client:
-            logger.info(f"Client {self.config.client_type} will start load")
+        with self.destination.client(schema, self.initial_client_config) as client:
+            logger.info(f"Client for {client.config.destination_name} will start load")
             client.initialize_storage()
             schema_update = self.load_storage.begin_schema_update(load_id)
             if schema_update:
-                logger.info(f"Client {self.config.client_type} will update schema to package schema")
+                logger.info(f"Client for {client.config.destination_name} will update schema to package schema")
                 # TODO: this should rather generate an SQL job(s) to be executed PRE loading
                 client.update_storage_schema()
                 self.load_storage.commit_schema_update(load_id)
@@ -230,7 +226,7 @@ class Load(Runnable[ThreadPool]):
             )
         # if there are no existing or new jobs we complete the package
         if jobs_count == 0:
-            with self.load_client_cls(schema) as client:
+            with self.destination.client(schema, self.initial_client_config) as client:
                 # TODO: this script should be executed as a job (and contain also code to merge/upsert data and drop temp tables)
                 # TODO: post loading jobs
                 remaining_jobs = client.complete_load(load_id)
@@ -250,18 +246,3 @@ class Load(Runnable[ThreadPool]):
                 sleep(1)
 
         return TRunMetrics(False, False, len(self.load_storage.list_packages()))
-
-
-def main(args: TRunnerArgs) -> int:
-    C = configuration(args._asdict())
-    initialize_runner(C)
-    try:
-        load = Load(C, REGISTRY)
-    except Exception:
-        logger.exception("init module")
-        return -1
-    return run_pool(C, load)
-
-
-def run_main(args: TRunnerArgs) -> None:
-    exit(main(args))

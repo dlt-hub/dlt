@@ -10,7 +10,7 @@ from dlt.common.utils import uniq_id
 
 from dlt.load.exceptions import LoadClientTerminalInnerException
 from dlt.load import Load
-from dlt.load.redshift.client import RedshiftClient, RedshiftInsertLoadJob, psycopg2
+from dlt.load.redshift.redshift import RedshiftClient, RedshiftInsertLoadJob, psycopg2
 
 from tests.utils import TEST_STORAGE_ROOT, delete_test_storage, skipifpypy
 from tests.load.utils import expect_load_file, prepare_table, yield_client_with_storage

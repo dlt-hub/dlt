@@ -1,6 +1,7 @@
 from pathlib import Path
 from contextlib import contextmanager
 from typing import Any, AnyStr, Dict, Iterator, List, Optional, Sequence, Tuple
+from dlt.common.storages.file_storage import FileStorage
 import google.cloud.bigquery as bigquery  # noqa: I250
 from google.cloud.bigquery.dbapi import Connection as DbApiConnection
 from google.cloud import exceptions as gcp_exceptions
@@ -12,15 +13,17 @@ from dlt.common import json, logger
 from dlt.common.typing import StrAny
 from dlt.common.schema.typing import TTableSchema, TWriteDisposition
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
-from dlt.common.configuration.specs import GcpClientCredentials
+from dlt.common.configuration.specs import GcpClientCredentials, DestinationCapabilitiesContext
 from dlt.common.data_writers import escape_bigquery_identifier
 from dlt.common.schema import TColumnSchema, TDataType, Schema, TTableSchemaColumns
 
-from dlt.load.typing import LoadJobStatus, DBCursor, TLoaderCapabilities
-from dlt.load.client_base import JobClientBase, SqlClientBase, SqlJobClientBase, LoadJob
+from dlt.load.typing import TLoadJobStatus, DBCursor
+from dlt.load.client_base import SqlClientBase, LoadJob
+from dlt.load.client_base_impl import SqlJobClientBase
 from dlt.load.exceptions import LoadClientSchemaWillNotUpdate, LoadJobNotExistsException, LoadJobServerTerminalException, LoadUnknownTableException
 
-from dlt.load.bigquery.configuration import BigQueryClientConfiguration, configuration
+from dlt.load.bigquery import capabilities
+from dlt.load.bigquery.configuration import BigQueryClientConfiguration
 
 
 SCT_TO_BQT: Dict[TDataType, str] = {
@@ -52,21 +55,21 @@ BQ_TERMINAL_REASONS = ["billingTierLimitExceeded", "duplicate", "invalid", "inva
 
 
 class BigQuerySqlClient(SqlClientBase[bigquery.Client]):
-    def __init__(self, default_dataset_name: str, CREDENTIALS: GcpClientCredentials) -> None:
+    def __init__(self, default_dataset_name: str, credentials: GcpClientCredentials) -> None:
         self._client: bigquery.Client = None
-        self.C = CREDENTIALS
+        self.credentials = credentials
         super().__init__(default_dataset_name)
 
-        self.default_retry = bigquery.DEFAULT_RETRY.with_deadline(CREDENTIALS.retry_deadline)
+        self.default_retry = bigquery.DEFAULT_RETRY.with_deadline(credentials.retry_deadline)
         self.default_query = bigquery.QueryJobConfig(default_dataset=self.fully_qualified_dataset_name())
 
     def open_connection(self) -> None:
         # use default credentials if partial config
-        if not self.C.is_resolved():
+        if not self.credentials.is_resolved():
             credentials = None
         else:
-            credentials = service_account.Credentials.from_service_account_info(self.C.to_native_representation())
-        self._client = bigquery.Client(self.C.project_id, credentials=credentials, location=self.C.location)
+            credentials = service_account.Credentials.from_service_account_info(self.credentials.to_native_representation())
+        self._client = bigquery.Client(self.credentials.project_id, credentials=credentials, location=self.credentials.location)
 
     def close_connection(self) -> None:
         if self._client:
@@ -79,7 +82,7 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client]):
 
     def has_dataset(self) -> bool:
         try:
-            self._client.get_dataset(self.fully_qualified_dataset_name(), retry=self.default_retry, timeout=self.C.http_timeout)
+            self._client.get_dataset(self.fully_qualified_dataset_name(), retry=self.default_retry, timeout=self.credentials.http_timeout)
             return True
         except gcp_exceptions.NotFound:
             return False
@@ -89,7 +92,7 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client]):
             self.fully_qualified_dataset_name(),
             exists_ok=False,
             retry=self.default_retry,
-            timeout=self.C.http_timeout
+            timeout=self.credentials.http_timeout
         )
 
     def drop_dataset(self) -> None:
@@ -98,7 +101,7 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client]):
             not_found_ok=True,
             delete_contents=True,
             retry=self.default_retry,
-            timeout=self.C.http_timeout
+            timeout=self.credentials.http_timeout
         )
 
     def execute_sql(self, sql: AnyStr, *args: Any, **kwargs: Any) -> Optional[Sequence[Sequence[Any]]]:
@@ -106,7 +109,7 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client]):
         def_kwargs = {
             "job_config": self.default_query,
             "job_retry": self.default_retry,
-            "timeout": self.C.http_timeout
+            "timeout": self.credentials.http_timeout
             }
         kwargs = {**def_kwargs, **(kwargs or {})}
         results = self._client.query(sql, *args, **kwargs).result()
@@ -135,19 +138,19 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client]):
                 conn.close()
 
     def fully_qualified_dataset_name(self) -> str:
-        return f"{self.C.project_id}.{self.default_dataset_name}"
+        return f"{self.credentials.project_id}.{self.default_dataset_name}"
 
 
 class BigQueryLoadJob(LoadJob):
-    def __init__(self, file_name: str, bq_load_job: bigquery.LoadJob, CONFIG: GcpClientCredentials) -> None:
+    def __init__(self, file_name: str, bq_load_job: bigquery.LoadJob, credentials: GcpClientCredentials) -> None:
         self.bq_load_job = bq_load_job
-        self.C = CONFIG
-        self.default_retry = bigquery.DEFAULT_RETRY.with_deadline(CONFIG.retry_deadline)
+        self.credentials = credentials
+        self.default_retry = bigquery.DEFAULT_RETRY.with_deadline(credentials.retry_deadline)
         super().__init__(file_name)
 
-    def status(self) -> LoadJobStatus:
+    def status(self) -> TLoadJobStatus:
         # check server if done
-        done = self.bq_load_job.done(retry=self.default_retry, timeout=self.C.http_timeout)
+        done = self.bq_load_job.done(retry=self.default_retry, timeout=self.credentials.http_timeout)
         if done:
             # rows processed
             if self.bq_load_job.output_rows is not None and self.bq_load_job.error_result is None:
@@ -183,15 +186,16 @@ class BigQueryLoadJob(LoadJob):
 
 class BigQueryClient(SqlJobClientBase):
 
-    CONFIG: BigQueryClientConfiguration = None
-    CREDENTIALS: GcpClientCredentials = None
+    # CONFIG: BigQueryClientConfiguration = None
+    # CREDENTIALS: GcpClientCredentials = None
 
-    def __init__(self, schema: Schema) -> None:
+    def __init__(self, schema: Schema, config: BigQueryClientConfiguration) -> None:
         sql_client = BigQuerySqlClient(
-            schema.normalize_make_dataset_name(self.CONFIG.default_dataset, self.CONFIG.default_schema_name, schema.name),
-            self.CREDENTIALS
+            schema.normalize_make_dataset_name(config.dataset_name, config.default_schema_name, schema.name),
+            config.credentials
         )
-        super().__init__(schema, sql_client)
+        super().__init__(schema, config, sql_client)
+        self.config: BigQueryClientConfiguration = config
         self.sql_client: BigQuerySqlClient = sql_client
 
     def initialize_storage(self) -> None:
@@ -201,9 +205,9 @@ class BigQueryClient(SqlJobClientBase):
     def restore_file_load(self, file_path: str) -> LoadJob:
         try:
             return BigQueryLoadJob(
-                JobClientBase.get_file_name_from_file_path(file_path),
+                FileStorage.get_file_name_from_file_path(file_path),
                 self._retrieve_load_job(file_path),
-                self.CREDENTIALS
+                self.config.credentials
                 #self.sql_client.native_connection()
             )
         except api_core_exceptions.GoogleAPICallError as gace:
@@ -218,9 +222,9 @@ class BigQueryClient(SqlJobClientBase):
     def start_file_load(self, table: TTableSchema, file_path: str) -> LoadJob:
         try:
             return BigQueryLoadJob(
-                JobClientBase.get_file_name_from_file_path(file_path),
+                FileStorage.get_file_name_from_file_path(file_path),
                 self._create_load_job(table["name"], table["write_disposition"], file_path),
-                self.CREDENTIALS
+                self.config.credentials
             )
         except api_core_exceptions.GoogleAPICallError as gace:
             reason = self._get_reason_from_errors(gace)
@@ -296,7 +300,9 @@ class BigQueryClient(SqlJobClientBase):
         schema_table: TTableSchemaColumns = {}
         try:
             table = self.sql_client.native_connection.get_table(
-                self.sql_client.make_qualified_table_name(table_name), retry=self.sql_client.default_retry, timeout=self.CREDENTIALS.http_timeout
+                self.sql_client.make_qualified_table_name(table_name),
+                retry=self.sql_client.default_retry,
+                timeout=self.config.credentials.http_timeout
             )
             partition_field = table.time_partitioning.field if table.time_partitioning else None
             for c in table.schema:
@@ -329,12 +335,13 @@ class BigQueryClient(SqlJobClientBase):
 
             )
         with open(file_path, "rb") as f:
-            return self.sql_client.native_connection.load_table_from_file(f,
-                                                     self.sql_client.make_qualified_table_name(table_name),
-                                                     job_id=job_id,
-                                                     job_config=job_config,
-                                                     timeout=self.CREDENTIALS.file_upload_timeout
-                                                    )
+            return self.sql_client.native_connection.load_table_from_file(
+                    f,
+                    self.sql_client.make_qualified_table_name(table_name),
+                    job_id=job_id,
+                    job_config=job_config,
+                    timeout=self.config.credentials.file_upload_timeout
+                )
 
     def _retrieve_load_job(self, file_path: str) -> bigquery.LoadJob:
         job_id = BigQueryClient._get_job_id_from_file_path(file_path)
@@ -367,22 +374,5 @@ class BigQueryClient(SqlJobClientBase):
         return BQT_TO_SCT.get(bq_t, "text")
 
     @classmethod
-    def capabilities(cls) -> TLoaderCapabilities:
-        return {
-            "preferred_loader_file_format": "jsonl",
-            "supported_loader_file_formats": ["jsonl"],
-            "max_identifier_length": 1024,
-            "max_column_length": 300,
-            "max_query_length": 1024 * 1024,
-            "is_max_query_length_in_bytes": False,
-            "max_text_data_type_length": 10 * 1024 * 1024,
-            "is_max_text_data_type_length_in_bytes": True
-        }
-
-    @classmethod
-    def configure(cls, initial_values: StrAny = None) -> Tuple[BigQueryClientConfiguration, GcpClientCredentials]:
-        cls.CONFIG, cls.CREDENTIALS = configuration(initial_values=initial_values)
-        return cls.CONFIG, cls.CREDENTIALS
-
-
-CLIENT = BigQueryClient
+    def capabilities(cls) -> DestinationCapabilitiesContext:
+        return capabilities()

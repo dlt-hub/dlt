@@ -4,11 +4,12 @@ from copy import deepcopy
 from dlt.common.utils import uniq_id, custom_environ
 from dlt.common.schema import Schema
 from dlt.common.schema.utils import new_table
-from dlt.common.configuration import make_configuration
+from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.specs import PostgresCredentials
 
 from dlt.load.exceptions import LoadClientSchemaWillNotUpdate
-from dlt.load.redshift.client import RedshiftClient
+from dlt.load.redshift.redshift import RedshiftClient
+from dlt.load.redshift.configuration import RedshiftClientConfiguration
 
 from tests.load.utils import TABLE_UPDATE
 
@@ -21,14 +22,13 @@ def schema() -> Schema:
 @pytest.fixture
 def client(schema: Schema) -> RedshiftClient:
     # return client without opening connection
-    RedshiftClient.configure(initial_values={"default_dataset": "TEST" + uniq_id()})
-    return RedshiftClient(schema)
+    return RedshiftClient(schema, RedshiftClientConfiguration(dataset_name="TEST" + uniq_id()))
 
 
 def test_configuration() -> None:
     # check names normalized
     with custom_environ({"PG__DBNAME": "UPPER_CASE_DATABASE", "PG__PASSWORD": " pass\n"}):
-        C = make_configuration(PostgresCredentials())
+        C = resolve_configuration(PostgresCredentials())
         assert C.dbname == "upper_case_database"
         assert C.password == "pass"
 

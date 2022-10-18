@@ -1,9 +1,10 @@
 import contextlib
+from importlib import import_module
 import os
 from typing import Any, ContextManager, Iterable, Iterator, List, Sequence, cast, IO
 
 from dlt.common import json, Decimal
-from dlt.common.configuration import make_configuration
+from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.specs.schema_volume_configuration import SchemaVolumeConfiguration
 from dlt.common.data_writers import DataWriter
 from dlt.common.schema import TColumnSchema, TTableSchemaColumns
@@ -14,7 +15,9 @@ from dlt.common.typing import StrAny
 from dlt.common.utils import uniq_id
 
 from dlt.load import Load
-from dlt.load.client_base import JobClientBase, LoadJob, SqlJobClientBase
+from dlt.load.client_base import DestinationReference, JobClientBase, LoadJob
+from dlt.load.client_base_impl import SqlJobClientBase
+from dlt.load.configuration import DestinationClientDwhConfiguration
 
 TABLE_UPDATE: List[TColumnSchema] = [
     {
@@ -105,30 +108,43 @@ def prepare_table(client: JobClientBase, case_name: str = "event_user", table_na
 
 
 
-def yield_client_with_storage(client_type: str, initial_values: StrAny = None) -> Iterator[SqlJobClientBase]:
+def yield_client_with_storage(destination_name: str, initial_values: StrAny = None) -> Iterator[SqlJobClientBase]:
     os.environ.pop("DEFAULT_DATASET", None)
+    # import destination reference by name
+    destination: DestinationReference = import_module(f"dlt.load.{destination_name}")
     # create dataset with random name
-    default_dataset = "test_" + uniq_id()
-    client_initial_values = {"default_dataset": default_dataset}
+    dataset_name = "test_" + uniq_id()
+    # create initial config
+    config: DestinationClientDwhConfiguration = None
+    config = destination.spec()()
+    # print(config.destination_name)
+    # print(destination.spec())
+    # print(destination.spec().destination_name)
+    config.dataset_name = dataset_name
+
     if initial_values is not None:
-        client_initial_values.update(initial_values)
+        # apply the values to credentials, if dict is provided it will be used as initial
+        config.credentials = initial_values
+        # also apply to config
+        config.update(initial_values)
     # get event default schema
-    C = make_configuration(SchemaVolumeConfiguration(), initial_value={
+    C = resolve_configuration(SchemaVolumeConfiguration(), initial_value={
         "schema_volume_path": "tests/common/cases/schemas/rasa"
     })
     schema_storage = SchemaStorage(C)
     schema = schema_storage.load_schema("event")
     # create client and dataset
     client: SqlJobClientBase = None
-    with Load.import_client_cls(client_type, initial_values=client_initial_values)(schema) as client:
+
+    with destination.client(schema, config) as client:
         client.initialize_storage()
         yield client
         client.sql_client.drop_dataset()
 
 
 @contextlib.contextmanager
-def cm_yield_client_with_storage(client_type: str, initial_values: StrAny = None) -> ContextManager[SqlJobClientBase]:
-    return yield_client_with_storage(client_type, initial_values)
+def cm_yield_client_with_storage(destination_name: str, initial_values: StrAny = None) -> ContextManager[SqlJobClientBase]:
+    return yield_client_with_storage(destination_name, initial_values)
 
 
 def write_dataset(client: JobClientBase, f: IO[Any], rows: Sequence[StrAny], columns_schema: TTableSchemaColumns) -> None:

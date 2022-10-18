@@ -1,19 +1,20 @@
 import random
 from types import TracebackType
-from typing import Dict, Tuple, Type
+from typing import Dict, Type
 
 from dlt.common import pendulum
 from dlt.common.schema import Schema
+from dlt.common.storages import FileStorage
 from dlt.common.schema.typing import TTableSchema
-from dlt.common.configuration.specs import CredentialsConfiguration
-from dlt.common.typing import StrAny
+from dlt.common.configuration.specs import DestinationCapabilitiesContext
 
-from dlt.load.client_base import JobClientBase, LoadJob, TLoaderCapabilities
-from dlt.load.typing import LoadJobStatus
+from dlt.load.client_base import JobClientBase, LoadJob
+from dlt.load.typing import TLoadJobStatus
 from dlt.load.exceptions import (LoadJobNotExistsException, LoadJobInvalidStateTransitionException,
                                             LoadClientTerminalException, LoadClientTransientException)
 
-from dlt.load.dummy.configuration import DummyClientConfiguration, configuration
+from dlt.load.dummy import capabilities
+from dlt.load.dummy.configuration import DummyClientConfiguration
 
 
 class LoadDummyJob(LoadJob):
@@ -22,7 +23,7 @@ class LoadDummyJob(LoadJob):
         self.retry_prob = retry_prob
         self.completed_prob = completed_prob
         self.timeout = timeout
-        self._status: LoadJobStatus = "running"
+        self._status: TLoadJobStatus = "running"
         self._exception: str = None
         self.start_time: float = pendulum.now().timestamp()
         super().__init__(file_name)
@@ -33,7 +34,7 @@ class LoadDummyJob(LoadJob):
             raise LoadClientTransientException(self._exception)
 
 
-    def status(self) -> LoadJobStatus:
+    def status(self) -> TLoadJobStatus:
         # this should poll the server for a job status, here we simulate various outcomes
         if self._status == "running":
             n = pendulum.now().timestamp()
@@ -77,10 +78,10 @@ class DummyClient(JobClientBase):
     """
     dummy client storing jobs in memory
     """
-    CONFIG: DummyClientConfiguration = None
 
-    def __init__(self, schema: Schema) -> None:
-        pass
+    def __init__(self, schema: Schema, config: DummyClientConfiguration) -> None:
+        super().__init__(schema, config)
+        self.config: DummyClientConfiguration = config
 
     def initialize_storage(self) -> None:
         pass
@@ -89,8 +90,8 @@ class DummyClient(JobClientBase):
         pass
 
     def start_file_load(self, table: TTableSchema, file_path: str) -> LoadJob:
-        job_id = JobClientBase.get_file_name_from_file_path(file_path)
-        file_name = JobClientBase.get_file_name_from_file_path(file_path)
+        job_id = FileStorage.get_file_name_from_file_path(file_path)
+        file_name = FileStorage.get_file_name_from_file_path(file_path)
         # return existing job if already there
         if job_id not in JOBS:
             JOBS[job_id] = self._create_job(file_name)
@@ -102,7 +103,7 @@ class DummyClient(JobClientBase):
         return JOBS[job_id]
 
     def restore_file_load(self, file_path: str) -> LoadJob:
-        job_id = JobClientBase.get_file_name_from_file_path(file_path)
+        job_id = FileStorage.get_file_name_from_file_path(file_path)
         if job_id not in JOBS:
             raise LoadJobNotExistsException(job_id)
         return JOBS[job_id]
@@ -119,29 +120,12 @@ class DummyClient(JobClientBase):
     def _create_job(self, job_id: str) -> LoadDummyJob:
         return LoadDummyJob(
             job_id,
-            fail_prob=self.CONFIG.fail_prob,
-            retry_prob=self.CONFIG.retry_prob,
-            completed_prob=self.CONFIG.completed_prob,
-            timeout=self.CONFIG.timeout
+            fail_prob=self.config.fail_prob,
+            retry_prob=self.config.retry_prob,
+            completed_prob=self.config.completed_prob,
+            timeout=self.config.timeout
             )
 
     @classmethod
-    def capabilities(cls) -> TLoaderCapabilities:
-        return {
-            "preferred_loader_file_format": cls.CONFIG.loader_file_format,
-            "supported_loader_file_formats": [cls.CONFIG.loader_file_format],
-            "max_identifier_length": 127,
-            "max_column_length": 127,
-            "max_query_length": 8 * 1024 * 1024,
-            "is_max_query_length_in_bytes": True,
-            "max_text_data_type_length": 65535,
-            "is_max_text_data_type_length_in_bytes": True
-        }
-
-    @classmethod
-    def configure(cls, initial_values: StrAny = None) -> Tuple[DummyClientConfiguration, CredentialsConfiguration]:
-        cls.CONFIG = configuration(initial_values=initial_values)
-        return cls.CONFIG, None
-
-
-CLIENT = DummyClient
+    def capabilities(cls) -> DestinationCapabilitiesContext:
+        return capabilities()
