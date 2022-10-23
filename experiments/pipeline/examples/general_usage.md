@@ -71,6 +71,22 @@ extract / normalize / load are atomic. the `run` is as close to be atomic as pos
 
 ## the `Pipeline` object
 
+## Examples
+
+Loads data from `taktile_data` source function into bigquery. All the credentials amd credentials are taken from the config and secret providers.
+
+Script was run with `python taktile.py`
+
+```python
+from my_taktile_source import taktile_data
+from dlt.destinations import bigquery
+
+# I only want logs from the resources present in taktile_data
+taktile_data.run(source=taktile_data(1).select("logs"), destination=bigquery)
+```
+
+pipeline name is explicitly configured.
+
 ## command line interface
 I need concept for that. Commands that we need:
 
