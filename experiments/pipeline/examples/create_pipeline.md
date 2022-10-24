@@ -29,6 +29,7 @@ General guidelines:
 2. resources are generator functions that always **yield** data (I think I will enforce that by raising exception). Access to external endpoints, databases etc. should happen from that generator function. Generator functions may be decorated with `@dlt.resource` to provide alternative names, write disposition etc.
 3. resource generator functions can be OFC parametrized and resources may be created dynamically
 4. the resource generator function may yield a single dict or list of dicts
+5. like any other iterator, the @dlt.source and @dlt.resource **can be iterated and thus extracted and loaded only once**, see example below.
 
 > my dilemma here is if I should allow to access data directly in the source function ie. to discover schema or get some configuration for the resources from some endpoint. it is very easy to avoid that but for the non-programmers it will not be intuitive.
 
@@ -72,6 +73,12 @@ def taktile_data(initial_log_id, taktile_api_key):
 taktile_data(1).run(destination=bigquery)
 # this below also works
 # dlt.run(source=taktile_data(1), destination=bigquery)
+
+# now to illustrate that each source can be loaded only once, if you run this below
+data = taktile_data(1)
+data.run(destination=bigquery)  # works as expected
+data.run(destination=bigquery) # generates empty load package as the data in the iterator is exhausted... maybe I should raise exception instead?
+
 ```
 
 **Remarks:**

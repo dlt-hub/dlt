@@ -148,8 +148,8 @@ def google_sheets(spreadsheet_id: str, tab_names: List[str], credentials: TCrede
     return tabs
 ```
 
-Here I provide typing so I can type check injected values so no crap gets passed to the function.
+Here I provide typing so I can type check injected values so no junk data gets passed to the function.
 
-I also tell which argument is secret via `TCredentials` that let's me control for the case when user is putting secret values in `config.toml` or some other unsafe provider (and generate even better templates)
+> I also tell which argument is secret via `TCredentials` that let's me control for the case when user is putting secret values in `config.toml` or some other unsafe provider (and generate even better templates)
 
 We could go even deeper here (ie. configurations `spec` may be explicitly declared via python `dataclasses`, may be embedded in one another etc. -> it comes useful when writing something really complicated)
