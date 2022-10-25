@@ -1,0 +1,2 @@
+python-dlt[bigquery]==0.1.0rc14
+requests
