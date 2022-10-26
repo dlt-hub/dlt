@@ -1,5 +1,5 @@
 from typing import Any, Sequence
-from dlt.common.exceptions import DltException
+from dlt.common.exceptions import DltException, ArgumentsOverloadException
 from dlt.common.telemetry import TRunMetrics
 from experiments.pipeline.typing import TPipelineStep
 
@@ -43,14 +43,14 @@ class PipelineConfigMissing(PipelineException):
         super().__init__(msg)
 
 
-class PipelineConfiguredException(PipelineException):
-    def __init__(self, f_name: str) -> None:
-        super().__init__(f"{f_name} cannot be called on already configured or restored pipeline.")
+# class PipelineConfiguredException(PipelineException):
+#     def __init__(self, f_name: str) -> None:
+#         super().__init__(f"{f_name} cannot be called on already configured or restored pipeline.")
 
 
-class InvalidPipelineContextException(PipelineException):
-    def __init__(self) -> None:
-        super().__init__("There may be just one active pipeline in single python process. To activate current pipeline call `activate` method")
+# class InvalidPipelineContextException(PipelineException):
+#     def __init__(self) -> None:
+#         super().__init__("There may be just one active pipeline in single python process. To activate current pipeline call `activate` method")
 
 
 class CannotRestorePipelineException(PipelineException):
@@ -79,3 +79,7 @@ class PipelineStepFailed(PipelineException):
         self.exception = exception
         self.run_metrics = run_metrics
         super().__init__(f"Pipeline execution failed at stage {step} with exception:\n\n{type(exception)}\n{exception}")
+
+
+# class CannotApplyHintsToManyResources(ArgumentsOverloadException):
+#     pass

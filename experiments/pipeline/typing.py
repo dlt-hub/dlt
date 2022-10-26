@@ -7,7 +7,7 @@ class TPipelineState(TypedDict):
     pipeline_name: str
     dataset_name: str
     default_schema_name: Optional[str]
-    # destination_name: Optional[str]
+    # destination: Optional[str]
 
 
 # TSourceState = NewType("TSourceState", DictStrAny)

@@ -82,6 +82,8 @@ In case **there are more schemas in the pipeline**, the data will be loaded into
 
 
 ## pipeline working directory and state
+the working directory of the pipeline will be **OS temporary folder/pipeline name**
+
 Another fundamental concept is the pipeline working directory. This directory keeps the following information:
 1. the extracted data and the load packages with jobs created by normalize
 2. the current schemas with all the recent updates
