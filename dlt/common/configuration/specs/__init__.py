@@ -6,5 +6,4 @@ from .schema_volume_configuration import SchemaVolumeConfiguration, TSchemaFileF
 from .pool_runner_configuration import PoolRunnerConfiguration, TPoolType  # noqa: F401
 from .gcp_client_credentials import GcpClientCredentials  # noqa: F401
 from .postgres_credentials import PostgresCredentials  # noqa: F401
-from .destination_capabilities_context import DestinationCapabilitiesContext  # noqa: F401
 from .config_namespace_context import ConfigNamespacesContext  # noqa: F401

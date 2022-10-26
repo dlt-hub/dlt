@@ -1,11 +1,12 @@
 import contextlib
 from importlib import import_module
 import os
-from typing import Any, ContextManager, Iterable, Iterator, List, Sequence, cast, IO
+from typing import Any, ContextManager, Iterator, List, Sequence, cast, IO
 
 from dlt.common import json, Decimal
 from dlt.common.configuration import resolve_configuration
-from dlt.common.configuration.specs.schema_volume_configuration import SchemaVolumeConfiguration
+from dlt.common.configuration.specs import SchemaVolumeConfiguration
+from dlt.common.destination import DestinationClientDwhConfiguration, DestinationReference, JobClientBase, LoadJob
 from dlt.common.data_writers import DataWriter
 from dlt.common.schema import TColumnSchema, TTableSchemaColumns
 from dlt.common.storages import SchemaStorage, FileStorage
@@ -15,9 +16,8 @@ from dlt.common.typing import StrAny
 from dlt.common.utils import uniq_id
 
 from dlt.load import Load
-from dlt.load.client_base import DestinationReference, JobClientBase, LoadJob
 from dlt.load.client_base_impl import SqlJobClientBase
-from dlt.load.configuration import DestinationClientDwhConfiguration
+
 
 TABLE_UPDATE: List[TColumnSchema] = [
     {

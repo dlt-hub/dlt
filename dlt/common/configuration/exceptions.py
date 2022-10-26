@@ -102,7 +102,7 @@ class ContainerInjectableContextMangled(ConfigurationException):
         super().__init__(f"When restoring context {spec.__name__}, instance {expected_config} was expected, instead instance {existing_config} was found.")
 
 
-class ContextDefaultCannotBeCreated(ConfigurationException):
+class ContextDefaultCannotBeCreated(ConfigurationException, KeyError):
     def __init__(self, spec: Type[Any]) -> None:
         self.spec = spec
         super().__init__(f"Container cannot create the default value of context {spec.__name__}.")

@@ -9,7 +9,7 @@ from dlt.common.normalizers.names import TNormalizeBreakPath, TNormalizeMakePath
 from dlt.common.normalizers.json import TNormalizeJSONFunc
 from dlt.common.schema.typing import (TNormalizersConfig, TPartialTableSchema, TSchemaSettings, TSimpleRegex, TStoredSchema,
                                       TSchemaTables, TTableSchema, TTableSchemaColumns, TColumnSchema, TColumnProp, TDataType,
-                                      THintType, TWriteDisposition)
+                                      TColumnHint, TWriteDisposition)
 from dlt.common.schema import utils
 from dlt.common.schema.exceptions import (CannotCoerceColumnException, CannotCoerceNullException, InvalidSchemaName,
                                           ParentTableNotFoundException, SchemaCorruptedException)
@@ -35,7 +35,7 @@ class Schema:
         # list of preferred types: map regex on columns into types
         self._compiled_preferred_types: List[Tuple[REPattern, TDataType]] = []
         # compiled default hints
-        self._compiled_hints: Dict[THintType, Sequence[REPattern]] = {}
+        self._compiled_hints: Dict[TColumnHint, Sequence[REPattern]] = {}
         # compiled exclude filters per table
         self._compiled_excludes: Dict[str, Sequence[REPattern]] = {}
         # compiled include filters per table
@@ -209,7 +209,7 @@ class Schema:
         self._stored_version, self._stored_version_hash = version
         return version
 
-    def filter_row_with_hint(self, table_name: str, hint_type: THintType, row: StrAny) -> StrAny:
+    def filter_row_with_hint(self, table_name: str, hint_type: TColumnHint, row: StrAny) -> StrAny:
         rv_row: DictStrAny = {}
         column_prop: TColumnProp = utils.hint_to_column_prop(hint_type)
         try:
@@ -227,7 +227,7 @@ class Schema:
         # dicts are ordered and we will return the rows with hints in the same order as they appear in the columns
         return rv_row
 
-    def merge_hints(self, new_hints: Mapping[THintType, Sequence[TSimpleRegex]]) -> None:
+    def merge_hints(self, new_hints: Mapping[TColumnHint, Sequence[TSimpleRegex]]) -> None:
         # validate regexes
         validate_dict(TSchemaSettings, {"default_hints": new_hints}, ".", validator_f=utils.simple_regex_validator)
         # prepare hints to be added
@@ -407,7 +407,7 @@ class Schema:
                 pass
         return mapped_type
 
-    def _infer_hint(self, hint_type: THintType, _: Any, col_name: str) -> bool:
+    def _infer_hint(self, hint_type: TColumnHint, _: Any, col_name: str) -> bool:
         if hint_type in self._compiled_hints:
             return any(h.search(col_name) for h in self._compiled_hints[hint_type])
         else:
@@ -425,6 +425,7 @@ class Schema:
     def _configure_normalizers(self) -> None:
         if not self._normalizers_config:
             # create default normalizer config
+            # TODO: pass default normalizers as context or as config with defaults
             self._normalizers_config = utils.default_normalizers()
         # import desired modules
         naming_module = import_module(self._normalizers_config["names"])

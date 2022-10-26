@@ -3,7 +3,7 @@ from typing import Any, Optional
 
 from dlt.common import Decimal
 from dlt.common.typing import TSecretValue
-from dlt.common.configuration.inject import _spec_from_signature, _get_spec_name_from_f, with_config
+from dlt.common.configuration.inject import _spec_from_signature, _get_spec_name_from_f, get_fun_spec, with_config
 from dlt.common.configuration.specs import BaseConfiguration, RunConfiguration
 
 from tests.utils import preserve_environ
@@ -126,6 +126,10 @@ def test_inject_with_auto_namespace(environment: Any) -> None:
         assert value == "test"
 
     f("pipe")
+
+    # make sure the spec is available for decorated fun
+    assert get_fun_spec(f) is not None
+    assert hasattr(get_fun_spec(f), "pipeline_name")
 
 
 def test_inject_with_spec() -> None:

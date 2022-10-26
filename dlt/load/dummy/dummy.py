@@ -6,10 +6,8 @@ from dlt.common import pendulum
 from dlt.common.schema import Schema
 from dlt.common.storages import FileStorage
 from dlt.common.schema.typing import TTableSchema
-from dlt.common.configuration.specs import DestinationCapabilitiesContext
+from dlt.common.destination import DestinationCapabilitiesContext, JobClientBase, LoadJob, TLoadJobStatus
 
-from dlt.load.client_base import JobClientBase, LoadJob
-from dlt.load.typing import TLoadJobStatus
 from dlt.load.exceptions import (LoadJobNotExistsException, LoadJobInvalidStateTransitionException,
                                             LoadClientTerminalException, LoadClientTransientException)
 

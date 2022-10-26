@@ -76,8 +76,14 @@ class TimeRangeExhaustedException(DltException):
 
 
 class DictValidationException(DltException):
-    def __init__(self, msg: str, path: str, field: str = None, value: Any = None):
+    def __init__(self, msg: str, path: str, field: str = None, value: Any = None) -> None:
         self.path = path
         self.field = field
         self.value = value
+        super().__init__(msg)
+
+
+class ArgumentsOverloadException(DltException):
+    def __init__(self, msg: str, *args: str) -> None:
+        self.args = args
         super().__init__(msg)

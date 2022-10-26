@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 
 from dlt.common import logger
 from dlt.common.schema import TTableSchemaColumns
-from dlt.common.sources import TDirectDataItem
+from dlt.common.source import TDirectDataItem
 from dlt.common.data_writers import TLoaderFileFormat, BufferedDataWriter
 
 

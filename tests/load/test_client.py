@@ -290,7 +290,7 @@ def test_write_dispositions(client: SqlJobClientBase, write_disposition: str, fi
     child_table = client.schema.normalize_make_path(table_name, "child")
     # add child table without write disposition so it will be inferred from the parent
     client.schema.update_schema(
-        new_table(child_table, columns=TABLE_UPDATE, parent_name=table_name)
+        new_table(child_table, columns=TABLE_UPDATE, parent_table_name=table_name)
         )
     client.schema.bump_version()
     client.update_storage_schema()

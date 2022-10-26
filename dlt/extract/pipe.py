@@ -9,7 +9,7 @@ from typing import Optional, Sequence, Union, Callable, Iterable, Iterator, List
 from dlt.common.configuration.inject import with_config
 from dlt.common.configuration.specs.base_configuration import BaseConfiguration, configspec
 from dlt.common.typing import TDataItem
-from dlt.common.sources import TDirectDataItem, TResolvableDataItem
+from dlt.common.source import TDirectDataItem, TResolvableDataItem
 
 if TYPE_CHECKING:
     TItemFuture = Future[TDirectDataItem]
@@ -99,10 +99,10 @@ class Pipe:
         self.parent = parent
 
     @classmethod
-    def from_iterable(cls, name: str, gen: Union[Iterable[TResolvableDataItem], Iterator[TResolvableDataItem]]) -> "Pipe":
+    def from_iterable(cls, name: str, gen: Union[Iterable[TResolvableDataItem], Iterator[TResolvableDataItem]], parent: "Pipe" = None) -> "Pipe":
         if isinstance(gen, Iterable):
             gen = iter(gen)
-        return cls(name, [gen])
+        return cls(name, [gen], parent=parent)
 
     @property
     def head(self) -> TPipeStep:
@@ -215,6 +215,7 @@ class PipeIterator(Iterator[PipeItem]):
     def from_pipe(cls, pipe: Pipe, *, max_parallel_items: int = 100, workers: int = 5, futures_poll_interval: float = 0.01) -> "PipeIterator":
         if pipe.parent:
             pipe = pipe.full_pipe()
+        # TODO: if pipe head is callable then call it now
         # head must be iterator
         assert isinstance(pipe.head, Iterator)
         # create extractor
@@ -245,7 +246,7 @@ class PipeIterator(Iterator[PipeItem]):
                 # add every head as source only once
                 if not any(i.pipe == pipe for i in extract._sources):
                     print("add to sources: " + pipe.name)
-                extract._sources.append(SourcePipeItem(pipe.head, 0, pipe))
+                    extract._sources.append(SourcePipeItem(pipe.head, 0, pipe))
 
         for pipe in reversed(pipes):
             _fork_pipeline(pipe)

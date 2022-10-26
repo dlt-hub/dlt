@@ -1,5 +1,5 @@
 from typing import Iterator
-from dlt.common.sources import with_table_name
+from dlt.common.source import with_table_name
 
 from dlt.common.typing import DictStrAny
 from dlt.common.time import timestamp_within

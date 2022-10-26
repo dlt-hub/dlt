@@ -1,7 +1,5 @@
 from dlt.common.configuration import configspec
-from dlt.common.data_writers import TLoaderFileFormat
-
-from dlt.load.configuration import DestinationClientConfiguration
+from dlt.common.destination import DestinationClientConfiguration, TLoaderFileFormat
 
 
 @configspec(init=True)

@@ -52,7 +52,7 @@ class Normalize(Runnable[ProcessPool]):
             self.create_gauges(collector)
         except ValueError as v:
             # ignore re-creation of gauges
-            if "Duplicated time-series" not in str(v):
+            if "Duplicated" not in str(v):
                 raise
 
     @staticmethod

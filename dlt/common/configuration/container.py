@@ -37,6 +37,9 @@ class Container:
 
         return item  # type: ignore
 
+    def __setitem__(self, spec: Type[TConfiguration], value: TConfiguration) -> None:
+        self.contexts[spec] = value
+
     def __contains__(self, spec: Type[TConfiguration]) -> bool:
         return spec in self.contexts
 

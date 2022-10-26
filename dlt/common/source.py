@@ -26,7 +26,9 @@ TDeferredDataItem = Callable[[], TDirectDataItem]
 TAwaitableDataItem = Awaitable[TDirectDataItem]
 TResolvableDataItem = Union[TDirectDataItem, TDeferredDataItem, TAwaitableDataItem]
 
-TFunDataItemDynHint = Callable[[TDataItem], Any]
+TDynHintType = TypeVar("TDynHintType")
+TFunHintTemplate = Callable[[TDataItem], TDynHintType]
+TTableHintTemplate = Union[TDynHintType, TFunHintTemplate[TDynHintType]]
 
 # name of dlt metadata as part of the item
 DLT_METADATA_FIELD = "_dlt_meta"

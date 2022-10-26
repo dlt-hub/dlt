@@ -14,6 +14,12 @@ from dlt.common.configuration.specs.config_namespace_context import ConfigNamesp
 _SLEEPING_CAT_SPLIT = re.compile("[^.^_]+")
 _LAST_DLT_CONFIG = "_last_dlt_config"
 TConfiguration = TypeVar("TConfiguration", bound=BaseConfiguration)
+# keep a registry of all the decorated functions
+_FUNC_SPECS: Dict[str, Type[BaseConfiguration]] = {}
+
+
+def get_fun_spec(f: AnyFun) -> Type[BaseConfiguration]:
+    return _FUNC_SPECS.get(id(f))
 
 
 @overload
@@ -96,6 +102,9 @@ def with_config(func: Optional[AnyFun] = None, /, spec: Type[BaseConfiguration] 
                 bound_args.arguments[kwargs_arg.name][_LAST_DLT_CONFIG] = config
             # call the function with resolved config
             return f(*bound_args.args, **bound_args.kwargs)
+
+        # register the spec for a wrapped function
+        _FUNC_SPECS[id(_wrap)] = SPEC
 
         return _wrap  # type: ignore
 

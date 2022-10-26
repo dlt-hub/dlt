@@ -19,7 +19,7 @@ from dlt.common.typing import DictStrAny, REPattern
 from dlt.common.utils import str2bool
 from dlt.common.validation import TCustomValidator, validate_dict
 from dlt.common.schema import detections
-from dlt.common.schema.typing import SIMPLE_REGEX_PREFIX, TColumnName, TNormalizersConfig, TPartialTableSchema, TSimpleRegex, TStoredSchema, TTableSchema, TTableSchemaColumns, TColumnSchemaBase, TColumnSchema, TColumnProp, TDataType, THintType, TTypeDetectionFunc, TTypeDetections, TWriteDisposition
+from dlt.common.schema.typing import SIMPLE_REGEX_PREFIX, TColumnName, TNormalizersConfig, TPartialTableSchema, TSimpleRegex, TStoredSchema, TTableSchema, TTableSchemaColumns, TColumnSchemaBase, TColumnSchema, TColumnProp, TDataType, TColumnHint, TTypeDetectionFunc, TTypeDetections, TWriteDisposition
 from dlt.common.schema.exceptions import CannotCoerceColumnException, ParentTableNotFoundException, SchemaEngineNoUpgradePathException, SchemaException, TablePropertiesConflictException
 
 
@@ -181,7 +181,7 @@ def upgrade_engine_version(schema_dict: DictStrAny, from_engine: int, to_engine:
                     }
                 }
         # move settings, convert strings to simple regexes
-        d_h: Dict[THintType, List[TSimpleRegex]] = schema_dict.pop("hints", {})
+        d_h: Dict[TColumnHint, List[TSimpleRegex]] = schema_dict.pop("hints", {})
         for h_k, h_l in d_h.items():
             d_h[h_k] = list(map(lambda r: TSimpleRegex("re:" + r), h_l))
         p_t: Dict[TSimpleRegex, TDataType] = schema_dict.pop("preferred_types", {})
@@ -491,7 +491,7 @@ def compare_column(a: TColumnSchema, b: TColumnSchema) -> bool:
     return a["data_type"] == b["data_type"] and a["nullable"] == b["nullable"]
 
 
-def hint_to_column_prop(h: THintType) -> TColumnProp:
+def hint_to_column_prop(h: TColumnHint) -> TColumnProp:
     if h == "not_null":
         return "nullable"
     return h
@@ -545,19 +545,38 @@ def load_table() -> TTableSchema:
     return table
 
 
-def new_table(table_name: str, parent_name: str = None, write_disposition: TWriteDisposition = None, columns: Sequence[TColumnSchema] = None) -> TTableSchema:
+def new_table(
+    table_name: str,
+    parent_table_name: str = None,
+    write_disposition: TWriteDisposition = None,
+    columns: Sequence[TColumnSchema] = None,
+    validate_schema: bool = False
+) -> TTableSchema:
+
     table: TTableSchema = {
         "name": table_name,
         "columns": {} if columns is None else {c["name"]: add_missing_hints(c) for c in columns}
     }
-    if parent_name:
-        table["parent"] = parent_name
+    if parent_table_name:
+        table["parent"] = parent_table_name
         assert write_disposition is None
     else:
         # set write disposition only for root tables
         table["write_disposition"] = write_disposition or DEFAULT_WRITE_DISPOSITION
-    # print(f"new table {table_name} cid {id(table['columns'])}")
+    if validate_schema:
+        validate_dict(TTableSchema, table, f"new_table/{table_name}")
     return table
+
+
+def new_column(column_name: str, data_type: TDataType, nullable: bool = True, validate_schema: bool = False) -> TColumnSchema:
+    column = add_missing_hints({
+                "name": column_name,
+                "data_type": data_type,
+                "nullable": nullable
+            })
+    if validate_schema:
+        validate_dict(TColumnSchema, column, f"new_column/{column_name}")
+    return column
 
 
 def default_normalizers() -> TNormalizersConfig:
@@ -570,5 +589,5 @@ def default_normalizers() -> TNormalizersConfig:
             }
 
 
-def standard_hints() -> Dict[THintType, List[TSimpleRegex]]:
+def standard_hints() -> Dict[TColumnHint, List[TSimpleRegex]]:
     return None

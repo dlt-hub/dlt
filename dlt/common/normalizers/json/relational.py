@@ -6,7 +6,7 @@ from dlt.common.schema.typing import TColumnSchema, TColumnName, TSimpleRegex
 from dlt.common.schema.utils import column_name_validator
 from dlt.common.utils import uniq_id, digest128
 from dlt.common.normalizers.json import TNormalizedRowIterator, wrap_in_dict
-from dlt.common.sources import TEventDLTMeta
+from dlt.common.source import TEventDLTMeta
 from dlt.common.validation import validate_dict
 
 

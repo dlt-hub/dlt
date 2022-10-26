@@ -4,7 +4,7 @@ from dlt.common.typing import StrAny
 
 
 TDataType = Literal["text", "double", "bool", "timestamp", "bigint", "binary", "complex", "decimal", "wei"]
-THintType = Literal["not_null", "partition", "cluster", "primary_key", "foreign_key", "sort", "unique"]
+TColumnHint = Literal["not_null", "partition", "cluster", "primary_key", "foreign_key", "sort", "unique"]
 TColumnProp = Literal["name", "data_type", "nullable", "partition", "cluster", "primary_key", "foreign_key", "sort", "unique"]
 TWriteDisposition = Literal["skip", "append", "replace", "merge"]
 TTypeDetections = Literal["timestamp", "iso_timestamp", "large_integer", "hexbytes_to_text", "wei_to_double"]
@@ -12,7 +12,7 @@ TTypeDetectionFunc = Callable[[Type[Any], Any], Optional[TDataType]]
 
 DATA_TYPES: Set[TDataType] = set(get_args(TDataType))
 COLUMN_PROPS: Set[TColumnProp] = set(get_args(TColumnProp))
-COLUMN_HINTS: Set[THintType] = set(["partition", "cluster", "primary_key", "foreign_key", "sort", "unique"])
+COLUMN_HINTS: Set[TColumnHint] = set(["partition", "cluster", "primary_key", "foreign_key", "sort", "unique"])
 WRITE_DISPOSITIONS: Set[TWriteDisposition] = set(get_args(TWriteDisposition))
 
 
@@ -74,7 +74,7 @@ class TNormalizersConfig(TypedDict, total=True):
 
 class TSchemaSettings(TypedDict, total=False):
     schema_sealed: Optional[bool]
-    default_hints: Optional[Dict[THintType, List[TSimpleRegex]]]
+    default_hints: Optional[Dict[TColumnHint, List[TSimpleRegex]]]
     preferred_types: Optional[Dict[TSimpleRegex, TDataType]]
 
 

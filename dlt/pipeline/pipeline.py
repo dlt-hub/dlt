@@ -17,7 +17,7 @@ from dlt.common.storages import FileStorage
 from dlt.common.schema import Schema
 from dlt.common.typing import DictStrAny, StrAny
 from dlt.common.utils import uniq_id, is_interactive
-from dlt.common.sources import DLT_METADATA_FIELD, TItem, with_table_name
+from dlt.common.source import DLT_METADATA_FIELD, TItem, with_table_name
 
 from dlt.extract.extractor_storage import ExtractorStorageBase
 from dlt.load.client_base import SqlClientBase, SqlJobClientBase

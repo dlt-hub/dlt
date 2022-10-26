@@ -10,11 +10,10 @@ from dlt.common.exceptions import TerminalException, TerminalValueError
 from dlt.common.schema import Schema
 from dlt.common.storages import FileStorage, LoadStorage
 from dlt.common.storages.load_storage import JobWithUnsupportedWriterException
-from dlt.common.typing import StrAny
 from dlt.common.utils import uniq_id
+from dlt.common.destination import DestinationReference, LoadJob
 
 from dlt.load import Load
-from dlt.load.client_base import DestinationReference, LoadJob
 from dlt.load.client_base_impl import LoadEmptyJob
 
 from dlt.load import dummy

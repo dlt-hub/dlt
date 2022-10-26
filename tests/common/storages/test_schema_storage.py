@@ -134,6 +134,10 @@ def test_list_schemas(storage: SchemaStorage) -> None:
     assert set(storage.list_schemas()) == set(["ethereum", "event"])
     storage.remove_schema("event")
     assert storage.list_schemas() == ["ethereum"]
+    # add schema with _ in the name
+    schema = Schema("dlt_pipeline")
+    storage.save_schema(schema)
+    assert set(storage.list_schemas()) == set(["ethereum", "dlt_pipeline"])
 
 
 def test_remove_schema(storage: SchemaStorage) -> None:

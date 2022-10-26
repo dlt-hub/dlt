@@ -4,7 +4,7 @@ from typing import Iterator, TypedDict, cast, Union
 
 from dlt.common import json
 from dlt.common.runners.venv import Venv
-from dlt.common.sources import with_table_name
+from dlt.common.source import with_table_name
 from dlt.common.typing import DictStrAny, StrAny, StrOrBytesPath
 
 from examples.sources.stdout import get_source as get_singer_pipe

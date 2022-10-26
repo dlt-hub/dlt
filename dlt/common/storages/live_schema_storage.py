@@ -36,9 +36,17 @@ class LiveSchemaStorage(SchemaStorage):
 
     def save_schema(self, schema: Schema) -> str:
         rv = super().save_schema(schema)
-        # update the live schema with schema being saved but to not create live instance if not already present
+        # update the live schema with schema being saved but do not create live instance if not already present
         self._update_live_schema(schema, False)
         return rv
+
+    def initialize_import_if_new(self, schema: Schema) -> None:
+        if self.config.import_schema_path and schema.name not in self:
+            try:
+                self._load_import_schema(schema.name)
+            except FileNotFoundError:
+                # save import schema only if it not exist
+                self._export_schema(schema, self.config.import_schema_path)
 
     def commit_live_schema(self, name: str) -> Schema:
         # if live schema exists and is modified then it must be used as an import schema

@@ -11,15 +11,16 @@ from contextlib import contextmanager
 from typing import Any, AnyStr, Dict, Iterator, List, Optional, Sequence, Tuple
 
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
-from dlt.common.configuration.specs import PostgresCredentials, DestinationCapabilitiesContext
+from dlt.common.configuration.specs import PostgresCredentials
+from dlt.common.destination import DestinationCapabilitiesContext, LoadJob, TLoadJobStatus
 from dlt.common.data_writers import escape_redshift_identifier
-from dlt.common.schema import COLUMN_HINTS, TColumnSchema, TColumnSchemaBase, TDataType, THintType, Schema, TTableSchemaColumns, add_missing_hints
+from dlt.common.schema import COLUMN_HINTS, TColumnSchema, TColumnSchemaBase, TDataType, TColumnHint, Schema, TTableSchemaColumns, add_missing_hints
 from dlt.common.schema.typing import TTableSchema, TWriteDisposition
 from dlt.common.storages.file_storage import FileStorage
 
 from dlt.load.exceptions import LoadClientSchemaWillNotUpdate, LoadClientTerminalInnerException, LoadClientTransientInnerException
-from dlt.load.typing import TLoadJobStatus, DBCursor
-from dlt.load.client_base import SqlClientBase, LoadJob
+from dlt.load.typing import DBCursor
+from dlt.load.client_base import SqlClientBase
 from dlt.load.client_base_impl import SqlJobClientBase, LoadEmptyJob
 
 from dlt.load.redshift import capabilities
@@ -47,7 +48,7 @@ PGT_TO_SCT: Dict[str, TDataType] = {
     "numeric": "decimal"
 }
 
-HINT_TO_REDSHIFT_ATTR: Dict[THintType, str] = {
+HINT_TO_REDSHIFT_ATTR: Dict[TColumnHint, str] = {
     "cluster": "DISTKEY",
     # it is better to not enforce constraints in redshift
     # "primary_key": "PRIMARY KEY",

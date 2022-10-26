@@ -3,10 +3,8 @@ from typing import Type
 from dlt.common.schema.schema import Schema
 from dlt.common.typing import ConfigValue
 from dlt.common.configuration import with_config
-from dlt.common.configuration.specs import DestinationCapabilitiesContext
+from dlt.common.destination import DestinationCapabilitiesContext, JobClientBase, DestinationClientConfiguration
 
-from dlt.load.client_base import JobClientBase
-from dlt.load.configuration import DestinationClientConfiguration
 from dlt.load.redshift.configuration import RedshiftClientConfiguration
 
 

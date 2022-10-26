@@ -338,7 +338,7 @@ def test_infer_with_autodetection(schema: Schema) -> None:
 
 
 def test_update_schema_parent_missing(schema: Schema) -> None:
-    tab1 = utils.new_table("tab1", parent_name="tab_parent")
+    tab1 = utils.new_table("tab1", parent_table_name="tab_parent")
     # tab_parent is missing in schema
     with pytest.raises(ParentTableNotFoundException) as exc_val:
         schema.update_schema(tab1)

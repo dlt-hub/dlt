@@ -13,12 +13,13 @@ from dlt.common import json, logger
 from dlt.common.typing import StrAny
 from dlt.common.schema.typing import TTableSchema, TWriteDisposition
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
-from dlt.common.configuration.specs import GcpClientCredentials, DestinationCapabilitiesContext
+from dlt.common.configuration.specs import GcpClientCredentials
+from dlt.common.destination import DestinationCapabilitiesContext, TLoadJobStatus, LoadJob
 from dlt.common.data_writers import escape_bigquery_identifier
 from dlt.common.schema import TColumnSchema, TDataType, Schema, TTableSchemaColumns
 
-from dlt.load.typing import TLoadJobStatus, DBCursor
-from dlt.load.client_base import SqlClientBase, LoadJob
+from dlt.load.typing import DBCursor
+from dlt.load.client_base import SqlClientBase
 from dlt.load.client_base_impl import SqlJobClientBase
 from dlt.load.exceptions import LoadClientSchemaWillNotUpdate, LoadJobNotExistsException, LoadJobServerTerminalException, LoadUnknownTableException
 

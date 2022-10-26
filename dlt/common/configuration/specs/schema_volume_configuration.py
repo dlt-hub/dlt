@@ -14,5 +14,5 @@ class SchemaVolumeConfiguration(BaseConfiguration):
     external_schema_format_remove_defaults: bool = True  # remove default values when exporting schema
 
     if TYPE_CHECKING:
-        def __init__(self, schema_volume_path: str = None) -> None:
+        def __init__(self, schema_volume_path: str = None, import_schema_path: str = None, export_schema_path: str = None) -> None:
             ...

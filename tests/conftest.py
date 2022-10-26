@@ -12,6 +12,8 @@ def pytest_configure(config):
     run_configuration.RunConfiguration.config_files_storage_path = os.path.join(test_storage_root, "config/%s")
 
     load_volume_configuration.LoadVolumeConfiguration.load_volume_path = os.path.join(test_storage_root, "load")
+    delattr(load_volume_configuration.LoadVolumeConfiguration, "__init__")
+    load_volume_configuration.LoadVolumeConfiguration = dataclasses.dataclass(load_volume_configuration.LoadVolumeConfiguration, init=True, repr=False)
 
     normalize_volume_configuration.NormalizeVolumeConfiguration.normalize_volume_path = os.path.join(test_storage_root, "normalize")
     # delete __init__, otherwise it will not be recreated by dataclass

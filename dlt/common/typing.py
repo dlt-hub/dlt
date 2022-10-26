@@ -24,9 +24,9 @@ TFun = TypeVar("TFun", bound=AnyFun)  # any function
 TAny = TypeVar("TAny", bound=Any)
 TAnyClass = TypeVar("TAnyClass", bound=object)
 TSecretValue = NewType("TSecretValue", str)  # represent secret value ie. coming from Kubernetes/Docker secrets or other providers
-TDataItem = Any  # a single data item extracted from data source, normalized and loaded
+TDataItem: TypeAlias = Any  # a single data item extracted from data source, normalized and loaded
 
-ConfigValue: None = None
+ConfigValue: None = None  # a value of type None indicating argument that may be injected by config provider
 
 TVariantBase = TypeVar("TVariantBase", covariant=True)
 TVariantRV = Tuple[str, Any]

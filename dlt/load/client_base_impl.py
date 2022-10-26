@@ -5,10 +5,10 @@ from typing import List, Sequence, Type
 from dlt.common import pendulum, logger
 from dlt.common.storages import FileStorage
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns
+from dlt.common.destination import DestinationClientConfiguration, TLoadJobStatus, LoadJob, JobClientBase
 
-from dlt.load.typing import TLoadJobStatus, TNativeConn
-from dlt.load.client_base import LoadJob, JobClientBase, SqlClientBase
-from dlt.load.configuration import DestinationClientConfiguration
+from dlt.load.typing import TNativeConn
+from dlt.load.client_base import SqlClientBase
 from dlt.load.exceptions import LoadClientSchemaVersionCorrupted
 
 

@@ -2,7 +2,7 @@ from typing import List, IO, Any, Optional
 
 from dlt.common.utils import uniq_id
 from dlt.common.typing import TDataItem
-from dlt.common.sources import TDirectDataItem
+from dlt.common.source import TDirectDataItem
 from dlt.common.data_writers import TLoaderFileFormat
 from dlt.common.data_writers.exceptions import BufferedDataWriterClosed, InvalidFileNameTemplateException
 from dlt.common.data_writers.writers import DataWriter

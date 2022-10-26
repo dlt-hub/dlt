@@ -6,12 +6,12 @@ from multiprocessing import get_start_method, Pool
 from multiprocessing.dummy import Pool as ThreadPool
 
 from dlt.common import json
-from dlt.common.configuration.specs.destination_capabilities_context import TLoaderFileFormat
+from dlt.common.destination import TLoaderFileFormat
 from dlt.common.utils import uniq_id
 from dlt.common.typing import StrAny
 from dlt.common.schema import TDataType
 from dlt.common.storages import NormalizeStorage, LoadStorage
-from dlt.common.configuration.specs import DestinationCapabilitiesContext
+from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.configuration.container import Container
 
 from dlt.extract.extract import ExtractorStorage

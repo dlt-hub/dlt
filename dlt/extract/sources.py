@@ -1,47 +1,60 @@
 import contextlib
 from copy import deepcopy
 import inspect
-from typing import AsyncIterable, AsyncIterator, Coroutine, Dict, Generator, Iterable, Iterator, List, Set, TypedDict, Union, Awaitable, Callable, Sequence, TypeVar, cast, Optional, Any
-from dlt.common.exceptions import DltException
-from dlt.common.schema.utils import new_table
+from typing import AsyncIterable, AsyncIterator, Coroutine, Dict, Generator, Iterable, Iterator, List, NamedTuple, Set, TypedDict, Union, Awaitable, Callable, Sequence, TypeVar, cast, Optional, Any
 
+from dlt.common.exceptions import DltException
 from dlt.common.typing import TDataItem
-from dlt.common.sources import TFunDataItemDynHint, TDirectDataItem
-from dlt.common.schema.schema import Schema
+from dlt.common.source import TFunHintTemplate, TDirectDataItem, TTableHintTemplate
+from dlt.common.schema import Schema
+from dlt.common.schema.utils import new_table
 from dlt.common.schema.typing import TPartialTableSchema, TTableSchema, TTableSchemaColumns, TWriteDisposition
+from dlt.common.configuration.container import Container
+from dlt.common.pipeline import PipelineContext
 
 from dlt.extract.pipe import FilterItem, Pipe, CreatePipeException, PipeIterator
 
 
+# class HintArgs(NamedTuple):
+#     table_name: TTableHintTemplate[str]
+#     parent_table_name: TTableHintTemplate[str] = None
+#     write_disposition: TTableHintTemplate[TWriteDisposition] = None
+#     columns: TTableHintTemplate[TTableSchemaColumns] = None
+
+
+# def apply_args(args: HintArgs):
+#     pass
+
+# apply_args()
+
 class TTableSchemaTemplate(TypedDict, total=False):
-    name: Union[str, TFunDataItemDynHint]
-    description: Union[str, TFunDataItemDynHint]
-    write_disposition: Union[TWriteDisposition, TFunDataItemDynHint]
+    name: TTableHintTemplate[str]
+    description: TTableHintTemplate[str]
+    write_disposition: TTableHintTemplate[TWriteDisposition]
     # table_sealed: Optional[bool]
-    parent: Union[str, TFunDataItemDynHint]
-    columns: Union[TTableSchemaColumns, TFunDataItemDynHint]
+    parent: TTableHintTemplate[str]
+    columns: TTableHintTemplate[TTableSchemaColumns]
 
 
 class DltResourceSchema:
     def __init__(self, name: str, table_schema_template: TTableSchemaTemplate = None):
         # self.__name__ = name
         self.name = name
-        self._table_name_hint_fun: TFunDataItemDynHint = None
+        self._table_name_hint_fun: TFunHintTemplate[str] = None
         self._table_has_other_dynamic_hints: bool = False
         self._table_schema_template: TTableSchemaTemplate = None
         self._table_schema: TPartialTableSchema = None
         if table_schema_template:
-            self._set_template(table_schema_template)
+            self.set_template(table_schema_template)
 
     def table_schema(self, item: TDataItem =  None) -> TPartialTableSchema:
-
         if not self._table_schema_template:
             # if table template is not present, generate partial table from name
             if not self._table_schema:
                 self._table_schema = new_table(self.name)
             return self._table_schema
 
-        def _resolve_hint(hint: Union[Any, TFunDataItemDynHint]) -> Any:
+        def _resolve_hint(hint: TTableHintTemplate[Any]) -> Any:
             if callable(hint):
                 return hint(item)
             else:
@@ -52,49 +65,100 @@ class DltResourceSchema:
             if item is None:
                 raise DataItemRequiredForDynamicTableHints(self.name)
             else:
-                cloned_template = deepcopy(self._table_schema_template)
-                return cast(TPartialTableSchema, {k: _resolve_hint(v) for k, v in cloned_template.items()})
+                # cloned_template = deepcopy(self._table_schema_template)
+                return cast(TPartialTableSchema, {k: _resolve_hint(v) for k, v in self._table_schema_template.items()})
         else:
             return cast(TPartialTableSchema, self._table_schema_template)
 
-    def _set_template(self, table_schema_template: TTableSchemaTemplate) -> None:
-        # validate template
-        # TODO: name must be set if any other properties are set
-        # TODO: remove all none values
+    def apply_hints(
+        self,
+        table_name: TTableHintTemplate[str] = None,
+        parent_table_name: TTableHintTemplate[str] = None,
+        write_disposition: TTableHintTemplate[TWriteDisposition] = None,
+        columns: TTableHintTemplate[TTableSchemaColumns] = None,
+    ) -> None:
+        t = None
+        if not self._table_schema_template:
+            # if there's no template yet, create and set new one
+            t = self.new_table_template(table_name, parent_table_name, write_disposition, columns)
+        else:
+            # set single hints
+            t = deepcopy(self._table_schema_template)
+            if table_name:
+                t["name"] = table_name
+            if parent_table_name:
+                t["parent"] = parent_table_name
+            if write_disposition:
+                t["write_disposition"] = write_disposition
+            if columns:
+                t["columns"] = columns
+        self.set_template(t)
 
+    def set_template(self, table_schema_template: TTableSchemaTemplate) -> None:
         # if "name" is callable in the template then the table schema requires actual data item to be inferred
-        name_hint = table_schema_template.get("name")
+        name_hint = table_schema_template["name"]
         if callable(name_hint):
             self._table_name_hint_fun = name_hint
+        else:
+            self._table_name_hint_fun = None
         # check if any other hints in the table template should be inferred from data
         self._table_has_other_dynamic_hints = any(callable(v) for k, v in table_schema_template.items() if k != "name")
-
-        if self._table_has_other_dynamic_hints and not self._table_name_hint_fun:
-            raise InvalidTableSchemaTemplate("Table name must be a function if any other table hint is a function")
         self._table_schema_template = table_schema_template
 
+    @staticmethod
+    def new_table_template(
+        table_name: TTableHintTemplate[str],
+        parent_table_name: TTableHintTemplate[str] = None,
+        write_disposition: TTableHintTemplate[TWriteDisposition] = None,
+        columns: TTableHintTemplate[TTableSchemaColumns] = None,
+        ) -> TTableSchemaTemplate:
+        if not table_name:
+            raise InvalidTableSchemaTemplate("Table template name must be a string or function taking TDataItem")
+        # create a table schema template where hints can be functions taking TDataItem
+        new_template: TTableSchemaTemplate = new_table(table_name, parent_table_name, write_disposition=write_disposition, columns=columns)  # type: ignore
+        # if any of the hints is a function then name must be as well
+        if any(callable(v) for k, v in new_template.items() if k != "name") and not callable(table_name):
+            raise InvalidTableSchemaTemplate("Table name must be a function if any other table hint is a function")
+        return new_template
 
 class DltResource(Iterable[TDirectDataItem], DltResourceSchema):
-    def __init__(self, pipe: Pipe, table_schema_template: TTableSchemaTemplate):
+    def __init__(self, pipe: Pipe, table_schema_template: TTableSchemaTemplate, selected: bool):
         self.name = pipe.name
+        self.selected = selected
         self._pipe = pipe
         super().__init__(self.name, table_schema_template)
 
     @classmethod
-    def from_data(cls, data: Any, name: str = None, table_schema_template: TTableSchemaTemplate = None) -> "DltResource":
+    def from_data(cls, data: Any, name: str = None, table_schema_template: TTableSchemaTemplate = None, selected: bool = True, depends_on: "DltResource" = None) -> "DltResource":
         # call functions assuming that they do not take any parameters, typically they are generator functions
         if callable(data):
+            # use inspect.isgeneratorfunction to see if this is generator or not
+            # if it is then call it, if not then keep the callable assuming that it will return iterable/iterator
+            # if inspect.isgeneratorfunction(data):
+            #     data = data()
+            # else:
             data = data()
 
         if isinstance(data, DltResource):
             return data
 
         if isinstance(data, Pipe):
-            return cls(data, table_schema_template)
+            return cls(data, table_schema_template, selected)
 
         # several iterable types are not allowed and must be excluded right away
         if isinstance(data, (AsyncIterator, AsyncIterable, str, dict)):
             raise InvalidResourceDataType("Invalid data type for DltResource", type(data))
+
+        # check if depends_on is a valid resource
+        parent_pipe: Pipe = None
+        if depends_on:
+            if not isinstance(depends_on, DltResource):
+                # if this is generator function provide nicer exception
+                if inspect.isgeneratorfunction(inspect.unwrap(depends_on)):
+                    raise ParentResourceIsGeneratorFunction()
+                else:
+                    raise ParentNotAResource()
+            parent_pipe = depends_on._pipe
 
         # create resource from iterator or iterable
         if isinstance(data, (Iterable, Iterator)):
@@ -103,9 +167,9 @@ class DltResource(Iterable[TDirectDataItem], DltResourceSchema):
             else:
                 name = name or None
             if not name:
-                raise ResourceNameRequired("The DltResource name was not provide or could not be inferred.")
-            pipe = Pipe.from_iterable(name, data)
-            return cls(pipe, table_schema_template)
+                raise ResourceNameRequired("The DltResource name was not provided or could not be inferred.")
+            pipe = Pipe.from_iterable(name, data, parent=parent_pipe)
+            return cls(pipe, table_schema_template, selected)
 
         # some other data type that is not supported
         raise InvalidResourceDataType("Invalid data type for DltResource", type(data))
@@ -143,7 +207,7 @@ class DltSource(Iterable[TDirectDataItem]):
         self.name = schema.name
         self._schema = schema
         self._resources: List[DltResource] = list(resources or [])
-        self._enabled_resource_names: Set[str] = set(r.name for r in self._resources)
+        self._enabled_resource_names: Set[str] = set(r.name for r in self._resources if r.selected)
 
     @classmethod
     def from_data(cls, schema: Schema, data: Any) -> "DltSource":
@@ -185,6 +249,10 @@ class DltSource(Iterable[TDirectDataItem]):
     def schema(self) -> Schema:
         return self._schema
 
+    @schema.setter
+    def schema(self, value: Schema) -> None:
+        self._schema = value
+
     def discover_schema(self) -> Schema:
         # extract tables from all resources and update internal schema
         for r in self._resources:
@@ -201,6 +269,9 @@ class DltSource(Iterable[TDirectDataItem]):
         self._enabled_resource_names = set(resource_names)
         return self
 
+
+    def run(self, destination: Any) -> Any:
+        return Container()[PipelineContext].pipeline().run(source=self, destination=destination)
 
     def __iter__(self) -> Iterator[TDirectDataItem]:
         return map(lambda item: item.item, PipeIterator.from_pipes(self.pipes))

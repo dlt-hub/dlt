@@ -12,11 +12,10 @@ from dlt.common.schema import Schema
 from dlt.common.schema.typing import TTableSchema
 from dlt.common.storages import LoadStorage
 from dlt.common.telemetry import get_logging_extras, set_gauge_all_labels
+from dlt.common.destination import JobClientBase, DestinationReference, LoadJob, TLoadJobStatus, DestinationClientConfiguration
 
-from dlt.load.client_base import JobClientBase, DestinationReference, LoadJob
 from dlt.load.client_base_impl import LoadEmptyJob
-from dlt.load.typing import TLoadJobStatus
-from dlt.load.configuration import LoaderConfiguration, DestinationClientConfiguration
+from dlt.load.configuration import LoaderConfiguration
 from dlt.load.exceptions import LoadClientTerminalException, LoadClientTransientException, LoadClientUnsupportedWriteDisposition, LoadClientUnsupportedFileFormats, LoadJobNotExistsException, LoadUnknownTableException
 
 
@@ -46,7 +45,7 @@ class Load(Runnable[ThreadPool]):
             Load.create_gauges(collector)
         except ValueError as v:
             # ignore re-creation of gauges
-            if "Duplicated timeseries" not in str(v):
+            if "Duplicated" not in str(v):
                 raise
 
     def create_storage(self, is_storage_owner: bool) -> LoadStorage:

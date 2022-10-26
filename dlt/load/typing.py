@@ -1,6 +1,5 @@
 from typing import Any, AnyStr, List, Literal, Optional, Tuple, TypeVar
 
-TLoadJobStatus = Literal["running", "failed", "retry", "completed"]
 # native connection
 TNativeConn = TypeVar("TNativeConn", bound="object")
 

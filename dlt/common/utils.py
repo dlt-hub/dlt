@@ -10,7 +10,7 @@ from os import environ
 
 from typing import Any, Dict, Iterator, Optional, Sequence, TypeVar, Mapping, List, TypedDict, Union
 
-from dlt.common.typing import StrAny, DictStrAny, StrStr, TFun
+from dlt.common.typing import AnyFun, StrAny, DictStrAny, StrStr, TFun
 
 T = TypeVar("T")
 
@@ -182,3 +182,9 @@ def entry_point_file_stem() -> str:
     if len(sys.argv) > 0 and os.path.isfile(sys.argv[0]):
         return Path(sys.argv[0]).stem
     return None
+
+
+def is_inner_function(f: AnyFun) -> bool:
+    """Checks if f is defined within other function"""
+    # inner functions have full nesting path in their qualname
+    return "<locals>" in f.__qualname__
