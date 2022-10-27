@@ -7,8 +7,6 @@ from dlt.common.configuration.specs.base_configuration import CredentialsConfigu
 @configspec
 class PostgresCredentials(CredentialsConfiguration):
 
-    __namespace__: str = "pg"
-
     dbname: str = None
     password: TSecretValue = None
     user: str = None

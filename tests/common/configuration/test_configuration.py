@@ -1,44 +1,18 @@
 import pytest
 import datetime  # noqa: I251
-from typing import Any, Dict, List, Mapping, MutableMapping, NewType, Optional, Sequence, Tuple, Type
+from typing import Any, Dict, List, Mapping, MutableMapping, NewType, Optional, Type
 
 from dlt.common import pendulum, Decimal, Wei
 from dlt.common.utils import custom_environ
-from dlt.common.typing import StrAny, TSecretValue, extract_inner_type
+from dlt.common.typing import TSecretValue, extract_inner_type
 from dlt.common.configuration.exceptions import ConfigFieldMissingTypeHintException, ConfigFieldTypeHintNotSupported, InvalidInitialValue, LookupTrace, ValueNotSecretException
 from dlt.common.configuration import configspec, ConfigEntryMissingException, ConfigEnvValueCannotBeCoercedException, resolve
 from dlt.common.configuration.specs import BaseConfiguration, RunConfiguration
 from dlt.common.configuration.specs.base_configuration import is_valid_hint
-from dlt.common.configuration.providers import environ as environ_provider
+from dlt.common.configuration.providers import environ as environ_provider, toml
 
 from tests.utils import preserve_environ, add_config_dict_to_env
-from tests.common.configuration.utils import MockProvider, WithCredentialsConfiguration, WrongConfiguration, SecretConfiguration, NamespacedConfiguration, environment, mock_provider
-
-COERCIONS = {
-    'str_val': 'test string',
-    'int_val': 12345,
-    'bool_val': True,
-    'list_val': [1, "2", [3]],
-    'dict_val': {
-        'a': 1,
-        "b": "2"
-    },
-    'bytes_val': b'Hello World!',
-    'float_val': 1.18927,
-    "tuple_val": (1, 2, {1: "complicated dicts allowed in literal eval"}),
-    'any_val': "function() {}",
-    'none_val': "none",
-    'COMPLEX_VAL': {
-        "_": [1440, ["*"], []],
-        "change-email": [560, ["*"], []]
-    },
-    "date_val": pendulum.now(),
-    "dec_val": Decimal("22.38"),
-    "sequence_val": ["A", "B", "KAPPA"],
-    "gen_list_val": ["C", "Z", "N"],
-    "mapping_val": {"FL": 1, "FR": {"1": 2}},
-    "mutable_mapping_val": {"str": "str"}
-}
+from tests.common.configuration.utils import MockProvider, CoercionTestConfiguration, COERCIONS, WithCredentialsConfiguration, WrongConfiguration, SecretConfiguration, NamespacedConfiguration, environment, mock_provider
 
 INVALID_COERCIONS = {
     # 'STR_VAL': 'test string',  # string always OK
@@ -66,28 +40,6 @@ COERCED_EXCEPTIONS = {
     # allows to use float for str
     'str_val': "10.0"
 }
-
-
-@configspec
-class CoercionTestConfiguration(RunConfiguration):
-    pipeline_name: str = "Some Name"
-    str_val: str = None
-    int_val: int = None
-    bool_val: bool = None
-    list_val: list = None  # type: ignore
-    dict_val: dict = None  # type: ignore
-    bytes_val: bytes = None
-    float_val: float = None
-    tuple_val: Tuple[int, int, StrAny] = None
-    any_val: Any = None
-    none_val: str = None
-    COMPLEX_VAL: Dict[str, Tuple[int, List[str], List[str]]] = None
-    date_val: datetime.datetime = None
-    dec_val: Decimal = None
-    sequence_val: Sequence[str] = None
-    gen_list_val: List[str] = None
-    mapping_val: StrAny = None
-    mutable_mapping_val: MutableMapping[str, str] = None
 
 
 @configspec
@@ -169,25 +121,53 @@ SecondOrderStr = NewType("SecondOrderStr", FirstOrderStr)
 def test_initial_config_state() -> None:
     assert BaseConfiguration.__is_resolved__ is False
     assert BaseConfiguration.__namespace__ is None
-    C = BaseConfiguration()
-    assert C.__is_resolved__ is False
-    assert C.is_resolved() is False
+    c = BaseConfiguration()
+    assert c.__is_resolved__ is False
+    assert c.is_resolved() is False
     # base configuration has no resolvable fields so is never partial
-    assert C.is_partial() is False
+    assert c.is_partial() is False
 
 
 def test_set_initial_config_value(environment: Any) -> None:
     # set from init method
-    C = resolve.resolve_configuration(InstrumentedConfiguration(head="h", tube=["a", "b"], heels="he"))
-    assert C.to_native_representation() == "h>a>b>he"
+    c = resolve.resolve_configuration(InstrumentedConfiguration(head="h", tube=["a", "b"], heels="he"))
+    assert c.to_native_representation() == "h>a>b>he"
     # set from native form
-    C = resolve.resolve_configuration(InstrumentedConfiguration(), initial_value="h>a>b>he")
-    assert C.head == "h"
-    assert C.tube == ["a", "b"]
-    assert C.heels == "he"
+    c = resolve.resolve_configuration(InstrumentedConfiguration(), initial_value="h>a>b>he")
+    assert c.head == "h"
+    assert c.tube == ["a", "b"]
+    assert c.heels == "he"
     # set from dictionary
-    C = resolve.resolve_configuration(InstrumentedConfiguration(), initial_value={"head": "h", "tube": ["tu", "be"], "heels": "xhe"})
-    assert C.to_native_representation() == "h>tu>be>xhe"
+    c = resolve.resolve_configuration(InstrumentedConfiguration(), initial_value={"head": "h", "tube": ["tu", "be"], "heels": "xhe"})
+    assert c.to_native_representation() == "h>tu>be>xhe"
+
+
+def test_initial_native_representation_skips_resolve(environment: Any) -> None:
+    c = InstrumentedConfiguration()
+    # mock namespace to enable looking for initials in provider
+    c.__namespace__ = "ins"
+    # explicit initial does not skip resolve
+    environment["INS__HEELS"] = "xhe"
+    c = resolve.resolve_configuration(c, initial_value="h>a>b>he")
+    assert c.heels == "xhe"
+
+    # now put the whole native representation in env
+    environment["INS"] = "h>a>b>he"
+    c = InstrumentedConfiguration()
+    c.__namespace__ = "ins"
+    c = resolve.resolve_configuration(c, initial_value="h>a>b>uhe")
+    assert c.heels == "he"
+
+
+def test_query_initial_config_value_if_config_namespace(environment: Any) -> None:
+    c = InstrumentedConfiguration(head="h", tube=["a", "b"], heels="he")
+    # mock the __namespace__ to enable the query
+    c.__namespace__ = "snake"
+    # provide the initial value
+    environment["SNAKE"] = "h>tu>be>xhe"
+    c = resolve.resolve_configuration(c)
+    # check if the initial value loaded
+    assert c.heels == "xhe"
 
 
 def test_invalid_initial_config_value() -> None:
@@ -212,7 +192,7 @@ def test_embedded_config(environment: Any) -> None:
     assert C.namespaced.password == "pwd"
 
     # resolve but providing values via env
-    with custom_environ({"INSTRUMENTED": "h>tu>u>be>xhe", "DLT_TEST__PASSWORD": "passwd", "DEFAULT": "DEF"}):
+    with custom_environ({"INSTRUMENTED": "h>tu>u>be>xhe", "NAMESPACED__PASSWORD": "passwd", "DEFAULT": "DEF"}):
         C = resolve.resolve_configuration(EmbeddedConfiguration())
         assert C.default == "DEF"
         assert C.instrumented.to_native_representation() == "h>tu>u>be>xhe"
@@ -225,7 +205,7 @@ def test_embedded_config(environment: Any) -> None:
     assert not C.instrumented.__is_resolved__
 
     # some are partial, some are not
-    with custom_environ({"DLT_TEST__PASSWORD": "passwd"}):
+    with custom_environ({"NAMESPACED__PASSWORD": "passwd"}):
         C = resolve.resolve_configuration(EmbeddedConfiguration(), accept_partial=True)
         assert not C.__is_resolved__
         assert C.namespaced.__is_resolved__
@@ -357,8 +337,10 @@ def test_raises_on_unresolved_field(environment: Any) -> None:
     assert "NoneConfigVar" in cf_missing_exc.value.traces
     # has only one trace
     trace = cf_missing_exc.value.traces["NoneConfigVar"]
-    assert len(trace) == 1
+    assert len(trace) == 3
     assert trace[0] == LookupTrace("Environment Variables", [], "NONECONFIGVAR", None)
+    assert trace[1] == LookupTrace("Pipeline secrets.toml", [], "NoneConfigVar", None)
+    assert trace[2] == LookupTrace("Pipeline config.toml", [], "NoneConfigVar", None)
 
 
 def test_raises_on_many_unresolved_fields(environment: Any) -> None:
@@ -371,8 +353,10 @@ def test_raises_on_many_unresolved_fields(environment: Any) -> None:
     traces = cf_missing_exc.value.traces
     assert len(traces) == len(val_fields)
     for tr_field, exp_field in zip(traces, val_fields):
-        assert len(traces[tr_field]) == 1
+        assert len(traces[tr_field]) == 3
         assert traces[tr_field][0] == LookupTrace("Environment Variables", [], environ_provider.EnvironProvider.get_key_name(exp_field), None)
+        assert traces[tr_field][1] == LookupTrace("Pipeline secrets.toml", [], toml.TomlProvider.get_key_name(exp_field), None)
+        assert traces[tr_field][2] == LookupTrace("Pipeline config.toml", [], toml.TomlProvider.get_key_name(exp_field), None)
 
 
 def test_accepts_optional_missing_fields(environment: Any) -> None:

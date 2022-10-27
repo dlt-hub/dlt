@@ -7,7 +7,7 @@ from dlt.common.configuration.resolve import resolve_configuration
 from dlt.common.configuration.specs import BaseConfiguration, ContainerInjectableContext
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import ContainerInjectableContextMangled, InvalidInitialValue, ContextDefaultCannotBeCreated
-from dlt.common.configuration.specs.config_providers_context import ConfigProvidersListContext
+from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
 
 from tests.utils import preserve_environ
 from tests.common.configuration.utils import environment
@@ -16,6 +16,9 @@ from tests.common.configuration.utils import environment
 @configspec(init=True)
 class InjectableTestContext(ContainerInjectableContext):
     current_value: str
+
+    def from_native_representation(self, native_value: Any) -> None:
+        raise ValueError(native_value)
 
 
 @configspec
@@ -141,7 +144,7 @@ def test_container_provider_embedded_inject(container: Container, environment: A
         assert C.injected.current_value == "Embed"
         assert C.injected is injected
         # remove first provider
-        container[ConfigProvidersListContext].providers.pop(0)
+        container[ConfigProvidersContext].providers.pop(0)
         # now environment will provide unparsable value
         with pytest.raises(InvalidInitialValue):
             C = resolve_configuration(EmbeddedWithInjectableContext())

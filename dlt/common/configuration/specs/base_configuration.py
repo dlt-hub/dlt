@@ -95,7 +95,7 @@ class BaseConfiguration(MutableMapping[str, Any]):
             NotImplementedError: This configuration does not have a native representation
             ValueError: The value provided cannot be parsed as native representation
         """
-        raise ValueError()
+        raise NotImplementedError()
 
     def to_native_representation(self) -> Any:
         """Represents the configuration instance in its native form ie. database connection string or JSON serialized GCP service credentials file.
@@ -106,7 +106,7 @@ class BaseConfiguration(MutableMapping[str, Any]):
         Returns:
             Any: A native representation of the configuration
         """
-        raise ValueError()
+        raise NotImplementedError()
 
     def get_resolvable_fields(self) -> Dict[str, type]:
         """Returns a mapping of fields to their type hints. Dunder should not be resolved and are not returned"""
@@ -167,7 +167,9 @@ class BaseConfiguration(MutableMapping[str, Any]):
 @configspec
 class CredentialsConfiguration(BaseConfiguration):
     """Base class for all credentials. Credentials are configurations that may be stored only by providers supporting secrets."""
-    pass
+
+    __namespace__: str = "credentials"
+
 
 
 @configspec

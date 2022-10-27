@@ -21,6 +21,11 @@ class EmbeddedConfiguration(BaseConfiguration):
     sv_config: Optional[SingleValConfiguration]
 
 
+@configspec
+class EmbeddedWithNamespacedConfiguration(BaseConfiguration):
+    embedded: NamespacedConfiguration
+
+
 def test_namespaced_configuration(environment: Any) -> None:
     with pytest.raises(ConfigEntryMissingException) as exc_val:
         resolve.resolve_configuration(NamespacedConfiguration())
@@ -30,8 +35,10 @@ def test_namespaced_configuration(environment: Any) -> None:
     # check trace
     traces = exc_val.value.traces["password"]
     # only one provider and namespace was tried
-    assert len(traces) == 1
+    assert len(traces) == 3
     assert traces[0] == LookupTrace("Environment Variables", ["DLT_TEST"], "DLT_TEST__PASSWORD", None)
+    assert traces[1] == LookupTrace("Pipeline secrets.toml", ["DLT_TEST"], "DLT_TEST.password", None)
+    assert traces[2] == LookupTrace("Pipeline config.toml", ["DLT_TEST"], "DLT_TEST.password", None)
 
     # init vars work without namespace
     C = resolve.resolve_configuration(NamespacedConfiguration(), initial_value={"password": "PASS"})
@@ -77,28 +84,39 @@ def test_explicit_namespaces_with_namespaced_config(mock_provider: MockProvider)
     mock_provider.return_value_on = ("DLT_TEST",)
     resolve.resolve_configuration(NamespacedConfiguration())
     assert mock_provider.last_namespace == ("DLT_TEST",)
-    # namespace from config is mandatory, provider will not be queried with ()
-    assert mock_provider.last_namespaces == [("DLT_TEST",)]
+    # first the native representation of NamespacedConfiguration is queried with (), and then the fields in NamespacedConfiguration are queried only in DLT_TEST
+    assert mock_provider.last_namespaces == [(), ("DLT_TEST",)]
     # namespaced config is always innermost
     mock_provider.reset_stats()
     resolve.resolve_configuration(NamespacedConfiguration(), namespaces=("ns1",))
-    assert mock_provider.last_namespaces == [("ns1", "DLT_TEST"), ("DLT_TEST",)]
+    assert mock_provider.last_namespaces == [("ns1",), (), ("ns1", "DLT_TEST"), ("DLT_TEST",)]
     mock_provider.reset_stats()
     resolve.resolve_configuration(NamespacedConfiguration(), namespaces=("ns1", "ns2"))
-    assert mock_provider.last_namespaces == [("ns1", "ns2", "DLT_TEST"), ("ns1", "DLT_TEST"), ("DLT_TEST",)]
+    assert mock_provider.last_namespaces == [("ns1", "ns2"), ("ns1",), (), ("ns1", "ns2", "DLT_TEST"), ("ns1", "DLT_TEST"), ("DLT_TEST",)]
+
+
+def test_overwrite_config_namespace_from_embedded(mock_provider: MockProvider) -> None:
+    mock_provider.value = {}
+    mock_provider.return_value_on = ("embedded",)
+    resolve.resolve_configuration(EmbeddedWithNamespacedConfiguration())
+    # when resolving the config namespace DLT_TEST was removed and the embedded namespace was used instead
+    assert mock_provider.last_namespace == ("embedded",)
+    # lookup in order: () - parent config when looking for "embedded", then from "embedded" config
+    assert mock_provider.last_namespaces == [(), ("embedded",)]
 
 
 def test_explicit_namespaces_from_embedded_config(mock_provider: MockProvider) -> None:
     mock_provider.value = {"sv": "A"}
+    mock_provider.return_value_on = ("sv_config",)
     C = resolve.resolve_configuration(EmbeddedConfiguration())
     # we mock the dictionary below as the value for all requests
     assert C.sv_config.sv == '{"sv": "A"}'
-    # following namespaces were used when resolving EmbeddedConfig: () - to resolve sv_config and then: ("sv_config",), () to resolve sv in sv_config
-    assert mock_provider.last_namespaces == [(), ("sv_config",), ()]
+    # following namespaces were used when resolving EmbeddedConfig: () trying to get initial value for the whole embedded sv_config, then ("sv_config",), () to resolve sv in sv_config
+    assert mock_provider.last_namespaces == [(), ("sv_config",)]
     # embedded namespace inner of explicit
     mock_provider.reset_stats()
     C = resolve.resolve_configuration(EmbeddedConfiguration(), namespaces=("ns1",))
-    assert mock_provider.last_namespaces == [("ns1",), (), ("ns1", "sv_config",), ("ns1",), ()]
+    assert mock_provider.last_namespaces == [("ns1",), (), ("ns1", "sv_config",), ("sv_config",)]
 
 
 def test_injected_namespaces(mock_provider: MockProvider) -> None:
@@ -116,14 +134,14 @@ def test_injected_namespaces(mock_provider: MockProvider) -> None:
         mock_provider.reset_stats()
         mock_provider.return_value_on = ("DLT_TEST",)
         resolve.resolve_configuration(NamespacedConfiguration())
-        assert mock_provider.last_namespaces == [("inj-ns1", "DLT_TEST"), ("DLT_TEST",)]
+        assert mock_provider.last_namespaces == [("inj-ns1",), (), ("inj-ns1", "DLT_TEST"), ("DLT_TEST",)]
         # injected namespace inner of ns coming from embedded config
         mock_provider.reset_stats()
         mock_provider.return_value_on = ()
         mock_provider.value = {"sv": "A"}
         resolve.resolve_configuration(EmbeddedConfiguration())
         # first we look for sv_config -> ("inj-ns1",), () then we look for sv
-        assert mock_provider.last_namespaces == [("inj-ns1", ), (), ("inj-ns1", "sv_config"), ("inj-ns1",), ()]
+        assert mock_provider.last_namespaces == [("inj-ns1",), (), ("inj-ns1", "sv_config"), ("sv_config",)]
 
     # multiple injected namespaces
     with container.injectable_context(ConfigNamespacesContext(namespaces=("inj-ns1", "inj-ns2"))):
@@ -134,7 +152,6 @@ def test_injected_namespaces(mock_provider: MockProvider) -> None:
 
 
 def test_namespace_with_pipeline_name(mock_provider: MockProvider) -> None:
-    # AXIES__DESTINATION__STORAGE_CREDENTIALS__PRIVATE_KEY, DESTINATION__STORAGE_CREDENTIALS__PRIVATE_KEY, DESTINATION__PRIVATE_KEY, GCP__PRIVATE_KEY
     # if pipeline name is present, keys will be looked up twice: with pipeline as top level namespace and without it
 
     container = Container()
@@ -165,7 +182,8 @@ def test_namespace_with_pipeline_name(mock_provider: MockProvider) -> None:
         mock_provider.return_value_on = ("DLT_TEST",)
         mock_provider.reset_stats()
         resolve.resolve_configuration(NamespacedConfiguration())
-        assert mock_provider.last_namespaces == [("PIPE", "DLT_TEST"), ("DLT_TEST",)]
+        # first the whole NamespacedConfiguration is looked under key DLT_TEST (namespaces: ('PIPE',), ()), then fields of NamespacedConfiguration
+        assert mock_provider.last_namespaces == [('PIPE',), (), ("PIPE", "DLT_TEST"), ("DLT_TEST",)]
 
     # with pipeline and injected namespaces
     with container.injectable_context(ConfigNamespacesContext(pipeline_name="PIPE", namespaces=("inj-ns1",))):

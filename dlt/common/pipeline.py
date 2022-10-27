@@ -1,3 +1,5 @@
+import os
+import tempfile
 from typing import Any, Callable, ClassVar, Protocol, Sequence
 
 from dlt.common.configuration.container import ContainerInjectableContext
@@ -43,3 +45,17 @@ class PipelineContext(ContainerInjectableContext):
 
     def __init__(self, deferred_pipeline: Callable[..., SupportsPipeline]) -> None:
         self._deferred_pipeline = deferred_pipeline
+
+
+def get_default_working_dir() -> str:
+    if os.geteuid() == 0:
+        # we are root so use standard /var
+        return os.path.join("/var", "dlt", "pipelines")
+
+    home = os.path.expanduser("~")
+    if home is None:
+        # no home dir - use temp
+        return os.path.join(tempfile.gettempdir(), "dlt", "pipelines")
+    else:
+        # if home directory is available use ~/.dlt/pipelines
+        return os.path.join(home, ".dlt", "pipelines")

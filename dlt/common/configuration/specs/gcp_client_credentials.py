@@ -8,8 +8,6 @@ from dlt.common.configuration.specs.base_configuration import CredentialsConfigu
 @configspec
 class GcpClientCredentials(CredentialsConfiguration):
 
-    __namespace__: str = "gcp"
-
     project_id: str = None
     type: str = "service_account"  # noqa: A003
     private_key: TSecretValue = None

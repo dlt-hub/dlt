@@ -1,10 +1,12 @@
 import pytest
 from os import environ
-from typing import Any, List, Optional, Tuple, Type
-from dlt.common.configuration.container import Container
-from dlt.common.configuration.specs.config_providers_context import ConfigProvidersListContext
+import datetime  # noqa: I251
+from typing import Any, List, Optional, Tuple, Type, Dict, MutableMapping, Optional, Sequence
 
-from dlt.common.typing import TSecretValue
+from dlt.common import Decimal, pendulum
+from dlt.common.configuration.container import Container
+from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
+from dlt.common.typing import TSecretValue, StrAny
 from dlt.common.configuration import configspec
 from dlt.common.configuration.providers import Provider
 from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration, RunConfiguration
@@ -15,6 +17,28 @@ class WrongConfiguration(RunConfiguration):
     pipeline_name: str = "Some Name"
     NoneConfigVar: str = None
     log_color: bool = True
+
+
+@configspec
+class CoercionTestConfiguration(RunConfiguration):
+    pipeline_name: str = "Some Name"
+    str_val: str = None
+    int_val: int = None
+    bool_val: bool = None
+    list_val: list = None  # type: ignore
+    dict_val: dict = None  # type: ignore
+    bytes_val: bytes = None
+    float_val: float = None
+    tuple_val: Tuple[int, int, StrAny] = None
+    any_val: Any = None
+    none_val: str = None
+    COMPLEX_VAL: Dict[str, Tuple[int, List[str], List[str]]] = None
+    date_val: datetime.datetime = None
+    dec_val: Decimal = None
+    sequence_val: Sequence[str] = None
+    gen_list_val: List[str] = None
+    mapping_val: StrAny = None
+    mutable_mapping_val: MutableMapping[str, str] = None
 
 
 @configspec
@@ -48,7 +72,7 @@ def environment() -> Any:
 @pytest.fixture(scope="function")
 def mock_provider() -> "MockProvider":
     container = Container()
-    with container.injectable_context(ConfigProvidersListContext()) as providers:
+    with container.injectable_context(ConfigProvidersContext()) as providers:
         # replace all providers with MockProvider that does not support secrets
         mock_provider = MockProvider()
         providers.providers = [mock_provider]
@@ -93,3 +117,30 @@ class SecretMockProvider(MockProvider):
     @property
     def supports_secrets(self) -> bool:
         return True
+
+
+COERCIONS = {
+    'str_val': 'test string',
+    'int_val': 12345,
+    'bool_val': True,
+    'list_val': [1, "2", [3]],
+    'dict_val': {
+        'a': 1,
+        "b": "2"
+    },
+    'bytes_val': b'Hello World!',
+    'float_val': 1.18927,
+    "tuple_val": (1, 2, {"1": "complicated dicts allowed in literal eval"}),
+    'any_val': "function() {}",
+    'none_val': "none",
+    'COMPLEX_VAL': {
+        "_": [1440, ["*"], []],
+        "change-email": [560, ["*"], []]
+    },
+    "date_val": pendulum.now(),
+    "dec_val": Decimal("22.38"),
+    "sequence_val": ["A", "B", "KAPPA"],
+    "gen_list_val": ["C", "Z", "N"],
+    "mapping_val": {"FL": 1, "FR": {"1": 2}},
+    "mutable_mapping_val": {"str": "str"}
+}

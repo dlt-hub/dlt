@@ -25,7 +25,7 @@ DEST_SCHEMA_PREFIX = "test_" + uniq_id()
 @pytest.fixture(scope="module", autouse=True)
 def module_autouse() -> None:
     # disable GCP in environ
-    del environ["GCP__PROJECT_ID"]
+    del environ["CREDENTIALS__PROJECT_ID"]
     # set the test case for the unit tests
     environ["DEFAULT_DATASET"] = "test_fixture_carbon_bot_session_cases"
     add_config_to_env(PostgresCredentials)

@@ -136,3 +136,5 @@ def resolve_destination_reference(destination: Union[None, str, DestinationRefer
         # TODO: figure out if this is full module path name or name of one of the known destinations
         # if destination is a str, get destination reference by dynamically importing module from known location
         return import_module(f"dlt.load.{destination}")
+
+    return destination

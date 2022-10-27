@@ -1,11 +1,10 @@
-import tempfile
 from typing import Union
 
 from dlt.common.typing import TSecretValue, Any
 from dlt.common.configuration import with_config
 from dlt.common.configuration.container import Container
 from dlt.common.destination import DestinationReference, resolve_destination_reference
-from dlt.common.pipeline import PipelineContext
+from dlt.common.pipeline import PipelineContext, get_default_working_dir
 
 from experiments.pipeline.configuration import PipelineConfiguration
 from experiments.pipeline.pipeline import Pipeline
@@ -48,7 +47,7 @@ def pipeline(
     print(kwargs["_last_dlt_config"].pipeline_name)
     # if working_dir not provided use temp folder
     if not working_dir:
-        working_dir = tempfile.gettempdir()
+        working_dir = get_default_working_dir()
     destination = resolve_destination_reference(destination)
     # create new pipeline instance
     p = Pipeline(pipeline_name, working_dir, pipeline_secret, destination, dataset_name, import_schema_path, export_schema_path, always_drop_pipeline, kwargs["runtime"])

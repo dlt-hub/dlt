@@ -1,5 +1,5 @@
 import contextlib
-from typing import Any, Optional, Type, Tuple
+from typing import Any, ClassVar, Optional, Type, Tuple
 
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs import ContainerInjectableContext
@@ -9,7 +9,7 @@ from .provider import Provider
 
 class ContextProvider(Provider):
 
-    NAME = "Injectable Context"
+    NAME: ClassVar[str] = "Injectable Context"
 
     def __init__(self) -> None:
         self.container = Container()

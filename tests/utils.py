@@ -10,7 +10,7 @@ from dlt.common.configuration.container import Container
 from dlt.common.configuration.providers import EnvironProvider, DictionaryProvider
 from dlt.common.configuration.resolve import resolve_configuration, serialize_value
 from dlt.common.configuration.specs import BaseConfiguration, RunConfiguration
-from dlt.common.configuration.specs.config_providers_context import ConfigProvidersListContext
+from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
 from dlt.common.logger import init_logging_from_config
 from dlt.common.storages import FileStorage
 from dlt.common.schema import Schema
@@ -22,9 +22,9 @@ TEST_STORAGE_ROOT = "_storage"
 
 # add test dictionary provider
 def TEST_DICT_CONFIG_PROVIDER():
-    providers_context = Container()[ConfigProvidersListContext]
+    providers_context = Container()[ConfigProvidersContext]
     try:
-        return providers_context.get_provider(DictionaryProvider.NAME)
+        return providers_context[DictionaryProvider.NAME]
     except KeyError:
         provider = DictionaryProvider()
         providers_context.add_provider(provider)
