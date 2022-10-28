@@ -19,8 +19,8 @@ from dlt.common.data_writers import escape_bigquery_identifier
 from dlt.common.schema import TColumnSchema, TDataType, Schema, TTableSchemaColumns
 
 from dlt.load.typing import DBCursor
-from dlt.load.client_base import SqlClientBase
-from dlt.load.client_base_impl import SqlJobClientBase
+from dlt.load.sql_client import SqlClientBase
+from dlt.load.job_client_impl import SqlJobClientBase
 from dlt.load.exceptions import LoadClientSchemaWillNotUpdate, LoadJobNotExistsException, LoadJobServerTerminalException, LoadUnknownTableException
 
 from dlt.load.bigquery import capabilities

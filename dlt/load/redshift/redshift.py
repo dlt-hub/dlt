@@ -20,8 +20,8 @@ from dlt.common.storages.file_storage import FileStorage
 
 from dlt.load.exceptions import LoadClientSchemaWillNotUpdate, LoadClientTerminalInnerException, LoadClientTransientInnerException
 from dlt.load.typing import DBCursor
-from dlt.load.client_base import SqlClientBase
-from dlt.load.client_base_impl import SqlJobClientBase, LoadEmptyJob
+from dlt.load.sql_client import SqlClientBase
+from dlt.load.job_client_impl import SqlJobClientBase, LoadEmptyJob
 
 from dlt.load.redshift import capabilities
 from dlt.load.redshift.configuration import RedshiftClientConfiguration

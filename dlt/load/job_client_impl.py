@@ -8,7 +8,7 @@ from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns
 from dlt.common.destination import DestinationClientConfiguration, TLoadJobStatus, LoadJob, JobClientBase
 
 from dlt.load.typing import TNativeConn
-from dlt.load.client_base import SqlClientBase
+from dlt.load.sql_client import SqlClientBase
 from dlt.load.exceptions import LoadClientSchemaVersionCorrupted
 
 

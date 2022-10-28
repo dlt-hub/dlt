@@ -16,7 +16,7 @@ from dlt.common.typing import StrAny
 from dlt.common.utils import uniq_id
 
 from dlt.load import Load
-from dlt.load.client_base_impl import SqlJobClientBase
+from dlt.load.job_client_impl import SqlJobClientBase
 
 
 TABLE_UPDATE: List[TColumnSchema] = [

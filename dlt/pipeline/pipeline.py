@@ -20,7 +20,7 @@ from dlt.common.utils import uniq_id, is_interactive
 from dlt.common.source import DLT_METADATA_FIELD, TItem, with_table_name
 
 from dlt.extract.extractor_storage import ExtractorStorageBase
-from dlt.load.client_base import SqlClientBase, SqlJobClientBase
+from dlt.load.sql_client import SqlClientBase, SqlJobClientBase
 from dlt.normalize.configuration import configuration as normalize_configuration
 from dlt.load.configuration import configuration as loader_configuration
 from dlt.normalize import Normalize
