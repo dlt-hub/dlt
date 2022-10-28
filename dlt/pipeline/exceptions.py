@@ -1,7 +1,7 @@
 from typing import Any, Sequence
 from dlt.common.exceptions import DltException, ArgumentsOverloadException
 from dlt.common.telemetry import TRunMetrics
-from experiments.pipeline.typing import TPipelineStep
+from dlt.pipeline.typing import TPipelineStep
 
 
 class PipelineException(DltException):

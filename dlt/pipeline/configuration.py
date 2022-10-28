@@ -6,7 +6,7 @@ from dlt.common.configuration.specs import RunConfiguration, BaseConfiguration, 
 from dlt.common.typing import TSecretValue
 from dlt.common.utils import uniq_id
 
-from experiments.pipeline.typing import TPipelineState
+from dlt.pipeline.typing import TPipelineState
 
 
 @configspec

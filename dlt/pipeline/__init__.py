@@ -6,9 +6,9 @@ from dlt.common.configuration.container import Container
 from dlt.common.destination import DestinationReference, resolve_destination_reference
 from dlt.common.pipeline import PipelineContext, get_default_working_dir
 
-from experiments.pipeline.configuration import PipelineConfiguration
-from experiments.pipeline.pipeline import Pipeline
-from experiments.pipeline.decorators import source, resource
+from dlt.pipeline.configuration import PipelineConfiguration
+from dlt.pipeline.pipeline import Pipeline
+from dlt.pipeline.decorators import source, resource
 
 
 # @overload
