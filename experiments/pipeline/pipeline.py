@@ -11,6 +11,7 @@ from dlt.common.configuration.specs.config_namespace_context import ConfigNamesp
 from dlt.common.runners.runnable import Runnable
 from dlt.common.schema.typing import TColumnSchema, TWriteDisposition
 from dlt.common.source import DLT_METADATA_FIELD, TResolvableDataItem, with_table_name
+from dlt.common.storages.load_storage import LoadStorage
 from dlt.common.typing import DictStrAny, StrAny, TFun, TSecretValue, TAny
 
 from dlt.common.runners import pool_runner as runner, TRunMetrics, initialize_runner
@@ -23,14 +24,15 @@ from dlt.common.schema import Schema, utils as schema_utils
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.utils import is_interactive
 from dlt.extract.extract import ExtractorStorage, extract
+from dlt.load.job_client_impl import SqlJobClientBase
 
 from dlt.normalize import Normalize
-from dlt.load.client_base import SqlClientBase
+from dlt.load.sql_client import SqlClientBase
 from dlt.load.configuration import LoaderConfiguration
 from dlt.load import Load
 from dlt.normalize.configuration import NormalizeConfiguration
 
-from experiments.pipeline.exceptions import PipelineConfigMissing, MissingDependencyException, PipelineStepFailed
+from experiments.pipeline.exceptions import PipelineConfigMissing, MissingDependencyException, PipelineStepFailed, SqlClientNotAvailable
 from dlt.extract.sources import DltResource, DltSource, TTableSchemaTemplate
 from experiments.pipeline.typing import TPipelineStep, TPipelineState
 from experiments.pipeline.configuration import StateInjectableContext
@@ -336,6 +338,46 @@ class Pipeline:
     @property
     def last_run_exception(self) -> BaseException:
         return runner.LAST_RUN_EXCEPTION
+
+    def list_extracted_resources(self) -> Sequence[str]:
+        return self._get_normalize_storage().list_files_to_normalize_sorted()
+
+    def list_normalized_load_packages(self) -> Sequence[str]:
+        return self._get_load_storage().load_storage.list_packages()
+
+    def list_completed_load_packages(self) -> Sequence[str]:
+        return self._get_load_storage().load_storage.list_completed_packages()
+
+    def list_failed_jobs_in_package(self, load_id: str) -> Sequence[Tuple[str, str]]:
+        storage = self._get_load_storage()
+        failed_jobs: List[Tuple[str, str]] = []
+        for file in storage.load_storage.list_completed_failed_jobs(load_id):
+            if not file.endswith(".exception"):
+                try:
+                    failed_message = storage.storage.load(file + ".exception")
+                except FileNotFoundError:
+                    failed_message = None
+                failed_jobs.append((file, failed_message))
+        return failed_jobs
+
+    def sync_schema(self, schema_name: str = None) -> None:
+        with self._get_destination_client(self.schemas[schema_name]) as client:
+            client.initialize_storage(wipe_data=self.always_drop_pipeline)
+            client.update_storage_schema()
+
+    def sql_client(self, schema_name: str = None) -> SqlClientBase[Any]:
+        with self._get_destination_client(self.schemas[schema_name]) as client:
+            if isinstance(client, SqlJobClientBase):
+                return client.sql_client
+            else:
+                raise SqlClientNotAvailable(self.destination.name())
+
+    def _get_normalize_storage(self) -> NormalizeStorage:
+        return NormalizeStorage(True, self._normalize_storage_config)
+
+    def _get_load_storage(self) -> LoadStorage:
+        caps = self._get_destination_capabilities()
+        return LoadStorage(True, caps.preferred_loader_file_format, caps.supported_loader_file_formats, self._load_storage_config)
 
     @with_state_sync
     def _configure(self, pipeline_name: str, working_dir: str, import_schema_path: str, export_schema_path: str, always_drop_pipeline: bool) -> None:
