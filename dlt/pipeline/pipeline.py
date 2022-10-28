@@ -3,16 +3,15 @@ from contextlib import contextmanager
 from copy import deepcopy
 from functools import wraps
 from collections.abc import Sequence as C_Sequence
-from typing import Any, Callable, ClassVar, List, Iterable, Iterator, Generator, Mapping, NewType, Optional, Sequence, Tuple, Type, TypedDict, Union, get_type_hints, overload
+from typing import Any, Callable, ClassVar, List, Iterable, Iterator, Generator, Mapping, NewType, Optional, Protocol, Sequence, Tuple, Type, TypeVar, TypedDict, Union, get_type_hints, overload
 
 from dlt.common import json, logger, signals
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.config_namespace_context import ConfigNamespacesContext
 from dlt.common.runners.runnable import Runnable
 from dlt.common.schema.typing import TColumnSchema, TWriteDisposition
-from dlt.common.source import DLT_METADATA_FIELD, TResolvableDataItem, with_table_name
 from dlt.common.storages.load_storage import LoadStorage
-from dlt.common.typing import DictStrAny, StrAny, TFun, TSecretValue, TAny
+from dlt.common.typing import ParamSpec, TFun, TSecretValue, TAny
 
 from dlt.common.runners import pool_runner as runner, TRunMetrics, initialize_runner
 from dlt.common.storages import LiveSchemaStorage, NormalizeStorage
@@ -36,6 +35,49 @@ from dlt.pipeline.exceptions import PipelineConfigMissing, MissingDependencyExce
 from dlt.extract.sources import DltResource, DltSource, TTableSchemaTemplate
 from dlt.pipeline.typing import TPipelineStep, TPipelineState
 from dlt.pipeline.configuration import StateInjectableContext
+
+# TFunParams = ParamSpec("TFunParams")
+# TSelfFun = TypeVar("TSelfFun", bound=Callable[["Pipeline", ], ])
+# class TSelfFun(Protocol):
+#     def __call__(self: "Pipeline", *args: Any, **kwargs: Any) -> Any: ...
+
+
+def with_state_sync(f: TFun) -> TFun:
+
+    @wraps(f)
+    def _wrap(self: "Pipeline", *args: Any, **kwargs: Any) -> Any:
+        # backup and restore state
+        with self._managed_state() as state:
+            # add the state to container as a context
+            with self._container.injectable_context(StateInjectableContext(state=state)):
+                return f(self, *args, **kwargs)
+
+    return _wrap  # type: ignore
+
+def with_schemas_sync(f: TFun) -> TFun:
+
+    @wraps(f)
+    def _wrap(self: "Pipeline", *args: Any, **kwargs: Any) -> Any:
+        for name in self._schema_storage.live_schemas:
+            # refresh live schemas in storage or import schema path
+            self._schema_storage.commit_live_schema(name)
+        return f(self, *args, **kwargs)
+
+    return _wrap  # type: ignore
+
+def with_config_namespace(namespaces: Tuple[str, ...]) -> Callable[[TFun], TFun]:
+
+    def decorator(f: TFun) -> TFun:
+
+        @wraps(f)
+        def _wrap(self: "Pipeline", *args: Any, **kwargs: Any) -> Any:
+            # add namespace context to the container to be used by all configuration without explicit namespaces resolution
+            with inject_namespace(ConfigNamespacesContext(pipeline_name=self.pipeline_name, namespaces=namespaces)):
+                return f(self, *args, **kwargs)
+
+        return _wrap  # type: ignore
+
+    return decorator
 
 
 class Pipeline:
@@ -70,7 +112,6 @@ class Pipeline:
         self._state: TPipelineState = {}  # type: ignore
         self._pipeline_storage: FileStorage = None
         self._schema_storage: LiveSchemaStorage = None
-        # self._pool_config: PoolRunnerConfiguration = None
         self._schema_storage_config: SchemaVolumeConfiguration = None
         self._normalize_storage_config: NormalizeVolumeConfiguration = None
         self._load_storage_config: LoadVolumeConfiguration = None
@@ -78,49 +119,11 @@ class Pipeline:
         initialize_runner(self.runtime_config)
         self._configure(pipeline_name, working_dir, import_schema_path, export_schema_path, always_drop_pipeline)
 
-    def with_state_sync(f: TFun) -> TFun:
-
-        @wraps(f)
-        def _wrap(self: "Pipeline", *args: Any, **kwargs: Any) -> Any:
-            # backup and restore state
-            with self._managed_state() as state:
-                # add the state to container as a context
-                with self._container.injectable_context(StateInjectableContext(state=state)):
-                    return f(self, *args, **kwargs)
-
-        return _wrap
-
-    def with_schemas_sync(f: TFun) -> TFun:
-
-        @wraps(f)
-        def _wrap(self: "Pipeline", *args: Any, **kwargs: Any) -> Any:
-            for name in self._schema_storage.live_schemas:
-                # refresh live schemas in storage or import schema path
-                self._schema_storage.commit_live_schema(name)
-            return f(self, *args, **kwargs)
-
-        return _wrap
-
-    def with_config_namespace(namespaces: Tuple[str, ...]) -> Callable[[TFun], TFun]:
-
-        def decorator(f: TFun) -> TFun:
-
-            @wraps(f)
-            def _wrap(self: "Pipeline", *args: Any, **kwargs: Any) -> Any:
-                # add namespace context to the container to be used by all configuration without explicit namespaces resolution
-                with inject_namespace(ConfigNamespacesContext(pipeline_name=self.pipeline_name, namespaces=namespaces)):
-                    return f(self, *args, **kwargs)
-
-            return _wrap
-
-        return decorator
-
-
     def drop(self) -> "Pipeline":
         """Deletes existing pipeline state, schemas and drops datasets at the destination if present"""
         # drop the data for all known schemas
         for schema in self._schema_storage:
-            with self._get_destination_client(schema) as client:
+            with self._get_destination_client(self._schema_storage.load_schema(schema)) as client:
                 client.initialize_storage(wipe_data=True)
         # reset the pipeline working dir
         self._create_pipeline()
@@ -182,7 +185,10 @@ class Pipeline:
         #     return table_name or parent_table_name or write_disposition or schema
 
         def apply_hint_args(resource: DltResource) -> None:
-            resource.apply_hints(table_name, parent_table_name, write_disposition, columns)
+            columns_dict = None
+            if columns:
+                columns_dict = {c["name"]:c for c in columns}
+            resource.apply_hints(table_name, parent_table_name, write_disposition, columns_dict)
 
         def choose_schema() -> Schema:
             if schema:
@@ -241,7 +247,7 @@ class Pipeline:
 
     @with_schemas_sync
     @with_config_namespace(("normalize",))
-    def normalize(self, workers: int = 1, dry_run: bool = False) -> None:
+    def normalize(self, workers: int = 1) -> None:
         if is_interactive() and workers > 1:
             raise NotImplementedError("Do not use normalize workers in interactive mode ie. in notebook")
         # check if any schema is present, if not then no data was extracted
@@ -276,7 +282,7 @@ class Pipeline:
         credentials: Any = None,
         # raise_on_failed_jobs = False,
         # raise_on_incompatible_schema = False,
-        always_wipe_storage = False,
+        always_wipe_storage: bool = False,
         *,
         workers: int = 20
     ) -> None:
@@ -343,15 +349,15 @@ class Pipeline:
         return self._get_normalize_storage().list_files_to_normalize_sorted()
 
     def list_normalized_load_packages(self) -> Sequence[str]:
-        return self._get_load_storage().load_storage.list_packages()
+        return self._get_load_storage().list_packages()
 
     def list_completed_load_packages(self) -> Sequence[str]:
-        return self._get_load_storage().load_storage.list_completed_packages()
+        return self._get_load_storage().list_completed_packages()
 
     def list_failed_jobs_in_package(self, load_id: str) -> Sequence[Tuple[str, str]]:
         storage = self._get_load_storage()
         failed_jobs: List[Tuple[str, str]] = []
-        for file in storage.load_storage.list_completed_failed_jobs(load_id):
+        for file in storage.list_completed_failed_jobs(load_id):
             if not file.endswith(".exception"):
                 try:
                     failed_message = storage.storage.load(file + ".exception")
@@ -423,7 +429,7 @@ class Pipeline:
     def _restore_state(self) -> None:
         self._state.clear()  # type: ignore
         restored_state: TPipelineState = json.loads(self._pipeline_storage.load(Pipeline.STATE_FILE))
-        self._state.update(restored_state)
+        self._state.update(restored_state)  # type: ignore
 
     def _extract_source(self, source: DltSource, max_parallel_items: int, workers: int) -> None:
         # discover the schema from source
@@ -460,11 +466,6 @@ class Pipeline:
             signals.raise_if_signalled()
 
     def _run_f_in_pool(self, run_f: Callable[..., Any], config: PoolRunnerConfiguration) -> int:
-        # internal runners should work in single mode
-        self._loader_instance.config.is_single_run = True
-        self._loader_instance.config.exit_on_exception = True
-        self._normalize_instance.config.is_single_run = True
-        self._normalize_instance.config.exit_on_exception = True
 
         def _run(_: Any) -> TRunMetrics:
             rv = run_f()
@@ -539,20 +540,15 @@ class Pipeline:
         except Exception:
             # restore old state
             self._state.clear()  # type: ignore
-            self._state.update(backup_state)
+            self._state.update(backup_state)  # type: ignore
             raise
         else:
             # update state props
             for prop in Pipeline.STATE_PROPS:
-                self._state[prop] = getattr(self, prop)
+                self._state[prop] = getattr(self, prop)  # type: ignore
             # compare backup and new state, save only if different
             new_state = json.dumps(self._state)
             old_state = json.dumps(backup_state)
             # persist old state
             if new_state != old_state:
                 self._pipeline_storage.save(Pipeline.STATE_FILE, new_state)
-
-    @property
-    def has_pending_loads(self) -> bool:
-        # TODO: check if has pending normalizer and loader data
-        pass

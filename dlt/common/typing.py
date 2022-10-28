@@ -1,18 +1,18 @@
 from collections.abc import Mapping as C_Mapping, Sequence as C_Sequence
 from re import Pattern as _REPattern
 from typing import Callable, Dict, Any, Literal, Mapping, NewType, Tuple, Type, TypeVar, Generic, Protocol, Iterable, TYPE_CHECKING, Union, runtime_checkable, get_args, get_origin
-try:
-    from typing_extensions import ParamSpec, TypeAlias, TypeGuard
-except ImportError:
-    ParamSpec = lambda x: [x]  # type: ignore
+from typing_extensions import ParamSpec, TypeAlias, TypeGuard
+
 if TYPE_CHECKING:
     from _typeshed import StrOrBytesPath
+    from typing_extensions import ParamSpec
     from typing import _TypedDict
     REPattern = _REPattern[str]
 else:
     StrOrBytesPath = Any
     from typing import _TypedDictMeta as _TypedDict
     REPattern = _REPattern
+    ParamSpec = lambda x: [x]
 
 DictStrAny: TypeAlias = Dict[str, Any]
 DictStrStr: TypeAlias = Dict[str, str]

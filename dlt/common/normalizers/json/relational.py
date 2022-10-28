@@ -6,7 +6,7 @@ from dlt.common.schema.typing import TColumnSchema, TColumnName, TSimpleRegex
 from dlt.common.schema.utils import column_name_validator
 from dlt.common.utils import uniq_id, digest128
 from dlt.common.normalizers.json import TNormalizedRowIterator, wrap_in_dict
-from dlt.common.source import TEventDLTMeta
+# from dlt.common.source import TEventDLTMeta
 from dlt.common.validation import validate_dict
 
 
@@ -16,7 +16,7 @@ class TDataItemRow(TypedDict, total=False):
 
 class TDataItemRowRoot(TDataItemRow, total=False):
     _dlt_load_id: str  # load id to identify records loaded together that ie. need to be processed
-    _dlt_meta: TEventDLTMeta  # stores metadata, should never be sent to the normalizer
+    # _dlt_meta: TEventDLTMeta  # stores metadata, should never be sent to the normalizer
 
 
 class TDataItemRowChild(TDataItemRow, total=False):

@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from importlib import import_module
 from types import TracebackType
-from typing import ClassVar, List, Optional, Literal, Type, Protocol, Union
+from typing import ClassVar, List, Optional, Literal, Type, Protocol, Union, TYPE_CHECKING
 
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TTableSchema
@@ -38,11 +38,25 @@ class DestinationClientConfiguration(BaseConfiguration):
     destination_name: str = None  # which destination to load data to
     credentials: Optional[CredentialsConfiguration]
 
+    if TYPE_CHECKING:
+        def __init__(self, destination_name: str = None, credentials: Optional[CredentialsConfiguration] = None) -> None:
+            ...
+
 
 @configspec(init=True)
 class DestinationClientDwhConfiguration(DestinationClientConfiguration):
     dataset_name: str = None  # dataset name in the destination to load data to, for schemas that are not default schema, it is used as dataset prefix
     default_schema_name: Optional[str] = None  # name of default schema to be used to name effective dataset to load data to
+
+    if TYPE_CHECKING:
+        def __init__(
+            self,
+            destination_name: str = None,
+            credentials: Optional[CredentialsConfiguration] = None,
+            dataset_name: str = None,
+            default_schema_name: Optional[str] = None
+        ) -> None:
+            ...
 
 
 TLoadJobStatus = Literal["running", "failed", "retry", "completed"]

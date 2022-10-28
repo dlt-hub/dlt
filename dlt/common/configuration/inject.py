@@ -15,7 +15,7 @@ _SLEEPING_CAT_SPLIT = re.compile("[^.^_]+")
 _LAST_DLT_CONFIG = "_last_dlt_config"
 TConfiguration = TypeVar("TConfiguration", bound=BaseConfiguration)
 # keep a registry of all the decorated functions
-_FUNC_SPECS: Dict[str, Type[BaseConfiguration]] = {}
+_FUNC_SPECS: Dict[int, Type[BaseConfiguration]] = {}
 
 
 def get_fun_spec(f: AnyFun) -> Type[BaseConfiguration]:
@@ -120,8 +120,8 @@ def with_config(func: Optional[AnyFun] = None, /, spec: Type[BaseConfiguration] 
     return decorator(func)
 
 
-def last_config(**kwargs: Any) -> TConfiguration:
-    return kwargs[_LAST_DLT_CONFIG]
+def last_config(**kwargs: Any) -> BaseConfiguration:
+    return kwargs[_LAST_DLT_CONFIG]  # type: ignore
 
 
 def _get_spec_name_from_f(f: AnyFun) -> str:

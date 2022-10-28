@@ -1,14 +1,10 @@
 from collections import abc
 from functools import wraps
 from typing import Any, Callable, Optional, Sequence, TypeVar, Union, TypedDict, List, Awaitable
-try:
-    from typing_extensions import ParamSpec
-except ImportError:
-    ParamSpec = lambda x: [x]  # type: ignore
 
 from dlt.common import logger
 from dlt.common.time import sleep
-from dlt.common.typing import StrAny, TDataItem
+from dlt.common.typing import ParamSpec, TDataItem
 
 
 # possible types of items yielded by the source
@@ -31,33 +27,33 @@ TFunHintTemplate = Callable[[TDataItem], TDynHintType]
 TTableHintTemplate = Union[TDynHintType, TFunHintTemplate[TDynHintType]]
 
 # name of dlt metadata as part of the item
-DLT_METADATA_FIELD = "_dlt_meta"
+# DLT_METADATA_FIELD = "_dlt_meta"
 
 
-class TEventDLTMeta(TypedDict, total=False):
-    table_name: str  # a root table in which store the event
+# class TEventDLTMeta(TypedDict, total=False):
+#     table_name: str  # a root table in which store the event
 
 
-def append_dlt_meta(item: TBoundItem, name: str, value: Any) -> TBoundItem:
-    if isinstance(item, abc.Sequence):
-        for i in item:
-            i.setdefault(DLT_METADATA_FIELD, {})[name] = value
-    elif isinstance(item, dict):
-        item.setdefault(DLT_METADATA_FIELD, {})[name] = value
+# def append_dlt_meta(item: TBoundItem, name: str, value: Any) -> TBoundItem:
+#     if isinstance(item, abc.Sequence):
+#         for i in item:
+#             i.setdefault(DLT_METADATA_FIELD, {})[name] = value
+#     elif isinstance(item, dict):
+#         item.setdefault(DLT_METADATA_FIELD, {})[name] = value
 
-    return item
-
-
-def with_table_name(item: TBoundItem, table_name: str) -> TBoundItem:
-    # normalize table name before adding
-    return append_dlt_meta(item, "table_name", table_name)
+#     return item
 
 
-def get_table_name(item: StrAny) -> Optional[str]:
-    if DLT_METADATA_FIELD in item:
-        meta: TEventDLTMeta = item[DLT_METADATA_FIELD]
-        return meta.get("table_name", None)
-    return None
+# def with_table_name(item: TBoundItem, table_name: str) -> TBoundItem:
+#     # normalize table name before adding
+#     return append_dlt_meta(item, "table_name", table_name)
+
+
+# def get_table_name(item: StrAny) -> Optional[str]:
+#     if DLT_METADATA_FIELD in item:
+#         meta: TEventDLTMeta = item[DLT_METADATA_FIELD]
+#         return meta.get("table_name", None)
+#     return None
 
 
 def with_retry(max_retries: int = 3, retry_sleep: float = 1.0) -> Callable[[Callable[_TFunParams, TBoundItem]], Callable[_TFunParams, TBoundItem]]:

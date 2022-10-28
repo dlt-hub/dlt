@@ -1,7 +1,7 @@
 import ast
 import inspect
 from collections.abc import Mapping as C_Mapping
-from typing import Any, Dict, Generator, Iterator, List, Optional, Sequence, Tuple, Type, TypeVar, get_origin
+from typing import Any, Dict, ContextManager, List, Optional, Sequence, Tuple, Type, TypeVar, get_origin
 
 from dlt.common import json, logger
 from dlt.common.typing import TSecretValue, is_optional_type, extract_inner_type
@@ -64,7 +64,7 @@ def serialize_value(value: Any) -> Any:
     return coerce_type("text", value_dt, value)
 
 
-def inject_namespace(namespace_context: ConfigNamespacesContext, merge_existing: bool = True) -> Generator[ConfigNamespacesContext, None, None]:
+def inject_namespace(namespace_context: ConfigNamespacesContext, merge_existing: bool = True) -> ContextManager[ConfigNamespacesContext]:
     """Adds `namespace` context to container, making it injectable. Optionally merges the context already in the container with the one provided
 
     Args:
@@ -91,6 +91,7 @@ def _resolve_configuration(
         initial_value: Any,
         accept_partial: bool
     ) -> TConfiguration:
+    # print(f"RESOLVING: {locals()}")
     # do not resolve twice
     if config.is_resolved():
         return config

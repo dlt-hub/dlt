@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import TYPE_CHECKING
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import BaseConfiguration, PoolRunnerConfiguration, CredentialsConfiguration, TPoolType
@@ -11,3 +11,15 @@ class LoaderConfiguration(PoolRunnerConfiguration):
     pool_type: TPoolType = "thread"  # mostly i/o (upload) so may be thread pool
     always_wipe_storage: bool = False  # removes all data in the storage
     load_storage_config: LoadVolumeConfiguration = None
+
+    if TYPE_CHECKING:
+        def __init__(
+            self,
+            pool_type: TPoolType = None,
+            workers: int = None,
+            exit_on_exception: bool = None,
+            is_single_run: bool = None,
+            always_wipe_storage: bool = None,
+            load_storage_config: LoadVolumeConfiguration = None
+        ) -> None:
+            ...

@@ -1,7 +1,7 @@
 import inspect
 from types import ModuleType
 from makefun import wraps
-from typing import Any, Dict, NamedTuple, Optional, Type
+from typing import Any, Callable, Dict, Iterator, List, NamedTuple, Optional, Sequence, Tuple, Type, Union, overload
 
 from dlt.common.configuration import with_config, get_fun_spec
 from dlt.common.configuration.specs import BaseConfiguration
@@ -9,7 +9,7 @@ from dlt.common.exceptions import ArgumentsOverloadException
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import TTableSchemaColumns, TWriteDisposition
 from dlt.common.source import TTableHintTemplate, TFunHintTemplate
-from dlt.common.typing import AnyFun, TFun
+from dlt.common.typing import AnyFun, TFun, ParamSpec
 from dlt.common.utils import is_inner_function
 from dlt.extract.sources import DltResource, DltSource
 
@@ -22,13 +22,24 @@ class SourceInfo(NamedTuple):
 
 _SOURCES: Dict[str, SourceInfo] = {}
 
+TSourceFunParams = ParamSpec("TSourceFunParams")
+TResourceFunParams = ParamSpec("TResourceFunParams")
 
-def source(func: Optional[AnyFun] = None, /, name: str = None, schema: Schema = None, spec: Type[BaseConfiguration] = None):
+
+@overload
+def source(func: Callable[TSourceFunParams, Any], /, name: str = None, schema: Schema = None, spec: Type[BaseConfiguration] = None) -> Callable[TSourceFunParams, DltSource]:
+    ...
+
+@overload
+def source(func: None = ..., /, name: str = None, schema: Schema = None, spec: Type[BaseConfiguration] = None) -> Callable[[Callable[TSourceFunParams, Any]], Callable[TSourceFunParams, DltSource]]:
+    ...
+
+def source(func: Optional[AnyFun] = None, /, name: str = None, schema: Schema = None, spec: Type[BaseConfiguration] = None) -> Any:
 
     if name and schema:
         raise ArgumentsOverloadException("Source name cannot be set if schema is present")
 
-    def decorator(f: TFun) -> TFun:
+    def decorator(f: Callable[TSourceFunParams, Any]) -> Callable[TSourceFunParams, DltSource]:
         nonlocal schema, name
 
         # extract name
@@ -69,7 +80,8 @@ def source(func: Optional[AnyFun] = None, /, name: str = None, schema: Schema = 
         # store the source information
         _SOURCES[_wrap.__qualname__] = SourceInfo(SPEC, _wrap, inspect.getmodule(f))
 
-        return _wrap
+        # the typing is right, but makefun.wraps does not preserve signatures
+        return _wrap  # type: ignore
 
     if func is None:
         # we're called with parens.
@@ -82,23 +94,98 @@ def source(func: Optional[AnyFun] = None, /, name: str = None, schema: Schema = 
     return decorator(func)
 
 
+# @source
+# def reveal_1() -> None:
+#     pass
+
+# @source(name="revel")
+# def reveal_2() -> None:
+#     pass
+
+
+# def revel_3(v) -> int:
+#     pass
+
+
+# reveal_type(reveal_1)
+# reveal_type(reveal_1())
+
+# reveal_type(reveal_2)
+# reveal_type(reveal_2())
+
+# reveal_type(source(revel_3))
+# reveal_type(source(revel_3)("s"))
+
+@overload
 def resource(
-    data: Optional[Any] = None,
+    data: Callable[TResourceFunParams, Any],
     /,
-    name: TTableHintTemplate[str] = None,
+    name: str = None,
     table_name_fun: TFunHintTemplate[str] = None,
     write_disposition: TTableHintTemplate[TWriteDisposition] = None,
     columns: TTableHintTemplate[TTableSchemaColumns] = None,
     selected: bool = True,
     depends_on: DltResource = None,
-    spec: Type[BaseConfiguration] = None):
+    spec: Type[BaseConfiguration] = None
+) -> Callable[TResourceFunParams, DltResource]:
+    ...
 
-    def make_resource(name, _data: Any) -> DltResource:
-        table_template = DltResource.new_table_template(table_name_fun or name, write_disposition=write_disposition, columns=columns)
-        return DltResource.from_data(_data, name, table_template, selected, depends_on)
+@overload
+def resource(
+    data: None = ...,
+    /,
+    name: str = None,
+    table_name_fun: TFunHintTemplate[str] = None,
+    write_disposition: TTableHintTemplate[TWriteDisposition] = None,
+    columns: TTableHintTemplate[TTableSchemaColumns] = None,
+    selected: bool = True,
+    depends_on: DltResource = None,
+    spec: Type[BaseConfiguration] = None
+) -> Callable[[Callable[TResourceFunParams, Any]], Callable[TResourceFunParams, DltResource]]:
+    ...
 
 
-    def decorator(f: TFun) -> TFun:
+# @overload
+# def resource(
+#     data: Union[DltSource, DltResource, Sequence[DltSource], Sequence[DltResource]],
+#     /
+# ) -> DltResource:
+#     ...
+
+
+@overload
+def resource(
+    data: Union[List[Any], Tuple[Any], Iterator[Any]],
+    /,
+    name: str = None,
+    table_name_fun: TFunHintTemplate[str] = None,
+    write_disposition: TTableHintTemplate[TWriteDisposition] = None,
+    columns: TTableHintTemplate[TTableSchemaColumns] = None,
+    selected: bool = True,
+    depends_on: DltResource = None,
+    spec: Type[BaseConfiguration] = None
+) -> DltResource:
+    ...
+
+
+def resource(
+    data: Optional[Any] = None,
+    /,
+    name: str = None,
+    table_name_fun: TFunHintTemplate[str] = None,
+    write_disposition: TTableHintTemplate[TWriteDisposition] = None,
+    columns: TTableHintTemplate[TTableSchemaColumns] = None,
+    selected: bool = True,
+    depends_on: DltResource = None,
+    spec: Type[BaseConfiguration] = None
+) -> Any:
+
+    def make_resource(_name: str, _data: Any) -> DltResource:
+        table_template = DltResource.new_table_template(table_name_fun or _name, write_disposition=write_disposition, columns=columns)
+        return DltResource.from_data(_data, _name, table_template, selected, depends_on)
+
+
+    def decorator(f: Callable[TResourceFunParams, Any]) -> Callable[TResourceFunParams, DltResource]:
         resource_name = name or f.__name__
 
         # if f is not a generator (does not yield) raise Exception
@@ -124,7 +211,8 @@ def resource(
         if SPEC:
             _SOURCES[_wrap.__qualname__] = SourceInfo(SPEC, _wrap, inspect.getmodule(f))
 
-        return _wrap
+        # the typing is right, but makefun.wraps does not preserve signatures
+        return _wrap  # type: ignore
 
 
     # if data is callable or none use decorator
@@ -143,3 +231,30 @@ def _get_source_for_inner_function(f: AnyFun) -> Optional[SourceInfo]:
     parts = f.__qualname__.split(".")
     parent_fun = ".".join(parts[:-2])
     return _SOURCES.get(parent_fun)
+
+
+# @resource
+# def reveal_1() -> None:
+#     pass
+
+# @resource(name="revel")
+# def reveal_2() -> None:
+#     pass
+
+
+# def revel_3(v) -> int:
+#     pass
+
+
+# reveal_type(reveal_1)
+# reveal_type(reveal_1())
+
+# reveal_type(reveal_2)
+# reveal_type(reveal_2())
+
+# reveal_type(resource(revel_3))
+# reveal_type(resource(revel_3)("s"))
+
+
+# reveal_type(resource([], name="aaaa"))
+# reveal_type(resource("aaaaa", name="aaaa"))

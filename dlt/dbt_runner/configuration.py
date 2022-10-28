@@ -5,11 +5,11 @@ from typing import List, Optional, Type
 from dlt.common.typing import StrAny, TSecretValue
 from dlt.common.configuration import resolve_configuration, configspec
 from dlt.common.configuration.providers import EnvironProvider
-from dlt.common.configuration.specs import PoolRunnerConfiguration, TPoolType, PostgresCredentials, GcpClientCredentials
+from dlt.common.configuration.specs import RunConfiguration, PoolRunnerConfiguration, TPoolType, PostgresCredentials, GcpClientCredentials
 
 
 @configspec
-class DBTRunnerConfiguration(PoolRunnerConfiguration):
+class DBTRunnerConfiguration(RunConfiguration, PoolRunnerConfiguration):
     pool_type: TPoolType = "none"
     stop_after_runs: int = 1
     package_volume_path: str = "/var/local/app"

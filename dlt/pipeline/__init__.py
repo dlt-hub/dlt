@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Union, cast
 
 from dlt.common.typing import TSecretValue, Any
 from dlt.common.configuration import with_config
@@ -42,9 +42,10 @@ def pipeline(
         context = Container()[PipelineContext]
         # if pipeline instance is already active then return it, otherwise create a new one
         if context.is_activated():
-            return context.pipeline()
+            return cast(Pipeline, context.pipeline())
 
     print(kwargs["_last_dlt_config"].pipeline_name)
+    print(kwargs["_last_dlt_config"].runtime.log_level)
     # if working_dir not provided use temp folder
     if not working_dir:
         working_dir = get_default_working_dir()
@@ -57,7 +58,6 @@ def pipeline(
     return p
 
 # setup default pipeline in the container
-print("CONTEXT")
 Container()[PipelineContext] = PipelineContext(pipeline)
 
 

@@ -1,6 +1,7 @@
 import contextlib
 from copy import deepcopy
 import inspect
+from collections.abc import Mapping as C_Mapping
 from typing import AsyncIterable, AsyncIterator, Coroutine, Dict, Generator, Iterable, Iterator, List, NamedTuple, Set, TypedDict, Union, Awaitable, Callable, Sequence, TypeVar, cast, Optional, Any
 
 from dlt.common.exceptions import DltException
@@ -8,24 +9,12 @@ from dlt.common.typing import TDataItem
 from dlt.common.source import TFunHintTemplate, TDirectDataItem, TTableHintTemplate
 from dlt.common.schema import Schema
 from dlt.common.schema.utils import new_table
-from dlt.common.schema.typing import TPartialTableSchema, TTableSchema, TTableSchemaColumns, TWriteDisposition
+from dlt.common.schema.typing import TColumnSchema, TPartialTableSchema, TTableSchema, TTableSchemaColumns, TWriteDisposition
 from dlt.common.configuration.container import Container
 from dlt.common.pipeline import PipelineContext
 
 from dlt.extract.pipe import FilterItem, Pipe, CreatePipeException, PipeIterator
 
-
-# class HintArgs(NamedTuple):
-#     table_name: TTableHintTemplate[str]
-#     parent_table_name: TTableHintTemplate[str] = None
-#     write_disposition: TTableHintTemplate[TWriteDisposition] = None
-#     columns: TTableHintTemplate[TTableSchemaColumns] = None
-
-
-# def apply_args(args: HintArgs):
-#     pass
-
-# apply_args()
 
 class TTableSchemaTemplate(TypedDict, total=False):
     name: TTableHintTemplate[str]
@@ -115,6 +104,10 @@ class DltResourceSchema:
         if not table_name:
             raise InvalidTableSchemaTemplate("Table template name must be a string or function taking TDataItem")
         # create a table schema template where hints can be functions taking TDataItem
+        if isinstance(columns, C_Mapping):
+            # new_table accepts a sequence
+            columns = columns.values()  # type: ignore
+
         new_template: TTableSchemaTemplate = new_table(table_name, parent_table_name, write_disposition=write_disposition, columns=columns)  # type: ignore
         # if any of the hints is a function then name must be as well
         if any(callable(v) for k, v in new_template.items() if k != "name") and not callable(table_name):

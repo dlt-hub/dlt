@@ -1,3 +1,5 @@
+from typing import TYPE_CHECKING
+
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import LoadVolumeConfiguration, NormalizeVolumeConfiguration, SchemaVolumeConfiguration, PoolRunnerConfiguration, TPoolType
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -10,3 +12,16 @@ class NormalizeConfiguration(PoolRunnerConfiguration):
     schema_storage_config: SchemaVolumeConfiguration
     normalize_storage_config: NormalizeVolumeConfiguration
     load_storage_config: LoadVolumeConfiguration
+
+    if TYPE_CHECKING:
+        def __init__(
+            self,
+            pool_type: TPoolType = None,
+            workers: int = None,
+            exit_on_exception: bool = None,
+            is_single_run: bool = None,
+            schema_storage_config: SchemaVolumeConfiguration = None,
+            normalize_storage_config: NormalizeVolumeConfiguration = None,
+            load_storage_config: LoadVolumeConfiguration = None
+        ) -> None:
+            ...
