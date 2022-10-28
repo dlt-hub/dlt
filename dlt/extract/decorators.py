@@ -11,6 +11,7 @@ from dlt.common.schema.typing import TTableSchemaColumns, TWriteDisposition
 from dlt.common.source import TTableHintTemplate, TFunHintTemplate
 from dlt.common.typing import AnyFun, TFun, ParamSpec
 from dlt.common.utils import is_inner_function
+
 from dlt.extract.sources import DltResource, DltSource
 
 
