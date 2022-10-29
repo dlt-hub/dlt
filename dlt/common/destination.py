@@ -1,7 +1,8 @@
 from abc import ABC, abstractmethod
 from importlib import import_module
+from nis import cat
 from types import TracebackType
-from typing import ClassVar, List, Optional, Literal, Type, Protocol, Union, TYPE_CHECKING
+from typing import ClassVar, List, Optional, Literal, Type, Protocol, Union, TYPE_CHECKING, cast
 
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TTableSchema
@@ -141,14 +142,18 @@ class DestinationReference(Protocol):
     def spec(self) -> Type[DestinationClientConfiguration]:
         ...
 
+    @staticmethod
+    def from_name(destination: Union[None, str, "DestinationReference"]) -> "DestinationReference":
+        if destination is None:
+            return None
 
-def resolve_destination_reference(destination: Union[None, str, DestinationReference]) -> DestinationReference:
-    if destination is None:
-        return None
+        # if destination is a str, get destination reference by dynamically importing module
+        if isinstance(destination, str):
+            if "." in destination:
+                # this is full module name
+                return cast(DestinationReference, import_module(destination))
+            else:
+                # from known location
+                return cast(DestinationReference, import_module(f"dlt.load.{destination}"))
 
-    if isinstance(destination, str):
-        # TODO: figure out if this is full module path name or name of one of the known destinations
-        # if destination is a str, get destination reference by dynamically importing module from known location
-        return import_module(f"dlt.load.{destination}")
-
-    return destination
+        return destination
