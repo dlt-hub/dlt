@@ -3,26 +3,12 @@ from typing import Union, cast
 from dlt.common.typing import TSecretValue, Any
 from dlt.common.configuration import with_config
 from dlt.common.configuration.container import Container
-from dlt.common.destination import DestinationReference, resolve_destination_reference
+from dlt.common.destination import DestinationReference
 from dlt.common.pipeline import PipelineContext, get_default_working_dir
 
 from dlt.pipeline.configuration import PipelineConfiguration
 from dlt.pipeline.pipeline import Pipeline
-from dlt.pipeline.decorators import source, resource
-
-
-# @overload
-# def configure(self,
-#     pipeline_name: str = None,
-#     working_dir: str = None,
-#     pipeline_secret: TSecretValue = None,
-#     drop_existing_data: bool = False,
-#     import_schema_path: str = None,
-#     export_schema_path: str = None,
-#     destination_name: str = None,
-#     log_level: str = "INFO"
-# ) -> None:
-#     ...
+from dlt.extract.decorators import source, resource
 
 
 @with_config(spec=PipelineConfiguration, auto_namespace=True)
@@ -49,18 +35,52 @@ def pipeline(
     # if working_dir not provided use temp folder
     if not working_dir:
         working_dir = get_default_working_dir()
-    destination = resolve_destination_reference(destination)
+    destination = DestinationReference.from_name(destination)
     # create new pipeline instance
-    p = Pipeline(pipeline_name, working_dir, pipeline_secret, destination, dataset_name, import_schema_path, export_schema_path, always_drop_pipeline, kwargs["runtime"])
+    p = Pipeline(pipeline_name, working_dir, pipeline_secret, destination, dataset_name, import_schema_path, export_schema_path, always_drop_pipeline, False, kwargs["runtime"])
     # set it as current pipeline
     Container()[PipelineContext].activate(p)
 
     return p
+
+
+def restore(
+    pipeline_name: str = None,
+    working_dir: str = None,
+    pipeline_secret: TSecretValue = None
+) -> Pipeline:
+
+    _pipeline_name = pipeline_name
+    _working_dir = working_dir
+
+    @with_config(spec=PipelineConfiguration, auto_namespace=True)
+    def _restore(
+        pipeline_name: str,
+        working_dir: str,
+        pipeline_secret: TSecretValue,
+        always_drop_pipeline: bool = False,
+        **kwargs: Any
+    ) -> Pipeline:
+        # use the outer pipeline name and working dir to override those from config in order to restore the requested state
+        pipeline_name = _pipeline_name or pipeline_name
+        working_dir = _working_dir or working_dir
+
+        # if working_dir not provided use temp folder
+        if not working_dir:
+            working_dir = get_default_working_dir()
+        # create new pipeline instance
+        p = Pipeline(pipeline_name, working_dir, pipeline_secret, None, None, None, None, always_drop_pipeline, True, kwargs["runtime"])
+        # set it as current pipeline
+        Container()[PipelineContext].activate(p)
+        return p
+
+    return _restore(pipeline_name, working_dir, pipeline_secret)
+
 
 # setup default pipeline in the container
 Container()[PipelineContext] = PipelineContext(pipeline)
 
 
 def run(source: Any, destination: Union[None, str, DestinationReference] = None) -> Pipeline:
-    destination = resolve_destination_reference(destination)
+    destination = DestinationReference.from_name(destination)
     return pipeline().run(source=source, destination=destination)

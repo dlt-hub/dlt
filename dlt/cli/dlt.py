@@ -8,7 +8,7 @@ from dlt.cli import TRunnerArgs
 from dlt.common.schema import Schema
 from dlt.common.typing import DictStrAny
 
-from dlt.pipeline import pipeline
+from dlt.pipeline import pipeline, restore
 
 
 def add_pool_cli_arguments(parser: argparse.ArgumentParser) -> None:
@@ -40,7 +40,7 @@ def main() -> None:
     schema.add_argument("--remove-defaults", action="store_true", help="Does not show default hint values")
     pipe_cmd = subparsers.add_parser("pipeline", help="Operations on the pipelines")
     pipe_cmd.add_argument("name", help="Pipeline name")
-    pipe_cmd.add_argument("operation", choices=["failed_loads"], default="failed_loads", help="Show failed loads for a pipeline")
+    pipe_cmd.add_argument("operation", choices=["failed_loads", "drop"], default="failed_loads", help="Show failed loads for a pipeline")
     pipe_cmd.add_argument("--workdir", help="Pipeline working directory", default=None)
 
     # TODO: consider using fire: https://github.com/google/python-fire
@@ -73,13 +73,19 @@ def main() -> None:
     elif args.command == "pipeline":
         # from dlt.load import dummy
 
-        p = pipeline(pipeline_name=args.name, working_dir=args.workdir, destination="dummy")
-        print(f"Checking pipeline {p.pipeline_name} ({args.name}) in {p.working_dir} ({args.workdir}) with state {p._state}")
-        completed_loads = p.list_completed_load_packages()
-        for load_id in completed_loads:
-            print(f"Checking failed jobs in {load_id}")
-            for job, failed_message in p.list_failed_jobs_in_package(load_id):
-                print(f"JOB: {job}\nMSG: {failed_message}")
+        p = restore(pipeline_name=args.name, working_dir=args.workdir)
+        print(f"Found pipeline {p.pipeline_name} ({args.name}) in {p.working_dir} ({args.workdir}) with state {p._get_state()}")
+
+        if args.operation == "failed_loads":
+            completed_loads = p.list_completed_load_packages()
+            for load_id in completed_loads:
+                print(f"Checking failed jobs in load id '{load_id}'")
+                for job, failed_message in p.list_failed_jobs_in_package(load_id):
+                    print(f"JOB: {os.path.abspath(job)}\nMSG: {failed_message}")
+
+        if args.operation == "drop":
+            p.drop()
+
         exit(0)
     else:
         parser.print_help()

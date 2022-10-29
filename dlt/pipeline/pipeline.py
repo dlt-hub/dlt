@@ -1,9 +1,8 @@
 import os
 from contextlib import contextmanager
-from copy import deepcopy
 from functools import wraps
 from collections.abc import Sequence as C_Sequence
-from typing import Any, Callable, ClassVar, List, Iterable, Iterator, Generator, Mapping, NewType, Optional, Protocol, Sequence, Tuple, Type, TypeVar, TypedDict, Union, get_type_hints, overload
+from typing import Any, Callable, ClassVar, List, Iterator, Mapping, Sequence, Tuple, get_type_hints, overload
 
 from dlt.common import json, logger, signals
 from dlt.common.configuration.container import Container
@@ -11,7 +10,7 @@ from dlt.common.configuration.specs.config_namespace_context import ConfigNamesp
 from dlt.common.runners.runnable import Runnable
 from dlt.common.schema.typing import TColumnSchema, TWriteDisposition
 from dlt.common.storages.load_storage import LoadStorage
-from dlt.common.typing import ParamSpec, TFun, TSecretValue, TAny
+from dlt.common.typing import ParamSpec, TFun, TSecretValue
 
 from dlt.common.runners import pool_runner as runner, TRunMetrics, initialize_runner
 from dlt.common.storages import LiveSchemaStorage, NormalizeStorage
@@ -19,27 +18,22 @@ from dlt.common.storages import LiveSchemaStorage, NormalizeStorage
 from dlt.common.configuration import inject_namespace
 from dlt.common.configuration.specs import RunConfiguration, NormalizeVolumeConfiguration, SchemaVolumeConfiguration, LoadVolumeConfiguration, PoolRunnerConfiguration
 from dlt.common.destination import DestinationCapabilitiesContext, DestinationReference, JobClientBase, DestinationClientConfiguration, DestinationClientDwhConfiguration
-from dlt.common.schema import Schema, utils as schema_utils
+from dlt.common.schema import Schema
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.utils import is_interactive
-from dlt.extract.extract import ExtractorStorage, extract
-from dlt.load.job_client_impl import SqlJobClientBase
 
+from dlt.extract.extract import ExtractorStorage, extract
+from dlt.extract.source import DltResource, DltSource
 from dlt.normalize import Normalize
+from dlt.normalize.configuration import NormalizeConfiguration
 from dlt.load.sql_client import SqlClientBase
+from dlt.load.job_client_impl import SqlJobClientBase
 from dlt.load.configuration import LoaderConfiguration
 from dlt.load import Load
-from dlt.normalize.configuration import NormalizeConfiguration
 
-from dlt.pipeline.exceptions import PipelineConfigMissing, MissingDependencyException, PipelineStepFailed, SqlClientNotAvailable
-from dlt.extract.sources import DltResource, DltSource, TTableSchemaTemplate
+from dlt.pipeline.exceptions import CannotRestorePipelineException, PipelineConfigMissing, MissingDependencyException, PipelineStepFailed, SqlClientNotAvailable
 from dlt.pipeline.typing import TPipelineStep, TPipelineState
 from dlt.pipeline.configuration import StateInjectableContext
-
-# TFunParams = ParamSpec("TFunParams")
-# TSelfFun = TypeVar("TSelfFun", bound=Callable[["Pipeline", ], ])
-# class TSelfFun(Protocol):
-#     def __call__(self: "Pipeline", *args: Any, **kwargs: Any) -> Any: ...
 
 
 def with_state_sync(f: TFun) -> TFun:
@@ -89,6 +83,9 @@ class Pipeline:
     default_schema_name: str
     always_drop_pipeline: bool
     working_dir: str
+    pipeline_root: str
+    destination: DestinationReference
+    dataset_name: str
 
     def __init__(
             self,
@@ -100,16 +97,14 @@ class Pipeline:
             import_schema_path: str,
             export_schema_path: str,
             always_drop_pipeline: bool,
+            must_restore_pipeline: bool,
             runtime: RunConfiguration
         ) -> None:
         self.pipeline_secret = pipeline_secret
         self.runtime_config = runtime
-        self.destination = destination
-        self.dataset_name = dataset_name
-        self.root_folder: str = None
 
         self._container = Container()
-        self._state: TPipelineState = {}  # type: ignore
+        # self._state: TPipelineState = {}  # type: ignore
         self._pipeline_storage: FileStorage = None
         self._schema_storage: LiveSchemaStorage = None
         self._schema_storage_config: SchemaVolumeConfiguration = None
@@ -117,14 +112,26 @@ class Pipeline:
         self._load_storage_config: LoadVolumeConfiguration = None
 
         initialize_runner(self.runtime_config)
-        self._configure(pipeline_name, working_dir, import_schema_path, export_schema_path, always_drop_pipeline)
+        # initialize pipeline working dir
+        self._init_working_dir(pipeline_name, working_dir)
+        # initialize or restore state
+        with self._managed_state():
+            # see if state didn't change the pipeline name
+            if pipeline_name != self.pipeline_name:
+                raise CannotRestorePipelineException(pipeline_name, working_dir, f"working directory contains state for pipeline with name {self.pipeline_name}")
+            # at this moment state is recovered so we overwrite the state with the values from init
+            self.destination = destination or self.destination  # changing the destination could be dangerous if pipeline has not loaded items
+            self.dataset_name = dataset_name or self.dataset_name
+            self.always_drop_pipeline = always_drop_pipeline
+            self._configure(import_schema_path, export_schema_path, must_restore_pipeline)
 
     def drop(self) -> "Pipeline":
         """Deletes existing pipeline state, schemas and drops datasets at the destination if present"""
-        # drop the data for all known schemas
-        for schema in self._schema_storage:
-            with self._get_destination_client(self._schema_storage.load_schema(schema)) as client:
-                client.initialize_storage(wipe_data=True)
+        if self.destination:
+            # drop the data for all known schemas
+            for schema in self._schema_storage:
+                with self._get_destination_client(self._schema_storage.load_schema(schema)) as client:
+                    client.initialize_storage(wipe_data=True)
         # reset the pipeline working dir
         self._create_pipeline()
         # clone the pipeline
@@ -137,6 +144,7 @@ class Pipeline:
             self._schema_storage.config.import_schema_path,
             self._schema_storage.config.export_schema_path,
             self.always_drop_pipeline,
+            True,
             self.runtime_config
         )
 
@@ -170,7 +178,7 @@ class Pipeline:
     def extract(
         self,
         data: Any,
-        table_name: str,
+        table_name: str = None,
         parent_table_name: str = None,
         write_disposition: TWriteDisposition = None,
         columns: Sequence[TColumnSchema] = None,
@@ -242,7 +250,8 @@ class Pipeline:
             for s in sources:
                 self._extract_source(s, max_parallel_items, workers)
         except Exception as exc:
-            raise PipelineStepFailed("extract", self.last_run_exception, runner.LAST_RUN_METRICS) from exc
+            # TODO: provide metrics from extractor
+            raise PipelineStepFailed("extract", exc, runner.LAST_RUN_METRICS) from exc
 
 
     @with_schemas_sync
@@ -363,7 +372,7 @@ class Pipeline:
                     failed_message = storage.storage.load(file + ".exception")
                 except FileNotFoundError:
                     failed_message = None
-                failed_jobs.append((file, failed_message))
+                failed_jobs.append((storage.storage.make_full_path(file), failed_message))
         return failed_jobs
 
     def sync_schema(self, schema_name: str = None) -> None:
@@ -385,30 +394,32 @@ class Pipeline:
         caps = self._get_destination_capabilities()
         return LoadStorage(True, caps.preferred_loader_file_format, caps.supported_loader_file_formats, self._load_storage_config)
 
-    @with_state_sync
-    def _configure(self, pipeline_name: str, working_dir: str, import_schema_path: str, export_schema_path: str, always_drop_pipeline: bool) -> None:
+    def _init_working_dir(self, pipeline_name: str, working_dir: str) -> None:
         self.pipeline_name = pipeline_name
         self.working_dir = working_dir
-        self.always_drop_pipeline = always_drop_pipeline
-
         # compute the folder that keeps all of the pipeline state
         FileStorage.validate_file_name_component(self.pipeline_name)
-        self.root_folder = os.path.join(self.working_dir, self.pipeline_name)
+        self.pipeline_root = os.path.join(working_dir, pipeline_name)
+        # create pipeline working dir
+        self._pipeline_storage = FileStorage(self.pipeline_root, makedirs=False)
+
+    def _configure(self, import_schema_path: str, export_schema_path: str, must_restore_pipeline: bool) -> None:
         # create default configs
-        # self._pool_config = PoolRunnerConfiguration(is_single_run=True, exit_on_exception=True)
         self._schema_storage_config = SchemaVolumeConfiguration(
-            schema_volume_path=os.path.join(self.root_folder, "schemas"),
+            schema_volume_path=os.path.join(self.pipeline_root, "schemas"),
             import_schema_path=import_schema_path,
             export_schema_path=export_schema_path
         )
-        self._normalize_storage_config = NormalizeVolumeConfiguration(normalize_volume_path=os.path.join(self.root_folder, "normalize"))
-        self._load_storage_config = LoadVolumeConfiguration(load_volume_path=os.path.join(self.root_folder, "load"),)
+        self._normalize_storage_config = NormalizeVolumeConfiguration(normalize_volume_path=os.path.join(self.pipeline_root, "normalize"))
+        self._load_storage_config = LoadVolumeConfiguration(load_volume_path=os.path.join(self.pipeline_root, "load"),)
 
-        # create pipeline working dir
-        self._pipeline_storage = FileStorage(self.root_folder, makedirs=False)
+        # are we running again?
+        has_state = self._pipeline_storage.has_file(Pipeline.STATE_FILE)
+        if must_restore_pipeline and not has_state:
+            raise CannotRestorePipelineException(self.pipeline_name, self.working_dir, f"the pipeline was not found in {self.pipeline_root}.")
 
         # restore pipeline if folder exists and contains state
-        if self._pipeline_storage.has_file(Pipeline.STATE_FILE) and not always_drop_pipeline:
+        if has_state and (not self.always_drop_pipeline or must_restore_pipeline):
             self._restore_pipeline()
         else:
             # this will erase the existing working folder
@@ -424,12 +435,7 @@ class Pipeline:
         self._pipeline_storage.create_folder("", exists_ok=False)
 
     def _restore_pipeline(self) -> None:
-        self._restore_state()
-
-    def _restore_state(self) -> None:
-        self._state.clear()  # type: ignore
-        restored_state: TPipelineState = json.loads(self._pipeline_storage.load(Pipeline.STATE_FILE))
-        self._state.update(restored_state)  # type: ignore
+        pass
 
     def _extract_source(self, source: DltSource, max_parallel_items: int, workers: int) -> None:
         # discover the schema from source
@@ -528,27 +534,43 @@ class Pipeline:
     def _get_dataset_name(self) -> str:
         return self.dataset_name or self.pipeline_name
 
+    def _get_state(self) -> TPipelineState:
+        try:
+            state: TPipelineState = json.loads(self._pipeline_storage.load(Pipeline.STATE_FILE))
+        except FileNotFoundError:
+            state = {}
+        return state
+
     @contextmanager
     def _managed_state(self) -> Iterator[TPipelineState]:
+        # load current state
+        state = self._get_state()
         # write props to pipeline variables
         for prop in Pipeline.STATE_PROPS:
-            setattr(self, prop, self._state.get(prop))
-        # backup the state
-        backup_state = deepcopy(self._state)
+            setattr(self, prop, state.get(prop))
+        if "destination" in state:
+            self.destination = DestinationReference.from_name(self.destination)
+
         try:
-            yield self._state
+            yield state
         except Exception:
             # restore old state
-            self._state.clear()  # type: ignore
-            self._state.update(backup_state)  # type: ignore
+            # currently do nothing - state is not preserved in memory, only saved
             raise
         else:
             # update state props
             for prop in Pipeline.STATE_PROPS:
-                self._state[prop] = getattr(self, prop)  # type: ignore
+                state[prop] = getattr(self, prop)  # type: ignore
+            if self.destination:
+                state["destination"] = self.destination.__name__
+
+            # load state from storage to be merged with pipeline changes, currently we assume no parallel changes
             # compare backup and new state, save only if different
-            new_state = json.dumps(self._state)
-            old_state = json.dumps(backup_state)
+            backup_state = self._get_state()
+            print(state)
+            print(backup_state)
+            new_state = json.dumps(state, sort_keys=True)
+            old_state = json.dumps(backup_state, sort_keys=True)
             # persist old state
             if new_state != old_state:
                 self._pipeline_storage.save(Pipeline.STATE_FILE, new_state)

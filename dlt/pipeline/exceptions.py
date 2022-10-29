@@ -28,9 +28,9 @@ You must install additional dependencies to run {self.caller}. If you use pip yo
         return "\n".join([f"pip install {d}" for d in self.dependencies])
 
 
-class NoPipelineException(PipelineException):
-    def __init__(self) -> None:
-        super().__init__("Please create or restore pipeline before using this function")
+# class NoPipelineException(PipelineException):
+#     def __init__(self) -> None:
+#         super().__init__("Please create or restore pipeline before using this function")
 
 
 class PipelineConfigMissing(PipelineException):
@@ -54,23 +54,14 @@ class PipelineConfigMissing(PipelineException):
 
 
 class CannotRestorePipelineException(PipelineException):
-    def __init__(self, reason: str) -> None:
-        super().__init__(reason)
+    def __init__(self, pipeline_name: str, working_dir: str, reason: str) -> None:
+        msg = f"Pipeline with name {pipeline_name} in working directory {working_dir} could not be restored: {reason}"
+        super().__init__(msg)
 
 
 class SqlClientNotAvailable(PipelineException):
     def __init__(self, client_type: str) -> None:
         super().__init__(f"SQL Client not available in {client_type}")
-
-
-class InvalidIteratorException(PipelineException):
-    def __init__(self, iterator: Any) -> None:
-        super().__init__(f"Unsupported source iterator or iterable type: {type(iterator).__name__}")
-
-
-class InvalidItemException(PipelineException):
-    def __init__(self, item: Any) -> None:
-        super().__init__(f"Source yielded unsupported item type: {type(item).__name}. Only dictionaries, sequences and deferred items allowed.")
 
 
 class PipelineStepFailed(PipelineException):
