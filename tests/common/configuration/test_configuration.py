@@ -6,7 +6,7 @@ from dlt.common import pendulum, Decimal, Wei
 from dlt.common.utils import custom_environ
 from dlt.common.typing import TSecretValue, extract_inner_type
 from dlt.common.configuration.exceptions import ConfigFieldMissingTypeHintException, ConfigFieldTypeHintNotSupported, InvalidInitialValue, LookupTrace, ValueNotSecretException
-from dlt.common.configuration import configspec, ConfigEntryMissingException, ConfigEnvValueCannotBeCoercedException, resolve
+from dlt.common.configuration import configspec, ConfigFieldMissingException, ConfigValueCannotBeCoercedException, resolve
 from dlt.common.configuration.specs import BaseConfiguration, RunConfiguration
 from dlt.common.configuration.specs.base_configuration import is_valid_hint
 from dlt.common.configuration.providers import environ as environ_provider, toml
@@ -331,7 +331,7 @@ def test_multi_derivation_defaults(environment: Any) -> None:
 
 def test_raises_on_unresolved_field(environment: Any) -> None:
     # via make configuration
-    with pytest.raises(ConfigEntryMissingException) as cf_missing_exc:
+    with pytest.raises(ConfigFieldMissingException) as cf_missing_exc:
         resolve.resolve_configuration(WrongConfiguration())
     assert cf_missing_exc.value.spec_name == "WrongConfiguration"
     assert "NoneConfigVar" in cf_missing_exc.value.traces
@@ -345,7 +345,7 @@ def test_raises_on_unresolved_field(environment: Any) -> None:
 
 def test_raises_on_many_unresolved_fields(environment: Any) -> None:
     # via make configuration
-    with pytest.raises(ConfigEntryMissingException) as cf_missing_exc:
+    with pytest.raises(ConfigFieldMissingException) as cf_missing_exc:
         resolve.resolve_configuration(CoercionTestConfiguration())
     assert cf_missing_exc.value.spec_name == "CoercionTestConfiguration"
     # get all fields that must be set
@@ -425,7 +425,7 @@ def test_invalid_coercions(environment: Any) -> None:
     for key, value in INVALID_COERCIONS.items():
         try:
             resolve._resolve_config_fields(C, explicit_namespaces=(), embedded_namespaces=(), accept_partial=False)
-        except ConfigEnvValueCannotBeCoercedException as coerc_exc:
+        except ConfigValueCannotBeCoercedException as coerc_exc:
             # must fail exactly on expected value
             if coerc_exc.field_name != key:
                 raise
@@ -511,7 +511,7 @@ def test_accept_partial(environment: Any) -> None:
 
 
 def test_coercion_rules() -> None:
-    with pytest.raises(ConfigEnvValueCannotBeCoercedException):
+    with pytest.raises(ConfigValueCannotBeCoercedException):
         coerce_single_value("key", "some string", int)
     assert coerce_single_value("key", "some string", str) == "some string"
     # Optional[str] has type object, mypy will never work properly...
@@ -528,9 +528,9 @@ def test_coercion_rules() -> None:
     assert coerce_single_value("key", "234", LongInteger) == 234
     assert coerce_single_value("key", "234", Optional[LongInteger]) == 234  # type: ignore
     # this coercion should fail
-    with pytest.raises(ConfigEnvValueCannotBeCoercedException):
+    with pytest.raises(ConfigValueCannotBeCoercedException):
         coerce_single_value("key", "some string", LongInteger)
-    with pytest.raises(ConfigEnvValueCannotBeCoercedException):
+    with pytest.raises(ConfigValueCannotBeCoercedException):
         coerce_single_value("key", "some string", Optional[LongInteger])  # type: ignore
 
 
@@ -544,10 +544,10 @@ def test_is_valid_hint() -> None:
     # in case of generics, origin will be used and args are not checked
     assert is_valid_hint(MutableMapping[TSecretValue, Any]) is True
     # this is valid (args not checked)
-    assert is_valid_hint(MutableMapping[TSecretValue, ConfigEnvValueCannotBeCoercedException]) is True
+    assert is_valid_hint(MutableMapping[TSecretValue, ConfigValueCannotBeCoercedException]) is True
     assert is_valid_hint(Wei) is True
     # any class type, except deriving from BaseConfiguration is wrong type
-    assert is_valid_hint(ConfigEntryMissingException) is False
+    assert is_valid_hint(ConfigFieldMissingException) is False
 
 
 def test_configspec_auto_base_config_derivation() -> None:
@@ -622,10 +622,10 @@ def test_do_not_resolve_embedded(environment: Any) -> None:
 def test_last_resolve_exception(environment: Any) -> None:
     # partial will set the ConfigEntryMissingException
     c = resolve.resolve_configuration(EmbeddedConfiguration(), accept_partial=True)
-    assert isinstance(c.__exception__, ConfigEntryMissingException)
+    assert isinstance(c.__exception__, ConfigFieldMissingException)
     # missing keys
     c = SecretConfiguration()
-    with pytest.raises(ConfigEntryMissingException) as py_ex:
+    with pytest.raises(ConfigFieldMissingException) as py_ex:
         resolve.resolve_configuration(c)
     assert c.__exception__ is py_ex.value
     # but if ran again exception is cleared

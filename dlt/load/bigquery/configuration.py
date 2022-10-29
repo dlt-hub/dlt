@@ -4,7 +4,7 @@ from google.auth.exceptions import DefaultCredentialsError
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import GcpClientCredentials
-from dlt.common.configuration.exceptions import ConfigEntryMissingException
+from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.destination import DestinationClientDwhConfiguration
 
 

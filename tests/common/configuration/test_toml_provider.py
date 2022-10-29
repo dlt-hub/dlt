@@ -4,7 +4,7 @@ import datetime  # noqa: I251
 
 
 from dlt.common import pendulum
-from dlt.common.configuration import configspec, ConfigEntryMissingException, ConfigFileNotFoundException, resolve
+from dlt.common.configuration import configspec, ConfigFieldMissingException, ConfigFileNotFoundException, resolve
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.inject import with_config
 from dlt.common.configuration.exceptions import LookupTrace
@@ -40,7 +40,7 @@ def providers() -> Iterator[ConfigProvidersContext]:
 
 
 def test_secrets_from_toml_secrets() -> None:
-    with pytest.raises(ConfigEntryMissingException) as py_ex:
+    with pytest.raises(ConfigFieldMissingException) as py_ex:
         resolve.resolve_configuration(SecretConfiguration())
 
     # only two traces because TSecretValue won't be checked in config.toml provider
@@ -49,7 +49,7 @@ def test_secrets_from_toml_secrets() -> None:
     assert traces[0] == LookupTrace("Environment Variables", [], "SECRET_VALUE", None)
     assert traces[1] == LookupTrace("Pipeline secrets.toml", [], "secret_value", None)
 
-    with pytest.raises(ConfigEntryMissingException) as py_ex:
+    with pytest.raises(ConfigFieldMissingException) as py_ex:
         resolve.resolve_configuration(WithCredentialsConfiguration())
 
 
@@ -116,13 +116,13 @@ def test_secrets_toml_credentials(providers: ConfigProvidersContext) -> None:
     c = resolve.resolve_configuration(GcpClientCredentials(), namespaces=("destination",))
     assert c.project_id.endswith("destination.credentials")
     # there's "credentials" key but does not contain valid gcp credentials
-    with pytest.raises(ConfigEntryMissingException):
+    with pytest.raises(ConfigFieldMissingException):
         resolve.resolve_configuration(GcpClientCredentials())
     # also try postgres credentials
     c = resolve.resolve_configuration(PostgresCredentials(), namespaces=("destination", "redshift"))
     assert c.dbname == "destination.redshift.credentials"
     # bigquery credentials do not match redshift credentials
-    with pytest.raises(ConfigEntryMissingException):
+    with pytest.raises(ConfigFieldMissingException):
         resolve.resolve_configuration(PostgresCredentials(), namespaces=("destination", "bigquery"))
 
 
@@ -138,7 +138,7 @@ def test_secrets_toml_embedded_credentials(providers: ConfigProvidersContext) ->
     c = EmbeddedWithGcpCredentials()
     # create embedded config that will be passed as initial
     c.credentials = GcpClientCredentials()
-    with pytest.raises(ConfigEntryMissingException) as py_ex:
+    with pytest.raises(ConfigFieldMissingException) as py_ex:
         resolve.resolve_configuration(c, namespaces=("middleware", "storage"))
     # so we can read partially filled configuration here
     assert c.credentials.project_id.endswith("-credentials")
@@ -152,7 +152,7 @@ def test_secrets_toml_embedded_credentials(providers: ConfigProvidersContext) ->
     c = resolve.resolve_configuration(GcpClientCredentials(), namespaces=("destination",))
     assert c.project_id.endswith("destination.credentials")
     # there's "credentials" key but does not contain valid gcp credentials
-    with pytest.raises(ConfigEntryMissingException):
+    with pytest.raises(ConfigFieldMissingException):
         resolve.resolve_configuration(GcpClientCredentials())
 
 

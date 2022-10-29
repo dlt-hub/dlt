@@ -1,5 +1,4 @@
 import os
-import abc
 import tomlkit
 from typing import Any, Optional, Tuple, Type
 

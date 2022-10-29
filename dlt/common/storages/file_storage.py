@@ -129,7 +129,7 @@ class FileStorage:
         return os.path.relpath(path, start=self.storage_path)
 
     def make_full_path(self, path: str) -> str:
-        # try to make a relative path is paths are absolute or overlapping
+        # try to make a relative path if paths are absolute or overlapping
         try:
             path = self.to_relative_path(path)
         except ValueError:

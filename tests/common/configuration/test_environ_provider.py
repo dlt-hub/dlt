@@ -2,7 +2,7 @@ import pytest
 from typing import Any
 
 from dlt.common.typing import TSecretValue
-from dlt.common.configuration import configspec, ConfigEntryMissingException, ConfigFileNotFoundException, resolve
+from dlt.common.configuration import configspec, ConfigFieldMissingException, ConfigFileNotFoundException, resolve
 from dlt.common.configuration.specs import RunConfiguration
 from dlt.common.configuration.providers import environ as environ_provider
 
@@ -50,7 +50,7 @@ def test_resolves_from_environ_with_coercion(environment: Any) -> None:
 
 
 def test_secret(environment: Any) -> None:
-    with pytest.raises(ConfigEntryMissingException):
+    with pytest.raises(ConfigFieldMissingException):
         resolve.resolve_configuration(SecretConfiguration())
     environment['SECRET_VALUE'] = "1"
     C = resolve.resolve_configuration(SecretConfiguration())
@@ -68,7 +68,7 @@ def test_secret(environment: Any) -> None:
         # set some weird path, no secret file at all
         del environment['SECRET_VALUE']
         environ_provider.SECRET_STORAGE_PATH = "!C:\\PATH%s"
-        with pytest.raises(ConfigEntryMissingException):
+        with pytest.raises(ConfigFieldMissingException):
             resolve.resolve_configuration(SecretConfiguration())
 
         # set env which is a fallback for secret not as file

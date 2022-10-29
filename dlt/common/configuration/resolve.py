@@ -12,7 +12,7 @@ from dlt.common.configuration.specs.config_namespace_context import ConfigNamesp
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
 from dlt.common.configuration.providers.container import ContextProvider
-from dlt.common.configuration.exceptions import (LookupTrace, ConfigEntryMissingException, ConfigurationWrongTypeException, ConfigEnvValueCannotBeCoercedException, ValueNotSecretException, InvalidInitialValue)
+from dlt.common.configuration.exceptions import (LookupTrace, ConfigFieldMissingException, ConfigurationWrongTypeException, ConfigValueCannotBeCoercedException, ValueNotSecretException, InvalidInitialValue)
 
 CHECK_INTEGRITY_F: str = "check_integrity"
 TConfiguration = TypeVar("TConfiguration", bound=BaseConfiguration)
@@ -47,10 +47,10 @@ def deserialize_value(key: str, value: Any, hint: Type[Any]) -> Any:
                 if value_dt != hint_dt:
                     value = coerce_type(hint_dt, value_dt, value)
         return value
-    except ConfigEnvValueCannotBeCoercedException:
+    except ConfigValueCannotBeCoercedException:
         raise
     except Exception as exc:
-        raise ConfigEnvValueCannotBeCoercedException(key, value, hint) from exc
+        raise ConfigValueCannotBeCoercedException(key, value, hint) from exc
 
 
 def serialize_value(value: Any) -> Any:
@@ -91,7 +91,6 @@ def _resolve_configuration(
         initial_value: Any,
         accept_partial: bool
     ) -> TConfiguration:
-    # print(f"RESOLVING: {locals()}")
     # do not resolve twice
     if config.is_resolved():
         return config
@@ -134,7 +133,7 @@ def _resolve_configuration(
             _check_configuration_integrity(config)
             # full configuration was resolved
             config.__is_resolved__ = True
-        except ConfigEntryMissingException as cm_ex:
+        except ConfigFieldMissingException as cm_ex:
             if not accept_partial:
                 raise
             else:
@@ -211,7 +210,7 @@ def _resolve_config_fields(
         # set resolved value in config
         setattr(config, key, current_value)
     if unresolved_fields:
-        raise ConfigEntryMissingException(type(config).__name__, unresolved_fields)
+        raise ConfigFieldMissingException(type(config).__name__, unresolved_fields)
 
 
 def _log_traces(config: BaseConfiguration, key: str, hint: Type[Any], value: Any, traces: Sequence[LookupTrace]) -> None:

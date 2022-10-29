@@ -15,13 +15,24 @@ class ConfigurationException(DltException):
         super().__init__(msg)
 
 
+
+class ContainerException(ConfigurationException):
+    """base exception for all exceptions related to injectable container"""
+    pass
+
+
+class ConfigProviderException(ConfigurationException):
+    """base exceptions for all exceptions raised by config providers"""
+    pass
+
+
 class ConfigurationWrongTypeException(ConfigurationException):
     def __init__(self, _typ: type) -> None:
         super().__init__(f"Invalid configuration instance type {_typ}. Configuration instances must derive from BaseConfiguration.")
 
 
-class ConfigEntryMissingException(ConfigurationException):
-    """thrown when not all required config elements are present"""
+class ConfigFieldMissingException(ConfigurationException):
+    """thrown when not all required config fields are present"""
 
     def __init__(self, spec_name: str, traces: Mapping[str, Sequence[LookupTrace]]) -> None:
         self.traces = traces
@@ -35,8 +46,8 @@ class ConfigEntryMissingException(ConfigurationException):
         super().__init__(msg)
 
 
-class ConfigEnvValueCannotBeCoercedException(ConfigurationException):
-    """thrown when value from ENV cannot be coerced to hinted type"""
+class ConfigValueCannotBeCoercedException(ConfigurationException):
+    """thrown when value returned by config provider cannot be coerced to hinted type"""
 
     def __init__(self, field_name: str, field_value: Any, hint: type) -> None:
         self.field_name = field_name
@@ -94,7 +105,7 @@ class InvalidInitialValue(ConfigurationException):
         super().__init__(f"Initial value of type {initial_value_type} is not valid for {spec.__name__}")
 
 
-class ContainerInjectableContextMangled(ConfigurationException):
+class ContainerInjectableContextMangled(ContainerException):
     def __init__(self, spec: Type[Any], existing_config: Any, expected_config: Any) -> None:
         self.spec = spec
         self.existing_config = existing_config
@@ -102,7 +113,13 @@ class ContainerInjectableContextMangled(ConfigurationException):
         super().__init__(f"When restoring context {spec.__name__}, instance {expected_config} was expected, instead instance {existing_config} was found.")
 
 
-class ContextDefaultCannotBeCreated(ConfigurationException, KeyError):
+class ContextDefaultCannotBeCreated(ContainerException, KeyError):
     def __init__(self, spec: Type[Any]) -> None:
         self.spec = spec
         super().__init__(f"Container cannot create the default value of context {spec.__name__}.")
+
+
+class DuplicateConfigProviderException(ConfigProviderException):
+    def __init__(self, provider_name: str) -> None:
+        self.provider_name = provider_name
+        super().__init__(f"Provider with name {provider_name} already present in ConfigProvidersContext")

@@ -1,8 +1,7 @@
 from typing import List, IO, Any, Optional
 
 from dlt.common.utils import uniq_id
-from dlt.common.typing import TDataItem
-from dlt.common.source import TDirectDataItem
+from dlt.common.typing import TDataItem, TDataItems
 from dlt.common.data_writers import TLoaderFileFormat
 from dlt.common.data_writers.exceptions import BufferedDataWriterClosed, InvalidFileNameTemplateException
 from dlt.common.data_writers.writers import DataWriter
@@ -35,7 +34,7 @@ class BufferedDataWriter:
         except TypeError:
             raise InvalidFileNameTemplateException(file_name_template)
 
-    def write_data_item(self, item: TDirectDataItem, columns: TTableSchemaColumns) -> None:
+    def write_data_item(self, item: TDataItems, columns: TTableSchemaColumns) -> None:
         self._ensure_open()
         # rotate file if columns changed and writer does not allow for that
         # as the only allowed change is to add new column (no updates/deletes), we detect the change by comparing lengths

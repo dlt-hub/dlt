@@ -2,11 +2,12 @@
 
 from typing import List
 
+from dlt.common.configuration.exceptions import DuplicateConfigProviderException
 from dlt.common.configuration.providers import Provider
 from dlt.common.configuration.providers.environ import EnvironProvider
 from dlt.common.configuration.providers.container import ContextProvider
 from dlt.common.configuration.providers.toml import SecretsTomlProvider, ConfigTomlProvider
-from dlt.common.configuration.specs.base_configuration import BaseConfiguration, ContainerInjectableContext, configspec
+from dlt.common.configuration.specs.base_configuration import ContainerInjectableContext, configspec
 
 
 @configspec
@@ -34,11 +35,12 @@ class ConfigProvidersContext(ContainerInjectableContext):
 
     def add_provider(self, provider: Provider) -> None:
         if provider.name in self:
-            raise DuplicateProviderException(provider.name)
+            raise DuplicateConfigProviderException(provider.name)
         self.providers.append(provider)
 
 
-@configspec
-class ConfigProvidersConfiguration(BaseConfiguration):
-    with_aws_secrets: bool = False
-    with_google_secrets: bool = False
+# TODO: implement ConfigProvidersConfiguration and
+# @configspec
+# class ConfigProvidersConfiguration(BaseConfiguration):
+#     with_aws_secrets: bool = False
+#     with_google_secrets: bool = False

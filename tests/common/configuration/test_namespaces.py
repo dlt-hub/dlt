@@ -2,7 +2,7 @@ import pytest
 from typing import Any, Optional
 from dlt.common.configuration.container import Container
 
-from dlt.common.configuration import configspec, ConfigEntryMissingException, resolve, inject_namespace
+from dlt.common.configuration import configspec, ConfigFieldMissingException, resolve, inject_namespace
 from dlt.common.configuration.specs import BaseConfiguration, ConfigNamespacesContext
 # from dlt.common.configuration.providers import environ as environ_provider
 from dlt.common.configuration.exceptions import LookupTrace
@@ -27,7 +27,7 @@ class EmbeddedWithNamespacedConfiguration(BaseConfiguration):
 
 
 def test_namespaced_configuration(environment: Any) -> None:
-    with pytest.raises(ConfigEntryMissingException) as exc_val:
+    with pytest.raises(ConfigFieldMissingException) as exc_val:
         resolve.resolve_configuration(NamespacedConfiguration())
 
     assert list(exc_val.value.traces.keys()) == ["password"]
@@ -46,7 +46,7 @@ def test_namespaced_configuration(environment: Any) -> None:
 
     # env var must be prefixed
     environment["PASSWORD"] = "PASS"
-    with pytest.raises(ConfigEntryMissingException) as exc_val:
+    with pytest.raises(ConfigFieldMissingException) as exc_val:
         resolve.resolve_configuration(NamespacedConfiguration())
     environment["DLT_TEST__PASSWORD"] = "PASS"
     C = resolve.resolve_configuration(NamespacedConfiguration())
@@ -177,7 +177,7 @@ def test_namespace_with_pipeline_name(mock_provider: MockProvider) -> None:
         mock_provider.return_value_on = ()
         mock_provider.reset_stats()
         # () will never be searched
-        with pytest.raises(ConfigEntryMissingException):
+        with pytest.raises(ConfigFieldMissingException):
             resolve.resolve_configuration(NamespacedConfiguration())
         mock_provider.return_value_on = ("DLT_TEST",)
         mock_provider.reset_stats()

@@ -84,6 +84,8 @@ class DictValidationException(DltException):
 
 
 class ArgumentsOverloadException(DltException):
-    def __init__(self, msg: str, *args: str) -> None:
-        self.args = args
+    def __init__(self, msg: str, func_name: str, *args: str) -> None:
+        self.func_name = func_name
+        msg = f"Arguments combination not allowed when calling function {func_name}: {msg}"
+        msg = "\n".join((msg, *args))
         super().__init__(msg)
