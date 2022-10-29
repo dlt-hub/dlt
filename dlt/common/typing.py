@@ -1,7 +1,7 @@
 from collections.abc import Mapping as C_Mapping, Sequence as C_Sequence
 from re import Pattern as _REPattern
-from typing import Callable, Dict, Any, Literal, Mapping, NewType, Tuple, Type, TypeVar, Generic, Protocol, Iterable, TYPE_CHECKING, Union, runtime_checkable, get_args, get_origin
-from typing_extensions import ParamSpec, TypeAlias, TypeGuard
+from typing import Callable, Dict, Any, Literal, List, Mapping, NewType, Tuple, Type, TypeVar, Generic, Protocol, TYPE_CHECKING, Union, runtime_checkable, get_args, get_origin
+from typing_extensions import TypeAlias
 
 if TYPE_CHECKING:
     from _typeshed import StrOrBytesPath
@@ -24,7 +24,8 @@ TFun = TypeVar("TFun", bound=AnyFun)  # any function
 TAny = TypeVar("TAny", bound=Any)
 TAnyClass = TypeVar("TAnyClass", bound=object)
 TSecretValue = NewType("TSecretValue", str)  # represent secret value ie. coming from Kubernetes/Docker secrets or other providers
-TDataItem: TypeAlias = Any  # a single data item extracted from data source, normalized and loaded
+TDataItem: TypeAlias = object  # a single data item as extracted from data source
+TDataItems: TypeAlias = Union[TDataItem, List[TDataItem]]  # a single or many data items as extracted from the data source
 
 ConfigValue: None = None  # a value of type None indicating argument that may be injected by config provider
 

@@ -26,16 +26,18 @@ class SupportsPipeline(Protocol):
 
 @configspec(init=True)
 class PipelineContext(ContainerInjectableContext):
+    # TODO: declare unresolvable generic types that will be allowed by configpec
     _deferred_pipeline: Any
     _pipeline: Any
 
     can_create_default: ClassVar[bool] = False
 
     def pipeline(self) -> SupportsPipeline:
+        """Creates or returns exiting pipeline"""
         if not self._pipeline:
             # delayed pipeline creation
             self._pipeline = self._deferred_pipeline()
-        return self._pipeline
+        return self._pipeline  # type: ignore
 
     def activate(self, pipeline: SupportsPipeline) -> None:
         self._pipeline = pipeline
@@ -44,10 +46,16 @@ class PipelineContext(ContainerInjectableContext):
         return self._pipeline is not None
 
     def __init__(self, deferred_pipeline: Callable[..., SupportsPipeline]) -> None:
+        """Initialize the context with a function returning the Pipeline object to allow creation on first use"""
         self._deferred_pipeline = deferred_pipeline
 
 
 def get_default_working_dir() -> str:
+    """ Gets default working dir of the pipeline, which may be
+        1. in user home directory ~/.dlt/pipelines/
+        2. if current user is root in /var/dlt/pipelines
+        3. if current user does not have a home directory in /tmp/dlt/pipelines
+    """
     if os.geteuid() == 0:
         # we are root so use standard /var
         return os.path.join("/var", "dlt", "pipelines")

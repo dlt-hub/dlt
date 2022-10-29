@@ -2,14 +2,14 @@ import os
 from typing import ClassVar, List
 
 from dlt.common.utils import uniq_id
-from dlt.common.source import TDirectDataItem, TDataItem
+from dlt.common.typing import TDataItems, TDataItem
 from dlt.common.schema import utils, TSchemaUpdate
 from dlt.common.storages import NormalizeStorage, DataItemStorage
 from dlt.common.configuration.specs import NormalizeVolumeConfiguration
 
 
 from dlt.extract.pipe import PipeIterator
-from dlt.extract.sources import DltResource, DltSource
+from dlt.extract.source import DltResource, DltSource
 
 
 class ExtractorStorage(DataItemStorage, NormalizeStorage):
@@ -52,7 +52,7 @@ def extract(source: DltSource, storage: ExtractorStorage, *, max_parallel_items:
     schema = source.schema
     extract_id = storage.create_extract_id()
 
-    def _write_item(table_name: str, item: TDirectDataItem) -> None:
+    def _write_item(table_name: str, item: TDataItems) -> None:
         # normalize table name before writing so the name match the name in schema
         # note: normalize function should be cached so there's almost no penalty on frequent calling
         # note: column schema is not required for jsonl writer used here

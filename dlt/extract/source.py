@@ -2,27 +2,18 @@ import contextlib
 from copy import deepcopy
 import inspect
 from collections.abc import Mapping as C_Mapping
-from typing import AsyncIterable, AsyncIterator, Coroutine, Dict, Generator, Iterable, Iterator, List, NamedTuple, Set, TypedDict, Union, Awaitable, Callable, Sequence, TypeVar, cast, Optional, Any
+from typing import AsyncIterable, AsyncIterator, Iterable, Iterator, List, Set, Sequence, Union, cast, Any
 
-from dlt.common.exceptions import DltException
-from dlt.common.typing import TDataItem
-from dlt.common.source import TFunHintTemplate, TDirectDataItem, TTableHintTemplate
 from dlt.common.schema import Schema
 from dlt.common.schema.utils import new_table
-from dlt.common.schema.typing import TColumnSchema, TPartialTableSchema, TTableSchema, TTableSchemaColumns, TWriteDisposition
+from dlt.common.schema.typing import TPartialTableSchema, TTableSchemaColumns, TWriteDisposition
+from dlt.common.typing import TDataItem, TDataItems
 from dlt.common.configuration.container import Container
 from dlt.common.pipeline import PipelineContext
 
-from dlt.extract.pipe import FilterItem, Pipe, CreatePipeException, PipeIterator
-
-
-class TTableSchemaTemplate(TypedDict, total=False):
-    name: TTableHintTemplate[str]
-    description: TTableHintTemplate[str]
-    write_disposition: TTableHintTemplate[TWriteDisposition]
-    # table_sealed: Optional[bool]
-    parent: TTableHintTemplate[str]
-    columns: TTableHintTemplate[TTableSchemaColumns]
+from dlt.extract.typing import TFunHintTemplate, TTableHintTemplate, TTableSchemaTemplate
+from dlt.extract.pipe import FilterItem, Pipe, PipeIterator
+from dlt.extract.exceptions import CreatePipeException, DataItemRequiredForDynamicTableHints, GeneratorFunctionNotAllowedAsParentResource, InconsistentTableTemplate, InvalidResourceAsyncDataType, InvalidResourceBasicDataType, ResourceNameMissing, TableNameMissing
 
 
 class DltResourceSchema:
@@ -102,7 +93,7 @@ class DltResourceSchema:
         columns: TTableHintTemplate[TTableSchemaColumns] = None,
         ) -> TTableSchemaTemplate:
         if not table_name:
-            raise InvalidTableSchemaTemplate("Table template name must be a string or function taking TDataItem")
+            raise TableNameMissing()
         # create a table schema template where hints can be functions taking TDataItem
         if isinstance(columns, C_Mapping):
             # new_table accepts a sequence
@@ -111,10 +102,11 @@ class DltResourceSchema:
         new_template: TTableSchemaTemplate = new_table(table_name, parent_table_name, write_disposition=write_disposition, columns=columns)  # type: ignore
         # if any of the hints is a function then name must be as well
         if any(callable(v) for k, v in new_template.items() if k != "name") and not callable(table_name):
-            raise InvalidTableSchemaTemplate("Table name must be a function if any other table hint is a function")
+            raise InconsistentTableTemplate("Table name must be a function if any other table hint is a function")
         return new_template
 
-class DltResource(Iterable[TDirectDataItem], DltResourceSchema):
+
+class DltResource(Iterable[TDataItems], DltResourceSchema):
     def __init__(self, pipe: Pipe, table_schema_template: TTableSchemaTemplate, selected: bool):
         self.name = pipe.name
         self.selected = selected
@@ -122,15 +114,7 @@ class DltResource(Iterable[TDirectDataItem], DltResourceSchema):
         super().__init__(self.name, table_schema_template)
 
     @classmethod
-    def from_data(cls, data: Any, name: str = None, table_schema_template: TTableSchemaTemplate = None, selected: bool = True, depends_on: "DltResource" = None) -> "DltResource":
-        # call functions assuming that they do not take any parameters, typically they are generator functions
-        if callable(data):
-            # use inspect.isgeneratorfunction to see if this is generator or not
-            # if it is then call it, if not then keep the callable assuming that it will return iterable/iterator
-            # if inspect.isgeneratorfunction(data):
-            #     data = data()
-            # else:
-            data = data()
+    def from_data(cls, data: Any, name: str = None, table_schema_template: TTableSchemaTemplate = None, selected: bool = True, depends_on: Union["DltResource", Pipe] = None) -> "DltResource":
 
         if isinstance(data, DltResource):
             return data
@@ -138,34 +122,58 @@ class DltResource(Iterable[TDirectDataItem], DltResourceSchema):
         if isinstance(data, Pipe):
             return cls(data, table_schema_template, selected)
 
+        if callable(data):
+            name = name or data.__name__
+            # function must be a generator
+            if not inspect.isgeneratorfunction(inspect.unwrap(data)):
+                raise ResourceFunctionNotAGenerator(name)
+
+        # if generator, take name from it
+        if inspect.isgenerator(data):
+            name = name or data.__name__
+
+        # name is mandatory
+        if not name:
+            raise ResourceNameMissing()
+
         # several iterable types are not allowed and must be excluded right away
-        if isinstance(data, (AsyncIterator, AsyncIterable, str, dict)):
-            raise InvalidResourceDataType("Invalid data type for DltResource", type(data))
+        if isinstance(data, (AsyncIterator, AsyncIterable)):
+            raise InvalidResourceAsyncDataType(name, data, type(data))
+        if isinstance(data, (str, dict)):
+            raise InvalidResourceBasicDataType(name, data, type(data))
 
         # check if depends_on is a valid resource
         parent_pipe: Pipe = None
         if depends_on:
-            if not isinstance(depends_on, DltResource):
+            if not callable(data):
+                raise DependentResourceMustBeAGeneratorFunction()
+            else:
+                pass
+                # TODO: check sig if takes just one argument
+                # if sig_valid():
+                #     raise DependentResourceMustTakeDataItemArgument()
+            if isinstance(depends_on, Pipe):
+                parent_pipe = depends_on
+            elif isinstance(depends_on, DltResource):
+                parent_pipe = depends_on._pipe
+            else:
                 # if this is generator function provide nicer exception
-                if inspect.isgeneratorfunction(inspect.unwrap(depends_on)):
-                    raise ParentResourceIsGeneratorFunction()
+                if callable(depends_on):
+                    raise GeneratorFunctionNotAllowedAsParentResource(depends_on.__name__)
                 else:
                     raise ParentNotAResource()
-            parent_pipe = depends_on._pipe
 
-        # create resource from iterator or iterable
+
+        # create resource from iterator, iterable or generator function
         if isinstance(data, (Iterable, Iterator)):
-            if inspect.isgenerator(data):
-                name = name or data.__name__
-            else:
-                name = name or None
-            if not name:
-                raise ResourceNameRequired("The DltResource name was not provided or could not be inferred.")
             pipe = Pipe.from_iterable(name, data, parent=parent_pipe)
+        elif callable(data):
+            pipe = Pipe(name, [data], parent_pipe)
+        if pipe:
             return cls(pipe, table_schema_template, selected)
-
-        # some other data type that is not supported
-        raise InvalidResourceDataType("Invalid data type for DltResource", type(data))
+        else:
+            # some other data type that is not supported
+            raise InvalidResourceDataType("Invalid data type for DltResource", type(data))
 
 
     def select(self, *table_names: Iterable[str]) -> "DltResource":
@@ -188,14 +196,20 @@ class DltResource(Iterable[TDirectDataItem], DltResourceSchema):
     def filter(self) -> None:
         raise NotImplementedError()
 
-    def __iter__(self) -> Iterator[TDirectDataItem]:
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        # make resource callable to support parametrized resources which are functions taking arguments
+        _data = self._pipe.head(*args, **kwargs)
+        # create new resource from extracted data
+        return DltResource.from_data(_data, self.name, self._table_schema_template, self.selected, self._pipe.parent)
+
+    def __iter__(self) -> Iterator[TDataItems]:
         return map(lambda item: item.item, PipeIterator.from_pipe(self._pipe))
 
     def __repr__(self) -> str:
         return f"DltResource {self.name} ({self._pipe._pipe_id}) at {id(self)}"
 
 
-class DltSource(Iterable[TDirectDataItem]):
+class DltSource(Iterable[TDataItems]):
     def __init__(self, schema: Schema, resources: Sequence[DltResource] = None) -> None:
         self.name = schema.name
         self._schema = schema
@@ -266,22 +280,8 @@ class DltSource(Iterable[TDirectDataItem]):
     def run(self, destination: Any) -> Any:
         return Container()[PipelineContext].pipeline().run(source=self, destination=destination)
 
-    def __iter__(self) -> Iterator[TDirectDataItem]:
+    def __iter__(self) -> Iterator[TDataItems]:
         return map(lambda item: item.item, PipeIterator.from_pipes(self.pipes))
 
     def __repr__(self) -> str:
         return f"DltSource {self.name} at {id(self)}"
-
-
-class DltSourceException(DltException):
-    pass
-
-
-class DataItemRequiredForDynamicTableHints(DltException):
-    def __init__(self, resource_name: str) -> None:
-        self.resource_name = resource_name
-        super().__init__(f"Instance of Data Item required to generate table schema in resource {resource_name}")
-
-
-
-# class

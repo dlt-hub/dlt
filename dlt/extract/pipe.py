@@ -8,27 +8,28 @@ from typing import Optional, Sequence, Union, Callable, Iterable, Iterator, List
 
 from dlt.common.configuration.inject import with_config
 from dlt.common.configuration.specs.base_configuration import BaseConfiguration, configspec
-from dlt.common.typing import TDataItem
-from dlt.common.source import TDirectDataItem, TResolvableDataItem
+from dlt.common.typing import TDataItem, TDataItems
+
+from dlt.extract.exceptions import CreatePipeException, PipeItemProcessingError
+from dlt.extract.typing import TPipedDataItems
 
 if TYPE_CHECKING:
-    TItemFuture = Future[TDirectDataItem]
+    TItemFuture = Future[TDataItems]
 else:
     TItemFuture = Future
 
-from dlt.common.exceptions import DltException
 from dlt.common.time import sleep
 
 
 class PipeItem(NamedTuple):
-    item: TDirectDataItem
+    item: TDataItems
     step: int
     pipe: "Pipe"
 
 
 class ResolvablePipeItem(NamedTuple):
     # mypy unable to handle recursive types, ResolvablePipeItem should take itself in "item"
-    item: Union[TResolvableDataItem, Iterator[TResolvableDataItem]]
+    item: Union[TPipedDataItems, Iterator[TPipedDataItems]]
     step: int
     pipe: "Pipe"
 
@@ -40,18 +41,18 @@ class FuturePipeItem(NamedTuple):
 
 
 class SourcePipeItem(NamedTuple):
-    item: Union[Iterator[TResolvableDataItem], Iterator[ResolvablePipeItem]]
+    item: Union[Iterator[TPipedDataItems], Iterator[ResolvablePipeItem]]
     step: int
     pipe: "Pipe"
 
 
 # pipeline step may be iterator of data items or mapping function that returns data item or another iterator
 TPipeStep = Union[
-    Iterable[TResolvableDataItem],
-    Iterator[TResolvableDataItem],
-    Callable[[TDirectDataItem], TResolvableDataItem],
-    Callable[[TDirectDataItem], Iterator[TResolvableDataItem]],
-    Callable[[TDirectDataItem], Iterator[ResolvablePipeItem]]
+    Iterable[TPipedDataItems],
+    Iterator[TPipedDataItems],
+    Callable[[TDataItems], TPipedDataItems],
+    Callable[[TDataItems], Iterator[TPipedDataItems]],
+    Callable[[TDataItems], Iterator[ResolvablePipeItem]]
 ]
 
 
@@ -67,7 +68,7 @@ class ForkPipe:
     def has_pipe(self, pipe: "Pipe") -> bool:
         return pipe in [p[0] for p in self._pipes]
 
-    def __call__(self, item: TDirectDataItem) -> Iterator[ResolvablePipeItem]:
+    def __call__(self, item: TDataItems) -> Iterator[ResolvablePipeItem]:
         for i, (pipe, step) in enumerate(self._pipes):
             _it = item if i == 0 else deepcopy(item)
             # always start at the beginning
@@ -78,7 +79,7 @@ class FilterItem:
     def __init__(self, filter_f: Callable[[TDataItem], bool]) -> None:
         self._filter_f = filter_f
 
-    def __call__(self, item: TDirectDataItem) -> Optional[TDirectDataItem]:
+    def __call__(self, item: TDataItems) -> Optional[TDataItems]:
         # item may be a list TDataItem or a single TDataItem
         if isinstance(item, list):
             item = [i for i in item if self._filter_f(i)]
@@ -99,7 +100,7 @@ class Pipe:
         self.parent = parent
 
     @classmethod
-    def from_iterable(cls, name: str, gen: Union[Iterable[TResolvableDataItem], Iterator[TResolvableDataItem]], parent: "Pipe" = None) -> "Pipe":
+    def from_iterable(cls, name: str, gen: Union[Iterable[TPipedDataItems], Iterator[TPipedDataItems]], parent: "Pipe" = None) -> "Pipe":
         if isinstance(gen, Iterable):
             gen = iter(gen)
         return cls(name, [gen], parent=parent)
@@ -186,6 +187,12 @@ class Pipe:
         pipe.extend(self._steps)
         return Pipe(self.name, pipe)
 
+    def evaluate_head(self) -> None:
+        # if pipe head is callable then call it
+        if self.parent is None:
+            if callable(self.head):
+                self._steps[0] = self.head()
+
     def __repr__(self) -> str:
         return f"Pipe {self.name} ({self._pipe_id}) at {id(self)}"
 
@@ -197,7 +204,6 @@ class PipeIterator(Iterator[PipeItem]):
         max_parallel_items: int = 100
         workers: int = 5
         futures_poll_interval: float = 0.01
-
 
     def __init__(self, max_parallel_items: int, workers: int, futures_poll_interval: float) -> None:
         self.max_parallel_items = max_parallel_items
@@ -215,8 +221,8 @@ class PipeIterator(Iterator[PipeItem]):
     def from_pipe(cls, pipe: Pipe, *, max_parallel_items: int = 100, workers: int = 5, futures_poll_interval: float = 0.01) -> "PipeIterator":
         if pipe.parent:
             pipe = pipe.full_pipe()
-        # TODO: if pipe head is callable then call it now
         # head must be iterator
+        pipe.evaluate_head()
         assert isinstance(pipe.head, Iterator)
         # create extractor
         extract = cls(max_parallel_items, workers, futures_poll_interval)
@@ -228,10 +234,12 @@ class PipeIterator(Iterator[PipeItem]):
     @with_config(spec=PipeIteratorConfiguration)
     def from_pipes(cls, pipes: Sequence[Pipe], yield_parents: bool = True, *, max_parallel_items: int = 100, workers: int = 5, futures_poll_interval: float = 0.01) -> "PipeIterator":
         extract = cls(max_parallel_items, workers, futures_poll_interval)
+        # TODO: consider removing cloning. pipe are single use and may be iterated only once, here we modify an immediately run
         # clone all pipes before iterating (recursively) as we will fork them and this add steps
         pipes = PipeIterator.clone_pipes(pipes)
 
         def _fork_pipeline(pipe: Pipe) -> None:
+            print(f"forking: {pipe.name}")
             if pipe.parent:
                 # fork the parent pipe
                 pipe.parent.fork(pipe)
@@ -242,6 +250,7 @@ class PipeIterator(Iterator[PipeItem]):
                 _fork_pipeline(pipe.parent)
             else:
                 # head of independent pipe must be iterator
+                pipe.evaluate_head()
                 assert isinstance(pipe.head, Iterator)
                 # add every head as source only once
                 if not any(i.pipe == pipe for i in extract._sources):
@@ -277,20 +286,22 @@ class PipeIterator(Iterator[PipeItem]):
                         sleep(self.futures_poll_interval)
                     continue
 
+
+            item = pipe_item.item
             # if item is iterator, then add it as a new source
-            if isinstance(pipe_item.item, Iterator):
+            if isinstance(item, Iterator):
                 # print(f"adding iterable {item}")
-                self._sources.append(SourcePipeItem(pipe_item.item, pipe_item.step, pipe_item.pipe))
+                self._sources.append(SourcePipeItem(item, pipe_item.step, pipe_item.pipe))
                 pipe_item = None
                 continue
 
-            if isinstance(pipe_item.item, Awaitable) or callable(pipe_item.item):
+            if isinstance(item, Awaitable) or callable(item):
                 # do we have a free slot or one of the slots is done?
                 if len(self._futures) < self.max_parallel_items or self._next_future() >= 0:
-                    if isinstance(pipe_item.item, Awaitable):
-                        future = asyncio.run_coroutine_threadsafe(pipe_item.item, self._ensure_async_pool())
-                    else:
-                        future = self._ensure_thread_pool().submit(pipe_item.item)
+                    if isinstance(item, Awaitable):
+                        future = asyncio.run_coroutine_threadsafe(item, self._ensure_async_pool())
+                    elif callable(item):
+                        future = self._ensure_thread_pool().submit(item)
                     # print(future)
                     self._futures.append(FuturePipeItem(future, pipe_item.step, pipe_item.pipe))  # type: ignore
                     # pipe item consumed for now, request a new one
@@ -306,7 +317,7 @@ class PipeIterator(Iterator[PipeItem]):
             # print(pipe_item)
             if pipe_item.step == len(pipe_item.pipe) - 1:
                 # must be resolved
-                if isinstance(pipe_item.item, (Iterator, Awaitable)) or callable(pipe_item.pipe):
+                if isinstance(item, (Iterator, Awaitable)) or callable(pipe_item.pipe):
                     raise PipeItemProcessingError("Pipe item not processed", pipe_item)
                 # mypy not able to figure out that item was resolved
                 return pipe_item  # type: ignore
@@ -314,8 +325,8 @@ class PipeIterator(Iterator[PipeItem]):
             # advance to next step
             step = pipe_item.pipe[pipe_item.step + 1]
             assert callable(step)
-            item = step(pipe_item.item)
-            pipe_item = ResolvablePipeItem(item, pipe_item.step + 1, pipe_item.pipe)
+            next_item = step(item)
+            pipe_item = ResolvablePipeItem(next_item, pipe_item.step + 1, pipe_item.pipe)
 
 
     def _ensure_async_pool(self) -> asyncio.AbstractEventLoop:
@@ -434,16 +445,3 @@ class PipeIterator(Iterator[PipeItem]):
                 clone = clone.parent
 
         return cloned_pipes
-
-
-class PipeException(DltException):
-    pass
-
-
-class CreatePipeException(PipeException):
-    pass
-
-
-class PipeItemProcessingError(PipeException):
-    pass
-

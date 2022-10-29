@@ -1,18 +1,18 @@
 import inspect
 from types import ModuleType
 from makefun import wraps
-from typing import Any, Callable, Dict, Iterator, List, NamedTuple, Optional, Sequence, Tuple, Type, Union, overload
+from typing import Any, Callable, Dict, Iterator, List, NamedTuple, Optional, Tuple, Type, TypeVar, Union, overload
 
 from dlt.common.configuration import with_config, get_fun_spec
 from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.exceptions import ArgumentsOverloadException
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import TTableSchemaColumns, TWriteDisposition
-from dlt.common.source import TTableHintTemplate, TFunHintTemplate
-from dlt.common.typing import AnyFun, TFun, ParamSpec
+from dlt.common.typing import AnyFun, ParamSpec, TDataItems
 from dlt.common.utils import is_inner_function
 
-from dlt.extract.sources import DltResource, DltSource
+from dlt.extract.typing import TTableHintTemplate, TFunHintTemplate
+from dlt.extract.source import DltResource, DltSource
 
 
 class SourceInfo(NamedTuple):
@@ -37,17 +37,19 @@ def source(func: None = ..., /, name: str = None, schema: Schema = None, spec: T
 
 def source(func: Optional[AnyFun] = None, /, name: str = None, schema: Schema = None, spec: Type[BaseConfiguration] = None) -> Any:
 
-    if name and schema:
-        raise ArgumentsOverloadException("Source name cannot be set if schema is present")
+    # if name and schema:
+    #     raise ArgumentsOverloadException(
+    #         "source name cannot be set if schema is present",
+    #         "source",
+    #         "You can provide either the Schema instance directly in `schema` argument or the name of ")
 
     def decorator(f: Callable[TSourceFunParams, Any]) -> Callable[TSourceFunParams, DltSource]:
         nonlocal schema, name
 
-        # extract name
-        if schema:
-            name = schema.name
-        else:
-            name = name or f.__name__
+        # source name is passed directly or taken from decorated function name
+        name = name or f.__name__
+
+        if not schema:
             # create or load default schema
             # TODO: we need a convention to load ie. load the schema from file with name_schema.yaml
             schema = Schema(name)
@@ -190,8 +192,8 @@ def resource(
         resource_name = name or f.__name__
 
         # if f is not a generator (does not yield) raise Exception
-        if not inspect.isgeneratorfunction(inspect.unwrap(f)):
-            raise ResourceFunNotGenerator()
+        # if not inspect.isgeneratorfunction(inspect.unwrap(f)):
+        #     raise ResourceFunNotGenerator()
 
         # do not inject config values for inner functions, we assume that they are part of the source
         SPEC: Type[BaseConfiguration] = None
@@ -204,16 +206,16 @@ def resource(
             # get spec for wrapped function
             SPEC = get_fun_spec(conf_f)
 
-        @wraps(conf_f, func_name=resource_name)
-        def _wrap(*args: Any, **kwargs: Any) -> DltResource:
-            return make_resource(resource_name, f(*args, **kwargs))
+        # @wraps(conf_f, func_name=resource_name)
+        # def _wrap(*args: Any, **kwargs: Any) -> DltResource:
+        #     return make_resource(resource_name, f(*args, **kwargs))
 
         # store the standalone resource information
         if SPEC:
-            _SOURCES[_wrap.__qualname__] = SourceInfo(SPEC, _wrap, inspect.getmodule(f))
+            _SOURCES[f.__qualname__] = SourceInfo(SPEC, f, inspect.getmodule(f))
 
         # the typing is right, but makefun.wraps does not preserve signatures
-        return _wrap  # type: ignore
+        return make_resource(resource_name, f)  # type: ignore
 
 
     # if data is callable or none use decorator
@@ -259,3 +261,69 @@ def _get_source_for_inner_function(f: AnyFun) -> Optional[SourceInfo]:
 
 # reveal_type(resource([], name="aaaa"))
 # reveal_type(resource("aaaaa", name="aaaa"))
+
+# name of dlt metadata as part of the item
+# DLT_METADATA_FIELD = "_dlt_meta"
+
+
+# class TEventDLTMeta(TypedDict, total=False):
+#     table_name: str  # a root table in which store the event
+
+
+# def append_dlt_meta(item: TBoundItem, name: str, value: Any) -> TBoundItem:
+#     if isinstance(item, abc.Sequence):
+#         for i in item:
+#             i.setdefault(DLT_METADATA_FIELD, {})[name] = value
+#     elif isinstance(item, dict):
+#         item.setdefault(DLT_METADATA_FIELD, {})[name] = value
+
+#     return item
+
+
+# def with_table_name(item: TBoundItem, table_name: str) -> TBoundItem:
+#     # normalize table name before adding
+#     return append_dlt_meta(item, "table_name", table_name)
+
+
+# def get_table_name(item: StrAny) -> Optional[str]:
+#     if DLT_METADATA_FIELD in item:
+#         meta: TEventDLTMeta = item[DLT_METADATA_FIELD]
+#         return meta.get("table_name", None)
+#     return None
+
+
+# def with_retry(max_retries: int = 3, retry_sleep: float = 1.0) -> Callable[[Callable[_TFunParams, TBoundItem]], Callable[_TFunParams, TBoundItem]]:
+
+#     def decorator(f: Callable[_TFunParams, TBoundItem]) -> Callable[_TFunParams, TBoundItem]:
+
+#         def _wrap(*args: Any, **kwargs: Any) -> TBoundItem:
+#             attempts = 0
+#             while True:
+#                 try:
+#                     return f(*args, **kwargs)
+#                 except Exception as exc:
+#                     if attempts == max_retries:
+#                         raise
+#                     attempts += 1
+#                     logger.warning(f"Exception {exc} in iterator, retrying {attempts} / {max_retries}")
+#                     sleep(retry_sleep)
+
+#         return _wrap
+
+#     return decorator
+
+
+TBoundItems = TypeVar("TBoundItems", bound=TDataItems)
+TDeferred = Callable[[], TBoundItems]
+TDeferredFunParams = ParamSpec("TDeferredFunParams")
+
+
+def defer(f: Callable[TDeferredFunParams, TBoundItems]) -> Callable[TDeferredFunParams, TDeferred[TBoundItems]]:
+
+    @wraps(f)
+    def _wrap(*args: Any, **kwargs: Any) -> TDeferred[TBoundItems]:
+        def _curry() -> TBoundItems:
+            return f(*args, **kwargs)
+        return _curry
+
+    return _wrap  # type: ignore
