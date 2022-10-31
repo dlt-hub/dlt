@@ -26,8 +26,8 @@ In principle, however, the importable sources are extractor functions so they ar
 ## default and explicitly configured pipelines
 When the `dlt` is imported a default pipeline is automatically created. That pipeline is configured via configuration providers (ie. `config.toml` or env variables - see [secrets_and_config.md](secrets_and_config.md)). If no configuration is present, default values will be used.
 
-1. the name of the pipeline, the name of default schema (if not overridden by the source extractor function) and the default dataset (in destination) are set to **current module name** which in 99% of cases is the name of executing python script
-2. the working directory of the pipeline will be **OS temporary folder/pipeline name**
+1. the name of the pipeline, the name of default schema (if not overridden by the source extractor function) and the default dataset (in destination) are set to **current module name** with `dlt_` prefix, which in 99% of cases is the name of executing python script. Example: for `pipeline.py` the default names are `dlt_pipeline`.
+2. the working directory of the pipeline will be (1) for non-root user with home directory (99% of cases) **~/.dlt/pipelines/pipeline name** (2) for root users (Linux/Mac OS): **/var/dlt/pipelines/pipeline name** (3) for users without home directory: **OS temp dir/dlt/pipelines/pipeline name**`
 3. the logging level will be **INFO**
 4. all other configuration options won't be set or will have default values.
 
@@ -38,8 +38,9 @@ Pipeline can be explicitly created and configured via `dlt.pipeline()` that retu
 4. destination - the imported destination module or module name (we accept strings so they can be configured) - default is None
 5. import_schema_path - default is None
 6. export_schema_path - default is None
-7. full_refresh - if set to True all the pipeline working dir and all datasets will be dropped with each run
-8. ...any other popular option... give me ideas. maybe `dataset_name`?
+7. always_drop_pipeline - if set to True all the pipeline working dir and all datasets will be dropped with each run
+8. dataset_name -
+8. ...any other popular option... give me ideas.
 
 > **Achtung** as per `secrets_and_config.md` the options passed in the code have **lower priority** than any config settings. Example: the pipeline name passed to `dlt.pipeline()` will be overwritten if `pipeline_name` is present in `config.toml` or `PIPELINE_NAME` is in config variables.
 
@@ -52,7 +53,7 @@ Pipeline can be explicitly created and configured via `dlt.pipeline()` that retu
 **schemas are identified by schema names**
 
 **default schema** is the first schema that is provided or created within the pipeline. First schema comes in the following ways:
-1. From the first extracted `@dlt.source` ie. if you `dlt.run(source=sportify(), ...)` and `spotify` source has schema with name `spotify` attached, it will be used as default schema.
+1. From the first extracted `@dlt.source` ie. if you `dlt.run(source=spotify(), ...)` and `spotify` source has schema with name `spotify` attached, it will be used as default schema.
 2. it will be created from scratch if you extract a `@dlt.resource` or an iterator ie. list (example: `dlt.run(source=["a", "b", "c"], ...)`) and its name is the pipeline name or generator function name if generator is extracted. (I'm trying to be smart with automatic naming)
 3. it is explicitly passed with the `schema` parameter to `run` or `extract` methods - this forces all the sources regardless of the form to place their tables in that schema.
 
@@ -63,7 +64,7 @@ The pipeline works with multiple schemas. If you extract another source or provi
 
 p = dlt.pipeline(dataset="spotify_data_1")
 p.extract(source=spotify("me"))  # gets schema "spotify" from spotify source, that schema becomes default schema
-p.extract(source=echonest("me").select("mel"))  # get schema "echonest", all tables belonging to resource "mel" will be placed in that schema
+p.extract(source=echonest("me").with_resources("mel"))  # get schema "echonest", all tables belonging to resource "mel" will be placed in that schema
 p.extract(source=[label1, label2, label3], name="labels")  # will use default schema "spotitfy" for table "labels"
 ```
 
@@ -82,12 +83,13 @@ In case **there are more schemas in the pipeline**, the data will be loaded into
 
 
 ## pipeline working directory and state
-the working directory of the pipeline will be **OS temporary folder/pipeline name**
-
 Another fundamental concept is the pipeline working directory. This directory keeps the following information:
 1. the extracted data and the load packages with jobs created by normalize
 2. the current schemas with all the recent updates
 3. the pipeline and source state files.
+
+the working directory of the pipeline may be set by the user and the default is explained in **default and explicitly configured pipelines** above.
+
 
 **Pipeline working directory should be preserved between the runs - if possible**
 
@@ -127,7 +129,7 @@ There are many ways to create or get current pipeline object.
 # create and get default pipeline
 p1 = dlt.pipeline()
 # create explicitly configured pipeline
-p2 = dlt.pipeline(name="pipe", destination=bigquery)
+p2 = dlt.pipeline(pipeline_name="pipe", destination=bigquery)
 # get recently created pipeline
 assert dlt.pipeline() is p2
 # load data with recently created pipeline
@@ -162,10 +164,10 @@ from dlt.destinations import bigquery
 
 # the `run` command below will create default pipeline and use it to load data
 # I only want logs from the resources present in taktile_data
-taktile_data.select("logs").run(destination=bigquery)
+taktile_data().with_resources("logs").run(destination=bigquery)
 
 # alternative
-dlt.run(source=taktile_data.select("logs"))
+dlt.run(source=taktile_data.with_resources("logs"))
 ```
 
 Explicitly configure schema before the use
@@ -178,7 +180,7 @@ def data(api_key):
     ...
 
 
-dlt.pipeline(name="pipe", destination=bigquery, dataset="extract_1")
+dlt.pipeline(pipeline_name="pipe", destination=bigquery, dataset="extract_1")
 # use dlt secrets directly to get api key
 # no parameters needed to run - we configured destination and dataset already
 data(dlt.secrets["api_key"]).run()

@@ -188,7 +188,7 @@ def hubspot(...):
     return users.map(transform_user)
 
 # option 3: user of the pipeline determines if s/he wants the anonymized data or not and does it in pipeline script. so the source may offer also transformations that are easily used
-hubspot(...)["users"].map(transform_user)
+hubspot(...).resources["users"].map(transform_user)
 hubspot.run(...)
 
 ```
@@ -223,7 +223,18 @@ def hubspot(...):
 # load all resources
 taktile_data(1).run(destination=bigquery)
 # load only decisions
-taktile_data(1).select("decisions").run(....)
+taktile_data(1).with_resources("decisions").run(....)
+
+# alternative form:
+source = taktile_data(1)
+# select only decisions to be loaded
+source.resources.select("decisions")
+# see what is selected
+print(source.selected_resources)
+# same as this
+print(source.resources.selected)
+
+
 ```
 
 **resources are created dynamically**
