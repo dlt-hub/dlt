@@ -375,15 +375,15 @@ class Pipeline:
                 failed_jobs.append((storage.storage.make_full_path(file), failed_message))
         return failed_jobs
 
-    def sync_schema(self, schema_name: str = None) -> None:
+    def sync_schema(self, schema_name: str = None, credentials: Any = None) -> None:
         schema = self.schemas[schema_name] if schema_name else self.default_schema
-        with self._get_destination_client(schema) as client:
+        with self._get_destination_client(schema, self._get_destination_client_initial_config(credentials)) as client:
             client.initialize_storage(wipe_data=self.always_drop_pipeline)
             client.update_storage_schema()
 
-    def sql_client(self, schema_name: str = None) -> SqlClientBase[Any]:
+    def sql_client(self, schema_name: str = None, credentials: Any = None) -> SqlClientBase[Any]:
         schema = self.schemas[schema_name] if schema_name else self.default_schema
-        with self._get_destination_client(schema) as client:
+        with self._get_destination_client(schema, self._get_destination_client_initial_config(credentials)) as client:
             if isinstance(client, SqlJobClientBase):
                 return client.sql_client
             else:
