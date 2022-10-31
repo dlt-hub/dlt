@@ -15,7 +15,7 @@ TTableHintTemplate = Union[TDynHintType, TFunHintTemplate[TDynHintType]]
 
 class TTableSchemaTemplate(TypedDict, total=False):
     name: TTableHintTemplate[str]
-    description: TTableHintTemplate[str]
+    # description: TTableHintTemplate[str]
     write_disposition: TTableHintTemplate[TWriteDisposition]
     # table_sealed: Optional[bool]
     parent: TTableHintTemplate[str]

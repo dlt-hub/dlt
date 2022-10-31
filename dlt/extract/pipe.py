@@ -191,7 +191,7 @@ class Pipe:
         # if pipe head is callable then call it
         if self.parent is None:
             if callable(self.head):
-                self._steps[0] = self.head()
+                self._steps[0] = self.head()  # type: ignore
 
     def __repr__(self) -> str:
         return f"Pipe {self.name} ({self._pipe_id}) at {id(self)}"

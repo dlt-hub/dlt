@@ -2,18 +2,22 @@ import contextlib
 from copy import deepcopy
 import inspect
 from collections.abc import Mapping as C_Mapping
-from typing import AsyncIterable, AsyncIterator, Iterable, Iterator, List, Set, Sequence, Union, cast, Any
+from typing import AsyncIterable, AsyncIterator, Dict, Iterable, Iterator, List, Set, Sequence, Union, cast, Any
+from typing_extensions import Self
 
 from dlt.common.schema import Schema
 from dlt.common.schema.utils import new_table
 from dlt.common.schema.typing import TPartialTableSchema, TTableSchemaColumns, TWriteDisposition
-from dlt.common.typing import TDataItem, TDataItems
+from dlt.common.typing import AnyFun, TDataItem, TDataItems
 from dlt.common.configuration.container import Container
 from dlt.common.pipeline import PipelineContext
 
 from dlt.extract.typing import TFunHintTemplate, TTableHintTemplate, TTableSchemaTemplate
 from dlt.extract.pipe import FilterItem, Pipe, PipeIterator
-from dlt.extract.exceptions import CreatePipeException, DataItemRequiredForDynamicTableHints, GeneratorFunctionNotAllowedAsParentResource, InconsistentTableTemplate, InvalidResourceAsyncDataType, InvalidResourceBasicDataType, ResourceNameMissing, TableNameMissing
+from dlt.extract.exceptions import (
+    DependentResourceIsNotCallable, InvalidDependentResourceDataTypeGeneratorFunctionRequired, InvalidParentResourceDataType, InvalidParentResourceIsAFunction, InvalidResourceDataType, InvalidResourceDataTypeFunctionNotAGenerator,
+    ResourceNotFoundError, CreatePipeException, DataItemRequiredForDynamicTableHints, InconsistentTableTemplate, InvalidResourceDataTypeAsync, InvalidResourceDataTypeBasic,
+    InvalidResourceDataTypeMultiplePipes, ResourceNameMissing, TableNameMissing)
 
 
 class DltResourceSchema:
@@ -108,6 +112,7 @@ class DltResourceSchema:
 
 class DltResource(Iterable[TDataItems], DltResourceSchema):
     def __init__(self, pipe: Pipe, table_schema_template: TTableSchemaTemplate, selected: bool):
+        # TODO: allow resource to take name independent from pipe name
         self.name = pipe.name
         self.selected = selected
         self._pipe = pipe
@@ -126,7 +131,7 @@ class DltResource(Iterable[TDataItems], DltResourceSchema):
             name = name or data.__name__
             # function must be a generator
             if not inspect.isgeneratorfunction(inspect.unwrap(data)):
-                raise ResourceFunctionNotAGenerator(name)
+                raise InvalidResourceDataTypeFunctionNotAGenerator(name, data, type(data))
 
         # if generator, take name from it
         if inspect.isgenerator(data):
@@ -138,20 +143,20 @@ class DltResource(Iterable[TDataItems], DltResourceSchema):
 
         # several iterable types are not allowed and must be excluded right away
         if isinstance(data, (AsyncIterator, AsyncIterable)):
-            raise InvalidResourceAsyncDataType(name, data, type(data))
+            raise InvalidResourceDataTypeAsync(name, data, type(data))
         if isinstance(data, (str, dict)):
-            raise InvalidResourceBasicDataType(name, data, type(data))
+            raise InvalidResourceDataTypeBasic(name, data, type(data))
 
         # check if depends_on is a valid resource
         parent_pipe: Pipe = None
         if depends_on:
+            # must be a callable with single argument
             if not callable(data):
-                raise DependentResourceMustBeAGeneratorFunction()
+                raise InvalidDependentResourceDataTypeGeneratorFunctionRequired(name, data, type(data))
             else:
-                pass
-                # TODO: check sig if takes just one argument
-                # if sig_valid():
-                #     raise DependentResourceMustTakeDataItemArgument()
+                if cls.is_valid_dependent_generator_function(data):
+                    raise InvalidDependentResourceDataTypeGeneratorFunctionRequired(name, data, type(data))
+            # parent resource
             if isinstance(depends_on, Pipe):
                 parent_pipe = depends_on
             elif isinstance(depends_on, DltResource):
@@ -159,10 +164,9 @@ class DltResource(Iterable[TDataItems], DltResourceSchema):
             else:
                 # if this is generator function provide nicer exception
                 if callable(depends_on):
-                    raise GeneratorFunctionNotAllowedAsParentResource(depends_on.__name__)
+                    raise InvalidParentResourceIsAFunction(name, depends_on.__name__)
                 else:
-                    raise ParentNotAResource()
-
+                    raise InvalidParentResourceDataType(name, depends_on, type(depends_on))
 
         # create resource from iterator, iterable or generator function
         if isinstance(data, (Iterable, Iterator)):
@@ -173,7 +177,13 @@ class DltResource(Iterable[TDataItems], DltResourceSchema):
             return cls(pipe, table_schema_template, selected)
         else:
             # some other data type that is not supported
-            raise InvalidResourceDataType("Invalid data type for DltResource", type(data))
+            raise InvalidResourceDataType(name, data, type(data), f"The data type is {type(data).__name__}")
+
+
+    def add_pipe(self, data: Any) -> None:
+        """Creates additional pipe for the resource from the specified data"""
+        # TODO: (1) self resource cannot be a dependent one (2) if data is resource both self must and it must be selected/unselected + cannot be dependent
+        raise InvalidResourceDataTypeMultiplePipes(self.name, data, type(data))
 
 
     def select(self, *table_names: Iterable[str]) -> "DltResource":
@@ -187,18 +197,21 @@ class DltResource(Iterable[TDataItems], DltResourceSchema):
         self._pipe.add_step(FilterItem(_filter))
         return self
 
-    def map(self) -> None:
+    def map(self) -> None:  # noqa: A003
         raise NotImplementedError()
 
     def flat_map(self) -> None:
         raise NotImplementedError()
 
-    def filter(self) -> None:
+    def filter(self) -> None:  # noqa: A003
         raise NotImplementedError()
 
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
         # make resource callable to support parametrized resources which are functions taking arguments
-        _data = self._pipe.head(*args, **kwargs)
+        if self._pipe.parent:
+            raise DependentResourceIsNotCallable(self.name)
+        # pass the call parameters to the pipe's head
+        _data = self._pipe.head(*args, **kwargs)  # type: ignore
         # create new resource from extracted data
         return DltResource.from_data(_data, self.name, self._table_schema_template, self.selected, self._pipe.parent)
 
@@ -208,23 +221,59 @@ class DltResource(Iterable[TDataItems], DltResourceSchema):
     def __repr__(self) -> str:
         return f"DltResource {self.name} ({self._pipe._pipe_id}) at {id(self)}"
 
+    @staticmethod
+    def is_valid_dependent_generator_function(f: AnyFun) -> bool:
+        sig = inspect.signature(f)
+        return len(sig.parameters) == 0
+
+
+class DltResourceDict(Dict[str, DltResource]):
+    @property
+    def selected(self) -> Dict[str, DltResource]:
+        return {k:v for k,v in self.items() if v.selected}
+
+    @property
+    def pipes(self) -> List[Pipe]:
+        # TODO: many resources may share the same pipe so return ordered set
+        return [r._pipe for r in self.values()]
+
+    @property
+    def selected_pipes(self) -> Sequence[Pipe]:
+        # TODO: many resources may share the same pipe so return ordered set
+        return [r._pipe for r in self.values() if r.selected]
+
+    def select(self, *resource_names: str) -> Dict[str, DltResource]:
+        # checks if keys are present
+        for name in resource_names:
+            try:
+                self.__getitem__(name)
+            except KeyError:
+                raise ResourceNotFoundError(name, "Requested resource could not be selected because it is not present in the source.")
+        # set the selected flags
+        for resource in self.values():
+            self[resource.name].selected = resource.name in resource_names
+        return self.selected
+
+    def find_by_pipe(self, pipe: Pipe) -> DltResource:
+        # TODO: many resources may share the same pipe so return a list and also filter the resources by self._enabled_resource_names
+        # identify pipes by memory pointer
+        return next(r for r in self.values() if r._pipe._pipe_id is pipe._pipe_id)
+
 
 class DltSource(Iterable[TDataItems]):
     def __init__(self, schema: Schema, resources: Sequence[DltResource] = None) -> None:
         self.name = schema.name
         self._schema = schema
-        self._resources: List[DltResource] = list(resources or [])
-        self._enabled_resource_names: Set[str] = set(r.name for r in self._resources if r.selected)
+        self._resources: DltResourceDict = DltResourceDict()
+        if resources:
+            for resource in resources:
+                self._add_resource(resource)
 
     @classmethod
     def from_data(cls, schema: Schema, data: Any) -> "DltSource":
         # creates source from various forms of data
         if isinstance(data, DltSource):
             return data
-
-        # several iterable types are not allowed and must be excluded right away
-        if isinstance(data, (AsyncIterator, AsyncIterable, str, dict)):
-            raise InvalidSourceDataType("Invalid data type for DltSource", type(data))
 
         # in case of sequence, enumerate items and convert them into resources
         if isinstance(data, Sequence):
@@ -235,22 +284,13 @@ class DltSource(Iterable[TDataItems]):
         return cls(schema, resources)
 
 
-    def __getitem__(self, name: str) -> List[DltResource]:
-        if name not in self._enabled_resource_names:
-            raise KeyError(name)
-        return [r for r in self._resources if r.name == name]
-
-    def resource_by_pipe(self, pipe: Pipe) -> DltResource:
-        # identify pipes by memory pointer
-        return next(r for r in self._resources if r._pipe._pipe_id is pipe._pipe_id)
+    @property
+    def resources(self) -> DltResourceDict:
+        return self._resources
 
     @property
-    def resources(self) -> Sequence[DltResource]:
-        return [r for r in self._resources if r.name in self._enabled_resource_names]
-
-    @property
-    def pipes(self) -> Sequence[Pipe]:
-        return [r._pipe for r in self._resources if r.name in self._enabled_resource_names]
+    def selected_resources(self) -> Dict[str, DltResource]:
+        return self._resources.selected
 
     @property
     def schema(self) -> Schema:
@@ -262,26 +302,30 @@ class DltSource(Iterable[TDataItems]):
 
     def discover_schema(self) -> Schema:
         # extract tables from all resources and update internal schema
-        for r in self._resources:
+        for r in self._resources.values():
             # names must be normalized here
             with contextlib.suppress(DataItemRequiredForDynamicTableHints):
                 partial_table = self._schema.normalize_table_identifiers(r.table_schema())
                 self._schema.update_schema(partial_table)
         return self._schema
 
-    def select(self, *resource_names: str) -> "DltSource":
-        # make sure all selected resources exist
-        for name in resource_names:
-            self.__getitem__(name)
-        self._enabled_resource_names = set(resource_names)
+    def with_resources(self, *resource_names: str) -> "DltSource":
+        self._resources.select(*resource_names)
         return self
 
 
     def run(self, destination: Any) -> Any:
         return Container()[PipelineContext].pipeline().run(source=self, destination=destination)
 
+    def _add_resource(self, resource: DltResource) -> None:
+        if resource.name in self._resources:
+            # for resources with the same name try to add the resource as an another pipe
+            self._resources[resource.name].add_pipe(resource)
+        else:
+            self._resources[resource.name] = resource
+
     def __iter__(self) -> Iterator[TDataItems]:
-        return map(lambda item: item.item, PipeIterator.from_pipes(self.pipes))
+        return map(lambda item: item.item, PipeIterator.from_pipes(self._resources.selected_pipes))
 
     def __repr__(self) -> str:
         return f"DltSource {self.name} at {id(self)}"

@@ -10,6 +10,7 @@ from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import TTableSchemaColumns, TWriteDisposition
 from dlt.common.typing import AnyFun, ParamSpec, TDataItems
 from dlt.common.utils import is_inner_function
+from dlt.extract.exceptions import InvalidResourceDataTypeFunctionNotAGenerator
 
 from dlt.extract.typing import TTableHintTemplate, TFunHintTemplate
 from dlt.extract.source import DltResource, DltSource
@@ -60,20 +61,21 @@ def source(func: Optional[AnyFun] = None, /, name: str = None, schema: Schema = 
         @wraps(conf_f, func_name=name)
         def _wrap(*args: Any, **kwargs: Any) -> DltSource:
             rv = conf_f(*args, **kwargs)
+
             # if generator, consume it immediately
             if inspect.isgenerator(rv):
                 rv = list(rv)
 
-            def check_rv_type(rv: Any) -> None:
-                pass
+            # def check_rv_type(rv: Any) -> None:
+            #     pass
 
-            # check if return type is list or tuple
-            if isinstance(rv, (list, tuple)):
-                # check all returned elements
-                for v in rv:
-                    check_rv_type(v)
-            else:
-                check_rv_type(rv)
+            # # check if return type is list or tuple
+            # if isinstance(rv, (list, tuple)):
+            #     # check all returned elements
+            #     for v in rv:
+            #         check_rv_type(v)
+            # else:
+            #     check_rv_type(rv)
 
             # convert to source
             return DltSource.from_data(schema, rv)
@@ -91,7 +93,7 @@ def source(func: Optional[AnyFun] = None, /, name: str = None, schema: Schema = 
         return decorator
 
     if not callable(func):
-        raise ValueError("First parameter to the source must be callable ie. by using it as function decorator")
+        raise ValueError("First parameter to the source must be a callable.")
 
     # we're called as @source without parens.
     return decorator(func)
@@ -192,15 +194,14 @@ def resource(
         resource_name = name or f.__name__
 
         # if f is not a generator (does not yield) raise Exception
-        # if not inspect.isgeneratorfunction(inspect.unwrap(f)):
-        #     raise ResourceFunNotGenerator()
+        if not inspect.isgeneratorfunction(inspect.unwrap(f)):
+            raise InvalidResourceDataTypeFunctionNotAGenerator(resource_name, f, type(f))
 
         # do not inject config values for inner functions, we assume that they are part of the source
         SPEC: Type[BaseConfiguration] = None
         if is_inner_function(f):
             conf_f = f
         else:
-            print("USE SPEC -> GLOBAL")
             # wrap source extraction function in configuration with namespace
             conf_f = with_config(f, spec=spec, namespaces=("resource", resource_name))
             # get spec for wrapped function
@@ -215,8 +216,7 @@ def resource(
             _SOURCES[f.__qualname__] = SourceInfo(SPEC, f, inspect.getmodule(f))
 
         # the typing is right, but makefun.wraps does not preserve signatures
-        return make_resource(resource_name, f)  # type: ignore
-
+        return make_resource(resource_name, f)
 
     # if data is callable or none use decorator
     if data is None:

@@ -44,6 +44,17 @@ class ResourceNameMissing(DltResourceException):
         Please note that for resources created from functions or generators, the name is the function name by default.""")
 
 
+class DependentResourceIsNotCallable(DltResourceException):
+    def __init__(self, resource_name: str) -> None:
+        super().__init__(resource_name, f"Attempted to call the dependent resource {resource_name}. Do not call the dependent resources. They will be called only when iterated.")
+
+
+class ResourceNotFoundError(DltResourceException, KeyError):
+      def __init__(self, resource_name: str, context: str) -> None:
+          self.resource_name = resource_name
+          super().__init__(resource_name, f"Resource with a name {resource_name} could not be found. {context}")
+
+
 class InvalidResourceDataType(DltResourceException):
     def __init__(self, resource_name: str, item: Any, _typ: Type[Any], msg: str) -> None:
         self.item = item
@@ -51,20 +62,40 @@ class InvalidResourceDataType(DltResourceException):
         super().__init__(resource_name, f"Cannot create resource {resource_name} from specified data. " + msg)
 
 
-class InvalidResourceAsyncDataType(InvalidResourceDataType):
+class InvalidResourceDataTypeAsync(InvalidResourceDataType):
     def __init__(self, resource_name: str, item: Any,_typ: Type[Any]) -> None:
         super().__init__(resource_name, item, _typ, "Async iterators and generators are not valid resources. Please use standard iterators and generators that yield Awaitables instead (for example by yielding from async function without await")
 
 
-class InvalidResourceBasicDataType(InvalidResourceDataType):
+class InvalidResourceDataTypeBasic(InvalidResourceDataType):
     def __init__(self, resource_name: str, item: Any,_typ: Type[Any]) -> None:
         super().__init__(resource_name, item, _typ, f"Resources cannot be strings or dictionaries but {_typ.__name__} was provided. Please pass your data in a list or as a function yielding items. If you want to process just one data item, enclose it in a list.")
 
 
-class GeneratorFunctionNotAllowedAsParentResource(DltResourceException):
+class InvalidResourceDataTypeFunctionNotAGenerator(InvalidResourceDataType):
+    def __init__(self, resource_name: str, item: Any,_typ: Type[Any]) -> None:
+        super().__init__(resource_name, item, _typ, "Please make sure that function decorated with @resource uses 'yield' to return the data.")
+
+
+class InvalidResourceDataTypeMultiplePipes(InvalidResourceDataType):
+    def __init__(self, resource_name: str, item: Any,_typ: Type[Any]) -> None:
+        super().__init__(resource_name, item, _typ, "Resources with multiple parallel data pipes are not yet supported. This problem most often happens when you are creating a source with @source decorator that has several resources with the same name.")
+
+
+class InvalidDependentResourceDataTypeGeneratorFunctionRequired(InvalidResourceDataType):
+    def __init__(self, resource_name: str, item: Any,_typ: Type[Any]) -> None:
+        super().__init__(resource_name, item, _typ, "Dependent resource must be a decorated function that takes data item as its only argument.")
+
+
+class InvalidParentResourceDataType(InvalidResourceDataType):
+    def __init__(self, resource_name: str, item: Any,_typ: Type[Any]) -> None:
+        super().__init__(resource_name, item, _typ, f"A parent resource of {resource_name} is of type {_typ.__name__}. Did you forget to use '@resource` decorator or `resource` function?")
+
+
+class InvalidParentResourceIsAFunction(DltResourceException):
     def __init__(self, resource_name: str, func_name: str) -> None:
         self.func_name = func_name
-        super().__init__(resource_name, f"A parent resource {resource_name} of dependent resource {resource_name} is a function but must be a resource. Please decorate function")
+        super().__init__(resource_name, f"A parent resource {func_name} of dependent resource {resource_name} is a function. Please decorate it with '@resource' or pass to 'resource' function.")
 
 
 class TableNameMissing(DltSourceException):

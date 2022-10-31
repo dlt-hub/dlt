@@ -56,7 +56,6 @@ def extract(source: DltSource, storage: ExtractorStorage, *, max_parallel_items:
         # normalize table name before writing so the name match the name in schema
         # note: normalize function should be cached so there's almost no penalty on frequent calling
         # note: column schema is not required for jsonl writer used here
-        # TODO: consider dropping DLT_METADATA_FIELD in all items before writing, this however takes CPU time
         # event.pop(DLT_METADATA_FIELD, None)  # type: ignore
         storage.write_data_item(extract_id, schema.name, schema.normalize_table_name(table_name), item, None)
 
@@ -78,9 +77,11 @@ def extract(source: DltSource, storage: ExtractorStorage, *, max_parallel_items:
         _write_item(table_name, item)
 
     # yield from all selected pipes
-    for pipe_item in PipeIterator.from_pipes(source.pipes, max_parallel_items=max_parallel_items, workers=workers, futures_poll_interval=futures_poll_interval):
+    for pipe_item in PipeIterator.from_pipes(source.resources.selected_pipes, max_parallel_items=max_parallel_items, workers=workers, futures_poll_interval=futures_poll_interval):
         # get partial table from table template
-        resource = source.resource_by_pipe(pipe_item.pipe)
+        # TODO: many resources may be returned. if that happens the item meta must be present with table name and this name must match one of resources
+        # TDataItemMeta(table_name, requires_resource, write_disposition, columns, parent etc.)
+        resource = source.resources.find_by_pipe(pipe_item.pipe)
         if resource._table_name_hint_fun:
             if isinstance(pipe_item.item, List):
                 for item in pipe_item.item:
