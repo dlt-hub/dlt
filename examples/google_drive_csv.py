@@ -62,8 +62,7 @@ if __name__ == "__main__":
 
     # SCHEMA CREATION
     data_schema = None
-    # data_schema_file_path = f"/Users/adrian/PycharmProjects/sv/dlt/examples/schemas/inferred_drive_csv_{file_id}_schema.yml"
-    data_schema_file_path = f"examples/schemas/inferred_drive_csv_{file_id}_schema.yml"
+    data_schema_file_path = f"examples/schemas/inferred_drive_csv_{file_id}.schema.yml"
 
     credentials = GCPPipelineCredentials.from_services_file(gcp_credential_json_file_path, schema_prefix)
 

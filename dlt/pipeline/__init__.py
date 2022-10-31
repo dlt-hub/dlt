@@ -30,11 +30,10 @@ def pipeline(
         if context.is_activated():
             return cast(Pipeline, context.pipeline())
 
-    print(kwargs["_last_dlt_config"].pipeline_name)
-    print(kwargs["_last_dlt_config"].runtime.log_level)
     # if working_dir not provided use temp folder
     if not working_dir:
         working_dir = get_default_working_dir()
+
     destination = DestinationReference.from_name(destination)
     # create new pipeline instance
     p = Pipeline(pipeline_name, working_dir, pipeline_secret, destination, dataset_name, import_schema_path, export_schema_path, always_drop_pipeline, False, kwargs["runtime"])

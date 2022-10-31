@@ -47,7 +47,7 @@ class Normalize(Runnable[ProcessPool]):
         # setup storages
         self.create_storages()
         # create schema storage with give type
-        self.schema_storage = schema_storage or SchemaStorage(self.config.schema_storage_config, makedirs=True)
+        self.schema_storage = schema_storage or SchemaStorage(self.config._schema_storage_config, makedirs=True)
         try:
             self.create_gauges(collector)
         except ValueError as v:
@@ -64,9 +64,9 @@ class Normalize(Runnable[ProcessPool]):
 
     def create_storages(self) -> None:
         # pass initial normalize storage config embedded in normalize config
-        self.normalize_storage = NormalizeStorage(True, config=self.config.normalize_storage_config)
+        self.normalize_storage = NormalizeStorage(True, config=self.config._normalize_storage_config)
         # normalize saves in preferred format but can read all supported formats
-        self.load_storage = LoadStorage(True, self.loader_file_format, LoadStorage.ALL_SUPPORTED_FILE_FORMATS, config=self.config.load_storage_config)
+        self.load_storage = LoadStorage(True, self.loader_file_format, LoadStorage.ALL_SUPPORTED_FILE_FORMATS, config=self.config._load_storage_config)
 
 
     @staticmethod

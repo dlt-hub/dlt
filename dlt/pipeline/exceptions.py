@@ -27,30 +27,14 @@ You must install additional dependencies to run {self.caller}. If you use pip yo
     def _to_pip_install(self) -> str:
         return "\n".join([f"pip install {d}" for d in self.dependencies])
 
-
-# class NoPipelineException(PipelineException):
-#     def __init__(self) -> None:
-#         super().__init__("Please create or restore pipeline before using this function")
-
-
 class PipelineConfigMissing(PipelineException):
-    def __init__(self, config_elem: str, step: TPipelineStep, help: str = None) -> None:
+    def __init__(self, config_elem: str, step: TPipelineStep, _help: str = None) -> None:
         self.config_elem = config_elem
         self.step = step
         msg = f"Configuration element {config_elem} was not provided and {step} step cannot be executed"
-        if help:
-            msg += f"\n{help}\n"
+        if _help:
+            msg += f"\n{_help}\n"
         super().__init__(msg)
-
-
-# class PipelineConfiguredException(PipelineException):
-#     def __init__(self, f_name: str) -> None:
-#         super().__init__(f"{f_name} cannot be called on already configured or restored pipeline.")
-
-
-# class InvalidPipelineContextException(PipelineException):
-#     def __init__(self) -> None:
-#         super().__init__("There may be just one active pipeline in single python process. To activate current pipeline call `activate` method")
 
 
 class CannotRestorePipelineException(PipelineException):
@@ -70,7 +54,3 @@ class PipelineStepFailed(PipelineException):
         self.exception = exception
         self.run_metrics = run_metrics
         super().__init__(f"Pipeline execution failed at stage {step} with exception:\n\n{type(exception)}\n{exception}")
-
-
-# class CannotApplyHintsToManyResources(ArgumentsOverloadException):
-#     pass

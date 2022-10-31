@@ -214,7 +214,7 @@ class Pipeline:
                 if schema:
                     data_item.schema = schema
                 # try to apply hints to resources
-                resources = data_item.resources
+                resources = data_item.resources.values()
                 for r in resources:
                     apply_hint_args(r)
                 return data_item
@@ -385,7 +385,7 @@ class Pipeline:
             if isinstance(client, SqlJobClientBase):
                 return client.sql_client
             else:
-                raise SqlClientNotAvailable(self.destination.name())
+                raise SqlClientNotAvailable(self.destination.__name__)
 
     def _get_normalize_storage(self) -> NormalizeStorage:
         return NormalizeStorage(True, self._normalize_storage_config)
@@ -567,8 +567,6 @@ class Pipeline:
             # load state from storage to be merged with pipeline changes, currently we assume no parallel changes
             # compare backup and new state, save only if different
             backup_state = self._get_state()
-            print(state)
-            print(backup_state)
             new_state = json.dumps(state, sort_keys=True)
             old_state = json.dumps(backup_state, sort_keys=True)
             # persist old state
