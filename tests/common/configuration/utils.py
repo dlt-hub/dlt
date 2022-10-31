@@ -93,7 +93,7 @@ class MockProvider(Provider):
     def get_value(self, key: str, hint: Type[Any], *namespaces: str) -> Tuple[Optional[Any], str]:
         self.last_namespace = namespaces
         self.last_namespaces.append(namespaces)
-        print("|".join(namespaces) + "-" + key)
+        # print("|".join(namespaces) + "-" + key)
         if namespaces == self.return_value_on:
             rv = self.value
         else:

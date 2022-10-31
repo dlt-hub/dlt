@@ -88,7 +88,7 @@ def test_validate_schema_cases() -> None:
 
     validate_dict(TStoredSchema, schema_dict, ".", lambda k: not k.startswith("x-"), simple_regex_validator)
 
-    # with open("tests/common/cases/schemas/rasa/event_schema.json") as f:
+    # with open("tests/common/cases/schemas/rasa/event.schema.json") as f:
     #     schema_dict: TStoredSchema = json.load(f)
 
     # validate_dict(TStoredSchema, schema_dict, ".", lambda k: not k.startswith("x-"))

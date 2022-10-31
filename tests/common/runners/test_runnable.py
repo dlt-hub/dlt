@@ -3,8 +3,7 @@ import pytest
 from multiprocessing.pool import Pool
 from multiprocessing.dummy import Pool as ThreadPool
 
-from dlt.common.utils import uniq_id
-from dlt.normalize.configuration import NormalizeConfiguration
+from dlt.normalize.configuration import SchemaVolumeConfiguration
 
 from tests.common.runners.utils import _TestRunnable
 from tests.utils import skipifspawn
@@ -68,9 +67,8 @@ def test_weak_pool_ref() -> None:
 
 
 def test_configuredworker() -> None:
-
     # call worker method with CONFIG values that should be restored into CONFIG type
-    config = NormalizeConfiguration()
+    config = SchemaVolumeConfiguration()
     config["import_schema_path"] = "test_schema_path"
     _worker_1(config, "PX1", par2="PX2")
 
@@ -79,9 +77,9 @@ def test_configuredworker() -> None:
         p.starmap(_worker_1, [(config, "PX1", "PX2")])
 
 
-def _worker_1(CONFIG: NormalizeConfiguration, par1: str, par2: str = "DEFAULT") -> None:
+def _worker_1(CONFIG: SchemaVolumeConfiguration, par1: str, par2: str = "DEFAULT") -> None:
     # a correct type was passed
-    assert type(CONFIG) is NormalizeConfiguration
+    assert type(CONFIG) is SchemaVolumeConfiguration
     # check if config values are restored
     assert CONFIG.import_schema_path == "test_schema_path"
     # check if other parameters are correctly

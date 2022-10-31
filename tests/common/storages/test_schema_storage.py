@@ -4,11 +4,9 @@ import pytest
 import yaml
 from dlt.common import json
 
-from dlt.common.typing import DictStrAny
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import TStoredSchema
 from dlt.common.schema.utils import default_normalizers
-from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.specs import SchemaVolumeConfiguration
 from dlt.common.storages.exceptions import InStorageSchemaModified, SchemaNotFoundError
 from dlt.common.storages import SchemaStorage, LiveSchemaStorage, FileStorage
@@ -245,7 +243,7 @@ def test_save_store_schema(storage: SchemaStorage) -> None:
 
 
 def prepare_import_folder(storage: SchemaStorage) -> None:
-    shutil.copy(yml_case_path("schemas/eth/ethereum_schema_v4"), storage.storage.make_full_path("../import/ethereum_schema.yaml"))
+    shutil.copy(yml_case_path("schemas/eth/ethereum_schema_v4"), storage.storage.make_full_path("../import/ethereum.schema.yaml"))
 
 
 def assert_schema_imported(synced_storage: SchemaStorage, storage: SchemaStorage) -> Schema:

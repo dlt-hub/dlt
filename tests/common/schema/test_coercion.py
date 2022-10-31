@@ -156,13 +156,13 @@ def test_coerce_type_to_timestamp() -> None:
 
     # test wrong unix timestamps
     with pytest.raises(ValueError):
-        print(utils.coerce_type("timestamp", "double", -1000000000000000000000000000))
+        utils.coerce_type("timestamp", "double", -1000000000000000000000000000)
     with pytest.raises(ValueError):
-        print(utils.coerce_type("timestamp", "double", 1000000000000000000000000000))
+        utils.coerce_type("timestamp", "double", 1000000000000000000000000000)
 
     # formats with timezones are not parsed
     with pytest.raises(ValueError):
-        print(utils.coerce_type("timestamp", "text", "06/04/22, 11:15PM IST"))
+        utils.coerce_type("timestamp", "text", "06/04/22, 11:15PM IST")
 
     # we do not parse RFC 822, 2822, 850 etc.
     with pytest.raises(ValueError):

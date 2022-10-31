@@ -57,7 +57,7 @@ def test_get_default_injectable_config(container: Container) -> None:
 
 
 def test_raise_on_no_default_value(container: Container) -> None:
-    with pytest.raises(ContextDefaultCannotBeCreated) as py_ex:
+    with pytest.raises(ContextDefaultCannotBeCreated):
         container[NoDefaultInjectableContext]
 
     # ok when injected
@@ -129,8 +129,8 @@ def test_container_provider(container: Container) -> None:
         provider.get_value("n/a", InjectableTestContext, ("ns1",))
 
     # type hints that are not classes
-    l = Literal["a"]
-    v, k = provider.get_value("n/a", l)
+    literal = Literal["a"]
+    v, k = provider.get_value("n/a", literal)
     assert v is None
     assert k == "typing.Literal['a']"
 

@@ -16,7 +16,7 @@ from dlt.common.storages.exceptions import InStorageSchemaModified, SchemaNotFou
 class SchemaStorage(Mapping[str, Schema]):
 
     SCHEMA_FILE_NAME = "schema.%s"
-    NAMED_SCHEMA_FILE_PATTERN = f"%s_{SCHEMA_FILE_NAME}"
+    NAMED_SCHEMA_FILE_PATTERN = f"%s.{SCHEMA_FILE_NAME}"
 
     @overload
     def __init__(self, config: SchemaVolumeConfiguration, makedirs: bool = False) -> None:
@@ -77,7 +77,7 @@ class SchemaStorage(Mapping[str, Schema]):
     def list_schemas(self) -> List[str]:
         files = self.storage.list_folder_files(".", to_root=False)
         # extract names
-        return [re.split("_|schema", f)[0] for f in files]
+        return [f.split(".")[0] for f in files]
 
     def __getitem__(self, name: str) -> Schema:
         return self.load_schema(name)

@@ -98,9 +98,9 @@ def test_configuration_files(environment: Any) -> None:
     C = resolve.resolve_configuration(MockProdConfigurationVar())
     assert C.config_files_storage_path == environment["CONFIG_FILES_STORAGE_PATH"]
     assert C.has_configuration_file("hasn't") is False
-    assert C.has_configuration_file("event_schema.json") is True
-    assert C.get_configuration_file_path("event_schema.json") == "./tests/common/cases/schemas/ev1/event_schema.json"
-    with C.open_configuration_file("event_schema.json", "r") as f:
+    assert C.has_configuration_file("event.schema.json") is True
+    assert C.get_configuration_file_path("event.schema.json") == "./tests/common/cases/schemas/ev1/event.schema.json"
+    with C.open_configuration_file("event.schema.json", "r") as f:
         f.read()
     with pytest.raises(ConfigFileNotFoundException):
         C.open_configuration_file("hasn't", "r")

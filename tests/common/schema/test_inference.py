@@ -125,7 +125,7 @@ def test_coerce_row(schema: Schema) -> None:
     schema.update_schema(new_table)
     with pytest.raises(CannotCoerceColumnException) as exc_val:
         # now pass the binary that would create binary variant - but the column is occupied by text type
-        print(schema.coerce_row("event_user", None, {"new_colbool": pendulum.now()}))
+        schema.coerce_row("event_user", None, {"new_colbool": pendulum.now()})
     assert exc_val.value.table_name == "event_user"
     assert exc_val.value.column_name == "new_colbool__v_timestamp"
     assert exc_val.value.from_type == "timestamp"

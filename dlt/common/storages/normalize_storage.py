@@ -32,13 +32,10 @@ class NormalizeStorage(VersionedStorage):
     def __init__(self, is_owner: bool, config: NormalizeVolumeConfiguration = ConfigValue) -> None:
         super().__init__(NormalizeStorage.STORAGE_VERSION, is_owner, FileStorage(config.normalize_volume_path, "t", makedirs=is_owner))
         self.config = config
-        print(is_owner)
         if is_owner:
             self.initialize_storage()
 
     def initialize_storage(self) -> None:
-        print(self.storage.storage_path)
-        print(NormalizeStorage.EXTRACTED_FOLDER)
         self.storage.create_folder(NormalizeStorage.EXTRACTED_FOLDER, exists_ok=True)
 
     def list_files_to_normalize_sorted(self) -> Sequence[str]:

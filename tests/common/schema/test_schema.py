@@ -16,7 +16,7 @@ from tests.utils import autouse_test_storage
 from tests.common.utils import load_json_case, load_yml_case
 
 SCHEMA_NAME = "event"
-EXPECTED_FILE_NAME = f"{SCHEMA_NAME}_schema.json"
+EXPECTED_FILE_NAME = f"{SCHEMA_NAME}.schema.json"
 
 
 @pytest.fixture
@@ -158,7 +158,7 @@ def test_save_store_schema_custom_normalizers(cn_schema: Schema, schema_storage:
 
 
 def test_upgrade_engine_v1_schema() -> None:
-    schema_dict: DictStrAny = load_json_case("schemas/ev1/event_schema")
+    schema_dict: DictStrAny = load_json_case("schemas/ev1/event.schema")
     # ensure engine v1
     assert schema_dict["engine_version"] == 1
     # schema_dict will be updated to new engine version
@@ -168,14 +168,14 @@ def test_upgrade_engine_v1_schema() -> None:
     assert len(schema_dict["tables"]) == 27
 
     # upgrade schema eng 2 -> 4
-    schema_dict: DictStrAny = load_json_case("schemas/ev2/event_schema")
+    schema_dict: DictStrAny = load_json_case("schemas/ev2/event.schema")
     assert schema_dict["engine_version"] == 2
     upgraded = utils.upgrade_engine_version(schema_dict, from_engine=2, to_engine=4)
     assert upgraded["engine_version"] == 4
     utils.validate_stored_schema(upgraded)
 
     # upgrade 1 -> 4
-    schema_dict: DictStrAny = load_json_case("schemas/ev1/event_schema")
+    schema_dict: DictStrAny = load_json_case("schemas/ev1/event.schema")
     assert schema_dict["engine_version"] == 1
     upgraded = utils.upgrade_engine_version(schema_dict, from_engine=1, to_engine=4)
     assert upgraded["engine_version"] == 4
@@ -183,7 +183,7 @@ def test_upgrade_engine_v1_schema() -> None:
 
 
 def test_unknown_engine_upgrade() -> None:
-    schema_dict: TStoredSchema = load_json_case("schemas/ev1/event_schema")
+    schema_dict: TStoredSchema = load_json_case("schemas/ev1/event.schema")
     # there's no path to migrate 3 -> 2
     schema_dict["engine_version"] = 3
     with pytest.raises(SchemaEngineNoUpgradePathException):
@@ -242,7 +242,7 @@ def test_rasa_event_hints(columns: Sequence[str], hint: str, value: bool, schema
 
 def test_filter_hints_table() -> None:
     # this schema contains event_bot table with expected hints
-    schema_dict: TStoredSchema = load_json_case("schemas/ev1/event_schema")
+    schema_dict: TStoredSchema = load_json_case("schemas/ev1/event.schema")
     schema = Schema.from_dict(schema_dict)
     # get all not_null columns on event
     bot_case: StrAny = load_json_case("mod_bot_case")

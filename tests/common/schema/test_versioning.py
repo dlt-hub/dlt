@@ -115,7 +115,7 @@ def test_version_preserve_on_reload(remove_defaults: bool) -> None:
     assert saved_schema.stored_version_hash == schema.stored_version_hash
 
     # serialize as yaml, for that use a schema that was stored in json
-    rasa_v4: TStoredSchema = load_json_case("schemas/rasa/event_schema")
+    rasa_v4: TStoredSchema = load_json_case("schemas/rasa/event.schema")
     rasa_schema = Schema.from_dict(rasa_v4)
     rasa_yml = rasa_schema.to_pretty_yaml(remove_defaults=remove_defaults)
     saved_rasa_schema = Schema.from_dict(yaml.safe_load(rasa_yml))
