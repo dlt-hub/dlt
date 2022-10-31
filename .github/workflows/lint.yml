@@ -5,6 +5,7 @@ on:
   pull_request:
     branches:
       - master
+      - devel
   workflow_dispatch:
 
 jobs:
