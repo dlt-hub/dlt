@@ -23,8 +23,8 @@ from dlt.load.typing import DBCursor
 from dlt.load.sql_client import SqlClientBase
 from dlt.load.job_client_impl import SqlJobClientBase, LoadEmptyJob
 
-from dlt.load.redshift import capabilities
-from dlt.load.redshift.configuration import RedshiftClientConfiguration
+from dlt.destinations.redshift import capabilities
+from dlt.destinations.redshift.configuration import RedshiftClientConfiguration
 
 
 SCT_TO_PGT: Dict[TDataType, str] = {

@@ -7,8 +7,8 @@ from dlt.common.schema.utils import new_table
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.specs import GcpClientCredentials
 
-from dlt.load.bigquery.bigquery import BigQueryClient
-from dlt.load.bigquery.configuration import BigQueryClientConfiguration
+from dlt.destinations.bigquery.bigquery import BigQueryClient
+from dlt.destinations.bigquery.configuration import BigQueryClientConfiguration
 from dlt.load.exceptions import LoadClientSchemaWillNotUpdate
 
 from tests.load.utils import TABLE_UPDATE

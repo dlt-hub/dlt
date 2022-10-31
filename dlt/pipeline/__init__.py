@@ -1,4 +1,6 @@
-from typing import Union, cast
+from typing import Sequence, Union, cast
+from dlt.common.schema import Schema
+from dlt.common.schema.typing import TColumnSchema, TWriteDisposition
 
 from dlt.common.typing import TSecretValue, Any
 from dlt.common.configuration import with_config
@@ -36,7 +38,7 @@ def pipeline(
 
     destination = DestinationReference.from_name(destination)
     # create new pipeline instance
-    p = Pipeline(pipeline_name, working_dir, pipeline_secret, destination, dataset_name, import_schema_path, export_schema_path, always_drop_pipeline, False, kwargs["runtime"])
+    p = Pipeline(pipeline_name, working_dir, pipeline_secret, destination, dataset_name, import_schema_path, export_schema_path, always_drop_pipeline, False, kwargs["_runtime"])
     # set it as current pipeline
     Container()[PipelineContext].activate(p)
 
@@ -68,7 +70,7 @@ def restore(
         if not working_dir:
             working_dir = get_default_working_dir()
         # create new pipeline instance
-        p = Pipeline(pipeline_name, working_dir, pipeline_secret, None, None, None, None, always_drop_pipeline, True, kwargs["runtime"])
+        p = Pipeline(pipeline_name, working_dir, pipeline_secret, None, None, None, None, always_drop_pipeline, True, kwargs["_runtime"])
         # set it as current pipeline
         Container()[PipelineContext].activate(p)
         return p
@@ -80,6 +82,14 @@ def restore(
 Container()[PipelineContext] = PipelineContext(pipeline)
 
 
-def run(source: Any, destination: Union[None, str, DestinationReference] = None) -> Pipeline:
+def run(
+    source: Any,
+    destination: Union[None, str, DestinationReference] = None,
+    dataset_name: str = None,
+    table_name: str = None,
+    write_disposition: TWriteDisposition = None,
+    columns: Sequence[TColumnSchema] = None,
+    schema: Schema = None
+) -> None:
     destination = DestinationReference.from_name(destination)
-    return pipeline().run(source=source, destination=destination)
+    return pipeline().run(source, destination, dataset_name, table_name, write_disposition, columns, schema)

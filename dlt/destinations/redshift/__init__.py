@@ -5,7 +5,7 @@ from dlt.common.typing import ConfigValue
 from dlt.common.configuration import with_config
 from dlt.common.destination import DestinationCapabilitiesContext, JobClientBase, DestinationClientConfiguration
 
-from dlt.load.redshift.configuration import RedshiftClientConfiguration
+from dlt.destinations.redshift.configuration import RedshiftClientConfiguration
 
 
 @with_config(spec=RedshiftClientConfiguration, namespaces=("destination", "redshift",))
@@ -30,7 +30,7 @@ def capabilities() -> DestinationCapabilitiesContext:
 
 def client(schema: Schema, initial_config: DestinationClientConfiguration = ConfigValue) -> JobClientBase:
     # import client when creating instance so capabilities and config specs can be accessed without dependencies installed
-    from dlt.load.redshift.redshift import RedshiftClient
+    from dlt.destinations.redshift.redshift import RedshiftClient
 
     return RedshiftClient(schema, _configure(initial_config))  # type: ignore
 

@@ -80,12 +80,12 @@ class Pipeline:
     STATE_PROPS: ClassVar[List[str]] = list(get_type_hints(TPipelineState).keys())
 
     pipeline_name: str
-    default_schema_name: str
+    default_schema_name: str = None
     always_drop_pipeline: bool
     working_dir: str
     pipeline_root: str
-    destination: DestinationReference
-    dataset_name: str
+    destination: DestinationReference = None
+    dataset_name: str = None
 
     def __init__(
             self,
@@ -115,9 +115,9 @@ class Pipeline:
         # initialize pipeline working dir
         self._init_working_dir(pipeline_name, working_dir)
         # initialize or restore state
-        with self._managed_state():
+        with self._managed_state() as state:
             # see if state didn't change the pipeline name
-            if pipeline_name != self.pipeline_name:
+            if "pipeline_name" in state and pipeline_name != state["pipeline_name"]:
                 raise CannotRestorePipelineException(pipeline_name, working_dir, f"working directory contains state for pipeline with name {self.pipeline_name}")
             # at this moment state is recovered so we overwrite the state with the values from init
             self.destination = destination or self.destination  # changing the destination could be dangerous if pipeline has not loaded items
@@ -144,7 +144,7 @@ class Pipeline:
             self._schema_storage.config.import_schema_path,
             self._schema_storage.config.export_schema_path,
             self.always_drop_pipeline,
-            True,
+            False,
             self.runtime_config
         )
 
@@ -271,9 +271,9 @@ class Pipeline:
             exit_on_exception=True,
             workers=workers,
             pool_type="none" if workers == 1 else "process",
-            schema_storage_config=self._schema_storage_config,
-            normalize_storage_config=self._normalize_storage_config,
-            load_storage_config=self._load_storage_config
+            _schema_storage_config=self._schema_storage_config,
+            _normalize_storage_config=self._normalize_storage_config,
+            _load_storage_config=self._load_storage_config
         )
         # run with destination context
         with self._container.injectable_context(destination_caps):
@@ -313,7 +313,7 @@ class Pipeline:
             exit_on_exception=True,
             workers=workers,
             always_wipe_storage=always_wipe_storage or self.always_drop_pipeline,
-            load_storage_config=self._load_storage_config
+            _load_storage_config=self._load_storage_config
         )
         load = Load(self.destination, is_storage_owner=False, config=load_config, initial_client_config=client_initial_config)
         self._run_step_in_pool("load", load, load.config)
@@ -376,12 +376,14 @@ class Pipeline:
         return failed_jobs
 
     def sync_schema(self, schema_name: str = None) -> None:
-        with self._get_destination_client(self.schemas[schema_name]) as client:
+        schema = self.schemas[schema_name] if schema_name else self.default_schema
+        with self._get_destination_client(schema) as client:
             client.initialize_storage(wipe_data=self.always_drop_pipeline)
             client.update_storage_schema()
 
     def sql_client(self, schema_name: str = None) -> SqlClientBase[Any]:
-        with self._get_destination_client(self.schemas[schema_name]) as client:
+        schema = self.schemas[schema_name] if schema_name else self.default_schema
+        with self._get_destination_client(schema) as client:
             if isinstance(client, SqlJobClientBase):
                 return client.sql_client
             else:
@@ -456,7 +458,6 @@ class Pipeline:
             # and set as default if this is first schema in pipeline
             if not self.default_schema_name:
                 self.default_schema_name = source_schema.name
-
 
     def _run_step_in_pool(self, step: TPipelineStep, runnable: Runnable[Any], config: PoolRunnerConfiguration) -> int:
         try:
@@ -547,7 +548,8 @@ class Pipeline:
         state = self._get_state()
         # write props to pipeline variables
         for prop in Pipeline.STATE_PROPS:
-            setattr(self, prop, state.get(prop))
+            if prop in state:
+                setattr(self, prop, state.get(prop))
         if "destination" in state:
             self.destination = DestinationReference.from_name(self.destination)
 

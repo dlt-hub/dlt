@@ -20,6 +20,6 @@ class LoaderConfiguration(PoolRunnerConfiguration):
             exit_on_exception: bool = None,
             is_single_run: bool = None,
             always_wipe_storage: bool = None,
-            load_storage_config: LoadVolumeConfiguration = None
+            _load_storage_config: LoadVolumeConfiguration = None
         ) -> None:
             ...

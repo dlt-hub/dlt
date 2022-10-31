@@ -5,7 +5,7 @@ from dlt.common.typing import ConfigValue
 from dlt.common.configuration import with_config
 from dlt.common.destination import DestinationCapabilitiesContext, JobClientBase, DestinationClientConfiguration
 
-from dlt.load.dummy.configuration import DummyClientConfiguration
+from dlt.destinations.dummy.configuration import DummyClientConfiguration
 
 
 @with_config(spec=DummyClientConfiguration, namespaces=("destination", "dummy",))
@@ -31,7 +31,7 @@ def capabilities() -> DestinationCapabilitiesContext:
 
 def client(schema: Schema, initial_config: DestinationClientConfiguration = ConfigValue) -> JobClientBase:
     # import client when creating instance so capabilities and config specs can be accessed without dependencies installed
-    from dlt.load.dummy.dummy import DummyClient
+    from dlt.destinations.dummy.dummy import DummyClient
 
     return DummyClient(schema, _configure(initial_config))  # type: ignore
 
