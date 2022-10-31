@@ -81,7 +81,7 @@ class DummyClient(JobClientBase):
         super().__init__(schema, config)
         self.config: DummyClientConfiguration = config
 
-    def initialize_storage(self) -> None:
+    def initialize_storage(self, wipe_data: bool = False) -> None:
         pass
 
     def update_storage_schema(self) -> None:

@@ -213,7 +213,9 @@ class RedshiftClient(SqlJobClientBase):
         self.config: RedshiftClientConfiguration = config
         self.sql_client = sql_client
 
-    def initialize_storage(self) -> None:
+    def initialize_storage(self, wipe_data: bool = False) -> None:
+        if wipe_data:
+            raise NotImplementedError()
         if not self.sql_client.has_dataset():
             self.sql_client.create_dataset()
 

@@ -10,7 +10,6 @@ from dlt.load.dummy.configuration import DummyClientConfiguration
 
 @with_config(spec=DummyClientConfiguration, namespaces=("destination", "dummy",))
 def _configure(config: DummyClientConfiguration = ConfigValue) -> DummyClientConfiguration:
-    print(dict(config))
     return config
 
 

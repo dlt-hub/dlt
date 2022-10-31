@@ -199,7 +199,9 @@ class BigQueryClient(SqlJobClientBase):
         self.config: BigQueryClientConfiguration = config
         self.sql_client: BigQuerySqlClient = sql_client
 
-    def initialize_storage(self) -> None:
+    def initialize_storage(self, wipe_data: bool = False) -> None:
+        if wipe_data:
+            raise NotImplementedError()
         if not self.sql_client.has_dataset():
             self.sql_client.create_dataset()
 

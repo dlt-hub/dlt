@@ -21,6 +21,5 @@ class BigQueryClientConfiguration(DestinationClientDwhConfiguration):
                 # set the project id - it needs to be known by the client
                 self.credentials.project_id = self.credentials.project_id or project_id
             except DefaultCredentialsError:
-                print("DefaultCredentialsError")
                 # re-raise preventing exception
                 raise self.credentials.__exception__

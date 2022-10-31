@@ -53,7 +53,7 @@ class Load(Runnable[ThreadPool]):
             is_storage_owner,
             self.capabilities.preferred_loader_file_format,
             self.capabilities.supported_loader_file_formats,
-            config=self.config.load_storage_config
+            config=self.config._load_storage_config
         )
         return load_storage
 

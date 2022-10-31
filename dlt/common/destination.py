@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from importlib import import_module
 from nis import cat
-from types import TracebackType
+from types import ModuleType, TracebackType
 from typing import ClassVar, List, Optional, Literal, Type, Protocol, Union, TYPE_CHECKING, cast
 
 from dlt.common.schema import Schema
@@ -99,7 +99,7 @@ class JobClientBase(ABC):
         self.config = config
 
     @abstractmethod
-    def initialize_storage(self) -> None:
+    def initialize_storage(self, wipe_data: bool = False) -> None:
         pass
 
     @abstractmethod
@@ -133,6 +133,8 @@ class JobClientBase(ABC):
 
 
 class DestinationReference(Protocol):
+    __name__: str
+
     def capabilities(self) -> DestinationCapabilitiesContext:
         ...
 
