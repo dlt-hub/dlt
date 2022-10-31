@@ -81,9 +81,6 @@ class BaseConfiguration(MutableMapping[str, Any]):
     # holds the exception that prevented the full resolution
     __exception__: Exception = dataclasses.field(default = None, init=False, repr=False)
 
-    def __init__(self) -> None:
-        self.__ignore_set_unknown_keys = False
-
     def from_native_representation(self, native_value: Any) -> None:
         """Initialize the configuration fields by parsing the `initial_value` which should be a native representation of the configuration
         or credentials, for example database connection string or JSON serialized GCP service credentials file.
@@ -136,7 +133,12 @@ class BaseConfiguration(MutableMapping[str, Any]):
         if self.__has_attr(__key):
             setattr(self, __key, __value)
         else:
-            if not self.__ignore_set_unknown_keys:
+            try:
+                if not self.__ignore_set_unknown_keys:
+                    # assert getattr(self, "__ignore_set_unknown_keys") is not None
+                    raise KeyError(__key)
+            except AttributeError:
+                # __ignore_set_unknown_keys attribute may not be present at the moment of checking, __init__ of BaseConfiguration is not typically called
                 raise KeyError(__key)
 
     def __delitem__(self, __key: str) -> None:

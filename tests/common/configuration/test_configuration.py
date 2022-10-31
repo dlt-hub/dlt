@@ -264,41 +264,48 @@ def test_configuration_is_mutable_mapping(environment: Any) -> None:
     assert dict(_SecretCredentials()) == expected_dict
 
     environment["SECRET_VALUE"] = "secret"
-    C = resolve.resolve_configuration(_SecretCredentials())
+    c = resolve.resolve_configuration(_SecretCredentials())
     expected_dict["secret_value"] = "secret"
-    assert dict(C) == expected_dict
+    assert dict(c) == expected_dict
 
     # check mutable mapping type
-    assert isinstance(C, MutableMapping)
-    assert isinstance(C, Mapping)
-    assert not isinstance(C, Dict)
+    assert isinstance(c, MutableMapping)
+    assert isinstance(c, Mapping)
+    assert not isinstance(c, Dict)
 
     # check view ops
-    assert C.keys() == expected_dict.keys()
-    assert len(C) == len(expected_dict)
-    assert C.items() == expected_dict.items()
-    assert list(C.values()) == list(expected_dict.values())
-    for key in C:
-        assert C[key] == expected_dict[key]
+    assert c.keys() == expected_dict.keys()
+    assert len(c) == len(expected_dict)
+    assert c.items() == expected_dict.items()
+    assert list(c.values()) == list(expected_dict.values())
+    for key in c:
+        assert c[key] == expected_dict[key]
     # version is present as attr but not present in dict
-    assert hasattr(C, "__is_resolved__")
-    assert hasattr(C, "__namespace__")
+    assert hasattr(c, "__is_resolved__")
+    assert hasattr(c, "__namespace__")
 
     # set ops
     # update supported and non existing attributes are ignored
-    C.update({"pipeline_name": "old pipe", "__version": "1.1.1"})
-    assert C.pipeline_name == "old pipe" == C["pipeline_name"]
+    c.update({"pipeline_name": "old pipe", "__version": "1.1.1"})
+    assert c.pipeline_name == "old pipe" == c["pipeline_name"]
 
     # delete is not supported
     with pytest.raises(KeyError):
-        del C["pipeline_name"]
+        del c["pipeline_name"]
 
     with pytest.raises(KeyError):
-        C.pop("pipeline_name", None)
+        c.pop("pipeline_name", None)
 
     # setting supported
-    C["pipeline_name"] = "new pipe"
-    assert C.pipeline_name == "new pipe" == C["pipeline_name"]
+    c["pipeline_name"] = "new pipe"
+    assert c.pipeline_name == "new pipe" == c["pipeline_name"]
+    with pytest.raises(KeyError):
+        c["unknown_prop"] = "unk"
+
+    # also on new instance
+    c = SecretConfiguration()
+    with pytest.raises(KeyError):
+        c["unknown_prop"] = "unk"
 
 
 def test_fields_with_no_default_to_null(environment: Any) -> None:
@@ -602,7 +609,7 @@ def test_do_not_resolve_twice(environment: Any) -> None:
     assert c2 is c3 is c4
     # also c is resolved so
     c.secret_value = "else"
-    resolve.resolve_configuration(c).secret_value == "else"
+    assert resolve.resolve_configuration(c).secret_value == "else"
 
 
 def test_do_not_resolve_embedded(environment: Any) -> None:

@@ -108,14 +108,15 @@ def _resolve_configuration(
         resolved_initial: Any = None
         if config.__namespace__ or embedded_namespaces:
             cf_n, emb_ns = _apply_embedded_namespaces_to_config_namespace(config.__namespace__, embedded_namespaces)
-            resolved_initial, traces = _resolve_single_field(cf_n, type(config), None, explicit_namespaces, emb_ns)
-            _log_traces(config, cf_n, type(config), resolved_initial, traces)
-            # initial values cannot be dictionaries
-            if not isinstance(resolved_initial, C_Mapping):
-                initial_value = resolved_initial or initial_value
-            # if this is injectable context then return it immediately
-            if isinstance(resolved_initial, ContainerInjectableContext):
-                return resolved_initial  # type: ignore
+            if cf_n:
+                resolved_initial, traces = _resolve_single_field(cf_n, type(config), None, explicit_namespaces, emb_ns)
+                _log_traces(config, cf_n, type(config), resolved_initial, traces)
+                # initial values cannot be dictionaries
+                if not isinstance(resolved_initial, C_Mapping):
+                    initial_value = resolved_initial or initial_value
+                # if this is injectable context then return it immediately
+                if isinstance(resolved_initial, ContainerInjectableContext):
+                    return resolved_initial  # type: ignore
         try:
             try:
                 # use initial value to set config values
@@ -145,20 +146,6 @@ def _resolve_configuration(
         raise
 
     return config
-
-
-def _apply_embedded_namespaces_to_config_namespace(config_namespace: str, embedded_namespaces: Tuple[str, ...]) -> Tuple[str, Tuple[str, ...]]:
-    # for the configurations that have __namespace__ (config_namespace) defined and are embedded in other configurations,
-    # the innermost embedded namespace replaces config_namespace
-    if embedded_namespaces:
-        config_namespace = embedded_namespaces[-1]
-        embedded_namespaces = embedded_namespaces[:-1]
-    # if config_namespace:
-    return config_namespace, embedded_namespaces
-
-
-def _is_secret_hint(hint: Type[Any]) -> bool:
-    return hint is TSecretValue or (inspect.isclass(hint) and issubclass(hint, CredentialsConfiguration))
 
 
 def _resolve_config_fields(
@@ -311,3 +298,19 @@ def _resolve_single_field(
         value = look_namespaces()
 
     return value, traces
+
+
+def _apply_embedded_namespaces_to_config_namespace(config_namespace: str, embedded_namespaces: Tuple[str, ...]) -> Tuple[str, Tuple[str, ...]]:
+    # for the configurations that have __namespace__ (config_namespace) defined and are embedded in other configurations,
+    # the innermost embedded namespace replaces config_namespace
+    if embedded_namespaces:
+        # do not add key to embedded namespaces if it starts with _, those namespaces must be ignored
+        if not embedded_namespaces[-1].startswith("_"):
+            config_namespace = embedded_namespaces[-1]
+        embedded_namespaces = embedded_namespaces[:-1]
+
+    return config_namespace, embedded_namespaces
+
+
+def _is_secret_hint(hint: Type[Any]) -> bool:
+    return hint is TSecretValue or (inspect.isclass(hint) and issubclass(hint, CredentialsConfiguration))

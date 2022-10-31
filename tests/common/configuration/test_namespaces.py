@@ -4,7 +4,6 @@ from dlt.common.configuration.container import Container
 
 from dlt.common.configuration import configspec, ConfigFieldMissingException, resolve, inject_namespace
 from dlt.common.configuration.specs import BaseConfiguration, ConfigNamespacesContext
-# from dlt.common.configuration.providers import environ as environ_provider
 from dlt.common.configuration.exceptions import LookupTrace
 
 from tests.utils import preserve_environ
@@ -24,6 +23,22 @@ class EmbeddedConfiguration(BaseConfiguration):
 @configspec
 class EmbeddedWithNamespacedConfiguration(BaseConfiguration):
     embedded: NamespacedConfiguration
+
+
+@configspec
+class EmbeddedIgnoredConfiguration(BaseConfiguration):
+    # underscore prevents the field name to be added to embedded namespaces
+    _sv_config: Optional[SingleValConfiguration]
+
+
+@configspec
+class EmbeddedIgnoredWithNamespacedConfiguration(BaseConfiguration):
+    _embedded: NamespacedConfiguration
+
+
+@configspec
+class EmbeddedWithIgnoredEmbeddedConfiguration(BaseConfiguration):
+    ignored_embedded: EmbeddedIgnoredWithNamespacedConfiguration
 
 
 def test_namespaced_configuration(environment: Any) -> None:
@@ -108,15 +123,36 @@ def test_overwrite_config_namespace_from_embedded(mock_provider: MockProvider) -
 def test_explicit_namespaces_from_embedded_config(mock_provider: MockProvider) -> None:
     mock_provider.value = {"sv": "A"}
     mock_provider.return_value_on = ("sv_config",)
-    C = resolve.resolve_configuration(EmbeddedConfiguration())
+    c = resolve.resolve_configuration(EmbeddedConfiguration())
     # we mock the dictionary below as the value for all requests
-    assert C.sv_config.sv == '{"sv": "A"}'
+    assert c.sv_config.sv == '{"sv": "A"}'
     # following namespaces were used when resolving EmbeddedConfig: () trying to get initial value for the whole embedded sv_config, then ("sv_config",), () to resolve sv in sv_config
     assert mock_provider.last_namespaces == [(), ("sv_config",)]
     # embedded namespace inner of explicit
     mock_provider.reset_stats()
-    C = resolve.resolve_configuration(EmbeddedConfiguration(), namespaces=("ns1",))
+    resolve.resolve_configuration(EmbeddedConfiguration(), namespaces=("ns1",))
     assert mock_provider.last_namespaces == [("ns1",), (), ("ns1", "sv_config",), ("sv_config",)]
+
+
+def test_ignore_embedded_namespace_by_field_name(mock_provider: MockProvider) -> None:
+    mock_provider.value = {"sv": "A"}
+    resolve.resolve_configuration(EmbeddedIgnoredConfiguration())
+    # _sv_config will not be added to embedded namespaces and looked up
+    assert mock_provider.last_namespaces == [()]
+    mock_provider.reset_stats()
+    resolve.resolve_configuration(EmbeddedIgnoredConfiguration(), namespaces=("ns1",))
+    assert mock_provider.last_namespaces == [("ns1",), ()]
+    # if namespace config exist, it won't be replaced by embedded namespace
+    mock_provider.reset_stats()
+    mock_provider.value = {}
+    mock_provider.return_value_on = ("DLT_TEST",)
+    resolve.resolve_configuration(EmbeddedIgnoredWithNamespacedConfiguration())
+    assert mock_provider.last_namespaces == [(), ("DLT_TEST",)]
+    # embedded configuration of depth 2: first normal, second - ignored
+    mock_provider.reset_stats()
+    mock_provider.return_value_on = ("DLT_TEST",)
+    resolve.resolve_configuration(EmbeddedWithIgnoredEmbeddedConfiguration())
+    assert mock_provider.last_namespaces == [(), ('ignored_embedded',), ('ignored_embedded', 'DLT_TEST'), ('DLT_TEST',)]
 
 
 def test_injected_namespaces(mock_provider: MockProvider) -> None:

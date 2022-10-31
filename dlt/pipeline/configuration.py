@@ -14,13 +14,13 @@ class PipelineConfiguration(BaseConfiguration):
     pipeline_name: Optional[str] = None
     working_dir: Optional[str] = None
     pipeline_secret: Optional[TSecretValue] = None
-    runtime: RunConfiguration
+    _runtime: RunConfiguration
 
     def check_integrity(self) -> None:
         if not self.pipeline_secret:
             self.pipeline_secret = TSecretValue(uniq_id())
         if not self.pipeline_name:
-            self.pipeline_name = self.runtime.pipeline_name
+            self.pipeline_name = self._runtime.pipeline_name
 
 
 @configspec(init=True)

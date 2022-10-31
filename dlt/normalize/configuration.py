@@ -9,9 +9,9 @@ from dlt.common.destination import DestinationCapabilitiesContext
 class NormalizeConfiguration(PoolRunnerConfiguration):
     pool_type: TPoolType = "process"
     destination_capabilities: DestinationCapabilitiesContext = None  # injectable
-    schema_storage_config: SchemaVolumeConfiguration
-    normalize_storage_config: NormalizeVolumeConfiguration
-    load_storage_config: LoadVolumeConfiguration
+    _schema_storage_config: SchemaVolumeConfiguration
+    _normalize_storage_config: NormalizeVolumeConfiguration
+    _load_storage_config: LoadVolumeConfiguration
 
     if TYPE_CHECKING:
         def __init__(

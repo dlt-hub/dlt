@@ -10,7 +10,7 @@ class LoaderConfiguration(PoolRunnerConfiguration):
     workers: int = 20  # how many parallel loads can be executed
     pool_type: TPoolType = "thread"  # mostly i/o (upload) so may be thread pool
     always_wipe_storage: bool = False  # removes all data in the storage
-    load_storage_config: LoadVolumeConfiguration = None
+    _load_storage_config: LoadVolumeConfiguration = None
 
     if TYPE_CHECKING:
         def __init__(
