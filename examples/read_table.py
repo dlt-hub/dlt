@@ -1,9 +1,8 @@
 import os
 
-from dlt.pipeline.pipeline import Pipeline
-from dlt.pipeline.typing import PostgresPipelineCredentials
+from dlt.destinations import redshift
 
-from examples.sources.sql_query import get_source
+from examples.sources.sql_query import query_table
 
 credentials = PostgresPipelineCredentials("redshift", "chat_analytics_rasa", "gamma_guild_7", "loader", "chat-analytics.czwteevq7bpe.eu-central-1.redshift.amazonaws.com")
 
@@ -14,15 +13,15 @@ conn_str = f"redshift+redshift_connector://{credentials.USER}:{os.environ['PG__P
 
 
 # we preserve method signature from pandas
-items = get_source("select *  from mainnet_2_ethereum.blocks__transactions limit 10", conn_str, coerce_float=False)
+# items = get_source("select *  from mainnet_2_ethereum.blocks__transactions limit 10", conn_str, coerce_float=False)
 
 # for i in items:
 #     for k, v in i.items():
 #         print(f"{k}:{v} ({type(v)}:{Schema._py_type_to_sc_type(type(v))})")
 
 # normalize and display schema
-p = Pipeline("mydb")
-p.create_pipeline(credentials)
-p.extract(items, table_name="blocks__transactions")
-p.normalize()
-print(p.get_default_schema().to_pretty_yaml(remove_defaults=True))
+# p = Pipeline("mydb")
+# p.create_pipeline(credentials)
+# p.extract(items, table_name="blocks__transactions")
+# p.normalize()
+# print(p.get_default_schema().to_pretty_yaml(remove_defaults=True))

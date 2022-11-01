@@ -65,7 +65,7 @@ class RedshiftSqlClient(SqlClientBase["psycopg2.connection"]):
 
     def open_connection(self) -> None:
         self._conn = psycopg2.connect(
-                             **self.credentials,
+                             dsn=self.credentials.to_native_representation(),
                              options=f"-c search_path={self.fully_qualified_dataset_name()},public"
                              )
         # we'll provide explicit transactions

@@ -69,7 +69,7 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client]):
         if not self.credentials.is_resolved():
             credentials = None
         else:
-            credentials = service_account.Credentials.from_service_account_info(self.credentials.to_native_representation())
+            credentials = service_account.Credentials.from_service_account_info(self.credentials)
         self._client = bigquery.Client(self.credentials.project_id, credentials=credentials, location=self.credentials.location)
 
     def close_connection(self) -> None:

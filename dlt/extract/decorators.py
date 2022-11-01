@@ -56,7 +56,7 @@ def source(func: Optional[AnyFun] = None, /, name: str = None, schema: Schema = 
             schema = Schema(name)
 
         # wrap source extraction function in configuration with namespace
-        conf_f = with_config(f, spec=spec, namespaces=("source", name))
+        conf_f = with_config(f, spec=spec, namespaces=("sources", name))
 
         @wraps(conf_f, func_name=name)
         def _wrap(*args: Any, **kwargs: Any) -> DltSource:
@@ -203,7 +203,7 @@ def resource(
             conf_f = f
         else:
             # wrap source extraction function in configuration with namespace
-            conf_f = with_config(f, spec=spec, namespaces=("resource", resource_name))
+            conf_f = with_config(f, spec=spec, namespaces=("sources", resource_name))
             # get spec for wrapped function
             SPEC = get_fun_spec(conf_f)
 

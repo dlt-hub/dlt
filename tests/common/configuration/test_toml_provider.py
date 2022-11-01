@@ -120,7 +120,7 @@ def test_secrets_toml_credentials(providers: ConfigProvidersContext) -> None:
         resolve.resolve_configuration(GcpClientCredentials())
     # also try postgres credentials
     c = resolve.resolve_configuration(PostgresCredentials(), namespaces=("destination", "redshift"))
-    assert c.dbname == "destination.redshift.credentials"
+    assert c.database == "destination.redshift.credentials"
     # bigquery credentials do not match redshift credentials
     with pytest.raises(ConfigFieldMissingException):
         resolve.resolve_configuration(PostgresCredentials(), namespaces=("destination", "bigquery"))

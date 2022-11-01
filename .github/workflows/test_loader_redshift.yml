@@ -10,9 +10,9 @@ on:
 
 env:
   CREDENTIALS__HOST: 3.73.90.3
-  CREDENTIALS__USER: loader
+  CREDENTIALS__USERNAME: loader
   CREDENTIALS__PASSWORD: ${{ secrets.PG_PASSWORD }}
-  CREDENTIALS__DBNAME: chat_analytics_rasa_ci
+  CREDENTIALS__DATABASE: chat_analytics_rasa_ci
   DATASET_NAME: workflowtest
 
 jobs:
