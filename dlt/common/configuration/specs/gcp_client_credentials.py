@@ -25,6 +25,7 @@ class GcpClientCredentials(CredentialsConfiguration):
         try:
             service_dict = json.loads(native_value)
             self.update(service_dict)
+            self.__is_resolved__ = not self.is_partial()
         except Exception:
             raise ValueError(native_value)
 

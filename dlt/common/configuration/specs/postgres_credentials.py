@@ -1,7 +1,7 @@
-from typing import Any, Dict, NamedTuple, Optional
+from typing import Any, Dict, Optional
 from sqlalchemy.engine import URL, make_url
 
-from dlt.common.typing import StrAny, TSecretValue
+from dlt.common.typing import TSecretValue
 from dlt.common.configuration.specs.base_configuration import CredentialsConfiguration, configspec
 
 
@@ -21,13 +21,7 @@ class ConnectionStringCredentials(CredentialsConfiguration):
         try:
             url = make_url(initial_value)
             self.update(url._asdict())
-            # url.drivername = url.drivername
-            # self.database = url.database
-            # self.password = url.password
-            # self.username = url.username
-            # self.host = url.host
-            # self.port = url.port
-            # self.query = url.query
+            self.__is_resolved__ = not self.is_partial()
         except Exception:
             raise ValueError(initial_value)
 
