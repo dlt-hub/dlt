@@ -33,7 +33,10 @@ General guidelines:
 
 > my dilemma here is if I should allow to access data directly in the source function ie. to discover schema or get some configuration for the resources from some endpoint. it is very easy to avoid that but for the non-programmers it will not be intuitive.
 
-## Example for endpoint returning only one resource:
+## Example for endpoints returning only one resource:
+
+**With inner resource function**
+Resource functions can be placed inside the source extractor function. That lets them get access to source function input arguments and all the computations within the source function via so called closure. This is OFC entirely optional.
 
 ```python
 import requests
@@ -93,7 +96,20 @@ return [dlt.resource(lazy_function(endpoint, name=endpoint) for endpoint in endp
 
 ```
 
-**What if we remove logs() function and get data in source body**
+**With outer function yielding data, with @resource used as a function**
+```python
+
+def taktile_logs_data(initial_log_id, taktile_api_key)
+    yield data
+
+
+@dlt.source
+def taktile_data(initial_log_id, taktile_api_key):
+    # pass the arguments and convert to resource
+    return resource(taktile_logs_data(initial_log_id, taktile_api_key), name="logs", write_disposition="append")
+```
+
+**A standalone @resource: logs() function with table hints**
 
 Yeah definitely possible. Just replace `@source` with `@resource` decorator and remove the function
 
@@ -113,6 +129,19 @@ def taktile_data(initial_log_id, taktile_api_key):
 dlt.run(source=taktile_data(1), destination=bigquery)
 
 ```
+How standalone resource works:
+1. It can be used like a single resource source
+2. The main difference is that when extracted it will join the default schema in the pipeline (or explicitly passed schema)
+3. It can be called from a @source function and then it becomes a resource of that source and joins the source schema
+
+**A source with resources defined elsewhere**
+Example of the above
+```python
+@dlt.source
+def taktile_data(initial_log_id, taktile_api_key):
+    return logs(initial_log_id, taktile_api_key)
+```
+
 
 **The power of decorators**
 
@@ -188,7 +217,7 @@ def hubspot(...):
     return users.map(transform_user)
 
 # option 3: user of the pipeline determines if s/he wants the anonymized data or not and does it in pipeline script. so the source may offer also transformations that are easily used
-hubspot(...)["users"].map(transform_user)
+hubspot(...).resources["users"].map(transform_user)
 hubspot.run(...)
 
 ```
@@ -223,7 +252,18 @@ def hubspot(...):
 # load all resources
 taktile_data(1).run(destination=bigquery)
 # load only decisions
-taktile_data(1).select("decisions").run(....)
+taktile_data(1).with_resources("decisions").run(....)
+
+# alternative form:
+source = taktile_data(1)
+# select only decisions to be loaded
+source.resources.select("decisions")
+# see what is selected
+print(source.selected_resources)
+# same as this
+print(source.resources.selected)
+
+
 ```
 
 **resources are created dynamically**

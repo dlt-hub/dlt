@@ -9,11 +9,11 @@ on:
   workflow_dispatch:
 
 env:
-  GCP__PROJECT_ID: chat-analytics-rasa-ci
-  GCP__CLIENT_EMAIL: chat-analytics-loader@chat-analytics-rasa-ci.iam.gserviceaccount.com
-  GCP__PRIVATE_KEY: ${{ secrets.BQ_CRED_PRIVATE_KEY }}
-  GCP__TOKEN_URI: https://oauth2.googleapis.com/token
-  DEFAULT_DATASET: workflowtest
+  CREDENTIALS__PROJECT_ID: chat-analytics-rasa-ci
+  CREDENTIALS__CLIENT_EMAIL: chat-analytics-loader@chat-analytics-rasa-ci.iam.gserviceaccount.com
+  CREDENTIALS__PRIVATE_KEY: ${{ secrets.BQ_CRED_PRIVATE_KEY }}
+  CREDENTIALS__TOKEN_URI: https://oauth2.googleapis.com/token
+  DATASET_NAME: workflowtest
 
 jobs:
 

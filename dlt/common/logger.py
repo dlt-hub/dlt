@@ -13,7 +13,7 @@ from dlt.common.typing import DictStrAny, StrStr
 from dlt.common.configuration.specs import RunConfiguration
 from dlt.common.utils import filter_env_vars
 
-from dlt import __version__
+from dlt.__version__ import __version__
 
 DLT_LOGGER_NAME = "dlt"
 LOGGER: Logger = None

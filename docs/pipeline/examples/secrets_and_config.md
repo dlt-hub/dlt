@@ -1,4 +1,4 @@
-## Example
+## General Usage and an Example
 How config values and secrets are handled should promote good behavior
 
 1. secret values should never be present in the pipeline code
@@ -53,9 +53,11 @@ Then it calls the original function with updated input arguments thus passing co
 When config or secret values are needed, `dlt` looks for them in providers. In case of `google_sheets()` it will always look for: `spreadsheet_id`, `tab_names`, `credentials` and `strings_only`.
 
 Providers form a hierarchy. At the top are environment variables, then `secrets.toml` and `config.toml` files. Providers like google, aws, azure vaults can be inserted after the environment provider.
-For example if `spreadsheet_id` is in environemtn, dlt does not look into other provieers.
+For example if `spreadsheet_id` is in environment, dlt does not look into other providers.
 
 The values passed in the code directly are the lowest in provider hierarchy.
+
+> I'm opinionated on the environment variables but less on the values passed in the code. This gives much more power to setup deployments and control on production but is less intuitive to programmer.
 
 ## Namespaces
 Config and secret values can be grouped in namespaces. Easiest way to visualize it is via `toml` files.
@@ -126,6 +128,29 @@ tab_names=["tab1", "tab2"]
 How namespaces work in environment variables? they are prefix for the key so to get `spreadsheet_id` `dlt` will look for
 
 `SOURCE__SPREADSHEET_ID` first and `SPREADSHEET_ID` second
+
+# Default namespaces
+
+1. Pipeline created/obtained with `dlt.pipeline()` creates a global and optional namespace with the value of `pipeline_name`. All config values will be looked in it first then without it.
+2. There's a default structure of namespaces
+
+```
+pipeline_name
+    |
+    |--extract
+        |-all extract options ie.
+    |-source
+        |-all source and resource options and secrets
+    |-destination
+        |-all destination options and secrets
+    |-schema
+        |-<schema name>
+            |-schema settings: not implemented but I'll let people set nesting level, name convention, normalizer etc. here
+    |-load
+    |-normalize
+    |-config_providers
+```
+
 
 ## Interesting / Advanced stuff.
 

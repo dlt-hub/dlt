@@ -14,7 +14,7 @@ from dlt.common.utils import uniq_id, with_custom_environ
 from dlt.dbt_runner.utils import DBTProcessingError
 from dlt.dbt_runner.configuration import DBTRunnerConfiguration
 from dlt.dbt_runner import runner
-from dlt.load.redshift.redshift import RedshiftSqlClient
+from dlt.destinations.redshift.redshift import RedshiftSqlClient
 
 from tests.utils import add_config_to_env, clean_test_storage, init_logger, preserve_environ
 from tests.dbt_runner.utils import modify_and_commit_file, load_secret, setup_runner

@@ -16,9 +16,9 @@ from dlt.common.destination import DestinationReference, LoadJob
 from dlt.load import Load
 from dlt.load.job_client_impl import LoadEmptyJob
 
-from dlt.load import dummy
-from dlt.load.dummy import dummy as dummy_impl
-from dlt.load.dummy.configuration import DummyClientConfiguration
+from dlt.destinations import dummy
+from dlt.destinations.dummy import dummy as dummy_impl
+from dlt.destinations.dummy.configuration import DummyClientConfiguration
 
 from tests.utils import clean_test_storage, init_logger, TEST_DICT_CONFIG_PROVIDER
 

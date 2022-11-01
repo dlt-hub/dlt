@@ -20,8 +20,8 @@ class NormalizeConfiguration(PoolRunnerConfiguration):
             workers: int = None,
             exit_on_exception: bool = None,
             is_single_run: bool = None,
-            schema_storage_config: SchemaVolumeConfiguration = None,
-            normalize_storage_config: NormalizeVolumeConfiguration = None,
-            load_storage_config: LoadVolumeConfiguration = None
+            _schema_storage_config: SchemaVolumeConfiguration = None,
+            _normalize_storage_config: NormalizeVolumeConfiguration = None,
+            _load_storage_config: LoadVolumeConfiguration = None
         ) -> None:
             ...

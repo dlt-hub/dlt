@@ -23,8 +23,8 @@ from dlt.load.sql_client import SqlClientBase
 from dlt.load.job_client_impl import SqlJobClientBase
 from dlt.load.exceptions import LoadClientSchemaWillNotUpdate, LoadJobNotExistsException, LoadJobServerTerminalException, LoadUnknownTableException
 
-from dlt.load.bigquery import capabilities
-from dlt.load.bigquery.configuration import BigQueryClientConfiguration
+from dlt.destinations.bigquery import capabilities
+from dlt.destinations.bigquery.configuration import BigQueryClientConfiguration
 
 
 SCT_TO_BQT: Dict[TDataType, str] = {

@@ -5,24 +5,24 @@ from dlt.common.typing import ConfigValue
 from dlt.common.configuration import with_config
 from dlt.common.destination import DestinationCapabilitiesContext, JobClientBase, DestinationClientConfiguration
 
-from dlt.load.bigquery.configuration import BigQueryClientConfiguration
+from dlt.destinations.redshift.configuration import RedshiftClientConfiguration
 
 
-@with_config(spec=BigQueryClientConfiguration, namespaces=("destination", "bigquery",))
-def _configure(config: BigQueryClientConfiguration = ConfigValue) -> BigQueryClientConfiguration:
+@with_config(spec=RedshiftClientConfiguration, namespaces=("destination", "redshift",))
+def _configure(config: RedshiftClientConfiguration = ConfigValue) -> RedshiftClientConfiguration:
     return config
 
 
 def capabilities() -> DestinationCapabilitiesContext:
     caps = DestinationCapabilitiesContext()
     caps.update({
-        "preferred_loader_file_format": "jsonl",
-        "supported_loader_file_formats": ["jsonl"],
-        "max_identifier_length": 1024,
-        "max_column_length": 300,
-        "max_query_length": 1024 * 1024,
-        "is_max_query_length_in_bytes": False,
-        "max_text_data_type_length": 10 * 1024 * 1024,
+        "preferred_loader_file_format": "insert_values",
+        "supported_loader_file_formats": ["insert_values"],
+        "max_identifier_length": 127,
+        "max_column_length": 127,
+        "max_query_length": 16 * 1024 * 1024,
+        "is_max_query_length_in_bytes": True,
+        "max_text_data_type_length": 65535,
         "is_max_text_data_type_length_in_bytes": True
     })
     return caps
@@ -30,10 +30,10 @@ def capabilities() -> DestinationCapabilitiesContext:
 
 def client(schema: Schema, initial_config: DestinationClientConfiguration = ConfigValue) -> JobClientBase:
     # import client when creating instance so capabilities and config specs can be accessed without dependencies installed
-    from dlt.load.bigquery.bigquery import BigQueryClient
+    from dlt.destinations.redshift.redshift import RedshiftClient
 
-    return BigQueryClient(schema, _configure(initial_config))  # type: ignore
+    return RedshiftClient(schema, _configure(initial_config))  # type: ignore
 
 
 def spec() -> Type[DestinationClientConfiguration]:
-    return BigQueryClientConfiguration
+    return RedshiftClientConfiguration

@@ -1,35 +1,33 @@
-# import os
-# import pytest
-# from os import environ
+import os
+import pytest
+from os import environ
 
-# from dlt.common.schema.schema import Schema
-# from dlt.common.utils import uniq_id
-# from dlt.pipeline import Pipeline, PostgresPipelineCredentials
-# from dlt.pipeline.exceptions import InvalidPipelineContextException
+import dlt
+from dlt.common.schema.schema import Schema
+from dlt.common.utils import uniq_id
 
-# from tests.utils import autouse_test_storage, TEST_STORAGE_ROOT
+from tests.utils import autouse_test_storage, TEST_STORAGE_ROOT
 
 
 # FAKE_CREDENTIALS = PostgresPipelineCredentials("redshift", None, None, None, None)
 
 
-# def test_empty_default_schema_name() -> None:
-#     p = Pipeline("test_empty_default_schema_name")
-#     FAKE_CREDENTIALS.DEFAULT_DATASET = environ["DEFAULT_DATASET"] = "test_empty_default_schema_name" + uniq_id()
-#     p.create_pipeline(FAKE_CREDENTIALS, os.path.join(TEST_STORAGE_ROOT, FAKE_CREDENTIALS.DEFAULT_DATASET), Schema("default"))
-#     p.extract(iter(["a", "b", "c"]), table_name="test")
-#     p.normalize()
-#     p.load()
+def test_empty_default_schema_name() -> None:
+    environ["DEFAULT_DATASET"] = dataset_name = "test_empty_default_schema_name" + uniq_id()
 
-#     # delete data
-#     with p.sql_client() as c:
-#         c.drop_dataset()
+    p = dlt.pipeline("test_empty_default_schema_name", TEST_STORAGE_ROOT, destination="redshift", dataset_name=dataset_name)
+    p.extract(iter(["a", "b", "c"]), table_name="test", schema=Schema("default"))
+    p.normalize()
+    p.load()
 
-#     # try to restore pipeline
-#     r_p = Pipeline("test_empty_default_schema_name")
-#     r_p.restore_pipeline(FAKE_CREDENTIALS, p.working_dir)
-#     schema = r_p.get_default_schema()
-#     assert schema.name == "default"
+    # delete data
+    with p.sql_client() as c:
+        c.drop_dataset()
+
+    # try to restore pipeline
+    r_p = dlt.restore("test_empty_default_schema_name", TEST_STORAGE_ROOT)
+    schema = r_p.default_schema
+    assert schema.name == "default"
 
 
 # def test_create_wipes_working_dir() -> None:

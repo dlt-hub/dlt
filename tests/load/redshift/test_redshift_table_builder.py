@@ -8,8 +8,8 @@ from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.specs import PostgresCredentials
 
 from dlt.load.exceptions import LoadClientSchemaWillNotUpdate
-from dlt.load.redshift.redshift import RedshiftClient
-from dlt.load.redshift.configuration import RedshiftClientConfiguration
+from dlt.destinations.redshift.redshift import RedshiftClient
+from dlt.destinations.redshift.configuration import RedshiftClientConfiguration
 
 from tests.load.utils import TABLE_UPDATE
 

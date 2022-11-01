@@ -11,8 +11,8 @@ from dlt.common.destination import DestinationCapabilitiesContext, JobClientBase
 from dlt.load.exceptions import (LoadJobNotExistsException, LoadJobInvalidStateTransitionException,
                                             LoadClientTerminalException, LoadClientTransientException)
 
-from dlt.load.dummy import capabilities
-from dlt.load.dummy.configuration import DummyClientConfiguration
+from dlt.destinations.dummy import capabilities
+from dlt.destinations.dummy.configuration import DummyClientConfiguration
 
 
 class LoadDummyJob(LoadJob):

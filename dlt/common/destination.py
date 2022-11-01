@@ -156,6 +156,6 @@ class DestinationReference(Protocol):
                 return cast(DestinationReference, import_module(destination))
             else:
                 # from known location
-                return cast(DestinationReference, import_module(f"dlt.load.{destination}"))
+                return cast(DestinationReference, import_module(f"dlt.destinations.{destination}"))
 
         return destination
