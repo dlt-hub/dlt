@@ -4,7 +4,7 @@ from collections.abc import Mapping as C_Mapping
 from typing import Any, Dict, ContextManager, List, Optional, Sequence, Tuple, Type, TypeVar, get_origin
 
 from dlt.common import json, logger
-from dlt.common.typing import TSecretValue, is_optional_type, extract_inner_type
+from dlt.common.typing import AnyType, TSecretValue, is_optional_type, extract_inner_type
 from dlt.common.schema.utils import coerce_type, py_type_to_sc_type
 
 from dlt.common.configuration.specs.base_configuration import BaseConfiguration, CredentialsConfiguration, ContainerInjectableContext
@@ -21,6 +21,11 @@ TConfiguration = TypeVar("TConfiguration", bound=BaseConfiguration)
 def resolve_configuration(config: TConfiguration, *, namespaces: Tuple[str, ...] = (), initial_value: Any = None, accept_partial: bool = False) -> TConfiguration:
     if not isinstance(config, BaseConfiguration):
         raise ConfigurationWrongTypeException(type(config))
+
+    # try to get the native representation of the top level configuration using the config namespace as a key
+    # allows, for example, to store connection string or service.json in their native form in single env variable or under single vault key
+    if config.__namespace__:
+        initial_value, _ = _resolve_config_field(config.__namespace__, AnyType, initial_value, config, None, namespaces, (), accept_partial)
 
     return _resolve_configuration(config, namespaces, (), initial_value, accept_partial)
 
@@ -91,6 +96,7 @@ def _resolve_configuration(
         initial_value: Any,
         accept_partial: bool
     ) -> TConfiguration:
+
     # do not resolve twice
     if config.is_resolved():
         return config
@@ -103,32 +109,18 @@ def _resolve_configuration(
             # cannot be native initial value
             initial_value = None
 
-        # try to get the native representation of the configuration using the config namespace as a key
-        # allows, for example, to store connection string or service.json in their native form in single env variable or under single vault key
-        resolved_initial: Any = None
-        if config.__namespace__ or embedded_namespaces:
-            cf_n, emb_ns = _apply_embedded_namespaces_to_config_namespace(config.__namespace__, embedded_namespaces)
-            if cf_n:
-                resolved_initial, traces = _resolve_single_field(cf_n, type(config), None, explicit_namespaces, emb_ns)
-                _log_traces(config, cf_n, type(config), resolved_initial, traces)
-                # initial values cannot be dictionaries
-                if not isinstance(resolved_initial, C_Mapping):
-                    initial_value = resolved_initial or initial_value
-                # if this is injectable context then return it immediately
-                if isinstance(resolved_initial, ContainerInjectableContext):
-                    return resolved_initial  # type: ignore
         try:
-            try:
-                # use initial value to set config values
-                if initial_value:
+            # use initial value to set config values
+            if initial_value:
+                try:
                     config.from_native_representation(initial_value)
-                # if no initial value or initial value was passed via argument, resolve config normally (config always over explicit params)
-                if not initial_value or not resolved_initial:
-                    raise NotImplementedError()
-            except ValueError:
-                raise InvalidInitialValue(type(config), type(initial_value))
-            except NotImplementedError:
-                # if config does not support native form, resolve normally
+                except ValueError:
+                    raise InvalidInitialValue(type(config), type(initial_value))
+                except NotImplementedError:
+                    pass
+
+            # if native representation didn't fully resolve the config, we try to resolve field by field
+            if not config.is_resolved():
                 _resolve_config_fields(config, explicit_namespaces, embedded_namespaces, accept_partial)
 
             _check_configuration_integrity(config)
@@ -160,44 +152,78 @@ def _resolve_config_fields(
 
     for key, hint in fields.items():
         # get default value
-        current_value = getattr(config, key, None)
+        default_value = getattr(config, key, None)
+        current_value, traces = _resolve_config_field(key, hint, default_value, config, config.__namespace__, explicit_namespaces, embedded_namespaces, accept_partial)
+
         # check if hint optional
         is_optional = is_optional_type(hint)
-        # accept partial becomes True if type if optional so we do not fail on optional configs that do not resolve fully
-        accept_partial = accept_partial or is_optional
-
-        # if current value is BaseConfiguration, resolve that instance
-        if isinstance(current_value, BaseConfiguration):
-            # resolve only if not yet resolved otherwise just pass it
-            if not current_value.is_resolved():
-                # add key as innermost namespace
-                current_value = _resolve_configuration(current_value, explicit_namespaces, embedded_namespaces + (key,), None, accept_partial)
-        else:
-            # extract hint from Optional / Literal / NewType hints
-            inner_hint = extract_inner_type(hint)
-            # extract origin from generic types
-            inner_hint = get_origin(inner_hint) or inner_hint
-
-            # if inner_hint is BaseConfiguration then resolve it recursively
-            if inspect.isclass(inner_hint) and issubclass(inner_hint, BaseConfiguration):
-                # create new instance and pass value from the provider as initial, add key to namespaces
-                current_value = _resolve_configuration(inner_hint(), explicit_namespaces, embedded_namespaces + (key,), current_value, accept_partial)
-            else:
-
-                # resolve key value via active providers passing the original hint ie. to preserve TSecretValue
-                value, traces = _resolve_single_field(key, hint, config.__namespace__, explicit_namespaces, embedded_namespaces)
-                _log_traces(config, key, hint, value, traces)
-                # if value is resolved, then deserialize and coerce it
-                if value is not None:
-                    current_value = deserialize_value(key, value, inner_hint)
-
         # collect unresolved fields
         if not is_optional and current_value is None:
             unresolved_fields[key] = traces
         # set resolved value in config
         setattr(config, key, current_value)
+
     if unresolved_fields:
         raise ConfigFieldMissingException(type(config).__name__, unresolved_fields)
+
+
+def _resolve_config_field(
+        key: str,
+        hint: Type[Any],
+        default_value: Any,
+        config: BaseConfiguration,
+        config_namespace: str,
+        explicit_namespaces: Tuple[str, ...],
+        embedded_namespaces: Tuple[str, ...],
+        accept_partial: bool
+    ) -> Tuple[Any, List[LookupTrace]]:
+    # extract hint from Optional / Literal / NewType hints
+    inner_hint = extract_inner_type(hint)
+    # extract origin from generic types (ie List[str] -> List)
+    inner_hint = get_origin(inner_hint) or inner_hint
+
+    # resolve key value via active providers passing the original hint ie. to preserve TSecretValue
+    value, traces = _resolve_single_value(key, hint, inner_hint, config_namespace, explicit_namespaces, embedded_namespaces)
+    _log_traces(config, key, hint, value, traces)
+
+    # if inner_hint is BaseConfiguration then resolve it recursively
+    if inspect.isclass(inner_hint) and issubclass(inner_hint, BaseConfiguration):
+        if isinstance(value, BaseConfiguration):
+            # if resolved value is instance of configuration (typically returned by context provider)
+            embedded_config = value
+            value = None
+        elif isinstance(default_value, BaseConfiguration):
+            # if default value was instance of configuration, use it
+            embedded_config = default_value
+            default_value = None
+        else:
+            embedded_config = inner_hint()
+
+        if embedded_config.is_resolved():
+            # injected context will be resolved
+            value = embedded_config
+        else:
+            # only config with namespaces may look for initial values
+            if embedded_config.__namespace__:
+                # config namespace becomes the key if the key does not start with, otherwise it keeps its original value
+                initial_key, initial_embedded = _apply_embedded_namespaces_to_config_namespace(embedded_config.__namespace__, embedded_namespaces + (key,))
+                # it must be a secret value is config is credentials
+                initial_hint = TSecretValue if isinstance(embedded_config, CredentialsConfiguration) else AnyType
+                value, initial_traces = _resolve_single_value(initial_key, initial_hint, AnyType, None, explicit_namespaces, initial_embedded)
+                traces.extend(initial_traces)
+
+            # check if hint optional
+            is_optional = is_optional_type(hint)
+            # accept partial becomes True if type if optional so we do not fail on optional configs that do not resolve fully
+            accept_partial = accept_partial or is_optional
+            # create new instance and pass value from the provider as initial, add key to namespaces
+            value = _resolve_configuration(embedded_config, explicit_namespaces, embedded_namespaces + (key,), value or default_value, accept_partial)
+    else:
+        # if value is resolved, then deserialize and coerce it
+        if value is not None:
+            value = deserialize_value(key, value, inner_hint)
+
+    return value or default_value, traces
 
 
 def _log_traces(config: BaseConfiguration, key: str, hint: Type[Any], value: Any, traces: Sequence[LookupTrace]) -> None:
@@ -223,23 +249,38 @@ def _check_configuration_integrity(config: BaseConfiguration) -> None:
             c.__dict__[CHECK_INTEGRITY_F](config)
 
 
-def _resolve_single_field(
+def _resolve_single_value(
         key: str,
         hint: Type[Any],
+        inner_hint: Type[Any],
         config_namespace: str,
         explicit_namespaces: Tuple[str, ...],
         embedded_namespaces: Tuple[str, ...]
     ) -> Tuple[Optional[Any], List[LookupTrace]]:
-    container = Container()
-    # get providers from container
-    providers = container[ConfigProvidersContext].providers
-    # get additional namespaces to look in from container
-    namespaces_context = container[ConfigNamespacesContext]
-    config_namespace, embedded_namespaces = _apply_embedded_namespaces_to_config_namespace(config_namespace, embedded_namespaces)
 
-    # start looking from the top provider with most specific set of namespaces first
     traces: List[LookupTrace] = []
     value = None
+
+    container = Container()
+    # get providers from container
+    providers_context = container[ConfigProvidersContext]
+    # we may be resolving context
+    if inspect.isclass(inner_hint) and issubclass(inner_hint, ContainerInjectableContext):
+        # resolve context with context provider and do not look further
+        value, _ = providers_context.context_provider.get_value(key, inner_hint)
+        return value, traces
+    if inspect.isclass(inner_hint) and issubclass(inner_hint, BaseConfiguration):
+        # cannot resolve configurations directly
+        return value, traces
+
+    # resolve a field of the config
+    config_namespace, embedded_namespaces = _apply_embedded_namespaces_to_config_namespace(config_namespace, embedded_namespaces)
+    providers = providers_context.providers
+    # get additional namespaces to look in from container
+    namespaces_context = container[ConfigNamespacesContext]
+
+
+    # start looking from the top provider with most specific set of namespaces first
 
     def look_namespaces(pipeline_name: str = None) -> Any:
         for provider in providers:
@@ -277,8 +318,8 @@ def _resolve_single_field(
                 if value is not None and cant_hold_it:
                     raise ValueNotSecretException(provider.name, ns_key)
 
-                # create trace, ignore container provider and providers that cant_hold_it
-                if provider.name != ContextProvider.NAME and not cant_hold_it:
+                # create trace, ignore providers that cant_hold_it
+                if not cant_hold_it:
                     traces.append(LookupTrace(provider.name, full_ns, ns_key, value))
 
                 if value is not None:
@@ -300,6 +341,12 @@ def _resolve_single_field(
     return value, traces
 
 
+# def _extend_embedded(embedded_namespaces: Tuple[str, ...], key: str) -> Tuple[str, ...]:
+#     if not key.startswith("_"):
+#         embedded_namespaces = embedded_namespaces + (key,)
+#     return embedded_namespaces
+
+
 def _apply_embedded_namespaces_to_config_namespace(config_namespace: str, embedded_namespaces: Tuple[str, ...]) -> Tuple[str, Tuple[str, ...]]:
     # for the configurations that have __namespace__ (config_namespace) defined and are embedded in other configurations,
     # the innermost embedded namespace replaces config_namespace
@@ -309,7 +356,8 @@ def _apply_embedded_namespaces_to_config_namespace(config_namespace: str, embedd
             config_namespace = embedded_namespaces[-1]
         embedded_namespaces = embedded_namespaces[:-1]
 
-    return config_namespace, embedded_namespaces
+    # remove all embedded ns starting with _
+    return config_namespace, tuple(ns for ns in embedded_namespaces if not ns.startswith("_"))
 
 
 def _is_secret_hint(hint: Type[Any]) -> bool:

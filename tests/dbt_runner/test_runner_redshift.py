@@ -27,7 +27,7 @@ def module_autouse() -> None:
     # disable GCP in environ
     del environ["CREDENTIALS__PROJECT_ID"]
     # set the test case for the unit tests
-    environ["DEFAULT_DATASET"] = "test_fixture_carbon_bot_session_cases"
+    environ["DATASET_NAME"] = "test_fixture_carbon_bot_session_cases"
     add_config_to_env(PostgresCredentials)
 
     setup_runner(DEST_SCHEMA_PREFIX)

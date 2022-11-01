@@ -14,11 +14,14 @@ from dlt.common.configuration.specs.base_configuration import ContainerInjectabl
 class ConfigProvidersContext(ContainerInjectableContext):
     """Injectable list of providers used by the configuration `resolve` module"""
     providers: List[Provider]
+    # context_provider: ContextProvider
 
     def __init__(self) -> None:
         super().__init__()
-        # add default providers, ContextProvider must be always first - it will provide contexts
-        self.providers = [ContextProvider(), EnvironProvider(), SecretsTomlProvider(), ConfigTomlProvider()]
+        # add default providers
+        self.providers = [EnvironProvider(), SecretsTomlProvider(), ConfigTomlProvider()]
+        # ContextProvider will provide contexts when embedded in configurations
+        self.context_provider = ContextProvider()
 
     def __getitem__(self, name: str) -> Provider:
         try:

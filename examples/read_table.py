@@ -4,10 +4,10 @@ from dlt.destinations import redshift
 
 from examples.sources.sql_query import query_table
 
-credentials = PostgresPipelineCredentials("redshift", "chat_analytics_rasa", "gamma_guild_7", "loader", "chat-analytics.czwteevq7bpe.eu-central-1.redshift.amazonaws.com")
+# credentials = PostgresPipelineCredentials("redshift", "chat_analytics_rasa", "gamma_guild_7", "loader", "chat-analytics.czwteevq7bpe.eu-central-1.redshift.amazonaws.com")
 
-# create sql alchemy connector
-conn_str = f"redshift+redshift_connector://{credentials.USER}:{os.environ['PG__PASSWORD']}@{credentials.HOST}:{credentials.PORT}/{credentials.DBNAME}"
+# # create sql alchemy connector
+# conn_str = f"redshift+redshift_connector://{credentials.USER}:{os.environ['PG__PASSWORD']}@{credentials.HOST}:{credentials.PORT}/{credentials.DBNAME}"
 
 # items = get_source("select *  from test_fixture_carbon_bot_session_cases_views.users limit 1", conn_str)
 

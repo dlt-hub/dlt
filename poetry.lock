@@ -1438,6 +1438,14 @@ optional = false
 python-versions = "*"
 
 [[package]]
+name = "types-sqlalchemy"
+version = "1.4.53.2"
+description = "Typing stubs for SQLAlchemy"
+category = "dev"
+optional = false
+python-versions = "*"
+
+[[package]]
 name = "types-urllib3"
 version = "1.26.25.1"
 description = "Typing stubs for urllib3"
@@ -1507,7 +1515,7 @@ redshift = ["psycopg2-binary", "psycopg2cffi"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8,<3.11"
-content-hash = "7ed0b74d5e6f8a50f10febd9592dce49d5b5b76b132170f65453ae09401d1e36"
+content-hash = "4e3e0342b48b93ae2c74690dbcb87014617af16fdf075d0b104c522c62d66c71"
 
 [metadata.files]
 agate = [
@@ -2190,6 +2198,7 @@ types-python-dateutil = []
 types-pyyaml = []
 types-requests = []
 types-simplejson = []
+types-sqlalchemy = []
 types-urllib3 = []
 typing-extensions = []
 tzdata = []

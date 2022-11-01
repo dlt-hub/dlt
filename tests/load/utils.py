@@ -108,7 +108,7 @@ def prepare_table(client: JobClientBase, case_name: str = "event_user", table_na
 
 
 def yield_client_with_storage(destination_name: str, initial_values: StrAny = None) -> Iterator[SqlJobClientBase]:
-    os.environ.pop("DEFAULT_DATASET", None)
+    os.environ.pop("DATASET_NAME", None)
     # import destination reference by name
     destination: DestinationReference = import_module(f"dlt.destinations.{destination_name}")
     # create dataset with random name
@@ -116,9 +116,6 @@ def yield_client_with_storage(destination_name: str, initial_values: StrAny = No
     # create initial config
     config: DestinationClientDwhConfiguration = None
     config = destination.spec()()
-    # print(config.destination_name)
-    # print(destination.spec())
-    # print(destination.spec().destination_name)
     config.dataset_name = dataset_name
 
     if initial_values is not None:

@@ -12,6 +12,7 @@ from dlt.common.configuration.providers.environ import EnvironProvider
 from dlt.common.configuration.providers.toml import SecretsTomlProvider, ConfigTomlProvider
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
 from dlt.common.configuration.specs import BaseConfiguration, GcpClientCredentials, PostgresCredentials
+from dlt.common.configuration.specs.postgres_credentials import ConnectionStringCredentials
 from dlt.common.typing import TSecretValue
 
 from tests.utils import preserve_environ
@@ -126,7 +127,6 @@ def test_secrets_toml_credentials(providers: ConfigProvidersContext) -> None:
         resolve.resolve_configuration(PostgresCredentials(), namespaces=("destination", "bigquery"))
 
 
-
 def test_secrets_toml_embedded_credentials(providers: ConfigProvidersContext) -> None:
     # will try destination.bigquery.credentials
     c = resolve.resolve_configuration(EmbeddedWithGcpCredentials(), namespaces=("destination", "bigquery"))
@@ -156,10 +156,6 @@ def test_secrets_toml_embedded_credentials(providers: ConfigProvidersContext) ->
         resolve.resolve_configuration(GcpClientCredentials())
 
 
-# def test_secrets_toml_ignore_dict_initial(providers: ConfigProvidersContext) -> None:
-
-
-
 def test_secrets_toml_credentials_from_native_repr(providers: ConfigProvidersContext) -> None:
     # cfg = providers["Pipeline secrets.toml"]
     # print(cfg._toml)
@@ -167,3 +163,12 @@ def test_secrets_toml_credentials_from_native_repr(providers: ConfigProvidersCon
     # resolve gcp_credentials by parsing initial value which is str holding json doc
     c = resolve.resolve_configuration(GcpClientCredentials(), namespaces=("source",))
     assert c.project_id.endswith("source.credentials")
+    # also try sql alchemy url (native repr)
+    c = resolve.resolve_configuration(ConnectionStringCredentials(), namespaces=("databricks",))
+    assert c.drivername == "databricks+connector"
+    assert c.username == "token"
+    assert c.password == "<databricks_token>"
+    assert c.host == "<databricks_host>"
+    assert c.port == 443
+    assert c.database == "<database_or_schema_name>"
+    assert c.query == {"conn_timeout": "15", "search_path": "a,b,c"}

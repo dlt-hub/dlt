@@ -38,6 +38,9 @@ class Container:
         return item  # type: ignore
 
     def __setitem__(self, spec: Type[TConfiguration], value: TConfiguration) -> None:
+        # value passed to container must be final
+        value.__is_resolved__ = True
+        # put it into context
         self.contexts[spec] = value
 
     def __contains__(self, spec: Type[TConfiguration]) -> bool:
@@ -51,7 +54,7 @@ class Container:
             previous_config = self.contexts[spec]
         # set new config and yield context
         try:
-            self.contexts[spec] = config
+            self[spec] = config
             yield config
         finally:
             # before setting the previous config for given spec, check if there was no overlapping modification

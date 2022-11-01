@@ -13,7 +13,7 @@ from tests.utils import autouse_test_storage, TEST_STORAGE_ROOT
 
 
 def test_empty_default_schema_name() -> None:
-    environ["DEFAULT_DATASET"] = dataset_name = "test_empty_default_schema_name" + uniq_id()
+    environ["DATASET_NAME"] = dataset_name = "test_empty_default_schema_name" + uniq_id()
 
     p = dlt.pipeline("test_empty_default_schema_name", TEST_STORAGE_ROOT, destination="redshift", dataset_name=dataset_name)
     p.extract(iter(["a", "b", "c"]), table_name="test", schema=Schema("default"))
