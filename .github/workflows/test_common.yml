@@ -33,7 +33,7 @@ jobs:
 
       - name: Install Poetry
         # https://github.com/snok/install-poetry#running-on-windows
-        uses: snok/install-poetry@v1
+        uses: snok/install-poetry@v1.3.2
         with:
           virtualenvs-create: true
           virtualenvs-in-project: true
