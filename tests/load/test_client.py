@@ -18,8 +18,8 @@ from tests.common.utils import load_json_case
 from tests.load.utils import TABLE_UPDATE, TABLE_UPDATE_COLUMNS_SCHEMA, TABLE_ROW, expect_load_file, yield_client_with_storage, cm_yield_client_with_storage, write_dataset, prepare_table
 
 
-ALL_CLIENTS = ['redshift_client', 'bigquery_client']
-ALL_CLIENT_TYPES = ["bigquery", "redshift"]
+ALL_CLIENTS = ["redshift_client", "bigquery_client", "postgres_client"]
+ALL_CLIENT_TYPES = ["bigquery", "redshift", "postgres"]
 
 
 @pytest.fixture
@@ -43,15 +43,20 @@ def bigquery_client() -> Iterator[SqlJobClientBase]:
 
 
 @pytest.fixture(scope="module")
+def postgres_client() -> Iterator[SqlJobClientBase]:
+    yield from yield_client_with_storage("postgres")
+
+
+@pytest.fixture(scope="module")
 def client(request) -> SqlJobClientBase:
     yield request.getfixturevalue(request.param)
-
 
 
 @pytest.mark.order(1)
 @pytest.mark.parametrize('client', ALL_CLIENTS, indirect=True)
 def test_initialize_storage(client: SqlJobClientBase) -> None:
     pass
+
 
 @pytest.mark.order(2)
 @pytest.mark.parametrize('client', ALL_CLIENTS, indirect=True)
@@ -276,6 +281,8 @@ def test_load_with_all_types(client: SqlJobClientBase, write_disposition: str, f
     db_row[3] = str(pendulum.instance(db_row[3]))  # serialize date
     if isinstance(db_row[6], str):
         db_row[6] = bytes.fromhex(db_row[6])  # redshift returns binary as hex string
+    else:
+        db_row[6] = bytes(db_row[6])
 
     assert db_row == list(TABLE_ROW.values())
 

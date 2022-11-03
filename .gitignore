@@ -12,6 +12,7 @@ experiments/*
 !experiments/pipeline/
 !experiments/pipeline/*
 secrets.toml
+*.session.sql
 
 # Byte-compiled / optimized / DLL files
 **/__pycache__/
