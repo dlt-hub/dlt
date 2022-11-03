@@ -36,3 +36,7 @@ class GcpClientCredentials(CredentialsConfiguration):
 
     def to_native_representation(self) -> str:
         return json.dumps(dict(self))
+
+
+    def __str__(self) -> str:
+        return f"{self.client_email}@{self.project_id}[{self.location}]"

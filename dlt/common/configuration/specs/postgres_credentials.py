@@ -57,3 +57,6 @@ class PostgresCredentials(ConnectionStringCredentials):
         url = super().to_url()
         url.update_query_pairs([("connect_timeout", str(self.connect_timeout))])
         return url
+
+    def __str__(self) -> str:
+        return self.to_url().render_as_string(hide_password=True)

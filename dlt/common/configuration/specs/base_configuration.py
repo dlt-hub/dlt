@@ -13,6 +13,11 @@ from dlt.common.schema.utils import py_type_to_sc_type
 from dlt.common.configuration.exceptions import ConfigFieldMissingTypeHintException, ConfigFieldTypeHintNotSupported
 
 
+# forward class declaration
+_F_BaseConfiguration: Any = type(object)
+_F_ContainerInjectableContext: Any = type(object)
+
+
 def is_valid_hint(hint: Type[Any]) -> bool:
     hint = extract_inner_type(hint)
     hint = get_origin(hint) or hint
@@ -42,12 +47,13 @@ def configspec(cls: None = ..., /, *, init: bool = False) -> Callable[[Type[TAny
 def configspec(cls: Optional[Type[Any]] = None, /, *, init: bool = False) -> Union[Type[TAnyClass], Callable[[Type[TAnyClass]], Type[TAnyClass]]]:
 
     def wrap(cls: Type[TAnyClass]) -> Type[TAnyClass]:
+        is_context = issubclass(cls, _F_ContainerInjectableContext)
         # if type does not derive from BaseConfiguration then derive it
         with contextlib.suppress(NameError):
             if not issubclass(cls, BaseConfiguration):
                 # keep the original module
                 fields = {"__module__": cls.__module__, "__annotations__": getattr(cls, "__annotations__", {})}
-                cls = type(cls.__name__, (cls, BaseConfiguration), fields)
+                cls = type(cls.__name__, (cls, _F_BaseConfiguration), fields)
         # get all annotations without corresponding attributes and set them to None
         for ann in cls.__annotations__:
             if not hasattr(cls, ann) and not ann.startswith(("__", "_abc_impl")):
@@ -59,7 +65,8 @@ def configspec(cls: Optional[Type[Any]] = None, /, *, init: bool = False) -> Uni
                 if att_name not in cls.__annotations__:
                     raise ConfigFieldMissingTypeHintException(att_name, cls)
                 hint = cls.__annotations__[att_name]
-                if not is_valid_hint(hint):
+                # context can have any type
+                if not is_valid_hint(hint) and not is_context:
                     raise ConfigFieldTypeHintNotSupported(att_name, cls, hint)
         # do not generate repr as it may contain secret values
         return dataclasses.dataclass(cls, init=init, eq=False, repr=False)  # type: ignore
@@ -166,12 +173,17 @@ class BaseConfiguration(MutableMapping[str, Any]):
         return self.__dataclass_fields__  # type: ignore
 
 
+_F_BaseConfiguration = BaseConfiguration
+
 @configspec
 class CredentialsConfiguration(BaseConfiguration):
     """Base class for all credentials. Credentials are configurations that may be stored only by providers supporting secrets."""
 
     __namespace__: str = "credentials"
 
+    def __str__(self) -> str:
+        """Get string representation of credentials to be displayed, with all secret parts removed """
+        return super().__str__()
 
 
 @configspec
@@ -180,3 +192,6 @@ class ContainerInjectableContext(BaseConfiguration):
 
     # If True, `Container` is allowed to create default context instance, if none exists
     can_create_default: ClassVar[bool] = True
+
+
+_F_ContainerInjectableContext = ContainerInjectableContext
