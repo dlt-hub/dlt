@@ -1,12 +1,12 @@
 import pytest
-from typing import Any, ClassVar, Literal
+from typing import Any, ClassVar, Literal, Optional
 
 from dlt.common.configuration import configspec
-from dlt.common.configuration.providers.container import ContextProvider
+from dlt.common.configuration.providers.context import ContextProvider
 from dlt.common.configuration.resolve import resolve_configuration
 from dlt.common.configuration.specs import BaseConfiguration, ContainerInjectableContext
 from dlt.common.configuration.container import Container
-from dlt.common.configuration.exceptions import ContainerInjectableContextMangled, ContextDefaultCannotBeCreated
+from dlt.common.configuration.exceptions import ConfigFieldMissingException, ContainerInjectableContextMangled, ContextDefaultCannotBeCreated
 
 from tests.utils import preserve_environ
 from tests.common.configuration.utils import environment
@@ -29,6 +29,16 @@ class EmbeddedWithInjectableContext(BaseConfiguration):
 class NoDefaultInjectableContext(ContainerInjectableContext):
 
     can_create_default: ClassVar[bool] = False
+
+
+@configspec
+class EmbeddedWithNoDefaultInjectableContext(BaseConfiguration):
+    injected: NoDefaultInjectableContext
+
+
+@configspec
+class EmbeddedWithNoDefaultInjectableOptionalContext(BaseConfiguration):
+    injected: Optional[NoDefaultInjectableContext]
 
 
 @pytest.fixture()
@@ -116,8 +126,8 @@ def test_container_provider(container: Container) -> None:
     assert InjectableTestContext in container
 
     # provider does not create default value in Container
-    with pytest.raises(ContextDefaultCannotBeCreated):
-        provider.get_value("n/a", NoDefaultInjectableContext)
+    v, k = provider.get_value("n/a", NoDefaultInjectableContext)
+    assert v is None
     assert NoDefaultInjectableContext not in container
 
     # explicitly create value
@@ -145,3 +155,15 @@ def test_container_provider_embedded_inject(container: Container, environment: A
         C = resolve_configuration(EmbeddedWithInjectableContext())
         assert C.injected.current_value == "Embed"
         assert C.injected is injected
+
+
+def test_container_provider_embedded_no_default(container: Container) -> None:
+    with container.injectable_context(NoDefaultInjectableContext()):
+        resolve_configuration(EmbeddedWithNoDefaultInjectableContext())
+    # default cannot be created so fails
+    with pytest.raises(ConfigFieldMissingException) as py_ex:
+        resolve_configuration(EmbeddedWithNoDefaultInjectableContext())
+    assert py_ex.value.fields == ["injected"]
+    # optional returns none
+    c = resolve_configuration(EmbeddedWithNoDefaultInjectableOptionalContext())
+    assert c.injected is None

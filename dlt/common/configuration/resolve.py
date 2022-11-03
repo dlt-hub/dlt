@@ -11,7 +11,7 @@ from dlt.common.configuration.specs.base_configuration import BaseConfiguration,
 from dlt.common.configuration.specs.config_namespace_context import ConfigNamespacesContext
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
-from dlt.common.configuration.providers.container import ContextProvider
+from dlt.common.configuration.providers.context import ContextProvider
 from dlt.common.configuration.exceptions import (LookupTrace, ConfigFieldMissingException, ConfigurationWrongTypeException, ConfigValueCannotBeCoercedException, ValueNotSecretException, InvalidInitialValue)
 
 CHECK_INTEGRITY_F: str = "check_integrity"
@@ -186,8 +186,11 @@ def _resolve_config_field(
     value, traces = _resolve_single_value(key, hint, inner_hint, config_namespace, explicit_namespaces, embedded_namespaces)
     _log_traces(config, key, hint, value, traces)
 
+    # contexts must be resolved as a whole
+    if inspect.isclass(inner_hint) and issubclass(inner_hint, ContainerInjectableContext):
+        pass
     # if inner_hint is BaseConfiguration then resolve it recursively
-    if inspect.isclass(inner_hint) and issubclass(inner_hint, BaseConfiguration):
+    elif inspect.isclass(inner_hint) and issubclass(inner_hint, BaseConfiguration):
         if isinstance(value, BaseConfiguration):
             # if resolved value is instance of configuration (typically returned by context provider)
             embedded_config = value
