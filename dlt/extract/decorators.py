@@ -193,10 +193,6 @@ def resource(
     def decorator(f: Callable[TResourceFunParams, Any]) -> Callable[TResourceFunParams, DltResource]:
         resource_name = name or f.__name__
 
-        # if f is not a generator (does not yield) raise Exception
-        if not inspect.isgeneratorfunction(inspect.unwrap(f)):
-            raise InvalidResourceDataTypeFunctionNotAGenerator(resource_name, f, type(f))
-
         # do not inject config values for inner functions, we assume that they are part of the source
         SPEC: Type[BaseConfiguration] = None
         if is_inner_function(f):
@@ -215,8 +211,7 @@ def resource(
         if SPEC:
             _SOURCES[f.__qualname__] = SourceInfo(SPEC, f, inspect.getmodule(f))
 
-        # the typing is right, but makefun.wraps does not preserve signatures
-        return make_resource(resource_name, f)
+        return make_resource(resource_name, conf_f)
 
     # if data is callable or none use decorator
     if data is None:

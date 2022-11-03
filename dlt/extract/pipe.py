@@ -239,7 +239,7 @@ class PipeIterator(Iterator[PipeItem]):
         pipes = PipeIterator.clone_pipes(pipes)
 
         def _fork_pipeline(pipe: Pipe) -> None:
-            print(f"forking: {pipe.name}")
+            # print(f"forking: {pipe.name}")
             if pipe.parent:
                 # fork the parent pipe
                 pipe.parent.fork(pipe)
@@ -254,7 +254,7 @@ class PipeIterator(Iterator[PipeItem]):
                 assert isinstance(pipe.head, Iterator)
                 # add every head as source only once
                 if not any(i.pipe == pipe for i in extract._sources):
-                    print("add to sources: " + pipe.name)
+                    # print("add to sources: " + pipe.name)
                     extract._sources.append(SourcePipeItem(pipe.head, 0, pipe))
 
         for pipe in reversed(pipes):

@@ -1,8 +1,10 @@
-from typing import Iterator, List, Sequence, Union, Any
+from typing import Iterator, List, Any
 from functools import partial
 
 import dlt
-from dlt.common.typing import AnyFun, DictStrAny, TDataItem, TSecretValue
+
+from dlt.common.configuration.specs.postgres_credentials import ConnectionStringCredentials
+from dlt.common.typing import AnyFun, DictStrAny, TDataItem
 from dlt.pipeline.exceptions import MissingDependencyException
 
 
@@ -38,14 +40,27 @@ def _query_data(
 @dlt.resource
 def query_table(
     table_name: str,
-    database_url: TSecretValue,
+    credentials: ConnectionStringCredentials,
     table_schema_name: str = None,
-    index_col: Union[str, Sequence[str], None] = None,
+    # index_col: Union[str, Sequence[str], None] = None,
     coerce_float: bool = True,
     parse_dates: Any = None,
     columns: List[str] = None,
     chunk_size: int = 1000
 ) -> Iterator[TDataItem]:
-    f = partial(pandas.read_sql_table, table_name, database_url, table_schema_name, index_col, coerce_float, parse_dates, columns, chunksize=chunk_size)
-    return _query_data(f)
-    # pandas.read_sql(sql, con, index_col=index_col, coerce_float=coerce_float, params=params, parse_dates=parse_dates, columns=columns, chunksize=chunk_size)
+    f = partial(pandas.read_sql_table, table_name, credentials.to_native_representation(), table_schema_name, None, coerce_float, parse_dates, columns, chunksize=chunk_size)
+    # if resource is returned from decorator function, it will override the hints from decorator
+    return dlt.resource(_query_data(f), name=table_name)
+
+
+@dlt.resource
+def query_sql(
+    sql: str,
+    credentials: ConnectionStringCredentials,
+    coerce_float: bool = True,
+    parse_dates: Any = None,
+    chunk_size: int = 1000,
+    dtype: Any = None
+) -> Iterator[TDataItem]:
+    f = partial(pandas.read_sql_query, sql, credentials.to_native_representation(), None, coerce_float, None, parse_dates, chunk_size, dtype)
+    yield from _query_data(f)

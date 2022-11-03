@@ -130,8 +130,8 @@ class DltResource(Iterable[TDataItems], DltResourceSchema):
         if callable(data):
             name = name or data.__name__
             # function must be a generator
-            if not inspect.isgeneratorfunction(inspect.unwrap(data)):
-                raise InvalidResourceDataTypeFunctionNotAGenerator(name, data, type(data))
+            # if not inspect.isgeneratorfunction(inspect.unwrap(data)):
+            #     raise InvalidResourceDataTypeFunctionNotAGenerator(name, data, type(data))
 
         # if generator, take name from it
         if inspect.isgenerator(data):
@@ -212,6 +212,12 @@ class DltResource(Iterable[TDataItems], DltResourceSchema):
             raise DependentResourceIsNotCallable(self.name)
         # pass the call parameters to the pipe's head
         _data = self._pipe.head(*args, **kwargs)  # type: ignore
+        # if f is not a generator (does not yield) raise Exception
+        if not inspect.isgenerator(_data):
+            # the only exception is if resource is returned, then return it instead
+            if isinstance(_data, DltResource):
+                return _data
+            raise InvalidResourceDataTypeFunctionNotAGenerator(self.name, self._pipe.head, type(self._pipe.head))
         # create new resource from extracted data
         return DltResource.from_data(_data, self.name, self._table_schema_template, self.selected, self._pipe.parent)
 
@@ -301,11 +307,13 @@ class DltSource(Iterable[TDataItems]):
         self._schema = value
 
     def discover_schema(self) -> Schema:
+        # print(self._schema.tables)
         # extract tables from all resources and update internal schema
         for r in self._resources.values():
             # names must be normalized here
             with contextlib.suppress(DataItemRequiredForDynamicTableHints):
                 partial_table = self._schema.normalize_table_identifiers(r.table_schema())
+                # print(partial_table)
                 self._schema.update_schema(partial_table)
         return self._schema
 
@@ -313,9 +321,8 @@ class DltSource(Iterable[TDataItems]):
         self._resources.select(*resource_names)
         return self
 
-
     def run(self, destination: Any) -> Any:
-        return Container()[PipelineContext].pipeline().run(source=self, destination=destination)
+        return Container()[PipelineContext].pipeline().run(self, destination=destination)
 
     def _add_resource(self, resource: DltResource) -> None:
         if resource.name in self._resources:
