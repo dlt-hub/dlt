@@ -1,7 +1,6 @@
 from abc import ABC, abstractmethod
 from importlib import import_module
-from nis import cat
-from types import ModuleType, TracebackType
+from types import TracebackType
 from typing import Any, Callable, ClassVar, List, Optional, Literal, Type, Protocol, Union, TYPE_CHECKING, cast
 
 from dlt.common.schema import Schema
