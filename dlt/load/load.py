@@ -1,10 +1,10 @@
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 from multiprocessing.pool import ThreadPool
 from prometheus_client import REGISTRY, Counter, Gauge, CollectorRegistry, Summary
 
 from dlt.common import sleep, logger
 from dlt.common.configuration import with_config
-from dlt.common.typing import ConfigValue
+from dlt.common.typing import ConfigValue, StrAny
 from dlt.common.runners import TRunMetrics, Runnable, workermethod
 from dlt.common.logger import pretty_format_exception
 from dlt.common.exceptions import TerminalValueError
@@ -41,6 +41,7 @@ class Load(Runnable[ThreadPool]):
         self.capabilities = destination.capabilities()
         self.pool: ThreadPool = None
         self.load_storage: LoadStorage = self.create_storage(is_storage_owner)
+        self._processed_load_ids: Dict[str, StrAny] = {}
         try:
             Load.create_gauges(collector)
         except ValueError as v:
@@ -196,7 +197,10 @@ class Load(Runnable[ThreadPool]):
         if len(loads) == 0:
             return TRunMetrics(True, False, 0)
 
+        # get top job id and mark as being processed
         load_id = loads[0]
+        # TODO: here full info should be gathered: load_ids, jobs, their results and possible error messages, elapsed times etc.
+        self._processed_load_ids[load_id] = None
         logger.info(f"Loading schema from load package in {load_id}")
         schema = self.load_storage.load_package_schema(load_id)
         logger.info(f"Loaded schema name {schema.name} and version {schema.stored_version}")
@@ -217,6 +221,7 @@ class Load(Runnable[ThreadPool]):
             jobs_count, jobs = self.spool_new_jobs(load_id, schema)
             if jobs_count > 0:
                 # this is a new  load package
+                # TODO: this is wrong, we must check completed and failed jobs to say that
                 set_gauge_all_labels(self.job_gauge, 0)
                 self.job_gauge.labels("running").inc(len(jobs))
                 self.job_counter.labels("running").inc(len(jobs))
@@ -232,7 +237,9 @@ class Load(Runnable[ThreadPool]):
             self.load_storage.complete_load_package(load_id)
             logger.info(f"All jobs completed, archiving package {load_id}")
             self.load_counter.inc()
-            logger.metrics("Load package metrics", extra=get_logging_extras([self.load_counter]))
+            metrics = get_logging_extras([self.load_counter])
+            self._processed_load_ids[load_id] = metrics
+            logger.metrics("Load package metrics", extra=metrics)
         else:
             # TODO: this loop must be urgently removed.
             while True:

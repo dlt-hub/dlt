@@ -15,7 +15,6 @@ from dlt.common.schema.typing import TTableSchema, TWriteDisposition
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 from dlt.common.configuration.specs import GcpClientCredentials
 from dlt.common.destination import DestinationCapabilitiesContext, TLoadJobStatus, LoadJob
-from dlt.common.data_writers import escape_bigquery_identifier
 from dlt.common.schema import TColumnSchema, TDataType, Schema, TTableSchemaColumns
 
 from dlt.load.typing import DBCursor
@@ -187,9 +186,6 @@ class BigQueryLoadJob(LoadJob):
 
 class BigQueryClient(SqlJobClientBase):
 
-    # CONFIG: BigQueryClientConfiguration = None
-    # CREDENTIALS: GcpClientCredentials = None
-
     def __init__(self, schema: Schema, config: BigQueryClientConfiguration) -> None:
         sql_client = BigQuerySqlClient(
             schema.normalize_make_dataset_name(config.dataset_name, config.default_schema_name, schema.name),
@@ -198,6 +194,7 @@ class BigQueryClient(SqlJobClientBase):
         super().__init__(schema, config, sql_client)
         self.config: BigQueryClientConfiguration = config
         self.sql_client: BigQuerySqlClient = sql_client
+        self.caps = BigQueryClient.capabilities()
 
     def initialize_storage(self, wipe_data: bool = False) -> None:
         if wipe_data:
@@ -277,8 +274,8 @@ class BigQueryClient(SqlJobClientBase):
             sql = f"ALTER TABLE {canonical_name}\n"
             sql += ",\n".join(["ADD COLUMN " + self._get_column_def_sql(c) for c in new_columns])
         # scan columns to get hints
-        cluster_list = [escape_bigquery_identifier(c["name"]) for c in new_columns if c.get("cluster", False)]
-        partition_list = [escape_bigquery_identifier(c["name"]) for c in new_columns if c.get("partition", False)]
+        cluster_list = [self.caps.escape_identifier(c["name"]) for c in new_columns if c.get("cluster", False)]
+        partition_list = [self.caps.escape_identifier(c["name"]) for c in new_columns if c.get("partition", False)]
         # partition by must be added first
         if len(partition_list) > 0:
             if exists:
@@ -296,7 +293,7 @@ class BigQueryClient(SqlJobClientBase):
         return sql
 
     def _get_column_def_sql(self, c: TColumnSchema) -> str:
-        name = escape_bigquery_identifier(c["name"])
+        name = self.caps.escape_identifier(c["name"])
         return f"{name} {self._sc_t_to_bq_t(c['data_type'])} {self._gen_not_null(c['nullable'])}"
 
     def _get_storage_table(self, table_name: str) -> Tuple[bool, TTableSchemaColumns]:
