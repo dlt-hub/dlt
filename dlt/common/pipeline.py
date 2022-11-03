@@ -1,6 +1,6 @@
 import os
 import tempfile
-from typing import Any, Callable, ClassVar, Protocol, Sequence
+from typing import Any, Callable, ClassVar, Dict, List, NamedTuple, Protocol, Sequence, Tuple
 
 from dlt.common.configuration.container import ContainerInjectableContext
 from dlt.common.configuration import configspec
@@ -9,26 +9,37 @@ from dlt.common.schema import Schema
 from dlt.common.schema.typing import TColumnSchema, TWriteDisposition
 
 
+class LoadInfo(NamedTuple):
+    """A tuple holding the information on recently loaded packages. Returned by pipeline run method"""
+    destination_name: str
+    destination_displayable_credentials: str
+    dataset_name: str
+    loads_ids: List[Tuple[str, bool]]
+    failed_jobs: Dict[str, Sequence[Tuple[str, str]]]
+
+
 class SupportsPipeline(Protocol):
     """A protocol with core pipeline operations that lets high level abstractions ie. sources to access pipeline methods and properties"""
     def run(
         self,
-        source: Any = None,
+        data: Any = None,
+        *,
         destination: DestinationReference = None,
         dataset_name: str = None,
+        credentials: Any = None,
         table_name: str = None,
         write_disposition: TWriteDisposition = None,
         columns: Sequence[TColumnSchema] = None,
         schema: Schema = None
-    ) -> Any:
+    ) -> LoadInfo:
         ...
 
 
 @configspec(init=True)
 class PipelineContext(ContainerInjectableContext):
-    # TODO: declare unresolvable generic types that will be allowed by configpec
-    _deferred_pipeline: Any
-    _pipeline: Any
+    # TODO: declare unresolvable generic types that will be allowed by configspec
+    _deferred_pipeline: Callable[[], SupportsPipeline]
+    _pipeline: SupportsPipeline
 
     can_create_default: ClassVar[bool] = False
 
@@ -37,7 +48,7 @@ class PipelineContext(ContainerInjectableContext):
         if not self._pipeline:
             # delayed pipeline creation
             self._pipeline = self._deferred_pipeline()
-        return self._pipeline  # type: ignore
+        return self._pipeline
 
     def activate(self, pipeline: SupportsPipeline) -> None:
         self._pipeline = pipeline

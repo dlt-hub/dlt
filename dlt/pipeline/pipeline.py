@@ -2,9 +2,9 @@ import os
 from contextlib import contextmanager
 from functools import wraps
 from collections.abc import Sequence as C_Sequence
-from typing import Any, Callable, ClassVar, List, Iterator, Mapping, Sequence, Tuple, get_type_hints, overload
+from typing import Any, Callable, ClassVar, Dict, List, Iterator, Mapping, Sequence, Tuple, get_type_hints, overload
 
-from dlt.common import json, logger, signals
+from dlt.common import json, logger, signals, pendulum
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.config_namespace_context import ConfigNamespacesContext
 from dlt.common.runners.runnable import Runnable
@@ -18,6 +18,7 @@ from dlt.common.storages import LiveSchemaStorage, NormalizeStorage
 from dlt.common.configuration import inject_namespace
 from dlt.common.configuration.specs import RunConfiguration, NormalizeVolumeConfiguration, SchemaVolumeConfiguration, LoadVolumeConfiguration, PoolRunnerConfiguration
 from dlt.common.destination import DestinationCapabilitiesContext, DestinationReference, JobClientBase, DestinationClientConfiguration, DestinationClientDwhConfiguration
+from dlt.common.pipeline import LoadInfo
 from dlt.common.schema import Schema
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.utils import is_interactive
@@ -81,7 +82,7 @@ class Pipeline:
 
     pipeline_name: str
     default_schema_name: str = None
-    always_drop_pipeline: bool
+    full_refresh: bool
     working_dir: str
     pipeline_root: str
     destination: DestinationReference = None
@@ -96,14 +97,16 @@ class Pipeline:
             dataset_name: str,
             import_schema_path: str,
             export_schema_path: str,
-            always_drop_pipeline: bool,
+            full_refresh: bool,
             must_restore_pipeline: bool,
             runtime: RunConfiguration
         ) -> None:
         self.pipeline_secret = pipeline_secret
         self.runtime_config = runtime
+        self.full_refresh = full_refresh
 
         self._container = Container()
+        self._pipeline_instance_id = pendulum.now().format("_YYYYMMDDhhmmss")
         # self._state: TPipelineState = {}  # type: ignore
         self._pipeline_storage: FileStorage = None
         self._schema_storage: LiveSchemaStorage = None
@@ -121,17 +124,16 @@ class Pipeline:
                 raise CannotRestorePipelineException(pipeline_name, working_dir, f"working directory contains state for pipeline with name {self.pipeline_name}")
             # at this moment state is recovered so we overwrite the state with the values from init
             self.destination = destination or self.destination  # changing the destination could be dangerous if pipeline has not loaded items
-            self.dataset_name = dataset_name or self.dataset_name
-            self.always_drop_pipeline = always_drop_pipeline
+            self._set_dataset_name(dataset_name)
             self._configure(import_schema_path, export_schema_path, must_restore_pipeline)
 
     def drop(self) -> "Pipeline":
         """Deletes existing pipeline state, schemas and drops datasets at the destination if present"""
-        if self.destination:
-            # drop the data for all known schemas
-            for schema in self._schema_storage:
-                with self._get_destination_client(self._schema_storage.load_schema(schema)) as client:
-                    client.initialize_storage(wipe_data=True)
+        # if self.destination:
+        #     # drop the data for all known schemas
+        #     for schema in self._schema_storage:
+        #         with self._get_destination_client(self._schema_storage.load_schema(schema)) as client:
+        #             client.initialize_storage(wipe_data=True)
         # reset the pipeline working dir
         self._create_pipeline()
         # clone the pipeline
@@ -143,7 +145,7 @@ class Pipeline:
             self.dataset_name,
             self._schema_storage.config.import_schema_path,
             self._schema_storage.config.export_schema_path,
-            self.always_drop_pipeline,
+            self.full_refresh,
             False,
             self.runtime_config
         )
@@ -178,12 +180,12 @@ class Pipeline:
     def extract(
         self,
         data: Any,
+        *,
         table_name: str = None,
         parent_table_name: str = None,
         write_disposition: TWriteDisposition = None,
         columns: Sequence[TColumnSchema] = None,
         schema: Schema = None,
-        *,
         max_parallel_items: int = 100,
         workers: int = 5
     ) -> None:
@@ -291,17 +293,17 @@ class Pipeline:
         credentials: Any = None,
         # raise_on_failed_jobs = False,
         # raise_on_incompatible_schema = False,
-        always_wipe_storage: bool = False,
+        # always_wipe_storage: bool = False,
         *,
         workers: int = 20
-    ) -> None:
+    ) -> LoadInfo:
 
         # set destination and default dataset if provided
         self.destination = destination or self.destination
-        self.dataset_name = dataset_name or self.dataset_name
+        self._set_dataset_name(dataset_name)
         # check if any schema is present, if not then no data was extracted
         if not self.default_schema_name:
-            return
+            return None
 
         # make sure that destination is set and client is importable and can be instantiated
         client_initial_config = self._get_destination_client_initial_config(credentials)
@@ -312,35 +314,45 @@ class Pipeline:
             is_single_run=True,
             exit_on_exception=True,
             workers=workers,
-            always_wipe_storage=always_wipe_storage or self.always_drop_pipeline,
+            always_wipe_storage=False,
             _load_storage_config=self._load_storage_config
         )
         load = Load(self.destination, is_storage_owner=False, config=load_config, initial_client_config=client_initial_config)
-        self._run_step_in_pool("load", load, load.config)
+        try:
+            self._run_step_in_pool("load", load, load.config)
+            return self._get_load_info(load)
+        except PipelineStepFailed as pipex:
+            pipex.step_info = self._get_load_info(load)
+            raise
 
     @with_config_namespace(("run",))
     def run(
         self,
-        source: Any = None,
+        data: Any = None,
+        *,
         destination: DestinationReference = None,
         dataset_name: str = None,
+        credentials: Any = None,
         table_name: str = None,
         write_disposition: TWriteDisposition = None,
         columns: Sequence[TColumnSchema] = None,
         schema: Schema = None
-    ) -> None:
+    ) -> LoadInfo:
         # set destination and default dataset if provided
         self.destination = destination or self.destination
-        self.dataset_name = dataset_name or self.dataset_name
+        self._set_dataset_name(dataset_name)
+
         # normalize and load pending data
         self.normalize()
-        self.load(destination, dataset_name)
+        self.load(destination, dataset_name, credentials=credentials)
 
         # extract from the source
-        if source:
-            self.extract(source, table_name, write_disposition, None, columns, schema)
+        if data:
+            self.extract(data, table_name=table_name, write_disposition=write_disposition, columns=columns, schema=schema)
             self.normalize()
-            self.load(destination, dataset_name)
+            return self.load(destination, dataset_name, credentials=credentials)
+        else:
+            return None
 
     @property
     def schemas(self) -> Mapping[str, Schema]:
@@ -378,7 +390,7 @@ class Pipeline:
     def sync_schema(self, schema_name: str = None, credentials: Any = None) -> None:
         schema = self.schemas[schema_name] if schema_name else self.default_schema
         with self._get_destination_client(schema, self._get_destination_client_initial_config(credentials)) as client:
-            client.initialize_storage(wipe_data=self.always_drop_pipeline)
+            client.initialize_storage()
             client.update_storage_schema()
 
     def sql_client(self, schema_name: str = None, credentials: Any = None) -> SqlClientBase[Any]:
@@ -402,8 +414,11 @@ class Pipeline:
         # compute the folder that keeps all of the pipeline state
         FileStorage.validate_file_name_component(self.pipeline_name)
         self.pipeline_root = os.path.join(working_dir, pipeline_name)
-        # create pipeline working dir
+        # create pipeline storage, do not create working dir yet
         self._pipeline_storage = FileStorage(self.pipeline_root, makedirs=False)
+        # if full refresh was requested, wipe out all data from working folder, if exists
+        if self.full_refresh:
+            self._wipe_working_folder()
 
     def _configure(self, import_schema_path: str, export_schema_path: str, must_restore_pipeline: bool) -> None:
         # create default configs
@@ -421,7 +436,7 @@ class Pipeline:
             raise CannotRestorePipelineException(self.pipeline_name, self.working_dir, f"the pipeline was not found in {self.pipeline_root}.")
 
         # restore pipeline if folder exists and contains state
-        if has_state and (not self.always_drop_pipeline or must_restore_pipeline):
+        if has_state:
             self._restore_pipeline()
         else:
             # this will erase the existing working folder
@@ -431,10 +446,13 @@ class Pipeline:
         self._schema_storage = LiveSchemaStorage(self._schema_storage_config, makedirs=True)
 
     def _create_pipeline(self) -> None:
+        self._wipe_working_folder()
+        self._pipeline_storage.create_folder("", exists_ok=False)
+
+    def _wipe_working_folder(self) -> None:
         # kill everything inside the working folder
         if self._pipeline_storage.has_folder(""):
             self._pipeline_storage.delete_folder("", recursively=True)
-        self._pipeline_storage.create_folder("", exists_ok=False)
 
     def _restore_pipeline(self) -> None:
         pass
@@ -532,8 +550,32 @@ class Pipeline:
                 )
         return self.destination.capabilities()
 
+    def _set_dataset_name(self, dataset_name: str) -> None:
+        # in case of full refresh add unique suffix to
+        if self.full_refresh and dataset_name:
+            dataset_name += "_" + self._pipeline_instance_id
+        self.dataset_name = dataset_name or self.dataset_name
+
     def _get_dataset_name(self) -> str:
         return self.dataset_name or self.pipeline_name
+
+    def _get_load_info(self, load: Load) -> LoadInfo:
+        # TODO: Load must provide a clear interface to get last loads and metrics
+        load_ids = load._processed_load_ids
+        failed_packages: Dict[str, Sequence[Tuple[str, str]]] = {}
+        for load_id in load_ids:
+            failed_packages[load_id] = self.list_failed_jobs_in_package(load_id)
+        dataset_name = None
+        if isinstance(load.initial_client_config, DestinationClientDwhConfiguration):
+            dataset_name = load.initial_client_config.dataset_name
+
+        return LoadInfo(
+            load.initial_client_config.destination_name,
+            str(load.initial_client_config.credentials),
+            dataset_name,
+            [(load_id, bool(metrics)) for load_id, metrics in load_ids.items()],
+            failed_packages
+        )
 
     def _get_state(self) -> TPipelineState:
         try:
