@@ -190,15 +190,13 @@ class Pipeline:
         workers: int = 5
     ) -> None:
 
-
-        # def has_hint_args() -> bool:
-        #     return table_name or parent_table_name or write_disposition or schema
-
         def apply_hint_args(resource: DltResource) -> None:
             columns_dict = None
             if columns:
                 columns_dict = {c["name"]:c for c in columns}
-            resource.apply_hints(table_name, parent_table_name, write_disposition, columns_dict)
+            # apply hints only if any of the hints is present, table_name must be always present
+            if table_name or parent_table_name or write_disposition or columns:
+                resource.apply_hints(table_name or resource.name, parent_table_name, write_disposition, columns_dict)
 
         def choose_schema() -> Schema:
             if schema:
@@ -297,6 +295,10 @@ class Pipeline:
         *,
         workers: int = 20
     ) -> LoadInfo:
+
+        # if destination is a string then resolve it
+        if isinstance(destination, str):
+            destination = DestinationReference.from_name(destination)
 
         # set destination and default dataset if provided
         self.destination = destination or self.destination
@@ -460,22 +462,35 @@ class Pipeline:
     def _extract_source(self, source: DltSource, max_parallel_items: int, workers: int) -> None:
         # discover the schema from source
         source_schema = source.discover_schema()
-
-        # iterate over all items in the pipeline and update the schema if dynamic table hints were present
-        storage = ExtractorStorage(self._normalize_storage_config)
-        for _, partials in extract(source, storage, max_parallel_items=max_parallel_items, workers=workers).items():
-            for partial in partials:
-                source_schema.update_schema(source_schema.normalize_table_identifiers(partial))
+        pipeline_schema: Schema = None
+        should_initialize_import = False
 
         # if source schema does not exist in the pipeline
         if source_schema.name not in self._schema_storage:
             # possibly initialize the import schema if it is a new schema
-            self._schema_storage.initialize_import_if_new(source_schema)
+            should_initialize_import = True
             # save schema into the pipeline
             self._schema_storage.save_schema(source_schema)
             # and set as default if this is first schema in pipeline
             if not self.default_schema_name:
                 self.default_schema_name = source_schema.name
+            pipeline_schema = self._schema_storage[source_schema.name]
+        else:
+            # get the current schema and merge tables from source_schema, we'll not merge the high level props
+            pipeline_schema = self._schema_storage[source_schema.name]
+            for table in source_schema.all_tables():
+                pipeline_schema.update_schema(pipeline_schema.normalize_table_identifiers(table))
+
+
+        # iterate over all items in the pipeline and update the schema if dynamic table hints were present
+        storage = ExtractorStorage(self._normalize_storage_config)
+        for _, partials in extract(source, storage, max_parallel_items=max_parallel_items, workers=workers).items():
+            for partial in partials:
+                pipeline_schema.update_schema(pipeline_schema.normalize_table_identifiers(partial))
+
+        # initialize import with fully discovered schema
+        if should_initialize_import:
+            self._schema_storage.initialize_import_schema(pipeline_schema)
 
     def _run_step_in_pool(self, step: TPipelineStep, runnable: Runnable[Any], config: PoolRunnerConfiguration) -> int:
         try:
@@ -516,7 +531,7 @@ class Pipeline:
             raise PipelineConfigMissing(
                 "destination",
                 "load",
-                "Please provide `destination` argument to `config` or `load` method or via pipeline config file or environment var."
+                "Please provide `destination` argument to `pipeline`, `run` or `load` method directly or via .dlt config.toml file or environment variable."
             )
         dataset_name = self._get_dataset_name()
         # create initial destination client config
@@ -546,7 +561,7 @@ class Pipeline:
                 raise PipelineConfigMissing(
                     "destination",
                     "normalize",
-                    "Please provide `destination` argument to `config` or `load` method or via pipeline config file or environment var."
+                    "Please provide `destination` argument to `pipeline`, `run` or `load` method directly or via .dlt config.toml file or environment variable."
                 )
         return self.destination.capabilities()
 
@@ -561,19 +576,23 @@ class Pipeline:
 
     def _get_load_info(self, load: Load) -> LoadInfo:
         # TODO: Load must provide a clear interface to get last loads and metrics
+        # TODO: LoadInfo must hold many packages with different schemas and datasets
         load_ids = load._processed_load_ids
         failed_packages: Dict[str, Sequence[Tuple[str, str]]] = {}
-        for load_id in load_ids:
-            failed_packages[load_id] = self.list_failed_jobs_in_package(load_id)
+        for load_id, metrics in load_ids.items():
+            if metrics:
+                # get failed packages only when package finished
+                failed_packages[load_id] = self.list_failed_jobs_in_package(load_id)
         dataset_name = None
         if isinstance(load.initial_client_config, DestinationClientDwhConfiguration):
             dataset_name = load.initial_client_config.dataset_name
 
         return LoadInfo(
+            self,
             load.initial_client_config.destination_name,
             str(load.initial_client_config.credentials),
             dataset_name,
-            [(load_id, bool(metrics)) for load_id, metrics in load_ids.items()],
+            {load_id: bool(metrics) for load_id, metrics in load_ids.items()},
             failed_packages
         )
 

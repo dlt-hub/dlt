@@ -5,14 +5,15 @@ from types import ModuleType
 from typing import Callable, Dict, Type, Any, Optional, Tuple, TypeVar, overload
 from inspect import Signature, Parameter
 
-from dlt.common.typing import StrAny, TFun, AnyFun
+from dlt.common.typing import DictStrAny, StrAny, TFun, AnyFun
 from dlt.common.configuration.resolve import resolve_configuration, inject_namespace
 from dlt.common.configuration.specs.base_configuration import BaseConfiguration, is_valid_hint, configspec
 from dlt.common.configuration.specs.config_namespace_context import ConfigNamespacesContext
 
 # [^.^_]+ splits by . or _
 _SLEEPING_CAT_SPLIT = re.compile("[^.^_]+")
-_LAST_DLT_CONFIG = "_last_dlt_config"
+_LAST_DLT_CONFIG = "_dlt_config"
+_ORIGINAL_ARGS = "_dlt_orig_args"
 TConfiguration = TypeVar("TConfiguration", bound=BaseConfiguration)
 # keep a registry of all the decorated functions
 _FUNC_SPECS: Dict[int, Type[BaseConfiguration]] = {}
@@ -66,6 +67,8 @@ def with_config(func: Optional[AnyFun] = None, /, spec: Type[BaseConfiguration] 
 
         @wraps(f, new_sig=sig)
         def _wrap(*args: Any, **kwargs: Any) -> Any:
+            # store locals
+            _locals = dict(locals())
             # bind parameters to signature
             bound_args = sig.bind_partial(*args, **kwargs)
             bound_args.apply_defaults()
@@ -100,6 +103,7 @@ def with_config(func: Optional[AnyFun] = None, /, spec: Type[BaseConfiguration] 
             if kwargs_arg is not None:
                 bound_args.arguments[kwargs_arg.name].update(resolved_params)
                 bound_args.arguments[kwargs_arg.name][_LAST_DLT_CONFIG] = config
+                bound_args.arguments[kwargs_arg.name][_ORIGINAL_ARGS] = (args, kwargs)
             # call the function with resolved config
             return f(*bound_args.args, **bound_args.kwargs)
 
@@ -122,6 +126,10 @@ def with_config(func: Optional[AnyFun] = None, /, spec: Type[BaseConfiguration] 
 
 def last_config(**kwargs: Any) -> BaseConfiguration:
     return kwargs[_LAST_DLT_CONFIG]  # type: ignore
+
+
+def get_orig_args(**kwargs: Any) -> Tuple[Tuple[Any], DictStrAny]:
+    return kwargs[_ORIGINAL_ARGS]  # type: ignore
 
 
 def _get_spec_name_from_f(f: AnyFun) -> str:

@@ -46,6 +46,7 @@ class Container:
     def __contains__(self, spec: Type[TConfiguration]) -> bool:
         return spec in self.contexts
 
+
     @contextmanager
     def injectable_context(self, config: TConfiguration) -> Iterator[TConfiguration]:
         spec = type(config)

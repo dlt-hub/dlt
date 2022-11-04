@@ -90,7 +90,8 @@ def extract(source: DltSource, storage: ExtractorStorage, *, max_parallel_items:
                 _write_dynamic_table(resource, pipe_item.item)
         else:
             # write item belonging to table with static name
-            _write_item(resource.name, pipe_item.item)
+            table_name: str = resource._table_schema_template["name"] if resource._table_schema_template else resource.name  # type: ignore
+            _write_item(table_name, pipe_item.item)
 
     # flush all buffered writers
     storage.close_writers(extract_id)

@@ -126,7 +126,7 @@ def resource(
     data: Callable[TResourceFunParams, Any],
     /,
     name: str = None,
-    table_name_fun: TFunHintTemplate[str] = None,
+    table_name: TTableHintTemplate[str] = None,
     write_disposition: TTableHintTemplate[TWriteDisposition] = None,
     columns: TTableHintTemplate[TTableSchemaColumns] = None,
     selected: bool = True,
@@ -140,7 +140,7 @@ def resource(
     data: None = ...,
     /,
     name: str = None,
-    table_name_fun: TFunHintTemplate[str] = None,
+    table_name: TTableHintTemplate[str] = None,
     write_disposition: TTableHintTemplate[TWriteDisposition] = None,
     columns: TTableHintTemplate[TTableSchemaColumns] = None,
     selected: bool = True,
@@ -163,7 +163,7 @@ def resource(
     data: Union[List[Any], Tuple[Any], Iterator[Any]],
     /,
     name: str = None,
-    table_name_fun: TFunHintTemplate[str] = None,
+    table_name: TTableHintTemplate[str] = None,
     write_disposition: TTableHintTemplate[TWriteDisposition] = None,
     columns: TTableHintTemplate[TTableSchemaColumns] = None,
     selected: bool = True,
@@ -177,7 +177,7 @@ def resource(
     data: Optional[Any] = None,
     /,
     name: str = None,
-    table_name_fun: TFunHintTemplate[str] = None,
+    table_name: TTableHintTemplate[str] = None,
     write_disposition: TTableHintTemplate[TWriteDisposition] = None,
     columns: TTableHintTemplate[TTableSchemaColumns] = None,
     selected: bool = True,
@@ -186,7 +186,7 @@ def resource(
 ) -> Any:
 
     def make_resource(_name: str, _data: Any) -> DltResource:
-        table_template = DltResource.new_table_template(table_name_fun or _name, write_disposition=write_disposition, columns=columns)
+        table_template = DltResource.new_table_template(table_name or _name, write_disposition=write_disposition, columns=columns)
         return DltResource.from_data(_data, _name, table_template, selected, depends_on)
 
 

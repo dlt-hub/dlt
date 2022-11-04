@@ -48,28 +48,12 @@ load_info = pipeline.run(rows, credentials=dsn, table_name=table_name, write_dis
 
 # 4. Optional error handling - print, raise or handle.
 print()
-print(f"{len(load_info.loads_ids)} load package(s) were loaded to destination {load_info.destination_name} and into dataset {load_info.dataset_name}")
-print(f"The {load_info.destination_name} destination used {load_info.destination_displayable_credentials} location to store data")
-for load_id, completed in load_info.loads_ids:
-    cstr = "COMPLETED" if completed else "NOT COMPLETED"
-
-    # now enumerate all complete loads if we have any failed packages
-    # complete but failed job will not raise any exceptions
-    failed_jobs = load_info.failed_jobs.get(load_id)
-    jobs_str = "no failed jobs" if not failed_jobs else f"{len(failed_jobs)} job(s)"
-    print(f"Load package {load_id} is {cstr} and contains {jobs_str}")
-    for job_id, failed_message in failed_jobs:
-        print(f"\t{job_id}: {failed_message}")
+print(load_info)
 print()
 
 
-# # 4. Load
-# pipeline.load(credentials=dsn)
-
 # show to auto-generated schema
-# schema = pipeline.default_schema
-# schema_yaml = schema.to_pretty_yaml(remove_defaults=True)
-# print(schema_yaml)
+# print(pipeline.default_schema.to_pretty_yaml())
 
 # now you can use your data
 

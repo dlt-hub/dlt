@@ -7,7 +7,7 @@ from typing_extensions import Self
 
 from dlt.common.schema import Schema
 from dlt.common.schema.utils import new_table
-from dlt.common.schema.typing import TPartialTableSchema, TTableSchemaColumns, TWriteDisposition
+from dlt.common.schema.typing import TColumnSchema, TPartialTableSchema, TTableSchemaColumns, TWriteDisposition
 from dlt.common.typing import AnyFun, TDataItem, TDataItems
 from dlt.common.configuration.container import Container
 from dlt.common.pipeline import PipelineContext
@@ -101,7 +101,11 @@ class DltResourceSchema:
         # create a table schema template where hints can be functions taking TDataItem
         if isinstance(columns, C_Mapping):
             # new_table accepts a sequence
-            columns = columns.values()  # type: ignore
+            column_list: List[TColumnSchema] = []
+            for name, column in columns.items():
+                column["name"] = name
+                column_list.append(column)
+            columns = column_list  # type: ignore
 
         new_template: TTableSchemaTemplate = new_table(table_name, parent_table_name, write_disposition=write_disposition, columns=columns)  # type: ignore
         # if any of the hints is a function then name must be as well
@@ -309,7 +313,7 @@ class DltSource(Iterable[TDataItems]):
     def discover_schema(self) -> Schema:
         # print(self._schema.tables)
         # extract tables from all resources and update internal schema
-        for r in self._resources.values():
+        for r in self.selected_resources.values():
             # names must be normalized here
             with contextlib.suppress(DataItemRequiredForDynamicTableHints):
                 partial_table = self._schema.normalize_table_identifiers(r.table_schema())
