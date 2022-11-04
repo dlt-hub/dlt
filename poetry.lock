@@ -756,7 +756,7 @@ zmq = ["pyzmq"]
 name = "makefun"
 version = "1.15.0"
 description = "Small library to dynamically create python functions."
-category = "dev"
+category = "main"
 optional = false
 python-versions = "*"
 
@@ -1515,7 +1515,7 @@ redshift = ["psycopg2-binary", "psycopg2cffi"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8,<3.11"
-content-hash = "329f9610f00c9a1bfa2c4696b4de8a4ea1441e9cab80bad89d490ef7dd6e63fd"
+content-hash = "b7b5d8d794e24b8fb233bbab965c495875be4f0143350ab761921b4af6c9741b"
 
 [metadata.files]
 agate = [

@@ -62,10 +62,11 @@ def drop_pipeline() -> Iterator[None]:
 def test_default_pipeline_names(destination_name: str) -> None:
     p = dlt.pipeline()
     # this is a name of executing test harness or blank pipeline on windows
-    assert p.pipeline_name in ["dlt_pytest", "dlt_pipeline"]
+    possible_names = ["dlt_pytest", "dlt_pipeline"]
+    assert p.pipeline_name in possible_names
     assert p.working_dir == os.path.join(TEST_STORAGE_ROOT, ".dlt", "pipelines")
     assert p.dataset_name is None
-    assert p._get_dataset_name() == "dlt_pytest"
+    assert p._get_dataset_name() in possible_names
     assert p.destination is None
     assert p.default_schema_name is None
 
@@ -78,11 +79,11 @@ def test_default_pipeline_names(destination_name: str) -> None:
 
     # this will create default schema
     p.extract(data_fun)
-    assert p.default_schema_name == "dlt_pytest"
+    assert p.default_schema_name in possible_names
 
     # this will create additional schema
     p.extract(data_fun(), schema=dlt.Schema("names"))
-    assert p.default_schema_name == "dlt_pytest"
+    assert p.default_schema_name in possible_names
     assert "names" in p.schemas.keys()
 
     with pytest.raises(PipelineConfigMissing):
