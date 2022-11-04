@@ -271,6 +271,7 @@ def test_configuration_is_mutable_mapping(environment: Any) -> None:
     class _SecretCredentials(RunConfiguration):
         pipeline_name: Optional[str] = "secret"
         secret_value: TSecretValue = None
+        config_files_storage_path: str = "storage"
 
 
     # configurations provide full MutableMapping support
@@ -282,7 +283,7 @@ def test_configuration_is_mutable_mapping(environment: Any) -> None:
         'log_format': '{asctime}|[{levelname:<21}]|{process}|{name}|{filename}|{funcName}:{lineno}|{message}',
         'log_level': 'INFO',
         'request_timeout': (15, 300),
-        'config_files_storage_path': '_storage/config/%s',
+        'config_files_storage_path': 'storage',
         "secret_value": None
     }
     assert dict(_SecretCredentials()) == expected_dict

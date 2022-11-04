@@ -94,7 +94,7 @@ def test_secret_kube_fallback(environment: Any) -> None:
 
 def test_configuration_files(environment: Any) -> None:
     # overwrite config file paths
-    environment["CONFIG_FILES_STORAGE_PATH"] = "./tests/common/cases/schemas/ev1/%s"
+    environment["CONFIG_FILES_STORAGE_PATH"] = "./tests/common/cases/schemas/ev1/"
     C = resolve.resolve_configuration(MockProdConfigurationVar())
     assert C.config_files_storage_path == environment["CONFIG_FILES_STORAGE_PATH"]
     assert C.has_configuration_file("hasn't") is False

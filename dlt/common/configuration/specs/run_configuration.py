@@ -1,4 +1,4 @@
-from os.path import isfile
+from os.path import isfile, join
 from typing import Any, Optional, Tuple, IO
 
 from dlt.common.utils import encoding_for_mode, entry_point_file_stem
@@ -14,7 +14,7 @@ class RunConfiguration(BaseConfiguration):
     log_format: str = '{asctime}|[{levelname:<21}]|{process}|{name}|{filename}|{funcName}:{lineno}|{message}'
     log_level: str = "INFO"
     request_timeout: Tuple[int, int] = (15, 300)  # default request timeout for all http clients
-    config_files_storage_path: str = "/run/config/%s"
+    config_files_storage_path: str = "/run/config/"
 
     def check_integrity(self) -> None:
         # generate pipeline name from the entry point script name
@@ -31,4 +31,4 @@ class RunConfiguration(BaseConfiguration):
         return open(path, mode, encoding=encoding_for_mode(mode))
 
     def get_configuration_file_path(self, name: str) -> str:
-        return self.config_files_storage_path % name
+        return join(self.config_files_storage_path, name)

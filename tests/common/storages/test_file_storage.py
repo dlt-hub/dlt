@@ -21,18 +21,20 @@ def test_storage_init(test_storage: FileStorage) -> None:
 
 def test_make_full_path(test_storage: FileStorage) -> None:
     # fully within storage
-    path = test_storage.make_full_path("dir/to/file")
-    assert path.endswith("/" + TEST_STORAGE_ROOT + "/dir/to/file")
+    relative_path = os.path.join("dir", "to", "file")
+    path = test_storage.make_full_path(relative_path)
+    assert path.endswith(os.path.join(TEST_STORAGE_ROOT, relative_path))
     # overlapped with storage
-    path = test_storage.make_full_path(f"{TEST_STORAGE_ROOT}/dir/to/file")
-    assert path.endswith("/" + TEST_STORAGE_ROOT + "/dir/to/file")
+    root_path = os.path.join(TEST_STORAGE_ROOT, relative_path)
+    path = test_storage.make_full_path(root_path)
+    assert path.endswith(root_path)
     assert path.count(TEST_STORAGE_ROOT) == 1
-    # absolute path with different root than TEST_STORAGE_ROOT
+    # absolute path with different root than TEST_STORAGE_ROOT does not lead into storage so calculating full path impossible
     with pytest.raises(ValueError):
-        test_storage.make_full_path(f"/{TEST_STORAGE_ROOT}/dir/to/file")
+        test_storage.make_full_path(os.path.join("/", root_path))
     # absolute overlapping path
-    path = test_storage.make_full_path(os.path.abspath(f"{TEST_STORAGE_ROOT}/dir/to/file"))
-    assert path.endswith("/" + TEST_STORAGE_ROOT + "/dir/to/file")
+    path = test_storage.make_full_path(os.path.abspath(root_path))
+    assert path.endswith(root_path)
 
 
 def test_hard_links(test_storage: FileStorage) -> None:
