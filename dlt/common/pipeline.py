@@ -85,7 +85,8 @@ def get_default_working_dir() -> str:
         2. if current user is root in /var/dlt/pipelines
         3. if current user does not have a home directory in /tmp/dlt/pipelines
     """
-    if os.geteuid() == 0:
+    # getuid not available on Windows
+    if hasattr(os, "getuid") and os.geteuid() == 0:
         # we are root so use standard /var
         return os.path.join("/var", "dlt", "pipelines")
 

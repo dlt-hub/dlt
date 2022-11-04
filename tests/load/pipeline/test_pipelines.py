@@ -61,8 +61,8 @@ def drop_pipeline() -> Iterator[None]:
 @pytest.mark.parametrize('destination_name', ALL_CLIENT_TYPES)
 def test_default_pipeline_names(destination_name: str) -> None:
     p = dlt.pipeline()
-    # this is a name of executing test harness
-    assert p.pipeline_name == "dlt_pytest"
+    # this is a name of executing test harness or blank pipeline on windows
+    assert p.pipeline_name in ["dlt_pytest", "dlt_pipeline"]
     assert p.working_dir == os.path.join(TEST_STORAGE_ROOT, ".dlt", "pipelines")
     assert p.dataset_name is None
     assert p._get_dataset_name() == "dlt_pytest"
