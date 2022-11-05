@@ -572,7 +572,13 @@ class Pipeline:
         self.dataset_name = dataset_name or self.dataset_name
 
     def _get_dataset_name(self) -> str:
-        return self.dataset_name or self.pipeline_name
+        if self.dataset_name:
+            return self.dataset_name
+
+        if self.full_refresh:
+            return self.pipeline_name + "_" + self._pipeline_instance_id  # type: ignore
+        else:
+            return self.pipeline_name
 
     def _get_load_info(self, load: Load) -> LoadInfo:
         # TODO: Load must provide a clear interface to get last loads and metrics

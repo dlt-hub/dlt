@@ -153,7 +153,7 @@ def test_restore_pipeline(destination_name: str) -> None:
 
 
 @pytest.mark.parametrize('destination_name', ALL_CLIENT_TYPES)
-def test_run_with_wipe(destination_name: str) -> None:
+def test_run_full_refresh(destination_name: str) -> None:
 
     data = ["a", ["a", "b", "c"], ["a", "b", "c"]]
 
@@ -179,6 +179,11 @@ def test_run_with_wipe(destination_name: str) -> None:
     assert_table(p, "lists", [None, None, "a"], info=info)
     # child tables contain nested lists
     assert_table(p, "lists__value", sorted(data[1] + data[2]))
+
+
+def test_run_full_refresh_default_dataset() -> None:
+    p = dlt.pipeline(full_refresh=True)
+    assert p._get_dataset_name().endswith(p._pipeline_instance_id)
 
 
 @pytest.mark.parametrize('destination_name', ALL_CLIENT_TYPES)
