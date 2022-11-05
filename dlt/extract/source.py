@@ -8,14 +8,14 @@ from typing_extensions import Self
 from dlt.common.schema import Schema
 from dlt.common.schema.utils import new_table
 from dlt.common.schema.typing import TColumnSchema, TPartialTableSchema, TTableSchemaColumns, TWriteDisposition
-from dlt.common.typing import AnyFun, TDataItem, TDataItems
+from dlt.common.typing import AnyFun, TDataItem, TDataItems, NoneType
 from dlt.common.configuration.container import Container
 from dlt.common.pipeline import PipelineContext
 
 from dlt.extract.typing import TFunHintTemplate, TTableHintTemplate, TTableSchemaTemplate
 from dlt.extract.pipe import FilterItem, Pipe, PipeIterator
 from dlt.extract.exceptions import (
-    DependentResourceIsNotCallable, InvalidDependentResourceDataTypeGeneratorFunctionRequired, InvalidParentResourceDataType, InvalidParentResourceIsAFunction, InvalidResourceDataType, InvalidResourceDataTypeFunctionNotAGenerator,
+    DependentResourceIsNotCallable, InvalidDependentResourceDataTypeGeneratorFunctionRequired, InvalidParentResourceDataType, InvalidParentResourceIsAFunction, InvalidResourceDataType, InvalidResourceDataTypeFunctionNotAGenerator, InvalidResourceDataTypeIsNone,
     ResourceNotFoundError, CreatePipeException, DataItemRequiredForDynamicTableHints, InconsistentTableTemplate, InvalidResourceDataTypeAsync, InvalidResourceDataTypeBasic,
     InvalidResourceDataTypeMultiplePipes, ResourceNameMissing, TableNameMissing)
 
@@ -110,7 +110,7 @@ class DltResourceSchema:
         new_template: TTableSchemaTemplate = new_table(table_name, parent_table_name, write_disposition=write_disposition, columns=columns)  # type: ignore
         # if any of the hints is a function then name must be as well
         if any(callable(v) for k, v in new_template.items() if k != "name") and not callable(table_name):
-            raise InconsistentTableTemplate("Table name must be a function if any other table hint is a function")
+            raise InconsistentTableTemplate(f"Table name {table_name} must be a function if any other table hint is a function")
         return new_template
 
 
@@ -124,6 +124,9 @@ class DltResource(Iterable[TDataItems], DltResourceSchema):
 
     @classmethod
     def from_data(cls, data: Any, name: str = None, table_schema_template: TTableSchemaTemplate = None, selected: bool = True, depends_on: Union["DltResource", Pipe] = None) -> "DltResource":
+
+        if data is None:
+            raise InvalidResourceDataTypeIsNone(name, data, NoneType)  # type: ignore
 
         if isinstance(data, DltResource):
             return data
