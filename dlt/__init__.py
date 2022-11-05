@@ -22,7 +22,8 @@ Or start with our pipeline template with sample chess.com data to bigquery
 For more detailed info, see https://dlthub.com/docs
 """
 
-from dlt.pipeline import pipeline, run, restore
-from dlt.extract.decorators import source, resource
+from dlt.pipeline import pipeline, run, restore, Pipeline
+from dlt.extract.decorators import source, resource, defer
+from dlt.common.schema import Schema
 from dlt.__version__ import __version__
 

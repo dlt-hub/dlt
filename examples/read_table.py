@@ -1,28 +1,28 @@
 import os
 
-from dlt.pipeline.pipeline import Pipeline
-from dlt.pipeline.typing import PostgresPipelineCredentials
+import dlt
+from dlt.destinations import postgres
+from dlt.common.schema import utils
 
-from examples.sources.sql_query import get_source
+from examples.sources.sql_query import query_table, query_sql
 
-credentials = PostgresPipelineCredentials("redshift", "chat_analytics_rasa", "gamma_guild_7", "loader", "chat-analytics.czwteevq7bpe.eu-central-1.redshift.amazonaws.com")
+# the connection string to redshift instance holding some ethereum data
+# the connection string does not contain the password element and you should provide it in environment variable: SOURCES__CREDENTIALS__PASSWORD
+source_dsn = "redshift+redshift_connector://loader@chat-analytics.czwteevq7bpe.eu-central-1.redshift.amazonaws.com:5439/chat_analytics_rasa"
 
-# create sql alchemy connector
-conn_str = f"redshift+redshift_connector://{credentials.USER}:{os.environ['PG__PASSWORD']}@{credentials.HOST}:{credentials.PORT}/{credentials.DBNAME}"
+# get data from table, we preserve method signature from pandas
+items = query_table("blocks__transactions", source_dsn, table_schema_name="mainnet_2_ethereum", coerce_float=False)
+# the data is also an iterator
+for i in items:
+    for k, v in i.items():
+        print(f"{k}:{v} ({type(v)}:{utils.py_type_to_sc_type(type(v))})")
 
-# items = get_source("select *  from test_fixture_carbon_bot_session_cases_views.users limit 1", conn_str)
+# get data from query
+items = query_sql("select *  from mainnet_2_ethereum.blocks__transactions limit 10", source_dsn)
 
-
-# we preserve method signature from pandas
-items = get_source("select *  from mainnet_2_ethereum.blocks__transactions limit 10", conn_str, coerce_float=False)
-
-# for i in items:
-#     for k, v in i.items():
-#         print(f"{k}:{v} ({type(v)}:{Schema._py_type_to_sc_type(type(v))})")
-
-# normalize and display schema
-p = Pipeline("mydb")
-p.create_pipeline(credentials)
-p.extract(items, table_name="blocks__transactions")
-p.normalize()
-print(p.get_default_schema().to_pretty_yaml(remove_defaults=True))
+# and load it into a local postgres instance
+# the connection string does not have the password part. provide it in DESTINATION__CREDENTIALS__PASSWORD
+# you can find a docker compose file that spins up required instance in tests/load/postgres
+# note: run the script without required env variables to see info on possible secret configurations that were tried
+destination_dsn = "postgres://loader@localhost:5432/dlt_data"
+dlt.pipeline().run(items, destination=postgres, dataset_name="ethereum", credentials=destination_dsn, table_name="transactions")

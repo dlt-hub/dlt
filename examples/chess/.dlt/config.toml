@@ -1,0 +1,3 @@
+chess_url="https://api.chess.com/pub/"
+pipeline_name="chess"
+log_level="WARNING"

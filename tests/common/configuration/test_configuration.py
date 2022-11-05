@@ -1,5 +1,6 @@
 import pytest
 import datetime  # noqa: I251
+from unittest.mock import patch
 from typing import Any, Dict, List, Mapping, MutableMapping, NewType, Optional, Type
 
 from dlt.common import pendulum, Decimal, Wei
@@ -12,7 +13,7 @@ from dlt.common.configuration.specs.base_configuration import is_valid_hint
 from dlt.common.configuration.providers import environ as environ_provider, toml
 
 from tests.utils import preserve_environ, add_config_dict_to_env
-from tests.common.configuration.utils import MockProvider, CoercionTestConfiguration, COERCIONS, WithCredentialsConfiguration, WrongConfiguration, SecretConfiguration, NamespacedConfiguration, environment, mock_provider
+from tests.common.configuration.utils import MockProvider, CoercionTestConfiguration, COERCIONS, SecretCredentials, WithCredentialsConfiguration, WrongConfiguration, SecretConfiguration, NamespacedConfiguration, environment, mock_provider
 
 INVALID_COERCIONS = {
     # 'STR_VAL': 'test string',  # string always OK
@@ -90,6 +91,7 @@ class InstrumentedConfiguration(BaseConfiguration):
         self.head = parts[0]
         self.heels = parts[-1]
         self.tube = parts[1:-1]
+        self.__is_resolved__ = not self.is_partial()
 
     def check_integrity(self) -> None:
         if self.head > self.heels:
@@ -143,31 +145,48 @@ def test_set_initial_config_value(environment: Any) -> None:
 
 
 def test_initial_native_representation_skips_resolve(environment: Any) -> None:
-    c = InstrumentedConfiguration()
-    # mock namespace to enable looking for initials in provider
-    c.__namespace__ = "ins"
-    # explicit initial does not skip resolve
-    environment["INS__HEELS"] = "xhe"
-    c = resolve.resolve_configuration(c, initial_value="h>a>b>he")
-    assert c.heels == "xhe"
+    # make the instance namespaced so it can read from INSTRUMENTED
+    with patch.object(InstrumentedConfiguration, "__namespace__", "ins"):
+        # explicit native representations skips resolve
+        environment["INS__HEELS"] = "xhe"
+        c = resolve.resolve_configuration(InstrumentedConfiguration(), initial_value="h>a>b>he")
+        assert c.heels == "he"
 
-    # now put the whole native representation in env
-    environment["INS"] = "h>a>b>he"
-    c = InstrumentedConfiguration()
-    c.__namespace__ = "ins"
-    c = resolve.resolve_configuration(c, initial_value="h>a>b>uhe")
-    assert c.heels == "he"
+        # normal resolve
+        c = InstrumentedConfiguration(head="h", tube=["tu", "be"])
+        c = resolve.resolve_configuration(c)
+        assert c.heels == "xhe"
+
+        # now put the whole native representation in env and it must take precedence over the initial value
+        environment["INS"] = "h>a>b>he"
+        c = resolve.resolve_configuration(InstrumentedConfiguration(), initial_value={"head": "h", "tube": ["tu", "be"], "heels": "uhe"})
+        assert c.heels == "he"
+
+        # also over native initial value
+        c = resolve.resolve_configuration(InstrumentedConfiguration(), initial_value="h>a>b>uhe")
+        assert c.heels == "he"
 
 
 def test_query_initial_config_value_if_config_namespace(environment: Any) -> None:
-    c = InstrumentedConfiguration(head="h", tube=["a", "b"], heels="he")
     # mock the __namespace__ to enable the query
-    c.__namespace__ = "snake"
-    # provide the initial value
-    environment["SNAKE"] = "h>tu>be>xhe"
-    c = resolve.resolve_configuration(c)
-    # check if the initial value loaded
-    assert c.heels == "xhe"
+    with patch.object(InstrumentedConfiguration, "__namespace__", "snake"):
+        c = InstrumentedConfiguration(head="h", tube=["a", "b"], heels="he")
+        # provide the initial value
+        environment["SNAKE"] = "h>tu>be>xhe"
+        c = resolve.resolve_configuration(c)
+        # check if the initial value loaded
+        assert c.heels == "xhe"
+
+
+def test_skip_query_initial_config_value_if_no_config_namespace(environment: Any) -> None:
+    # the INSTRUMENTED is not looked up because InstrumentedConfiguration has no namespace
+    with custom_environ({"INSTRUMENTED": "he>tu>u>be>h"}):
+        with pytest.raises(ConfigFieldMissingException) as py_ex:
+            resolve.resolve_configuration(EmbeddedConfiguration(), initial_value={"default": "set", "namespaced": {"password": "pwd"}})
+        assert py_ex.value.spec_name == "InstrumentedConfiguration"
+        assert py_ex.value.fields == ["head", "tube", "heels"]
+
+    # also non embedded InstrumentedConfiguration will not be resolved - there's no way to infer initial key
 
 
 def test_invalid_initial_config_value() -> None:
@@ -192,7 +211,8 @@ def test_embedded_config(environment: Any) -> None:
     assert C.namespaced.password == "pwd"
 
     # resolve but providing values via env
-    with custom_environ({"INSTRUMENTED": "h>tu>u>be>xhe", "NAMESPACED__PASSWORD": "passwd", "DEFAULT": "DEF"}):
+    with custom_environ(
+            {"INSTRUMENTED__HEAD": "h", "INSTRUMENTED__TUBE": '["tu", "u", "be"]', "INSTRUMENTED__HEELS": "xhe", "NAMESPACED__PASSWORD": "passwd", "DEFAULT": "DEF"}):
         C = resolve.resolve_configuration(EmbeddedConfiguration())
         assert C.default == "DEF"
         assert C.instrumented.to_native_representation() == "h>tu>u>be>xhe"
@@ -212,27 +232,31 @@ def test_embedded_config(environment: Any) -> None:
         assert not C.instrumented.__is_resolved__
 
     # single integrity error fails all the embeds
-    with custom_environ({"INSTRUMENTED": "he>tu>u>be>h"}):
-        with pytest.raises(RuntimeError):
-            resolve.resolve_configuration(EmbeddedConfiguration(), initial_value={"default": "set", "namespaced": {"password": "pwd"}})
+    # make the instance namespaced so it can read from INSTRUMENTED
+    with patch.object(InstrumentedConfiguration, "__namespace__", "instrumented"):
+        with custom_environ({"INSTRUMENTED": "he>tu>u>be>h"}):
+            with pytest.raises(RuntimeError):
+                resolve.resolve_configuration(EmbeddedConfiguration(), initial_value={"default": "set", "namespaced": {"password": "pwd"}})
 
     # part via env part via initial values
-    with custom_environ({"INSTRUMENTED": "h>tu>u>be>he"}):
+    with custom_environ({"INSTRUMENTED__HEAD": "h", "INSTRUMENTED__TUBE": '["tu", "u", "be"]', "INSTRUMENTED__HEELS": "xhe"}):
         C = resolve.resolve_configuration(EmbeddedConfiguration(), initial_value={"default": "set", "namespaced": {"password": "pwd"}})
-        assert C.instrumented.to_native_representation() == "h>tu>u>be>he"
+        assert C.instrumented.to_native_representation() == "h>tu>u>be>xhe"
 
 
 def test_provider_values_over_initial(environment: Any) -> None:
-    with custom_environ({"INSTRUMENTED": "h>tu>u>be>he"}):
-        C = resolve.resolve_configuration(EmbeddedConfiguration(), initial_value={"instrumented": "h>tu>be>xhe"}, accept_partial=True)
-        assert C.instrumented.to_native_representation() == "h>tu>u>be>he"
-        # parent configuration is not resolved
-        assert not C.is_resolved()
-        assert C.is_partial()
-        # but embedded is
-        assert C.instrumented.__is_resolved__
-        assert C.instrumented.is_resolved()
-        assert not C.instrumented.is_partial()
+    # make the instance namespaced so it can read from INSTRUMENTED
+    with patch.object(InstrumentedConfiguration, "__namespace__", "instrumented"):
+        with custom_environ({"INSTRUMENTED": "h>tu>u>be>he"}):
+            c = resolve.resolve_configuration(EmbeddedConfiguration(), initial_value={"instrumented": "h>tu>be>xhe"}, accept_partial=True)
+            assert c.instrumented.to_native_representation() == "h>tu>u>be>he"
+            # parent configuration is not resolved
+            assert not c.is_resolved()
+            assert c.is_partial()
+            # but embedded is
+            assert c.instrumented.__is_resolved__
+            assert c.instrumented.is_resolved()
+            assert not c.instrumented.is_partial()
 
 
 def test_run_configuration_gen_name(environment: Any) -> None:
@@ -247,6 +271,7 @@ def test_configuration_is_mutable_mapping(environment: Any) -> None:
     class _SecretCredentials(RunConfiguration):
         pipeline_name: Optional[str] = "secret"
         secret_value: TSecretValue = None
+        config_files_storage_path: str = "storage"
 
 
     # configurations provide full MutableMapping support
@@ -256,9 +281,9 @@ def test_configuration_is_mutable_mapping(environment: Any) -> None:
         'sentry_dsn': None,
         'prometheus_port': None,
         'log_format': '{asctime}|[{levelname:<21}]|{process}|{name}|{filename}|{funcName}:{lineno}|{message}',
-        'log_level': 'DEBUG',
+        'log_level': 'INFO',
         'request_timeout': (15, 300),
-        'config_files_storage_path': '_storage/config/%s',
+        'config_files_storage_path': 'storage',
         "secret_value": None
     }
     assert dict(_SecretCredentials()) == expected_dict
@@ -584,10 +609,11 @@ def test_secret_value_not_secret_provider(mock_provider: MockProvider) -> None:
     assert py_ex.value.key == "-secret_value"
 
     # anything derived from CredentialsConfiguration will fail
-    with pytest.raises(ValueNotSecretException) as py_ex:
-        resolve.resolve_configuration(WithCredentialsConfiguration(), namespaces=("mock",))
-    assert py_ex.value.provider_name == "Mock Provider"
-    assert py_ex.value.key == "-credentials"
+    with patch.object(SecretCredentials, "__namespace__", "credentials"):
+        with pytest.raises(ValueNotSecretException) as py_ex:
+            resolve.resolve_configuration(WithCredentialsConfiguration(), namespaces=("mock",))
+        assert py_ex.value.provider_name == "Mock Provider"
+        assert py_ex.value.key == "-credentials"
 
 
 def test_do_not_resolve_twice(environment: Any) -> None:

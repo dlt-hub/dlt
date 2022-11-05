@@ -2,12 +2,16 @@ import base64
 import os
 
 import dlt
-from dlt.common.utils import uniq_id
 
-# 1. configuration: name your schema, table, pass credentials
-dataset_name = 'demo_' + uniq_id()[:4]
-pipeline_name = 'dlt_example'
-parent_table = 'my_json_doc'
+"""
+This is example of ad-hoc pipeline where the data is directly passed to `run` function, schema hints are explicit and credentials are passed directly
+or with the use of environment variables
+"""
+
+# 1. configuration: name your dataset, table, pass credentials
+dataset_name = 'dlt_quickstart'
+pipeline_name = 'dlt_quickstart'
+table_name = 'my_json_doc'
 
 gcp_credentials_json = {
     "type": "service_account",
@@ -16,15 +20,17 @@ gcp_credentials_json = {
     "client_email": "data-load-tool-public-demo@zinc-mantra-353207.iam.gserviceaccount.com",
 }
 
+dsn = "postgres://loader:loader@localhost:5432/dlt_data"
+
 # we do not want to have this key verbatim in repo so we decode it here
 gcp_credentials_json["private_key"] = bytes([_a ^ _b for _a, _b in zip(base64.b64decode(gcp_credentials_json["private_key"]), b"quickstart-sv"*150)]).decode("utf-8")
 
-# if you re-use an edited schema, then uncomment this part, so you can save it to file
-schema_file_path = "examples/schemas/quickstart.yml"
+# enable the automatic schema export so you can see the auto-generated schema
+export_schema_path = "examples/schemas/"
 
 
 # 2. Create a pipeline
-pipeline = dlt.pipeline(pipeline_name, destination="bigquery", dataset_name=dataset_name)
+pipeline = dlt.pipeline(pipeline_name, destination="postgres", dataset_name=dataset_name, export_schema_path=export_schema_path, full_refresh=True)
 
 
 # 3. Pass the data to the pipeline and give it a table name. Optionally normalize and handle schema.
@@ -38,32 +44,23 @@ rows = [{"name": "Ana", "age": 30, "id": 456, "children": [{"name": "Bill", "id"
                                                            ]}
         ]
 
-pipeline.extract(rows, table_name=parent_table)
-# tell the pipeline to un-nest the json into a relational structure
-pipeline.normalize()
+load_info = pipeline.run(rows, credentials=dsn, table_name=table_name, write_disposition="replace")
+
+# 4. Optional error handling - print, raise or handle.
+print()
+print(load_info)
+print()
+
 
 # show to auto-generated schema
-schema = pipeline.default_schema
-schema_yaml = schema.to_pretty_yaml(remove_defaults=True)
-print(schema_yaml)
+# print(pipeline.default_schema.to_pretty_yaml())
 
-# 4. Load
-pipeline.load(credentials=gcp_credentials_json)
-
-# 5. Optional error handling - print, raise or handle.
-
-# now enumerate all complete loads if we have any failed packages
-# complete but failed job will not raise any exceptions
-completed_loads = pipeline.list_completed_load_packages()
-for load_id in completed_loads:
-    print(f"Checking failed jobs in load id '{load_id}'")
-    for job, failed_message in pipeline.list_failed_jobs_in_package(load_id):
-        print(f"JOB: {os.path.abspath(job)}\nMSG: {failed_message}")
 # now you can use your data
 
 # Tables created:
-
-with pipeline.sql_client(credentials=gcp_credentials_json) as c:
+print("Now lets SELECT some data:")
+print()
+with pipeline.sql_client(credentials=dsn) as c:
     query = "SELECT * FROM my_json_doc"
     df = c.execute_sql(query)
     print(query)

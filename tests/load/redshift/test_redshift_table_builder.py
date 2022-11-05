@@ -27,9 +27,9 @@ def client(schema: Schema) -> RedshiftClient:
 
 def test_configuration() -> None:
     # check names normalized
-    with custom_environ({"CREDENTIALS__DBNAME": "UPPER_CASE_DATABASE", "CREDENTIALS__PASSWORD": " pass\n"}):
-        C = resolve_configuration(PostgresCredentials())
-        assert C.dbname == "upper_case_database"
+    with custom_environ({"DESTINATION__REDSHIFT__CREDENTIALS__DATABASE": "UPPER_CASE_DATABASE", "DESTINATION__REDSHIFT__CREDENTIALS__PASSWORD": " pass\n"}):
+        C = resolve_configuration(PostgresCredentials(), namespaces=("destination", "redshift"))
+        assert C.database == "upper_case_database"
         assert C.password == "pass"
 
 

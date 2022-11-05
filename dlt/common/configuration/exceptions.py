@@ -37,8 +37,9 @@ class ConfigFieldMissingException(ConfigurationException):
     def __init__(self, spec_name: str, traces: Mapping[str, Sequence[LookupTrace]]) -> None:
         self.traces = traces
         self.spec_name = spec_name
+        self.fields = list(traces.keys())
 
-        msg = f"Following fields are missing: {str(list(traces.keys()))} in configuration with spec {spec_name}\n"
+        msg = f"Following fields are missing: {str(self.fields)} in configuration with spec {spec_name}\n"
         for f, field_traces in traces.items():
             msg += f'\tfor field "{f}" config providers and keys were tried in following order:\n'
             for tr in field_traces:

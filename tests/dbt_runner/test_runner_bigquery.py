@@ -22,7 +22,7 @@ def module_autouse() -> None:
     # disable Redshift in environ
     # del environ["PG_SCHEMA_PREFIX"]
     # set the test case for the unit tests
-    environ["DEFAULT_DATASET"] = "test_fixture_carbon_bot_session_cases"
+    environ["DATASET_NAME"] = "test_fixture_carbon_bot_session_cases"
     add_config_to_env(GcpClientCredentials)
 
     setup_runner(DEST_SCHEMA_PREFIX)

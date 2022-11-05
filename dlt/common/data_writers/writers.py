@@ -1,15 +1,13 @@
 import abc
 import jsonlines
 from dataclasses import dataclass
-from typing import Any, Dict, Sequence, IO, Literal, Type
-from datetime import date, datetime  # noqa: I251
+from typing import Any, Dict, Sequence, IO, Type
 
 from dlt.common import json
 from dlt.common.typing import StrAny
 from dlt.common.json import json_typed_dumps
 from dlt.common.schema.typing import TTableSchemaColumns
-from dlt.common.data_writers.escape import escape_redshift_identifier, escape_redshift_literal
-from dlt.common.destination import TLoaderFileFormat
+from dlt.common.destination import TLoaderFileFormat, DestinationCapabilitiesContext
 
 
 @dataclass
@@ -18,11 +16,13 @@ class TFileFormatSpec:
     file_extension: str
     is_binary_format: bool
     supports_schema_changes: bool
+    requires_destination_capabilities: bool = False
 
 
 class DataWriter(abc.ABC):
-    def __init__(self, f: IO[Any]) -> None:
+    def __init__(self, f: IO[Any], caps: DestinationCapabilitiesContext = None) -> None:
         self._f = f
+        self._caps = caps
         self.items_count = 0
 
     @abc.abstractmethod
@@ -48,8 +48,12 @@ class DataWriter(abc.ABC):
         pass
 
     @classmethod
-    def from_file_format(cls, file_format: TLoaderFileFormat, f: IO[Any]) -> "DataWriter":
-        return cls.class_factory(file_format)(f)
+    def from_file_format(cls, file_format: TLoaderFileFormat, f: IO[Any], caps: DestinationCapabilitiesContext = None) -> "DataWriter":
+        return cls.class_factory(file_format)(f, caps)
+
+    @classmethod
+    def from_destination_capabilities(cls, caps: DestinationCapabilitiesContext, f: IO[Any]) -> "DataWriter":
+        return cls.class_factory(caps.preferred_loader_file_format)(f, caps)
 
     @classmethod
     def data_format_from_file_format(cls, file_format: TLoaderFileFormat) -> TFileFormatSpec:
@@ -103,8 +107,8 @@ class JsonlListPUAEncodeWriter(JsonlWriter):
 
 class InsertValuesWriter(DataWriter):
 
-    def __init__(self, f: IO[Any]) -> None:
-        super().__init__(f)
+    def __init__(self, f: IO[Any], caps: DestinationCapabilitiesContext = None) -> None:
+        super().__init__(f, caps)
         self._chunks_written = 0
         self._headers_lookup: Dict[str, int] = None
 
@@ -115,24 +119,16 @@ class InsertValuesWriter(DataWriter):
         self._headers_lookup = {v: i for i, v in enumerate(headers)}
         # do not write INSERT INTO command, this must be added together with table name by the loader
         self._f.write("INSERT INTO {}(")
-        self._f.write(",".join(map(escape_redshift_identifier, headers)))
+        self._f.write(",".join(map(self._caps.escape_identifier, headers)))
         self._f.write(")\nVALUES\n")
 
     def write_data(self, rows: Sequence[Any]) -> None:
         super().write_data(rows)
 
-        def stringify(v: Any) -> str:
-            if isinstance(v, bytes):
-                return f"from_hex('{v.hex()}')"
-            if isinstance(v, (datetime, date)):
-                return escape_redshift_literal(v.isoformat())
-            else:
-                return str(v)
-
         def write_row(row: StrAny) -> None:
             output = ["NULL"] * len(self._headers_lookup)
             for n,v  in row.items():
-                output[self._headers_lookup[n]] = escape_redshift_literal(v) if isinstance(v, str) else stringify(v)
+                output[self._headers_lookup[n]] = self._caps.escape_literal(v)
             self._f.write("(")
             self._f.write(",".join(output))
             self._f.write(")")
@@ -156,4 +152,4 @@ class InsertValuesWriter(DataWriter):
 
     @classmethod
     def data_format(cls) -> TFileFormatSpec:
-        return TFileFormatSpec("insert_values", "insert_values", False, False)
+        return TFileFormatSpec("insert_values", "insert_values", False, False, requires_destination_capabilities=True)

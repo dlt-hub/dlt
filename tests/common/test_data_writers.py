@@ -3,6 +3,8 @@ import pytest
 from typing import Iterator
 
 from dlt.common import pendulum
+from dlt.destinations.postgres import capabilities
+from dlt.destinations.redshift import capabilities as redshift_caps
 from dlt.common.data_writers import escape_redshift_literal, escape_redshift_identifier, escape_bigquery_identifier
 from dlt.common.data_writers.writers import DataWriter, InsertValuesWriter
 
@@ -12,7 +14,7 @@ from tests.common.utils import load_json_case, row_to_column_schemas
 @pytest.fixture
 def insert_writer() -> Iterator[DataWriter]:
     with io.StringIO() as f:
-        yield InsertValuesWriter(f)
+        yield InsertValuesWriter(f, caps=redshift_caps())
 
 
 def test_simple_insert_writer(insert_writer: DataWriter) -> None:
@@ -61,6 +63,7 @@ def test_string_literal_escape() -> None:
     assert escape_redshift_literal(", NULL');\n DROP TABLE --") == "', NULL'');\\n DROP TABLE --'"
     assert escape_redshift_literal(", NULL);\n DROP TABLE --") == "', NULL);\\n DROP TABLE --'"
     assert escape_redshift_literal(", NULL);\\n DROP TABLE --\\") == "', NULL);\\\\n DROP TABLE --\\\\'"
+    # assert escape_redshift_literal(b'hello_word') == "\\x68656c6c6f5f776f7264"
 
 
 def test_identifier_escape() -> None:
@@ -71,7 +74,7 @@ def test_identifier_escape_bigquery() -> None:
     assert escape_bigquery_identifier(", NULL'); DROP TABLE\"` -\\-") == '`, NULL\'); DROP TABLE"\\` -\\\\-`'
 
 
-def test_string_escape_unicode() -> None:
+def test_string_literal_escape_unicode() -> None:
     # test on some unicode characters
     assert escape_redshift_literal(", NULL);\n DROP TABLE --") == "', NULL);\\n DROP TABLE --'"
     assert escape_redshift_literal("イロハニホヘト チリヌルヲ ワカヨタレソ ツネナラム") == "'イロハニホヘト チリヌルヲ ワカヨタレソ ツネナラム'"

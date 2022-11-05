@@ -1,3 +1,4 @@
+from dlt.common.destination import TLoaderFileFormat
 from dlt.common.exceptions import DltException
 
 
@@ -15,3 +16,9 @@ class BufferedDataWriterClosed(DataWriterException):
     def __init__(self, file_name: str):
         self.file_name = file_name
         super().__init__(f"Writer with recent file name {file_name} is already closed")
+
+
+class DestinationCapabilitiesRequired(DataWriterException, ValueError):
+    def __init__(self, file_format: TLoaderFileFormat):
+        self.file_format = file_format
+        super().__init__(f"Writer for {file_format} requires destination capabilities which were not provided.")

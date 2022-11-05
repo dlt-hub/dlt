@@ -14,6 +14,8 @@ else:
     REPattern = _REPattern
     # ParamSpec = lambda x: [x]
 
+AnyType: TypeAlias = Any
+NoneType = type(None)
 DictStrAny: TypeAlias = Dict[str, Any]
 DictStrStr: TypeAlias = Dict[str, str]
 StrAny: TypeAlias = Mapping[str, Any]  # immutable, covariant entity

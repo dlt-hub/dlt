@@ -40,25 +40,28 @@ class LiveSchemaStorage(SchemaStorage):
         self._update_live_schema(schema, False)
         return rv
 
-    def initialize_import_if_new(self, schema: Schema) -> None:
-        if self.config.import_schema_path and schema.name not in self:
+    def initialize_import_schema(self, schema: Schema) -> None:
+        if self.config.import_schema_path:
             try:
                 self._load_import_schema(schema.name)
             except FileNotFoundError:
                 # save import schema only if it not exist
                 self._export_schema(schema, self.config.import_schema_path)
 
+
     def commit_live_schema(self, name: str) -> Schema:
         # if live schema exists and is modified then it must be used as an import schema
         live_schema = self.live_schemas.get(name)
         if live_schema and live_schema.stored_version_hash != live_schema.version_hash:
             live_schema.bump_version()
-            if self.config.import_schema_path:
-                # overwrite import schemas if specified
-                self._export_schema(live_schema, self.config.import_schema_path)
-            else:
-                # write directly to schema storage if no import schema folder configured
-                self._save_schema(live_schema)
+            # if self.config.import_schema_path:
+            #     print("WRITE IMPORT SCHEMA")
+            #     raise NotImplementedError()
+            #     # overwrite import schemas if specified
+            #     self._export_schema(live_schema, self.config.import_schema_path)
+            # else:
+            # write directly to schema storage if no import schema folder configured
+            self._save_schema(live_schema)
         return live_schema
 
     def _update_live_schema(self, schema: Schema, can_create_new: bool) -> None:

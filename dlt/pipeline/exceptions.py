@@ -53,4 +53,5 @@ class PipelineStepFailed(PipelineException):
         self.stage = step
         self.exception = exception
         self.run_metrics = run_metrics
+        self.step_info: Any = None
         super().__init__(f"Pipeline execution failed at stage {step} with exception:\n\n{type(exception)}\n{exception}")

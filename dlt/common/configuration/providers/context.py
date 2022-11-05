@@ -22,7 +22,7 @@ class ContextProvider(Provider):
         assert namespaces == ()
 
         # only context is a valid hint
-        with contextlib.suppress(TypeError):
+        with contextlib.suppress(KeyError, TypeError):
             if issubclass(hint, ContainerInjectableContext):
                 # contexts without defaults will raise ContextDefaultCannotBeCreated
                 return self.container[hint], hint.__name__

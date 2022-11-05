@@ -10,7 +10,7 @@ from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import TTableSchemaColumns, TWriteDisposition
 from dlt.common.typing import AnyFun, ParamSpec, TDataItems
 from dlt.common.utils import is_inner_function
-from dlt.extract.exceptions import InvalidResourceDataTypeFunctionNotAGenerator
+from dlt.extract.exceptions import InvalidResourceDataTypeFunctionNotAGenerator, ResourceExpectedFunction, SourceDataIsNone, SourceNotAFunction
 
 from dlt.extract.typing import TTableHintTemplate, TFunHintTemplate
 from dlt.extract.source import DltResource, DltSource
@@ -38,12 +38,6 @@ def source(func: None = ..., /, name: str = None, schema: Schema = None, spec: T
 
 def source(func: Optional[AnyFun] = None, /, name: str = None, schema: Schema = None, spec: Type[BaseConfiguration] = None) -> Any:
 
-    # if name and schema:
-    #     raise ArgumentsOverloadException(
-    #         "source name cannot be set if schema is present",
-    #         "source",
-    #         "You can provide either the Schema instance directly in `schema` argument or the name of ")
-
     def decorator(f: Callable[TSourceFunParams, Any]) -> Callable[TSourceFunParams, DltSource]:
         nonlocal schema, name
 
@@ -56,7 +50,7 @@ def source(func: Optional[AnyFun] = None, /, name: str = None, schema: Schema = 
             schema = Schema(name)
 
         # wrap source extraction function in configuration with namespace
-        conf_f = with_config(f, spec=spec, namespaces=("source", name))
+        conf_f = with_config(f, spec=spec, namespaces=("sources", name))
 
         @wraps(conf_f, func_name=name)
         def _wrap(*args: Any, **kwargs: Any) -> DltSource:
@@ -66,16 +60,8 @@ def source(func: Optional[AnyFun] = None, /, name: str = None, schema: Schema = 
             if inspect.isgenerator(rv):
                 rv = list(rv)
 
-            # def check_rv_type(rv: Any) -> None:
-            #     pass
-
-            # # check if return type is list or tuple
-            # if isinstance(rv, (list, tuple)):
-            #     # check all returned elements
-            #     for v in rv:
-            #         check_rv_type(v)
-            # else:
-            #     check_rv_type(rv)
+            if rv is None:
+                raise SourceDataIsNone(name)
 
             # convert to source
             return DltSource.from_data(schema, rv)
@@ -93,7 +79,7 @@ def source(func: Optional[AnyFun] = None, /, name: str = None, schema: Schema = 
         return decorator
 
     if not callable(func):
-        raise ValueError("First parameter to the source must be a callable.")
+        raise SourceNotAFunction(name or "<no name>", func, type(func))
 
     # we're called as @source without parens.
     return decorator(func)
@@ -126,7 +112,7 @@ def resource(
     data: Callable[TResourceFunParams, Any],
     /,
     name: str = None,
-    table_name_fun: TFunHintTemplate[str] = None,
+    table_name: TTableHintTemplate[str] = None,
     write_disposition: TTableHintTemplate[TWriteDisposition] = None,
     columns: TTableHintTemplate[TTableSchemaColumns] = None,
     selected: bool = True,
@@ -140,7 +126,7 @@ def resource(
     data: None = ...,
     /,
     name: str = None,
-    table_name_fun: TFunHintTemplate[str] = None,
+    table_name: TTableHintTemplate[str] = None,
     write_disposition: TTableHintTemplate[TWriteDisposition] = None,
     columns: TTableHintTemplate[TTableSchemaColumns] = None,
     selected: bool = True,
@@ -163,7 +149,7 @@ def resource(
     data: Union[List[Any], Tuple[Any], Iterator[Any]],
     /,
     name: str = None,
-    table_name_fun: TFunHintTemplate[str] = None,
+    table_name: TTableHintTemplate[str] = None,
     write_disposition: TTableHintTemplate[TWriteDisposition] = None,
     columns: TTableHintTemplate[TTableSchemaColumns] = None,
     selected: bool = True,
@@ -177,7 +163,7 @@ def resource(
     data: Optional[Any] = None,
     /,
     name: str = None,
-    table_name_fun: TFunHintTemplate[str] = None,
+    table_name: TTableHintTemplate[str] = None,
     write_disposition: TTableHintTemplate[TWriteDisposition] = None,
     columns: TTableHintTemplate[TTableSchemaColumns] = None,
     selected: bool = True,
@@ -186,16 +172,15 @@ def resource(
 ) -> Any:
 
     def make_resource(_name: str, _data: Any) -> DltResource:
-        table_template = DltResource.new_table_template(table_name_fun or _name, write_disposition=write_disposition, columns=columns)
+        table_template = DltResource.new_table_template(table_name or _name, write_disposition=write_disposition, columns=columns)
         return DltResource.from_data(_data, _name, table_template, selected, depends_on)
 
 
     def decorator(f: Callable[TResourceFunParams, Any]) -> Callable[TResourceFunParams, DltResource]:
-        resource_name = name or f.__name__
+        if not callable(f):
+            raise ResourceExpectedFunction(name or "<no name>", f, type(f))
 
-        # if f is not a generator (does not yield) raise Exception
-        if not inspect.isgeneratorfunction(inspect.unwrap(f)):
-            raise InvalidResourceDataTypeFunctionNotAGenerator(resource_name, f, type(f))
+        resource_name = name or f.__name__
 
         # do not inject config values for inner functions, we assume that they are part of the source
         SPEC: Type[BaseConfiguration] = None
@@ -203,7 +188,7 @@ def resource(
             conf_f = f
         else:
             # wrap source extraction function in configuration with namespace
-            conf_f = with_config(f, spec=spec, namespaces=("resource", resource_name))
+            conf_f = with_config(f, spec=spec, namespaces=("sources", resource_name))
             # get spec for wrapped function
             SPEC = get_fun_spec(conf_f)
 
@@ -215,8 +200,7 @@ def resource(
         if SPEC:
             _SOURCES[f.__qualname__] = SourceInfo(SPEC, f, inspect.getmodule(f))
 
-        # the typing is right, but makefun.wraps does not preserve signatures
-        return make_resource(resource_name, f)
+        return make_resource(resource_name, conf_f)
 
     # if data is callable or none use decorator
     if data is None:

@@ -20,7 +20,7 @@ def capabilities() -> DestinationCapabilitiesContext:
         "preferred_loader_file_format": config.loader_file_format,
         "supported_loader_file_formats": [config.loader_file_format],
         "max_identifier_length": 127,
-        "max_column_length": 127,
+        "max_column_identifier_length": 127,
         "max_query_length": 8 * 1024 * 1024,
         "is_max_query_length_in_bytes": True,
         "max_text_data_type_length": 65535,

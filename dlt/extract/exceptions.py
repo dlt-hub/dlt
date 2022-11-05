@@ -28,16 +28,6 @@ class PipeItemProcessingError(PipeException):
     pass
 
 
-# class InvalidIteratorException(PipelineException):
-#     def __init__(self, iterator: Any) -> None:
-#         super().__init__(f"Unsupported source iterator or iterable type: {type(iterator).__name__}")
-
-
-# class InvalidItemException(PipelineException):
-#     def __init__(self, item: Any) -> None:
-#         super().__init__(f"Source yielded unsupported item type: {type(item).__name}. Only dictionaries, sequences and deferred items allowed.")
-
-
 class ResourceNameMissing(DltResourceException):
     def __init__(self) -> None:
         super().__init__(None, """Resource name is missing. If you create a resource directly from data ie. from a list you must pass the name explicitly in `name` argument.
@@ -87,6 +77,16 @@ class InvalidDependentResourceDataTypeGeneratorFunctionRequired(InvalidResourceD
         super().__init__(resource_name, item, _typ, "Dependent resource must be a decorated function that takes data item as its only argument.")
 
 
+class InvalidResourceDataTypeIsNone(InvalidResourceDataType):
+    def __init__(self, resource_name: str, item: Any, _typ: Type[Any]) -> None:
+        super().__init__(resource_name, item, _typ, "Resource data missing. Did you forget the return statement in @dlt.resource decorated function?")
+
+
+class ResourceExpectedFunction(InvalidResourceDataType):
+    def __init__(self, resource_name: str, item: Any, _typ: Type[Any]) -> None:
+        super().__init__(resource_name, item, _typ, f"Expected function or callable as first parameter to resource {resource_name} but {_typ.__name__} found. Please decorate a function with @dlt.resource")
+
+
 class InvalidParentResourceDataType(InvalidResourceDataType):
     def __init__(self, resource_name: str, item: Any,_typ: Type[Any]) -> None:
         super().__init__(resource_name, item, _typ, f"A parent resource of {resource_name} is of type {_typ.__name__}. Did you forget to use '@resource` decorator or `resource` function?")
@@ -109,8 +109,21 @@ class InconsistentTableTemplate(DltSourceException):
         super().__init__(msg)
 
 
-class DataItemRequiredForDynamicTableHints(DltSourceException):
+class DataItemRequiredForDynamicTableHints(DltResourceException):
     def __init__(self, resource_name: str) -> None:
-        self.resource_name = resource_name
-        super().__init__(f"""An instance of resource's data required to generate table schema in resource {resource_name}.
+        super().__init__(resource_name, f"""An instance of resource's data required to generate table schema in resource {resource_name}.
         One of table hints for that resource (typically table name) is a function and hint is computed separately for each instance of data extracted from that resource.""")
+
+
+class SourceDataIsNone(DltSourceException):
+    def __init__(self, source_name: str) -> None:
+        self.source_name = source_name
+        super().__init__(f"No data returned or yielded from source function {source_name}. Did you forget the return statement?")
+
+
+class SourceNotAFunction(DltSourceException):
+    def __init__(self, source_name: str, item: Any, _typ: Type[Any]) -> None:
+        self.source_name = source_name
+        self.item = item
+        self.typ = _typ
+        super().__init__(f"First parameter to the source {source_name} must be a function or callable but is {_typ.__name__}. Please decorate a function with @dlt.source")

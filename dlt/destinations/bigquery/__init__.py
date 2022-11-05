@@ -1,4 +1,5 @@
 from typing import Type
+from dlt.common.data_writers.escape import escape_bigquery_identifier
 
 from dlt.common.schema.schema import Schema
 from dlt.common.typing import ConfigValue
@@ -18,8 +19,10 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.update({
         "preferred_loader_file_format": "jsonl",
         "supported_loader_file_formats": ["jsonl"],
+        "escape_identifier": escape_bigquery_identifier,
+        "escape_literal": None,
         "max_identifier_length": 1024,
-        "max_column_length": 300,
+        "max_column_identifier_length": 300,
         "max_query_length": 1024 * 1024,
         "is_max_query_length_in_bytes": False,
         "max_text_data_type_length": 10 * 1024 * 1024,

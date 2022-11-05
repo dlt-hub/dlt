@@ -9,7 +9,7 @@ def pytest_configure(config):
     from dlt.common.configuration.specs import normalize_volume_configuration, run_configuration, load_volume_configuration, schema_volume_configuration
 
     test_storage_root = "_storage"
-    run_configuration.RunConfiguration.config_files_storage_path = os.path.join(test_storage_root, "config/%s")
+    run_configuration.RunConfiguration.config_files_storage_path = os.path.join(test_storage_root, "config/")
 
     load_volume_configuration.LoadVolumeConfiguration.load_volume_path = os.path.join(test_storage_root, "load")
     delattr(load_volume_configuration.LoadVolumeConfiguration, "__init__")
@@ -25,5 +25,5 @@ def pytest_configure(config):
     schema_volume_configuration.SchemaVolumeConfiguration = dataclasses.dataclass(schema_volume_configuration.SchemaVolumeConfiguration, init=True, repr=False)
 
 
-    assert run_configuration.RunConfiguration.config_files_storage_path == os.path.join(test_storage_root, "config/%s")
-    assert run_configuration.RunConfiguration().config_files_storage_path == os.path.join(test_storage_root, "config/%s")
+    assert run_configuration.RunConfiguration.config_files_storage_path == os.path.join(test_storage_root, "config/")
+    assert run_configuration.RunConfiguration().config_files_storage_path == os.path.join(test_storage_root, "config/")

@@ -14,7 +14,7 @@ from dlt.common.utils import uniq_id, with_custom_environ
 from dlt.dbt_runner.utils import DBTProcessingError
 from dlt.dbt_runner.configuration import DBTRunnerConfiguration
 from dlt.dbt_runner import runner
-from dlt.destinations.redshift.redshift import RedshiftSqlClient
+from dlt.destinations.redshift.redshift import Psycopg2SqlClient
 
 from tests.utils import add_config_to_env, clean_test_storage, init_logger, preserve_environ
 from tests.dbt_runner.utils import modify_and_commit_file, load_secret, setup_runner
@@ -27,14 +27,14 @@ def module_autouse() -> None:
     # disable GCP in environ
     del environ["CREDENTIALS__PROJECT_ID"]
     # set the test case for the unit tests
-    environ["DEFAULT_DATASET"] = "test_fixture_carbon_bot_session_cases"
+    environ["DATASET_NAME"] = "test_fixture_carbon_bot_session_cases"
     add_config_to_env(PostgresCredentials)
 
     setup_runner(DEST_SCHEMA_PREFIX)
     init_logger(runner.CONFIG)
 
     # create client and dataset
-    with RedshiftSqlClient("event", runner.CONFIG) as client:
+    with Psycopg2SqlClient("event", runner.CONFIG) as client:
         yield
         # delete temp schemas
         dataset_name = f"{DEST_SCHEMA_PREFIX}_views"

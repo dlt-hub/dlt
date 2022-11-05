@@ -1,20 +1,33 @@
-from typing import List, IO, Any, Optional
+from typing import List, IO, Any
 
 from dlt.common.utils import uniq_id
 from dlt.common.typing import TDataItem, TDataItems
 from dlt.common.data_writers import TLoaderFileFormat
-from dlt.common.data_writers.exceptions import BufferedDataWriterClosed, InvalidFileNameTemplateException
+from dlt.common.data_writers.exceptions import BufferedDataWriterClosed, DestinationCapabilitiesRequired, InvalidFileNameTemplateException
 from dlt.common.data_writers.writers import DataWriter
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.configuration import with_config
+from dlt.common.destination import DestinationCapabilitiesContext
 
 
 class BufferedDataWriter:
 
     @with_config(only_kw=True, namespaces=("data_writer",))
-    def __init__(self, file_format: TLoaderFileFormat, file_name_template: str, *, buffer_max_items: int = 5000, file_max_items: int = None, file_max_bytes: int = None):
+    def __init__(
+        self,
+        file_format: TLoaderFileFormat,
+        file_name_template: str,
+        *,
+        buffer_max_items: int = 5000,
+        file_max_items: int = None,
+        file_max_bytes: int = None,
+        _caps: DestinationCapabilitiesContext = None
+    ):
         self.file_format = file_format
         self._file_format_spec = DataWriter.data_format_from_file_format(self.file_format)
+        if self._file_format_spec.requires_destination_capabilities and not _caps:
+            raise DestinationCapabilitiesRequired(file_format)
+        self._caps = _caps
         # validate if template has correct placeholders
         self.file_name_template = file_name_template
         self.all_files: List[str] = []
@@ -81,7 +94,7 @@ class BufferedDataWriter:
                     self._file = open(self._file_name, "wb")
                 else:
                     self._file = open(self._file_name, "wt", encoding="utf-8")
-                self._writer = DataWriter.from_file_format(self.file_format, self._file)
+                self._writer = DataWriter.from_file_format(self.file_format, self._file, caps=self._caps)
                 self._writer.write_header(self._current_columns)
             # write buffer
             self._writer.write_data(self._buffered_items)

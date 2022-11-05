@@ -25,6 +25,7 @@ class GcpClientCredentials(CredentialsConfiguration):
         try:
             service_dict = json.loads(native_value)
             self.update(service_dict)
+            self.__is_resolved__ = not self.is_partial()
         except Exception:
             raise ValueError(native_value)
 
@@ -33,11 +34,9 @@ class GcpClientCredentials(CredentialsConfiguration):
             # must end with new line, otherwise won't be parsed by Crypto
             self.private_key = TSecretValue(self.private_key + "\n")
 
-    def to_native_representation(self) -> StrAny:
-        return {
-                "type": self.type,
-                "project_id": self.project_id,
-                "private_key": self.private_key,
-                "token_uri": self.token_uri,
-                "client_email": self.client_email
-            }
+    def to_native_representation(self) -> str:
+        return json.dumps(dict(self))
+
+
+    def __str__(self) -> str:
+        return f"{self.client_email}@{self.project_id}[{self.location}]"

@@ -16,6 +16,7 @@ from dlt.common.configuration.container import Container
 
 from dlt.extract.extract import ExtractorStorage
 from dlt.normalize import Normalize
+from dlt.destinations.postgres import capabilities as postgres_caps
 
 from tests.cases import JSON_TYPED_DICT, JSON_TYPED_DICT_TYPES
 from tests.utils import TEST_STORAGE_ROOT, TEST_DICT_CONFIG_PROVIDER, assert_no_dict_key_starts_with, write_version, clean_test_storage, init_logger
@@ -26,14 +27,14 @@ from tests.normalize.utils import json_case_path
 def raw_normalize() -> Normalize:
     # does not install default schemas, so no type hints and row filters
     # uses default json normalizer that does not yield additional rasa tables
-    return init_normalize()
+    yield from init_normalize()
 
 
 @pytest.fixture
 def rasa_normalize() -> Normalize:
     # install default schemas, includes type hints and row filters
     # uses rasa json normalizer that yields event table and separate tables for event types
-    return init_normalize("tests/normalize/cases/schemas")
+    yield from init_normalize("tests/normalize/cases/schemas")
 
 
 def init_normalize(default_schemas_path: str = None) -> Normalize:
@@ -41,11 +42,10 @@ def init_normalize(default_schemas_path: str = None) -> Normalize:
     # pass schema config fields to schema storage via dict config provider
     with TEST_DICT_CONFIG_PROVIDER().values({"import_schema_path": default_schemas_path, "external_schema_format": "json"}):
         # inject the destination capabilities
-        with Container().injectable_context(DestinationCapabilitiesContext(preferred_loader_file_format="jsonl")):
+        with Container().injectable_context(postgres_caps()):
             n = Normalize(collector=CollectorRegistry())
-
-    assert n.load_storage.loader_file_format == n.loader_file_format == "jsonl"
-    return n
+            assert n.load_storage.loader_file_format == n.loader_file_format == "insert_values"
+            yield n
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -59,6 +59,7 @@ def test_intialize(rasa_normalize: Normalize) -> None:
 
 
 def test_normalize_single_user_event_jsonl(raw_normalize: Normalize) -> None:
+    mock_destination_caps(raw_normalize, "jsonl")
     expected_tables, load_files = normalize_event_user(raw_normalize, "event.event.user_load_1", EXPECTED_USER_TABLES)
     # load, parse and verify jsonl
     for expected_table in expected_tables:
@@ -80,7 +81,6 @@ def test_normalize_single_user_event_jsonl(raw_normalize: Normalize) -> None:
 
 def test_normalize_single_user_event_insert(raw_normalize: Normalize) -> None:
     mock_destination_caps(raw_normalize, "insert_values")
-    raw_normalize.load_storage.loader_file_format = raw_normalize.loader_file_format = "insert_values"
     expected_tables, load_files = normalize_event_user(raw_normalize, "event.event.user_load_1", EXPECTED_USER_TABLES)
     # verify values line
     for expected_table in expected_tables:
@@ -97,6 +97,7 @@ def test_normalize_single_user_event_insert(raw_normalize: Normalize) -> None:
 
 
 def test_normalize_filter_user_event(rasa_normalize: Normalize) -> None:
+    mock_destination_caps(rasa_normalize, "jsonl")
     load_id = normalize_cases(rasa_normalize, ["event.event.user_load_v228_1"])
     load_files = expect_load_package(
         rasa_normalize.load_storage,
@@ -113,6 +114,7 @@ def test_normalize_filter_user_event(rasa_normalize: Normalize) -> None:
 
 
 def test_normalize_filter_bot_event(rasa_normalize: Normalize) -> None:
+    mock_destination_caps(rasa_normalize, "jsonl")
     load_id = normalize_cases(rasa_normalize, ["event.event.bot_load_metadata_2987398237498798"])
     load_files = expect_load_package(rasa_normalize.load_storage, load_id, ["event", "event_bot"])
     event_text, lines = expect_lines_file(rasa_normalize.load_storage, load_files["event_bot"], 0)
@@ -123,6 +125,7 @@ def test_normalize_filter_bot_event(rasa_normalize: Normalize) -> None:
 
 
 def test_preserve_slot_complex_value_json_l(rasa_normalize: Normalize) -> None:
+    mock_destination_caps(rasa_normalize, "jsonl")
     load_id = normalize_cases(rasa_normalize, ["event.event.slot_session_metadata_1"])
     load_files = expect_load_package(rasa_normalize.load_storage, load_id, ["event", "event_slot"])
     event_text, lines = expect_lines_file(rasa_normalize.load_storage, load_files["event_slot"], 0)
@@ -149,11 +152,13 @@ def test_preserve_slot_complex_value_insert(rasa_normalize: Normalize) -> None:
 
 
 def test_normalize_raw_no_type_hints(raw_normalize: Normalize) -> None:
+    mock_destination_caps(raw_normalize, "jsonl")
     normalize_event_user(raw_normalize, "event.event.user_load_1", EXPECTED_USER_TABLES)
     assert_timestamp_data_type(raw_normalize.load_storage, "double")
 
 
 def test_normalize_raw_type_hints(rasa_normalize: Normalize) -> None:
+    mock_destination_caps(rasa_normalize, "jsonl")
     normalize_cases(rasa_normalize, ["event.event.user_load_1"])
     assert_timestamp_data_type(rasa_normalize.load_storage, "timestamp")
 
@@ -171,6 +176,7 @@ def test_normalize_many_events_insert(rasa_normalize: Normalize) -> None:
 
 
 def test_normalize_many_events(rasa_normalize: Normalize) -> None:
+    mock_destination_caps(rasa_normalize, "jsonl")
     load_id = normalize_cases(rasa_normalize, ["event.event.many_load_2", "event.event.user_load_1"])
     expected_tables = EXPECTED_USER_TABLES_RASA_NORMALIZER + ["event_bot", "event_action"]
     load_files = expect_load_package(rasa_normalize.load_storage, load_id, expected_tables)
@@ -302,5 +308,5 @@ def assert_timestamp_data_type(load_storage: LoadStorage, data_type: TDataType) 
 
 def mock_destination_caps(n: Normalize, loader_file_format: TLoaderFileFormat) -> None:
     # mock the loader file format
-    # TODO: mock full capabilities here
+    # TODO: mock full capabilities here and inject them properly, this only works because jsonl does not need full caps
     n.load_storage.loader_file_format = n.loader_file_format = loader_file_format

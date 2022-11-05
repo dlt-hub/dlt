@@ -1,13 +1,12 @@
 import pytest
-from typing import Any, ClassVar, Literal
+from typing import Any, ClassVar, Literal, Optional
 
 from dlt.common.configuration import configspec
-from dlt.common.configuration.providers.container import ContextProvider
+from dlt.common.configuration.providers.context import ContextProvider
 from dlt.common.configuration.resolve import resolve_configuration
 from dlt.common.configuration.specs import BaseConfiguration, ContainerInjectableContext
 from dlt.common.configuration.container import Container
-from dlt.common.configuration.exceptions import ContainerInjectableContextMangled, InvalidInitialValue, ContextDefaultCannotBeCreated
-from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
+from dlt.common.configuration.exceptions import ConfigFieldMissingException, ContainerInjectableContextMangled, ContextDefaultCannotBeCreated
 
 from tests.utils import preserve_environ
 from tests.common.configuration.utils import environment
@@ -32,11 +31,24 @@ class NoDefaultInjectableContext(ContainerInjectableContext):
     can_create_default: ClassVar[bool] = False
 
 
+@configspec
+class EmbeddedWithNoDefaultInjectableContext(BaseConfiguration):
+    injected: NoDefaultInjectableContext
+
+
+@configspec
+class EmbeddedWithNoDefaultInjectableOptionalContext(BaseConfiguration):
+    injected: Optional[NoDefaultInjectableContext]
+
+
 @pytest.fixture()
 def container() -> Container:
+    container = Container._INSTANCE
     # erase singleton
     Container._INSTANCE = None
-    return Container()
+    yield Container()
+    # restore the old container
+    Container._INSTANCE = container
 
 
 def test_singleton(container: Container) -> None:
@@ -100,7 +112,7 @@ def test_container_injectable_context_mangled(container: Container) -> None:
         with container.injectable_context(context) as current_config:
             current_config.current_value = "TEST"
             # overwrite the config in container
-            container.contexts[InjectableTestContext] = InjectableTestContext()
+            container[InjectableTestContext] = InjectableTestContext()
     assert py_ex.value.spec == InjectableTestContext
     assert py_ex.value.expected_config == context
 
@@ -114,13 +126,13 @@ def test_container_provider(container: Container) -> None:
     assert InjectableTestContext in container
 
     # provider does not create default value in Container
-    with pytest.raises(ContextDefaultCannotBeCreated):
-        provider.get_value("n/a", NoDefaultInjectableContext)
+    v, k = provider.get_value("n/a", NoDefaultInjectableContext)
+    assert v is None
     assert NoDefaultInjectableContext not in container
 
     # explicitly create value
     original = NoDefaultInjectableContext()
-    container.contexts[NoDefaultInjectableContext] = original
+    container[NoDefaultInjectableContext] = original
     v, _ = provider.get_value("n/a", NoDefaultInjectableContext)
     assert v is original
 
@@ -143,8 +155,15 @@ def test_container_provider_embedded_inject(container: Container, environment: A
         C = resolve_configuration(EmbeddedWithInjectableContext())
         assert C.injected.current_value == "Embed"
         assert C.injected is injected
-        # remove first provider
-        container[ConfigProvidersContext].providers.pop(0)
-        # now environment will provide unparsable value
-        with pytest.raises(InvalidInitialValue):
-            C = resolve_configuration(EmbeddedWithInjectableContext())
+
+
+def test_container_provider_embedded_no_default(container: Container) -> None:
+    with container.injectable_context(NoDefaultInjectableContext()):
+        resolve_configuration(EmbeddedWithNoDefaultInjectableContext())
+    # default cannot be created so fails
+    with pytest.raises(ConfigFieldMissingException) as py_ex:
+        resolve_configuration(EmbeddedWithNoDefaultInjectableContext())
+    assert py_ex.value.fields == ["injected"]
+    # optional returns none
+    c = resolve_configuration(EmbeddedWithNoDefaultInjectableOptionalContext())
+    assert c.injected is None

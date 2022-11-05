@@ -1,10 +1,9 @@
 from dlt.common.configuration import configspec
-from dlt.common.configuration.specs import PostgresCredentials
-from dlt.common.destination import DestinationClientDwhConfiguration
+
+from dlt.destinations.postgres.configuration import PostgresClientConfiguration
 
 
 @configspec(init=True)
-class RedshiftClientConfiguration(DestinationClientDwhConfiguration):
+class RedshiftClientConfiguration(PostgresClientConfiguration):
     destination_name: str = "redshift"
-    credentials: PostgresCredentials
 
