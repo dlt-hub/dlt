@@ -4,7 +4,7 @@ from typing import Any, Callable, ClassVar, Dict, List, NamedTuple, Protocol, Se
 
 from dlt.common.configuration.container import ContainerInjectableContext
 from dlt.common.configuration import configspec
-from dlt.common.destination import DestinationReference
+from dlt.common.destination import TDestinationReferenceArg
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TColumnSchema, TWriteDisposition
 
@@ -35,11 +35,13 @@ class LoadInfo(NamedTuple):
 
 class SupportsPipeline(Protocol):
     """A protocol with core pipeline operations that lets high level abstractions ie. sources to access pipeline methods and properties"""
+    pipeline_name: str
+
     def run(
         self,
         data: Any = None,
         *,
-        destination: DestinationReference = None,
+        destination: TDestinationReferenceArg = None,
         dataset_name: str = None,
         credentials: Any = None,
         table_name: str = None,
@@ -52,7 +54,6 @@ class SupportsPipeline(Protocol):
 
 @configspec(init=True)
 class PipelineContext(ContainerInjectableContext):
-    # TODO: declare unresolvable generic types that will be allowed by configspec
     _deferred_pipeline: Callable[[], SupportsPipeline]
     _pipeline: SupportsPipeline
 
@@ -68,7 +69,7 @@ class PipelineContext(ContainerInjectableContext):
     def activate(self, pipeline: SupportsPipeline) -> None:
         self._pipeline = pipeline
 
-    def is_activated(self) -> bool:
+    def is_active(self) -> bool:
         return self._pipeline is not None
 
     def deactivate(self) -> None:

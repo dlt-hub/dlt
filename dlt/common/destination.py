@@ -1,11 +1,11 @@
 from abc import ABC, abstractmethod
 from importlib import import_module
-from types import TracebackType
+from types import TracebackType, ModuleType
 from typing import Any, Callable, ClassVar, List, Optional, Literal, Type, Protocol, Union, TYPE_CHECKING, cast
 
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TTableSchema
-from dlt.common.typing import ConfigValue
+from dlt.common.typing import ConfigValue, TypeAlias
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration, ContainerInjectableContext
 
@@ -132,6 +132,8 @@ class JobClientBase(ABC):
     def capabilities(cls) -> DestinationCapabilitiesContext:
         pass
 
+TDestinationReferenceArg: TypeAlias = Union["DestinationReference", ModuleType, None, str]
+
 
 class DestinationReference(Protocol):
     __name__: str
@@ -146,7 +148,7 @@ class DestinationReference(Protocol):
         ...
 
     @staticmethod
-    def from_name(destination: Union[None, str, "DestinationReference"]) -> "DestinationReference":
+    def from_name(destination: TDestinationReferenceArg) -> "DestinationReference":
         if destination is None:
             return None
 
@@ -159,4 +161,4 @@ class DestinationReference(Protocol):
                 # from known location
                 return cast(DestinationReference, import_module(f"dlt.destinations.{destination}"))
 
-        return destination
+        return cast(DestinationReference, destination)

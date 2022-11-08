@@ -7,6 +7,9 @@ from dlt.common.schema import utils
 from dlt.common.schema.typing import TTableSchemaColumns
 
 
+COMMON_TEST_CASES_PATH = "./tests/common/cases/"
+
+
 def load_json_case(name: str) -> Mapping:
     with open(json_case_path(name), "r", encoding="utf-8") as f:
         return cast(Mapping, json.load(f))
@@ -18,11 +21,11 @@ def load_yml_case(name: str) -> Mapping:
 
 
 def json_case_path(name: str) -> str:
-    return f"./tests/common/cases/{name}.json"
+    return f"{COMMON_TEST_CASES_PATH}{name}.json"
 
 
 def yml_case_path(name: str) -> str:
-    return f"./tests/common/cases/{name}.yml"
+    return f"{COMMON_TEST_CASES_PATH}{name}.yml"
 
 
 def row_to_column_schemas(row: StrAny) -> TTableSchemaColumns:

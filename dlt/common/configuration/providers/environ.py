@@ -39,8 +39,8 @@ class EnvironProvider(Provider):
                 with open(secret_path, "r", encoding="utf-8") as f:
                     secret = f.read()
                 # add secret to environ so forks have access
-                # TODO: removing new lines is not always good. for password OK for PEMs not
-                # TODO: in regular secrets that is dealt with in particular configuration logic
+                # warning: removing new lines is not always good. for password OK for PEMs not
+                # warning: in regular secrets that is dealt with in particular configuration logic
                 environ[key] = secret.strip()
                 # do not strip returned secret
                 return secret, key
