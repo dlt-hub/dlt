@@ -1,3 +1,4 @@
+import contextlib
 import os
 from contextlib import contextmanager
 from functools import wraps
@@ -17,7 +18,7 @@ from dlt.common.storages import LiveSchemaStorage, NormalizeStorage
 
 from dlt.common.configuration import inject_namespace
 from dlt.common.configuration.specs import RunConfiguration, NormalizeVolumeConfiguration, SchemaVolumeConfiguration, LoadVolumeConfiguration, PoolRunnerConfiguration
-from dlt.common.destination import DestinationCapabilitiesContext, DestinationReference, JobClientBase, DestinationClientConfiguration, DestinationClientDwhConfiguration
+from dlt.common.destination import DestinationCapabilitiesContext, DestinationReference, JobClientBase, DestinationClientConfiguration, DestinationClientDwhConfiguration, TDestinationReferenceArg
 from dlt.common.pipeline import LoadInfo
 from dlt.common.schema import Schema
 from dlt.common.storages.file_storage import FileStorage
@@ -332,7 +333,7 @@ class Pipeline:
         self,
         data: Any = None,
         *,
-        destination: DestinationReference = None,
+        destination: TDestinationReferenceArg = None,
         dataset_name: str = None,
         credentials: Any = None,
         table_name: str = None,
@@ -341,6 +342,7 @@ class Pipeline:
         schema: Schema = None
     ) -> LoadInfo:
         # set destination and default dataset if provided
+        destination = DestinationReference.from_name(destination)
         self.destination = destination or self.destination
         self._set_dataset_name(dataset_name)
 
@@ -463,6 +465,8 @@ class Pipeline:
         # discover the schema from source
         source_schema = source.discover_schema()
         pipeline_schema: Schema = None
+        with contextlib.suppress(FileNotFoundError):
+            pipeline_schema = self._schema_storage.load_schema(source_schema.name)
         should_initialize_import = False
 
         # if source schema does not exist in the pipeline
@@ -471,15 +475,15 @@ class Pipeline:
             should_initialize_import = True
             # save schema into the pipeline
             self._schema_storage.save_schema(source_schema)
-            # and set as default if this is first schema in pipeline
-            if not self.default_schema_name:
-                self.default_schema_name = source_schema.name
             pipeline_schema = self._schema_storage[source_schema.name]
         else:
             # get the current schema and merge tables from source_schema, we'll not merge the high level props
             pipeline_schema = self._schema_storage[source_schema.name]
             for table in source_schema.all_tables():
                 pipeline_schema.update_schema(pipeline_schema.normalize_table_identifiers(table))
+        # and set as default if this is first schema in pipeline
+        if not self.default_schema_name:
+            self.default_schema_name = source_schema.name
 
 
         # iterate over all items in the pipeline and update the schema if dynamic table hints were present
