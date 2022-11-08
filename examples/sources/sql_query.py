@@ -1,4 +1,4 @@
-from typing import Iterator, List, Any
+from typing import Iterator, List, Any, Union
 from functools import partial
 
 import dlt
@@ -40,14 +40,15 @@ def _query_data(
 @dlt.resource
 def query_table(
     table_name: str,
-    credentials: ConnectionStringCredentials,
+    credentials: Union[ConnectionStringCredentials, str],
     table_schema_name: str = None,
     # index_col: Union[str, Sequence[str], None] = None,
     coerce_float: bool = True,
     parse_dates: Any = None,
     columns: List[str] = None,
     chunk_size: int = 1000
-) -> Iterator[TDataItem]:
+) -> Any:
+    assert isinstance(credentials, ConnectionStringCredentials)
     f = partial(pandas.read_sql_table, table_name, credentials.to_native_representation(), table_schema_name, None, coerce_float, parse_dates, columns, chunksize=chunk_size)
     # if resource is returned from decorator function, it will override the hints from decorator
     return dlt.resource(_query_data(f), name=table_name)
@@ -56,11 +57,12 @@ def query_table(
 @dlt.resource
 def query_sql(
     sql: str,
-    credentials: ConnectionStringCredentials,
+    credentials: Union[ConnectionStringCredentials, str],
     coerce_float: bool = True,
     parse_dates: Any = None,
     chunk_size: int = 1000,
     dtype: Any = None
 ) -> Iterator[TDataItem]:
+    assert isinstance(credentials, ConnectionStringCredentials)
     f = partial(pandas.read_sql_query, sql, credentials.to_native_representation(), None, coerce_float, None, parse_dates, chunk_size, dtype)
     yield from _query_data(f)

@@ -11,7 +11,7 @@ from examples.sources.stdout import get_source as get_singer_pipe
 
 # from dlt.pipeline.exceptions import MissingDependencyException
 FilePathOrDict = Union[StrAny, StrOrBytesPath]
-
+#
 
 class SingerMessage(TypedDict):
     type: str  # noqa: A003

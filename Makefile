@@ -34,7 +34,7 @@ dev: has-poetry
 
 lint:
 	./check-package.sh
-	poetry run mypy --config-file mypy.ini dlt
+	poetry run mypy --config-file mypy.ini dlt examples
 	poetry run flake8 --max-line-length=200 examples dlt
 	poetry run flake8 --max-line-length=200 tests
 	# dlt/pipeline dlt/common/schema dlt/common/normalizers
