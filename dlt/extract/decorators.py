@@ -1,3 +1,4 @@
+import os
 import inspect
 from types import ModuleType
 from makefun import wraps
@@ -5,14 +6,15 @@ from typing import Any, Callable, Dict, Iterator, List, NamedTuple, Optional, Tu
 
 from dlt.common.configuration import with_config, get_fun_spec
 from dlt.common.configuration.specs import BaseConfiguration
-from dlt.common.exceptions import ArgumentsOverloadException
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import TTableSchemaColumns, TWriteDisposition
-from dlt.common.typing import AnyFun, ParamSpec, TDataItems
-from dlt.common.utils import is_inner_function
-from dlt.extract.exceptions import InvalidResourceDataTypeFunctionNotAGenerator, ResourceExpectedFunction, SourceDataIsNone, SourceNotAFunction
+from dlt.common.storages.exceptions import SchemaNotFoundError
+from dlt.common.storages.schema_storage import SchemaStorage
+from dlt.common.typing import AnyFun, ParamSpec, Concatenate, TDataItem, TDataItems
+from dlt.common.utils import get_callable_name, is_inner_callable
+from dlt.extract.exceptions import InvalidTransformerDataTypeGeneratorFunctionRequired, ResourceFunctionExpected, SourceDataIsNone, SourceNotAFunction
 
-from dlt.extract.typing import TTableHintTemplate, TFunHintTemplate
+from dlt.extract.typing import TTableHintTemplate
 from dlt.extract.source import DltResource, DltSource
 
 
@@ -42,12 +44,11 @@ def source(func: Optional[AnyFun] = None, /, name: str = None, schema: Schema = 
         nonlocal schema, name
 
         # source name is passed directly or taken from decorated function name
-        name = name or f.__name__
+        name = name or get_callable_name(f)
 
         if not schema:
-            # create or load default schema
-            # TODO: we need a convention to load ie. load the schema from file with name_schema.yaml
-            schema = Schema(name)
+            # load the schema from file with name_schema.yaml/json from the same directory, the callable resides OR create new default schema
+            schema = _maybe_load_schema_for_callable(f, name) or Schema(name)
 
         # wrap source extraction function in configuration with namespace
         conf_f = with_config(f, spec=spec, namespaces=("sources", name))
@@ -116,7 +117,6 @@ def resource(
     write_disposition: TTableHintTemplate[TWriteDisposition] = None,
     columns: TTableHintTemplate[TTableSchemaColumns] = None,
     selected: bool = True,
-    depends_on: DltResource = None,
     spec: Type[BaseConfiguration] = None
 ) -> Callable[TResourceFunParams, DltResource]:
     ...
@@ -130,9 +130,8 @@ def resource(
     write_disposition: TTableHintTemplate[TWriteDisposition] = None,
     columns: TTableHintTemplate[TTableSchemaColumns] = None,
     selected: bool = True,
-    depends_on: DltResource = None,
     spec: Type[BaseConfiguration] = None
-) -> Callable[[Callable[TResourceFunParams, Any]], Callable[TResourceFunParams, DltResource]]:
+) -> Callable[[Callable[TResourceFunParams, Any]], DltResource]:
     ...
 
 
@@ -153,7 +152,6 @@ def resource(
     write_disposition: TTableHintTemplate[TWriteDisposition] = None,
     columns: TTableHintTemplate[TTableSchemaColumns] = None,
     selected: bool = True,
-    depends_on: DltResource = None,
     spec: Type[BaseConfiguration] = None
 ) -> DltResource:
     ...
@@ -167,8 +165,8 @@ def resource(
     write_disposition: TTableHintTemplate[TWriteDisposition] = None,
     columns: TTableHintTemplate[TTableSchemaColumns] = None,
     selected: bool = True,
-    depends_on: DltResource = None,
-    spec: Type[BaseConfiguration] = None
+    spec: Type[BaseConfiguration] = None,
+    depends_on: DltResource = None
 ) -> Any:
 
     def make_resource(_name: str, _data: Any) -> DltResource:
@@ -178,23 +176,22 @@ def resource(
 
     def decorator(f: Callable[TResourceFunParams, Any]) -> Callable[TResourceFunParams, DltResource]:
         if not callable(f):
-            raise ResourceExpectedFunction(name or "<no name>", f, type(f))
+            if depends_on:
+                # raise more descriptive exception if we construct transformer
+                raise InvalidTransformerDataTypeGeneratorFunctionRequired(name or "<no name>", f, type(f))
+            raise ResourceFunctionExpected(name or "<no name>", f, type(f))
 
-        resource_name = name or f.__name__
+        resource_name = name or get_callable_name(f)
 
         # do not inject config values for inner functions, we assume that they are part of the source
         SPEC: Type[BaseConfiguration] = None
-        if is_inner_function(f):
+        if is_inner_callable(f):
             conf_f = f
         else:
             # wrap source extraction function in configuration with namespace
             conf_f = with_config(f, spec=spec, namespaces=("sources", resource_name))
             # get spec for wrapped function
             SPEC = get_fun_spec(conf_f)
-
-        # @wraps(conf_f, func_name=resource_name)
-        # def _wrap(*args: Any, **kwargs: Any) -> DltResource:
-        #     return make_resource(resource_name, f(*args, **kwargs))
 
         # store the standalone resource information
         if SPEC:
@@ -213,16 +210,45 @@ def resource(
         return make_resource(name, data)
 
 
+def transformer(
+    data_from: DltResource,
+    name: str = None,
+    table_name: TTableHintTemplate[str] = None,
+    write_disposition: TTableHintTemplate[TWriteDisposition] = None,
+    columns: TTableHintTemplate[TTableSchemaColumns] = None,
+    selected: bool = True,
+    spec: Type[BaseConfiguration] = None
+) -> Callable[[Callable[Concatenate[TDataItem, TResourceFunParams], Any]], Callable[TResourceFunParams, DltResource]]:
+    return resource(None, name=name, table_name=table_name, write_disposition=write_disposition, columns=columns, selected=selected, depends_on=data_from, spec=spec)  # type: ignore
+
+
+def _maybe_load_schema_for_callable(f: AnyFun, name: str) -> Optional[Schema]:
+    try:
+        file = inspect.getsourcefile(f)
+        if file:
+            return SchemaStorage.load_schema_file(os.path.dirname(file), name)
+    except SchemaNotFoundError:
+        pass
+    return None
+
+
 def _get_source_for_inner_function(f: AnyFun) -> Optional[SourceInfo]:
     # find source function
-    parts = f.__qualname__.split(".")
+    parts = get_callable_name(f, "__qualname__").split(".")
     parent_fun = ".".join(parts[:-2])
     return _SOURCES.get(parent_fun)
 
-
 # @resource
 # def reveal_1() -> None:
-#     pass
+#     yield 1
+
+
+# @transformer(data_from=reveal_1)
+# def transf(item, a, b, c=None):
+#     yield item
+
+# reveal_type(transf)
+
 
 # @resource(name="revel")
 # def reveal_2() -> None:

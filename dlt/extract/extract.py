@@ -10,6 +10,7 @@ from dlt.common.configuration.specs import NormalizeVolumeConfiguration
 
 from dlt.extract.pipe import PipeIterator
 from dlt.extract.source import DltResource, DltSource
+from dlt.extract.typing import TableNameMeta
 
 
 class ExtractorStorage(DataItemStorage, NormalizeStorage):
@@ -78,20 +79,29 @@ def extract(source: DltSource, storage: ExtractorStorage, *, max_parallel_items:
 
     # yield from all selected pipes
     for pipe_item in PipeIterator.from_pipes(source.resources.selected_pipes, max_parallel_items=max_parallel_items, workers=workers, futures_poll_interval=futures_poll_interval):
-        # get partial table from table template
         # TODO: many resources may be returned. if that happens the item meta must be present with table name and this name must match one of resources
         # TDataItemMeta(table_name, requires_resource, write_disposition, columns, parent etc.)
-        resource = source.resources.find_by_pipe(pipe_item.pipe)
-        if resource._table_name_hint_fun:
-            if isinstance(pipe_item.item, List):
-                for item in pipe_item.item:
-                    _write_dynamic_table(resource, item)
-            else:
-                _write_dynamic_table(resource, pipe_item.item)
-        else:
-            # write item belonging to table with static name
-            table_name: str = resource._table_schema_template["name"] if resource._table_schema_template else resource.name  # type: ignore
+
+        # if meta contains table name
+        if isinstance(pipe_item.meta, TableNameMeta):
+            table_name = pipe_item.meta.table_name
+            existing_table = dynamic_tables.get(table_name)
+            if not existing_table:
+                dynamic_tables[table_name] = [utils.new_table(table_name)]
             _write_item(table_name, pipe_item.item)
+        else:
+            resource = source.resources.find_by_pipe(pipe_item.pipe)
+            # get partial table from table template
+            if resource._table_name_hint_fun:
+                if isinstance(pipe_item.item, List):
+                    for item in pipe_item.item:
+                        _write_dynamic_table(resource, item)
+                else:
+                    _write_dynamic_table(resource, pipe_item.item)
+            else:
+                # write item belonging to table with static name
+                table_name = resource.table_name
+                _write_item(table_name, pipe_item.item)
 
     # flush all buffered writers
     storage.close_writers(extract_id)
