@@ -4,10 +4,12 @@ from typing import Iterator, List, Sequence
 
 import dlt
 from dlt.common import json
+from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.typing import StrAny, StrOrBytesPath
 
 
 def chunk_jsonl(path: StrOrBytesPath, chunk_size: int = 20) -> Iterator[List[StrAny]]:
+    print(path)
     with open(path, "r", encoding="utf-8") as f:
         _iter = jsonlines.Reader(f, loads=json.loads)
         if chunk_size == 1:
@@ -20,7 +22,8 @@ def chunk_jsonl(path: StrOrBytesPath, chunk_size: int = 20) -> Iterator[List[Str
                 else:
                     break
 
-jsonl_file = dlt.resource(chunk_jsonl, name="jsonl")
+# TODO: explicit values must take precedence
+jsonl_file = dlt.resource(chunk_jsonl, name="jsonl", spec=BaseConfiguration)
 
 @dlt.resource(name="jsonl")
 def jsonl_files(paths: Sequence[StrOrBytesPath], chunk_size: int = 20) -> Iterator[List[StrAny]]:
