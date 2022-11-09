@@ -9,6 +9,7 @@ from dlt.common.typing import DictStrAny, StrAny, TFun, AnyFun
 from dlt.common.configuration.resolve import resolve_configuration, inject_namespace
 from dlt.common.configuration.specs.base_configuration import BaseConfiguration, is_valid_hint, configspec
 from dlt.common.configuration.specs.config_namespace_context import ConfigNamespacesContext
+from dlt.common.utils import get_callable_name
 
 # [^.^_]+ splits by . or _
 _SLEEPING_CAT_SPLIT = re.compile("[^.^_]+")
@@ -67,8 +68,6 @@ def with_config(func: Optional[AnyFun] = None, /, spec: Type[BaseConfiguration] 
 
         @wraps(f, new_sig=sig)
         def _wrap(*args: Any, **kwargs: Any) -> Any:
-            # store locals
-            _locals = dict(locals())
             # bind parameters to signature
             bound_args = sig.bind_partial(*args, **kwargs)
             bound_args.apply_defaults()
@@ -133,7 +132,7 @@ def get_orig_args(**kwargs: Any) -> Tuple[Tuple[Any], DictStrAny]:
 
 
 def _get_spec_name_from_f(f: AnyFun) -> str:
-    func_name = f.__qualname__.replace("<locals>.", "")  # func qual name contains position in the module, separated by dots
+    func_name = get_callable_name(f, "__qualname__").replace("<locals>.", "")  # func qual name contains position in the module, separated by dots
 
     def _first_up(s: str) -> str:
         return s[0].upper() + s[1:]

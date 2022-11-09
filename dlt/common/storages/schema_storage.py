@@ -1,11 +1,12 @@
 import os
 import re
 import yaml
-from typing import Iterator, List, Mapping, overload
+from typing import Iterator, List, Mapping, Tuple, overload
 
 from dlt.common import json, logger
 from dlt.common.configuration import with_config
 from dlt.common.configuration.specs import SchemaVolumeConfiguration, TSchemaFileFormat
+from dlt.common.configuration.specs.schema_volume_configuration import SchemaFileExtensions
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.schema import Schema, verify_schema_hash
 from dlt.common.typing import DictStrAny, ConfigValue
@@ -129,15 +130,7 @@ class SchemaStorage(Mapping[str, Schema]):
     def _load_import_schema(self, name: str) -> DictStrAny:
         import_storage = FileStorage(self.config.import_schema_path, makedirs=False)
         schema_file = self._file_name_in_store(name, self.config.external_schema_format)
-        imported_schema: DictStrAny = None
-        imported_schema_s = import_storage.load(schema_file)
-        if self.config.external_schema_format == "json":
-            imported_schema = json.loads(imported_schema_s)
-        elif self.config.external_schema_format == "yaml":
-            imported_schema = yaml.safe_load(imported_schema_s)
-        else:
-            raise ValueError(self.config.external_schema_format)
-        return imported_schema
+        return self._parse_schema_str(import_storage.load(schema_file), self.config.external_schema_format)
 
     def _export_schema(self, schema: Schema, export_path: str) -> None:
         if self.config.external_schema_format == "json":
@@ -157,7 +150,28 @@ class SchemaStorage(Mapping[str, Schema]):
         schema_file = self._file_name_in_store(schema.name, "json")
         return self.storage.save(schema_file, schema.to_pretty_json(remove_defaults=False))
 
-    def _file_name_in_store(self, name: str, fmt: TSchemaFileFormat) -> str:
+    @staticmethod
+    def load_schema_file(path: str, name: str, extensions: Tuple[TSchemaFileFormat, ...]=SchemaFileExtensions) -> Schema:
+        storage = FileStorage(path)
+        for extension in extensions:
+            file = SchemaStorage._file_name_in_store(name, extension)
+            if storage.has_file(file):
+                parsed_schema = SchemaStorage._parse_schema_str(storage.load(file), extension)
+                return Schema.from_dict(parsed_schema)
+        raise SchemaNotFoundError(name, path)
+
+    @staticmethod
+    def _parse_schema_str(schema_str: str, extension: TSchemaFileFormat) -> DictStrAny:
+        if extension == "json":
+            imported_schema: DictStrAny = json.loads(schema_str)
+        elif extension == "yaml":
+            imported_schema = yaml.safe_load(schema_str)
+        else:
+            raise ValueError(extension)
+        return imported_schema
+
+    @staticmethod
+    def _file_name_in_store(name: str, fmt: TSchemaFileFormat) -> str:
         if name:
             return SchemaStorage.NAMED_SCHEMA_FILE_PATTERN % (name, fmt)
         else:

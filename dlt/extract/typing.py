@@ -1,4 +1,4 @@
-from typing import Callable, TypedDict, TypeVar, Union, List, Awaitable
+from typing import Any, Callable, Protocol, TypedDict, TypeVar, Union, Awaitable
 
 from dlt.common.typing import TDataItem, TDataItems
 from dlt.common.schema.typing import TTableSchemaColumns, TWriteDisposition
@@ -20,3 +20,29 @@ class TTableSchemaTemplate(TypedDict, total=False):
     # table_sealed: Optional[bool]
     parent: TTableHintTemplate[str]
     columns: TTableHintTemplate[TTableSchemaColumns]
+
+
+class DataItemWithMeta:
+    __slots__ = "meta", "data"
+
+    meta: Any
+    data: TDataItems
+
+    def __init__(self, meta: Any, data: TDataItems) -> None:
+        self.meta = meta
+        self.data = data
+
+
+class TableNameMeta:
+    __slots__ = "table_name"
+
+    table_name: str
+
+    def __init__(self, table_name: str) -> None:
+        self.table_name = table_name
+
+
+# define basic transformation functions
+class FilterItemFunction(Protocol):
+    def __call__(self, item: TDataItem, meta: Any = ...) -> bool:
+        ...

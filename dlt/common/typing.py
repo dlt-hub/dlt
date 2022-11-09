@@ -1,7 +1,7 @@
 from collections.abc import Mapping as C_Mapping, Sequence as C_Sequence
 from re import Pattern as _REPattern
 from typing import Callable, Dict, Any, Literal, List, Mapping, NewType, Tuple, Type, TypeVar, Generic, Protocol, TYPE_CHECKING, Union, runtime_checkable, get_args, get_origin
-from typing_extensions import TypeAlias, ParamSpec
+from typing_extensions import TypeAlias, ParamSpec, Concatenate
 
 if TYPE_CHECKING:
     from _typeshed import StrOrBytesPath

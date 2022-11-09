@@ -1,35 +1,46 @@
 import contextlib
-from copy import deepcopy
+from copy import copy, deepcopy
+import makefun
 import inspect
 from collections.abc import Mapping as C_Mapping
-from typing import AsyncIterable, AsyncIterator, Dict, Iterable, Iterator, List, Set, Sequence, Union, cast, Any
-from typing_extensions import Self
+from typing import AsyncIterable, AsyncIterator, ClassVar, Callable, Dict, Iterable, Iterator, List, Sequence, Union, cast, Any
+
 
 from dlt.common.schema import Schema
 from dlt.common.schema.utils import new_table
 from dlt.common.schema.typing import TColumnSchema, TPartialTableSchema, TTableSchemaColumns, TWriteDisposition
-from dlt.common.typing import AnyFun, TDataItem, TDataItems, NoneType
+from dlt.common.typing import AnyFun, TDataItem, TDataItems, NoneType, TypeAlias
 from dlt.common.configuration.container import Container
 from dlt.common.pipeline import PipelineContext
+from dlt.common.utils import get_callable_name
 
-from dlt.extract.typing import TFunHintTemplate, TTableHintTemplate, TTableSchemaTemplate
+from dlt.extract.typing import DataItemWithMeta, FilterItemFunction, TableNameMeta, TFunHintTemplate, TTableHintTemplate, TTableSchemaTemplate
 from dlt.extract.pipe import FilterItem, Pipe, PipeIterator
 from dlt.extract.exceptions import (
-    DependentResourceIsNotCallable, InvalidDependentResourceDataTypeGeneratorFunctionRequired, InvalidParentResourceDataType, InvalidParentResourceIsAFunction, InvalidResourceDataType, InvalidResourceDataTypeFunctionNotAGenerator, InvalidResourceDataTypeIsNone,
-    ResourceNotFoundError, CreatePipeException, DataItemRequiredForDynamicTableHints, InconsistentTableTemplate, InvalidResourceDataTypeAsync, InvalidResourceDataTypeBasic,
-    InvalidResourceDataTypeMultiplePipes, ResourceNameMissing, TableNameMissing)
+    InvalidTransformerDataTypeGeneratorFunctionRequired, InvalidParentResourceDataType, InvalidParentResourceIsAFunction, InvalidResourceDataType, InvalidResourceDataTypeFunctionNotAGenerator, InvalidResourceDataTypeIsNone, InvalidTransformerGeneratorFunction,
+    ResourceNotFoundError, DataItemRequiredForDynamicTableHints, InconsistentTableTemplate, InvalidResourceDataTypeAsync, InvalidResourceDataTypeBasic,
+    InvalidResourceDataTypeMultiplePipes, ResourceNameMissing, ResourcesNotFoundError, TableNameMissing, DeletingResourcesNotSupported)
+
+
+def with_table_name(item: TDataItems, table_name: str) -> DataItemWithMeta:
+        return DataItemWithMeta(TableNameMeta(table_name), item)
 
 
 class DltResourceSchema:
     def __init__(self, name: str, table_schema_template: TTableSchemaTemplate = None):
-        # self.__name__ = name
-        self.name = name
+        self.__qualname__ = self.__name__ = self.name = name
         self._table_name_hint_fun: TFunHintTemplate[str] = None
         self._table_has_other_dynamic_hints: bool = False
         self._table_schema_template: TTableSchemaTemplate = None
         self._table_schema: TPartialTableSchema = None
         if table_schema_template:
             self.set_template(table_schema_template)
+
+    @property
+    def table_name(self) -> str:
+        if self._table_name_hint_fun:
+            raise DataItemRequiredForDynamicTableHints(self.name)
+        return self._table_schema_template["name"] if self._table_schema_template else self.name  # type: ignore
 
     def table_schema(self, item: TDataItem =  None) -> TPartialTableSchema:
         if not self._table_schema_template:
@@ -49,7 +60,6 @@ class DltResourceSchema:
             if item is None:
                 raise DataItemRequiredForDynamicTableHints(self.name)
             else:
-                # cloned_template = deepcopy(self._table_schema_template)
                 return cast(TPartialTableSchema, {k: _resolve_hint(v) for k, v in self._table_schema_template.items()})
         else:
             return cast(TPartialTableSchema, self._table_schema_template)
@@ -115,11 +125,15 @@ class DltResourceSchema:
 
 
 class DltResource(Iterable[TDataItems], DltResourceSchema):
+
+    Empty: ClassVar["DltResource"] = None
+
     def __init__(self, pipe: Pipe, table_schema_template: TTableSchemaTemplate, selected: bool):
         # TODO: allow resource to take name independent from pipe name
         self.name = pipe.name
         self.selected = selected
         self._pipe = pipe
+        self._apply_binding = False
         super().__init__(self.name, table_schema_template)
 
     @classmethod
@@ -135,14 +149,11 @@ class DltResource(Iterable[TDataItems], DltResourceSchema):
             return cls(data, table_schema_template, selected)
 
         if callable(data):
-            name = name or data.__name__
-            # function must be a generator
-            # if not inspect.isgeneratorfunction(inspect.unwrap(data)):
-            #     raise InvalidResourceDataTypeFunctionNotAGenerator(name, data, type(data))
+            name = name or get_callable_name(data)
 
         # if generator, take name from it
         if inspect.isgenerator(data):
-            name = name or data.__name__
+            name = name or get_callable_name(data)  # type: ignore
 
         # name is mandatory
         if not name:
@@ -156,49 +167,37 @@ class DltResource(Iterable[TDataItems], DltResourceSchema):
 
         # check if depends_on is a valid resource
         parent_pipe: Pipe = None
-        if depends_on:
-            # must be a callable with single argument
-            if not callable(data):
-                raise InvalidDependentResourceDataTypeGeneratorFunctionRequired(name, data, type(data))
-            else:
-                if cls.is_valid_dependent_generator_function(data):
-                    raise InvalidDependentResourceDataTypeGeneratorFunctionRequired(name, data, type(data))
-            # parent resource
-            if isinstance(depends_on, Pipe):
-                parent_pipe = depends_on
-            elif isinstance(depends_on, DltResource):
-                parent_pipe = depends_on._pipe
-            else:
-                # if this is generator function provide nicer exception
-                if callable(depends_on):
-                    raise InvalidParentResourceIsAFunction(name, depends_on.__name__)
-                else:
-                    raise InvalidParentResourceDataType(name, depends_on, type(depends_on))
+        if depends_on is not None:
+            DltResource._ensure_valid_transformer_resource(name, data)
+            parent_pipe = DltResource._get_parent_pipe(name, depends_on)
+            # print(f"from_data: parent_pipe: {parent_pipe}")
 
         # create resource from iterator, iterable or generator function
-        if isinstance(data, (Iterable, Iterator)):
-            pipe = Pipe.from_iterable(name, data, parent=parent_pipe)
-        elif callable(data):
-            pipe = Pipe(name, [data], parent_pipe)
-        if pipe:
+        if isinstance(data, (Iterable, Iterator)) or callable(data):
+            pipe = Pipe.from_data(name, data, parent=parent_pipe)
+            # print(f"from_data: pipe: {pipe}")
+            # print(f"PARENT: {pipe.parent}")
             return cls(pipe, table_schema_template, selected)
         else:
             # some other data type that is not supported
             raise InvalidResourceDataType(name, data, type(data), f"The data type is {type(data).__name__}")
 
+    @property
+    def is_transformer(self) -> bool:
+        """Checks if the resource is a transformer that depends on another resource"""
+        return self._pipe.has_parent
 
     def add_pipe(self, data: Any) -> None:
         """Creates additional pipe for the resource from the specified data"""
-        # TODO: (1) self resource cannot be a dependent one (2) if data is resource both self must and it must be selected/unselected + cannot be dependent
+        # TODO: (1) self resource cannot be a transformer (2) if data is resource both self must and it must be selected/unselected + cannot be tranformer
         raise InvalidResourceDataTypeMultiplePipes(self.name, data, type(data))
 
+    def select_tables(self, *table_names: Iterable[str]) -> "DltResource":
 
-    def select(self, *table_names: Iterable[str]) -> "DltResource":
-        if not self._table_name_hint_fun:
-            raise CreatePipeException("Table name is not dynamic, table selection impossible")
-
-        def _filter(item: TDataItem) -> bool:
-            return self._table_name_hint_fun(item) in table_names
+        def _filter(item: TDataItem, meta: Any = None) -> bool:
+            is_in_meta = isinstance(meta, TableNameMeta) and meta.table_name in table_names
+            is_in_dyn = self._table_name_hint_fun and self._table_name_hint_fun(item) in table_names
+            return is_in_meta or is_in_dyn
 
         # add filtering function at the end of pipe
         self._pipe.add_step(FilterItem(_filter))
@@ -210,23 +209,84 @@ class DltResource(Iterable[TDataItems], DltResourceSchema):
     def flat_map(self) -> None:
         raise NotImplementedError()
 
-    def filter(self) -> None:  # noqa: A003
-        raise NotImplementedError()
+    def filter(self, item_filter: FilterItemFunction) -> None:  # noqa: A003
+        self._pipe.add_step(FilterItem(item_filter))
 
-    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+    def _set_data_from(self, data_from: Union["DltResource", Pipe]) -> None:
+        parent_pipe = self._get_parent_pipe(self.name, data_from)
+        self._pipe.parent = parent_pipe
+
+    def __call__(self, *args: Any, **kwargs: Any) -> "DltResource":
         # make resource callable to support parametrized resources which are functions taking arguments
-        if self._pipe.parent:
-            raise DependentResourceIsNotCallable(self.name)
-        # pass the call parameters to the pipe's head
-        _data = self._pipe.head(*args, **kwargs)  # type: ignore
-        # if f is not a generator (does not yield) raise Exception
-        if not inspect.isgenerator(_data):
-            # the only exception is if resource is returned, then return it instead
-            if isinstance(_data, DltResource):
-                return _data
-            raise InvalidResourceDataTypeFunctionNotAGenerator(self.name, self._pipe.head, type(self._pipe.head))
-        # create new resource from extracted data
-        return DltResource.from_data(_data, self.name, self._table_schema_template, self.selected, self._pipe.parent)
+        head = self._pipe.head
+        _data: Any = None
+        if not callable(head):
+            # just provoke a call to raise default exception
+            head()  # type: ignore
+            raise AssertionError()
+
+        if self.is_transformer:
+            sig = inspect.signature(head)
+            no_item_sig = sig.replace(parameters=list(sig.parameters.values())[1:])
+            # bind parameters to no_item_sig
+            try:
+                no_item_sig.bind(*args, **kwargs)
+            except TypeError as v_ex:
+                raise TypeError(f"{get_callable_name(head)}(): " + str(v_ex))
+
+            # create a partial with supplied arguments and replace pipe
+            # also provide optional meta so pipe does not need to update arguments
+            def _partial(item: TDataItems, *, meta: Any = None) -> Any:
+                # print(f"ITEM:{item},{args}{kwargs}")
+                if "meta" in kwargs:
+                    kwargs["meta"] = meta
+                return head(item, *args, **kwargs)  # type: ignore
+
+            # try:
+            #     _data = partial(head, "item", *args, **kwargs)
+            # except ValueError as v_ex:
+            #     raise TypeError(f"{get_callable_name(head)}(): " + str(v_ex))
+            _data = makefun.wraps(head, new_sig=inspect.signature(_partial))(_partial)
+            # print(_data.__name__)
+            # print(f"BOUND: {inspect.signature(_data)}")
+        else:
+            # pass the call parameters to the pipe's head
+            _data = head(*args, **kwargs)
+            # if f is not a generator (does not yield) raise Exception
+            if not inspect.isgenerator(_data):
+                # accept if resource is returned
+                if not isinstance(_data, DltResource):
+                    raise InvalidResourceDataTypeFunctionNotAGenerator(self.name, head, type(head))
+        # create new resource from extracted data, if _data is a DltResource it will be returned intact
+        # print(f"CALL: {self._pipe.parent}")
+        r = DltResource.from_data(_data, self.name, self._table_schema_template, self.selected, self._pipe.parent)
+        # print(f"NEW R: {r._pipe}")
+        # modify this instance, the default is to leave the instance immutable
+        # print(f"call: {self.name}")
+        if self._apply_binding:
+            # update from new resource
+            old_pipe = self._pipe
+            self.__dict__.clear()
+            self.__dict__.update(r.__dict__)
+            # keep old pipe instance
+            self._pipe = old_pipe
+            self._pipe.__dict__.clear()
+            # write props from new pipe instance
+            self._pipe.__dict__.update(r._pipe.__dict__)
+            return self
+        else:
+            # return new resource but wil this pipe instance
+            # r._pipe = self._pipe
+            return r
+
+    def __or__(self, resource: "DltResource") -> "DltResource":
+        # print(f"{resource.name} | {self.name} -> {resource.name}[{resource.is_transformer}]")
+        if resource.is_transformer:
+            DltResource._ensure_valid_transformer_resource(resource.name, resource._pipe.head)
+        else:
+            raise Exception("Not a tranformer")
+        resource._set_data_from(self)
+        return resource
 
     def __iter__(self) -> Iterator[TDataItems]:
         return map(lambda item: item.item, PipeIterator.from_pipe(self._pipe))
@@ -235,12 +295,58 @@ class DltResource(Iterable[TDataItems], DltResourceSchema):
         return f"DltResource {self.name} ({self._pipe._pipe_id}) at {id(self)}"
 
     @staticmethod
-    def is_valid_dependent_generator_function(f: AnyFun) -> bool:
+    def _ensure_valid_transformer_resource(name: str, data: Any) -> None:
+        # resource must be a callable with single argument
+        if callable(data):
+            valid_code = DltResource.validate_transformer_generator_function(data)
+            if valid_code != 0:
+                raise InvalidTransformerGeneratorFunction(name, get_callable_name(data), inspect.signature(data), valid_code)
+        else:
+            raise InvalidTransformerDataTypeGeneratorFunctionRequired(name, data, type(data))
+
+    @staticmethod
+    def _get_parent_pipe(name: str, data_from: Union["DltResource", Pipe]) -> Pipe:
+        # parent resource
+        if isinstance(data_from, Pipe):
+            return data_from
+        elif isinstance(data_from, DltResource):
+            return data_from._pipe
+        else:
+            # if this is generator function provide nicer exception
+            if callable(data_from):
+                raise InvalidParentResourceIsAFunction(name, get_callable_name(data_from))
+            else:
+                raise InvalidParentResourceDataType(name, data_from, type(data_from))
+
+    @staticmethod
+    def validate_transformer_generator_function(f: AnyFun) -> int:
         sig = inspect.signature(f)
-        return len(sig.parameters) == 0
+        if len(sig.parameters) == 0:
+            return 1
+        # transformer may take only one positional only argument
+        pos_only_len = sum(1 for p in sig.parameters.values() if p.kind == p.POSITIONAL_ONLY)
+        if pos_only_len > 1:
+            return 2
+        first_ar = next(iter(sig.parameters.values()))
+        # and pos only must be first
+        if pos_only_len == 1 and first_ar.kind != first_ar.POSITIONAL_ONLY:
+            return 2
+        # first arg must be positional or kw_pos
+        if first_ar.kind not in (first_ar.POSITIONAL_ONLY, first_ar.POSITIONAL_OR_KEYWORD):
+            return 3
+        return 0
+
+
+# produce Empty resource singleton
+DltResource.Empty = DltResource(Pipe(None), None, False)
+TUnboundDltResource = Callable[[], DltResource]
 
 
 class DltResourceDict(Dict[str, DltResource]):
+    def __init__(self, source_name: str) -> None:
+        super().__init__()
+        self.source_name = source_name
+
     @property
     def selected(self) -> Dict[str, DltResource]:
         return {k:v for k,v in self.items() if v.selected}
@@ -258,10 +364,9 @@ class DltResourceDict(Dict[str, DltResource]):
     def select(self, *resource_names: str) -> Dict[str, DltResource]:
         # checks if keys are present
         for name in resource_names:
-            try:
-                self.__getitem__(name)
-            except KeyError:
-                raise ResourceNotFoundError(name, "Requested resource could not be selected because it is not present in the source.")
+            if name not in self:
+                # if any key is missing, display the full info
+                raise ResourcesNotFoundError(self.source_name, set(self.keys()), set(resource_names))
         # set the selected flags
         for resource in self.values():
             self[resource.name].selected = resource.name in resource_names
@@ -273,11 +378,23 @@ class DltResourceDict(Dict[str, DltResource]):
         return next(r for r in self.values() if r._pipe._pipe_id is pipe._pipe_id)
 
 
+    def __setitem__(self, resource_name: str, resource: DltResource) -> None:
+        # make shallow copy of the resource
+        resource = copy(resource)
+        # let the resource receive changes when bound
+        resource._apply_binding = True
+        # now set it in dict
+        return super().__setitem__(resource_name, resource)
+
+    def __delitem__(self, resource_name: str) -> None:
+        raise DeletingResourcesNotSupported(self.source_name, resource_name)
+
+
 class DltSource(Iterable[TDataItems]):
     def __init__(self, schema: Schema, resources: Sequence[DltResource] = None) -> None:
         self.name = schema.name
         self._schema = schema
-        self._resources: DltResourceDict = DltResourceDict()
+        self._resources: DltResourceDict = DltResourceDict(self.name)
         if resources:
             for resource in resources:
                 self._add_resource(resource)
@@ -337,6 +454,11 @@ class DltSource(Iterable[TDataItems]):
             self._resources[resource.name].add_pipe(resource)
         else:
             self._resources[resource.name] = resource
+            # remember that resource got cloned when set into dict
+            setattr(self, resource.name, self._resources[resource.name])
+
+    def __getattr__(self, resource_name: str) -> DltResource:
+        return self._resources[resource_name]
 
     def __iter__(self) -> Iterator[TDataItems]:
         return map(lambda item: item.item, PipeIterator.from_pipes(self._resources.selected_pipes))

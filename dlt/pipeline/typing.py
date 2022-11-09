@@ -1,4 +1,4 @@
-from typing import Literal, TypedDict, Optional
+from typing import Any, Dict, Literal, TypedDict, Optional
 
 
 TPipelineStep = Literal["extract", "normalize", "load"]
@@ -10,7 +10,5 @@ class TPipelineState(TypedDict, total=False):
     destination: Optional[str]
 
 
-# TSourceState = NewType("TSourceState", DictStrAny)
-
-# class TPipelineState()
-#     sources: Dict[str, TSourceState]
+class TSourceState(TPipelineState):
+    sources: Dict[str, Dict[str, Any]]

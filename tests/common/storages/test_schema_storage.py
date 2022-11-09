@@ -12,7 +12,7 @@ from dlt.common.storages.exceptions import InStorageSchemaModified, SchemaNotFou
 from dlt.common.storages import SchemaStorage, LiveSchemaStorage, FileStorage
 
 from tests.utils import autouse_test_storage, TEST_STORAGE_ROOT
-from tests.common.utils import load_yml_case, yml_case_path
+from tests.common.utils import load_yml_case, yml_case_path, COMMON_TEST_CASES_PATH
 
 
 @pytest.fixture
@@ -231,6 +231,18 @@ def test_save_store_schema(storage: SchemaStorage) -> None:
     loaded_schema = storage.load_schema("event")
     assert loaded_schema.to_dict()["tables"]["_dlt_loads"] == schema.to_dict()["tables"]["_dlt_loads"]
     assert loaded_schema.to_dict() == schema.to_dict()
+
+
+def test_schema_from_file() -> None:
+    # json has precedence
+    schema = SchemaStorage.load_schema_file(os.path.join(COMMON_TEST_CASES_PATH, "schemas/local"), "event")
+    assert schema.name == "event"
+
+    schema = SchemaStorage.load_schema_file(os.path.join(COMMON_TEST_CASES_PATH, "schemas/local"), "event", extensions=("yaml",))
+    assert schema.name == "ethereum"
+
+    with pytest.raises(SchemaNotFoundError):
+        SchemaStorage.load_schema_file(os.path.join(COMMON_TEST_CASES_PATH, "schemas/local"), "eth", extensions=("yaml",))
 
 
 # def test_save_empty_schema_name(storage: SchemaStorage) -> None:

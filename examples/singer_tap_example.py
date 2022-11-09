@@ -1,13 +1,10 @@
 import os
 from tempfile import mkdtemp
 
-from dlt.pipeline import Pipeline, GCPPipelineCredentials
+import dlt
 from dlt.common.runners.venv import Venv
 
-from examples.sources.singer_tap import get_source
-
-p = Pipeline("singer_csv")
-p.create_pipeline(GCPPipelineCredentials.from_services_file("_secrets/project1234_service.json", "load_1"), working_dir="_storage/pipeline_singer")
+from examples.sources.singer_tap import tap
 
 # create Venv with desired dependencies, in this case csv tap
 # venv creation costs time so it should be created only once and reused
@@ -30,8 +27,6 @@ with Venv.create(mkdtemp(), ["git+https://github.com/MeltanoLabs/tap-csv.git"]) 
         ]
     }
     print("running tap-csv")
-    i = get_source(venv, "tap-csv", csv_tap_config, "examples/data/singer_taps/csv_catalog.json", state=p.state)
-    p.extract(i)
-    p.normalize()
-    print(p.get_default_schema().to_pretty_yaml(remove_defaults=True))
-    # p.load()
+    tap_source = tap(venv, "tap-csv", csv_tap_config, "examples/data/singer_taps/csv_catalog.json")
+    info = dlt.pipeline("meltano_csv", destination="postgres").run(tap_source, credentials="postgres://loader@localhost:5432/dlt_data")
+    print(info)

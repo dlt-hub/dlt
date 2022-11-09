@@ -3,6 +3,7 @@ import os
 import dlt
 from dlt.destinations import postgres
 from dlt.common.schema import utils
+from dlt.common.typing import StrAny
 
 from examples.sources.sql_query import query_table, query_sql
 
@@ -13,7 +14,9 @@ source_dsn = "redshift+redshift_connector://loader@chat-analytics.czwteevq7bpe.e
 # get data from table, we preserve method signature from pandas
 items = query_table("blocks__transactions", source_dsn, table_schema_name="mainnet_2_ethereum", coerce_float=False)
 # the data is also an iterator
+
 for i in items:
+    assert isinstance(i, dict)
     for k, v in i.items():
         print(f"{k}:{v} ({type(v)}:{utils.py_type_to_sc_type(type(v))})")
 

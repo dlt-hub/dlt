@@ -184,7 +184,15 @@ def entry_point_file_stem() -> str:
     return None
 
 
-def is_inner_function(f: AnyFun) -> bool:
+def get_callable_name(f: AnyFun, name_attr: str = "__name__") -> Optional[str]:
+    # check first if __name__ is present firectly (function), if not then look for type name
+    name: str = getattr(f, name_attr, None)
+    if not name:
+        name = getattr(f.__class__, name_attr, None)
+    return name
+
+
+def is_inner_callable(f: AnyFun) -> bool:
     """Checks if f is defined within other function"""
     # inner functions have full nesting path in their qualname
-    return "<locals>" in f.__qualname__
+    return "<locals>" in get_callable_name(f, name_attr="__qualname__")

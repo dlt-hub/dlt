@@ -21,7 +21,8 @@ from tests.utils import preserve_environ, autouse_test_storage, TEST_STORAGE_ROO
 # pipeline_module.get_default_working_dir = lambda s: os.path.join(TEST_STORAGE_ROOT, ".dlt", "pipelines")
 from tests.common.configuration.utils import environment
 
-ALL_CLIENT_TYPES = ["bigquery", "redshift", "postgres"]
+# ALL_CLIENT_TYPES = ["bigquery", "redshift", "postgres"]
+ALL_CLIENT_TYPES = ["postgres"]
 
 
 @pytest.fixture(autouse=True)

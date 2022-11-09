@@ -6,7 +6,7 @@ from dlt.common.typing import TSecretValue, Any
 from dlt.common.configuration import with_config
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.inject import get_orig_args
-from dlt.common.destination import DestinationReference
+from dlt.common.destination import DestinationReference, TDestinationReferenceArg
 from dlt.common.pipeline import LoadInfo, PipelineContext, get_default_working_dir
 
 from dlt.pipeline.configuration import PipelineConfiguration
@@ -18,7 +18,7 @@ def pipeline(
     pipeline_name: str = None,
     working_dir: str = None,
     pipeline_secret: TSecretValue = None,
-    destination: Union[None, str, DestinationReference] = None,
+    destination: TDestinationReferenceArg = None,
     dataset_name: str = None,
     import_schema_path: str = None,
     export_schema_path: str = None,
@@ -33,7 +33,7 @@ def pipeline(
     if not has_arguments:
         context = Container()[PipelineContext]
         # if pipeline instance is already active then return it, otherwise create a new one
-        if context.is_activated():
+        if context.is_active():
             return cast(Pipeline, context.pipeline())
         else:
             pass
@@ -81,7 +81,7 @@ Container()[PipelineContext] = PipelineContext(pipeline)
 def run(
     data: Any,
     *,
-    destination: Union[None, str, DestinationReference] = None,
+    destination: TDestinationReferenceArg = None,
     dataset_name: str = None,
     credentials: Any = None,
     table_name: str = None,

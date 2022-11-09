@@ -55,3 +55,12 @@ class PipelineStepFailed(PipelineException):
         self.run_metrics = run_metrics
         self.step_info: Any = None
         super().__init__(f"Pipeline execution failed at stage {step} with exception:\n\n{type(exception)}\n{exception}")
+
+
+class PipelineStateNotAvailable(PipelineException):
+    def __init__(self, is_pipeline_active: bool) -> None:
+        if is_pipeline_active:
+            msg = "There is no active pipeline. The resource that requests the access to state requires that dlt.pipeline() was called before it was used"
+        else:
+            msg  = "Pipeline state is not available. The state is available only within the resource function body ie. decorated with @dlt.source. This problem most often happen if state is accessed in the source function body ie. decorated with @dlt.source"
+        super().__init__(msg)

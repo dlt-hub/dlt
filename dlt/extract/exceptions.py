@@ -1,4 +1,5 @@
-from typing import Any, Type
+from inspect import Signature
+from typing import Any, Set, Type
 from dlt.common.exceptions import DltException
 
 
@@ -17,15 +18,38 @@ class DltResourceException(DltSourceException):
 
 
 class PipeException(DltException):
-    pass
+    def __init__(self, pipe_name: str, msg: str) -> None:
+        self.pipe_name = pipe_name
+        msg = f"In processing pipe {pipe_name}: " + msg
+        super().__init__(msg)
 
 
 class CreatePipeException(PipeException):
-    pass
+    def __init__(self, pipe_name: str, msg: str) -> None:
+        super().__init__(pipe_name, msg)
 
 
 class PipeItemProcessingError(PipeException):
-    pass
+    def __init__(self, pipe_name: str, msg: str) -> None:
+        super().__init__(pipe_name, msg)
+
+
+class PipeNotBoundToData(PipeException):
+    def __init__(self, pipe_name: str, has_parent: bool) -> None:
+        self.pipe_name = pipe_name
+        self.has_parent = has_parent
+        if has_parent:
+            msg = f"A pipe created from transformer {pipe_name} is unbound or its parent is unbound or empty. Provide a resource in `data_from` argument or bind resources with | operator."
+        else:
+            msg = "Pipe is empty and does not have a resource at its head"
+        super().__init__(pipe_name, msg)
+
+
+class InvalidStepFunctionArguments(PipeException):
+    def __init__(self, pipe_name: str, func_name: str, sig: Signature, call_error: str) -> None:
+        self.func_name = func_name
+        self.sig = sig
+        super().__init__(pipe_name, f"Unable to call {func_name}: {call_error}. The mapping/filtering function {func_name} requires first argument to take data item and optional second argument named 'meta', but the signature is {sig}")
 
 
 class ResourceNameMissing(DltResourceException):
@@ -34,9 +58,9 @@ class ResourceNameMissing(DltResourceException):
         Please note that for resources created from functions or generators, the name is the function name by default.""")
 
 
-class DependentResourceIsNotCallable(DltResourceException):
-    def __init__(self, resource_name: str) -> None:
-        super().__init__(resource_name, f"Attempted to call the dependent resource {resource_name}. Do not call the dependent resources. They will be called only when iterated.")
+# class DependentResourceIsNotCallable(DltResourceException):
+#     def __init__(self, resource_name: str) -> None:
+#         super().__init__(resource_name, f"Attempted to call the dependent resource {resource_name}. Do not call the dependent resources. They will be called only when iterated.")
 
 
 class ResourceNotFoundError(DltResourceException, KeyError):
@@ -64,17 +88,34 @@ class InvalidResourceDataTypeBasic(InvalidResourceDataType):
 
 class InvalidResourceDataTypeFunctionNotAGenerator(InvalidResourceDataType):
     def __init__(self, resource_name: str, item: Any,_typ: Type[Any]) -> None:
-        super().__init__(resource_name, item, _typ, "Please make sure that function decorated with @resource uses 'yield' to return the data.")
+        super().__init__(resource_name, item, _typ, "Please make sure that function decorated with @dlt.resource uses 'yield' to return the data.")
 
 
 class InvalidResourceDataTypeMultiplePipes(InvalidResourceDataType):
     def __init__(self, resource_name: str, item: Any,_typ: Type[Any]) -> None:
-        super().__init__(resource_name, item, _typ, "Resources with multiple parallel data pipes are not yet supported. This problem most often happens when you are creating a source with @source decorator that has several resources with the same name.")
+        super().__init__(resource_name, item, _typ, "Resources with multiple parallel data pipes are not yet supported. This problem most often happens when you are creating a source with @dlt.source decorator that has several resources with the same name.")
 
 
-class InvalidDependentResourceDataTypeGeneratorFunctionRequired(InvalidResourceDataType):
+class InvalidTransformerDataTypeGeneratorFunctionRequired(InvalidResourceDataType):
     def __init__(self, resource_name: str, item: Any,_typ: Type[Any]) -> None:
-        super().__init__(resource_name, item, _typ, "Dependent resource must be a decorated function that takes data item as its only argument.")
+        super().__init__(resource_name, item, _typ,
+            "Transformer must be a function decorated with @dlt.transformer that takes data item as its first argument. Only first argument may be 'positional only'.")
+
+
+class InvalidTransformerGeneratorFunction(DltResourceException):
+    def __init__(self, resource_name: str, func_name: str, sig: Signature, code: int) -> None:
+        self.func_name = func_name
+        self.sig = sig
+        self.code = code
+        msg = f"Transformer function {func_name} must take data item as its first argument. "
+        if code == 1:
+            msg += "The actual function does not take any arguments."
+        elif code == 2:
+            msg += f"Only the first argument may be 'positional only', actual signature is {sig}"
+        elif code == 3:
+            msg += f"The first argument cannot be keyword only, actual signature is {sig}"
+
+        super().__init__(resource_name, msg)
 
 
 class InvalidResourceDataTypeIsNone(InvalidResourceDataType):
@@ -82,20 +123,32 @@ class InvalidResourceDataTypeIsNone(InvalidResourceDataType):
         super().__init__(resource_name, item, _typ, "Resource data missing. Did you forget the return statement in @dlt.resource decorated function?")
 
 
-class ResourceExpectedFunction(InvalidResourceDataType):
+class ResourceFunctionExpected(InvalidResourceDataType):
     def __init__(self, resource_name: str, item: Any, _typ: Type[Any]) -> None:
         super().__init__(resource_name, item, _typ, f"Expected function or callable as first parameter to resource {resource_name} but {_typ.__name__} found. Please decorate a function with @dlt.resource")
 
 
 class InvalidParentResourceDataType(InvalidResourceDataType):
     def __init__(self, resource_name: str, item: Any,_typ: Type[Any]) -> None:
-        super().__init__(resource_name, item, _typ, f"A parent resource of {resource_name} is of type {_typ.__name__}. Did you forget to use '@resource` decorator or `resource` function?")
+        super().__init__(resource_name, item, _typ, f"A parent resource of {resource_name} is of type {_typ.__name__}. Did you forget to use '@dlt.resource` decorator or `resource` function?")
 
 
 class InvalidParentResourceIsAFunction(DltResourceException):
     def __init__(self, resource_name: str, func_name: str) -> None:
         self.func_name = func_name
-        super().__init__(resource_name, f"A parent resource {func_name} of dependent resource {resource_name} is a function. Please decorate it with '@resource' or pass to 'resource' function.")
+        super().__init__(resource_name, f"A data source {func_name} of a transformer {resource_name} is an undecorated function. Please decorate it with '@dlt.resource' or pass to 'resource' function.")
+
+
+class DeletingResourcesNotSupported(DltResourceException):
+    def __init__(self, source_name: str, resource_name: str) -> None:
+        super().__init__(resource_name, f"Resource cannot be removed the the source {source_name}")
+
+
+class ParametrizedResourceUnbound(DltResourceException):
+    def __init__(self, resource_name: str, func_name: str, sig: Signature, kind: str = "resource") -> None:
+        self.func_name = func_name
+        self.sig = sig
+        super().__init__(resource_name, f"The {kind} {resource_name} is parametrized and expects following arguments: {sig}. Did you forget to call the {func_name} function? For example from `source.{resource_name}(...)")
 
 
 class TableNameMissing(DltSourceException):
@@ -119,6 +172,16 @@ class SourceDataIsNone(DltSourceException):
     def __init__(self, source_name: str) -> None:
         self.source_name = source_name
         super().__init__(f"No data returned or yielded from source function {source_name}. Did you forget the return statement?")
+
+
+class ResourcesNotFoundError(DltSourceException):
+    def __init__(self, source_name: str, available_resources: Set[str], requested_resources: Set[str]) -> None:
+        self.source_name = source_name
+        self.available_resources = available_resources
+        self.requested_resources = requested_resources
+        self.not_found_resources = requested_resources.difference(available_resources)
+        msg = f"The following resources could not be found in source {source_name}: {self.not_found_resources}. Available resources are: {available_resources}"
+        super().__init__(msg)
 
 
 class SourceNotAFunction(DltSourceException):

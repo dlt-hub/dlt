@@ -1,8 +1,9 @@
-from typing import Optional, Literal, TYPE_CHECKING
+from typing import Optional, Literal, TYPE_CHECKING, get_args
 
 from dlt.common.configuration.specs.base_configuration import BaseConfiguration, configspec
 
 TSchemaFileFormat = Literal["json", "yaml"]
+SchemaFileExtensions = get_args(TSchemaFileFormat)
 
 
 @configspec(init=True)
