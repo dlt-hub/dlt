@@ -14,7 +14,7 @@ from dlt.common.typing import AnyFun, TDataItem, TDataItems
 from dlt.common.utils import get_callable_name
 
 from dlt.extract.exceptions import CreatePipeException, InvalidStepFunctionArguments, ParametrizedResourceUnbound, PipeItemProcessingError, PipeNotBoundToData
-from dlt.extract.typing import DataItemWithMeta, FilterItemFunction, TPipedDataItems
+from dlt.extract.typing import DataItemWithMeta, FilterItemFunction, FilterItemFunctionWithMeta, TPipedDataItems
 
 
 if TYPE_CHECKING:
@@ -90,19 +90,34 @@ class ForkPipe:
 
 
 class FilterItem:
-    def __init__(self, filter_f: FilterItemFunction) -> None:
-        self._filter_f = filter_f
+    _filter_f_meta: FilterItemFunctionWithMeta = None
+    _filter_f: FilterItemFunction = None
+    def __init__(self, filter_f: Union[FilterItemFunctionWithMeta, FilterItemFunction]) -> None:
+        # TODO: extract this into a helper function
+        # inspect the signature
+        sig = inspect.signature(filter_f)
+        # TODO: use TypeGuard here to get rid of type ignore
+        if len(sig.parameters) == 1:
+            self._filter_f = filter_f  # type: ignore
+        else:  # TODO: do better check
+            self._filter_f_meta = filter_f  # type: ignore
 
     def __call__(self, item: TDataItems, meta: Any = None) -> Optional[TDataItems]:
         # item may be a list TDataItem or a single TDataItem
         if isinstance(item, list):
-            item = [i for i in item if self._filter_f(i, meta)]
+            if self._filter_f_meta:
+                item = [i for i in item if self._filter_f_meta(i, meta)]
+            else:
+                item = [i for i in item if self._filter_f(i)]
             if not item:
                 # item was fully consumed by the filter
                 return None
             return item
         else:
-            return item if self._filter_f(item, meta) else None
+            if self._filter_f_meta:
+                return item if self._filter_f_meta(item, meta) else None
+            else:
+                return item if self._filter_f(item) else None
 
 
 class Pipe:

@@ -14,7 +14,7 @@ from dlt.common.configuration.container import Container
 from dlt.common.pipeline import PipelineContext
 from dlt.common.utils import get_callable_name
 
-from dlt.extract.typing import DataItemWithMeta, FilterItemFunction, TableNameMeta, TFunHintTemplate, TTableHintTemplate, TTableSchemaTemplate
+from dlt.extract.typing import DataItemWithMeta, FilterItemFunction, FilterItemFunctionWithMeta, TableNameMeta, TFunHintTemplate, TTableHintTemplate, TTableSchemaTemplate
 from dlt.extract.pipe import FilterItem, Pipe, PipeIterator
 from dlt.extract.exceptions import (
     InvalidTransformerDataTypeGeneratorFunctionRequired, InvalidParentResourceDataType, InvalidParentResourceIsAFunction, InvalidResourceDataType, InvalidResourceDataTypeFunctionNotAGenerator, InvalidResourceDataTypeIsNone, InvalidTransformerGeneratorFunction,
@@ -209,7 +209,7 @@ class DltResource(Iterable[TDataItems], DltResourceSchema):
     def flat_map(self) -> None:
         raise NotImplementedError()
 
-    def filter(self, item_filter: FilterItemFunction) -> None:  # noqa: A003
+    def filter(self, item_filter: Union[FilterItemFunctionWithMeta, FilterItemFunction]) -> None:  # noqa: A003
         self._pipe.add_step(FilterItem(item_filter))
 
     def _set_data_from(self, data_from: Union["DltResource", Pipe]) -> None:

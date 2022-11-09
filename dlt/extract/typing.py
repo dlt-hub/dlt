@@ -43,6 +43,9 @@ class TableNameMeta:
 
 
 # define basic transformation functions
-class FilterItemFunction(Protocol):
-    def __call__(self, item: TDataItem, meta: Any = ...) -> bool:
-        ...
+# class FilterItemFunctionWithMeta(Protocol):
+#     def __call__(self, item: TDataItem, meta: Any = ...) -> bool:
+#         ...
+
+FilterItemFunctionWithMeta = Callable[[TDataItem, str], bool]
+FilterItemFunction = Callable[[TDataItem], bool]
