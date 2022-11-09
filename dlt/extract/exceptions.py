@@ -34,8 +34,15 @@ class PipeItemProcessingError(PipeException):
         super().__init__(pipe_name, msg)
 
 
-class PipeNotBound(PipeException):
-    pass
+class PipeNotBoundToData(PipeException):
+    def __init__(self, pipe_name: str, has_parent: bool) -> None:
+        self.pipe_name = pipe_name
+        self.has_parent = has_parent
+        if has_parent:
+            msg = f"A pipe created from transformer {pipe_name} is unbound or its parent is unbound or empty. Provide a resource in `data_from` argument or bind resources with | operator."
+        else:
+            msg = "Pipe is empty and does not have a resource at its head"
+        super().__init__(pipe_name, msg)
 
 
 class InvalidStepFunctionArguments(PipeException):

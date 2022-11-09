@@ -13,7 +13,7 @@ from dlt.common.configuration.specs.base_configuration import BaseConfiguration,
 from dlt.common.typing import AnyFun, TDataItem, TDataItems
 from dlt.common.utils import get_callable_name
 
-from dlt.extract.exceptions import CreatePipeException, InvalidStepFunctionArguments, ParametrizedResourceUnbound, PipeItemProcessingError
+from dlt.extract.exceptions import CreatePipeException, InvalidStepFunctionArguments, ParametrizedResourceUnbound, PipeItemProcessingError, PipeNotBoundToData
 from dlt.extract.typing import DataItemWithMeta, FilterItemFunction, TPipedDataItems
 
 
@@ -112,12 +112,31 @@ class Pipe:
         self._pipe_id = f"{name}_{id(self)}"
         self.parent = parent
         # add the steps, this will check and mod transformations
-        for step in steps:
-            self.add_step(step)
+        if steps:
+            for step in steps:
+                self.add_step(step)
 
     @classmethod
     def from_data(cls, name: str, gen: Union[Iterable[TPipedDataItems], Iterator[TPipedDataItems], AnyFun], parent: "Pipe" = None) -> "Pipe":
         return cls(name, [gen], parent=parent)
+
+    @property
+    def is_empty(self) -> bool:
+        """Checks if pipe contains any steps"""
+        return len(self._steps) == 0
+
+    @property
+    def has_parent(self) -> bool:
+        """Checks if pipe is connected to parent pipe from which it takes data items. Connected pipes are created from transformer resources"""
+        return self.parent is not None
+
+    @property
+    def is_data_bound(self) -> bool:
+        """Checks if pipe is bound to data and can be iterated. Pipe is bound if has a parent that is bound xor is not empty."""
+        if self.has_parent:
+            return self.parent.is_data_bound
+        else:
+            return not self.is_empty
 
     @property
     def head(self) -> TPipeStep:
@@ -174,12 +193,12 @@ class Pipe:
 
     def add_step(self, step: TPipeStep) -> "Pipe":
         step_no = len(self._steps)
-        if step_no == 0 and self.parent is None:
+        if step_no == 0 and not self.has_parent:
             self._add_head(step)
         else:
             # step must be a callable: a transformer or a transformation
             if isinstance(step, (Iterable, Iterator)):
-                if self.parent is not None:
+                if self.has_parent:
                     raise CreatePipeException(self.name, "Iterable or Iterator cannot be a step in transformer pipe")
                 else:
                     raise CreatePipeException(self.name, "Iterable or Iterator can only be a first step in resource pipe")
@@ -190,11 +209,10 @@ class Pipe:
         # prevent creating full pipe with unbound heads
         self._ensure_step_function(0, self.head)
 
-        if self.parent:
+        if self.has_parent:
             steps = self.parent.full_pipe().steps
         else:
             steps = []
-
 
         steps.extend(self._steps)
         p = Pipe(self.name, [])
@@ -205,8 +223,11 @@ class Pipe:
 
     def evaluate_head(self) -> None:
         """Lazily evaluate head of the pipe when creating PipeIterator. Allows creating multiple use pipes from generator functions and lists"""
+        if not self.is_data_bound:
+            raise PipeNotBoundToData(self.name, self.has_parent)
+
         head = self.head
-        if self.parent is None:
+        if not self.has_parent:
             # if pipe head is callable then call it
             if callable(head):
                 try:
@@ -238,9 +259,6 @@ class Pipe:
                 raise InvalidStepFunctionArguments(self.name, callable_name, sig, "Function takes no arguments")
             # see if meta is present in kwargs
             meta_arg = next((p for p in sig.parameters.values() if p.name == "meta"), None)
-            # print(sig)
-            # print(f"META_ARG:{meta_arg}")
-
             if meta_arg is not None:
                 if meta_arg.kind not in (meta_arg.KEYWORD_ONLY, meta_arg.POSITIONAL_OR_KEYWORD):
                     raise InvalidStepFunctionArguments(self.name, callable_name, sig, "'meta' cannot be pos only argument '")
@@ -264,7 +282,6 @@ class Pipe:
 
         self._steps.append(step)
 
-
     def _ensure_step_function(self, step_no: int, step: TPipeStep) -> None:
         if not callable(step):
             return
@@ -281,7 +298,11 @@ class Pipe:
                 raise InvalidStepFunctionArguments(self.name, callable_name, sig, str(ty_ex))
 
     def __repr__(self) -> str:
-        return f"Pipe {self.name} ({self._pipe_id}) at {id(self)}"
+        if self.has_parent:
+            bound_str = " data bound to " + repr(self.parent)
+        else:
+            bound_str = ""
+        return f"Pipe {self.name} ({self._pipe_id})[steps: {len(self._steps)}] at {id(self)}{bound_str}"
 
 
 class PipeIterator(Iterator[PipeItem]):

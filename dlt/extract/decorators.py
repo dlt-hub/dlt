@@ -2,7 +2,7 @@ import os
 import inspect
 from types import ModuleType
 from makefun import wraps
-from typing import Any, Callable, Dict, Iterator, List, NamedTuple, Optional, Tuple, Type, TypeVar, Union, overload
+from typing import Any, Callable, Dict, Iterator, List, NamedTuple, Optional, Tuple, Type, TypeVar, Union, cast, overload
 
 from dlt.common.configuration import with_config, get_fun_spec
 from dlt.common.configuration.specs import BaseConfiguration
@@ -15,7 +15,7 @@ from dlt.common.utils import get_callable_name, is_inner_callable
 from dlt.extract.exceptions import InvalidTransformerDataTypeGeneratorFunctionRequired, ResourceFunctionExpected, SourceDataIsNone, SourceNotAFunction
 
 from dlt.extract.typing import TTableHintTemplate
-from dlt.extract.source import DltResource, DltSource
+from dlt.extract.source import DltResource, DltSource, TUnboundDltResource
 
 
 class SourceInfo(NamedTuple):
@@ -131,7 +131,7 @@ def resource(
     columns: TTableHintTemplate[TTableSchemaColumns] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None
-) -> Callable[[Callable[TResourceFunParams, Any]], DltResource]:
+) -> Callable[[Callable[TResourceFunParams, Any]], Callable[TResourceFunParams, DltResource]]:
     ...
 
 
@@ -166,12 +166,12 @@ def resource(
     columns: TTableHintTemplate[TTableSchemaColumns] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
-    depends_on: DltResource = None
+    depends_on: TUnboundDltResource = None
 ) -> Any:
 
     def make_resource(_name: str, _data: Any) -> DltResource:
         table_template = DltResource.new_table_template(table_name or _name, write_disposition=write_disposition, columns=columns)
-        return DltResource.from_data(_data, _name, table_template, selected, depends_on)
+        return DltResource.from_data(_data, _name, table_template, selected, cast(DltResource, depends_on))
 
 
     def decorator(f: Callable[TResourceFunParams, Any]) -> Callable[TResourceFunParams, DltResource]:
@@ -211,7 +211,7 @@ def resource(
 
 
 def transformer(
-    data_from: DltResource,
+    data_from: TUnboundDltResource = DltResource.Empty,
     name: str = None,
     table_name: TTableHintTemplate[str] = None,
     write_disposition: TTableHintTemplate[TWriteDisposition] = None,
@@ -219,7 +219,12 @@ def transformer(
     selected: bool = True,
     spec: Type[BaseConfiguration] = None
 ) -> Callable[[Callable[Concatenate[TDataItem, TResourceFunParams], Any]], Callable[TResourceFunParams, DltResource]]:
-    return resource(None, name=name, table_name=table_name, write_disposition=write_disposition, columns=columns, selected=selected, depends_on=data_from, spec=spec)  # type: ignore
+    f: AnyFun = None
+    # if data_from is a function we are called without parens
+    if inspect.isfunction(data_from):
+        f = data_from
+        data_from = DltResource.Empty
+    return resource(f, name=name, table_name=table_name, write_disposition=write_disposition, columns=columns, selected=selected, spec=spec, depends_on=data_from)  # type: ignore
 
 
 def _maybe_load_schema_for_callable(f: AnyFun, name: str) -> Optional[Schema]:

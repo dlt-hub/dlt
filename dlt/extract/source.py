@@ -3,13 +3,13 @@ from copy import copy, deepcopy
 import makefun
 import inspect
 from collections.abc import Mapping as C_Mapping
-from typing import AsyncIterable, AsyncIterator, Dict, Iterable, Iterator, List, Set, Sequence, Union, cast, Any
+from typing import AsyncIterable, AsyncIterator, ClassVar, Callable, Dict, Iterable, Iterator, List, Sequence, Union, cast, Any
 
 
 from dlt.common.schema import Schema
 from dlt.common.schema.utils import new_table
 from dlt.common.schema.typing import TColumnSchema, TPartialTableSchema, TTableSchemaColumns, TWriteDisposition
-from dlt.common.typing import AnyFun, TDataItem, TDataItems, NoneType
+from dlt.common.typing import AnyFun, TDataItem, TDataItems, NoneType, TypeAlias
 from dlt.common.configuration.container import Container
 from dlt.common.pipeline import PipelineContext
 from dlt.common.utils import get_callable_name
@@ -125,6 +125,9 @@ class DltResourceSchema:
 
 
 class DltResource(Iterable[TDataItems], DltResourceSchema):
+
+    Empty: ClassVar["DltResource"] = None
+
     def __init__(self, pipe: Pipe, table_schema_template: TTableSchemaTemplate, selected: bool):
         # TODO: allow resource to take name independent from pipe name
         self.name = pipe.name
@@ -164,13 +167,16 @@ class DltResource(Iterable[TDataItems], DltResourceSchema):
 
         # check if depends_on is a valid resource
         parent_pipe: Pipe = None
-        if depends_on:
+        if depends_on is not None:
             DltResource._ensure_valid_transformer_resource(name, data)
             parent_pipe = DltResource._get_parent_pipe(name, depends_on)
+            # print(f"from_data: parent_pipe: {parent_pipe}")
 
         # create resource from iterator, iterable or generator function
         if isinstance(data, (Iterable, Iterator)) or callable(data):
             pipe = Pipe.from_data(name, data, parent=parent_pipe)
+            # print(f"from_data: pipe: {pipe}")
+            # print(f"PARENT: {pipe.parent}")
             return cls(pipe, table_schema_template, selected)
         else:
             # some other data type that is not supported
@@ -179,7 +185,7 @@ class DltResource(Iterable[TDataItems], DltResourceSchema):
     @property
     def is_transformer(self) -> bool:
         """Checks if the resource is a transformer that depends on another resource"""
-        return self._pipe.parent is not None
+        return self._pipe.has_parent
 
     def add_pipe(self, data: Any) -> None:
         """Creates additional pipe for the resource from the specified data"""
@@ -252,7 +258,9 @@ class DltResource(Iterable[TDataItems], DltResourceSchema):
                 if not isinstance(_data, DltResource):
                     raise InvalidResourceDataTypeFunctionNotAGenerator(self.name, head, type(head))
         # create new resource from extracted data, if _data is a DltResource it will be returned intact
+        # print(f"CALL: {self._pipe.parent}")
         r = DltResource.from_data(_data, self.name, self._table_schema_template, self.selected, self._pipe.parent)
+        # print(f"NEW R: {r._pipe}")
         # modify this instance, the default is to leave the instance immutable
         # print(f"call: {self.name}")
         if self._apply_binding:
@@ -272,9 +280,11 @@ class DltResource(Iterable[TDataItems], DltResourceSchema):
             return r
 
     def __or__(self, resource: "DltResource") -> "DltResource":
-        # print(f"{self.name} | {resource.name} -> {self.name}")
+        # print(f"{resource.name} | {self.name} -> {resource.name}[{resource.is_transformer}]")
         if resource.is_transformer:
             DltResource._ensure_valid_transformer_resource(resource.name, resource._pipe.head)
+        else:
+            raise Exception("Not a tranformer")
         resource._set_data_from(self)
         return resource
 
@@ -325,6 +335,11 @@ class DltResource(Iterable[TDataItems], DltResourceSchema):
         if first_ar.kind not in (first_ar.POSITIONAL_ONLY, first_ar.POSITIONAL_OR_KEYWORD):
             return 3
         return 0
+
+
+# produce Empty resource singleton
+DltResource.Empty = DltResource(Pipe(None), None, False)
+TUnboundDltResource = Callable[[], DltResource]
 
 
 class DltResourceDict(Dict[str, DltResource]):

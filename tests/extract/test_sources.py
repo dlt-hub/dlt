@@ -83,7 +83,7 @@ def test_parametrized_transformer() -> None:
     assert py_ex.value.code == 3
 
     # transformer must take data from a resource
-    with pytest.raises(InvalidParentResourceIsAFunction):
+    with pytest.raises(InvalidTransformerGeneratorFunction):
         dlt.transformer(bad_transformer)(good_transformer)
     with pytest.raises(InvalidParentResourceDataType):
         dlt.transformer(bad_transformer())(good_transformer)
