@@ -107,23 +107,3 @@ def test_gcp_credentials_resolved_from_native_representation(environment: Any) -
 
     environment["CREDENTIALS__PRIVATE_KEY"] = "loader"
     resolve_configuration(gcpc, accept_partial=False)
-
-
-def test_gcp_credentials_with_default(environment: Any) -> None:
-    gcpc = GcpClientCredentialsWithDefault()
-    # resolve will miss values and try to find default credentials on the machine
-    with pytest.raises(ConfigFieldMissingException) as py_ex:
-        resolve_configuration(gcpc)
-    assert py_ex.value.fields == ['project_id', 'private_key', 'client_email']
-
-    # prepare real service.json
-    storage = FileStorage("_secrets", makedirs=True)
-    with open(json_case_path("level-dragon-333019-707809ee408a") + ".b64", mode="br") as f:
-        services_str = base64.b64decode(f.read().strip(), validate=True).decode()
-    storage.save("level-dragon-333019-707809ee408a.json", services_str)
-
-    # now set the env
-    environment["GOOGLE_APPLICATION_CREDENTIALS"] = os.path.abspath("_secrets/level-dragon-333019-707809ee408a.json")
-    resolve_configuration(gcpc)
-    # project id recovered from credentials
-    assert gcpc.project_id == "level-dragon-333019"

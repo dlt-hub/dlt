@@ -1,9 +1,13 @@
+import base64
 from copy import copy
-from typing import Iterator
+from typing import Any, Iterator
 import pytest
 
 from dlt.common import json, pendulum, Decimal
 from dlt.common.arithmetics import numeric_default_context
+from dlt.common.configuration.exceptions import ConfigFieldMissingException
+from dlt.common.configuration.resolve import resolve_configuration
+from dlt.common.configuration.specs import GcpClientCredentialsWithDefault
 from dlt.common.storages import FileStorage
 from dlt.common.schema.schema import Schema
 from dlt.common.utils import uniq_id
@@ -11,7 +15,9 @@ from dlt.load.exceptions import LoadJobNotExistsException, LoadJobServerTerminal
 
 from dlt.destinations.bigquery.bigquery import BigQueryClient
 
-from tests.utils import TEST_STORAGE_ROOT, delete_test_storage
+from tests.utils import TEST_STORAGE_ROOT, delete_test_storage, preserve_environ
+from tests.common.utils import json_case_path as common_json_case_path
+from tests.common.configuration.utils import environment
 from tests.load.utils import expect_load_file, prepare_table, yield_client_with_storage, cm_yield_client_with_storage
 
 
@@ -28,6 +34,26 @@ def file_storage() -> FileStorage:
 @pytest.fixture(autouse=True)
 def auto_delete_storage() -> None:
     delete_test_storage()
+
+
+def test_gcp_credentials_with_default(environment: Any) -> None:
+    gcpc = GcpClientCredentialsWithDefault()
+    # resolve will miss values and try to find default credentials on the machine
+    with pytest.raises(ConfigFieldMissingException) as py_ex:
+        resolve_configuration(gcpc)
+    assert py_ex.value.fields == ['project_id', 'private_key', 'client_email']
+
+    # prepare real service.json
+    storage = FileStorage("_secrets", makedirs=True)
+    with open(common_json_case_path("level-dragon-333019-707809ee408a") + ".b64", mode="br") as f:
+        services_str = base64.b64decode(f.read().strip(), validate=True).decode()
+    dest_path = storage.save("level-dragon-333019-707809ee408a.json", services_str)
+
+    # now set the env
+    environment["GOOGLE_APPLICATION_CREDENTIALS"] = storage.make_full_path(dest_path)
+    resolve_configuration(gcpc)
+    # project id recovered from credentials
+    assert gcpc.project_id == "level-dragon-333019"
 
 
 def test_bigquery_job_errors(client: BigQueryClient, file_storage: FileStorage) -> None:
