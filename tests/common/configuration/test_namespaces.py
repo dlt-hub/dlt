@@ -56,7 +56,7 @@ def test_namespaced_configuration(environment: Any) -> None:
     assert traces[2] == LookupTrace("Pipeline config.toml", ["DLT_TEST"], "DLT_TEST.password", None)
 
     # init vars work without namespace
-    C = resolve.resolve_configuration(NamespacedConfiguration(), initial_value={"password": "PASS"})
+    C = resolve.resolve_configuration(NamespacedConfiguration(), explicit_value={"password": "PASS"})
     assert C.password == "PASS"
 
     # env var must be prefixed

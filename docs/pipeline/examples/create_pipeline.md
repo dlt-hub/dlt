@@ -26,9 +26,9 @@ dlt.run(data["result"], name="logs", destination=bigquery(Service.credentials_fr
 ## Source extractor function the preferred way
 General guidelines:
 1. the source extractor is a function decorated with `@dlt.source`. that function yields or returns a list of resources. **it should not access the data itself**. see the example below
-2. resources are generator functions that always **yield** data (I think I will enforce that by raising exception). Access to external endpoints, databases etc. should happen from that generator function. Generator functions may be decorated with `@dlt.resource` to provide alternative names, write disposition etc.
+2. resources are generator functions that always **yield** data (enforced by exception which I hope is user friendly). Access to external endpoints, databases etc. should happen from that generator function. Generator functions may be decorated with `@dlt.resource` to provide alternative names, write disposition etc.
 3. resource generator functions can be OFC parametrized and resources may be created dynamically
-4. the resource generator function may yield a single dict or list of dicts
+4. the resource generator function may yield **anything that is json serializable**. we prefer to yield _dict_ or list of dicts. yielding lists is much more efficient in terms of processing!
 5. like any other iterator, the @dlt.source and @dlt.resource **can be iterated and thus extracted and loaded only once**, see example below.
 
 > my dilemma here is if I should allow to access data directly in the source function ie. to discover schema or get some configuration for the resources from some endpoint. it is very easy to avoid that but for the non-programmers it will not be intuitive.
@@ -69,7 +69,7 @@ def taktile_data(initial_log_id, taktile_api_key):
     # as mentioned we return a resource or a list of resources
     return logs
     # this will also work
-    return logs()
+    # return logs()
 
 
 # now load the data
@@ -106,7 +106,7 @@ def taktile_logs_data(initial_log_id, taktile_api_key)
 @dlt.source
 def taktile_data(initial_log_id, taktile_api_key):
     # pass the arguments and convert to resource
-    return resource(taktile_logs_data(initial_log_id, taktile_api_key), name="logs", write_disposition="append")
+    return dlt.resource(taktile_logs_data(initial_log_id, taktile_api_key), name="logs", write_disposition="append")
 ```
 
 **A standalone @resource: logs() function with table hints**
@@ -188,40 +188,6 @@ for item in l:
     yield deferred(requests.get(url, api_key, "%s?id=%s" % (endpoint_name, item["id"])).json())
 ```
 
-## Python data transformations
-
-```python
-from dlt.secrets import anonymize
-
-def transform_user(user_data):
-    # anonymize creates nice deterministic hash for any hashable data type
-    user_data["user_id"] = anonymize(user_data["user_id"])
-    user_data["user_email"] = anonymize(user_data["user_email"])
-    return user_data
-
-# usage: can be applied in the source
-@dlt.source
-def hubspot(...):
-    ...
-
-    @dlt.resource(write_disposition="replace")
-    def users():
-        ...
-        users = requests.get(...)
-        # option 1: just map and yield from mapping
-        users = map(transform_user, users)
-        ...
-        yield users, deals, customers
-
-    # option 2: return resource with chained transformation
-    return users.map(transform_user)
-
-# option 3: user of the pipeline determines if s/he wants the anonymized data or not and does it in pipeline script. so the source may offer also transformations that are easily used
-hubspot(...).resources["users"].map(transform_user)
-hubspot.run(...)
-
-```
-
 ## Multiple resources and resource selection
 The source extraction function may contain multiple resources. The resources can be defined as multiple resource functions or created dynamically ie. with parametrized generators.
 The user of the pipeline can check what resources are available and select the resources to load.
@@ -262,9 +228,14 @@ source.resources.select("decisions")
 print(source.selected_resources)
 # same as this
 print(source.resources.selected)
-
-
 ```
+
+Except being accessible via `source.resources` dictionary, every resource is available as an attribute of the source. For the example above
+```python
+print(list(source.decisions))  # will iterate decisions resource
+source.logs.selected = False  # deselect resource
+```
+
 
 **resources are created dynamically**
 Here we implement a single parametrized function that **yields** data and we call it repeatedly. Mind that the function body won't be executed immediately, only later when generator is consumed in extract stage.
@@ -338,11 +309,11 @@ def spotify():
         yield requests.get(...)
 
     # make songs and playlists to be dependent on get_huge_doc
-    @dlt.resource(depends_on=huge_doc)
+    @transformer(data_from=get_huge_doc)
     def songs(huge_doc):
         yield huge_doc["songs"]
 
-    @dlt.resource(depends_on=huge_doc)
+    @dlt.resource(data_from=get_huge_doc)
     def playlists(huge_doc):
         yield huge_doc["playlists"]
 
@@ -352,6 +323,68 @@ def spotify():
 ```
 
 > I could also implement lazy evaluation of the @dlt.source function. this is a lot of trickery in the code but definitely possible. there are consequences though: if someone requests lists of resources or the initial schema in the pipeline script before `run` method the function body will be evaluated. It is really hard to make intuitive code to work properly.
+
+## The stream resources
+What about resource like rasa tracker or singer tap that send a stream of events that should be assigned to different tables? we have an answer in [stream_resources.md](here)
+
+## Parametrized resources
+Imagine the situation in which you have a resource for which you want to let user to pass some options ie. the number of records returned.
+1. In all examples above you do that via the source and returned resources are not parametrized. **This is I think the correct approach**
+2. You can return a parametrized (unbound) resources from the source
+
+```python
+
+@dlt.source
+def chess(chess_api_url):
+
+    # let people choose player title, the default is grand master
+    @dlt.resource
+    def players(title_filter="GM"):
+        yield
+
+    # return the players without the calling
+    return players
+
+s = chess("url")
+# let's parametrize the resource to select masters. you simply call the resource to bind it
+s.players("M")
+# load the masters
+s.run()
+
+```
+
+## Python data transformations
+
+```python
+from dlt.secrets import anonymize
+
+def transform_user(user_data):
+    # anonymize creates nice deterministic hash for any hashable data type
+    user_data["user_id"] = anonymize(user_data["user_id"])
+    user_data["user_email"] = anonymize(user_data["user_email"])
+    return user_data
+
+# usage: can be applied in the source
+@dlt.source
+def hubspot(...):
+    ...
+
+    @dlt.resource(write_disposition="replace")
+    def users():
+        ...
+        users = requests.get(...)
+        # option 1: just map and yield from mapping
+        users = map(transform_user, users)
+        ...
+        yield users, deals, customers
+
+    # option 2: return resource with chained transformation
+    return users.map(transform_user)
+
+# option 3: user of the pipeline determines if s/he wants the anonymized data or not and does it in pipeline script. so the source may offer also transformations that are easily used
+hubspot(...).users.map(transform_user)
+hubspot.run(...)
+```
 
 ## Pipeline with multiple sources or with same source called twice
 

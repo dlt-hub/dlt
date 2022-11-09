@@ -23,7 +23,7 @@ EXPECTED_FILE_NAME = f"{SCHEMA_NAME}.schema.json"
 def schema_storage() -> SchemaStorage:
     C = resolve_configuration(
         SchemaVolumeConfiguration(),
-        initial_value={
+        explicit_value={
             "import_schema_path": "tests/common/cases/schemas/rasa",
             "external_schema_format": "json"
         })

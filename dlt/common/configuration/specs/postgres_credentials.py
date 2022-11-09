@@ -1,5 +1,6 @@
 from typing import Any, Dict, Optional
 from sqlalchemy.engine import URL, make_url
+from dlt.common.configuration.specs.exceptions import InvalidConnectionString
 
 from dlt.common.typing import TSecretValue
 from dlt.common.configuration.specs.base_configuration import CredentialsConfiguration, configspec
@@ -15,17 +16,17 @@ class ConnectionStringCredentials(CredentialsConfiguration):
     port: int = None
     query: Optional[Dict[str, str]] = None
 
-    def from_native_representation(self, initial_value: Any) -> None:
-        if not isinstance(initial_value, str):
-            raise ValueError(initial_value)
+    def parse_native_representation(self, native_value: Any) -> None:
+        if not isinstance(native_value, str):
+            raise InvalidConnectionString(self.__class__, native_value)
         try:
-            url = make_url(initial_value)
+            url = make_url(native_value)
             self.update(url._asdict())
             self.__is_resolved__ = not self.is_partial()
         except Exception:
-            raise ValueError(initial_value)
+            raise InvalidConnectionString(self.__class__, native_value)
 
-    def check_integrity(self) -> None:
+    def on_resolved(self) -> None:
         self.database = self.database.lower()
         self.password = TSecretValue(self.password.strip())
 
@@ -33,10 +34,7 @@ class ConnectionStringCredentials(CredentialsConfiguration):
         return self.to_url().render_as_string(hide_password=False)
 
     def to_url(self) -> URL:
-        url = URL.create(self.drivername, self.username, self.password, self.host, self.port, self.database)
-        if self.query:
-            url.update_query_dict(self.query, append=False)
-        return url
+        return URL.create(self.drivername, self.username, self.password, self.host, self.port, self.database, dict(self.query))
 
 
 @configspec
@@ -45,11 +43,11 @@ class PostgresCredentials(ConnectionStringCredentials):
     port: int = 5439
     connect_timeout: int = 15
 
-    def from_native_representation(self, initial_value: Any) -> None:
-        super().from_native_representation(initial_value)
+    def parse_native_representation(self, native_value: Any) -> None:
+        super().parse_native_representation(native_value)
         self.connect_timeout = int(self.query.get("connect_timeout", self.connect_timeout))
 
-    def check_integrity(self) -> None:
+    def on_resolved(self) -> None:
         self.database = self.database.lower()
         self.password = TSecretValue(self.password.strip())
 

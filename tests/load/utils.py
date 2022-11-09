@@ -126,7 +126,7 @@ def yield_client_with_storage(destination_name: str, initial_values: StrAny = No
         # also apply to config
         config.update(initial_values)
     # get event default schema
-    C = resolve_configuration(SchemaVolumeConfiguration(), initial_value={
+    C = resolve_configuration(SchemaVolumeConfiguration(), explicit_value={
         "schema_volume_path": "tests/common/cases/schemas/rasa"
     })
     schema_storage = SchemaStorage(C)

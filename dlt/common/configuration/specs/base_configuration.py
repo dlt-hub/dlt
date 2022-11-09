@@ -88,12 +88,12 @@ class BaseConfiguration(MutableMapping[str, Any]):
     # holds the exception that prevented the full resolution
     __exception__: Exception = dataclasses.field(default = None, init=False, repr=False)
 
-    def from_native_representation(self, native_value: Any) -> None:
-        """Initialize the configuration fields by parsing the `initial_value` which should be a native representation of the configuration
+    def parse_native_representation(self, native_value: Any) -> None:
+        """Initialize the configuration fields by parsing the `native_value` which should be a native representation of the configuration
         or credentials, for example database connection string or JSON serialized GCP service credentials file.
 
         Args:
-            initial_value (Any): A native representation of the configuration
+            native_value (Any): A native representation of the configuration
 
         Raises:
             NotImplementedError: This configuration does not have a native representation

@@ -63,13 +63,13 @@ def test_configuration() -> None:
     # check names normalized
     C = resolve_configuration(
         DBTRunnerConfiguration(),
-        initial_value={"PACKAGE_REPOSITORY_SSH_KEY": "---NO NEWLINE---", "SOURCE_SCHEMA_PREFIX": "schema"}
+        explicit_value={"PACKAGE_REPOSITORY_SSH_KEY": "---NO NEWLINE---", "SOURCE_SCHEMA_PREFIX": "schema"}
     )
     assert C.package_repository_ssh_key == "---NO NEWLINE---\n"
 
     C = resolve_configuration(
         DBTRunnerConfiguration(),
-        initial_value={"PACKAGE_REPOSITORY_SSH_KEY": "---WITH NEWLINE---\n", "SOURCE_SCHEMA_PREFIX": "schema"}
+        explicit_value={"PACKAGE_REPOSITORY_SSH_KEY": "---WITH NEWLINE---\n", "SOURCE_SCHEMA_PREFIX": "schema"}
     )
     assert C.package_repository_ssh_key == "---WITH NEWLINE---\n"
 

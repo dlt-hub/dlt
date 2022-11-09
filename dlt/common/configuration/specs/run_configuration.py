@@ -16,7 +16,7 @@ class RunConfiguration(BaseConfiguration):
     request_timeout: Tuple[int, int] = (15, 300)  # default request timeout for all http clients
     config_files_storage_path: str = "/run/config/"
 
-    def check_integrity(self) -> None:
+    def on_resolved(self) -> None:
         # generate pipeline name from the entry point script name
         if not self.pipeline_name:
             self.pipeline_name = "dlt_" + (entry_point_file_stem() or "pipeline")

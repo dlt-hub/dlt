@@ -46,7 +46,9 @@ class ThreadPoolConfiguration(ModPoolRunnerConfiguration):
 
 
 def configure(C: Type[PoolRunnerConfiguration], args: TRunnerArgs) -> PoolRunnerConfiguration:
-    return resolve_configuration(C(), initial_value=args._asdict())
+    default = C()
+    default.update(args._asdict())
+    return resolve_configuration(default)
 
 
 @pytest.fixture(scope="module", autouse=True)

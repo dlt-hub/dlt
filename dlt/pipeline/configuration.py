@@ -16,7 +16,7 @@ class PipelineConfiguration(BaseConfiguration):
     pipeline_secret: Optional[TSecretValue] = None
     _runtime: RunConfiguration
 
-    def check_integrity(self) -> None:
+    def on_resolved(self) -> None:
         if not self.pipeline_secret:
             self.pipeline_secret = TSecretValue(uniq_id())
         if not self.pipeline_name:

@@ -26,7 +26,7 @@ class DBTRunnerConfiguration(RunConfiguration, PoolRunnerConfiguration):
     source_schema_prefix: str = None
     dest_schema_prefix: Optional[str] = None
 
-    def check_integrity(self) -> None:
+    def on_resolved(self) -> None:
         if self.package_repository_ssh_key and self.package_repository_ssh_key[-1] != "\n":
             # must end with new line, otherwise won't be parsed by Crypto
             self.package_repository_ssh_key = TSecretValue(self.package_repository_ssh_key + "\n")
@@ -35,7 +35,7 @@ class DBTRunnerConfiguration(RunConfiguration, PoolRunnerConfiguration):
             self.stop_after_runs = 1
 
 
-def gen_configuration_variant(initial_values: StrAny = None) -> DBTRunnerConfiguration:
+def gen_configuration_variant(explicit_values: StrAny = None) -> DBTRunnerConfiguration:
     # derive concrete config depending on env vars present
     DBTRunnerConfigurationImpl: Type[DBTRunnerConfiguration]
     environ = EnvironProvider()
@@ -54,4 +54,4 @@ def gen_configuration_variant(initial_values: StrAny = None) -> DBTRunnerConfigu
             SOURCE_SCHEMA_PREFIX: str = source_schema_prefix
         DBTRunnerConfigurationImpl = DBTRunnerConfigurationGcp
 
-    return resolve_configuration(DBTRunnerConfigurationImpl(), initial_value=initial_values)
+    return resolve_configuration(DBTRunnerConfigurationImpl(), explicit_value=explicit_values)

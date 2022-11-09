@@ -16,7 +16,7 @@ from tests.common.configuration.utils import environment
 class InjectableTestContext(ContainerInjectableContext):
     current_value: str
 
-    def from_native_representation(self, native_value: Any) -> None:
+    def parse_native_representation(self, native_value: Any) -> None:
         raise ValueError(native_value)
 
 
