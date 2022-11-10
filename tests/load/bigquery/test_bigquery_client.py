@@ -10,7 +10,7 @@ from dlt.common.configuration.resolve import resolve_configuration
 from dlt.common.configuration.specs import GcpClientCredentialsWithDefault
 from dlt.common.storages import FileStorage
 from dlt.common.schema.schema import Schema
-from dlt.common.utils import uniq_id
+from dlt.common.utils import uniq_id, custom_environ
 from dlt.load.exceptions import LoadJobNotExistsException, LoadJobServerTerminalException
 
 from dlt.destinations.bigquery.bigquery import BigQueryClient
@@ -50,10 +50,10 @@ def test_gcp_credentials_with_default(environment: Any) -> None:
     dest_path = storage.save("level-dragon-333019-707809ee408a.json", services_str)
 
     # now set the env
-    environment["GOOGLE_APPLICATION_CREDENTIALS"] = storage.make_full_path(dest_path)
-    resolve_configuration(gcpc)
-    # project id recovered from credentials
-    assert gcpc.project_id == "level-dragon-333019"
+    with custom_environ({"GOOGLE_APPLICATION_CREDENTIALS": storage.make_full_path(dest_path)}):
+        resolve_configuration(gcpc)
+        # project id recovered from credentials
+        assert gcpc.project_id == "level-dragon-333019"
 
 
 def test_bigquery_job_errors(client: BigQueryClient, file_storage: FileStorage) -> None:
