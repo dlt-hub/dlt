@@ -132,7 +132,7 @@ class JobClientBase(ABC):
     def capabilities(cls) -> DestinationCapabilitiesContext:
         pass
 
-TDestinationReferenceArg: TypeAlias = Union["DestinationReference", ModuleType, None, str]
+TDestinationReferenceArg = Union["DestinationReference", ModuleType, None, str]
 
 
 class DestinationReference(Protocol):

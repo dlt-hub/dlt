@@ -57,19 +57,18 @@ BQ_TERMINAL_REASONS = ["billingTierLimitExceeded", "duplicate", "invalid", "inva
 class BigQuerySqlClient(SqlClientBase[bigquery.Client]):
     def __init__(self, default_dataset_name: str, credentials: GcpClientCredentials) -> None:
         self._client: bigquery.Client = None
-        self.credentials = credentials
+        self.credentials: GcpClientCredentials = credentials
         super().__init__(default_dataset_name)
 
         self.default_retry = bigquery.DEFAULT_RETRY.with_deadline(credentials.retry_deadline)
         self.default_query = bigquery.QueryJobConfig(default_dataset=self.fully_qualified_dataset_name())
 
     def open_connection(self) -> None:
-        # use default credentials if partial config
-        if not self.credentials.is_resolved():
-            credentials = None
-        else:
-            credentials = service_account.Credentials.from_service_account_info(self.credentials)
-        self._client = bigquery.Client(self.credentials.project_id, credentials=credentials, location=self.credentials.location)
+        self._client = bigquery.Client(
+            self.credentials.project_id,
+            credentials=self.credentials.to_service_account_credentials(),
+            location=self.credentials.location
+        )
 
     def close_connection(self) -> None:
         if self._client:
