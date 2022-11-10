@@ -1,7 +1,8 @@
 
-from typing import List, Literal, Mapping, MutableMapping, MutableSequence, NewType, Sequence, TypeVar, TypedDict, Optional
+from typing import List, Literal, Mapping, MutableMapping, MutableSequence, NewType, Sequence, TypeVar, TypedDict, Optional, Union
+from dlt.common.configuration.specs.base_configuration import BaseConfiguration, get_config_if_union
 
-from dlt.common.typing import extract_inner_type, extract_optional_type, is_dict_generic_type, is_list_generic_type, is_literal_type, is_newtype_type, is_optional_type, is_typeddict
+from dlt.common.typing import StrAny, extract_inner_type, extract_optional_type, is_dict_generic_type, is_list_generic_type, is_literal_type, is_newtype_type, is_optional_type, is_typeddict
 
 
 
@@ -65,3 +66,11 @@ def test_extract_inner_type() -> None:
     nt_l_2 = NewType("NTL2", float)
     l_2 = Literal[nt_l_2(1.238), nt_l_2(2.343)]
     assert extract_inner_type(l_2) is float
+
+
+def test_get_config_if_union() -> None:
+    assert get_config_if_union(str) is None
+    assert get_config_if_union(Optional[str]) is None
+    assert get_config_if_union(Union[BaseException, str, StrAny]) is None
+    assert get_config_if_union(Union[BaseConfiguration, str, StrAny]) is BaseConfiguration
+    assert get_config_if_union(Union[str, BaseConfiguration, StrAny]) is BaseConfiguration

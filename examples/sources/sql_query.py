@@ -4,7 +4,7 @@ from functools import partial
 import dlt
 
 from dlt.common.configuration.specs.postgres_credentials import ConnectionStringCredentials
-from dlt.common.typing import AnyFun, DictStrAny, TDataItem
+from dlt.common.typing import AnyFun, DictStrAny, StrAny, TDataItem
 from dlt.pipeline.exceptions import MissingDependencyException
 
 
@@ -40,7 +40,7 @@ def _query_data(
 @dlt.resource
 def query_table(
     table_name: str,
-    credentials: Union[ConnectionStringCredentials, str],
+    credentials: Union[ConnectionStringCredentials, str, StrAny],
     table_schema_name: str = None,
     # index_col: Union[str, Sequence[str], None] = None,
     coerce_float: bool = True,
@@ -57,7 +57,7 @@ def query_table(
 @dlt.resource
 def query_sql(
     sql: str,
-    credentials: Union[ConnectionStringCredentials, str],
+    credentials: Union[ConnectionStringCredentials, str, StrAny],
     coerce_float: bool = True,
     parse_dates: Any = None,
     chunk_size: int = 1000,
