@@ -49,11 +49,19 @@ def test_gcp_credentials_with_default(environment: Any) -> None:
         services_str = base64.b64decode(f.read().strip(), validate=True).decode()
     dest_path = storage.save("level-dragon-333019-707809ee408a.json", services_str)
 
+    # create instance of credentials
+    gcpc = GcpClientCredentialsWithDefault()
+    gcpc.parse_native_representation(services_str)
+    # check if credentials can be created
+    assert gcpc.to_service_account_credentials() is not None
+
     # now set the env
     with custom_environ({"GOOGLE_APPLICATION_CREDENTIALS": storage.make_full_path(dest_path)}):
         resolve_configuration(gcpc)
         # project id recovered from credentials
         assert gcpc.project_id == "level-dragon-333019"
+        # check if credentials can be created
+        assert gcpc.to_service_account_credentials() is not None
 
 
 def test_bigquery_job_errors(client: BigQueryClient, file_storage: FileStorage) -> None:

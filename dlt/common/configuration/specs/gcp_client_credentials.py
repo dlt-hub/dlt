@@ -38,6 +38,10 @@ class GcpClientCredentials(CredentialsConfiguration):
     def to_native_representation(self) -> str:
         return json.dumps(dict(self))
 
+    def to_service_account_credentials(self) -> Any:
+        from google.oauth2 import service_account
+        return service_account.Credentials.from_service_account_info(self)
+
 
     def __str__(self) -> str:
         return f"{self.client_email}@{self.project_id}[{self.location}]"
@@ -53,9 +57,10 @@ class GcpClientCredentialsWithDefault(GcpClientCredentials):
 
             # if config is missing check if credentials can be obtained from defaults
             try:
-                _, project_id = default_credentials()
+                default, project_id = default_credentials()
                 # set the project id - it needs to be known by the client
                 self.project_id = self.project_id or project_id
+                self._default_credentials = default
                 # is resolved
                 self.__is_resolved__ = True
             except DefaultCredentialsError:
@@ -64,3 +69,9 @@ class GcpClientCredentialsWithDefault(GcpClientCredentials):
 
         except ImportError:
             raise self.__exception__
+
+    def to_service_account_credentials(self) -> Any:
+        if hasattr(self, "_default_credentials"):
+            return self._default_credentials
+        else:
+            return super().to_service_account_credentials()
