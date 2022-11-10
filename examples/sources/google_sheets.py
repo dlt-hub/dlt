@@ -1,4 +1,4 @@
-from typing import Any, Iterator, Sequence, Union
+from typing import Any, Iterator, Sequence, Union, cast
 
 import dlt
 from dlt.common.configuration.specs import GcpClientCredentialsWithDefault
@@ -25,9 +25,9 @@ def _initialize_sheets(credentials: GcpClientCredentialsWithDefault) -> Any:
 
 
 @dlt.source
-def google_spreadsheet(spreadsheet_id: str, sheet_names: Sequence[str], credentials: GcpClientCredentialsWithDefault = ConfigValue) -> Any:
+def google_spreadsheet(spreadsheet_id: str, sheet_names: Sequence[str], credentials: Union[GcpClientCredentialsWithDefault, str, StrAny] = ConfigValue) -> Any:
 
-    sheets = _initialize_sheets(credentials)
+    sheets = _initialize_sheets(cast(GcpClientCredentialsWithDefault, credentials))
 
     def get_sheet(sheet_name: str) -> Iterator[DictStrAny]:
 

@@ -1,7 +1,7 @@
 import inspect
 import contextlib
 import dataclasses
-from typing import Callable, Optional, Union, Any, Dict, Iterator, MutableMapping, Type, TYPE_CHECKING, get_origin, overload, ClassVar
+from typing import Callable, Optional, Union, Any, Dict, Iterator, MutableMapping, Type, TYPE_CHECKING, get_args, get_origin, overload, ClassVar
 
 if TYPE_CHECKING:
     TDtcField = dataclasses.Field[Any]
@@ -20,7 +20,9 @@ _F_ContainerInjectableContext: Any = type(object)
 
 def is_valid_hint(hint: Type[Any]) -> bool:
     hint = extract_inner_type(hint)
+    hint = get_config_if_union(hint) or hint
     hint = get_origin(hint) or hint
+
     if hint is Any:
         return True
     if hint is ClassVar:
@@ -32,6 +34,12 @@ def is_valid_hint(hint: Type[Any]) -> bool:
         py_type_to_sc_type(hint)
         return True
     return False
+
+
+def get_config_if_union(hint: Type[Any]) -> Type[Any]:
+    if get_origin(hint) is Union:
+        return next((t for t in get_args(hint) if inspect.isclass(t) and issubclass(t, BaseConfiguration)), None)
+    return None
 
 
 @overload

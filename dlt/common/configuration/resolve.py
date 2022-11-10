@@ -7,7 +7,7 @@ from dlt.common import json, logger
 from dlt.common.typing import AnyType, StrAny, TSecretValue, is_optional_type, extract_inner_type
 from dlt.common.schema.utils import coerce_type, py_type_to_sc_type
 
-from dlt.common.configuration.specs.base_configuration import BaseConfiguration, CredentialsConfiguration, ContainerInjectableContext
+from dlt.common.configuration.specs.base_configuration import BaseConfiguration, CredentialsConfiguration, ContainerInjectableContext, get_config_if_union
 from dlt.common.configuration.specs.config_namespace_context import ConfigNamespacesContext
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
@@ -184,6 +184,8 @@ def _resolve_config_field(
     ) -> Tuple[Any, List[LookupTrace]]:
     # extract hint from Optional / Literal / NewType hints
     inner_hint = extract_inner_type(hint)
+    # get base configuration from union type
+    inner_hint = get_config_if_union(inner_hint) or inner_hint
     # extract origin from generic types (ie List[str] -> List)
     inner_hint = get_origin(inner_hint) or inner_hint
 
