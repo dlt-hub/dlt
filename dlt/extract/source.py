@@ -11,7 +11,7 @@ from dlt.common.schema.utils import new_table
 from dlt.common.schema.typing import TColumnSchema, TPartialTableSchema, TTableSchemaColumns, TWriteDisposition
 from dlt.common.typing import AnyFun, TDataItem, TDataItems, NoneType, TypeAlias
 from dlt.common.configuration.container import Container
-from dlt.common.pipeline import PipelineContext
+from dlt.common.pipeline import PipelineContext, SupportsPipelineRun
 from dlt.common.utils import get_callable_name
 
 from dlt.extract.typing import DataItemWithMeta, FilterItemFunction, FilterItemFunctionWithMeta, TableNameMeta, TFunHintTemplate, TTableHintTemplate, TTableSchemaTemplate
@@ -445,8 +445,10 @@ class DltSource(Iterable[TDataItems]):
         self._resources.select(*resource_names)
         return self
 
-    def run(self, destination: Any) -> Any:
-        return Container()[PipelineContext].pipeline().run(self, destination=destination)
+    @property
+    def run(self) -> SupportsPipelineRun:
+        self_run: SupportsPipelineRun = makefun.partial(Container()[PipelineContext].pipeline().run, *(), data=self)
+        return self_run
 
     def _add_resource(self, resource: DltResource) -> None:
         if resource.name in self._resources:

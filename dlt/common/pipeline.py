@@ -52,6 +52,21 @@ class SupportsPipeline(Protocol):
         ...
 
 
+class SupportsPipelineRun(Protocol):
+    def __call__(
+        self,
+        *,
+        destination: TDestinationReferenceArg = None,
+        dataset_name: str = None,
+        credentials: Any = None,
+        table_name: str = None,
+        write_disposition: TWriteDisposition = None,
+        columns: Sequence[TColumnSchema] = None,
+        schema: Schema = None
+    ) -> LoadInfo:
+        ...
+
+
 @configspec(init=True)
 class PipelineContext(ContainerInjectableContext):
     _deferred_pipeline: Callable[[], SupportsPipeline]
