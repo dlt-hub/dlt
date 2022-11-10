@@ -1,7 +1,8 @@
 from typing import Any
 from dlt.common import json
+from dlt.common.configuration.specs.exceptions import InvalidServicesJson
 
-from dlt.common.typing import StrAny, TSecretValue
+from dlt.common.typing import TSecretValue
 from dlt.common.configuration.specs.base_configuration import CredentialsConfiguration, configspec
 
 
@@ -19,17 +20,17 @@ class GcpClientCredentials(CredentialsConfiguration):
     file_upload_timeout: float = 30 * 60.0
     retry_deadline: float = 600  # how long to retry the operation in case of error, the backoff 60s
 
-    def from_native_representation(self, native_value: Any) -> None:
+    def parse_native_representation(self, native_value: Any) -> None:
         if not isinstance(native_value, str):
-            raise ValueError(native_value)
+            raise InvalidServicesJson(self.__class__, native_value)
         try:
             service_dict = json.loads(native_value)
             self.update(service_dict)
             self.__is_resolved__ = not self.is_partial()
         except Exception:
-            raise ValueError(native_value)
+            raise InvalidServicesJson(self.__class__, native_value)
 
-    def check_integrity(self) -> None:
+    def on_resolved(self) -> None:
         if self.private_key and self.private_key[-1] != "\n":
             # must end with new line, otherwise won't be parsed by Crypto
             self.private_key = TSecretValue(self.private_key + "\n")
@@ -40,3 +41,26 @@ class GcpClientCredentials(CredentialsConfiguration):
 
     def __str__(self) -> str:
         return f"{self.client_email}@{self.project_id}[{self.location}]"
+
+
+@configspec
+class GcpClientCredentialsWithDefault(GcpClientCredentials):
+
+    def on_partial(self) -> None:
+        try:
+            from google.auth import default as default_credentials
+            from google.auth.exceptions import DefaultCredentialsError
+
+            # if config is missing check if credentials can be obtained from defaults
+            try:
+                _, project_id = default_credentials()
+                # set the project id - it needs to be known by the client
+                self.project_id = self.project_id or project_id
+                # is resolved
+                self.__is_resolved__ = True
+            except DefaultCredentialsError:
+                # re-raise preventing exception
+                raise self.__exception__
+
+        except ImportError:
+            raise self.__exception__

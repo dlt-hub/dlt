@@ -90,7 +90,7 @@ def with_config(func: Optional[AnyFun] = None, /, spec: Type[BaseConfiguration] 
                 if pipeline_name_arg:
                     namespace_context.pipeline_name = bound_args.arguments.get(pipeline_name_arg.name, None)
                 with inject_namespace(namespace_context):
-                    config = resolve_configuration(config or SPEC(), namespaces=namespaces, initial_value=bound_args.arguments)
+                    config = resolve_configuration(config or SPEC(), namespaces=namespaces, explicit_value=bound_args.arguments)
             resolved_params = dict(config)
             # overwrite or add resolved params
             for p in sig.parameters.values():

@@ -240,6 +240,15 @@ def test_filter_step() -> None:
     p.add_step(FilterItem(lambda _, meta: bool(meta)))
     assert _f_items(list(PipeIterator.from_pipe(p))) == [1, 2]
 
+    # try the lambda that takes only item (no meta)
+    p = Pipe.from_data("data", [1, 2, 3, 4])
+    p.add_step(FilterItem(lambda item: item % 2 == 0))
+    assert _f_items(list(PipeIterator.from_pipe(p))) == [2, 4]
+    # also should work on the list which if fully filtered must become None
+    p = Pipe.from_data("data", [[1, 3], 2, [3, 4]])
+    p.add_step(FilterItem(lambda item: item % 2 == 0))
+    assert _f_items(list(PipeIterator.from_pipe(p))) == [2, [4]]
+
 
 def _f_items(pipe_items: Sequence[PipeItem]) -> List[TDataItems]:
     return list(map(lambda item: item.item, pipe_items))

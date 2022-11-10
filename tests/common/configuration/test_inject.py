@@ -105,6 +105,27 @@ def test_synthesize_spec_from_sig() -> None:
     assert fields == {"var_1": str, "kw_var_1": str}
 
 
+def test_arguments_are_explicit(environment: Any) -> None:
+
+    @with_config
+    def f_var(user, path):
+        # explicit args "survive" the injection: they have precedence over env
+        assert user == "explicit user"
+        assert path == "explicit path"
+
+    f_var("explicit user", "explicit path")
+    environment["USER"] = "env user"
+    f_var("explicit user", "explicit path")
+
+    @with_config
+    def f_var_env(user, path):
+        assert user == "env user"
+        assert path == "explicit path"
+
+    # user will be injected
+    f_var_env(path="explicit path")
+
+
 def test_inject_with_non_injectable_param() -> None:
     # one of parameters in signature has not valid hint and is skipped (ie. from_pipe)
     pass

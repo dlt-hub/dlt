@@ -27,8 +27,12 @@ google_sheets("23029402349032049", ["tab1", "tab2"], credentials={"private_key":
 
 # OPTION A: provide config values directly and secrets via automatic injection mechanism (see later)
 # `credentials` value will be provided by the `source` decorator
-# `spreadsheet_id` and `tab_names` take default values from the arguments below but may be overwritten by the decorator via config providers (see later)
+# `spreadsheet_id` and `tab_names` take values from the arguments below
 google_sheets("23029402349032049", ["tab1", "tab2"]).run(destination=bigquery)
+# if just skipping the parameter looks counter-intuitive we have two placeholders
+dlt.config.value  # to explicitly tell dlt: take this value from the configuration
+dlt.secrets.value  # to tell that value is secret and should come from the secrets
+google_sheets("23029402349032049", ["tab1", "tab2"], credentials=dlt.secrets.value).run(destination=bigquery)
 
 
 # OPTION B: all values are injected so there are no defaults and config values must be present in the providers
@@ -44,9 +48,8 @@ By the magic of @dlt.source decorator
 
 The signature of the function `google_sheets` is also defining the structure of the configuration and secrets.
 
-When `google_sheets` function is called the decorator takes every input parameter and uses its value as initial.
-Then it looks into `providers` if the value is not overwritten there.
-It does the same for all arguments that were not in the call but are specified in function signature.
+When `google_sheets` function is called the decorator takes every argument and passes it to the decorated function. **explicit arguments have the highest priority**
+If argument is missing it takes the value from the `providers`
 Then it calls the original function with updated input arguments thus passing config and secrets to it.
 
 ## Providers
@@ -55,12 +58,21 @@ When config or secret values are needed, `dlt` looks for them in providers. In c
 Providers form a hierarchy. At the top are environment variables, then `secrets.toml` and `config.toml` files. Providers like google, aws, azure vaults can be inserted after the environment provider.
 For example if `spreadsheet_id` is in environment, dlt does not look into other providers.
 
-The values passed in the code directly are the lowest in provider hierarchy.
+The values passed in the code directly are the **highest** in provider hierarchy.
+
+The default values of the arguments have the **lowest** priority in the provider hierarchy.
 
 > I'm opinionated on the environment variables but less on the values passed in the code. This gives much more power to setup deployments and control on production but is less intuitive to programmer.
 
-## Namespaces
-Config and secret values can be grouped in namespaces. Easiest way to visualize it is via `toml` files.
+Summary of the hierarchy
+
+explicit args > env variables > ...vaults, airflow etc > secrets.toml > config.toml > default arg values
+
+## Grouping of config values and secrets
+Config and secret values can be grouped in namespaces. Why we need them? Imagine a pipeline that is
+
+
+Easiest way to visualize it is via `toml` files.
 
 This is valid for OPTION A and OPTION B
 
@@ -129,7 +141,9 @@ How namespaces work in environment variables? they are prefix for the key so to 
 
 `SOURCE__SPREADSHEET_ID` first and `SPREADSHEET_ID` second
 
-# Default namespaces
+### Providing credentials
+
+### Default namespaces
 
 1. Pipeline created/obtained with `dlt.pipeline()` creates a global and optional namespace with the value of `pipeline_name`. All config values will be looked in it first then without it.
 2. There's a default structure of namespaces

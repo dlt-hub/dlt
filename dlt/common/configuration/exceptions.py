@@ -1,4 +1,4 @@
-from typing import Any, Mapping, Type, Union, NamedTuple, Sequence
+from typing import Any, Mapping, Type, Tuple, Union, NamedTuple, Sequence
 
 from dlt.common.exceptions import DltException
 
@@ -99,11 +99,15 @@ class ValueNotSecretException(ConfigurationException):
         super().__init__(f"Provider {provider_name} cannot hold secret values but key {key} with secret value is present")
 
 
-class InvalidInitialValue(ConfigurationException):
-    def __init__(self, spec: Type[Any], initial_value_type: Type[Any]) -> None:
+class InvalidNativeValue(ConfigurationException):
+    def __init__(self, spec: Type[Any], native_value_type: Type[Any], embedded_namespaces: Tuple[str, ...], inner_exception: Exception) -> None:
         self.spec = spec
-        self.initial_value_type = initial_value_type
-        super().__init__(f"Initial value of type {initial_value_type} is not valid for {spec.__name__}")
+        self.native_value_type = native_value_type
+        self.embedded_namespaces = embedded_namespaces
+        self.inner_exception = inner_exception
+        inner_msg = f" {self.inner_exception}" if inner_exception is not ValueError else ""
+        super().__init__(
+            f"{spec.__name__} cannot parse the configuration value provided. The value is of type {native_value_type.__name__} and comes from the {embedded_namespaces} namespace(s).{inner_msg}")
 
 
 class ContainerInjectableContextMangled(ContainerException):

@@ -46,7 +46,7 @@ def modify_and_commit_file(repo_path: str, file_name: str, content: str = "NEW R
 
 def setup_runner(dest_schema_prefix: str, override_values: StrAny = None) -> None:
     clean_test_storage()
-    C = gen_configuration_variant(initial_values=override_values)
+    C = gen_configuration_variant(explicit_values=override_values)
     # set unique dest schema prefix by default
     C.dest_schema_prefix = dest_schema_prefix
     C.package_run_params = ["--fail-fast", "--full-refresh"]

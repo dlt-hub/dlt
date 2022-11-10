@@ -2,7 +2,7 @@
 Basic `dlt` functionalities are imported with `import dlt`. Those functionalities are:
 1. ability to run the pipeline (which means extract->normalize->load for particular source(s) and destination) with `dlt.run`
 2. ability to configure the pipeline ie. provide alternative pipeline name, working directory, folders to import/export schema and various flags: `dlt.pipeline`
-3. ability to decorate sources (`dlt.source`) and resources (`dlt.resources`)
+3. ability to decorate sources (`dlt.source`) and resources (`dlt.resource` , `dlt.transformer`)
 4. ability to access secrets `dlt.secrets` and config values `dlt.config`
 
 ## importing destinations
@@ -28,21 +28,22 @@ When the `dlt` is imported a default pipeline is automatically created. That pip
 
 1. the name of the pipeline, the name of default schema (if not overridden by the source extractor function) and the default dataset (in destination) are set to **current module name** with `dlt_` prefix, which in 99% of cases is the name of executing python script. Example: for `pipeline.py` the default names are `dlt_pipeline`.
 2. the working directory of the pipeline will be (1) for non-root user with home directory (99% of cases) **~/.dlt/pipelines/pipeline name** (2) for root users (Linux/Mac OS): **/var/dlt/pipelines/pipeline name** (3) for users without home directory: **OS temp dir/dlt/pipelines/pipeline name**`
-3. the logging level will be **INFO**
+3. the system logging level will be **CRITICAL** (disabled)
 4. all other configuration options won't be set or will have default values.
+5. the user log will be enabled
 
 Pipeline can be explicitly created and configured via `dlt.pipeline()` that returns `Pipeline` object. All parameters are optional. If no parameter is provided then default pipeline is returned. Here's a list of options. All the options are configurable.
 1. pipeline_name - default as above
 2. working_dir - default as above
 3. pipeline_secret - for deterministic hashing - default is random number
 4. destination - the imported destination module or module name (we accept strings so they can be configured) - default is None
+4. dataset_name - name of the dataset where the data goes (see later the default names)
 5. import_schema_path - default is None
 6. export_schema_path - default is None
-7. always_drop_pipeline - if set to True all the pipeline working dir and all datasets will be dropped with each run
-8. dataset_name -
+7. full_refresh - if set to True the pipeline working dir will be erased and the dataset name will get the unique suffix (current timestamp). ie the `my_data` becomes `my_data_20221107164856`.
 8. ...any other popular option... give me ideas.
 
-> **Achtung** as per `secrets_and_config.md` the options passed in the code have **lower priority** than any config settings. Example: the pipeline name passed to `dlt.pipeline()` will be overwritten if `pipeline_name` is present in `config.toml` or `PIPELINE_NAME` is in config variables.
+> **Achtung** as per `secrets_and_config.md` the arguments passed to `dlt.pipeline` are configurable and if skipped will be injected by the config providers. **the values provided explicitly in the code have a full precedence over all config providers**
 
 
 > It is possible to have several pipelines in a single script if many pipelines are configured via `dlt.pipeline()`. I think we do not want to train people on that so I will skip the topic.
@@ -53,8 +54,8 @@ Pipeline can be explicitly created and configured via `dlt.pipeline()` that retu
 **schemas are identified by schema names**
 
 **default schema** is the first schema that is provided or created within the pipeline. First schema comes in the following ways:
-1. From the first extracted `@dlt.source` ie. if you `dlt.run(source=spotify(), ...)` and `spotify` source has schema with name `spotify` attached, it will be used as default schema.
-2. it will be created from scratch if you extract a `@dlt.resource` or an iterator ie. list (example: `dlt.run(source=["a", "b", "c"], ...)`) and its name is the pipeline name or generator function name if generator is extracted. (I'm trying to be smart with automatic naming)
+1. From the first extracted `@dlt.source` ie. if you `dlt.run(data=spotify(), ...)` and `spotify` source has schema with name `spotify` attached, it will be used as default schema.
+2. it will be created from scratch if you extract a `@dlt.resource` or an iterator ie. list (example: `dlt.run(data=["a", "b", "c"], ...)`) and its name is the pipeline name or generator function name if generator is extracted. (I'm trying to be smart with automatic naming)
 3. it is explicitly passed with the `schema` parameter to `run` or `extract` methods - this forces all the sources regardless of the form to place their tables in that schema.
 
 The **default schema** comes into play when we extract data as in point (2) - without schema information. in that case the default schema is used to attach tables coming from that data
@@ -81,6 +82,7 @@ In case **there are more schemas in the pipeline**, the data will be loaded into
 1. `spotify` tables and `labels` will load into `spotify_data_1`
 2. `mel` resource will load into `spotify_data_1_echonest`
 
+The `full_refresh` option: dataset name receives a prefix with the current timestamp: ie the `my_data` becomes `my_data_20221107164856`. This allows a non destructive full refresh. Nothing is being deleted/dropped from the destination.
 
 ## pipeline working directory and state
 Another fundamental concept is the pipeline working directory. This directory keeps the following information:
@@ -104,11 +106,12 @@ This is the situation right now. We could restore working directory from the des
 `dlt.run` + `@source().run` are shortcuts to `Pipeline::run` method on default or last configured (with `dlt.pipeline`) `Pipeline` object. Please refer to [create_pipeline.md](create_pipeline.md) for examples.
 
 The function takes the following parameters
-1. source - required - the data to be loaded into destination: a `@dlt.source` or a list of those, a `@dlt.resource` or a list of those, an iterator/generator function or a list of those or iterable (ie. a list) holding something else that iterators.
+1. data - required - the data to be loaded into destination: a `@dlt.source` or a list of those, a `@dlt.resource` or a list of those, an iterator/generator function or a list of those or iterable (ie. a list) holding something else that iterators.
 2. destination
 3. dataset name
 4. table_name, write_disposition etc. - only when data is: a single resource, an iterator (ie. generator function) or iterable (ie. list)
 5. schema - a `Schema` instance to be used instead of schema provided by the source or the default schema
+6. credentials - if you want to provide credentials explicitly you pass them here
 
 The `run` function works as follows.
 1. if there's any pending data to be normalized or loaded, this is done first.
@@ -121,6 +124,23 @@ the `run` and `load` return information on loaded packages: to which datasets, l
 
 > `load` is atomic if SQL transformations ie in `dbt` and all the SQL queries take into account only committed `load_ids`. It is certainly possible - we did in for RASA but requires some work... Maybe we implement a fully atomic staging at some point in the loader.
 
+### The LoadInfo return value
+The run method returns `LoadInfo` tuple with information what was actually loaded. The exact content is in the works. It currently contains:
+1. the destination information
+2. the dataset name
+3. the list of package ids that got loaded
+4. the list of failed jobs per package id
+
+This needs to be extended.
+
+### Run Exceptions
+The `run`, `extract`, `normalize` and `load` method raise `PipelineStepFailed` when one of the steps in pipeline failed. Failed jobs do not raise exceptions.
+
+
+### Retrying
+There's no retry built in.
+
+> should we add it? I have a runner in `dlt` that would be easy to modify
 
 ## the `Pipeline` object
 There are many ways to create or get current pipeline object.
@@ -167,7 +187,7 @@ from dlt.destinations import bigquery
 taktile_data().with_resources("logs").run(destination=bigquery)
 
 # alternative
-dlt.run(source=taktile_data.with_resources("logs"))
+dlt.run(data=taktile_data.with_resources("logs"))
 ```
 
 Explicitly configure schema before the use

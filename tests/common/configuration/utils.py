@@ -65,8 +65,11 @@ class NamespacedConfiguration(BaseConfiguration):
 
 @pytest.fixture(scope="function")
 def environment() -> Any:
+    saved_environ = environ.copy()
     environ.clear()
-    return environ
+    yield environ
+    environ.clear()
+    environ.update(saved_environ)
 
 
 @pytest.fixture(scope="function")

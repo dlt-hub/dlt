@@ -59,11 +59,6 @@ def restore(
     full_refresh: bool = False,
     **kwargs: Any
 ) -> Pipeline:
-    # TODO: if we give precedence to direct arguments, this can be dropped
-    _, orig_kwargs = get_orig_args(**kwargs)  # original (*args, **kwargs)
-    working_dir = orig_kwargs["working_dir"] or working_dir
-    pipeline_name = orig_kwargs["pipeline_name"] or pipeline_name
-
     # if working_dir not provided use temp folder
     if not working_dir:
         working_dir = get_default_working_dir()

@@ -4,6 +4,7 @@ import dlt
 from dlt.common.schema import Schema
 from dlt.common.typing import TDataItems
 from dlt.extract.exceptions import InvalidParentResourceDataType, InvalidParentResourceIsAFunction, InvalidTransformerDataTypeGeneratorFunctionRequired, InvalidTransformerGeneratorFunction, ParametrizedResourceUnbound, ResourcesNotFoundError
+from dlt.extract.pipe import FilterItem
 from dlt.extract.source import DltResource, DltSource
 
 
@@ -151,6 +152,29 @@ def test_resource_bind_when_in_source() -> None:
     with pytest.raises(TypeError):
         # already bound
         cloned_r(10)
+
+
+def test_resource_double_bind() -> None:
+    pass
+
+
+def test_transformer_preliminary_step() -> None:
+
+    def yield_twice(item):
+        yield item.upper()
+        yield item.upper()
+
+    tx_stage = dlt.transformer()(yield_twice)()
+    # filter out small caps and insert this before the head
+    tx_stage._pipe._steps.insert(0, FilterItem(lambda letter: letter.isupper()))
+    # be got filtered out before duplication
+    assert list(dlt.resource(["A", "b", "C"], name="data") | tx_stage) == ['A', 'A', 'C', 'C']
+
+    # filter after duplication
+    tx_stage = dlt.transformer()(yield_twice)()
+    tx_stage.filter(FilterItem(lambda letter: letter.isupper()))
+    # nothing is filtered out: on duplicate we also capitalize so filter does not trigger
+    assert list(dlt.resource(["A", "b", "C"], name="data") | tx_stage) == ['A', 'A', 'B', 'B', 'C', 'C']
 
 
 def test_select_resources() -> None:
