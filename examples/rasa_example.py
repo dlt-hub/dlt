@@ -31,4 +31,4 @@ info = dlt.pipeline(
 print(info)
 
 # uncomment to see the final schema
-print(dlt.pipeline().default_schema.to_pretty_yaml())
+# print(dlt.pipeline().default_schema.to_pretty_yaml())

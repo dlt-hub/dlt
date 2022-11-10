@@ -7,9 +7,8 @@ from dlt.common import json
 from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.runners.venv import Venv
 from dlt.common.typing import DictStrAny, StrAny, StrOrBytesPath, TDataItem, TDataItems
-from dlt.extract.source import DltResource
 
-from examples.sources.stdout import get_source as get_singer_pipe
+from examples.sources.stdout import json_stdout as singer_process_pipe
 
 # from dlt.pipeline.exceptions import MissingDependencyException
 FilePathOrDict = Union[StrAny, StrOrBytesPath]
@@ -89,7 +88,7 @@ def tap(venv: Venv, tap_name: str, config_file: FilePathOrDict, catalog_file: Fi
         else:
             state_params = ()  # type: ignore
 
-        pipe_iterator = get_singer_pipe(venv,
+        pipe_iterator = singer_process_pipe(venv,
                                         tap_name,
                                         "--config",
                                         os.path.abspath(config_file_path),
