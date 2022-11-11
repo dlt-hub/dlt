@@ -1,5 +1,3 @@
-import os
-import re
 import yaml
 from typing import Iterator, List, Mapping, Tuple, overload
 

@@ -1,26 +1,21 @@
 import platform
 if platform.python_implementation() == "PyPy":
     import psycopg2cffi as psycopg2
-    from psycopg2cffi.sql import SQL, Composed
+    # from psycopg2cffi.sql import SQL, Composed
 else:
     import psycopg2
-    from psycopg2.sql import SQL, Composed
+    # from psycopg2.sql import SQL, Composed
 
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Optional
 
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
-from dlt.common.destination import DestinationCapabilitiesContext, LoadJob, TLoadJobStatus
-from dlt.common.schema import COLUMN_HINTS, TColumnSchema, TColumnSchemaBase, TDataType, TColumnHint, Schema, TTableSchemaColumns, add_missing_hints
-from dlt.common.schema.typing import TTableSchema, TWriteDisposition
-from dlt.common.storages.file_storage import FileStorage
+from dlt.common.destination import DestinationCapabilitiesContext
+from dlt.common.schema import TColumnSchema, TDataType, TColumnHint, Schema
 
-from dlt.load.exceptions import LoadClientSchemaWillNotUpdate, LoadClientTerminalInnerException, LoadClientTransientInnerException
-from dlt.load.sql_client import SqlClientBase
-from dlt.load.job_client_impl import SqlJobClientBase, LoadEmptyJob
+from dlt.destinations.exceptions import LoadClientTerminalInnerException
 
 from dlt.destinations.redshift import capabilities
 from dlt.destinations.redshift.configuration import RedshiftClientConfiguration
-from dlt.destinations.postgres.sql_client import Psycopg2SqlClient
 from dlt.destinations.postgres.postgres import PostgresClientBase
 
 

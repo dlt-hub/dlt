@@ -48,6 +48,12 @@ def test_date_insert_writer(insert_writer: DataWriter) -> None:
     assert lines[2] == "('1974-08-11');"
 
 
+@pytest.mark.skip("not implemented")
+def test_unicode_insert_writer_postgres() -> None:
+    # implements tests for the postgres encoding -> same cases as redshift
+    pass
+
+
 def test_unicode_insert_writer(insert_writer: DataWriter) -> None:
     rows = load_json_case("weird_rows")
     insert_writer.write_all(row_to_column_schemas(rows[0]), rows)

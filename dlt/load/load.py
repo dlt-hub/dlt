@@ -14,9 +14,11 @@ from dlt.common.storages import LoadStorage
 from dlt.common.telemetry import get_logging_extras, set_gauge_all_labels
 from dlt.common.destination import JobClientBase, DestinationReference, LoadJob, TLoadJobStatus, DestinationClientConfiguration
 
-from dlt.load.job_client_impl import LoadEmptyJob
+from dlt.destinations.job_client_impl import LoadEmptyJob
+from dlt.destinations.exceptions import LoadClientTerminalException, LoadClientTransientException, LoadJobNotExistsException, LoadUnknownTableException
+
 from dlt.load.configuration import LoaderConfiguration
-from dlt.load.exceptions import LoadClientTerminalException, LoadClientTransientException, LoadClientUnsupportedWriteDisposition, LoadClientUnsupportedFileFormats, LoadJobNotExistsException, LoadUnknownTableException
+from dlt.load.exceptions import LoadClientUnsupportedWriteDisposition, LoadClientUnsupportedFileFormats
 
 
 class Load(Runnable[ThreadPool]):

@@ -49,7 +49,7 @@ def test_load_schema_for_callable() -> None:
     schema = s.discover_schema()
     assert schema.name == "ethereum"
     # the schema in the associated file has this hash
-    assert schema.stored_version_hash == "njJAySgJRs2TqGWgQXhP+3pCh1A1hXcqe77BpM7JtOU="
+    assert schema.stored_version_hash == "VCdpY/nGien9Yz1FA2fge/iu8alntmFRVVPoPsib80I="
 
 
 def test_unbound_transformer() -> None:

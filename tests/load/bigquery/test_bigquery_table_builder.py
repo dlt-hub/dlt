@@ -9,7 +9,7 @@ from dlt.common.configuration.specs import GcpClientCredentials
 
 from dlt.destinations.bigquery.bigquery import BigQueryClient
 from dlt.destinations.bigquery.configuration import BigQueryClientConfiguration
-from dlt.load.exceptions import LoadClientSchemaWillNotUpdate
+from dlt.destinations.exceptions import LoadClientSchemaWillNotUpdate
 
 from tests.load.utils import TABLE_UPDATE
 

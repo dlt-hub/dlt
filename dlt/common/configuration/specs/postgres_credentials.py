@@ -34,7 +34,7 @@ class ConnectionStringCredentials(CredentialsConfiguration):
         return self.to_url().render_as_string(hide_password=False)
 
     def to_url(self) -> URL:
-        return URL.create(self.drivername, self.username, self.password, self.host, self.port, self.database, dict(self.query))
+        return URL.create(self.drivername, self.username, self.password, self.host, self.port, self.database, self.query)
 
 
 @configspec

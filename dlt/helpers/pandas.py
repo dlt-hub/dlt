@@ -1,7 +1,7 @@
 from typing import Any
 
 from dlt.pipeline.exceptions import MissingDependencyException
-from dlt.load.sql_client import SqlClientBase
+from dlt.destinations.sql_client import SqlClientBase
 
 try:
     import pandas as pd

@@ -18,7 +18,7 @@ from dlt.common.typing import StrAny
 from dlt.common.utils import uniq_id
 
 from dlt.load import Load
-from dlt.load.job_client_impl import SqlJobClientBase
+from dlt.destinations.job_client_impl import SqlJobClientBase
 
 
 TABLE_UPDATE: List[TColumnSchema] = [
@@ -109,7 +109,7 @@ def prepare_table(client: JobClientBase, case_name: str = "event_user", table_na
     return user_table_name
 
 
-def yield_client_with_storage(destination_name: str, initial_values: StrAny = None) -> Iterator[SqlJobClientBase]:
+def yield_client_with_storage(destination_name: str, default_values: StrAny = None) -> Iterator[SqlJobClientBase]:
     os.environ.pop("DATASET_NAME", None)
     # import destination reference by name
     destination: DestinationReference = import_module(f"dlt.destinations.{destination_name}")
@@ -120,11 +120,11 @@ def yield_client_with_storage(destination_name: str, initial_values: StrAny = No
     config = destination.spec()()
     config.dataset_name = dataset_name
 
-    if initial_values is not None:
-        # apply the values to credentials, if dict is provided it will be used as initial
-        config.credentials = initial_values
+    if default_values is not None:
+        # apply the values to credentials, if dict is provided it will be used as default
+        config.credentials = default_values
         # also apply to config
-        config.update(initial_values)
+        config.update(default_values)
     # get event default schema
     C = resolve_configuration(SchemaVolumeConfiguration(), explicit_value={
         "schema_volume_path": "tests/common/cases/schemas/rasa"

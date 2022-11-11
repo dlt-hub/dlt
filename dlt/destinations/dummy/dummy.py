@@ -8,7 +8,7 @@ from dlt.common.storages import FileStorage
 from dlt.common.schema.typing import TTableSchema
 from dlt.common.destination import DestinationCapabilitiesContext, JobClientBase, LoadJob, TLoadJobStatus
 
-from dlt.load.exceptions import (LoadJobNotExistsException, LoadJobInvalidStateTransitionException,
+from dlt.destinations.exceptions import (LoadJobNotExistsException, LoadJobInvalidStateTransitionException,
                                             LoadClientTerminalException, LoadClientTransientException)
 
 from dlt.destinations.dummy import capabilities

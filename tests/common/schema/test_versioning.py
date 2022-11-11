@@ -83,7 +83,7 @@ def test_infer_column_bumps_version() -> None:
 
 
 def test_preserve_version_on_load() -> None:
-    eth_v4: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v4")
+    eth_v4: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v5")
     version = eth_v4["version"]
     version_hash = eth_v4["version_hash"]
     schema = Schema.from_dict(eth_v4)
@@ -94,7 +94,7 @@ def test_preserve_version_on_load() -> None:
 
 @pytest.mark.parametrize("remove_defaults", [True, False])
 def test_version_preserve_on_reload(remove_defaults: bool) -> None:
-    eth_v4: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v4")
+    eth_v4: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v5")
     schema = Schema.from_dict(eth_v4)
 
     to_save_dict = schema.to_dict(remove_defaults=remove_defaults)

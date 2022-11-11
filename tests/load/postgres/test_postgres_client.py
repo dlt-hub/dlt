@@ -1,13 +1,10 @@
 from typing import Iterator
 import pytest
-from unittest.mock import patch
 
 from dlt.common import pendulum, Wei
-from dlt.common.arithmetics import numeric_default_context
 from dlt.common.storages import FileStorage
 from dlt.common.utils import uniq_id
 
-from dlt.load.exceptions import LoadClientTerminalInnerException
 from dlt.destinations.postgres.postgres import PostgresClient, psycopg2
 
 from tests.utils import TEST_STORAGE_ROOT, delete_test_storage, skipifpypy

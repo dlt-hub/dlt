@@ -28,8 +28,8 @@ from dlt.extract.extract import ExtractorStorage, extract
 from dlt.extract.source import DltResource, DltSource
 from dlt.normalize import Normalize
 from dlt.normalize.configuration import NormalizeConfiguration
-from dlt.load.sql_client import SqlClientBase
-from dlt.load.job_client_impl import SqlJobClientBase
+from dlt.destinations.sql_client import SqlClientBase
+from dlt.destinations.job_client_impl import SqlJobClientBase
 from dlt.load.configuration import LoaderConfiguration
 from dlt.load import Load
 

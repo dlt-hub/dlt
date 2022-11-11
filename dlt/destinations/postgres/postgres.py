@@ -10,7 +10,7 @@ else:
     from psycopg2.sql import SQL, Composed
 
 
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 from dlt.common.destination import DestinationCapabilitiesContext, DestinationClientDwhConfiguration, LoadJob, TLoadJobStatus
@@ -18,9 +18,9 @@ from dlt.common.schema import COLUMN_HINTS, TColumnSchema, TColumnSchemaBase, TD
 from dlt.common.schema.typing import TTableSchema, TWriteDisposition
 from dlt.common.storages.file_storage import FileStorage
 
-from dlt.load.exceptions import LoadClientSchemaWillNotUpdate, LoadClientTerminalInnerException, LoadClientTransientInnerException
-from dlt.load.sql_client import SqlClientBase
-from dlt.load.job_client_impl import SqlJobClientBase, LoadEmptyJob
+from dlt.destinations.exceptions import LoadClientSchemaWillNotUpdate, LoadClientTerminalInnerException, LoadClientTransientInnerException
+from dlt.destinations.sql_client import SqlClientBase
+from dlt.destinations.job_client_impl import SqlJobClientBase, LoadEmptyJob, StorageSchemaInfo
 
 from dlt.destinations.postgres import capabilities
 from dlt.destinations.postgres.sql_client import Psycopg2SqlClient
@@ -147,17 +147,17 @@ class PostgresClientBase(SqlJobClientBase):
         except (psycopg2.DataError, psycopg2.ProgrammingError, psycopg2.IntegrityError) as ter_ex:
             raise LoadClientTerminalInnerException("Terminal error, file will not load", ter_ex)
 
-    def _get_schema_version_from_storage(self) -> int:
+    def _row_to_schema_info(self, query: str, *args: Any) -> StorageSchemaInfo:
         try:
-            return super()._get_schema_version_from_storage()
+            return super()._row_to_schema_info(query, *args)
         except psycopg2.ProgrammingError:
             # there's no table so there's no schema
-            return 0
+            return None
 
     def _build_schema_update_sql(self) -> List[str]:
         sql_updates = []
         for table_name in self.schema.tables:
-            exists, storage_table = self._get_storage_table(table_name)
+            exists, storage_table = self.get_storage_table(table_name)
             sql = self._get_table_update_sql(table_name, storage_table, exists)
             if sql:
                 sql_updates.append(sql)
@@ -191,6 +191,7 @@ class PostgresClientBase(SqlJobClientBase):
         sql += "\nCOMMIT TRANSACTION;"
         return sql
 
+    # TODO: implement indexes and primary keys for postgres
     def _get_in_table_constraints_sql(self, t: TTableSchema) -> str:
         # get primary key
         pass
@@ -203,7 +204,7 @@ class PostgresClientBase(SqlJobClientBase):
     def _get_column_def_sql(self, c: TColumnSchema) -> str:
         pass
 
-    def _get_storage_table(self, table_name: str) -> Tuple[bool, TTableSchemaColumns]:
+    def get_storage_table(self, table_name: str) -> Tuple[bool, TTableSchemaColumns]:
         schema_table: TTableSchemaColumns = {}
         query = f"""
                 SELECT column_name, data_type, is_nullable, numeric_precision, numeric_scale
