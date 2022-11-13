@@ -18,7 +18,7 @@ class GcpClientCredentials(CredentialsConfiguration):
 
     http_timeout: float = 15.0
     file_upload_timeout: float = 30 * 60.0
-    retry_deadline: float = 600  # how long to retry the operation in case of error, the backoff 60s
+    retry_deadline: float = 60  # how long to retry the operation in case of error, the backoff 60s
 
     def parse_native_representation(self, native_value: Any) -> None:
         if not isinstance(native_value, str):
@@ -41,7 +41,6 @@ class GcpClientCredentials(CredentialsConfiguration):
     def to_service_account_credentials(self) -> Any:
         from google.oauth2 import service_account
         return service_account.Credentials.from_service_account_info(self)
-
 
     def __str__(self) -> str:
         return f"{self.client_email}@{self.project_id}[{self.location}]"

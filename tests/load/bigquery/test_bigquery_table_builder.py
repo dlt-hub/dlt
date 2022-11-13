@@ -9,7 +9,7 @@ from dlt.common.configuration.specs import GcpClientCredentials
 
 from dlt.destinations.bigquery.bigquery import BigQueryClient
 from dlt.destinations.bigquery.configuration import BigQueryClientConfiguration
-from dlt.destinations.exceptions import LoadClientSchemaWillNotUpdate
+from dlt.destinations.exceptions import DestinationSchemaWillNotUpdate
 
 from tests.load.utils import TABLE_UPDATE
 
@@ -33,7 +33,7 @@ def test_configuration() -> None:
 @pytest.fixture
 def gcp_client(schema: Schema) -> BigQueryClient:
     # return client without opening connection
-    return BigQueryClient(schema, BigQueryClientConfiguration(dataset_name="TEST" + uniq_id(), credentials=GcpClientCredentials()))
+    return BigQueryClient(schema, BigQueryClientConfiguration(dataset_name="test_" + uniq_id(), credentials=GcpClientCredentials()))
 
 
 def test_create_table(gcp_client: BigQueryClient) -> None:
@@ -95,7 +95,7 @@ def test_double_partition_exception(gcp_client: BigQueryClient) -> None:
     mod_update[4]["partition"] = True
     # double partition
     gcp_client.schema.update_schema(new_table("event_test_table", columns=mod_update))
-    with pytest.raises(LoadClientSchemaWillNotUpdate) as excc:
+    with pytest.raises(DestinationSchemaWillNotUpdate) as excc:
         gcp_client._get_table_update_sql("event_test_table", {}, False)
     assert excc.value.columns == ["`col4`", "`col5`"]
 
@@ -106,7 +106,7 @@ def test_partition_alter_table_exception(gcp_client: BigQueryClient) -> None:
     mod_update[3]["partition"] = True
     # double partition
     gcp_client.schema.update_schema(new_table("event_test_table", columns=mod_update))
-    with pytest.raises(LoadClientSchemaWillNotUpdate) as excc:
+    with pytest.raises(DestinationSchemaWillNotUpdate) as excc:
         gcp_client._get_table_update_sql("event_test_table", {}, True)
     assert excc.value.columns == ["`col4`"]
 
@@ -117,6 +117,6 @@ def test_cluster_alter_table_exception(gcp_client: BigQueryClient) -> None:
     mod_update[3]["cluster"] = True
     # double partition
     gcp_client.schema.update_schema(new_table("event_test_table", columns=mod_update))
-    with pytest.raises(LoadClientSchemaWillNotUpdate) as excc:
+    with pytest.raises(DestinationSchemaWillNotUpdate) as excc:
         gcp_client._get_table_update_sql("event_test_table", {}, True)
     assert excc.value.columns == ["`col4`"]

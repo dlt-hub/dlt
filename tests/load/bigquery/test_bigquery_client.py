@@ -13,7 +13,7 @@ from dlt.common.schema.schema import Schema
 from dlt.common.utils import uniq_id, custom_environ
 
 from dlt.destinations.bigquery.bigquery import BigQueryClient
-from dlt.destinations.exceptions import LoadJobNotExistsException, LoadJobServerTerminalException
+from dlt.destinations.exceptions import LoadJobNotExistsException, LoadJobTerminalException
 
 from tests.utils import TEST_STORAGE_ROOT, delete_test_storage, preserve_environ
 from tests.common.utils import json_case_path as common_json_case_path
@@ -70,7 +70,7 @@ def test_bigquery_job_errors(client: BigQueryClient, file_storage: FileStorage) 
         client.restore_file_load(uniq_id() + ".")
 
     # bad name
-    with pytest.raises(LoadJobServerTerminalException):
+    with pytest.raises(LoadJobTerminalException):
         client.restore_file_load("!!&*aaa")
 
     user_table_name = prepare_table(client)
@@ -81,7 +81,7 @@ def test_bigquery_job_errors(client: BigQueryClient, file_storage: FileStorage) 
 
     # start job with invalid name
     dest_path = file_storage.save("!!aaaa", b"data")
-    with pytest.raises(LoadJobServerTerminalException):
+    with pytest.raises(LoadJobTerminalException):
         client.start_file_load(client.schema.get_table(user_table_name), dest_path)
 
     user_table_name = prepare_table(client)
