@@ -1,12 +1,10 @@
-from typing import ClassVar, Optional, TYPE_CHECKING
-from typing_extensions import runtime
+from typing import Optional
 
 from dlt.common.configuration import configspec
-from dlt.common.configuration.specs import RunConfiguration, BaseConfiguration, ContainerInjectableContext
+from dlt.common.configuration.specs import RunConfiguration, BaseConfiguration
 from dlt.common.typing import TSecretValue
 from dlt.common.utils import uniq_id
 
-from dlt.pipeline.typing import TPipelineState
 
 
 @configspec
@@ -14,6 +12,7 @@ class PipelineConfiguration(BaseConfiguration):
     pipeline_name: Optional[str] = None
     working_dir: Optional[str] = None
     pipeline_secret: Optional[TSecretValue] = None
+    restore_from_destination: bool = False
     _runtime: RunConfiguration
 
     def on_resolved(self) -> None:
@@ -21,14 +20,3 @@ class PipelineConfiguration(BaseConfiguration):
             self.pipeline_secret = TSecretValue(uniq_id())
         if not self.pipeline_name:
             self.pipeline_name = self._runtime.pipeline_name
-
-
-@configspec(init=True)
-class StateInjectableContext(ContainerInjectableContext):
-    state: TPipelineState
-
-    can_create_default: ClassVar[bool] = False
-
-    if TYPE_CHECKING:
-        def __init__(self, state: TPipelineState = None) -> None:
-            ...

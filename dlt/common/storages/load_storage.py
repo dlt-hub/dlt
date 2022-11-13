@@ -230,7 +230,7 @@ class LoadStorage(DataItemStorage, VersionedStorage):
     def build_job_file_name(self, table_name: str, file_id: str, retry_count: int = 0, validate_components: bool = True, with_extension: bool = True) -> str:
         if validate_components:
             FileStorage.validate_file_name_component(table_name)
-            FileStorage.validate_file_name_component(file_id)
+            # FileStorage.validate_file_name_component(file_id)
         fn = f"{table_name}.{file_id}.{int(retry_count)}"
         if with_extension:
             return fn + f".{self.loader_file_format}"

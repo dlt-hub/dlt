@@ -22,10 +22,13 @@ class LiveSchemaStorage(SchemaStorage):
 
     def __getitem__(self, name: str) -> Schema:
         # disconnect live schema
-        self.live_schemas.pop(name, None)
-        # return new schema instance
-        schema = super().load_schema(name)
-        self._update_live_schema(schema, True)
+        # self.live_schemas.pop(name, None)
+        if name in self.live_schemas:
+            schema = self.live_schemas[name]
+        else:
+            # return new schema instance
+            schema = super().load_schema(name)
+            self._update_live_schema(schema, True)
 
         return schema
 
@@ -36,8 +39,9 @@ class LiveSchemaStorage(SchemaStorage):
 
     def save_schema(self, schema: Schema) -> str:
         rv = super().save_schema(schema)
-        # update the live schema with schema being saved but do not create live instance if not already present
-        self._update_live_schema(schema, False)
+        # -- update the live schema with schema being saved but do not create live instance if not already present
+        # no, cre
+        self._update_live_schema(schema, True)
         return rv
 
     def initialize_import_schema(self, schema: Schema) -> None:

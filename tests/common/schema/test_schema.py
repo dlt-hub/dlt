@@ -121,6 +121,11 @@ def test_invalid_schema_name() -> None:
     assert exc.value.name == "a!b"
 
 
+def test_create_schema_with_normalize_name() -> None:
+    s = Schema("a!b", normalize_name=True)
+    assert s.name == "a_b"
+
+
 @pytest.mark.parametrize("columns,hint,value", [
     (["_dlt_id", "_dlt_root_id", "_dlt_load_id", "_dlt_parent_id", "_dlt_list_idx"], "nullable", False),
     (["_dlt_id"], "unique", True),

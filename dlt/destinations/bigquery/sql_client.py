@@ -1,16 +1,23 @@
 
 from contextlib import contextmanager
-from typing import Any, AnyStr, Iterator, Optional, Sequence
-from dlt.common.storages.file_storage import FileStorage
+from typing import Any, AnyStr, Iterator, List, Optional, Sequence
+from dlt.common.typing import StrAny
+from dlt.destinations.exceptions import DatabaseTerminalException, DatabaseTransientException, DatabaseUndefinedRelation
 import google.cloud.bigquery as bigquery  # noqa: I250
 from google.cloud.bigquery.dbapi import Connection as DbApiConnection
 from google.cloud import exceptions as gcp_exceptions
+from google.cloud.bigquery.dbapi import exceptions as dbapi_exceptions
+from google.api_core import exceptions as api_core_exceptions
 
 from dlt.common import logger
 from dlt.common.configuration.specs import GcpClientCredentials
 
 from dlt.destinations.typing import DBCursor
-from dlt.destinations.sql_client import SqlClientBase
+from dlt.destinations.sql_client import SqlClientBase, raise_database_error
+
+# terminal reasons as returned in BQ gRPC error response
+# https://cloud.google.com/bigquery/docs/error-messages
+BQ_TERMINAL_REASONS = ["billingTierLimitExceeded", "duplicate", "invalid", "invalidQuery", "notFound", "notImplemented", "stopped", "tableUnavailable"]
 
 
 class BigQuerySqlClient(SqlClientBase[bigquery.Client]):
@@ -28,6 +35,20 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client]):
             credentials=self.credentials.to_service_account_credentials(),
             location=self.credentials.location
         )
+
+        # patch the client query so our defaults are used
+        query_orig = self._client.query
+
+        def query_patch(
+            query: str,
+            retry: Any = self.default_retry,
+            timeout: Any = self.credentials.http_timeout,
+            **kwargs: Any
+        ) -> Any:
+            return query_orig(query, retry=retry, timeout=timeout, **kwargs)
+
+        self._client.query = query_patch
+
 
     def close_connection(self) -> None:
         if self._client:
@@ -62,6 +83,7 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client]):
             timeout=self.credentials.http_timeout
         )
 
+    @raise_database_error
     def execute_sql(self, sql: AnyStr, *args: Any, **kwargs: Any) -> Optional[Sequence[Sequence[Any]]]:
         conn: DbApiConnection = None
         db_args = args if args else kwargs
@@ -81,6 +103,7 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client]):
                 conn.close()
 
     @contextmanager
+    @raise_database_error
     def execute_query(self, query: AnyStr,  *args: Any, **kwargs: Any) -> Iterator[DBCursor]:
         conn: DbApiConnection = None
         curr: DBCursor = None
@@ -98,3 +121,28 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client]):
 
     def fully_qualified_dataset_name(self) -> str:
         return f"{self.credentials.project_id}.{self.default_dataset_name}"
+
+    @classmethod
+    def _make_database_exception(cls, ex: Exception) -> Exception:
+        if cls.is_dbapi_exception(ex):
+            # google cloud exception in first argument: https://github.com/googleapis/python-bigquery/blob/main/google/cloud/bigquery/dbapi/cursor.py#L205
+            cloud_ex = ex.args[0]
+            reason = cls._get_reason_from_errors(cloud_ex)
+            if reason == "notFound":
+                return DatabaseUndefinedRelation(ex)
+            elif reason in BQ_TERMINAL_REASONS:
+                return DatabaseTerminalException(ex)
+            else:
+                return DatabaseTransientException(ex)
+        return ex
+
+    @staticmethod
+    def _get_reason_from_errors(gace: api_core_exceptions.GoogleAPICallError) -> Optional[str]:
+        errors: List[StrAny] = getattr(gace, "errors", None)
+        if errors and isinstance(errors, Sequence):
+            return errors[0].get("reason")  # type: ignore
+        return None
+
+    @staticmethod
+    def is_dbapi_exception(ex: Exception) -> bool:
+        return isinstance(ex, dbapi_exceptions.Error)

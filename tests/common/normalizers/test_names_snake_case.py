@@ -1,6 +1,7 @@
 import pytest
 
 from dlt.common.normalizers.names.snake_case import normalize_column_name, normalize_table_name, normalize_make_dataset_name, RE_NON_ALPHANUMERIC
+from dlt.common.schema.exceptions import InvalidDatasetName
 
 
 def test_normalize_column_name() -> None:
@@ -41,13 +42,22 @@ def test_normalizes_underscores() -> None:
 
 
 def test_normalize_make_dataset_name() -> None:
-    # second part is not normalized, a proper schema name is assumed to be used
-    assert normalize_make_dataset_name("BAN_ANA", "default", "BANANA") == "ban_ana_BANANA"
-    assert normalize_make_dataset_name("BAN_ANA", "default", "default") == "ban_ana"
+    # schema name is not normalized, a proper schema name is assumed to be used
+    assert normalize_make_dataset_name("ban_ana_dataset", "default", "BANANA") == "ban_ana_dataset_BANANA"
+    assert normalize_make_dataset_name("ban_ana_dataset", "default", "default") == "ban_ana_dataset"
 
+    # also the dataset name is not normalized. it is verified if it is properly normalizes though
+    with pytest.raises(InvalidDatasetName):
+        normalize_make_dataset_name("BaNaNa", "default", "BANANA")
+
+    # empty schemas are invalid
     with pytest.raises(ValueError):
-        normalize_make_dataset_name("BAN_ANA", None, None)
+        normalize_make_dataset_name("banana_dataset", None, None)
     with pytest.raises(ValueError):
-        normalize_make_dataset_name("", "BAN_ANA", "BAN_ANA")
+        normalize_make_dataset_name("banana_dataset", "", "")
+
+    # empty dataset names are invalid
+    with pytest.raises(ValueError):
+        normalize_make_dataset_name("", "ban_schema", "schema_ana")
     with pytest.raises(ValueError):
         normalize_make_dataset_name(None, "BAN_ANA", "BAN_ANA")

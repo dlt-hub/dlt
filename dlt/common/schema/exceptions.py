@@ -11,7 +11,13 @@ class SchemaException(DltException):
 class InvalidSchemaName(SchemaException):
     def __init__(self, name: str, normalized_name: str) -> None:
         self.name = name
-        super().__init__(f"{name} is invalid schema name. Try {normalized_name} instead")
+        super().__init__(f"{name} is an invalid schema name. The schema name must conform to wide range of destinations and ideally should contain only small letters, numbers and underscores. Try {normalized_name} instead as suggested by current naming module.")
+
+
+class InvalidDatasetName(SchemaException):
+    def __init__(self, name: str, normalized_name: str) -> None:
+        self.name = name
+        super().__init__(f"{name} is an invalid dataset name. The dataset name must conform to wide range of destinations and ideally should contain only small letters, numbers and underscores. Try {normalized_name} instead as suggested by current naming module.")
 
 
 class CannotCoerceColumnException(SchemaException):

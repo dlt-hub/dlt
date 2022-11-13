@@ -10,7 +10,7 @@ from dlt.common.storages import FileStorage
 from dlt.common.storages.schema_storage import SchemaStorage
 from dlt.common.utils import uniq_id
 
-from dlt.destinations.exceptions import LoadClientTerminalInnerException
+from dlt.destinations.exceptions import DatabaseTerminalException
 from dlt.destinations.redshift.redshift import RedshiftClient, psycopg2
 from tests.common.utils import COMMON_TEST_CASES_PATH
 
@@ -28,7 +28,7 @@ def auto_delete_storage() -> None:
     delete_test_storage()
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def client() -> Iterator[RedshiftClient]:
     yield from yield_client_with_storage("redshift")
 
@@ -48,9 +48,9 @@ def test_text_too_long(client: RedshiftClient, file_storage: FileStorage) -> Non
     # print(len(max_len_str_b))
     row_id = uniq_id()
     insert_values = f"('{row_id}', '{uniq_id()}', '{max_len_str}' , '{str(pendulum.now())}');"
-    with pytest.raises(LoadClientTerminalInnerException) as exv:
+    with pytest.raises(DatabaseTerminalException) as exv:
         expect_load_file(client, file_storage, insert_sql+insert_values, user_table_name)
-    assert type(exv.value.inner_exc) is psycopg2.errors.StringDataRightTruncation
+    assert type(exv.value.dbapi_exception) is psycopg2.errors.StringDataRightTruncation
 
 
 def test_wei_value(client: RedshiftClient, file_storage: FileStorage) -> None:
@@ -59,9 +59,9 @@ def test_wei_value(client: RedshiftClient, file_storage: FileStorage) -> None:
     # max redshift decimal is (38, 0) (128 bit) = 10**38 - 1
     insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp, parse_data__metadata__rasa_x_id)\nVALUES\n"
     insert_values = f"('{uniq_id()}', '{uniq_id()}', '90238094809sajlkjxoiewjhduuiuehd', '{str(pendulum.now())}', {10**38});"
-    with pytest.raises(LoadClientTerminalInnerException) as exv:
+    with pytest.raises(DatabaseTerminalException) as exv:
         expect_load_file(client, file_storage, insert_sql+insert_values, user_table_name)
-    assert type(exv.value.inner_exc) is psycopg2.errors.InternalError_
+    assert type(exv.value.dbapi_exception) is psycopg2.errors.InternalError_
 
 
 def test_schema_string_exceeds_max_text_length(client: RedshiftClient) -> None:
@@ -96,7 +96,7 @@ def test_maximum_query_size(client: RedshiftClient, file_storage: FileStorage) -
         insert_sql += insert_values.format(uniq_id(), uniq_id(), str(pendulum.now()), ";")
 
         user_table_name = prepare_table(client)
-        with pytest.raises(LoadClientTerminalInnerException) as exv:
+        with pytest.raises(DatabaseTerminalException) as exv:
             expect_load_file(client, file_storage, insert_sql, user_table_name)
         # psycopg2.errors.SyntaxError: Statement is too large. Statement Size: 20971754 bytes. Maximum Allowed: 16777216 bytes
-        assert type(exv.value.inner_exc) is psycopg2.errors.SyntaxError
+        assert type(exv.value.dbapi_exception) is psycopg2.errors.SyntaxError

@@ -12,7 +12,7 @@ from dlt.common.storages.exceptions import SchemaNotFoundError
 from dlt.common.storages.schema_storage import SchemaStorage
 from dlt.common.typing import AnyFun, ParamSpec, Concatenate, TDataItem, TDataItems
 from dlt.common.utils import get_callable_name, is_inner_callable
-from dlt.extract.exceptions import InvalidTransformerDataTypeGeneratorFunctionRequired, ResourceFunctionExpected, SourceDataIsNone, SourceNotAFunction
+from dlt.extract.exceptions import InvalidTransformerDataTypeGeneratorFunctionRequired, ResourceFunctionExpected, SourceDataIsNone, SourceIsAClassTypError, SourceNotAFunction
 
 from dlt.extract.typing import TTableHintTemplate
 from dlt.extract.source import DltResource, DltSource, TUnboundDltResource
@@ -43,12 +43,18 @@ def source(func: Optional[AnyFun] = None, /, name: str = None, schema: Schema = 
     def decorator(f: Callable[TSourceFunParams, Any]) -> Callable[TSourceFunParams, DltSource]:
         nonlocal schema, name
 
+        if not callable(f) or isinstance(f, DltResource):
+            raise SourceNotAFunction(name or "<no name>", f, type(f))
+
+        if inspect.isclass(f):
+            raise SourceIsAClassTypError(name or "<no name>", f)
+
         # source name is passed directly or taken from decorated function name
         name = name or get_callable_name(f)
 
         if not schema:
             # load the schema from file with name_schema.yaml/json from the same directory, the callable resides OR create new default schema
-            schema = _maybe_load_schema_for_callable(f, name) or Schema(name)
+            schema = _maybe_load_schema_for_callable(f, name) or Schema(name, normalize_name=True)
 
         # wrap source extraction function in configuration with namespace
         conf_f = with_config(f, spec=spec, namespaces=("sources", name))
@@ -65,7 +71,7 @@ def source(func: Optional[AnyFun] = None, /, name: str = None, schema: Schema = 
                 raise SourceDataIsNone(name)
 
             # convert to source
-            return DltSource.from_data(schema, rv)
+            return DltSource.from_data(name, schema, rv)
 
         # get spec for wrapped function
         SPEC = get_fun_spec(conf_f)
@@ -78,9 +84,6 @@ def source(func: Optional[AnyFun] = None, /, name: str = None, schema: Schema = 
     if func is None:
         # we're called with parens.
         return decorator
-
-    if not callable(func):
-        raise SourceNotAFunction(name or "<no name>", func, type(func))
 
     # we're called as @source without parens.
     return decorator(func)
@@ -228,6 +231,8 @@ def transformer(
 
 
 def _maybe_load_schema_for_callable(f: AnyFun, name: str) -> Optional[Schema]:
+    if not inspect.isfunction(f):
+        f = f.__class__
     try:
         file = inspect.getsourcefile(f)
         if file:

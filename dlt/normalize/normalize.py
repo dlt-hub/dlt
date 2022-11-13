@@ -251,7 +251,7 @@ class Normalize(Runnable[ProcessPool]):
         if len(files) == 0:
             return TRunMetrics(True, False, 0)
         # group files by schema
-        for schema_name, files_in_schema in self.normalize_storage.get_grouped_iterator(files):
+        for schema_name, files_in_schema in self.normalize_storage.group_by_schema(files):
             logger.info(f"Found files in schema {schema_name}")
             self.spool_schema_files(schema_name, list(files_in_schema))
         # return info on still pending files (if extractor saved something in the meantime)

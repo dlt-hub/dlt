@@ -69,7 +69,6 @@ def test_connection_string_credentials_native_representation(environment) -> Non
     assert csc.to_native_representation() == "postgres://"
 
 
-
 def test_connection_string_resolved_from_native_representation(environment: Any) -> None:
     # sometimes it is sometimes not try URL without password
     destination_dsn = "postgres://loader@localhost:5432/dlt_data"

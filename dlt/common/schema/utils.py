@@ -1,3 +1,4 @@
+from importlib import import_module
 import re
 import base64
 import binascii
@@ -6,6 +7,7 @@ import datetime  # noqa: I251
 import contextlib
 from copy import deepcopy
 from collections.abc import Mapping as C_Mapping, Sequence as C_Sequence
+from types import ModuleType
 from typing import Dict, List, Sequence, Tuple, Type, Any, cast
 
 from dlt.common import pendulum, json, Decimal, Wei
@@ -607,6 +609,13 @@ def default_normalizers() -> TNormalizersConfig:
                     "module": "dlt.common.normalizers.json.relational"
                 }
             }
+
+
+def import_normalizers(normalizers_config: TNormalizersConfig) -> Tuple[ModuleType, ModuleType]:
+    # TODO: type the modules with protocols
+    naming_module = import_module(normalizers_config["names"])
+    json_module = import_module(normalizers_config["json"]["module"])
+    return naming_module, json_module
 
 
 def standard_hints() -> Dict[TColumnHint, List[TSimpleRegex]]:

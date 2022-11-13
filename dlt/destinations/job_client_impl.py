@@ -1,6 +1,7 @@
 from abc import abstractmethod
 import base64
 import binascii
+import contextlib
 import datetime  # noqa: 251
 from types import TracebackType
 from typing import Any, ClassVar, List, NamedTuple, Sequence, Tuple, Type
@@ -11,6 +12,7 @@ from dlt.common.schema.typing import LOADS_TABLE_NAME, VERSION_TABLE_NAME
 from dlt.common.storages import FileStorage
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns
 from dlt.common.destination import DestinationClientConfiguration, TLoadJobStatus, LoadJob, JobClientBase
+from dlt.destinations.exceptions import DatabaseUndefinedRelation
 
 from dlt.destinations.typing import TNativeConn
 from dlt.destinations.sql_client import SqlClientBase
@@ -105,8 +107,11 @@ class SqlJobClientBase(JobClientBase):
         return updates
 
     def _row_to_schema_info(self, query: str, *args: Any) -> StorageSchemaInfo:
-        with self.sql_client.execute_query(query, *args) as cur:
-            row = cur.fetchone()
+        row: Tuple[Any,...] = None
+        # if there's no dataset/schema return none info
+        with contextlib.suppress(DatabaseUndefinedRelation):
+            with self.sql_client.execute_query(query, *args) as cur:
+                row = cur.fetchone()
         if not row:
             return None
 

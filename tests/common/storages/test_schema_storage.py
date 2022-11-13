@@ -12,10 +12,7 @@ from dlt.common.storages.exceptions import InStorageSchemaModified, SchemaNotFou
 from dlt.common.storages import SchemaStorage, LiveSchemaStorage, FileStorage
 
 from tests.utils import autouse_test_storage, TEST_STORAGE_ROOT
-from tests.common.utils import load_yml_case, yml_case_path, COMMON_TEST_CASES_PATH
-
-# for import schema tests, change when upgrading the schema version
-IMPORTED_VERSION_HASH_ETH_V5 = "VCdpY/nGien9Yz1FA2fge/iu8alntmFRVVPoPsib80I="
+from tests.common.utils import load_yml_case, yml_case_path, COMMON_TEST_CASES_PATH, IMPORTED_VERSION_HASH_ETH_V5
 
 
 @pytest.fixture

@@ -20,6 +20,7 @@ from dlt.common.utils import uniq_id
 from dlt.load import Load
 from dlt.destinations.job_client_impl import SqlJobClientBase
 
+ALL_CLIENTS = ["redshift_client", "bigquery_client", "postgres_client"]
 
 TABLE_UPDATE: List[TColumnSchema] = [
     {

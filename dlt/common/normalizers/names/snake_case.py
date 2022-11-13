@@ -2,6 +2,8 @@ import re
 from typing import Any, Sequence
 from functools import lru_cache
 
+from dlt.common.schema.exceptions import InvalidDatasetName
+
 
 RE_UNDERSCORES = re.compile("_+")
 RE_DOUBLE_UNDERSCORES = re.compile("__+")
@@ -49,13 +51,15 @@ def normalize_schema_name(name: str) -> str:
 
 # build full db dataset (dataset) name out of (normalized) default dataset and schema name
 def normalize_make_dataset_name(dataset_name: str, default_schema_name: str, schema_name: str) -> str:
-    if schema_name is None:
+    if not schema_name:
         raise ValueError("schema_name is None")
-    name = normalize_column_name(dataset_name)
+    norm_name = normalize_schema_name(dataset_name)
+    if norm_name != dataset_name:
+        raise InvalidDatasetName(dataset_name, norm_name)
     if default_schema_name is None or schema_name != default_schema_name:
-        name += "_" + schema_name
+        norm_name += "_" + schema_name
 
-    return name
+    return norm_name
 
 
 # this function builds path out of path elements using PATH_SEPARATOR

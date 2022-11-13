@@ -1,4 +1,5 @@
 import platform
+
 if platform.python_implementation() == "PyPy":
     import psycopg2cffi as psycopg2
     from psycopg2cffi.sql import SQL, Identifier, Literal as SQLLiteral
@@ -6,14 +7,14 @@ else:
     import psycopg2
     from psycopg2.sql import SQL, Identifier, Literal as SQLLiteral
 
-
 from contextlib import contextmanager
 from typing import Any, AnyStr, Iterator, Optional, Sequence
 
 from dlt.common.configuration.specs import PostgresCredentials
 
+from dlt.destinations.exceptions import DatabaseTerminalException, DatabaseTransientException, DatabaseUndefinedRelation
 from dlt.destinations.typing import DBCursor
-from dlt.destinations.sql_client import SqlClientBase
+from dlt.destinations.sql_client import SqlClientBase, raise_database_error
 
 
 class Psycopg2SqlClient(SqlClientBase["psycopg2.connection"]):
@@ -28,9 +29,8 @@ class Psycopg2SqlClient(SqlClientBase["psycopg2.connection"]):
                              dsn=self.credentials.to_native_representation(),
                              options=f"-c search_path={self.fully_qualified_dataset_name()},public"
                              )
-        # we'll provide explicit transactions
-        self._conn.reset()
-        self._conn.autocommit = True
+        # we'll provide explicit transactions see _reset
+        self._reset_connection()
 
     def close_connection(self) -> None:
         if self._conn:
@@ -60,6 +60,7 @@ class Psycopg2SqlClient(SqlClientBase["psycopg2.connection"]):
             SQL("DROP SCHEMA {} CASCADE;").format(Identifier(self.fully_qualified_dataset_name()))
             )
 
+    @raise_database_error
     def execute_sql(self, sql: AnyStr, *args: Any, **kwargs: Any) -> Optional[Sequence[Sequence[Any]]]:
         curr: DBCursor = None
         db_args = args if args else kwargs
@@ -78,9 +79,11 @@ class Psycopg2SqlClient(SqlClientBase["psycopg2.connection"]):
                 except psycopg2.Error:
                     self.close_connection()
                     self.open_connection()
+
                 raise outer
 
     @contextmanager
+    @raise_database_error
     def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBCursor]:
         curr: DBCursor = None
         db_args = args if args else kwargs
@@ -91,11 +94,42 @@ class Psycopg2SqlClient(SqlClientBase["psycopg2.connection"]):
             except psycopg2.Error as outer:
                 try:
                     self._conn.rollback()
-                    self._conn.reset()
+                    self._reset_connection()
                 except psycopg2.Error:
                     self.close_connection()
                     self.open_connection()
+
                 raise outer
 
     def fully_qualified_dataset_name(self) -> str:
         return self.default_dataset_name
+
+    def _reset_connection(self) -> None:
+        # self._conn.autocommit = True
+        self._conn.reset()
+        self._conn.autocommit = True
+
+    @classmethod
+    def _make_database_exception(cls, ex: Exception) -> Exception:
+        if isinstance(ex, (psycopg2.errors.UndefinedTable, psycopg2.errors.InvalidSchemaName)):
+            raise DatabaseUndefinedRelation(ex)
+        elif isinstance(ex, (psycopg2.OperationalError, psycopg2.InternalError)):
+            term = cls._maybe_make_terminal_exception_from_data_error(ex)
+            if term:
+                return term
+            else:
+                return DatabaseTransientException(ex)
+        elif isinstance(ex, (psycopg2.DataError, psycopg2.ProgrammingError, psycopg2.IntegrityError)):
+            return DatabaseTerminalException(ex)
+        elif cls.is_dbapi_exception(ex):
+            return DatabaseTransientException(ex)
+        else:
+            return ex
+
+    @staticmethod
+    def _maybe_make_terminal_exception_from_data_error(pg_ex: psycopg2.DataError) -> Optional[Exception]:
+        return None
+
+    @staticmethod
+    def is_dbapi_exception(ex: Exception) -> bool:
+        return isinstance(ex, psycopg2.Error)

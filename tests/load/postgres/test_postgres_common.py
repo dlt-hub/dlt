@@ -7,7 +7,7 @@ from dlt.common.arithmetics import numeric_default_context
 from dlt.common.storages import FileStorage
 from dlt.common.utils import uniq_id
 
-from dlt.destinations.exceptions import LoadClientTerminalInnerException
+from dlt.destinations.exceptions import DatabaseTerminalException, DatabaseUndefinedRelation
 from dlt.destinations.postgres.postgres import PostgresClientBase, PostgresClient, psycopg2
 
 from tests.utils import TEST_STORAGE_ROOT, delete_test_storage, skipifpypy
@@ -26,17 +26,17 @@ def auto_delete_storage() -> None:
     delete_test_storage()
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def redshift_client() -> Iterator[PostgresClientBase]:
     yield from yield_client_with_storage("redshift")
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def postgres_client() -> Iterator[PostgresClientBase]:
     yield from yield_client_with_storage("postgres")
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def client(request) -> PostgresClientBase:
     yield request.getfixturevalue(request.param)
 
@@ -47,22 +47,27 @@ def test_recover_tx_rollback(client: PostgresClientBase) -> None:
     version_table = client.sql_client.make_qualified_table_name("_dlt_version")
     # simple syntax error
     sql = f"SELEXT * FROM {version_table}"
-    with pytest.raises(psycopg2.ProgrammingError):
+    with pytest.raises(DatabaseTerminalException) as term_ex:
         client.sql_client.execute_sql(sql)
+    assert isinstance(term_ex.value.dbapi_exception, psycopg2.ProgrammingError)
     # still can execute tx and selects
     client.get_newest_schema_from_storage()
     client.complete_load("ABC")
+
     # syntax error within tx
     sql = f"BEGIN TRANSACTION;INVERT INTO {version_table} VALUES(1);COMMIT TRANSACTION;"
-    with pytest.raises(psycopg2.ProgrammingError):
+    with pytest.raises(DatabaseTerminalException) as term_ex:
         client.sql_client.execute_sql(sql)
+    assert isinstance(term_ex.value.dbapi_exception, psycopg2.ProgrammingError)
     client.get_newest_schema_from_storage()
     client.complete_load("EFG")
+
     # wrong value inserted
     sql = f"BEGIN TRANSACTION;INSERT INTO {version_table}(version) VALUES(1);COMMIT TRANSACTION;"
     # cannot insert NULL value
-    with pytest.raises((psycopg2.InternalError, psycopg2.IntegrityError)):
+    with pytest.raises(DatabaseTerminalException) as term_ex:
         client.sql_client.execute_sql(sql)
+    assert isinstance(term_ex.value.dbapi_exception, (psycopg2.InternalError, psycopg2.IntegrityError))
     client.get_newest_schema_from_storage()
     client.complete_load("HJK")
 
@@ -120,28 +125,28 @@ def test_loading_errors(client: PostgresClientBase, file_storage: FileStorage) -
     # insert into unknown column
     insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp, _unk_)\nVALUES\n"
     insert_values = f"('{uniq_id()}', '{uniq_id()}', '90238094809sajlkjxoiewjhduuiuehd', '{str(pendulum.now())}', NULL);"
-    with pytest.raises(LoadClientTerminalInnerException) as exv:
+    with pytest.raises(DatabaseTerminalException) as exv:
         expect_load_file(client, file_storage, insert_sql+insert_values, user_table_name)
-    assert type(exv.value.inner_exc) is psycopg2.errors.UndefinedColumn
+    assert type(exv.value.dbapi_exception) is psycopg2.errors.UndefinedColumn
     # insert null value
     insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp)\nVALUES\n"
     insert_values = f"('{uniq_id()}', '{uniq_id()}', '90238094809sajlkjxoiewjhduuiuehd', NULL);"
-    with pytest.raises(LoadClientTerminalInnerException) as exv:
+    with pytest.raises(DatabaseTerminalException) as exv:
         expect_load_file(client, file_storage, insert_sql+insert_values, user_table_name)
-    assert type(exv.value.inner_exc) is TNotNullViolation
+    assert type(exv.value.dbapi_exception) is TNotNullViolation
     # insert wrong type
     insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp)\nVALUES\n"
     insert_values = f"('{uniq_id()}', '{uniq_id()}', '90238094809sajlkjxoiewjhduuiuehd', TRUE);"
-    with pytest.raises(LoadClientTerminalInnerException) as exv:
+    with pytest.raises(DatabaseTerminalException) as exv:
         expect_load_file(client, file_storage, insert_sql+insert_values, user_table_name)
-    assert type(exv.value.inner_exc) is psycopg2.errors.DatatypeMismatch
+    assert type(exv.value.dbapi_exception) is psycopg2.errors.DatatypeMismatch
     # numeric overflow on bigint
     insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp, metadata__rasa_x_id)\nVALUES\n"
     # 2**64//2 - 1 is a maximum bigint value
     insert_values = f"('{uniq_id()}', '{uniq_id()}', '90238094809sajlkjxoiewjhduuiuehd', '{str(pendulum.now())}', {2**64//2});"
-    with pytest.raises(LoadClientTerminalInnerException) as exv:
+    with pytest.raises(DatabaseTerminalException) as exv:
         expect_load_file(client, file_storage, insert_sql+insert_values, user_table_name)
-    assert type(exv.value.inner_exc) is psycopg2.errors.NumericValueOutOfRange
+    assert type(exv.value.dbapi_exception) is psycopg2.errors.NumericValueOutOfRange
     # numeric overflow on NUMERIC
     insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp, parse_data__intent__id)\nVALUES\n"
     # default decimal is (38, 9) (128 bit), use local context to generate decimals with 38 precision
@@ -153,9 +158,9 @@ def test_loading_errors(client: PostgresClientBase, file_storage: FileStorage) -
     expect_load_file(client, file_storage, insert_sql+insert_values, user_table_name)
     # this will raise
     insert_values = f"('{uniq_id()}', '{uniq_id()}', '90238094809sajlkjxoiewjhduuiuehd', '{str(pendulum.now())}', {above_limit});"
-    with pytest.raises(LoadClientTerminalInnerException) as exv:
+    with pytest.raises(DatabaseTerminalException) as exv:
         expect_load_file(client, file_storage, insert_sql+insert_values, user_table_name)
-    assert type(exv.value.inner_exc) is TNumericValueOutOfRange
+    assert type(exv.value.dbapi_exception) is TNumericValueOutOfRange
 
 
 

@@ -7,7 +7,7 @@ from dlt.common.schema.utils import new_table
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.specs import PostgresCredentials
 
-from dlt.destinations.exceptions import LoadClientSchemaWillNotUpdate
+from dlt.destinations.exceptions import DestinationSchemaWillNotUpdate
 from dlt.destinations.redshift.redshift import RedshiftClient
 from dlt.destinations.redshift.configuration import RedshiftClientConfiguration
 
@@ -22,7 +22,7 @@ def schema() -> Schema:
 @pytest.fixture
 def client(schema: Schema) -> RedshiftClient:
     # return client without opening connection
-    return RedshiftClient(schema, RedshiftClientConfiguration(dataset_name="TEST" + uniq_id()))
+    return RedshiftClient(schema, RedshiftClientConfiguration(dataset_name="test_" + uniq_id()))
 
 
 def test_configuration() -> None:
@@ -94,6 +94,6 @@ def test_hint_alter_table_exception(client: RedshiftClient) -> None:
     # timestamp
     mod_update[3]["sort"] = True
     client.schema.update_schema(new_table("event_test_table", columns=mod_update))
-    with pytest.raises(LoadClientSchemaWillNotUpdate) as excc:
+    with pytest.raises(DestinationSchemaWillNotUpdate) as excc:
         client._get_table_update_sql("event_test_table", {}, True)
     assert excc.value.columns == ["col4"]

@@ -391,8 +391,8 @@ class DltResourceDict(Dict[str, DltResource]):
 
 
 class DltSource(Iterable[TDataItems]):
-    def __init__(self, schema: Schema, resources: Sequence[DltResource] = None) -> None:
-        self.name = schema.name
+    def __init__(self, name: str, schema: Schema, resources: Sequence[DltResource] = None) -> None:
+        self.name = name
         self._schema = schema
         self._resources: DltResourceDict = DltResourceDict(self.name)
         if resources:
@@ -400,7 +400,7 @@ class DltSource(Iterable[TDataItems]):
                 self._add_resource(resource)
 
     @classmethod
-    def from_data(cls, schema: Schema, data: Any) -> "DltSource":
+    def from_data(cls, name: str, schema: Schema, data: Any) -> "DltSource":
         # creates source from various forms of data
         if isinstance(data, DltSource):
             return data
@@ -411,7 +411,7 @@ class DltSource(Iterable[TDataItems]):
         else:
             resources = [DltResource.from_data(data)]
 
-        return cls(schema, resources)
+        return cls(name, schema, resources)
 
 
     @property
@@ -431,13 +431,11 @@ class DltSource(Iterable[TDataItems]):
         self._schema = value
 
     def discover_schema(self) -> Schema:
-        # print(self._schema.tables)
         # extract tables from all resources and update internal schema
         for r in self.selected_resources.values():
             # names must be normalized here
             with contextlib.suppress(DataItemRequiredForDynamicTableHints):
                 partial_table = self._schema.normalize_table_identifiers(r.table_schema())
-                # print(partial_table)
                 self._schema.update_schema(partial_table)
         return self._schema
 

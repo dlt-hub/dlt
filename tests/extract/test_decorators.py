@@ -1,8 +1,10 @@
 import pytest
 
 import dlt
-from dlt.extract.exceptions import InvalidResourceDataTypeFunctionNotAGenerator, InvalidResourceDataTypeIsNone, ParametrizedResourceUnbound, PipeNotBoundToData, ResourceFunctionExpected, SourceDataIsNone, SourceNotAFunction
+from dlt.extract.exceptions import InvalidResourceDataTypeFunctionNotAGenerator, InvalidResourceDataTypeIsNone, ParametrizedResourceUnbound, PipeNotBoundToData, ResourceFunctionExpected, SourceDataIsNone, SourceIsAClassTypError, SourceNotAFunction
 from dlt.extract.source import DltResource
+
+from tests.common.utils import IMPORTED_VERSION_HASH_ETH_V5
 
 
 def test_none_returning_source() -> None:
@@ -49,10 +51,10 @@ def test_load_schema_for_callable() -> None:
     schema = s.discover_schema()
     assert schema.name == "ethereum"
     # the schema in the associated file has this hash
-    assert schema.stored_version_hash == "VCdpY/nGien9Yz1FA2fge/iu8alntmFRVVPoPsib80I="
+    assert schema.stored_version_hash == IMPORTED_VERSION_HASH_ETH_V5
 
 
-def test_unbound_transformer() -> None:
+def test_unbound_parametrized_transformer() -> None:
 
     empty_pipe = DltResource.Empty._pipe
     assert empty_pipe.is_empty
@@ -90,27 +92,76 @@ def test_unbound_transformer() -> None:
         list(empty_t_1)
 
 
-@pytest.mark.skip("not implemented")
 def test_source_name_is_invalid_schema_name() -> None:
-    # both inferred from function/class name or explicit
+
+    # inferred from function name, names must be small caps etc.
+
+    def camelCase():
+        return dlt.resource([1, 2, 3], name="resource")
+
+    s = dlt.source(camelCase)()
+    assert s.name == "camelCase"
+    schema = s.discover_schema()
+    assert schema.name == "camel_case"
+    assert list(s) == [1, 2, 3]
+
+    # explicit name
+    s = dlt.source(camelCase, name="source!")()
+    assert s.name == "source!"
+    schema = s.discover_schema()
+    assert schema.name == "source_"
+    assert list(s) == [1, 2, 3]
+
+
+def test_resource_name_is_invalid_table_name_and_columns() -> None:
+
+    @dlt.source
+    def camelCase():
+        return dlt.resource([1, 2, 3], name="Resource !", columns={"KA!AX": {"name": "DIF!", "nullable": False, "data_type": "text"}})
+
+    s = camelCase()
+    assert s.resources["Resource !"].selected
+    assert hasattr(s, "Resource !")
+
+    # get schema and check table name
+    schema = s.discover_schema()
+    assert "resource_" in schema._schema_tables
+    # has the column with identifiers normalized
+    assert "ka_ax" in schema.get_table("resource_")["columns"]
+
+
+@pytest.mark.skip
+def test_resource_sets_invalid_write_disposition() -> None:
+    # write_disposition="xxx" # this will fail schema
     pass
 
 
-@pytest.mark.skip("not implemented")
-def test_resource_name_is_invalid_table_name() -> None:
-    pass
-
-
-@pytest.mark.skip("not implemented")
 def test_class_source() -> None:
 
-    class _source:
+    class _Source:
         def __init__(self, elems: int) -> None:
             self.elems = elems
 
-        def __call__(self):
-            return dlt.resource(["A", "V"] * self.elems, name="_list")
+        def __call__(self, more: int = 1):
+            return dlt.resource(["A", "V"] * self.elems * more, name="_list")
+
+    s = dlt.source(_Source(4))(more=1)
+    assert s.name == "_Source"
+    schema = s.discover_schema()
+    assert schema.name == "_source"
+    assert "_list" in schema._schema_tables
+    assert list(s) == ['A', 'V', 'A', 'V', 'A', 'V', 'A', 'V']
+
+    with pytest.raises(SourceIsAClassTypError):
+        @dlt.source(name="planB")
+        class _SourceB:
+            def __init__(self, elems: int) -> None:
+                self.elems = elems
+
+            def __call__(self, more: int = 1):
+                return dlt.resource(["A", "V"] * self.elems * more, name="_list")
 
 
-    s = dlt.source(_source(4))
-    print(list(s()))
+@pytest.mark.skip
+def test_class_resource() -> None:
+    pass

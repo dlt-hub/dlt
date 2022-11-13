@@ -3,15 +3,19 @@ import os
 from contextlib import contextmanager
 from functools import wraps
 from collections.abc import Sequence as C_Sequence
-from typing import Any, Callable, ClassVar, Dict, List, Iterator, Mapping, Sequence, Tuple, get_type_hints, overload
+from typing import Any, Callable, ClassVar, Dict, List, Iterator, Mapping, Optional, Sequence, Tuple, get_type_hints, overload
 
 from dlt.common import json, logger, signals, pendulum
 from dlt.common.configuration.container import Container
+from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.configuration.specs.config_namespace_context import ConfigNamespacesContext
+from dlt.common.exceptions import MissingDependencyException
 from dlt.common.runners.runnable import Runnable
+from dlt.common.schema.exceptions import InvalidDatasetName
 from dlt.common.schema.typing import TColumnSchema, TWriteDisposition
+from dlt.common.schema.utils import default_normalizers, import_normalizers
 from dlt.common.storages.load_storage import LoadStorage
-from dlt.common.typing import ParamSpec, TFun, TSecretValue
+from dlt.common.typing import TFun, TSecretValue
 
 from dlt.common.runners import pool_runner as runner, TRunMetrics, initialize_runner
 from dlt.common.storages import LiveSchemaStorage, NormalizeStorage
@@ -33,22 +37,25 @@ from dlt.destinations.job_client_impl import SqlJobClientBase
 from dlt.load.configuration import LoaderConfiguration
 from dlt.load import Load
 
-from dlt.pipeline.exceptions import CannotRestorePipelineException, PipelineConfigMissing, MissingDependencyException, PipelineStepFailed, SqlClientNotAvailable
-from dlt.pipeline.typing import TPipelineStep, TPipelineState
-from dlt.pipeline.configuration import StateInjectableContext
+from dlt.pipeline.exceptions import CannotRestorePipelineException, InvalidPipelineName, PipelineConfigMissing, PipelineStepFailed, SqlClientNotAvailable
+from dlt.pipeline.typing import TPipelineStep
+from dlt.pipeline.state import STATE_ENGINE_VERSION, TPipelineState, load_state_from_destination, merge_state, state_resource, StateInjectableContext
 
 
-def with_state_sync(f: TFun) -> TFun:
+def with_state_sync(extract_state: bool = False) -> Callable[[TFun], TFun]:
 
-    @wraps(f)
-    def _wrap(self: "Pipeline", *args: Any, **kwargs: Any) -> Any:
-        # backup and restore state
-        with self._managed_state() as state:
-            # add the state to container as a context
-            with self._container.injectable_context(StateInjectableContext(state=state)):
-                return f(self, *args, **kwargs)
+    def decorator(f: TFun) -> TFun:
+        @wraps(f)
+        def _wrap(self: "Pipeline", *args: Any, **kwargs: Any) -> Any:
+            # backup and restore state
+            with self._managed_state(extract_state=extract_state) as state:
+                # add the state to container as a context
+                with self._container.injectable_context(StateInjectableContext(state=state)):
+                    return f(self, *args, **kwargs)
 
-    return _wrap  # type: ignore
+        return _wrap  # type: ignore
+
+    return decorator
 
 def with_schemas_sync(f: TFun) -> TFun:
 
@@ -83,11 +90,13 @@ class Pipeline:
 
     pipeline_name: str
     default_schema_name: str = None
+    schema_names: List[str] = []
     full_refresh: bool
     working_dir: str
     pipeline_root: str
     destination: DestinationReference = None
     dataset_name: str = None
+    credentials: Any = None
 
     def __init__(
             self,
@@ -96,10 +105,12 @@ class Pipeline:
             pipeline_secret: TSecretValue,
             destination: DestinationReference,
             dataset_name: str,
+            credentials: Any,
             import_schema_path: str,
             export_schema_path: str,
             full_refresh: bool,
-            must_restore_pipeline: bool,
+            must_attach_to_local_pipeline: bool,
+            restore_from_destination: bool,
             runtime: RunConfiguration
         ) -> None:
         self.pipeline_secret = pipeline_secret
@@ -107,8 +118,9 @@ class Pipeline:
         self.full_refresh = full_refresh
 
         self._container = Container()
+        # TODO: pass default normalizers as context or as config with defaults
+        self._default_naming, _ = import_normalizers(default_normalizers())
         self._pipeline_instance_id = pendulum.now().format("_YYYYMMDDhhmmss")
-        # self._state: TPipelineState = {}  # type: ignore
         self._pipeline_storage: FileStorage = None
         self._schema_storage: LiveSchemaStorage = None
         self._schema_storage_config: SchemaVolumeConfiguration = None
@@ -118,15 +130,26 @@ class Pipeline:
         initialize_runner(self.runtime_config)
         # initialize pipeline working dir
         self._init_working_dir(pipeline_name, working_dir)
-        # initialize or restore state
-        with self._managed_state() as state:
+
+        # set destination and dataset, those may be overwritten by state but we'll need them to eventually restore state
+        self.destination = destination or self.destination  # changing the destination could be dangerous if pipeline has not loaded items
+        self._set_dataset_name(dataset_name)
+        self.credentials = credentials
+
+        # do not restore from destination if full refresh or must must attach to local working folder
+        restore_from_destination = not must_attach_to_local_pipeline and not full_refresh and restore_from_destination
+        # require dataset name to be present if restoring
+        if restore_from_destination and not dataset_name:
+            raise PipelineConfigMissing(self.pipeline_name, "dataset_name", "init", "When requesting the pipeline to be restored from the destination, 'dataset_name` must be passed explicitly or configured via config providers.")
+        with self._managed_state(restore_from_destination=restore_from_destination) as state:
             # see if state didn't change the pipeline name
             if "pipeline_name" in state and pipeline_name != state["pipeline_name"]:
                 raise CannotRestorePipelineException(pipeline_name, working_dir, f"working directory contains state for pipeline with name {self.pipeline_name}")
             # at this moment state is recovered so we overwrite the state with the values from init
             self.destination = destination or self.destination  # changing the destination could be dangerous if pipeline has not loaded items
             self._set_dataset_name(dataset_name)
-            self._configure(import_schema_path, export_schema_path, must_restore_pipeline)
+            self._configure(import_schema_path, export_schema_path, must_attach_to_local_pipeline)
+            self._restore_schemas_from_destination()
 
     def drop(self) -> "Pipeline":
         """Deletes existing pipeline state, schemas and drops datasets at the destination if present"""
@@ -144,9 +167,11 @@ class Pipeline:
             self.pipeline_secret,
             self.destination,
             self.dataset_name,
+            self.credentials,
             self._schema_storage.config.import_schema_path,
             self._schema_storage.config.export_schema_path,
             self.full_refresh,
+            False,
             False,
             self.runtime_config
         )
@@ -175,8 +200,8 @@ class Pipeline:
     # ) -> None:
     #     ...
 
-    @with_schemas_sync
-    @with_state_sync
+    @with_schemas_sync  # this must precede with_state_sync
+    @with_state_sync(extract_state=True)  # extract pipeline state with the package
     @with_config_namespace(("extract",))
     def extract(
         self,
@@ -204,7 +229,9 @@ class Pipeline:
                 return schema
             if self.default_schema_name:
                 return self.default_schema
-            return Schema(self.pipeline_name)
+            return self._make_schema_with_default_name()
+
+        effective_schema = choose_schema()
 
         # a list of sources or a list of resources may be passed as data
         sources: List[DltSource] = []
@@ -224,7 +251,7 @@ class Pipeline:
                 # apply hints
                 apply_hint_args(data_item)
                 # package resource in source
-                return DltSource(choose_schema(), [data_item])
+                return DltSource(effective_schema.name, effective_schema, [data_item])
 
             # iterator/iterable/generator
             # create resource first without table template
@@ -232,12 +259,12 @@ class Pipeline:
             # apply hints
             apply_hint_args(resource)
             # wrap resource in source
-            return DltSource(choose_schema(), [resource])
+            return DltSource(effective_schema.name, effective_schema, [resource])
 
         if isinstance(data, C_Sequence) and len(data) > 0:
             # if first element is source or resource
             if isinstance(data[0], DltResource):
-                sources.append(item_to_source(DltSource(choose_schema(), data)))
+                sources.append(item_to_source(DltSource(effective_schema.name, effective_schema, data)))
             elif isinstance(data[0], DltSource):
                 for s in data:
                     sources.append(item_to_source(s))
@@ -252,7 +279,7 @@ class Pipeline:
                 self._extract_source(s, max_parallel_items, workers)
         except Exception as exc:
             # TODO: provide metrics from extractor
-            raise PipelineStepFailed("extract", exc, runner.LAST_RUN_METRICS) from exc
+            raise PipelineStepFailed(self.pipeline_name, "extract", exc, runner.LAST_RUN_METRICS) from exc
 
 
     @with_schemas_sync
@@ -282,8 +309,8 @@ class Pipeline:
             normalize = Normalize(config=normalize_config, schema_storage=self._schema_storage)
             self._run_step_in_pool("normalize", normalize, normalize.config)
 
+    @with_state_sync()
     @with_schemas_sync
-    @with_state_sync
     @with_config_namespace(("load",))
     def load(
         self,
@@ -304,12 +331,13 @@ class Pipeline:
         # set destination and default dataset if provided
         self.destination = destination or self.destination
         self._set_dataset_name(dataset_name)
+        self.credentials = credentials
         # check if any schema is present, if not then no data was extracted
         if not self.default_schema_name:
             return None
 
         # make sure that destination is set and client is importable and can be instantiated
-        client_initial_config = self._get_destination_client_initial_config(credentials)
+        client_initial_config = self._get_destination_client_initial_config()
         self._get_destination_client(self.default_schema, client_initial_config)
 
         # create initial loader config and the loader
@@ -398,12 +426,17 @@ class Pipeline:
             client.update_storage_schema()
 
     def sql_client(self, schema_name: str = None, credentials: Any = None) -> SqlClientBase[Any]:
+        if not self.default_schema_name:
+            raise PipelineConfigMissing(self.pipeline_name, "default_schema_name", "load", "Sql Client is not available in a pipeline without a default schema. Extract some data first or restore the pipeline from the destination using 'restore_from_destination' flag. There's also `_inject_schema` method for advanced users.")
         schema = self.schemas[schema_name] if schema_name else self.default_schema
-        with self._get_destination_client(schema, self._get_destination_client_initial_config(credentials)) as client:
-            if isinstance(client, SqlJobClientBase):
-                return client.sql_client
-            else:
-                raise SqlClientNotAvailable(self.destination.__name__)
+        return self._sql_job_client(schema, credentials).sql_client
+
+    def _sql_job_client(self, schema: Schema, credentials: Any = None) -> SqlJobClientBase:
+        client = self._get_destination_client(schema, self._get_destination_client_initial_config(credentials))
+        if isinstance(client, SqlJobClientBase):
+            return client
+        else:
+            raise SqlClientNotAvailable(self.pipeline_name, self.destination.__name__)
 
     def _get_normalize_storage(self) -> NormalizeStorage:
         return NormalizeStorage(True, self._normalize_storage_config)
@@ -415,8 +448,8 @@ class Pipeline:
     def _init_working_dir(self, pipeline_name: str, working_dir: str) -> None:
         self.pipeline_name = pipeline_name
         self.working_dir = working_dir
+        self._validate_pipeline_name()
         # compute the folder that keeps all of the pipeline state
-        FileStorage.validate_file_name_component(self.pipeline_name)
         self.pipeline_root = os.path.join(working_dir, pipeline_name)
         # create pipeline storage, do not create working dir yet
         self._pipeline_storage = FileStorage(self.pipeline_root, makedirs=False)
@@ -424,24 +457,25 @@ class Pipeline:
         if self.full_refresh:
             self._wipe_working_folder()
 
-    def _configure(self, import_schema_path: str, export_schema_path: str, must_restore_pipeline: bool) -> None:
-        # create default configs
+    def _configure(self, import_schema_path: str, export_schema_path: str, must_attach_to_local_pipeline: bool) -> None:
+        # create schema storage and folders
         self._schema_storage_config = SchemaVolumeConfiguration(
             schema_volume_path=os.path.join(self.pipeline_root, "schemas"),
             import_schema_path=import_schema_path,
             export_schema_path=export_schema_path
         )
+        # create default configs
         self._normalize_storage_config = NormalizeVolumeConfiguration(normalize_volume_path=os.path.join(self.pipeline_root, "normalize"))
         self._load_storage_config = LoadVolumeConfiguration(load_volume_path=os.path.join(self.pipeline_root, "load"),)
 
         # are we running again?
         has_state = self._pipeline_storage.has_file(Pipeline.STATE_FILE)
-        if must_restore_pipeline and not has_state:
+        if must_attach_to_local_pipeline and not has_state:
             raise CannotRestorePipelineException(self.pipeline_name, self.working_dir, f"the pipeline was not found in {self.pipeline_root}.")
 
-        # restore pipeline if folder exists and contains state
+        # attach to pipeline if folder exists and contains state
         if has_state:
-            self._restore_pipeline()
+            self._attach_pipeline()
         else:
             # this will erase the existing working folder
             self._create_pipeline()
@@ -458,7 +492,7 @@ class Pipeline:
         if self._pipeline_storage.has_folder(""):
             self._pipeline_storage.delete_folder("", recursively=True)
 
-    def _restore_pipeline(self) -> None:
+    def _attach_pipeline(self) -> None:
         pass
 
     def _extract_source(self, source: DltSource, max_parallel_items: int, workers: int) -> None:
@@ -475,37 +509,41 @@ class Pipeline:
             should_initialize_import = True
             # save schema into the pipeline
             self._schema_storage.save_schema(source_schema)
-            pipeline_schema = self._schema_storage[source_schema.name]
-        else:
-            # get the current schema and merge tables from source_schema, we'll not merge the high level props
-            pipeline_schema = self._schema_storage[source_schema.name]
-            for table in source_schema.all_tables():
-                pipeline_schema.update_schema(pipeline_schema.normalize_table_identifiers(table))
+        pipeline_schema = self._schema_storage[source_schema.name]
+
         # and set as default if this is first schema in pipeline
         if not self.default_schema_name:
-            self.default_schema_name = source_schema.name
+            # this performs additional validations as schema contains the naming module
+            self._set_default_schema_name(source_schema)
 
+        # get the current schema and merge tables from source_schema, we'll not merge the high level props
+        for table in source_schema.all_tables():
+            pipeline_schema.update_schema(pipeline_schema.normalize_table_identifiers(table))
 
+        self._iterate_source(source, pipeline_schema, max_parallel_items, workers)
+
+        # initialize import with fully discovered schema
+        if should_initialize_import:
+            self._schema_storage.initialize_import_schema(pipeline_schema)
+
+    def _iterate_source(self, source: DltSource, pipeline_schema: Schema, max_parallel_items: int, workers: int) -> None:
+        # TODO: create source context
         # iterate over all items in the pipeline and update the schema if dynamic table hints were present
         storage = ExtractorStorage(self._normalize_storage_config)
         for _, partials in extract(source, storage, max_parallel_items=max_parallel_items, workers=workers).items():
             for partial in partials:
                 pipeline_schema.update_schema(pipeline_schema.normalize_table_identifiers(partial))
 
-        # initialize import with fully discovered schema
-        if should_initialize_import:
-            self._schema_storage.initialize_import_schema(pipeline_schema)
-
     def _run_step_in_pool(self, step: TPipelineStep, runnable: Runnable[Any], config: PoolRunnerConfiguration) -> int:
         try:
             ec = runner.run_pool(config, runnable)
             # in any other case we raise if runner exited with status failed
             if runner.LAST_RUN_METRICS.has_failed:
-                raise PipelineStepFailed(step, self.last_run_exception, runner.LAST_RUN_METRICS)
+                raise PipelineStepFailed(self.pipeline_name, step, self.last_run_exception, runner.LAST_RUN_METRICS)
             return ec
         except Exception as r_ex:
             # if EXIT_ON_EXCEPTION flag is set, exception will bubble up directly
-            raise PipelineStepFailed(step, self.last_run_exception, runner.LAST_RUN_METRICS) from r_ex
+            raise PipelineStepFailed(self.pipeline_name, step, self.last_run_exception, runner.LAST_RUN_METRICS) from r_ex
         finally:
             signals.raise_if_signalled()
 
@@ -533,18 +571,18 @@ class Pipeline:
     def _get_destination_client_initial_config(self, credentials: Any = None) -> DestinationClientConfiguration:
         if not self.destination:
             raise PipelineConfigMissing(
+                self.pipeline_name,
                 "destination",
                 "load",
                 "Please provide `destination` argument to `pipeline`, `run` or `load` method directly or via .dlt config.toml file or environment variable."
             )
-        dataset_name = self._get_dataset_name()
         # create initial destination client config
         client_spec = self.destination.spec()
         if issubclass(client_spec, DestinationClientDwhConfiguration):
             # client support schemas and datasets
-            return client_spec(dataset_name=dataset_name, default_schema_name=self.default_schema_name, credentials=credentials)
+            return client_spec(dataset_name=self.dataset_name, default_schema_name=self.default_schema_name, credentials=credentials or self.credentials)
         else:
-            return client_spec(credentials=credentials)
+            return client_spec(credentials=credentials or self.credentials)
 
     def _get_destination_client(self, schema: Schema, initial_config: DestinationClientConfiguration = None) -> JobClientBase:
         try:
@@ -563,26 +601,52 @@ class Pipeline:
     def _get_destination_capabilities(self) -> DestinationCapabilitiesContext:
         if not self.destination:
                 raise PipelineConfigMissing(
+                    self.pipeline_name,
                     "destination",
                     "normalize",
                     "Please provide `destination` argument to `pipeline`, `run` or `load` method directly or via .dlt config.toml file or environment variable."
                 )
         return self.destination.capabilities()
 
+    def _validate_pipeline_name(self) -> None:
+        try:
+            FileStorage.validate_file_name_component(self.pipeline_name)
+        except ValueError as ve_ex:
+            raise InvalidPipelineName(self.pipeline_name, str(ve_ex))
+
+    def _make_schema_with_default_name(self) -> Schema:
+        # make a schema from the pipeline name using the name normalizer
+        return Schema(self.pipeline_name, normalize_name=True)
+
+    def _validate_dataset_name(self, dataset_name: str) -> None:
+        normalized_name = self._default_naming.normalize_schema_name(dataset_name)
+        if normalized_name != dataset_name:
+            raise InvalidDatasetName(dataset_name, normalized_name)
+
     def _set_dataset_name(self, dataset_name: str) -> None:
-        # in case of full refresh add unique suffix to
-        if self.full_refresh and dataset_name:
-            dataset_name += "_" + self._pipeline_instance_id
-        self.dataset_name = dataset_name or self.dataset_name
+        if not dataset_name:
+            if not self.dataset_name:
+                # set default dataset name from pipeline name
+                dataset_name = self._default_naming.normalize_schema_name(self.pipeline_name)
+            else:
+                return
 
-    def _get_dataset_name(self) -> str:
-        if self.dataset_name:
-            return self.dataset_name
-
+        # in case of full refresh add unique suffix
         if self.full_refresh:
-            return self.pipeline_name + "_" + self._pipeline_instance_id  # type: ignore
-        else:
-            return self.pipeline_name
+            dataset_name += self._pipeline_instance_id
+        self._validate_dataset_name(dataset_name)
+        self.dataset_name = dataset_name
+
+    def _set_default_schema_name(self, schema: Schema) -> None:
+        assert self.default_schema_name is None
+        self.default_schema_name = schema.name
+
+    @with_state_sync()
+    def _inject_schema(self, schema: Schema) -> None:
+        """Injects a schema into the pipeline. Existing schema will be overwritten"""
+        self._schema_storage.save_schema(schema)
+        if not self.default_schema_name:
+            self._set_default_schema_name(schema)
 
     def _get_load_info(self, load: Load) -> LoadInfo:
         # TODO: Load must provide a clear interface to get last loads and metrics
@@ -606,20 +670,86 @@ class Pipeline:
             failed_packages
         )
 
-    def _get_state(self) -> TPipelineState:
+    def _get_state(self, restore_from_destination: bool = False) -> TPipelineState:
         try:
             state: TPipelineState = json.loads(self._pipeline_storage.load(Pipeline.STATE_FILE))
         except FileNotFoundError:
-            state = {}
+            if restore_from_destination:
+                state = self._restore_state_from_destination()
+            else:
+                state = None
+
+        # initial state
+        if not state:
+            state = {
+                "_state_version": 1,
+                "_state_engine_version": STATE_ENGINE_VERSION
+            }
         return state
 
+    def _optional_sql_job_client(self, schema_name: str) -> Optional[SqlJobClientBase]:
+        try:
+            return self._sql_job_client(Schema(schema_name))
+        except PipelineConfigMissing as pip_ex:
+            # fallback to regular init if destination not configured
+            logger.info(f"Sql Client not available: {pip_ex}")
+        except SqlClientNotAvailable:
+            # fallback is sql client not available for destination
+            logger.info("Client not available because destination does not support sql client")
+        except ConfigFieldMissingException:
+            # probably credentials are missing
+            logger.info("Client not available due to missing credentials")
+        return None
+
+    def _restore_state_from_destination(self) -> Optional[TPipelineState]:
+        # if state is not present locally, take the state from the destination
+        dataset_name = self.dataset_name
+        try:
+            # patch the default schema name so we load exactly in the dataset
+            assert self.default_schema_name is None
+            self.default_schema_name = dataset_name
+            job_client = self._optional_sql_job_client(dataset_name)
+            if job_client:
+                with job_client.sql_client as sql_client:
+                    state = load_state_from_destination(self.pipeline_name, sql_client)
+                    if state is None:
+                        logger.info(f"The state was not found in the destination {self.destination.__name__}:{dataset_name}")
+                    else:
+                        logger.info(f"The state was restored from the destination {self.destination.__name__}:{dataset_name}")
+                    return state
+            else:
+                return None
+        finally:
+            self.default_schema_name = None
+
+    def _restore_schemas_from_destination(self) -> None:
+        # check which schemas are present in the pipeline and restore missing schemas
+        # existing_schemas = set(self._schema_storage.list_schemas())
+        for schema_name in self.schema_names:
+            if not self._schema_storage.has_schema(schema_name):
+                # assume client always exist
+                with self._optional_sql_job_client(schema_name) as job_client:
+                    schema_info = job_client.get_newest_schema_from_storage()
+                    if schema_info is None:
+                        logger.info(f"The schema {schema_name} was not found in the destination {self.destination.__name__}:{job_client.sql_client.default_dataset_name}. Default schema was placed instead")
+                        # try to import schema
+                        try:
+                            self._schema_storage.load_schema(schema_name)
+                        except FileNotFoundError:
+                            self._schema_storage.save_schema(job_client.schema)
+                    else:
+                        logger.info(f"The schema {schema_name} was restored from the destination {self.destination.__name__}:{job_client.sql_client.default_dataset_name}")
+                        schema = Schema.from_dict(json.loads(schema_info.schema))
+                        self._schema_storage.save_schema(schema)
+
     @contextmanager
-    def _managed_state(self) -> Iterator[TPipelineState]:
+    def _managed_state(self, *, restore_from_destination: bool = False, extract_state: bool = False) -> Iterator[TPipelineState]:
         # load current state
-        state = self._get_state()
+        state = self._get_state(restore_from_destination)
+
         # write props to pipeline variables
         for prop in Pipeline.STATE_PROPS:
-            if prop in state:
+            if prop in state and not prop.startswith("_"):
                 setattr(self, prop, state.get(prop))
         if "destination" in state:
             self.destination = DestinationReference.from_name(self.destination)
@@ -627,21 +757,23 @@ class Pipeline:
         try:
             yield state
         except Exception:
-            # restore old state
             # currently do nothing - state is not preserved in memory, only saved
             raise
         else:
             # update state props
             for prop in Pipeline.STATE_PROPS:
-                state[prop] = getattr(self, prop)  # type: ignore
+                if not prop.startswith("_"):
+                    state[prop] = getattr(self, prop)  # type: ignore
             if self.destination:
                 state["destination"] = self.destination.__name__
+            state["schema_names"] = self._schema_storage.list_schemas()
 
-            # load state from storage to be merged with pipeline changes, currently we assume no parallel changes
-            # compare backup and new state, save only if different
             backup_state = self._get_state()
-            new_state = json.dumps(state, sort_keys=True)
-            old_state = json.dumps(backup_state, sort_keys=True)
-            # persist old state
-            if new_state != old_state:
-                self._pipeline_storage.save(Pipeline.STATE_FILE, new_state)
+            merged_state = merge_state(backup_state, state)
+            if merged_state:
+                if extract_state:
+                    # this will extract the state into current load package and update the schema with the _dlt_pipeline_state table
+                    # note: the schema will be persisted because the schema saving decorator is over the state manager decorator for extract
+                    state_source = DltSource("pipeline_state", self.default_schema, [state_resource(merged_state)])
+                    self._iterate_source(state_source, self.default_schema, 1, 1)
+                self._pipeline_storage.save(Pipeline.STATE_FILE, json.dumps(merged_state))

@@ -1,4 +1,6 @@
 import platform
+
+from dlt.destinations.postgres.sql_client import Psycopg2SqlClient
 if platform.python_implementation() == "PyPy":
     import psycopg2cffi as psycopg2
     # from psycopg2cffi.sql import SQL, Composed
@@ -12,7 +14,7 @@ from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SC
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.schema import TColumnSchema, TDataType, TColumnHint, Schema
 
-from dlt.destinations.exceptions import LoadClientTerminalInnerException
+from dlt.destinations.exceptions import DatabaseTerminalException
 
 from dlt.destinations.redshift import capabilities
 from dlt.destinations.redshift.configuration import RedshiftClientConfiguration
@@ -48,10 +50,28 @@ HINT_TO_REDSHIFT_ATTR: Dict[TColumnHint, str] = {
 }
 
 
+class RedshiftSqlClient(Psycopg2SqlClient):
+    @staticmethod
+    def _maybe_make_terminal_exception_from_data_error(pg_ex: psycopg2.DataError) -> Optional[Exception]:
+        if "Cannot insert a NULL value into column" in pg_ex.pgerror:
+            # NULL violations is internal error, probably a redshift thing
+            return DatabaseTerminalException(pg_ex)
+        if "Numeric data overflow" in pg_ex.pgerror:
+            return DatabaseTerminalException(pg_ex)
+        if "Precision exceeds maximum" in pg_ex.pgerror:
+            return DatabaseTerminalException(pg_ex)
+        return None
+
+
 class RedshiftClient(PostgresClientBase):
 
     def __init__(self, schema: Schema, config: RedshiftClientConfiguration) -> None:
-        super().__init__(schema, config)
+        sql_client = RedshiftSqlClient (
+            schema.normalize_make_dataset_name(config.dataset_name, config.default_schema_name, schema.name),
+            config.credentials
+        )
+        super().__init__(schema, config, sql_client)
+        self.sql_client = sql_client
         self.config: RedshiftClientConfiguration = config
         self.caps = self.capabilities()
 
@@ -72,17 +92,6 @@ class RedshiftClient(PostgresClientBase):
             if precision == DEFAULT_NUMERIC_PRECISION and scale == 0:
                 return "wei"
         return PGT_TO_SCT.get(pq_t, "text")
-
-    @staticmethod
-    def _maybe_raise_terminal_exception(pg_ex: psycopg2.DataError) -> None:
-        if pg_ex.pgerror is not None:
-            if "Cannot insert a NULL value into column" in pg_ex.pgerror:
-                # NULL violations is internal error, probably a redshift thing
-                raise LoadClientTerminalInnerException("Terminal error, file will not load", pg_ex)
-            if "Numeric data overflow" in pg_ex.pgerror:
-                raise LoadClientTerminalInnerException("Terminal error, file will not load", pg_ex)
-            if "Precision exceeds maximum" in pg_ex.pgerror:
-                raise LoadClientTerminalInnerException("Terminal error, file will not load", pg_ex)
 
     @classmethod
     def capabilities(cls) -> DestinationCapabilitiesContext:
