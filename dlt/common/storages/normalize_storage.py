@@ -41,7 +41,7 @@ class NormalizeStorage(VersionedStorage):
     def list_files_to_normalize_sorted(self) -> Sequence[str]:
         return sorted(self.storage.list_folder_files(NormalizeStorage.EXTRACTED_FOLDER))
 
-    def get_grouped_iterator(self, files: Sequence[str]) -> "groupby[str, str]":
+    def group_by_schema(self, files: Sequence[str]) -> "groupby[str, str]":
         return groupby(files, NormalizeStorage.get_schema_name)
 
     @staticmethod

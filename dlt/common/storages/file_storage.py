@@ -1,4 +1,5 @@
 import os
+import re
 import tempfile
 import shutil
 import pathvalidate
@@ -6,6 +7,8 @@ from typing import IO, Any, List
 
 from dlt.common.utils import encoding_for_mode
 
+
+FILE_COMPONENT_INVALID_CHARACTERS = re.compile(r"[.%{}]")
 
 class FileStorage:
     def __init__(self,
@@ -149,5 +152,5 @@ class FileStorage:
         # Universal platform bans several characters allowed in POSIX ie. | < \ or "COM1" :)
         pathvalidate.validate_filename(name, platform="Universal")
         # component cannot contain "."
-        if "." in name:
-            raise pathvalidate.error.InvalidCharError(reason="Component name cannot contain . (dots)")
+        if FILE_COMPONENT_INVALID_CHARACTERS.search(name):
+            raise pathvalidate.error.InvalidCharError(description="Component name cannot contain the following characters: . % { }")

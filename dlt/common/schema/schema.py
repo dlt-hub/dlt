@@ -1,5 +1,4 @@
 import yaml
-from importlib import import_module
 from copy import copy
 from typing import ClassVar, Dict, List, Mapping, Optional, Sequence, Tuple, Any, cast
 from dlt.common import json
@@ -19,9 +18,9 @@ from dlt.common.validation import validate_dict
 class Schema:
     ENGINE_VERSION: ClassVar[int] = 5
 
-    def __init__(self, name: str, normalizers: TNormalizersConfig = None) -> None:
+    def __init__(self, name: str, normalizers: TNormalizersConfig = None, normalize_name: bool = False) -> None:
         self._schema_tables: TSchemaTables = {}
-        self._schema_name: str = name
+        self._schema_name: str = None
         self._stored_version = 1  # version at load/creation time
         self._stored_version_hash: str = None  # version hash at load/creation time
         self._imported_version_hash: str = None  # version hash of recently imported schema
@@ -57,7 +56,7 @@ class Schema:
         # configure normalizers, including custom config if present
         self._configure_normalizers()
         # verify schema name after configuring normalizers
-        self._verify_schema_name(name)
+        self._set_schema_name(name, normalize_name)
         # compile all known regexes
         self._compile_regexes()
         # set initial version hash
@@ -426,11 +425,9 @@ class Schema:
     def _configure_normalizers(self) -> None:
         if not self._normalizers_config:
             # create default normalizer config
-            # TODO: pass default normalizers as context or as config with defaults
             self._normalizers_config = utils.default_normalizers()
         # import desired modules
-        naming_module = import_module(self._normalizers_config["names"])
-        json_module = import_module(self._normalizers_config["json"]["module"])
+        naming_module, json_module = utils.import_normalizers(self._normalizers_config)
         # name normalization functions
         self.normalize_table_name = naming_module.normalize_table_name
         self.normalize_column_name = naming_module.normalize_column_name
@@ -442,9 +439,14 @@ class Schema:
         self.normalize_data_item = json_module.normalize_data_item
         json_module.extend_schema(self)
 
-    def _verify_schema_name(self, name: str) -> None:
-        if name != self.normalize_schema_name(name):
-            raise InvalidSchemaName(name, self.normalize_schema_name(name))
+    def _set_schema_name(self, name: str, normalize_name: bool) -> None:
+        normalized_name = self.normalize_schema_name(name)
+        if name != normalized_name:
+            if normalize_name:
+                name = normalized_name
+            else:
+                raise InvalidSchemaName(name, normalized_name)
+        self._schema_name = name
 
     def _compile_regexes(self) -> None:
         if self._settings:
