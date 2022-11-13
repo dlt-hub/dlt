@@ -1,6 +1,6 @@
 from typing import Sequence
 from dlt.common.exceptions import DltException
-from dlt.destinations.exceptions import LoadClientTerminalException
+from dlt.destinations.exceptions import DestinationTerminalException
 
 
 class LoadException(DltException):
@@ -8,7 +8,7 @@ class LoadException(DltException):
         super().__init__(msg)
 
 
-class LoadClientUnsupportedFileFormats(LoadClientTerminalException):
+class LoadClientUnsupportedFileFormats(DestinationTerminalException):
     def __init__(self, file_format: str, supported_file_format: Sequence[str], file_path: str) -> None:
         self.file_format = file_format
         self.supported_types = supported_file_format
@@ -16,7 +16,7 @@ class LoadClientUnsupportedFileFormats(LoadClientTerminalException):
         super().__init__(f"Loader does not support writer {file_format} in  file {file_path}. Supported writers: {supported_file_format}")
 
 
-class LoadClientUnsupportedWriteDisposition(LoadClientTerminalException):
+class LoadClientUnsupportedWriteDisposition(DestinationTerminalException):
     def __init__(self, table_name: str, write_disposition: str, file_name: str) -> None:
         self.table_name = table_name
         self.write_disposition = write_disposition

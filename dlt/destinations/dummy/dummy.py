@@ -9,7 +9,7 @@ from dlt.common.schema.typing import TTableSchema
 from dlt.common.destination import DestinationCapabilitiesContext, JobClientBase, LoadJob, TLoadJobStatus
 
 from dlt.destinations.exceptions import (LoadJobNotExistsException, LoadJobInvalidStateTransitionException,
-                                            LoadClientTerminalException, LoadClientTransientException)
+                                            DestinationTerminalException, DestinationTransientException)
 
 from dlt.destinations.dummy import capabilities
 from dlt.destinations.dummy.configuration import DummyClientConfiguration
@@ -27,9 +27,9 @@ class LoadDummyJob(LoadJob):
         super().__init__(file_name)
         s = self.status()
         if s == "failed":
-            raise LoadClientTerminalException(self._exception)
+            raise DestinationTerminalException(self._exception)
         if s == "retry":
-            raise LoadClientTransientException(self._exception)
+            raise DestinationTransientException(self._exception)
 
 
     def status(self) -> TLoadJobStatus:

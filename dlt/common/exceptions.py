@@ -1,4 +1,4 @@
-from typing import Any, AnyStr
+from typing import Any, AnyStr, Sequence
 
 
 class DltException(Exception):
@@ -88,4 +88,45 @@ class ArgumentsOverloadException(DltException):
         self.func_name = func_name
         msg = f"Arguments combination not allowed when calling function {func_name}: {msg}"
         msg = "\n".join((msg, *args))
+        super().__init__(msg)
+
+
+class MissingDependencyException(DltException):
+    def __init__(self, caller: str, dependencies: Sequence[str], appendix: str = "") -> None:
+        self.caller = caller
+        self.dependencies = dependencies
+        super().__init__(self._get_msg(appendix))
+
+    def _get_msg(self, appendix: str) -> str:
+        msg = f"""
+You must install additional dependencies to run {self.caller}. If you use pip you may do the following:
+
+{self._to_pip_install()}
+"""
+        if appendix:
+            msg = msg + "\n" + appendix
+        return msg
+
+    def _to_pip_install(self) -> str:
+        return "\n".join([f"pip install {d}" for d in self.dependencies])
+
+
+class DestinationException(DltException):
+    pass
+
+
+class UnknownDestinationModule(DestinationException):
+    def __init__(self, destination_module: str) -> None:
+        self.destination_module = destination_module
+        if "." in destination_module:
+            msg = f"Destination module {destination_module} could not be found and imported"
+        else:
+            msg = f"Destination {destination_module} is not one of the standard dlt destinations"
+        super().__init__(msg)
+
+
+class InvalidDestinationReference(DestinationException):
+    def __init__(self, destination_module: Any) -> None:
+        self.destination_module = destination_module
+        msg = f"Destination {destination_module} is not a valid destination module."
         super().__init__(msg)

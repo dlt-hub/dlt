@@ -15,12 +15,10 @@ from dlt.common.utils import uniq_id
 from dlt.destinations.sql_client import DBCursor
 from dlt.destinations.job_client_impl import SqlJobClientBase
 
-from tests.utils import TEST_STORAGE_ROOT, delete_test_storage
+from tests.utils import TEST_STORAGE_ROOT, ALL_DESTINATIONS, delete_test_storage
 from tests.common.utils import load_json_case
-from tests.load.utils import TABLE_UPDATE, TABLE_UPDATE_COLUMNS_SCHEMA, TABLE_ROW, expect_load_file, yield_client_with_storage, cm_yield_client_with_storage, write_dataset, prepare_table
-
-ALL_CLIENTS = ["redshift_client", "bigquery_client", "postgres_client"]
-ALL_CLIENT_TYPES = ["bigquery", "redshift", "postgres"]
+from tests.load.utils import (TABLE_UPDATE, TABLE_UPDATE_COLUMNS_SCHEMA, TABLE_ROW, expect_load_file, yield_client_with_storage,
+                                cm_yield_client_with_storage, write_dataset, prepare_table, ALL_CLIENTS)
 
 
 @pytest.fixture
@@ -33,22 +31,22 @@ def auto_delete_storage() -> None:
     delete_test_storage()
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def redshift_client() -> Iterator[SqlJobClientBase]:
     yield from yield_client_with_storage("redshift")
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def bigquery_client() -> Iterator[SqlJobClientBase]:
     yield from yield_client_with_storage("bigquery")
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def postgres_client() -> Iterator[SqlJobClientBase]:
     yield from yield_client_with_storage("postgres")
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def client(request) -> SqlJobClientBase:
     yield request.getfixturevalue(request.param)
 
@@ -154,24 +152,6 @@ def test_complete_load(client: SqlJobClientBase) -> None:
     client.complete_load("load2")
     load_rows = list(client.sql_client.execute_sql(f"SELECT * FROM {load_table}"))
     assert len(load_rows) == 2
-
-
-@pytest.mark.parametrize('client', ALL_CLIENTS, indirect=True)
-def test_query_iterator(client: SqlJobClientBase) -> None:
-    client.update_storage_schema()
-    load_id = "182879721.182912"
-    client.complete_load(load_id)
-    curr: DBCursor
-    # get data from unqualified name
-    with client.sql_client.execute_query(f"SELECT * FROM {LOADS_TABLE_NAME} ORDER BY inserted_at") as curr:
-        columns = [c[0] for c in curr.description]
-        data = curr.fetchall()
-
-    # get data from qualified name
-    load_table = client.sql_client.make_qualified_table_name(LOADS_TABLE_NAME)
-    with client.sql_client.execute_query(f"SELECT * FROM {load_table} ORDER BY inserted_at") as curr:
-        assert [c[0] for c in curr.description] == columns
-        assert curr.fetchall() == data
 
 
 @pytest.mark.parametrize('client', ["redshift_client", "postgres_client"], indirect=True)
@@ -395,7 +375,7 @@ def test_retrieve_job(client: SqlJobClientBase, file_storage: FileStorage) -> No
     assert r_job.status() == "completed"
 
 
-@pytest.mark.parametrize('destination_name', ALL_CLIENT_TYPES)
+@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
 def test_default_schema_name_init_storage(destination_name: str) -> None:
     with cm_yield_client_with_storage(destination_name, initial_values={
             "default_schema_name": "event"  # pass the schema that is a default schema. that should create dataset with the name `dataset_name`

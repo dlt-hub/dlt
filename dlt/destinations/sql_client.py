@@ -1,7 +1,11 @@
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
+from functools import wraps
+import inspect
 from types import TracebackType
-from typing import Any, ContextManager, Generic, Iterator, Optional, Sequence, Tuple, Type, AnyStr, Protocol
+from typing import Any, ContextManager, Generic, Iterator, Optional, Sequence, Type, AnyStr
+from dlt.common.typing import TFun
+from dlt.destinations.exceptions import LoadClientNoConnection
 
 from dlt.destinations.typing import TNativeConn, DBCursor
 
@@ -27,6 +31,7 @@ class SqlClientBase(ABC, Generic[TNativeConn]):
     def __exit__(self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: TracebackType) -> None:
         self.close_connection()
 
+    @property
     @abstractmethod
     def native_connection(self) -> TNativeConn:
         pass
@@ -67,3 +72,42 @@ class SqlClientBase(ABC, Generic[TNativeConn]):
         finally:
             # restore previous dataset name
             self.default_dataset_name = current_dataset_name
+
+    def _ensure_native_conn(self) -> None:
+        if not self.native_connection:
+            raise LoadClientNoConnection(type(self).__name__ + ":" + self.default_dataset_name)
+
+    @staticmethod
+    @abstractmethod
+    def _make_database_exception(ex: Exception) -> Exception:
+        pass
+
+    @staticmethod
+    def is_dbapi_exception(ex: Exception) -> bool:
+        # crude way to detect dbapi DatabaseError: there's no common set of exceptions, each module must reimplement
+        mro = type.mro(type(ex))
+        return any(t.__name__ == "DatabaseError" for t in mro)
+
+
+def raise_database_error(f: TFun) -> TFun:
+
+    @wraps(f)
+    def _wrap_gen(self: SqlClientBase[Any], *args: Any, **kwargs: Any) -> Any:
+        try:
+            self._ensure_native_conn()
+            return (yield from f(self, *args, **kwargs))
+        except Exception as ex:
+            raise self._make_database_exception(ex)
+
+    @wraps(f)
+    def _wrap(self: SqlClientBase[Any], *args: Any, **kwargs: Any) -> Any:
+        try:
+            self._ensure_native_conn()
+            return f(self, *args, **kwargs)
+        except Exception as ex:
+            raise self._make_database_exception(ex)
+
+    if inspect.isgeneratorfunction(f):
+        return _wrap_gen  # type: ignore
+    else:
+        return _wrap  # type: ignore

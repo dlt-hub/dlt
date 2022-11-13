@@ -10,7 +10,7 @@ else:
     from psycopg2.sql import SQL, Composed
 
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Type
 
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 from dlt.common.destination import DestinationCapabilitiesContext, DestinationClientDwhConfiguration, LoadJob, TLoadJobStatus
@@ -18,9 +18,9 @@ from dlt.common.schema import COLUMN_HINTS, TColumnSchema, TColumnSchemaBase, TD
 from dlt.common.schema.typing import TTableSchema, TWriteDisposition
 from dlt.common.storages.file_storage import FileStorage
 
-from dlt.destinations.exceptions import LoadClientSchemaWillNotUpdate, LoadClientTerminalInnerException, LoadClientTransientInnerException
+from dlt.destinations.exceptions import DestinationSchemaWillNotUpdate
 from dlt.destinations.sql_client import SqlClientBase
-from dlt.destinations.job_client_impl import SqlJobClientBase, LoadEmptyJob, StorageSchemaInfo
+from dlt.destinations.job_client_impl import SqlJobClientBase, LoadEmptyJob
 
 from dlt.destinations.postgres import capabilities
 from dlt.destinations.postgres.sql_client import Psycopg2SqlClient
@@ -116,16 +116,6 @@ class InsertValuesLoadJob(LoadJob):
 
 class PostgresClientBase(SqlJobClientBase):
 
-    def __init__(self, schema: Schema, config: PostgresClientConfiguration) -> None:
-        sql_client = Psycopg2SqlClient(
-            schema.normalize_make_dataset_name(config.dataset_name, config.default_schema_name, schema.name),
-            config.credentials
-        )
-        super().__init__(schema, config, sql_client)
-        self.config: PostgresClientConfiguration = config
-        self.sql_client = sql_client
-        self.caps = self.capabilities()
-
     def initialize_storage(self, wipe_data: bool = False) -> None:
         if wipe_data:
             raise NotImplementedError()
@@ -139,20 +129,8 @@ class PostgresClientBase(SqlJobClientBase):
         return LoadEmptyJob.from_file_path(file_path, "completed")
 
     def start_file_load(self, table: TTableSchema, file_path: str) -> LoadJob:
-        try:
-            return InsertValuesLoadJob(table["name"], table["write_disposition"], file_path, self.sql_client)
-        except (psycopg2.OperationalError, psycopg2.InternalError) as pg_ex:
-            self._maybe_raise_terminal_exception(pg_ex)
-            raise LoadClientTransientInnerException("Error may go away, will retry", pg_ex)
-        except (psycopg2.DataError, psycopg2.ProgrammingError, psycopg2.IntegrityError) as ter_ex:
-            raise LoadClientTerminalInnerException("Terminal error, file will not load", ter_ex)
-
-    def _row_to_schema_info(self, query: str, *args: Any) -> StorageSchemaInfo:
-        try:
-            return super()._row_to_schema_info(query, *args)
-        except psycopg2.ProgrammingError:
-            # there's no table so there's no schema
-            return None
+        # this is using sql_client internally and will raise a right exception
+        return InsertValuesLoadJob(table["name"], table["write_disposition"], file_path, self.sql_client)
 
     def _build_schema_update_sql(self) -> List[str]:
         sql_updates = []
@@ -186,7 +164,7 @@ class PostgresClientBase(SqlJobClientBase):
             for hint in COLUMN_HINTS:
                 if any(c.get(hint, False) is True for c in new_columns):
                     hint_columns = [c["name"] for c in new_columns if c.get(hint, False)]
-                    raise LoadClientSchemaWillNotUpdate(canonical_name, hint_columns, f"{hint} requested after table was created")
+                    raise DestinationSchemaWillNotUpdate(canonical_name, hint_columns, f"{hint} requested after table was created")
         # TODO: add FK relations
         sql += "\nCOMMIT TRANSACTION;"
         return sql
@@ -249,16 +227,17 @@ class PostgresClientBase(SqlJobClientBase):
     def _pq_t_to_sc_t(pq_t: str, precision: Optional[int], scale: Optional[int]) -> TDataType:
         pass
 
-    @staticmethod
-    @abstractmethod
-    def _maybe_raise_terminal_exception(pg_ex: psycopg2.DataError) -> None:
-        pass
-
 
 class PostgresClient(PostgresClientBase):
 
     def __init__(self, schema: Schema, config: PostgresClientConfiguration) -> None:
-        super().__init__(schema, config)
+        sql_client = Psycopg2SqlClient(
+            schema.normalize_make_dataset_name(config.dataset_name, config.default_schema_name, schema.name),
+            config.credentials
+        )
+        super().__init__(schema, config, sql_client)
+        self.config: PostgresClientConfiguration = config
+        self.sql_client = sql_client
         self.caps = self.capabilities()
 
     def _get_column_def_sql(self, c: TColumnSchema) -> str:
@@ -278,10 +257,6 @@ class PostgresClient(PostgresClientBase):
             if precision == 2*EVM_DECIMAL_PRECISION and scale == EVM_DECIMAL_PRECISION:
                 return "wei"
         return PGT_TO_SCT.get(pq_t, "text")
-
-    @staticmethod
-    def _maybe_raise_terminal_exception(pg_ex: psycopg2.DataError) -> None:
-        pass
 
     @classmethod
     def capabilities(cls) -> DestinationCapabilitiesContext:

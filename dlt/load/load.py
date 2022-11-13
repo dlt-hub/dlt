@@ -15,7 +15,7 @@ from dlt.common.telemetry import get_logging_extras, set_gauge_all_labels
 from dlt.common.destination import JobClientBase, DestinationReference, LoadJob, TLoadJobStatus, DestinationClientConfiguration
 
 from dlt.destinations.job_client_impl import LoadEmptyJob
-from dlt.destinations.exceptions import LoadClientTerminalException, LoadClientTransientException, LoadJobNotExistsException, LoadUnknownTableException
+from dlt.destinations.exceptions import DestinationTerminalException, DestinationTransientException, LoadJobUnknownTableException
 
 from dlt.load.configuration import LoaderConfiguration
 from dlt.load.exceptions import LoadClientUnsupportedWriteDisposition, LoadClientUnsupportedFileFormats
@@ -76,7 +76,7 @@ class Load(Runnable[ThreadPool]):
                 table["write_disposition"] = schema.get_write_disposition(table_name)
             return table
         except KeyError:
-            raise LoadUnknownTableException(table_name, file_name)
+            raise LoadJobUnknownTableException(table_name, file_name)
 
     @staticmethod
     @workermethod
@@ -93,11 +93,11 @@ class Load(Runnable[ThreadPool]):
                 if table["write_disposition"] not in ["append", "replace"]:
                     raise LoadClientUnsupportedWriteDisposition(job_info.table_name, table["write_disposition"], file_path)
                 job = client.start_file_load(table, self.load_storage.storage.make_full_path(file_path))
-        except (LoadClientTerminalException, TerminalValueError):
+        except (DestinationTerminalException, TerminalValueError):
             # if job irreversibly cannot be started, mark it as failed
             logger.exception(f"Terminal problem with spooling job {file_path}")
             job = LoadEmptyJob.from_file_path(file_path, "failed", pretty_format_exception())
-        except (LoadClientTransientException, Exception):
+        except (DestinationTransientException, Exception):
             # return no job so file stays in new jobs (root) folder
             logger.exception(f"Temporary problem with spooling job {file_path}")
             return None
@@ -136,11 +136,11 @@ class Load(Runnable[ThreadPool]):
             try:
                 logger.info(f"Will retrieve {file_path}")
                 job = client.restore_file_load(file_path)
-            except LoadClientTerminalException:
+            except DestinationTerminalException:
                 logger.exception(f"Job retrieval for {file_path} failed, job will be terminated")
                 job = LoadEmptyJob.from_file_path(file_path, "failed", pretty_format_exception())
                 # proceed to appending job, do not reraise
-            except (LoadClientTransientException, Exception):
+            except (DestinationTransientException, Exception):
                 # raise on all temporary exceptions, typically network / server problems
                 raise
             jobs.append(job)
