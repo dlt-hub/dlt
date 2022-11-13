@@ -23,6 +23,8 @@ def pipeline(
     import_schema_path: str = None,
     export_schema_path: str = None,
     full_refresh: bool = False,
+    restore_from_destination: bool = False,
+    credentials: Any = None,
     **kwargs: Any
 ) -> Pipeline:
     # call without arguments returns current pipeline
@@ -44,7 +46,19 @@ def pipeline(
 
     destination = DestinationReference.from_name(destination)
     # create new pipeline instance
-    p = Pipeline(pipeline_name, working_dir, pipeline_secret, destination, dataset_name, import_schema_path, export_schema_path, full_refresh, False, kwargs["_runtime"])
+    p = Pipeline(
+        pipeline_name,
+        working_dir,
+        pipeline_secret,
+        destination,
+        dataset_name,
+        credentials,
+        import_schema_path,
+        export_schema_path,
+        full_refresh,
+        False,
+        restore_from_destination,
+        kwargs["_runtime"])
     # set it as current pipeline
     Container()[PipelineContext].activate(p)
 
@@ -52,7 +66,7 @@ def pipeline(
 
 
 @with_config(spec=PipelineConfiguration, auto_namespace=True)
-def restore(
+def attach(
     pipeline_name: str = None,
     working_dir: str = None,
     pipeline_secret: TSecretValue = None,
@@ -63,7 +77,7 @@ def restore(
     if not working_dir:
         working_dir = get_default_working_dir()
     # create new pipeline instance
-    p = Pipeline(pipeline_name, working_dir, pipeline_secret, None, None, None, None, full_refresh, True, kwargs["_runtime"])
+    p = Pipeline(pipeline_name, working_dir, pipeline_secret, None, None, None, None, None, full_refresh, True, False, kwargs["_runtime"])
     # set it as current pipeline
     Container()[PipelineContext].activate(p)
     return p

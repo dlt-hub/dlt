@@ -1,9 +1,7 @@
 from copy import deepcopy
 import os
-from unittest.mock import patch
 from typing import Any, Iterator, List
 import pytest
-from os import environ
 
 import dlt
 
@@ -17,57 +15,20 @@ from dlt.common.utils import uniq_id
 from dlt.extract.exceptions import ResourceNameMissing
 from dlt.pipeline.exceptions import CannotRestorePipelineException, PipelineConfigMissing
 
-from tests.utils import preserve_environ, autouse_test_storage, TEST_STORAGE_ROOT
-# pipeline_module.get_default_working_dir = lambda s: os.path.join(TEST_STORAGE_ROOT, ".dlt", "pipelines")
+from tests.utils import ALL_DESTINATIONS, preserve_environ, autouse_test_storage, TEST_STORAGE_ROOT
 from tests.common.configuration.utils import environment
-
-# ALL_CLIENT_TYPES = ["bigquery", "redshift", "postgres"]
-ALL_CLIENT_TYPES = ["postgres"]
-
-
-@pytest.fixture(autouse=True)
-def drop_dataset_from_env() -> None:
-    if "DATASET_NAME" in environ:
-        del environ["DATASET_NAME"]
+from tests.pipeline.utils import drop_dataset_from_env, patch_working_dir
+from tests.load.pipeline.utils import drop_pipeline
 
 
-@pytest.fixture(autouse=True)
-def patch_working_dir() -> None:
-    with patch("dlt.common.pipeline._get_home_dir") as _get_home_dir:
-        _get_home_dir.return_value = TEST_STORAGE_ROOT
-        yield
-
-
-@pytest.fixture(autouse=True)
-def drop_pipeline() -> Iterator[None]:
-    yield
-    # take existing pipeline
-    p = dlt.pipeline()
-    # take all schemas and if destination was set
-    if p.destination:
-        for schema_name in p.schemas:
-            # for each schema, drop the dataset
-            with p.sql_client(schema_name) as c:
-                try:
-                    c.drop_dataset()
-                    # print("dropped")
-                except Exception as exc:
-                    print(exc)
-
-    p._wipe_working_folder()
-    # deactivate context
-    Container()[PipelineContext].deactivate()
-
-
-@pytest.mark.parametrize('destination_name', ALL_CLIENT_TYPES)
+@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
 def test_default_pipeline_names(destination_name: str) -> None:
     p = dlt.pipeline()
     # this is a name of executing test harness or blank pipeline on windows
     possible_names = ["dlt_pytest", "dlt_pipeline"]
     assert p.pipeline_name in possible_names
     assert p.working_dir == os.path.join(TEST_STORAGE_ROOT, ".dlt", "pipelines")
-    assert p.dataset_name is None
-    assert p._get_dataset_name() in possible_names
+    assert p.dataset_name in possible_names
     assert p.destination is None
     assert p.default_schema_name is None
 
@@ -90,7 +51,7 @@ def test_default_pipeline_names(destination_name: str) -> None:
     with pytest.raises(PipelineConfigMissing):
         p.normalize()
 
-    # mock the correct destinations (never to that in normal code)
+    # mock the correct destinations (never do that in normal code)
     with p._managed_state():
         p.destination = DestinationReference.from_name(destination_name)
     p.normalize()
@@ -103,7 +64,7 @@ def test_default_pipeline_names(destination_name: str) -> None:
     assert_table(p, "data_fun", data, schema_name="names", info=info)
 
 
-@pytest.mark.parametrize('destination_name', ALL_CLIENT_TYPES)
+@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
 def test_default_schema_name(destination_name: str) -> None:
     dataset_name = "dataset_" + uniq_id()
     data = ["a", "b", "c"]
@@ -114,14 +75,14 @@ def test_default_schema_name(destination_name: str) -> None:
     info = p.load()
 
     # try to restore pipeline
-    r_p = dlt.restore("test_default_schema_name", TEST_STORAGE_ROOT)
+    r_p = dlt.attach("test_default_schema_name", TEST_STORAGE_ROOT)
     schema = r_p.default_schema
     assert schema.name == "default"
 
     assert_table(p, "test", data, info=info)
 
 
-@pytest.mark.parametrize('destination_name', ALL_CLIENT_TYPES)
+@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
 def test_restore_pipeline(destination_name: str) -> None:
     # load data and then restore the pipeline and see if data is still there
     data = ["a", "b", "c"]
@@ -134,10 +95,10 @@ def test_restore_pipeline(destination_name: str) -> None:
     info = dlt.run(_data(), destination=destination_name, dataset_name="specific" + uniq_id())
 
     with pytest.raises(CannotRestorePipelineException):
-        dlt.restore("unknown")
+        dlt.attach("unknown")
 
     # restore default pipeline
-    p = dlt.restore()
+    p = dlt.attach()
     # other instance
     assert info.pipeline is not p
     # same pipe
@@ -153,7 +114,7 @@ def test_restore_pipeline(destination_name: str) -> None:
     assert_table(p, "data_table", data, info=info)
 
 
-@pytest.mark.parametrize('destination_name', ALL_CLIENT_TYPES)
+@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
 def test_run_full_refresh(destination_name: str) -> None:
 
     data = ["a", ["a", "b", "c"], ["a", "b", "c"]]
@@ -173,7 +134,7 @@ def test_run_full_refresh(destination_name: str) -> None:
     print(info)
 
     # restore the pipeline
-    p = dlt.restore()
+    p = dlt.attach()
     # restored pipeline should be never put in full refresh
     assert p.full_refresh is False
     # assert parent table (easy), None first (db order)
@@ -182,12 +143,7 @@ def test_run_full_refresh(destination_name: str) -> None:
     assert_table(p, "lists__value", sorted(data[1] + data[2]))
 
 
-def test_run_full_refresh_default_dataset() -> None:
-    p = dlt.pipeline(full_refresh=True)
-    assert p._get_dataset_name().endswith(p._pipeline_instance_id)
-
-
-@pytest.mark.parametrize('destination_name', ALL_CLIENT_TYPES)
+@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
 def test_evolve_schema(destination_name: str) -> None:
     dataset_name = "d" + uniq_id()
     row = {
