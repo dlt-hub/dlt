@@ -1,3 +1,7 @@
+# Resources that take data from other resources
+
+Imagine the situation that in chess api
+
 The other way to prevent that (see also `multistep_pipelines_and_dependent_resources.md`)
 
 ```python

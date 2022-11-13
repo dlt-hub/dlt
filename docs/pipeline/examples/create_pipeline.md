@@ -230,14 +230,13 @@ print(source.selected_resources)
 print(source.resources.selected)
 ```
 
-Except being accessible via `source.resources` dictionary, every resource is available as an attribute of the source. For the example above
+Except being accessible via `source.resources` dictionary, **every resource is available as an attribute of the source**. For the example above
 ```python
 print(list(source.decisions))  # will iterate decisions resource
 source.logs.selected = False  # deselect resource
 ```
 
-
-**resources are created dynamically**
+**resources may be created dynamically**
 Here we implement a single parametrized function that **yields** data and we call it repeatedly. Mind that the function body won't be executed immediately, only later when generator is consumed in extract stage.
 
 ```python
@@ -382,7 +381,7 @@ def hubspot(...):
     return users.map(transform_user)
 
 # option 3: user of the pipeline determines if s/he wants the anonymized data or not and does it in pipeline script. so the source may offer also transformations that are easily used
-hubspot(...).users.map(transform_user)
+hubspot(...).users.map(transform_user).filter(lambda user: user["name"] != "me")
 hubspot.run(...)
 ```
 
