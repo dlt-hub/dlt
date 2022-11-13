@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from importlib import import_module
 from types import TracebackType, ModuleType
 from typing import Any, Callable, ClassVar, List, Optional, Literal, Type, Protocol, Union, TYPE_CHECKING, cast
+from dlt.common.exceptions import InvalidDestinationReference, UnknownDestinationModule
 
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TTableSchema
@@ -154,11 +155,23 @@ class DestinationReference(Protocol):
 
         # if destination is a str, get destination reference by dynamically importing module
         if isinstance(destination, str):
-            if "." in destination:
-                # this is full module name
-                return cast(DestinationReference, import_module(destination))
-            else:
-                # from known location
-                return cast(DestinationReference, import_module(f"dlt.destinations.{destination}"))
+            try:
+                if "." in destination:
+                    # this is full module name
+                    destination_ref = cast(DestinationReference, import_module(destination))
+                else:
+                    # from known location
+                    destination_ref = cast(DestinationReference, import_module(f"dlt.destinations.{destination}"))
+            except ImportError:
+                raise UnknownDestinationModule(destination)
+        else:
+            destination_ref = cast(DestinationReference, destination)
 
-        return cast(DestinationReference, destination)
+        # make sure the reference is correct
+        try:
+            c = destination_ref.spec()
+            c.credentials
+        except Exception:
+            raise InvalidDestinationReference(destination)
+
+        return destination_ref
