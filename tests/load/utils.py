@@ -21,6 +21,7 @@ from dlt.load import Load
 from dlt.destinations.job_client_impl import SqlJobClientBase
 
 ALL_CLIENTS = ["redshift_client", "bigquery_client", "postgres_client"]
+# ALL_CLIENTS = ["postgres_client"]
 
 TABLE_UPDATE: List[TColumnSchema] = [
     {
