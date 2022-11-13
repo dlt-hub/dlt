@@ -8,7 +8,7 @@ from dlt.cli import TRunnerArgs
 from dlt.common.schema import Schema
 from dlt.common.typing import DictStrAny
 
-from dlt.pipeline import pipeline, restore
+from dlt.pipeline import pipeline, attach
 
 
 def add_pool_cli_arguments(parser: argparse.ArgumentParser) -> None:
@@ -73,7 +73,7 @@ def main() -> None:
     elif args.command == "pipeline":
         # from dlt.load import dummy
 
-        p = restore(pipeline_name=args.name, working_dir=args.workdir)
+        p = attach(pipeline_name=args.name, working_dir=args.workdir)
         print(f"Found pipeline {p.pipeline_name} ({args.name}) in {p.working_dir} ({args.workdir}) with state {p._get_state()}")
 
         if args.operation == "failed_loads":

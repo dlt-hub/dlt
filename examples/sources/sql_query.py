@@ -5,7 +5,7 @@ import dlt
 
 from dlt.common.configuration.specs.postgres_credentials import ConnectionStringCredentials
 from dlt.common.typing import AnyFun, DictStrAny, StrAny, TDataItem
-from dlt.pipeline.exceptions import MissingDependencyException
+from dlt.common.exceptions import MissingDependencyException
 
 
 try:

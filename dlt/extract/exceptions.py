@@ -190,3 +190,10 @@ class SourceNotAFunction(DltSourceException):
         self.item = item
         self.typ = _typ
         super().__init__(f"First parameter to the source {source_name} must be a function or callable but is {_typ.__name__}. Please decorate a function with @dlt.source")
+
+
+class SourceIsAClassTypError(DltSourceException):
+    def __init__(self, source_name: str,  _typ: Type[Any]) -> None:
+        self.source_name = source_name
+        self.typ = _typ
+        super().__init__(f"First parameter to the source {source_name} is a class {_typ.__name__}. Do not decorate classes with @dlt.source. Instead implement __call__ in your class and pass instance of such class to dlt.source() directly")

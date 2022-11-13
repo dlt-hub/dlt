@@ -8,6 +8,8 @@ from dlt.common.schema.typing import TTableSchemaColumns
 
 
 COMMON_TEST_CASES_PATH = "./tests/common/cases/"
+# for import schema tests, change when upgrading the schema version
+IMPORTED_VERSION_HASH_ETH_V5 = "VCdpY/nGien9Yz1FA2fge/iu8alntmFRVVPoPsib80I="
 
 
 def load_json_case(name: str) -> Mapping:

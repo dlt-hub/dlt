@@ -10,7 +10,6 @@ from dlt.common.typing import DictStrAny, StrAny, StrOrBytesPath, TDataItem, TDa
 
 from examples.sources.stdout import json_stdout as singer_process_pipe
 
-# from dlt.pipeline.exceptions import MissingDependencyException
 FilePathOrDict = Union[StrAny, StrOrBytesPath]
 
 class SingerMessage(TypedDict):

@@ -1,6 +1,6 @@
 from typing import Any
 
-from dlt.pipeline.exceptions import MissingDependencyException
+from dlt.common.exceptions import MissingDependencyException
 from dlt.destinations.sql_client import SqlClientBase
 
 try:

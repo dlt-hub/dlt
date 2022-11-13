@@ -3,8 +3,7 @@ from typing import Any, Iterator, Sequence, Union, cast
 import dlt
 from dlt.common.configuration.specs import GcpClientCredentialsWithDefault
 from dlt.common.typing import ConfigValue, DictStrAny, StrAny
-from dlt.extract.source import DltSource
-from dlt.pipeline.exceptions import MissingDependencyException
+from dlt.common.exceptions import MissingDependencyException
 
 try:
     from apiclient.discovery import build

@@ -34,7 +34,7 @@ def test_parametrized_resource() -> None:
 
     # as part of the source
     r = DltResource.from_data(parametrized)
-    s = DltSource(Schema("source"), [r])
+    s = DltSource("source", Schema("source"), [r])
 
     with pytest.raises(ParametrizedResourceUnbound) as py_ex:
         list(s)
