@@ -7,7 +7,7 @@ from dlt.common.arithmetics import numeric_default_context
 from dlt.common.storages import FileStorage
 from dlt.common.utils import uniq_id
 
-from dlt.load.exceptions import LoadClientTerminalInnerException
+from dlt.destinations.exceptions import LoadClientTerminalInnerException
 from dlt.destinations.postgres.postgres import PostgresClientBase, PostgresClient, psycopg2
 
 from tests.utils import TEST_STORAGE_ROOT, delete_test_storage, skipifpypy
@@ -50,22 +50,21 @@ def test_recover_tx_rollback(client: PostgresClientBase) -> None:
     with pytest.raises(psycopg2.ProgrammingError):
         client.sql_client.execute_sql(sql)
     # still can execute tx and selects
-    client._get_schema_version_from_storage()
-    client._update_schema_version(3)
+    client.get_newest_schema_from_storage()
+    client.complete_load("ABC")
     # syntax error within tx
     sql = f"BEGIN TRANSACTION;INVERT INTO {version_table} VALUES(1);COMMIT TRANSACTION;"
     with pytest.raises(psycopg2.ProgrammingError):
         client.sql_client.execute_sql(sql)
-    client._get_schema_version_from_storage()
-    client._update_schema_version(4)
+    client.get_newest_schema_from_storage()
+    client.complete_load("EFG")
     # wrong value inserted
     sql = f"BEGIN TRANSACTION;INSERT INTO {version_table}(version) VALUES(1);COMMIT TRANSACTION;"
     # cannot insert NULL value
     with pytest.raises((psycopg2.InternalError, psycopg2.IntegrityError)):
         client.sql_client.execute_sql(sql)
-    client._get_schema_version_from_storage()
-    # lower the schema version in storage so subsequent tests can run
-    client._update_schema_version(1)
+    client.get_newest_schema_from_storage()
+    client.complete_load("HJK")
 
 
 @pytest.mark.parametrize('client', ALL_CLIENTS, indirect=True)
@@ -97,10 +96,10 @@ def test_long_names(client: PostgresClientBase) -> None:
     # remove the table from the schema so further tests are not affected.
     # TODO: remove line when we handle too long names correctly
     client.schema._schema_tables.pop(long_table_name)
-    exists, _ = client._get_storage_table(long_table_name)
+    exists, _ = client.get_storage_table(long_table_name)
     # interestingly postgres is also trimming the names in queries so the table "exists"
     assert exists is (client.config.destination_name == "postgres")
-    exists, table_def = client._get_storage_table(long_table_name[:client.capabilities().max_identifier_length])
+    exists, table_def = client.get_storage_table(long_table_name[:client.capabilities().max_identifier_length])
     assert exists is True
     long_column_name = "prospects_external_data__data365_member__member__feed_activities_created_post__items__comments__items__comments__items__author_details__educations__school_name"
     assert long_column_name not in table_def

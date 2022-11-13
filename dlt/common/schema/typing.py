@@ -15,6 +15,10 @@ COLUMN_PROPS: Set[TColumnProp] = set(get_args(TColumnProp))
 COLUMN_HINTS: Set[TColumnHint] = set(["partition", "cluster", "primary_key", "foreign_key", "sort", "unique"])
 WRITE_DISPOSITIONS: Set[TWriteDisposition] = set(get_args(TWriteDisposition))
 
+# dlt tables
+VERSION_TABLE_NAME = "_dlt_version"
+LOADS_TABLE_NAME = "_dlt_loads"
+
 
 class TColumnSchemaBase(TypedDict, total=True):
     name: Optional[str]
@@ -84,6 +88,7 @@ class TStoredSchema(TypedDict, total=False):
     imported_version_hash: Optional[str]
     engine_version: int
     name: str
+    description: Optional[str]
     settings: Optional[TSchemaSettings]
     tables: TSchemaTables
     normalizers: TNormalizersConfig

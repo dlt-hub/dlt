@@ -12,8 +12,8 @@ from typing import Any, AnyStr, Iterator, Optional, Sequence
 
 from dlt.common.configuration.specs import PostgresCredentials
 
-from dlt.load.typing import DBCursor
-from dlt.load.sql_client import SqlClientBase
+from dlt.destinations.typing import DBCursor
+from dlt.destinations.sql_client import SqlClientBase
 
 
 class Psycopg2SqlClient(SqlClientBase["psycopg2.connection"]):
@@ -62,9 +62,10 @@ class Psycopg2SqlClient(SqlClientBase["psycopg2.connection"]):
 
     def execute_sql(self, sql: AnyStr, *args: Any, **kwargs: Any) -> Optional[Sequence[Sequence[Any]]]:
         curr: DBCursor = None
+        db_args = args if args else kwargs
         with self._conn.cursor() as curr:
             try:
-                curr.execute(sql, *args, **kwargs)
+                curr.execute(sql, db_args)
                 if curr.description is None:
                     return None
                 else:
@@ -82,9 +83,10 @@ class Psycopg2SqlClient(SqlClientBase["psycopg2.connection"]):
     @contextmanager
     def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBCursor]:
         curr: DBCursor = None
+        db_args = args if args else kwargs
         with self._conn.cursor() as curr:
             try:
-                curr.execute(query, *args, **kwargs)
+                curr.execute(query, db_args)
                 yield curr
             except psycopg2.Error as outer:
                 try:

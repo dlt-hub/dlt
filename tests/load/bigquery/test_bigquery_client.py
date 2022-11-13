@@ -11,9 +11,9 @@ from dlt.common.configuration.specs import GcpClientCredentialsWithDefault
 from dlt.common.storages import FileStorage
 from dlt.common.schema.schema import Schema
 from dlt.common.utils import uniq_id, custom_environ
-from dlt.load.exceptions import LoadJobNotExistsException, LoadJobServerTerminalException
 
 from dlt.destinations.bigquery.bigquery import BigQueryClient
+from dlt.destinations.exceptions import LoadJobNotExistsException, LoadJobServerTerminalException
 
 from tests.utils import TEST_STORAGE_ROOT, delete_test_storage, preserve_environ
 from tests.common.utils import json_case_path as common_json_case_path

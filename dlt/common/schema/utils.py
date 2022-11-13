@@ -19,7 +19,7 @@ from dlt.common.typing import DictStrAny, REPattern
 from dlt.common.utils import str2bool
 from dlt.common.validation import TCustomValidator, validate_dict
 from dlt.common.schema import detections
-from dlt.common.schema.typing import SIMPLE_REGEX_PREFIX, TColumnName, TNormalizersConfig, TPartialTableSchema, TSimpleRegex, TStoredSchema, TTableSchema, TTableSchemaColumns, TColumnSchemaBase, TColumnSchema, TColumnProp, TDataType, TColumnHint, TTypeDetectionFunc, TTypeDetections, TWriteDisposition
+from dlt.common.schema.typing import LOADS_TABLE_NAME, SIMPLE_REGEX_PREFIX, VERSION_TABLE_NAME, TColumnName, TNormalizersConfig, TPartialTableSchema, TSimpleRegex, TStoredSchema, TTableSchema, TTableSchemaColumns, TColumnSchemaBase, TColumnSchema, TColumnProp, TDataType, TColumnHint, TTypeDetectionFunc, TTypeDetections, TWriteDisposition
 from dlt.common.schema.exceptions import CannotCoerceColumnException, ParentTableNotFoundException, SchemaEngineNoUpgradePathException, SchemaException, TablePropertiesConflictException
 
 
@@ -238,6 +238,11 @@ def upgrade_engine_version(schema_dict: DictStrAny, from_engine: int, to_engine:
         schema_dict.setdefault("version_hash", "")
         schema_dict["engine_version"] = 4
         from_engine = 4
+    if from_engine == 4 and to_engine > 4:
+        # replace schema versions table
+        schema_dict["tables"][VERSION_TABLE_NAME] = version_table()
+        schema_dict["engine_version"] = 5
+        from_engine = 5
     if from_engine != to_engine:
         raise SchemaEngineNoUpgradePathException(schema_dict["name"], schema_dict["engine_version"], from_engine, to_engine)
     return cast(TStoredSchema, schema_dict)
@@ -498,7 +503,7 @@ def hint_to_column_prop(h: TColumnHint) -> TColumnProp:
 
 
 def version_table() -> TTableSchema:
-    table = new_table("_dlt_version", columns=[
+    table = new_table(VERSION_TABLE_NAME, columns=[
             add_missing_hints({
                 "name": "version",
                 "data_type": "bigint",
@@ -513,6 +518,21 @@ def version_table() -> TTableSchema:
                 "name": "inserted_at",
                 "data_type": "timestamp",
                 "nullable": False
+            }),
+            add_missing_hints({
+                "name": "schema_name",
+                "data_type": "text",
+                "nullable": False
+            }),
+            add_missing_hints({
+                "name": "version_hash",
+                "data_type": "text",
+                "nullable": False
+            }),
+            add_missing_hints({
+                "name": "schema",
+                "data_type": "text",
+                "nullable": False
             })
         ]
     )
@@ -522,7 +542,7 @@ def version_table() -> TTableSchema:
 
 
 def load_table() -> TTableSchema:
-    table = new_table("_dlt_loads", columns=[
+    table = new_table(LOADS_TABLE_NAME, columns=[
             add_missing_hints({
                 "name": "load_id",
                 "data_type": "text",

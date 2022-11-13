@@ -1,13 +1,13 @@
 import yaml
 from importlib import import_module
 from copy import copy
-from typing import Dict, List, Mapping, Optional, Sequence, Tuple, Any, cast
+from typing import ClassVar, Dict, List, Mapping, Optional, Sequence, Tuple, Any, cast
 from dlt.common import json
 
 from dlt.common.typing import DictStrAny, StrAny, REPattern, SupportsVariant, VARIANT_FIELD_FORMAT
 from dlt.common.normalizers.names import TNormalizeBreakPath, TNormalizeMakePath, TNormalizeNameFunc
 from dlt.common.normalizers.json import TNormalizeJSONFunc
-from dlt.common.schema.typing import (TNormalizersConfig, TPartialTableSchema, TSchemaSettings, TSimpleRegex, TStoredSchema,
+from dlt.common.schema.typing import (LOADS_TABLE_NAME, VERSION_TABLE_NAME, TNormalizersConfig, TPartialTableSchema, TSchemaSettings, TSimpleRegex, TStoredSchema,
                                       TSchemaTables, TTableSchema, TTableSchemaColumns, TColumnSchema, TColumnProp, TDataType,
                                       TColumnHint, TWriteDisposition)
 from dlt.common.schema import utils
@@ -17,11 +17,7 @@ from dlt.common.validation import validate_dict
 
 
 class Schema:
-
-    VERSION_TABLE_NAME = "_dlt_version"
-    VERSION_COLUMN_NAME = "version"
-    LOADS_TABLE_NAME = "_dlt_loads"
-    ENGINE_VERSION = 4
+    ENGINE_VERSION: ClassVar[int] = 5
 
     def __init__(self, name: str, normalizers: TNormalizersConfig = None) -> None:
         self._schema_tables: TSchemaTables = {}
@@ -29,6 +25,7 @@ class Schema:
         self._stored_version = 1  # version at load/creation time
         self._stored_version_hash: str = None  # version hash at load/creation time
         self._imported_version_hash: str = None  # version hash of recently imported schema
+        self._schema_description: str = None  # optional schema description
         # schema settings to hold default hints, preferred types and other settings
         self._settings: TSchemaSettings = {}
 
@@ -84,13 +81,14 @@ class Schema:
         # create new instance from dict
         self: Schema = cls(stored_schema["name"], normalizers=stored_schema.get("normalizers", None))
         self._schema_tables = stored_schema.get("tables") or {}
-        if Schema.VERSION_TABLE_NAME not in self._schema_tables:
-            raise SchemaCorruptedException(f"Schema must contain table {Schema.VERSION_TABLE_NAME}")
-        if Schema.LOADS_TABLE_NAME not in self._schema_tables:
-            raise SchemaCorruptedException(f"Schema must contain table {Schema.LOADS_TABLE_NAME}")
+        if VERSION_TABLE_NAME not in self._schema_tables:
+            raise SchemaCorruptedException(f"Schema must contain table {VERSION_TABLE_NAME}")
+        if LOADS_TABLE_NAME not in self._schema_tables:
+            raise SchemaCorruptedException(f"Schema must contain table {LOADS_TABLE_NAME}")
         self._stored_version = stored_schema["version"]
         self._stored_version_hash = stored_schema["version_hash"]
         self._imported_version_hash = stored_schema.get("imported_version_hash")
+        self._schema_description = stored_schema.get("description")
         self._settings = stored_schema.get("settings") or {}
         # compile regexes
         self._compile_regexes()
@@ -109,6 +107,9 @@ class Schema:
         }
         if self._imported_version_hash and not remove_defaults:
             stored_schema["imported_version_hash"] = self._imported_version_hash
+        if self._schema_description:
+            stored_schema["description"] = self._schema_description
+
         # bump version if modified
         utils.bump_version_if_modified(stored_schema)
         # remove defaults after bumping version
@@ -414,8 +415,8 @@ class Schema:
             return False
 
     def _add_standard_tables(self) -> None:
-        self._schema_tables[Schema.VERSION_TABLE_NAME] = utils.version_table()
-        self._schema_tables[Schema.LOADS_TABLE_NAME] = utils.load_table()
+        self._schema_tables[VERSION_TABLE_NAME] = utils.version_table()
+        self._schema_tables[LOADS_TABLE_NAME] = utils.load_table()
 
     def _add_standard_hints(self) -> None:
         default_hints = utils.standard_hints()

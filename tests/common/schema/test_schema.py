@@ -5,7 +5,7 @@ from dlt.common import pendulum
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.specs import SchemaVolumeConfiguration
 from dlt.common.exceptions import DictValidationException
-from dlt.common.schema.typing import TColumnName, TSimpleRegex, COLUMN_HINTS
+from dlt.common.schema.typing import LOADS_TABLE_NAME, VERSION_TABLE_NAME, TColumnName, TSimpleRegex, COLUMN_HINTS
 from dlt.common.typing import DictStrAny, StrAny
 from dlt.common.utils import uniq_id
 from dlt.common.schema import TColumnSchema, Schema, TStoredSchema, utils
@@ -333,7 +333,7 @@ def test_merge_hints(schema: Schema) -> None:
 def test_all_tables(schema: Schema, schema_storage: SchemaStorage) -> None:
     assert schema.all_tables() == []
     dlt_tables = schema.all_tables(with_dlt_tables=True)
-    assert set([t["name"] for t in dlt_tables]) == set([Schema.LOADS_TABLE_NAME, Schema.VERSION_TABLE_NAME])
+    assert set([t["name"] for t in dlt_tables]) == set([LOADS_TABLE_NAME, VERSION_TABLE_NAME])
     # with tables
     schema = schema_storage.load_schema("event")
     assert [t["name"] for t in schema.all_tables()] == ['event_slot', 'event_user', 'event_bot']
@@ -342,7 +342,7 @@ def test_all_tables(schema: Schema, schema_storage: SchemaStorage) -> None:
 def test_write_disposition(schema_storage: SchemaStorage) -> None:
     schema = schema_storage.load_schema("event")
     assert schema.get_write_disposition("event_slot") == "append"
-    assert schema.get_write_disposition(Schema.LOADS_TABLE_NAME) == "skip"
+    assert schema.get_write_disposition(LOADS_TABLE_NAME) == "skip"
 
     # child tables
     schema.get_table("event_user")["write_disposition"] = "replace"
@@ -403,7 +403,7 @@ def assert_new_schema_values(schema: Schema) -> None:
     assert schema.stored_version == 1
     assert schema.stored_version_hash is not None
     assert schema.version_hash is not None
-    assert schema.ENGINE_VERSION == 4
+    assert schema.ENGINE_VERSION == 5
     assert len(schema.settings["default_hints"]) > 0
     # check normalizers config
     assert schema._normalizers_config["names"] == "dlt.common.normalizers.names.snake_case"

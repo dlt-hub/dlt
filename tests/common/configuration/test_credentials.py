@@ -48,6 +48,7 @@ def test_connection_string_credentials_native_representation(environment) -> Non
     assert csc.host == "localhost"
     assert csc.port == 5432
     assert csc.database == "dlt_data"
+    assert csc.query == {"a": "b", "c": "d"}
 
     # test postgres timeout
     dsn = "postgres://loader:pass@localhost:5432/dlt_data?connect_timeout=600"
@@ -55,6 +56,18 @@ def test_connection_string_credentials_native_representation(environment) -> Non
     csc.parse_native_representation(dsn)
     assert csc.connect_timeout == 600
     assert csc.to_native_representation() == dsn
+
+    # test connection string without query, database and port
+    csc = ConnectionStringCredentials()
+    csc.parse_native_representation("postgres://")
+    assert csc.username is csc.password is csc.host is csc.port is csc.database is None
+    assert csc.query == {}
+    assert csc.to_native_representation() == "postgres://"
+
+    # what id query is none
+    csc.query = None
+    assert csc.to_native_representation() == "postgres://"
+
 
 
 def test_connection_string_resolved_from_native_representation(environment: Any) -> None:

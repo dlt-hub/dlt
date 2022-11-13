@@ -7,7 +7,7 @@ from dlt.common.schema.utils import new_table
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.specs import PostgresCredentials
 
-from dlt.load.exceptions import LoadClientSchemaWillNotUpdate
+from dlt.destinations.exceptions import LoadClientSchemaWillNotUpdate
 from dlt.destinations.redshift.redshift import RedshiftClient
 from dlt.destinations.redshift.configuration import RedshiftClientConfiguration
 

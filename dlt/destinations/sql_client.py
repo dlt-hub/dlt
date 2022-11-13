@@ -3,7 +3,7 @@ from contextlib import contextmanager
 from types import TracebackType
 from typing import Any, ContextManager, Generic, Iterator, Optional, Sequence, Tuple, Type, AnyStr, Protocol
 
-from dlt.load.typing import TNativeConn, DBCursor
+from dlt.destinations.typing import TNativeConn, DBCursor
 
 
 class SqlClientBase(ABC, Generic[TNativeConn]):

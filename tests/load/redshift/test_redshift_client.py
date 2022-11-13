@@ -1,13 +1,18 @@
+import base64
+import os
 from typing import Iterator
 import pytest
 from unittest.mock import patch
 
-from dlt.common import pendulum
+from dlt.common import json, pendulum
+from dlt.common.schema.typing import VERSION_TABLE_NAME
 from dlt.common.storages import FileStorage
+from dlt.common.storages.schema_storage import SchemaStorage
 from dlt.common.utils import uniq_id
 
-from dlt.load.exceptions import LoadClientTerminalInnerException
+from dlt.destinations.exceptions import LoadClientTerminalInnerException
 from dlt.destinations.redshift.redshift import RedshiftClient, psycopg2
+from tests.common.utils import COMMON_TEST_CASES_PATH
 
 from tests.utils import TEST_STORAGE_ROOT, delete_test_storage, skipifpypy
 from tests.load.utils import expect_load_file, prepare_table, yield_client_with_storage
@@ -57,6 +62,22 @@ def test_wei_value(client: RedshiftClient, file_storage: FileStorage) -> None:
     with pytest.raises(LoadClientTerminalInnerException) as exv:
         expect_load_file(client, file_storage, insert_sql+insert_values, user_table_name)
     assert type(exv.value.inner_exc) is psycopg2.errors.InternalError_
+
+
+def test_schema_string_exceeds_max_text_length(client: RedshiftClient) -> None:
+    client.update_storage_schema()
+    # schema should be compressed and stored as base64
+    schema = SchemaStorage.load_schema_file(os.path.join(COMMON_TEST_CASES_PATH, "schemas/ev1"), "event", ("json",))
+    schema_str = json.dumps(schema.to_dict())
+    assert len(schema_str.encode("utf-8")) > client.capabilities().max_text_data_type_length
+    client._update_schema_in_storage(schema)
+    schema_info = client.get_newest_schema_from_storage()
+    assert schema_info.schema == schema_str
+    # take base64 from db
+    with client.sql_client.execute_query(f"SELECT schema FROM {VERSION_TABLE_NAME} WHERE version_hash = '{schema.stored_version_hash}'") as cur:
+            row = cur.fetchone()
+    # decode base
+    base64.b64decode(row[0], validate=True)
 
 
 @pytest.mark.skip
