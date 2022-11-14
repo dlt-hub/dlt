@@ -99,6 +99,7 @@ def state_resource(state: TPipelineState) -> DltResource:
 
 def load_state_from_destination(pipeline_name: str, sql_client: SqlClientBase[Any]) -> TPipelineState:
     try:
+        # TODO: improve the query to load only from completed load ids
         query = f"SELECT state FROM {STATE_TABLE_NAME} WHERE pipeline_name = %s ORDER BY created_at DESC"
         with sql_client.execute_query(query, pipeline_name) as cur:
             row = cur.fetchone()

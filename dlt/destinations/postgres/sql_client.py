@@ -60,33 +60,20 @@ class Psycopg2SqlClient(SqlClientBase["psycopg2.connection"]):
             SQL("DROP SCHEMA {} CASCADE;").format(Identifier(self.fully_qualified_dataset_name()))
             )
 
-    @raise_database_error
+    # @raise_database_error
     def execute_sql(self, sql: AnyStr, *args: Any, **kwargs: Any) -> Optional[Sequence[Sequence[Any]]]:
-        curr: DBCursor = None
-        db_args = args if args else kwargs
-        with self._conn.cursor() as curr:
-            try:
-                curr.execute(sql, db_args)
-                if curr.description is None:
-                    return None
-                else:
-                    f = curr.fetchall()
-                    return f
-            except psycopg2.Error as outer:
-                try:
-                    self._conn.rollback()
-                    self._conn.reset()
-                except psycopg2.Error:
-                    self.close_connection()
-                    self.open_connection()
-
-                raise outer
+        with self.execute_query(sql, *args, **kwargs) as curr:
+            if curr.description is None:
+                return None
+            else:
+                f = curr.fetchall()
+                return f
 
     @contextmanager
     @raise_database_error
     def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBCursor]:
         curr: DBCursor = None
-        db_args = args if args else kwargs
+        db_args = args if args else kwargs if kwargs else None
         with self._conn.cursor() as curr:
             try:
                 curr.execute(query, db_args)
@@ -113,7 +100,7 @@ class Psycopg2SqlClient(SqlClientBase["psycopg2.connection"]):
     def _make_database_exception(cls, ex: Exception) -> Exception:
         if isinstance(ex, (psycopg2.errors.UndefinedTable, psycopg2.errors.InvalidSchemaName)):
             raise DatabaseUndefinedRelation(ex)
-        elif isinstance(ex, (psycopg2.OperationalError, psycopg2.InternalError)):
+        elif isinstance(ex, (psycopg2.OperationalError, psycopg2.InternalError, psycopg2.errors.SyntaxError, psycopg2.errors.UndefinedFunction)):
             term = cls._maybe_make_terminal_exception_from_data_error(ex)
             if term:
                 return term
@@ -121,6 +108,9 @@ class Psycopg2SqlClient(SqlClientBase["psycopg2.connection"]):
                 return DatabaseTransientException(ex)
         elif isinstance(ex, (psycopg2.DataError, psycopg2.ProgrammingError, psycopg2.IntegrityError)):
             return DatabaseTerminalException(ex)
+        elif isinstance(ex, TypeError):
+            # psycopg2 raises TypeError on malformed query parameters
+            return DatabaseTransientException(psycopg2.ProgrammingError(ex))
         elif cls.is_dbapi_exception(ex):
             return DatabaseTransientException(ex)
         else:

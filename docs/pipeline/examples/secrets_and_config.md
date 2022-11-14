@@ -39,9 +39,11 @@ google_sheets("23029402349032049", ["tab1", "tab2"], credentials=dlt.secrets.val
 google_sheets().run(destination=bigquery)
 
 
-# OPTION C: we use `dlt.secrets` and `dlt.config` to explicitly take those values from providers in the way we control (not recommended but straightforward)
+# OPTION C: use `dlt.secrets` and `dlt.config` to explicitly take those values from providers from the explicit keys (not recommended but straightforward)
 google_sheets(dlt.config["sheet_id"], dlt.config["tabs"], dlt.secrets["gcp_credentials"]).run(destination=bigquery)
 ```
+
+> one of the principles is that configuration, credentials and secret values are available explicitly as arguments to the functions. (there are a few hidden options indeed but 99% do not need to touch them)
 
 ## Injection mechanism
 By the magic of @dlt.source decorator
@@ -62,11 +64,8 @@ The values passed in the code directly are the **highest** in provider hierarchy
 
 The default values of the arguments have the **lowest** priority in the provider hierarchy.
 
-> I'm opinionated on the environment variables but less on the values passed in the code. This gives much more power to setup deployments and control on production but is less intuitive to programmer.
-
-Summary of the hierarchy
-
-explicit args > env variables > ...vaults, airflow etc > secrets.toml > config.toml > default arg values
+> **Summary of the hierarchy**
+> explicit args > env variables > ...vaults, airflow etc > secrets.toml > config.toml > default arg values
 
 ## Grouping of config values and secrets
 Config and secret values can be grouped in namespaces. Why we need them? Imagine a pipeline that is
@@ -189,6 +188,6 @@ def google_sheets(spreadsheet_id: str, tab_names: List[str], credentials: TCrede
 
 Here I provide typing so I can type check injected values so no junk data gets passed to the function.
 
-> I also tell which argument is secret via `TCredentials` that let's me control for the case when user is putting secret values in `config.toml` or some other unsafe provider (and generate even better templates)
+> I also tell which argument is secret via `TCredentials` that let's me control for the case when user is putting secret values in `config.toml` or some other unsafe provider (and generate even better code templates in `dlt init`)
 
 We could go even deeper here (ie. configurations `spec` may be explicitly declared via python `dataclasses`, may be embedded in one another etc. -> it comes useful when writing something really complicated)

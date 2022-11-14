@@ -7,7 +7,7 @@ from dlt.common.arithmetics import numeric_default_context
 from dlt.common.storages import FileStorage
 from dlt.common.utils import uniq_id
 
-from dlt.destinations.exceptions import DatabaseTerminalException, DatabaseUndefinedRelation
+from dlt.destinations.exceptions import DatabaseTerminalException, DatabaseTransientException, DatabaseUndefinedRelation
 from dlt.destinations.postgres.postgres import PostgresClientBase, PostgresClient, psycopg2
 
 from tests.utils import TEST_STORAGE_ROOT, delete_test_storage, skipifpypy
@@ -47,7 +47,7 @@ def test_recover_tx_rollback(client: PostgresClientBase) -> None:
     version_table = client.sql_client.make_qualified_table_name("_dlt_version")
     # simple syntax error
     sql = f"SELEXT * FROM {version_table}"
-    with pytest.raises(DatabaseTerminalException) as term_ex:
+    with pytest.raises(DatabaseTransientException) as term_ex:
         client.sql_client.execute_sql(sql)
     assert isinstance(term_ex.value.dbapi_exception, psycopg2.ProgrammingError)
     # still can execute tx and selects
@@ -56,7 +56,7 @@ def test_recover_tx_rollback(client: PostgresClientBase) -> None:
 
     # syntax error within tx
     sql = f"BEGIN TRANSACTION;INVERT INTO {version_table} VALUES(1);COMMIT TRANSACTION;"
-    with pytest.raises(DatabaseTerminalException) as term_ex:
+    with pytest.raises(DatabaseTransientException) as term_ex:
         client.sql_client.execute_sql(sql)
     assert isinstance(term_ex.value.dbapi_exception, psycopg2.ProgrammingError)
     client.get_newest_schema_from_storage()

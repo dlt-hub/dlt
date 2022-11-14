@@ -100,7 +100,14 @@ If the working directory is not preserved:
 2. if load package is not fully loaded and erased then the destination holds partially loaded and not committed `load_id`
 3. the sources that need source state will not load incrementally.
 
-This is the situation right now. We could restore working directory from the destination (both schemas and state). Entirely doable (for some destinations) but can't be done right now.
+
+### restore the pipeline working directory from the destination
+
+The `restore_from_destination` argument to `dlt.pipeline` let's the user restore the state and the pipeline schemas from the destination. `dlt` will check if the state is stored in the destination, download it and then download all the required schemas. after that data extraction may be restarted.
+
+The state is being stored in the destination together with other data. So only when all pipeline stages are completed the state is available for restoration.
+
+The pipeline cannot be restored if `full_refresh` flag is set.
 
 ## running pipelines and `dlt.run` + `@source().run` functions
 `dlt.run` + `@source().run` are shortcuts to `Pipeline::run` method on default or last configured (with `dlt.pipeline`) `Pipeline` object. Please refer to [create_pipeline.md](create_pipeline.md) for examples.
@@ -123,6 +130,14 @@ extract / normalize / load are atomic. the `run` is as close to be atomic as pos
 the `run` and `load` return information on loaded packages: to which datasets, list of jobs etc. let me think what should be the content
 
 > `load` is atomic if SQL transformations ie in `dbt` and all the SQL queries take into account only committed `load_ids`. It is certainly possible - we did in for RASA but requires some work... Maybe we implement a fully atomic staging at some point in the loader.
+
+### Full refresh mode
+If `full_refresh` flag is passed to `dlt.pipeline` then
+1. the pipeline working dir is fully wiped out (state, schemas, temp files)
+2. dataset name receives a prefix with the current timestamp: ie the `my_data` becomes `my_data_20221107164856`.
+3. pipeline will not be restored from the destination
+
+This allows a non destructive full refresh. Nothing is being deleted/dropped from the destination. You have a new dataset with a fresh shema
 
 ### The LoadInfo return value
 The run method returns `LoadInfo` tuple with information what was actually loaded. The exact content is in the works. It currently contains:

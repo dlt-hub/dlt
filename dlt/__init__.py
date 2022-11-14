@@ -27,6 +27,7 @@ from dlt.pipeline.state import state
 from dlt.extract.decorators import source, resource, transformer, defer
 from dlt.extract.source import with_table_name
 from dlt.common.schema import Schema
+from dlt.common.configuration.accessors import config, secrets
 
 pipeline = _pipeline
 

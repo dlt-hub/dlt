@@ -17,7 +17,8 @@ from dlt.destinations.sql_client import SqlClientBase, raise_database_error
 
 # terminal reasons as returned in BQ gRPC error response
 # https://cloud.google.com/bigquery/docs/error-messages
-BQ_TERMINAL_REASONS = ["billingTierLimitExceeded", "duplicate", "invalid", "invalidQuery", "notFound", "notImplemented", "stopped", "tableUnavailable"]
+BQ_TERMINAL_REASONS = ["billingTierLimitExceeded", "duplicate", "invalid", "notFound", "notImplemented", "stopped", "tableUnavailable"]
+# invalidQuery is an transient error -> must be fixed by programmer
 
 
 class BigQuerySqlClient(SqlClientBase[bigquery.Client]):
@@ -83,31 +84,21 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client]):
             timeout=self.credentials.http_timeout
         )
 
-    @raise_database_error
+    # @raise_database_error
     def execute_sql(self, sql: AnyStr, *args: Any, **kwargs: Any) -> Optional[Sequence[Sequence[Any]]]:
-        conn: DbApiConnection = None
-        db_args = args if args else kwargs
-        logger.debug(f"Will execute sql {sql} {db_args}")  # type: ignore
-        try:
-            conn = DbApiConnection(client=self._client)
-            curr: DBCursor = conn.cursor()
-            curr.execute(sql, db_args, job_config=self.default_query)
+        with self.execute_query(sql, *args, **kwargs) as curr:
             if not curr.description:
                 return None
             else:
                 f = curr.fetchall()
                 return f
-        finally:
-            if conn:
-                # will also close all cursors
-                conn.close()
 
     @contextmanager
     @raise_database_error
     def execute_query(self, query: AnyStr,  *args: Any, **kwargs: Any) -> Iterator[DBCursor]:
         conn: DbApiConnection = None
         curr: DBCursor = None
-        db_args = args if args else kwargs
+        db_args = args if args else kwargs if kwargs else None
         logger.debug(f"Will execute query {query} {db_args}")  # type: ignore
         try:
             conn = DbApiConnection(client=self._client)
@@ -128,12 +119,20 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client]):
             # google cloud exception in first argument: https://github.com/googleapis/python-bigquery/blob/main/google/cloud/bigquery/dbapi/cursor.py#L205
             cloud_ex = ex.args[0]
             reason = cls._get_reason_from_errors(cloud_ex)
+            if reason is None:
+                if isinstance(ex, (dbapi_exceptions.DataError, dbapi_exceptions.IntegrityError)):
+                    return DatabaseTerminalException(ex)
+                elif isinstance(ex, dbapi_exceptions.ProgrammingError):
+                    return DatabaseTransientException(ex)
             if reason == "notFound":
                 return DatabaseUndefinedRelation(ex)
+            if reason == "invalidQuery" and "Unrecognized name" in str(ex):
+                # unknown column etc.
+                return DatabaseTerminalException(ex)
             elif reason in BQ_TERMINAL_REASONS:
                 return DatabaseTerminalException(ex)
-            else:
-                return DatabaseTransientException(ex)
+            # anything else is transient
+            return DatabaseTransientException(ex)
         return ex
 
     @staticmethod

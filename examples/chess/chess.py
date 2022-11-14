@@ -43,7 +43,7 @@ info = dlt.pipeline(
     dataset_name="chess",
     full_refresh=True
 ).run(
-    chess(max_players=5, month=9)  # type: ignore
+    chess(dlt.config.value, max_players=5, month=9)
 )
 # display where the data went
 print(info)

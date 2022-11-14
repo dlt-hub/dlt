@@ -9,9 +9,9 @@ Each schema file contains content based hash `version_hash` that is used to
 
 Each time the schema is saved, the version hash is updated.
 
-Each schema contains also numeric version which increases automatically whenever schema is updated and saved. This version is mostly for informative purposes and currently the user can easily reset it by wiping out the pipeline working dir (until we restore the current schema from the destination)
+Each schema contains also numeric version which increases automatically whenever schema is updated and saved. This version is mostly for informative purposes and there are cases where the increasing numbering will be lost.
 
-> Currently the destination schema sync procedure uses the numeric version. I'm changing it to hash based versioning.
+> Schema in the database is only updated if its hash is not stored in `_dlt_versions` table. In principle many pipelines may send data to a single dataset. If table name clash then a single table with the union of the columns will be created. If columns clash and they have different types etc. then the load will fail.
 
 ### Normalizer and naming convention
 The data normalizer and the naming convention are part of the schema configuration. In principle the source can set own naming convention or json unpacking mechanism. Or user can overwrite those in `config.toml`
@@ -21,6 +21,7 @@ Yes those are part of the normalizer module and can be plugged in.
 1. column propagation from parent -> child
 2. nesting level
 3. parent -> child table linking type
+
 ### Global hints, preferred data type hints, data type autodetectors
 
 ## Working with schema files
