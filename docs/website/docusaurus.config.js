@@ -67,7 +67,7 @@ const config = {
             type: 'doc',
             docId: 'intro',
             position: 'left',
-            label: 'dlt',
+            label: 'data load tool',
           },
           {
             href: 'https://github.com/scale-vector/dlt',
