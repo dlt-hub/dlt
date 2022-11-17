@@ -4,7 +4,7 @@ sidebar_position: 4
 
 # Architecture
 
-![Example banner](/img/architecture-diagram.png)
+![architecture-diagram](/img/architecture-diagram.png)
 
 ## Extract
 
