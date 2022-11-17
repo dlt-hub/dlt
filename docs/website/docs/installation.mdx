@@ -1,0 +1,109 @@
+---
+sidebar_position: 2
+---
+
+import Tabs from '@theme/Tabs';
+
+# Installation
+
+## Set up environment
+
+Make sure you are using **Python 3.8 or 3.9**:
+
+```bash
+python3 --version
+pip3 --version
+```
+
+If not, then please follow the instructions below to install it:
+
+<Tabs values={[{"label": "Ubuntu", "value": "ubuntu"}, {"label": "macOS", "value": "macos"}, {"label": "Windows", "value": "windows"}]}  groupId="operating-systems" defaultValue="ubuntu">
+  <TabItem value="ubuntu">
+
+You can install Python 3.9 with an `apt` command.
+
+```bash
+sudo apt update
+sudo apt install python3.9
+```
+
+  </TabItem>
+  <TabItem value="macos">
+
+Once you have installed [Homebrew](https://brew.sh), you can install Python 3.9.
+
+```bash
+brew update
+brew install python@3.9
+```
+
+  </TabItem>
+  <TabItem value="windows">
+
+Once you have installed the [Microsoft VC++ Compiler](https://visualstudio.microsoft.com/visual-cpp-build-tools/), you can install [Python 3.9](https://www.python.org/downloads/windows/) (64-bit version) for Windows.
+
+```bash
+C:\> pip3 install -U pip
+```
+
+  </TabItem>
+</Tabs>
+
+Now that you have Python installed, you will want to create virtual environment for your project.
+
+<Tabs values={[{"label": "Ubuntu", "value": "ubuntu"}, {"label": "macOS", "value": "macos"}, {"label": "Windows", "value": "windows"}]}  groupId="operating-systems" defaultValue="ubuntu">
+  
+  <TabItem value="ubuntu">
+
+Create a new virtual environment by making a `./env` directory to hold it.
+
+```bash
+python3 -m venv ./env
+```
+
+Activate the virtual environment:
+
+```bash
+source ./env/bin/activate
+```
+
+  </TabItem>
+  <TabItem value="macos">
+
+Create a new virtual environment by making a `./env` directory to hold it.
+
+```bash
+python3 -m venv ./env
+```
+
+Activate the virtual environment:
+
+```bash
+source ./env/bin/activate
+```
+
+  </TabItem>
+  <TabItem value="windows">
+
+Create a new virtual environment by making a `./env` directory to hold it.
+
+```bat
+C:\> python3 -m venv ./env
+```
+
+Activate the virtual environment:
+
+```bat
+C:\> .\env\Scripts\activate
+```
+
+  </TabItem>
+</Tabs>
+
+## Install `dlt` library
+
+You can install `dlt` in your virtual environment by running:
+
+```bash
+pip3 install -U python-dlt
+```
