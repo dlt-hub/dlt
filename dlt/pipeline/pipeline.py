@@ -27,6 +27,7 @@ from dlt.common.pipeline import LoadInfo
 from dlt.common.schema import Schema
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.utils import is_interactive
+from dlt.extract.exceptions import SourceExhausted
 
 from dlt.extract.extract import ExtractorStorage, extract
 from dlt.extract.source import DltResource, DltSource
@@ -39,7 +40,7 @@ from dlt.load import Load
 
 from dlt.pipeline.exceptions import CannotRestorePipelineException, InvalidPipelineName, PipelineConfigMissing, PipelineStepFailed, SqlClientNotAvailable
 from dlt.pipeline.typing import TPipelineStep
-from dlt.pipeline.state import STATE_ENGINE_VERSION, TPipelineState, load_state_from_destination, merge_state, state_resource, StateInjectableContext
+from dlt.pipeline.state import STATE_ENGINE_VERSION, TPipelineState, load_state_from_destination, merge_state_if_changed, state_resource, StateInjectableContext
 
 
 def with_state_sync(extract_state: bool = False) -> Callable[[TFun], TFun]:
@@ -102,7 +103,7 @@ class Pipeline:
             self,
             pipeline_name: str,
             working_dir: str,
-            pipeline_secret: TSecretValue,
+            pipeline_salt: TSecretValue,
             destination: DestinationReference,
             dataset_name: str,
             credentials: Any,
@@ -113,7 +114,7 @@ class Pipeline:
             restore_from_destination: bool,
             runtime: RunConfiguration
         ) -> None:
-        self.pipeline_secret = pipeline_secret
+        self.pipeline_salt = pipeline_salt
         self.runtime_config = runtime
         self.full_refresh = full_refresh
 
@@ -164,7 +165,7 @@ class Pipeline:
         return Pipeline(
             self.pipeline_name,
             self.working_dir,
-            self.pipeline_secret,
+            self.pipeline_salt,
             self.destination,
             self.dataset_name,
             self.credentials,
@@ -276,6 +277,8 @@ class Pipeline:
         try:
             # extract all sources
             for s in sources:
+                if s.exhausted:
+                    raise SourceExhausted(s.name)
                 self._extract_source(s, max_parallel_items, workers)
         except Exception as exc:
             # TODO: provide metrics from extractor
@@ -376,7 +379,7 @@ class Pipeline:
 
         # normalize and load pending data
         self.normalize()
-        self.load(destination, dataset_name, credentials=credentials)
+        info = self.load(destination, dataset_name, credentials=credentials)
 
         # extract from the source
         if data:
@@ -384,7 +387,7 @@ class Pipeline:
             self.normalize()
             return self.load(destination, dataset_name, credentials=credentials)
         else:
-            return None
+            return info
 
     @property
     def schemas(self) -> Mapping[str, Schema]:
@@ -530,7 +533,10 @@ class Pipeline:
         # TODO: create source context
         # iterate over all items in the pipeline and update the schema if dynamic table hints were present
         storage = ExtractorStorage(self._normalize_storage_config)
-        for _, partials in extract(source, storage, max_parallel_items=max_parallel_items, workers=workers).items():
+        extractor = extract(source, storage, max_parallel_items=max_parallel_items, workers=workers)
+        # source iterates
+        source.exhausted = True
+        for _, partials in extractor.items():
             for partial in partials:
                 pipeline_schema.update_schema(pipeline_schema.normalize_table_identifiers(partial))
 
@@ -682,7 +688,7 @@ class Pipeline:
         # initial state
         if not state:
             state = {
-                "_state_version": 1,
+                "_state_version": 0,
                 "_state_engine_version": STATE_ENGINE_VERSION
             }
         return state
@@ -769,11 +775,19 @@ class Pipeline:
             state["schema_names"] = self._schema_storage.list_schemas()
 
             backup_state = self._get_state()
-            merged_state = merge_state(backup_state, state)
+            merged_state = merge_state_if_changed(backup_state, state)
+            # state was changed or current state was not yet extracted and there's request to extract state
+            if (merged_state or "_last_extracted_at" not in state) and extract_state:
+                merged_state = merged_state or state
+                merged_state["_last_extracted_at"] = pendulum.now()
+                # this will extract the state into current load package and update the schema with the _dlt_pipeline_state table
+                # note: the schema will be persisted because the schema saving decorator is over the state manager decorator for extract
+                state_source = DltSource("pipeline_state", self.default_schema, [state_resource(merged_state)])
+                self._iterate_source(state_source, self.default_schema, 1, 1)
+
+            if not extract_state and merged_state:
+                merged_state.pop("_last_extracted_at", None)
+
+            # if state was changed, save it
             if merged_state:
-                if extract_state:
-                    # this will extract the state into current load package and update the schema with the _dlt_pipeline_state table
-                    # note: the schema will be persisted because the schema saving decorator is over the state manager decorator for extract
-                    state_source = DltSource("pipeline_state", self.default_schema, [state_resource(merged_state)])
-                    self._iterate_source(state_source, self.default_schema, 1, 1)
                 self._pipeline_storage.save(Pipeline.STATE_FILE, json.dumps(merged_state))
