@@ -92,6 +92,7 @@ class ForkPipe:
 class FilterItem:
     _filter_f_meta: FilterItemFunctionWithMeta = None
     _filter_f: FilterItemFunction = None
+
     def __init__(self, filter_f: Union[FilterItemFunctionWithMeta, FilterItemFunction]) -> None:
         # TODO: extract this into a helper function
         # inspect the signature
@@ -406,11 +407,8 @@ class PipeIterator(Iterator[PipeItem]):
                         # no more elements in futures or sources
                         raise StopIteration()
                     else:
-                        # if len(_sources
-                        # print("waiting")
                         sleep(self.futures_poll_interval)
                     continue
-
 
             item = pipe_item.item
             # if item is iterator, then add it as a new source

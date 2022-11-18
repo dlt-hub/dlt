@@ -12,7 +12,7 @@ from dlt.common.storages.exceptions import SchemaNotFoundError
 from dlt.common.storages.schema_storage import SchemaStorage
 from dlt.common.typing import AnyFun, ParamSpec, Concatenate, TDataItem, TDataItems
 from dlt.common.utils import get_callable_name, is_inner_callable
-from dlt.extract.exceptions import InvalidTransformerDataTypeGeneratorFunctionRequired, ResourceFunctionExpected, SourceDataIsNone, SourceIsAClassTypError, SourceNotAFunction
+from dlt.extract.exceptions import InvalidTransformerDataTypeGeneratorFunctionRequired, ResourceFunctionExpected, SourceDataIsNone, SourceIsAClassTypeError, SourceNotAFunction
 
 from dlt.extract.typing import TTableHintTemplate
 from dlt.extract.source import DltResource, DltSource, TUnboundDltResource
@@ -47,7 +47,7 @@ def source(func: Optional[AnyFun] = None, /, name: str = None, schema: Schema = 
             raise SourceNotAFunction(name or "<no name>", f, type(f))
 
         if inspect.isclass(f):
-            raise SourceIsAClassTypError(name or "<no name>", f)
+            raise SourceIsAClassTypeError(name or "<no name>", f)
 
         # source name is passed directly or taken from decorated function name
         name = name or get_callable_name(f)
@@ -210,6 +210,9 @@ def resource(
     if callable(data):
         return decorator(data)
     else:
+        # take name from the generator
+        if inspect.isgenerator(data):
+            name = name or get_callable_name(data)  # type: ignore
         return make_resource(name, data)
 
 

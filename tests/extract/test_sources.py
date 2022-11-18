@@ -22,6 +22,12 @@ def test_parametrized_resource() -> None:
         yield 1
 
     r = DltResource.from_data(parametrized)
+    info = str(r)
+    # contains parametrized info
+    assert "This resource is parametrized and takes the following arguments" in info
+    # does not contain iterate infro
+    assert "If you want to see the data items in the resource you" not in info
+
     # iterating the source will raise unbound exception
     with pytest.raises(ParametrizedResourceUnbound) as py_ex:
         list(r)
@@ -31,6 +37,9 @@ def test_parametrized_resource() -> None:
     r = DltResource.from_data(parametrized)
     # bind
     assert list(r("p1", 1, p3=None)) == [1]
+    # take info from bound resource
+    info = str(r("p1", 1, p3=None))
+    assert "If you want to see the data items in the resource you" in info
 
     # as part of the source
     r = DltResource.from_data(parametrized)
@@ -197,6 +206,8 @@ def test_select_resources() -> None:
     assert py_ex.value.not_found_resources == set(("resource_10", "unknown"))
     # make sure the selected list was not changed
     assert list(s.selected_resources) == all_resource_names
+    info = str(s)
+    assert "resource resource_1 is selected" in info
 
     # successful select
     s_sel = s.with_resources("resource_1", "resource_7")
@@ -204,6 +215,8 @@ def test_select_resources() -> None:
     assert s is s_sel
     assert list(s.selected_resources) == ["resource_1", "resource_7"] == list(s.resources.selected)
     assert list(s.resources) == all_resource_names
+    info = str(s)
+    assert "resource resource_0 is not selected" in info
 
     # reselect
     assert list(s.with_resources("resource_8").selected_resources) == ["resource_8"]
@@ -241,7 +254,7 @@ def test_multiple_parametrized_transformers() -> None:
             # true pipelining fun
             return _r1() | _t1("2") | _t2(2)
 
-    expected_data = [['a_2', 'b_2', 'c_2', 'a_2', 'b_2', 'c_2']]
+    expected_data = ['a_2', 'b_2', 'c_2', 'a_2', 'b_2', 'c_2']
 
     # this s contains all resources
     s = _source(1)
@@ -281,6 +294,7 @@ def test_source_dynamic_resource_attrs() -> None:
 
 @pytest.mark.skip("not implemented")
 def test_resource_dict() -> None:
+    # the dict of resources in source
     # test clone
     # test delete
 
@@ -289,3 +303,18 @@ def test_resource_dict() -> None:
 @pytest.mark.skip("not implemented")
 def test_resource_multiple_iterations() -> None:
     pass
+
+
+def test_source_multiple_iterations() -> None:
+
+    def some_data():
+        yield [1, 2, 3]
+        yield [1, 2, 3]
+
+    s = DltSource("source", Schema("default"), [dlt.resource(some_data())])
+    assert s.exhausted is False
+    assert list(s) == [1, 2, 3, 1, 2, 3]
+    assert s.exhausted is True
+    assert list(s) == []
+    info = str(s)
+    assert "Source is already iterated" in info
