@@ -1,12 +1,12 @@
 import pytest
 import datetime  # noqa: I251
 from unittest.mock import patch
-from typing import Any, Dict, List, Mapping, MutableMapping, NewType, Optional, Type
+from typing import Any, Dict, Final, List, Mapping, MutableMapping, NewType, Optional, Type
 
 from dlt.common import pendulum, Decimal, Wei
 from dlt.common.utils import custom_environ
 from dlt.common.typing import TSecretValue, extract_inner_type
-from dlt.common.configuration.exceptions import ConfigFieldMissingTypeHintException, ConfigFieldTypeHintNotSupported, InvalidNativeValue, LookupTrace, ValueNotSecretException
+from dlt.common.configuration.exceptions import ConfigFieldMissingTypeHintException, ConfigFieldTypeHintNotSupported, FinalConfigFieldException, InvalidNativeValue, LookupTrace, ValueNotSecretException
 from dlt.common.configuration import configspec, ConfigFieldMissingException, ConfigValueCannotBeCoercedException, resolve
 from dlt.common.configuration.specs import BaseConfiguration, RunConfiguration
 from dlt.common.configuration.specs.base_configuration import is_valid_hint
@@ -164,6 +164,14 @@ def test_explicit_values(environment: Any) -> None:
     assert "created_val" not in c
 
 
+def test_explicit_values_false_when_bool() -> None:
+    # values like 0, [], "" all coerce to bool False
+    c = resolve.resolve_configuration(InstrumentedConfiguration(), explicit_value={"head": "", "tube": [], "heels": ""})
+    assert c.head == ""
+    assert c.tube == []
+    assert c.heels == ""
+
+
 def test_default_values(environment: Any) -> None:
     # explicit values override the environment and all else
     environment["PIPELINE_NAME"] = "env name"
@@ -180,6 +188,24 @@ def test_default_values(environment: Any) -> None:
     assert c.bytes_val == b"str"
     # default not serializable object
     assert c.none_val == type(environment)
+
+
+def test_raises_on_final_value_change(environment: Any) -> None:
+
+    @configspec
+    class FinalConfiguration(BaseConfiguration):
+        pipeline_name: Final[str] = "comp"
+
+    c = resolve.resolve_configuration(FinalConfiguration())
+    assert dict(c) == {"pipeline_name": "comp"}
+
+    environment["PIPELINE_NAME"] = "env name"
+    with pytest.raises(FinalConfigFieldException):
+        resolve.resolve_configuration(FinalConfiguration())
+
+    environment["PIPELINE_NAME"] = "comp"
+    assert dict(c) == {"pipeline_name": "comp"}
+    resolve.resolve_configuration(FinalConfiguration())
 
 
 def test_explicit_native_always_skips_resolve(environment: Any) -> None:
