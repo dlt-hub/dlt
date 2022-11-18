@@ -3,7 +3,7 @@
 from typing import List
 
 from dlt.common.configuration.exceptions import DuplicateConfigProviderException
-from dlt.common.configuration.providers import Provider
+from dlt.common.configuration.providers import ConfigProvider
 from dlt.common.configuration.providers.environ import EnvironProvider
 from dlt.common.configuration.providers.context import ContextProvider
 from dlt.common.configuration.providers.toml import SecretsTomlProvider, ConfigTomlProvider
@@ -13,7 +13,7 @@ from dlt.common.configuration.specs.base_configuration import ContainerInjectabl
 @configspec
 class ConfigProvidersContext(ContainerInjectableContext):
     """Injectable list of providers used by the configuration `resolve` module"""
-    providers: List[Provider]
+    providers: List[ConfigProvider]
     # context_provider: ContextProvider
 
     def __init__(self) -> None:
@@ -23,7 +23,7 @@ class ConfigProvidersContext(ContainerInjectableContext):
         # ContextProvider will provide contexts when embedded in configurations
         self.context_provider = ContextProvider()
 
-    def __getitem__(self, name: str) -> Provider:
+    def __getitem__(self, name: str) -> ConfigProvider:
         try:
             return next(p for p in self.providers if p.name == name)
         except StopIteration:
@@ -36,7 +36,7 @@ class ConfigProvidersContext(ContainerInjectableContext):
         except KeyError:
             return False
 
-    def add_provider(self, provider: Provider) -> None:
+    def add_provider(self, provider: ConfigProvider) -> None:
         if provider.name in self:
             raise DuplicateConfigProviderException(provider.name)
         self.providers.append(provider)

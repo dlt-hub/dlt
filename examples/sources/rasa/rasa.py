@@ -40,6 +40,7 @@ def rasa(
 
         def _proc_event(source_event: TDataItem) -> Iterator[TDataItem]:
             nonlocal last_timestamp
+
             # must be a dict
             assert isinstance(source_event, dict)
             # filter out events
@@ -56,6 +57,7 @@ def rasa(
                     event["source"] = source_env
                 if "model_id" in source_event:
                     event["model_id"] = source_event["model_id"]
+
                 yield dlt.with_table_name(event, "event")
                 # yield original event
                 yield dlt.with_table_name(source_event, "event_" + event_type)
@@ -69,7 +71,6 @@ def rasa(
 
         # write state so we can restart
         if store_last_timestamp and last_timestamp:
-            print("STORING STATE")
             dlt.state()["start_timestamp"] = last_timestamp
 
     return events

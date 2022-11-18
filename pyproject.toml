@@ -23,7 +23,7 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-python = "^3.8,<3.11"
+python = "^3.8,<3.12"
 requests = "^2.26.0"
 pendulum = "^2.1.2"
 simplejson = "^3.17.5"
@@ -90,7 +90,7 @@ postgres = ["psycopg2-binary", "psycopg2cffi"]
 redshift = ["psycopg2-binary", "psycopg2cffi"]
 
 [tool.poetry.scripts]
-dlt = "dlt.cli.dlt:main"
+dlt = "dlt.cli._dlt:main"
 
 [build-system]
 requires = ["poetry-core>=1.0.8"]

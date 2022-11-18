@@ -8,7 +8,7 @@ from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
 from dlt.common.typing import TSecretValue, StrAny
 from dlt.common.configuration import configspec
-from dlt.common.configuration.providers import Provider
+from dlt.common.configuration.providers import ConfigProvider
 from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration, RunConfiguration
 
 
@@ -82,7 +82,7 @@ def mock_provider() -> "MockProvider":
         yield mock_provider
 
 
-class MockProvider(Provider):
+class MockProvider(ConfigProvider):
 
     def __init__(self) -> None:
         self.value: Any = None
