@@ -1,7 +1,7 @@
 import pytest
 
 import dlt
-from dlt.extract.exceptions import InvalidResourceDataTypeFunctionNotAGenerator, InvalidResourceDataTypeIsNone, ParametrizedResourceUnbound, PipeNotBoundToData, ResourceFunctionExpected, SourceDataIsNone, SourceIsAClassTypError, SourceNotAFunction
+from dlt.extract.exceptions import InvalidResourceDataTypeFunctionNotAGenerator, InvalidResourceDataTypeIsNone, ParametrizedResourceUnbound, PipeNotBoundToData, ResourceFunctionExpected, SourceDataIsNone, SourceIsAClassTypeError, SourceNotAFunction
 from dlt.extract.source import DltResource
 
 from tests.common.utils import IMPORTED_VERSION_HASH_ETH_V5
@@ -86,7 +86,7 @@ def test_unbound_parametrized_transformer() -> None:
     with pytest.raises(ParametrizedResourceUnbound):
         (bound_r | empty_t_1)._pipe.evaluate_head()
 
-    assert list(empty_t_1("_meta")) == [[1, 2, 3], [1, 2, 3], [1, 2, 3]]
+    assert list(empty_t_1("_meta")) == [1, 2, 3, 1, 2, 3, 1, 2, 3]
 
     with pytest.raises(ParametrizedResourceUnbound):
         list(empty_t_1)
@@ -130,6 +130,14 @@ def test_resource_name_is_invalid_table_name_and_columns() -> None:
     assert "ka_ax" in schema.get_table("resource_")["columns"]
 
 
+def test_resource_name_from_generator() -> None:
+    def some_data():
+        yield [1, 2, 3]
+
+    r = dlt.resource(some_data())
+    assert r.name == "some_data"
+
+
 @pytest.mark.skip
 def test_resource_sets_invalid_write_disposition() -> None:
     # write_disposition="xxx" # this will fail schema
@@ -152,7 +160,7 @@ def test_class_source() -> None:
     assert "_list" in schema._schema_tables
     assert list(s) == ['A', 'V', 'A', 'V', 'A', 'V', 'A', 'V']
 
-    with pytest.raises(SourceIsAClassTypError):
+    with pytest.raises(SourceIsAClassTypeError):
         @dlt.source(name="planB")
         class _SourceB:
             def __init__(self, elems: int) -> None:

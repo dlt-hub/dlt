@@ -4,14 +4,14 @@ from collections.abc import Mapping as C_Mapping
 from typing import Any, Dict, ContextManager, List, Optional, Sequence, Tuple, Type, TypeVar, get_origin
 
 from dlt.common import json, logger
-from dlt.common.typing import AnyType, StrAny, TSecretValue, is_optional_type, extract_inner_type
+from dlt.common.typing import AnyType, StrAny, TSecretValue, is_final_type, is_optional_type, extract_inner_type
 from dlt.common.schema.utils import coerce_type, py_type_to_sc_type
 
 from dlt.common.configuration.specs.base_configuration import BaseConfiguration, CredentialsConfiguration, ContainerInjectableContext, get_config_if_union
 from dlt.common.configuration.specs.config_namespace_context import ConfigNamespacesContext
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
-from dlt.common.configuration.exceptions import (LookupTrace, ConfigFieldMissingException, ConfigurationWrongTypeException, ConfigValueCannotBeCoercedException, ValueNotSecretException, InvalidNativeValue)
+from dlt.common.configuration.exceptions import (FinalConfigFieldException, LookupTrace, ConfigFieldMissingException, ConfigurationWrongTypeException, ConfigValueCannotBeCoercedException, ValueNotSecretException, InvalidNativeValue)
 
 TConfiguration = TypeVar("TConfiguration", bound=BaseConfiguration)
 
@@ -158,14 +158,16 @@ def _resolve_config_fields(
             explicit_value = None
         default_value = getattr(config, key, None)
         current_value, traces = _resolve_config_field(key, hint, default_value, explicit_value, config, config.__namespace__, explicit_namespaces, embedded_namespaces, accept_partial)
-
         # check if hint optional
         is_optional = is_optional_type(hint)
         # collect unresolved fields
         if not is_optional and current_value is None:
             unresolved_fields[key] = traces
         # set resolved value in config
-        setattr(config, key, current_value)
+        if default_value != current_value:
+            if is_final_type(hint):
+                raise FinalConfigFieldException(type(config).__name__, key)
+            setattr(config, key, current_value)
 
     if unresolved_fields:
         raise ConfigFieldMissingException(type(config).__name__, unresolved_fields)
@@ -189,14 +191,13 @@ def _resolve_config_field(
     # extract origin from generic types (ie List[str] -> List)
     inner_hint = get_origin(inner_hint) or inner_hint
 
-    if explicit_value:
+    if explicit_value is not None:
         value = explicit_value
         traces: List[LookupTrace] = []
     else:
         # resolve key value via active providers passing the original hint ie. to preserve TSecretValue
         value, traces = _resolve_single_value(key, hint, inner_hint, config_namespace, explicit_namespaces, embedded_namespaces)
         _log_traces(config, key, hint, value, traces)
-
     # contexts must be resolved as a whole
     if inspect.isclass(inner_hint) and issubclass(inner_hint, ContainerInjectableContext):
         pass
@@ -231,7 +232,7 @@ def _resolve_config_field(
             # accept partial becomes True if type if optional so we do not fail on optional configs that do not resolve fully
             accept_partial = accept_partial or is_optional
             # create new instance and pass value from the provider as initial, add key to namespaces
-            value = _resolve_configuration(embedded_config, explicit_namespaces, embedded_namespaces + (key,), value or default_value, accept_partial)
+            value = _resolve_configuration(embedded_config, explicit_namespaces, embedded_namespaces + (key,), default_value if value is None else value, accept_partial)
     else:
         # if value is resolved, then deserialize and coerce it
         if value is not None:
@@ -239,7 +240,7 @@ def _resolve_config_field(
             if value is not explicit_value:
                 value = deserialize_value(key, value, inner_hint)
 
-    return value or default_value, traces
+    return default_value if value is None else value, traces
 
 
 def _log_traces(config: BaseConfiguration, key: str, hint: Type[Any], value: Any, traces: Sequence[LookupTrace]) -> None:

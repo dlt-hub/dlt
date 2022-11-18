@@ -4,12 +4,12 @@ import datetime  # noqa: I251
 
 
 from dlt.common import pendulum
-from dlt.common.configuration import configspec, ConfigFieldMissingException, ConfigFileNotFoundException, resolve
+from dlt.common.configuration import configspec, ConfigFieldMissingException, resolve
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.inject import with_config
 from dlt.common.configuration.exceptions import LookupTrace
 from dlt.common.configuration.providers.environ import EnvironProvider
-from dlt.common.configuration.providers.toml import SecretsTomlProvider, ConfigTomlProvider
+from dlt.common.configuration.providers.toml import SecretsTomlProvider, ConfigTomlProvider, TomlProviderReadException
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
 from dlt.common.configuration.specs import BaseConfiguration, GcpClientCredentials, PostgresCredentials
 from dlt.common.configuration.specs.postgres_credentials import ConnectionStringCredentials
@@ -172,3 +172,18 @@ def test_secrets_toml_credentials_from_native_repr(providers: ConfigProvidersCon
     assert c.port == 443
     assert c.database == "<database_or_schema_name>"
     assert c.query == {"conn_timeout": "15", "search_path": "a,b,c"}
+
+
+def test_toml_get_key_as_namespace(providers: ConfigProvidersContext) -> None:
+    cfg = providers["Pipeline secrets.toml"]
+    # [credentials]
+    # secret_value="2137"
+    # so the line below will try to use secrets_value value as namespace, this must fallback to not found
+    cfg.get_value("value", str, "credentials", "secret_value")
+
+
+def test_toml_read_exception() -> None:
+    pipeline_root = "./tests/common/cases/configuration/.wrong.dlt"
+    with pytest.raises(TomlProviderReadException) as py_ex:
+        ConfigTomlProvider(project_dir=pipeline_root)
+    assert py_ex.value.file_name == "config.toml"

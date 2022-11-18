@@ -1,3 +1,4 @@
+import datetime  # noqa: 251
 from typing import TYPE_CHECKING, Any, ClassVar, Dict, List, TypedDict, Optional, cast
 
 import dlt
@@ -60,6 +61,7 @@ class TPipelineState(TypedDict, total=False):
     # properties starting with _ are not automatically applied to pipeline object when state is restored
     _state_version: int
     _state_engine_version: int
+    _last_extracted_at: datetime.datetime
 
 
 class TSourceState(TPipelineState):
@@ -77,8 +79,10 @@ class StateInjectableContext(ContainerInjectableContext):
             ...
 
 
-def merge_state(old_state: TPipelineState, new_state: TPipelineState) -> TPipelineState:
+def merge_state_if_changed(old_state: TPipelineState, new_state: TPipelineState) -> Optional[TPipelineState]:
     # load state from storage to be merged with pipeline changes, currently we assume no parallel changes
+    if json.dumps(old_state, sort_keys=True) == json.dumps(new_state, sort_keys=True):
+        return None
     # TODO: we should probably update smarter ie. recursively
     old_state.update(new_state)
     old_state["_state_version"] += 1
@@ -91,7 +95,7 @@ def state_resource(state: TPipelineState) -> DltResource:
         "engine_version": state["_state_engine_version"],
         "pipeline_name": state["pipeline_name"],
         "state": json.dumps(state),
-        "created_at": pendulum.now()
+        "created_at": state["_last_extracted_at"]
     }
 
     return dlt.resource([state_doc], name=STATE_TABLE_NAME, write_disposition="append", columns=STATE_TABLE_COLUMNS)

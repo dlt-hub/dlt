@@ -174,6 +174,12 @@ class SourceDataIsNone(DltSourceException):
         super().__init__(f"No data returned or yielded from source function {source_name}. Did you forget the return statement?")
 
 
+class SourceExhausted(DltSourceException):
+    def __init__(self, source_name: str) -> None:
+        self.source_name = source_name
+        super().__init__(f"Source {source_name} is exhausted or has active iterator. You can iterate or pass the source to dlt pipeline only once.")
+
+
 class ResourcesNotFoundError(DltSourceException):
     def __init__(self, source_name: str, available_resources: Set[str], requested_resources: Set[str]) -> None:
         self.source_name = source_name
@@ -192,7 +198,7 @@ class SourceNotAFunction(DltSourceException):
         super().__init__(f"First parameter to the source {source_name} must be a function or callable but is {_typ.__name__}. Please decorate a function with @dlt.source")
 
 
-class SourceIsAClassTypError(DltSourceException):
+class SourceIsAClassTypeError(DltSourceException):
     def __init__(self, source_name: str,  _typ: Type[Any]) -> None:
         self.source_name = source_name
         self.typ = _typ

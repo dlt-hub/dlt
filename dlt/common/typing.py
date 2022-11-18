@@ -1,6 +1,6 @@
 from collections.abc import Mapping as C_Mapping, Sequence as C_Sequence
 from re import Pattern as _REPattern
-from typing import Callable, Dict, Any, Literal, List, Mapping, NewType, Tuple, Type, TypeVar, Generic, Protocol, TYPE_CHECKING, Union, runtime_checkable, get_args, get_origin
+from typing import Callable, Dict, Any, Final, Literal, List, Mapping, NewType, Tuple, Type, TypeVar, Generic, Protocol, TYPE_CHECKING, Union, runtime_checkable, get_args, get_origin
 from typing_extensions import TypeAlias, ParamSpec, Concatenate
 
 if TYPE_CHECKING:
@@ -50,6 +50,10 @@ def is_optional_type(t: Type[Any]) -> bool:
     return get_origin(t) is Union and type(None) in get_args(t)
 
 
+def is_final_type(t: Type[Any]) -> bool:
+    return get_origin(t) is Final
+
+
 def extract_optional_type(t: Type[Any]) -> Any:
     return get_args(t)[0]
 
@@ -92,8 +96,8 @@ def extract_inner_type(hint: Type[Any]) -> Type[Any]:
     if is_literal_type(hint):
         # assume that all literals are of the same type
         return extract_inner_type(type(get_args(hint)[0]))
-    if is_optional_type(hint):
-        # extract optional type and call recursively
+    if is_optional_type(hint) or is_final_type(hint):
+        # extract specialization type and call recursively
         return extract_inner_type(get_args(hint)[0])
     if is_newtype_type(hint):
         # descend into supertypes of NewType

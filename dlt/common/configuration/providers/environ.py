@@ -4,11 +4,11 @@ from typing import Any, Optional, Type, Tuple
 
 from dlt.common.typing import TSecretValue
 
-from .provider import Provider
+from .provider import ConfigProvider
 
 SECRET_STORAGE_PATH: str = "/run/secrets/%s"
 
-class EnvironProvider(Provider):
+class EnvironProvider(ConfigProvider):
 
     @staticmethod
     def get_key_name(key: str, *namespaces: str) -> str:

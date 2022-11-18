@@ -12,14 +12,14 @@ from dlt.common.schema.typing import TColumnSchema, TPartialTableSchema, TTableS
 from dlt.common.typing import AnyFun, TDataItem, TDataItems, NoneType, TypeAlias
 from dlt.common.configuration.container import Container
 from dlt.common.pipeline import PipelineContext, SupportsPipelineRun
-from dlt.common.utils import get_callable_name
+from dlt.common.utils import flatten_list_or_items, get_callable_name
 
 from dlt.extract.typing import DataItemWithMeta, FilterItemFunction, FilterItemFunctionWithMeta, TableNameMeta, TFunHintTemplate, TTableHintTemplate, TTableSchemaTemplate
 from dlt.extract.pipe import FilterItem, Pipe, PipeIterator
 from dlt.extract.exceptions import (
     InvalidTransformerDataTypeGeneratorFunctionRequired, InvalidParentResourceDataType, InvalidParentResourceIsAFunction, InvalidResourceDataType, InvalidResourceDataTypeFunctionNotAGenerator, InvalidResourceDataTypeIsNone, InvalidTransformerGeneratorFunction,
     ResourceNotFoundError, DataItemRequiredForDynamicTableHints, InconsistentTableTemplate, InvalidResourceDataTypeAsync, InvalidResourceDataTypeBasic,
-    InvalidResourceDataTypeMultiplePipes, ResourceNameMissing, ResourcesNotFoundError, TableNameMissing, DeletingResourcesNotSupported)
+    InvalidResourceDataTypeMultiplePipes, ResourceNameMissing, ResourcesNotFoundError, SourceExhausted, TableNameMissing, DeletingResourcesNotSupported)
 
 
 def with_table_name(item: TDataItems, table_name: str) -> DataItemWithMeta:
@@ -124,7 +124,7 @@ class DltResourceSchema:
         return new_template
 
 
-class DltResource(Iterable[TDataItems], DltResourceSchema):
+class DltResource(Iterable[TDataItem], DltResourceSchema):
 
     Empty: ClassVar["DltResource"] = None
 
@@ -175,8 +175,6 @@ class DltResource(Iterable[TDataItems], DltResourceSchema):
         # create resource from iterator, iterable or generator function
         if isinstance(data, (Iterable, Iterator)) or callable(data):
             pipe = Pipe.from_data(name, data, parent=parent_pipe)
-            # print(f"from_data: pipe: {pipe}")
-            # print(f"PARENT: {pipe.parent}")
             return cls(pipe, table_schema_template, selected)
         else:
             # some other data type that is not supported
@@ -184,8 +182,13 @@ class DltResource(Iterable[TDataItems], DltResourceSchema):
 
     @property
     def is_transformer(self) -> bool:
-        """Checks if the resource is a transformer that depends on another resource"""
+        """Checks if the resource is a transformer that takes data from another resource"""
         return self._pipe.has_parent
+
+    @property
+    def is_parametrized(self) -> bool:
+        """Checks if resource"""
+        raise NotImplementedError()
 
     def add_pipe(self, data: Any) -> None:
         """Creates additional pipe for the resource from the specified data"""
@@ -241,14 +244,7 @@ class DltResource(Iterable[TDataItems], DltResourceSchema):
                 if "meta" in kwargs:
                     kwargs["meta"] = meta
                 return head(item, *args, **kwargs)  # type: ignore
-
-            # try:
-            #     _data = partial(head, "item", *args, **kwargs)
-            # except ValueError as v_ex:
-            #     raise TypeError(f"{get_callable_name(head)}(): " + str(v_ex))
             _data = makefun.wraps(head, new_sig=inspect.signature(_partial))(_partial)
-            # print(_data.__name__)
-            # print(f"BOUND: {inspect.signature(_data)}")
         else:
             # pass the call parameters to the pipe's head
             _data = head(*args, **kwargs)
@@ -258,11 +254,8 @@ class DltResource(Iterable[TDataItems], DltResourceSchema):
                 if not isinstance(_data, DltResource):
                     raise InvalidResourceDataTypeFunctionNotAGenerator(self.name, head, type(head))
         # create new resource from extracted data, if _data is a DltResource it will be returned intact
-        # print(f"CALL: {self._pipe.parent}")
         r = DltResource.from_data(_data, self.name, self._table_schema_template, self.selected, self._pipe.parent)
-        # print(f"NEW R: {r._pipe}")
         # modify this instance, the default is to leave the instance immutable
-        # print(f"call: {self.name}")
         if self._apply_binding:
             # update from new resource
             old_pipe = self._pipe
@@ -284,15 +277,28 @@ class DltResource(Iterable[TDataItems], DltResourceSchema):
         if resource.is_transformer:
             DltResource._ensure_valid_transformer_resource(resource.name, resource._pipe.head)
         else:
-            raise Exception("Not a tranformer")
+            raise Exception("Not a transformer")
         resource._set_data_from(self)
         return resource
 
-    def __iter__(self) -> Iterator[TDataItems]:
-        return map(lambda item: item.item, PipeIterator.from_pipe(self._pipe))
+    def __iter__(self) -> Iterator[TDataItem]:
+        return flatten_list_or_items(map(lambda item: item.item, PipeIterator.from_pipe(self._pipe)))
 
-    def __repr__(self) -> str:
-        return f"DltResource {self.name} ({self._pipe._pipe_id}) at {id(self)}"
+    def __str__(self) -> str:
+        info = f"DltResource {self.name}:"
+        if self.is_transformer:
+            info += f"\nThis resource is a transformer and takes data items from {self._pipe.parent.name}"
+        else:
+            if self._pipe.is_data_bound:
+                head = self._pipe.head
+                if callable(head):
+                    info += f"\nThis resource is parametrized and takes the following arguments {inspect.signature(head)}. You must call this resource before loading."
+                else:
+                    info += "\nIf you want to see the data items in the resource you must iterate it or convert to list ie. list(resource). Note that, like any iterator, you can iterate the resource only once."
+            else:
+                info += "\nThis resource is not bound to the data"
+        info += f"\nInstance: info: (data pipe id:{self._pipe._pipe_id}) at {id(self)}"
+        return info
 
     @staticmethod
     def _ensure_valid_transformer_resource(name: str, data: Any) -> None:
@@ -390,9 +396,10 @@ class DltResourceDict(Dict[str, DltResource]):
         raise DeletingResourcesNotSupported(self.source_name, resource_name)
 
 
-class DltSource(Iterable[TDataItems]):
+class DltSource(Iterable[TDataItem]):
     def __init__(self, name: str, schema: Schema, resources: Sequence[DltResource] = None) -> None:
         self.name = name
+        self.exhausted = False
         self._schema = schema
         self._resources: DltResourceDict = DltResourceDict(self.name)
         if resources:
@@ -449,6 +456,9 @@ class DltSource(Iterable[TDataItems]):
         return self_run
 
     def _add_resource(self, resource: DltResource) -> None:
+        if self.exhausted:
+            raise SourceExhausted(self.name)
+
         if resource.name in self._resources:
             # for resources with the same name try to add the resource as an another pipe
             self._resources[resource.name].add_pipe(resource)
@@ -460,8 +470,23 @@ class DltSource(Iterable[TDataItems]):
     def __getattr__(self, resource_name: str) -> DltResource:
         return self._resources[resource_name]
 
-    def __iter__(self) -> Iterator[TDataItems]:
-        return map(lambda item: item.item, PipeIterator.from_pipes(self._resources.selected_pipes))
+    def __iter__(self) -> Iterator[TDataItem]:
+        _iter = map(lambda item: item.item, PipeIterator.from_pipes(self._resources.selected_pipes))
+        self.exhausted = True
+        return flatten_list_or_items(_iter)
 
-    def __repr__(self) -> str:
-        return f"DltSource {self.name} at {id(self)}"
+    def __str__(self) -> str:
+        info = f"DltSource {self.name} contains {len(self.resources)} resource(s) of which {len(self.selected_resources)} are selected"
+        for r in self.resources.values():
+            selected_info = "selected" if r.selected else "not selected"
+            if r.is_transformer:
+                info += f"\ntransformer {r.name} is {selected_info} and takes data from {r._pipe.parent.name}"
+            else:
+                info += f"\nresource {r.name} is {selected_info}"
+        if self.exhausted:
+            info += "\nSource is already iterated and cannot be used again ie. to display or load data."
+        else:
+            info += "\nIf you want to see the data items in this source you must iterate it or convert to list ie. list(source)."
+        info += " Note that, like any iterator, you can iterate the source only once."
+        info += f"\ninstance id: {id(self)}"
+        return info

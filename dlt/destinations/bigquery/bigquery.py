@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 from dlt.common.storages.file_storage import FileStorage
 import google.cloud.bigquery as bigquery  # noqa: I250
 from google.cloud import exceptions as gcp_exceptions
@@ -142,20 +142,8 @@ class BigQueryClient(SqlJobClientBase):
             else:
                 raise DestinationTransientException(gace)
 
-    def _build_schema_update_sql(self) -> List[str]:
-        sql_updates = []
-        for table_name in self.schema.tables:
-            exists, storage_table = self.get_storage_table(table_name)
-            sql = self._get_table_update_sql(table_name, storage_table, exists)
-            if sql:
-                sql_updates.append(sql)
-        return sql_updates
 
-    def _get_table_update_sql(self, table_name: str, storage_table: TTableSchemaColumns, exists: bool) -> str:
-        new_columns = self._create_table_update(table_name, storage_table)
-        if len(new_columns) == 0:
-            # no changes
-            return None
+    def _get_table_update_sql(self, table_name: str, new_columns: Sequence[TColumnSchema], exists: bool) -> str:
         # build sql
         canonical_name = self.sql_client.make_qualified_table_name(table_name)
         if not exists:

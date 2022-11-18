@@ -96,8 +96,18 @@ class SqlJobClientBase(JobClientBase):
         query = f"SELECT {self.VERSION_TABLE_SCHEMA_COLUMNS} FROM {name} WHERE version_hash = %s;"
         return self._row_to_schema_info(query, version_hash)
 
-    @abstractmethod
     def _build_schema_update_sql(self) -> List[str]:
+        sql_updates = []
+        for table_name in self.schema.tables:
+            exists, storage_table = self.get_storage_table(table_name)
+            new_columns = self._create_table_update(table_name, storage_table)
+            if len(new_columns) > 0:
+                sql = self._get_table_update_sql(table_name, new_columns, exists)
+                sql_updates.append(sql)
+        return sql_updates
+
+    @abstractmethod
+    def _get_table_update_sql(self, table_name: str, new_columns: Sequence[TColumnSchema], exists: bool) -> str:
         pass
 
     def _create_table_update(self, table_name: str, storage_table: TTableSchemaColumns) -> Sequence[TColumnSchema]:

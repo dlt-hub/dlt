@@ -4,10 +4,10 @@ from typing import Any, ClassVar, Optional, Type, Tuple
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs import ContainerInjectableContext
 
-from .provider import Provider
+from .provider import ConfigProvider
 
 
-class ContextProvider(Provider):
+class ContextProvider(ConfigProvider):
 
     NAME: ClassVar[str] = "Injectable Context"
 

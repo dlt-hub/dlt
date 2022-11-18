@@ -4,6 +4,7 @@ from typing import Any
 import pytest
 
 import dlt
+from dlt.common import pendulum
 from dlt.common.schema.schema import Schema, utils
 from dlt.common.schema.typing import VERSION_TABLE_NAME
 from dlt.common.utils import uniq_id
@@ -35,6 +36,7 @@ def test_restore_state_utils(destination_name: str) -> None:
         assert load_state_from_destination(p.pipeline_name, job_client.sql_client) is None
         initial_state = p._get_state(restore_from_destination=False)
         # now add table to schema and sync
+        initial_state["_last_extracted_at"] = pendulum.now()
         resource = state_resource(initial_state)
         table_schema = resource.table_schema()
         # add _dlt_id and _dlt_load_id
@@ -53,8 +55,6 @@ def test_restore_state_utils(destination_name: str) -> None:
         # just run the existing extract
         p.run()
         stored_state = load_state_from_destination(p.pipeline_name, job_client.sql_client)
-        # version will be one up
-        stored_state["_state_version"] += 1
         assert stored_state == p._get_state()
         # extract state again
         with p._managed_state(extract_state=True) as managed_state:
@@ -63,6 +63,48 @@ def test_restore_state_utils(destination_name: str) -> None:
         p.run()
         stored_state = load_state_from_destination(p.pipeline_name, job_client.sql_client)
         assert stored_state["sources"] == {"source": "test"}
+        local_state = p._get_state()
+        assert stored_state == local_state
+        # use the state context manager again but do not change state
+        with p._managed_state(extract_state=True):
+            pass
+        # version not changed
+        assert local_state == p._get_state()
+        info = p.run()
+        assert len(info.loads_ids) == 0
+        new_stored_state = load_state_from_destination(p.pipeline_name, job_client.sql_client)
+        # new state should not be stored
+        assert new_stored_state == stored_state
+
+        # change the state in context manager but there's no extract
+        with p._managed_state(extract_state=False) as managed_state:
+            managed_state["sources"] = {"source": "test2"}
+        new_local_state = p._get_state()
+        assert local_state != new_local_state
+        # version increased
+        assert local_state["_state_version"] + 1 == new_local_state["_state_version"]
+        # last extracted timestamp not present
+        assert "_last_extracted_at" not in new_local_state
+
+        # use the state context manager again but do not change state
+        # because _last_extracted_at is not present, the version will not change but state will be extracted anyway
+        with p._managed_state(extract_state=True):
+            pass
+        new_local_state_2 = p._get_state()
+        assert new_local_state != new_local_state_2
+        # there's extraction timestamp
+        assert "_last_extracted_at" in new_local_state_2
+        # but the version didn't change
+        assert new_local_state["_state_version"] == new_local_state_2["_state_version"]
+        info = p.run()
+        assert len(info.loads_ids) == 1
+        new_stored_state_2 = load_state_from_destination(p.pipeline_name, job_client.sql_client)
+        # the stored state changed to next version
+        assert new_stored_state != new_stored_state_2
+        assert new_stored_state["_state_version"] + 1 == new_stored_state_2["_state_version"]
+        # and extract timestamp increased
+        assert new_stored_state["_last_extracted_at"] < new_stored_state_2["_last_extracted_at"]
+
 
 
 @pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)

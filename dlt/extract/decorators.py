@@ -5,14 +5,16 @@ from makefun import wraps
 from typing import Any, Callable, Dict, Iterator, List, NamedTuple, Optional, Tuple, Type, TypeVar, Union, cast, overload
 
 from dlt.common.configuration import with_config, get_fun_spec
+from dlt.common.configuration.resolve import inject_namespace
 from dlt.common.configuration.specs import BaseConfiguration
+from dlt.common.configuration.specs.config_namespace_context import ConfigNamespacesContext
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import TTableSchemaColumns, TWriteDisposition
 from dlt.common.storages.exceptions import SchemaNotFoundError
 from dlt.common.storages.schema_storage import SchemaStorage
 from dlt.common.typing import AnyFun, ParamSpec, Concatenate, TDataItem, TDataItems
 from dlt.common.utils import get_callable_name, is_inner_callable
-from dlt.extract.exceptions import InvalidTransformerDataTypeGeneratorFunctionRequired, ResourceFunctionExpected, SourceDataIsNone, SourceIsAClassTypError, SourceNotAFunction
+from dlt.extract.exceptions import InvalidTransformerDataTypeGeneratorFunctionRequired, ResourceFunctionExpected, SourceDataIsNone, SourceIsAClassTypeError, SourceNotAFunction
 
 from dlt.extract.typing import TTableHintTemplate
 from dlt.extract.source import DltResource, DltSource, TUnboundDltResource
@@ -47,7 +49,7 @@ def source(func: Optional[AnyFun] = None, /, name: str = None, schema: Schema = 
             raise SourceNotAFunction(name or "<no name>", f, type(f))
 
         if inspect.isclass(f):
-            raise SourceIsAClassTypError(name or "<no name>", f)
+            raise SourceIsAClassTypeError(name or "<no name>", f)
 
         # source name is passed directly or taken from decorated function name
         name = name or get_callable_name(f)
@@ -57,11 +59,14 @@ def source(func: Optional[AnyFun] = None, /, name: str = None, schema: Schema = 
             schema = _maybe_load_schema_for_callable(f, name) or Schema(name, normalize_name=True)
 
         # wrap source extraction function in configuration with namespace
-        conf_f = with_config(f, spec=spec, namespaces=("sources", name))
+        source_namespaces = ("sources", name)
+        conf_f = with_config(f, spec=spec, namespaces=source_namespaces)
 
         @wraps(conf_f, func_name=name)
         def _wrap(*args: Any, **kwargs: Any) -> DltSource:
-            rv = conf_f(*args, **kwargs)
+            # configurations will be accessed in this namespace in the source
+            with inject_namespace(ConfigNamespacesContext(namespaces=source_namespaces)):
+                rv = conf_f(*args, **kwargs)
 
             # if generator, consume it immediately
             if inspect.isgenerator(rv):
@@ -210,6 +215,9 @@ def resource(
     if callable(data):
         return decorator(data)
     else:
+        # take name from the generator
+        if inspect.isgenerator(data):
+            name = name or get_callable_name(data)  # type: ignore
         return make_resource(name, data)
 
 

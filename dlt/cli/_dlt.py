@@ -2,6 +2,7 @@ import yaml
 import os
 import argparse
 from typing import Callable
+from dlt.cli.init import init_command
 
 from dlt.common import json
 from dlt.cli import TRunnerArgs
@@ -40,7 +41,7 @@ def main() -> None:
     schema.add_argument("--remove-defaults", action="store_true", help="Does not show default hint values")
     pipe_cmd = subparsers.add_parser("pipeline", help="Operations on the pipelines")
     pipe_cmd.add_argument("name", help="Pipeline name")
-    pipe_cmd.add_argument("operation", choices=["failed_loads", "drop"], default="failed_loads", help="Show failed loads for a pipeline")
+    pipe_cmd.add_argument("operation", choices=["failed_loads", "drop", "init"], default="failed_loads", help="Show failed loads for a pipeline")
     pipe_cmd.add_argument("--workdir", help="Pipeline working directory", default=None)
 
     # TODO: consider using fire: https://github.com/google/python-fire
@@ -72,6 +73,10 @@ def main() -> None:
         exit(0)
     elif args.command == "pipeline":
         # from dlt.load import dummy
+
+        if args.operation == "init":
+            init_command(args.name, "bigquery")
+            exit(0)
 
         p = attach(pipeline_name=args.name, working_dir=args.workdir)
         print(f"Found pipeline {p.pipeline_name} ({args.name}) in {p.working_dir} ({args.workdir}) with state {p._get_state()}")

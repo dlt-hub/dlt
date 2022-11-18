@@ -11,9 +11,7 @@ class LookupTrace(NamedTuple):
 
 
 class ConfigurationException(DltException):
-    def __init__(self, msg: str) -> None:
-        super().__init__(msg)
-
+    pass
 
 
 class ContainerException(ConfigurationException):
@@ -46,6 +44,11 @@ class ConfigFieldMissingException(ConfigurationException):
                 msg += f'\t\tIn {tr.provider} key {tr.key} was not found.\n'
         super().__init__(msg)
 
+
+class FinalConfigFieldException(ConfigurationException):
+    """thrown when field was annotated as final ie Final[str] and the value is modified by config provider"""
+    def __init__(self, spec_name: str, field: str) -> None:
+        super().__init__(f"Field {field} in spec {spec_name} is final but is being changed by a config provider")
 
 class ConfigValueCannotBeCoercedException(ConfigurationException):
     """thrown when value returned by config provider cannot be coerced to hinted type"""

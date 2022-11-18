@@ -34,8 +34,8 @@ def test_configuration() -> None:
 
 
 def test_create_table(client: RedshiftClient) -> None:
-    client.schema.update_schema(new_table("event_test_table", columns=TABLE_UPDATE))
-    sql = client._get_table_update_sql("event_test_table", {}, False)
+    # non existing table
+    sql = client._get_table_update_sql("event_test_table", TABLE_UPDATE, False)
     assert sql.startswith("BEGIN TRANSACTION;\n")
     assert "event_test_table" in sql
     assert '"col1" bigint  NOT NULL' in sql
@@ -51,9 +51,8 @@ def test_create_table(client: RedshiftClient) -> None:
 
 
 def test_alter_table(client: RedshiftClient) -> None:
-    client.schema.update_schema(new_table("event_test_table", columns=TABLE_UPDATE))
-    # table has no columns
-    sql = client._get_table_update_sql("event_test_table", {}, True)
+    # existing table has no columns
+    sql = client._get_table_update_sql("event_test_table", TABLE_UPDATE, True)
     canonical_name = client.sql_client.make_qualified_table_name("event_test_table")
     assert sql.startswith("BEGIN TRANSACTION;\n")
     # must have several ALTER TABLE statements
@@ -78,8 +77,7 @@ def test_create_table_with_hints(client: RedshiftClient) -> None:
     mod_update[0]["sort"] = True
     mod_update[1]["cluster"] = True
     mod_update[4]["cluster"] = True
-    client.schema.update_schema(new_table("event_test_table", columns=mod_update))
-    sql = client._get_table_update_sql("event_test_table", {}, False)
+    sql = client._get_table_update_sql("event_test_table", mod_update, False)
     # PRIMARY KEY will not be present https://heap.io/blog/redshift-pitfalls-avoid
     assert '"col1" bigint SORTKEY NOT NULL' in sql
     assert '"col2" double precision DISTKEY NOT NULL' in sql
@@ -93,7 +91,6 @@ def test_hint_alter_table_exception(client: RedshiftClient) -> None:
     mod_update = deepcopy(TABLE_UPDATE)
     # timestamp
     mod_update[3]["sort"] = True
-    client.schema.update_schema(new_table("event_test_table", columns=mod_update))
     with pytest.raises(DestinationSchemaWillNotUpdate) as excc:
-        client._get_table_update_sql("event_test_table", {}, True)
+        client._get_table_update_sql("event_test_table", mod_update, True)
     assert excc.value.columns == ["col4"]

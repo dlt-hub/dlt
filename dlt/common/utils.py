@@ -8,9 +8,9 @@ from contextlib import contextmanager
 from functools import wraps
 from os import environ
 
-from typing import Any, Dict, Iterator, Optional, Sequence, TypeVar, Mapping, List, TypedDict, Union
+from typing import Any, Dict, Iterable, Iterator, Optional, Sequence, TypeVar, Mapping, List, TypedDict, Union
 
-from dlt.common.typing import AnyFun, StrAny, DictStrAny, StrStr, TFun
+from dlt.common.typing import AnyFun, StrAny, DictStrAny, StrStr, TDataItem, TDataItems, TFun
 
 T = TypeVar("T")
 
@@ -114,6 +114,14 @@ def tuplify_list_of_dicts(dicts: Sequence[DictStrAny]) -> Sequence[DictStrAny]:
             d["value"] = value
 
     return dicts
+
+
+def flatten_list_or_items(_iter: Iterator[TDataItems]) -> Iterator[TDataItem]:
+    for items in _iter:
+        if isinstance(items, list):
+            yield from items
+        else:
+            yield items
 
 
 def filter_env_vars(envs: List[str]) -> StrStr:

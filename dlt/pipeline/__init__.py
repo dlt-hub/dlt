@@ -17,7 +17,7 @@ from dlt.pipeline.pipeline import Pipeline
 def pipeline(
     pipeline_name: str = None,
     working_dir: str = None,
-    pipeline_secret: TSecretValue = None,
+    pipeline_salt: TSecretValue = None,
     destination: TDestinationReferenceArg = None,
     dataset_name: str = None,
     import_schema_path: str = None,
@@ -44,12 +44,12 @@ def pipeline(
     if not working_dir:
         working_dir = get_default_working_dir()
 
-    destination = DestinationReference.from_name(destination)
+    destination = DestinationReference.from_name(destination or kwargs["destination_name"])
     # create new pipeline instance
     p = Pipeline(
         pipeline_name,
         working_dir,
-        pipeline_secret,
+        pipeline_salt,
         destination,
         dataset_name,
         credentials,
@@ -58,7 +58,7 @@ def pipeline(
         full_refresh,
         False,
         restore_from_destination,
-        kwargs["_runtime"])
+        kwargs["runtime"])
     # set it as current pipeline
     Container()[PipelineContext].activate(p)
 
@@ -69,7 +69,7 @@ def pipeline(
 def attach(
     pipeline_name: str = None,
     working_dir: str = None,
-    pipeline_secret: TSecretValue = None,
+    pipeline_salt: TSecretValue = None,
     full_refresh: bool = False,
     **kwargs: Any
 ) -> Pipeline:
@@ -77,7 +77,7 @@ def attach(
     if not working_dir:
         working_dir = get_default_working_dir()
     # create new pipeline instance
-    p = Pipeline(pipeline_name, working_dir, pipeline_secret, None, None, None, None, None, full_refresh, True, False, kwargs["_runtime"])
+    p = Pipeline(pipeline_name, working_dir, pipeline_salt, None, None, None, None, None, full_refresh, True, False, kwargs["runtime"])
     # set it as current pipeline
     Container()[PipelineContext].activate(p)
     return p

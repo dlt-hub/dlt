@@ -83,7 +83,7 @@ def test_default_schema_name(destination_name: str) -> None:
 
 
 @pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
-def test_restore_pipeline(destination_name: str) -> None:
+def test_attach_pipeline(destination_name: str) -> None:
     # load data and then restore the pipeline and see if data is still there
     data = ["a", "b", "c"]
 
@@ -105,13 +105,37 @@ def test_restore_pipeline(destination_name: str) -> None:
     old_p: dlt.Pipeline = info.pipeline
     assert p.pipeline_name == old_p.pipeline_name
     assert p.pipeline_root == old_p.pipeline_root
-    # secret will be different
-    # TODO: make default secret deterministic
-    assert p.pipeline_secret != old_p.pipeline_secret
+    # secret will be the same: if not explicitly provided it is derived from pipeline name
+    assert p.pipeline_salt == old_p.pipeline_salt
     assert p.default_schema_name == p.default_schema_name
 
     # query data
     assert_table(p, "data_table", data, info=info)
+
+
+@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
+def test_skip_sync_schema_for_tables_without_columns(destination_name: str) -> None:
+
+    # load data and then restore the pipeline and see if data is still there
+    data = ["a", "b", "c"]
+
+    @dlt.resource(name="data_table")
+    def _data():
+        for d in data:
+            yield d
+
+    p = dlt.pipeline(destination=destination_name)
+    p.extract(_data)
+    schema = p.default_schema
+    assert "data_table" in schema._schema_tables
+    assert schema._schema_tables["data_table"]["columns"] == {}
+
+    p.sync_schema()
+
+    with p._sql_job_client(schema) as job_client:
+        # such tables are not created but silently ignored
+        exists, _ = job_client.get_storage_table("data_table")
+        assert not exists
 
 
 @pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
