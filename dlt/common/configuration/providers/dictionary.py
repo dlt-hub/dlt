@@ -3,16 +3,15 @@ from typing import Any, ClassVar, Iterator, Optional, Type, Tuple
 
 from dlt.common.typing import StrAny
 
-from .provider import Provider
+from .provider import ConfigProvider
 
 
-class DictionaryProvider(Provider):
+class DictionaryProvider(ConfigProvider):
 
     NAME: ClassVar[str] = "Dictionary Provider"
 
     def __init__(self) -> None:
         self._values: StrAny = {}
-        pass
 
     @property
     def name(self) -> str:
@@ -24,6 +23,8 @@ class DictionaryProvider(Provider):
         node = self._values
         try:
             for k in  full_path:
+                if not isinstance(node, dict):
+                    raise KeyError(k)
                 node = node[k]
             return node, full_key
         except KeyError:

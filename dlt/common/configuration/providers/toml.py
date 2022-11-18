@@ -4,15 +4,18 @@ from typing import Any, Optional, Tuple, Type
 
 from dlt.common.typing import StrAny
 
-from .provider import Provider
+from .provider import ConfigProvider, ConfigProviderException
 
 
-class TomlProvider(Provider):
+class TomlProvider(ConfigProvider):
 
     def __init__(self, file_name: str, project_dir: str = None) -> None:
         self._file_name = file_name
         self._toml_path = os.path.join(project_dir or os.path.abspath(os.path.join(".", ".dlt")), file_name)
-        self._toml = self._read_toml(self._toml_path)
+        try:
+            self._toml = self._read_toml(self._toml_path)
+        except Exception as ex:
+            raise TomlProviderReadException(self.name, file_name, self._toml_path, str(ex))
 
     @staticmethod
     def get_key_name(key: str, *namespaces: str) -> str:
@@ -30,6 +33,8 @@ class TomlProvider(Provider):
         node = self._toml
         try:
             for k in  full_path:
+                if not isinstance(node, dict):
+                    raise KeyError(k)
                 node = node[k]
             return node, full_key
         except KeyError:
@@ -42,7 +47,6 @@ class TomlProvider(Provider):
     @staticmethod
     def _read_toml(toml_path: str) -> StrAny:
         if os.path.isfile(toml_path):
-            # TODO: raise an exception with an explanation to the end user what is this toml file that does not parse etc.
             with open(toml_path, "r", encoding="utf-8") as f:
                 # use whitespace preserving parser
                 return tomlkit.load(f)
@@ -77,3 +81,12 @@ class SecretsTomlProvider(TomlProvider):
     @property
     def supports_secrets(self) -> bool:
         return True
+
+
+class TomlProviderReadException(ConfigProviderException):
+    def __init__(self, provider_name: str, file_name: str, full_path: str, toml_exception: str) -> None:
+        self.file_name = file_name
+        self.full_path = full_path
+        msg = f"A problem encountered when loading {provider_name} from {full_path}:\n"
+        msg += toml_exception
+        super().__init__(provider_name, msg)
