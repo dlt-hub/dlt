@@ -1,14 +1,15 @@
-import datetime  # noqa: 251
-from typing import TYPE_CHECKING, Any, ClassVar, Dict, List, TypedDict, Optional, cast
+import contextlib
+from typing import TYPE_CHECKING, Any, ClassVar, Dict, Optional, cast
 
 import dlt
 
-from dlt.common import json, pendulum
+from dlt.common import json
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import ContextDefaultCannotBeCreated
 from dlt.common.configuration.specs import ContainerInjectableContext
 from dlt.common.configuration.specs.base_configuration import configspec
-from dlt.common.pipeline import PipelineContext
+from dlt.common.configuration.specs.config_namespace_context import ConfigNamespacesContext
+from dlt.common.pipeline import PipelineContext, TPipelineState
 from dlt.common.typing import DictStrAny
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
@@ -51,17 +52,6 @@ STATE_TABLE_COLUMNS: TTableSchemaColumns = {
         "nullable": False
     }
 }
-
-class TPipelineState(TypedDict, total=False):
-    pipeline_name: str
-    dataset_name: str
-    default_schema_name: Optional[str]
-    schema_names: Optional[List[str]]
-    destination: Optional[str]
-    # properties starting with _ are not automatically applied to pipeline object when state is restored
-    _state_version: int
-    _state_engine_version: int
-    _last_extracted_at: datetime.datetime
 
 
 class TSourceState(TPipelineState):
@@ -120,12 +110,36 @@ def load_state_from_destination(pipeline_name: str, sql_client: SqlClientBase[An
 
 
 def state() -> DictStrAny:
+    """Returns a dictionary with the current source state. Any JSON-serializable values can be written and the read from the state.
+    The state is persisted after the data is successfully read from the source.
+    """
+    global _last_full_state
+
     container = Container()
+    # get the source name from the namespace context
+    source_name: str = None
+    with contextlib.suppress(ContextDefaultCannotBeCreated):
+        namespaces = container[ConfigNamespacesContext].namespaces
+        if namespaces and len(namespaces) > 1 and namespaces[0] == "sources":
+            source_name = namespaces[1]
     try:
+        # get managed state that is read/write
         state: TSourceState = container[StateInjectableContext].state  # type: ignore
-        # TODO: take source context and get dict key by source name
-        return state.setdefault("sources", {})
     except ContextDefaultCannotBeCreated:
         # check if there's pipeline context
         proxy = container[PipelineContext]
-        raise PipelineStateNotAvailable(proxy.is_active())
+        if not proxy.is_active():
+            raise PipelineStateNotAvailable(source_name)
+        else:
+            # get unmanaged state that is read only
+            state = proxy.pipeline().state  # type: ignore
+
+    source_state = state.setdefault("sources", {})
+    if source_name:
+        source_state = source_state.setdefault(source_name, {})
+
+    # allow inspection of last returned full state
+    _last_full_state = state
+    return source_state
+
+_last_full_state: TPipelineState = None

@@ -46,11 +46,13 @@ class PipelineStepFailed(PipelineException):
 
 
 class PipelineStateNotAvailable(PipelineException):
-    def __init__(self, is_pipeline_active: bool) -> None:
-        if is_pipeline_active:
-            msg = "There is no active pipeline. The resource that requests the access to state requires that dlt.pipeline() was called before it was used"
+    def __init__(self, source_name: str) -> None:
+        if source_name:
+            msg = f"The source {source_name} requested the access to pipeline state but no pipeline is active right now."
         else:
-            msg  = "Pipeline state is not available. The state is available only within the resource function body ie. decorated with @dlt.source. This problem most often happen if state is accessed in the source function body ie. decorated with @dlt.source"
+            msg = "The resource you called requested the access to pipeline state but no pipeline is active right now."
+        msg += " Call dlt.pipeline(...) before you call the @dlt.source or  @dlt.resource decorated function."
+        self.source_name = source_name
         super().__init__(None, msg)
 
 
