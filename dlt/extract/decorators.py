@@ -5,7 +5,9 @@ from makefun import wraps
 from typing import Any, Callable, Dict, Iterator, List, NamedTuple, Optional, Tuple, Type, TypeVar, Union, cast, overload
 
 from dlt.common.configuration import with_config, get_fun_spec
+from dlt.common.configuration.resolve import inject_namespace
 from dlt.common.configuration.specs import BaseConfiguration
+from dlt.common.configuration.specs.config_namespace_context import ConfigNamespacesContext
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import TTableSchemaColumns, TWriteDisposition
 from dlt.common.storages.exceptions import SchemaNotFoundError
@@ -57,11 +59,14 @@ def source(func: Optional[AnyFun] = None, /, name: str = None, schema: Schema = 
             schema = _maybe_load_schema_for_callable(f, name) or Schema(name, normalize_name=True)
 
         # wrap source extraction function in configuration with namespace
-        conf_f = with_config(f, spec=spec, namespaces=("sources", name))
+        source_namespaces = ("sources", name)
+        conf_f = with_config(f, spec=spec, namespaces=source_namespaces)
 
         @wraps(conf_f, func_name=name)
         def _wrap(*args: Any, **kwargs: Any) -> DltSource:
-            rv = conf_f(*args, **kwargs)
+            # configurations will be accessed in this namespace in the source
+            with inject_namespace(ConfigNamespacesContext(namespaces=source_namespaces)):
+                rv = conf_f(*args, **kwargs)
 
             # if generator, consume it immediately
             if inspect.isgenerator(rv):

@@ -133,9 +133,9 @@ def test_skip_sync_schema_for_tables_without_columns(destination_name: str) -> N
     p.sync_schema()
 
     with p._sql_job_client(schema) as job_client:
-        exists, storage_cols = job_client.get_storage_table("data_table")
-        assert exists
-        assert storage_cols == {}
+        # such tables are not created but silently ignored
+        exists, _ = job_client.get_storage_table("data_table")
+        assert not exists
 
 
 @pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)

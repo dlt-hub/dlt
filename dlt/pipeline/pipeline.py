@@ -536,9 +536,10 @@ class Pipeline:
         extractor = extract(source, storage, max_parallel_items=max_parallel_items, workers=workers)
         # source iterates
         source.exhausted = True
-        for _, partials in extractor.items():
-            for partial in partials:
-                pipeline_schema.update_schema(pipeline_schema.normalize_table_identifiers(partial))
+        with inject_namespace(ConfigNamespacesContext(namespaces=("sources", source.name))):
+            for _, partials in extractor.items():
+                for partial in partials:
+                    pipeline_schema.update_schema(pipeline_schema.normalize_table_identifiers(partial))
 
     def _run_step_in_pool(self, step: TPipelineStep, runnable: Runnable[Any], config: PoolRunnerConfiguration) -> int:
         try:
