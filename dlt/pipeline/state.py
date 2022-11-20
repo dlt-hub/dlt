@@ -11,7 +11,7 @@ from dlt.common.configuration.specs.base_configuration import configspec
 from dlt.common.configuration.specs.config_namespace_context import ConfigNamespacesContext
 from dlt.common.pipeline import PipelineContext, TPipelineState
 from dlt.common.typing import DictStrAny
-from dlt.common.schema.typing import TTableSchemaColumns
+from dlt.common.schema.typing import LOADS_TABLE_NAME, TTableSchemaColumns
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.destinations.sql_client import SqlClientBase
 
@@ -93,8 +93,7 @@ def state_resource(state: TPipelineState) -> DltResource:
 
 def load_state_from_destination(pipeline_name: str, sql_client: SqlClientBase[Any]) -> TPipelineState:
     try:
-        # TODO: improve the query to load only from completed load ids
-        query = f"SELECT state FROM {STATE_TABLE_NAME} WHERE pipeline_name = %s ORDER BY created_at DESC"
+        query = f"SELECT state FROM {STATE_TABLE_NAME} AS s JOIN {LOADS_TABLE_NAME} AS l ON l.load_id = s._dlt_load_id WHERE pipeline_name = %s AND l.status = 0 ORDER BY created_at DESC"
         with sql_client.execute_query(query, pipeline_name) as cur:
             row = cur.fetchone()
         if not row:

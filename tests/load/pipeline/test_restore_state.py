@@ -6,7 +6,7 @@ import pytest
 import dlt
 from dlt.common import pendulum
 from dlt.common.schema.schema import Schema, utils
-from dlt.common.schema.typing import VERSION_TABLE_NAME
+from dlt.common.schema.typing import LOADS_TABLE_NAME, VERSION_TABLE_NAME
 from dlt.common.utils import uniq_id
 from dlt.pipeline.exceptions import PipelineConfigMissing
 from dlt.pipeline.pipeline import Pipeline
@@ -177,7 +177,7 @@ def test_restore_state_pipeline(destination_name: str) -> None:
     p = dlt.pipeline(pipeline_name=pipeline_name, destination=destination_name, dataset_name=dataset_name, restore_from_destination=True)
     assert p.default_schema_name == "default"
     assert set(p.schema_names) == set(["default", "two", "three"])
-    assert p._get_state()["sources"] == {'state1': 'state1', 'state2': 'state2', 'state3': 'state3', 'state4': 'state4'}
+    assert p.state["sources"] == {"default": {'state1': 'state1', 'state2': 'state2'}, "two": {'state3': 'state3'}, "three": {'state4': 'state4'}}
     for schema in p.schemas.values():
         assert "some_data" in schema._schema_tables
 
@@ -196,6 +196,28 @@ def test_restore_state_pipeline(destination_name: str) -> None:
     # must provide explicit dataset when restoring
     with pytest.raises(PipelineConfigMissing):
         p = dlt.pipeline(pipeline_name=pipeline_name, destination=destination_name, restore_from_destination=True)
+
+
+@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
+def test_ignore_state_unfinished_load(destination_name: str) -> None:
+    pipeline_name = "pipe_" + uniq_id()
+    dataset_name="state_test_" + uniq_id()
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination=destination_name, dataset_name=dataset_name)
+
+    @dlt.resource
+    def some_data(param: str) -> Any:
+        dlt.state()[param] = param
+        yield param
+
+    info = p.run(some_data("fix_1"))
+    with p._sql_job_client(p.default_schema) as job_client:
+        state = load_state_from_destination(pipeline_name, job_client.sql_client)
+        assert state is not None
+        # delete load id
+        job_client.sql_client.execute_sql(f"DELETE FROM {LOADS_TABLE_NAME} WHERE load_id = %s", next(iter(info.loads_ids)))
+        # state without completed load id is not visible
+        state = load_state_from_destination(pipeline_name, job_client.sql_client)
+        assert state is None
 
 
 @pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
