@@ -4,8 +4,9 @@ from collections.abc import Mapping as C_Mapping
 from typing import Any, Dict, ContextManager, List, Optional, Sequence, Tuple, Type, TypeVar, get_origin
 
 from dlt.common import json, logger
+from dlt.common.configuration.providers.provider import ConfigProvider
 from dlt.common.typing import AnyType, StrAny, TSecretValue, is_final_type, is_optional_type, extract_inner_type
-from dlt.common.schema.utils import coerce_type, py_type_to_sc_type
+from dlt.common.schema.utils import coerce_value, py_type_to_sc_type
 
 from dlt.common.configuration.specs.base_configuration import BaseConfiguration, CredentialsConfiguration, ContainerInjectableContext, get_config_if_union
 from dlt.common.configuration.specs.config_namespace_context import ConfigNamespacesContext
@@ -48,7 +49,7 @@ def deserialize_value(key: str, value: Any, hint: Type[Any]) -> Any:
             else:
                 # for types that are not complex, reuse schema coercion rules
                 if value_dt != hint_dt:
-                    value = coerce_type(hint_dt, value_dt, value)
+                    value = coerce_value(hint_dt, value_dt, value)
         return value
     except ConfigValueCannotBeCoercedException:
         raise
@@ -64,7 +65,28 @@ def serialize_value(value: Any) -> Any:
         return str(value)
     # coerce type to text which will use json for mapping and sequences
     value_dt = py_type_to_sc_type(type(value))
-    return coerce_type("text", value_dt, value)
+    return coerce_value("text", value_dt, value)
+
+
+def is_secret_hint(hint: Type[Any]) -> bool:
+    return hint is TSecretValue or (inspect.isclass(hint) and issubclass(hint, CredentialsConfiguration))
+
+
+def is_base_configuration_hint(hint: Type[Any]) -> bool:
+    return inspect.isclass(hint) and issubclass(hint, BaseConfiguration)
+
+
+def is_context_hint(hint: Type[Any]) -> bool:
+    return inspect.isclass(hint) and issubclass(hint, ContainerInjectableContext)
+
+
+def extract_inner_hint(hint: Type[Any]) -> Type[Any]:
+    # extract hint from Optional / Literal / NewType hints
+    inner_hint = extract_inner_type(hint)
+    # get base configuration from union type
+    inner_hint = get_config_if_union(inner_hint) or inner_hint
+    # extract origin from generic types (ie List[str] -> List)
+    return get_origin(inner_hint) or inner_hint
 
 
 def inject_namespace(namespace_context: ConfigNamespacesContext, merge_existing: bool = True) -> ContextManager[ConfigNamespacesContext]:
@@ -184,12 +206,8 @@ def _resolve_config_field(
         embedded_namespaces: Tuple[str, ...],
         accept_partial: bool
     ) -> Tuple[Any, List[LookupTrace]]:
-    # extract hint from Optional / Literal / NewType hints
-    inner_hint = extract_inner_type(hint)
-    # get base configuration from union type
-    inner_hint = get_config_if_union(inner_hint) or inner_hint
-    # extract origin from generic types (ie List[str] -> List)
-    inner_hint = get_origin(inner_hint) or inner_hint
+
+    inner_hint = extract_inner_hint(hint)
 
     if explicit_value is not None:
         value = explicit_value
@@ -199,10 +217,10 @@ def _resolve_config_field(
         value, traces = _resolve_single_value(key, hint, inner_hint, config_namespace, explicit_namespaces, embedded_namespaces)
         _log_traces(config, key, hint, value, traces)
     # contexts must be resolved as a whole
-    if inspect.isclass(inner_hint) and issubclass(inner_hint, ContainerInjectableContext):
+    if is_context_hint(inner_hint):
         pass
     # if inner_hint is BaseConfiguration then resolve it recursively
-    elif inspect.isclass(inner_hint) and issubclass(inner_hint, BaseConfiguration):
+    elif is_base_configuration_hint(inner_hint):
         if isinstance(value, BaseConfiguration):
             # if resolved value is instance of configuration (typically returned by context provider)
             embedded_config = value
@@ -282,11 +300,11 @@ def _resolve_single_value(
     # get providers from container
     providers_context = container[ConfigProvidersContext]
     # we may be resolving context
-    if inspect.isclass(inner_hint) and issubclass(inner_hint, ContainerInjectableContext):
+    if is_context_hint(inner_hint):
         # resolve context with context provider and do not look further
         value, _ = providers_context.context_provider.get_value(key, inner_hint)
         return value, traces
-    if inspect.isclass(inner_hint) and issubclass(inner_hint, BaseConfiguration):
+    if is_base_configuration_hint(inner_hint):
         # cannot resolve configurations directly
         return value, traces
 
@@ -296,57 +314,25 @@ def _resolve_single_value(
     # get additional namespaces to look in from container
     namespaces_context = container[ConfigNamespacesContext]
 
-
-    # start looking from the top provider with most specific set of namespaces first
-
     def look_namespaces(pipeline_name: str = None) -> Any:
+        # start looking from the top provider with most specific set of namespaces first
         for provider in providers:
-            if provider.supports_namespaces:
+            value, provider_traces = resolve_single_provider_value(
+                provider,
+                key,
+                hint,
+                pipeline_name,
+                config_namespace,
                 # if explicit namespaces are provided, ignore the injected context
-                if explicit_namespaces:
-                    ns = list(explicit_namespaces)
-                else:
-                    ns = list(namespaces_context.namespaces)
-                # always extend with embedded namespaces
-                ns.extend(embedded_namespaces)
-            else:
-                # if provider does not support namespaces and pipeline name is set then ignore it
-                if pipeline_name:
-                    continue
-                else:
-                    # pass empty namespaces
-                    ns = []
+                explicit_namespaces or namespaces_context.namespaces,
+                embedded_namespaces
+            )
+            traces.extend(provider_traces)
+            if value is not None:
+                # value found, ignore other providers
+                break
 
-            value = None
-            while True:
-                if (pipeline_name or config_namespace) and provider.supports_namespaces:
-                    full_ns = ns.copy()
-                    # pipeline, when provided, is the most outer and always present
-                    if pipeline_name:
-                        full_ns.insert(0, pipeline_name)
-                    # config namespace, is always present and innermost
-                    if config_namespace:
-                        full_ns.append(config_namespace)
-                else:
-                    full_ns = ns
-                value, ns_key = provider.get_value(key, hint, *full_ns)
-                # if secret is obtained from non secret provider, we must fail
-                cant_hold_it: bool = not provider.supports_secrets and _is_secret_hint(hint)
-                if value is not None and cant_hold_it:
-                    raise ValueNotSecretException(provider.name, ns_key)
-
-                # create trace, ignore providers that cant_hold_it
-                if not cant_hold_it:
-                    traces.append(LookupTrace(provider.name, full_ns, ns_key, value))
-
-                if value is not None:
-                    # value found, ignore other providers
-                    return value
-                if len(ns) == 0:
-                    # check next provider
-                    break
-                # pop optional namespaces for less precise lookup
-                ns.pop()
+        return value
 
     # first try with pipeline name as namespace, if present
     if namespaces_context.pipeline_name:
@@ -354,6 +340,64 @@ def _resolve_single_value(
     # then without it
     if value is None:
         value = look_namespaces()
+
+    return value, traces
+
+
+def resolve_single_provider_value(
+    provider: ConfigProvider,
+    key: str,
+    hint: Type[Any],
+    pipeline_name: str = None,
+    config_namespace: str = None,
+    explicit_namespaces: Tuple[str, ...] = (),
+    embedded_namespaces: Tuple[str, ...] = (),
+    # context_namespaces: Tuple[str, ...] = (),
+    ) -> Tuple[Optional[Any], List[LookupTrace]]:
+    traces: List[LookupTrace] = []
+
+    if provider.supports_namespaces:
+        ns = list(explicit_namespaces)
+        # always extend with embedded namespaces
+        ns.extend(embedded_namespaces)
+    else:
+        # if provider does not support namespaces and pipeline name is set then ignore it
+        if pipeline_name:
+            return None, traces
+        else:
+            # pass empty namespaces
+            ns = []
+
+    value = None
+    while True:
+        if (pipeline_name or config_namespace) and provider.supports_namespaces:
+            full_ns = ns.copy()
+            # pipeline, when provided, is the most outer and always present
+            if pipeline_name:
+                full_ns.insert(0, pipeline_name)
+            # config namespace, is always present and innermost
+            if config_namespace:
+                full_ns.append(config_namespace)
+        else:
+            full_ns = ns
+        value, ns_key = provider.get_value(key, hint, *full_ns)
+        # if secret is obtained from non secret provider, we must fail
+        cant_hold_it: bool = not provider.supports_secrets and is_secret_hint(hint)
+        if value is not None and cant_hold_it:
+            raise ValueNotSecretException(provider.name, ns_key)
+
+        # create trace, ignore providers that cant_hold_it
+        if not cant_hold_it:
+            traces.append(LookupTrace(provider.name, full_ns, ns_key, value))
+
+        if value is not None:
+            # value found, ignore further namespaces
+            break
+        if len(ns) == 0:
+            # namespaces exhausted
+            break
+        # pop optional namespaces for less precise lookup
+        ns.pop()
 
     return value, traces
 
@@ -369,7 +413,3 @@ def _apply_embedded_namespaces_to_config_namespace(config_namespace: str, embedd
 
     # remove all embedded ns starting with _
     return config_namespace, tuple(ns for ns in embedded_namespaces if not ns.startswith("_"))
-
-
-def _is_secret_hint(hint: Type[Any]) -> bool:
-    return hint is TSecretValue or (inspect.isclass(hint) and issubclass(hint, CredentialsConfiguration))

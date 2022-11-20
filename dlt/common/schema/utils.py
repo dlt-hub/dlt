@@ -314,7 +314,7 @@ def py_type_to_sc_type(t: Type[Any]) -> TDataType:
     raise TypeError(t)
 
 
-def coerce_type(to_type: TDataType, from_type: TDataType, value: Any) -> Any:
+def coerce_value(to_type: TDataType, from_type: TDataType, value: Any) -> Any:
     if to_type == from_type:
         if to_type == "complex":
             # complex types will be always represented as strings

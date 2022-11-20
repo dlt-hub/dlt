@@ -360,7 +360,7 @@ class Schema:
         py_type = utils.py_type_to_sc_type(type(v))
         # and coerce type if inference changed the python type
         try:
-            coerced_v = utils.coerce_type(col_type, py_type, v)
+            coerced_v = utils.coerce_value(col_type, py_type, v)
             # print(f"co: {py_type} -> {col_type} {v}")
         except (ValueError, SyntaxError):
             if final:
@@ -399,7 +399,7 @@ class Schema:
         if preferred_type:
             # try to coerce to destination type
             try:
-                utils.coerce_type(preferred_type, mapped_type, v)
+                utils.coerce_value(preferred_type, mapped_type, v)
                 # coercion possible so preferred type may be used
                 mapped_type = preferred_type
             except ValueError:
