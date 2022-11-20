@@ -11,12 +11,12 @@ def test_json_decimals() -> None:
 
     # serialize as string
     s = json.dumps({"decimal": Decimal("21.37")})
-    assert s == '{"decimal": "21.37"}'
+    assert s == '{"decimal":"21.37"}'
 
     # serialize max precision which is 10**38
     with numeric_default_context():
         s = json.dumps({"decimal": Decimal(10**29) - Decimal("0.001")})
-        assert s == '{"decimal": "99999999999999999999999999999.999"}'
+        assert s == '{"decimal":"99999999999999999999999999999.999"}'
 
     # serialize untypical context
     with numeric_default_context(precision=77):
@@ -24,7 +24,7 @@ def test_json_decimals() -> None:
     # serialize out of local context
     s = json.dumps(doc)
     # full precision. you need to quantize yourself if you need it
-    assert s == '{"decimal": "99999999999999999999999999999999999999999999999999999999999999999999999999.999"}'
+    assert s == '{"decimal":"99999999999999999999999999999999999999999999999999999999999999999999999999.999"}'
 
 
 def test_json_pendulum() -> None:

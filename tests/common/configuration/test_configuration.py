@@ -115,6 +115,13 @@ class EmbeddedSecretConfiguration(BaseConfiguration):
     secret: SecretConfiguration
 
 
+@configspec
+class NonTemplatedComplexTypesConfiguration(BaseConfiguration):
+    list_val: list
+    tuple_val: tuple
+    dict_val: dict
+
+
 LongInteger = NewType("LongInteger", int)
 FirstOrderStr = NewType("FirstOrderStr", str)
 SecondOrderStr = NewType("SecondOrderStr", FirstOrderStr)
@@ -516,7 +523,7 @@ def test_values_serialization() -> None:
     # test list
     t_list = ["a", 3, True]
     v = resolve.serialize_value(t_list)
-    assert v == '["a", 3, true]'  # json serialization
+    assert v == '["a",3,true]'  # json serialization
     assert resolve.deserialize_value("K", v, list) == t_list
 
     # test datetime
@@ -576,6 +583,16 @@ def test_config_with_no_hints(environment: Any) -> None:
         class NoHintConfiguration(BaseConfiguration):
             tuple_val = None
         NoHintConfiguration()
+
+
+def test_config_with_non_templated_complex_hints(environment: Any) -> None:
+    environment["LIST_VAL"] = "[1,2,3]"
+    environment["TUPLE_VAL"] = "(1,2,3)"
+    environment["DICT_VAL"] = '{"a": 1}'
+    c = resolve.resolve_configuration(NonTemplatedComplexTypesConfiguration())
+    assert c.list_val == [1,2,3]
+    assert c.tuple_val == (1,2,3)
+    assert c.dict_val == {"a": 1}
 
 
 def test_resolve_configuration(environment: Any) -> None:
