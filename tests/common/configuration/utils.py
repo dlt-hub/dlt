@@ -1,10 +1,12 @@
 import pytest
 from os import environ
 import datetime  # noqa: I251
-from typing import Any, List, Optional, Tuple, Type, Dict, MutableMapping, Optional, Sequence
+from typing import Any, Iterator, List, Optional, Tuple, Type, Dict, MutableMapping, Optional, Sequence
 
 from dlt.common import Decimal, pendulum
 from dlt.common.configuration.container import Container
+from dlt.common.configuration.providers.environ import EnvironProvider
+from dlt.common.configuration.providers.toml import ConfigTomlProvider, SecretsTomlProvider
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
 from dlt.common.typing import TSecretValue, StrAny
 from dlt.common.configuration import configspec
@@ -80,6 +82,18 @@ def mock_provider() -> "MockProvider":
         mock_provider = MockProvider()
         providers.providers = [mock_provider]
         yield mock_provider
+
+
+@pytest.fixture
+def toml_providers() -> Iterator[ConfigProvidersContext]:
+    pipeline_root = "./tests/common/cases/configuration/.dlt"
+    ctx = ConfigProvidersContext()
+    ctx.providers.clear()
+    ctx.add_provider(EnvironProvider())
+    ctx.add_provider(SecretsTomlProvider(project_dir=pipeline_root))
+    ctx.add_provider(ConfigTomlProvider(project_dir=pipeline_root))
+    with Container().injectable_context(ctx):
+        yield ctx
 
 
 class MockProvider(ConfigProvider):

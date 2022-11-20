@@ -50,7 +50,7 @@ class FinalConfigFieldException(ConfigurationException):
     def __init__(self, spec_name: str, field: str) -> None:
         super().__init__(f"Field {field} in spec {spec_name} is final but is being changed by a config provider")
 
-class ConfigValueCannotBeCoercedException(ConfigurationException):
+class ConfigValueCannotBeCoercedException(ConfigurationException, ValueError):
     """thrown when value returned by config provider cannot be coerced to hinted type"""
 
     def __init__(self, field_name: str, field_value: Any, hint: type) -> None:
