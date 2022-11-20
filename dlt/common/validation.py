@@ -4,11 +4,11 @@ from dlt.common.exceptions import DictValidationException
 from dlt.common.typing import StrAny, extract_optional_type, is_literal_type, is_optional_type, is_typeddict, is_list_generic_type, is_dict_generic_type, _TypedDict
 
 
-TFilterFuc = Callable[[str], bool]
+TFilterFunc = Callable[[str], bool]
 TCustomValidator = Callable[[str, str, Any, Any], bool]
 
 
-def validate_dict(spec: Type[_TypedDict], doc: StrAny, path: str, filter_f: TFilterFuc = None, validator_f: TCustomValidator = None) -> None:
+def validate_dict(spec: Type[_TypedDict], doc: StrAny, path: str, filter_f: TFilterFunc = None, validator_f: TCustomValidator = None) -> None:
     # pass through filter
     filter_f = filter_f or (lambda _: True)
     # cannot validate anything

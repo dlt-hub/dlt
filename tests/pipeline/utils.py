@@ -25,10 +25,13 @@ def patch_working_dir() -> None:
 
 @pytest.fixture(autouse=True)
 def drop_pipeline() -> Iterator[None]:
+    container = Container()
+    if container[PipelineContext].is_active():
+        container[PipelineContext].deactivate()
     yield
-    if Container()[PipelineContext].is_active():
+    if container[PipelineContext].is_active():
         # take existing pipeline
         p = dlt.pipeline()
         p._wipe_working_folder()
         # deactivate context
-        Container()[PipelineContext].deactivate()
+        container[PipelineContext].deactivate()

@@ -23,12 +23,12 @@ from dlt.common.storages import LiveSchemaStorage, NormalizeStorage
 from dlt.common.configuration import inject_namespace
 from dlt.common.configuration.specs import RunConfiguration, NormalizeVolumeConfiguration, SchemaVolumeConfiguration, LoadVolumeConfiguration, PoolRunnerConfiguration
 from dlt.common.destination import DestinationCapabilitiesContext, DestinationReference, JobClientBase, DestinationClientConfiguration, DestinationClientDwhConfiguration, TDestinationReferenceArg
-from dlt.common.pipeline import LoadInfo
+from dlt.common.pipeline import LoadInfo, TPipelineState
 from dlt.common.schema import Schema
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.utils import is_interactive
-from dlt.extract.exceptions import SourceExhausted
 
+from dlt.extract.exceptions import SourceExhausted
 from dlt.extract.extract import ExtractorStorage, extract
 from dlt.extract.source import DltResource, DltSource
 from dlt.normalize import Normalize
@@ -40,7 +40,7 @@ from dlt.load import Load
 
 from dlt.pipeline.exceptions import CannotRestorePipelineException, InvalidPipelineName, PipelineConfigMissing, PipelineStepFailed, SqlClientNotAvailable
 from dlt.pipeline.typing import TPipelineStep
-from dlt.pipeline.state import STATE_ENGINE_VERSION, TPipelineState, load_state_from_destination, merge_state_if_changed, state_resource, StateInjectableContext
+from dlt.pipeline.state import STATE_ENGINE_VERSION, load_state_from_destination, merge_state_if_changed, state_resource, StateInjectableContext
 
 
 def with_state_sync(extract_state: bool = False) -> Callable[[TFun], TFun]:
@@ -398,6 +398,10 @@ class Pipeline:
         return self.schemas[self.default_schema_name]
 
     @property
+    def state(self) -> TPipelineState:
+        return self._get_state()
+
+    @property
     def last_run_exception(self) -> BaseException:
         return runner.LAST_RUN_EXCEPTION
 
@@ -533,10 +537,11 @@ class Pipeline:
         # TODO: create source context
         # iterate over all items in the pipeline and update the schema if dynamic table hints were present
         storage = ExtractorStorage(self._normalize_storage_config)
-        extractor = extract(source, storage, max_parallel_items=max_parallel_items, workers=workers)
-        # source iterates
-        source.exhausted = True
+        # inject the config namespace with the current source name
         with inject_namespace(ConfigNamespacesContext(namespaces=("sources", source.name))):
+            extractor = extract(source, storage, max_parallel_items=max_parallel_items, workers=workers)
+            # source iterates
+            source.exhausted = True
             for _, partials in extractor.items():
                 for partial in partials:
                     pipeline_schema.update_schema(pipeline_schema.normalize_table_identifiers(partial))

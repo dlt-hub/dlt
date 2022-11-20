@@ -1,12 +1,14 @@
 import os
 import tempfile
-from typing import Any, Callable, ClassVar, Dict, List, NamedTuple, Protocol, Sequence, Tuple
+import datetime  # noqa: 251
+from typing import Any, Callable, ClassVar, Dict, List, NamedTuple, Optional, Protocol, Sequence, Tuple, TypedDict
 
 from dlt.common.configuration.container import ContainerInjectableContext
 from dlt.common.configuration import configspec
 from dlt.common.destination import TDestinationReferenceArg
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TColumnSchema, TWriteDisposition
+from dlt.common.typing import DictStrAny
 
 
 class LoadInfo(NamedTuple):
@@ -33,9 +35,30 @@ class LoadInfo(NamedTuple):
                 msg += f"\t{job_id}: {failed_message}\n"
         return msg
 
+
+class TPipelineState(TypedDict, total=False):
+    """Schema for a pipeline state that is stored within the pipeline working directory"""
+    pipeline_name: str
+    dataset_name: str
+    default_schema_name: Optional[str]
+    """Name of the first schema added to the pipeline to which all the resources without schemas will be added"""
+    schema_names: Optional[List[str]]
+    """All the schemas present within the pipeline working directory"""
+    destination: Optional[str]
+
+    # properties starting with _ are not automatically applied to pipeline object when state is restored
+    _state_version: int
+    _state_engine_version: int
+    _last_extracted_at: datetime.datetime
+    """Timestamp indicating when the state was synced with the destination. Lack of timestamp means not synced state."""
+
+
 class SupportsPipeline(Protocol):
     """A protocol with core pipeline operations that lets high level abstractions ie. sources to access pipeline methods and properties"""
     pipeline_name: str
+    @property
+    def state(self) -> TPipelineState:
+        ...
 
     def run(
         self,

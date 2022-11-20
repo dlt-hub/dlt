@@ -125,7 +125,7 @@ def test_explicit_namespaces_from_embedded_config(mock_provider: MockProvider) -
     mock_provider.return_value_on = ("sv_config",)
     c = resolve.resolve_configuration(EmbeddedConfiguration())
     # we mock the dictionary below as the value for all requests
-    assert c.sv_config.sv == '{"sv": "A"}'
+    assert c.sv_config.sv == '{"sv":"A"}'
     # following namespaces were used when resolving EmbeddedConfig:
     # - initial value for the whole embedded sv_config skipped because it does not have namespace
     # - then ("sv_config",) resolve sv in sv_config

@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Final
 from dlt.common import json
 from dlt.common.configuration.specs.exceptions import InvalidServicesJson
 
@@ -10,10 +10,10 @@ from dlt.common.configuration.specs.base_configuration import CredentialsConfigu
 class GcpClientCredentials(CredentialsConfiguration):
 
     project_id: str = None
-    type: str = "service_account"  # noqa: A003
+    type: Final[str] = "service_account"  # noqa: A003
     private_key: TSecretValue = None
     location: str = "US"
-    token_uri: str = "https://oauth2.googleapis.com/token"
+    token_uri: Final[str] = "https://oauth2.googleapis.com/token"
     client_email: str = None
 
     http_timeout: float = 15.0

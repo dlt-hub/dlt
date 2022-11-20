@@ -56,8 +56,8 @@ def with_config(func: Optional[AnyFun] = None, /, spec: Type[BaseConfiguration] 
 
         for p in sig.parameters.values():
             # for all positional parameters that do not have default value, set default
-            if hasattr(SPEC, p.name) and p.default == Parameter.empty:
-                p._default = None  # type: ignore
+            # if hasattr(SPEC, p.name) and p.default == Parameter.empty:
+            #     p._default = None  # type: ignore
             if p.annotation is SPEC:
                 # if any argument has type SPEC then us it to take initial value
                 spec_arg = p
@@ -161,8 +161,8 @@ def _spec_from_signature(name: str, module: ModuleType, sig: Signature, kw_only:
                 # set annotations
                 annotations[p.name] = field_type
                 # set field with default value
-
                 fields[p.name] = field_default
+
     # new type goes to the module where sig was declared
     fields["__module__"] = module.__name__
     # set annotations so they are present in __dict__

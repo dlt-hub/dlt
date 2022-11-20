@@ -1,20 +1,114 @@
-from typing import ClassVar
+import abc
+import contextlib
+import inspect
+from typing import Any, ClassVar, Sequence, Type, TypeVar
+from dlt.common import json
+from dlt.common.configuration.container import Container
 
-from dlt.common.typing import ConfigValue
+from dlt.common.configuration.providers.provider import ConfigProvider
+from dlt.common.configuration.resolve import deserialize_value
+from dlt.common.configuration.specs import BaseConfiguration
+from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
+from dlt.common.schema.utils import coerce_value
+from dlt.common.typing import AnyType, ConfigValue
 
 
-class _ConfigAccessor:
-    """Configuration accessor class"""
+TConfigAny = TypeVar("TConfigAny", bound=Any)
+
+class _Accessor(abc.ABC):
+
+    def __getitem__(self, field: str) -> Any:
+        value = self._get_value(field)
+        if value is None:
+            raise KeyError(field)
+        if isinstance(value, str):
+            return self._auto_cast(value)
+        else:
+            return value
+
+
+    def get(self, field: str, expected_type: Type[TConfigAny] = None) -> TConfigAny:
+        value: TConfigAny = self._get_value(field, expected_type)
+        if value is None:
+            return None
+        # cast to required type
+        if expected_type:
+            if inspect.isclass(expected_type) and issubclass(expected_type, BaseConfiguration):
+                c = expected_type()
+                if isinstance(value, dict):
+                    c.update(value)
+                else:
+                    c.parse_native_representation(value)
+                return c  # type: ignore
+            else:
+                return deserialize_value(field, value, expected_type)  # type: ignore
+        else:
+            return value
+
+
+    @property
+    @abc.abstractmethod
+    def config_providers(self) -> Sequence[ConfigProvider]:
+        pass
+
+    def _get_providers_from_context(self) -> Sequence[ConfigProvider]:
+        return Container()[ConfigProvidersContext].providers
+
+    def _auto_cast(self, value: str) -> Any:
+        # try to cast to bool, int, float and complex (via JSON)
+        if value.lower() == "true":
+            return True
+        if value.lower() == "false":
+            return False
+        with contextlib.suppress(ValueError):
+            return coerce_value("bigint", "text", value)
+        with contextlib.suppress(ValueError):
+            return coerce_value("double", "text", value)
+        with contextlib.suppress(ValueError):
+            c_v = json.loads(value)
+            # only lists and dictionaries count
+            if isinstance(c_v, (list, dict)):
+                return c_v
+        return value
+
+    def _get_value(self, field: str, type_hint: Type[Any] = AnyType) -> Any:
+        # split field into namespaces and a key
+        namespaces = field.split(".")
+        key = namespaces.pop()
+        value = None
+        for provider in self.config_providers:
+            value, _ = provider.get_value(key, type_hint, *namespaces)
+            if value is not None:
+                break
+        return value
+
+
+class _ConfigAccessor(_Accessor):
+    """Provides direct access to configured values that are not secrets."""
+
+    @property
+    def config_providers(self) -> Sequence[ConfigProvider]:
+        """Return a list of config providers, in lookup order"""
+        return [p for p in self._get_providers_from_context()]
 
     value: ClassVar[None] = ConfigValue
-    "A placeholder value that represents any argument that should be injected from the available configuration"
+    "A placeholder that tells dlt to replace it with actual config value during the call to a source or resource decorated function."
 
-class _SecretsAccessor:
+
+class _SecretsAccessor(_Accessor):
+    """Provides direct access to secrets."""
+
+    @property
+    def config_providers(self) -> Sequence[ConfigProvider]:
+        """Return a list of config providers that can hold secrets, in lookup order"""
+        return [p for p in self._get_providers_from_context() if p.supports_secrets]
+
     value: ClassVar[None] = ConfigValue
-    "A placeholder value that represents any secret argument that should be injected from the available secrets"
+    "A placeholder that tells dlt to replace it with actual secret during the call to a source or resource decorated function."
+
 
 config = _ConfigAccessor()
-"""Configuration with dictionary like access to available keys and groups"""
+"""Dictionary-like access to all secrets known to dlt"""
 
 secrets = _SecretsAccessor()
-"""Secrets with dictionary like access to available keys and groups"""
+"""Dictionary-like access to all config values known to dlt"""

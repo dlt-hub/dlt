@@ -1,6 +1,8 @@
 import os
 import tomlkit
-from typing import Any, Optional, Tuple, Type
+from tomlkit.items import Item as TOMLItem
+from tomlkit.container import Container as TOMLContainer
+from typing import Any, Optional, Tuple, Type, Union
 
 from dlt.common.typing import StrAny
 
@@ -30,7 +32,7 @@ class TomlProvider(ConfigProvider):
     def get_value(self, key: str, hint: Type[Any], *namespaces: str) -> Tuple[Optional[Any], str]:
         full_path = namespaces + (key,)
         full_key = self.get_key_name(key, *namespaces)
-        node = self._toml
+        node: Union[TOMLContainer, TOMLItem] = self._toml
         try:
             for k in  full_path:
                 if not isinstance(node, dict):
@@ -44,14 +46,18 @@ class TomlProvider(ConfigProvider):
     def supports_namespaces(self) -> bool:
         return True
 
+    def _write_toml(self) -> None:
+        with open(self._toml_path, "w", encoding="utf-8") as f:
+            tomlkit.dump(self._toml, f)
+
     @staticmethod
-    def _read_toml(toml_path: str) -> StrAny:
+    def _read_toml(toml_path: str) -> tomlkit.TOMLDocument:
         if os.path.isfile(toml_path):
             with open(toml_path, "r", encoding="utf-8") as f:
                 # use whitespace preserving parser
                 return tomlkit.load(f)
         else:
-            return {}
+            return tomlkit.document()
 
 
 class ConfigTomlProvider(TomlProvider):
