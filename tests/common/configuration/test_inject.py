@@ -1,5 +1,6 @@
 import inspect
 from typing import Any, Optional
+import dlt
 
 from dlt.common import Decimal
 from dlt.common.typing import TSecretValue
@@ -123,7 +124,8 @@ def test_arguments_are_explicit(environment: Any) -> None:
         assert path == "explicit path"
 
     # user will be injected
-    f_var_env(path="explicit path")
+    f_var_env(None, path="explicit path")
+    f_var_env(path="explicit path", user=None)
 
 
 def test_inject_with_non_injectable_param() -> None:
@@ -146,7 +148,7 @@ def test_inject_with_auto_namespace(environment: Any) -> None:
     def f(pipeline_name, value):
         assert value == "test"
 
-    f("pipe")
+    f("pipe", dlt.config.value)
 
     # make sure the spec is available for decorated fun
     assert get_fun_spec(f) is not None
