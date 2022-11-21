@@ -1297,7 +1297,7 @@ name = "setuptools"
 version = "65.6.0"
 description = "Easily download, build, install, upgrade, and uninstall Python packages"
 category = "main"
-optional = true
+optional = false
 python-versions = ">=3.7"
 
 [package.extras]
@@ -1549,7 +1549,7 @@ redshift = ["psycopg2-binary", "psycopg2cffi"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8,<3.11"
-content-hash = "d38373777798b716e6c9752eeb11608cce8a726773d41beccee1e106c1964639"
+content-hash = "5cabfe86843e99bfbb651be66a6ad86b6d187c52a4d4b032d6f79de7cfc4ffa2"
 
 [metadata.files]
 agate = [
