@@ -606,7 +606,7 @@ class Pipeline:
             client_spec = self.destination.spec()
             raise MissingDependencyException(
                 f"{client_spec.destination_name} destination",
-                [f"python-dlt[{client_spec.destination_name}]"],
+                [f"{logger.DLT_PKG_NAME}[{client_spec.destination_name}]"],
                 "Dependencies for specific destinations are available as extras of python-dlt"
             )
 

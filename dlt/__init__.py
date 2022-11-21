@@ -17,7 +17,7 @@ How to create a data loading pipeline with dlt in 3 seconds:
 
 Or start with our pipeline template with sample chess.com data to bigquery
 
-    $ dlt init chess.com bigquery
+    $ dlt init chess bigquery
 
 For more detailed info, see https://dlthub.com/docs
 """

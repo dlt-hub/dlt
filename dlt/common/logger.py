@@ -16,6 +16,7 @@ from dlt.common.utils import filter_env_vars
 from dlt.__version__ import __version__
 
 DLT_LOGGER_NAME = "dlt"
+DLT_PKG_NAME = "python-dlt"
 LOGGER: Logger = None
 
 
@@ -131,7 +132,7 @@ def __getattr__(name: str) -> LogMethod:
 
 def _extract_version_info(config: RunConfiguration) -> StrStr:
     try:
-        version = pkg_version("python-dlt")
+        version = pkg_version(DLT_PKG_NAME)
     except PackageNotFoundError:
         # if there's no package context, take the version from the code
         version = __version__
