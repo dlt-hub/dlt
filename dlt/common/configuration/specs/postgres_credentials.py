@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Final, Optional
 from sqlalchemy.engine import URL, make_url
 from dlt.common.configuration.specs.exceptions import InvalidConnectionString
 
@@ -39,7 +39,7 @@ class ConnectionStringCredentials(CredentialsConfiguration):
 
 @configspec
 class PostgresCredentials(ConnectionStringCredentials):
-    drivername: str = "postgresql"
+    drivername: Final[str] = "postgresql"  # type: ignore
     port: int = 5439
     connect_timeout: int = 15
 
