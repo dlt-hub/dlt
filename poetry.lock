@@ -1548,8 +1548,8 @@ redshift = ["psycopg2-binary", "psycopg2cffi"]
 
 [metadata]
 lock-version = "1.1"
-python-versions = "^3.8,<3.11"
-content-hash = "5cabfe86843e99bfbb651be66a6ad86b6d187c52a4d4b032d6f79de7cfc4ffa2"
+python-versions = "^3.8,<3.12"
+content-hash = "5f240bda399217abcaa936e2753e63119080ed0a274e663ba3d62332a5fb491a"
 
 [metadata.files]
 agate = [
