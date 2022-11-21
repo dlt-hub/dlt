@@ -54,7 +54,7 @@ def main() -> None:
     pipe_cmd.add_argument("--workdir", help="Pipeline working directory", default=None)
 
     args = parser.parse_args()
-    run_f: Callable[[TRunnerArgs], None] = None
+    # run_f: Callable[[TRunnerArgs], None] = None
 
     # if args.command == "normalize":
     #     from dlt.normalize.normalize import run_main as normalize_run
