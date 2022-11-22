@@ -625,6 +625,17 @@ jsonschema = ">=3.0,<4.0"
 python-dateutil = ">=2.8,<2.9"
 
 [[package]]
+name = "humanize"
+version = "4.4.0"
+description = "Python humanize utilities"
+category = "main"
+optional = false
+python-versions = ">=3.7"
+
+[package.extras]
+tests = ["freezegun", "pytest", "pytest-cov"]
+
+[[package]]
 name = "idna"
 version = "3.4"
 description = "Internationalized Domain Names in Applications (IDNA)"
@@ -1548,8 +1559,8 @@ redshift = ["psycopg2-binary", "psycopg2cffi"]
 
 [metadata]
 lock-version = "1.1"
-python-versions = "^3.8,<3.12"
-content-hash = "5f240bda399217abcaa936e2753e63119080ed0a274e663ba3d62332a5fb491a"
+python-versions = ">=3.8,<4.0"
+content-hash = "ba9e1c9e1e02c1e775274794ae03ab760b93029cd6a39b168e6edf4054f99dde"
 
 [metadata.files]
 agate = [
@@ -1972,6 +1983,10 @@ hexbytes = [
 hologram = [
     {file = "hologram-0.0.15-py3-none-any.whl", hash = "sha256:48ca81ed47da1c604b2d3b951424b600eb8a5785b00513e3b8e3ae8101f90145"},
     {file = "hologram-0.0.15.tar.gz", hash = "sha256:79b3d04df84d5a9d09c2e669ec5bcc50b1713ec79f4683cfdea85583b41e46f0"},
+]
+humanize = [
+    {file = "humanize-4.4.0-py3-none-any.whl", hash = "sha256:8830ebf2d65d0395c1bd4c79189ad71e023f277c2c7ae00f263124432e6f2ffa"},
+    {file = "humanize-4.4.0.tar.gz", hash = "sha256:efb2584565cc86b7ea87a977a15066de34cdedaf341b11c851cfcfd2b964779c"},
 ]
 idna = [
     {file = "idna-3.4-py3-none-any.whl", hash = "sha256:90b77e79eaa3eba6de819a0c442c0b4ceefc341a7a2ab77d7562bf49f425c5c2"},

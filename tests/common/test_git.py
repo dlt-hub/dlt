@@ -1,11 +1,9 @@
 import os
-import shutil
-from git import GitCommandError, Repo, RepositoryDirtyError
+from git import GitCommandError, RepositoryDirtyError
 import pytest
 
 from dlt.common.storages import FileStorage
 from dlt.common.git import clone_repo, ensure_remote_head, git_custom_key_command
-from dlt.dbt_runner.utils import DBTProcessingError, initialize_dbt_logging, run_dbt_command
 
 from tests.utils import test_storage
 from tests.common.utils import load_secret, modify_and_commit_file, restore_secret_storage_path
@@ -82,42 +80,3 @@ def test_repo_status_update(test_storage: FileStorage) -> None:
         assert test_storage.has_file(readme_path)
         with pytest.raises(RepositoryDirtyError):
             ensure_remote_head(repo_path, with_git_command=git_command)
-
-
-def test_dbt_commands(test_storage: FileStorage) -> None:
-    repo_path = test_storage.make_full_path("jaffle_shop")
-    # clone jaffle shop for dbt 1.0.0
-    clone_repo(JAFFLE_SHOP_REPO, repo_path, with_git_command=None, branch="core-v1.0.0")
-    # copy profile
-    shutil.copy("./tests/dbt_runner/cases/profiles.yml", repo_path)
-    # initialize logging
-    global_args = initialize_dbt_logging("INFO", False)
-    # run deps, results are None
-    assert run_dbt_command(repo_path, "deps", ".", global_args=global_args) is None
-    # profiles in cases require this var to be set
-    dbt_vars = {"dbt_schema": "JM_EKS"}
-    # run list, results are string
-    results = run_dbt_command(repo_path, "list", ".", global_args=global_args, dbt_vars=dbt_vars)
-    assert len(results) == 28
-    assert "jaffle_shop.not_null_orders_amount" in results
-    # run list for specific selector
-    results = run_dbt_command(repo_path, "list", ".", global_args=global_args, command_args=["-s", "jaffle_shop.not_null_orders_amount"], dbt_vars=dbt_vars)
-    assert len(results) == 1
-    assert results[0] == "jaffle_shop.not_null_orders_amount"
-    # run debug, that will fail
-    with pytest.raises(DBTProcessingError) as dbt_err:
-        run_dbt_command(repo_path, "debug", ".", global_args=global_args, dbt_vars=dbt_vars)
-    # results are bool
-    assert dbt_err.value.command == "debug"
-
-    # we have no database connectivity so tests will fail
-    with pytest.raises(DBTProcessingError) as dbt_err:
-        run_dbt_command(repo_path, "test", ".", global_args=global_args, dbt_vars=dbt_vars)
-    # in that case test results are bool, not list of tests runs
-    assert dbt_err.value.command == "test"
-
-    # same for run
-    with pytest.raises(DBTProcessingError) as dbt_err:
-        run_dbt_command(repo_path, "run", ".", global_args=global_args, dbt_vars=dbt_vars, command_args=["--fail-fast", "--full-refresh"])
-    # in that case test results are bool, not list of tests runs
-    assert dbt_err.value.command == "run"

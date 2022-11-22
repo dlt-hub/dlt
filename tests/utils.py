@@ -19,8 +19,8 @@ from dlt.common.typing import StrAny
 
 
 TEST_STORAGE_ROOT = "_storage"
-# ALL_DESTINATIONS = ["bigquery", "redshift", "postgres"]
-ALL_DESTINATIONS = ["postgres"]
+ALL_DESTINATIONS = ["bigquery", "redshift", "postgres"]
+# ALL_DESTINATIONS = ["postgres"]
 
 # add test dictionary provider
 def TEST_DICT_CONFIG_PROVIDER():

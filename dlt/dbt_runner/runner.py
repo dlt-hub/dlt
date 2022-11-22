@@ -12,9 +12,10 @@ from dlt.common.configuration.specs import GcpClientCredentials
 from dlt.common.storages import FileStorage
 from dlt.common.runners import initialize_runner, run_pool
 from dlt.common.telemetry import TRunMetrics
+from dlt.common.git import git_custom_key_command, ensure_remote_head, clone_repo
 
 from dlt.dbt_runner.configuration import DBTRunnerConfiguration, gen_configuration_variant
-from dlt.dbt_runner.utils import DBTProcessingError, clone_repo, dbt_results, ensure_remote_head, git_custom_key_command, initialize_dbt_logging, is_incremental_schema_out_of_sync_error, run_dbt_command
+from dlt.dbt_runner.utils import DBTProcessingError, dbt_results, initialize_dbt_logging, is_incremental_schema_out_of_sync_error, run_dbt_command
 from dlt.dbt_runner.exceptions import PrerequisitesException
 
 
