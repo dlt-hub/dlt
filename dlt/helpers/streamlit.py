@@ -1,22 +1,12 @@
-# import os
-# import tomlkit
-# from tomlkit.container import Container as TomlContainer
-# from typing import cast
-# from copy import deepcopy
+from dlt.pipeline import Pipeline
+from dlt.common.exceptions import MissingDependencyException
+from dlt.helpers.pandas import query_results_to_df, pd
 
-# from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration
-# from dlt.common.utils import dict_remove_nones_in_place
-
-# from dlt.pipeline import Pipeline
-# from dlt.pipeline.typing import credentials_from_dict
-# from dlt.pipeline.exceptions import MissingDependencyException, PipelineException
-# from dlt.helpers.pandas import query_results_to_df, pd
-
-# try:
-#     import streamlit as st
-#     from streamlit import SECRETS_FILE_LOC, secrets
-# except ImportError:
-#     raise MissingDependencyException("DLT Streamlit Helpers", ["streamlit"], "DLT Helpers for Streamlit should be run within a streamlit app.")
+try:
+    import streamlit as st
+    # from streamlit import SECRETS_FILE_LOC, secrets
+except ImportError:
+    raise MissingDependencyException("DLT Streamlit Helpers", ["streamlit"], "DLT Helpers for Streamlit should be run within a streamlit app.")
 
 
 # def restore_pipeline() -> Pipeline:
@@ -85,86 +75,90 @@
 #         tomlkit.dump(secrets_, f)
 
 
-# def write_data_explorer_page(pipeline: Pipeline, schema_name: str = None, show_dlt_tables: bool = False, example_query: str = "", show_charts: bool = True) -> None:
-#     """Writes Streamlit app page with a schema and live data preview.
+# def write_load_status_page(pipeline: Pipeline) -> None:
 
-#     Args:
-#         pipeline (Pipeline): Pipeline instance to use.
-#         schema_name (str, optional): Name of the schema to display. If None, default schema is used.
-#         show_dlt_tables (bool, optional): Should show DLT internal tables. Defaults to False.
-#         example_query (str, optional): Example query to be displayed in the SQL Query box.
-#         show_charts (bool, optional): Should automatically show charts for the queries from SQL Query box. Defaults to True.
 
-#     Raises:
-#         MissingDependencyException: Raised when a particular python dependency is not installed
-#     """
-#     @st.experimental_memo(ttl=600)
-#     def run_query(query: str) -> pd.DataFrame:
-#         # dlt pipeline exposes configured sql client that (among others) let's you make queries against the warehouse
-#         with pipeline.sql_client(schema_name) as client:
-#             df = query_results_to_df(client, query)
-#             return df
 
-#     if schema_name:
-#         schema = pipeline.get_schema(schema_name)
-#     else:
-#         schema = pipeline.get_default_schema()
-#     st.title(f"Available tables in {schema.name} schema")
-#     # st.text(schema.to_pretty_yaml())
+def write_data_explorer_page(pipeline: Pipeline, schema_name: str = None, show_dlt_tables: bool = False, example_query: str = "", show_charts: bool = True) -> None:
+    """Writes Streamlit app page with a schema and live data preview.
 
-#     for table in schema.all_tables(with_dlt_tables=show_dlt_tables):
-#         table_name = table["name"]
-#         st.header(table_name)
-#         if "description" in table:
-#             st.text(table["description"])
-#         if "parent" in table:
-#             st.text("Parent table: " + table["parent"])
+    Args:
+        pipeline (Pipeline): Pipeline instance to use.
+        schema_name (str, optional): Name of the schema to display. If None, default schema is used.
+        show_dlt_tables (bool, optional): Should show DLT internal tables. Defaults to False.
+        example_query (str, optional): Example query to be displayed in the SQL Query box.
+        show_charts (bool, optional): Should automatically show charts for the queries from SQL Query box. Defaults to True.
 
-#         # table schema contains various hints (like clustering or partition options) that we do not want to show in basic view
-#         essentials_f = lambda c: {k:v for k, v in c.items() if k in ["name", "data_type", "nullable"]}
+    Raises:
+        MissingDependencyException: Raised when a particular python dependency is not installed
+    """
+    @st.experimental_memo(ttl=600)
+    def run_query(query: str) -> pd.DataFrame:
+        # dlt pipeline exposes configured sql client that (among others) let's you make queries against the warehouse
+        with pipeline.sql_client(schema_name) as client:
+            df = query_results_to_df(client, query)
+            return df
 
-#         st.table(map(essentials_f, table["columns"].values()))
-#         # add a button that when pressed will show the full content of a table
-#         if st.button("SHOW DATA", key=table_name):
-#             st.text(f"Full {table_name} table content")
-#             st.dataframe(run_query(f"SELECT * FROM {table_name}"))
+    if schema_name:
+        schema = pipeline.schemas[schema_name]
+    else:
+        schema = pipeline.default_schema
+    st.title(f"Available tables in {schema.name} schema")
+    # st.text(schema.to_pretty_yaml())
 
-#     st.title("Run your query")
-#     sql_query = st.text_area("Enter your SQL query", value=example_query)
-#     if st.button("Run Query"):
-#         if sql_query:
-#             st.text("Results of a query")
-#             try:
-#                 # run the query from the text area
-#                 df = run_query(sql_query)
-#                 # and display the results
-#                 st.dataframe(df)
+    for table in schema.all_tables(with_dlt_tables=show_dlt_tables):
+        table_name = table["name"]
+        st.header(table_name)
+        if "description" in table:
+            st.text(table["description"])
+        if "parent" in table:
+            st.text("Parent table: " + table["parent"])
 
-#                 try:
-#                     # now if the dataset has supported shape try to display the bar or altair chart
-#                     if df.dtypes.shape[0] == 1 and show_charts:
-#                         # try barchart
-#                         st.bar_chart(df)
-#                     if df.dtypes.shape[0] == 2 and show_charts:
+        # table schema contains various hints (like clustering or partition options) that we do not want to show in basic view
+        essentials_f = lambda c: {k:v for k, v in c.items() if k in ["name", "data_type", "nullable"]}
 
-#                         # try to import altair charts
-#                         try:
-#                             import altair as alt
-#                         except ImportError:
-#                             raise MissingDependencyException(
-#                                 "DLT Streamlit Helpers",
-#                                 ["altair"],
-#                                 "DLT Helpers for Streamlit should be run within a streamlit app."
-#                             )
+        st.table(map(essentials_f, table["columns"].values()))
+        # add a button that when pressed will show the full content of a table
+        if st.button("SHOW DATA", key=table_name):
+            st.text(f"Full {table_name} table content")
+            st.dataframe(run_query(f"SELECT * FROM {table_name}"))
 
-#                         # try altair
-#                         bar_chart = alt.Chart(df).mark_bar().encode(
-#                             x=f'{df.columns[1]}:Q',
-#                             y=alt.Y(f'{df.columns[0]}:N', sort='-x')
-#                         )
-#                         st.altair_chart(bar_chart, use_container_width=True)
-#                 except Exception as ex:
-#                     st.error(f"Chart failed due to: {ex}")
-#             except Exception as ex:
-#                 st.text("Exception when running query")
-#                 st.exception(ex)
+    st.title("Run your query")
+    sql_query = st.text_area("Enter your SQL query", value=example_query)
+    if st.button("Run Query"):
+        if sql_query:
+            st.text("Results of a query")
+            try:
+                # run the query from the text area
+                df = run_query(sql_query)
+                # and display the results
+                st.dataframe(df)
+
+                try:
+                    # now if the dataset has supported shape try to display the bar or altair chart
+                    if df.dtypes.shape[0] == 1 and show_charts:
+                        # try barchart
+                        st.bar_chart(df)
+                    if df.dtypes.shape[0] == 2 and show_charts:
+
+                        # try to import altair charts
+                        try:
+                            import altair as alt
+                        except ImportError:
+                            raise MissingDependencyException(
+                                "DLT Streamlit Helpers",
+                                ["altair"],
+                                "DLT Helpers for Streamlit should be run within a streamlit app."
+                            )
+
+                        # try altair
+                        bar_chart = alt.Chart(df).mark_bar().encode(
+                            x=f'{df.columns[1]}:Q',
+                            y=alt.Y(f'{df.columns[0]}:N', sort='-x')
+                        )
+                        st.altair_chart(bar_chart, use_container_width=True)
+                except Exception as ex:
+                    st.error(f"Chart failed due to: {ex}")
+            except Exception as ex:
+                st.text("Exception when running query")
+                st.exception(ex)
