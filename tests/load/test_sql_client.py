@@ -4,7 +4,7 @@ import pytest
 import datetime  # noqa: I251
 from typing import Iterator
 
-from dlt.common import json, pendulum
+from dlt.common import json, pendulum, Decimal
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import LOADS_TABLE_NAME, VERSION_TABLE_NAME
 from dlt.common.schema.utils import new_table
@@ -130,6 +130,21 @@ def test_execute_sql(client: SqlJobClientBase) -> None:
     assert rows[0][0] == "event"
     rows = client.sql_client.execute_sql(f"SELECT schema_name, inserted_at FROM {VERSION_TABLE_NAME} WHERE inserted_at = %(date)s", date=pendulum.now())
     assert len(rows) == 0
+
+
+@pytest.mark.parametrize('client', ALL_CLIENTS, indirect=True)
+def test_execute_ddl(client: SqlJobClientBase) -> None:
+    uniq_suffix = uniq_id()
+    client.update_storage_schema()
+    client.sql_client.execute_sql(f"CREATE TABLE tmp_{uniq_suffix} (col NUMERIC);")
+    client.sql_client.execute_sql(f"INSERT INTO tmp_{uniq_suffix} VALUES (1.0)")
+    rows = client.sql_client.execute_sql(f"SELECT * FROM tmp_{uniq_suffix}")
+    assert rows[0][0] == Decimal("1.0")
+    # create view, note that bigquery will not let you execute a view that does not have fully qualified table names.
+    f_q_table_name = client.sql_client.make_qualified_table_name(f"tmp_{uniq_suffix}")
+    client.sql_client.execute_sql(f"CREATE OR REPLACE VIEW view_tmp_{uniq_suffix} AS (SELECT * FROM {f_q_table_name});")
+    rows = client.sql_client.execute_sql(f"SELECT * FROM view_tmp_{uniq_suffix}")
+    assert rows[0][0] == Decimal("1.0")
 
 
 @pytest.mark.parametrize('client', ALL_CLIENTS, indirect=True)

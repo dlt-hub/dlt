@@ -90,8 +90,13 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client]):
             if not curr.description:
                 return None
             else:
-                f = curr.fetchall()
-                return f
+                try:
+                    f = curr.fetchall()
+                    return f
+                except api_core_exceptions.InvalidArgument as ia_ex:
+                    if "non-table entities cannot be read" in str(ia_ex):
+                        return None
+                    raise
 
     @contextmanager
     @raise_database_error
