@@ -5,7 +5,7 @@ from types import ModuleType
 from typing import Callable, Dict, Type, Any, Optional, Tuple, TypeVar, overload
 from inspect import Signature, Parameter
 
-from dlt.common.typing import DictStrAny, StrAny, TFun, AnyFun
+from dlt.common.typing import AnyType, DictStrAny, StrAny, TFun, AnyFun
 from dlt.common.configuration.resolve import resolve_configuration, inject_namespace
 from dlt.common.configuration.specs.base_configuration import BaseConfiguration, is_valid_hint, configspec
 from dlt.common.configuration.specs.config_namespace_context import ConfigNamespacesContext
@@ -149,11 +149,11 @@ def _spec_from_signature(name: str, module: ModuleType, sig: Signature, kw_only:
         # skip *args and **kwargs, skip typical method params and if kw_only flag is set: accept KEYWORD ONLY args
         if p.kind not in (Parameter.VAR_KEYWORD, Parameter.VAR_POSITIONAL) and p.name not in ["self", "cls"] and \
            (kw_only and p.kind == Parameter.KEYWORD_ONLY or not kw_only):
-            field_type = Any if p.annotation == Parameter.empty else p.annotation
+            field_type = AnyType if p.annotation == Parameter.empty else p.annotation
             if is_valid_hint(field_type):
                 field_default = None if p.default == Parameter.empty else p.default
                 # try to get type from default
-                if field_type is Any and field_default:
+                if field_type is AnyType and field_default:
                     field_type = type(field_default)
                 # make type optional if explicit None is provided as default
                 if p.default is None:

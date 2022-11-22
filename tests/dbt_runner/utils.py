@@ -1,47 +1,10 @@
-import os
-from git import Repo
-import pytest
 from prometheus_client import CollectorRegistry
 
-from dlt.common.configuration.providers import environ
 from dlt.common.typing import StrAny
 from dlt.dbt_runner.configuration import gen_configuration_variant
 from dlt.dbt_runner import runner
 
 from tests.utils import clean_test_storage
-
-
-SECRET_STORAGE_PATH = environ.SECRET_STORAGE_PATH
-
-
-@pytest.fixture(autouse=True)
-def restore_secret_storage_path() -> None:
-    environ.SECRET_STORAGE_PATH = SECRET_STORAGE_PATH
-
-
-def load_secret(name: str) -> str:
-    environ.SECRET_STORAGE_PATH = "./tests/dbt_runner/secrets/%s"
-    secret = environ.get_key(name, environ.TSecretValue)
-    if not secret:
-        raise FileNotFoundError(environ.SECRET_STORAGE_PATH % name)
-    return secret
-
-
-def modify_and_commit_file(repo_path: str, file_name: str, content: str = "NEW README CONTENT") -> None:
-    file_path = os.path.join(repo_path, file_name)
-
-    with open(file_path, "w", encoding="utf-8") as f:
-        f.write(content)
-
-    repo = Repo(repo_path)
-    # one file modified
-    index = repo.index.entries
-    assert len(index) > 0
-    assert any(e for e in index.keys() if e[0] == file_name)
-    repo.index.add(file_name)
-    repo.index.commit(f"mod {file_name}")
-
-    return file_path
 
 
 def setup_runner(dest_schema_prefix: str, override_values: StrAny = None) -> None:
