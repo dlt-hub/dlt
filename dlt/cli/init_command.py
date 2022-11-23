@@ -39,7 +39,7 @@ def _clone_init_repo(branch: str) -> Tuple[FileStorage, List[str], str]:
     # return tuple is (file storage for cloned repo, list of template files to copy, the default pipeline template script)
     # template_dir = "/tmp/tmptz2omtdf" # tempfile.mkdtemp()
     template_dir = tempfile.mkdtemp()
-    clone_repo("git@github.com:scale-vector/python-dlt-init-template.git", template_dir, branch=branch)
+    clone_repo("https://github.com/scale-vector/python-dlt-init-template.git", template_dir, branch=branch)
 
     clone_storage = FileStorage(template_dir)
 
