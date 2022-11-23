@@ -35,11 +35,11 @@ REQUIREMENTS_TXT = "requirements.txt"
 PYPROJECT_TOML = "pyproject.toml"
 
 
-def _clone_init_repo() -> Tuple[FileStorage, List[str], str]:
+def _clone_init_repo(branch: str) -> Tuple[FileStorage, List[str], str]:
     # return tuple is (file storage for cloned repo, list of template files to copy, the default pipeline template script)
     # template_dir = "/tmp/tmptz2omtdf" # tempfile.mkdtemp()
     template_dir = tempfile.mkdtemp()
-    clone_repo("git@github.com:scale-vector/python-dlt-init-template.git", template_dir)
+    clone_repo("git@github.com:scale-vector/python-dlt-init-template.git", template_dir, branch=branch)
 
     clone_storage = FileStorage(template_dir)
 
@@ -185,13 +185,13 @@ def _rewrite_script(script_source: str, transformed_nodes: List[Tuple[ast.Consta
     return dest_script
 
 
-def init_command(pipeline_name: str, destination_name: str) -> None:
+def init_command(pipeline_name: str, destination_name: str, branch: str) -> None:
     # try to import the destination and get config spec
     destination_reference = DestinationReference.from_name(destination_name)
     destination_spec = destination_reference.spec()
 
     click.echo("Cloning the init scripts...")
-    clone_storage, TEMPLATE_FILES, PIPELINE_SCRIPT = _clone_init_repo()
+    clone_storage, TEMPLATE_FILES, PIPELINE_SCRIPT = _clone_init_repo(branch)
 
     # get init script variant or the default
     init_script_name = os.path.join("variants", pipeline_name + ".py")

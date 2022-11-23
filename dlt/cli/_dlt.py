@@ -26,9 +26,9 @@ def add_pool_cli_arguments(parser: argparse.ArgumentParser) -> None:
 #         raise argparse.ArgumentTypeError('Boolean value expected.')
 
 
-def init_command_wrapper(pipeline_name: str, destination_name: str) -> None:
+def init_command_wrapper(pipeline_name: str, destination_name: str, branch: str) -> None:
     try:
-        init_command(pipeline_name, destination_name)
+        init_command(pipeline_name, destination_name, branch)
     except Exception as ex:
         click.secho(str(ex), err=True, fg="red")
 
@@ -42,6 +42,7 @@ def main() -> None:
     init_cmd = subparsers.add_parser("init", help="Creates new pipeline script from a selected template.")
     init_cmd.add_argument("pipeline_name", help="Pipeline name. If pipeline with given name already exists it will be used as a template. Otherwise new template will be created.")
     init_cmd.add_argument("destination_name", help="Name of the destination ie. bigquery or redshift")
+    init_cmd.add_argument("--branch", default=None, help="Advanced. Uses specific branch of the init repository to fetch the template.")
 
     schema = subparsers.add_parser("schema", help="Shows, converts and upgrades schemas")
     schema.add_argument("file", help="Schema file name, in yaml or json format, will autodetect based on extension")
@@ -95,7 +96,7 @@ def main() -> None:
 
         exit(0)
     elif args.command == "init":
-        init_command_wrapper(args.pipeline_name, args.destination_name)
+        init_command_wrapper(args.pipeline_name, args.destination_name, args.branch)
         exit(0)
     else:
         parser.print_help()
