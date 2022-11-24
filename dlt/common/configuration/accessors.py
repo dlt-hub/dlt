@@ -12,7 +12,8 @@ from dlt.common.configuration.specs.config_providers_context import ConfigProvid
 from dlt.common.schema.utils import coerce_value
 from dlt.common.typing import AnyType, ConfigValue
 
-
+DLT_SECRETS_VALUE = "secrets.value"
+DLT_CONFIG_VALUE = "config.value"
 TConfigAny = TypeVar("TConfigAny", bound=Any)
 
 class _Accessor(abc.ABC):

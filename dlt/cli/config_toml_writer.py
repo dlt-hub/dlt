@@ -42,8 +42,8 @@ def write_spec(toml_table: TOMLTable, config: BaseConfiguration) -> None:
 
 def write_values(toml: tomlkit.TOMLDocument, values: Iterable[WritableConfigValue]) -> None:
     # print(values)
-    toml_table: TOMLTable = toml  # type: ignore
     for value in values:
+        toml_table: TOMLTable = toml  # type: ignore
         for namespace in value.namespaces:
             if namespace not in toml_table:
                 inner_table = tomlkit.table(True)
