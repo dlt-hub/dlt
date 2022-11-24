@@ -10,7 +10,7 @@ sidebar_position: 1
 
 `dlt` is an open source library that you include in a Python script to create a highly 
 scalable, easy to maintain data, straightforward to deploy [pipeline](./glossary.md#pipeline).
-to deploy. Once you set it up, it will then automatically turn JSON returned by any 
+Once you set it up, it will then automatically turn JSON returned by any 
 [source](./glossary.md#source) (e.g. an API) into a live dataset stored in the 
 [destination](./glossary.md#destination) of your choice (e.g. Google BigQuery).
 
