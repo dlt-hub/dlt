@@ -8,39 +8,41 @@ import Tabs from '@theme/Tabs';
 
 ## Set up environment
 
-Make sure you are using **Python 3.8 or 3.9**:
+### Make sure you are using **Python 3.8, 3.9, or 3.10** and have `pip` installed
 
 ```bash
 python3 --version
 pip3 --version
 ```
 
-If not, then please follow the instructions below to install it:
+### If not, then please follow the instructions below to install it
 
 <Tabs values={[{"label": "Ubuntu", "value": "ubuntu"}, {"label": "macOS", "value": "macos"}, {"label": "Windows", "value": "windows"}]}  groupId="operating-systems" defaultValue="ubuntu">
   <TabItem value="ubuntu">
 
-You can install Python 3.9 with an `apt` command.
+You can install Python 3.10 with an `apt` command.
 
 ```bash
 sudo apt update
-sudo apt install python3.9
+sudo apt install python3.10
+sudo apt install python3.10-venv
 ```
 
   </TabItem>
   <TabItem value="macos">
 
-Once you have installed [Homebrew](https://brew.sh), you can install Python 3.9.
+Once you have installed [Homebrew](https://brew.sh), you can install Python 3.10.
 
 ```bash
 brew update
-brew install python@3.9
+brew install python@3.10
 ```
 
   </TabItem>
   <TabItem value="windows">
 
-Once you have installed the [Microsoft VC++ Compiler](https://visualstudio.microsoft.com/visual-cpp-build-tools/), you can install [Python 3.9](https://www.python.org/downloads/windows/) (64-bit version) for Windows.
+You need to install [Python 3.10 (64-bit version) for Windows](https://www.python.org/downloads/windows/).
+After this, you can then install `pip`.
 
 ```bash
 C:\> pip3 install -U pip
@@ -49,7 +51,7 @@ C:\> pip3 install -U pip
   </TabItem>
 </Tabs>
 
-Now that you have Python installed, you should create virtual environment for your project:
+### Once Python is installed, you should create virtual environment
 
 <Tabs values={[{"label": "Ubuntu", "value": "ubuntu"}, {"label": "macOS", "value": "macos"}, {"label": "Windows", "value": "windows"}]}  groupId="operating-systems" defaultValue="ubuntu">
   
