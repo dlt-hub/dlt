@@ -2,15 +2,15 @@ from typing import Type
 from dlt.common.data_writers.escape import escape_bigquery_identifier
 
 from dlt.common.schema.schema import Schema
-from dlt.common.typing import ConfigValue
 from dlt.common.configuration import with_config
+from dlt.common.configuration.accessors import config
 from dlt.common.destination import DestinationCapabilitiesContext, JobClientBase, DestinationClientConfiguration
 
 from dlt.destinations.bigquery.configuration import BigQueryClientConfiguration
 
 
 @with_config(spec=BigQueryClientConfiguration, namespaces=("destination", "bigquery",))
-def _configure(config: BigQueryClientConfiguration = ConfigValue) -> BigQueryClientConfiguration:
+def _configure(config: BigQueryClientConfiguration = config.value) -> BigQueryClientConfiguration:
     return config
 
 
@@ -31,7 +31,7 @@ def capabilities() -> DestinationCapabilitiesContext:
     return caps
 
 
-def client(schema: Schema, initial_config: DestinationClientConfiguration = ConfigValue) -> JobClientBase:
+def client(schema: Schema, initial_config: DestinationClientConfiguration = config.value) -> JobClientBase:
     # import client when creating instance so capabilities and config specs can be accessed without dependencies installed
     from dlt.destinations.bigquery.bigquery import BigQueryClient
 

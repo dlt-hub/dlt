@@ -1,8 +1,8 @@
 from typing import Type
 
 from dlt.common.schema.schema import Schema
-from dlt.common.typing import ConfigValue
 from dlt.common.configuration import with_config
+from dlt.common.configuration.accessors import config
 from dlt.common.data_writers.escape import escape_postgres_identifier, escape_postgres_literal
 from dlt.common.destination import DestinationCapabilitiesContext, JobClientBase, DestinationClientConfiguration
 
@@ -10,7 +10,7 @@ from dlt.destinations.postgres.configuration import PostgresClientConfiguration
 
 
 @with_config(spec=PostgresClientConfiguration, namespaces=("destination", "postgres",))
-def _configure(config: PostgresClientConfiguration = ConfigValue) -> PostgresClientConfiguration:
+def _configure(config: PostgresClientConfiguration = config.value) -> PostgresClientConfiguration:
     return config
 
 
@@ -32,7 +32,7 @@ def capabilities() -> DestinationCapabilitiesContext:
     return caps
 
 
-def client(schema: Schema, initial_config: DestinationClientConfiguration = ConfigValue) -> JobClientBase:
+def client(schema: Schema, initial_config: DestinationClientConfiguration = config.value) -> JobClientBase:
     # import client when creating instance so capabilities and config specs can be accessed without dependencies installed
     from dlt.destinations.postgres.postgres import PostgresClient
 

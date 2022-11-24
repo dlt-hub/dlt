@@ -8,7 +8,7 @@ if TYPE_CHECKING:
 else:
     TDtcField = dataclasses.Field
 
-from dlt.common.typing import TAnyClass, extract_inner_type, is_optional_type
+from dlt.common.typing import TAnyClass, TSecretValue, extract_inner_type, is_optional_type
 from dlt.common.schema.utils import py_type_to_sc_type
 from dlt.common.configuration.exceptions import ConfigFieldMissingTypeHintException, ConfigFieldTypeHintNotSupported
 
@@ -16,6 +16,18 @@ from dlt.common.configuration.exceptions import ConfigFieldMissingTypeHintExcept
 # forward class declaration
 _F_BaseConfiguration: Any = type(object)
 _F_ContainerInjectableContext: Any = type(object)
+
+
+def is_secret_hint(hint: Type[Any]) -> bool:
+    return hint is TSecretValue or (inspect.isclass(hint) and issubclass(hint, CredentialsConfiguration))
+
+
+def is_base_configuration_hint(hint: Type[Any]) -> bool:
+    return inspect.isclass(hint) and issubclass(hint, BaseConfiguration)
+
+
+def is_context_hint(hint: Type[Any]) -> bool:
+    return inspect.isclass(hint) and issubclass(hint, ContainerInjectableContext)
 
 
 def is_valid_hint(hint: Type[Any]) -> bool:
@@ -28,7 +40,7 @@ def is_valid_hint(hint: Type[Any]) -> bool:
     if hint is ClassVar:
         # class vars are skipped by dataclass
         return True
-    if inspect.isclass(hint) and issubclass(hint, BaseConfiguration):
+    if is_base_configuration_hint(hint):
         return True
     with contextlib.suppress(TypeError):
         py_type_to_sc_type(hint)
@@ -38,7 +50,7 @@ def is_valid_hint(hint: Type[Any]) -> bool:
 
 def get_config_if_union(hint: Type[Any]) -> Type[Any]:
     if get_origin(hint) is Union:
-        return next((t for t in get_args(hint) if inspect.isclass(t) and issubclass(t, BaseConfiguration)), None)
+        return next((t for t in get_args(hint) if is_base_configuration_hint(t)), None)
     return None
 
 

@@ -7,7 +7,7 @@ from dlt.common.configuration.container import Container
 
 from dlt.common.configuration.providers.provider import ConfigProvider
 from dlt.common.configuration.resolve import deserialize_value
-from dlt.common.configuration.specs import BaseConfiguration
+from dlt.common.configuration.specs.base_configuration import is_base_configuration_hint
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
 from dlt.common.schema.utils import coerce_value
 from dlt.common.typing import AnyType, ConfigValue
@@ -34,7 +34,7 @@ class _Accessor(abc.ABC):
             return None
         # cast to required type
         if expected_type:
-            if inspect.isclass(expected_type) and issubclass(expected_type, BaseConfiguration):
+            if is_base_configuration_hint(expected_type):
                 c = expected_type()
                 if isinstance(value, dict):
                     c.update(value)

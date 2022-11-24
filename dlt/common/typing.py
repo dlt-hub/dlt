@@ -25,7 +25,8 @@ AnyFun: TypeAlias = Callable[..., Any]
 TFun = TypeVar("TFun", bound=AnyFun)  # any function
 TAny = TypeVar("TAny", bound=Any)
 TAnyClass = TypeVar("TAnyClass", bound=object)
-TSecretValue = NewType("TSecretValue", str)  # represent secret value ie. coming from Kubernetes/Docker secrets or other providers
+# represent secret value ie. coming from Kubernetes/Docker secrets or other providers
+TSecretValue = NewType("TSecretValue", Any)  # type: ignore
 TDataItem: TypeAlias = object  # a single data item as extracted from data source
 TDataItems: TypeAlias = Union[TDataItem, List[TDataItem]]  # a single or many data items as extracted from the data source
 

@@ -1,4 +1,4 @@
-from typing import Any, Callable, Protocol, TypedDict, TypeVar, Union, Awaitable
+from typing import Any, Callable, TypedDict, TypeVar, Union, Awaitable
 
 from dlt.common.typing import TDataItem, TDataItems
 from dlt.common.schema.typing import TTableSchemaColumns, TWriteDisposition

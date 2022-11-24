@@ -1,22 +1,14 @@
-from typing import Any, Dict, overload
+from typing import Dict, overload
 
-from dlt.common.typing import ConfigValue
 from dlt.common.schema.schema import Schema
 from dlt.common.storages.schema_storage import SchemaStorage
 from dlt.common.configuration.specs import SchemaVolumeConfiguration
+from dlt.common.configuration.accessors import config
 
 
 class LiveSchemaStorage(SchemaStorage):
 
-    @overload
-    def __init__(self, config: SchemaVolumeConfiguration, makedirs: bool = False) -> None:
-        ...
-
-    @overload
-    def __init__(self, config: SchemaVolumeConfiguration = ConfigValue, makedirs: bool = False) -> None:
-        ...
-
-    def __init__(self, config: SchemaVolumeConfiguration = None, makedirs: bool = False) -> None:
+    def __init__(self, config: SchemaVolumeConfiguration = config.value, makedirs: bool = False) -> None:
         self.live_schemas: Dict[str, Schema] = {}
         super().__init__(config, makedirs)
 

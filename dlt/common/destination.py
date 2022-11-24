@@ -6,9 +6,9 @@ from dlt.common.exceptions import InvalidDestinationReference, UnknownDestinatio
 
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TTableSchema
-from dlt.common.typing import ConfigValue, TypeAlias
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration, ContainerInjectableContext
+from dlt.common.configuration.accessors import config
 
 
 # known loader file formats
@@ -142,7 +142,7 @@ class DestinationReference(Protocol):
     def capabilities(self) -> DestinationCapabilitiesContext:
         ...
 
-    def client(self, schema: Schema, initial_config: DestinationClientConfiguration = ConfigValue) -> "JobClientBase":
+    def client(self, schema: Schema, initial_config: DestinationClientConfiguration = config.value) -> "JobClientBase":
         ...
 
     def spec(self) -> Type[DestinationClientConfiguration]:

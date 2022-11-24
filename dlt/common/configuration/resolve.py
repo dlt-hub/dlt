@@ -1,5 +1,4 @@
 import ast
-import inspect
 from collections.abc import Mapping as C_Mapping
 from typing import Any, Dict, ContextManager, List, Optional, Sequence, Tuple, Type, TypeVar, get_origin
 
@@ -8,7 +7,7 @@ from dlt.common.configuration.providers.provider import ConfigProvider
 from dlt.common.typing import AnyType, StrAny, TSecretValue, is_final_type, is_optional_type, extract_inner_type
 from dlt.common.schema.utils import coerce_value, py_type_to_sc_type
 
-from dlt.common.configuration.specs.base_configuration import BaseConfiguration, CredentialsConfiguration, ContainerInjectableContext, get_config_if_union
+from dlt.common.configuration.specs.base_configuration import BaseConfiguration, CredentialsConfiguration, is_secret_hint, get_config_if_union, is_base_configuration_hint, is_context_hint
 from dlt.common.configuration.specs.config_namespace_context import ConfigNamespacesContext
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
@@ -66,18 +65,6 @@ def serialize_value(value: Any) -> Any:
     # coerce type to text which will use json for mapping and sequences
     value_dt = py_type_to_sc_type(type(value))
     return coerce_value("text", value_dt, value)
-
-
-def is_secret_hint(hint: Type[Any]) -> bool:
-    return hint is TSecretValue or (inspect.isclass(hint) and issubclass(hint, CredentialsConfiguration))
-
-
-def is_base_configuration_hint(hint: Type[Any]) -> bool:
-    return inspect.isclass(hint) and issubclass(hint, BaseConfiguration)
-
-
-def is_context_hint(hint: Type[Any]) -> bool:
-    return inspect.isclass(hint) and issubclass(hint, ContainerInjectableContext)
 
 
 def extract_inner_hint(hint: Type[Any]) -> Type[Any]:
