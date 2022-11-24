@@ -25,6 +25,6 @@ data analysts, etc).
 
 ## How does `dlt` work?
 
-`dlt` extracts data from a [source](./glossary.md#source), normalizes it to a 
+`dlt` extracts data from a [source](./glossary.md#source), inspects its structure to create a [schema](./glossary.md#schema), normalizes and verifies the data,
 [schema](./glossary.md#schema), and then loads the data into a [destination](./glossary.md#destination). 
 You can read more about how it works [here](./architecture.md).
