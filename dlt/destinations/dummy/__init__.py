@@ -1,15 +1,15 @@
 from typing import Type
 
 from dlt.common.schema.schema import Schema
-from dlt.common.typing import ConfigValue
 from dlt.common.configuration import with_config
+from dlt.common.configuration.accessors import config
 from dlt.common.destination import DestinationCapabilitiesContext, JobClientBase, DestinationClientConfiguration
 
 from dlt.destinations.dummy.configuration import DummyClientConfiguration
 
 
 @with_config(spec=DummyClientConfiguration, namespaces=("destination", "dummy",))
-def _configure(config: DummyClientConfiguration = ConfigValue) -> DummyClientConfiguration:
+def _configure(config: DummyClientConfiguration = config.value) -> DummyClientConfiguration:
     return config
 
 
@@ -29,7 +29,7 @@ def capabilities() -> DestinationCapabilitiesContext:
     return caps
 
 
-def client(schema: Schema, initial_config: DestinationClientConfiguration = ConfigValue) -> JobClientBase:
+def client(schema: Schema, initial_config: DestinationClientConfiguration = config.value) -> JobClientBase:
     # import client when creating instance so capabilities and config specs can be accessed without dependencies installed
     from dlt.destinations.dummy.dummy import DummyClient
 

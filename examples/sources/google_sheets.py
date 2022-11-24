@@ -2,7 +2,7 @@ from typing import Any, Iterator, Sequence, Union, cast
 
 import dlt
 from dlt.common.configuration.specs import GcpClientCredentialsWithDefault
-from dlt.common.typing import ConfigValue, DictStrAny, StrAny
+from dlt.common.typing import DictStrAny, StrAny
 from dlt.common.exceptions import MissingDependencyException
 
 try:
@@ -24,7 +24,7 @@ def _initialize_sheets(credentials: GcpClientCredentialsWithDefault) -> Any:
 
 
 @dlt.source
-def google_spreadsheet(spreadsheet_id: str, sheet_names: Sequence[str], credentials: Union[GcpClientCredentialsWithDefault, str, StrAny] = ConfigValue) -> Any:
+def google_spreadsheet(spreadsheet_id: str, sheet_names: Sequence[str], credentials: Union[GcpClientCredentialsWithDefault, str, StrAny] = dlt.secrets.value) -> Any:
 
     sheets = _initialize_sheets(cast(GcpClientCredentialsWithDefault, credentials))
 

@@ -12,11 +12,13 @@ from importlib import import_module
 
 from dlt.common.git import clone_repo
 from dlt.common.configuration.providers.toml import ConfigTomlProvider, SecretsTomlProvider
-from dlt.common.configuration.resolve import is_secret_hint
+from dlt.common.configuration.specs.base_configuration import is_secret_hint
+from dlt.common.configuration.accessors import DLT_SECRETS_VALUE, DLT_CONFIG_VALUE
 from dlt.common.exceptions import DltException
 from dlt.common.logger import DLT_PKG_NAME
 from dlt.common.normalizers.names.snake_case import normalize_schema_name
 from dlt.common.destination import DestinationReference
+from dlt.common.reflection.utils import set_ast_parents
 from dlt.common.schema.exceptions import InvalidSchemaName
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.typing import AnyType, is_optional_type
@@ -30,14 +32,13 @@ import dlt.cli.echo as fmt
 from dlt.cli.config_toml_writer import WritableConfigValue, write_values
 
 
-
 REQUIREMENTS_TXT = "requirements.txt"
 PYPROJECT_TOML = "pyproject.toml"
 
 
 def _clone_init_repo(branch: str) -> Tuple[FileStorage, List[str], str]:
     # return tuple is (file storage for cloned repo, list of template files to copy, the default pipeline template script)
-    # template_dir = "/tmp/tmptz2omtdf" # tempfile.mkdtemp()
+    # template_dir = "~/src/python-dlt-init-template"
     template_dir = tempfile.mkdtemp()
     clone_repo("https://github.com/scale-vector/python-dlt-init-template.git", template_dir, branch=branch)
 
@@ -58,7 +59,8 @@ def _clone_init_repo(branch: str) -> Tuple[FileStorage, List[str], str]:
 def _parse_init_script(script_source: str, init_script_name: str) -> PipelineScriptVisitor:
     # parse the script first
     tree = ast.parse(source=script_source)
-    visitor = PipelineScriptVisitor(script_source, add_parents=True)
+    set_ast_parents(tree)
+    visitor = PipelineScriptVisitor(script_source)
     visitor.visit(tree)
     if len(visitor.mod_aliases) == 0:
         raise CliCommandException("init", f"The pipeline script {init_script_name} does not import dlt or has bizarre import structure")
@@ -94,57 +96,34 @@ def _find_argument_nodes_to_replace(visitor: PipelineScriptVisitor, replace_node
             raise CliCommandException("init", f"The pipeline script {init_script_name} is not explicitly passing the '{t_arg_name}' argument to 'pipeline' or 'run' function. In init script the default and configured values are not accepted.")
     return transformed_nodes
 
+
 def _detect_required_configs(visitor: PipelineScriptVisitor, script_module: ModuleType, init_script_name: str) -> Tuple[Dict[str, WritableConfigValue], Dict[str, WritableConfigValue]]:
     # all detected secrets with namespaces
     required_secrets: Dict[str, WritableConfigValue] = {}
     # all detected configs with namespaces
     required_config: Dict[str, WritableConfigValue] = {}
 
-    # skip sources without spec. those are not imported and most probably are inner functions
-    known_imported_calls = {name: calls for name, calls in visitor.known_source_calls.items() if name in _SOURCES}
+    # skip sources without spec. those are not imported and most probably are inner functions. also skip the sources that are not called
+    # also skip the sources that are called from functions, the parent of call object to the source must be None (no outer function)
+    known_imported_sources = {name: _SOURCES[name] for name in visitor.known_sources
+        if name in _SOURCES and name in visitor.known_source_calls and any(call.parent is None for call in visitor.known_source_calls[name])}  # type: ignore
 
-    for pipeline_name, call_nodes in known_imported_calls.items():
-        source_config = _SOURCES.get(pipeline_name).SPEC()
+    for source_name, source_info in known_imported_sources.items():
+        source_config = source_info.SPEC()
         spec_fields = source_config.get_resolvable_fields()
-        source_sig = inspect.signature(getattr(script_module, pipeline_name))
-        # bind all calls
-        for call_node in call_nodes:
-            try:
-                bound_args = source_sig.bind(*call_node.args, **{str(kwd.arg):kwd.value for kwd in call_node.keywords})
-                bound_args.apply_defaults()
-            except TypeError as ty_ex:
-                call_info = visitor.source_segment(call_node)
-                raise CliCommandException("init", f"In {init_script_name} the source/resource {pipeline_name} call {call_info} looks wrong: {ty_ex}")
-            # find all the arguments that are not sufficiently bound
-            for arg_name, arg_node in bound_args.arguments.items():
-                # check if argument is in spec and is not optional. optional arguments won't be added to config/secrets
-                arg_type = spec_fields.get(arg_name)
-                if arg_type and not is_optional_type(arg_type):
-                    value_provided = True
-                    from_placeholder = False
-                    from_secrets = is_secret_hint(arg_type)
-                    if isinstance(arg_node, ast.Constant):
-                        value_provided = ast.literal_eval(arg_node) is not None
-                    if isinstance(arg_node, ast.Attribute) and arg_node.attr == "value":
-                        attr_source = visitor.source_segment(arg_node)
-                        if attr_source.endswith("config.value"):
-                            value_provided = False
-                            from_placeholder = True
-                            if from_secrets:
-                                raise CliCommandException("init", f"The pipeline script {init_script_name} calls source/resource {pipeline_name} where argument {arg_name} is a secret but it requests it via {attr_source}")
-                        if attr_source.endswith("secrets.value"):
-                            value_provided = False
-                            from_placeholder = True
-                            from_secrets = True
-                    # was value provided in the call args?
-                    if not value_provided:
-                        # do we have sufficient information if arg_name is config or secret?
-                        if arg_type is AnyType and not from_placeholder:
-                            raise CliCommandException("init", f"The pipeline script {init_script_name} in source/resource '{pipeline_name}' does not provide enough information if argument '{arg_name}' is a secret or a config value. Use 'dlt.config.value' or 'dlt.secret.value' or (strongly suggested) type the source/resource function signature.")
-                        val_store = required_secrets if from_secrets else required_config
-                        # use full namespaces if we have many sources
-                        namespaces = () if len(known_imported_calls) == 1 else ("sources", pipeline_name)
-                        val_store[pipeline_name + ":" + arg_name] = WritableConfigValue(arg_name, arg_type, namespaces)
+        for field_name, field_type in spec_fields.items():
+            val_store = None
+            # all secrets must go to secrets.toml
+            if is_secret_hint(field_type):
+                val_store = required_secrets
+            # all configs that are required and do not have a default value must go to config.toml
+            elif not is_optional_type(field_type) and getattr(source_config, field_name) is None:
+                val_store = required_config
+
+            if val_store is not None:
+                # we are sure that all resources come from single file so we can put them in single namespace
+                # namespaces = () if len(known_imported_sources) == 1 else ("sources", source_name)
+                val_store[source_name + ":" + field_name] = WritableConfigValue(field_name, field_type, ())
 
     return required_secrets, required_config
 
@@ -229,7 +208,7 @@ def init_command(pipeline_name: str, destination_name: str, branch: str) -> None
     # find all arguments in all calls to replace
     transformed_nodes = _find_argument_nodes_to_replace(
         visitor,
-        [("destination", destination_name), ("pipeline_name", pipeline_name)],
+        [("destination", destination_name), ("pipeline_name", pipeline_name), ("dataset_name", pipeline_name + "_data")],
         init_script_name
     )
 
@@ -238,8 +217,10 @@ def init_command(pipeline_name: str, destination_name: str, branch: str) -> None
 
     if len(_SOURCES) == 0:
         raise CliCommandException("init", f"The pipeline script {init_script_name} is not creating or importing any sources or resources")
+
     for source_q_name, source_config in _SOURCES.items():
         if source_q_name not in visitor.known_sources:
+            print(visitor.known_sources)
             raise CliCommandException("init", f"The pipeline script {init_script_name} imports a source/resource {source_config.f.__name__} from module {source_config.module.__name__}. In init scripts you must declare all sources and resources in single file.")
 
     # detect all the required secrets and configs that should go into tomls files
@@ -250,12 +231,6 @@ def init_command(pipeline_name: str, destination_name: str, branch: str) -> None
 
     # modify the script
     dest_script_source = _rewrite_script(visitor.source, transformed_nodes)
-
-    # generate tomls with comments
-    secrets_prov = SecretsTomlProvider()
-    write_values(secrets_prov._toml, required_secrets.values())
-    config_prov = ConfigTomlProvider()
-    write_values(config_prov._toml, required_config.values())
 
     # welcome message
     click.echo()
@@ -281,13 +256,10 @@ def init_command(pipeline_name: str, destination_name: str, branch: str) -> None
         if dest_storage.has_file(REQUIREMENTS_TXT):
             click.echo("Your python dependencies are kept in %s. Please add the dependency for %s as follows:" % (fmt.bold(REQUIREMENTS_TXT), fmt.bold(DLT_PKG_NAME)))
             click.echo(req_dep_line)
+            click.echo("To install dlt with the %s extra using pip:" % fmt.bold(destination_name))
         else:
-            if click.confirm("%s not found. Should I create one?" % REQUIREMENTS_TXT):
-                requirements_txt = req_dep_line
-                click.echo("* %s created. Install it with:\npip3 install -r %s" % (fmt.bold(REQUIREMENTS_TXT), REQUIREMENTS_TXT))
-            else:
-                click.echo("Do not forget to install dlt with the %s extra using:")
-                click.echo(f"pip3 install {DLT_PKG_NAME}[{destination_name}]")
+            requirements_txt = req_dep_line
+            click.echo("* %s created. Install it with:\npip3 install -r %s" % (fmt.bold(REQUIREMENTS_TXT), REQUIREMENTS_TXT))
 
     # copy files at the very end
     for file_name in TEMPLATE_FILES + toml_files:
@@ -295,6 +267,11 @@ def init_command(pipeline_name: str, destination_name: str, branch: str) -> None
 
     # create script
     dest_storage.save(dest_pipeline_script, dest_script_source)
+    # generate tomls with comments
+    secrets_prov = SecretsTomlProvider()
+    write_values(secrets_prov._toml, required_secrets.values())
+    config_prov = ConfigTomlProvider()
+    write_values(config_prov._toml, required_config.values())
     # write toml files
     secrets_prov._write_toml()
     config_prov._write_toml()

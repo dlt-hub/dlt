@@ -4,7 +4,8 @@ from prometheus_client import REGISTRY, Counter, Gauge, CollectorRegistry, Summa
 
 from dlt.common import sleep, logger
 from dlt.common.configuration import with_config
-from dlt.common.typing import ConfigValue, StrAny
+from dlt.common.configuration.accessors import config
+from dlt.common.typing import StrAny
 from dlt.common.runners import TRunMetrics, Runnable, workermethod
 from dlt.common.logger import pretty_format_exception
 from dlt.common.exceptions import TerminalValueError
@@ -34,8 +35,8 @@ class Load(Runnable[ThreadPool]):
         destination: DestinationReference,
         collector: CollectorRegistry = REGISTRY,
         is_storage_owner: bool = False,
-        config: LoaderConfiguration = ConfigValue,
-        initial_client_config: DestinationClientConfiguration = ConfigValue
+        config: LoaderConfiguration = config.value,
+        initial_client_config: DestinationClientConfiguration = config.value
     ) -> None:
         self.config = config
         self.initial_client_config = initial_client_config

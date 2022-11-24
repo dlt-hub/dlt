@@ -110,11 +110,11 @@ def test_secrets_separation(toml_providers: ConfigProvidersContext) -> None:
 def test_access_access_injection(toml_providers: ConfigProvidersContext) -> None:
 
     @dlt.source
-    def the_source(api_type, credentials: GcpClientCredentials, databricks_creds: ConnectionStringCredentials):
+    def the_source(api_type=dlt.config.value, credentials: GcpClientCredentials=dlt.secrets.value, databricks_creds: ConnectionStringCredentials=dlt.secrets.value):
         assert api_type == "REST"
         assert credentials.client_email == "loader@a7513.iam.gserviceaccount.com"
         assert databricks_creds.drivername == "databricks+connector"
         return dlt.resource([1,2,3], name="data")
 
     # inject first argument, the rest pass explicitly
-    the_source(dlt.config.value, dlt.secrets["destination.credentials"], dlt.secrets["databricks.credentials"])
+    the_source(credentials=dlt.secrets["destination.credentials"], databricks_creds=dlt.secrets["databricks.credentials"])

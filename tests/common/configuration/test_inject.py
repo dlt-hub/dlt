@@ -1,11 +1,16 @@
 import inspect
 from typing import Any, Optional
-import dlt
 
+import pytest
+
+import dlt
 from dlt.common import Decimal
-from dlt.common.typing import TSecretValue
-from dlt.common.configuration.inject import _spec_from_signature, _get_spec_name_from_f, get_fun_spec, with_config
+from dlt.common.configuration.exceptions import ConfigFieldMissingException
+from dlt.common.typing import TSecretValue, is_optional_type
+from dlt.common.configuration.inject import get_fun_spec, with_config
 from dlt.common.configuration.specs import BaseConfiguration, RunConfiguration
+from dlt.common.reflection.spec import spec_from_signature, _get_spec_name_from_f
+from dlt.common.reflection.utils import get_func_def_node, get_literal_defaults
 
 from tests.utils import preserve_environ
 from tests.common.configuration.utils import environment
@@ -15,101 +20,10 @@ _SECRET_DEFAULT = TSecretValue("PASS")
 _CONFIG_DEFAULT = RunConfiguration()
 
 
-def test_synthesize_spec_from_sig() -> None:
-
-    # spec from typed signature without defaults
-
-    def f_typed(p1: str, p2: Decimal, p3: Any, p4: Optional[RunConfiguration], p5: TSecretValue) -> None:
-        pass
-
-    SPEC = _spec_from_signature(f_typed.__name__, inspect.getmodule(f_typed), inspect.signature(f_typed))
-    assert SPEC.p1 is None
-    assert SPEC.p2 is None
-    assert SPEC.p3 is None
-    assert SPEC.p4 is None
-    assert SPEC.p5 is None
-    fields = SPEC().get_resolvable_fields()
-    assert fields == {"p1": str, "p2": Decimal, "p3": Any, "p4": Optional[RunConfiguration], "p5": TSecretValue}
-
-    # spec from typed signatures with defaults
-
-    def f_typed_default(t_p1: str = "str", t_p2: Decimal = _DECIMAL_DEFAULT, t_p3: Any = _SECRET_DEFAULT, t_p4: RunConfiguration = _CONFIG_DEFAULT, t_p5: str = None) -> None:
-        pass
-
-    SPEC = _spec_from_signature(f_typed_default.__name__, inspect.getmodule(f_typed_default), inspect.signature(f_typed_default))
-    assert SPEC.t_p1 == "str"
-    assert SPEC.t_p2 == _DECIMAL_DEFAULT
-    assert SPEC.t_p3 == _SECRET_DEFAULT
-    assert isinstance(SPEC.t_p4, RunConfiguration)
-    assert SPEC.t_p5 is None
-    fields = SPEC().get_resolvable_fields()
-    # Any will not assume TSecretValue type because at runtime it's a str
-    # setting default as None will convert type into optional (t_p5)
-    assert fields == {"t_p1": str, "t_p2": Decimal, "t_p3": str, "t_p4": RunConfiguration, "t_p5": Optional[str]}
-
-    # spec from untyped signature
-
-    def f_untyped(untyped_p1, untyped_p2) -> None:
-        pass
-
-    SPEC = _spec_from_signature(f_untyped.__name__, inspect.getmodule(f_untyped), inspect.signature(f_untyped))
-    assert SPEC.untyped_p1 is None
-    assert SPEC.untyped_p2 is None
-    fields = SPEC().get_resolvable_fields()
-    assert fields == {"untyped_p1": Any, "untyped_p2": Any,}
-
-    # spec types derived from defaults
-
-
-    def f_untyped_default(untyped_p1 = "str", untyped_p2 = _DECIMAL_DEFAULT, untyped_p3 = _CONFIG_DEFAULT, untyped_p4 = None) -> None:
-        pass
-
-
-    SPEC = _spec_from_signature(f_untyped_default.__name__, inspect.getmodule(f_untyped_default), inspect.signature(f_untyped_default))
-    assert SPEC.untyped_p1 == "str"
-    assert SPEC.untyped_p2 == _DECIMAL_DEFAULT
-    assert isinstance(SPEC.untyped_p3, RunConfiguration)
-    assert SPEC.untyped_p4 is None
-    fields = SPEC().get_resolvable_fields()
-    # untyped_p4 converted to Optional[Any]
-    assert fields == {"untyped_p1": str, "untyped_p2": Decimal, "untyped_p3": RunConfiguration, "untyped_p4": Optional[Any]}
-
-    # spec from signatures containing positional only and keywords only args
-
-    def f_pos_kw_only(pos_only_1, pos_only_2: str = "default", /, *, kw_only_1, kw_only_2: int = 2) -> None:
-        pass
-
-    SPEC = _spec_from_signature(f_pos_kw_only.__name__, inspect.getmodule(f_pos_kw_only), inspect.signature(f_pos_kw_only))
-    assert SPEC.pos_only_1 is None
-    assert SPEC.pos_only_2 == "default"
-    assert SPEC.kw_only_1 is None
-    assert SPEC.kw_only_2 == 2
-    fields = SPEC().get_resolvable_fields()
-    assert fields == {"pos_only_1": Any, "pos_only_2": str, "kw_only_1": Any, "kw_only_2": int}
-
-    # kw_only = True will filter in keywords only parameters
-    SPEC = _spec_from_signature(f_pos_kw_only.__name__, inspect.getmodule(f_pos_kw_only), inspect.signature(f_pos_kw_only), kw_only=True)
-    assert SPEC.kw_only_1 is None
-    assert SPEC.kw_only_2 == 2
-    assert not hasattr(SPEC, "pos_only_1")
-    fields = SPEC().get_resolvable_fields()
-    assert fields == {"kw_only_1": Any, "kw_only_2": int}
-
-    def f_variadic(var_1: str, *args, kw_var_1: str, **kwargs) -> None:
-        pass
-
-    SPEC = _spec_from_signature(f_variadic.__name__, inspect.getmodule(f_variadic), inspect.signature(f_variadic))
-    assert SPEC.var_1 is None
-    assert SPEC.kw_var_1 is None
-    assert not hasattr(SPEC, "args")
-    fields = SPEC().get_resolvable_fields()
-    assert fields == {"var_1": str, "kw_var_1": str}
-
-
 def test_arguments_are_explicit(environment: Any) -> None:
 
     @with_config
-    def f_var(user, path):
+    def f_var(user=dlt.config.value, path=dlt.config.value):
         # explicit args "survive" the injection: they have precedence over env
         assert user == "explicit user"
         assert path == "explicit path"
@@ -119,13 +33,43 @@ def test_arguments_are_explicit(environment: Any) -> None:
     f_var("explicit user", "explicit path")
 
     @with_config
-    def f_var_env(user, path):
+    def f_var_env(user=dlt.config.value, path=dlt.config.value):
         assert user == "env user"
         assert path == "explicit path"
 
     # user will be injected
     f_var_env(None, path="explicit path")
     f_var_env(path="explicit path", user=None)
+
+
+def test_arguments_dlt_literal_defaults_are_required(environment: Any) -> None:
+
+    @with_config
+    def f_config(user=dlt.config.value):
+        assert user is not None
+        return user
+
+    @with_config
+    def f_secret(password=dlt.secrets.value):
+        # explicit args "survive" the injection: they have precedence over env
+        assert password is not None
+        return password
+
+    # call without user present
+    with pytest.raises(ConfigFieldMissingException) as py_ex:
+        f_config()
+    assert py_ex.value.fields == ["user"]
+    with pytest.raises(ConfigFieldMissingException) as py_ex:
+        f_config(None)
+    assert py_ex.value.fields == ["user"]
+
+    environment["USER"] = "user"
+    assert f_config() == "user"
+    assert f_config(None) == "user"
+
+    environment["PASSWORD"] = "password"
+    assert f_secret() == "password"
+    assert f_secret(None) == "password"
 
 
 def test_inject_with_non_injectable_param() -> None:
@@ -145,10 +89,10 @@ def test_inject_with_auto_namespace(environment: Any) -> None:
     environment["PIPE__VALUE"] = "test"
 
     @with_config(auto_namespace=True)
-    def f(pipeline_name, value):
+    def f(pipeline_name=dlt.config.value, value=dlt.secrets.value):
         assert value == "test"
 
-    f("pipe", dlt.config.value)
+    f("pipe")
 
     # make sure the spec is available for decorated fun
     assert get_fun_spec(f) is not None
@@ -209,7 +153,7 @@ def test_auto_derived_spec_type_name() -> None:
 
     class AutoNameTest:
         @with_config
-        def __init__(self, pos_par, /, kw_par) -> None:
+        def __init__(self, pos_par=dlt.secrets.value, /, kw_par=None) -> None:
             pass
 
         @classmethod
@@ -232,4 +176,5 @@ def test_auto_derived_spec_type_name() -> None:
     assert "TestAutoDerivedSpecTypeNameAutoNameTestInitConfiguration" in globals()
     # instantiate
     C: BaseConfiguration = globals()["TestAutoDerivedSpecTypeNameAutoNameTestInitConfiguration"]()
-    assert C.get_resolvable_fields() == {"pos_par": Any, "kw_par": Any}
+    # pos_par converted to secrets, kw_par converted to optional
+    assert C.get_resolvable_fields() == {"pos_par": TSecretValue, "kw_par": Optional[Any]}

@@ -5,8 +5,8 @@ from prometheus_client import Counter, CollectorRegistry, REGISTRY, Gauge
 
 from dlt.common import pendulum, signals, json, logger
 from dlt.common.configuration import with_config
-from dlt.common.configuration.specs.load_volume_configuration import LoadVolumeConfiguration
-from dlt.common.configuration.specs.normalize_volume_configuration import NormalizeVolumeConfiguration
+from dlt.common.configuration.accessors import config
+from dlt.common.configuration.specs import LoadVolumeConfiguration, NormalizeVolumeConfiguration
 from dlt.common.data_writers.writers import TLoaderFileFormat
 from dlt.common.json import custom_pua_decode
 from dlt.common.runners import TRunMetrics, Runnable
@@ -14,7 +14,7 @@ from dlt.common.schema.typing import TStoredSchema, TTableSchemaColumns
 from dlt.common.storages.exceptions import SchemaNotFoundError
 from dlt.common.storages import NormalizeStorage, SchemaStorage, LoadStorage
 from dlt.common.telemetry import get_logging_extras
-from dlt.common.typing import ConfigValue, StrAny, TDataItem
+from dlt.common.typing import TDataItem
 from dlt.common.exceptions import PoolException
 from dlt.common.schema import TSchemaUpdate, Schema
 from dlt.common.schema.exceptions import CannotCoerceColumnException
@@ -36,7 +36,7 @@ class Normalize(Runnable[ProcessPool]):
     load_package_counter: Counter = None
 
     @with_config(spec=NormalizeConfiguration, namespaces=("normalize",))
-    def __init__(self, collector: CollectorRegistry = REGISTRY, schema_storage: SchemaStorage = None, config: NormalizeConfiguration = ConfigValue) -> None:
+    def __init__(self, collector: CollectorRegistry = REGISTRY, schema_storage: SchemaStorage = None, config: NormalizeConfiguration = config.value) -> None:
         self.config = config
         self.loader_file_format = config.destination_capabilities.preferred_loader_file_format
         self.pool: ProcessPool = None

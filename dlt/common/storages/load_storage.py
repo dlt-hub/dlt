@@ -5,10 +5,11 @@ from typing import Iterable, NamedTuple, Literal, Optional, Sequence, Set, get_a
 
 from dlt.common import json, pendulum
 from dlt.common.configuration.inject import with_config
-from dlt.common.typing import ConfigValue, DictStrAny, StrAny
+from dlt.common.typing import DictStrAny, StrAny
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.data_writers import TLoaderFileFormat, DataWriter
 from dlt.common.configuration.specs import LoadVolumeConfiguration
+from dlt.common.configuration.accessors import config
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema import Schema, TSchemaUpdate, TTableSchemaColumns
 from dlt.common.storages.versioned_storage import VersionedStorage
@@ -42,21 +43,13 @@ class LoadStorage(DataItemStorage, VersionedStorage):
 
     ALL_SUPPORTED_FILE_FORMATS: Set[TLoaderFileFormat] = set(get_args(TLoaderFileFormat))
 
-    @overload
-    def __init__(self, is_owner: bool, preferred_file_format: TLoaderFileFormat, supported_file_formats: Iterable[TLoaderFileFormat], config: LoadVolumeConfiguration) -> None:
-        ...
-
-    @overload
-    def __init__(self, is_owner: bool, preferred_file_format: TLoaderFileFormat, supported_file_formats: Iterable[TLoaderFileFormat], config: LoadVolumeConfiguration = ConfigValue) -> None:
-        ...
-
     @with_config(spec=LoadVolumeConfiguration, namespaces=("load",))
     def __init__(
         self,
         is_owner: bool,
         preferred_file_format: TLoaderFileFormat,
         supported_file_formats: Iterable[TLoaderFileFormat],
-        config: LoadVolumeConfiguration = ConfigValue
+        config: LoadVolumeConfiguration = config.value
     ) -> None:
         if not LoadStorage.ALL_SUPPORTED_FILE_FORMATS.issuperset(supported_file_formats):
             raise TerminalValueError(supported_file_formats)
