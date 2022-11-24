@@ -58,7 +58,8 @@ build-library:
 	poetry build
 
 publish-library: build-library
-	poetry publish -u __token__
+	# provide the token via poetry config pypi-token.pypi your-api-token
+	poetry publish
 
 build-image-tags:
 	@echo ${IMG}

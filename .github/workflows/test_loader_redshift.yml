@@ -62,7 +62,7 @@ jobs:
 
       - name: Install dependencies
         # if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction -E redshift
+        run: poetry install --no-interaction --no-dev -E redshift
 
       # - name: Install self
       #   run: poetry install --no-interaction
