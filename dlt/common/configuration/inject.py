@@ -1,23 +1,21 @@
-import re
 import inspect
 from makefun import wraps
-from types import ModuleType
 from typing import Callable, Dict, Type, Any, Optional, Tuple, TypeVar, overload
 from inspect import Signature, Parameter
 
-from dlt.common.typing import AnyType, DictStrAny, StrAny, TFun, AnyFun
+from dlt.common.typing import DictStrAny, StrAny, TFun, AnyFun
 from dlt.common.configuration.resolve import resolve_configuration, inject_namespace
-from dlt.common.configuration.specs.base_configuration import BaseConfiguration, is_valid_hint, configspec
+from dlt.common.configuration.specs.base_configuration import BaseConfiguration
 from dlt.common.configuration.specs.config_namespace_context import ConfigNamespacesContext
-from dlt.common.utils import get_callable_name
+from dlt.common.reflection.spec import spec_from_signature
 
-# [^.^_]+ splits by . or _
-_SLEEPING_CAT_SPLIT = re.compile("[^.^_]+")
+
 _LAST_DLT_CONFIG = "_dlt_config"
 _ORIGINAL_ARGS = "_dlt_orig_args"
 TConfiguration = TypeVar("TConfiguration", bound=BaseConfiguration)
 # keep a registry of all the decorated functions
 _FUNC_SPECS: Dict[int, Type[BaseConfiguration]] = {}
+
 
 
 def get_fun_spec(f: AnyFun) -> Type[BaseConfiguration]:
@@ -50,7 +48,7 @@ def with_config(func: Optional[AnyFun] = None, /, spec: Type[BaseConfiguration] 
         namespace_context = ConfigNamespacesContext()
 
         if spec is None:
-            SPEC = _spec_from_signature(_get_spec_name_from_f(f), inspect.getmodule(f), sig, only_kw)
+            SPEC = spec_from_signature(f, sig, only_kw)
         else:
             SPEC = spec
 
@@ -129,50 +127,3 @@ def last_config(**kwargs: Any) -> BaseConfiguration:
 
 def get_orig_args(**kwargs: Any) -> Tuple[Tuple[Any], DictStrAny]:
     return kwargs[_ORIGINAL_ARGS]  # type: ignore
-
-
-def _get_spec_name_from_f(f: AnyFun) -> str:
-    func_name = get_callable_name(f, "__qualname__").replace("<locals>.", "")  # func qual name contains position in the module, separated by dots
-
-    def _first_up(s: str) -> str:
-        return s[0].upper() + s[1:]
-
-    return "".join(map(_first_up, _SLEEPING_CAT_SPLIT.findall(func_name))) + "Configuration"
-
-
-def _spec_from_signature(name: str, module: ModuleType, sig: Signature, kw_only: bool = False) -> Type[BaseConfiguration]:
-    # synthesize configuration from the signature
-    fields: Dict[str, Any] = {}
-    annotations: Dict[str, Any] = {}
-
-    for p in sig.parameters.values():
-        # skip *args and **kwargs, skip typical method params and if kw_only flag is set: accept KEYWORD ONLY args
-        if p.kind not in (Parameter.VAR_KEYWORD, Parameter.VAR_POSITIONAL) and p.name not in ["self", "cls"] and \
-           (kw_only and p.kind == Parameter.KEYWORD_ONLY or not kw_only):
-            field_type = AnyType if p.annotation == Parameter.empty else p.annotation
-            if is_valid_hint(field_type):
-                field_default = None if p.default == Parameter.empty else p.default
-                # try to get type from default
-                if field_type is AnyType and field_default:
-                    field_type = type(field_default)
-                # make type optional if explicit None is provided as default
-                if p.default is None:
-                    field_type = Optional[field_type]
-                # set annotations
-                annotations[p.name] = field_type
-                # set field with default value
-                fields[p.name] = field_default
-
-    # new type goes to the module where sig was declared
-    fields["__module__"] = module.__name__
-    # set annotations so they are present in __dict__
-    fields["__annotations__"] = annotations
-    # synthesize type
-    T: Type[BaseConfiguration] = type(name, (BaseConfiguration,), fields)
-    # add to the module
-    setattr(module, name, T)
-    SPEC = configspec(init=False)(T)
-    # print(f"SYNTHESIZED {SPEC} in {inspect.getmodule(SPEC)} for sig {sig}")
-    # import dataclasses
-    # print("\n".join(map(str, dataclasses.fields(SPEC))))
-    return SPEC
