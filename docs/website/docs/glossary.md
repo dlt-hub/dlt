@@ -6,18 +6,19 @@ sidebar_position: 6
 
 ## [Resource](./walkthroughs/create-a-pipeline.md)
 
-  If the source is an API, then the resource is an endpoint in that API. If the source is a
-  database, then the resource is a table in that database. A source is organized into one 
-  or more resources.
+  If the source is an API, then a resource is an endpoint in that API. If the source is a
+  spreadsheet, then a resource is a tab in that spreadsheet. If the source is a database,
+  then a resource is a table in that database. A source is organized into one or more resources.
 
 ## [Source](./walkthroughs/create-a-pipeline.md)
 
-  If endpoints in an API are the resources, then the API is the source. If tables in a database 
-  are the resources, then the source is the database. A source is organized into one or more resources.
+  If endpoints in an API are the resources, then the API is the source. If tabs in a spreadsheet
+  are the resources, then the source is the spreadsheet. If tables in a database are the resources, 
+  then the source is the database. A source is organized into one or more resources.
 
 ## [Destination](./walkthroughs/create-a-pipeline.md)
 
-  The data store where data from the source is loaded (e.g. a data warehouse like Google BigQuery).
+  The data store where data from the source is loaded (e.g. Google BigQuery).
 
 ## [Pipeline](./walkthroughs/create-a-pipeline.md)
 
@@ -26,9 +27,8 @@ sidebar_position: 6
 
 ## [Schema](./customization/schema.md)
 
-  Describes the structure of data returned from the source and provides instructions on 
-  how the data should be processed and loaded (i.e. it tells `dlt` about the content of the 
-  data and how to load it into the destination).
+  Describes the structure of normalized data (e.g. unpacked tables, column types, etc.) and provides instructions on how the data should be processed and loaded (i.e. it tells `dlt` about the content 
+  of the data and how to load it into the destination).
 
 ## [Config](./customization/configuration.md)
 
