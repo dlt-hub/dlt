@@ -1,7 +1,9 @@
 import inspect
 import ast
+import astunparse
 from ast import NodeVisitor
 from typing import Any, Dict, List
+from dlt.common.reflection.utils import get_outer_func_def
 
 
 import dlt.reflection.names as n
@@ -9,9 +11,8 @@ import dlt.reflection.names as n
 
 class PipelineScriptVisitor(NodeVisitor):
 
-    def __init__(self, source: str, add_parents: bool = False):
+    def __init__(self, source: str):
         self.source = source
-        self.add_parents = add_parents
 
         self.mod_aliases: Dict[str, str] = {}
         self.func_aliases: Dict[str, str] = {}
@@ -20,13 +21,6 @@ class PipelineScriptVisitor(NodeVisitor):
         self.known_calls: Dict[str, List[inspect.BoundArguments]] = {}
         self.known_sources: Dict[str, ast.FunctionDef] = {}
         self.known_source_calls: Dict[str, List[ast.Call]] = {}
-
-    def visit(self, tree: ast.AST) -> Any:
-        if self.add_parents:
-            for node in ast.walk(tree):
-                for child in ast.iter_child_nodes(node):
-                    child.parent = node if node is not tree else None  # type: ignore
-        super().visit(tree)
 
     def visit_Import(self, node: ast.Import) -> Any:
         # reflect on imported modules
@@ -57,7 +51,13 @@ class PipelineScriptVisitor(NodeVisitor):
     def visit_FunctionDef(self, node: ast.FunctionDef) -> Any:
         # find all sources and resources by inspecting decorators
         for deco in node.decorator_list:
-            alias_name = self.source_segment(deco)
+            # decorators can be function calls, attributes or names
+            if isinstance(deco, (ast.Name, ast.Attribute)):
+                alias_name = astunparse.unparse(deco).strip()
+            elif isinstance(deco, ast.Call):
+                alias_name = astunparse.unparse(deco.func).strip()
+            else:
+                raise ValueError(self.source_segment(deco), type(deco), "Unknown decorator form")
             fn = self.func_aliases.get(alias_name)
             if fn in [n.SOURCE, n.RESOURCE]:
                 self.known_sources[str(node.name)] = node
@@ -65,13 +65,15 @@ class PipelineScriptVisitor(NodeVisitor):
 
     def visit_Call(self, node: ast.Call) -> Any:
         # check if this is a call to any of known functions
-        alias_name = self.source_segment(node.func)
+        alias_name = astunparse.unparse(node.func).strip()
         fn = self.func_aliases.get(alias_name)
         if not fn:
             # try a fallback to "run" function that may be called on pipeline or source
             if isinstance(node.func, ast.Attribute) and node.func.attr == n.RUN:
                 fn = n.RUN
         if fn:
+            # set parent to the outer function
+            node.parent = get_outer_func_def(node)  # type: ignore
             sig = n.SIGNATURES[fn]
             try:
                 # bind the signature where the argument values are the corresponding ast nodes
@@ -86,6 +88,8 @@ class PipelineScriptVisitor(NodeVisitor):
         else:
             # check if this is a call to any known source
             if alias_name in self.known_sources:
+                # set parent to the outer function
+                node.parent = get_outer_func_def(node)  # type: ignore
                 source_calls = self.known_source_calls.setdefault(alias_name, [])
                 source_calls.append(node)
 

@@ -9,7 +9,7 @@ from dlt.common.exceptions import DltException
 from dlt.common.typing import DictStrAny
 
 from dlt.pipeline import Pipeline
-from dlt.extract.source import DltSource, DltResource
+from dlt.extract.source import DltSource, PipeIterator
 
 
 def patch__init__(self: Any, *args: Any, **kwargs: Any) -> None:
@@ -31,7 +31,7 @@ def inspect_pipeline_script(script_path: str) -> ModuleType:
     try:
 
         # patch entry points to pipeline, sources and resources to prevent pipeline from running
-        with patch.object(Pipeline, '__init__', patch__init__), patch.object(DltSource, '__init__', patch__init__), patch.object(DltResource, '__init__', patch__init__):
+        with patch.object(Pipeline, '__init__', patch__init__), patch.object(DltSource, '__init__', patch__init__), patch.object(PipeIterator, '__init__', patch__init__):
             return import_module(module)
     finally:
         # remove script module path
@@ -41,4 +41,4 @@ def inspect_pipeline_script(script_path: str) -> ModuleType:
 
 class PipelineIsRunning(DltException):
     def __init__(self, obj: object, args: Tuple[str, ...], kwargs: DictStrAny) -> None:
-        super().__init__(f"The pipeline script instantiates the pipeline on import: {obj.__class__.__name__}", obj, args, kwargs)
+        super().__init__(f"The pipeline script instantiates the pipeline on import. Did you forget to use if __name__ == 'main':? in {obj.__class__.__name__}", obj, args, kwargs)
