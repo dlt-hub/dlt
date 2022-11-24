@@ -77,10 +77,15 @@ def test_toml_mixed_config_inject(toml_providers: ConfigProvidersContext) -> Non
     # get data from both providers
 
     @with_config
-    def mixed_val(api_type, secret_value: TSecretValue, typecheck: Any):
+    def mixed_val(api_type=dlt.config.value, secret_value: TSecretValue = dlt.secrets.value, typecheck: Any = dlt.config.value):
         return api_type, secret_value, typecheck
 
-    _tup = mixed_val(dlt.config.value, dlt.secrets.value, dlt.config.value)
+    _tup = mixed_val(None, None, None)
+    assert _tup[0] == "REST"
+    assert _tup[1] == "2137"
+    assert isinstance(_tup[2], dict)
+
+    _tup = mixed_val()
     assert _tup[0] == "REST"
     assert _tup[1] == "2137"
     assert isinstance(_tup[2], dict)

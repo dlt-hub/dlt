@@ -2,8 +2,8 @@ from typing import Any, Iterable, Iterator, NamedTuple, Tuple
 import tomlkit
 from tomlkit.items import Table as TOMLTable
 
-from dlt.common.configuration.resolve import extract_inner_hint, is_base_configuration_hint
-from dlt.common.configuration.specs.base_configuration import BaseConfiguration
+from dlt.common.configuration.resolve import extract_inner_hint
+from dlt.common.configuration.specs.base_configuration import BaseConfiguration, is_base_configuration_hint
 from dlt.common.typing import AnyType, is_final_type, is_optional_type
 
 
@@ -41,7 +41,6 @@ def write_spec(toml_table: TOMLTable, config: BaseConfiguration) -> None:
 
 
 def write_values(toml: tomlkit.TOMLDocument, values: Iterable[WritableConfigValue]) -> None:
-    # print(values)
     for value in values:
         toml_table: TOMLTable = toml  # type: ignore
         for namespace in value.namespaces:

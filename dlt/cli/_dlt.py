@@ -31,6 +31,7 @@ def init_command_wrapper(pipeline_name: str, destination_name: str, branch: str)
         init_command(pipeline_name, destination_name, branch)
     except Exception as ex:
         click.secho(str(ex), err=True, fg="red")
+        # TODO: display stack trace if with debug flag
 
 
 def main() -> None:
