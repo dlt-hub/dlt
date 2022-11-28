@@ -3,7 +3,7 @@ import ast
 import astunparse
 from ast import NodeVisitor
 from typing import Any, Dict, List
-from dlt.common.reflection.utils import get_outer_func_def
+from dlt.common.reflection.utils import find_outer_func_def
 
 
 import dlt.reflection.names as n
@@ -73,7 +73,7 @@ class PipelineScriptVisitor(NodeVisitor):
                 fn = n.RUN
         if fn:
             # set parent to the outer function
-            node.parent = get_outer_func_def(node)  # type: ignore
+            node.parent = find_outer_func_def(node)  # type: ignore
             sig = n.SIGNATURES[fn]
             try:
                 # bind the signature where the argument values are the corresponding ast nodes
@@ -89,7 +89,7 @@ class PipelineScriptVisitor(NodeVisitor):
             # check if this is a call to any known source
             if alias_name in self.known_sources:
                 # set parent to the outer function
-                node.parent = get_outer_func_def(node)  # type: ignore
+                node.parent = find_outer_func_def(node)  # type: ignore
                 source_calls = self.known_source_calls.setdefault(alias_name, [])
                 source_calls.append(node)
 

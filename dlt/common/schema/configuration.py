@@ -1,7 +1,7 @@
 from typing import List, Optional, TYPE_CHECKING, cast
 
+from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import BaseConfiguration
-from dlt.common.configuration.specs.base_configuration import configspec
 from dlt.common.schema.typing import TJSONNormalizer, TNormalizersConfig
 from dlt.common.typing import StrAny
 

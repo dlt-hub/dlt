@@ -1,5 +1,4 @@
 from typing import Optional, Sequence, Tuple
-from git import GitError
 from prometheus_client import REGISTRY, Gauge, CollectorRegistry, Info
 from prometheus_client.metrics import MetricWrapperBase
 
@@ -121,6 +120,8 @@ def initialize_package(with_git_command: Optional[str]) -> None:
 
 
 def ensure_newest_package() -> None:
+    from git import GitError
+
     with git_custom_key_command(CONFIG.package_repository_ssh_key) as ssh_command:
         try:
             ensure_remote_head(repo_path, with_git_command=ssh_command)

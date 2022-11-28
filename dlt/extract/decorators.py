@@ -1,7 +1,7 @@
 import os
 import inspect
 from types import ModuleType
-from makefun import wraps
+from functools import wraps
 from typing import Any, Callable, Dict, Iterator, List, NamedTuple, Optional, Tuple, Type, TypeVar, Union, cast, overload
 
 from dlt.common.configuration import with_config, get_fun_spec
@@ -62,7 +62,7 @@ def source(func: Optional[AnyFun] = None, /, name: str = None, schema: Schema = 
         source_namespaces = ("sources", name)
         conf_f = with_config(f, spec=spec, namespaces=source_namespaces)
 
-        @wraps(conf_f, func_name=name)
+        @wraps(conf_f)
         def _wrap(*args: Any, **kwargs: Any) -> DltSource:
             # configurations will be accessed in this namespace in the source
             with inject_namespace(ConfigNamespacesContext(namespaces=source_namespaces)):
@@ -84,7 +84,7 @@ def source(func: Optional[AnyFun] = None, /, name: str = None, schema: Schema = 
         _SOURCES[_wrap.__qualname__] = SourceInfo(SPEC, _wrap, inspect.getmodule(f))
 
         # the typing is right, but makefun.wraps does not preserve signatures
-        return _wrap  # type: ignore
+        return _wrap
 
     if func is None:
         # we're called with parens.
@@ -354,4 +354,4 @@ def defer(f: Callable[TDeferredFunParams, TBoundItems]) -> Callable[TDeferredFun
             return f(*args, **kwargs)
         return _curry
 
-    return _wrap  # type: ignore
+    return _wrap

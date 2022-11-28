@@ -4,15 +4,24 @@ import datetime  # noqa: 251
 from typing import Any, Callable, ClassVar, Dict, List, NamedTuple, Optional, Protocol, Sequence, Tuple, TypedDict
 
 from dlt.common.configuration.container import ContainerInjectableContext
-from dlt.common.configuration import configspec
+from dlt.common.configuration import configspec, DOT_DLT
 from dlt.common.destination import TDestinationReferenceArg
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TColumnSchema, TWriteDisposition
-from dlt.common.typing import DictStrAny
+
+
+class ExtractInfo(NamedTuple):
+    """A tuple holding information on extracted data items. Returned by pipeline `extract` method."""
+    pass
+
+
+class NormalizeInfo(NamedTuple):
+    """A tuple holding information on normalized data items. Returned by pipeline `normalize` method."""
+    pass
 
 
 class LoadInfo(NamedTuple):
-    """A tuple holding the information on recently loaded packages. Returned by pipeline run method"""
+    """A tuple holding the information on recently loaded packages. Returned by pipeline `run` and `load` methods"""
     pipeline: "SupportsPipeline"
     destination_name: str
     destination_displayable_credentials: str
@@ -135,7 +144,7 @@ def get_default_working_dir() -> str:
         return os.path.join(tempfile.gettempdir(), "dlt", "pipelines")
     else:
         # if home directory is available use ~/.dlt/pipelines
-        return os.path.join(home, ".dlt", "pipelines")
+        return os.path.join(home, DOT_DLT, "pipelines")
 
 
 def _get_home_dir() -> str:

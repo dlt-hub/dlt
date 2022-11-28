@@ -8,9 +8,10 @@ from copy import deepcopy
 from threading import Thread
 from typing import Any, Optional, Sequence, Union, Callable, Iterable, Iterator, List, NamedTuple, Awaitable, Tuple, Type, TYPE_CHECKING
 
+from dlt.common.configuration import configspec
 from dlt.common.configuration.inject import with_config
-from dlt.common.configuration.specs.base_configuration import BaseConfiguration, configspec
-from dlt.common.typing import AnyFun, TDataItem, TDataItems
+from dlt.common.configuration.specs import BaseConfiguration
+from dlt.common.typing import AnyFun, TDataItems
 from dlt.common.utils import get_callable_name
 
 from dlt.extract.exceptions import CreatePipeException, InvalidStepFunctionArguments, ParametrizedResourceUnbound, PipeItemProcessingError, PipeNotBoundToData
