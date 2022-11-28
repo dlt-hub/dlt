@@ -4,33 +4,53 @@ sidebar_position: 1
 
 # Create a pipeline
 
-## Step 0
+Follow the steps below to create a [pipeline](./glossary.md/#pipeline) from the Twitter API to 
+Google BigQuery from scratch. The same steps can repeated for any source of your choice.
 
-`dlt` needs to be installed
+Please make sure you have [installed `dlt`](./installation.mdx) before getting started here.
 
-## Step 1
+## 1. Initialize project
 
-`dlt` needs to be installed
+Create a new empty directory for your `dlt` project by running
+```
+mkdir twitter-bigquery
+```
 
-## Step 2
+Start a `dlt` project with a pipeline template that loads data to Google BigQuery by running
+```
+dlt init twitter bigquery
+```
 
-`dlt init <source> <destination>`
+Install the dependencies necessary for Google BigQuery:
+```
+pip install -r requirements.txt
+```
 
-## Step 3
+## 2. Add Google BigQuery credentials
+
+You can follow the steps in [Set up Google BigQuery](../getting-started.md#2-set-up-google-bigquery)
+to create the service account credentials you'll need for BigQuery and add them to `.dlt/secrets.toml`.
+
+## 3. Add Twitter API credentials
 
 - Uncomment out the first `@resource` function call
 - Add credentials
 - Check by printing them out in `@resource` function (via `_headers` helper method)
 
-## Step 4
+## 4. Grab data from Twitter API search endpoint
 
 - Make the API call
 - print the response
 - ensure it is the data you want
 
-## Step 5
+## 5. 
 
-Run pipeline
+## 6. Load the data
+
+You can run the pipeline by running
+```
+python3 twitter.py
+```
 
 ## Step 6
 
