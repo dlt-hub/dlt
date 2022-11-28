@@ -255,7 +255,7 @@ def test_schema_from_file() -> None:
 
 
 def prepare_import_folder(storage: SchemaStorage) -> None:
-    shutil.copy(yml_case_path("schemas/eth/ethereum_schema_v5"), storage.storage.make_full_path("../import/ethereum.schema.yaml"))
+    shutil.copy(yml_case_path("schemas/eth/ethereum_schema_v5"), os.path.join(storage.storage.storage_path, "../import/ethereum.schema.yaml"))
 
 
 def assert_schema_imported(synced_storage: SchemaStorage, storage: SchemaStorage) -> Schema:
