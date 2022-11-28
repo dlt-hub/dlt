@@ -3,10 +3,7 @@
 from typing import List
 
 from dlt.common.configuration.exceptions import DuplicateConfigProviderException
-from dlt.common.configuration.providers import ConfigProvider
-from dlt.common.configuration.providers.environ import EnvironProvider
-from dlt.common.configuration.providers.context import ContextProvider
-from dlt.common.configuration.providers.toml import SecretsTomlProvider, ConfigTomlProvider
+from dlt.common.configuration.providers import ConfigProvider, EnvironProvider, ContextProvider, SecretsTomlProvider, ConfigTomlProvider
 from dlt.common.configuration.specs.base_configuration import ContainerInjectableContext, configspec
 
 

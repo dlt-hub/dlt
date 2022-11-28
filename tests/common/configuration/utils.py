@@ -4,14 +4,13 @@ import datetime  # noqa: I251
 from typing import Any, Iterator, List, Optional, Tuple, Type, Dict, MutableMapping, Optional, Sequence
 
 from dlt.common import Decimal, pendulum
+from dlt.common.configuration import configspec
+from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration, RunConfiguration
 from dlt.common.configuration.container import Container
-from dlt.common.configuration.providers.environ import EnvironProvider
-from dlt.common.configuration.providers.toml import ConfigTomlProvider, SecretsTomlProvider
+from dlt.common.configuration.providers import ConfigProvider, EnvironProvider, ConfigTomlProvider, SecretsTomlProvider
+from dlt.common.configuration.utils import get_resolved_traces
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
 from dlt.common.typing import TSecretValue, StrAny
-from dlt.common.configuration import configspec
-from dlt.common.configuration.providers import ConfigProvider
-from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration, RunConfiguration
 
 
 @configspec
@@ -72,6 +71,11 @@ def environment() -> Any:
     yield environ
     environ.clear()
     environ.update(saved_environ)
+
+
+@pytest.fixture(autouse=True)
+def reset_resolved_traces() -> None:
+    get_resolved_traces().clear()  # type: ignore
 
 
 @pytest.fixture(scope="function")

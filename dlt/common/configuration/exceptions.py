@@ -30,7 +30,7 @@ class ConfigurationWrongTypeException(ConfigurationException):
 
 
 class ConfigFieldMissingException(ConfigurationException):
-    """thrown when not all required config fields are present"""
+    """raises when not all required config fields are present"""
 
     def __init__(self, spec_name: str, traces: Mapping[str, Sequence[LookupTrace]]) -> None:
         self.traces = traces
@@ -46,28 +46,29 @@ class ConfigFieldMissingException(ConfigurationException):
 
 
 class FinalConfigFieldException(ConfigurationException):
-    """thrown when field was annotated as final ie Final[str] and the value is modified by config provider"""
+    """rises when field was annotated as final ie Final[str] and the value is modified by config provider"""
     def __init__(self, spec_name: str, field: str) -> None:
         super().__init__(f"Field {field} in spec {spec_name} is final but is being changed by a config provider")
 
+
 class ConfigValueCannotBeCoercedException(ConfigurationException, ValueError):
-    """thrown when value returned by config provider cannot be coerced to hinted type"""
+    """raises when value returned by config provider cannot be coerced to hinted type"""
 
     def __init__(self, field_name: str, field_value: Any, hint: type) -> None:
         self.field_name = field_name
         self.field_value = field_value
         self.hint = hint
-        super().__init__('env value %s cannot be coerced into type %s in attr %s' % (field_value, str(hint), field_name))
+        super().__init__('configured value for field %s cannot be coerced into type %s' % (str(hint), field_name))
 
 
-class ConfigIntegrityException(ConfigurationException):
-    """thrown when value from ENV cannot be coerced to hinted type"""
+# class ConfigIntegrityException(ConfigurationException):
+#     """thrown when value from ENV cannot be coerced to hinted type"""
 
-    def __init__(self, attr_name: str, env_value: str, info: Union[type, str]) -> None:
-        self.attr_name = attr_name
-        self.env_value = env_value
-        self.info = info
-        super().__init__('integrity error for attr %s with value %s. %s.' % (attr_name, env_value, info))
+#     def __init__(self, attr_name: str, env_value: str, info: Union[type, str]) -> None:
+#         self.attr_name = attr_name
+#         self.env_value = env_value
+#         self.info = info
+#         super().__init__('integrity error for field %s. %s.' % (attr_name, info))
 
 
 class ConfigFileNotFoundException(ConfigurationException):

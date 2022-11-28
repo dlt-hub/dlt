@@ -1,23 +1,17 @@
-import inspect
 from typing import Any, Optional
 
 import pytest
 
 import dlt
-from dlt.common import Decimal
+
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
-from dlt.common.typing import TSecretValue, is_optional_type
 from dlt.common.configuration.inject import get_fun_spec, with_config
-from dlt.common.configuration.specs import BaseConfiguration, RunConfiguration
-from dlt.common.reflection.spec import spec_from_signature, _get_spec_name_from_f
-from dlt.common.reflection.utils import get_func_def_node, get_literal_defaults
+from dlt.common.configuration.specs import BaseConfiguration
+from dlt.common.reflection.spec import _get_spec_name_from_f
+from dlt.common.typing import TSecretValue
 
 from tests.utils import preserve_environ
 from tests.common.configuration.utils import environment
-
-_DECIMAL_DEFAULT = Decimal("0.01")
-_SECRET_DEFAULT = TSecretValue("PASS")
-_CONFIG_DEFAULT = RunConfiguration()
 
 
 def test_arguments_are_explicit(environment: Any) -> None:
@@ -40,6 +34,17 @@ def test_arguments_are_explicit(environment: Any) -> None:
     # user will be injected
     f_var_env(None, path="explicit path")
     f_var_env(path="explicit path", user=None)
+
+
+def test_default_values_are_resolved(environment: Any) -> None:
+
+    @with_config
+    def f_var(user=dlt.config.value, path="a/b/c"):
+        assert user == "env user"
+        assert path == "env path"
+
+    environment["USER"] = "env user"
+    environment["PATH"] = "env path"
 
 
 def test_arguments_dlt_literal_defaults_are_required(environment: Any) -> None:

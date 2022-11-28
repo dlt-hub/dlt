@@ -4,16 +4,19 @@ from tomlkit.items import Item as TOMLItem
 from tomlkit.container import Container as TOMLContainer
 from typing import Any, Optional, Tuple, Type, Union
 
-from dlt.common.typing import StrAny
+from dlt.common.configuration import DOT_DLT
 
 from .provider import ConfigProvider, ConfigProviderException
+
+CONFIG_TOML = "config.toml"
+SECRETS_TOML = "secrets.toml"
 
 
 class TomlProvider(ConfigProvider):
 
     def __init__(self, file_name: str, project_dir: str = None) -> None:
         self._file_name = file_name
-        self._toml_path = os.path.join(project_dir or os.path.abspath(os.path.join(".", ".dlt")), file_name)
+        self._toml_path = os.path.join(project_dir or os.path.abspath(os.path.join(".", DOT_DLT)), file_name)
         try:
             self._toml = self._read_toml(self._toml_path)
         except Exception as ex:
@@ -63,11 +66,11 @@ class TomlProvider(ConfigProvider):
 class ConfigTomlProvider(TomlProvider):
 
     def __init__(self, project_dir: str = None) -> None:
-        super().__init__("config.toml", project_dir)
+        super().__init__(CONFIG_TOML, project_dir)
 
     @property
     def name(self) -> str:
-        return "Pipeline config.toml"
+        return CONFIG_TOML
 
     @property
     def supports_secrets(self) -> bool:
@@ -78,11 +81,11 @@ class ConfigTomlProvider(TomlProvider):
 class SecretsTomlProvider(TomlProvider):
 
     def __init__(self, project_dir: str = None) -> None:
-        super().__init__("secrets.toml", project_dir)
+        super().__init__(SECRETS_TOML, project_dir)
 
     @property
     def name(self) -> str:
-        return "Pipeline secrets.toml"
+        return SECRETS_TOML
 
     @property
     def supports_secrets(self) -> bool:

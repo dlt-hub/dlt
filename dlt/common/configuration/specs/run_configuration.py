@@ -1,7 +1,8 @@
 from os.path import isfile, join
+from pathlib import Path
 from typing import Any, Optional, Tuple, IO
 
-from dlt.common.utils import encoding_for_mode, entry_point_file_stem
+from dlt.common.utils import encoding_for_mode, entry_point_file
 from dlt.common.configuration.specs.base_configuration import BaseConfiguration, configspec
 from dlt.common.configuration.exceptions import ConfigFileNotFoundException
 
@@ -19,7 +20,7 @@ class RunConfiguration(BaseConfiguration):
     def on_resolved(self) -> None:
         # generate pipeline name from the entry point script name
         if not self.pipeline_name:
-            self.pipeline_name = "dlt_" + (entry_point_file_stem() or "pipeline")
+            self.pipeline_name = get_default_pipeline_name(entry_point_file())
 
     def has_configuration_file(self, name: str) -> bool:
         return isfile(self.get_configuration_file_path(name))
@@ -32,3 +33,9 @@ class RunConfiguration(BaseConfiguration):
 
     def get_configuration_file_path(self, name: str) -> str:
         return join(self.config_files_storage_path, name)
+
+
+def get_default_pipeline_name(entry_point_file: str) -> str:
+    if entry_point_file:
+        entry_point_file = Path(entry_point_file).stem
+    return "dlt_" + (entry_point_file or "pipeline")

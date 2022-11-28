@@ -1,5 +1,5 @@
 import inspect
-from makefun import wraps
+from functools import wraps
 from typing import Callable, Dict, Type, Any, Optional, Tuple, TypeVar, overload
 from inspect import Signature, Parameter
 
@@ -62,13 +62,13 @@ def with_config(func: Optional[AnyFun] = None, /, spec: Type[BaseConfiguration] 
             if p.name == "pipeline_name" and auto_namespace:
                 # if argument has name pipeline_name and auto_namespace is used, use it to generate namespace context
                 pipeline_name_arg = p
+                pipeline_name_arg_default = None if p.default == Parameter.empty else p.default
 
 
-        @wraps(f, new_sig=sig)
+        @wraps(f)
         def _wrap(*args: Any, **kwargs: Any) -> Any:
             # bind parameters to signature
-            bound_args = sig.bind_partial(*args, **kwargs)
-            bound_args.apply_defaults()
+            bound_args = sig.bind(*args, **kwargs)
             # for calls containing resolved spec in the kwargs, we do not need to resolve again
             config: BaseConfiguration = None
             if _LAST_DLT_CONFIG in kwargs:
@@ -86,10 +86,11 @@ def with_config(func: Optional[AnyFun] = None, /, spec: Type[BaseConfiguration] 
                     config = bound_args.arguments.get(spec_arg.name, None)
                 # resolve SPEC, also provide namespace_context with pipeline_name
                 if pipeline_name_arg:
-                    namespace_context.pipeline_name = bound_args.arguments.get(pipeline_name_arg.name, None)
+                    namespace_context.pipeline_name = bound_args.arguments.get(pipeline_name_arg.name, pipeline_name_arg_default)
                 with inject_namespace(namespace_context):
                     config = resolve_configuration(config or SPEC(), namespaces=namespaces, explicit_value=bound_args.arguments)
             resolved_params = dict(config)
+            bound_args.apply_defaults()
             # overwrite or add resolved params
             for p in sig.parameters.values():
                 if p.name in resolved_params:
@@ -121,8 +122,8 @@ def with_config(func: Optional[AnyFun] = None, /, spec: Type[BaseConfiguration] 
     return decorator(func)
 
 
-def last_config(**kwargs: Any) -> BaseConfiguration:
-    return kwargs[_LAST_DLT_CONFIG]  # type: ignore
+def last_config(**kwargs: Any) -> Any:
+    return kwargs[_LAST_DLT_CONFIG]
 
 
 def get_orig_args(**kwargs: Any) -> Tuple[Tuple[Any], DictStrAny]:
