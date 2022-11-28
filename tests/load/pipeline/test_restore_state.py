@@ -14,7 +14,6 @@ from dlt.pipeline.state import STATE_TABLE_NAME, load_state_from_destination, st
 
 from tests.utils import ALL_DESTINATIONS, preserve_environ, autouse_test_storage, TEST_STORAGE_ROOT
 from tests.common.utils import IMPORTED_VERSION_HASH_ETH_V5, yml_case_path as common_yml_case_path
-from tests.common.configuration.utils import environment
 from tests.pipeline.utils import drop_dataset_from_env, patch_working_dir
 from tests.load.pipeline.utils import drop_pipeline
 
@@ -169,12 +168,14 @@ def test_restore_state_pipeline(destination_name: str) -> None:
 
     # wipe and restore
     p._wipe_working_folder()
+    os.environ["RESTORE_FROM_DESTINATION"] = "False"
     p = dlt.pipeline(pipeline_name=pipeline_name, destination=destination_name, dataset_name=dataset_name)
     # restore was not requested so schema is empty
     assert p.default_schema_name is None
     p._wipe_working_folder()
     # request restore
-    p = dlt.pipeline(pipeline_name=pipeline_name, destination=destination_name, dataset_name=dataset_name, restore_from_destination=True)
+    os.environ["RESTORE_FROM_DESTINATION"] = "True"
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination=destination_name, dataset_name=dataset_name)
     assert p.default_schema_name == "default"
     assert set(p.schema_names) == set(["default", "two", "three"])
     assert p.state["sources"] == {"default": {'state1': 'state1', 'state2': 'state2'}, "two": {'state3': 'state3'}, "three": {'state4': 'state4'}}
@@ -183,10 +184,11 @@ def test_restore_state_pipeline(destination_name: str) -> None:
 
     # full refresh will not restore pipeline even if requested
     p._wipe_working_folder()
-    p = dlt.pipeline(pipeline_name=pipeline_name, destination=destination_name, dataset_name=dataset_name, restore_from_destination=True, full_refresh=True)
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination=destination_name, dataset_name=dataset_name, full_refresh=True)
     assert p.default_schema_name is None
     p._wipe_working_folder()
     # create pipeline without restore
+    os.environ["RESTORE_FROM_DESTINATION"] = "False"
     p = dlt.pipeline(pipeline_name=pipeline_name, destination=destination_name, dataset_name=dataset_name)
     # now attach locally
     p = dlt.attach(pipeline_name=pipeline_name)
@@ -194,8 +196,8 @@ def test_restore_state_pipeline(destination_name: str) -> None:
     assert p.default_schema_name is None
 
     # must provide explicit dataset when restoring
-    with pytest.raises(PipelineConfigMissing):
-        p = dlt.pipeline(pipeline_name=pipeline_name, destination=destination_name, restore_from_destination=True)
+    # with pytest.raises(PipelineConfigMissing):
+    #     p = dlt.pipeline(pipeline_name=pipeline_name, destination=destination_name, restore_from_destination=True)
 
 
 @pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)

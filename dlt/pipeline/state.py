@@ -4,17 +4,17 @@ from typing import TYPE_CHECKING, Any, ClassVar, Dict, Optional, cast
 import dlt
 
 from dlt.common import json
+from dlt.common.configuration import configspec
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import ContextDefaultCannotBeCreated
 from dlt.common.configuration.specs import ContainerInjectableContext
-from dlt.common.configuration.specs.base_configuration import configspec
 from dlt.common.configuration.specs.config_namespace_context import ConfigNamespacesContext
 from dlt.common.pipeline import PipelineContext, TPipelineState
 from dlt.common.typing import DictStrAny
 from dlt.common.schema.typing import LOADS_TABLE_NAME, TTableSchemaColumns
+
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.destinations.sql_client import SqlClientBase
-
 from dlt.extract.source import DltResource
 
 from dlt.pipeline.exceptions import PipelineStateEngineNoUpgradePathException, PipelineStateNotAvailable

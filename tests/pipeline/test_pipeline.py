@@ -22,7 +22,7 @@ def test_default_pipeline() -> None:
     # this is a name of executing test harness or blank pipeline on windows
     possible_names = ["dlt_pytest", "dlt_pipeline"]
     assert p.pipeline_name in possible_names
-    assert p.working_dir == os.path.join(TEST_STORAGE_ROOT, ".dlt", "pipelines")
+    assert p.pipelines_dir == os.path.join(TEST_STORAGE_ROOT, ".dlt", "pipelines")
     # dataset that will be used to load data is the pipeline name
     assert p.dataset_name in possible_names
     assert p.destination is None
@@ -142,6 +142,13 @@ def test_extract_source_twice() -> None:
         dlt.pipeline().extract(s)
     assert type(py_ex.value.exception) == SourceExhausted
     assert py_ex.value.exception.source_name == "source"
+
+
+@pytest.mark.skip("Not implemented")
+def test_extract_exception() -> None:
+    # make sure that PipelineStepFailed contains right step information
+    # TODO: same tests for normalize and load
+    pass
 
 
 @pytest.mark.skip

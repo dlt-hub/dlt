@@ -1,23 +1,15 @@
-import os
-from typing import Any, Iterator
-
 import pytest
 
 import dlt
-from dlt.common.configuration.container import Container
-from dlt.common.exceptions import UnknownDestinationModule
-from dlt.common.pipeline import PipelineContext
-from dlt.common.schema.exceptions import InvalidDatasetName
+
 from dlt.common.schema import Schema
 
-from dlt.extract.exceptions import SourceExhausted
-from dlt.extract.source import DltSource
 from dlt.pipeline import state as state_module
-from dlt.pipeline.exceptions import InvalidPipelineName, PipelineStateNotAvailable, PipelineStepFailed
+from dlt.pipeline.exceptions import PipelineStateNotAvailable
 
-from tests.utils import ALL_DESTINATIONS, TEST_STORAGE_ROOT, preserve_environ, autouse_test_storage
-from tests.common.configuration.utils import environment
+from tests.utils import autouse_test_storage
 from tests.pipeline.utils import drop_dataset_from_env, patch_working_dir, drop_pipeline
+
 
 @dlt.resource
 def some_data():

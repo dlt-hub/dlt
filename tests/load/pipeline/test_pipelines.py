@@ -27,7 +27,7 @@ def test_default_pipeline_names(destination_name: str) -> None:
     # this is a name of executing test harness or blank pipeline on windows
     possible_names = ["dlt_pytest", "dlt_pipeline"]
     assert p.pipeline_name in possible_names
-    assert p.working_dir == os.path.join(TEST_STORAGE_ROOT, ".dlt", "pipelines")
+    assert p.pipelines_dir == os.path.join(TEST_STORAGE_ROOT, ".dlt", "pipelines")
     assert p.dataset_name in possible_names
     assert p.destination is None
     assert p.default_schema_name is None
@@ -104,7 +104,7 @@ def test_attach_pipeline(destination_name: str) -> None:
     # same pipe
     old_p: dlt.Pipeline = info.pipeline
     assert p.pipeline_name == old_p.pipeline_name
-    assert p.pipeline_root == old_p.pipeline_root
+    assert p.working_dir == old_p.working_dir
     # secret will be the same: if not explicitly provided it is derived from pipeline name
     assert p.pipeline_salt == old_p.pipeline_salt
     assert p.default_schema_name == p.default_schema_name

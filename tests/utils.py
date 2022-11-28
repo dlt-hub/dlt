@@ -8,7 +8,8 @@ from os import environ
 
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.providers import EnvironProvider, DictionaryProvider
-from dlt.common.configuration.resolve import resolve_configuration, serialize_value
+from dlt.common.configuration.utils import serialize_value
+from dlt.common.configuration.resolve import resolve_configuration
 from dlt.common.configuration.specs import BaseConfiguration, RunConfiguration
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
 from dlt.common.logger import init_logging_from_config
@@ -77,8 +78,8 @@ def init_logger(C: RunConfiguration = None) -> None:
         init_logging_from_config(C)
 
 
-def clean_test_storage(init_normalize: bool = False, init_loader: bool = False) -> FileStorage:
-    storage = FileStorage(TEST_STORAGE_ROOT, "t", makedirs=True)
+def clean_test_storage(init_normalize: bool = False, init_loader: bool = False, mode: str = "t") -> FileStorage:
+    storage = FileStorage(TEST_STORAGE_ROOT, mode, makedirs=True)
     storage.delete_folder("", recursively=True)
     storage.create_folder(".")
     if init_normalize:
