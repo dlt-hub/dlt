@@ -4,6 +4,11 @@ sidebar_position: 8
 
 # Destinations
 
+`dlt` supports three destinations at the moment:
+- [Google BigQuery](./destinations#google-bigquery)
+- [Postgres](./destinations#postgres)
+- [Amazon Redshift](./destinations#amazon-redshift)
+
 ## Google BigQuery
 
 You can initalize a project with a pipeline that loads to BigQuery by running
