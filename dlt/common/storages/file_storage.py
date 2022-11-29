@@ -1,9 +1,11 @@
 import os
 import re
+import stat
 import tempfile
 import shutil
 import pathvalidate
 from typing import IO, Any, List
+from dlt.common.typing import AnyFun
 
 from dlt.common.utils import encoding_for_mode
 
@@ -52,11 +54,15 @@ class FileStorage:
         else:
             raise FileNotFoundError(file_path)
 
-    def delete_folder(self, relative_path: str, recursively: bool = False) -> None:
+    def delete_folder(self, relative_path: str, recursively: bool = False, delete_ro: bool = False) -> None:
         folder_path = self.make_full_path(relative_path)
         if os.path.isdir(folder_path):
             if recursively:
-                shutil.rmtree(folder_path)
+                if delete_ro:
+                    del_ro = self.rmtree_del_ro
+                else:
+                    del_ro = None
+                shutil.rmtree(folder_path, onerror=del_ro)
             else:
                 os.rmdir(folder_path)
         else:
@@ -164,3 +170,13 @@ class FileStorage:
         # component cannot contain "."
         if FILE_COMPONENT_INVALID_CHARACTERS.search(name):
             raise pathvalidate.error.InvalidCharError(description="Component name cannot contain the following characters: . % { }")
+
+    @staticmethod
+    def rmtree_del_ro(action: AnyFun, name: str, exc: Any) -> Any:
+        print(locals())
+        if action is os.unlink or action is os.remove or action is os.rmdir:
+            os.chmod(name, stat.S_IWRITE)
+            if os.path.isdir(name):
+                os.rmdir(name)
+            else:
+                os.remove(name)

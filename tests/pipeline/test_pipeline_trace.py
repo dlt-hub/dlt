@@ -53,7 +53,7 @@ def test_create_trace(toml_providers: ConfigProvidersContext) -> None:
     assert resolved.provider_name == "config.toml"
     # dictionaries are not returned anymore
     resolved = _find_resolved_value(trace.resolved_config_values, "credentials", [])
-    assert resolved is None
+    assert resolved is None or isinstance(resolved.value, str)
     resolved = _find_resolved_value(trace.resolved_config_values, "secret_value", [])
     assert resolved.is_secret_hint is True
     assert resolved.value == "2137"

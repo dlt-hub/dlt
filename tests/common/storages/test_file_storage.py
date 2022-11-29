@@ -1,10 +1,11 @@
 import os
+import stat
 import pytest
 
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.utils import encoding_for_mode, set_working_dir, uniq_id
 
-from tests.utils import TEST_STORAGE_ROOT, autouse_test_storage, test_storage
+from tests.utils import TEST_STORAGE_ROOT, autouse_test_storage, test_storage, skipifnotwindows
 
 
 def test_storage_init(test_storage: FileStorage) -> None:
@@ -121,6 +122,21 @@ def test_validate_file_name_component() -> None:
         FileStorage.validate_file_name_component("a\\b")
 
     FileStorage.validate_file_name_component("BAN__ANA is allowed")
+
+
+@skipifnotwindows
+def test_rmtree_ro(test_storage: FileStorage) -> None:
+    # testing only on windows because
+    # rmtree deletes read only files on POSIXes anyway
+    # the write protected dir protects also files we we would need to remove the protection before trying again
+    test_storage.create_folder("protected")
+    path = test_storage.save("protected/barbapapa.txt", "barbapapa")
+    os.chmod(path, stat.S_IREAD)
+    os.chmod(test_storage.make_full_path("protected"), stat.S_IREAD)
+    with pytest.raises(PermissionError):
+        test_storage.delete_folder("protected", recursively=True, delete_ro=False)
+    test_storage.delete_folder("protected", recursively=True, delete_ro=True)
+    assert not test_storage.has_folder("protected")
 
 
 def test_encoding_for_mode() -> None:

@@ -21,6 +21,12 @@ from tests.utils import preserve_environ, autouse_test_storage, TEST_STORAGE_ROO
 from dlt.extract.decorators import _SOURCES
 
 
+@pytest.fixture(autouse=True)
+def deactivate_pipeline() -> FileStorage:
+    yield
+    Container()[PipelineContext].deactivate()
+
+
 def test_init_command_template() -> None:
     _SOURCES.clear()
 
@@ -59,7 +65,6 @@ def test_deploy_command(test_storage: FileStorage) -> None:
     # drop pipeline
     p = dlt.pipeline(pipeline_name="debug_pipeline")
     p._wipe_working_folder()
-    Container()[PipelineContext].deactivate()
 
     shutil.copytree("tests/cli/cases/deploy_pipeline", TEST_STORAGE_ROOT, dirs_exist_ok=True)
 

@@ -80,7 +80,7 @@ def init_logger(C: RunConfiguration = None) -> None:
 
 def clean_test_storage(init_normalize: bool = False, init_loader: bool = False, mode: str = "t") -> FileStorage:
     storage = FileStorage(TEST_STORAGE_ROOT, mode, makedirs=True)
-    storage.delete_folder("", recursively=True)
+    storage.delete_folder("", recursively=True, delete_ro=True)
     storage.create_folder(".")
     if init_normalize:
         from dlt.common.storages import NormalizeStorage
@@ -121,3 +121,6 @@ skipifpypy = pytest.mark.skipif(
     platform.python_implementation() == "PyPy", reason="won't run in PyPy interpreter"
 )
 
+skipifnotwindows = pytest.mark.skipif(
+    platform.system() != "Windows", reason="runs only on windows"
+)
