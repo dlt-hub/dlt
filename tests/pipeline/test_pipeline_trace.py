@@ -6,7 +6,7 @@ import pytest
 
 import dlt
 
-from dlt.common.configuration.specs.gcp_client_credentials import GcpClientCredentialsWithDefault
+from dlt.common.configuration.specs import CredentialsConfiguration
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
 from dlt.common.pipeline import ExtractInfo
 from dlt.common.typing import TSecretValue
@@ -20,7 +20,7 @@ from tests.pipeline.utils import drop_dataset_from_env, patch_working_dir, drop_
 def test_create_trace(toml_providers: ConfigProvidersContext) -> None:
 
     @dlt.source
-    def inject_tomls(api_type = dlt.config.value, credentials: GcpClientCredentialsWithDefault = dlt.secrets.value, secret_value: TSecretValue = "123"):
+    def inject_tomls(api_type = dlt.config.value, credentials: CredentialsConfiguration = dlt.secrets.value, secret_value: TSecretValue = "123"):
 
         @dlt.resource
         def data():
@@ -45,7 +45,6 @@ def test_create_trace(toml_providers: ConfigProvidersContext) -> None:
     assert isinstance(step.finished_at, datetime.datetime)
     assert step.step_info is extract_info
     # check config trace
-    print(trace.resolved_config_values)
     resolved = _find_resolved_value(trace.resolved_config_values, "api_type", [])
     assert resolved.config_type_name == "TestCreateTraceInjectTomlsConfiguration"
     assert resolved.value == "REST"
@@ -54,7 +53,7 @@ def test_create_trace(toml_providers: ConfigProvidersContext) -> None:
     assert resolved.provider_name == "config.toml"
     # dictionaries are not returned anymore
     resolved = _find_resolved_value(trace.resolved_config_values, "credentials", [])
-    assert resolved.value is None
+    assert resolved is None
     resolved = _find_resolved_value(trace.resolved_config_values, "secret_value", [])
     assert resolved.is_secret_hint is True
     assert resolved.value == "2137"

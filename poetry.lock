@@ -1598,7 +1598,7 @@ testing = ["flake8 (<5)", "func-timeout", "jaraco.functools", "jaraco.itertools"
 
 [extras]
 bigquery = ["grpcio", "google-cloud-bigquery", "google-cloud-bigquery-storage", "pyarrow"]
-dbt = ["dbt-core", "GitPython", "dbt-redshift", "dbt-bigquery"]
+dbt = ["dbt-core", "dbt-redshift", "dbt-bigquery"]
 gcp = ["grpcio", "google-cloud-bigquery", "google-cloud-bigquery-storage", "pyarrow"]
 postgres = ["psycopg2-binary", "psycopg2cffi"]
 redshift = ["psycopg2-binary", "psycopg2cffi"]
@@ -1606,7 +1606,7 @@ redshift = ["psycopg2-binary", "psycopg2cffi"]
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.8,<4.0"
-content-hash = "6971c80b6479cd4db597f9004e35abfd95bc71aa83f177262bea112abda17009"
+content-hash = "b92169062375a6aa6361341a4a46d2955a8f1ea06baeb7ee7add64d75d62b72c"
 
 [metadata.files]
 agate = [
