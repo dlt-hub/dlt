@@ -1,6 +1,7 @@
 import os
 import stat
 import pytest
+from pathlib import Path
 
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.utils import encoding_for_mode, set_working_dir, uniq_id
@@ -21,16 +22,16 @@ def test_to_relative_path(test_storage: FileStorage) -> None:
     assert test_storage.to_relative_path(".") == "."
     assert test_storage.to_relative_path("") == ""
     assert test_storage.to_relative_path("a") == "a"
-    assert test_storage.to_relative_path("a/b/c") == "a/b/c"
+    assert test_storage.to_relative_path("a/b/c") == str(Path("a/b/c"))
     assert test_storage.to_relative_path("a/b/../..") == "."
     with pytest.raises(ValueError):
         test_storage.to_relative_path("a/b/../.././..")
     with pytest.raises(ValueError):
         test_storage.to_relative_path("../a/b/c")
     abs_path = os.path.join(test_storage.storage_path, "a/b/c")
-    assert test_storage.to_relative_path(abs_path) == "a/b/c"
+    assert test_storage.to_relative_path(abs_path) == str(Path("a/b/c"))
     abs_path = os.path.join(test_storage.storage_path, "a/b/../c")
-    assert test_storage.to_relative_path(abs_path) == "a/c"
+    assert test_storage.to_relative_path(abs_path) == str(Path("a/c"))
 
 
 def test_make_full_path(test_storage: FileStorage) -> None:
@@ -80,13 +81,13 @@ def test_from_wd_to_relative_path(test_storage: FileStorage) -> None:
     with set_working_dir(TEST_STORAGE_ROOT):
         assert test_storage.from_wd_to_relative_path(".") == "."
         assert test_storage.from_wd_to_relative_path("") == "."
-        assert test_storage.from_wd_to_relative_path("a/b/c") == "a/b/c"
+        assert test_storage.from_wd_to_relative_path("a/b/c") == str(Path("a/b/c"))
 
     test_storage.create_folder("a")
     with set_working_dir(os.path.join(TEST_STORAGE_ROOT, "a")):
         assert test_storage.from_wd_to_relative_path(".") == "a"
         assert test_storage.from_wd_to_relative_path("") == "a"
-        assert test_storage.from_wd_to_relative_path("a/b/c") == "a/a/b/c"
+        assert test_storage.from_wd_to_relative_path("a/b/c") == str(Path("a/a/b/c"))
 
 
 def test_hard_links(test_storage: FileStorage) -> None:
@@ -126,9 +127,6 @@ def test_validate_file_name_component() -> None:
 
 @skipifnotwindows
 def test_rmtree_ro(test_storage: FileStorage) -> None:
-    # testing only on windows because
-    # rmtree deletes read only files on POSIXes anyway
-    # the write protected dir protects also files we we would need to remove the protection before trying again
     test_storage.create_folder("protected")
     path = test_storage.save("protected/barbapapa.txt", "barbapapa")
     os.chmod(path, stat.S_IREAD)
@@ -161,4 +159,3 @@ def test_save_atomic_encode() -> None:
     with storage.open_file("file.bin", mode="r") as f:
         assert hasattr(f, "encoding") is False
         assert f.read() == bstr
-

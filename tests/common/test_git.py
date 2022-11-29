@@ -20,7 +20,7 @@ def test_ssh_key_context() -> None:
     with git_custom_key_command(secret) as git_command:
         assert len(git_command) > 0
         file_path = git_command.split(" ")[-1]
-        assert os.path.isfile(file_path)
+        assert os.path.isfile(file_path.strip('"'))
     # deleted out of context
     assert not os.path.isfile(file_path)
 
