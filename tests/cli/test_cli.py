@@ -76,7 +76,7 @@ def test_deploy_command(test_storage: FileStorage) -> None:
         # run the script with wrong credentials (it is postgres there)
         venv = Venv.restore_current()
         # mod environ so wrong password is passed to override secrets.toml
-        del os.environ["DESTINATION__POSTGRES__CREDENTIALS"]
+        os.environ.pop("DESTINATION__POSTGRES__CREDENTIALS", None)
         os.environ["DESTINATION__POSTGRES__CREDENTIALS__PASSWORD"] = "password"
         with pytest.raises(CalledProcessError) as py_ex:
             venv.run_script("debug_pipeline.py")
