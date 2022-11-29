@@ -43,6 +43,10 @@ class Venv():
             raise VenvNotFound(c.env_exe)
         return cls(c)
 
+    @classmethod
+    def restore_current(cls) -> "Venv":
+        return cls.restore(os.environ["VIRTUAL_ENV"])
+
     def __enter__(self) -> "Venv":
         return self
 

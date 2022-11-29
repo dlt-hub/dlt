@@ -1,4 +1,6 @@
 from typing import Sequence, cast
+
+from dlt import __version__
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TColumnSchema, TWriteDisposition
 
@@ -9,7 +11,7 @@ from dlt.common.configuration.inject import get_orig_args, last_config
 from dlt.common.destination import DestinationReference, TDestinationReferenceArg
 from dlt.common.pipeline import LoadInfo, PipelineContext, get_default_working_dir
 
-from dlt.pipeline.configuration import PipelineConfiguration
+from dlt.pipeline.configuration import PipelineConfiguration, ensure_correct_pipeline_kwargs
 from dlt.pipeline.pipeline import Pipeline
 
 
@@ -26,6 +28,7 @@ def pipeline(
     credentials: Any = None,
     **kwargs: Any
 ) -> Pipeline:
+    ensure_correct_pipeline_kwargs(pipeline, **kwargs)
     # call without arguments returns current pipeline
     orig_args = get_orig_args(**kwargs)  # original (*args, **kwargs)
     # is any of the arguments different from defaults
@@ -72,6 +75,7 @@ def attach(
     full_refresh: bool = False,
     **kwargs: Any
 ) -> Pipeline:
+    ensure_correct_pipeline_kwargs(attach, **kwargs)
     # if working_dir not provided use temp folder
     if not pipelines_dir:
         pipelines_dir = get_default_working_dir()

@@ -195,11 +195,10 @@ def entry_point_file() -> str:
 @contextmanager
 def set_working_dir(path: str) -> Iterator[str]:
     curr_dir = os.path.abspath(os.getcwd())
-    # print(os.path.abspath()
-    new_dir = os.path.dirname(os.path.abspath(path))
     try:
-        os.chdir(new_dir)
-        yield new_dir
+        if path:
+            os.chdir(path)
+        yield path
     finally:
         os.chdir(curr_dir)
 

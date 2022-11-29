@@ -76,13 +76,13 @@ def test_from_wd_to_relative_path(test_storage: FileStorage) -> None:
     with pytest.raises(ValueError):
         test_storage.from_wd_to_relative_path("chess.py")
 
-    with set_working_dir(os.path.join(TEST_STORAGE_ROOT, "a")):
+    with set_working_dir(TEST_STORAGE_ROOT):
         assert test_storage.from_wd_to_relative_path(".") == "."
         assert test_storage.from_wd_to_relative_path("") == "."
         assert test_storage.from_wd_to_relative_path("a/b/c") == "a/b/c"
 
     test_storage.create_folder("a")
-    with set_working_dir(os.path.join(TEST_STORAGE_ROOT, "a/b")):
+    with set_working_dir(os.path.join(TEST_STORAGE_ROOT, "a")):
         assert test_storage.from_wd_to_relative_path(".") == "a"
         assert test_storage.from_wd_to_relative_path("") == "a"
         assert test_storage.from_wd_to_relative_path("a/b/c") == "a/a/b/c"

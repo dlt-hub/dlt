@@ -27,44 +27,6 @@ from dlt.cli.config_toml_writer import WritableConfigValue, write_values
 from dlt.cli.exceptions import CliCommandException
 
 
-# def _clone_init_repo(branch: str) -> Tuple[FileStorage, List[str], str]:
-#     # return tuple is (file storage for cloned repo, list of template files to copy, the default pipeline template script)
-#     # template_dir = "~/src/python-dlt-init-template"
-#     template_dir = tempfile.mkdtemp()
-#     clone_repo("https://github.com/scale-vector/python-dlt-init-template.git", template_dir, branch=branch)
-
-#     clone_storage = FileStorage(template_dir)
-
-#     assert clone_storage.has_file("pipeline.py")
-
-#     # import the settings from the clone
-#     try:
-#         template_dir, template_module_name = os.path.split(template_dir)
-#         sys.path.append(template_dir)
-#         template_module = import_module(template_module_name)
-#         return clone_storage, template_module.TEMPLATE_FILES, template_module.PIPELINE_SCRIPT
-#     finally:
-#         sys.path.remove(template_dir)
-
-
-# def _parse_init_script(script_source: str, init_script_name: str) -> PipelineScriptVisitor:
-#     # parse the script first
-#     tree = ast.parse(source=script_source)
-#     set_ast_parents(tree)
-#     visitor = PipelineScriptVisitor(script_source)
-#     visitor.visit(tree)
-#     if len(visitor.mod_aliases) == 0:
-#         raise CliCommandException("init", f"The pipeline script {init_script_name} does not import dlt or has bizarre import structure")
-#     if visitor.is_destination_imported:
-#         raise CliCommandException("init", f"The pipeline script {init_script_name} import a destination from dlt.destinations. You should specify destinations by name when calling dlt.pipeline or dlt.run in init scripts.")
-#     if n.PIPELINE not in visitor.known_calls:
-#         raise CliCommandException("init", f"The pipeline script {init_script_name} does not seem to initialize pipeline with dlt.pipeline. Please initialize pipeline explicitly in init scripts.")
-#     if n.RUN not in visitor.known_calls:
-#         raise CliCommandException("init", f"The pipeline script {init_script_name} does not seem to run the pipeline.")
-
-#     return visitor
-
-
 def _find_argument_nodes_to_replace(visitor: PipelineScriptVisitor, replace_nodes: List[Tuple[str, str]], init_script_name: str) -> List[Tuple[ast.Constant, str, str]]:
     # the input tuple (call argument name, replacement value)
     # the returned tuple (node, replacement value, node type)
@@ -154,27 +116,37 @@ def _rewrite_script(script_source: str, transformed_nodes: List[Tuple[ast.Consta
     return dest_script
 
 
-def init_command(pipeline_name: str, destination_name: str, branch: str) -> None:
+def _get_template_files(command_module: ModuleType, use_generic_template: bool) -> Tuple[str, List[str]]:
+    template_files: List[str] = command_module.TEMPLATE_FILES
+    pipeline_script: str = command_module.PIPELINE_SCRIPT
+    if use_generic_template:
+        pipeline_script, py = os.path.splitext(pipeline_script)
+        pipeline_script = f"{pipeline_script}_generic{py}"
+    return pipeline_script, template_files
+
+
+def init_command(pipeline_name: str, destination_name: str, use_generic_template: bool, branch: str = None) -> None:
     # try to import the destination and get config spec
     destination_reference = DestinationReference.from_name(destination_name)
     destination_spec = destination_reference.spec()
 
     click.echo("Looking up the init scripts...")
     clone_storage = utils.clone_command_repo("init", branch)
+    # clone_storage = FileStorage("/home/rudolfix/src/python-dlt-init-template")
     command_module = utils.load_command_module(clone_storage.storage_path)
-    TEMPLATE_FILES = command_module.TEMPLATE_FILES
-    PIPELINE_SCRIPT = command_module.PIPELINE_SCRIPT
-
+    pipeline_script, template_files = _get_template_files(command_module, use_generic_template)
 
     # get init script variant or the default
     init_script_name = os.path.join("variants", pipeline_name + ".py")
     if clone_storage.has_file(init_script_name):
         # use variant
         dest_pipeline_script = pipeline_name + ".py"
-        click.echo(f"Using a init script variant {fmt.bold(dest_pipeline_script)}")
+        click.echo(f"Using a verified pipeline {fmt.bold(dest_pipeline_script)}")
+        if use_generic_template:
+            fmt.warning("--generic parameter is meaningless if verified pipeline is used")
     else:
         # use default
-        init_script_name = PIPELINE_SCRIPT
+        init_script_name = pipeline_script
 
     # normalize source name
     norm_source_name = normalize_schema_name(pipeline_name)
@@ -183,13 +155,13 @@ def init_command(pipeline_name: str, destination_name: str, branch: str) -> None
     dest_pipeline_script = norm_source_name + ".py"
 
     # prepare destination storage
-    dest_storage = FileStorage(os.path.abspath(os.path.join(".")))
+    dest_storage = FileStorage(os.path.abspath("."))
     if not dest_storage.has_folder(DOT_DLT):
         dest_storage.create_folder(DOT_DLT)
 
     # check if directory is empty
     toml_files = [make_dot_dlt_path(CONFIG_TOML), make_dot_dlt_path(SECRETS_TOML)]
-    created_files = TEMPLATE_FILES + [dest_pipeline_script] + toml_files
+    created_files = template_files + [dest_pipeline_script] + toml_files
     existing_files = dest_storage.list_folder_files(".", to_root=False) + dest_storage.list_folder_files(DOT_DLT, to_root=True)
     will_overwrite = set(created_files).intersection(existing_files)
     if will_overwrite:
@@ -218,7 +190,6 @@ def init_command(pipeline_name: str, destination_name: str, branch: str) -> None
 
     for source_q_name, source_config in _SOURCES.items():
         if source_q_name not in visitor.known_sources:
-            print(visitor.known_sources)
             raise CliCommandException("init", f"The pipeline script {init_script_name} imports a source/resource {source_config.f.__name__} from module {source_config.module.__name__}. In init scripts you must declare all sources and resources in single file.")
 
     # detect all the required secrets and configs that should go into tomls files
@@ -235,32 +206,34 @@ def init_command(pipeline_name: str, destination_name: str, branch: str) -> None
     click.echo("Your new pipeline %s is ready to be customized!" % fmt.bold(pipeline_name))
     click.echo("* Review and change how dlt loads your data in %s" % fmt.bold(dest_pipeline_script))
     click.echo("* Add credentials to %s and other secrets in %s" % (fmt.bold(destination_name), fmt.bold(toml_files[1])))
-    click.echo("* Configure your pipeline in %s" % fmt.bold(toml_files[1]))
+    click.echo("* Configure your pipeline in %s" % fmt.bold(toml_files[0]))
     click.echo("* See %s for further information" % fmt.bold("README.md"))
-    click.echo()
 
     # add dlt to dependencies
     dlt_version = pkg_version(DLT_PKG_NAME)
     requirements_txt: str = None
     # figure out the build system
     if dest_storage.has_file(utils.PYPROJECT_TOML):
-       click.echo("Your python dependencies are kept in %s. Please add the dependency for %s as follows:" % (fmt.bold(utils.PYPROJECT_TOML), fmt.bold(DLT_PKG_NAME)))
-       click.echo(fmt.bold("%s [%s] >= %s" % (DLT_PKG_NAME, destination_name, dlt_version)))
-       click.echo("If you are using poetry you may issue the following command:")
-       click.echo(fmt.bold("poetry add %s -E %s" % (DLT_PKG_NAME, destination_name)))
-       click.echo("If the dependency is already added, make sure you add the extra %s to it" % fmt.bold(destination_name))
+        click.echo()
+        click.echo("Your python dependencies are kept in %s. Please add the dependency for %s as follows:" % (fmt.bold(utils.PYPROJECT_TOML), fmt.bold(DLT_PKG_NAME)))
+        click.echo(fmt.bold("%s [%s] >= %s" % (DLT_PKG_NAME, destination_name, dlt_version)))
+        click.echo("If you are using poetry you may issue the following command:")
+        click.echo(fmt.bold("poetry add %s -E %s" % (DLT_PKG_NAME, destination_name)))
+        click.echo("If the dependency is already added, make sure you add the extra %s to it" % fmt.bold(destination_name))
     else:
-        req_dep_line = f"{DLT_PKG_NAME}[{destination_name}] >= {pkg_version(DLT_PKG_NAME)}\n"
+        req_dep = f"{DLT_PKG_NAME}[{destination_name}]"
+        req_dep_line = f"{req_dep} >= {pkg_version(DLT_PKG_NAME)}\n"
         if dest_storage.has_file(utils.REQUIREMENTS_TXT):
             click.echo("Your python dependencies are kept in %s. Please add the dependency for %s as follows:" % (fmt.bold(utils.REQUIREMENTS_TXT), fmt.bold(DLT_PKG_NAME)))
             click.echo(req_dep_line)
             click.echo("To install dlt with the %s extra using pip:" % fmt.bold(destination_name))
+            click.echo(f"pip3 install {req_dep}")
         else:
             requirements_txt = req_dep_line
             click.echo("* %s created. Install it with:\npip3 install -r %s" % (fmt.bold(utils.REQUIREMENTS_TXT), utils.REQUIREMENTS_TXT))
 
     # copy files at the very end
-    for file_name in TEMPLATE_FILES + toml_files:
+    for file_name in template_files + toml_files:
         shutil.copy(clone_storage.make_full_path(file_name), dest_storage.make_full_path(file_name))
 
     # create script

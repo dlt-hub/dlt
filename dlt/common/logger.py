@@ -131,12 +131,8 @@ def __getattr__(name: str) -> LogMethod:
 
 
 def _extract_version_info(config: RunConfiguration) -> StrStr:
-    try:
-        version = pkg_version(DLT_PKG_NAME)
-    except PackageNotFoundError:
-        # if there's no package context, take the version from the code
-        version = __version__
-    version_info = {"dlt_version": version, "pipeline_name": config.pipeline_name}
+
+    version_info = {"dlt_version": dlt_version(), "pipeline_name": config.pipeline_name}
     # extract envs with build info
     version_info.update(filter_env_vars(["COMMIT_SHA", "IMAGE_VERSION"]))
     return version_info
@@ -231,3 +227,11 @@ def is_json_logging(log_format: str) -> bool:
 
 def pretty_format_exception() -> str:
     return traceback.format_exc()
+
+
+def dlt_version() -> str:
+    try:
+        return pkg_version(DLT_PKG_NAME)
+    except PackageNotFoundError:
+        # if there's no package context, take the version from the code
+        return __version__
