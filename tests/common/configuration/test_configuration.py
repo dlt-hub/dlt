@@ -3,17 +3,17 @@ import datetime  # noqa: I251
 from unittest.mock import patch
 from typing import Any, Dict, Final, List, Mapping, MutableMapping, NewType, Optional, Type
 
-from dlt.common import pendulum, Decimal, Wei
+from dlt.common import json, pendulum, Decimal, Wei
 from dlt.common.utils import custom_environ
 from dlt.common.typing import TSecretValue, extract_inner_type
 from dlt.common.configuration.exceptions import ConfigFieldMissingTypeHintException, ConfigFieldTypeHintNotSupported, FinalConfigFieldException, InvalidNativeValue, LookupTrace, ValueNotSecretException
-from dlt.common.configuration import configspec, ConfigFieldMissingException, ConfigValueCannotBeCoercedException, resolve
-from dlt.common.configuration.specs import BaseConfiguration, RunConfiguration
-from dlt.common.configuration.specs.base_configuration import is_valid_hint
+from dlt.common.configuration import configspec, ConfigFieldMissingException, ConfigValueCannotBeCoercedException, resolve, is_valid_hint
+from dlt.common.configuration.specs import BaseConfiguration, RunConfiguration, ConnectionStringCredentials
 from dlt.common.configuration.providers import environ as environ_provider, toml
+from dlt.common.configuration.utils import get_resolved_traces, ResolvedValueTrace, serialize_value, deserialize_value
 
 from tests.utils import preserve_environ, add_config_dict_to_env
-from tests.common.configuration.utils import MockProvider, CoercionTestConfiguration, COERCIONS, SecretCredentials, WithCredentialsConfiguration, WrongConfiguration, SecretConfiguration, NamespacedConfiguration, environment, mock_provider
+from tests.common.configuration.utils import MockProvider, CoercionTestConfiguration, COERCIONS, SecretCredentials, WithCredentialsConfiguration, WrongConfiguration, SecretConfiguration, NamespacedConfiguration, environment, mock_provider, reset_resolved_traces
 
 INVALID_COERCIONS = {
     # 'STR_VAL': 'test string',  # string always OK
@@ -207,8 +207,9 @@ def test_raises_on_final_value_change(environment: Any) -> None:
     assert dict(c) == {"pipeline_name": "comp"}
 
     environment["PIPELINE_NAME"] = "env name"
-    with pytest.raises(FinalConfigFieldException):
-        resolve.resolve_configuration(FinalConfiguration())
+    c = resolve.resolve_configuration(FinalConfiguration())
+    # config providers are ignored for final fields
+    assert c.pipeline_name == "comp"
 
     environment["PIPELINE_NAME"] = "comp"
     assert dict(c) == {"pipeline_name": "comp"}
@@ -356,7 +357,6 @@ def test_run_configuration_gen_name(environment: Any) -> None:
 
 def test_configuration_is_mutable_mapping(environment: Any) -> None:
 
-
     @configspec
     class _SecretCredentials(RunConfiguration):
         pipeline_name: Optional[str] = "secret"
@@ -461,8 +461,8 @@ def test_raises_on_unresolved_field(environment: Any) -> None:
     trace = cf_missing_exc.value.traces["NoneConfigVar"]
     assert len(trace) == 3
     assert trace[0] == LookupTrace("Environment Variables", [], "NONECONFIGVAR", None)
-    assert trace[1] == LookupTrace("Pipeline secrets.toml", [], "NoneConfigVar", None)
-    assert trace[2] == LookupTrace("Pipeline config.toml", [], "NoneConfigVar", None)
+    assert trace[1] == LookupTrace("secrets.toml", [], "NoneConfigVar", None)
+    assert trace[2] == LookupTrace("config.toml", [], "NoneConfigVar", None)
 
 
 def test_raises_on_many_unresolved_fields(environment: Any) -> None:
@@ -477,8 +477,8 @@ def test_raises_on_many_unresolved_fields(environment: Any) -> None:
     for tr_field, exp_field in zip(traces, val_fields):
         assert len(traces[tr_field]) == 3
         assert traces[tr_field][0] == LookupTrace("Environment Variables", [], environ_provider.EnvironProvider.get_key_name(exp_field), None)
-        assert traces[tr_field][1] == LookupTrace("Pipeline secrets.toml", [], toml.TomlProvider.get_key_name(exp_field), None)
-        assert traces[tr_field][2] == LookupTrace("Pipeline config.toml", [], toml.TomlProvider.get_key_name(exp_field), None)
+        assert traces[tr_field][1] == LookupTrace("secrets.toml", [], toml.TomlProvider.get_key_name(exp_field), None)
+        assert traces[tr_field][2] == LookupTrace("config.toml", [], toml.TomlProvider.get_key_name(exp_field), None)
 
 
 def test_accepts_optional_missing_fields(environment: Any) -> None:
@@ -516,29 +516,51 @@ def test_coercion_to_hint_types(environment: Any) -> None:
 def test_values_serialization() -> None:
     # test tuple
     t_tuple = (1, 2, 3, "A")
-    v = resolve.serialize_value(t_tuple)
+    v = serialize_value(t_tuple)
     assert v == "(1, 2, 3, 'A')"  # literal serialization
-    assert resolve.deserialize_value("K", v, tuple) == t_tuple
+    assert deserialize_value("K", v, tuple) == t_tuple
 
     # test list
     t_list = ["a", 3, True]
-    v = resolve.serialize_value(t_list)
+    v = serialize_value(t_list)
     assert v == '["a",3,true]'  # json serialization
-    assert resolve.deserialize_value("K", v, list) == t_list
+    assert deserialize_value("K", v, list) == t_list
 
     # test datetime
     t_date = pendulum.now()
-    v = resolve.serialize_value(t_date)
-    assert resolve.deserialize_value("K", v, datetime.datetime) == t_date
+    v = serialize_value(t_date)
+    assert deserialize_value("K", v, datetime.datetime) == t_date
 
     # test wei
     t_wei = Wei.from_int256(10**16, decimals=18)
-    v = resolve.serialize_value(t_wei)
+    v = serialize_value(t_wei)
     assert v == "0.01"
     # can be deserialized into
-    assert resolve.deserialize_value("K", v, float) == 0.01
-    assert resolve.deserialize_value("K", v, Decimal) == Decimal("0.01")
-    assert resolve.deserialize_value("K", v, Wei) == Wei("0.01")
+    assert deserialize_value("K", v, float) == 0.01
+    assert deserialize_value("K", v, Decimal) == Decimal("0.01")
+    assert deserialize_value("K", v, Wei) == Wei("0.01")
+
+    # test credentials
+    credentials_str = "databricks+connector://token:<databricks_token>@<databricks_host>:443/<database_or_schema_name>?conn_timeout=15&search_path=a%2Cb%2Cc"
+    credentials = deserialize_value("credentials", credentials_str, ConnectionStringCredentials)
+    assert credentials.drivername == "databricks+connector"
+    assert credentials.query == {"conn_timeout": "15", "search_path": "a,b,c"}
+    assert serialize_value(credentials) == credentials_str
+    # using dict also works
+    credentials_dict = dict(credentials)
+    credentials_2 = deserialize_value("credentials", credentials_dict, ConnectionStringCredentials)
+    assert serialize_value(credentials_2) == credentials_str
+    # if string is not a valid native representation of credentials but is parsable json dict then it works as well
+    credentials_json = json.dumps(credentials_dict)
+    credentials_3 = deserialize_value("credentials", credentials_json, ConnectionStringCredentials)
+    assert serialize_value(credentials_3) == credentials_str
+
+    # test config without native representation
+    secret_config = deserialize_value("credentials", {"secret_value": "a"}, SecretConfiguration)
+    assert secret_config.secret_value == "a"
+    secret_config = deserialize_value("credentials", '{"secret_value": "a"}', SecretConfiguration)
+    assert secret_config.secret_value == "a"
+    assert serialize_value(secret_config) == '{"secret_value":"a"}'
 
 
 def test_invalid_coercions(environment: Any) -> None:
@@ -552,7 +574,7 @@ def test_invalid_coercions(environment: Any) -> None:
             if coerc_exc.field_name != key:
                 raise
             # overwrite with valid value and go to next env
-            environment[key.upper()] = resolve.serialize_value(COERCIONS[key])
+            environment[key.upper()] = serialize_value(COERCIONS[key])
             continue
         raise AssertionError("%s was coerced with %s which is invalid type" % (key, value))
 
@@ -752,6 +774,34 @@ def test_last_resolve_exception(environment: Any) -> None:
     with pytest.raises(InvalidNativeValue) as py_ex:
         resolve.resolve_configuration(c, explicit_value=2137)
     assert c.__exception__ is py_ex.value
+
+
+def test_resolved_trace(environment: Any) -> None:
+    with custom_environ(
+            {"INSTRUMENTED__HEAD": "h", "INSTRUMENTED__TUBE": '["tu", "u", "be"]', "INSTRUMENTED__HEELS": "xhe", "NAMESPACED__PASSWORD": "passwd", "DEFAULT": "DEF"}):
+        c = resolve.resolve_configuration(EmbeddedConfiguration(default="_DEFF"))
+    traces = get_resolved_traces()
+    prov_name = environ_provider.EnvironProvider().name
+    assert traces[".default"] == ResolvedValueTrace("default", "DEF", "_DEFF", str, [], prov_name, c)
+    assert traces["instrumented.head"] == ResolvedValueTrace("head", "h", None, str, ["instrumented"], prov_name, c.instrumented)
+    # value is before casting
+    assert traces["instrumented.tube"] == ResolvedValueTrace("tube", '["tu", "u", "be"]', None, List[str], ["instrumented"], prov_name, c.instrumented)
+    assert deserialize_value("tube", traces["instrumented.tube"].value, resolve.extract_inner_hint(List[str])) == ["tu", "u", "be"]
+    assert traces["instrumented.heels"] == ResolvedValueTrace("heels", "xhe", None, str, ["instrumented"], prov_name, c.instrumented)
+    assert traces["namespaced.password"] == ResolvedValueTrace("password", "passwd", None, str, ["namespaced"], prov_name, c.namespaced)
+    assert len(traces) == 5
+
+    # try to get native representation
+    with patch.object(InstrumentedConfiguration, "__namespace__", "snake"):
+        with custom_environ(
+                {"INSTRUMENTED": "h>t>t>t>he", "NAMESPACED__PASSWORD": "pass", "DEFAULT": "UNDEF", "SNAKE": "h>t>t>t>he"}):
+            c = resolve.resolve_configuration(EmbeddedConfiguration())
+            resolve.resolve_configuration(InstrumentedConfiguration())
+
+    assert traces[".default"] == ResolvedValueTrace("default", "UNDEF", None, str, [], prov_name, c)
+    assert traces[".instrumented"] == ResolvedValueTrace("instrumented", "h>t>t>t>he", None, InstrumentedConfiguration, [], prov_name, c)
+
+    assert traces[".snake"] == ResolvedValueTrace("snake", "h>t>t>t>he", None, InstrumentedConfiguration, [], prov_name, None)
 
 
 def coerce_single_value(key: str, value: str, hint: Type[Any]) -> Any:

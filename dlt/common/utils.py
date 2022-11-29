@@ -186,10 +186,22 @@ def encoding_for_mode(mode: str) -> Optional[str]:
         return "utf-8"
 
 
-def entry_point_file_stem() -> str:
+def entry_point_file() -> str:
     if len(sys.argv) > 0 and os.path.isfile(sys.argv[0]):
-        return Path(sys.argv[0]).stem
+        return str(Path(sys.argv[0]))
     return None
+
+
+@contextmanager
+def set_working_dir(path: str) -> Iterator[str]:
+    curr_dir = os.path.abspath(os.getcwd())
+    # print(os.path.abspath()
+    new_dir = os.path.dirname(os.path.abspath(path))
+    try:
+        os.chdir(new_dir)
+        yield new_dir
+    finally:
+        os.chdir(curr_dir)
 
 
 def get_callable_name(f: AnyFun, name_attr: str = "__name__") -> Optional[str]:

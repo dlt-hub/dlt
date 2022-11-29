@@ -73,7 +73,7 @@ class LoadJob:
         In "running" state, the loader component periodically gets the state via `status()` method. When terminal state is reached, load job is discarded and not called again.
         `exception` method is called to get error information in "failed" and "retry" states.
 
-        The `__init__` method is responsible to put the Job in "running" state. It may raise `LoadClientTerminalException` and `LoadClientTransientException` tp
+        The `__init__` method is responsible to put the Job in "running" state. It may raise `LoadClientTerminalException` and `LoadClientTransientException` to
         immediately transition job into "failed" or "retry" state respectively.
     """
     def __init__(self, file_name: str) -> None:

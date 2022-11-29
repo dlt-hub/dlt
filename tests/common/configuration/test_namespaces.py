@@ -7,7 +7,7 @@ from dlt.common.configuration.specs import BaseConfiguration, ConfigNamespacesCo
 from dlt.common.configuration.exceptions import LookupTrace
 
 from tests.utils import preserve_environ
-from tests.common.configuration.utils import MockProvider, WrongConfiguration, SecretConfiguration, NamespacedConfiguration, environment, mock_provider
+from tests.common.configuration.utils import MockProvider, NamespacedConfiguration, environment, mock_provider
 
 
 @configspec
@@ -52,8 +52,8 @@ def test_namespaced_configuration(environment: Any) -> None:
     # only one provider and namespace was tried
     assert len(traces) == 3
     assert traces[0] == LookupTrace("Environment Variables", ["DLT_TEST"], "DLT_TEST__PASSWORD", None)
-    assert traces[1] == LookupTrace("Pipeline secrets.toml", ["DLT_TEST"], "DLT_TEST.password", None)
-    assert traces[2] == LookupTrace("Pipeline config.toml", ["DLT_TEST"], "DLT_TEST.password", None)
+    assert traces[1] == LookupTrace("secrets.toml", ["DLT_TEST"], "DLT_TEST.password", None)
+    assert traces[2] == LookupTrace("config.toml", ["DLT_TEST"], "DLT_TEST.password", None)
 
     # init vars work without namespace
     C = resolve.resolve_configuration(NamespacedConfiguration(), explicit_value={"password": "PASS"})

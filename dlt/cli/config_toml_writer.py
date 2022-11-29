@@ -1,9 +1,9 @@
-from typing import Any, Iterable, Iterator, NamedTuple, Tuple
+from typing import Any, Iterable, NamedTuple, Tuple
 import tomlkit
 from tomlkit.items import Table as TOMLTable
 
 from dlt.common.configuration.resolve import extract_inner_hint
-from dlt.common.configuration.specs.base_configuration import BaseConfiguration, is_base_configuration_hint
+from dlt.common.configuration.specs import BaseConfiguration, is_base_configuration_hint
 from dlt.common.typing import AnyType, is_final_type, is_optional_type
 
 
@@ -28,6 +28,7 @@ def write_value(toml_table: TOMLTable, name: str, hint: AnyType, default_value: 
     else:
 
         if default_value is None:
+            # TODO: generate typed examples
             toml_table[name] = name
             toml_table[name].comment("please set me up!")
         else:

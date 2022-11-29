@@ -1,16 +1,16 @@
 import abc
 import contextlib
-import inspect
 from typing import Any, ClassVar, Sequence, Type, TypeVar
 from dlt.common import json
 from dlt.common.configuration.container import Container
+from dlt.common.configuration.exceptions import LookupTrace
 
 from dlt.common.configuration.providers.provider import ConfigProvider
-from dlt.common.configuration.resolve import deserialize_value
-from dlt.common.configuration.specs.base_configuration import is_base_configuration_hint
+from dlt.common.configuration.specs import is_base_configuration_hint
+from dlt.common.configuration.utils import deserialize_value, log_traces
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
 from dlt.common.schema.utils import coerce_value
-from dlt.common.typing import AnyType, ConfigValue
+from dlt.common.typing import AnyType, ConfigValue, TSecretValue
 
 DLT_SECRETS_VALUE = "secrets.value"
 DLT_CONFIG_VALUE = "config.value"
@@ -34,15 +34,7 @@ class _Accessor(abc.ABC):
             return None
         # cast to required type
         if expected_type:
-            if is_base_configuration_hint(expected_type):
-                c = expected_type()
-                if isinstance(value, dict):
-                    c.update(value)
-                else:
-                    c.parse_native_representation(value)
-                return c  # type: ignore
-            else:
-                return deserialize_value(field, value, expected_type)  # type: ignore
+            return deserialize_value(field, value, expected_type)
         else:
             return value
 
@@ -50,6 +42,11 @@ class _Accessor(abc.ABC):
     @property
     @abc.abstractmethod
     def config_providers(self) -> Sequence[ConfigProvider]:
+        pass
+
+    @property
+    @abc.abstractmethod
+    def default_type(self) -> AnyType:
         pass
 
     def _get_providers_from_context(self) -> Sequence[ConfigProvider]:
@@ -72,7 +69,9 @@ class _Accessor(abc.ABC):
                 return c_v
         return value
 
-    def _get_value(self, field: str, type_hint: Type[Any] = AnyType) -> Any:
+    def _get_value(self, field: str, type_hint: Type[Any] = None) -> Any:
+        # get default hint type, in case of dlt.secrets it it TSecretValue
+        type_hint = type_hint or self.default_type
         # split field into namespaces and a key
         namespaces = field.split(".")
         key = namespaces.pop()
@@ -80,6 +79,10 @@ class _Accessor(abc.ABC):
         for provider in self.config_providers:
             value, _ = provider.get_value(key, type_hint, *namespaces)
             if value is not None:
+                # log trace
+                trace = LookupTrace(provider.name, namespaces, field, value)
+                log_traces(None, key, type_hint, value, None, [trace])
+                print(trace)
                 break
         return value
 
@@ -92,6 +95,10 @@ class _ConfigAccessor(_Accessor):
         """Return a list of config providers, in lookup order"""
         return [p for p in self._get_providers_from_context()]
 
+    @property
+    def default_type(self) -> AnyType:
+        return AnyType
+
     value: ClassVar[None] = ConfigValue
     "A placeholder that tells dlt to replace it with actual config value during the call to a source or resource decorated function."
 
@@ -103,6 +110,10 @@ class _SecretsAccessor(_Accessor):
     def config_providers(self) -> Sequence[ConfigProvider]:
         """Return a list of config providers that can hold secrets, in lookup order"""
         return [p for p in self._get_providers_from_context() if p.supports_secrets]
+
+    @property
+    def default_type(self) -> AnyType:
+        return TSecretValue
 
     value: ClassVar[None] = ConfigValue
     "A placeholder that tells dlt to replace it with actual secret during the call to a source or resource decorated function."

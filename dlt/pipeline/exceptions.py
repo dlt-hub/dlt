@@ -1,5 +1,6 @@
 from typing import Any, Sequence
 from dlt.common.exceptions import DltException, ArgumentsOverloadException
+from dlt.common.pipeline import SupportsPipeline
 from dlt.common.telemetry import TRunMetrics
 from dlt.pipeline.typing import TPipelineStep
 
@@ -26,8 +27,8 @@ class PipelineConfigMissing(PipelineException):
 
 
 class CannotRestorePipelineException(PipelineException):
-    def __init__(self, pipeline_name: str, working_dir: str, reason: str) -> None:
-        msg = f"Pipeline with name {pipeline_name} in working directory {working_dir} could not be restored: {reason}"
+    def __init__(self, pipeline_name: str, pipelines_dir: str, reason: str) -> None:
+        msg = f"Pipeline with name {pipeline_name} in working directory {pipelines_dir} could not be restored: {reason}"
         super().__init__(pipeline_name, msg)
 
 
@@ -37,12 +38,13 @@ class SqlClientNotAvailable(PipelineException):
 
 
 class PipelineStepFailed(PipelineException):
-    def __init__(self, pipeline_name: str, step: TPipelineStep, exception: BaseException, run_metrics: TRunMetrics) -> None:
+    def __init__(self, pipeline: SupportsPipeline, step: TPipelineStep, exception: BaseException, run_metrics: TRunMetrics, step_info: Any = None) -> None:
+        self.pipeline = pipeline
         self.stage = step
         self.exception = exception
         self.run_metrics = run_metrics
-        self.step_info: Any = None
-        super().__init__(pipeline_name, f"Pipeline execution failed at stage {step} with exception:\n\n{type(exception)}\n{exception}")
+        self.step_info = step_info
+        super().__init__(pipeline.pipeline_name, f"Pipeline execution failed at stage {step} with exception:\n\n{type(exception)}\n{exception}")
 
 
 class PipelineStateNotAvailable(PipelineException):

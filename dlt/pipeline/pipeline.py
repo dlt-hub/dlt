@@ -1,11 +1,14 @@
 import contextlib
 import os
+import datetime  # noqa: 251
 from contextlib import contextmanager
 from functools import wraps
 from collections.abc import Sequence as C_Sequence
-from typing import Any, Callable, ClassVar, Dict, List, Iterator, Mapping, Optional, Sequence, Tuple, get_type_hints, overload
+from typing import Any, Callable, ClassVar, Dict, List, Iterator, Mapping, Optional, Sequence, Tuple, cast, get_type_hints, overload
 
 from dlt.common import json, logger, signals, pendulum
+from dlt.common.configuration import inject_namespace
+from dlt.common.configuration.specs import RunConfiguration, NormalizeVolumeConfiguration, SchemaVolumeConfiguration, LoadVolumeConfiguration, PoolRunnerConfiguration
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.configuration.specs.config_namespace_context import ConfigNamespacesContext
@@ -19,11 +22,8 @@ from dlt.common.typing import TFun, TSecretValue
 
 from dlt.common.runners import pool_runner as runner, TRunMetrics, initialize_runner
 from dlt.common.storages import LiveSchemaStorage, NormalizeStorage
-
-from dlt.common.configuration import inject_namespace
-from dlt.common.configuration.specs import RunConfiguration, NormalizeVolumeConfiguration, SchemaVolumeConfiguration, LoadVolumeConfiguration, PoolRunnerConfiguration
 from dlt.common.destination import DestinationCapabilitiesContext, DestinationReference, JobClientBase, DestinationClientConfiguration, DestinationClientDwhConfiguration, TDestinationReferenceArg
-from dlt.common.pipeline import LoadInfo, TPipelineState
+from dlt.common.pipeline import ExtractInfo, LoadInfo, NormalizeInfo, TPipelineState
 from dlt.common.schema import Schema
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.utils import is_interactive
@@ -38,7 +38,9 @@ from dlt.destinations.job_client_impl import SqlJobClientBase
 from dlt.load.configuration import LoaderConfiguration
 from dlt.load import Load
 
+from dlt.pipeline.configuration import PipelineConfiguration
 from dlt.pipeline.exceptions import CannotRestorePipelineException, InvalidPipelineName, PipelineConfigMissing, PipelineStepFailed, SqlClientNotAvailable
+from dlt.pipeline.trace import PipelineRuntimeTrace, add_trace_step, save_trace
 from dlt.pipeline.typing import TPipelineStep
 from dlt.pipeline.state import STATE_ENGINE_VERSION, load_state_from_destination, merge_state_if_changed, state_resource, StateInjectableContext
 
@@ -69,6 +71,24 @@ def with_schemas_sync(f: TFun) -> TFun:
 
     return _wrap  # type: ignore
 
+def with_runtime_trace(f: TFun) -> TFun:
+
+    @wraps(f)
+    def _wrap(self: "Pipeline", *args: Any, **kwargs: Any) -> Any:
+        rv: Any = None
+        started_at = pendulum.now()
+        try:
+            rv = f(self, *args, **kwargs)
+            return rv
+        except PipelineStepFailed as pip_ex:
+            rv = pip_ex
+            raise
+        finally:
+            if rv is not None  and self.config.enable_runtime_trace:
+                self._save_runtime_trace(cast(TPipelineStep, f.__name__), started_at, rv)
+
+    return _wrap  # type: ignore
+
 def with_config_namespace(namespaces: Tuple[str, ...]) -> Callable[[TFun], TFun]:
 
     def decorator(f: TFun) -> TFun:
@@ -93,8 +113,8 @@ class Pipeline:
     default_schema_name: str = None
     schema_names: List[str] = []
     full_refresh: bool
+    pipelines_dir: str
     working_dir: str
-    pipeline_root: str
     destination: DestinationReference = None
     dataset_name: str = None
     credentials: Any = None
@@ -102,7 +122,7 @@ class Pipeline:
     def __init__(
             self,
             pipeline_name: str,
-            working_dir: str,
+            pipelines_dir: str,
             pipeline_salt: TSecretValue,
             destination: DestinationReference,
             dataset_name: str,
@@ -111,10 +131,11 @@ class Pipeline:
             export_schema_path: str,
             full_refresh: bool,
             must_attach_to_local_pipeline: bool,
-            restore_from_destination: bool,
+            config: PipelineConfiguration,
             runtime: RunConfiguration
         ) -> None:
         self.pipeline_salt = pipeline_salt
+        self.config = config
         self.runtime_config = runtime
         self.full_refresh = full_refresh
 
@@ -127,10 +148,11 @@ class Pipeline:
         self._schema_storage_config: SchemaVolumeConfiguration = None
         self._normalize_storage_config: NormalizeVolumeConfiguration = None
         self._load_storage_config: LoadVolumeConfiguration = None
+        self._trace: PipelineRuntimeTrace = None
 
         initialize_runner(self.runtime_config)
         # initialize pipeline working dir
-        self._init_working_dir(pipeline_name, working_dir)
+        self._init_working_dir(pipeline_name, pipelines_dir)
 
         # set destination and dataset, those may be overwritten by state but we'll need them to eventually restore state
         self.destination = destination or self.destination  # changing the destination could be dangerous if pipeline has not loaded items
@@ -138,14 +160,20 @@ class Pipeline:
         self.credentials = credentials
 
         # do not restore from destination if full refresh or must must attach to local working folder
-        restore_from_destination = not must_attach_to_local_pipeline and not full_refresh and restore_from_destination
+        # TODO: refactor restore state
+        restore_from_destination = not must_attach_to_local_pipeline and not full_refresh and config.restore_from_destination and dataset_name is not None
         # require dataset name to be present if restoring
-        if restore_from_destination and not dataset_name:
-            raise PipelineConfigMissing(self.pipeline_name, "dataset_name", "init", "When requesting the pipeline to be restored from the destination, 'dataset_name` must be passed explicitly or configured via config providers.")
+        # if restore_from_destination and not dataset_name:
+        #     raise PipelineConfigMissing(
+        #         self.pipeline_name,
+        #         "dataset_name",
+        #         "init",
+        #         "When requesting the pipeline to be restored from the destination, 'dataset_name` must be passed explicitly or configured via config providers.")
+
         with self._managed_state(restore_from_destination=restore_from_destination) as state:
             # see if state didn't change the pipeline name
             if "pipeline_name" in state and pipeline_name != state["pipeline_name"]:
-                raise CannotRestorePipelineException(pipeline_name, working_dir, f"working directory contains state for pipeline with name {self.pipeline_name}")
+                raise CannotRestorePipelineException(pipeline_name, pipelines_dir, f"working directory contains state for pipeline with name {self.pipeline_name}")
             # at this moment state is recovered so we overwrite the state with the values from init
             self.destination = destination or self.destination  # changing the destination could be dangerous if pipeline has not loaded items
             self._set_dataset_name(dataset_name)
@@ -164,7 +192,7 @@ class Pipeline:
         # clone the pipeline
         return Pipeline(
             self.pipeline_name,
-            self.working_dir,
+            self.pipelines_dir,
             self.pipeline_salt,
             self.destination,
             self.dataset_name,
@@ -173,34 +201,11 @@ class Pipeline:
             self._schema_storage.config.export_schema_path,
             self.full_refresh,
             False,
-            False,
+            self.config,
             self.runtime_config
         )
 
-
-    # @overload
-    # def extract(
-    #     self,
-    #     data: Union[Iterator[TResolvableDataItem], Iterable[TResolvableDataItem]],
-    #     table_name = None,
-    #     write_disposition = None,
-    #     parent = None,
-    #     columns = None,
-    #     max_parallel_data_items: int =  20,
-    #     schema: Schema = None
-    # ) -> None:
-    #     ...
-
-    # @overload
-    # def extract(
-    #     self,
-    #     data: DltSource,
-    #     max_parallel_iterators: int = 1,
-    #     max_parallel_data_items: int =  20,
-    #     schema: Schema = None
-    # ) -> None:
-    #     ...
-
+    @with_runtime_trace
     @with_schemas_sync  # this must precede with_state_sync
     @with_state_sync(extract_state=True)  # extract pipeline state with the package
     @with_config_namespace(("extract",))
@@ -215,7 +220,7 @@ class Pipeline:
         schema: Schema = None,
         max_parallel_items: int = 100,
         workers: int = 5
-    ) -> None:
+    ) -> ExtractInfo:
 
         def apply_hint_args(resource: DltResource) -> None:
             columns_dict = None
@@ -279,20 +284,22 @@ class Pipeline:
             for s in sources:
                 if s.exhausted:
                     raise SourceExhausted(s.name)
-                self._extract_source(s, max_parallel_items, workers)
+                # TODO: merge infos for all the sources
+                extract_info = self._extract_source(s, max_parallel_items, workers)
+            return extract_info
         except Exception as exc:
             # TODO: provide metrics from extractor
-            raise PipelineStepFailed(self.pipeline_name, "extract", exc, runner.LAST_RUN_METRICS) from exc
+            raise PipelineStepFailed(self, "extract", exc, runner.LAST_RUN_METRICS, ExtractInfo()) from exc
 
-
+    @with_runtime_trace
     @with_schemas_sync
     @with_config_namespace(("normalize",))
-    def normalize(self, workers: int = 1) -> None:
+    def normalize(self, workers: int = 1) -> NormalizeInfo:
         if is_interactive() and workers > 1:
             raise NotImplementedError("Do not use normalize workers in interactive mode ie. in notebook")
         # check if any schema is present, if not then no data was extracted
         if not self.default_schema_name:
-            return
+            return None
 
         # get destination capabilities
         destination_caps = self._get_destination_capabilities()
@@ -310,8 +317,14 @@ class Pipeline:
         with self._container.injectable_context(destination_caps):
             # shares schema storage with the pipeline so we do not need to install
             normalize = Normalize(config=normalize_config, schema_storage=self._schema_storage)
-            self._run_step_in_pool("normalize", normalize, normalize.config)
+            try:
+                self._run_step_in_pool("normalize", normalize, normalize.config)
+                return NormalizeInfo()
+            except PipelineStepFailed as pip_ex:
+                pip_ex.step_info = NormalizeInfo()
+                raise
 
+    @with_runtime_trace
     @with_state_sync()
     @with_schemas_sync
     @with_config_namespace(("load",))
@@ -376,6 +389,8 @@ class Pipeline:
         destination = DestinationReference.from_name(destination)
         self.destination = destination or self.destination
         self._set_dataset_name(dataset_name)
+        # reset trace
+        self._trace = None
 
         # normalize and load pending data
         self.normalize()
@@ -452,14 +467,14 @@ class Pipeline:
         caps = self._get_destination_capabilities()
         return LoadStorage(True, caps.preferred_loader_file_format, caps.supported_loader_file_formats, self._load_storage_config)
 
-    def _init_working_dir(self, pipeline_name: str, working_dir: str) -> None:
+    def _init_working_dir(self, pipeline_name: str, pipelines_dir: str) -> None:
         self.pipeline_name = pipeline_name
-        self.working_dir = working_dir
+        self.pipelines_dir = pipelines_dir
         self._validate_pipeline_name()
         # compute the folder that keeps all of the pipeline state
-        self.pipeline_root = os.path.join(working_dir, pipeline_name)
+        self.working_dir = os.path.join(pipelines_dir, pipeline_name)
         # create pipeline storage, do not create working dir yet
-        self._pipeline_storage = FileStorage(self.pipeline_root, makedirs=False)
+        self._pipeline_storage = FileStorage(self.working_dir, makedirs=False)
         # if full refresh was requested, wipe out all data from working folder, if exists
         if self.full_refresh:
             self._wipe_working_folder()
@@ -467,18 +482,18 @@ class Pipeline:
     def _configure(self, import_schema_path: str, export_schema_path: str, must_attach_to_local_pipeline: bool) -> None:
         # create schema storage and folders
         self._schema_storage_config = SchemaVolumeConfiguration(
-            schema_volume_path=os.path.join(self.pipeline_root, "schemas"),
+            schema_volume_path=os.path.join(self.working_dir, "schemas"),
             import_schema_path=import_schema_path,
             export_schema_path=export_schema_path
         )
         # create default configs
-        self._normalize_storage_config = NormalizeVolumeConfiguration(normalize_volume_path=os.path.join(self.pipeline_root, "normalize"))
-        self._load_storage_config = LoadVolumeConfiguration(load_volume_path=os.path.join(self.pipeline_root, "load"),)
+        self._normalize_storage_config = NormalizeVolumeConfiguration(normalize_volume_path=os.path.join(self.working_dir, "normalize"))
+        self._load_storage_config = LoadVolumeConfiguration(load_volume_path=os.path.join(self.working_dir, "load"),)
 
         # are we running again?
         has_state = self._pipeline_storage.has_file(Pipeline.STATE_FILE)
         if must_attach_to_local_pipeline and not has_state:
-            raise CannotRestorePipelineException(self.pipeline_name, self.working_dir, f"the pipeline was not found in {self.pipeline_root}.")
+            raise CannotRestorePipelineException(self.pipeline_name, self.pipelines_dir, f"the pipeline was not found in {self.working_dir}.")
 
         # attach to pipeline if folder exists and contains state
         if has_state:
@@ -502,7 +517,7 @@ class Pipeline:
     def _attach_pipeline(self) -> None:
         pass
 
-    def _extract_source(self, source: DltSource, max_parallel_items: int, workers: int) -> None:
+    def _extract_source(self, source: DltSource, max_parallel_items: int, workers: int) -> ExtractInfo:
         # discover the schema from source
         source_schema = source.discover_schema()
         pipeline_schema: Schema = None
@@ -527,14 +542,15 @@ class Pipeline:
         for table in source_schema.all_tables():
             pipeline_schema.update_schema(pipeline_schema.normalize_table_identifiers(table))
 
-        self._iterate_source(source, pipeline_schema, max_parallel_items, workers)
+        extract_info = self._iterate_source(source, pipeline_schema, max_parallel_items, workers)
 
         # initialize import with fully discovered schema
         if should_initialize_import:
             self._schema_storage.initialize_import_schema(pipeline_schema)
 
-    def _iterate_source(self, source: DltSource, pipeline_schema: Schema, max_parallel_items: int, workers: int) -> None:
-        # TODO: create source context
+        return extract_info
+
+    def _iterate_source(self, source: DltSource, pipeline_schema: Schema, max_parallel_items: int, workers: int) -> ExtractInfo:
         # iterate over all items in the pipeline and update the schema if dynamic table hints were present
         storage = ExtractorStorage(self._normalize_storage_config)
         # inject the config namespace with the current source name
@@ -545,17 +561,18 @@ class Pipeline:
             for _, partials in extractor.items():
                 for partial in partials:
                     pipeline_schema.update_schema(pipeline_schema.normalize_table_identifiers(partial))
+        return ExtractInfo()
 
     def _run_step_in_pool(self, step: TPipelineStep, runnable: Runnable[Any], config: PoolRunnerConfiguration) -> int:
         try:
             ec = runner.run_pool(config, runnable)
             # in any other case we raise if runner exited with status failed
             if runner.LAST_RUN_METRICS.has_failed:
-                raise PipelineStepFailed(self.pipeline_name, step, self.last_run_exception, runner.LAST_RUN_METRICS)
+                raise PipelineStepFailed(self, step, self.last_run_exception, runner.LAST_RUN_METRICS)
             return ec
         except Exception as r_ex:
             # if EXIT_ON_EXCEPTION flag is set, exception will bubble up directly
-            raise PipelineStepFailed(self.pipeline_name, step, self.last_run_exception, runner.LAST_RUN_METRICS) from r_ex
+            raise PipelineStepFailed(self, step, self.last_run_exception, runner.LAST_RUN_METRICS) from r_ex
         finally:
             signals.raise_if_signalled()
 
@@ -713,6 +730,10 @@ class Pipeline:
             logger.info("Client not available due to missing credentials")
         return None
 
+    def _save_runtime_trace(self, step: TPipelineStep, started_at: datetime.datetime, step_info: Any) -> None:
+        self._trace = add_trace_step(self._trace, step, started_at, step_info)
+        save_trace(self._pipeline_storage.storage_path, self._trace)
+
     def _restore_state_from_destination(self) -> Optional[TPipelineState]:
         # if state is not present locally, take the state from the destination
         dataset_name = self.dataset_name
@@ -797,3 +818,7 @@ class Pipeline:
             # if state was changed, save it
             if merged_state:
                 self._pipeline_storage.save(Pipeline.STATE_FILE, json.dumps(merged_state))
+
+    def __getstate__(self) -> Any:
+        # pickle only the SupportsPipeline protocol fields
+        return {"pipeline_name": self.pipeline_name}

@@ -16,7 +16,7 @@ class FileStorage:
                  file_type: str = "t",
                  makedirs: bool = False) -> None:
         # make it absolute path
-        self.storage_path = os.path.join(os.path.realpath(storage_path), '')
+        self.storage_path = os.path.realpath(storage_path)  # os.path.join(, '')
         self.file_type = file_type
         if makedirs:
             os.makedirs(storage_path, exist_ok=True)
@@ -121,27 +121,37 @@ class FileStorage:
         )
 
     def in_storage(self, path: str) -> bool:
+        assert path is not None
+        # all paths are relative to root
+        if not os.path.isabs(path):
+            path = os.path.join(self.storage_path, path)
         file = os.path.realpath(path)
         # return true, if the common prefix of both is equal to directory
         # e.g. /a/b/c/d.rst and directory is /a/b, the common prefix is /a/b
         return os.path.commonprefix([file, self.storage_path]) == self.storage_path
 
     def to_relative_path(self, path: str) -> str:
+        if path == "":
+            return ""
         if not self.in_storage(path):
             raise ValueError(path)
+        if not os.path.isabs(path):
+            path = os.path.realpath(os.path.join(self.storage_path, path))
+        # for abs paths find the relative
         return os.path.relpath(path, start=self.storage_path)
 
     def make_full_path(self, path: str) -> str:
         # try to make a relative path if paths are absolute or overlapping
-        try:
-            path = self.to_relative_path(path)
-        except ValueError:
-            # if path is absolute and cannot be made relative to the storage then cannot be made full path with storage root
-            if os.path.isabs(path):
-                raise ValueError(path)
-
+        path = self.to_relative_path(path)
         # then assume that it is a path relative to storage root
-        return os.path.join(self.storage_path, path)
+        return os.path.realpath(os.path.join(self.storage_path, path))
+
+    def from_wd_to_relative_path(self, wd_relative_path: str) -> str:
+        path = os.path.realpath(wd_relative_path)
+        return self.to_relative_path(path)
+
+    def from_relative_path_to_wd(self, relative_path: str) -> str:
+        return os.path.relpath(self.make_full_path(relative_path), start=".")
 
     @staticmethod
     def get_file_name_from_file_path(file_path: str) -> str:

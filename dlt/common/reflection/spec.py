@@ -4,7 +4,8 @@ from typing import Dict, List, Type, Any, Optional
 from inspect import Signature, Parameter
 
 from dlt.common.typing import AnyType, AnyFun, TSecretValue
-from dlt.common.configuration.specs.base_configuration import BaseConfiguration, is_valid_hint, is_secret_hint, configspec
+from dlt.common.configuration import configspec, is_valid_hint, is_secret_hint
+from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.configuration.accessors import DLT_CONFIG_VALUE, DLT_SECRETS_VALUE
 from dlt.common.reflection.utils import get_func_def_node, get_literal_defaults
 from dlt.common.utils import get_callable_name

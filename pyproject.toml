@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "python-dlt"
-version = "0.2.0a2"
+version = "0.2.0a3"
 description = "DLT is an open-source python-native scalable data loading framework that does not require any devops efforts to run."
 authors = ["ScaleVector <services@scalevector.ai>"]
 maintainers = [ "Marcin Rudolf <marcin@scalevector.ai>", "Adrian Brudaru <adrian@scalevector.ai>",]
@@ -62,6 +62,8 @@ dbt-core = {version = ">=1.1.0,<1.2.0", optional = true}
 dbt-redshift = {version = ">=1.0.0,<1.2.0", optional = true}
 dbt-bigquery = {version = ">=1.0.0,<1.2.0", optional = true, python = "<3.11"}
 astunparse = "^1.6.3"
+cron-descriptor = "^1.2.32"
+pipdeptree = "^2.3.3"
 
 
 [tool.poetry.dev-dependencies]

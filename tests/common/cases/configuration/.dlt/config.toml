@@ -3,6 +3,9 @@ api_type="REST"
 api.url="http"
 api.port=1024
 
+[sources]
+max_range=10
+
 [api.params]
 param1="a"
 param2="b"

@@ -1,13 +1,13 @@
-import re
 import ast
 import inspect
 import astunparse
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from dlt.common.typing import AnyFun
 
 
 def get_literal_defaults(node: ast.FunctionDef) -> Dict[str, str]:
+    """Extract defaults from function definition node literally, as pieces of source code"""
     defaults: List[ast.expr] = []
     if node.args.defaults:
         defaults.extend(node.args.defaults)
@@ -31,7 +31,7 @@ def get_literal_defaults(node: ast.FunctionDef) -> Dict[str, str]:
 
 
 def get_func_def_node(f: AnyFun) -> ast.FunctionDef:
-    # this will be slow
+    """Finds the function definition node for function f by parsing the source code of the f's module"""
     source, lineno = inspect.findsource(inspect.unwrap(f))
 
     for node in ast.walk(ast.parse("".join(source))):
@@ -46,7 +46,8 @@ def get_func_def_node(f: AnyFun) -> ast.FunctionDef:
     return None
 
 
-def get_outer_func_def(node: ast.AST) -> Optional[ast.FunctionDef]:
+def find_outer_func_def(node: ast.AST) -> Optional[ast.FunctionDef]:
+    """Finds the outer function definition node in which the 'node' is contained. Returns None if 'node' is toplevel."""
     if not hasattr(node, "parent"):
         raise ValueError("No parent information in node, not enabled in visitor", node)
     while not isinstance(node.parent, ast.FunctionDef):  # type: ignore
@@ -60,3 +61,10 @@ def set_ast_parents(tree: ast.AST) -> None:
     for node in ast.walk(tree):
         for child in ast.iter_child_nodes(node):
             child.parent = node if node is not tree else None  # type: ignore
+
+
+def evaluate_node_literal(node: ast.AST) -> Any:
+    try:
+        return ast.literal_eval(node)
+    except ValueError:
+        return None

@@ -4,6 +4,8 @@ import asyncio
 import inspect
 from typing import List, Sequence
 
+import pytest
+
 import dlt
 from dlt.common.time import sleep
 from dlt.common.typing import TDataItems
@@ -248,6 +250,21 @@ def test_filter_step() -> None:
     p = Pipe.from_data("data", [[1, 3], 2, [3, 4]])
     p.add_step(FilterItem(lambda item: item % 2 == 0))
     assert _f_items(list(PipeIterator.from_pipe(p))) == [2, [4]]
+
+
+@pytest.mark.skip("Not implemented")
+def test_async_pipe_exception() -> None:
+    pass
+
+
+@pytest.mark.skip("Not implemented")
+def test_thread_pipe_exception() -> None:
+    pass
+
+
+@pytest.mark.skip("Not implemented")
+def test_sync_pipe_exception() -> None:
+    pass
 
 
 def _f_items(pipe_items: Sequence[PipeItem]) -> List[TDataItems]:

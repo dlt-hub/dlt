@@ -1,17 +1,15 @@
-import ast
 from collections.abc import Mapping as C_Mapping
-from typing import Any, Dict, ContextManager, List, Optional, Sequence, Tuple, Type, TypeVar, get_origin
+from typing import Any, Dict, ContextManager, List, Optional, Sequence, Tuple, Type, TypeVar
 
-from dlt.common import json, logger
 from dlt.common.configuration.providers.provider import ConfigProvider
-from dlt.common.typing import AnyType, StrAny, TSecretValue, is_final_type, is_optional_type, extract_inner_type
-from dlt.common.schema.utils import coerce_value, py_type_to_sc_type
+from dlt.common.typing import AnyType, StrAny, TSecretValue, is_final_type, is_optional_type
 
-from dlt.common.configuration.specs.base_configuration import BaseConfiguration, CredentialsConfiguration, is_secret_hint, get_config_if_union, is_base_configuration_hint, is_context_hint
+from dlt.common.configuration.specs.base_configuration import BaseConfiguration, CredentialsConfiguration, is_secret_hint, is_context_hint, is_base_configuration_hint
 from dlt.common.configuration.specs.config_namespace_context import ConfigNamespacesContext
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
-from dlt.common.configuration.exceptions import (FinalConfigFieldException, LookupTrace, ConfigFieldMissingException, ConfigurationWrongTypeException, ConfigValueCannotBeCoercedException, ValueNotSecretException, InvalidNativeValue)
+from dlt.common.configuration.utils import extract_inner_hint, log_traces, deserialize_value
+from dlt.common.configuration.exceptions import (FinalConfigFieldException, LookupTrace, ConfigFieldMissingException, ConfigurationWrongTypeException, ValueNotSecretException, InvalidNativeValue)
 
 TConfiguration = TypeVar("TConfiguration", bound=BaseConfiguration)
 
@@ -23,57 +21,15 @@ def resolve_configuration(config: TConfiguration, *, namespaces: Tuple[str, ...]
     # try to get the native representation of the top level configuration using the config namespace as a key
     # allows, for example, to store connection string or service.json in their native form in single env variable or under single vault key
     if config.__namespace__ and explicit_value is None:
-        explicit_value, _ = _resolve_config_field(config.__namespace__, AnyType, None, explicit_value, config, None, namespaces, (), accept_partial)
+        initial_hint = TSecretValue if isinstance(config, CredentialsConfiguration) else AnyType
+        explicit_value, traces = _resolve_single_value(config.__namespace__, initial_hint, AnyType, None, namespaces, ())
+        if isinstance(explicit_value, C_Mapping):
+            # mappings cannot be used as explicit values, we want to enumerate mappings and request the fields' values one by one
+            explicit_value = None
+        else:
+            log_traces(None, config.__namespace__, type(config), explicit_value, None, traces)
 
     return _resolve_configuration(config, namespaces, (), explicit_value, accept_partial)
-
-
-def deserialize_value(key: str, value: Any, hint: Type[Any]) -> Any:
-    try:
-        if hint != Any:
-            hint_dt = py_type_to_sc_type(hint)
-            value_dt = py_type_to_sc_type(type(value))
-
-            # eval only if value is string and hint is "complex"
-            if value_dt == "text" and hint_dt == "complex":
-                if hint is tuple:
-                    # use literal eval for tuples
-                    value = ast.literal_eval(value)
-                else:
-                    # use json for sequences and mappings
-                    value = json.loads(value)
-                # exact types must match
-                if not isinstance(value, hint):
-                    raise ValueError(value)
-            else:
-                # for types that are not complex, reuse schema coercion rules
-                if value_dt != hint_dt:
-                    value = coerce_value(hint_dt, value_dt, value)
-        return value
-    except ConfigValueCannotBeCoercedException:
-        raise
-    except Exception as exc:
-        raise ConfigValueCannotBeCoercedException(key, value, hint) from exc
-
-
-def serialize_value(value: Any) -> Any:
-    if value is None:
-        raise ValueError(value)
-    # return literal for tuples
-    if isinstance(value, tuple):
-        return str(value)
-    # coerce type to text which will use json for mapping and sequences
-    value_dt = py_type_to_sc_type(type(value))
-    return coerce_value("text", value_dt, value)
-
-
-def extract_inner_hint(hint: Type[Any]) -> Type[Any]:
-    # extract hint from Optional / Literal / NewType hints
-    inner_hint = extract_inner_type(hint)
-    # get base configuration from union type
-    inner_hint = get_config_if_union(inner_hint) or inner_hint
-    # extract origin from generic types (ie List[str] -> List)
-    return get_origin(inner_hint) or inner_hint
 
 
 def inject_namespace(namespace_context: ConfigNamespacesContext, merge_existing: bool = True) -> ContextManager[ConfigNamespacesContext]:
@@ -161,11 +117,17 @@ def _resolve_config_fields(
 
     for key, hint in fields.items():
         # get default and explicit values
+        default_value = getattr(config, key, None)
+
         if explicit_values:
             explicit_value = explicit_values.get(key)
         else:
-            explicit_value = None
-        default_value = getattr(config, key, None)
+            if is_final_type(hint):
+                # for final fields default value is like explicit
+                explicit_value = default_value
+            else:
+                explicit_value = None
+
         current_value, traces = _resolve_config_field(key, hint, default_value, explicit_value, config, config.__namespace__, explicit_namespaces, embedded_namespaces, accept_partial)
         # check if hint optional
         is_optional = is_optional_type(hint)
@@ -202,7 +164,7 @@ def _resolve_config_field(
     else:
         # resolve key value via active providers passing the original hint ie. to preserve TSecretValue
         value, traces = _resolve_single_value(key, hint, inner_hint, config_namespace, explicit_namespaces, embedded_namespaces)
-        _log_traces(config, key, hint, value, traces)
+        log_traces(config, key, hint, value, default_value, traces)
     # contexts must be resolved as a whole
     if is_context_hint(inner_hint):
         pass
@@ -230,7 +192,12 @@ def _resolve_config_field(
                 # it must be a secret value is config is credentials
                 initial_hint = TSecretValue if isinstance(embedded_config, CredentialsConfiguration) else AnyType
                 value, initial_traces = _resolve_single_value(initial_key, initial_hint, AnyType, None, explicit_namespaces, initial_embedded)
-                traces.extend(initial_traces)
+                if isinstance(value, C_Mapping):
+                    # mappings are not passed as initials
+                    value = None
+                else:
+                    traces.extend(initial_traces)
+                    log_traces(config, initial_key, type(embedded_config), value, default_value, initial_traces)
 
             # check if hint optional
             is_optional = is_optional_type(hint)
@@ -246,15 +213,6 @@ def _resolve_config_field(
                 value = deserialize_value(key, value, inner_hint)
 
     return default_value if value is None else value, traces
-
-
-def _log_traces(config: BaseConfiguration, key: str, hint: Type[Any], value: Any, traces: Sequence[LookupTrace]) -> None:
-    if logger.is_logging() and logger.log_level() == "DEBUG":
-        logger.debug(f"Field {key} with type {hint} in {type(config).__name__} {'NOT RESOLVED' if value is None else 'RESOLVED'}")
-        # print(f"Field {key} with type {hint} in {type(config).__name__} {'NOT RESOLVED' if value is None else 'RESOLVED'}")
-        for tr in traces:
-            # print(str(tr))
-            logger.debug(str(tr))
 
 
 def _call_method_in_mro(config: BaseConfiguration, method_name: str) -> None:

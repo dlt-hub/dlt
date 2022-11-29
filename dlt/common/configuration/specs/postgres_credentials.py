@@ -22,6 +22,8 @@ class ConnectionStringCredentials(CredentialsConfiguration):
         try:
             url = make_url(native_value)
             self.update(url._asdict())
+            if self.query is not None:
+                self.query = dict(self.query)
             self.__is_resolved__ = not self.is_partial()
         except Exception:
             raise InvalidConnectionString(self.__class__, native_value)

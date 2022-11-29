@@ -1,5 +1,3 @@
-from typing import Optional
-
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import GcpClientCredentialsWithDefault
 from dlt.common.destination import DestinationClientDwhConfiguration

@@ -9,8 +9,7 @@ from dlt.common.configuration.inject import with_config
 from dlt.common.configuration.exceptions import LookupTrace
 from dlt.common.configuration.providers.toml import ConfigTomlProvider, TomlProviderReadException
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
-from dlt.common.configuration.specs import BaseConfiguration, GcpClientCredentials, PostgresCredentials
-from dlt.common.configuration.specs.postgres_credentials import ConnectionStringCredentials
+from dlt.common.configuration.specs import BaseConfiguration, GcpClientCredentials, PostgresCredentials, ConnectionStringCredentials
 from dlt.common.typing import TSecretValue
 
 from tests.utils import preserve_environ
@@ -35,7 +34,7 @@ def test_secrets_from_toml_secrets() -> None:
     traces = py_ex.value.traces["secret_value"]
     assert len(traces) == 2
     assert traces[0] == LookupTrace("Environment Variables", [], "SECRET_VALUE", None)
-    assert traces[1] == LookupTrace("Pipeline secrets.toml", [], "secret_value", None)
+    assert traces[1] == LookupTrace("secrets.toml", [], "secret_value", None)
 
     with pytest.raises(ConfigFieldMissingException) as py_ex:
         resolve.resolve_configuration(WithCredentialsConfiguration())
@@ -92,7 +91,7 @@ def test_toml_mixed_config_inject(toml_providers: ConfigProvidersContext) -> Non
 
 
 def test_toml_namespaces(toml_providers: ConfigProvidersContext) -> None:
-    cfg = toml_providers["Pipeline config.toml"]
+    cfg = toml_providers["config.toml"]
     assert cfg.get_value("api_type", str) == ("REST", "api_type")
     assert cfg.get_value("port", int, "api") == (1024, "api.port")
     assert cfg.get_value("param1", str, "api", "params") == ("a", "api.params.param1")
@@ -148,8 +147,13 @@ def test_secrets_toml_embedded_credentials(environment: Any, toml_providers: Con
         resolve.resolve_configuration(GcpClientCredentials())
 
 
+def test_dicts_are_not_enumerated() -> None:
+    # dicts returned by toml provider cannot be used as explicit values or initial values for the whole configurations
+    pass
+
+
 def test_secrets_toml_credentials_from_native_repr(environment: Any, toml_providers: ConfigProvidersContext) -> None:
-    # cfg = toml_providers["Pipeline secrets.toml"]
+    # cfg = toml_providers["secrets.toml"]
     # print(cfg._toml)
     # print(cfg._toml["source"]["credentials"])
     # resolve gcp_credentials by parsing initial value which is str holding json doc
@@ -167,7 +171,7 @@ def test_secrets_toml_credentials_from_native_repr(environment: Any, toml_provid
 
 
 def test_toml_get_key_as_namespace(toml_providers: ConfigProvidersContext) -> None:
-    cfg = toml_providers["Pipeline secrets.toml"]
+    cfg = toml_providers["secrets.toml"]
     # [credentials]
     # secret_value="2137"
     # so the line below will try to use secrets_value value as namespace, this must fallback to not found
