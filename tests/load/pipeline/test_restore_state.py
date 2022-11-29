@@ -8,12 +8,12 @@ from dlt.common import pendulum
 from dlt.common.schema.schema import Schema, utils
 from dlt.common.schema.typing import LOADS_TABLE_NAME, VERSION_TABLE_NAME
 from dlt.common.utils import uniq_id
-from dlt.pipeline.exceptions import PipelineConfigMissing
 from dlt.pipeline.pipeline import Pipeline
 from dlt.pipeline.state import STATE_TABLE_NAME, load_state_from_destination, state_resource
 
 from tests.utils import ALL_DESTINATIONS, preserve_environ, autouse_test_storage, TEST_STORAGE_ROOT
 from tests.common.utils import IMPORTED_VERSION_HASH_ETH_V5, yml_case_path as common_yml_case_path
+from tests.common.configuration.utils import environment
 from tests.pipeline.utils import drop_dataset_from_env, patch_working_dir
 from tests.load.pipeline.utils import drop_pipeline
 
@@ -104,6 +104,14 @@ def test_restore_state_utils(destination_name: str) -> None:
         # and extract timestamp increased
         assert new_stored_state["_last_extracted_at"] < new_stored_state_2["_last_extracted_at"]
 
+
+@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
+def test_silently_skip_on_invalid_credentials(destination_name: str, environment: Any) -> None:
+    environment["CREDENTIALS"] = "postgres://loader:password@localhost:5432/dlt_data"
+    environment["DESTINATION__BIGQUERY__CREDENTIALS"] = '{"project_id": "chat-analytics-","client_email": "loader@chat-analytics-317513","private_key": "-----BEGIN PRIVATE KEY-----\\nMIIEuwIBADANBgkqhkiG9w0BAQEFAASCBKUwggShAgEAAoIBAQCNEN0bL39HmD"}'
+    pipeline_name = "pipe_" + uniq_id()
+    dataset_name="state_test_" + uniq_id()
+    dlt.pipeline(pipeline_name=pipeline_name, destination=destination_name, dataset_name=dataset_name)
 
 
 @pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)

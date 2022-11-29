@@ -22,7 +22,7 @@ def git_custom_key_command(private_key: Optional[str]) -> Iterator[str]:
         try:
             # permissions so SSH does not complain
             os.chmod(key_file, 0o600)
-            yield 'ssh -o "StrictHostKeyChecking accept-new" -i %s' % key_file
+            yield 'ssh -o "StrictHostKeyChecking accept-new" -i "%s"' % key_file.replace("\\", "\\\\")
         finally:
             os.remove(key_file)
     else:
@@ -46,12 +46,13 @@ def ensure_remote_head(repo_path: str, with_git_command: Optional[str] = None) -
             raise RepositoryDirtyError(repo, status)
 
 
-def clone_repo(repository_url: str, clone_path: str, branch: Optional[str] = None, with_git_command: Optional[str] = None) -> None:
+def clone_repo(repository_url: str, clone_path: str, branch: Optional[str] = None, with_git_command: Optional[str] = None) -> Repo:
     from git import Repo
 
     repo = Repo.clone_from(repository_url, clone_path, env=dict(GIT_SSH_COMMAND=with_git_command))
     if branch:
         repo.git.checkout(branch)
+    return repo
 
 
 def get_repo(path: str) -> Repo:

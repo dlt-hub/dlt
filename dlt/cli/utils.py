@@ -47,8 +47,6 @@ def parse_init_script(command: str, script_source: str, init_script_name: str) -
     visitor.visit(tree)
     if len(visitor.mod_aliases) == 0:
         raise CliCommandException(command, f"The pipeline script {init_script_name} does not import dlt and does not seem to run any pipelines")
-    if n.RUN not in visitor.known_calls:
-        raise CliCommandException(command, f"The pipeline script {init_script_name} does not seem to run the pipeline.")
 
     return visitor
 

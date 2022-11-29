@@ -1,8 +1,8 @@
-from typing import Optional
+from typing import Any, Optional
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import RunConfiguration, BaseConfiguration
-from dlt.common.typing import TSecretValue
+from dlt.common.typing import AnyFun, TSecretValue
 from dlt.common.utils import digest256
 
 
@@ -22,3 +22,9 @@ class PipelineConfiguration(BaseConfiguration):
             self.pipeline_name = self.runtime.pipeline_name
         if not self.pipeline_salt:
             self.pipeline_salt = TSecretValue(digest256(self.pipeline_name))
+
+
+def ensure_correct_pipeline_kwargs(f: AnyFun, **kwargs: Any) -> None:
+    for arg_name in kwargs:
+        if not hasattr(PipelineConfiguration, arg_name) and not arg_name.startswith("_dlt"):
+            raise TypeError(f"{f.__name__} got an unexpected keyword argument '{arg_name}'")

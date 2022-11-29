@@ -1224,7 +1224,7 @@ name = "pytz"
 version = "2022.6"
 description = "World timezone definitions, modern and historical"
 category = "main"
-optional = true
+optional = false
 python-versions = "*"
 
 [[package]]
@@ -1606,7 +1606,7 @@ redshift = ["psycopg2-binary", "psycopg2cffi"]
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.8,<4.0"
-content-hash = "b92169062375a6aa6361341a4a46d2955a8f1ea06baeb7ee7add64d75d62b72c"
+content-hash = "a38a00b7405a966330bd17c0f4f6a52288e51afd30a05afe67e67b648797e90a"
 
 [metadata.files]
 agate = [

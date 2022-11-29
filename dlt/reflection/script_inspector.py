@@ -19,20 +19,23 @@ def patch__init__(self: Any, *args: Any, **kwargs: Any) -> None:
 def inspect_pipeline_script(script_path: str) -> ModuleType:
     if not os.path.isfile(script_path):
         raise FileNotFoundError(script_path)
+
     # get module import data
     path, module = os.path.split(script_path)
+    _, package = os.path.split(path)
     module, _ = os.path.splitext(module)
 
     # add path to module search
     sys_path: str = None
     if path not in sys.path:
         sys_path = path
-        sys.path.append(sys_path)
+        # path must be first so we always load our module of
+        sys.path.insert(0, sys_path)
     try:
 
         # patch entry points to pipeline, sources and resources to prevent pipeline from running
         with patch.object(Pipeline, '__init__', patch__init__), patch.object(DltSource, '__init__', patch__init__), patch.object(PipeIterator, '__init__', patch__init__):
-            return import_module(module)
+            return import_module(f"{package}.{module}")
     finally:
         # remove script module path
         if sys_path:

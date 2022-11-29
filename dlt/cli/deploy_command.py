@@ -34,7 +34,7 @@ REQUIREMENTS_GITHUB_ACTION = "requirements_github_action.txt"
 GITHUB_URL = "https://github.com/"
 
 
-def deploy_command(pipeline_script_path: str, deployment_method: str, schedule: str, run_on_push: bool, run_on_dispatch: bool, branch: str) -> None:
+def deploy_command(pipeline_script_path: str, deployment_method: str, schedule: str, run_on_push: bool, run_on_dispatch: bool, branch: str = None) -> None:
     # get current repo local folder
     repo = get_repo(pipeline_script_path)
     repo_storage = FileStorage(str(repo.working_dir))
@@ -52,6 +52,8 @@ def deploy_command(pipeline_script_path: str, deployment_method: str, schedule: 
     # load pipeline script and extract full_refresh and pipelines_dir args
     pipeline_script = repo_storage.load(repo_pipeline_script_path)
     visitor = utils.parse_init_script("deploy", pipeline_script, pipeline_script_path)
+    if n.RUN not in visitor.known_calls:
+        raise CliCommandException("deploy", f"The pipeline script {pipeline_script_path} does not seem to run the pipeline.")
     # full_refresh = False
     pipelines_dir: str = None
     pipeline_name: str = None
@@ -81,7 +83,7 @@ def deploy_command(pipeline_script_path: str, deployment_method: str, schedule: 
         pipelines_dir = os.path.abspath(pipelines_dir)
 
     # change the working dir to the script working dir
-    with set_working_dir(pipeline_script_path):
+    with set_working_dir(os.path.split(pipeline_script_path)[0]):
         # use script name to derive pipeline name
         if not pipeline_name:
             # TODO: also look in config.toml

@@ -1,0 +1,5 @@
+# put your configuration values here
+api_url = "api_url" # please set me up!
+
+[runtime]
+log_level="WARNING"  # the system log level of dlt

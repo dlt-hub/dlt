@@ -743,13 +743,25 @@ class Pipeline:
             self.default_schema_name = dataset_name
             job_client = self._optional_sql_job_client(dataset_name)
             if job_client:
-                with job_client.sql_client as sql_client:
-                    state = load_state_from_destination(self.pipeline_name, sql_client)
-                    if state is None:
-                        logger.info(f"The state was not found in the destination {self.destination.__name__}:{dataset_name}")
-                    else:
-                        logger.info(f"The state was restored from the destination {self.destination.__name__}:{dataset_name}")
-                    return state
+                # handle open connection exception silently
+                state = None
+                try:
+                    job_client.sql_client.open_connection()
+                except Exception:
+                    # pass on connection errors
+                    pass
+                else:
+                    # try too get state from destination
+                    state = load_state_from_destination(self.pipeline_name, job_client.sql_client)
+                finally:
+                    job_client.sql_client.close_connection()
+
+                if state is None:
+                    logger.info(f"The state was not found in the destination {self.destination.__name__}:{dataset_name}")
+                else:
+                    logger.info(f"The state was restored from the destination {self.destination.__name__}:{dataset_name}")
+                return state
+
             else:
                 return None
         finally:
