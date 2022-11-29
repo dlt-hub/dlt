@@ -7,6 +7,8 @@ import pytest
 import dlt
 
 from dlt.cli.exceptions import CliCommandException
+from dlt.common.configuration.container import Container
+from dlt.common.pipeline import PipelineContext
 from dlt.common.runners.venv import Venv
 from dlt.common.storages.file_storage import FileStorage
 
@@ -57,6 +59,7 @@ def test_deploy_command(test_storage: FileStorage) -> None:
     # drop pipeline
     p = dlt.pipeline(pipeline_name="debug_pipeline")
     p._wipe_working_folder()
+    Container()[PipelineContext].deactivate()
 
     shutil.copytree("tests/cli/cases/deploy_pipeline", TEST_STORAGE_ROOT, dirs_exist_ok=True)
 
@@ -76,7 +79,7 @@ def test_deploy_command(test_storage: FileStorage) -> None:
         # run the script with wrong credentials (it is postgres there)
         venv = Venv.restore_current()
         # mod environ so wrong password is passed to override secrets.toml
-        os.environ.pop("DESTINATION__POSTGRES__CREDENTIALS", None)
+        pg_credentials = os.environ.pop("DESTINATION__POSTGRES__CREDENTIALS")
         os.environ["DESTINATION__POSTGRES__CREDENTIALS__PASSWORD"] = "password"
         with pytest.raises(CalledProcessError) as py_ex:
             venv.run_script("debug_pipeline.py")
@@ -84,7 +87,7 @@ def test_deploy_command(test_storage: FileStorage) -> None:
         with pytest.raises(deploy_command.PipelineWasNotRun) as py_ex:
             deploy_command.deploy_command("debug_pipeline.py", "github-action", "*/30 * * * *", True, True)
         assert "The last pipeline run ended with error" in py_ex.value.args[0]
-        os.environ["DESTINATION__POSTGRES__CREDENTIALS__PASSWORD"] = "loader"
+        os.environ["DESTINATION__POSTGRES__CREDENTIALS"] = pg_credentials
         # this time script will run
         venv.run_script("debug_pipeline.py")
         deploy_command.deploy_command("debug_pipeline.py", "github-action", "*/30 * * * *", True, True)
