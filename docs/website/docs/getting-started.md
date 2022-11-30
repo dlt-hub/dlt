@@ -23,8 +23,8 @@ pip install -r requirements.txt
 
 ## 2. Set up Google BigQuery
 
-You can follow the steps under [Google BigQuery](./destinations.md#google-bigquery) to 
-create the service account credentials you'll need to add to `.dlt/secrets.toml`.
+Follow [Google BigQuery](./destinations.md#google-bigquery) to create the service account 
+credentials you'll need to add to `.dlt/secrets.toml`.
 
 ## 3. Run pipeline
 
