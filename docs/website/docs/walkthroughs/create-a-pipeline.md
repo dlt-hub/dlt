@@ -5,7 +5,8 @@ sidebar_position: 1
 # Create a pipeline
 
 Follow the steps below to create a [pipeline](./glossary.md/#pipeline) from the Twitter API to 
-Google BigQuery from scratch. The same steps can repeated for any source of your choice.
+Google BigQuery from scratch. The same steps can be repeated for any source and destination of your 
+choice--use `dlt init <source> <destination>` and then build the pipeline for that API instead.
 
 Please make sure you have [installed `dlt`](./installation.mdx) before getting started here.
 
@@ -32,6 +33,16 @@ You can follow the steps in [Set up Google BigQuery](../getting-started.md#2-set
 to create the service account credentials you'll need for BigQuery and add them to `.dlt/secrets.toml`.
 
 ## 3. Add Twitter API credentials
+
+You will need to [sign up for the Twitter API](https://developer.twitter.com/en/docs/platform-overview)
+and create a
+
+```
+[credentials]
+bearer_token = '**********'
+```
+
+
 
 - Uncomment out the first `@resource` function call
 - Add credentials
