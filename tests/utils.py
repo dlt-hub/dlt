@@ -124,3 +124,7 @@ skipifpypy = pytest.mark.skipif(
 skipifnotwindows = pytest.mark.skipif(
     platform.system() != "Windows", reason="runs only on windows"
 )
+
+skipifwindows = pytest.mark.skipif(
+    platform.system() == "Windows", reason="does not runs on windows"
+)
