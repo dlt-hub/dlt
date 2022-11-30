@@ -4,13 +4,20 @@ sidebar_position: 2
 
 # Deploy a pipeline
 
-## You need a GitHub account
-
-## You need a working pipeline
+Before you can deploy a pipeline, you will need to 1) [install dlt](../installation.mdx),
+2) [create a pipeline](./create-a-pipeline.md), and 3) sign up for a [GitHub](https://github.com) account, 
+since we will deploying using [GitHub Actions](https://github.com/features/actions).
 
 ## Initialize deployment
 
-`dlt pipeline deploy <script> github --schedule "****" --on-push`
+In the same `dlt` project as your working pipeline, you can create a deployment using 
+[GitHub Actions](https://github.com/features/actions) that will load your data every 30 minutes by running
+```
+dlt pipeline deploy <script>.py github --schedule "*/30 * * * *"
+```
+
+
+
 
 - Command creates `workflow` file
 - Command sets environment variables in workflow file
@@ -24,6 +31,6 @@ sidebar_position: 2
 
 ## See it running
 
+```
 https://github.com/<user>/<repo>/actions/workflows/<filename>.yml
-
-- This is where you can disable
+```
