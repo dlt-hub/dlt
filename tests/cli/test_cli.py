@@ -35,11 +35,11 @@ def test_init_command_template() -> None:
         assert_init_files("debug_pipeline", "bigquery")
 
 
-def test_init_command_chess() -> None:
+def test_init_command_chess_verified_pipeline() -> None:
     _SOURCES.clear()
 
     with set_working_dir(TEST_STORAGE_ROOT):
-        init_command.init_command("chess_pipeline", "postgres", False)
+        init_command.init_command("chess", "postgres", False)
         assert_init_files("chess_pipeline", "postgres")
 
 

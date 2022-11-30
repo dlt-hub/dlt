@@ -183,7 +183,7 @@ def init_command(pipeline_name: str, destination_name: str, use_generic_template
     )
 
     # inspect the script
-    script_module = inspect_pipeline_script(clone_storage.make_full_path(init_script_name))
+    script_module = inspect_pipeline_script(clone_storage.storage_path, clone_storage.to_relative_path(init_script_name))
 
     if len(_SOURCES) == 0:
         raise CliCommandException("init", f"The pipeline script {init_script_name} is not creating or importing any sources or resources")

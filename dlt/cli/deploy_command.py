@@ -45,7 +45,7 @@ def deploy_command(pipeline_script_path: str, deployment_method: str, schedule: 
         if "github.com" not in origin:
             raise CliCommandException("deploy", f"Your current repository origin is not set to github but to {origin}.\nYou must change it to be able to run the pipelines with github actions: https://docs.github.com/en/get-started/getting-started-with-git/managing-remote-repositories")
     except ValueError:
-        raise CliCommandException("deploy", "Your current repository has no origin set. Please set it up to be able to run the pipelines with github actions: https://docs.github.com/en/get-started/getting-started-with-git/managing-remote-repositories")
+        raise CliCommandException("deploy", "Your current repository has no origin set. Please set it up to be able to run the pipelines with github actions: https://docs.github.com/en/get-started/importing-your-projects-to-github/importing-source-code-to-github/adding-locally-hosted-code-to-github")
 
     # convert to path relative to repo
     repo_pipeline_script_path = repo_storage.from_wd_to_relative_path(pipeline_script_path)

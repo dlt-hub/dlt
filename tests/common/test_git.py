@@ -5,7 +5,7 @@ import pytest
 from dlt.common.storages import FileStorage
 from dlt.common.git import clone_repo, ensure_remote_head, git_custom_key_command
 
-from tests.utils import test_storage
+from tests.utils import test_storage, skipifwindows
 from tests.common.utils import load_secret, modify_and_commit_file, restore_secret_storage_path
 
 
@@ -62,6 +62,7 @@ def test_clone_with_deploy_key_access_denied(test_storage: FileStorage) -> None:
             clone_repo(PRIVATE_REPO, repo_path, with_git_command=git_command)
 
 
+@skipifwindows
 def test_clone_with_deploy_key(test_storage: FileStorage) -> None:
     secret = load_secret("deploy_key")
     repo_path = test_storage.make_full_path("private_repo_access")
@@ -70,6 +71,7 @@ def test_clone_with_deploy_key(test_storage: FileStorage) -> None:
         ensure_remote_head(repo_path, with_git_command=git_command)
 
 
+@skipifwindows
 def test_repo_status_update(test_storage: FileStorage) -> None:
     secret = load_secret("deploy_key")
     repo_path = test_storage.make_full_path("private_repo_access")

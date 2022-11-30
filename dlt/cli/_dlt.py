@@ -55,7 +55,7 @@ def deploy_command_wrapper(pipeline_script_path: str, deployment_method: str, sc
         click.echo("Currently you must run the pipeline at least once")
     except InvalidGitRepositoryError:
         click.secho(
-            "The path %s is invalid, outside of any git repository or git repository is not initialized. Initialize the repository and add it to Github by following the guide %s" % (pipeline_script_path, fmt.bold("https://docs.github.com/en/get-started/quickstart/create-a-repo")),
+            "No git repository found for pipeline script %s. Add your local code to Github as described here: %s" % (fmt.bold(pipeline_script_path), fmt.bold("https://docs.github.com/en/get-started/importing-your-projects-to-github/importing-source-code-to-github/adding-locally-hosted-code-to-github")),
             err=True,
             fg="red"
         )

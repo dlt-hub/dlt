@@ -1,10 +1,12 @@
 import os
 import sys
+from pathlib import Path
 from types import ModuleType
 from typing import Any, Tuple
 from unittest.mock import patch
 from importlib import import_module
 
+from dlt.common import logger
 from dlt.common.exceptions import DltException
 from dlt.common.typing import DictStrAny
 
@@ -16,14 +18,18 @@ def patch__init__(self: Any, *args: Any, **kwargs: Any) -> None:
     raise PipelineIsRunning(self, args, kwargs)
 
 
-def inspect_pipeline_script(script_path: str) -> ModuleType:
+def inspect_pipeline_script(module_path:str, script_relative_path: str) -> ModuleType:
+    if os.path.isabs(script_relative_path):
+        raise ValueError(script_relative_path, f"Not relative path to {module_path}")
+    script_path = os.path.join(module_path, script_relative_path)
     if not os.path.isfile(script_path):
         raise FileNotFoundError(script_path)
 
     # get module import data
-    path, module = os.path.split(script_path)
-    _, package = os.path.split(path)
-    module, _ = os.path.splitext(module)
+    path, package = os.path.split(module_path)
+    # _, package = os.path.split(path)
+    module, _ = os.path.splitext(script_relative_path)
+    module = ".".join(Path(module).parts)
 
     # add path to module search
     sys_path: str = None
@@ -35,6 +41,7 @@ def inspect_pipeline_script(script_path: str) -> ModuleType:
 
         # patch entry points to pipeline, sources and resources to prevent pipeline from running
         with patch.object(Pipeline, '__init__', patch__init__), patch.object(DltSource, '__init__', patch__init__), patch.object(PipeIterator, '__init__', patch__init__):
+            print(f"Importing pipeline script from path {path} and module: {package}.{module}")
             return import_module(f"{package}.{module}")
     finally:
         # remove script module path
