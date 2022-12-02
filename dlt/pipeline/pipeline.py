@@ -573,8 +573,8 @@ class Pipeline:
         except Exception as r_ex:
             # if EXIT_ON_EXCEPTION flag is set, exception will bubble up directly
             raise PipelineStepFailed(self, step, self.last_run_exception, runner.LAST_RUN_METRICS) from r_ex
-        finally:
-            signals.raise_if_signalled()
+        # finally:
+        #     signals.raise_if_signalled()
 
     def _run_f_in_pool(self, run_f: Callable[..., Any], config: PoolRunnerConfiguration) -> int:
 

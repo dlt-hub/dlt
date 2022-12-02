@@ -22,6 +22,7 @@ def timestamp_before(timestamp: float, max_inclusive: Optional[float]) -> bool:
 
 
 def sleep(sleep_seconds: float) -> None:
+    """A signal-aware version of sleep function. Will raise SignalReceivedException if signal was received during sleep period."""
     # do not allow sleeping if signal was received
     signals.raise_if_signalled()
     # sleep or wait for signal

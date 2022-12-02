@@ -1,4 +1,4 @@
-from typing import Any, Callable, Type, List, Dict, Optional, Sequence, Tuple
+from typing import Callable, List, Dict, Sequence, Tuple
 from multiprocessing.pool import Pool as ProcessPool
 from itertools import chain
 from prometheus_client import Counter, CollectorRegistry, REGISTRY, Gauge
@@ -15,7 +15,6 @@ from dlt.common.storages.exceptions import SchemaNotFoundError
 from dlt.common.storages import NormalizeStorage, SchemaStorage, LoadStorage
 from dlt.common.telemetry import get_logging_extras
 from dlt.common.typing import TDataItem
-from dlt.common.exceptions import PoolException
 from dlt.common.schema import TSchemaUpdate, Schema
 from dlt.common.schema.exceptions import CannotCoerceColumnException
 
@@ -114,8 +113,9 @@ class Normalize(Runnable[ProcessPool]):
                         logger.debug(f"Processed total {line_no + 1} lines from file {extracted_items_file}, total items {total_items}")
         except Exception:
             logger.exception(f"Exception when processing file {extracted_items_file}, line {line_no}")
+            raise
             # logger.debug(f"Affected item: {item}")
-            raise PoolException("normalize_files", extracted_items_file)
+            # raise PoolException("normalize_files", extracted_items_file)
         finally:
             load_storage.close_writers(load_id)
 
