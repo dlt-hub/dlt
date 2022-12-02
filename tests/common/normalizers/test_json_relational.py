@@ -5,7 +5,7 @@ from dlt.common.utils import digest128, uniq_id
 from dlt.common.schema import Schema
 from dlt.common.schema.utils import new_table
 
-from dlt.common.normalizers.json.relational import JSONNormalizerConfigPropagation, _flatten, _get_child_row_hash, _normalize_row, normalize_data_item
+from dlt.common.normalizers.json.relational import RelationalNormalizerConfigPropagation, _flatten, _get_child_row_hash, _normalize_row, normalize_data_item, update_normalizer_config
 
 from tests.utils import create_schema_with_name
 
@@ -403,7 +403,7 @@ def test_propagates_root_context(schema: Schema) -> None:
 @pytest.mark.parametrize("add_pk,add_dlt_id", [(False, False), (True, False), (True, True)])
 def test_propagates_table_context(schema: Schema, add_pk: bool, add_dlt_id: bool) -> None:
     add_dlt_root_id_propagation(schema)
-    prop_config: JSONNormalizerConfigPropagation = schema._normalizers_config["json"]["config"]["propagation"]
+    prop_config: RelationalNormalizerConfigPropagation = schema._normalizers_config["json"]["config"]["propagation"]
     prop_config["root"]["timestamp"] = "_partition_ts"
     # for table "table__lvl1" request to propagate "vx" and "partition_ovr" as "_partition_ts" (should overwrite root)
     prop_config["tables"]["table__lvl1"] = {
@@ -446,7 +446,7 @@ def test_propagates_table_context(schema: Schema, add_pk: bool, add_dlt_id: bool
 
 def test_propagates_table_context_to_lists(schema: Schema) -> None:
     add_dlt_root_id_propagation(schema)
-    prop_config: JSONNormalizerConfigPropagation = schema._normalizers_config["json"]["config"]["propagation"]
+    prop_config: RelationalNormalizerConfigPropagation = schema._normalizers_config["json"]["config"]["propagation"]
     prop_config["root"]["timestamp"] = "_partition_ts"
 
     row = {
@@ -536,7 +536,7 @@ def test_complex_types_for_recursion_level(schema: Schema) -> None:
     assert ["default", "default__f", "default__f__l", "default__f__lo"] == [r[0][0] for r in n_rows_nl]
 
     # set max nesting to 0
-    schema._normalizers_config["json"]["config"]["max_nesting"] = 0
+    set_max_nesting(schema, 0)
     n_rows = list(schema.normalize_data_item(schema, row, "load_id", "default"))
     # the "f" element is left as complex type and not normalized
     assert len(n_rows) == 1
@@ -545,7 +545,7 @@ def test_complex_types_for_recursion_level(schema: Schema) -> None:
     assert type(n_rows[0][1]["f"]) is list
 
     # max nesting 1
-    schema._normalizers_config["json"]["config"]["max_nesting"] = 1
+    set_max_nesting(schema, 1)
     n_rows = list(schema.normalize_data_item(schema, row, "load_id", "default"))
     assert len(n_rows) == 2
     assert ["default", "default__f"] == [r[0][0] for r in n_rows]
@@ -556,7 +556,7 @@ def test_complex_types_for_recursion_level(schema: Schema) -> None:
     assert type(n_rows[1][1]["lo"]) is list
 
     # max nesting 2
-    schema._normalizers_config["json"]["config"]["max_nesting"] = 2
+    set_max_nesting(schema, 2)
     n_rows = list(schema.normalize_data_item(schema, row, "load_id", "default"))
     assert len(n_rows) == 4
     # in default__f__lo the dicts that would be flattened are complex types
@@ -564,7 +564,7 @@ def test_complex_types_for_recursion_level(schema: Schema) -> None:
     assert last_row[1]["e"] == {"v": 1}
 
     # max nesting 3
-    schema._normalizers_config["json"]["config"]["max_nesting"] = 3
+    set_max_nesting(schema, 3)
     n_rows = list(schema.normalize_data_item(schema, row, "load_id", "default"))
     assert n_rows_nl == n_rows
 
@@ -651,14 +651,20 @@ def test_keeps_none_values() -> None:
     assert normalized_row["_dlt_load_id"] == "1762162.1212"
 
 
+def set_max_nesting(schema: Schema, max_nesting: int) -> None:
+    update_normalizer_config(schema,
+        {
+            "max_nesting": max_nesting
+        }
+    )
+
+
 def add_dlt_root_id_propagation(schema: Schema) -> None:
-    schema._normalizers_config["json"] = {
-        "config": {
-            "propagation": {
+    update_normalizer_config(schema, {
+        "propagation": {
                 "root": {
                     "_dlt_id": "_dlt_root_id"
                 },
                 "tables": {}
             }
-        }
-    }
+    })

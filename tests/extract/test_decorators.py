@@ -170,6 +170,6 @@ def test_class_source() -> None:
                 return dlt.resource(["A", "V"] * self.elems * more, name="_list")
 
 
-@pytest.mark.skip
+@pytest.mark.skip("Not implemented")
 def test_class_resource() -> None:
     pass

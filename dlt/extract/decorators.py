@@ -8,6 +8,8 @@ from dlt.common.configuration import with_config, get_fun_spec
 from dlt.common.configuration.resolve import inject_namespace
 from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.configuration.specs.config_namespace_context import ConfigNamespacesContext
+from dlt.common.exceptions import ArgumentsOverloadException
+from dlt.common.normalizers.json import relational as relational_normalizer
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import TTableSchemaColumns, TWriteDisposition
 from dlt.common.storages.exceptions import SchemaNotFoundError
@@ -33,14 +35,17 @@ TResourceFunParams = ParamSpec("TResourceFunParams")
 
 
 @overload
-def source(func: Callable[TSourceFunParams, Any], /, name: str = None, schema: Schema = None, spec: Type[BaseConfiguration] = None) -> Callable[TSourceFunParams, DltSource]:
+def source(func: Callable[TSourceFunParams, Any], /, name: str = None, max_table_nesting: int = None, schema: Schema = None, spec: Type[BaseConfiguration] = None) -> Callable[TSourceFunParams, DltSource]:
     ...
 
 @overload
-def source(func: None = ..., /, name: str = None, schema: Schema = None, spec: Type[BaseConfiguration] = None) -> Callable[[Callable[TSourceFunParams, Any]], Callable[TSourceFunParams, DltSource]]:
+def source(func: None = ..., /, name: str = None, max_table_nesting: int = None, schema: Schema = None, spec: Type[BaseConfiguration] = None) -> Callable[[Callable[TSourceFunParams, Any]], Callable[TSourceFunParams, DltSource]]:
     ...
 
-def source(func: Optional[AnyFun] = None, /, name: str = None, schema: Schema = None, spec: Type[BaseConfiguration] = None) -> Any:
+def source(func: Optional[AnyFun] = None, /, name: str = None, max_table_nesting: int = None, schema: Schema = None, spec: Type[BaseConfiguration] = None) -> Any:
+
+    if name and schema:
+        raise ArgumentsOverloadException("'name' has no effect when `schema` argument is present", source.__name__)
 
     def decorator(f: Callable[TSourceFunParams, Any]) -> Callable[TSourceFunParams, DltSource]:
         nonlocal schema, name
@@ -57,6 +62,14 @@ def source(func: Optional[AnyFun] = None, /, name: str = None, schema: Schema = 
         if not schema:
             # load the schema from file with name_schema.yaml/json from the same directory, the callable resides OR create new default schema
             schema = _maybe_load_schema_for_callable(f, name) or Schema(name, normalize_name=True)
+
+        if max_table_nesting is not None:
+            # limit the number of levels in the parent-child table hierarchy
+            relational_normalizer.update_normalizer_config(schema,
+                {
+                    "max_nesting": max_table_nesting
+                }
+            )
 
         # wrap source extraction function in configuration with namespace
         source_namespaces = ("sources", name)
@@ -94,28 +107,6 @@ def source(func: Optional[AnyFun] = None, /, name: str = None, schema: Schema = 
     return decorator(func)
 
 
-# @source
-# def reveal_1() -> None:
-#     pass
-
-# @source(name="revel")
-# def reveal_2() -> None:
-#     pass
-
-
-# def revel_3(v) -> int:
-#     pass
-
-
-# reveal_type(reveal_1)
-# reveal_type(reveal_1())
-
-# reveal_type(reveal_2)
-# reveal_type(reveal_2())
-
-# reveal_type(source(revel_3))
-# reveal_type(source(revel_3)("s"))
-
 @overload
 def resource(
     data: Callable[TResourceFunParams, Any],
@@ -142,13 +133,6 @@ def resource(
 ) -> Callable[[Callable[TResourceFunParams, Any]], Callable[TResourceFunParams, DltResource]]:
     ...
 
-
-# @overload
-# def resource(
-#     data: Union[DltSource, DltResource, Sequence[DltSource], Sequence[DltResource]],
-#     /
-# ) -> DltResource:
-#     ...
 
 
 @overload
@@ -255,69 +239,6 @@ def _get_source_for_inner_function(f: AnyFun) -> Optional[SourceInfo]:
     parts = get_callable_name(f, "__qualname__").split(".")
     parent_fun = ".".join(parts[:-2])
     return _SOURCES.get(parent_fun)
-
-# @resource
-# def reveal_1() -> None:
-#     yield 1
-
-
-# @transformer(data_from=reveal_1)
-# def transf(item, a, b, c=None):
-#     yield item
-
-# reveal_type(transf)
-
-
-# @resource(name="revel")
-# def reveal_2() -> None:
-#     pass
-
-
-# def revel_3(v) -> int:
-#     pass
-
-
-# reveal_type(reveal_1)
-# reveal_type(reveal_1())
-
-# reveal_type(reveal_2)
-# reveal_type(reveal_2())
-
-# reveal_type(resource(revel_3))
-# reveal_type(resource(revel_3)("s"))
-
-
-# reveal_type(resource([], name="aaaa"))
-# reveal_type(resource("aaaaa", name="aaaa"))
-
-# name of dlt metadata as part of the item
-# DLT_METADATA_FIELD = "_dlt_meta"
-
-
-# class TEventDLTMeta(TypedDict, total=False):
-#     table_name: str  # a root table in which store the event
-
-
-# def append_dlt_meta(item: TBoundItem, name: str, value: Any) -> TBoundItem:
-#     if isinstance(item, abc.Sequence):
-#         for i in item:
-#             i.setdefault(DLT_METADATA_FIELD, {})[name] = value
-#     elif isinstance(item, dict):
-#         item.setdefault(DLT_METADATA_FIELD, {})[name] = value
-
-#     return item
-
-
-# def with_table_name(item: TBoundItem, table_name: str) -> TBoundItem:
-#     # normalize table name before adding
-#     return append_dlt_meta(item, "table_name", table_name)
-
-
-# def get_table_name(item: StrAny) -> Optional[str]:
-#     if DLT_METADATA_FIELD in item:
-#         meta: TEventDLTMeta = item[DLT_METADATA_FIELD]
-#         return meta.get("table_name", None)
-#     return None
 
 
 # def with_retry(max_retries: int = 3, retry_sleep: float = 1.0) -> Callable[[Callable[_TFunParams, TBoundItem]], Callable[_TFunParams, TBoundItem]]:

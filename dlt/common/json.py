@@ -94,6 +94,16 @@ def custom_pua_decode(obj: Any) -> Any:
     return obj
 
 
+def custom_pua_remove(obj: Any) -> Any:
+    """Removes the PUA data type marker and leaves the correctly serialized type representation. Unmarked values are returned as-is."""
+    if isinstance(obj, str) and len(obj) > 1:
+        c = ord(obj[0]) - 0xF026
+        # decode only the PUA space defined in DECODERS
+        if c >=0 and c <= 6:
+            return obj[1:]
+    return obj
+
+
 simplejson.loads = partial(simplejson.loads, use_decimal=False)
 simplejson.load = partial(simplejson.load, use_decimal=False)
 # prevent default decimal serializer (use_decimal=False) and binary serializer (encoding=None)
