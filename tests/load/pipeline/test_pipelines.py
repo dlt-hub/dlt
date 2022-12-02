@@ -267,7 +267,7 @@ def test_source_max_nesting(destination_name: str) -> None:
                 "cn": complex_part
             }
         ], name="complex_cn")
-    info = dlt.run(complex_data(), destination=destination_name)
+    info = dlt.run(complex_data(), destination=destination_name, dataset_name="ds_" + uniq_id())
     print(info)
     assert_table(dlt.pipeline(), "complex_cn", [json.dumps(complex_part)])
 

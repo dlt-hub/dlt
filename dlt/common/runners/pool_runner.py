@@ -40,6 +40,10 @@ def update_gauges() -> TRunHealth:
 
 
 def run_pool(C: PoolRunnerConfiguration, run_f: Union[Runnable[TPool], Callable[[TPool], TRunMetrics]]) -> int:
+    # validate run function
+    if not isinstance(run_f, Runnable) and not callable(run_f):
+        raise ValueError(run_f, "Pool runner entry point must be a function f(pool: TPool) or Runnable")
+
     # create health gauges
     if not HEALTH_PROPS_GAUGES:
         create_gauges(REGISTRY)
