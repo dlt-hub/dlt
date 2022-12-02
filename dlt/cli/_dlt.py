@@ -77,9 +77,9 @@ def main() -> None:
     subparsers = parser.add_subparsers(dest="command")
 
     init_cmd = subparsers.add_parser("init", help="Creates a new pipeline script from a selected template.")
-    init_cmd.add_argument("pipeline_name", help="Pipeline name. If pipeline with given name already exists it will be used as a template. Otherwise new template will be created.")
-    init_cmd.add_argument("destination_name", help="Name of a destination ie. bigquery or redshift")
-    init_cmd.add_argument("--generic", default=False, action="store_true", help="When present uses a generic template that must be completed in order to be run. Otherwise a simpler, runnable template is used that produces the debug output.")
+    init_cmd.add_argument("source", help="Data source name. If pipeline for given data source already exists it will be used as a template. Otherwise new template will be created.")
+    init_cmd.add_argument("destination", help="Name of a destination ie. bigquery or redshift")
+    init_cmd.add_argument("--generic", default=False, action="store_true", help="When present uses a generic template with all the dlt loading code present will be used. Otherwise a debug template is used that can be immediately run to get familiar with the dlt sources.")
     init_cmd.add_argument("--branch", default=None, help="Advanced. Uses specific branch of the init repository to fetch the template.")
 
     deploy_cmd = subparsers.add_parser("deploy", help="Creates a deployment package for a selected pipeline script")
@@ -132,7 +132,7 @@ def main() -> None:
 
         exit(0)
     elif args.command == "init":
-        init_command_wrapper(args.pipeline_name, args.destination_name, args.generic, args.branch)
+        init_command_wrapper(args.source, args.destination, args.generic, args.branch)
         exit(0)
     elif args.command == "deploy":
         deploy_command_wrapper(args.pipeline_script_path, args.deployment_method, args.schedule, args.run_on_push, args.run_manually, args.branch)

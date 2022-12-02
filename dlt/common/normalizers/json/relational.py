@@ -1,4 +1,5 @@
 from typing import Dict, Mapping, Optional, Sequence, Tuple, cast, TypedDict, Any
+from dlt.common.normalizers.exceptions import InvalidJsonNormalizer
 
 from dlt.common.typing import DictStrAny, DictStrStr, TDataItem, StrAny
 from dlt.common.schema import Schema
@@ -26,15 +27,15 @@ class TDataItemRowChild(TDataItemRow, total=False):
     value: Any  # for lists of simple types
 
 
-class JSONNormalizerConfigPropagation(TypedDict, total=True):
+class RelationalNormalizerConfigPropagation(TypedDict, total=True):
     root: Optional[Mapping[str, TColumnName]]
     tables: Optional[Mapping[str, Mapping[str, TColumnName]]]
 
 
-class JSONNormalizerConfig(TypedDict, total=True):
+class RelationalNormalizerConfig(TypedDict, total=False):
     generate_dlt_id: Optional[bool]
     max_nesting: Optional[int]
-    propagation: Optional[JSONNormalizerConfigPropagation]
+    propagation: Optional[RelationalNormalizerConfigPropagation]
 
 
 # for those paths the complex nested objects should be left in place
@@ -107,7 +108,7 @@ def _get_content_hash(schema: Schema, table: str, row: StrAny) -> str:
 
 
 def _get_propagated_values(schema: Schema, table: str, row: TDataItemRow, is_top_level: bool) -> StrAny:
-    config: JSONNormalizerConfigPropagation = (schema._normalizers_config["json"].get("config") or {}).get("propagation", None)
+    config: RelationalNormalizerConfigPropagation = (schema._normalizers_config["json"].get("config") or {}).get("propagation", None)
     extend: DictStrAny = {}
     if config:
         # mapping(k:v): propagate property with name "k" as property with name "v" in child table
@@ -199,10 +200,27 @@ def _normalize_row(
         yield from _normalize_list(schema, list_content, extend, schema.normalize_make_path(table, k), table, row_id, _r_lvl + 1)
 
 
+def _validate_normalizer_config(schema: Schema, config: RelationalNormalizerConfig) -> None:
+    validate_dict(RelationalNormalizerConfig, config, "./normalizers/json/config", validator_f=column_name_validator(schema.normalize_column_name))
+
+
+def update_normalizer_config(schema: Schema, config: RelationalNormalizerConfig) -> None:
+    _validate_normalizer_config(schema, config)
+    # make sure schema has right normalizer
+    norm_config = schema._normalizers_config["json"]
+    present_normalizer = norm_config["module"]
+    if present_normalizer != __name__:
+        raise InvalidJsonNormalizer(__name__, present_normalizer)
+    if "config" in norm_config:
+        norm_config["config"].update(config)  # type: ignore
+    else:
+        norm_config["config"] = config
+
+
 def extend_schema(schema: Schema) -> None:
     # validate config
-    config = schema._normalizers_config["json"].get("config") or {}
-    validate_dict(JSONNormalizerConfig, config, "./normalizers/json/config", validator_f=column_name_validator(schema.normalize_column_name))
+    config = cast(RelationalNormalizerConfig, schema._normalizers_config["json"].get("config") or {})
+    _validate_normalizer_config(schema, config)
 
     # quick check to see if hints are applied
     default_hints = schema.settings.get("default_hints") or {}

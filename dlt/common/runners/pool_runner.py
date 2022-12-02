@@ -40,6 +40,10 @@ def update_gauges() -> TRunHealth:
 
 
 def run_pool(C: PoolRunnerConfiguration, run_f: Union[Runnable[TPool], Callable[[TPool], TRunMetrics]]) -> int:
+    # validate run function
+    if not isinstance(run_f, Runnable) and not callable(run_f):
+        raise ValueError(run_f, "Pool runner entry point must be a function f(pool: TPool) or Runnable")
+
     # create health gauges
     if not HEALTH_PROPS_GAUGES:
         create_gauges(REGISTRY)
@@ -76,17 +80,17 @@ def run_pool(C: PoolRunnerConfiguration, run_f: Union[Runnable[TPool], Callable[
                     else:
                         raise SignalReceivedException(-1)
             except Exception as exc:
+                # the run failed
+                run_metrics = TRunMetrics(True, True, -1)
+                # preserve exception
+                # TODO: convert it to callback
+                global LAST_RUN_EXCEPTION
+                LAST_RUN_EXCEPTION = exc
                 if (type(exc) is SignalReceivedException) or (type(exc) is TimeRangeExhaustedException):
                     # always exit
                     raise
                 else:
                     logger.exception("run")
-                    # the run failed
-                    run_metrics = TRunMetrics(True, True, -1)
-                    # preserve exception
-                    # TODO: convert it to callback
-                    global LAST_RUN_EXCEPTION
-                    LAST_RUN_EXCEPTION = exc
                     # re-raise if EXIT_ON_EXCEPTION is requested
                     if C.exit_on_exception:
                         raise

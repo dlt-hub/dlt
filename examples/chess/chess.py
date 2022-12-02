@@ -7,7 +7,7 @@ from dlt.common.typing import TDataItems
 
 
 @dlt.source
-def chess(chess_url: str, title: str = "GM", max_players: int = 2, year: int = 2022, month: int = 10) -> Any:
+def chess(chess_url: str = dlt.config.value, title: str = "GM", max_players: int = 2, year: int = 2022, month: int = 10) -> Any:
 
     @dlt.resource(write_disposition="replace")
     def players() -> Iterator[TDataItems]:
@@ -43,7 +43,7 @@ info = dlt.pipeline(
     dataset_name="chess",
     full_refresh=True
 ).run(
-    chess(dlt.config.value, max_players=5, month=9)
+    chess(max_players=5, month=9)
 )
 # display where the data went
 print(info)

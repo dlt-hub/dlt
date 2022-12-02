@@ -1,12 +1,15 @@
 from collections.abc import Mapping, MutableSequence
+from copy import copy
 from typing import Any, Type
 import pytest
 import datetime  # noqa: I251
 from hexbytes import HexBytes
 
 from dlt.common import Decimal, Wei, json, pendulum
+from dlt.common.json import _DATETIME, custom_pua_decode
 from dlt.common.schema import utils
 from dlt.common.schema.typing import TDataType
+from dlt.common.utils import map_nested_in_place
 
 
 from tests.cases import JSON_TYPED_DICT, JSON_TYPED_DICT_TYPES
@@ -234,3 +237,14 @@ def test_coerce_type_complex() -> None:
     # all other coercions fail
     with pytest.raises(ValueError):
         utils.coerce_value("binary", "complex", v_list)
+
+
+def test_coerce_type_complex_with_pua() -> None:
+    v_dict = {"list": [1, Wei.from_int256(10**18)], "str": "complex", "pua_date": f"{_DATETIME}2022-05-10T01:41:31.466Z"}
+    exp_v = '{"list":[1,"1000000000000000000"],"str":"complex","pua_date":"2022-05-10T01:41:31.466Z"}'
+    assert utils.coerce_value("complex", "complex", copy(v_dict)) == exp_v
+    assert utils.coerce_value("text", "complex", copy(v_dict)) == exp_v
+    # also decode recursively
+    map_nested_in_place(custom_pua_decode, v_dict)
+    # restores datetime type
+    assert v_dict["pua_date"] == pendulum.parse("2022-05-10T01:41:31.466Z")

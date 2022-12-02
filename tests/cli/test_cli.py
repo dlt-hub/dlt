@@ -94,6 +94,7 @@ def test_deploy_command(test_storage: FileStorage) -> None:
         assert "The last pipeline run ended with error" in py_ex.value.args[0]
         os.environ["DESTINATION__POSTGRES__CREDENTIALS"] = pg_credentials
         # also delete secrets so credentials are not mixed up on CI
+        test_storage.delete(".dlt/secrets.toml")
         test_storage.atomic_rename(".dlt/secrets.toml.ci", ".dlt/secrets.toml")
         # this time script will run
         venv.run_script("debug_pipeline.py")

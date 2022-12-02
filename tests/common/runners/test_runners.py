@@ -236,9 +236,9 @@ def test_signal_exception_run() -> None:
         "runs_not_idle_count": 0,
         "runs_healthy_count": 0,
         "runs_cs_healthy_gauge": 0,
-        "runs_failed_count": 0,
-        "runs_cs_failed_gauge": 0,
-        "runs_pending_items_gauge": 0
+        "runs_failed_count": 1,
+        "runs_cs_failed_gauge": 1,
+        "runs_pending_items_gauge": -1
     }
 
 
@@ -253,9 +253,9 @@ def test_timerange_exhausted_run() -> None:
         "runs_not_idle_count": 0,
         "runs_healthy_count": 0,
         "runs_cs_healthy_gauge": 0,
-        "runs_failed_count": 0,
-        "runs_cs_failed_gauge": 0,
-        "runs_pending_items_gauge": 0
+        "runs_failed_count": 1,
+        "runs_cs_failed_gauge": 1,
+        "runs_pending_items_gauge": -1
     }
 
 

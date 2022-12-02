@@ -13,12 +13,12 @@ from typing import Dict, List, Sequence, Tuple, Type, Any, cast
 from dlt.common import pendulum, json, Decimal, Wei
 from pendulum.parsing import parse_iso8601, _parse_common as parse_datetime_common
 from pendulum.tz import UTC
-from dlt.common.json import custom_encode as json_custom_encode
+from dlt.common.json import custom_encode as json_custom_encode, custom_pua_remove
 from dlt.common.arithmetics import InvalidOperation
 from dlt.common.exceptions import DictValidationException
 from dlt.common.normalizers.names import TNormalizeNameFunc
 from dlt.common.typing import DictStrAny, REPattern
-from dlt.common.utils import str2bool
+from dlt.common.utils import map_nested_in_place, str2bool
 from dlt.common.validation import TCustomValidator, validate_dict
 from dlt.common.schema import detections
 from dlt.common.schema.typing import LOADS_TABLE_NAME, SIMPLE_REGEX_PREFIX, VERSION_TABLE_NAME, TColumnName, TNormalizersConfig, TPartialTableSchema, TSimpleRegex, TStoredSchema, TTableSchema, TTableSchemaColumns, TColumnSchemaBase, TColumnSchema, TColumnProp, TDataType, TColumnHint, TTypeDetectionFunc, TTypeDetections, TWriteDisposition
@@ -314,16 +314,20 @@ def py_type_to_sc_type(t: Type[Any]) -> TDataType:
     raise TypeError(t)
 
 
+def complex_to_str(value: Any) -> str:
+    return json.dumps(map_nested_in_place(custom_pua_remove, value))
+
+
 def coerce_value(to_type: TDataType, from_type: TDataType, value: Any) -> Any:
     if to_type == from_type:
         if to_type == "complex":
             # complex types will be always represented as strings
-            return json.dumps(value)
+            return complex_to_str(value)
         return value
 
     if to_type == "text":
         if from_type == "complex":
-            return json.dumps(value)
+            return complex_to_str(value)
         else:
             # use the same string encoding as in json
             try:

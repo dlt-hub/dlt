@@ -41,7 +41,7 @@ def inspect_pipeline_script(module_path:str, script_relative_path: str) -> Modul
 
         # patch entry points to pipeline, sources and resources to prevent pipeline from running
         with patch.object(Pipeline, '__init__', patch__init__), patch.object(DltSource, '__init__', patch__init__), patch.object(PipeIterator, '__init__', patch__init__):
-            print(f"Importing pipeline script from path {path} and module: {package}.{module}")
+            logger.info(f"Importing pipeline script from path {path} and module: {package}.{module}")
             return import_module(f"{package}.{module}")
     finally:
         # remove script module path

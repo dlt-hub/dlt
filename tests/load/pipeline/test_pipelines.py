@@ -5,9 +5,9 @@ import pytest
 
 import dlt
 
-from dlt.common.configuration.container import Container
+from dlt.common import Decimal, json
 from dlt.common.destination import DestinationReference
-from dlt.common.pipeline import LoadInfo, PipelineContext
+from dlt.common.pipeline import LoadInfo
 from dlt.common.schema.schema import Schema
 from dlt.common.time import sleep
 from dlt.common.typing import TDataItem
@@ -155,7 +155,7 @@ def test_run_full_refresh(destination_name: str) -> None:
     assert info.dataset_name == p.dataset_name
     assert info.dataset_name.endswith(p._pipeline_instance_id)
     # print(p.default_schema.to_pretty_yaml())
-    print(info)
+    # print(info)
 
     # restore the pipeline
     p = dlt.attach()
@@ -211,8 +211,8 @@ def test_evolve_schema(destination_name: str) -> None:
     p.extract(source(10).with_resources("simple_rows"))
     # print(p.default_schema.to_pretty_yaml())
     p.normalize()
-    info = p.load(dataset_name=dataset_name)
-    print(info)
+    p.load(dataset_name=dataset_name)
+    # print(info)
     # print(p.default_schema.to_pretty_yaml())
     schema = p.default_schema
     assert "simple_rows" in schema._schema_tables
@@ -230,8 +230,8 @@ def test_evolve_schema(destination_name: str) -> None:
     # update schema
     # - new column in "simple_rows" table
     # - new "simple" table
-    info_ext = dlt.run(source(10).with_resources("extended_rows", "simple"))
-    print(info_ext)
+    dlt.run(source(10).with_resources("extended_rows", "simple"))
+    # print(info_ext)
     # print(p.default_schema.to_pretty_yaml())
     schema = p.default_schema
     assert "simple_rows" in schema._schema_tables
@@ -247,6 +247,29 @@ def test_evolve_schema(destination_name: str) -> None:
 
 # def test_evolve_schema_conflict() -> None:
 #     pass
+
+
+@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
+def test_source_max_nesting(destination_name: str) -> None:
+
+    complex_part = {
+                    "l": [1, 2, 3],
+                    "c": {
+                        "a": 1,
+                        "b": Decimal("12.3")
+                    }
+                }
+
+    @dlt.source(name="complex", max_table_nesting=0)
+    def complex_data():
+        return dlt.resource([
+            {
+                "cn": complex_part
+            }
+        ], name="complex_cn")
+    info = dlt.run(complex_data(), destination=destination_name, dataset_name="ds_" + uniq_id())
+    print(info)
+    assert_table(dlt.pipeline(), "complex_cn", [json.dumps(complex_part)])
 
 
 def assert_table(p: dlt.Pipeline, table_name: str, table_data: List[Any], schema_name: str = None, info: LoadInfo = None) -> None:

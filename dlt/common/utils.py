@@ -10,7 +10,7 @@ from os import environ
 
 from typing import Any, Dict, Iterable, Iterator, Optional, Sequence, TypeVar, Mapping, List, TypedDict, Union
 
-from dlt.common.typing import AnyFun, StrAny, DictStrAny, StrStr, TDataItem, TDataItems, TFun
+from dlt.common.typing import AnyFun, StrAny, DictStrAny, StrStr, TAny, TDataItem, TDataItems, TFun
 
 T = TypeVar("T")
 
@@ -129,11 +129,31 @@ def filter_env_vars(envs: List[str]) -> StrStr:
 
 
 def update_dict_with_prune(dest: DictStrAny, update: StrAny) -> None:
+    """Updates values that are both in `dest` and `update` and deletes `dest` values that are None in `update`"""
     for k, v in update.items():
         if v is not None:
             dest[k] = v
         elif k in dest:
             del dest[k]
+
+
+def map_nested_in_place(func: AnyFun, _complex: TAny) -> TAny:
+    """Applies `func` to all elements in `_dict` recursively, replacing elements in nested dictionaries and lists in place."""
+    if isinstance(_complex, dict):
+        for k, v in _complex.items():
+            if isinstance(v, (dict, list)):
+                map_nested_in_place(func, v)
+            else:
+                _complex[k] = func(v)
+    elif isinstance(_complex, list):
+        for idx, _l in enumerate(_complex):
+            if isinstance(_l, (dict, list)):
+                map_nested_in_place(func, _l)
+            else:
+                _complex[idx] = func(_l)
+    else:
+        raise ValueError(_complex, "Not a complex type")
+    return _complex
 
 
 def is_interactive() -> bool:
