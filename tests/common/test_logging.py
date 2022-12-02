@@ -60,6 +60,12 @@ def test_pod_info_extract(environment: StrStr) -> None:
     assert pod_info == {'kube_node_name': 'node_name', 'kube_pod_name': 'pod_name', 'kube_pod_namespace': 'namespace'}
 
 
+def test_github_info_extract(environment: StrStr) -> None:
+    _mock_github_env(environment)
+    github_info = logger._extract_github_info()
+    assert github_info == {"github_user": "rudolfix", "github_repository": "dlt-hub/beginners-workshop-2022"}
+
+
 @pytest.mark.forked
 def test_text_logger_init(environment: StrStr) -> None:
     _mock_image_env(environment)
@@ -127,3 +133,8 @@ def _mock_pod_env(environment: StrStr) -> None:
     environment["KUBE_NODE_NAME"] = "node_name"
     environment["KUBE_POD_NAME"] = "pod_name"
     environment["KUBE_POD_NAMESPACE"] = "namespace"
+
+
+def _mock_github_env(environment: StrStr) -> None:
+    environment["GITHUB_USER"] = "rudolfix"
+    environment["GITHUB_REPOSITORY"] = "dlt-hub/beginners-workshop-2022"

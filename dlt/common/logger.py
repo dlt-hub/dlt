@@ -142,6 +142,10 @@ def _extract_pod_info() -> StrStr:
     return filter_env_vars(["KUBE_NODE_NAME", "KUBE_POD_NAME", "KUBE_POD_NAMESPACE"])
 
 
+def _extract_github_info() -> StrStr:
+    return filter_env_vars(["GITHUB_USER", "GITHUB_REPOSITORY"])
+
+
 class _SentryHttpTransport(HttpTransport):
 
     timeout: int = 0
@@ -179,6 +183,10 @@ def _init_sentry(C: RunConfiguration, version: StrStr) -> None:
     # add kubernetes tags
     pod_tags = _extract_pod_info()
     for k, v in pod_tags.items():
+        sentry_sdk.set_tag(k, v)
+    # add github info
+    github_tags = _extract_github_info()
+    for k, v in github_tags.items():
         sentry_sdk.set_tag(k, v)
 
 

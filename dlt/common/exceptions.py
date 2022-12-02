@@ -11,17 +11,17 @@ class SignalReceivedException(DltException):
         super().__init__(f"Signal {signal_code} received")
 
 
-class PoolException(DltException):
-    """
-    Thrown by worker pool to pass information when thrown during processing an item
-    """
-    def __init__(self, pool_name: str = None, item: str = None, internal_exception: Exception = None) -> None:
-        # we need it to make it pickle compatible
-        if pool_name:
-            self.pool_name = pool_name
-            self.item = item
-            self.internal_exception = internal_exception
-            super().__init__(f"Pool {pool_name} raised on item {item} with {str(internal_exception)}")
+# class PoolException(DltException):
+#     """
+#     Thrown by worker pool to pass information when thrown during processing an item
+#     """
+#     def __init__(self, pool_name: str = None, item: str = None, internal_exception: Exception = None) -> None:
+#         # we need it to make it pickle compatible
+#         if pool_name:
+#             self.pool_name = pool_name
+#             self.item = item
+#             self.internal_exception = internal_exception
+#             super().__init__(f"Pool {pool_name} raised on item {item} with {str(internal_exception)}")
 
 
 class UnsupportedProcessStartMethodException(DltException):
