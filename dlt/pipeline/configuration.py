@@ -20,6 +20,8 @@ class PipelineConfiguration(BaseConfiguration):
     def on_resolved(self) -> None:
         if not self.pipeline_name:
             self.pipeline_name = self.runtime.pipeline_name
+        else:
+            self.runtime.pipeline_name = self.pipeline_name
         if not self.pipeline_salt:
             self.pipeline_salt = TSecretValue(digest256(self.pipeline_name))
 

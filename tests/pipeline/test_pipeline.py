@@ -23,6 +23,7 @@ def test_default_pipeline() -> None:
     possible_names = ["dlt_pytest", "dlt_pipeline"]
     assert p.pipeline_name in possible_names
     assert p.pipelines_dir == os.path.join(TEST_STORAGE_ROOT, ".dlt", "pipelines")
+    assert p.runtime_config.pipeline_name == p.pipeline_name
     # dataset that will be used to load data is the pipeline name
     assert p.dataset_name in possible_names
     assert p.destination is None
@@ -56,6 +57,8 @@ def test_pipeline_with_non_alpha_name() -> None:
     assert p.pipeline_name == name
     # default dataset is set
     assert p.dataset_name == "another_pipeline_8329_"
+    # also pipeline name in runtime must be correct
+    assert p.runtime_config.pipeline_name == p.pipeline_name
 
     # this will create default schema
     p.extract(["a", "b", "c"], table_name="data")
