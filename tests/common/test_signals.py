@@ -45,6 +45,14 @@ def test_raise_if_signalled() -> None:
     assert exc.value.signal_code == 8
 
 
+def test_raise_immediately_context_manager() -> None:
+    with signals.raise_immediately():
+        # raise only on SIGINT
+        with pytest.raises(SignalReceivedException):
+            signals.signal_receiver(2, None)
+        signals.signal_receiver(1, None)
+
+
 def test_sleep_signal() -> None:
 
     thread_signal = 0
