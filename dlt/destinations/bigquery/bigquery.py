@@ -156,8 +156,10 @@ class BigQueryClient(SqlJobClientBase):
             sql = f"ALTER TABLE {canonical_name}\n"
             sql += ",\n".join(["ADD COLUMN " + self._get_column_def_sql(c) for c in new_columns])
         # scan columns to get hints
+
         cluster_list = [self.caps.escape_identifier(c["name"]) for c in new_columns if c.get("cluster", False)]
         partition_list = [self.caps.escape_identifier(c["name"]) for c in new_columns if c.get("partition", False)]
+
         # partition by must be added first
         if len(partition_list) > 0:
             if exists:

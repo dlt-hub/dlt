@@ -14,19 +14,28 @@ def drop_pipeline() -> Iterator[None]:
     if Container()[PipelineContext].is_active():
         # take existing pipeline
         p = dlt.pipeline()
+
+        def _drop_dataset(schema_name: str) -> None:
+            try:
+                with p.sql_client(schema_name) as c:
+                    try:
+                        c.drop_dataset()
+                        # print("dropped")
+                    except Exception as exc:
+                        print(exc)
+            except SqlClientNotAvailable:
+                pass
+
         # take all schemas and if destination was set
         if p.destination:
-            for schema_name in p.schema_names:
+            if p.config.use_single_dataset:
+                # drop just the dataset for default schema
+                if p.default_schema_name:
+                    _drop_dataset(p.default_schema_name)
+            else:
                 # for each schema, drop the dataset
-                try:
-                    with p.sql_client(schema_name) as c:
-                        try:
-                            c.drop_dataset()
-                            # print("dropped")
-                        except Exception as exc:
-                            print(exc)
-                except SqlClientNotAvailable:
-                    pass
+                for schema_name in p.schema_names:
+                    _drop_dataset(schema_name)
 
         p._wipe_working_folder()
         # deactivate context

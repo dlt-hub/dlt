@@ -22,10 +22,10 @@ BQ_TERMINAL_REASONS = ["billingTierLimitExceeded", "duplicate", "invalid", "notF
 
 
 class BigQuerySqlClient(SqlClientBase[bigquery.Client]):
-    def __init__(self, default_dataset_name: str, credentials: GcpClientCredentials) -> None:
+    def __init__(self, dataset_name: str, credentials: GcpClientCredentials) -> None:
         self._client: bigquery.Client = None
         self.credentials: GcpClientCredentials = credentials
-        super().__init__(default_dataset_name)
+        super().__init__(dataset_name)
 
         self.default_retry = bigquery.DEFAULT_RETRY.with_deadline(credentials.retry_deadline)
         self.default_query = bigquery.QueryJobConfig(default_dataset=self.fully_qualified_dataset_name())
@@ -116,7 +116,7 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client]):
                 conn.close()
 
     def fully_qualified_dataset_name(self) -> str:
-        return f"{self.credentials.project_id}.{self.default_dataset_name}"
+        return f"{self.credentials.project_id}.{self.dataset_name}"
 
     @classmethod
     def _make_database_exception(cls, ex: Exception) -> Exception:
@@ -134,7 +134,7 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client]):
             if reason == "invalidQuery" and "Unrecognized name" in str(ex):
                 # unknown column etc.
                 return DatabaseTerminalException(ex)
-            elif reason in BQ_TERMINAL_REASONS:
+            if reason in BQ_TERMINAL_REASONS:
                 return DatabaseTerminalException(ex)
             # anything else is transient
             return DatabaseTransientException(ex)

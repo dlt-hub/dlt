@@ -19,8 +19,8 @@ from dlt.destinations.sql_client import SqlClientBase, raise_database_error
 
 class Psycopg2SqlClient(SqlClientBase["psycopg2.connection"]):
 
-    def __init__(self, default_dataset_name: str, credentials: PostgresCredentials) -> None:
-        super().__init__(default_dataset_name)
+    def __init__(self, dataset_name: str, credentials: PostgresCredentials) -> None:
+        super().__init__(dataset_name)
         self._conn: psycopg2.connection = None
         self.credentials = credentials
 
@@ -89,7 +89,7 @@ class Psycopg2SqlClient(SqlClientBase["psycopg2.connection"]):
                 raise outer
 
     def fully_qualified_dataset_name(self) -> str:
-        return self.default_dataset_name
+        return self.dataset_name
 
     def _reset_connection(self) -> None:
         # self._conn.autocommit = True

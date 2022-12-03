@@ -56,7 +56,8 @@ def normalize_make_dataset_name(dataset_name: str, default_schema_name: str, sch
     norm_name = normalize_schema_name(dataset_name)
     if norm_name != dataset_name:
         raise InvalidDatasetName(dataset_name, norm_name)
-    if default_schema_name is None or schema_name != default_schema_name:
+    # if default schema is None then suffix is not added
+    if default_schema_name is not None and schema_name != default_schema_name:
         norm_name += "_" + schema_name
 
     return norm_name

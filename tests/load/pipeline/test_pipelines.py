@@ -2,6 +2,7 @@ from copy import deepcopy
 import os
 from typing import Any, Iterator, List
 import pytest
+import itertools
 
 import dlt
 
@@ -21,9 +22,10 @@ from tests.pipeline.utils import drop_dataset_from_env, patch_working_dir
 from tests.load.pipeline.utils import drop_pipeline
 
 
-@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
-def test_default_pipeline_names(destination_name: str) -> None:
+@pytest.mark.parametrize('destination_name,use_single_dataset', itertools.product(ALL_DESTINATIONS, [True, False]))
+def test_default_pipeline_names(destination_name: str, use_single_dataset: bool) -> None:
     p = dlt.pipeline()
+    p.config.use_single_dataset = use_single_dataset
     # this is a name of executing test harness or blank pipeline on windows
     possible_names = ["dlt_pytest", "dlt_pipeline"]
     assert p.pipeline_name in possible_names
@@ -60,8 +62,13 @@ def test_default_pipeline_names(destination_name: str) -> None:
     # two packages in two different schemas were loaded
     assert len(info.loads_ids) == 2
 
-    assert_table(p, "data_fun", data, info=info)
-    assert_table(p, "data_fun", data, schema_name="names", info=info)
+    # if loaded to single data, double the data was loaded to a single table because the schemas overlapped
+    if use_single_dataset:
+        assert_table(p, "data_fun", sorted(data * 2), info=info)
+    else:
+        # loaded to separate data sets
+        assert_table(p, "data_fun", data, info=info)
+        assert_table(p, "data_fun", data, schema_name="names", info=info)
 
 
 @pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)

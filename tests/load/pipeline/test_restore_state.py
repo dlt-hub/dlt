@@ -1,3 +1,4 @@
+import itertools
 import os
 import shutil
 from typing import Any
@@ -114,26 +115,34 @@ def test_silently_skip_on_invalid_credentials(destination_name: str, environment
     dlt.pipeline(pipeline_name=pipeline_name, destination=destination_name, dataset_name=dataset_name)
 
 
-@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
-def test_restore_schemas_from_destination(destination_name: str) -> None:
-    # do not even enable restore the state
+@pytest.mark.parametrize('destination_name,use_single_dataset', itertools.product(ALL_DESTINATIONS, [True, False]))
+def test_restore_schemas_from_destination(destination_name: str, use_single_dataset: bool) -> None:
     pipeline_name = "pipe_" + uniq_id()
     dataset_name="state_test_" + uniq_id()
+
+    def _make_dn_name(schema_name: str) -> str:
+        if use_single_dataset:
+            return dataset_name
+        else:
+            return f"{dataset_name}_{schema_name}"
+
+
     p = dlt.pipeline(pipeline_name=pipeline_name, destination=destination_name, dataset_name=dataset_name)
+    p.config.use_single_dataset = use_single_dataset
     default_schema = Schema("state")
     p._inject_schema(default_schema)
     with p._sql_job_client(default_schema) as job_client:
         p.sync_schema()
-    schema_three = Schema("two")
-    with p._sql_job_client(schema_three) as job_client:
+        assert job_client.sql_client.dataset_name == dataset_name
+    schema_two = Schema("two")
+    with p._sql_job_client(schema_two) as job_client:
         p.sync_schema()
-        # this is a separate dataset
-        assert job_client.sql_client.default_dataset_name == f"{dataset_name}_two"
+        # this may be a separate dataset depending in use_single_dataset setting
+        assert job_client.sql_client.dataset_name == _make_dn_name("two")
     schema_three = Schema("three")
     with p._sql_job_client(schema_three) as job_client:
         p.sync_schema()
-        # this is a separate dataset
-        assert job_client.sql_client.default_dataset_name == f"{dataset_name}_three"
+        assert job_client.sql_client.dataset_name == _make_dn_name("three")
 
     # wipe and restore
     p._wipe_working_folder()
@@ -156,6 +165,7 @@ def test_restore_schemas_from_destination(destination_name: str) -> None:
 
 @pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
 def test_restore_state_pipeline(destination_name: str) -> None:
+    os.environ["RESTORE_FROM_DESTINATION"] = "True"
     pipeline_name = "pipe_" + uniq_id()
     dataset_name="state_test_" + uniq_id()
     p = dlt.pipeline(pipeline_name=pipeline_name, destination=destination_name, dataset_name=dataset_name)
@@ -173,9 +183,9 @@ def test_restore_state_pipeline(destination_name: str) -> None:
     p.extract([some_data("state4")], schema=Schema("three"))
     p.normalize()
     p.load()
-
     # wipe and restore
     p._wipe_working_folder()
+
     os.environ["RESTORE_FROM_DESTINATION"] = "False"
     p = dlt.pipeline(pipeline_name=pipeline_name, destination=destination_name, dataset_name=dataset_name)
     # restore was not requested so schema is empty

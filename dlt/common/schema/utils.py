@@ -243,6 +243,7 @@ def upgrade_engine_version(schema_dict: DictStrAny, from_engine: int, to_engine:
     if from_engine == 4 and to_engine > 4:
         # replace schema versions table
         schema_dict["tables"][VERSION_TABLE_NAME] = version_table()
+        schema_dict["tables"][LOADS_TABLE_NAME] = load_table()
         schema_dict["engine_version"] = 5
         from_engine = 5
     if from_engine != to_engine:
@@ -553,6 +554,11 @@ def load_table() -> TTableSchema:
                 "name": "load_id",
                 "data_type": "text",
                 "nullable": False
+            }),
+            add_missing_hints({
+                "name": "schema_name",
+                "data_type": "text",
+                "nullable": True
             }),
             add_missing_hints({
                 "name": "status",

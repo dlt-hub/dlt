@@ -45,13 +45,14 @@ from dlt.pipeline.typing import TPipelineStep
 from dlt.pipeline.state import STATE_ENGINE_VERSION, load_state_from_destination, merge_state_if_changed, state_resource, StateInjectableContext
 
 
-def with_state_sync(extract_state: bool = False) -> Callable[[TFun], TFun]:
+def with_state_sync(may_extract_state: bool = False) -> Callable[[TFun], TFun]:
 
     def decorator(f: TFun) -> TFun:
         @wraps(f)
         def _wrap(self: "Pipeline", *args: Any, **kwargs: Any) -> Any:
             # backup and restore state
-            with self._managed_state(extract_state=extract_state) as state:
+            should_extract_state = may_extract_state and self.config.restore_from_destination
+            with self._managed_state(extract_state=should_extract_state) as state:
                 # add the state to container as a context
                 with self._container.injectable_context(StateInjectableContext(state=state)):
                     return f(self, *args, **kwargs)
@@ -207,7 +208,7 @@ class Pipeline:
 
     @with_runtime_trace
     @with_schemas_sync  # this must precede with_state_sync
-    @with_state_sync(extract_state=True)  # extract pipeline state with the package
+    @with_state_sync(may_extract_state=True)
     @with_config_namespace(("extract",))
     def extract(
         self,
@@ -272,21 +273,30 @@ class Pipeline:
             if isinstance(data[0], DltResource):
                 sources.append(item_to_source(DltSource(effective_schema.name, effective_schema, data)))
             elif isinstance(data[0], DltSource):
-                for s in data:
-                    sources.append(item_to_source(s))
+                for source in data:
+                    sources.append(item_to_source(source))
             else:
                 sources.append(item_to_source(data))
         else:
             sources.append(item_to_source(data))
 
+        # create extract storage to which all the sources will be extracted
+        storage = ExtractorStorage(self._normalize_storage_config)
+        extract_ids: List[str] = []
         try:
             # extract all sources
-            for s in sources:
-                if s.exhausted:
-                    raise SourceExhausted(s.name)
+            for source in sources:
+                if source.exhausted:
+                    raise SourceExhausted(source.name)
                 # TODO: merge infos for all the sources
-                extract_info = self._extract_source(s, max_parallel_items, workers)
-            return extract_info
+                extract_ids.append(
+                    self._extract_source(storage, source, max_parallel_items, workers)
+                )
+            # commit extract ids
+            # TODO: if we fail here we should probably wipe out the whole extract folder
+            for extract_id in extract_ids:
+                storage.commit_extract_files(extract_id)
+            return ExtractInfo()
         except Exception as exc:
             # TODO: provide metrics from extractor
             raise PipelineStepFailed(self, "extract", exc, runner.LAST_RUN_METRICS, ExtractInfo()) from exc
@@ -353,8 +363,7 @@ class Pipeline:
             return None
 
         # make sure that destination is set and client is importable and can be instantiated
-        client_initial_config = self._get_destination_client_initial_config()
-        self._get_destination_client(self.default_schema, client_initial_config)
+        client = self._get_destination_client(self.default_schema)
 
         # create initial loader config and the loader
         load_config = LoaderConfiguration(
@@ -364,7 +373,7 @@ class Pipeline:
             always_wipe_storage=False,
             _load_storage_config=self._load_storage_config
         )
-        load = Load(self.destination, is_storage_owner=False, config=load_config, initial_client_config=client_initial_config)
+        load = Load(self.destination, is_storage_owner=False, config=load_config, initial_client_config=client.config)
         try:
             self._run_step_in_pool("load", load, load.config)
             return self._get_load_info(load)
@@ -443,7 +452,8 @@ class Pipeline:
 
     def sync_schema(self, schema_name: str = None, credentials: Any = None) -> None:
         schema = self.schemas[schema_name] if schema_name else self.default_schema
-        with self._get_destination_client(schema, self._get_destination_client_initial_config(credentials)) as client:
+        client_config = self._get_destination_client_initial_config(credentials)
+        with self._get_destination_client(schema, client_config) as client:
             client.initialize_storage()
             client.update_storage_schema()
 
@@ -454,7 +464,8 @@ class Pipeline:
         return self._sql_job_client(schema, credentials).sql_client
 
     def _sql_job_client(self, schema: Schema, credentials: Any = None) -> SqlJobClientBase:
-        client = self._get_destination_client(schema, self._get_destination_client_initial_config(credentials))
+        client_config = self._get_destination_client_initial_config(credentials)
+        client = self._get_destination_client(schema, client_config)
         if isinstance(client, SqlJobClientBase):
             return client
         else:
@@ -517,8 +528,9 @@ class Pipeline:
     def _attach_pipeline(self) -> None:
         pass
 
-    def _extract_source(self, source: DltSource, max_parallel_items: int, workers: int) -> ExtractInfo:
+    def _extract_source(self, storage: ExtractorStorage, source: DltSource, max_parallel_items: int, workers: int) -> str:
         # discover the schema from source
+        # TODO: do not save any schemas here and do not set default schema, just generate all the schemas and save them one all data is extracted
         source_schema = source.discover_schema()
         pipeline_schema: Schema = None
         with contextlib.suppress(FileNotFoundError):
@@ -542,26 +554,30 @@ class Pipeline:
         for table in source_schema.all_tables():
             pipeline_schema.update_schema(pipeline_schema.normalize_table_identifiers(table))
 
-        extract_info = self._iterate_source(source, pipeline_schema, max_parallel_items, workers)
+        extract_id = self._iterate_source(storage, source, pipeline_schema, max_parallel_items, workers)
 
         # initialize import with fully discovered schema
         if should_initialize_import:
             self._schema_storage.initialize_import_schema(pipeline_schema)
 
-        return extract_info
+        return extract_id
 
-    def _iterate_source(self, source: DltSource, pipeline_schema: Schema, max_parallel_items: int, workers: int) -> ExtractInfo:
-        # iterate over all items in the pipeline and update the schema if dynamic table hints were present
-        storage = ExtractorStorage(self._normalize_storage_config)
+    def _iterate_source(self, storage: ExtractorStorage, source: DltSource, pipeline_schema: Schema, max_parallel_items: int, workers: int) -> str:
+        # generate extract_id to be able to commit all the sources together later
+        extract_id = storage.create_extract_id()
         # inject the config namespace with the current source name
         with inject_namespace(ConfigNamespacesContext(namespaces=("sources", source.name))):
-            extractor = extract(source, storage, max_parallel_items=max_parallel_items, workers=workers)
-            # source iterates
-            source.exhausted = True
-            for _, partials in extractor.items():
-                for partial in partials:
-                    pipeline_schema.update_schema(pipeline_schema.normalize_table_identifiers(partial))
-        return ExtractInfo()
+            # make CTRL-C working while running user code
+            with signals.raise_immediately():
+                extractor = extract(extract_id, source, storage, max_parallel_items=max_parallel_items, workers=workers)
+                # source iterates
+                source.exhausted = True
+                # iterate over all items in the pipeline and update the schema if dynamic table hints were present
+                for _, partials in extractor.items():
+                    for partial in partials:
+                        pipeline_schema.update_schema(pipeline_schema.normalize_table_identifiers(partial))
+
+        return extract_id
 
     def _run_step_in_pool(self, step: TPipelineStep, runnable: Runnable[Any], config: PoolRunnerConfiguration) -> int:
         try:
@@ -607,9 +623,11 @@ class Pipeline:
             )
         # create initial destination client config
         client_spec = self.destination.spec()
+        # this client support schemas and datasets
         if issubclass(client_spec, DestinationClientDwhConfiguration):
-            # client support schemas and datasets
-            return client_spec(dataset_name=self.dataset_name, default_schema_name=self.default_schema_name, credentials=credentials or self.credentials)
+            # set default schema name to load all incoming data to a single dataset, no matter what is the current schema name
+            default_schema_name = None if self.config.use_single_dataset else self.default_schema_name
+            return client_spec(dataset_name=self.dataset_name, default_schema_name=default_schema_name, credentials=credentials or self.credentials)
         else:
             return client_spec(credentials=credentials or self.credentials)
 
@@ -776,14 +794,14 @@ class Pipeline:
                 with self._optional_sql_job_client(schema_name) as job_client:
                     schema_info = job_client.get_newest_schema_from_storage()
                     if schema_info is None:
-                        logger.info(f"The schema {schema_name} was not found in the destination {self.destination.__name__}:{job_client.sql_client.default_dataset_name}. Default schema was placed instead")
+                        logger.info(f"The schema {schema_name} was not found in the destination {self.destination.__name__}:{job_client.sql_client.dataset_name}. Default schema was placed instead")
                         # try to import schema
                         try:
                             self._schema_storage.load_schema(schema_name)
                         except FileNotFoundError:
                             self._schema_storage.save_schema(job_client.schema)
                     else:
-                        logger.info(f"The schema {schema_name} was restored from the destination {self.destination.__name__}:{job_client.sql_client.default_dataset_name}")
+                        logger.info(f"The schema {schema_name} was restored from the destination {self.destination.__name__}:{job_client.sql_client.dataset_name}")
                         schema = Schema.from_dict(json.loads(schema_info.schema))
                         self._schema_storage.save_schema(schema)
 
@@ -815,21 +833,29 @@ class Pipeline:
 
             backup_state = self._get_state()
             merged_state = merge_state_if_changed(backup_state, state)
-            # state was changed or current state was not yet extracted and there's request to extract state
-            if (merged_state or "_last_extracted_at" not in state) and extract_state:
-                merged_state = merged_state or state
-                merged_state["_last_extracted_at"] = pendulum.now()
-                # this will extract the state into current load package and update the schema with the _dlt_pipeline_state table
-                # note: the schema will be persisted because the schema saving decorator is over the state manager decorator for extract
-                state_source = DltSource("pipeline_state", self.default_schema, [state_resource(merged_state)])
-                self._iterate_source(state_source, self.default_schema, 1, 1)
 
+            # extract state only when there's change in the state or state was not yet extracted AND we actually want to do it
+            if (merged_state or "_last_extracted_at" not in state) and extract_state:
+                merged_state = self._extract_state(merged_state or state)
+
+            # all changes to state will reset the last extraction timestamp so we'll extract
             if not extract_state and merged_state:
                 merged_state.pop("_last_extracted_at", None)
+
 
             # if state was changed, save it
             if merged_state:
                 self._pipeline_storage.save(Pipeline.STATE_FILE, json.dumps(merged_state))
+
+    def _extract_state(self, state: TPipelineState) -> TPipelineState:
+        state["_last_extracted_at"] = pendulum.now()
+        # this will extract the state into current load package and update the schema with the _dlt_pipeline_state table
+        # note: the schema will be persisted because the schema saving decorator is over the state manager decorator for extract
+        state_source = DltSource("pipeline_state", self.default_schema, [state_resource(state)])
+        storage = ExtractorStorage(self._normalize_storage_config)
+        extract_id = self._iterate_source(storage, state_source, self.default_schema, 1, 1)
+        storage.commit_extract_files(extract_id)
+        return state
 
     def __getstate__(self) -> Any:
         # pickle only the SupportsPipeline protocol fields

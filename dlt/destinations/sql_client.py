@@ -11,10 +11,10 @@ from dlt.destinations.typing import TNativeConn, DBCursor
 
 
 class SqlClientBase(ABC, Generic[TNativeConn]):
-    def __init__(self, default_dataset_name: str) -> None:
-        if not default_dataset_name:
-            raise ValueError(default_dataset_name)
-        self.default_dataset_name = default_dataset_name
+    def __init__(self, dataset_name: str) -> None:
+        if not dataset_name:
+            raise ValueError(dataset_name)
+        self.dataset_name = dataset_name
 
     @abstractmethod
     def open_connection(self) -> None:
@@ -65,17 +65,17 @@ class SqlClientBase(ABC, Generic[TNativeConn]):
 
     @contextmanager
     def with_alternative_dataset_name(self, dataset_name: str) -> Iterator["SqlClientBase[TNativeConn]"]:
-        current_dataset_name = self.default_dataset_name
+        current_dataset_name = self.dataset_name
         try:
-            self.default_dataset_name = dataset_name
+            self.dataset_name = dataset_name
             yield self
         finally:
             # restore previous dataset name
-            self.default_dataset_name = current_dataset_name
+            self.dataset_name = current_dataset_name
 
     def _ensure_native_conn(self) -> None:
         if not self.native_connection:
-            raise LoadClientNoConnection(type(self).__name__ + ":" + self.default_dataset_name)
+            raise LoadClientNoConnection(type(self).__name__ + ":" + self.dataset_name)
 
     @staticmethod
     @abstractmethod

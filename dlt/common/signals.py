@@ -30,7 +30,7 @@ def signal_receiver(sig: int, frame: Any) -> None:
     logger.info("Sleeping threads signalled")
 
     if _raise_immediately and _received_signal == signal.SIGINT:
-        raise KeyboardInterrupt()
+        raise_if_signalled()
 
 
 def raise_if_signalled() -> None:
