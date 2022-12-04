@@ -98,12 +98,6 @@ class BigQueryClient(SqlJobClientBase):
         self.sql_client: BigQuerySqlClient = sql_client
         self.caps = BigQueryClient.capabilities()
 
-    def initialize_storage(self, wipe_data: bool = False) -> None:
-        if wipe_data:
-            raise NotImplementedError()
-        if not self.sql_client.has_dataset():
-            self.sql_client.create_dataset()
-
     def restore_file_load(self, file_path: str) -> LoadJob:
         try:
             return BigQueryLoadJob(
@@ -156,8 +150,10 @@ class BigQueryClient(SqlJobClientBase):
             sql = f"ALTER TABLE {canonical_name}\n"
             sql += ",\n".join(["ADD COLUMN " + self._get_column_def_sql(c) for c in new_columns])
         # scan columns to get hints
+
         cluster_list = [self.caps.escape_identifier(c["name"]) for c in new_columns if c.get("cluster", False)]
         partition_list = [self.caps.escape_identifier(c["name"]) for c in new_columns if c.get("partition", False)]
+
         # partition by must be added first
         if len(partition_list) > 0:
             if exists:

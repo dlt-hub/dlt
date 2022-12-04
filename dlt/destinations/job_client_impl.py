@@ -55,6 +55,13 @@ class SqlJobClientBase(JobClientBase):
         super().__init__(schema, config)
         self.sql_client = sql_client
 
+    def initialize_storage(self) -> None:
+        if not self.is_storage_initialized():
+            self.sql_client.create_dataset()
+
+    def is_storage_initialized(self) -> bool:
+        return self.sql_client.has_dataset()
+
     def update_storage_schema(self) -> None:
         schema_info = self.get_schema_by_hash(self.schema.stored_version_hash)
         if schema_info is None:
@@ -73,7 +80,7 @@ class SqlJobClientBase(JobClientBase):
         name = self.sql_client.make_qualified_table_name(LOADS_TABLE_NAME)
         now_ts = pendulum.now()
         self.sql_client.execute_sql(
-            f"INSERT INTO {name}(load_id, status, inserted_at) VALUES(%s, %s, %s);", load_id, 0, now_ts)
+            f"INSERT INTO {name}(load_id, schema_name, status, inserted_at) VALUES(%s, %s, %s, %s);", load_id, self.schema.name, 0, now_ts)
 
     def __enter__(self) -> "SqlJobClientBase":
         self.sql_client.open_connection()

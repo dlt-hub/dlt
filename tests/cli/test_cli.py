@@ -88,7 +88,7 @@ def test_deploy_command(test_storage: FileStorage) -> None:
         # os.environ["DESTINATION__POSTGRES__CREDENTIALS__PASSWORD"] = "password"
         with pytest.raises(CalledProcessError) as py_ex:
             venv.run_script("debug_pipeline.py")
-        # print(py_ex.value.output)
+        print(py_ex.value.output)
         with pytest.raises(deploy_command.PipelineWasNotRun) as py_ex:
             deploy_command.deploy_command("debug_pipeline.py", "github-action", "*/30 * * * *", True, True)
         assert "The last pipeline run ended with error" in py_ex.value.args[0]

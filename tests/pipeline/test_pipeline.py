@@ -4,16 +4,21 @@ from typing import Any, Iterator
 import pytest
 
 import dlt
+from dlt.common import json
 from dlt.common.configuration.container import Container
 from dlt.common.exceptions import UnknownDestinationModule
 from dlt.common.pipeline import PipelineContext
 from dlt.common.schema.exceptions import InvalidDatasetName
+from dlt.common.utils import uniq_id
 from dlt.extract.exceptions import SourceExhausted
+from dlt.extract.extract import ExtractorStorage
 from dlt.extract.source import DltSource
 from dlt.pipeline.exceptions import InvalidPipelineName, PipelineStepFailed
+from dlt.pipeline.state import STATE_TABLE_NAME
 
 from tests.utils import ALL_DESTINATIONS, TEST_STORAGE_ROOT, preserve_environ, autouse_test_storage
 from tests.common.configuration.utils import environment
+from tests.extract.utils import expect_extracted_file
 from tests.pipeline.utils import drop_dataset_from_env, patch_working_dir, drop_pipeline
 
 
@@ -147,6 +152,116 @@ def test_extract_source_twice() -> None:
     assert py_ex.value.exception.source_name == "source"
 
 
+def test_disable_enable_state_sync(environment: Any) -> None:
+    environment["RESTORE_FROM_DESTINATION"] = "False"
+    p = dlt.pipeline(destination="redshift")
+
+    def some_data():
+        yield [1, 2, 3]
+
+    s = DltSource("source", dlt.Schema("default"), [dlt.resource(some_data())])
+    dlt.pipeline().extract(s)
+    storage = ExtractorStorage(p._normalize_storage_config)
+    assert len(storage.list_files_to_normalize_sorted()) == 1
+    expect_extracted_file(storage, "default", "some_data", json.dumps([1, 2, 3]))
+    with pytest.raises(FileNotFoundError):
+        expect_extracted_file(storage, "default", STATE_TABLE_NAME, "")
+
+    p.config.restore_from_destination = True
+    # extract to different schema, state must go to default schema
+    s = DltSource("source", dlt.Schema("default_2"), [dlt.resource(some_data())])
+    dlt.pipeline().extract(s)
+    expect_extracted_file(storage, "default", STATE_TABLE_NAME, "***")
+
+
+def test_extract_multiple_sources() -> None:
+    s1 = DltSource("source", dlt.Schema("default"), [dlt.resource([1, 2, 3], name="resource_1"), dlt.resource([3, 4, 5], name="resource_2")])
+    s2 = DltSource("source_2", dlt.Schema("default_2"), [dlt.resource([6, 7, 8], name="resource_3"), dlt.resource([9, 10, 0], name="resource_4")])
+
+    p = dlt.pipeline(destination="dummy")
+    p.config.restore_from_destination = False
+    p.extract([s1, s2])
+    storage = ExtractorStorage(p._normalize_storage_config)
+    expect_extracted_file(storage, "default", "resource_1", json.dumps([1, 2, 3]))
+    expect_extracted_file(storage, "default", "resource_2", json.dumps([3, 4, 5]))
+    expect_extracted_file(storage, "default_2", "resource_3", json.dumps([6, 7, 8]))
+    expect_extracted_file(storage, "default_2", "resource_4", json.dumps([9, 10, 0]))
+    assert len(storage.list_files_to_normalize_sorted()) == 4
+    p.normalize()
+
+    # make the last resource fail
+
+    @dlt.resource
+    def i_fail():
+        raise NotImplementedError()
+
+    s3 = DltSource("source", dlt.Schema("default_3"), [dlt.resource([1, 2, 3], name="resource_1"), dlt.resource([3, 4, 5], name="resource_2")])
+    s4 = DltSource("source_2", dlt.Schema("default_4"), [dlt.resource([6, 7, 8], name="resource_3"), i_fail])
+
+    with pytest.raises(PipelineStepFailed):
+       p.extract([s3, s4])
+
+    # nothing to normalize
+    assert len(storage.list_files_to_normalize_sorted()) == 0
+    # but the schemas are stored in the pipeline
+    p.schemas["default_3"]
+    p.schemas["default_4"]
+
+
+def test_restore_state_on_dummy() -> None:
+    os.environ["COMPLETED_PROB"] = "1.0"  # make it complete immediately
+
+    pipeline_name = "pipe_" + uniq_id()
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+    p.config.restore_from_destination = True
+    info = p.run([1, 2, 3], table_name="dummy_table")
+    print(info)
+    assert p.first_run is False
+    # no effect
+    p.sync_destination()
+    assert p.state["_state_version"] == 2
+
+    # wipe out storage
+    p._wipe_working_folder()
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+    assert p.first_run is True
+    p.sync_destination()
+    assert p.first_run is True
+    assert p.state["_state_version"] == 1
+
+
+def test_first_run_flag() -> None:
+    os.environ["COMPLETED_PROB"] = "1.0"  # make it complete immediately
+
+    pipeline_name = "pipe_" + uniq_id()
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+    assert p.first_run is True
+    # attach
+    p = dlt.attach(pipeline_name=pipeline_name)
+    assert p.first_run is True
+    p.extract([1, 2, 3], table_name="dummy_table")
+    assert p.first_run is True
+    # attach again
+    p = dlt.attach(pipeline_name=pipeline_name)
+    assert p.first_run is True
+    assert len(p.list_extracted_resources()) > 0
+    p.normalize()
+    assert len(p.list_normalized_load_packages()) > 0
+    assert p.first_run is True
+    # load will change the flag
+    p.load()
+    assert p.first_run is False
+    # attach again
+    p = dlt.attach(pipeline_name=pipeline_name)
+    assert p.first_run is False
+    # wipe the pipeline
+    p._create_pipeline()
+    assert p.first_run is True
+    p._save_state(p._get_state())
+    p = dlt.attach(pipeline_name=pipeline_name)
+    assert p.first_run is True
+
+
 @pytest.mark.skip("Not implemented")
 def test_extract_exception() -> None:
     # make sure that PipelineStepFailed contains right step information
@@ -154,7 +269,7 @@ def test_extract_exception() -> None:
     pass
 
 
-@pytest.mark.skip
+@pytest.mark.skip("Not implemented")
 def test_extract_all_data_types() -> None:
     # list, iterators, generators, resource, source, list of resources, list of sources
     pass

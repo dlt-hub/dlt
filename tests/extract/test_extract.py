@@ -1,6 +1,3 @@
-import pytest
-from itertools import zip_longest
-
 import dlt
 from dlt.common import json
 from dlt.common.configuration.specs import NormalizeVolumeConfiguration
@@ -8,6 +5,7 @@ from dlt.extract.extract import ExtractorStorage, extract
 from dlt.extract.source import DltResource, DltSource
 
 from tests.utils import autouse_test_storage, clean_test_storage
+from tests.extract.utils import expect_extracted_file
 
 
 def test_extract_select_tables() -> None:
@@ -19,13 +17,17 @@ def test_extract_select_tables() -> None:
         schema = source.discover_schema()
 
         storage = ExtractorStorage(NormalizeVolumeConfiguration())
-        schema_update = extract(source, storage)
+        extract_id = storage.create_extract_id()
+        schema_update = extract(extract_id, source, storage)
         # odd and even tables
         assert len(schema_update) == 2
         assert "odd_table" in schema_update
         assert "even_table" in schema_update
         for partials in schema_update.values():
             assert len(partials) == 1
+        # you must commit the files
+        assert len(storage.list_files_to_normalize_sorted()) == 0
+        storage.commit_extract_files(extract_id)
         # check resulting files
         assert len(storage.list_files_to_normalize_sorted()) == 2
         expect_extracted_file(storage, "selectables", "odd_table", json.dumps([1,3,5,7,9]))
@@ -34,15 +36,17 @@ def test_extract_select_tables() -> None:
 
         # delete files
         clean_test_storage()
+        storage = ExtractorStorage(NormalizeVolumeConfiguration())
         # same thing but select only odd
         source = DltSource("selectables", dlt.Schema("selectables"), [resource])
         source.with_resources(resource.name).selected_resources[resource.name](10).select_tables("odd_table")
-        storage = ExtractorStorage(NormalizeVolumeConfiguration())
-        schema_update = extract(source, storage)
+        extract_id = storage.create_extract_id()
+        schema_update = extract(extract_id, source, storage)
         assert len(schema_update) == 1
         assert "odd_table" in schema_update
         for partials in schema_update.values():
             assert len(partials) == 1
+        storage.commit_extract_files(extract_id)
         assert len(storage.list_files_to_normalize_sorted()) == 1
         expect_extracted_file(storage, "selectables", "odd_table", json.dumps([1,3,5,7,9]))
 
@@ -67,17 +71,3 @@ def test_extract_select_tables() -> None:
 
     schema = expect_tables(table_name_with_lambda)
     assert "table_name_with_lambda" not in schema._schema_tables
-
-
-def expect_extracted_file(storage: ExtractorStorage, schema_name: str, table_name: str, content: str) -> None:
-    files = storage.list_files_to_normalize_sorted()
-    gen = (file for file in files if storage.get_schema_name(file) == schema_name and storage.parse_normalize_file_name(file).table_name == table_name)
-    file = next(gen, None)
-    assert file is not None
-    # only one file expected
-    with pytest.raises(StopIteration):
-        next(gen)
-    # load file and parse line by line
-    file_content: str = storage.storage.load(file)
-    for line, file_line in zip_longest(content.splitlines(), file_content.splitlines()):
-        assert line == file_line

@@ -1,21 +1,11 @@
-version: 10
-version_hash: yUiERp2eM2SEYWyVf8NjRiglWVwb39OPY+VwStAq7uE=
+version: 11
+version_hash: y9FPYe9SXS7iE3OMnkTaJjdJN2jQKVCJxiv+z0os/Eo=
 engine_version: 5
 name: ethereum
 tables:
   _dlt_loads:
-    write_disposition: skip
+    name: _dlt_loads
     columns:
-      inserted_at:
-        partition: false
-        cluster: false
-        unique: false
-        sort: false
-        primary_key: false
-        foreign_key: false
-        data_type: timestamp
-        name: inserted_at
-        nullable: false
       load_id:
         partition: false
         cluster: false
@@ -26,6 +16,16 @@ tables:
         data_type: text
         name: load_id
         nullable: false
+      schema_name:
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        name: schema_name
+        data_type: text
+        nullable: True
       status:
         partition: false
         cluster: false
@@ -36,7 +36,18 @@ tables:
         data_type: bigint
         name: status
         nullable: false
-    name: _dlt_loads
+      inserted_at:
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        data_type: timestamp
+        name: inserted_at
+        nullable: false
+    write_disposition: skip
+    description: Created by DLT. Tracks completed loads
   _dlt_version:
     name: _dlt_version
     columns:

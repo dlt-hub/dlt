@@ -7,17 +7,17 @@ from typing import Iterator
 from dlt.common import json, pendulum
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import LOADS_TABLE_NAME, VERSION_TABLE_NAME
-from dlt.common.schema.utils import new_table
+from dlt.common.schema.utils import new_table, new_column
 from dlt.common.storages import FileStorage
 from dlt.common.schema import TTableSchemaColumns
 from dlt.common.utils import uniq_id
+from dlt.destinations.exceptions import DatabaseException, DatabaseTerminalException
 
-from dlt.destinations.sql_client import DBCursor
 from dlt.destinations.job_client_impl import SqlJobClientBase
 
 from tests.utils import TEST_STORAGE_ROOT, ALL_DESTINATIONS, delete_test_storage
 from tests.common.utils import load_json_case
-from tests.load.utils import (TABLE_UPDATE, TABLE_UPDATE_COLUMNS_SCHEMA, TABLE_ROW, expect_load_file, yield_client_with_storage,
+from tests.load.utils import (TABLE_UPDATE, TABLE_UPDATE_COLUMNS_SCHEMA, TABLE_ROW, expect_load_file, load_table, yield_client_with_storage,
                                 cm_yield_client_with_storage, write_dataset, prepare_table, ALL_CLIENTS)
 
 
@@ -146,9 +146,10 @@ def test_complete_load(client: SqlJobClientBase) -> None:
     load_rows = list(client.sql_client.execute_sql(f"SELECT * FROM {load_table}"))
     assert len(load_rows) == 1
     assert load_rows[0][0] == load_id
-    assert load_rows[0][1] == 0
+    assert load_rows[0][1] == client.schema.name
+    assert load_rows[0][2] == 0
     import datetime  # noqa: I251
-    assert type(load_rows[0][2]) is datetime.datetime
+    assert type(load_rows[0][3]) is datetime.datetime
     client.complete_load("load2")
     load_rows = list(client.sql_client.execute_sql(f"SELECT * FROM {load_table}"))
     assert len(load_rows) == 2
@@ -380,7 +381,86 @@ def test_default_schema_name_init_storage(destination_name: str) -> None:
     with cm_yield_client_with_storage(destination_name, initial_values={
             "default_schema_name": "event"  # pass the schema that is a default schema. that should create dataset with the name `dataset_name`
         }) as client:
-        assert client.sql_client.default_dataset_name == client.config.dataset_name
+        assert client.sql_client.dataset_name == client.config.dataset_name
+        assert client.sql_client.has_dataset()
+
+    with cm_yield_client_with_storage(destination_name, initial_values={
+            "default_schema_name": None  # no default_schema. that should create dataset with the name `dataset_name`
+        }) as client:
+        assert client.sql_client.dataset_name == client.config.dataset_name
+        assert client.sql_client.has_dataset()
+
+    with cm_yield_client_with_storage(destination_name, initial_values={
+            "default_schema_name": "event_2"  # the default schema is not event schema . that should create dataset with the name `dataset_name` with schema suffix
+        }) as client:
+        assert client.sql_client.dataset_name == client.config.dataset_name + "_event"
+        assert client.sql_client.has_dataset()
+
+
+@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
+def test_many_schemas_single_dataset(destination_name: str, file_storage: FileStorage) -> None:
+    # event schema with event table
+
+    def _load_something(_client: SqlJobClientBase, expected_rows: int) -> None:
+        # load something to event:user_table
+        user_row = {
+            "_dlt_id": uniq_id(),
+            "_dlt_root_id": "b",
+            # "_dlt_load_id": "load_id",
+            "event": "user",
+            "sender_id": "sender_id",
+            "timestamp": str(pendulum.now())
+        }
+        with io.StringIO() as f:
+            write_dataset(_client, f, [user_row], _client.schema._schema_tables["event_user"]["columns"])
+            query = f.getvalue()
+        expect_load_file(_client, file_storage, query, "event_user")
+        db_rows = list(_client.sql_client.execute_sql("SELECT * FROM event_user"))
+        assert len(db_rows) == expected_rows
+
+    with cm_yield_client_with_storage(destination_name, initial_values={"default_schema_name": None}) as client:
+        user_table = load_table("event_user")["event_user"]
+        client.schema.update_schema(new_table("event_user", columns=user_table.values()))
+        client.schema.bump_version()
+        client.update_storage_schema()
+
+        _load_something(client, 1)
+
+        # event_2 schema with identical event table
+        event_schema = client.schema
+        schema_dict = event_schema.to_dict()
+        schema_dict["name"] = "event_2"
+        event_2_schema = Schema.from_stored_schema(schema_dict)
+        # swap schemas in client instance
+        client.schema = event_2_schema
+        client.schema.bump_version()
+        client.update_storage_schema()
+        # two different schemas in dataset
+        assert event_schema.version_hash != event_2_schema.version_hash
+        ev_1_info = client.get_schema_by_hash(event_schema.version_hash)
+        assert ev_1_info.schema_name == "event"
+        ev_2_info = client.get_schema_by_hash(event_2_schema.version_hash)
+        assert ev_2_info.schema_name == "event_2"
+        # two rows because we load to the same table
+        _load_something(client, 2)
+
+        # use third schema where one of the fields is non null, but the field exists so it is ignored
+        schema_dict["name"] = "event_3"
+        event_3_schema = Schema.from_stored_schema(schema_dict)
+        event_3_schema._schema_tables["event_user"]["columns"]["input_channel"]["nullable"] = False
+        # swap schemas in client instance
+        client.schema = event_3_schema
+        client.schema.bump_version()
+        client.update_storage_schema()
+        # 3 rows because we load to the same table
+        _load_something(client, 3)
+
+        # adding new non null column will generate sync error
+        event_3_schema._schema_tables["event_user"]["columns"]["mandatory_column"] = new_column("mandatory_column", "text", nullable=False)
+        client.schema.bump_version()
+        with pytest.raises(DatabaseException) as py_ex:
+            client.update_storage_schema()
+        assert "mandatory_column" in str(py_ex.value) or "NOT NULL" in str(py_ex.value)
 
 
 def prepare_schema(client: SqlJobClientBase, case: str) -> None:

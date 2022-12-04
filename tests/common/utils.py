@@ -13,7 +13,7 @@ from dlt.common.configuration.providers import environ as environ_provider
 
 COMMON_TEST_CASES_PATH = "./tests/common/cases/"
 # for import schema tests, change when upgrading the schema version
-IMPORTED_VERSION_HASH_ETH_V5 = "yUiERp2eM2SEYWyVf8NjRiglWVwb39OPY+VwStAq7uE="
+IMPORTED_VERSION_HASH_ETH_V5 = "y9FPYe9SXS7iE3OMnkTaJjdJN2jQKVCJxiv+z0os/Eo="
 
 # preserve secrets path to be able to restore it
 SECRET_STORAGE_PATH = environ_provider.SECRET_STORAGE_PATH

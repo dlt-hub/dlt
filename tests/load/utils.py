@@ -146,7 +146,7 @@ def yield_client_with_storage(destination_name: str, default_values: StrAny = No
 
 
 @contextlib.contextmanager
-def cm_yield_client_with_storage(destination_name: str, initial_values: StrAny = None) -> ContextManager[SqlJobClientBase]:
+def cm_yield_client_with_storage(destination_name: str, initial_values: StrAny = None) -> Iterator[SqlJobClientBase]:
     return yield_client_with_storage(destination_name, initial_values)
 
 

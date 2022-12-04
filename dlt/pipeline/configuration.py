@@ -15,6 +15,7 @@ class PipelineConfiguration(BaseConfiguration):
     pipeline_salt: Optional[TSecretValue] = None
     restore_from_destination: bool = True
     enable_runtime_trace: bool = True
+    use_single_dataset: bool = True
     runtime: RunConfiguration
 
     def on_resolved(self) -> None:

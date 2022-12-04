@@ -48,8 +48,10 @@ class DestinationClientConfiguration(BaseConfiguration):
 
 @configspec(init=True)
 class DestinationClientDwhConfiguration(DestinationClientConfiguration):
-    dataset_name: str = None  # dataset name in the destination to load data to, for schemas that are not default schema, it is used as dataset prefix
-    default_schema_name: Optional[str] = None  # name of default schema to be used to name effective dataset to load data to
+    dataset_name: str = None
+    """dataset name in the destination to load data to, for schemas that are not default schema, it is used as dataset prefix"""
+    default_schema_name: Optional[str] = None
+    """name of default schema to be used to name effective dataset to load data to"""
 
     if TYPE_CHECKING:
         def __init__(
@@ -101,7 +103,11 @@ class JobClientBase(ABC):
         self.config = config
 
     @abstractmethod
-    def initialize_storage(self, wipe_data: bool = False) -> None:
+    def initialize_storage(self) -> None:
+        pass
+
+    @abstractmethod
+    def is_storage_initialized(self) -> bool:
         pass
 
     @abstractmethod

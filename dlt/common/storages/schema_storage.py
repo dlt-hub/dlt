@@ -71,6 +71,10 @@ class SchemaStorage(Mapping[str, Schema]):
         # extract names
         return [f.split(".")[0] for f in files]
 
+    def clear_storage(self) -> None:
+        for schema_name in self.list_schemas():
+            self.remove_schema(schema_name)
+
     def __getitem__(self, name: str) -> Schema:
         return self.load_schema(name)
 

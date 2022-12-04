@@ -28,6 +28,7 @@ class LoadInfo(NamedTuple):
     dataset_name: str
     loads_ids: Dict[str, bool]
     failed_jobs: Dict[str, Sequence[Tuple[str, str]]]
+    first_run: bool
 
     def __str__(self) -> str:
         msg = f"{len(self.loads_ids)} load package(s) were loaded to destination {self.destination_name} and into dataset {self.dataset_name}\n"
@@ -45,6 +46,14 @@ class LoadInfo(NamedTuple):
         return msg
 
 
+
+class TPipelineLocalState(TypedDict, total=False):
+    first_run: bool
+    """Indicates a first run of the pipeline, where run ends with successful loading of data"""
+    _last_extracted_at: datetime.datetime
+    """Timestamp indicating when the state was synced with the destination. Lack of timestamp means not synced state."""
+
+
 class TPipelineState(TypedDict, total=False):
     """Schema for a pipeline state that is stored within the pipeline working directory"""
     pipeline_name: str
@@ -58,9 +67,8 @@ class TPipelineState(TypedDict, total=False):
     # properties starting with _ are not automatically applied to pipeline object when state is restored
     _state_version: int
     _state_engine_version: int
-    _last_extracted_at: datetime.datetime
-    """Timestamp indicating when the state was synced with the destination. Lack of timestamp means not synced state."""
-
+    _local: TPipelineLocalState
+    """A section of state that is not synchronized with the destination and does not participate in change merging and version control"""
 
 class SupportsPipeline(Protocol):
     """A protocol with core pipeline operations that lets high level abstractions ie. sources to access pipeline methods and properties"""

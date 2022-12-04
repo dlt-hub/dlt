@@ -112,8 +112,7 @@ def test_create_trace(toml_providers: ConfigProvidersContext) -> None:
     # run resets the trace
     load_info = inject_tomls().run()
     trace = p._trace
-    # pipeline will try to normalize and load any pending packages before extracting new one
-    assert len(trace.steps) == 5  # so we have 5 steps
+    assert len(trace.steps) == 3  # extract, normalize, load
     step = trace.steps[-1]  # the last one should be load
     assert step.step == "load"
     assert step.step_info is load_info
@@ -145,7 +144,7 @@ def test_save_load_trace() -> None:
     assert py_ex.value.pipeline is info.pipeline
     trace = load_trace(py_ex.value.pipeline.working_dir)
     assert trace is not None
-    assert len(trace.steps) == 3  # normalize, load, extract
+    assert len(trace.steps) == 1  # extract with exception
     step = trace.steps[-1]
     assert step.step == "extract"
     assert step.step_exception is not None

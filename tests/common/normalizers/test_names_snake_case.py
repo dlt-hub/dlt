@@ -61,3 +61,8 @@ def test_normalize_make_dataset_name() -> None:
         normalize_make_dataset_name("", "ban_schema", "schema_ana")
     with pytest.raises(ValueError):
         normalize_make_dataset_name(None, "BAN_ANA", "BAN_ANA")
+
+
+def test_normalize_make_dataset_name_none_default_schema() -> None:
+    # if default schema is None, suffix is not added
+    assert normalize_make_dataset_name("ban_ana_dataset", None, "default") == "ban_ana_dataset"

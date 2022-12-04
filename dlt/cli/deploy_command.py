@@ -57,7 +57,7 @@ def deploy_command(pipeline_script_path: str, deployment_method: str, schedule: 
     # full_refresh = False
     pipelines_dir: str = None
     pipeline_name: str = None
-    # restore_from_destination = False
+
     if n.PIPELINE in visitor.known_calls:
         for call_args in visitor.known_calls[n.PIPELINE]:
             f_r_node = call_args.arguments.get("full_refresh")

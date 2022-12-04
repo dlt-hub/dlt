@@ -48,11 +48,10 @@ class ExtractorStorage(DataItemStorage, NormalizeStorage):
         return os.path.join(ExtractorStorage.EXTRACT_FOLDER, extract_id)
 
 
-def extract(source: DltSource, storage: ExtractorStorage, *, max_parallel_items: int = 100, workers: int = 5, futures_poll_interval: float = 0.01) -> TSchemaUpdate:
+def extract(extract_id: str, source: DltSource, storage: ExtractorStorage, *, max_parallel_items: int = 100, workers: int = 5, futures_poll_interval: float = 0.01) -> TSchemaUpdate:
     # TODO: add metrics: number of items processed, also per resource and table
     dynamic_tables: TSchemaUpdate = {}
     schema = source.schema
-    extract_id = storage.create_extract_id()
 
     def _write_item(table_name: str, item: TDataItems) -> None:
         # normalize table name before writing so the name match the name in schema
@@ -106,7 +105,6 @@ def extract(source: DltSource, storage: ExtractorStorage, *, max_parallel_items:
 
     # flush all buffered writers
     storage.close_writers(extract_id)
-    storage.commit_extract_files(extract_id)
 
     # returns set of partial tables
     return dynamic_tables
