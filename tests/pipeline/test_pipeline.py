@@ -9,6 +9,7 @@ from dlt.common.configuration.container import Container
 from dlt.common.exceptions import UnknownDestinationModule
 from dlt.common.pipeline import PipelineContext
 from dlt.common.schema.exceptions import InvalidDatasetName
+from dlt.common.utils import uniq_id
 from dlt.extract.exceptions import SourceExhausted
 from dlt.extract.extract import ExtractorStorage
 from dlt.extract.source import DltSource
@@ -207,6 +208,59 @@ def test_extract_multiple_sources() -> None:
     p.schemas["default_4"]
 
 
+def test_restore_state_on_dummy() -> None:
+    os.environ["COMPLETED_PROB"] = "1.0"  # make it complete immediately
+
+    pipeline_name = "pipe_" + uniq_id()
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+    p.config.restore_from_destination = True
+    info = p.run([1, 2, 3], table_name="dummy_table")
+    print(info)
+    assert p.first_run is False
+    # no effect
+    p.sync_destination()
+    assert p.state["_state_version"] == 2
+
+    # wipe out storage
+    p._wipe_working_folder()
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+    assert p.first_run is True
+    p.sync_destination()
+    assert p.first_run is True
+    assert p.state["_state_version"] == 1
+
+
+def test_first_run_flag() -> None:
+    os.environ["COMPLETED_PROB"] = "1.0"  # make it complete immediately
+
+    pipeline_name = "pipe_" + uniq_id()
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+    assert p.first_run is True
+    # attach
+    p = dlt.attach(pipeline_name=pipeline_name)
+    assert p.first_run is True
+    p.extract([1, 2, 3], table_name="dummy_table")
+    assert p.first_run is True
+    # attach again
+    p = dlt.attach(pipeline_name=pipeline_name)
+    assert p.first_run is True
+    assert len(p.list_extracted_resources()) > 0
+    p.normalize()
+    assert len(p.list_normalized_load_packages()) > 0
+    assert p.first_run is True
+    # load will change the flag
+    p.load()
+    assert p.first_run is False
+    # attach again
+    p = dlt.attach(pipeline_name=pipeline_name)
+    assert p.first_run is False
+    # wipe the pipeline
+    p._create_pipeline()
+    assert p.first_run is True
+    p._save_state(p._get_state())
+    p = dlt.attach(pipeline_name=pipeline_name)
+    assert p.first_run is True
+
 
 @pytest.mark.skip("Not implemented")
 def test_extract_exception() -> None:
@@ -215,7 +269,7 @@ def test_extract_exception() -> None:
     pass
 
 
-@pytest.mark.skip
+@pytest.mark.skip("Not implemented")
 def test_extract_all_data_types() -> None:
     # list, iterators, generators, resource, source, list of resources, list of sources
     pass

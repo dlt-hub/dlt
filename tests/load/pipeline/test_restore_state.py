@@ -9,6 +9,7 @@ from dlt.common import pendulum
 from dlt.common.schema.schema import Schema, utils
 from dlt.common.schema.typing import LOADS_TABLE_NAME, VERSION_TABLE_NAME
 from dlt.common.utils import uniq_id
+from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.pipeline.pipeline import Pipeline
 from dlt.pipeline.state import STATE_TABLE_NAME, load_state_from_destination, state_resource
 
@@ -16,7 +17,7 @@ from tests.utils import ALL_DESTINATIONS, preserve_environ, autouse_test_storage
 from tests.common.utils import IMPORTED_VERSION_HASH_ETH_V5, yml_case_path as common_yml_case_path
 from tests.common.configuration.utils import environment
 from tests.pipeline.utils import drop_dataset_from_env, patch_working_dir
-from tests.load.pipeline.utils import drop_pipeline
+from tests.load.pipeline.utils import assert_data, drop_pipeline
 
 
 @pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
@@ -27,16 +28,18 @@ def test_restore_state_utils(destination_name: str) -> None:
     p._inject_schema(schema)
     # try with non existing dataset
     with p._sql_job_client(p.default_schema) as job_client:
-        assert load_state_from_destination(p.pipeline_name, job_client.sql_client) is None
+        with pytest.raises(DatabaseUndefinedRelation):
+            load_state_from_destination(p.pipeline_name, job_client.sql_client)
         # sync the schema
         p.sync_schema()
         exists, _ = job_client.get_storage_table(VERSION_TABLE_NAME)
         assert exists is True
-        # dataset exists, still none
-        assert load_state_from_destination(p.pipeline_name, job_client.sql_client) is None
-        initial_state = p._get_state(restore_from_destination=False)
+        # dataset exists, still no table
+        with pytest.raises(DatabaseUndefinedRelation):
+            load_state_from_destination(p.pipeline_name, job_client.sql_client)
+        initial_state = p._get_state()
         # now add table to schema and sync
-        initial_state["_last_extracted_at"] = pendulum.now()
+        initial_state["_local"]["_last_extracted_at"] = pendulum.now()
         resource = state_resource(initial_state)
         table_schema = resource.table_schema()
         # add _dlt_id and _dlt_load_id
@@ -47,30 +50,38 @@ def test_restore_state_utils(destination_name: str) -> None:
         p.sync_schema()
         exists, _ = job_client.get_storage_table(STATE_TABLE_NAME)
         assert exists is True
-        # table is there but empty
+        # table is there but no state
         assert load_state_from_destination(p.pipeline_name, job_client.sql_client) is None
         # extract state
         with p._managed_state(extract_state=True):
             pass
         # just run the existing extract
-        p.run()
+        p.normalize()
+        p.load()
         stored_state = load_state_from_destination(p.pipeline_name, job_client.sql_client)
-        assert stored_state == p._get_state()
+        local_state = p._get_state()
+        local_state.pop("_local")
+        assert stored_state == local_state
         # extract state again
         with p._managed_state(extract_state=True) as managed_state:
             # this will be saved
             managed_state["sources"] = {"source": "test"}
-        p.run()
+        p.normalize()
+        p.load()
         stored_state = load_state_from_destination(p.pipeline_name, job_client.sql_client)
         assert stored_state["sources"] == {"source": "test"}
         local_state = p._get_state()
+        local_state.pop("_local")
         assert stored_state == local_state
         # use the state context manager again but do not change state
         with p._managed_state(extract_state=True):
             pass
         # version not changed
-        assert local_state == p._get_state()
-        info = p.run()
+        new_local_state = p._get_state()
+        new_local_state.pop("_local")
+        assert local_state == new_local_state
+        p.normalize()
+        info = p.load()
         assert len(info.loads_ids) == 0
         new_stored_state = load_state_from_destination(p.pipeline_name, job_client.sql_client)
         # new state should not be stored
@@ -80,30 +91,31 @@ def test_restore_state_utils(destination_name: str) -> None:
         with p._managed_state(extract_state=False) as managed_state:
             managed_state["sources"] = {"source": "test2"}
         new_local_state = p._get_state()
+        new_local_state_local = new_local_state.pop("_local")
         assert local_state != new_local_state
         # version increased
         assert local_state["_state_version"] + 1 == new_local_state["_state_version"]
         # last extracted timestamp not present
-        assert "_last_extracted_at" not in new_local_state
+        assert "_last_extracted_at" not in new_local_state_local
 
         # use the state context manager again but do not change state
         # because _last_extracted_at is not present, the version will not change but state will be extracted anyway
         with p._managed_state(extract_state=True):
             pass
         new_local_state_2 = p._get_state()
-        assert new_local_state != new_local_state_2
+        new_local_state_2_local = new_local_state_2.pop("_local")
+        assert new_local_state == new_local_state_2
         # there's extraction timestamp
-        assert "_last_extracted_at" in new_local_state_2
+        assert "_last_extracted_at" in new_local_state_2_local
         # but the version didn't change
         assert new_local_state["_state_version"] == new_local_state_2["_state_version"]
-        info = p.run()
+        p.normalize()
+        info = p.load()
         assert len(info.loads_ids) == 1
         new_stored_state_2 = load_state_from_destination(p.pipeline_name, job_client.sql_client)
         # the stored state changed to next version
         assert new_stored_state != new_stored_state_2
         assert new_stored_state["_state_version"] + 1 == new_stored_state_2["_state_version"]
-        # and extract timestamp increased
-        assert new_stored_state["_last_extracted_at"] < new_stored_state_2["_last_extracted_at"]
 
 
 @pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
@@ -112,11 +124,12 @@ def test_silently_skip_on_invalid_credentials(destination_name: str, environment
     environment["DESTINATION__BIGQUERY__CREDENTIALS"] = '{"project_id": "chat-analytics-","client_email": "loader@chat-analytics-317513","private_key": "-----BEGIN PRIVATE KEY-----\\nMIIEuwIBADANBgkqhkiG9w0BAQEFAASCBKUwggShAgEAAoIBAQCNEN0bL39HmD"}'
     pipeline_name = "pipe_" + uniq_id()
     dataset_name="state_test_" + uniq_id()
+    # NOTE: we are not restoring the state in __init__ anymore but the test should stay: init should not fail on lack of credentials
     dlt.pipeline(pipeline_name=pipeline_name, destination=destination_name, dataset_name=dataset_name)
 
 
 @pytest.mark.parametrize('destination_name,use_single_dataset', itertools.product(ALL_DESTINATIONS, [True, False]))
-def test_restore_schemas_from_destination(destination_name: str, use_single_dataset: bool) -> None:
+def test_get_schemas_from_destination(destination_name: str, use_single_dataset: bool) -> None:
     pipeline_name = "pipe_" + uniq_id()
     dataset_name="state_test_" + uniq_id()
 
@@ -126,41 +139,62 @@ def test_restore_schemas_from_destination(destination_name: str, use_single_data
         else:
             return f"{dataset_name}_{schema_name}"
 
-
     p = dlt.pipeline(pipeline_name=pipeline_name, destination=destination_name, dataset_name=dataset_name)
     p.config.use_single_dataset = use_single_dataset
+
     default_schema = Schema("state")
     p._inject_schema(default_schema)
     with p._sql_job_client(default_schema) as job_client:
+        # just sync schema without name - will use default schema
         p.sync_schema()
         assert job_client.sql_client.dataset_name == dataset_name
     schema_two = Schema("two")
     with p._sql_job_client(schema_two) as job_client:
-        p.sync_schema()
+        # use the job_client to do that
+        job_client.initialize_storage()
+        job_client.update_storage_schema()
         # this may be a separate dataset depending in use_single_dataset setting
         assert job_client.sql_client.dataset_name == _make_dn_name("two")
     schema_three = Schema("three")
+    p._inject_schema(schema_three)
     with p._sql_job_client(schema_three) as job_client:
-        p.sync_schema()
+        # sync schema with a name
+        p.sync_schema(schema_three.name)
         assert job_client.sql_client.dataset_name == _make_dn_name("three")
 
     # wipe and restore
     p._wipe_working_folder()
     p = dlt.pipeline(pipeline_name=pipeline_name, destination=destination_name, dataset_name=dataset_name)
+    p.config.use_single_dataset = use_single_dataset
+
     assert not p.default_schema_name
     assert p.schema_names == []
-    # no schema names - nothing will be restored
-    p._restore_schemas_from_destination()
     assert p._schema_storage.list_schemas() == []
+    # no schemas to restore
+    restored_schemas = p._get_schemas_from_destination([], always_download=False)
+    assert restored_schemas == []
+    # restore unknown schema
+    restored_schemas = p._get_schemas_from_destination(["_unknown_"], always_download=False)
+    assert restored_schemas == []
     # restore default schema
     p.default_schema_name = "state"
     p.schema_names = ["state"]
-    p._restore_schemas_from_destination()
+    restored_schemas = p._get_schemas_from_destination(p.schema_names, always_download=False)
+    assert len(restored_schemas) == 1
+    assert restored_schemas[0].name == "state"
+    p._schema_storage.save_schema(restored_schemas[0])
     assert p._schema_storage.list_schemas() == ["state"]
     # restore all the rest
     p.schema_names = ["state", "two", "three"]
-    p._restore_schemas_from_destination()
+    restored_schemas = p._get_schemas_from_destination(p.schema_names, always_download=False)
+    # only two restored schemas, state is already present
+    assert len(restored_schemas) == 2
+    for schema in restored_schemas:
+        p._schema_storage.save_schema(schema)
     assert set(p._schema_storage.list_schemas()) == set(p.schema_names)
+    # force download - all three schemas are restored
+    restored_schemas = p._get_schemas_from_destination(p.schema_names, always_download=True)
+    assert len(restored_schemas) == 3
 
 
 @pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
@@ -183,39 +217,63 @@ def test_restore_state_pipeline(destination_name: str) -> None:
     p.extract([some_data("state4")], schema=Schema("three"))
     p.normalize()
     p.load()
+    # keep the orig state
+    orig_state = p.state
+
     # wipe and restore
     p._wipe_working_folder()
-
     os.environ["RESTORE_FROM_DESTINATION"] = "False"
     p = dlt.pipeline(pipeline_name=pipeline_name, destination=destination_name, dataset_name=dataset_name)
+    p.run()
     # restore was not requested so schema is empty
     assert p.default_schema_name is None
     p._wipe_working_folder()
     # request restore
     os.environ["RESTORE_FROM_DESTINATION"] = "True"
     p = dlt.pipeline(pipeline_name=pipeline_name, destination=destination_name, dataset_name=dataset_name)
+    p.run()
     assert p.default_schema_name == "default"
     assert set(p.schema_names) == set(["default", "two", "three"])
     assert p.state["sources"] == {"default": {'state1': 'state1', 'state2': 'state2'}, "two": {'state3': 'state3'}, "three": {'state4': 'state4'}}
     for schema in p.schemas.values():
         assert "some_data" in schema._schema_tables
+    # state version must be the same as the original
+    restored_state = p.state
+    assert restored_state["_state_version"] == orig_state["_state_version"]
 
     # full refresh will not restore pipeline even if requested
     p._wipe_working_folder()
     p = dlt.pipeline(pipeline_name=pipeline_name, destination=destination_name, dataset_name=dataset_name, full_refresh=True)
+    p.run()
     assert p.default_schema_name is None
     p._wipe_working_folder()
     # create pipeline without restore
     os.environ["RESTORE_FROM_DESTINATION"] = "False"
     p = dlt.pipeline(pipeline_name=pipeline_name, destination=destination_name, dataset_name=dataset_name)
     # now attach locally
+    os.environ["RESTORE_FROM_DESTINATION"] = "True"
     p = dlt.attach(pipeline_name=pipeline_name)
     assert p.dataset_name == dataset_name
     assert p.default_schema_name is None
+    # restore
+    p.run()
+    assert p.default_schema_name is not None
+    restored_state = p.state
+    assert restored_state["_state_version"] == orig_state["_state_version"]
 
-    # must provide explicit dataset when restoring
-    # with pytest.raises(PipelineConfigMissing):
-    #     p = dlt.pipeline(pipeline_name=pipeline_name, destination=destination_name, restore_from_destination=True)
+    # second run will not restore
+    p._inject_schema(Schema("second"))  # this will modify state, run does not sync if states are identical
+    assert p.state["_state_version"] > orig_state["_state_version"]
+    print(p.state)
+    p.run()
+    assert p.schema_names == ["default", "two", "three", "second"]  # we keep our local copy
+    # clear internal flag and decrease state version so restore triggers
+    state = p.state
+    state["_state_version"] -= 1
+    p._save_state(state)
+    p._state_restored = False
+    p.run()
+    assert set(p.schema_names) == set(["default", "two", "three"])
 
 
 @pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
@@ -247,7 +305,13 @@ def test_restore_schemas_while_import_schemas_exist(destination_name: str) -> No
     export_schema_path = os.path.join(TEST_STORAGE_ROOT, "schemas", "export")
     pipeline_name = "pipe_" + uniq_id()
     dataset_name="state_test_" + uniq_id()
-    p = dlt.pipeline(pipeline_name=pipeline_name, destination=destination_name, dataset_name=dataset_name, import_schema_path=import_schema_path, export_schema_path=export_schema_path)
+    p = dlt.pipeline(
+        pipeline_name=pipeline_name,
+        destination=destination_name,
+        dataset_name=dataset_name,
+        import_schema_path=import_schema_path,
+        export_schema_path=export_schema_path
+    )
     prepare_import_folder(p)
     # make sure schema got imported
     schema = p.schemas["ethereum"]
@@ -266,13 +330,15 @@ def test_restore_schemas_while_import_schemas_exist(destination_name: str) -> No
     assert "annotations" in schema._schema_tables
 
     # wipe the working dir and restore
+    print("----> wipe")
+    p._wipe_working_folder()
     p = dlt.pipeline(
         pipeline_name=pipeline_name,
-        destination=destination_name,
-        dataset_name=dataset_name,
         import_schema_path=import_schema_path,
-        export_schema_path=export_schema_path,
-        restore_from_destination=True)
+        export_schema_path=export_schema_path
+    )
+    # use run to get changes
+    p.run(destination=destination_name, dataset_name=dataset_name)
     schema = p.schemas["ethereum"]
     assert "labels" in schema._schema_tables
     assert "annotations" in schema._schema_tables
@@ -283,6 +349,142 @@ def test_restore_schemas_while_import_schemas_exist(destination_name: str) -> No
     assert "labels" in schema._schema_tables
     assert "annotations" in schema._schema_tables
     assert "blacklist" in schema._schema_tables
+
+
+@pytest.mark.skip("Not implemented")
+def test_restore_change_dataset_and_destination(destination_name: str) -> None:
+    # run pipeline on ie. postgres + dataset1
+    # run other pipeline on redshift + dataset2
+    # then re-attach p1 and run on redshift + dataset2
+    pass
+
+
+@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
+def test_restore_state_parallel_changes(destination_name: str) -> None:
+    pipeline_name = "pipe_" + uniq_id()
+    dataset_name="state_test_" + uniq_id()
+    p = dlt.pipeline(pipeline_name=pipeline_name)
+
+    @dlt.resource
+    def some_data(param: str) -> Any:
+        dlt.state()[param] = param
+        yield param
+
+    # extract two resources that modify the state
+    data1 = some_data("state1")
+    data1.name = "state1_data"
+    p.run([data1, some_data("state2")], schema=Schema("default"), destination=destination_name, dataset_name=dataset_name)
+    orig_state = p.state
+
+    # create a production pipeline in separate pipelines_dir
+    production_p = dlt.pipeline(pipeline_name=pipeline_name, pipelines_dir=TEST_STORAGE_ROOT)
+    production_p.sync_destination(destination=destination_name, dataset_name=dataset_name)
+    assert production_p.default_schema_name == "default"
+    prod_state = production_p.state
+    assert prod_state["sources"] == {"default": {'state1': 'state1', 'state2': 'state2'}}
+    assert prod_state["_state_version"] == orig_state["_state_version"]
+    # generate data on production that modifies the schema but not state
+    data2 = some_data("state1")
+    # rename extract table/
+    data2.apply_hints(table_name="state1_data2")
+    print("---> run production")
+    production_p.run(data2)
+    assert production_p.state["_state_version"] == prod_state["_state_version"]
+    print(production_p.default_schema._schema_tables.keys())
+    assert "state1_data2" in production_p.default_schema._schema_tables
+
+    print("---> run local")
+    # sync the local pipeline, state didn't change so new schema is not retrieved
+    p.sync_destination()
+    assert "state1_data2" not in p.default_schema._schema_tables
+
+    # change state on production
+    data3 = some_data("state3")
+    data3.apply_hints(table_name="state1_data2")
+    print("---> run production")
+    production_p.run(data3)
+    assert production_p.state["_state_version"] > prod_state["_state_version"]
+    # and will be detected locally
+    print(p.default_schema)
+    p.sync_destination()
+    # existing schema got overwritten
+    assert "state1_data2" in p._schema_storage.load_schema(p.default_schema_name)._schema_tables
+    print(p.default_schema)
+    assert "state1_data2" in p.default_schema._schema_tables
+
+    # change state locally
+    data4 = some_data("state4")
+    data4.apply_hints(table_name="state1_data4")
+    p.run(data4)
+    # and on production in parallel
+    data5 = some_data("state5")
+    data5.apply_hints(table_name="state1_data5")
+    production_p.run(data5)
+    data6 = some_data("state6")
+    data6.apply_hints(table_name="state1_data6")
+    production_p.run(data6)
+    # production state version ahead of local state version
+    prod_state = production_p.state
+    assert p.state["_state_version"] == prod_state["_state_version"] - 1
+    # re-attach production and sync
+    ra_production_p = dlt.attach(pipeline_name=pipeline_name, pipelines_dir=TEST_STORAGE_ROOT)
+    ra_production_p.sync_destination()
+    # state didn't change because production is ahead of local with its version
+    # nevertheless this is potentially dangerous situation 🤷
+    assert ra_production_p.state == prod_state
+
+    # get all the states, notice version 4 twice (one from production, the other from local)
+    assert_data(p, f"SELECT version, _dlt_load_id FROM {STATE_TABLE_NAME} ORDER BY created_at", [2, 3, 4, 4, 5])
+
+
+@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
+def test_reset_pipeline_on_deleted_dataset(destination_name: str) -> None:
+    pipeline_name = "pipe_" + uniq_id()
+    dataset_name="state_test_" + uniq_id()
+    p = dlt.pipeline(pipeline_name=pipeline_name)
+
+    @dlt.resource
+    def some_data(param: str) -> Any:
+        dlt.state()[param] = param
+        yield param
+
+    data4 = some_data("state4")
+    data4.apply_hints(table_name="state1_data4")
+    p.run(data4, schema=Schema("sch1"), destination=destination_name, dataset_name=dataset_name)
+    data5 = some_data("state4")
+    data5.apply_hints(table_name="state1_data5")
+    p.run(data5, schema=Schema("sch2"))
+    assert p.state["_state_version"] == 3
+    assert p.first_run is False
+    with p.sql_client() as client:
+        client.drop_dataset()
+    # next sync will wipe out the pipeline
+    p.sync_destination()
+    assert p.first_run is True
+    assert p.state["_state_version"] == 0
+    assert p.default_schema_name is None
+    assert p.schema_names == []
+    assert p.pipeline_name == pipeline_name
+    assert p.dataset_name == dataset_name
+
+    print("---> no state sync last attach")
+    p = dlt.attach(pipeline_name=pipeline_name)
+    # this will prevent from creating of _dlt_pipeline_state
+    p.config.restore_from_destination = False
+    data4 = some_data("state4")
+    data4.apply_hints(table_name="state1_data4")
+    p.run(data4, schema=Schema("sch1"), destination=destination_name, dataset_name=dataset_name)
+    assert p.first_run is False
+    assert p.state["_local"]["first_run"] is False
+    # attach again to make the `run` method check the destination
+    print("---> last attach")
+    p = dlt.attach(pipeline_name=pipeline_name)
+    p.config.restore_from_destination = True
+    data5 = some_data("state4")
+    data5.apply_hints(table_name="state1_data5")
+    p.run(data5, schema=Schema("sch2"))
+    # the pipeline was not wiped out, the actual presence if the dataset was checked
+    assert set(p.schema_names) == set(["sch2", "sch1"])
 
 
 def prepare_import_folder(p: Pipeline) -> None:

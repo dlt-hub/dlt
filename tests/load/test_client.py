@@ -415,7 +415,7 @@ def test_many_schemas_single_dataset(destination_name: str, file_storage: FileSt
             write_dataset(_client, f, [user_row], _client.schema._schema_tables["event_user"]["columns"])
             query = f.getvalue()
         expect_load_file(_client, file_storage, query, "event_user")
-        db_rows = list(_client.sql_client.execute_sql(f"SELECT * FROM event_user"))
+        db_rows = list(_client.sql_client.execute_sql("SELECT * FROM event_user"))
         assert len(db_rows) == expected_rows
 
     with cm_yield_client_with_storage(destination_name, initial_values={"default_schema_name": None}) as client:

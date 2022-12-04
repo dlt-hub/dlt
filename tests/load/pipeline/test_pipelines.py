@@ -8,7 +8,6 @@ import dlt
 
 from dlt.common import Decimal, json
 from dlt.common.destination import DestinationReference
-from dlt.common.pipeline import LoadInfo
 from dlt.common.schema.schema import Schema
 from dlt.common.time import sleep
 from dlt.common.typing import TDataItem
@@ -19,7 +18,7 @@ from dlt.pipeline.exceptions import CannotRestorePipelineException, PipelineConf
 from tests.utils import ALL_DESTINATIONS, preserve_environ, autouse_test_storage, TEST_STORAGE_ROOT
 from tests.common.configuration.utils import environment
 from tests.pipeline.utils import drop_dataset_from_env, patch_working_dir
-from tests.load.pipeline.utils import drop_pipeline
+from tests.load.pipeline.utils import drop_pipeline, assert_data, assert_table
 
 
 @pytest.mark.parametrize('destination_name,use_single_dataset', itertools.product(ALL_DESTINATIONS, [True, False]))
@@ -218,8 +217,9 @@ def test_evolve_schema(destination_name: str) -> None:
     p.extract(source(10).with_resources("simple_rows"))
     # print(p.default_schema.to_pretty_yaml())
     p.normalize()
-    p.load(dataset_name=dataset_name)
-    # print(info)
+    info = p.load(dataset_name=dataset_name)
+    # test __str__
+    print(info)
     # print(p.default_schema.to_pretty_yaml())
     schema = p.default_schema
     assert "simple_rows" in schema._schema_tables
@@ -237,8 +237,8 @@ def test_evolve_schema(destination_name: str) -> None:
     # update schema
     # - new column in "simple_rows" table
     # - new "simple" table
-    dlt.run(source(10).with_resources("extended_rows", "simple"))
-    # print(info_ext)
+    info_ext = dlt.run(source(10).with_resources("extended_rows", "simple"))
+    print(info_ext)
     # print(p.default_schema.to_pretty_yaml())
     schema = p.default_schema
     assert "simple_rows" in schema._schema_tables
@@ -277,21 +277,3 @@ def test_source_max_nesting(destination_name: str) -> None:
     info = dlt.run(complex_data(), destination=destination_name, dataset_name="ds_" + uniq_id())
     print(info)
     assert_table(dlt.pipeline(), "complex_cn", [json.dumps(complex_part)])
-
-
-def assert_table(p: dlt.Pipeline, table_name: str, table_data: List[Any], schema_name: str = None, info: LoadInfo = None) -> None:
-    assert_data(p, f"SELECT * FROM {table_name} ORDER BY 1 NULLS FIRST", table_data, schema_name, info)
-
-
-def assert_data(p: dlt.Pipeline, sql: str, table_data: List[Any], schema_name: str = None, info: LoadInfo = None) -> None:
-    with p.sql_client(schema_name=schema_name) as c:
-        with c.execute_query(sql) as cur:
-            rows = list(cur.fetchall())
-            assert len(rows) == len(table_data)
-            for row, d in zip(rows, table_data):
-                row = list(row)
-                # first element comes from the data
-                assert row[0] == d
-                # the second is load id
-                if info:
-                    assert row[1] in info.loads_ids
