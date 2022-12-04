@@ -1,4 +1,4 @@
-from typing import Dict, overload
+from typing import Dict
 
 from dlt.common.schema.schema import Schema
 from dlt.common.storages.schema_storage import SchemaStorage
@@ -13,8 +13,6 @@ class LiveSchemaStorage(SchemaStorage):
         super().__init__(config, makedirs)
 
     def __getitem__(self, name: str) -> Schema:
-        # disconnect live schema
-        # self.live_schemas.pop(name, None)
         if name in self.live_schemas:
             schema = self.live_schemas[name]
         else:
@@ -26,7 +24,7 @@ class LiveSchemaStorage(SchemaStorage):
 
     def load_schema(self, name: str) -> Schema:
         self.commit_live_schema(name)
-        # now live schema is saved so we can load it
+        # now live schema is saved so we can load it with the changes
         return super().load_schema(name)
 
     def save_schema(self, schema: Schema) -> str:
@@ -44,25 +42,20 @@ class LiveSchemaStorage(SchemaStorage):
                 # save import schema only if it not exist
                 self._export_schema(schema, self.config.import_schema_path)
 
-
     def commit_live_schema(self, name: str) -> Schema:
         # if live schema exists and is modified then it must be used as an import schema
         live_schema = self.live_schemas.get(name)
         if live_schema and live_schema.stored_version_hash != live_schema.version_hash:
             live_schema.bump_version()
-            # if self.config.import_schema_path:
-            #     print("WRITE IMPORT SCHEMA")
-            #     raise NotImplementedError()
-            #     # overwrite import schemas if specified
-            #     self._export_schema(live_schema, self.config.import_schema_path)
-            # else:
-            # write directly to schema storage if no import schema folder configured
             self._save_schema(live_schema)
         return live_schema
 
     def _update_live_schema(self, schema: Schema, can_create_new: bool) -> None:
-        if schema.name in self.live_schemas:
+        live_schema = self.live_schemas.get(schema.name)
+        if live_schema:
             # replace content without replacing instance
-            self.live_schemas[schema.name].from_dict(schema.to_dict())  # type: ignore
+            # print(f"live schema {live_schema} updated in place")
+            live_schema.replace_schema_content(schema)
         elif can_create_new:
+            # print(f"live schema {schema.name} created from schema")
             self.live_schemas[schema.name] = schema
