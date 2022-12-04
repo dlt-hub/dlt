@@ -266,7 +266,7 @@ def test_restore_state_pipeline(destination_name: str) -> None:
     assert p.state["_state_version"] > orig_state["_state_version"]
     print(p.state)
     p.run()
-    assert p.schema_names == ["default", "two", "three", "second"]  # we keep our local copy
+    assert set(p.schema_names) == set(["default", "two", "three", "second"])  # we keep our local copy
     # clear internal flag and decrease state version so restore triggers
     state = p.state
     state["_state_version"] -= 1
