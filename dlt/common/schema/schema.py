@@ -18,54 +18,44 @@ from dlt.common.validation import validate_dict
 class Schema:
     ENGINE_VERSION: ClassVar[int] = 5
 
+    # name normalization functions
+    normalize_table_name: TNormalizeNameFunc
+    normalize_column_name: TNormalizeNameFunc
+    normalize_schema_name: TNormalizeNameFunc
+    normalize_make_dataset_name: TNormalizeMakePath
+    normalize_make_path: TNormalizeMakePath
+    normalize_break_path: TNormalizeBreakPath
+    # json normalization function
+    normalize_data_item: TNormalizeJSONFunc
+
+    _schema_tables: TSchemaTables
+    _schema_name: str
+    _stored_version: int  # version at load/creation time
+    _stored_version_hash: str  # version hash at load/creation time
+    _imported_version_hash: str  # version hash of recently imported schema
+    _schema_description: str  # optional schema description
+    # schema settings to hold default hints, preferred types and other settings
+    _settings: TSchemaSettings
+
+    # list of preferred types: map regex on columns into types
+    _compiled_preferred_types: List[Tuple[REPattern, TDataType]]
+    # compiled default hints
+    _compiled_hints: Dict[TColumnHint, Sequence[REPattern]]
+    # compiled exclude filters per table
+    _compiled_excludes: Dict[str, Sequence[REPattern]]
+    # compiled include filters per table
+    _compiled_includes: Dict[str, Sequence[REPattern]]
+
+    # normalizers config
+    _normalizers_config: TNormalizersConfig
+
     def __init__(self, name: str, normalizers: TNormalizersConfig = None, normalize_name: bool = False) -> None:
-        self._schema_tables: TSchemaTables = {}
-        self._schema_name: str = None
-        self._stored_version = 1  # version at load/creation time
-        self._stored_version_hash: str = None  # version hash at load/creation time
-        self._imported_version_hash: str = None  # version hash of recently imported schema
-        self._schema_description: str = None  # optional schema description
-        # schema settings to hold default hints, preferred types and other settings
-        self._settings: TSchemaSettings = {}
-
-        # list of preferred types: map regex on columns into types
-        self._compiled_preferred_types: List[Tuple[REPattern, TDataType]] = []
-        # compiled default hints
-        self._compiled_hints: Dict[TColumnHint, Sequence[REPattern]] = {}
-        # compiled exclude filters per table
-        self._compiled_excludes: Dict[str, Sequence[REPattern]] = {}
-        # compiled include filters per table
-        self._compiled_includes: Dict[str, Sequence[REPattern]] = {}
-
-        # normalizers config
-        self._normalizers_config: TNormalizersConfig = normalizers
-        # name normalization functions
-        self.normalize_table_name: TNormalizeNameFunc = None
-        self.normalize_column_name: TNormalizeNameFunc = None
-        self.normalize_schema_name: TNormalizeNameFunc = None
-        self.normalize_make_dataset_name: TNormalizeMakePath = None
-        self.normalize_make_path: TNormalizeMakePath = None
-        self.normalize_break_path: TNormalizeBreakPath = None
-        # json normalization function
-        self.normalize_data_item: TNormalizeJSONFunc = None
-
-        # add version tables
-        self._add_standard_tables()
-        # add standard hints
-        self._add_standard_hints()
-        # configure normalizers, including custom config if present
-        self._configure_normalizers()
-        # verify schema name after configuring normalizers
-        self._set_schema_name(name, normalize_name)
-        # compile all known regexes
-        self._compile_regexes()
-        # set initial version hash
-        self._stored_version_hash = self.version_hash
+        self._reset_schema(name, normalizers, normalize_name)
 
     @classmethod
     def from_dict(cls, d: DictStrAny) -> "Schema":
         # upgrade engine if needed
-        stored_schema = utils.upgrade_engine_version(d, d["engine_version"], cls.ENGINE_VERSION)
+        stored_schema = utils.migrate_schema(d, d["engine_version"], cls.ENGINE_VERSION)
         # verify schema
         utils.validate_stored_schema(stored_schema)
         # add defaults
@@ -79,20 +69,12 @@ class Schema:
     def from_stored_schema(cls, stored_schema: TStoredSchema) -> "Schema":
         # create new instance from dict
         self: Schema = cls(stored_schema["name"], normalizers=stored_schema.get("normalizers", None))
-        self._schema_tables = stored_schema.get("tables") or {}
-        if VERSION_TABLE_NAME not in self._schema_tables:
-            raise SchemaCorruptedException(f"Schema must contain table {VERSION_TABLE_NAME}")
-        if LOADS_TABLE_NAME not in self._schema_tables:
-            raise SchemaCorruptedException(f"Schema must contain table {LOADS_TABLE_NAME}")
-        self._stored_version = stored_schema["version"]
-        self._stored_version_hash = stored_schema["version_hash"]
-        self._imported_version_hash = stored_schema.get("imported_version_hash")
-        self._schema_description = stored_schema.get("description")
-        self._settings = stored_schema.get("settings") or {}
-        # compile regexes
-        self._compile_regexes()
-
+        self._from_stored_schema(stored_schema)
         return self
+
+    def replace_schema_content(self, schema: "Schema") -> None:
+        self._reset_schema(schema.name, schema._normalizers_config)
+        self._from_stored_schema(schema.to_dict())
 
     def to_dict(self, remove_defaults: bool = False) -> TStoredSchema:
         stored_schema: TStoredSchema = {
@@ -438,6 +420,57 @@ class Schema:
         # data item normalization function
         self.normalize_data_item = json_module.normalize_data_item
         json_module.extend_schema(self)
+
+    def _reset_schema(self, name: str, normalizers: TNormalizersConfig = None, normalize_name: bool = False) -> None:
+        self._schema_tables: TSchemaTables = {}
+        self._schema_name: str = None
+        self._stored_version = 1
+        self._stored_version_hash: str = None
+        self._imported_version_hash: str = None
+        self._schema_description: str = None
+
+        self._settings: TSchemaSettings = {}
+        self._compiled_preferred_types: List[Tuple[REPattern, TDataType]] = []
+        self._compiled_hints: Dict[TColumnHint, Sequence[REPattern]] = {}
+        self._compiled_excludes: Dict[str, Sequence[REPattern]] = {}
+        self._compiled_includes: Dict[str, Sequence[REPattern]] = {}
+
+        self._normalizers_config: TNormalizersConfig = normalizers
+        self.normalize_table_name: TNormalizeNameFunc = None
+        self.normalize_column_name: TNormalizeNameFunc = None
+        self.normalize_schema_name: TNormalizeNameFunc = None
+        self.normalize_make_dataset_name: TNormalizeMakePath = None
+        self.normalize_make_path: TNormalizeMakePath = None
+        self.normalize_break_path: TNormalizeBreakPath = None
+        # json normalization function
+        self.normalize_data_item: TNormalizeJSONFunc = None
+
+        # add version tables
+        self._add_standard_tables()
+        # add standard hints
+        self._add_standard_hints()
+        # configure normalizers, including custom config if present
+        self._configure_normalizers()
+        # verify schema name after configuring normalizers
+        self._set_schema_name(name, normalize_name)
+        # compile all known regexes
+        self._compile_regexes()
+        # set initial version hash
+        self._stored_version_hash = self.version_hash
+
+    def _from_stored_schema(self, stored_schema: TStoredSchema) -> None:
+        self._schema_tables = stored_schema.get("tables") or {}
+        if VERSION_TABLE_NAME not in self._schema_tables:
+            raise SchemaCorruptedException(f"Schema must contain table {VERSION_TABLE_NAME}")
+        if LOADS_TABLE_NAME not in self._schema_tables:
+            raise SchemaCorruptedException(f"Schema must contain table {LOADS_TABLE_NAME}")
+        self._stored_version = stored_schema["version"]
+        self._stored_version_hash = stored_schema["version_hash"]
+        self._imported_version_hash = stored_schema.get("imported_version_hash")
+        self._schema_description = stored_schema.get("description")
+        self._settings = stored_schema.get("settings") or {}
+        # compile regexes
+        self._compile_regexes()
 
     def _set_schema_name(self, name: str, normalize_name: bool) -> None:
         normalized_name = self.normalize_schema_name(name)

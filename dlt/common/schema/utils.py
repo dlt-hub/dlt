@@ -161,12 +161,11 @@ def validate_stored_schema(stored_schema: TStoredSchema) -> None:
                 raise ParentTableNotFoundException(table_name, parent_table_name)
 
 
-def upgrade_engine_version(schema_dict: DictStrAny, from_engine: int, to_engine: int) -> TStoredSchema:
+def migrate_schema(schema_dict: DictStrAny, from_engine: int, to_engine: int) -> TStoredSchema:
     if from_engine == to_engine:
         return cast(TStoredSchema, schema_dict)
 
     if from_engine == 1 and to_engine > 1:
-        schema_dict["engine_version"] = 2
         schema_dict["includes"] = []
         schema_dict["excludes"] = []
         from_engine = 2
@@ -233,21 +232,21 @@ def upgrade_engine_version(schema_dict: DictStrAny, from_engine: int, to_engine:
         migrate_filters("includes", includes)
 
         # upgraded
-        schema_dict["engine_version"] = 3
         from_engine = 3
     if from_engine == 3 and to_engine > 3:
         # set empty version hash to pass validation, in engine 4 this hash is mandatory
         schema_dict.setdefault("version_hash", "")
-        schema_dict["engine_version"] = 4
         from_engine = 4
     if from_engine == 4 and to_engine > 4:
         # replace schema versions table
         schema_dict["tables"][VERSION_TABLE_NAME] = version_table()
         schema_dict["tables"][LOADS_TABLE_NAME] = load_table()
-        schema_dict["engine_version"] = 5
         from_engine = 5
+
+    schema_dict["engine_version"] = from_engine
     if from_engine != to_engine:
         raise SchemaEngineNoUpgradePathException(schema_dict["name"], schema_dict["engine_version"], from_engine, to_engine)
+
     return cast(TStoredSchema, schema_dict)
 
 

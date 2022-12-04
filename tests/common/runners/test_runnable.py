@@ -54,6 +54,7 @@ def test_fail_on_process_worker_started_early() -> None:
     p.close()
 
 
+@pytest.mark.skip("Hangs on gc.collect")
 def test_weak_pool_ref() -> None:
     r = _TestRunnable(4)
     rid = id(r)
