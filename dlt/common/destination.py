@@ -103,7 +103,11 @@ class JobClientBase(ABC):
         self.config = config
 
     @abstractmethod
-    def initialize_storage(self, wipe_data: bool = False) -> None:
+    def initialize_storage(self) -> None:
+        pass
+
+    @abstractmethod
+    def is_storage_initialized(self) -> bool:
         pass
 
     @abstractmethod

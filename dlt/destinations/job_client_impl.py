@@ -55,6 +55,13 @@ class SqlJobClientBase(JobClientBase):
         super().__init__(schema, config)
         self.sql_client = sql_client
 
+    def initialize_storage(self) -> None:
+        if not self.is_storage_initialized():
+            self.sql_client.create_dataset()
+
+    def is_storage_initialized(self) -> bool:
+        return self.sql_client.has_dataset()
+
     def update_storage_schema(self) -> None:
         schema_info = self.get_schema_by_hash(self.schema.stored_version_hash)
         if schema_info is None:

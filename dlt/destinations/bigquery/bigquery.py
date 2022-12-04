@@ -98,12 +98,6 @@ class BigQueryClient(SqlJobClientBase):
         self.sql_client: BigQuerySqlClient = sql_client
         self.caps = BigQueryClient.capabilities()
 
-    def initialize_storage(self, wipe_data: bool = False) -> None:
-        if wipe_data:
-            raise NotImplementedError()
-        if not self.sql_client.has_dataset():
-            self.sql_client.create_dataset()
-
     def restore_file_load(self, file_path: str) -> LoadJob:
         try:
             return BigQueryLoadJob(

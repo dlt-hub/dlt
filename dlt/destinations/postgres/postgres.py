@@ -116,12 +116,6 @@ class InsertValuesLoadJob(LoadJob):
 
 class PostgresClientBase(SqlJobClientBase):
 
-    def initialize_storage(self, wipe_data: bool = False) -> None:
-        if wipe_data:
-            raise NotImplementedError()
-        if not self.sql_client.has_dataset():
-            self.sql_client.create_dataset()
-
     def restore_file_load(self, file_path: str) -> LoadJob:
         # always returns completed jobs as InsertValuesLoadJob is executed
         # atomically in start_file_load so any jobs that should be recreated are already completed
