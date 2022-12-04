@@ -1,14 +1,17 @@
+import shutil
 import pytest
 
 import dlt
 
 from dlt.common.schema import Schema
+from dlt.common.storages import FileStorage
 
 from dlt.pipeline import state as state_module
-from dlt.pipeline.exceptions import PipelineStateNotAvailable
+from dlt.pipeline.exceptions import PipelineStateEngineNoUpgradePathException, PipelineStateNotAvailable
+from dlt.pipeline.pipeline import Pipeline
 
-from tests.utils import autouse_test_storage
-from tests.pipeline.utils import drop_dataset_from_env, patch_working_dir, drop_pipeline
+from tests.utils import autouse_test_storage, test_storage
+from tests.pipeline.utils import drop_dataset_from_env, json_case_path, load_json_case, patch_working_dir, drop_pipeline
 
 
 @dlt.resource
@@ -105,3 +108,24 @@ def test_unmanaged_state() -> None:
     # again - discarded
     state = p.state["sources"]
     assert state["some_source"]["last_value"] == 1
+
+
+def test_migrate_state(test_storage: FileStorage) -> None:
+    state_v1 = load_json_case("state/state.v1")
+    state = state_module.migrate_state("test_pipeline", state_v1, state_v1["_state_engine_version"], state_module.STATE_ENGINE_VERSION)
+    assert state["_state_engine_version"] == state_module.STATE_ENGINE_VERSION
+    assert "_local" in state
+
+    with pytest.raises(PipelineStateEngineNoUpgradePathException) as py_ex:
+        state_v1 = load_json_case("state/state.v1")
+        state_module.migrate_state("test_pipeline", state_v1, state_v1["_state_engine_version"], state_module.STATE_ENGINE_VERSION + 1)
+    assert py_ex.value.init_engine == state_v1["_state_engine_version"]
+    assert py_ex.value.from_engine == state_module.STATE_ENGINE_VERSION
+    assert py_ex.value.to_engine == state_module.STATE_ENGINE_VERSION + 1
+
+    # also test pipeline init where state is old
+    test_storage.create_folder("debug_pipeline")
+    shutil.copy(json_case_path("state/state.v1"), test_storage.make_full_path(f"debug_pipeline/{Pipeline.STATE_FILE}"))
+    p = dlt.attach(pipeline_name="debug_pipeline", pipelines_dir=test_storage.storage_path)
+    assert p.dataset_name == "debug_pipeline_data"
+    assert p.default_schema_name == "example_source"

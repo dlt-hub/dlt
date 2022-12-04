@@ -4,10 +4,13 @@ from os import environ
 from unittest.mock import patch
 
 import dlt
+from dlt.common import json
 from dlt.common.configuration.container import Container
 from dlt.common.pipeline import PipelineContext
 
 from tests.utils import TEST_STORAGE_ROOT
+
+PIPELINE_TEST_CASES_PATH = "./tests/pipeline/cases/"
 
 
 @pytest.fixture(autouse=True)
@@ -35,3 +38,12 @@ def drop_pipeline() -> Iterator[None]:
         p._wipe_working_folder()
         # deactivate context
         container[PipelineContext].deactivate()
+
+
+def json_case_path(name: str) -> str:
+    return f"{PIPELINE_TEST_CASES_PATH}{name}.json"
+
+
+def load_json_case(name: str) -> dict:
+    with open(json_case_path(name), "r", encoding="utf-8") as f:
+        return json.load(f)
