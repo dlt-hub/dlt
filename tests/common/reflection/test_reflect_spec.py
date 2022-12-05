@@ -124,8 +124,12 @@ def test_argument_have_dlt_config_defaults() -> None:
     def f_kw_defaults(*, kw1 = dlt.config.value, kw_lit = "12131", kw_secret_val = dlt.secrets.value, **kwargs):
         pass
 
+    # do not delete those spaces
     @with_config
+    # and those comments
     @with_config
+    # they are part of the test
+
     def f_kw_defaults_args(arg1, arg2 = 2, arg3 = dlt.config.value, *args, kw1, kw_lit = "12131", kw_secret_val = dlt.secrets.value, **kwargs):
         pass
 

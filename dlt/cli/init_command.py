@@ -3,6 +3,7 @@ import os
 import ast
 import click
 import shutil
+from astunparse import unparse
 from types import ModuleType
 from typing import Dict, List, Tuple
 from importlib.metadata import version as pkg_version
@@ -27,10 +28,10 @@ from dlt.cli.config_toml_writer import WritableConfigValue, write_values
 from dlt.cli.exceptions import CliCommandException
 
 
-def _find_argument_nodes_to_replace(visitor: PipelineScriptVisitor, replace_nodes: List[Tuple[str, str]], init_script_name: str) -> List[Tuple[ast.Constant, str, str]]:
+def _find_call_arguments_to_replace(visitor: PipelineScriptVisitor, replace_nodes: List[Tuple[str, str]], init_script_name: str) -> List[Tuple[ast.AST, ast.AST, str]]:
     # the input tuple (call argument name, replacement value)
     # the returned tuple (node, replacement value, node type)
-    transformed_nodes: List[Tuple[ast.Constant, str, str]] = []
+    transformed_nodes: List[Tuple[ast.AST, ast.AST, str]] = []
     known_calls: Dict[str, List[inspect.BoundArguments]] = visitor.known_calls
     for arg_name, calls in known_calls.items():
         for args in calls:
@@ -40,7 +41,7 @@ def _find_argument_nodes_to_replace(visitor: PipelineScriptVisitor, replace_node
                     if not isinstance(dn_node, ast.Constant) or not isinstance(dn_node.value, str):
                         raise CliCommandException("init", f"The pipeline script {init_script_name} must pass the {t_arg_name} as string to '{arg_name}' function in line {dn_node.lineno}")
                     else:
-                        transformed_nodes.append((dn_node, t_value, t_arg_name))
+                        transformed_nodes.append((dn_node, ast.Constant(value=t_value, kind=None), t_arg_name))
 
     # there was at least one replacement
     for t_arg_name, _ in replace_nodes:
@@ -49,7 +50,25 @@ def _find_argument_nodes_to_replace(visitor: PipelineScriptVisitor, replace_node
     return transformed_nodes
 
 
-def _detect_required_configs(visitor: PipelineScriptVisitor, script_module: ModuleType, init_script_name: str) -> Tuple[Dict[str, WritableConfigValue], Dict[str, WritableConfigValue]]:
+def _find_source_calls_to_replace(visitor: PipelineScriptVisitor, pipeline_name: str) -> List[Tuple[ast.AST, ast.AST, str]]:
+    transformed_nodes: List[Tuple[ast.AST, ast.AST, str]] = []
+    for source_def in visitor.known_sources_resources.values():
+        # recreate function name as a ast.Name with known source code location
+        func_name = ast.Name(source_def.name)
+        func_name.lineno = func_name.end_lineno = source_def.lineno
+        func_name.col_offset = visitor.source_lines[func_name.lineno - 1].index(source_def.name)  # find where function name starts
+        func_name.end_col_offset = func_name.col_offset + len(source_def.name)
+        # append function name to be replaces
+        transformed_nodes.append((func_name, ast.Name(id=pipeline_name + "_" + source_def.name), ""))
+
+    for calls in visitor.known_sources_resources_calls.values():
+        for call in calls:
+            transformed_nodes.append((call.func, ast.Name(id=pipeline_name + "_" + unparse(call.func)), ""))
+
+    return transformed_nodes
+
+
+def _detect_required_configs(visitor: PipelineScriptVisitor) -> Tuple[Dict[str, WritableConfigValue], Dict[str, WritableConfigValue]]:
     # all detected secrets with namespaces
     required_secrets: Dict[str, WritableConfigValue] = {}
     # all detected configs with namespaces
@@ -57,8 +76,8 @@ def _detect_required_configs(visitor: PipelineScriptVisitor, script_module: Modu
 
     # skip sources without spec. those are not imported and most probably are inner functions. also skip the sources that are not called
     # also skip the sources that are called from functions, the parent of call object to the source must be None (no outer function)
-    known_imported_sources = {name: _SOURCES[name] for name in visitor.known_sources
-        if name in _SOURCES and name in visitor.known_source_calls and any(call.parent is None for call in visitor.known_source_calls[name])}  # type: ignore
+    known_imported_sources = {name: _SOURCES[name] for name in visitor.known_sources_resources
+        if name in _SOURCES and name in visitor.known_sources_resources_calls and any(call.parent is None for call in visitor.known_sources_resources_calls[name])}  # type: ignore
 
     for source_name, source_info in known_imported_sources.items():
         source_config = source_info.SPEC()
@@ -80,8 +99,7 @@ def _detect_required_configs(visitor: PipelineScriptVisitor, script_module: Modu
     return required_secrets, required_config
 
 
-def _rewrite_script(script_source: str, transformed_nodes: List[Tuple[ast.Constant, str, str]]) -> str:
-    module_source_lines: List[str] = ast._splitlines_no_ff(script_source)  # type: ignore
+def _rewrite_script(source_script_lines: List[str], transformed_nodes: List[Tuple[ast.AST, ast.AST, str]]) -> str:
     script_lines: List[str] = []
     last_line = -1
     last_offset = -1
@@ -91,24 +109,24 @@ def _rewrite_script(script_source: str, transformed_nodes: List[Tuple[ast.Consta
         if last_line != node.lineno - 1:
             # add remainder from the previous line
             if last_offset >= 0:
-                script_lines.append(module_source_lines[last_line][last_offset:])
+                script_lines.append(source_script_lines[last_line][last_offset:])
             # add all new lines from previous line to current
-            script_lines.extend(module_source_lines[last_line+1:node.lineno-1])
+            script_lines.extend(source_script_lines[last_line+1:node.lineno-1])
             # add trailing characters until node in current line starts
-            script_lines.append(module_source_lines[node.lineno-1][:node.col_offset])
+            script_lines.append(source_script_lines[node.lineno-1][:node.col_offset])
         elif last_offset >= 0:
             # no line change, add the characters from the end of previous node to the current
-            script_lines.append(module_source_lines[last_line][last_offset:node.col_offset])
+            script_lines.append(source_script_lines[last_line][last_offset:node.col_offset])
 
         # replace node value
-        script_lines.append(f'"{t_value}"')
+        script_lines.append(unparse(t_value).strip())
         last_line = node.end_lineno - 1
         last_offset = node.end_col_offset
 
     # add all that was missing
     if last_offset >= 0:
-        script_lines.append(module_source_lines[last_line][last_offset:])
-    script_lines.extend(module_source_lines[last_line+1:])
+        script_lines.append(source_script_lines[last_line][last_offset:])
+    script_lines.extend(source_script_lines[last_line+1:])
 
     dest_script = "".join(script_lines)
     # validate by parsing
@@ -138,8 +156,8 @@ def init_command(pipeline_name: str, destination_name: str, use_generic_template
 
     # get init script variant or the default
     init_script_name = os.path.join("variants", pipeline_name + ".py")
-    if clone_storage.has_file(init_script_name):
-        # use variant
+    is_variant = clone_storage.has_file(init_script_name)
+    if is_variant:
         dest_pipeline_script = pipeline_name + ".py"
         click.echo(f"Using a verified pipeline {fmt.bold(dest_pipeline_script)}")
         if use_generic_template:
@@ -176,30 +194,34 @@ def init_command(pipeline_name: str, destination_name: str, use_generic_template
         raise CliCommandException("init", f"The pipeline script {init_script_name} does not seem to initialize pipeline with dlt.pipeline. Please initialize pipeline explicitly in init scripts.")
 
     # find all arguments in all calls to replace
-    transformed_nodes = _find_argument_nodes_to_replace(
+    transformed_nodes = _find_call_arguments_to_replace(
         visitor,
         [("destination", destination_name), ("pipeline_name", pipeline_name), ("dataset_name", pipeline_name + "_data")],
         init_script_name
     )
 
     # inspect the script
-    script_module = inspect_pipeline_script(clone_storage.storage_path, clone_storage.to_relative_path(init_script_name))
+    inspect_pipeline_script(clone_storage.storage_path, clone_storage.to_relative_path(init_script_name))
 
     if len(_SOURCES) == 0:
         raise CliCommandException("init", f"The pipeline script {init_script_name} is not creating or importing any sources or resources")
 
     for source_q_name, source_config in _SOURCES.items():
-        if source_q_name not in visitor.known_sources:
+        if source_q_name not in visitor.known_sources_resources:
             raise CliCommandException("init", f"The pipeline script {init_script_name} imports a source/resource {source_config.f.__name__} from module {source_config.module.__name__}. In init scripts you must declare all sources and resources in single file.")
 
+    # rename sources and resources
+    if not is_variant:
+        transformed_nodes.extend(_find_source_calls_to_replace(visitor, pipeline_name))
+
     # detect all the required secrets and configs that should go into tomls files
-    required_secrets, required_config = _detect_required_configs(visitor, script_module, init_script_name)
+    required_secrets, required_config = _detect_required_configs(visitor)
     # add destination spec to required secrets
     credentials_type = destination_spec().get_resolvable_fields()["credentials"]
     required_secrets["destinations:" + destination_name] = WritableConfigValue("credentials", credentials_type, ("destination", destination_name))
 
     # modify the script
-    dest_script_source = _rewrite_script(visitor.source, transformed_nodes)
+    dest_script_source = _rewrite_script(visitor.source_lines, transformed_nodes)
 
     # welcome message
     click.echo()
