@@ -14,7 +14,7 @@ from dlt.common.configuration.specs import PostgresCredentials
 
 from dlt.destinations.exceptions import DatabaseTerminalException, DatabaseTransientException, DatabaseUndefinedRelation
 from dlt.destinations.typing import DBCursor
-from dlt.destinations.sql_client import SqlClientBase, raise_database_error
+from dlt.destinations.sql_client import SqlClientBase, raise_database_error, raise_open_connection_error
 
 
 class Psycopg2SqlClient(SqlClientBase["psycopg2.connection"]):
@@ -32,6 +32,7 @@ class Psycopg2SqlClient(SqlClientBase["psycopg2.connection"]):
         # we'll provide explicit transactions see _reset
         self._reset_connection()
 
+    @raise_open_connection_error
     def close_connection(self) -> None:
         if self._conn:
             self._conn.close()

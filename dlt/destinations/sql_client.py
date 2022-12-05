@@ -5,7 +5,7 @@ import inspect
 from types import TracebackType
 from typing import Any, ContextManager, Generic, Iterator, Optional, Sequence, Type, AnyStr
 from dlt.common.typing import TFun
-from dlt.destinations.exceptions import LoadClientNoConnection
+from dlt.destinations.exceptions import DestinationConnectionError, LoadClientNotConnected
 
 from dlt.destinations.typing import TNativeConn, DBCursor
 
@@ -75,7 +75,7 @@ class SqlClientBase(ABC, Generic[TNativeConn]):
 
     def _ensure_native_conn(self) -> None:
         if not self.native_connection:
-            raise LoadClientNoConnection(type(self).__name__ + ":" + self.dataset_name)
+            raise LoadClientNotConnected(type(self).__name__ , self.dataset_name)
 
     @staticmethod
     @abstractmethod
@@ -111,3 +111,15 @@ def raise_database_error(f: TFun) -> TFun:
         return _wrap_gen  # type: ignore
     else:
         return _wrap  # type: ignore
+
+
+def raise_open_connection_error(f: TFun) -> TFun:
+
+    @wraps(f)
+    def _wrap(self: SqlClientBase[Any], *args: Any, **kwargs: Any) -> Any:
+        try:
+            return f(self, *args, **kwargs)
+        except Exception as ex:
+            raise DestinationConnectionError(type(self).__name__, self.dataset_name, str(ex), ex)
+
+    return _wrap  # type: ignore
