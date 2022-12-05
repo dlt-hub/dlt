@@ -118,7 +118,7 @@ class Pipeline:
     pipeline_name: str
     default_schema_name: str = None
     schema_names: List[str] = []
-    first_run: bool = None
+    first_run: bool = False
     """Indicates a first run of the pipeline, where run ends with successful loading of data"""
     full_refresh: bool
     must_attach_to_local_pipeline: bool

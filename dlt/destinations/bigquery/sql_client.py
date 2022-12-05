@@ -13,7 +13,7 @@ from dlt.common import logger
 from dlt.common.configuration.specs import GcpClientCredentials
 
 from dlt.destinations.typing import DBCursor
-from dlt.destinations.sql_client import SqlClientBase, raise_database_error
+from dlt.destinations.sql_client import SqlClientBase, raise_database_error, raise_open_connection_error
 
 # terminal reasons as returned in BQ gRPC error response
 # https://cloud.google.com/bigquery/docs/error-messages
@@ -30,6 +30,7 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client]):
         self.default_retry = bigquery.DEFAULT_RETRY.with_deadline(credentials.retry_deadline)
         self.default_query = bigquery.QueryJobConfig(default_dataset=self.fully_qualified_dataset_name())
 
+    @raise_open_connection_error
     def open_connection(self) -> None:
         self._client = bigquery.Client(
             self.credentials.project_id,
@@ -84,7 +85,6 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client]):
             timeout=self.credentials.http_timeout
         )
 
-    # @raise_database_error
     def execute_sql(self, sql: AnyStr, *args: Any, **kwargs: Any) -> Optional[Sequence[Sequence[Any]]]:
         with self.execute_query(sql, *args, **kwargs) as curr:
             if not curr.description:
