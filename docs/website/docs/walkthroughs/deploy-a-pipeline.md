@@ -10,7 +10,7 @@ since you will be deploying using [GitHub Actions](https://github.com/features/a
 
 ## Add your `dlt` project directory to GitHub
 
-If you have not already, you need to initialize a Git repo in your `dlt` project directory and push it to
+You will need a GitHub repository for your project. If you don't have one yet, you need to initialize a Git repo in your `dlt` project directory and push it to
 GitHub as described in [Adding locally hosted code to GitHub](https://docs.github.com/en/get-started/importing-your-projects-to-github/importing-source-code-to-github/adding-locally-hosted-code-to-github).
 
 ## Ensure your pipeline works
@@ -57,3 +57,10 @@ git push origin
 The pipeline is now running every 30 minutes as you have scheduled. The `dlt deploy` command line
 tool printed out a `github.com/.../actions/workflows/run_chess_workflow.yml` link where you can monitor
 (and manually trigger) the GitHub Actions workflow that runs your pipeline in your repository.
+
+## Known limitations
+
+The GitHub cron scheduler has fidelity of ~30 minutes. You cannot expect that your job will be run at the exact the intervals or times you specify.
+- The minimum official supported interval is 5 minutes
+- If you set it to 5 minutes, you can expect intervals between 5 and 30 minutes
+- From practical experience, any intervals above 30 minutes work on average as expected
