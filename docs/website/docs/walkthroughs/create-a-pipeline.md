@@ -8,7 +8,7 @@ Follow the steps below to create a [pipeline](./glossary.md/#pipeline) from the 
 Google BigQuery from scratch. The same steps can be repeated for any source and destination of your 
 choice--use `dlt init <source> <destination>` and then build the pipeline for that API instead.
 
-Please make sure you have [installed `dlt`](./installation.mdx) before getting started here.
+Please make sure you have [installed `dlt`](./installation.mdx) before following the steps below.
 
 ## 1. Initialize project
 
@@ -29,8 +29,8 @@ pip install -r requirements.txt
 
 ## 2. Add Google BigQuery credentials
 
-You can follow the steps in [Set up Google BigQuery](../getting-started.md#2-set-up-google-bigquery)
-to create the service account credentials you'll need for BigQuery and add them to `.dlt/secrets.toml`.
+Follow steps 3-7 under [Google BigQuery](../destinations.md#google-bigquery) to create the 
+service account credentials you'll need for BigQuery and add them to `.dlt/secrets.toml`.
 
 ## 3. Add Twitter API credentials
 
@@ -41,39 +41,30 @@ Copy the value of the bearer token into `.dlt/secrets.toml`
 ```
 [sources]
 
-twitter_bearer_token = '<bearer token value>'
+api_secret_key = '<bearer token value>'
 
 [destination.bigquery.credentials]
 
 # ...
 ```
 
+The secret name must correspond to the argument name in the source (i.e. `api_secret_key=dlt.secrets.value`
+in `def twitter_source(api_secret_key=dlt.secrets.value):`).
+
 Run the `twitter.py` pipeline script to test that authentication headers look fine
 ```
 python3 twitter.py
 ```
 
-Your bearer token should be printed out to stdout.
+Your bearer token should be printed out to stdout along with some test data.
 
 ## 4. Request data from Twitter API search endpoint
-
-Uncomment `print(data)` in the `twitter.py` pipeline script main:
-```
-if __name__=='__main__':
-    # print credentials by running the resource
-    data = list(twitter_resource())
-
-    # print responses from resource
-    print(data)
-
-    # ...
-```
 
 Replace the `twitter_resource` function definition in the `twitter.py` pipeline script with a call to the 
 [Twitter API search endpoint](https://developer.twitter.com/en/docs/twitter-api/tweets/search/api-reference/get-tweets-search-recent)
 ```
 @dlt.resource(write_disposition="append")
-def twitter_resource(api_url=dlt.config.value, twitter_bearer_token=dlt.secrets.value):
+def twitter_resource(api_secret_key=dlt.secrets.value):
     
     headers = _headers(twitter_bearer_token)
 
@@ -103,21 +94,22 @@ This should print out the tweets that you requested.
 
 ## 5. Load the data
 
-Uncomment the `pipeline` and `load_info` defintions as well as `print(load_info)` 
-in the `twitter.py` pipeline script main:
+Remove the `exit()` call from the `main` function in `twitter.py`, so that running the
+`python3 twitter.py` command will now also run the pipeline:
 ```
 if __name__=='__main__':
-    # print credentials by running the resource
-    # data = list(twitter_resource())
 
-    # print responses from resource
-    # print(data)
-
-    # run pipeline
     # configure the pipeline with your destination details
-    pipeline = dlt.pipeline(pipeline_name="twitter", destination="bigquery", dataset_name="twitter_data")
+    pipeline = dlt.pipeline(pipeline_name='twitter', destination='bigquery', dataset_name='twitter_data')
+
+    # print credentials by running the resource
+    data = list(twitter_resource())
+
+    # print the data yielded from resource
+    print(data)
+
     # run the pipeline with your parameters
-    load_info = pipeline.run(twitter(dlt.config.value, dlt.secrets.value, last_id=819273998))
+    load_info = pipeline.run(twitter_source())
 
     # pretty print the information on data that was loaded
     print(load_info)
