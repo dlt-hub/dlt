@@ -14,7 +14,7 @@ class WritableConfigValue(NamedTuple):
     namespaces: Tuple[str, ...]
 
 
-def write_value(toml_table: TOMLTable, name: str, hint: AnyType, default_value: Any = None) -> None:
+def write_value(toml_table: TOMLTable, name: str, hint: AnyType, default_value: Any = None, is_default_of_interest: bool = False) -> None:
     if is_final_type(hint) or is_optional_type(hint):
         # do not dump final fields
         return
@@ -31,14 +31,16 @@ def write_value(toml_table: TOMLTable, name: str, hint: AnyType, default_value: 
             # TODO: generate typed examples
             toml_table[name] = name
             toml_table[name].comment("please set me up!")
-        else:
+        elif is_default_of_interest:
             toml_table[name] = default_value
 
 
 def write_spec(toml_table: TOMLTable, config: BaseConfiguration) -> None:
     for name, hint in config.get_resolvable_fields().items():
         default_value = getattr(config, name, None)
-        write_value(toml_table, name, hint, default_value)
+        # check if field is of particular interest and should be included if it has default
+        is_default_of_interest = name in config.__config_gen_annotations__
+        write_value(toml_table, name, hint, default_value, is_default_of_interest)
 
 
 def write_values(toml: tomlkit.TOMLDocument, values: Iterable[WritableConfigValue]) -> None:

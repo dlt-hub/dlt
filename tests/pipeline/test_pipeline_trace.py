@@ -3,18 +3,19 @@ import asyncio
 import datetime  # noqa: 251
 from typing import List
 import pytest
+import requests_mock
 
 import dlt
 
 from dlt.common.configuration.specs import CredentialsConfiguration
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
 from dlt.common.pipeline import ExtractInfo
-from dlt.common.typing import TSecretValue
+from dlt.common.typing import StrStr, TSecretValue
 from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.pipeline.trace import SerializableResolvedValueTrace, load_trace
 
 from tests.utils import preserve_environ
-from tests.common.configuration.utils import toml_providers
+from tests.common.configuration.utils import toml_providers, environment
 from tests.pipeline.utils import drop_dataset_from_env, patch_working_dir, drop_pipeline
 
 def test_create_trace(toml_providers: ConfigProvidersContext) -> None:
@@ -36,8 +37,9 @@ def test_create_trace(toml_providers: ConfigProvidersContext) -> None:
     assert s == databricks_creds
 
     extract_info = p.extract(inject_tomls())
-    trace = p._trace
+    trace = p._last_trace
     assert trace is not None
+    assert p._trace is None
     assert len(trace.steps) == 1
     step = trace.steps[0]
     assert step.step == "extract"
@@ -81,7 +83,8 @@ def test_create_trace(toml_providers: ConfigProvidersContext) -> None:
     with pytest.raises(PipelineStepFailed):
         p.extract(async_exception())
 
-    trace = p._trace
+    trace = p._last_trace
+    assert p._trace is None
     assert len(trace.steps) == 2
     step = trace.steps[1]
     assert step.step == "extract"
@@ -90,7 +93,8 @@ def test_create_trace(toml_providers: ConfigProvidersContext) -> None:
 
     # normalize
     norm_info = p.normalize()
-    trace = p._trace
+    trace = p._last_trace
+    assert p._trace is None
     assert len(trace.steps) == 3
     step = trace.steps[2]
     assert step.step == "normalize"
@@ -99,7 +103,8 @@ def test_create_trace(toml_providers: ConfigProvidersContext) -> None:
     # load
     os.environ["COMPLETED_PROB"] = "1.0"  # make it complete immediately
     load_info = p.load()
-    trace = p._trace
+    trace = p._last_trace
+    assert p._trace is None
     assert len(trace.steps) == 4
     step = trace.steps[3]
     assert step.step == "load"
@@ -111,21 +116,29 @@ def test_create_trace(toml_providers: ConfigProvidersContext) -> None:
 
     # run resets the trace
     load_info = inject_tomls().run()
-    trace = p._trace
-    assert len(trace.steps) == 3  # extract, normalize, load
-    step = trace.steps[-1]  # the last one should be load
-    assert step.step == "load"
+    trace = p._last_trace
+    assert p._trace is None
+    assert len(trace.steps) == 4  # extract, normalize, load, run
+    step = trace.steps[-1]  # the last one should be run
+    assert step.step == "run"
     assert step.step_info is load_info
+    assert trace.steps[0].step_info is not extract_info
+
+    step = trace.steps[-2]  # the previous one should be load
+    assert step.step == "load"
+    assert step.step_info is load_info  # same load info
     assert trace.steps[0].step_info is not extract_info
 
 
 def test_save_load_trace() -> None:
     os.environ["COMPLETED_PROB"] = "1.0"
     info = dlt.pipeline().run([1,2,3], table_name="data", destination="dummy")
+    pipeline = dlt.pipeline()
     trace = load_trace(info.pipeline.working_dir)
     assert trace is not None
-    assert len(trace.steps) == 3 == len(info.pipeline._trace.steps)
-    step = trace.steps[-1]  # the last one should be load
+    assert pipeline._trace is None
+    assert len(trace.steps) == 4 == len(info.pipeline._last_trace.steps)
+    step = trace.steps[-2]  # the previoius to last one should be load
     assert step.step == "load"
     resolved = _find_resolved_value(trace.resolved_config_values, "completed_prob", [])
     assert resolved.is_secret_hint is False
@@ -144,15 +157,48 @@ def test_save_load_trace() -> None:
     assert py_ex.value.pipeline is info.pipeline
     trace = load_trace(py_ex.value.pipeline.working_dir)
     assert trace is not None
-    assert len(trace.steps) == 1  # extract with exception
-    step = trace.steps[-1]
+    assert pipeline._trace is None
+    assert len(trace.steps) == 2  # extract with exception, also has run with exception
+    step = trace.steps[-2]
     assert step.step == "extract"
     assert step.step_exception is not None
+    run_step = trace.steps[-1]
+    assert run_step.step == "run"
+    assert run_step.step_exception is not None
+    assert step.step_exception == run_step.step_exception
 
 
 def test_load_none_trace() -> None:
     p = dlt.pipeline()
     assert load_trace(p.working_dir) is None
+
+
+def test_slack_hook(environment: StrStr) -> None:
+    hook_url = "https://hooks.slack.com/services/T04DHMAF13Q/B04E7B1MQ1H/TDHEI123WUEE"
+    environment["COMPLETED_PROB"] = "1.0"
+    environment["GITHUB_USER"] = "rudolfix"
+    environment["RUNTIME__SLACK_INCOMING_HOOK"] = hook_url
+    with requests_mock.mock() as m:
+        m.post(hook_url, json={})
+        dlt.pipeline().run([1,2,3], table_name="data", destination="dummy")
+    assert m.called
+    message = m.last_request.json()
+    assert "rudolfix" in message["text"]
+    assert "dummy" in message["text"]
+
+
+def test_broken_slack_hook(environment: StrStr) -> None:
+    environment["COMPLETED_PROB"] = "1.0"
+    environment["RUNTIME__SLACK_INCOMING_HOOK"] = "http://localhost:22"
+    info = dlt.pipeline().run([1,2,3], table_name="data", destination="dummy")
+    pipeline = dlt.pipeline()
+    assert pipeline._last_trace is not None
+    assert pipeline._trace is None
+    trace = load_trace(info.pipeline.working_dir)
+    assert len(trace.steps) == 4
+    run_step = trace.steps[-1]
+    assert run_step.step == "run"
+    assert run_step.step_exception is None
 
 
 def _find_resolved_value(resolved: List[SerializableResolvedValueTrace], key: str, namespaces: List[str]) -> SerializableResolvedValueTrace:

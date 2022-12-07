@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "python-dlt"
-version = "0.2.0a9"
+version = "0.2.0a10"
 description = "DLT is an open-source python-native scalable data loading framework that does not require any devops efforts to run."
 authors = ["dltHub Inc. <services@dlthub.com>"]
 maintainers = [ "Marcin Rudolf <marcin@dlthub.com>", "Adrian Brudaru <adrian@dlthub.com>",]
@@ -65,6 +65,7 @@ dbt-core = {version = ">=1.1.0,<1.2.0", optional = true}
 dbt-redshift = {version = ">=1.0.0,<1.2.0", optional = true}
 dbt-bigquery = {version = ">=1.0.0,<1.2.0", optional = true, python = "<3.11"}
 pytz = "^2022.6"
+tqdm = "^4.64.1"
 
 
 [tool.poetry.dev-dependencies]
@@ -99,6 +100,9 @@ redshift = ["psycopg2-binary", "psycopg2cffi"]
 
 [tool.poetry.scripts]
 dlt = "dlt.cli._dlt:main"
+
+[tool.poetry.group.dev.dependencies]
+requests-mock = "^1.10.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.8"]

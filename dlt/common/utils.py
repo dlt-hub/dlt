@@ -206,7 +206,7 @@ def encoding_for_mode(mode: str) -> Optional[str]:
         return "utf-8"
 
 
-def entry_point_file() -> str:
+def main_module_file_path() -> str:
     if len(sys.argv) > 0 and os.path.isfile(sys.argv[0]):
         return str(Path(sys.argv[0]))
     return None

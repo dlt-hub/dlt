@@ -18,6 +18,7 @@ from dlt.common.configuration.utils import make_dot_dlt_path, serialize_value
 from dlt.common.git import get_origin, get_repo
 from dlt.common.configuration.specs.run_configuration import get_default_pipeline_name
 from dlt.common.reflection.utils import evaluate_node_literal
+from dlt.common.pipeline import LoadInfo
 from dlt.common.storages import FileStorage
 from dlt.common.typing import StrAny
 from dlt.common.utils import set_working_dir
@@ -96,10 +97,10 @@ def deploy_command(pipeline_script_path: str, deployment_method: str, schedule: 
         if trace is None or len(trace.steps) == 0:
             raise PipelineWasNotRun("Pipeline run trace could not be found. Please run the pipeline at least once locally.")
         last_step = trace.steps[-1]
-        if last_step.step != "load":
-            raise PipelineWasNotRun("The last pipeline run did not reach the load step. Please run the pipeline locally until it loads data into destination.")
         if last_step.step_exception is not None:
             raise PipelineWasNotRun(f"The last pipeline run ended with error. Please make sure that pipeline runs correctly before deployment.\n{last_step.step_exception}")
+        if not isinstance(last_step.step_info, LoadInfo):
+            raise PipelineWasNotRun("The last pipeline run did not reach the load step. Please run the pipeline locally until it loads data into destination.")
         # add destination name and dataset name to env
         state = pipeline.state
         config_prov = ConfigTomlProvider()

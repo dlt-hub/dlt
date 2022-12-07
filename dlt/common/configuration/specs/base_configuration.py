@@ -1,7 +1,7 @@
 import inspect
 import contextlib
 import dataclasses
-from typing import Callable, Optional, Union, Any, Dict, Iterator, MutableMapping, Type, TYPE_CHECKING, get_args, get_origin, overload, ClassVar
+from typing import Callable, List, Optional, Union, Any, Dict, Iterator, MutableMapping, Type, TYPE_CHECKING, get_args, get_origin, overload, ClassVar
 
 if TYPE_CHECKING:
     TDtcField = dataclasses.Field[Any]
@@ -101,12 +101,14 @@ def configspec(cls: Optional[Type[Any]] = None, /, *, init: bool = False) -> Uni
 @configspec
 class BaseConfiguration(MutableMapping[str, Any]):
 
-    # true when all config fields were resolved and have a specified value type
     __is_resolved__: bool = dataclasses.field(default = False, init=False, repr=False)
-    # namespace used by config providers when searching for keys
+    """True when all config fields were resolved and have a specified value type"""
     __namespace__: str = dataclasses.field(default = None, init=False, repr=False)
-    # holds the exception that prevented the full resolution
+    """Namespace used by config providers when searching for keys"""
     __exception__: Exception = dataclasses.field(default = None, init=False, repr=False)
+    """Holds the exception that prevented the full resolution"""
+    __config_gen_annotations__: ClassVar[List[str]] = None
+    """Additional annotations for config generator, currently holds a list of fields of interest that have defaults"""
 
     def parse_native_representation(self, native_value: Any) -> None:
         """Initialize the configuration fields by parsing the `native_value` which should be a native representation of the configuration
@@ -194,6 +196,7 @@ class BaseConfiguration(MutableMapping[str, Any]):
 
 
 _F_BaseConfiguration = BaseConfiguration
+
 
 @configspec
 class CredentialsConfiguration(BaseConfiguration):

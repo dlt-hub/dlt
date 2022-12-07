@@ -1,3 +1,3 @@
 from typing import Literal
 
-TPipelineStep = Literal["init", "extract", "normalize", "load"]
+TPipelineStep = Literal["run", "extract", "normalize", "load"]

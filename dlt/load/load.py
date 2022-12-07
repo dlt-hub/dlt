@@ -148,9 +148,7 @@ class Load(Runnable[ThreadPool]):
 
         self.job_gauge.labels("retrieved").inc()
         self.job_counter.labels("retrieved").inc()
-        logger.metrics("Retrieve jobs metrics",
-                        extra=get_logging_extras([self.job_gauge.labels("retrieved"), self.job_counter.labels("retrieved")])
-        )
+        logger.metrics("progress", "retrieve jobs", extra=get_logging_extras([self.job_gauge.labels("retrieved"), self.job_counter.labels("retrieved")]))
         return len(jobs), jobs
 
     def complete_jobs(self, load_id: str, jobs: List[LoadJob]) -> List[LoadJob]:
@@ -186,7 +184,7 @@ class Load(Runnable[ThreadPool]):
                 self.job_counter.labels(status).inc()
                 self.job_wait_summary.observe(self.load_storage.job_elapsed_time_seconds(final_location))
 
-        logger.metrics("Completing jobs metrics", extra=get_logging_extras([self.job_counter, self.job_gauge, self.job_wait_summary]))
+        logger.metrics("progress", "jobs", extra=get_logging_extras([self.job_counter, self.job_gauge, self.job_wait_summary]))
         return remaining_jobs
 
     def run(self, pool: ThreadPool) -> TRunMetrics:
@@ -228,7 +226,7 @@ class Load(Runnable[ThreadPool]):
                 set_gauge_all_labels(self.job_gauge, 0)
                 self.job_gauge.labels("running").inc(len(jobs))
                 self.job_counter.labels("running").inc(len(jobs))
-                logger.metrics("New jobs metrics",
+                logger.metrics("progress", "jobs",
                                 extra=get_logging_extras([self.job_counter.labels("running"), self.job_gauge.labels("running")])
             )
         # if there are no existing or new jobs we complete the package
@@ -242,7 +240,7 @@ class Load(Runnable[ThreadPool]):
             self.load_counter.inc()
             metrics = get_logging_extras([self.load_counter])
             self._processed_load_ids[load_id] = metrics
-            logger.metrics("Load package metrics", extra=metrics)
+            logger.metrics("stop", "jobs", extra=metrics)
         else:
             # TODO: this loop must be urgently removed.
             while True:

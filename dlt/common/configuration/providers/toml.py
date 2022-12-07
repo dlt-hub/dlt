@@ -5,6 +5,7 @@ from tomlkit.container import Container as TOMLContainer
 from typing import Any, Optional, Tuple, Type, Union
 
 from dlt.common.configuration import DOT_DLT
+from dlt.common.configuration.utils import current_dot_dlt_path
 
 from .provider import ConfigProvider, ConfigProviderException
 
@@ -16,7 +17,7 @@ class TomlProvider(ConfigProvider):
 
     def __init__(self, file_name: str, project_dir: str = None) -> None:
         self._file_name = file_name
-        self._toml_path = os.path.join(project_dir or os.path.abspath(os.path.join(".", DOT_DLT)), file_name)
+        self._toml_path = os.path.join(project_dir or current_dot_dlt_path(), file_name)
         try:
             self._toml = self._read_toml(self._toml_path)
         except Exception as ex:

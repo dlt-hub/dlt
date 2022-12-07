@@ -1,4 +1,4 @@
-from typing import Any, Final
+from typing import Any, ClassVar, Final, List
 from dlt.common import json
 from dlt.common.configuration.specs.exceptions import InvalidServicesJson
 
@@ -10,15 +10,17 @@ from dlt.common.configuration.specs.base_configuration import CredentialsConfigu
 class GcpClientCredentials(CredentialsConfiguration):
 
     project_id: str = None
-    type: Final[str] = "service_account"  # noqa: A003
     private_key: TSecretValue = None
+    client_email: str = None
+    type: Final[str] = "service_account"  # noqa: A003
     location: str = "US"
     token_uri: Final[str] = "https://oauth2.googleapis.com/token"
-    client_email: str = None
 
     http_timeout: float = 15.0
     file_upload_timeout: float = 30 * 60.0
     retry_deadline: float = 60  # how long to retry the operation in case of error, the backoff 60s
+
+    __config_gen_annotations__: ClassVar[List[str]] = ["location"]
 
     def parse_native_representation(self, native_value: Any) -> None:
         if not isinstance(native_value, str):

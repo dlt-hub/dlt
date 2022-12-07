@@ -369,6 +369,7 @@ def test_configuration_is_mutable_mapping(environment: Any) -> None:
     expected_dict = {
         'pipeline_name': 'secret',
         'sentry_dsn': None,
+        'slack_incoming_hook': None,
         'prometheus_port': None,
         'log_format': '{asctime}|[{levelname:<21}]|{process}|{name}|{filename}|{funcName}:{lineno}|{message}',
         'log_level': 'INFO',

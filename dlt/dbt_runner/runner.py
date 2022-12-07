@@ -101,7 +101,7 @@ def log_dbt_run_results(results: dbt_results.RunExecutionResult) -> None:
 
     # log execution
     model_exec_info.info(info)
-    logger.metrics("Executed models", extra=get_logging_extras([model_elapsed_gauge, model_exec_info]))
+    logger.metrics("stop", "dbt models", extra=get_logging_extras([model_elapsed_gauge, model_exec_info]))
 
 
 def initialize_package(with_git_command: Optional[str]) -> None:

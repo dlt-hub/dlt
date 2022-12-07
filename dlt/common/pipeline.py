@@ -5,7 +5,8 @@ from typing import Any, Callable, ClassVar, Dict, List, NamedTuple, Optional, Pr
 
 from dlt.common.configuration.container import ContainerInjectableContext
 from dlt.common.configuration import configspec, DOT_DLT
-from dlt.common.destination import TDestinationReferenceArg
+from dlt.common.configuration.specs import RunConfiguration
+from dlt.common.destination import DestinationReference, TDestinationReferenceArg
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TColumnSchema, TWriteDisposition
 
@@ -46,7 +47,6 @@ class LoadInfo(NamedTuple):
         return msg
 
 
-
 class TPipelineLocalState(TypedDict, total=False):
     first_run: bool
     """Indicates a first run of the pipeline, where run ends with successful loading of data"""
@@ -73,6 +73,10 @@ class TPipelineState(TypedDict, total=False):
 class SupportsPipeline(Protocol):
     """A protocol with core pipeline operations that lets high level abstractions ie. sources to access pipeline methods and properties"""
     pipeline_name: str
+    destination: DestinationReference
+    dataset_name: str = None
+    runtime_config: RunConfiguration
+
     @property
     def state(self) -> TPipelineState:
         ...

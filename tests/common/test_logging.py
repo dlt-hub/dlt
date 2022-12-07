@@ -71,8 +71,8 @@ def test_text_logger_init(environment: StrStr) -> None:
     _mock_image_env(environment)
     _mock_pod_env(environment)
     logger.init_logging_from_config(PureBasicConfiguration())
-    logger.health("HEALTH data", extra={"metrics": "props"})
-    logger.metrics("METRICS data", extra={"metrics": "props"})
+    logger.metrics("progress", "test health", extra={"metrics": "props"})
+    logger.metrics("progress", "test", extra={"metrics": "props"})
     logger.warning("Warning message here")
     try:
         1 / 0
@@ -87,8 +87,8 @@ def test_json_logger_init(environment: StrStr) -> None:
     logger.init_logging_from_config(JsonLoggerConfiguration)
     # correct component was set
     json_logging.COMPONENT_NAME = "logger"
-    logger.health("HEALTH data", extra={"metrics": "props"})
-    logger.metrics("METRICS data", extra={"metrics": "props"})
+    logger.metrics("progress", "test health", extra={"metrics": "props"})
+    logger.metrics("progress", "test", extra={"metrics": "props"})
     logger.warning("Warning message here")
     try:
         1 / 0

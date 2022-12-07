@@ -196,7 +196,7 @@ class Normalize(Runnable[ProcessPool]):
         # gather schema from all manifests, validate consistency and combine
         updates_count = self.update_schema(schema, schema_updates)
         self.schema_version_gauge.labels(schema_name).set(schema.version)
-        logger.metrics("Normalize metrics", extra=get_logging_extras([self.schema_version_gauge.labels(schema_name)]))
+        # logger.metrics("Normalize metrics", extra=get_logging_extras([self.schema_version_gauge.labels(schema_name)]))
         logger.info(f"Saving schema {schema_name} with version {schema.version}, writing manifest files")
         if updates_count > 0:
             # schema is updated, save it to schema volume
@@ -218,7 +218,7 @@ class Normalize(Runnable[ProcessPool]):
         self.load_package_counter.labels(schema_name).inc()
         self.item_counter.labels(schema_name).inc(total_items)
         self.item_gauge.labels(schema_name).set(total_items)
-        logger.metrics("Normalize metrics", extra=get_logging_extras(
+        logger.metrics("stop", "schema items", extra=get_logging_extras(
             [self.load_package_counter.labels(schema_name), self.item_counter.labels(schema_name), self.item_gauge.labels(schema_name)]))
 
     def spool_schema_files(self, schema_name: str, files: Sequence[str]) -> str:

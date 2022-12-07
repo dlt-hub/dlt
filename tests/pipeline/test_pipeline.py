@@ -51,6 +51,14 @@ def test_run_full_refresh_default_dataset() -> None:
     assert r_p.dataset_name.endswith(p._pipeline_instance_id)
 
 
+def test_run_full_refresh_underscored_dataset() -> None:
+    p = dlt.pipeline(full_refresh=True, dataset_name="_main_")
+    assert p.dataset_name.endswith(p._pipeline_instance_id)
+    # restore this pipeline
+    r_p = dlt.attach(full_refresh=False)
+    assert r_p.dataset_name.endswith(p._pipeline_instance_id)
+
+
 def test_pipeline_with_non_alpha_name() -> None:
     name = "another pipeline %__8329イロハニホヘト"
     # contains %
