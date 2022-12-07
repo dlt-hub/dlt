@@ -118,3 +118,13 @@ def get_resolved_traces() -> Mapping[str, ResolvedValueTrace]:
 
 def make_dot_dlt_path(path: str) -> str:
     return os.path.join(DOT_DLT, path)
+
+
+def current_dot_dlt_path() -> str:
+    """Returns current path to the .dlt folder. The path is computed with the relation to the current working directory."""
+    # entry_path = main_module_file_path()
+    # if entry_path:
+    #     path, _ = os.path.split(entry_path)
+    # else:
+    #     path = None
+    return os.path.abspath(os.path.join(".", DOT_DLT))
