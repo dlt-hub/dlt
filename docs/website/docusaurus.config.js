@@ -8,8 +8,8 @@ const darkCodeTheme = require('prism-react-renderer/themes/dracula');
 const config = {
   title: 'dlt Docs',
   tagline: 'data load tool',
-  url: 'https://your-docusaurus-test-site.com',
-  baseUrl: '/',
+  url: 'https://dlthub.com',
+  baseUrl: '/docs',
   onBrokenLinks: 'throw',
   onBrokenMarkdownLinks: 'warn',
   favicon: 'img/favicon.ico',
@@ -30,23 +30,13 @@ const config = {
 
   presets: [
     [
-      'classic',
-      /** @type {import('@docusaurus/preset-classic').Options} */
+      '@docusaurus/preset-classic',
       ({
-        docs: {
+        "docs": {
+          routeBasePath: '/',
           sidebarPath: require.resolve('./sidebars.js'),
-          // Please change this to your repo.
-          // Remove this to remove the "edit this page" links.
-          editUrl:
-            'https://github.com/facebook/docusaurus/tree/main/packages/create-docusaurus/templates/shared/',
         },
-        blog: {
-          showReadingTime: true,
-          // Please change this to your repo.
-          // Remove this to remove the "edit this page" links.
-          editUrl:
-            'https://github.com/facebook/docusaurus/tree/main/packages/create-docusaurus/templates/shared/',
-        },
+        blog: false,
         theme: {
           customCss: require.resolve('./src/css/custom.css'),
         },
@@ -71,7 +61,7 @@ const config = {
             label: 'data load tool',
           },
           {
-            href: 'https://github.com/scale-vector/dlt',
+            href: 'https://github.com/dlt-hub/dlt',
             label: 'GitHub',
             position: 'right',
           },
@@ -85,7 +75,7 @@ const config = {
             items: [
               {
                 label: 'dlt',
-                to: '/docs/intro',
+                to: '/intro',
               },
             ],
           },
@@ -103,7 +93,7 @@ const config = {
             items: [
               {
                 label: 'GitHub',
-                href: 'https://github.com/scale-vector/dlt',
+                href: 'https://github.com/dlt-hub/dlt',
               },
             ],
           },
