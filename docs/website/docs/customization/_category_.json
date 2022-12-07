@@ -1,0 +1,8 @@
+{
+    "label": "Customization",
+    "position": 11,
+    "link": {
+      "type": "generated-index",
+      "description": "Information how to further customize `dlt`."
+    }
+  }

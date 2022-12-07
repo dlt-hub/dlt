@@ -1,0 +1,8 @@
+{
+    "label": "Using loaded data",
+    "position": 10,
+    "link": {
+      "type": "generated-index",
+      "description": "Information about using the data loaded by `dlt`."
+    }
+  }
