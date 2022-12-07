@@ -1,4 +1,4 @@
-from typing import Any, Dict, Final, Optional
+from typing import Any, ClassVar, Dict, Final, List, Optional
 from sqlalchemy.engine import URL, make_url
 from dlt.common.configuration.specs.exceptions import InvalidConnectionString
 
@@ -15,6 +15,8 @@ class ConnectionStringCredentials(CredentialsConfiguration):
     host: str = None
     port: int = None
     query: Optional[Dict[str, str]] = None
+
+    __config_gen_annotations__: ClassVar[List[str]] = ["port"]
 
     def parse_native_representation(self, native_value: Any) -> None:
         if not isinstance(native_value, str):
@@ -42,8 +44,10 @@ class ConnectionStringCredentials(CredentialsConfiguration):
 @configspec
 class PostgresCredentials(ConnectionStringCredentials):
     drivername: Final[str] = "postgresql"  # type: ignore
-    port: int = 5439
+    port: int = 5432
     connect_timeout: int = 15
+
+    __config_gen_annotations__: ClassVar[List[str]] = ["port", "connect_timeout"]
 
     def parse_native_representation(self, native_value: Any) -> None:
         super().parse_native_representation(native_value)
@@ -60,3 +64,8 @@ class PostgresCredentials(ConnectionStringCredentials):
 
     def __str__(self) -> str:
         return self.to_url().render_as_string(hide_password=True)
+
+
+@configspec
+class RedshiftCredentials(PostgresCredentials):
+    port: int = 5439

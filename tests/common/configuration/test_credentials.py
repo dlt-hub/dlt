@@ -4,10 +4,8 @@ from typing import Any
 
 import pytest
 from dlt.common.configuration import resolve_configuration
-from dlt.common.configuration.exceptions import ConfigFieldMissingException
-from dlt.common.configuration.specs import PostgresCredentials, ConnectionStringCredentials, GcpClientCredentials, GcpClientCredentialsWithDefault
+from dlt.common.configuration.specs import PostgresCredentials, RedshiftCredentials, ConnectionStringCredentials, GcpClientCredentials, GcpClientCredentialsWithDefault
 from dlt.common.configuration.specs.exceptions import InvalidConnectionString, InvalidServicesJson
-from dlt.common.storages import FileStorage
 
 from tests.utils import preserve_environ
 from tests.common.utils import json_case_path
@@ -84,6 +82,18 @@ def test_connection_string_resolved_from_native_representation(environment: Any)
     resolve_configuration(c, accept_partial=False)
 
 
+def test_postgres_and_redshift_credentials_defaults() -> None:
+    pg_cred = PostgresCredentials()
+    assert pg_cred.port == 5432
+    assert pg_cred.connect_timeout == 15
+    assert PostgresCredentials.__config_gen_annotations__ == ["port", "connect_timeout"]
+
+    red_cred = RedshiftCredentials()
+    assert red_cred.port == 5439
+    assert red_cred.connect_timeout == 15
+    assert RedshiftCredentials.__config_gen_annotations__ == ["port", "connect_timeout"]
+
+
 def test_gcp_credentials_native_representation(environment) -> None:
     with pytest.raises(InvalidServicesJson):
         GcpClientCredentialsWithDefault().parse_native_representation(1)
@@ -91,6 +101,7 @@ def test_gcp_credentials_native_representation(environment) -> None:
     with pytest.raises(InvalidServicesJson):
         GcpClientCredentialsWithDefault().parse_native_representation("notjson")
 
+    assert GcpClientCredentialsWithDefault.__config_gen_annotations__ == ["location"]
 
     gcpc = GcpClientCredentialsWithDefault()
     gcpc.parse_native_representation(SERVICE_JSON % '"private_key": "-----BEGIN PRIVATE KEY-----\\n\\n-----END PRIVATE KEY-----\\n",')
