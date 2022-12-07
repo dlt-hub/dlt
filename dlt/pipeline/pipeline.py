@@ -779,7 +779,11 @@ class Pipeline:
 
         # in case of full refresh add unique suffix
         if self.full_refresh:
-            dataset_name += self._pipeline_instance_id
+            # double _ is not allowed
+            if dataset_name.endswith("_"):
+                dataset_name += self._pipeline_instance_id[1:]
+            else:
+                dataset_name += self._pipeline_instance_id
         self._validate_dataset_name(dataset_name)
         self.dataset_name = dataset_name
 
