@@ -4,7 +4,7 @@ import datetime  # noqa: 251
 from contextlib import contextmanager
 from functools import wraps
 from collections.abc import Sequence as C_Sequence
-from typing import Any, Callable, ClassVar, Dict, List, Iterator, Mapping, Optional, Sequence, Tuple, cast, get_type_hints, overload
+from typing import Any, Callable, ClassVar, Dict, List, Iterator, Mapping, Optional, Sequence, Tuple, cast, get_type_hints
 
 from dlt.common import json, logger, signals, pendulum
 from dlt.common.configuration import inject_namespace
@@ -41,7 +41,7 @@ from dlt.load import Load
 
 from dlt.pipeline.configuration import PipelineConfiguration
 from dlt.pipeline.exceptions import CannotRestorePipelineException, InvalidPipelineName, PipelineConfigMissing, PipelineStepFailed, SqlClientNotAvailable
-from dlt.pipeline.trace import PipelineRuntimeTrace, add_trace_step, save_trace
+from dlt.pipeline.trace import PipelineRuntimeTrace, PipelineStepTrace, merge_traces, start_trace, start_trace_step, end_trace_step, end_trace
 from dlt.pipeline.typing import TPipelineStep
 from dlt.pipeline.state import STATE_ENGINE_VERSION, load_state_from_destination, merge_state_if_changed, migrate_state, state_resource, StateInjectableContext
 
@@ -80,17 +80,34 @@ def with_runtime_trace(f: TFun) -> TFun:
 
     @wraps(f)
     def _wrap(self: "Pipeline", *args: Any, **kwargs: Any) -> Any:
+        new_trace = self._trace is None
         rv: Any = None
-        started_at = pendulum.now()
+        trace_step: PipelineStepTrace = None
+
+        if self.config.enable_runtime_trace and new_trace:
+            self._trace = start_trace(cast(TPipelineStep, f.__name__), self)
         try:
+            if self._trace:
+                trace_step = start_trace_step(self._trace, cast(TPipelineStep, f.__name__), self)
             rv = f(self, *args, **kwargs)
             return rv
-        except PipelineStepFailed as pip_ex:
-            rv = pip_ex
+        except Exception as ex:
+            rv = ex
             raise
         finally:
-            if rv is not None  and self.config.enable_runtime_trace:
-                self._save_runtime_trace(cast(TPipelineStep, f.__name__), started_at, rv)
+            try:
+                if self.config.enable_runtime_trace:
+                    with contextlib.suppress(Exception):
+                        end_trace_step(self._trace, trace_step, self, rv)
+                    if new_trace:
+                        with contextlib.suppress(Exception):
+                            end_trace(self._trace, self, self._pipeline_storage.storage_path)
+            finally:
+                # always end trace
+                if new_trace:
+                    self._last_trace = merge_traces(self._last_trace, self._trace)
+                    self._trace = None
+
 
     return _wrap  # type: ignore
 
@@ -124,6 +141,7 @@ class Pipeline:
     must_attach_to_local_pipeline: bool
     pipelines_dir: str
     working_dir: str
+    runtime_config: RunConfiguration
     destination: DestinationReference = None
     dataset_name: str = None
     credentials: Any = None
@@ -158,6 +176,7 @@ class Pipeline:
         self._normalize_storage_config: NormalizeVolumeConfiguration = None
         self._load_storage_config: LoadVolumeConfiguration = None
         self._trace: PipelineRuntimeTrace = None
+        self._last_trace: PipelineRuntimeTrace = None
         self._state_restored: bool = False
 
         initialize_runner(self.runtime_config)
@@ -369,6 +388,7 @@ class Pipeline:
             pipex.step_info = self._get_load_info(load)
             raise
 
+    @with_runtime_trace
     @with_config_namespace(("run",))
     def run(
         self,
@@ -386,9 +406,6 @@ class Pipeline:
         destination = DestinationReference.from_name(destination)
         self.destination = destination or self.destination
         self._set_dataset_name(dataset_name)
-
-        # reset trace
-        self._trace = None
 
         # sync state with destination
         if self.config.restore_from_destination and not self.full_refresh and not self._state_restored and (self.destination or destination):
@@ -828,9 +845,9 @@ class Pipeline:
             logger.info("Client not available due to missing credentials")
         return None
 
-    def _save_runtime_trace(self, step: TPipelineStep, started_at: datetime.datetime, step_info: Any) -> None:
-        self._trace = add_trace_step(self._trace, step, started_at, step_info)
-        save_trace(self._pipeline_storage.storage_path, self._trace)
+    # def _save_runtime_trace(self, step: TPipelineStep, started_at: datetime.datetime, step_info: Any) -> None:
+    #     self._trace = add_trace_step(self._trace, step, started_at, step_info)
+    #     save_trace(self._pipeline_storage.storage_path, self._trace)
 
     def _restore_state_from_destination(self, raise_on_connection_error: bool = True) -> Optional[TPipelineState]:
         # if state is not present locally, take the state from the destination
@@ -913,7 +930,6 @@ class Pipeline:
 
             # if state is modified and is not being extracted, mark it to be extracted next time
             if not extract_state and merged_state:
-                # print("REMOVED _last_extracted_at")
                 local_state.pop("_last_extracted_at", None)
 
             # always save state locally as local_state is not compared

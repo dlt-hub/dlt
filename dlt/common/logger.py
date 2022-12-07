@@ -6,10 +6,10 @@ from importlib.metadata import version as pkg_version, PackageNotFoundError
 from sentry_sdk.transport import HttpTransport
 from sentry_sdk.integrations.logging import LoggingIntegration
 from logging import LogRecord, Logger
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 
 from dlt.common.json import json
-from dlt.common.typing import DictStrAny, StrStr
+from dlt.common.typing import DictStrAny, StrAny, StrStr
 from dlt.common.configuration.specs import RunConfiguration
 from dlt.common.utils import filter_env_vars
 
@@ -18,6 +18,30 @@ from dlt.__version__ import __version__
 DLT_LOGGER_NAME = "dlt"
 DLT_PKG_NAME = "python-dlt"
 LOGGER: Logger = None
+TMetricsCategory = Literal["start", "progress", "stop"]
+
+
+class LogMethod(Protocol):
+    def __call__(self, msg: str, *args: Any, **kwds: Any) -> None:
+        ...
+
+
+def __getattr__(name: str) -> LogMethod:
+    """A catch all function for a module that forwards calls to unknown methods to LOGGER"""
+    def wrapper(msg: str, *args: Any, **kwargs: Any) -> None:
+        if LOGGER:
+            # skip stack frames when displaying log so the original logging frame is displayed
+            stacklevel = 2
+            if name == "exception":
+                # exception has one more frame
+                stacklevel = 3
+            getattr(LOGGER, name)(msg, *args, **kwargs, stacklevel=stacklevel)
+    return wrapper
+
+
+def metrics(category: TMetricsCategory, name: str, extra: StrAny, stacklevel: int = 1) -> None:
+    if LOGGER:
+        LOGGER.metrics(f"{category}:{name}", extra=extra, stacklevel=stacklevel)  # type: ignore
 
 
 def _add_logging_level(level_name: str, level: int, method_name:str = None) -> None:
@@ -112,24 +136,6 @@ def _init_logging(logger_name: str, level: str, fmt: str, component: str, versio
     return logger
 
 
-class LogMethod(Protocol):
-    def __call__(self, msg: str, *args: Any, **kwds: Any) -> None:
-        ...
-
-
-def __getattr__(name: str) -> LogMethod:
-    # a catch all function for a module that forwards calls to unknown methods to LOGGER
-    def wrapper(msg: str, *args: Any, **kwargs: Any) -> None:
-        if LOGGER:
-            # skip stack frames when displaying log so the original logging frame is displayed
-            stacklevel = 2
-            if name == "exception":
-                # exception has one more frame
-                stacklevel = 3
-            getattr(LOGGER, name)(msg, *args, **kwargs, stacklevel=stacklevel)
-    return wrapper
-
-
 def _extract_version_info(config: RunConfiguration) -> StrStr:
 
     version_info = {"dlt_version": dlt_version(), "pipeline_name": config.pipeline_name}
@@ -173,6 +179,7 @@ def _init_sentry(C: RunConfiguration, version: StrStr) -> None:
     # https://docs.sentry.io/platforms/python/guides/logging/
     sentry_sdk.init(
         C.sentry_dsn,
+        traces_sample_rate=1.0,
         integrations=[_get_sentry_log_level(C)],
         release=release,
         transport=_SentryHttpTransport
@@ -188,6 +195,8 @@ def _init_sentry(C: RunConfiguration, version: StrStr) -> None:
     github_tags = _extract_github_info()
     for k, v in github_tags.items():
         sentry_sdk.set_tag(k, v)
+    if "GITHUB_USER" in github_tags:
+        sentry_sdk.set_user({"username": github_tags["GITHUB_USER"]})
 
 
 def init_telemetry(config: RunConfiguration) -> None:
@@ -204,8 +213,8 @@ def init_logging_from_config(C: RunConfiguration) -> None:
     global LOGGER
 
     # add HEALTH and METRICS log levels
-    if not hasattr(logging, "health"):
-        _add_logging_level("HEALTH", logging.WARNING - 1, "health")
+    if not hasattr(logging, "metrics"):
+        # _add_logging_level("HEALTH", logging.WARNING - 1, "health")
         _add_logging_level("METRICS", logging.WARNING - 2, "metrics")
 
     version = _extract_version_info(C)
@@ -215,6 +224,7 @@ def init_logging_from_config(C: RunConfiguration) -> None:
         C.log_format,
         C.pipeline_name,
         version)
+
     if C.sentry_dsn:
         _init_sentry(C, version)
 

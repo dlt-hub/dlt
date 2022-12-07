@@ -156,8 +156,8 @@ def _update_metrics(run_metrics: TRunMetrics) -> TRunHealth:
         HEALTH_PROPS_GAUGES["runs_cs_failed_gauge"].set(0)
     HEALTH_PROPS_GAUGES["runs_pending_items_gauge"].set(run_metrics.pending_items)
     health_props = update_gauges()
-    logger.health("run health counters", extra={"metrics": health_props})
-    logger.metrics("run metrics", extra=get_logging_extras([RUN_DURATION_GAUGE, RUN_DURATION_SUMMARY]))
+    logger.metrics("progress", "health", extra={"metrics": health_props})
+    logger.metrics("progress", "pool runner", extra=get_logging_extras([RUN_DURATION_GAUGE, RUN_DURATION_SUMMARY]))
 
     # preserve last run metrics
     global LAST_RUN_METRICS

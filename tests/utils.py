@@ -72,7 +72,7 @@ def preserve_environ() -> None:
 
 
 def init_logger(C: RunConfiguration = None) -> None:
-    if not hasattr(logging, "health"):
+    if not hasattr(logging, "metrics"):
         if not C:
             C = resolve_configuration(RunConfiguration())
         init_logging_from_config(C)

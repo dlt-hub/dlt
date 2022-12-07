@@ -2,7 +2,7 @@ from os.path import isfile, join
 from pathlib import Path
 from typing import Any, Optional, Tuple, IO
 
-from dlt.common.utils import encoding_for_mode, entry_point_file
+from dlt.common.utils import encoding_for_mode, main_module_file_path
 from dlt.common.configuration.specs.base_configuration import BaseConfiguration, configspec
 from dlt.common.configuration.exceptions import ConfigFileNotFoundException
 
@@ -11,6 +11,7 @@ from dlt.common.configuration.exceptions import ConfigFileNotFoundException
 class RunConfiguration(BaseConfiguration):
     pipeline_name: Optional[str] = None
     sentry_dsn: Optional[str] = None  # keep None to disable Sentry
+    slack_incoming_hook: Optional[str] = None
     prometheus_port: Optional[int] = None  # keep None to disable Prometheus
     log_format: str = '{asctime}|[{levelname:<21}]|{process}|{name}|{filename}|{funcName}:{lineno}|{message}'
     log_level: str = "INFO"
@@ -20,7 +21,7 @@ class RunConfiguration(BaseConfiguration):
     def on_resolved(self) -> None:
         # generate pipeline name from the entry point script name
         if not self.pipeline_name:
-            self.pipeline_name = get_default_pipeline_name(entry_point_file())
+            self.pipeline_name = get_default_pipeline_name(main_module_file_path())
 
     def has_configuration_file(self, name: str) -> bool:
         return isfile(self.get_configuration_file_path(name))
