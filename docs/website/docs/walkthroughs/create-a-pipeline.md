@@ -4,11 +4,11 @@ sidebar_position: 1
 
 # Create a pipeline
 
-Follow the steps below to create a [pipeline](./glossary.md/#pipeline) from the Twitter API to 
+Follow the steps below to create a [pipeline](../glossary.md#pipeline) from the Twitter API to 
 Google BigQuery from scratch. The same steps can be repeated for any source and destination of your 
 choice--use `dlt init <source> <destination>` and then build the pipeline for that API instead.
 
-Please make sure you have [installed `dlt`](./installation.mdx) before following the steps below.
+Please make sure you have [installed `dlt`](../installation.mdx) before following the steps below.
 
 ## 1. Initialize project
 
