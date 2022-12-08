@@ -84,7 +84,7 @@ const config = {
             items: [
               {
                 label: 'Email',
-                href: 'mailto:tyler@scalevector.ai',
+                href: 'mailto:team@dlthub.com',
               },
             ],
           },

@@ -5,7 +5,7 @@ import styles from './styles.module.css';
 const FeatureList = [
   {
     title: 'Easy data loading',
-    Svg: require('@site/static/img/easy-data-loading.svg').default,
+    Svg: require('@site/static/img/loading.svg').default,
     description: (
       <>
         Automatically turn the JSON returned by any API into a live dataset stored wherever you want it.
@@ -14,7 +14,7 @@ const FeatureList = [
   },
   {
     title: 'Simple python library',
-    Svg: require('@site/static/img/python-snake.svg').default,
+    Svg: require('@site/static/img/python.svg').default,
     description: (
       <>
         <code>pip install python-dlt</code> and then include <code>import dlt</code> to use it in your loading script.
@@ -23,7 +23,7 @@ const FeatureList = [
   },
   {
     title: 'Powered by open source',
-    Svg: require('@site/static/img/hugging-face-emoji.svg').default,
+    Svg: require('@site/static/img/open-source.svg').default,
     description: (
       <>
         The <code>dlt</code> library is licensed under the Apache License 2.0, so you can use it for free forever.
