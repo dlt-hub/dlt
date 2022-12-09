@@ -1,10 +1,10 @@
 FROM alpine:3.15
 
 # Metadata
-LABEL org.label-schema.vendor="ScaleVector" \
-    org.label-schema.url="https://scalevector.ai" \
-    org.label-schema.name="DLT" \
-    org.label-schema.description="DLT is an open-source python-native scalable data loading framework that does not require any devops efforts to run."
+LABEL org.label-schema.vendor="dltHub" \
+    org.label-schema.url="https://dlthub.com" \
+    org.label-schema.name="dlt" \
+    org.label-schema.description="**data load tool (dlt)** is a simple, open source Python library that makes data loading easy."
 
 # prepare dirs to install dlt
 RUN mkdir -p /tmp/pydlt

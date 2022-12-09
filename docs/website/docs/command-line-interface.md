@@ -20,11 +20,10 @@ Follow the [Create a pipeline](./walkthroughs/create-a-pipeline.md) walkthrough 
 ## `dlt deploy`
 
 ```
-dlt deploy <script>.py github-action --schedule * * * * *
+dlt deploy <script>.py github-action --schedule "*/30 * * * *"
 ```
 
 [GitHub Actions](https://github.com/features/actions) are the only supported deployment method at the moment.
-You need to specify when the GitHub Action should run using a [cron schedule expression](https://crontab.guru/). The command also takes additional flags: `--run-on-push` (default is False) and 
-`--run-manually` (default is True).
+You need to specify when the GitHub Action should run using a [cron schedule expression](https://crontab.guru/). The command also takes additional flags: `--run-on-push` (default is False) and `--run-manually` (default is True). Remember to put the cron schedule into quotation marks as in the example above.
 
 Follow the [Deploy a pipeline](./walkthroughs/deploy-a-pipeline.md) walkthrough to learn more.

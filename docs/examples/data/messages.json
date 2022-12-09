@@ -1,0 +1,1962 @@
+[
+    {
+        "id": "973429555450769428",
+        "type": 0,
+        "content": "Hello <@805905681324441601>, I believe we have an open discussion to close in our inbox, do you mind having a look mate?",
+        "channel_id": "815421435900198965",
+        "author": {
+            "id": "190638507922948096",
+            "username": "Davidtank",
+            "avatar": "a517cd3051fc36c7fd5ece2bace94bff",
+            "avatar_decoration": null,
+            "discriminator": "5263",
+            "public_flags": 0
+        },
+        "attachments": [],
+        "embeds": [],
+        "mentions": [
+            {
+                "id": "805905681324441601",
+                "username": "bp | Gamma",
+                "avatar": "15712f6db1298e787851be21be109a3c",
+                "avatar_decoration": null,
+                "discriminator": "4781",
+                "public_flags": 0
+            }
+        ],
+        "mention_roles": [],
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "timestamp": "2022-05-10T03:41:31.466000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": []
+    },
+    {
+        "id": "973387600985464862",
+        "type": 0,
+        "content": "UST",
+        "channel_id": "815421435900198965",
+        "author": {
+            "id": "258472062568497152",
+            "username": "Electric5heep",
+            "avatar": "a_8af252af4a62acbe65d0cab874b73f71",
+            "avatar_decoration": null,
+            "discriminator": "4834",
+            "public_flags": 0
+        },
+        "attachments": [],
+        "embeds": [],
+        "mentions": [],
+        "mention_roles": [],
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "timestamp": "2022-05-10T00:54:48.742000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": []
+    },
+    {
+        "id": "973387556924301353",
+        "type": 0,
+        "content": "ouch",
+        "channel_id": "815421435900198965",
+        "author": {
+            "id": "258472062568497152",
+            "username": "Electric5heep",
+            "avatar": "a_8af252af4a62acbe65d0cab874b73f71",
+            "avatar_decoration": null,
+            "discriminator": "4834",
+            "public_flags": 0
+        },
+        "attachments": [],
+        "embeds": [],
+        "mentions": [],
+        "mention_roles": [],
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "timestamp": "2022-05-10T00:54:38.237000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": [],
+        "reactions": [
+            {
+                "emoji": {
+                    "id": "938899746431594536",
+                    "name": "btfo"
+                },
+                "count": 1,
+                "me": false
+            }
+        ]
+    },
+    {
+        "id": "973378149364678706",
+        "type": 19,
+        "content": "Lol yeahh, not looking too hot right now",
+        "channel_id": "815421435900198965",
+        "author": {
+            "id": "805905681324441601",
+            "username": "bp | Gamma",
+            "avatar": "15712f6db1298e787851be21be109a3c",
+            "avatar_decoration": null,
+            "discriminator": "4781",
+            "public_flags": 0
+        },
+        "attachments": [],
+        "embeds": [],
+        "mentions": [
+            {
+                "id": "414648319080398859",
+                "username": "xk",
+                "avatar": "199667fc70e9415f57a583c69c295296",
+                "avatar_decoration": null,
+                "discriminator": "5290",
+                "public_flags": 0
+            }
+        ],
+        "mention_roles": [],
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "timestamp": "2022-05-10T00:17:15.300000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": [],
+        "message_reference": {
+            "channel_id": "815421435900198965",
+            "guild_id": "815421435900198962",
+            "message_id": "973376867316953158"
+        },
+        "referenced_message": {
+            "id": "973376867316953158",
+            "type": 19,
+            "content": "seens your direction is not good",
+            "channel_id": "815421435900198965",
+            "author": {
+                "id": "414648319080398859",
+                "username": "xk",
+                "avatar": "199667fc70e9415f57a583c69c295296",
+                "avatar_decoration": null,
+                "discriminator": "5290",
+                "public_flags": 0
+            },
+            "attachments": [],
+            "embeds": [],
+            "mentions": [
+                {
+                    "id": "805905681324441601",
+                    "username": "bp | Gamma",
+                    "avatar": "15712f6db1298e787851be21be109a3c",
+                    "avatar_decoration": null,
+                    "discriminator": "4781",
+                    "public_flags": 0
+                }
+            ],
+            "mention_roles": [],
+            "pinned": false,
+            "mention_everyone": false,
+            "tts": false,
+            "timestamp": "2022-05-10T00:12:09.636000+00:00",
+            "edited_timestamp": null,
+            "flags": 0,
+            "components": [],
+            "message_reference": {
+                "channel_id": "815421435900198965",
+                "guild_id": "815421435900198962",
+                "message_id": "973343928143192115"
+            }
+        }
+    },
+    {
+        "id": "973376867316953158",
+        "type": 19,
+        "content": "seens your direction is not good",
+        "channel_id": "815421435900198965",
+        "author": {
+            "id": "414648319080398859",
+            "username": "xk",
+            "avatar": "199667fc70e9415f57a583c69c295296",
+            "avatar_decoration": null,
+            "discriminator": "5290",
+            "public_flags": 0
+        },
+        "attachments": [],
+        "embeds": [],
+        "mentions": [
+            {
+                "id": "805905681324441601",
+                "username": "bp | Gamma",
+                "avatar": "15712f6db1298e787851be21be109a3c",
+                "avatar_decoration": null,
+                "discriminator": "4781",
+                "public_flags": 0
+            }
+        ],
+        "mention_roles": [],
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "timestamp": "2022-05-10T00:12:09.636000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": [],
+        "message_reference": {
+            "channel_id": "815421435900198965",
+            "guild_id": "815421435900198962",
+            "message_id": "973343928143192115"
+        },
+        "referenced_message": {
+            "id": "973343928143192115",
+            "type": 0,
+            "content": "I don't think it'll lose its peg permanently.  I've seen this before with UST, but who knows",
+            "channel_id": "815421435900198965",
+            "author": {
+                "id": "805905681324441601",
+                "username": "bp | Gamma",
+                "avatar": "15712f6db1298e787851be21be109a3c",
+                "avatar_decoration": null,
+                "discriminator": "4781",
+                "public_flags": 0
+            },
+            "attachments": [],
+            "embeds": [],
+            "mentions": [],
+            "mention_roles": [],
+            "pinned": false,
+            "mention_everyone": false,
+            "tts": false,
+            "timestamp": "2022-05-09T22:01:16.325000+00:00",
+            "edited_timestamp": null,
+            "flags": 0,
+            "components": []
+        }
+    },
+    {
+        "id": "973349261880229949",
+        "type": 0,
+        "content": "Still bad, but been worse",
+        "channel_id": "815421435900198965",
+        "author": {
+            "id": "396174918762627073",
+            "username": "daulton.eth",
+            "avatar": "22cd959e85d50b196ddd08b2230bf143",
+            "avatar_decoration": null,
+            "discriminator": "0384",
+            "public_flags": 0
+        },
+        "attachments": [
+            {
+                "id": "973349260714188840",
+                "filename": "IMG_1707.png",
+                "size": 539716,
+                "url": "https://cdn.discordapp.com/attachments/815421435900198965/973349260714188840/IMG_1707.png",
+                "proxy_url": "https://media.discordapp.net/attachments/815421435900198965/973349260714188840/IMG_1707.png",
+                "width": 1170,
+                "height": 2136,
+                "content_type": "image/jpeg"
+            }
+        ],
+        "embeds": [],
+        "mentions": [],
+        "mention_roles": [],
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "timestamp": "2022-05-09T22:22:27.987000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": []
+    },
+    {
+        "id": "973343928143192115",
+        "type": 0,
+        "content": "I don't think it'll lose its peg permanently.  I've seen this before with UST, but who knows",
+        "channel_id": "815421435900198965",
+        "author": {
+            "id": "805905681324441601",
+            "username": "bp | Gamma",
+            "avatar": "15712f6db1298e787851be21be109a3c",
+            "avatar_decoration": null,
+            "discriminator": "4781",
+            "public_flags": 0
+        },
+        "attachments": [],
+        "embeds": [],
+        "mentions": [],
+        "mention_roles": [],
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "timestamp": "2022-05-09T22:01:16.325000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": []
+    },
+    {
+        "id": "973343850556952686",
+        "type": 0,
+        "content": "Oof yeah",
+        "channel_id": "815421435900198965",
+        "author": {
+            "id": "805905681324441601",
+            "username": "bp | Gamma",
+            "avatar": "15712f6db1298e787851be21be109a3c",
+            "avatar_decoration": null,
+            "discriminator": "4781",
+            "public_flags": 0
+        },
+        "attachments": [],
+        "embeds": [],
+        "mentions": [],
+        "mention_roles": [],
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "timestamp": "2022-05-09T22:00:57.827000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": []
+    },
+    {
+        "id": "973330828958519357",
+        "type": 0,
+        "content": "https://twitter.com/LFG_org/status/1523766683923451904",
+        "channel_id": "815421435900198965",
+        "author": {
+            "id": "396312877348159499",
+            "username": "zzebra",
+            "avatar": "4795d9a7879dc3a8d388ee48167952ee",
+            "avatar_decoration": null,
+            "discriminator": "1326",
+            "public_flags": 0
+        },
+        "attachments": [],
+        "embeds": [
+            {
+                "type": "rich",
+                "url": "https://twitter.com/LFG_org/status/1523766683923451904",
+                "description": "Below is the new LFG $BTC wallet address: \n\nhttps://t.co/9t0NX3VEMI\n\nLast clip withdrawn by the LFG was ~37K BTC. Similar to the last deployment, it has been loaned to MMs. \n\nVery little of the recent clip has been spent but is currently being used to buy $UST.\n\nUpdates coming.",
+                "color": 1942002,
+                "timestamp": "2022-05-09T20:47:42.320000+00:00",
+                "author": {
+                    "name": "LFG | Luna Foundation Guard (@LFG_org)",
+                    "url": "https://twitter.com/LFG_org",
+                    "icon_url": "https://pbs.twimg.com/profile_images/1495901882123960322/0RC2v53q_400x400.jpg",
+                    "proxy_icon_url": "https://images-ext-2.discordapp.net/external/oBMqkdHifyLJpaOtGGtgAAzFCY0r884OUbhY2fTRuKs/https/pbs.twimg.com/profile_images/1495901882123960322/0RC2v53q_400x400.jpg"
+                },
+                "footer": {
+                    "text": "Twitter",
+                    "icon_url": "https://abs.twimg.com/icons/apple-touch-icon-192x192.png",
+                    "proxy_icon_url": "https://images-ext-1.discordapp.net/external/bXJWV2Y_F3XSra_kEqIYXAAsI3m1meckfLhYuWzxIfI/https/abs.twimg.com/icons/apple-touch-icon-192x192.png"
+                }
+            }
+        ],
+        "mentions": [],
+        "mention_roles": [],
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "timestamp": "2022-05-09T21:09:13.236000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": []
+    },
+    {
+        "id": "973284242769444894",
+        "type": 19,
+        "content": "It getting volume cause people dumping ust it has depegged",
+        "channel_id": "815421435900198965",
+        "author": {
+            "id": "690201333223260178",
+            "username": "to",
+            "avatar": "950d2bc65e8eca88cb4ee4775a6d21a1",
+            "avatar_decoration": null,
+            "discriminator": "4866",
+            "public_flags": 0
+        },
+        "attachments": [],
+        "embeds": [],
+        "mentions": [
+            {
+                "id": "805905681324441601",
+                "username": "bp | Gamma",
+                "avatar": "15712f6db1298e787851be21be109a3c",
+                "avatar_decoration": null,
+                "discriminator": "4781",
+                "public_flags": 0
+            }
+        ],
+        "mention_roles": [],
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "timestamp": "2022-05-09T18:04:06.223000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": [],
+        "message_reference": {
+            "channel_id": "815421435900198965",
+            "guild_id": "815421435900198962",
+            "message_id": "973211525621895168"
+        },
+        "referenced_message": {
+            "id": "973211525621895168",
+            "type": 19,
+            "content": "Ahh yeah.  We're also going to be adding a UST (wormhole) edition on Polygon.  Seems to be getting more volume lately than the simple wrapped version of UST",
+            "channel_id": "815421435900198965",
+            "author": {
+                "id": "805905681324441601",
+                "username": "bp | Gamma",
+                "avatar": "15712f6db1298e787851be21be109a3c",
+                "avatar_decoration": null,
+                "discriminator": "4781",
+                "public_flags": 0
+            },
+            "attachments": [],
+            "embeds": [],
+            "mentions": [
+                {
+                    "id": "690201333223260178",
+                    "username": "to",
+                    "avatar": "950d2bc65e8eca88cb4ee4775a6d21a1",
+                    "avatar_decoration": null,
+                    "discriminator": "4866",
+                    "public_flags": 0
+                }
+            ],
+            "mention_roles": [],
+            "pinned": false,
+            "mention_everyone": false,
+            "tts": false,
+            "timestamp": "2022-05-09T13:15:09.104000+00:00",
+            "edited_timestamp": null,
+            "flags": 0,
+            "components": [],
+            "message_reference": {
+                "channel_id": "815421435900198965",
+                "guild_id": "815421435900198962",
+                "message_id": "972814582588538911"
+            }
+        }
+    },
+    {
+        "id": "973215101660307576",
+        "type": 0,
+        "content": "https://twitter.com/gnosischain/status/1523600124672622592?s=20&t=M2kFAqht_UU9WtP22mJomQ",
+        "channel_id": "815421435900198965",
+        "author": {
+            "id": "805905681324441601",
+            "username": "bp | Gamma",
+            "avatar": "15712f6db1298e787851be21be109a3c",
+            "avatar_decoration": null,
+            "discriminator": "4781",
+            "public_flags": 0
+        },
+        "attachments": [],
+        "embeds": [
+            {
+                "type": "rich",
+                "url": "https://twitter.com/gnosischain/status/1523600124672622592?s=20&t=M2kFAqht_UU9WtP22mJomQ",
+                "description": "\ud83d\udea8 The final on-chain vote is now live!! \ud83d\ude80\n\nVote here \ud83d\udc47\ud83d\udc47 https://t.co/RWehPMwWRJ",
+                "color": 1942002,
+                "timestamp": "2022-05-09T09:45:51.500000+00:00",
+                "author": {
+                    "name": "Gnosis Chain \ud83e\udd89 (@gnosischain)",
+                    "url": "https://twitter.com/gnosischain",
+                    "icon_url": "https://pbs.twimg.com/profile_images/1479451262575861766/okSB9hV5_400x400.jpg",
+                    "proxy_icon_url": "https://images-ext-2.discordapp.net/external/l8SUqXfMNW6cWz2JqYs1PDMAknfCvcoyet954Vk3F4E/https/pbs.twimg.com/profile_images/1479451262575861766/okSB9hV5_400x400.jpg"
+                },
+                "footer": {
+                    "text": "Twitter",
+                    "icon_url": "https://abs.twimg.com/icons/apple-touch-icon-192x192.png",
+                    "proxy_icon_url": "https://images-ext-1.discordapp.net/external/bXJWV2Y_F3XSra_kEqIYXAAsI3m1meckfLhYuWzxIfI/https/abs.twimg.com/icons/apple-touch-icon-192x192.png"
+                }
+            }
+        ],
+        "mentions": [],
+        "mention_roles": [],
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "timestamp": "2022-05-09T13:29:21.698000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": []
+    },
+    {
+        "id": "973211525621895168",
+        "type": 19,
+        "content": "Ahh yeah.  We're also going to be adding a UST (wormhole) edition on Polygon.  Seems to be getting more volume lately than the simple wrapped version of UST",
+        "channel_id": "815421435900198965",
+        "author": {
+            "id": "805905681324441601",
+            "username": "bp | Gamma",
+            "avatar": "15712f6db1298e787851be21be109a3c",
+            "avatar_decoration": null,
+            "discriminator": "4781",
+            "public_flags": 0
+        },
+        "attachments": [],
+        "embeds": [],
+        "mentions": [
+            {
+                "id": "690201333223260178",
+                "username": "to",
+                "avatar": "950d2bc65e8eca88cb4ee4775a6d21a1",
+                "avatar_decoration": null,
+                "discriminator": "4866",
+                "public_flags": 0
+            }
+        ],
+        "mention_roles": [],
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "timestamp": "2022-05-09T13:15:09.104000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": [],
+        "message_reference": {
+            "channel_id": "815421435900198965",
+            "guild_id": "815421435900198962",
+            "message_id": "972814582588538911"
+        },
+        "referenced_message": {
+            "id": "972814582588538911",
+            "type": 0,
+            "content": "Lmao I'm gonna remove my ust position because wth",
+            "channel_id": "815421435900198965",
+            "author": {
+                "id": "690201333223260178",
+                "username": "to",
+                "avatar": "950d2bc65e8eca88cb4ee4775a6d21a1",
+                "avatar_decoration": null,
+                "discriminator": "4866",
+                "public_flags": 0
+            },
+            "attachments": [],
+            "embeds": [],
+            "mentions": [],
+            "mention_roles": [],
+            "pinned": false,
+            "mention_everyone": false,
+            "tts": false,
+            "timestamp": "2022-05-08T10:57:50.510000+00:00",
+            "edited_timestamp": null,
+            "flags": 0,
+            "components": []
+        }
+    },
+    {
+        "id": "973161175988707368",
+        "type": 0,
+        "content": "We are currently testing on OP",
+        "channel_id": "815421435900198965",
+        "author": {
+            "id": "350165413214027776",
+            "username": "br\u00f8",
+            "avatar": "ff9a4e4b07048e967a849c6a28ff8161",
+            "avatar_decoration": null,
+            "discriminator": "1298",
+            "public_flags": 0
+        },
+        "attachments": [],
+        "embeds": [],
+        "mentions": [],
+        "mention_roles": [],
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "timestamp": "2022-05-09T09:55:04.816000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": []
+    },
+    {
+        "id": "973160925790089246",
+        "type": 0,
+        "content": "Will Gamma, OP be launched this week?",
+        "channel_id": "815421435900198965",
+        "author": {
+            "id": "304369500424503297",
+            "username": "1a35e1",
+            "avatar": "7f8b3ebd7134b05996dbf0453627a166",
+            "avatar_decoration": null,
+            "discriminator": "2482",
+            "public_flags": 0
+        },
+        "attachments": [],
+        "embeds": [],
+        "mentions": [],
+        "mention_roles": [],
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "timestamp": "2022-05-09T09:54:05.164000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": []
+    },
+    {
+        "id": "973063311539204127",
+        "type": 19,
+        "content": "All good, thanks the detailed explanation.",
+        "channel_id": "815421435900198965",
+        "author": {
+            "id": "404574087709720576",
+            "username": "helpfulBrother",
+            "avatar": "65e76a95f55328c32a7e759cfc8393f6",
+            "avatar_decoration": null,
+            "discriminator": "7823",
+            "public_flags": 0
+        },
+        "attachments": [],
+        "embeds": [],
+        "mentions": [
+            {
+                "id": "350165413214027776",
+                "username": "br\u00f8",
+                "avatar": "ff9a4e4b07048e967a849c6a28ff8161",
+                "avatar_decoration": null,
+                "discriminator": "1298",
+                "public_flags": 0
+            }
+        ],
+        "mention_roles": [],
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "timestamp": "2022-05-09T03:26:12.113000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": [],
+        "message_reference": {
+            "channel_id": "815421435900198965",
+            "guild_id": "815421435900198962",
+            "message_id": "972801523308441621"
+        },
+        "referenced_message": {
+            "id": "972801523308441621",
+            "type": 0,
+            "content": "That's correct, however 10% of the fees go to gamma stakers. The Annual Percentage Returns (APRs) on the dashboard refer strictly to fee-based APR, which is total fees earned as of the last rebalance divided by the current value of assets. The APRs currently do not reflect impermanent losses or the change in valuations of the underlying assets. Make sure you read our docs about it: https://docs.gamma.xyz/gamma/features/public",
+            "channel_id": "815421435900198965",
+            "author": {
+                "id": "350165413214027776",
+                "username": "br\u00f8",
+                "avatar": "ff9a4e4b07048e967a849c6a28ff8161",
+                "avatar_decoration": null,
+                "discriminator": "1298",
+                "public_flags": 0
+            },
+            "attachments": [],
+            "embeds": [
+                {
+                    "type": "article",
+                    "url": "https://docs.gamma.xyz/gamma/features/public",
+                    "title": "Gamma Public CLM",
+                    "description": "An overview of Gamma's public suite for actively managed concentrated liquidity pools",
+                    "thumbnail": {
+                        "url": "https://www.gitbook.com/cdn-cgi/image/height=640,width=1280,fit=contain,dpr=1,format=auto/https%3A%2F%2F1678284087-files.gitbook.io%2F~%2Ffiles%2Fv0%2Fb%2Fgitbook-x-prod.appspot.com%2Fo%2Fspaces%252F-MWyc-TFyZIzH7aDRnpp%252Fsocialpreview%252FBJe5hOEbEEWzE7qmXMyv%252FGamma%2520Word%2520mod.jpg%3Falt%3Dmedia%26token%3D8b8face5-e858-4d4b-b528-d6f33e6153ac",
+                        "proxy_url": "https://images-ext-2.discordapp.net/external/QmpNKaR0ppvXDUjk579V23J8WvJkqhEwJOToV1Z8Whs/https/www.gitbook.com/cdn-cgi/image/height%3D640%2Cwidth%3D1280%2Cfit%3Dcontain%2Cdpr%3D1%2Cformat%3Dauto/https%253A%252F%252F1678284087-files.gitbook.io%252F~%252Ffiles%252Fv0%252Fb%252Fgitbook-x-prod.appspot.com%252Fo%252Fspaces%25252F-MWyc-TFyZIzH7aDRnpp%25252Fsocialpreview%25252FBJe5hOEbEEWzE7qmXMyv%25252FGamma%252520Word%252520mod.jpg%253Falt%253Dmedia%2526token%253D8b8face5-e858-4d4b-b528-d6f33e6153ac",
+                        "width": 1215,
+                        "height": 640
+                    }
+                }
+            ],
+            "mentions": [],
+            "mention_roles": [],
+            "pinned": false,
+            "mention_everyone": false,
+            "tts": false,
+            "timestamp": "2022-05-08T10:05:56.935000+00:00",
+            "edited_timestamp": "2022-05-08T10:07:53.893000+00:00",
+            "flags": 0,
+            "components": []
+        }
+    },
+    {
+        "id": "972996816171831406",
+        "type": 0,
+        "content": "https://app.cupidshealth.com/uniswap-v3-launched-on-optimism-blockchain-scaling-solution/",
+        "channel_id": "815421435900198965",
+        "author": {
+            "id": "845983198336516107",
+            "username": "gpb9527",
+            "avatar": "455537b860bebcfbeff346626e42f480",
+            "avatar_decoration": null,
+            "discriminator": "0446",
+            "public_flags": 0
+        },
+        "attachments": [],
+        "embeds": [
+            {
+                "type": "article",
+                "url": "https://app.cupidshealth.com/uniswap-v3-launched-on-optimism-blockchain-scaling-solution/",
+                "title": "Uniswap v3 Launched on Optimism Blockchain Scaling Solution - Alter...",
+                "description": "Faster and cheaper transactions all on an Ethereum layer-2 solution Ethereum\u2019s most popular decentralized finance exchange, Uniswap launched its V3 exchange service on Optimism, a...",
+                "author": {
+                    "name": "admin",
+                    "url": "https://app.cupidshealth.com/author/admin/"
+                },
+                "provider": {
+                    "name": "Alternative Information cupidshealth",
+                    "url": "https://app.cupidshealth.com/"
+                },
+                "thumbnail": {
+                    "url": "https://i0.wp.com/app.cupidshealth.com/wp-content/uploads/2022/05/dappradar.com-uniswap-v3-launched-on-optimism-blockchain-scaling-solution-uniswap-optimism.png?fit=720%2C377&ssl=1",
+                    "proxy_url": "https://images-ext-2.discordapp.net/external/uVlyCODJt_KlOCHOD8oa8KIjoHVrpG_Mf5HnX4f4SMc/%3Ffit%3D720%252C377%26ssl%3D1/https/i0.wp.com/app.cupidshealth.com/wp-content/uploads/2022/05/dappradar.com-uniswap-v3-launched-on-optimism-blockchain-scaling-solution-uniswap-optimism.png",
+                    "width": 720,
+                    "height": 377
+                }
+            }
+        ],
+        "mentions": [],
+        "mention_roles": [],
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "timestamp": "2022-05-08T23:01:58.382000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": []
+    },
+    {
+        "id": "972980885840363561",
+        "type": 0,
+        "content": "there is also zapper",
+        "channel_id": "815421435900198965",
+        "author": {
+            "id": "756549737859121252",
+            "username": "\u0161eth",
+            "avatar": "f15d7cc295007bc63d47b36814cee116",
+            "avatar_decoration": null,
+            "discriminator": "0369",
+            "public_flags": 0
+        },
+        "attachments": [],
+        "embeds": [],
+        "mentions": [],
+        "mention_roles": [],
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "timestamp": "2022-05-08T21:58:40.295000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": []
+    },
+    {
+        "id": "972935327067013180",
+        "type": 0,
+        "content": "okay ty",
+        "channel_id": "815421435900198965",
+        "author": {
+            "id": "930136034824581151",
+            "username": "Jomangi",
+            "avatar": null,
+            "avatar_decoration": null,
+            "discriminator": "7993",
+            "public_flags": 0
+        },
+        "attachments": [],
+        "embeds": [],
+        "mentions": [],
+        "mention_roles": [],
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "timestamp": "2022-05-08T18:57:38.237000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": []
+    },
+    {
+        "id": "972935316820361306",
+        "type": 0,
+        "content": "hmmm",
+        "channel_id": "815421435900198965",
+        "author": {
+            "id": "930136034824581151",
+            "username": "Jomangi",
+            "avatar": null,
+            "avatar_decoration": null,
+            "discriminator": "7993",
+            "public_flags": 0
+        },
+        "attachments": [],
+        "embeds": [],
+        "mentions": [],
+        "mention_roles": [],
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "timestamp": "2022-05-08T18:57:35.794000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": []
+    },
+    {
+        "id": "972846920643006504",
+        "type": 0,
+        "content": "You can track your usd value in the UI however we are working on more detailed analytics currently",
+        "channel_id": "815421435900198965",
+        "author": {
+            "id": "350165413214027776",
+            "username": "br\u00f8",
+            "avatar": "ff9a4e4b07048e967a849c6a28ff8161",
+            "avatar_decoration": null,
+            "discriminator": "1298",
+            "public_flags": 0
+        },
+        "attachments": [],
+        "embeds": [],
+        "mentions": [],
+        "mention_roles": [],
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "timestamp": "2022-05-08T13:06:20.503000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": []
+    },
+    {
+        "id": "972839804943339540",
+        "type": 0,
+        "content": "how do i check my gains for the day",
+        "channel_id": "815421435900198965",
+        "author": {
+            "id": "930136034824581151",
+            "username": "Jomangi",
+            "avatar": null,
+            "avatar_decoration": null,
+            "discriminator": "7993",
+            "public_flags": 0
+        },
+        "attachments": [],
+        "embeds": [],
+        "mentions": [],
+        "mention_roles": [],
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "timestamp": "2022-05-08T12:38:03.988000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": []
+    },
+    {
+        "id": "972839770382299196",
+        "type": 0,
+        "content": "say i lped in eth-usdc",
+        "channel_id": "815421435900198965",
+        "author": {
+            "id": "930136034824581151",
+            "username": "Jomangi",
+            "avatar": null,
+            "avatar_decoration": null,
+            "discriminator": "7993",
+            "public_flags": 0
+        },
+        "attachments": [],
+        "embeds": [],
+        "mentions": [],
+        "mention_roles": [],
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "timestamp": "2022-05-08T12:37:55.748000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": []
+    },
+    {
+        "id": "972839723850674196",
+        "type": 0,
+        "content": "Hi any way i can track my gains?",
+        "channel_id": "815421435900198965",
+        "author": {
+            "id": "930136034824581151",
+            "username": "Jomangi",
+            "avatar": null,
+            "avatar_decoration": null,
+            "discriminator": "7993",
+            "public_flags": 0
+        },
+        "attachments": [],
+        "embeds": [],
+        "mentions": [],
+        "mention_roles": [],
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "timestamp": "2022-05-08T12:37:44.654000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": []
+    },
+    {
+        "id": "972814582588538911",
+        "type": 0,
+        "content": "Lmao I'm gonna remove my ust position because wth",
+        "channel_id": "815421435900198965",
+        "author": {
+            "id": "690201333223260178",
+            "username": "to",
+            "avatar": "950d2bc65e8eca88cb4ee4775a6d21a1",
+            "avatar_decoration": null,
+            "discriminator": "4866",
+            "public_flags": 0
+        },
+        "attachments": [],
+        "embeds": [],
+        "mentions": [],
+        "mention_roles": [],
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "timestamp": "2022-05-08T10:57:50.510000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": []
+    },
+    {
+        "id": "972812842287915038",
+        "type": 0,
+        "content": "Take it easy guys",
+        "channel_id": "815421435900198965",
+        "author": {
+            "id": "690201333223260178",
+            "username": "to",
+            "avatar": "950d2bc65e8eca88cb4ee4775a6d21a1",
+            "avatar_decoration": null,
+            "discriminator": "4866",
+            "public_flags": 0
+        },
+        "attachments": [],
+        "embeds": [],
+        "mentions": [],
+        "mention_roles": [],
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "timestamp": "2022-05-08T10:50:55.590000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": []
+    },
+    {
+        "id": "972812811866628096",
+        "type": 0,
+        "content": "Dang you guys working weekends aswell",
+        "channel_id": "815421435900198965",
+        "author": {
+            "id": "690201333223260178",
+            "username": "to",
+            "avatar": "950d2bc65e8eca88cb4ee4775a6d21a1",
+            "avatar_decoration": null,
+            "discriminator": "4866",
+            "public_flags": 0
+        },
+        "attachments": [],
+        "embeds": [],
+        "mentions": [],
+        "mention_roles": [],
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "timestamp": "2022-05-08T10:50:48.337000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": [],
+        "reactions": [
+            {
+                "emoji": {
+                    "id": "938927870636601375",
+                    "name": "yes"
+                },
+                "count": 2,
+                "me": false
+            }
+        ]
+    },
+    {
+        "id": "972801523308441621",
+        "type": 0,
+        "content": "That's correct, however 10% of the fees go to gamma stakers. The Annual Percentage Returns (APRs) on the dashboard refer strictly to fee-based APR, which is total fees earned as of the last rebalance divided by the current value of assets. The APRs currently do not reflect impermanent losses or the change in valuations of the underlying assets. Make sure you read our docs about it: https://docs.gamma.xyz/gamma/features/public",
+        "channel_id": "815421435900198965",
+        "author": {
+            "id": "350165413214027776",
+            "username": "br\u00f8",
+            "avatar": "ff9a4e4b07048e967a849c6a28ff8161",
+            "avatar_decoration": null,
+            "discriminator": "1298",
+            "public_flags": 0
+        },
+        "attachments": [],
+        "embeds": [
+            {
+                "type": "article",
+                "url": "https://docs.gamma.xyz/gamma/features/public",
+                "title": "Gamma Public CLM",
+                "description": "An overview of Gamma's public suite for actively managed concentrated liquidity pools",
+                "thumbnail": {
+                    "url": "https://www.gitbook.com/cdn-cgi/image/height=640,width=1280,fit=contain,dpr=1,format=auto/https%3A%2F%2F1678284087-files.gitbook.io%2F~%2Ffiles%2Fv0%2Fb%2Fgitbook-x-prod.appspot.com%2Fo%2Fspaces%252F-MWyc-TFyZIzH7aDRnpp%252Fsocialpreview%252FBJe5hOEbEEWzE7qmXMyv%252FGamma%2520Word%2520mod.jpg%3Falt%3Dmedia%26token%3D8b8face5-e858-4d4b-b528-d6f33e6153ac",
+                    "proxy_url": "https://images-ext-2.discordapp.net/external/QmpNKaR0ppvXDUjk579V23J8WvJkqhEwJOToV1Z8Whs/https/www.gitbook.com/cdn-cgi/image/height%3D640%2Cwidth%3D1280%2Cfit%3Dcontain%2Cdpr%3D1%2Cformat%3Dauto/https%253A%252F%252F1678284087-files.gitbook.io%252F~%252Ffiles%252Fv0%252Fb%252Fgitbook-x-prod.appspot.com%252Fo%252Fspaces%25252F-MWyc-TFyZIzH7aDRnpp%25252Fsocialpreview%25252FBJe5hOEbEEWzE7qmXMyv%25252FGamma%252520Word%252520mod.jpg%253Falt%253Dmedia%2526token%253D8b8face5-e858-4d4b-b528-d6f33e6153ac",
+                    "width": 1215,
+                    "height": 640
+                }
+            }
+        ],
+        "mentions": [],
+        "mention_roles": [],
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "timestamp": "2022-05-08T10:05:56.935000+00:00",
+        "edited_timestamp": "2022-05-08T10:07:53.893000+00:00",
+        "flags": 0,
+        "components": []
+    },
+    {
+        "id": "972798980322897950",
+        "type": 0,
+        "content": "There is no token to claim for supplying a LP, the APR represents rewards that are compounded back into the LP?",
+        "channel_id": "815421435900198965",
+        "author": {
+            "id": "404574087709720576",
+            "username": "helpfulBrother",
+            "avatar": "65e76a95f55328c32a7e759cfc8393f6",
+            "avatar_decoration": null,
+            "discriminator": "7823",
+            "public_flags": 0
+        },
+        "attachments": [],
+        "embeds": [],
+        "mentions": [],
+        "mention_roles": [],
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "timestamp": "2022-05-08T09:55:50.640000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": []
+    },
+    {
+        "id": "972603592890527826",
+        "type": 0,
+        "content": "if the price of the assets within and LP go down the value of the LP will also go down",
+        "channel_id": "815421435900198965",
+        "author": {
+            "id": "756549737859121252",
+            "username": "\u0161eth",
+            "avatar": "f15d7cc295007bc63d47b36814cee116",
+            "avatar_decoration": null,
+            "discriminator": "0369",
+            "public_flags": 0
+        },
+        "attachments": [],
+        "embeds": [],
+        "mentions": [],
+        "mention_roles": [],
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "timestamp": "2022-05-07T20:59:26.646000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": []
+    },
+    {
+        "id": "972603359511076864",
+        "type": 19,
+        "content": "what was the price of ethereum when you deposited ?",
+        "channel_id": "815421435900198965",
+        "author": {
+            "id": "756549737859121252",
+            "username": "\u0161eth",
+            "avatar": "f15d7cc295007bc63d47b36814cee116",
+            "avatar_decoration": null,
+            "discriminator": "0369",
+            "public_flags": 0
+        },
+        "attachments": [],
+        "embeds": [],
+        "mentions": [
+            {
+                "id": "379496924488925185",
+                "username": "chicobermuda",
+                "avatar": "6a34646c489fecc126439be60fab84a7",
+                "avatar_decoration": null,
+                "discriminator": "3705",
+                "public_flags": 0
+            }
+        ],
+        "mention_roles": [],
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "timestamp": "2022-05-07T20:58:31.004000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": [],
+        "message_reference": {
+            "channel_id": "815421435900198965",
+            "guild_id": "815421435900198962",
+            "message_id": "972597928302641153"
+        },
+        "referenced_message": null
+    },
+    {
+        "id": "972537054422532146",
+        "type": 19,
+        "content": "announcement already confirmed Gamma is doing the hackathon at ETHGlobal",
+        "channel_id": "815421435900198965",
+        "author": {
+            "id": "371040101045895169",
+            "username": "strategicreserve.eth",
+            "avatar": "97a1c2834efdf614a0fbe49854b50fae",
+            "avatar_decoration": null,
+            "discriminator": "9164",
+            "public_flags": 0
+        },
+        "attachments": [],
+        "embeds": [],
+        "mentions": [
+            {
+                "id": "414648319080398859",
+                "username": "xk",
+                "avatar": "199667fc70e9415f57a583c69c295296",
+                "avatar_decoration": null,
+                "discriminator": "5290",
+                "public_flags": 0
+            }
+        ],
+        "mention_roles": [],
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "timestamp": "2022-05-07T16:35:02.639000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": [],
+        "message_reference": {
+            "channel_id": "815421435900198965",
+            "guild_id": "815421435900198962",
+            "message_id": "972525302184026132"
+        },
+        "referenced_message": {
+            "id": "972525302184026132",
+            "type": 0,
+            "content": "",
+            "channel_id": "815421435900198965",
+            "author": {
+                "id": "414648319080398859",
+                "username": "xk",
+                "avatar": "199667fc70e9415f57a583c69c295296",
+                "avatar_decoration": null,
+                "discriminator": "5290",
+                "public_flags": 0
+            },
+            "attachments": [
+                {
+                    "id": "972525301366128640",
+                    "filename": "unknown.png",
+                    "size": 334443,
+                    "url": "https://cdn.discordapp.com/attachments/815421435900198965/972525301366128640/unknown.png",
+                    "proxy_url": "https://media.discordapp.net/attachments/815421435900198965/972525301366128640/unknown.png",
+                    "width": 3254,
+                    "height": 1744,
+                    "content_type": "image/png"
+                }
+            ],
+            "embeds": [],
+            "mentions": [],
+            "mention_roles": [],
+            "pinned": false,
+            "mention_everyone": false,
+            "tts": false,
+            "timestamp": "2022-05-07T15:48:20.687000+00:00",
+            "edited_timestamp": null,
+            "flags": 0,
+            "components": []
+        }
+    },
+    {
+        "id": "972525302184026132",
+        "type": 0,
+        "content": "",
+        "channel_id": "815421435900198965",
+        "author": {
+            "id": "414648319080398859",
+            "username": "xk",
+            "avatar": "199667fc70e9415f57a583c69c295296",
+            "avatar_decoration": null,
+            "discriminator": "5290",
+            "public_flags": 0
+        },
+        "attachments": [
+            {
+                "id": "972525301366128640",
+                "filename": "unknown.png",
+                "size": 334443,
+                "url": "https://cdn.discordapp.com/attachments/815421435900198965/972525301366128640/unknown.png",
+                "proxy_url": "https://media.discordapp.net/attachments/815421435900198965/972525301366128640/unknown.png",
+                "width": 3254,
+                "height": 1744,
+                "content_type": "image/png"
+            }
+        ],
+        "embeds": [],
+        "mentions": [],
+        "mention_roles": [],
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "timestamp": "2022-05-07T15:48:20.687000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": []
+    },
+    {
+        "id": "972508018967208007",
+        "type": 0,
+        "content": "When will the gamma pro be launched to meet the market making needs",
+        "channel_id": "815421435900198965",
+        "author": {
+            "id": "845983198336516107",
+            "username": "gpb9527",
+            "avatar": "455537b860bebcfbeff346626e42f480",
+            "avatar_decoration": null,
+            "discriminator": "0446",
+            "public_flags": 0
+        },
+        "attachments": [],
+        "embeds": [],
+        "mentions": [],
+        "mention_roles": [],
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "timestamp": "2022-05-07T14:39:40.047000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": []
+    },
+    {
+        "id": "972380438041604167",
+        "type": 0,
+        "content": "https://twitter.com/coinbit99/status/1522378998319308803?s=19",
+        "channel_id": "815421435900198965",
+        "author": {
+            "id": "845983198336516107",
+            "username": "gpb9527",
+            "avatar": "455537b860bebcfbeff346626e42f480",
+            "avatar_decoration": null,
+            "discriminator": "0446",
+            "public_flags": 0
+        },
+        "attachments": [],
+        "embeds": [
+            {
+                "type": "rich",
+                "url": "https://twitter.com/coinbit99/status/1522378998319308803?s=19",
+                "description": "@GammaStrategies Gamma - GAMMA coin is now listed on #coinbit99, we welcome every #GAMMA coin holders to giving a like & support this coin to get more investors. $GAMMA \nhttps://t.co/5PC1h49zMx",
+                "color": 1942002,
+                "timestamp": "2022-05-06T00:53:32.290000+00:00",
+                "author": {
+                    "name": "coinbit99 (@coinbit99)",
+                    "url": "https://twitter.com/coinbit99",
+                    "icon_url": "https://pbs.twimg.com/profile_images/1500353857800798210/c2kYU6uo_400x400.jpg",
+                    "proxy_icon_url": "https://images-ext-2.discordapp.net/external/ZivH3TixK0EOA5eczCQigAJsOa3wad3UegDaOVR9h90/https/pbs.twimg.com/profile_images/1500353857800798210/c2kYU6uo_400x400.jpg"
+                },
+                "footer": {
+                    "text": "Twitter",
+                    "icon_url": "https://abs.twimg.com/icons/apple-touch-icon-192x192.png",
+                    "proxy_icon_url": "https://images-ext-1.discordapp.net/external/bXJWV2Y_F3XSra_kEqIYXAAsI3m1meckfLhYuWzxIfI/https/abs.twimg.com/icons/apple-touch-icon-192x192.png"
+                }
+            }
+        ],
+        "mentions": [],
+        "mention_roles": [],
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "timestamp": "2022-05-07T06:12:42.384000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": []
+    },
+    {
+        "id": "972332872105099274",
+        "type": 19,
+        "content": "Noted. Thanks. We're still working out some UI stuff.",
+        "channel_id": "815421435900198965",
+        "author": {
+            "id": "371040101045895169",
+            "username": "strategicreserve.eth",
+            "avatar": "97a1c2834efdf614a0fbe49854b50fae",
+            "avatar_decoration": null,
+            "discriminator": "9164",
+            "public_flags": 0
+        },
+        "attachments": [],
+        "embeds": [],
+        "mentions": [
+            {
+                "id": "404574087709720576",
+                "username": "helpfulBrother",
+                "avatar": "65e76a95f55328c32a7e759cfc8393f6",
+                "avatar_decoration": null,
+                "discriminator": "7823",
+                "public_flags": 0
+            }
+        ],
+        "mention_roles": [],
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "timestamp": "2022-05-07T03:03:41.781000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": [],
+        "message_reference": {
+            "channel_id": "815421435900198965",
+            "guild_id": "815421435900198962",
+            "message_id": "972328634390028298"
+        },
+        "referenced_message": {
+            "id": "972328634390028298",
+            "type": 0,
+            "content": "Hey peoples, just as a FYI firstly my wallet never loads on Firefox but OK on chromium based browsers.",
+            "channel_id": "815421435900198965",
+            "author": {
+                "id": "404574087709720576",
+                "username": "helpfulBrother",
+                "avatar": "65e76a95f55328c32a7e759cfc8393f6",
+                "avatar_decoration": null,
+                "discriminator": "7823",
+                "public_flags": 0
+            },
+            "attachments": [],
+            "embeds": [],
+            "mentions": [],
+            "mention_roles": [],
+            "pinned": false,
+            "mention_everyone": false,
+            "tts": false,
+            "timestamp": "2022-05-07T02:46:51.431000+00:00",
+            "edited_timestamp": null,
+            "flags": 0,
+            "components": []
+        },
+        "reactions": [
+            {
+                "emoji": {
+                    "id": null,
+                    "name": "\ud83d\udc4d"
+                },
+                "count": 1,
+                "me": false
+            }
+        ]
+    },
+    {
+        "id": "972332758179405824",
+        "type": 19,
+        "content": "Probably users attracted to good aprs. Also the ocean LM liquidity program is live.",
+        "channel_id": "815421435900198965",
+        "author": {
+            "id": "371040101045895169",
+            "username": "strategicreserve.eth",
+            "avatar": "97a1c2834efdf614a0fbe49854b50fae",
+            "avatar_decoration": null,
+            "discriminator": "9164",
+            "public_flags": 0
+        },
+        "attachments": [],
+        "embeds": [],
+        "mentions": [
+            {
+                "id": "404574087709720576",
+                "username": "helpfulBrother",
+                "avatar": "65e76a95f55328c32a7e759cfc8393f6",
+                "avatar_decoration": null,
+                "discriminator": "7823",
+                "public_flags": 0
+            }
+        ],
+        "mention_roles": [],
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "timestamp": "2022-05-07T03:03:14.619000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": [],
+        "message_reference": {
+            "channel_id": "815421435900198965",
+            "guild_id": "815421435900198962",
+            "message_id": "972328952356036638"
+        },
+        "referenced_message": {
+            "id": "972328952356036638",
+            "type": 0,
+            "content": "Also - Most of the TVL is concentrated in a few vaults, any reason for this?",
+            "channel_id": "815421435900198965",
+            "author": {
+                "id": "404574087709720576",
+                "username": "helpfulBrother",
+                "avatar": "65e76a95f55328c32a7e759cfc8393f6",
+                "avatar_decoration": null,
+                "discriminator": "7823",
+                "public_flags": 0
+            },
+            "attachments": [],
+            "embeds": [],
+            "mentions": [],
+            "mention_roles": [],
+            "pinned": false,
+            "mention_everyone": false,
+            "tts": false,
+            "timestamp": "2022-05-07T02:48:07.240000+00:00",
+            "edited_timestamp": null,
+            "flags": 0,
+            "components": []
+        },
+        "reactions": [
+            {
+                "emoji": {
+                    "id": null,
+                    "name": "\ud83d\ude4c"
+                },
+                "count": 1,
+                "me": false
+            }
+        ]
+    },
+    {
+        "id": "972328975076589608",
+        "type": 0,
+        "content": "Thanks \ud83d\ude4f",
+        "channel_id": "815421435900198965",
+        "author": {
+            "id": "404574087709720576",
+            "username": "helpfulBrother",
+            "avatar": "65e76a95f55328c32a7e759cfc8393f6",
+            "avatar_decoration": null,
+            "discriminator": "7823",
+            "public_flags": 0
+        },
+        "attachments": [],
+        "embeds": [],
+        "mentions": [],
+        "mention_roles": [],
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "timestamp": "2022-05-07T02:48:12.657000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": []
+    },
+    {
+        "id": "972328952356036638",
+        "type": 0,
+        "content": "Also - Most of the TVL is concentrated in a few vaults, any reason for this?",
+        "channel_id": "815421435900198965",
+        "author": {
+            "id": "404574087709720576",
+            "username": "helpfulBrother",
+            "avatar": "65e76a95f55328c32a7e759cfc8393f6",
+            "avatar_decoration": null,
+            "discriminator": "7823",
+            "public_flags": 0
+        },
+        "attachments": [],
+        "embeds": [],
+        "mentions": [],
+        "mention_roles": [],
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "timestamp": "2022-05-07T02:48:07.240000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": []
+    },
+    {
+        "id": "972328634390028298",
+        "type": 0,
+        "content": "Hey peoples, just as a FYI firstly my wallet never loads on Firefox but OK on chromium based browsers.",
+        "channel_id": "815421435900198965",
+        "author": {
+            "id": "404574087709720576",
+            "username": "helpfulBrother",
+            "avatar": "65e76a95f55328c32a7e759cfc8393f6",
+            "avatar_decoration": null,
+            "discriminator": "7823",
+            "public_flags": 0
+        },
+        "attachments": [],
+        "embeds": [],
+        "mentions": [],
+        "mention_roles": [],
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "timestamp": "2022-05-07T02:46:51.431000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": []
+    },
+    {
+        "id": "972317793154396190",
+        "type": 0,
+        "content": "<@805905681324441601>  going back to what we were talking about above, liquidity mgmt on Orca/Solana...\n\nWas just looking more into Orca and chatting with someone from the team.\n\nI learned that \n\n1) team treasury is currently sitting on $6M worth of liquidity tokens and this is increasing every day. This is generated from the .05% protocol fee on pools \n\n2) all of this liquidity is in constant product pools\n\n3) their concentrated pools which they recently introduced and call \"Whirlpools\" are already generating ~40M daily volume on ~25M TVL. The largest pool (SOL/USDC) is generating ~10M daily volume on ~6M TVL\n\n4) The reason the treasury is not shifting its liquidity to Whirlpools (concentrated pools), in the words of the team: \"The current issue is Whirlpools demand more active management\"\n\nSo... I think there could be real opportunity here. As much of an ETH maxi as I usually am, the Orca growth metrics are massive and it seems they could really use something like Gamma",
+        "channel_id": "815421435900198965",
+        "author": {
+            "id": "548299579964260352",
+            "username": "B\u039eN",
+            "avatar": "9575c1e9e1255e90c0e1c161f5c1e9c5",
+            "avatar_decoration": null,
+            "discriminator": "3613",
+            "public_flags": 0
+        },
+        "attachments": [],
+        "embeds": [],
+        "mentions": [
+            {
+                "id": "805905681324441601",
+                "username": "bp | Gamma",
+                "avatar": "15712f6db1298e787851be21be109a3c",
+                "avatar_decoration": null,
+                "discriminator": "4781",
+                "public_flags": 0
+            }
+        ],
+        "mention_roles": [],
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "timestamp": "2022-05-07T02:03:46.679000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": []
+    },
+    {
+        "id": "972296326140284979",
+        "type": 0,
+        "content": "https://twitter.com/richardchen39/status/1522732130299752453?s=19",
+        "channel_id": "815421435900198965",
+        "author": {
+            "id": "845983198336516107",
+            "username": "gpb9527",
+            "avatar": "455537b860bebcfbeff346626e42f480",
+            "avatar_decoration": null,
+            "discriminator": "0446",
+            "public_flags": 0
+        },
+        "attachments": [],
+        "embeds": [
+            {
+                "type": "rich",
+                "url": "https://twitter.com/richardchen39/status/1522732130299752453?s=19",
+                "description": "Just wanted to share this Uniswap v3 liquidity math paper by @atiselsts has been an indispensable resource. Saved me countless hours of digging through code and docs.\n\nhttps://t.co/pDpDZ7M4NL",
+                "color": 1942002,
+                "timestamp": "2022-05-07T00:16:45.515000+00:00",
+                "author": {
+                    "name": "Richard Chen (@richardchen39)",
+                    "url": "https://twitter.com/richardchen39",
+                    "icon_url": "https://pbs.twimg.com/profile_images/1391524467487223808/VNpFFkuo_400x400.jpg",
+                    "proxy_icon_url": "https://images-ext-1.discordapp.net/external/JUpz-LEdI1GyCvf5RYL6MQpCpnyuh-5ygZrNUS5sTx8/https/pbs.twimg.com/profile_images/1391524467487223808/VNpFFkuo_400x400.jpg"
+                },
+                "footer": {
+                    "text": "Twitter",
+                    "icon_url": "https://abs.twimg.com/icons/apple-touch-icon-192x192.png",
+                    "proxy_icon_url": "https://images-ext-1.discordapp.net/external/bXJWV2Y_F3XSra_kEqIYXAAsI3m1meckfLhYuWzxIfI/https/abs.twimg.com/icons/apple-touch-icon-192x192.png"
+                }
+            }
+        ],
+        "mentions": [],
+        "mention_roles": [],
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "timestamp": "2022-05-07T00:38:28.544000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": []
+    },
+    {
+        "id": "972290362712395807",
+        "type": 19,
+        "content": "I\u2019ve been building on Solana for a long time, and was looking exactly into this for the past week.\u2028 People in the Orca discord are lost since CLPs were launched, they\u2019re having a hard time even calculating their PnL.\u2028 Can I DM you?",
+        "channel_id": "815421435900198965",
+        "author": {
+            "id": "772795977580544011",
+            "username": "marius",
+            "avatar": "0611fa20fdf980b4cfda0baef31d14a5",
+            "avatar_decoration": null,
+            "discriminator": "7365",
+            "public_flags": 0
+        },
+        "attachments": [],
+        "embeds": [],
+        "mentions": [
+            {
+                "id": "805905681324441601",
+                "username": "bp | Gamma",
+                "avatar": "15712f6db1298e787851be21be109a3c",
+                "avatar_decoration": null,
+                "discriminator": "4781",
+                "public_flags": 0
+            }
+        ],
+        "mention_roles": [],
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "timestamp": "2022-05-07T00:14:46.752000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": [],
+        "message_reference": {
+            "channel_id": "815421435900198965",
+            "guild_id": "815421435900198962",
+            "message_id": "971960875860754442"
+        },
+        "referenced_message": {
+            "id": "971960875860754442",
+            "type": 19,
+            "content": "We've heard from a few parties who are embarking on concentrated liquidity on Solana.  The only thing is that their contracts are written in Rust and our contracts are tailored to Uni v3.  So while we would love to be on Solana, the move right now is likely to move onto Optimism and Arbitrum first, but definitely something that we're considering",
+            "channel_id": "815421435900198965",
+            "author": {
+                "id": "805905681324441601",
+                "username": "bp | Gamma",
+                "avatar": "15712f6db1298e787851be21be109a3c",
+                "avatar_decoration": null,
+                "discriminator": "4781",
+                "public_flags": 0
+            },
+            "attachments": [],
+            "embeds": [],
+            "mentions": [
+                {
+                    "id": "548299579964260352",
+                    "username": "B\u039eN",
+                    "avatar": "9575c1e9e1255e90c0e1c161f5c1e9c5",
+                    "avatar_decoration": null,
+                    "discriminator": "3613",
+                    "public_flags": 0
+                }
+            ],
+            "mention_roles": [],
+            "pinned": false,
+            "mention_everyone": false,
+            "tts": false,
+            "timestamp": "2022-05-06T02:25:30.965000+00:00",
+            "edited_timestamp": null,
+            "flags": 0,
+            "components": [],
+            "message_reference": {
+                "channel_id": "815421435900198965",
+                "guild_id": "815421435900198962",
+                "message_id": "971953687587086427"
+            }
+        }
+    },
+    {
+        "id": "972175975402074162",
+        "type": 19,
+        "content": "I agree with this, let's see what we can do",
+        "channel_id": "815421435900198965",
+        "author": {
+            "id": "767603408793370624",
+            "username": "xyk | Gamma",
+            "avatar": "9e0107be7481a69f5ba984a90d94688a",
+            "avatar_decoration": null,
+            "discriminator": "4274",
+            "public_flags": 0
+        },
+        "attachments": [],
+        "embeds": [],
+        "mentions": [
+            {
+                "id": "422126118045483008",
+                "username": "Ike Dongler",
+                "avatar": "20110bc02bfcc9fa6f8cedf44dcc7a26",
+                "avatar_decoration": null,
+                "discriminator": "9922",
+                "public_flags": 0
+            }
+        ],
+        "mention_roles": [],
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "timestamp": "2022-05-06T16:40:14.692000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": [],
+        "message_reference": {
+            "channel_id": "815421435900198965",
+            "guild_id": "815421435900198962",
+            "message_id": "972155265795379223"
+        },
+        "referenced_message": {
+            "id": "972155265795379223",
+            "type": 0,
+            "content": "Was thinking it would be good to bump that usdc-eth pool to the top of the list or order it by TVL or make it more than 15 pools that appear",
+            "channel_id": "815421435900198965",
+            "author": {
+                "id": "422126118045483008",
+                "username": "Ike Dongler",
+                "avatar": "20110bc02bfcc9fa6f8cedf44dcc7a26",
+                "avatar_decoration": null,
+                "discriminator": "9922",
+                "public_flags": 0
+            },
+            "attachments": [],
+            "embeds": [],
+            "mentions": [],
+            "mention_roles": [],
+            "pinned": false,
+            "mention_everyone": false,
+            "tts": false,
+            "timestamp": "2022-05-06T15:17:57.137000+00:00",
+            "edited_timestamp": null,
+            "flags": 0,
+            "components": []
+        },
+        "reactions": [
+            {
+                "emoji": {
+                    "id": null,
+                    "name": "\ud83d\udc4d"
+                },
+                "count": 2,
+                "me": false
+            }
+        ]
+    },
+    {
+        "id": "972166177642119239",
+        "type": 0,
+        "content": "Obviously. Gamma needs to be able to manage stable-stable, stable-volatile, and volatile-volatile pairs if it wants to be successful. It's good to have a mix of all for a wide variety of market conditions and to attract a wide variety of TVL.",
+        "channel_id": "815421435900198965",
+        "author": {
+            "id": "371040101045895169",
+            "username": "strategicreserve.eth",
+            "avatar": "97a1c2834efdf614a0fbe49854b50fae",
+            "avatar_decoration": null,
+            "discriminator": "9164",
+            "public_flags": 0
+        },
+        "attachments": [],
+        "embeds": [],
+        "mentions": [],
+        "mention_roles": [],
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "timestamp": "2022-05-06T16:01:18.724000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": []
+    },
+    {
+        "id": "972162585447260190",
+        "type": 0,
+        "content": "Maybe stablecoins can bring big tvl",
+        "channel_id": "815421435900198965",
+        "author": {
+            "id": "845983198336516107",
+            "username": "gpb9527",
+            "avatar": "455537b860bebcfbeff346626e42f480",
+            "avatar_decoration": null,
+            "discriminator": "0446",
+            "public_flags": 0
+        },
+        "attachments": [],
+        "embeds": [],
+        "mentions": [],
+        "mention_roles": [],
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "timestamp": "2022-05-06T15:47:02.278000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": []
+    },
+    {
+        "id": "972162490534342726",
+        "type": 0,
+        "content": "I do not know either",
+        "channel_id": "815421435900198965",
+        "author": {
+            "id": "845983198336516107",
+            "username": "gpb9527",
+            "avatar": "455537b860bebcfbeff346626e42f480",
+            "avatar_decoration": null,
+            "discriminator": "0446",
+            "public_flags": 0
+        },
+        "attachments": [],
+        "embeds": [],
+        "mentions": [],
+        "mention_roles": [],
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "timestamp": "2022-05-06T15:46:39.649000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": []
+    },
+    {
+        "id": "972162052372176906",
+        "type": 0,
+        "content": "About the stablecoin",
+        "channel_id": "815421435900198965",
+        "author": {
+            "id": "690201333223260178",
+            "username": "to",
+            "avatar": "950d2bc65e8eca88cb4ee4775a6d21a1",
+            "avatar_decoration": null,
+            "discriminator": "4866",
+            "public_flags": 0
+        },
+        "attachments": [],
+        "embeds": [],
+        "mentions": [],
+        "mention_roles": [],
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "timestamp": "2022-05-06T15:44:55.183000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": []
+    },
+    {
+        "id": "972161992590757929",
+        "type": 19,
+        "content": "Wdym",
+        "channel_id": "815421435900198965",
+        "author": {
+            "id": "690201333223260178",
+            "username": "to",
+            "avatar": "950d2bc65e8eca88cb4ee4775a6d21a1",
+            "avatar_decoration": null,
+            "discriminator": "4866",
+            "public_flags": 0
+        },
+        "attachments": [],
+        "embeds": [],
+        "mentions": [
+            {
+                "id": "845983198336516107",
+                "username": "gpb9527",
+                "avatar": "455537b860bebcfbeff346626e42f480",
+                "avatar_decoration": null,
+                "discriminator": "0446",
+                "public_flags": 0
+            }
+        ],
+        "mention_roles": [],
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "timestamp": "2022-05-06T15:44:40.930000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": [],
+        "message_reference": {
+            "channel_id": "815421435900198965",
+            "guild_id": "815421435900198962",
+            "message_id": "972158491861073930"
+        },
+        "referenced_message": {
+            "id": "972158491861073930",
+            "type": 0,
+            "content": "its no matic rewards now",
+            "channel_id": "815421435900198965",
+            "author": {
+                "id": "845983198336516107",
+                "username": "gpb9527",
+                "avatar": "455537b860bebcfbeff346626e42f480",
+                "avatar_decoration": null,
+                "discriminator": "0446",
+                "public_flags": 0
+            },
+            "attachments": [],
+            "embeds": [],
+            "mentions": [],
+            "mention_roles": [],
+            "pinned": false,
+            "mention_everyone": false,
+            "tts": false,
+            "timestamp": "2022-05-06T15:30:46.291000+00:00",
+            "edited_timestamp": null,
+            "flags": 0,
+            "components": []
+        }
+    },
+    {
+        "id": "972158881725837413",
+        "type": 0,
+        "content": "Imo, nfa",
+        "channel_id": "815421435900198965",
+        "author": {
+            "id": "422126118045483008",
+            "username": "Ike Dongler",
+            "avatar": "20110bc02bfcc9fa6f8cedf44dcc7a26",
+            "avatar_decoration": null,
+            "discriminator": "9922",
+            "public_flags": 0
+        },
+        "attachments": [],
+        "embeds": [],
+        "mentions": [],
+        "mention_roles": [],
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "timestamp": "2022-05-06T15:32:19.242000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": []
+    },
+    {
+        "id": "972158860703969330",
+        "type": 0,
+        "content": "As bad as it felt this morning there are a bunch of near term catalysts and eth ecosystem is gonna go turbo post merge",
+        "channel_id": "815421435900198965",
+        "author": {
+            "id": "422126118045483008",
+            "username": "Ike Dongler",
+            "avatar": "20110bc02bfcc9fa6f8cedf44dcc7a26",
+            "avatar_decoration": null,
+            "discriminator": "9922",
+            "public_flags": 0
+        },
+        "attachments": [],
+        "embeds": [],
+        "mentions": [],
+        "mention_roles": [],
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "timestamp": "2022-05-06T15:32:14.230000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": []
+    }
+]

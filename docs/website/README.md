@@ -1,41 +1,40 @@
 # Website
 
-This website is built using [Docusaurus 2](https://docusaurus.io/), a modern static website generator.
+This website is built using [Docusaurus 2](https://docusaurus.io/), a modern static website generator. The actual content resides in the `docs` folder.
+
 
 ### Installation
 
 ```
-$ yarn
+$ npm install
 ```
+
+### Site Configuration
+
+The site is configured to run under the `/docs` path. The `build` command is properly configured.
 
 ### Local Development
 
 ```
-$ yarn start
+$ npm run start
 ```
 
 This command starts a local development server and opens up a browser window. Most changes are reflected live without having to restart the server.
 
-### Build
+### Local Build
 
 ```
-$ yarn build
+$ npm run start
 ```
 
-This command generates static content into the `build` directory and can be served using any static contents hosting service.
+This command generates static content into the `build` directory and can be served using any static contents hosting service ie. `npm run serve`
+
 
 ### Deployment
 
-Using SSH:
-
+The site is deployed using `netlify`. The `netlify` build command is as follows:
 ```
-$ USE_SSH=true yarn deploy
-```
-
-Not using SSH:
-
-```
-$ GIT_USER=<Your GitHub username> yarn deploy
+npm run build:netlify
 ```
 
-If you are using GitHub pages for hosting, this command is a convenient way to build the website and push to the `gh-pages` branch.
+It will place the build in `build/docs` folder. The `netlify.toml` redirects from root path `/` into `/docs`.

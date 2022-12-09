@@ -47,3 +47,9 @@ jobs:
 
       - name: Run lint
         run: make lint
+
+      # - name: print envs
+      #   run: |
+      #     echo "The GitHub Actor's username is: $GITHUB_ACTOR"
+      #     echo "The GitHub repo owner is: $GITHUB_REPOSITORY_OWNER"
+      #     echo "The GitHub repo is: $GITHUB_REPOSITORY"

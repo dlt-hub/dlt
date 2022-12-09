@@ -3,7 +3,7 @@ import os
 import argparse
 import click
 
-from dlt.common.logger import dlt_version
+from dlt.version import __version__
 from dlt.common import json
 from dlt.common.schema import Schema
 from dlt.common.typing import DictStrAny
@@ -12,14 +12,9 @@ from dlt.pipeline import attach
 
 import dlt.cli.echo as fmt
 from dlt.cli import utils
-from dlt.cli.init_command import init_command
-from dlt.cli.deploy_command import PipelineWasNotRun, deploy_command
+from dlt.cli.init_command import init_command, DLT_INIT_DOCS_URL
+from dlt.cli.deploy_command import PipelineWasNotRun, deploy_command, DLT_DEPLOY_DOCS_URL
 from dlt.pipeline.exceptions import CannotRestorePipelineException
-
-
-# def add_pool_cli_arguments(parser: argparse.ArgumentParser) -> None:
-#     parser.add_argument("--is-single-run", action="store_true", help="exit when all pending items are processed")
-#     parser.add_argument("--wait-runs", type=int, nargs='?', const=True, default=1, help="maximum idle runs to wait for incoming data")
 
 
 # def str2bool_a(v: str) -> bool:
@@ -34,9 +29,8 @@ def init_command_wrapper(pipeline_name: str, destination_name: str, use_generic_
         init_command(pipeline_name, destination_name, use_generic_template, branch)
     except Exception as ex:
         click.secho(str(ex), err=True, fg="red")
+        fmt.note("Please refer to %s for further assistance" % fmt.bold(DLT_INIT_DOCS_URL))
         raise
-        exit(-1)
-        # TODO: display stack trace if with debug flag
 
 
 def deploy_command_wrapper(pipeline_script_path: str, deployment_method: str, schedule: str, run_on_push: bool, run_on_dispatch: bool, branch: str) -> None:
@@ -49,31 +43,35 @@ def deploy_command_wrapper(pipeline_script_path: str, deployment_method: str, sc
     from git import InvalidGitRepositoryError, NoSuchPathError
     try:
         deploy_command(pipeline_script_path, deployment_method, schedule, run_on_push, run_on_dispatch, branch)
-        return
     except (CannotRestorePipelineException, PipelineWasNotRun) as ex:
         click.secho(str(ex), err=True, fg="red")
-        click.echo("Currently you must run the pipeline at least once")
+        fmt.note("You must run the pipeline locally successfully at least once in order to deploy it.")
+        fmt.note("Please refer to %s for further assistance" % fmt.bold(DLT_DEPLOY_DOCS_URL))
+        exit(-1)
     except InvalidGitRepositoryError:
         click.secho(
-            "No git repository found for pipeline script %s. Add your local code to Github as described here: %s" % (fmt.bold(pipeline_script_path), fmt.bold("https://docs.github.com/en/get-started/importing-your-projects-to-github/importing-source-code-to-github/adding-locally-hosted-code-to-github")),
+            "No git repository found for pipeline script %s.\nAdd your local code to Github as described here: %s" % (fmt.bold(pipeline_script_path), fmt.bold("https://docs.github.com/en/get-started/importing-your-projects-to-github/importing-source-code-to-github/adding-locally-hosted-code-to-github")),
             err=True,
             fg="red"
         )
+        fmt.note("Please refer to %s for further assistance" % fmt.bold(DLT_DEPLOY_DOCS_URL))
+        exit(-1)
     except NoSuchPathError as path_ex:
-       click.secho(
+        click.secho(
             "The pipeline script does not exist\n%s" % str(path_ex),
             err=True,
             fg="red"
         )
+        exit(-1)
     except Exception as ex:
         click.secho(str(ex), err=True, fg="red")
+        fmt.note("Please refer to %s for further assistance" % fmt.bold(DLT_DEPLOY_DOCS_URL))
         # TODO: display stack trace if with debug flag
         raise
-    exit(-1)
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Runs various DLT modules", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--version', action='version', version='%(prog)s {version}'.format(version=dlt_version()))
+    parser.add_argument('--version', action='version', version='%(prog)s {version}'.format(version=__version__))
     subparsers = parser.add_subparsers(dest="command")
 
     init_cmd = subparsers.add_parser("init", help="Creates a new pipeline script from a selected template.")
@@ -141,8 +139,6 @@ def main() -> None:
         parser.print_help()
         exit(-1)
 
-    # run_args = TRunnerArgs(args.is_single_run, args.wait_runs)
-    # run_f(run_args)
 
 if __name__ == "__main__":
     main()

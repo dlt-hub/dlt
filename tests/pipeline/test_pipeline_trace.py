@@ -2,6 +2,7 @@ import os
 import asyncio
 import datetime  # noqa: 251
 from typing import List
+from unittest.mock import patch
 import pytest
 import requests_mock
 
@@ -12,6 +13,7 @@ from dlt.common.configuration.specs.config_providers_context import ConfigProvid
 from dlt.common.pipeline import ExtractInfo
 from dlt.common.typing import StrStr, TSecretValue
 from dlt.pipeline.exceptions import PipelineStepFailed
+from dlt.pipeline.pipeline import Pipeline
 from dlt.pipeline.trace import SerializableResolvedValueTrace, load_trace
 
 from tests.utils import preserve_environ
@@ -166,6 +168,26 @@ def test_save_load_trace() -> None:
     assert run_step.step == "run"
     assert run_step.step_exception is not None
     assert step.step_exception == run_step.step_exception
+
+
+def test_disable_trace(environment: StrStr) -> None:
+    environment["ENABLE_RUNTIME_TRACE"] = "false"
+    environment["COMPLETED_PROB"] = "1.0"
+    dlt.pipeline().run([1,2,3], table_name="data", destination="dummy")
+    assert dlt.pipeline()._last_trace is None
+
+
+def test_trace_on_restore_state(environment: StrStr) -> None:
+    environment["COMPLETED_PROB"] = "1.0"
+
+    def _sync_destination_patch(self: Pipeline, destination: str = None, dataset_name: str = None):
+        # just wipe the pipeline simulating deleted dataset
+        self._wipe_working_folder()
+        self._configure(self._schema_storage_config.export_schema_path, self._schema_storage_config.import_schema_path, False)
+
+    with patch.object(Pipeline, 'sync_destination', _sync_destination_patch):
+        dlt.pipeline().run([1,2,3], table_name="data", destination="dummy")
+        assert len(dlt.pipeline()._last_trace.steps) == 4
 
 
 def test_load_none_trace() -> None:

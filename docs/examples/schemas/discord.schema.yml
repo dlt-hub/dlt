@@ -1,0 +1,565 @@
+version: 12
+engine_version: 3
+name: discord
+tables:
+  _dlt_version:
+    columns:
+      version:
+        data_type: bigint
+        nullable: false
+      engine_version:
+        data_type: bigint
+        nullable: false
+      inserted_at:
+        data_type: timestamp
+        nullable: false
+    write_disposition: append
+  _dlt_loads:
+    columns:
+      load_id:
+        data_type: text
+        nullable: false
+      status:
+        data_type: bigint
+        nullable: false
+      inserted_at:
+        data_type: timestamp
+        nullable: false
+    write_disposition: append
+  channels:
+    columns:
+      _dlt_load_id:
+        data_type: text
+        nullable: false
+      _dlt_id:
+        unique: true
+        data_type: text
+        nullable: false
+      id:
+        primary_key: true
+        data_type: text
+        nullable: false
+      type:
+        data_type: bigint
+        nullable: false
+      name:
+        data_type: text
+        nullable: false
+      position:
+        data_type: bigint
+        nullable: true
+      flags:
+        data_type: bigint
+        nullable: true
+      guild_id:
+        cluster: true
+        data_type: text
+        nullable: false
+      last_message_id:
+        data_type: text
+        nullable: true
+      parent_id:
+        data_type: text
+        nullable: true
+      topic:
+        data_type: text
+        nullable: true
+      last_pin_timestamp:
+        data_type: timestamp
+        nullable: true
+      rate_limit_per_user:
+        data_type: bigint
+        nullable: true
+      nsfw:
+        data_type: bool
+        nullable: true
+      bitrate:
+        data_type: bigint
+        nullable: true
+      user_limit:
+        data_type: bigint
+        nullable: true
+    write_disposition: append
+  channels__permission_overwrites:
+    columns:
+      id:
+        unique: true
+        data_type: text
+        nullable: true
+      type:
+        data_type: bigint
+        nullable: true
+      allow:
+        data_type: text
+        nullable: true
+      deny:
+        data_type: text
+        nullable: true
+      _dlt_parent_id:
+        foreign_key: true
+        data_type: text
+        nullable: false
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+      _dlt_root_id:
+        data_type: text
+        nullable: false
+      _dlt_id:
+        unique: true
+        data_type: text
+        nullable: false
+    parent: channels
+  messages:
+    columns:
+      id:
+        primary_key: true
+        data_type: text
+        nullable: false
+      type:
+        data_type: bigint
+        nullable: false
+      content:
+        data_type: text
+        nullable: true
+      channel_id:
+        data_type: text
+        nullable: false
+      author__id:
+        data_type: text
+        nullable: true
+      author__username:
+        data_type: text
+        nullable: true
+      author__avatar:
+        data_type: text
+        nullable: true
+      author__discriminator:
+        data_type: text
+        nullable: true
+      author__public_flags:
+        data_type: bigint
+        nullable: true
+      pinned:
+        data_type: bool
+        nullable: true
+      mention_everyone:
+        data_type: bool
+        nullable: true
+      tts:
+        data_type: bool
+        nullable: true
+      timestamp:
+        partition: true
+        sort: true
+        data_type: timestamp
+        nullable: false
+      flags:
+        data_type: bigint
+        nullable: true
+      _dlt_load_id:
+        data_type: text
+        nullable: false
+      _dlt_id:
+        unique: true
+        data_type: text
+        nullable: false
+      message_reference__channel_id:
+        data_type: text
+        nullable: true
+      message_reference__guild_id:
+        cluster: true
+        data_type: text
+        nullable: false
+      message_reference__message_id:
+        data_type: text
+        nullable: true
+      edited_timestamp:
+        data_type: timestamp
+        nullable: true
+    write_disposition: append
+  messages__mentions:
+    columns:
+      id:
+        unique: true
+        data_type: text
+        nullable: false
+      username:
+        data_type: text
+        nullable: true
+      avatar:
+        data_type: text
+        nullable: true
+      discriminator:
+        data_type: text
+        nullable: true
+      public_flags:
+        data_type: bigint
+        nullable: true
+      _dlt_parent_id:
+        foreign_key: true
+        data_type: text
+        nullable: false
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+      _dlt_root_id:
+        data_type: text
+        nullable: false
+      _dlt_id:
+        unique: true
+        data_type: text
+        nullable: false
+    parent: messages
+  messages__reactions:
+    columns:
+      emoji__id:
+        data_type: text
+        nullable: true
+      emoji__name:
+        data_type: text
+        nullable: true
+      count:
+        data_type: bigint
+        nullable: true
+      me:
+        data_type: bool
+        nullable: true
+      _dlt_parent_id:
+        foreign_key: true
+        data_type: text
+        nullable: false
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+      _dlt_root_id:
+        data_type: text
+        nullable: false
+      _dlt_id:
+        unique: true
+        data_type: text
+        nullable: false
+    parent: messages
+  messages__referenced_message:
+    columns:
+      id:
+        unique: true
+        data_type: text
+        nullable: false
+      type:
+        data_type: bigint
+        nullable: true
+      content:
+        data_type: text
+        nullable: true
+      channel_id:
+        data_type: text
+        nullable: true
+      author__id:
+        data_type: text
+        nullable: true
+      author__username:
+        data_type: text
+        nullable: true
+      author__avatar:
+        data_type: text
+        nullable: true
+      author__discriminator:
+        data_type: text
+        nullable: true
+      author__public_flags:
+        data_type: bigint
+        nullable: true
+      pinned:
+        data_type: bool
+        nullable: true
+      mention_everyone:
+        data_type: bool
+        nullable: true
+      tts:
+        data_type: bool
+        nullable: true
+      timestamp:
+        data_type: text
+        nullable: true
+      flags:
+        data_type: bigint
+        nullable: true
+      message_reference__channel_id:
+        data_type: text
+        nullable: true
+      message_reference__guild_id:
+        data_type: text
+        nullable: true
+      message_reference__message_id:
+        data_type: text
+        nullable: true
+      _dlt_parent_id:
+        foreign_key: true
+        data_type: text
+        nullable: false
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+      _dlt_root_id:
+        data_type: text
+        nullable: false
+      _dlt_id:
+        unique: true
+        data_type: text
+        nullable: false
+      edited_timestamp:
+        data_type: text
+        nullable: true
+    parent: messages
+  messages__referenced_message__mentions:
+    columns:
+      id:
+        data_type: text
+        nullable: true
+      username:
+        data_type: text
+        nullable: true
+      avatar:
+        data_type: text
+        nullable: true
+      discriminator:
+        data_type: text
+        nullable: true
+      public_flags:
+        data_type: bigint
+        nullable: true
+      _dlt_parent_id:
+        foreign_key: true
+        data_type: text
+        nullable: false
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+      _dlt_root_id:
+        data_type: text
+        nullable: false
+      _dlt_id:
+        unique: true
+        data_type: text
+        nullable: false
+    parent: messages__referenced_message
+  messages__attachments:
+    columns:
+      id:
+        data_type: text
+        nullable: true
+      filename:
+        data_type: text
+        nullable: true
+      size:
+        data_type: bigint
+        nullable: true
+      url:
+        data_type: text
+        nullable: true
+      proxy_url:
+        data_type: text
+        nullable: true
+      width:
+        data_type: bigint
+        nullable: true
+      height:
+        data_type: bigint
+        nullable: true
+      content_type:
+        data_type: text
+        nullable: true
+      _dlt_parent_id:
+        foreign_key: true
+        data_type: text
+        nullable: false
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+      _dlt_root_id:
+        data_type: text
+        nullable: false
+      _dlt_id:
+        unique: true
+        data_type: text
+        nullable: false
+    parent: messages
+  messages__embeds:
+    columns:
+      type:
+        data_type: text
+        nullable: true
+      url:
+        data_type: text
+        nullable: true
+      description:
+        data_type: text
+        nullable: true
+      color:
+        data_type: bigint
+        nullable: true
+      timestamp:
+        data_type: text
+        nullable: true
+      author__name:
+        data_type: text
+        nullable: true
+      author__url:
+        data_type: text
+        nullable: true
+      author__icon_url:
+        data_type: text
+        nullable: true
+      author__proxy_icon_url:
+        data_type: text
+        nullable: true
+      footer__text:
+        data_type: text
+        nullable: true
+      footer__icon_url:
+        data_type: text
+        nullable: true
+      footer__proxy_icon_url:
+        data_type: text
+        nullable: true
+      _dlt_parent_id:
+        foreign_key: true
+        data_type: text
+        nullable: false
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+      _dlt_root_id:
+        data_type: text
+        nullable: false
+      _dlt_id:
+        unique: true
+        data_type: text
+        nullable: false
+      title:
+        data_type: text
+        nullable: true
+      provider__name:
+        data_type: text
+        nullable: true
+      provider__url:
+        data_type: text
+        nullable: true
+      thumbnail__url:
+        data_type: text
+        nullable: true
+      thumbnail__proxy_url:
+        data_type: text
+        nullable: true
+      thumbnail__width:
+        data_type: bigint
+        nullable: true
+      thumbnail__height:
+        data_type: bigint
+        nullable: true
+    parent: messages
+  messages__referenced_message__embeds:
+    columns:
+      type:
+        data_type: text
+        nullable: true
+      url:
+        data_type: text
+        nullable: true
+      title:
+        data_type: text
+        nullable: true
+      description:
+        data_type: text
+        nullable: true
+      thumbnail__url:
+        data_type: text
+        nullable: true
+      thumbnail__proxy_url:
+        data_type: text
+        nullable: true
+      thumbnail__width:
+        data_type: bigint
+        nullable: true
+      thumbnail__height:
+        data_type: bigint
+        nullable: true
+      _dlt_parent_id:
+        foreign_key: true
+        data_type: text
+        nullable: false
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+      _dlt_root_id:
+        data_type: text
+        nullable: false
+      _dlt_id:
+        unique: true
+        data_type: text
+        nullable: false
+    parent: messages__referenced_message
+  messages__referenced_message__attachments:
+    columns:
+      id:
+        data_type: text
+        nullable: true
+      filename:
+        data_type: text
+        nullable: true
+      size:
+        data_type: bigint
+        nullable: true
+      url:
+        data_type: text
+        nullable: true
+      proxy_url:
+        data_type: text
+        nullable: true
+      width:
+        data_type: bigint
+        nullable: true
+      height:
+        data_type: bigint
+        nullable: true
+      content_type:
+        data_type: text
+        nullable: true
+      _dlt_parent_id:
+        foreign_key: true
+        data_type: text
+        nullable: false
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+      _dlt_root_id:
+        data_type: text
+        nullable: false
+      _dlt_id:
+        unique: true
+        data_type: text
+        nullable: false
+    parent: messages__referenced_message
+settings:
+  default_hints:
+    not_null:
+    - re:^_dlt_id$
+    - re:^_dlt_root_id$
+    - re:^_dlt_parent_id$
+    - re:^_dlt_list_idx$
+    - re:_dlt_load_id
+    foreign_key:
+    - re:^_dlt_parent_id$
+    unique:
+    - re:^_dlt_id$
+  preferred_types: {}
+normalizers:
+  names: dlt.common.normalizers.names.snake_case
+  json:
+    module: dlt.common.normalizers.json.relational
+    config:
+      propagation:
+        root:
+          _dlt_id: _dlt_root_id
+

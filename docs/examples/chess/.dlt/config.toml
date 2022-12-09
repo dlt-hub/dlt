@@ -1,0 +1,5 @@
+chess_url="https://api.chess.com/pub/"
+pipeline_name="chess"
+
+[runtime]
+log_level="WARNING"
