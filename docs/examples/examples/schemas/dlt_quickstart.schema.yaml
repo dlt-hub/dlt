@@ -1,0 +1,126 @@
+version: 3
+version_hash: OMxV9n8bVDIGiT9Yh6T94npymp4FYshbwnmiK6G4PzY=
+engine_version: 5
+name: dlt_quickstart
+tables:
+  _dlt_version:
+    columns:
+      version:
+        data_type: bigint
+        nullable: false
+      engine_version:
+        data_type: bigint
+        nullable: false
+      inserted_at:
+        data_type: timestamp
+        nullable: false
+      schema_name:
+        data_type: text
+        nullable: false
+      version_hash:
+        data_type: text
+        nullable: false
+      schema:
+        data_type: text
+        nullable: false
+    write_disposition: skip
+    description: Created by DLT. Tracks schema updates
+  _dlt_loads:
+    columns:
+      load_id:
+        data_type: text
+        nullable: false
+      schema_name:
+        data_type: text
+        nullable: true
+      status:
+        data_type: bigint
+        nullable: false
+      inserted_at:
+        data_type: timestamp
+        nullable: false
+    write_disposition: skip
+    description: Created by DLT. Tracks completed loads
+  my_json_doc:
+    columns:
+      name:
+        data_type: text
+        nullable: true
+      age:
+        data_type: bigint
+        nullable: true
+      id:
+        data_type: bigint
+        nullable: true
+      _dlt_load_id:
+        data_type: text
+        nullable: false
+      _dlt_id:
+        unique: true
+        data_type: text
+        nullable: false
+    write_disposition: replace
+  _dlt_pipeline_state:
+    columns:
+      version:
+        data_type: bigint
+        nullable: true
+      engine_version:
+        data_type: bigint
+        nullable: true
+      pipeline_name:
+        data_type: text
+        nullable: true
+      state:
+        data_type: text
+        nullable: true
+      created_at:
+        data_type: timestamp
+        nullable: true
+      _dlt_load_id:
+        data_type: text
+        nullable: false
+      _dlt_id:
+        data_type: text
+        nullable: false
+        unique: true
+    write_disposition: append
+  my_json_doc__children:
+    columns:
+      name:
+        data_type: text
+        nullable: true
+      id:
+        data_type: bigint
+        nullable: true
+      _dlt_parent_id:
+        data_type: text
+        nullable: false
+        foreign_key: true
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+      _dlt_id:
+        data_type: text
+        nullable: false
+        unique: true
+    parent: my_json_doc
+settings:
+  default_hints:
+    not_null:
+    - _dlt_id
+    - _dlt_root_id
+    - _dlt_parent_id
+    - _dlt_list_idx
+    - _dlt_load_id
+    foreign_key:
+    - _dlt_parent_id
+    unique:
+    - _dlt_id
+normalizers:
+  detections:
+  - timestamp
+  - iso_timestamp
+  names: dlt.common.normalizers.names.snake_case
+  json:
+    module: dlt.common.normalizers.json.relational
