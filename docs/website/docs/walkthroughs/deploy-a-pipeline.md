@@ -5,7 +5,7 @@ sidebar_position: 2
 # Deploy a pipeline
 
 Before you can deploy a pipeline, you will need to 1) [install dlt](../installation.mdx),
-2) [create a pipeline](./create-a-pipeline.md), and 3) sign up for a [GitHub](https://github.com) account, 
+2) [create a pipeline](./create-a-pipeline.md), and 3) sign up for a [GitHub](https://github.com) account,
 since you will be deploying using [GitHub Actions](https://github.com/features/actions).
 
 ## Add your `dlt` project directory to GitHub
@@ -24,14 +24,14 @@ This should successfully load data from the source to the destination once.
 
 ## Initialize deployment
 
-In the same `dlt` project as your working pipeline, you can create a deployment using 
+In the same `dlt` project as your working pipeline, you can create a deployment using
 [GitHub Actions](https://github.com/features/actions) that will load data with the
 `chess.py` script every 30 minutes by running
 ```
-dlt deploy chess.py github --schedule "*/30 * * * *" # replace chess.py
+dlt deploy chess.py github-action --schedule "*/30 * * * *" # replace chess.py
 ```
 
-This command checks that your pipeline has run successfully before and creates a GitHub Actions workflow 
+This command checks that your pipeline has run successfully before and creates a GitHub Actions workflow
 file `run_chess_workflow.yml` in `.github/workflows` with the necessary environment variables.
 
 ## Add the secret values to GitHub
