@@ -4,7 +4,6 @@ import json_logging
 from os import environ
 from importlib.metadata import version as pkg_version
 
-from dlt import __version__ as code_version
 from dlt.common import logger, sleep
 from dlt.common.typing import StrStr
 from dlt.common.configuration import configspec
@@ -44,7 +43,7 @@ def environment() -> StrStr:
 def test_version_extract(environment: StrStr) -> None:
     version = logger._extract_version_info(PureBasicConfiguration())
     # assert version["dlt_version"].startswith(code_version)
-    lib_version = pkg_version(logger.DLT_PKG_NAME)
+    lib_version = pkg_version("python-dlt")
     assert version == {'dlt_version': lib_version, 'pipeline_name': 'logger'}
     # mock image info available in container
     _mock_image_env(environment)

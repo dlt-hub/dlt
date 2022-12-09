@@ -67,7 +67,7 @@ jobs:
       #   run: poetry install --no-interaction
 
       - run: |
-          LOG_LEVEL=ERROR poetry run pytest tests --ignore=tests/common --ignore=tests/normalize --ignore=tests/load/redshift --ignore=tests/load/postgres --ignore=tests/dbt_runner --ignore=tests/cli -k '(not redshift and not postgres)'
+          RUNTIME__LOG_LEVEL=ERROR poetry run pytest tests --ignore=tests/common --ignore=tests/normalize --ignore=tests/load/redshift --ignore=tests/load/postgres --ignore=tests/dbt_runner --ignore=tests/cli -k '(not redshift and not postgres)'
         if: runner.os != 'Windows'
         name: Run tests Linux/MAC
       - run: |

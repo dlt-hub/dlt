@@ -2,21 +2,19 @@ import logging
 import json_logging
 import traceback
 import sentry_sdk
-from importlib.metadata import version as pkg_version, PackageNotFoundError
 from sentry_sdk.transport import HttpTransport
 from sentry_sdk.integrations.logging import LoggingIntegration
+from sentry_sdk.integrations.aiohttp import AioHttpIntegration
 from logging import LogRecord, Logger
 from typing import Any, Literal, Protocol
 
+from dlt.version import __version__
 from dlt.common.json import json
 from dlt.common.typing import DictStrAny, StrAny, StrStr
 from dlt.common.configuration.specs import RunConfiguration
 from dlt.common.utils import filter_env_vars
 
-from dlt.__version__ import __version__
-
 DLT_LOGGER_NAME = "dlt"
-DLT_PKG_NAME = "python-dlt"
 LOGGER: Logger = None
 TMetricsCategory = Literal["start", "progress", "stop"]
 
@@ -138,7 +136,7 @@ def _init_logging(logger_name: str, level: str, fmt: str, component: str, versio
 
 def _extract_version_info(config: RunConfiguration) -> StrStr:
 
-    version_info = {"dlt_version": dlt_version(), "pipeline_name": config.pipeline_name}
+    version_info = {"dlt_version": __version__, "pipeline_name": config.pipeline_name}
     # extract envs with build info
     version_info.update(filter_env_vars(["COMMIT_SHA", "IMAGE_VERSION"]))
     return version_info
@@ -180,7 +178,9 @@ def _init_sentry(C: RunConfiguration, version: StrStr) -> None:
     sentry_sdk.init(
         C.sentry_dsn,
         traces_sample_rate=1.0,
-        integrations=[_get_sentry_log_level(C)],
+        # disable tornado, boto3, sql alchemy etc.
+        auto_enabling_integrations = False,
+        integrations=[_get_sentry_log_level(C), AioHttpIntegration()],
         release=release,
         transport=_SentryHttpTransport
     )
@@ -195,8 +195,8 @@ def _init_sentry(C: RunConfiguration, version: StrStr) -> None:
     github_tags = _extract_github_info()
     for k, v in github_tags.items():
         sentry_sdk.set_tag(k, v)
-    if "GITHUB_USER" in github_tags:
-        sentry_sdk.set_user({"username": github_tags["GITHUB_USER"]})
+    if "github_user" in github_tags:
+        sentry_sdk.set_user({"username": github_tags["github_user"]})
 
 
 def init_telemetry(config: RunConfiguration) -> None:
@@ -245,11 +245,3 @@ def is_json_logging(log_format: str) -> bool:
 
 def pretty_format_exception() -> str:
     return traceback.format_exc()
-
-
-def dlt_version() -> str:
-    try:
-        return pkg_version(DLT_PKG_NAME)
-    except PackageNotFoundError:
-        # if there's no package context, take the version from the code
-        return __version__

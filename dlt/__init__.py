@@ -22,14 +22,15 @@ Or start with our pipeline template with sample chess.com data to bigquery
 For more detailed info, see https://dlthub.com/docs
 """
 
-from dlt.pipeline import pipeline as _pipeline, run, attach, Pipeline
-from dlt.pipeline.state import state
-from dlt.extract.decorators import source, resource, transformer, defer
-from dlt.extract.source import with_table_name
+from dlt.version import __version__
 from dlt.common.schema import Schema
 from dlt.common.configuration.accessors import config, secrets
 from dlt.common.typing import TSecretValue as _TSecretValue
 from dlt.common.configuration.specs import CredentialsConfiguration as _CredentialsConfiguration
+from dlt.extract.decorators import source, resource, transformer, defer
+from dlt.extract.source import with_table_name
+from dlt.pipeline import pipeline as _pipeline, run, attach, Pipeline
+from dlt.pipeline.state import state
 
 pipeline = _pipeline
 
@@ -38,7 +39,5 @@ TSecretValue = _TSecretValue
 
 TCredentials = _CredentialsConfiguration
 "When typing source/resource function arguments indicates that given argument represents credentials and should be taken from dlt.secrets. Credentials may be string, dictionaries or any other types."
-
-from dlt.__version__ import __version__
 
 
