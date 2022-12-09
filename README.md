@@ -36,6 +36,16 @@ make dev  # will install all deps including dev
 ```
 Executing `poetry shell` and working in it is very convenient at this moment.
 
+## python version
+Use python 3.8 for development which is the lowest supported version for `python-dlt`. You'll need `distutils` and `venv`:
+
+```shell
+sudo apt-get install python3.8
+sudo apt-get install python3.8-distutils
+sudo apt install python3.8-venv
+```
+You may also use `pyenv` as [poetry](https://python-poetry.org/docs/managing-environments/) suggests.
+
 ## bumping version
 Please use `poetry version prerelease` to bump patch and then `make build-library` to apply changes. The source of the version is `pyproject.toml` and we use poetry to manage it.
 

@@ -185,7 +185,7 @@ def test_trace_on_restore_state(environment: StrStr) -> None:
         self._wipe_working_folder()
         self._configure(self._schema_storage_config.export_schema_path, self._schema_storage_config.import_schema_path, False)
 
-    with patch.object(Pipeline, 'sync_destination', _sync_destination_patch) as m:
+    with patch.object(Pipeline, 'sync_destination', _sync_destination_patch):
         dlt.pipeline().run([1,2,3], table_name="data", destination="dummy")
         assert len(dlt.pipeline()._last_trace.steps) == 4
 

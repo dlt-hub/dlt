@@ -180,7 +180,7 @@ def _init_sentry(C: RunConfiguration, version: StrStr) -> None:
         traces_sample_rate=1.0,
         # disable tornado, boto3, sql alchemy etc.
         auto_enabling_integrations = False,
-        integrations=[_get_sentry_log_level(C), AioHttpIntegration()],
+        integrations=[_get_sentry_log_level(C)],
         release=release,
         transport=_SentryHttpTransport
     )

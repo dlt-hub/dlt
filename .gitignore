@@ -8,9 +8,9 @@ _test_storage
 _secrets/
 _backup_storage/
 experiments/*
-!experiments/
-!experiments/pipeline/
-!experiments/pipeline/*
+# !experiments/
+# !experiments/pipeline/
+# !experiments/pipeline/*
 secrets.toml
 *.session.sql
 
