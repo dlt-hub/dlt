@@ -62,6 +62,7 @@ def with_state_sync(may_extract_state: bool = False) -> Callable[[TFun], TFun]:
 
     return decorator
 
+
 def with_schemas_sync(f: TFun) -> TFun:
 
     @wraps(f)
@@ -76,40 +77,47 @@ def with_schemas_sync(f: TFun) -> TFun:
 
     return _wrap  # type: ignore
 
+
 def with_runtime_trace(f: TFun) -> TFun:
 
     @wraps(f)
     def _wrap(self: "Pipeline", *args: Any, **kwargs: Any) -> Any:
-        new_trace = self._trace is None
-        rv: Any = None
+        trace: PipelineRuntimeTrace = self._trace
         trace_step: PipelineStepTrace = None
+        step_info: Any = None
+        is_new_trace = self._trace is None and self.config.enable_runtime_trace
 
-        if self.config.enable_runtime_trace and new_trace:
-            self._trace = start_trace(cast(TPipelineStep, f.__name__), self)
+        # create a new trace if we enter a traced function and there's no current trace
+        if is_new_trace:
+            self._trace = trace = start_trace(cast(TPipelineStep, f.__name__), self)
+
         try:
-            if self._trace:
-                trace_step = start_trace_step(self._trace, cast(TPipelineStep, f.__name__), self)
-            rv = f(self, *args, **kwargs)
-            return rv
+            # start a trace step for wrapped function
+            if trace:
+                trace_step = start_trace_step(trace, cast(TPipelineStep, f.__name__), self)
+
+            step_info = f(self, *args, **kwargs)
+            return step_info
         except Exception as ex:
-            rv = ex
+            step_info = ex  # step info is an exception
             raise
         finally:
             try:
-                if self.config.enable_runtime_trace:
-                    with contextlib.suppress(Exception):
-                        end_trace_step(self._trace, trace_step, self, rv)
-                    if new_trace:
-                        with contextlib.suppress(Exception):
-                            end_trace(self._trace, self, self._pipeline_storage.storage_path)
+                if trace_step:
+                    # if there was a step, finish it
+                    end_trace_step(self._trace, trace_step, self, step_info)
+                if trace:
+                    assert trace is self._trace, f"Messed up trace reference {id(self._trace)} vs {id(trace)}"
+                    end_trace(trace, self, self._pipeline_storage.storage_path)
             finally:
                 # always end trace
-                if new_trace:
-                    self._last_trace = merge_traces(self._last_trace, self._trace)
+                if is_new_trace:
+                    assert self._trace == trace, f"Messed up trace reference {id(self._trace)} vs {id(trace)}"
+                    self._last_trace = merge_traces(self._last_trace, trace)
                     self._trace = None
 
-
     return _wrap  # type: ignore
+
 
 def with_config_namespace(namespaces: Tuple[str, ...]) -> Callable[[TFun], TFun]:
 
@@ -616,7 +624,6 @@ class Pipeline:
         self._pipeline_storage.create_folder("", exists_ok=False)
         self.default_schema_name = None
         self.schema_names = []
-        self._trace = None
         self.first_run = True
 
     def _wipe_working_folder(self) -> None:

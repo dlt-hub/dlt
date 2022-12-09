@@ -157,11 +157,11 @@ def end_trace_step(trace: PipelineRuntimeTrace, step: PipelineStepTrace, pipelin
 
 
 def end_trace(trace: PipelineRuntimeTrace, pipeline: SupportsPipeline, trace_path: str) -> None:
+    if trace_path:
+        save_trace(trace_path, trace)
     if pipeline.runtime_config.sentry_dsn:
         Hub.current.scope.span.__exit__(None, None, None)
         # print(f"---END SENTRY TX: {trace.transaction_id}")
-    if trace_path:
-        save_trace(trace_path, trace)
 
 
 def merge_traces(last_trace: PipelineRuntimeTrace, new_trace: PipelineRuntimeTrace) -> PipelineRuntimeTrace:
