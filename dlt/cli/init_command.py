@@ -10,7 +10,7 @@ from importlib.metadata import version as pkg_version
 
 from dlt.common.configuration import is_secret_hint, DOT_DLT, make_dot_dlt_path
 from dlt.common.configuration.providers import CONFIG_TOML, SECRETS_TOML, ConfigTomlProvider, SecretsTomlProvider
-from dlt.common.logger import DLT_PKG_NAME
+from dlt.version import DLT_PKG_NAME, __version__
 from dlt.common.normalizers.names.snake_case import normalize_schema_name
 from dlt.common.destination import DestinationReference
 from dlt.common.reflection.utils import creates_func_def_name_node, rewrite_python_script
@@ -27,6 +27,8 @@ import dlt.cli.echo as fmt
 from dlt.cli import utils
 from dlt.cli.config_toml_writer import WritableConfigValue, write_values
 from dlt.cli.exceptions import CliCommandException
+
+DLT_INIT_DOCS_URL = "https://dlthub.com/docs/command-line-interface#dlt-init"
 
 
 def _find_call_arguments_to_replace(visitor: PipelineScriptVisitor, replace_nodes: List[Tuple[str, str]], init_script_name: str) -> List[Tuple[ast.AST, ast.AST]]:
@@ -194,17 +196,14 @@ def init_command(pipeline_name: str, destination_name: str, use_generic_template
     click.echo("Your new pipeline %s is ready to be customized!" % fmt.bold(pipeline_name))
     click.echo("* Review and change how dlt loads your data in %s" % fmt.bold(dest_pipeline_script))
     click.echo("* Add credentials to %s and other secrets in %s" % (fmt.bold(destination_name), fmt.bold(toml_files[1])))
-    click.echo("* Configure your pipeline in %s" % fmt.bold(toml_files[0]))
-    click.echo("* See %s for further information" % fmt.bold("README.md"))
 
     # add dlt to dependencies
-    dlt_version = pkg_version(DLT_PKG_NAME)
     requirements_txt: str = None
     # figure out the build system
     if dest_storage.has_file(utils.PYPROJECT_TOML):
         click.echo()
         click.echo("Your python dependencies are kept in %s. Please add the dependency for %s as follows:" % (fmt.bold(utils.PYPROJECT_TOML), fmt.bold(DLT_PKG_NAME)))
-        click.echo(fmt.bold("%s [%s] >= %s" % (DLT_PKG_NAME, destination_name, dlt_version)))
+        click.echo(fmt.bold("%s [%s] >= %s" % (DLT_PKG_NAME, destination_name, __version__)))
         click.echo("If you are using poetry you may issue the following command:")
         click.echo(fmt.bold("poetry add %s -E %s" % (DLT_PKG_NAME, destination_name)))
         click.echo("If the dependency is already added, make sure you add the extra %s to it" % fmt.bold(destination_name))
@@ -218,7 +217,8 @@ def init_command(pipeline_name: str, destination_name: str, use_generic_template
             click.echo(f"pip3 install {req_dep}")
         else:
             requirements_txt = req_dep_line
-            click.echo("* %s created. Install it with:\npip3 install -r %s" % (fmt.bold(utils.REQUIREMENTS_TXT), utils.REQUIREMENTS_TXT))
+            click.echo("* %s was created. Install it with:\npip3 install -r %s" % (fmt.bold(utils.REQUIREMENTS_TXT), utils.REQUIREMENTS_TXT))
+    click.echo("* Read %s for more information" % fmt.bold("https://dlthub.com/docs/walkthroughs/create-a-pipeline"))
 
     # copy files at the very end
     for file_name in template_files + toml_files:

@@ -33,6 +33,7 @@ from dlt.cli.exceptions import CliCommandException
 
 REQUIREMENTS_GITHUB_ACTION = "requirements_github_action.txt"
 GITHUB_URL = "https://github.com/"
+DLT_DEPLOY_DOCS_URL = "https://dlthub.com/docs/walkthroughs/deploy-a-pipeline"
 
 
 def deploy_command(pipeline_script_path: str, deployment_method: str, schedule: str, run_on_push: bool, run_on_dispatch: bool, branch: str = None) -> None:
@@ -166,7 +167,7 @@ def deploy_command(pipeline_script_path: str, deployment_method: str, schedule: 
     requirements_txt_name = REQUIREMENTS_GITHUB_ACTION
 
     # if repo_storage.has_file(utils.REQUIREMENTS_TXT):
-    click.echo("Your %s deployment for pipeline %s in script %s is ready! Please follow the instructions below to make your pipeline running:" % (
+    click.echo("Your %s deployment for pipeline %s in script %s is ready!" % (
         fmt.bold(deployment_method), fmt.bold(state["pipeline_name"]), fmt.bold(pipeline_script_path)
     ))
     #  It contains all relevant configurations and references to credentials that are needed to run the pipeline
