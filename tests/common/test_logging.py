@@ -62,7 +62,12 @@ def test_pod_info_extract(environment: StrStr) -> None:
 def test_github_info_extract(environment: StrStr) -> None:
     _mock_github_env(environment)
     github_info = logger._extract_github_info()
-    assert github_info == {"github_user": "rudolfix", "github_repository": "dlt-hub/beginners-workshop-2022"}
+    assert github_info == {"github_user": "rudolfix", "github_repository": "dlt-hub/beginners-workshop-2022", "github_repository_owner": "dlt-hub"}
+    _mock_github_env(environment)
+    del environment["GITHUB_USER"]
+    github_info = logger._extract_github_info()
+    assert github_info == {"github_user": "dlt-hub", "github_repository": "dlt-hub/beginners-workshop-2022", "github_repository_owner": "dlt-hub"}
+
 
 
 @pytest.mark.forked
@@ -137,3 +142,4 @@ def _mock_pod_env(environment: StrStr) -> None:
 def _mock_github_env(environment: StrStr) -> None:
     environment["GITHUB_USER"] = "rudolfix"
     environment["GITHUB_REPOSITORY"] = "dlt-hub/beginners-workshop-2022"
+    environment["GITHUB_REPOSITORY_OWNER"] = "dlt-hub"

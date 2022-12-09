@@ -4,7 +4,6 @@ import traceback
 import sentry_sdk
 from sentry_sdk.transport import HttpTransport
 from sentry_sdk.integrations.logging import LoggingIntegration
-from sentry_sdk.integrations.aiohttp import AioHttpIntegration
 from logging import LogRecord, Logger
 from typing import Any, Literal, Protocol
 
@@ -147,7 +146,11 @@ def _extract_pod_info() -> StrStr:
 
 
 def _extract_github_info() -> StrStr:
-    return filter_env_vars(["GITHUB_USER", "GITHUB_REPOSITORY"])
+    info = filter_env_vars(["GITHUB_USER", "GITHUB_REPOSITORY", "GITHUB_REPOSITORY_OWNER"])
+    # set GITHUB_REPOSITORY_OWNER as github user if not present. GITHUB_REPOSITORY_OWNER is available in github action context
+    if "github_user" not in info and "github_repository_owner" in info:
+        info["github_user"] = info["github_repository_owner"]  # type: ignore
+    return info
 
 
 class _SentryHttpTransport(HttpTransport):
