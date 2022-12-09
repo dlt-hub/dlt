@@ -1,47 +1,62 @@
+.PHONY: install-poetry build-library-prerelease has-poetry dev lint test test-common reset-test-storage recreate-compiled-deps build-library-prerelease publish-library
+
 PYV=$(shell python3 -c "import sys;t='{v[0]}.{v[1]}'.format(v=list(sys.version_info[:2]));sys.stdout.write(t)")
 .SILENT:has-poetry
 
-# pipeline version info
-AUTV=$(shell python3 -c "from dlt import __version__;print(__version__)")
-AUTVMINMAJ=$(shell python3 -c "from dlt import __version__;print('.'.join(__version__.split('.')[:-1]))")
+# read version from package
+# AUTV=$(shell cd dlt && python3 -c "from __version__ import __version__;print(__version__)")
 
-NAME   := scalevector/dlt
-TAG    := $(shell git log -1 --pretty=%h)
-IMG    := ${NAME}:${TAG}
-LATEST := ${NAME}:latest${VERSION_SUFFIX}
-VERSION := ${AUTV}${VERSION_SUFFIX}
-VERSION_MM := ${AUTVMINMAJ}${VERSION_SUFFIX}
+# NAME   := dlthub/dlt
+# TAG    := $(shell git log -1 --pretty=%h)
+# IMG    := ${NAME}:${TAG}
+# LATEST := ${NAME}:latest${VERSION_SUFFIX}
+# VERSION := ${AUTV}${VERSION_SUFFIX}
+# VERSION_MM := ${AUTVMINMAJ}${VERSION_SUFFIX}
 
-
-DBT_NAME   := scalevector/dlt-dbt-runner
-DBT_IMG    := ${DBT_NAME}:${TAG}
-DBT_LATEST := ${DBT_NAME}:latest${VERSION_SUFFIX}
-DBT_VERSION := ${AUTV}${VERSION_SUFFIX}
-DBT_VERSION_MM := ${AUTVMINMAJ}${VERSION_SUFFIX}
+help:
+	@echo "make"
+	@echo "		install-poetry"
+	@echo "			installs newest poetry version"
+	@echo "		dev"
+	@echo "			prepares development env"
+	@echo "		lint"
+	@echo "			runs flake and mypy"
+	@echo "		test"
+	@echo "			tests all the components including destinations"
+	@echo "		test-common"
+	@echo "			tests common components"
+	@echo "		build-library"
+	@echo "			makes dev and then builds python-dlt for distribution"
+	@echo "		publish-library"
+	@echo "			builds library and then publishes it to pypi"
 
 install-poetry:
 ifneq ($(VIRTUAL_ENV),)
 	$(error you cannot be under virtual environment $(VIRTUAL_ENV))
 endif
-	curl -sSL https://install.python-poetry.org | python3
+	curl -sSL https://install.python-poetry.org | python3 -
 
 has-poetry:
 	poetry --version
 
 dev: has-poetry
-	# will install itself as editable module with all the extras
-	poetry install -E "postgres redshift dbt gcp"
+	poetry install -E "postgres redshift gcp"
 
 lint:
 	./check-package.sh
-	poetry run mypy --config-file mypy.ini dlt examples
-	poetry run flake8 --max-line-length=200 examples dlt
+	poetry run mypy --config-file mypy.ini dlt docs/examples
+	poetry run flake8 --max-line-length=200 dlt docs/examples
 	poetry run flake8 --max-line-length=200 tests
-	# dlt/pipeline dlt/common/schema dlt/common/normalizers
 	# $(MAKE) lint-security
 
 lint-security:
 	poetry run bandit -r dlt/ -n 3 -l
+
+test:
+	(set -a && . tests/.env && poetry run pytest tests --ignore tests/dbt_runner)
+
+test-common:
+	poetry run pytest tests --ignore=tests/load --ignore=tests/dbt_runner --ignore=tests/cli
 
 reset-test-storage:
 	-rm -r _storage
@@ -52,54 +67,9 @@ recreate-compiled-deps:
 	poetry export -f requirements.txt --output _gen_requirements.txt --without-hashes --extras gcp --extras redshift
 	grep `cat compiled_packages.txt` _gen_requirements.txt > compiled_requirements.txt
 
-.PHONY: build-library
-build-library:
-	poetry version ${VERSION}
+build-library: dev
+	poetry version
 	poetry build
 
 publish-library: build-library
-	# provide the token via poetry config pypi-token.pypi your-api-token
 	poetry publish
-
-build-image-tags:
-	@echo ${IMG}
-	@echo ${LATEST}
-	@echo ${NAME}:${VERSION_MM}
-	@echo ${NAME}:${VERSION}
-
-build-image-no-version-tags:
-	# poetry export -f requirements.txt --output _gen_requirements.txt --without-hashes --extras gcp --extras redshift
-	docker build -f deploy/dlt/Dockerfile --build-arg=COMMIT_SHA=${TAG} --build-arg=IMAGE_VERSION="${VERSION}" . -t ${IMG}
-
-build-image: build-image-no-version-tags
-	docker tag ${IMG} ${LATEST}
-	docker tag ${IMG} ${NAME}:${VERSION_MM}
-	docker tag ${IMG} ${NAME}:${VERSION}
-
-push-image:
-	docker push ${IMG}
-	docker push ${LATEST}
-	docker push ${NAME}:${VERSION_MM}
-	docker push ${NAME}:${VERSION}
-
-dbt-build-image-tags:
-	@echo ${DBT_IMG}
-	@echo ${DBT_LATEST}
-	@echo ${DBT_VERSION_MM}
-	@echo ${DBT_VERSION}
-
-dbt-build-image: build-library
-	# poetry export -f requirements.txt --output _gen_requirements_dbt.txt --without-hashes --extras dbt
-	docker build -f deploy/dbt_runner/Dockerfile --build-arg=COMMIT_SHA=${TAG} --build-arg=IMAGE_VERSION="${DBT_VERSION}" --build-arg=DLT_VERSION="${VERSION}" . -t ${DBT_IMG}
-	docker tag ${DBT_IMG} ${DBT_LATEST}
-	docker tag ${DBT_IMG} ${DBT_NAME}:${DBT_VERSION_MM}
-	docker tag ${DBT_IMG} ${DBT_NAME}:${DBT_VERSION}
-
-dbt-push-image:
-	docker push ${DBT_IMG}
-	docker push ${DBT_LATEST}
-	docker push ${DBT_NAME}:${DBT_VERSION_MM}
-	docker push ${DBT_NAME}:${DBT_VERSION}
-
-docker-login:
-	docker login -u scalevector -p ${DOCKER_PASS}

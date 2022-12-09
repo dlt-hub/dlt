@@ -3,8 +3,8 @@ name = "python-dlt"
 version = "0.2.0a10"
 description = "DLT is an open-source python-native scalable data loading framework that does not require any devops efforts to run."
 authors = ["dltHub Inc. <services@dlthub.com>"]
-maintainers = [ "Marcin Rudolf <marcin@dlthub.com>", "Adrian Brudaru <adrian@dlthub.com>",]
-readme = "QUICKSTART.md"
+maintainers = [ "Marcin Rudolf <marcin@dlthub.com>", "Adrian Brudaru <adrian@dlthub.com>", "Ty Dunn <ty@dlthub.com>"]
+readme = "README.md"
 license = "Apache-2.0"
 homepage = "https://github.com/dlt-hub"
 repository = "https://github.com/dlt-hub/dlt"
@@ -16,10 +16,9 @@ classifiers = [
     "Operating System :: MacOS :: MacOS X",
     "Operating System :: POSIX :: Linux",]
 keywords = [ "etl" ]
-include = [ "LICENSE.txt", "QUICKSTART.md", "examples/schemas/*.yml", "examples/schemas/data/*"]
+include = [ "LICENSE.txt", "README.md"]
 packages = [
     { include = "dlt" },
-    { include = "examples" },
 ]
 
 [tool.poetry.dependencies]
