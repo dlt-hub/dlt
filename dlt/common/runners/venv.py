@@ -19,6 +19,7 @@ class DLTEnvBuilder(venv.EnvBuilder):
 class Venv():
     def __init__(self, context: types.SimpleNamespace) -> None:
         self.context = context
+        self.current = False
 
     @classmethod
     def create(cls, venv_dir: str, dependencies: List[str] = None) -> "Venv":
@@ -45,12 +46,18 @@ class Venv():
 
     @classmethod
     def restore_current(cls) -> "Venv":
-        return cls.restore(os.environ["VIRTUAL_ENV"])
+        venv = cls.restore(os.environ["VIRTUAL_ENV"])
+        venv.current = True
+        return venv
 
     def __enter__(self) -> "Venv":
+        if self.current:
+            raise NotImplementedError("Context manager does not work with current venv")
         return self
 
     def __exit__(self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: types.TracebackType) -> None:
+        if self.current:
+            raise NotImplementedError("Context manager does not work with current venv")
         # delete venv
         if self.context.env_dir and os.path.isdir(self.context.env_dir):
             shutil.rmtree(self.context.env_dir)
