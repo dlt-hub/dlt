@@ -75,6 +75,15 @@ def test_sleep_signal() -> None:
     assert thread_signal == 4
 
 
+def test_raise_signal_received_exception() -> None:
+    with pytest.raises(SignalReceivedException):
+        # make sure Exception does not catch SignalReceivedException
+        try:
+            raise SignalReceivedException(2)
+        except Exception:
+            pass
+
+
 @pytest.mark.forked
 def test_signalling() -> None:
     signals.register_signals()
