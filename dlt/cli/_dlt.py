@@ -2,6 +2,10 @@ import yaml
 import os
 import argparse
 import click
+from dlt.common.pipeline import get_default_pipelines_dir
+from dlt.common.runners.stdout import iter_stdout
+from dlt.common.runners.venv import Venv
+from dlt.common.storages.file_storage import FileStorage
 
 from dlt.version import __version__
 from dlt.common import json
@@ -69,6 +73,57 @@ def deploy_command_wrapper(pipeline_script_path: str, deployment_method: str, sc
         # TODO: display stack trace if with debug flag
         raise
 
+
+def pipeline_command_wrapper(operation: str, name: str, pipelines_dir: str) -> None:
+
+    try:
+        if operation == "list":
+            pipelines_dir = pipelines_dir or get_default_pipelines_dir()
+            storage = FileStorage(pipelines_dir)
+            dirs = storage.list_folder_dirs(".", to_root=False)
+            if len(dirs) > 0:
+                click.echo("%s pipelines found in %s" % (len(dirs), fmt.bold(pipelines_dir)))
+            else:
+                click.echo("No pipelines found in %s" % fmt.bold(pipelines_dir))
+            for _dir in dirs:
+                click.secho(_dir, fg="green")
+            return
+
+        p = attach(pipeline_name=name, pipelines_dir=pipelines_dir)
+        click.echo("Found pipeline %s in %s" % (fmt.bold(p.pipeline_name), fmt.bold(p.pipelines_dir)))
+
+        if operation == "show":
+            from dlt.helpers import streamlit
+            venv = Venv.restore_current()
+            for line in iter_stdout(venv, "streamlit", "run", streamlit.__file__, name):
+                click.echo(line)
+
+        if operation == "info":
+            state = p.state
+            for k, v in state.items():
+                if not isinstance(v, dict):
+                    click.echo("%s: %s" % (click.style(k, fg="green"), v))
+            for k, v in state["_local"].items():
+                if not isinstance(v, dict):
+                    click.echo("%s: %s" % (click.style(k, fg="green"), v))
+
+        if operation == "failed_loads":
+            completed_loads = p.list_completed_load_packages()
+            for load_id in completed_loads:
+                click.echo("Checking failed jobs in load id '%s'" % fmt.bold(load_id))
+                for job, failed_message in p.list_failed_jobs_in_package(load_id):
+                    click.echo("JOB: %s" % fmt.bold(os.path.abspath(job)))
+                    click.secho(failed_message, fg="red")
+
+        if operation == "sync":
+            if click.confirm("About to drop the local state of the pipeline and reset all the schemas. The destination state, data and schemas are left intact. Proceed?", default=False):
+                p = p.drop()
+                p.sync_destination()
+    except (CannotRestorePipelineException, Exception) as ex:
+        click.secho(str(ex), err=True, fg="red")
+        exit(1)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Runs various DLT modules", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--version', action='version', version='%(prog)s {version}'.format(version=__version__))
@@ -93,10 +148,18 @@ def main() -> None:
     schema.add_argument("--format", choices=["json", "yaml"], default="yaml", help="Display schema in this format")
     schema.add_argument("--remove-defaults", action="store_true", help="Does not show default hint values")
 
-    pipe_cmd = subparsers.add_parser("pipeline", help="Operations on the pipelines")
+    pipe_cmd = subparsers.add_parser("pipeline", help="Operations on pipelines that were ran locally")
     pipe_cmd.add_argument("name", help="Pipeline name")
-    pipe_cmd.add_argument("operation", choices=["failed_loads", "drop", "init"], default="failed_loads", help="Show failed loads for a pipeline")
-    pipe_cmd.add_argument("--workdir", help="Pipeline working directory", default=None)
+    pipe_cmd.add_argument(
+        "operation",
+        choices=["info", "show", "list", "failed_loads", "sync"],
+        default="info",
+        help="""'info' - displays state of the pipeline,
+'show' - launches streamlit app with the loading status and dataset explorer,
+'failed_loads' - displays information on all the failed loads, failed jobs and associated error messages,
+'sync' - drops the local state of the pipeline and resets all the schemas and restores it from destination. The destination state, data and schemas are left intact."""
+    )
+    pipe_cmd.add_argument("--pipelines_dir", help="Pipelines working directory", default=None)
 
     args = parser.parse_args()
 
@@ -114,20 +177,7 @@ def main() -> None:
         print(schema_str)
         exit(0)
     elif args.command == "pipeline":
-
-        p = attach(pipeline_name=args.name, pipelines_dir=args.workdir)
-        print(f"Found pipeline {p.pipeline_name} ({args.name}) in {p.pipelines_dir} ({args.workdir}) with state {p._get_state()}")
-
-        if args.operation == "failed_loads":
-            completed_loads = p.list_completed_load_packages()
-            for load_id in completed_loads:
-                print(f"Checking failed jobs in load id '{load_id}'")
-                for job, failed_message in p.list_failed_jobs_in_package(load_id):
-                    print(f"JOB: {os.path.abspath(job)}\nMSG: {failed_message}")
-
-        if args.operation == "drop":
-            p.drop()
-
+        pipeline_command_wrapper(args.operation, args.name, args.pipelines_dir)
         exit(0)
     elif args.command == "init":
         init_command_wrapper(args.source, args.destination, args.generic, args.branch)
