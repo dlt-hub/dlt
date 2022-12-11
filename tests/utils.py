@@ -23,8 +23,9 @@ TEST_STORAGE_ROOT = "_storage"
 ALL_DESTINATIONS = ["bigquery", "redshift", "postgres"]
 # ALL_DESTINATIONS = ["postgres"]
 
-# add test dictionary provider
+
 def TEST_DICT_CONFIG_PROVIDER():
+    # add test dictionary provider
     providers_context = Container()[ConfigProvidersContext]
     try:
         return providers_context[DictionaryProvider.NAME]
@@ -63,7 +64,7 @@ def autouse_test_storage() -> FileStorage:
     return clean_test_storage()
 
 
-@pytest.fixture(scope="module", autouse=True)
+@pytest.fixture(scope="function", autouse=True)
 def preserve_environ() -> None:
     saved_environ = environ.copy()
     yield
