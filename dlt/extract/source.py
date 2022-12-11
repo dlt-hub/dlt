@@ -196,7 +196,6 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
         raise InvalidResourceDataTypeMultiplePipes(self.name, data, type(data))
 
     def select_tables(self, *table_names: Iterable[str]) -> "DltResource":
-
         def _filter(item: TDataItem, meta: Any = None) -> bool:
             is_in_meta = isinstance(meta, TableNameMeta) and meta.table_name in table_names
             is_in_dyn = self._table_name_hint_fun and self._table_name_hint_fun(item) in table_names
@@ -397,6 +396,17 @@ class DltResourceDict(Dict[str, DltResource]):
 
 
 class DltSource(Iterable[TDataItem]):
+    """Groups several `dlt resources` under a single schema and allows to perform operations on them.
+
+    ### Summary
+    The instance of this class is created whenever you call the `dlt.source` decorated function. It automates several functions for you:
+    * You can pass this instance to `dlt` `run` method in order to load all data present in the `dlt resources`.
+    * You can select and deselect resources that you want to load via `with_resources` method
+    * You can access the resources (which are `DltResource` instances) as source attributes
+    * It implements `Iterable` interface so you can get all the data from the resources yourself and without dlt pipeline present.
+    * You can get the `schema` for the source and all the resources within it.
+    * You can use a `run` method to load the data with a default instance of dlt pipeline.
+    """
     def __init__(self, name: str, schema: Schema, resources: Sequence[DltResource] = None) -> None:
         self.name = name
         self.exhausted = False
@@ -408,6 +418,7 @@ class DltSource(Iterable[TDataItem]):
 
     @classmethod
     def from_data(cls, name: str, schema: Schema, data: Any) -> "DltSource":
+        """Converts any `data` supported by `dlt` `run` method into `dlt source` with a name `name` and `schema` schema"""
         # creates source from various forms of data
         if isinstance(data, DltSource):
             return data
@@ -423,10 +434,12 @@ class DltSource(Iterable[TDataItem]):
 
     @property
     def resources(self) -> DltResourceDict:
+        """A dictionary of all resources present in the source, where the key is a resource name."""
         return self._resources
 
     @property
     def selected_resources(self) -> Dict[str, DltResource]:
+        """A dictionary of all the resources that are selected to be loaded."""
         return self._resources.selected
 
     @property
@@ -447,11 +460,13 @@ class DltSource(Iterable[TDataItem]):
         return self._schema
 
     def with_resources(self, *resource_names: str) -> "DltSource":
+        """A convenience method to select one of more resources to be loaded. Returns a source with the specified resources selected."""
         self._resources.select(*resource_names)
         return self
 
     @property
     def run(self) -> SupportsPipelineRun:
+        """A convenience method that will call `run` run on the currently active `dlt` pipeline. If pipeline instance is not found, one with default settings will be created."""
         self_run: SupportsPipelineRun = makefun.partial(Container()[PipelineContext].pipeline().run, *(), data=self)
         return self_run
 

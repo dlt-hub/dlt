@@ -27,3 +27,11 @@ dlt deploy <script>.py github-action --schedule "*/30 * * * *"
 You need to specify when the GitHub Action should run using a [cron schedule expression](https://crontab.guru/). The command also takes additional flags: `--run-on-push` (default is False) and `--run-manually` (default is True). Remember to put the cron schedule into quotation marks as in the example above.
 
 Follow the [Deploy a pipeline](./walkthroughs/deploy-a-pipeline.md) walkthrough to learn more.
+
+## `dlt pipeline show`
+
+```
+dlt pipeline <pipeline name> show
+```
+
+Generates and launches a simple [Streamlit](https://streamlit.io/) app where you can inspect your pipeline state, loading status and stats and also explore generated schemas and data in the destination's dataset. Requires `streamlit` to be installed.

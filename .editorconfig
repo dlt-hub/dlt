@@ -14,5 +14,5 @@ max_line_length = 200
 # Use tabs for indentation (Makefiles require tabs)
 indent_style = tab
 
-[*.{yaml,yml,js}]
+[*.{yaml,yml,js,md}]
 indent_size = 2

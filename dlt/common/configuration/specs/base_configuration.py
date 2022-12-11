@@ -114,7 +114,7 @@ class BaseConfiguration(MutableMapping[str, Any]):
         """Initialize the configuration fields by parsing the `native_value` which should be a native representation of the configuration
         or credentials, for example database connection string or JSON serialized GCP service credentials file.
 
-        Args:
+        ### Args:
             native_value (Any): A native representation of the configuration
 
         Raises:

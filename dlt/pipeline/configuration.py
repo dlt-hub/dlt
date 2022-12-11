@@ -12,10 +12,14 @@ class PipelineConfiguration(BaseConfiguration):
     pipeline_name: Optional[str] = None
     pipelines_dir: Optional[str] = None
     destination_name: Optional[str] = None
+    dataset_name: Optional[str] = None
     pipeline_salt: Optional[TSecretValue] = None
     restore_from_destination: bool = True
+    """Enables the `run` method of the `Pipeline` object to restore the pipeline state and schemas from the destination"""
     enable_runtime_trace: bool = True
+    """Enables the tracing. Tracing saves the execution trace locally and is required by `dlt deploy`."""
     use_single_dataset: bool = True
+    """Stores all schemas in single dataset. When False, each schema will get a separate dataset with `{dataset_name}_{schema_name}"""
     runtime: RunConfiguration
 
     def on_resolved(self) -> None:

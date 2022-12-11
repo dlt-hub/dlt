@@ -152,6 +152,7 @@ class Normalize(Runnable[ProcessPool]):
                         columns = schema.get_table_columns(table_name)
                         column_schemas[table_name] = columns
                     # store row
+                    # TODO: it is possible to write to single file from many processes using this: https://gitlab.com/warsaw/flufl.lock
                     load_storage.write_data_item(load_id, schema_name, table_name, row, columns)
                     # count total items
                     items_count += 1

@@ -43,6 +43,36 @@ def source(func: None = ..., /, name: str = None, max_table_nesting: int = None,
     ...
 
 def source(func: Optional[AnyFun] = None, /, name: str = None, max_table_nesting: int = None, schema: Schema = None, spec: Type[BaseConfiguration] = None) -> Any:
+    """A decorator that transforms a function returning one or more `dlt resources` into a `dlt source` in order to load it with `dlt`.
+
+    ### Summary
+    A `dlt source` is a logical grouping of resources that are often extracted and loaded together. A source is associated with a schema, which describes the structure of the loaded data and provides instructions how to load it.
+    Such schema contains table schemas that describe the structure of the data coming from the resources. See https://dlthub.com/docs/glossary for more basic term definitions.
+
+    ### Passing credentials
+    Another important function of the source decorator is to provide credentials and other configuration to the code that extracts data. The decorator may automatically bind the source function arguments to the secret and config values.
+    >>> def chess(username, chess_url: str = dlt.config.value, api_secret = dlt.secret.value, title: str = "GM"):
+    >>>     return user_profile(username, chess_url, api_secret), user_games(username, chess_url, api_secret, with_titles=title)
+    >>>
+    >>> list(chess("magnuscarlsen"))
+
+    Here `username` is a required, explicit python argument, `chess_url` is a required argument, that if not explicitly passed will be taken from configuration ie. `config.toml`, `api_secret` is a required argument, that if not explicitly passed will be taken from dlt secrets ie. `secrets.toml`.
+    See https://dlthub.com/docs/customization/credentials for details.
+
+    ### Args:
+        func: A function that returns a dlt resource or a list of those or a list of any data items that can be loaded by `dlt`.
+
+        name (str, optional): A name of the source which is also the name of the associated schema. If not present, the function name will be used.
+
+        max_table_nesting (int, optional): A schema hint that sets the maximum depth of nested table beyond which the remaining nodes are loaded as string.
+
+        schema (Schema, optional): An explicit `Schema` instance to be associated with the source. If not present, `dlt` creates a new `Schema` object with provided `name`. If such `Schema` already exists in the same folder as the module containing the decorated function, such schema will be loaded from file.
+
+        spec (Type[BaseConfiguration], optional): A specification of configuration and secret values required by the source.
+
+    Returns:
+        `DltSource` instance
+    """
 
     if name and schema:
         raise ArgumentsOverloadException("'name' has no effect when `schema` argument is present", source.__name__)
@@ -160,7 +190,52 @@ def resource(
     spec: Type[BaseConfiguration] = None,
     depends_on: TUnboundDltResource = None
 ) -> Any:
+    """When used as a decorator, transforms any generator (yielding) function into a `dlt resource`. When used as a function, it transforms data in `data` argument into a `dlt resource`.
 
+    ### Summary
+    A `resource`is a location within a `source` that holds the data with specific structure (schema) or coming from specific origin. A resource may be a rest API endpoint, table in the database or a tab in Google Sheets.
+    A `dlt resource` is python representation of a `resource` that combines both data and metadata (table schema) that describes the structure and instructs the loading of the data.
+    A `dlt resource` is also an `Iterable` and can used like any other similar object ie. list or tuple. See https://dlthub.com/docs/glossary for more on basic term definitions.
+
+    ### Passing credentials
+    If used as a decorator (`data` argument is a `Generator`), it may automatically bind the source function arguments to the secret and config values.
+    >>> def user_games(username, chess_url: str = dlt.config.value, api_secret = dlt.secret.value):
+    >>>     return requests.get("%s/games/%s" % (chess_url, username), headers={"Authorization": f"Bearer {api_secret}"})
+    >>>
+    >>> list(user_games("magnuscarlsen"))
+
+    Here `username` is a required, explicit python argument, `chess_url` is a required argument, that if not explicitly passed will be taken from configuration ie. `config.toml`, `api_secret` is a required argument, that if not explicitly passed will be taken from dlt secrets ie. `secrets.toml`.
+    See https://dlthub.com/docs/customization/credentials for details.
+    Note that if decorated function is an inner function, passing of the credentials will be disabled.
+
+    ### Args:
+        data (Callable | Any, optional): a function to be decorated or a data compatible with `dlt` `run`.
+
+        name (str, optional): A name of the resource that by default also becomes the name of the table to which the data is loaded.
+        If not present, the name of the decorated function will be used.
+
+        table_name (TTableHintTemplate[str], optional): An table name, if different from `name`.
+        This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
+
+        write_disposition (Literal["skip", "append", "replace"], optional): Controls how to write data to a table. `append` will always add new data at the end of the table. `replace` will replace existing data with new data. `skip` will prevent data from loading. . Defaults to "append".
+        This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
+
+        columns (Sequence[TColumnSchema], optional): A list of column schemas. Typed dictionary describing column names, data types, write disposition and performance hints that gives you full control over the created table schema.
+        This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
+
+        selected (bool, optional): When `True` `dlt pipeline` will extract and load this resource, if `False`, the resource will be ignored.
+
+        spec (Type[BaseConfiguration], optional): A specification of configuration and secret values required by the source.
+
+        depends_on (TUnboundDltResource, optional): Allows to pipe data from one resource to another to build multi-step pipelines.
+
+    ### Raises
+        ResourceNameMissing: indicates that name of the resource cannot be inferred from the `data` being passed.
+        InvalidResourceDataType: indicates that the `data` argument cannot be converted into `dlt resource`
+
+    Returns:
+        DltResource instance which may be loaded, iterated or combined with other resources into a pipeline.
+    """
     def make_resource(_name: str, _data: Any) -> DltResource:
         table_template = DltResource.new_table_template(table_name or _name, write_disposition=write_disposition, columns=columns)
         return DltResource.from_data(_data, _name, table_template, selected, cast(DltResource, depends_on))
@@ -214,6 +289,24 @@ def transformer(
     selected: bool = True,
     spec: Type[BaseConfiguration] = None
 ) -> Callable[[Callable[Concatenate[TDataItem, TResourceFunParams], Any]], Callable[TResourceFunParams, DltResource]]:
+    """A form of `dlt resource` that takes input from other resources in order to enrich or transformer the data.
+
+    ### Example
+    >>> @dlt.resource
+    >>> def players(title, chess_url=dlt.config.value):
+    >>>     r = requests.get(f"{chess_url}titled/{title}")
+    >>>     yield r.json()["players"]  # returns list of player names
+    >>>
+    >>> # this resource takes data from players and returns profiles
+    >>> @dlt.transformer(data_from=players, write_disposition="replace")
+    >>> def player_profile(player: Any) -> Iterator[TDataItems]:
+    >>>     r = requests.get(f"{chess_url}player/{player}")
+    >>>     r.raise_for_status()
+    >>>     yield r.json()
+    >>>
+    >>> list(players("GM") | player_profile)  # pipes the data from players into player profile to produce a list of player profiles
+
+    """
     f: AnyFun = None
     # if data_from is a function we are called without parens
     if inspect.isfunction(data_from):

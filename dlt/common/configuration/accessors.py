@@ -120,7 +120,7 @@ class _SecretsAccessor(_Accessor):
 
 
 config = _ConfigAccessor()
-"""Dictionary-like access to all secrets known to dlt"""
+"""Dictionary-like access to all config values to dlt"""
 
 secrets = _SecretsAccessor()
-"""Dictionary-like access to all config values known to dlt"""
+"""Dictionary-like access to all secrets known known to dlt"""
