@@ -1,7 +1,7 @@
 [
     {
         "event": "user",
-        "timestamp": 1624001204.7594721,
+        "timestamp": 1424001204.7594721,
         "metadata": {
             "rasa_x_flagged": false,
             "rasa_x_id": 60291

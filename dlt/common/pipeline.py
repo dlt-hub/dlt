@@ -73,13 +73,17 @@ class TPipelineState(TypedDict, total=False):
 class SupportsPipeline(Protocol):
     """A protocol with core pipeline operations that lets high level abstractions ie. sources to access pipeline methods and properties"""
     pipeline_name: str
+    """Name of the pipeline"""
     destination: DestinationReference
+    """The destination reference which is ModuleType. `destination.__name__` returns the name string"""
     dataset_name: str = None
+    """Name of the dataset to which pipeline will be loaded to"""
     runtime_config: RunConfiguration
+    """A configuration of runtime options like logging level and format and various tracing options"""
 
     @property
     def state(self) -> TPipelineState:
-        ...
+        """Returns dictionary with pipeline state"""
 
     def run(
         self,
@@ -139,8 +143,8 @@ class PipelineContext(ContainerInjectableContext):
         self._deferred_pipeline = deferred_pipeline
 
 
-def get_default_working_dir() -> str:
-    """ Gets default working dir of the pipeline, which may be
+def get_default_pipelines_dir() -> str:
+    """ Gets default directory where pipelines' data will be stored
         1. in user home directory ~/.dlt/pipelines/
         2. if current user is root in /var/dlt/pipelines
         3. if current user does not have a home directory in /tmp/dlt/pipelines

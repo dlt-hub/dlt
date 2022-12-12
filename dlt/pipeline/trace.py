@@ -1,3 +1,4 @@
+import contextlib
 import os
 import pickle
 import datetime  # noqa: 251
@@ -101,7 +102,7 @@ def start_trace(step: TPipelineStep, pipeline: SupportsPipeline) -> PipelineRunt
     trace = PipelineRuntimeTrace(uniq_id(), pendulum.now(), steps=[])
     # https://getsentry.github.io/sentry-python/api.html#sentry_sdk.Hub.capture_event
     if pipeline.runtime_config.sentry_dsn:
-        # print(f"START SENTRY TX: {trace.transaction_id}")
+        # print(f"START SENTRY TX: {trace.transaction_id} SCOPE: {Hub.current.scope}")
         transaction = Hub.current.start_transaction(name=step, op=step)
         _add_sentry_tags(transaction, pipeline)
         transaction.__enter__()
@@ -112,10 +113,11 @@ def start_trace(step: TPipelineStep, pipeline: SupportsPipeline) -> PipelineRunt
 def start_trace_step(trace: PipelineRuntimeTrace, step: TPipelineStep, pipeline: SupportsPipeline) -> PipelineStepTrace:
     trace_step = PipelineStepTrace(uniq_id(), step, pendulum.now())
     if pipeline.runtime_config.sentry_dsn:
-        # print(f"START SENTRY SPAN {trace.transaction_id}:{trace_step.span_id}")
-        span = Hub.current.scope.span.start_child(description=step, op=step).__enter__()
-        span.op = step
-        _add_sentry_tags(span, pipeline)
+        # print(f"START SENTRY SPAN {trace.transaction_id}:{trace_step.span_id} SCOPE: {Hub.current.scope}")
+        with contextlib.suppress(Exception):
+            span = Hub.current.scope.span.start_child(description=step, op=step).__enter__()
+            span.op = step
+            _add_sentry_tags(span, pipeline)
 
     return trace_step
 
@@ -150,8 +152,9 @@ def end_trace_step(trace: PipelineRuntimeTrace, step: PipelineStepTrace, pipelin
     trace.steps.append(step)
 
     if pipeline.runtime_config.sentry_dsn:
-        Hub.current.scope.span.__exit__(None, None, None)
-        # print(f"---END SENTRY SPAN {trace.transaction_id}:{step.span_id}: {step}")
+        # print(f"---END SENTRY SPAN {trace.transaction_id}:{step.span_id}: {step} SCOPE: {Hub.current.scope}")
+        with contextlib.suppress(Exception):
+            Hub.current.scope.span.__exit__(None, None, None)
     if pipeline.runtime_config.slack_incoming_hook and step.step == "load" and step_exception is None:
         _slack_notify_load(pipeline.runtime_config.slack_incoming_hook, step_info, trace)
 
@@ -160,8 +163,9 @@ def end_trace(trace: PipelineRuntimeTrace, pipeline: SupportsPipeline, trace_pat
     if trace_path:
         save_trace(trace_path, trace)
     if pipeline.runtime_config.sentry_dsn:
-        Hub.current.scope.span.__exit__(None, None, None)
-        # print(f"---END SENTRY TX: {trace.transaction_id}")
+        # print(f"---END SENTRY TX: {trace.transaction_id} SCOPE: {Hub.current.scope}")
+        with contextlib.suppress(Exception):
+            Hub.current.scope.span.__exit__(None, None, None)
 
 
 def merge_traces(last_trace: PipelineRuntimeTrace, new_trace: PipelineRuntimeTrace) -> PipelineRuntimeTrace:

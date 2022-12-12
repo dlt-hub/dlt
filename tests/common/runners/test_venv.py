@@ -1,16 +1,21 @@
+import sys
 import os
 from subprocess import CalledProcessError, PIPE
 import tempfile
+from dlt.common.typing import StrStr
 import pytest
 import shutil
-from dlt.common.exceptions import CannotInstallDependency
 
+from dlt.common.exceptions import CannotInstallDependency
 from dlt.common.runners.venv import Venv, VenvNotFound
 from dlt.common.utils import custom_environ
+
+from tests.utils import preserve_environ
 
 
 def test_create_venv() -> None:
     with Venv.create(tempfile.mkdtemp()) as venv:
+        assert venv.current is False
         assert os.path.isdir(venv.context.env_dir)
         assert os.path.isfile(venv.context.env_exe)
         # issue python command
@@ -24,6 +29,7 @@ def test_restore_venv() -> None:
     env_dir = tempfile.mkdtemp()
     with Venv.create(env_dir) as venv:
         restored_venv = Venv.restore(env_dir)
+        assert restored_venv.current is False
         # compare contexts
         assert venv.context.env_dir == restored_venv.context.env_dir
         assert venv.context.env_exe == restored_venv.context.env_exe
@@ -168,6 +174,40 @@ def test_create_over_venv() -> None:
     with Venv.create(env_dir) as venv:
         freeze = venv.run_module("pip", "freeze", "--all")
         assert "six" not in freeze
+
+
+def test_current_venv() -> None:
+    venv = Venv.restore_current()
+    assert venv.current is True
+
+    # use python to run module
+    freeze = venv.run_module("pip", "freeze", "--all")
+    # we are in current venv so python-dlt is here
+    assert "python_dlt" in freeze
+
+    # use command
+    with venv.start_command("pip", "freeze", "--all", stdout=PIPE, text=True) as process:
+        output, _ = process.communicate()
+        assert process.poll() == 0
+        assert "pip" in output
+
+
+def test_current_base_python() -> None:
+    # remove VIRTUAL_ENV variable to fallback to currently executing python interpreter
+    del os.environ["VIRTUAL_ENV"]
+    venv = Venv.restore_current()
+    assert venv.context.env_exe == sys.executable
+
+    # use python to run module
+    freeze = venv.run_module("pip", "freeze", "--all")
+    # we are still in poetry virtual env but directly
+    assert "python_dlt" in freeze
+
+    # use command
+    with venv.start_command("pip", "freeze", "--all", stdout=PIPE, text=True) as process:
+        output, _ = process.communicate()
+        assert process.poll() == 0
+        assert "pip" in output
 
 
 def test_start_command() -> None:

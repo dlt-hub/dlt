@@ -8,7 +8,7 @@ from dlt.common.schema.typing import TDataType
 
 
 _NOW_TS: float = pendulum.now().timestamp()
-_FLOAT_TS_RANGE = 31536000.0  # seconds in year
+_FLOAT_TS_RANGE = 5 * 31536000.0  # seconds in year
 
 
 def is_timestamp(t: Type[Any], v: Any) -> Optional[TDataType]:

@@ -5,7 +5,8 @@ class DltException(Exception):
     pass
 
 
-class SignalReceivedException(DltException):
+class SignalReceivedException(BaseException):
+    """Raises when signal comes. Derives from `BaseException` to not be caught in regular exception handlers."""
     def __init__(self, signal_code: int) -> None:
         self.signal_code = signal_code
         super().__init__(f"Signal {signal_code} received")

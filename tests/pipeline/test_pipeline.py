@@ -1,10 +1,10 @@
 import os
-from typing import Any, Iterator
+from typing import Any
 
 import pytest
 
 import dlt
-from dlt.common import json
+from dlt.common import json, logger
 from dlt.common.configuration.container import Container
 from dlt.common.exceptions import UnknownDestinationModule
 from dlt.common.pipeline import PipelineContext
@@ -15,6 +15,7 @@ from dlt.extract.extract import ExtractorStorage
 from dlt.extract.source import DltSource
 from dlt.pipeline.exceptions import InvalidPipelineName, PipelineStepFailed
 from dlt.pipeline.state import STATE_TABLE_NAME
+from tests.common.utils import TEST_SENTRY_DSN
 
 from tests.utils import ALL_DESTINATIONS, TEST_STORAGE_ROOT, preserve_environ, autouse_test_storage
 from tests.common.configuration.utils import environment
@@ -268,6 +269,57 @@ def test_first_run_flag() -> None:
     p._save_state(p._get_state())
     p = dlt.attach(pipeline_name=pipeline_name)
     assert p.first_run is True
+
+
+def test_sentry_tracing() -> None:
+    import sentry_sdk
+
+    os.environ["COMPLETED_PROB"] = "1.0"  # make it complete immediately
+    os.environ["RUNTIME__SENTRY_DSN"] = TEST_SENTRY_DSN
+
+    pipeline_name = "pipe_" + uniq_id()
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+
+    # def inspect_transaction(ctx):
+    #     print(ctx)
+    #     return 1.0
+
+    # sentry_sdk.Hub.current.client.options["traces_sampler"] = inspect_transaction
+
+    # def inspect_events(event, hint):
+    #     print(event)
+    #     print(hint)
+    #     return event
+
+    # sentry_sdk.Hub.current.client.options["before_send"] = inspect_events
+
+    @dlt.resource
+    def r_check_sentry():
+        assert sentry_sdk.Hub.current.scope.span.op == "extract"
+        assert sentry_sdk.Hub.current.scope.span.containing_transaction.name == "run"
+        yield [1,2,3]
+
+    p.run(r_check_sentry)
+    assert sentry_sdk.Hub.current.scope.span is None
+    sentry_sdk.flush()
+
+    @dlt.resource
+    def r_fail():
+        raise NotImplementedError()
+
+    # run pipeline with error in extract
+    with pytest.raises(PipelineStepFailed) as py_ex:
+        p.run(r_fail)
+    assert py_ex.value.stage == "extract"
+    # sentry cleaned up
+    assert sentry_sdk.Hub.current.scope.span is None
+
+    # run pipeline with error in load
+    os.environ["FAIL_SCHEMA_UPDATE"] = "true"
+    with pytest.raises(PipelineStepFailed) as py_ex:
+        p.run(r_check_sentry)
+    assert py_ex.value.stage == "load"
+    assert sentry_sdk.Hub.current.scope.span is None
 
 
 @pytest.mark.skip("Not implemented")

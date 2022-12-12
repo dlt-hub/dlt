@@ -82,7 +82,6 @@ class _Accessor(abc.ABC):
                 # log trace
                 trace = LookupTrace(provider.name, namespaces, field, value)
                 log_traces(None, key, type_hint, value, None, [trace])
-                print(trace)
                 break
         return value
 
@@ -120,7 +119,7 @@ class _SecretsAccessor(_Accessor):
 
 
 config = _ConfigAccessor()
-"""Dictionary-like access to all secrets known to dlt"""
+"""Dictionary-like access to all config values to dlt"""
 
 secrets = _SecretsAccessor()
-"""Dictionary-like access to all config values known to dlt"""
+"""Dictionary-like access to all secrets known known to dlt"""

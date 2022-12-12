@@ -15,7 +15,7 @@ import dlt
 from dlt.common.configuration.exceptions import LookupTrace
 from dlt.common.configuration.providers import ConfigTomlProvider, EnvironProvider, SECRETS_TOML
 from dlt.common.configuration.utils import make_dot_dlt_path, serialize_value
-from dlt.common.git import get_origin, get_repo
+from dlt.common.git import get_origin, get_repo, is_repo_dirty
 from dlt.common.configuration.specs.run_configuration import get_default_pipeline_name
 from dlt.common.reflection.utils import evaluate_node_literal
 from dlt.common.pipeline import LoadInfo
@@ -88,9 +88,10 @@ def deploy_command(pipeline_script_path: str, deployment_method: str, schedule: 
     with set_working_dir(os.path.split(pipeline_script_path)[0]):
         # use script name to derive pipeline name
         if not pipeline_name:
-            # TODO: also look in config.toml
-            pipeline_name = get_default_pipeline_name(pipeline_script_path)
-            fmt.warning(f"Using default pipeline name {pipeline_name}. The pipeline name is not passed as argument to dlt.pipeline nor configured via config provides ie. config.toml")
+            pipeline_name = dlt.config.get("pipeline_name")
+            if not pipeline_name:
+                pipeline_name = get_default_pipeline_name(pipeline_script_path)
+                fmt.warning(f"Using default pipeline name {pipeline_name}. The pipeline name is not passed as argument to dlt.pipeline nor configured via config provides ie. config.toml")
         # attach to pipeline name, get state and trace
         pipeline = dlt.attach(pipeline_name=pipeline_name, pipelines_dir=pipelines_dir)
         # trace must exist and end with successful loading step
@@ -201,6 +202,8 @@ def deploy_command(pipeline_script_path: str, deployment_method: str, schedule: 
     click.echo()
     click.echo("3. Commit the files above. Use your Git UI or the following command")
     click.echo(fmt.bold(f"git commit -m 'run {state['pipeline_name']} pipeline with github action'"))
+    if is_repo_dirty(repo):
+        fmt.warning("You have modified files in your repository. Do not forget to push changes to your pipeline script as well!")
     click.echo()
     click.echo("4. Push changes to github. Use your Git UI or the following command")
     click.echo(fmt.bold("git push origin"))

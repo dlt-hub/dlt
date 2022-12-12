@@ -64,3 +64,8 @@ def get_repo(path: str) -> Repo:
 
 def get_origin(repo: Repo) -> str:
     return repo.remote().url
+
+
+def is_repo_dirty(repo: Repo) -> bool:
+    status: str = repo.git.status("--short")
+    return len(status.strip()) > 0

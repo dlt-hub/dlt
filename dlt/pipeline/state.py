@@ -130,8 +130,36 @@ def migrate_state(pipeline_name: str, state: DictStrAny, from_engine: int, to_en
 
 
 def state() -> DictStrAny:
-    """Returns a dictionary with the current source state. Any JSON-serializable values can be written and the read from the state.
-    The state is persisted after the data is successfully read from the source.
+    """Returns a dictionary with the source/resource state. Such state is preserved across pipeline runs and may be used to implement incremental loads.
+
+    ### Summary
+    The state is a python dictionary-like object that is available within the `@dlt.source` and `@dlt.resource` decorated functions and may be read and written to.
+    The data within the state is loaded into destination together with any other extracted data and made automatically available to the source/resource extractor functions when they are run next time.
+    When using the state:
+    * Any JSON-serializable values can be written and the read from the state.
+    * The state available in the `dlt source` is read only and any changes will be discarded. Still it may be used to initialize the resources.
+    * The state available in the `dlt resource` is writable and written values will be available only once
+
+    ### Example
+    The most typical use case for the state is to implement incremental load.
+    >>> @dlt.resource(write_disposition="append")
+    >>> def players_games(chess_url, players, start_month=None, end_month=None):
+    >>>     checked_archives = dlt.state().setdefault("archives", [])
+    >>>     archives = players_archives(chess_url, players)
+    >>>     for url in archives:
+    >>>         if url in checked_archives:
+    >>>             print(f"skipping archive {url}")
+    >>>             continue
+    >>>         else:
+    >>>             print(f"getting archive {url}")
+    >>>             checked_archives.append(url)
+    >>>         # get the filtered archive
+    >>>         r = requests.get(url)
+    >>>         r.raise_for_status()
+    >>>         yield r.json().get("games", [])
+
+    Here we store all the urls with game archives in the state and we skip loading them on next run. The archives are immutable. The state will grow with the coming months (and more players).
+    Up to few thousand archives we should be good though.
     """
     global _last_full_state
 
@@ -152,6 +180,7 @@ def state() -> DictStrAny:
             raise PipelineStateNotAvailable(source_name)
         else:
             # get unmanaged state that is read only
+            # TODO: make sure that state if up to date by syncing the pipeline earlier
             state = proxy.pipeline().state  # type: ignore
 
     source_state = state.setdefault("sources", {})

@@ -9,6 +9,8 @@ from dlt.common.exceptions import CannotInstallDependency, VenvNotFound
 
 
 class DLTEnvBuilder(venv.EnvBuilder):
+    context: types.SimpleNamespace
+
     def __init__(self) -> None:
         super().__init__(with_pip=True, clear=True)
 
@@ -17,8 +19,9 @@ class DLTEnvBuilder(venv.EnvBuilder):
 
 
 class Venv():
-    def __init__(self, context: types.SimpleNamespace) -> None:
+    def __init__(self, context: types.SimpleNamespace, current: bool = False) -> None:
         self.context = context
+        self.current = current
 
     @classmethod
     def create(cls, venv_dir: str, dependencies: List[str] = None) -> "Venv":
@@ -34,23 +37,34 @@ class Venv():
         return cls(b.context)
 
     @classmethod
-    def restore(cls, venv_dir: str) -> "Venv":
+    def restore(cls, venv_dir: str, current: bool = False) -> "Venv":
         if not os.path.isdir(venv_dir):
             raise VenvNotFound(venv_dir)
         b = venv.EnvBuilder(clear=False, upgrade=False)
         c = b.ensure_directories(os.path.abspath(venv_dir))
         if not os.path.isfile(c.env_exe):
             raise VenvNotFound(c.env_exe)
-        return cls(c)
+        return cls(c, current)
 
     @classmethod
     def restore_current(cls) -> "Venv":
-        return cls.restore(os.environ["VIRTUAL_ENV"])
+        try:
+            venv = cls.restore(os.environ["VIRTUAL_ENV"], current=True)
+        except KeyError:
+            import sys
+            bin_path, _ = os.path.split(sys.executable)
+            context = types.SimpleNamespace(bin_path=bin_path, env_exe=sys.executable)
+            venv = cls(context, current=True)
+        return venv
 
     def __enter__(self) -> "Venv":
+        if self.current:
+            raise NotImplementedError("Context manager does not work with current venv")
         return self
 
     def __exit__(self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: types.TracebackType) -> None:
+        if self.current:
+            raise NotImplementedError("Context manager does not work with current venv")
         # delete venv
         if self.context.env_dir and os.path.isdir(self.context.env_dir):
             shutil.rmtree(self.context.env_dir)

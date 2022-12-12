@@ -79,14 +79,14 @@ def run_pool(C: PoolRunnerConfiguration, run_f: Union[Runnable[TPool], Callable[
                         run_metrics = run_f.run(cast(TPool, pool))
                     else:
                         raise SignalReceivedException(-1)
-            except Exception as exc:
+            except (Exception, SignalReceivedException) as exc:
                 # the run failed
                 run_metrics = TRunMetrics(True, True, -1)
                 # preserve exception
                 # TODO: convert it to callback
                 global LAST_RUN_EXCEPTION
                 LAST_RUN_EXCEPTION = exc
-                if (type(exc) is SignalReceivedException) or (type(exc) is TimeRangeExhaustedException):
+                if isinstance(exc, (SignalReceivedException, TimeRangeExhaustedException)):
                     # always exit
                     raise
                 else:
