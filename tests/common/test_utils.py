@@ -1,6 +1,7 @@
+import binascii
 import pytest
 
-from dlt.common.utils import flatten_list_of_str_or_dicts, digest128, map_nested_in_place
+from dlt.common.utils import flatten_list_of_str_or_dicts, digest128, map_nested_in_place, reveal_pseudo_secret, obfuscate_pseudo_secret
 
 
 def test_flatten_list_of_str_or_dicts() -> None:
@@ -38,3 +39,14 @@ def test_map_dicts_in_place() -> None:
 
     with pytest.raises(ValueError):
         map_nested_in_place(lambda v: v*2, "a")
+
+
+def test_pseudo_obfuscation() -> None:
+    pseudo_key = b"test-key"
+    value = "test test test"
+    obfuscated = obfuscate_pseudo_secret(value, pseudo_key)
+    assert value == reveal_pseudo_secret(obfuscated, pseudo_key)
+
+    # make sure base64 decoding errors are raised
+    with pytest.raises(binascii.Error):
+        reveal_pseudo_secret("ABBYA", pseudo_key)

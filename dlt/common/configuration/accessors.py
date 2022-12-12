@@ -82,7 +82,6 @@ class _Accessor(abc.ABC):
                 # log trace
                 trace = LookupTrace(provider.name, namespaces, field, value)
                 log_traces(None, key, type_hint, value, None, [trace])
-                print(trace)
                 break
         return value
 

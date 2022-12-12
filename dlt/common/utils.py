@@ -235,3 +235,11 @@ def is_inner_callable(f: AnyFun) -> bool:
     """Checks if f is defined within other function"""
     # inner functions have full nesting path in their qualname
     return "<locals>" in get_callable_name(f, name_attr="__qualname__")
+
+
+def obfuscate_pseudo_secret(pseudo_secret: str, pseudo_key: bytes) -> str:
+    return base64.b64encode(bytes([_a ^ _b for _a, _b in zip(pseudo_secret.encode("utf-8"), pseudo_key*250)])).decode()
+
+
+def reveal_pseudo_secret(obfuscated_secret: str, pseudo_key: bytes) -> str:
+    return bytes([_a ^ _b for _a, _b in zip(base64.b64decode(obfuscated_secret.encode("ascii"), validate=True), pseudo_key*250)]).decode("utf-8")

@@ -1,8 +1,9 @@
+import binascii
 from os.path import isfile, join
 from pathlib import Path
 from typing import Any, Optional, Tuple, IO
 
-from dlt.common.utils import encoding_for_mode, main_module_file_path
+from dlt.common.utils import encoding_for_mode, main_module_file_path, reveal_pseudo_secret
 from dlt.common.configuration.specs.base_configuration import BaseConfiguration, configspec
 from dlt.common.configuration.exceptions import ConfigFileNotFoundException
 
@@ -22,6 +23,14 @@ class RunConfiguration(BaseConfiguration):
         # generate pipeline name from the entry point script name
         if not self.pipeline_name:
             self.pipeline_name = get_default_pipeline_name(main_module_file_path())
+        if self.slack_incoming_hook:
+            # it may be obfuscated base64 value
+            # TODO: that needs to be removed ASAP
+            try:
+                self.slack_incoming_hook = reveal_pseudo_secret(self.slack_incoming_hook, b"dlt-runtime-2022")
+            except binascii.Error:
+                # just keep the original value
+                pass
 
     def has_configuration_file(self, name: str) -> bool:
         return isfile(self.get_configuration_file_path(name))

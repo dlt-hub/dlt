@@ -6,6 +6,7 @@ import pytest
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.specs import PostgresCredentials, RedshiftCredentials, ConnectionStringCredentials, GcpClientCredentials, GcpClientCredentialsWithDefault
 from dlt.common.configuration.specs.exceptions import InvalidConnectionString, InvalidServicesJson
+from dlt.common.configuration.specs.run_configuration import RunConfiguration
 
 from tests.utils import preserve_environ
 from tests.common.utils import json_case_path
@@ -130,3 +131,21 @@ def test_gcp_credentials_resolved_from_native_representation(environment: Any) -
 
     environment["CREDENTIALS__PRIVATE_KEY"] = "loader"
     resolve_configuration(gcpc, accept_partial=False)
+
+
+def test_run_configuration_slack_credentials(environment: Any) -> None:
+    hook = "https://im.slack.com/hook"
+    environment["SLACK_INCOMING_HOOK"] = hook
+
+    c = resolve_configuration(RunConfiguration())
+    assert c.slack_incoming_hook == hook
+
+    # and obfuscated
+    environment["SLACK_INCOMING_HOOK"] = "DBgAXQFPQVsAAEteXlFRWUoPG0BdHQEbAg=="
+    c = resolve_configuration(RunConfiguration())
+    assert c.slack_incoming_hook == hook
+
+    # and obfuscated-like but really not
+    environment["SLACK_INCOMING_HOOK"] = "DBgAXQFPQVsAAEteXlFRWUoPG0BdHQ-EbAg=="
+    c = resolve_configuration(RunConfiguration())
+    assert c.slack_incoming_hook == "DBgAXQFPQVsAAEteXlFRWUoPG0BdHQ-EbAg=="
