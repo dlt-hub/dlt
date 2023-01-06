@@ -4,11 +4,11 @@ from typing import Any, Dict, ContextManager, List, Optional, Sequence, Tuple, T
 from dlt.common.configuration.providers.provider import ConfigProvider
 from dlt.common.typing import AnyType, StrAny, TSecretValue, is_final_type, is_optional_type
 
-from dlt.common.configuration.specs.base_configuration import BaseConfiguration, CredentialsConfiguration, is_secret_hint, is_context_hint, is_base_configuration_hint
+from dlt.common.configuration.specs.base_configuration import BaseConfiguration, CredentialsConfiguration, is_secret_hint, extract_inner_hint, is_context_inner_hint, is_base_configuration_inner_hint
 from dlt.common.configuration.specs.config_namespace_context import ConfigNamespacesContext
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
-from dlt.common.configuration.utils import extract_inner_hint, log_traces, deserialize_value
+from dlt.common.configuration.utils import log_traces, deserialize_value
 from dlt.common.configuration.exceptions import (FinalConfigFieldException, LookupTrace, ConfigFieldMissingException, ConfigurationWrongTypeException, ValueNotSecretException, InvalidNativeValue)
 
 TConfiguration = TypeVar("TConfiguration", bound=BaseConfiguration)
@@ -166,10 +166,10 @@ def _resolve_config_field(
         value, traces = _resolve_single_value(key, hint, inner_hint, config_namespace, explicit_namespaces, embedded_namespaces)
         log_traces(config, key, hint, value, default_value, traces)
     # contexts must be resolved as a whole
-    if is_context_hint(inner_hint):
+    if is_context_inner_hint(inner_hint):
         pass
     # if inner_hint is BaseConfiguration then resolve it recursively
-    elif is_base_configuration_hint(inner_hint):
+    elif is_base_configuration_inner_hint(inner_hint):
         if isinstance(value, BaseConfiguration):
             # if resolved value is instance of configuration (typically returned by context provider)
             embedded_config = value
@@ -245,11 +245,11 @@ def _resolve_single_value(
     # get providers from container
     providers_context = container[ConfigProvidersContext]
     # we may be resolving context
-    if is_context_hint(inner_hint):
+    if is_context_inner_hint(inner_hint):
         # resolve context with context provider and do not look further
         value, _ = providers_context.context_provider.get_value(key, inner_hint)
         return value, traces
-    if is_base_configuration_hint(inner_hint):
+    if is_base_configuration_inner_hint(inner_hint):
         # cannot resolve configurations directly
         return value, traces
 

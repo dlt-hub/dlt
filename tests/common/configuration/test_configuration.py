@@ -1,11 +1,12 @@
 import pytest
 import datetime  # noqa: I251
 from unittest.mock import patch
-from typing import Any, Dict, Final, List, Mapping, MutableMapping, NewType, Optional, Type
+from typing import Any, Dict, Final, List, Mapping, MutableMapping, NewType, Optional, Sequence, Type, Union
 
 from dlt.common import json, pendulum, Decimal, Wei
+from dlt.common.configuration.specs.gcp_client_credentials import GcpClientCredentials
 from dlt.common.utils import custom_environ
-from dlt.common.typing import TSecretValue, extract_inner_type
+from dlt.common.typing import AnyType, DictStrAny, StrAny, TSecretValue, extract_inner_type
 from dlt.common.configuration.exceptions import ConfigFieldMissingTypeHintException, ConfigFieldTypeHintNotSupported, FinalConfigFieldException, InvalidNativeValue, LookupTrace, ValueNotSecretException
 from dlt.common.configuration import configspec, ConfigFieldMissingException, ConfigValueCannotBeCoercedException, resolve, is_valid_hint
 from dlt.common.configuration.specs import BaseConfiguration, RunConfiguration, ConnectionStringCredentials
@@ -803,6 +804,38 @@ def test_resolved_trace(environment: Any) -> None:
     assert traces[".instrumented"] == ResolvedValueTrace("instrumented", "h>t>t>t>he", None, InstrumentedConfiguration, [], prov_name, c)
 
     assert traces[".snake"] == ResolvedValueTrace("snake", "h>t>t>t>he", None, InstrumentedConfiguration, [], prov_name, None)
+
+
+def test_extract_inner_hint() -> None:
+    # extracts base config from an union
+    assert resolve.extract_inner_hint(Union[GcpClientCredentials, StrAny, str]) is GcpClientCredentials
+    assert resolve.extract_inner_hint(Union[InstrumentedConfiguration, StrAny, str]) is InstrumentedConfiguration
+    # keeps unions
+    assert resolve.extract_inner_hint(Union[StrAny, str]) is Union
+    # ignores specialization in list and dict, leaving origin
+    assert resolve.extract_inner_hint(List[str]) is list
+    assert resolve.extract_inner_hint(DictStrAny) is dict
+    # extracts new types
+    assert resolve.extract_inner_hint(TSecretValue) is AnyType
+    # preserves new types on extract
+    assert resolve.extract_inner_hint(TSecretValue, preserve_new_types=True) is TSecretValue
+
+
+def test_is_secret_hint() -> None:
+    assert resolve.is_secret_hint(GcpClientCredentials) is True
+    assert resolve.is_secret_hint(Optional[GcpClientCredentials]) is True
+    assert resolve.is_secret_hint(InstrumentedConfiguration) is False
+    # do not recognize new types
+    TTestSecretNt = NewType("TTestSecretNt", GcpClientCredentials)
+    assert resolve.is_secret_hint(TTestSecretNt) is False
+    # recognize unions with credentials
+    assert resolve.is_secret_hint(Union[GcpClientCredentials, StrAny, str]) is True
+    # we do not recognize unions if they do not contain configuration types
+    assert resolve.is_secret_hint(Union[TSecretValue, StrAny, str]) is False
+    assert resolve.is_secret_hint(Optional[TSecretValue]) is True
+    assert resolve.is_secret_hint(Optional[str]) is False
+    assert resolve.is_secret_hint(str) is False
+    assert resolve.is_secret_hint(AnyType) is False
 
 
 def coerce_single_value(key: str, value: str, hint: Type[Any]) -> Any:

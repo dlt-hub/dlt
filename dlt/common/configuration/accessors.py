@@ -6,7 +6,7 @@ from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import LookupTrace
 
 from dlt.common.configuration.providers.provider import ConfigProvider
-from dlt.common.configuration.specs import is_base_configuration_hint
+from dlt.common.configuration.specs import is_base_configuration_inner_hint
 from dlt.common.configuration.utils import deserialize_value, log_traces
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
 from dlt.common.schema.utils import coerce_value

@@ -18,21 +18,27 @@ _F_BaseConfiguration: Any = type(object)
 _F_ContainerInjectableContext: Any = type(object)
 
 
-def is_secret_hint(hint: Type[Any]) -> bool:
-    return hint is TSecretValue or (inspect.isclass(hint) and issubclass(hint, CredentialsConfiguration))
+def is_base_configuration_inner_hint(inner_hint: Type[Any]) -> bool:
+    return inspect.isclass(inner_hint) and issubclass(inner_hint, BaseConfiguration)
 
 
-def is_base_configuration_hint(hint: Type[Any]) -> bool:
-    return inspect.isclass(hint) and issubclass(hint, BaseConfiguration)
+def is_context_inner_hint(inner_hint: Type[Any]) -> bool:
+    return inspect.isclass(inner_hint) and issubclass(inner_hint, ContainerInjectableContext)
 
 
-def is_context_hint(hint: Type[Any]) -> bool:
-    return inspect.isclass(hint) and issubclass(hint, ContainerInjectableContext)
+def is_credentials_inner_hint(inner_hint: Type[Any]) -> bool:
+    return inspect.isclass(inner_hint) and issubclass(inner_hint, CredentialsConfiguration)
+
+
+def get_config_if_union_hint(hint: Type[Any]) -> Type[Any]:
+    if get_origin(hint) is Union:
+        return next((t for t in get_args(hint) if is_base_configuration_inner_hint(t)), None)
+    return None
 
 
 def is_valid_hint(hint: Type[Any]) -> bool:
     hint = extract_inner_type(hint)
-    hint = get_config_if_union(hint) or hint
+    hint = get_config_if_union_hint(hint) or hint
     hint = get_origin(hint) or hint
 
     if hint is Any:
@@ -40,7 +46,7 @@ def is_valid_hint(hint: Type[Any]) -> bool:
     if hint is ClassVar:
         # class vars are skipped by dataclass
         return True
-    if is_base_configuration_hint(hint):
+    if is_base_configuration_inner_hint(hint):
         return True
     with contextlib.suppress(TypeError):
         py_type_to_sc_type(hint)
@@ -48,10 +54,21 @@ def is_valid_hint(hint: Type[Any]) -> bool:
     return False
 
 
-def get_config_if_union(hint: Type[Any]) -> Type[Any]:
-    if get_origin(hint) is Union:
-        return next((t for t in get_args(hint) if is_base_configuration_hint(t)), None)
-    return None
+def extract_inner_hint(hint: Type[Any], preserve_new_types: bool = False) -> Type[Any]:
+    # extract hint from Optional / Literal / NewType hints
+    inner_hint = extract_inner_type(hint, preserve_new_types)
+    # get base configuration from union type
+    inner_hint = get_config_if_union_hint(inner_hint) or inner_hint
+    # extract origin from generic types (ie List[str] -> List)
+    return get_origin(inner_hint) or inner_hint
+
+
+def is_secret_hint(hint: Type[Any]) -> bool:
+    is_secret =  hint is TSecretValue
+    if not is_secret:
+        hint = extract_inner_hint(hint, preserve_new_types=True)
+        is_secret = hint is TSecretValue or is_credentials_inner_hint(hint)
+    return is_secret
 
 
 @overload

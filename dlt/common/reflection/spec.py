@@ -2,6 +2,7 @@ import re
 import inspect
 from typing import Dict, List, Type, Any, Optional
 from inspect import Signature, Parameter
+from dlt.common.configuration.specs.base_configuration import get_config_if_union_hint
 
 from dlt.common.typing import AnyType, AnyFun, TSecretValue
 from dlt.common.configuration import configspec, is_valid_hint, is_secret_hint
@@ -68,6 +69,8 @@ def spec_from_signature(f: AnyFun, sig: Signature, kw_only: bool = False) -> Typ
                 # try to get type from default
                 if field_type is AnyType and p.default is not None:
                     field_type = type(p.default)
+                # extract base type from union to let it parse native values
+                field_type = get_config_if_union_hint(field_type) or field_type
                 # make type optional if explicit None is provided as default
                 if p.default is None:
                     # check if the defaults were attributes of the form .config.value or .secrets.value

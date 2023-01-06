@@ -1,5 +1,5 @@
 from .run_configuration import RunConfiguration  # noqa: F401
-from .base_configuration import BaseConfiguration, CredentialsConfiguration, ContainerInjectableContext, is_base_configuration_hint  # noqa: F401
+from .base_configuration import BaseConfiguration, CredentialsConfiguration, ContainerInjectableContext, extract_inner_hint, is_base_configuration_inner_hint  # noqa: F401
 from .normalize_volume_configuration import NormalizeVolumeConfiguration  # noqa: F401
 from .load_volume_configuration import LoadVolumeConfiguration  # noqa: F401
 from .schema_volume_configuration import SchemaVolumeConfiguration, TSchemaFileFormat  # noqa: F401
