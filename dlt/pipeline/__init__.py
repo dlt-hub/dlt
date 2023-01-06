@@ -26,7 +26,7 @@ def pipeline(
     full_refresh: bool = False,
     credentials: Any = None
 ) -> Pipeline:
-    """Creates a new instance of `dlt` pipeline, which moves the data from the source ie. a REST API and a destination ie. database or a data lake.
+    """Creates a new instance of `dlt` pipeline, which moves the data from the source ie. a REST API to a destination ie. database or a data lake.
 
     ### Summary
     The `pipeline` functions allows you to pass the destination name to which the data should be loaded, the name of the dataset and several other options that govern loading of the data.

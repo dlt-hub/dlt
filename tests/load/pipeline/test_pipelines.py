@@ -9,6 +9,7 @@ import dlt
 from dlt.common import Decimal, json
 from dlt.common.destination import DestinationReference
 from dlt.common.schema.schema import Schema
+from dlt.common.schema.typing import VERSION_TABLE_NAME
 from dlt.common.time import sleep
 from dlt.common.typing import TDataItem
 from dlt.common.utils import uniq_id
@@ -139,6 +140,10 @@ def test_skip_sync_schema_for_tables_without_columns(destination_name: str) -> N
     p.sync_schema()
 
     with p._sql_job_client(schema) as job_client:
+        # there's some data at all
+        exists, _ = job_client.get_storage_table(VERSION_TABLE_NAME)
+        assert exists is True
+
         # such tables are not created but silently ignored
         exists, _ = job_client.get_storage_table("data_table")
         assert not exists

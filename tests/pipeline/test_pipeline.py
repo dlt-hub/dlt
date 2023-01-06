@@ -322,6 +322,70 @@ def test_sentry_tracing() -> None:
     assert sentry_sdk.Hub.current.scope.span is None
 
 
+
+def test_pipeline_state_on_extract_exception() -> None:
+    pipeline_name = "pipe_" + uniq_id()
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+
+
+    @dlt.resource
+    def data_piece_1():
+        yield [1, 2, 3]
+        yield [3, 4, 5]
+
+    @dlt.resource
+    def data_piece_2():
+        yield [6, 7, 8]
+        raise NotImplementedError()
+
+    with pytest.raises(PipelineStepFailed):
+        p.run([data_piece_1, data_piece_2], write_disposition="replace")
+
+    # first run didn't really happen
+    assert p.first_run is True
+    assert p.has_data is False
+    assert p._schema_storage.list_schemas() == []
+    assert p.default_schema_name is None
+
+    # restore the pipeline
+    p = dlt.attach(pipeline_name)
+    assert p.first_run is True
+    assert p.has_data is False
+    assert p._schema_storage.list_schemas() == []
+    assert p.default_schema_name is None
+
+    # same but with multiple sources generating many schemas
+
+    @dlt.source
+    def data_schema_1():
+        return data_piece_1
+
+    @dlt.source
+    def data_schema_2():
+        return data_piece_1
+
+    @dlt.source
+    def data_schema_3():
+        return data_piece_2
+
+    # new pipeline
+    pipeline_name = "pipe_" + uniq_id()
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+
+    with pytest.raises(PipelineStepFailed):
+        p.run([data_schema_1(), data_schema_2(), data_schema_3()], write_disposition="replace")
+
+    # first run didn't really happen
+    assert p.first_run is True
+    assert p.has_data is False
+    assert p._schema_storage.list_schemas() == []
+    assert p.default_schema_name is None
+
+    os.environ["COMPLETED_PROB"] = "1.0"  # make it complete immediately
+    p.run([data_schema_1(), data_schema_2()], write_disposition="replace")
+    assert p.schema_names == p._schema_storage.list_schemas()
+
+
 @pytest.mark.skip("Not implemented")
 def test_extract_exception() -> None:
     # make sure that PipelineStepFailed contains right step information
