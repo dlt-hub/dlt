@@ -2,6 +2,12 @@ from typing import Any, Callable, Dict, List, Literal, Optional, Set, Type, Type
 
 from dlt.common.typing import StrAny
 
+# current version of schema engine
+SCHEMA_ENGINE_VERSION = 5
+
+# dlt tables
+VERSION_TABLE_NAME = "_dlt_version"
+LOADS_TABLE_NAME = "_dlt_loads"
 
 TDataType = Literal["text", "double", "bool", "timestamp", "bigint", "binary", "complex", "decimal", "wei"]
 TColumnHint = Literal["not_null", "partition", "cluster", "primary_key", "foreign_key", "sort", "unique"]
@@ -14,10 +20,6 @@ DATA_TYPES: Set[TDataType] = set(get_args(TDataType))
 COLUMN_PROPS: Set[TColumnProp] = set(get_args(TColumnProp))
 COLUMN_HINTS: Set[TColumnHint] = set(["partition", "cluster", "primary_key", "foreign_key", "sort", "unique"])
 WRITE_DISPOSITIONS: Set[TWriteDisposition] = set(get_args(TWriteDisposition))
-
-# dlt tables
-VERSION_TABLE_NAME = "_dlt_version"
-LOADS_TABLE_NAME = "_dlt_loads"
 
 
 class TColumnSchemaBase(TypedDict, total=True):

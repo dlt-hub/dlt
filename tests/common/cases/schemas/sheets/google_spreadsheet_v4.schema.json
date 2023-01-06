@@ -1,0 +1,397 @@
+{
+  "version": 3,
+  "version_hash": "vgxR7fdg9HNUY/7iHKNQTS2qkYaEvKgrSiHIMWoIx7Y=",
+  "engine_version": 4,
+  "name": "google_spreadsheet",
+  "tables": {
+    "_dlt_version": {
+      "name": "_dlt_version",
+      "columns": {
+        "version": {
+          "partition": false,
+          "cluster": false,
+          "unique": false,
+          "sort": false,
+          "primary_key": false,
+          "foreign_key": false,
+          "name": "version",
+          "data_type": "bigint",
+          "nullable": false
+        },
+        "engine_version": {
+          "partition": false,
+          "cluster": false,
+          "unique": false,
+          "sort": false,
+          "primary_key": false,
+          "foreign_key": false,
+          "name": "engine_version",
+          "data_type": "bigint",
+          "nullable": false
+        },
+        "inserted_at": {
+          "partition": false,
+          "cluster": false,
+          "unique": false,
+          "sort": false,
+          "primary_key": false,
+          "foreign_key": false,
+          "name": "inserted_at",
+          "data_type": "timestamp",
+          "nullable": false
+        },
+        "schema_name": {
+          "partition": false,
+          "cluster": false,
+          "unique": false,
+          "sort": false,
+          "primary_key": false,
+          "foreign_key": false,
+          "name": "schema_name",
+          "data_type": "text",
+          "nullable": false
+        },
+        "version_hash": {
+          "partition": false,
+          "cluster": false,
+          "unique": false,
+          "sort": false,
+          "primary_key": false,
+          "foreign_key": false,
+          "name": "version_hash",
+          "data_type": "text",
+          "nullable": false
+        },
+        "schema": {
+          "partition": false,
+          "cluster": false,
+          "unique": false,
+          "sort": false,
+          "primary_key": false,
+          "foreign_key": false,
+          "name": "schema",
+          "data_type": "text",
+          "nullable": false
+        }
+      },
+      "write_disposition": "skip",
+      "description": "Created by DLT. Tracks schema updates"
+    },
+    "_dlt_loads": {
+      "name": "_dlt_loads",
+      "columns": {
+        "load_id": {
+          "partition": false,
+          "cluster": false,
+          "unique": false,
+          "sort": false,
+          "primary_key": false,
+          "foreign_key": false,
+          "name": "load_id",
+          "data_type": "text",
+          "nullable": false
+        },
+        "status": {
+          "partition": false,
+          "cluster": false,
+          "unique": false,
+          "sort": false,
+          "primary_key": false,
+          "foreign_key": false,
+          "name": "status",
+          "data_type": "bigint",
+          "nullable": false
+        },
+        "inserted_at": {
+          "partition": false,
+          "cluster": false,
+          "unique": false,
+          "sort": false,
+          "primary_key": false,
+          "foreign_key": false,
+          "name": "inserted_at",
+          "data_type": "timestamp",
+          "nullable": false
+        }
+      },
+      "write_disposition": "skip",
+      "description": "Created by DLT. Tracks completed loads"
+    },
+    "_2022_05": {
+      "name": "_2022_05",
+      "columns": {
+        "sender_id": {
+          "partition": false,
+          "cluster": false,
+          "unique": false,
+          "sort": false,
+          "primary_key": false,
+          "foreign_key": false,
+          "name": "sender_id",
+          "data_type": "text",
+          "nullable": true
+        },
+        "message_id": {
+          "partition": false,
+          "cluster": false,
+          "unique": false,
+          "sort": false,
+          "primary_key": false,
+          "foreign_key": false,
+          "name": "message_id",
+          "data_type": "bigint",
+          "nullable": true
+        },
+        "annotation": {
+          "partition": false,
+          "cluster": false,
+          "unique": false,
+          "sort": false,
+          "primary_key": false,
+          "foreign_key": false,
+          "name": "annotation",
+          "data_type": "text",
+          "nullable": true
+        },
+        "confidence": {
+          "partition": false,
+          "cluster": false,
+          "unique": false,
+          "sort": false,
+          "primary_key": false,
+          "foreign_key": false,
+          "name": "confidence",
+          "data_type": "double",
+          "nullable": true
+        },
+        "count": {
+          "partition": false,
+          "cluster": false,
+          "unique": false,
+          "sort": false,
+          "primary_key": false,
+          "foreign_key": false,
+          "name": "count",
+          "data_type": "bigint",
+          "nullable": true
+        },
+        "added_at": {
+          "partition": false,
+          "cluster": false,
+          "unique": false,
+          "sort": false,
+          "primary_key": false,
+          "foreign_key": false,
+          "name": "added_at",
+          "data_type": "text",
+          "nullable": true
+        },
+        "reviewed": {
+          "partition": false,
+          "cluster": false,
+          "unique": false,
+          "sort": false,
+          "primary_key": false,
+          "foreign_key": false,
+          "name": "reviewed",
+          "data_type": "bool",
+          "nullable": true
+        },
+        "_dlt_load_id": {
+          "partition": false,
+          "cluster": false,
+          "unique": false,
+          "sort": false,
+          "primary_key": false,
+          "foreign_key": false,
+          "name": "_dlt_load_id",
+          "data_type": "text",
+          "nullable": false
+        },
+        "_dlt_id": {
+          "partition": false,
+          "cluster": false,
+          "unique": true,
+          "sort": false,
+          "primary_key": false,
+          "foreign_key": false,
+          "name": "_dlt_id",
+          "data_type": "text",
+          "nullable": false
+        }
+      },
+      "write_disposition": "replace"
+    },
+    "model_metadata": {
+      "name": "model_metadata",
+      "columns": {
+        "model_name": {
+          "partition": false,
+          "cluster": false,
+          "unique": false,
+          "sort": false,
+          "primary_key": false,
+          "foreign_key": false,
+          "name": "model_name",
+          "data_type": "text",
+          "nullable": true
+        },
+        "accuracy": {
+          "partition": false,
+          "cluster": false,
+          "unique": false,
+          "sort": false,
+          "primary_key": false,
+          "foreign_key": false,
+          "name": "accuracy",
+          "data_type": "double",
+          "nullable": true
+        },
+        "last_run_time": {
+          "partition": false,
+          "cluster": false,
+          "unique": false,
+          "sort": false,
+          "primary_key": false,
+          "foreign_key": false,
+          "name": "last_run_time",
+          "data_type": "text",
+          "nullable": true
+        },
+        "_dlt_load_id": {
+          "partition": false,
+          "cluster": false,
+          "unique": false,
+          "sort": false,
+          "primary_key": false,
+          "foreign_key": false,
+          "name": "_dlt_load_id",
+          "data_type": "text",
+          "nullable": false
+        },
+        "_dlt_id": {
+          "partition": false,
+          "cluster": false,
+          "unique": true,
+          "sort": false,
+          "primary_key": false,
+          "foreign_key": false,
+          "name": "_dlt_id",
+          "data_type": "text",
+          "nullable": false
+        }
+      },
+      "write_disposition": "replace"
+    },
+    "_dlt_pipeline_state": {
+      "name": "_dlt_pipeline_state",
+      "columns": {
+        "version": {
+          "partition": false,
+          "cluster": false,
+          "unique": false,
+          "sort": false,
+          "primary_key": false,
+          "foreign_key": false,
+          "name": "version",
+          "data_type": "bigint",
+          "nullable": true
+        },
+        "engine_version": {
+          "partition": false,
+          "cluster": false,
+          "unique": false,
+          "sort": false,
+          "primary_key": false,
+          "foreign_key": false,
+          "name": "engine_version",
+          "data_type": "bigint",
+          "nullable": true
+        },
+        "pipeline_name": {
+          "partition": false,
+          "cluster": false,
+          "unique": false,
+          "sort": false,
+          "primary_key": false,
+          "foreign_key": false,
+          "name": "pipeline_name",
+          "data_type": "text",
+          "nullable": true
+        },
+        "state": {
+          "partition": false,
+          "cluster": false,
+          "unique": false,
+          "sort": false,
+          "primary_key": false,
+          "foreign_key": false,
+          "name": "state",
+          "data_type": "text",
+          "nullable": true
+        },
+        "created_at": {
+          "partition": false,
+          "cluster": false,
+          "unique": false,
+          "sort": false,
+          "primary_key": false,
+          "foreign_key": false,
+          "name": "created_at",
+          "data_type": "timestamp",
+          "nullable": true
+        },
+        "_dlt_load_id": {
+          "partition": false,
+          "cluster": false,
+          "unique": false,
+          "sort": false,
+          "primary_key": false,
+          "foreign_key": false,
+          "name": "_dlt_load_id",
+          "data_type": "text",
+          "nullable": false
+        },
+        "_dlt_id": {
+          "partition": false,
+          "cluster": false,
+          "unique": true,
+          "sort": false,
+          "primary_key": false,
+          "foreign_key": false,
+          "name": "_dlt_id",
+          "data_type": "text",
+          "nullable": false
+        }
+      },
+      "write_disposition": "append"
+    }
+  },
+  "settings": {
+    "default_hints": {
+      "not_null": [
+        "_dlt_id",
+        "_dlt_root_id",
+        "_dlt_parent_id",
+        "_dlt_list_idx",
+        "_dlt_load_id"
+      ],
+      "foreign_key": [
+        "_dlt_parent_id"
+      ],
+      "unique": [
+        "_dlt_id"
+      ]
+    }
+  },
+  "normalizers": {
+    "detections": [
+      "timestamp",
+      "iso_timestamp"
+    ],
+    "names": "dlt.common.normalizers.names.snake_case",
+    "json": {
+      "module": "dlt.common.normalizers.json.relational"
+    }
+  }
+}

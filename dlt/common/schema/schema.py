@@ -6,7 +6,7 @@ from dlt.common import json
 from dlt.common.typing import DictStrAny, StrAny, REPattern, SupportsVariant, VARIANT_FIELD_FORMAT
 from dlt.common.normalizers.names import TNormalizeBreakPath, TNormalizeMakePath, TNormalizeNameFunc
 from dlt.common.normalizers.json import TNormalizeJSONFunc
-from dlt.common.schema.typing import (LOADS_TABLE_NAME, VERSION_TABLE_NAME, TNormalizersConfig, TPartialTableSchema, TSchemaSettings, TSimpleRegex, TStoredSchema,
+from dlt.common.schema.typing import (SCHEMA_ENGINE_VERSION, LOADS_TABLE_NAME, VERSION_TABLE_NAME, TNormalizersConfig, TPartialTableSchema, TSchemaSettings, TSimpleRegex, TStoredSchema,
                                       TSchemaTables, TTableSchema, TTableSchemaColumns, TColumnSchema, TColumnProp, TDataType,
                                       TColumnHint, TWriteDisposition)
 from dlt.common.schema import utils
@@ -16,7 +16,7 @@ from dlt.common.validation import validate_dict
 
 
 class Schema:
-    ENGINE_VERSION: ClassVar[int] = 5
+    ENGINE_VERSION: ClassVar[int] = SCHEMA_ENGINE_VERSION
 
     # name normalization functions
     normalize_table_name: TNormalizeNameFunc
