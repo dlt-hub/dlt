@@ -1,6 +1,6 @@
 import dlt
 
-from examples.sources.google_sheets import google_spreadsheet
+from sources.google_sheets import google_spreadsheet
 
 dlt.pipeline(destination="bigquery", full_refresh=False)
 # see example.secrets.toml to where to put credentials

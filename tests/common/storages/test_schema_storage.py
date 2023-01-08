@@ -48,6 +48,14 @@ def test_load_non_existing(storage: SchemaStorage) -> None:
         storage.load_schema("nonexisting")
 
 
+def test_load_schema_with_upgrade() -> None:
+    # point the storage root to v4 schema google_spreadsheet_v3.schema
+    storage = LiveSchemaStorage(SchemaVolumeConfiguration(COMMON_TEST_CASES_PATH + "schemas/sheets"))
+    # the hash when computed on the schema does not match the version_hash in the file so it should raise InStorageSchemaModified
+    # but because the version upgrade is required, the check is skipped and the load succeeds
+    storage.load_schema("google_spreadsheet_v4")
+
+
 def test_import_non_existing(synced_storage: SchemaStorage) -> None:
     with pytest.raises(SchemaNotFoundError):
         synced_storage.load_schema("nonexisting")

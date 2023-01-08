@@ -30,7 +30,7 @@ class SchemaStorage(Mapping[str, Schema]):
         try:
             storage_schema = json.loads(self.storage.load(schema_file))
             # prevent external modifications of schemas kept in storage
-            if not verify_schema_hash(storage_schema, empty_hash_verifies=True):
+            if not verify_schema_hash(storage_schema, verifies_if_not_migrated=True):
                 raise InStorageSchemaModified(name, self.config.schema_volume_path)
         except FileNotFoundError:
             # maybe we can import from external storage

@@ -8,7 +8,7 @@ from dlt.common.typing import AnyType, extract_inner_type, TAny
 from dlt.common.schema.utils import coerce_value, py_type_to_sc_type
 from dlt.common.configuration import DOT_DLT
 from dlt.common.configuration.exceptions import ConfigValueCannotBeCoercedException, LookupTrace
-from dlt.common.configuration.specs.base_configuration import BaseConfiguration, get_config_if_union, is_base_configuration_hint
+from dlt.common.configuration.specs.base_configuration import BaseConfiguration, get_config_if_union_hint, is_base_configuration_inner_hint
 
 
 class ResolvedValueTrace(NamedTuple):
@@ -28,7 +28,7 @@ def deserialize_value(key: str, value: Any, hint: Type[TAny]) -> TAny:
     try:
         if hint != Any:
             # if deserializing to base configuration, try parse the value
-            if is_base_configuration_hint(hint):
+            if is_base_configuration_inner_hint(hint):
                 c = hint()
                 if isinstance(value, dict):
                     c.update(value)
@@ -87,15 +87,6 @@ def serialize_value(value: Any) -> Any:
     # coerce type to text which will use json for mapping and sequences
     value_dt = py_type_to_sc_type(type(value))
     return coerce_value("text", value_dt, value)
-
-
-def extract_inner_hint(hint: Type[Any]) -> Type[Any]:
-    # extract hint from Optional / Literal / NewType hints
-    inner_hint = extract_inner_type(hint)
-    # get base configuration from union type
-    inner_hint = get_config_if_union(inner_hint) or inner_hint
-    # extract origin from generic types (ie List[str] -> List)
-    return get_origin(inner_hint) or inner_hint
 
 
 def log_traces(config: BaseConfiguration, key: str, hint: Type[Any], value: Any, default_value: Any, traces: Sequence[LookupTrace]) -> None:

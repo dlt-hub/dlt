@@ -51,6 +51,7 @@ def source(func: Optional[AnyFun] = None, /, name: str = None, max_table_nesting
 
     ### Passing credentials
     Another important function of the source decorator is to provide credentials and other configuration to the code that extracts data. The decorator may automatically bind the source function arguments to the secret and config values.
+    >>> @dlt.source
     >>> def chess(username, chess_url: str = dlt.config.value, api_secret = dlt.secret.value, title: str = "GM"):
     >>>     return user_profile(username, chess_url, api_secret), user_games(username, chess_url, api_secret, with_titles=title)
     >>>
@@ -199,6 +200,7 @@ def resource(
 
     ### Passing credentials
     If used as a decorator (`data` argument is a `Generator`), it may automatically bind the source function arguments to the secret and config values.
+    >>> @dlt.resource
     >>> def user_games(username, chess_url: str = dlt.config.value, api_secret = dlt.secret.value):
     >>>     return requests.get("%s/games/%s" % (chess_url, username), headers={"Authorization": f"Bearer {api_secret}"})
     >>>
@@ -289,7 +291,7 @@ def transformer(
     selected: bool = True,
     spec: Type[BaseConfiguration] = None
 ) -> Callable[[Callable[Concatenate[TDataItem, TResourceFunParams], Any]], Callable[TResourceFunParams, DltResource]]:
-    """A form of `dlt resource` that takes input from other resources in order to enrich or transformer the data.
+    """A form of `dlt resource` that takes input from other resources in order to enrich or transform the data.
 
     ### Example
     >>> @dlt.resource

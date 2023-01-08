@@ -212,9 +212,9 @@ def test_extract_multiple_sources() -> None:
 
     # nothing to normalize
     assert len(storage.list_files_to_normalize_sorted()) == 0
-    # but the schemas are stored in the pipeline
-    p.schemas["default_3"]
-    p.schemas["default_4"]
+    # pipeline state is successfully rollbacked after the last extract and default_3 and 4 schemas are not present
+    assert set(p.schema_names) == {"default", "default_2"}
+    assert set(p._schema_storage.list_schemas()) == {"default", "default_2"}
 
 
 def test_restore_state_on_dummy() -> None:
@@ -320,6 +320,70 @@ def test_sentry_tracing() -> None:
         p.run(r_check_sentry)
     assert py_ex.value.stage == "load"
     assert sentry_sdk.Hub.current.scope.span is None
+
+
+
+def test_pipeline_state_on_extract_exception() -> None:
+    pipeline_name = "pipe_" + uniq_id()
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+
+
+    @dlt.resource
+    def data_piece_1():
+        yield [1, 2, 3]
+        yield [3, 4, 5]
+
+    @dlt.resource
+    def data_piece_2():
+        yield [6, 7, 8]
+        raise NotImplementedError()
+
+    with pytest.raises(PipelineStepFailed):
+        p.run([data_piece_1, data_piece_2], write_disposition="replace")
+
+    # first run didn't really happen
+    assert p.first_run is True
+    assert p.has_data is False
+    assert p._schema_storage.list_schemas() == []
+    assert p.default_schema_name is None
+
+    # restore the pipeline
+    p = dlt.attach(pipeline_name)
+    assert p.first_run is True
+    assert p.has_data is False
+    assert p._schema_storage.list_schemas() == []
+    assert p.default_schema_name is None
+
+    # same but with multiple sources generating many schemas
+
+    @dlt.source
+    def data_schema_1():
+        return data_piece_1
+
+    @dlt.source
+    def data_schema_2():
+        return data_piece_1
+
+    @dlt.source
+    def data_schema_3():
+        return data_piece_2
+
+    # new pipeline
+    pipeline_name = "pipe_" + uniq_id()
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+
+    with pytest.raises(PipelineStepFailed):
+        p.run([data_schema_1(), data_schema_2(), data_schema_3()], write_disposition="replace")
+
+    # first run didn't really happen
+    assert p.first_run is True
+    assert p.has_data is False
+    assert p._schema_storage.list_schemas() == []
+    assert p.default_schema_name is None
+
+    os.environ["COMPLETED_PROB"] = "1.0"  # make it complete immediately
+    p.run([data_schema_1(), data_schema_2()], write_disposition="replace")
+    assert p.schema_names == p._schema_storage.list_schemas()
 
 
 @pytest.mark.skip("Not implemented")

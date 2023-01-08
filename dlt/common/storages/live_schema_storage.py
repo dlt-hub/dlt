@@ -18,7 +18,7 @@ class LiveSchemaStorage(SchemaStorage):
         else:
             # return new schema instance
             schema = super().load_schema(name)
-            self._update_live_schema(schema, True)
+            self._update_live_schema(schema)
 
         return schema
 
@@ -29,10 +29,14 @@ class LiveSchemaStorage(SchemaStorage):
 
     def save_schema(self, schema: Schema) -> str:
         rv = super().save_schema(schema)
-        # -- update the live schema with schema being saved but do not create live instance if not already present
-        # no, cre
-        self._update_live_schema(schema, True)
+        # update the live schema with schema being saved, if no live schema exist, create one to be available for a getter
+        self._update_live_schema(schema)
         return rv
+
+    def remove_schema(self, name: str) -> None:
+        super().remove_schema(name)
+        # also remove the live schema
+        self.live_schemas.pop(name, None)
 
     def initialize_import_schema(self, schema: Schema) -> None:
         if self.config.import_schema_path:
@@ -50,7 +54,7 @@ class LiveSchemaStorage(SchemaStorage):
             self._save_schema(live_schema)
         return live_schema
 
-    def _update_live_schema(self, schema: Schema, can_create_new: bool) -> None:
+    def _update_live_schema(self, schema: Schema, can_create_new: bool = True) -> None:
         live_schema = self.live_schemas.get(schema.name)
         if live_schema:
             # replace content without replacing instance

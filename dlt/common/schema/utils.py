@@ -21,7 +21,7 @@ from dlt.common.typing import DictStrAny, REPattern
 from dlt.common.utils import map_nested_in_place, str2bool
 from dlt.common.validation import TCustomValidator, validate_dict
 from dlt.common.schema import detections
-from dlt.common.schema.typing import LOADS_TABLE_NAME, SIMPLE_REGEX_PREFIX, VERSION_TABLE_NAME, TColumnName, TNormalizersConfig, TPartialTableSchema, TSimpleRegex, TStoredSchema, TTableSchema, TTableSchemaColumns, TColumnSchemaBase, TColumnSchema, TColumnProp, TDataType, TColumnHint, TTypeDetectionFunc, TTypeDetections, TWriteDisposition
+from dlt.common.schema.typing import SCHEMA_ENGINE_VERSION, LOADS_TABLE_NAME, SIMPLE_REGEX_PREFIX, VERSION_TABLE_NAME, TColumnName, TNormalizersConfig, TPartialTableSchema, TSimpleRegex, TStoredSchema, TTableSchema, TTableSchemaColumns, TColumnSchemaBase, TColumnSchema, TColumnProp, TDataType, TColumnHint, TTypeDetectionFunc, TTypeDetections, TWriteDisposition
 from dlt.common.schema.exceptions import CannotCoerceColumnException, ParentTableNotFoundException, SchemaEngineNoUpgradePathException, SchemaException, TablePropertiesConflictException
 
 
@@ -96,14 +96,16 @@ def generate_version_hash(stored_schema: TStoredSchema) -> str:
     return base64.b64encode(h.digest()).decode('ascii')
 
 
-def verify_schema_hash(stored_schema: DictStrAny, empty_hash_verifies: bool = True) -> bool:
+def verify_schema_hash(loaded_schema_dict: DictStrAny, verifies_if_not_migrated: bool = False) -> bool:
     # generates content hash and compares with existing
-    current_hash: str = stored_schema.get("version_hash")
-    if not current_hash and empty_hash_verifies:
+    engine_version: str = loaded_schema_dict.get("engine_version")
+    # if upgrade is needed, the hash cannot be compared
+    if verifies_if_not_migrated and engine_version != SCHEMA_ENGINE_VERSION:
         return True
     # if hash is present we can assume at least v4 engine version so hash is computable
-    hash_ = generate_version_hash(cast(TStoredSchema, stored_schema))
-    return hash_ == current_hash
+    stored_schema = cast(TStoredSchema, loaded_schema_dict)
+    hash_ = generate_version_hash(stored_schema)
+    return hash_ == stored_schema["version_hash"]
 
 
 def simple_regex_validator(path: str, pk: str, pv: Any, t: Any) -> bool:

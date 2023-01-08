@@ -1,11 +1,11 @@
 import contextlib
 import os
-import datetime  # noqa: 251
 from contextlib import contextmanager
 from functools import wraps
 from collections.abc import Sequence as C_Sequence
 from typing import Any, Callable, ClassVar, Dict, List, Iterator, Mapping, Optional, Sequence, Tuple, cast, get_type_hints
 
+from dlt import version
 from dlt.common import json, logger, signals, pendulum
 from dlt.common.configuration import inject_namespace
 from dlt.common.configuration.specs import RunConfiguration, NormalizeVolumeConfiguration, SchemaVolumeConfiguration, LoadVolumeConfiguration, PoolRunnerConfiguration
@@ -19,7 +19,6 @@ from dlt.common.schema.typing import TColumnSchema, TWriteDisposition
 from dlt.common.schema.utils import default_normalizers, import_normalizers
 from dlt.common.storages.load_storage import LoadStorage
 from dlt.common.typing import TFun, TSecretValue
-
 from dlt.common.runners import pool_runner as runner, TRunMetrics, initialize_runner
 from dlt.common.storages import LiveSchemaStorage, NormalizeStorage
 from dlt.common.destination import DestinationCapabilitiesContext, DestinationReference, JobClientBase, DestinationClientConfiguration, DestinationClientDwhConfiguration, TDestinationReferenceArg
@@ -27,6 +26,7 @@ from dlt.common.pipeline import ExtractInfo, LoadInfo, NormalizeInfo, SupportsPi
 from dlt.common.schema import Schema
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.utils import is_interactive
+
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 
 from dlt.extract.exceptions import SourceExhausted
@@ -619,7 +619,10 @@ class Pipeline(SupportsPipeline):
         return failed_jobs
 
     def sync_schema(self, schema_name: str = None, credentials: Any = None) -> None:
-        """Synchronizes the schema `schema_name` with the destination."""
+        """Synchronizes the schema `schema_name` with the destination. If no name is provided, the default schema will be synchronized."""
+        if not schema_name and not self.default_schema_name:
+            raise PipelineConfigMissing(self.pipeline_name, "default_schema_name", "load", "Pipeline contains no schemas. Please extract any data with `extract` or `run` methods.")
+
         schema = self.schemas[schema_name] if schema_name else self.default_schema
         client_config = self._get_destination_client_initial_config(credentials)
         with self._get_destination_client(schema, client_config) as client:
@@ -820,7 +823,7 @@ class Pipeline(SupportsPipeline):
             client_spec = self.destination.spec()
             raise MissingDependencyException(
                 f"{client_spec.destination_name} destination",
-                [f"{logger.DLT_PKG_NAME}[{client_spec.destination_name}]"],
+                [f"{version.DLT_PKG_NAME}[{client_spec.destination_name}]"],
                 "Dependencies for specific destinations are available as extras of python-dlt"
             )
 
@@ -991,9 +994,20 @@ class Pipeline(SupportsPipeline):
     def _managed_state(self, *, extract_state: bool = False) -> Iterator[TPipelineState]:
         # load or restore state
         state = self._get_state()
+        # TODO: we should backup schemas here
         try:
             yield state
         except Exception:
+            backup_state = self._get_state()
+            # restore original pipeline props
+            self._state_to_props(backup_state)
+            # synchronize schema storage with initial list of schemas, note that we'll not be able to synchronize the schema content
+            if self._schema_storage:
+                # TODO: we should restore schemas backup here
+                for existing_schema_name in self._schema_storage.list_schemas():
+                    if existing_schema_name not in self.schema_names:
+                        self._schema_storage.remove_schema(existing_schema_name)
+            # raise original exception
             raise
         else:
             self._props_to_state(state)

@@ -2,8 +2,7 @@ from typing import Any, Iterable, NamedTuple, Tuple
 import tomlkit
 from tomlkit.items import Table as TOMLTable
 
-from dlt.common.configuration.resolve import extract_inner_hint
-from dlt.common.configuration.specs import BaseConfiguration, is_base_configuration_hint
+from dlt.common.configuration.specs import BaseConfiguration, is_base_configuration_inner_hint, extract_inner_hint
 from dlt.common.typing import AnyType, is_final_type, is_optional_type
 
 
@@ -21,7 +20,7 @@ def write_value(toml_table: TOMLTable, name: str, hint: AnyType, default_value: 
     # get the inner hint to generate cool examples
     hint = extract_inner_hint(hint)
 
-    if is_base_configuration_hint(hint):
+    if is_base_configuration_inner_hint(hint):
         inner_table = tomlkit.table(False)
         toml_table[name] = inner_table
         write_spec(inner_table, hint())
