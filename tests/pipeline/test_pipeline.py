@@ -212,9 +212,9 @@ def test_extract_multiple_sources() -> None:
 
     # nothing to normalize
     assert len(storage.list_files_to_normalize_sorted()) == 0
-    # but the schemas are stored in the pipeline
-    p.schemas["default_3"]
-    p.schemas["default_4"]
+    # pipeline state is successfully rollbacked after the last extract and default_3 and 4 schemas are not present
+    assert set(p.schema_names) == {"default", "default_2"}
+    assert set(p._schema_storage.list_schemas()) == {"default", "default_2"}
 
 
 def test_restore_state_on_dummy() -> None:

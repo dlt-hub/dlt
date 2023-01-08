@@ -1002,10 +1002,11 @@ class Pipeline(SupportsPipeline):
             # restore original pipeline props
             self._state_to_props(backup_state)
             # synchronize schema storage with initial list of schemas, note that we'll not be able to synchronize the schema content
-            # TODO: we should restore schemas backup here
-            for existing_schema_name in self._schema_storage.list_schemas():
-                if existing_schema_name not in self.schema_names:
-                    self._schema_storage.remove_schema(existing_schema_name)
+            if self._schema_storage:
+                # TODO: we should restore schemas backup here
+                for existing_schema_name in self._schema_storage.list_schemas():
+                    if existing_schema_name not in self.schema_names:
+                        self._schema_storage.remove_schema(existing_schema_name)
             # raise original exception
             raise
         else:
