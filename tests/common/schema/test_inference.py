@@ -175,13 +175,13 @@ def test_coerce_complex_variant(schema: Schema) -> None:
     assert c_new_columns[0]["data_type"] == "complex"
     assert c_new_columns[1]["name"] == "c_dict"
     assert c_new_columns[1]["data_type"] == "complex"
-    assert c_new_row["c_list"] == json.dumps(v_list)
+    assert c_new_row["c_list"] == v_list
     schema.update_schema(c_new_table)
 
     # add same row again
     c_new_row, c_new_table = schema.coerce_row("event_user", None, c_row)
     assert c_new_table is None
-    assert c_new_row["c_dict"] == json.dumps(v_dict)
+    assert c_new_row["c_dict"] == v_dict
 
     # add complex types on the same columns
     c_row_v = {"floatX": v_list, "confidenceX": v_dict, "strX": v_dict}
@@ -192,8 +192,8 @@ def test_coerce_complex_variant(schema: Schema) -> None:
     assert len(c_new_columns_v) == 2
     assert c_new_columns_v[0]["name"] == "floatX__v_complex"
     assert c_new_columns_v[1]["name"] == "confidenceX__v_complex"
-    assert c_new_row_v["floatX__v_complex"] == json.dumps(v_list)
-    assert c_new_row_v["confidenceX__v_complex"] == json.dumps(v_dict)
+    assert c_new_row_v["floatX__v_complex"] == v_list
+    assert c_new_row_v["confidenceX__v_complex"] == v_dict
     assert c_new_row_v["strX"] == json.dumps(v_dict)
     schema.update_schema(c_new_table_v)
 
@@ -201,8 +201,8 @@ def test_coerce_complex_variant(schema: Schema) -> None:
     c_row_v = {"floatX": v_list, "confidenceX": v_dict, "strX": v_dict}
     c_new_row_v, c_new_table_v = schema.coerce_row("event_user", None, c_row_v)
     assert c_new_table_v is None
-    assert c_new_row_v["floatX__v_complex"] == json.dumps(v_list)
-    assert c_new_row_v["confidenceX__v_complex"] == json.dumps(v_dict)
+    assert c_new_row_v["floatX__v_complex"] == v_list
+    assert c_new_row_v["confidenceX__v_complex"] == v_dict
     assert c_new_row_v["strX"] == json.dumps(v_dict)
 
 

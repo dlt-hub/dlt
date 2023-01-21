@@ -323,8 +323,8 @@ def complex_to_str(value: Any) -> str:
 def coerce_value(to_type: TDataType, from_type: TDataType, value: Any) -> Any:
     if to_type == from_type:
         if to_type == "complex":
-            # complex types will be always represented as strings
-            return complex_to_str(value)
+            # complex types need custom encoding to be removed
+            return map_nested_in_place(custom_pua_remove, value)
         return value
 
     if to_type == "text":
