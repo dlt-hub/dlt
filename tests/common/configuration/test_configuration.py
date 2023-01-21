@@ -11,9 +11,9 @@ from dlt.common.configuration.exceptions import ConfigFieldMissingTypeHintExcept
 from dlt.common.configuration import configspec, ConfigFieldMissingException, ConfigValueCannotBeCoercedException, resolve, is_valid_hint
 from dlt.common.configuration.specs import BaseConfiguration, RunConfiguration, ConnectionStringCredentials
 from dlt.common.configuration.providers import environ as environ_provider, toml
-from dlt.common.configuration.utils import get_resolved_traces, ResolvedValueTrace, serialize_value, deserialize_value
+from dlt.common.configuration.utils import get_resolved_traces, ResolvedValueTrace, serialize_value, deserialize_value, add_config_dict_to_env
 
-from tests.utils import preserve_environ, add_config_dict_to_env
+from tests.utils import preserve_environ
 from tests.common.configuration.utils import MockProvider, CoercionTestConfiguration, COERCIONS, SecretCredentials, WithCredentialsConfiguration, WrongConfiguration, SecretConfiguration, NamespacedConfiguration, environment, mock_provider, reset_resolved_traces
 
 INVALID_COERCIONS = {

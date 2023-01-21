@@ -21,7 +21,7 @@ from dlt.destinations.bigquery.sql_client import BigQuerySqlClient, BQ_TERMINAL_
 
 
 SCT_TO_BQT: Dict[TDataType, str] = {
-    "complex": "STRING",
+    "complex": "JSON",
     "text": "STRING",
     "double": "FLOAT64",
     "bool": "BOOLEAN",
@@ -40,7 +40,8 @@ BQT_TO_SCT: Dict[str, TDataType] = {
     "INTEGER": "bigint",
     "BYTES": "binary",
     "NUMERIC": "decimal",
-    "BIGNUMERIC": "decimal"
+    "BIGNUMERIC": "decimal",
+    "JSON": "complex"
 }
 
 class BigQueryLoadJob(LoadJob):

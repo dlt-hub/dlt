@@ -1,15 +1,10 @@
-from copy import deepcopy
-import io
 import pytest
 import datetime  # noqa: I251
 from typing import Iterator
 
-from dlt.common import json, pendulum, Decimal
-from dlt.common.schema import Schema
+from dlt.common import pendulum, Decimal
 from dlt.common.schema.typing import LOADS_TABLE_NAME, VERSION_TABLE_NAME
-from dlt.common.schema.utils import new_table
 from dlt.common.storages import FileStorage
-from dlt.common.schema import TTableSchemaColumns
 from dlt.common.utils import uniq_id
 from dlt.destinations.exceptions import DatabaseTerminalException, DatabaseTransientException, DatabaseUndefinedRelation
 
@@ -17,9 +12,7 @@ from dlt.destinations.sql_client import DBCursor
 from dlt.destinations.job_client_impl import SqlJobClientBase
 
 from tests.utils import TEST_STORAGE_ROOT, delete_test_storage
-from tests.common.utils import load_json_case
-from tests.load.utils import (TABLE_UPDATE, TABLE_UPDATE_COLUMNS_SCHEMA, TABLE_ROW, expect_load_file, yield_client_with_storage,
-                                cm_yield_client_with_storage, write_dataset, prepare_table, ALL_CLIENTS)
+from tests.load.utils import yield_client_with_storage, ALL_CLIENTS
 
 
 @pytest.fixture

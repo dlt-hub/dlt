@@ -228,10 +228,10 @@ def test_coerce_type_complex() -> None:
     v_dict = {"list": [1, 2], "str": "complex"}
     assert utils.py_type_to_sc_type(type(v_list)) == "complex"
     assert utils.py_type_to_sc_type(type(v_dict)) == "complex"
-    assert type(utils.coerce_value("complex", "complex", v_dict)) is str
-    assert type(utils.coerce_value("complex", "complex", v_list)) is str
-    assert utils.coerce_value("complex", "complex", v_dict) == json.dumps(v_dict)
-    assert utils.coerce_value("complex", "complex", v_list) == json.dumps(v_list)
+    assert type(utils.coerce_value("complex", "complex", v_dict)) is dict
+    assert type(utils.coerce_value("complex", "complex", v_list)) is list
+    assert utils.coerce_value("complex", "complex", v_dict) == v_dict
+    assert utils.coerce_value("complex", "complex", v_list) == v_list
     assert utils.coerce_value("text", "complex", v_dict) == json.dumps(v_dict)
     assert utils.coerce_value("text", "complex", v_list) == json.dumps(v_list)
     # all other coercions fail
@@ -240,10 +240,10 @@ def test_coerce_type_complex() -> None:
 
 
 def test_coerce_type_complex_with_pua() -> None:
-    v_dict = {"list": [1, Wei.from_int256(10**18)], "str": "complex", "pua_date": f"{_DATETIME}2022-05-10T01:41:31.466Z"}
-    exp_v = '{"list":[1,"1000000000000000000"],"str":"complex","pua_date":"2022-05-10T01:41:31.466Z"}'
+    v_dict = {"list": [1, Wei.from_int256(10**18), f"{_DATETIME}2022-05-10T01:41:31.466Z"], "str": "complex", "pua_date": f"{_DATETIME}2022-05-10T01:41:31.466Z"}
+    exp_v = {"list":[1, Wei.from_int256(10**18), "2022-05-10T01:41:31.466Z"],"str":"complex","pua_date":"2022-05-10T01:41:31.466Z"}
     assert utils.coerce_value("complex", "complex", copy(v_dict)) == exp_v
-    assert utils.coerce_value("text", "complex", copy(v_dict)) == exp_v
+    assert utils.coerce_value("text", "complex", copy(v_dict)) == json.dumps(exp_v)
     # also decode recursively
     map_nested_in_place(custom_pua_decode, v_dict)
     # restores datetime type

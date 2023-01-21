@@ -238,10 +238,10 @@ def test_get_storage_table_with_all_types(client: SqlJobClientBase) -> None:
     storage_columns = list(storage_table.values())
     for c, s_c in zip(TABLE_UPDATE, storage_columns):
         assert c["name"] == s_c["name"]
-        if c["data_type"] == "complex":
-            assert s_c["data_type"] == "text"
-        else:
-            assert c["data_type"] == s_c["data_type"]
+        # if c["data_type"] == "complex":
+        #     assert s_c["data_type"] in ["text", "complex"]
+        # else:
+        assert c["data_type"] == s_c["data_type"]
 
 
 @pytest.mark.parametrize('client', ALL_CLIENTS, indirect=True)
@@ -316,8 +316,17 @@ def test_load_with_all_types(client: SqlJobClientBase, write_disposition: str, f
         db_row[6] = bytes.fromhex(db_row[6])  # redshift returns binary as hex string
     else:
         db_row[6] = bytes(db_row[6])
+    # redshift and bigquery return strings from structured fields
+    if isinstance(db_row[8], str):
+        # then it must be json
+        db_row[8] = json.loads(db_row[8])
+        # print(db_row[8])
+        # print(list(TABLE_ROW.values())[8])
 
-    assert db_row == list(TABLE_ROW.values())
+    expected_rows = list(TABLE_ROW.values())
+    # expected_rows[8] = COL_9_DICT
+
+    assert db_row == expected_rows
 
 
 @pytest.mark.parametrize('write_disposition', ["append", "replace"])

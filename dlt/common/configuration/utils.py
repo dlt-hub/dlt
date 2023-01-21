@@ -1,12 +1,13 @@
 import os
 import ast
 import contextlib
-from typing import Any, Dict, Mapping, NamedTuple, Type, Sequence, get_origin
+from typing import Any, Dict, Mapping, NamedTuple, Type, Sequence
 
 from dlt.common import json, logger
-from dlt.common.typing import AnyType, extract_inner_type, TAny
+from dlt.common.typing import AnyType, TAny
 from dlt.common.schema.utils import coerce_value, py_type_to_sc_type
 from dlt.common.configuration import DOT_DLT
+from dlt.common.configuration.providers import EnvironProvider
 from dlt.common.configuration.exceptions import ConfigValueCannotBeCoercedException, LookupTrace
 from dlt.common.configuration.specs.base_configuration import BaseConfiguration, get_config_if_union_hint, is_base_configuration_inner_hint
 
@@ -119,3 +120,19 @@ def current_dot_dlt_path() -> str:
     # else:
     #     path = None
     return os.path.abspath(os.path.join(".", DOT_DLT))
+
+
+def add_config_to_env(config: BaseConfiguration) ->  None:
+    """Writes values in configuration back into environment using the naming convention of EnvironProvider"""
+    return add_config_dict_to_env(dict(config), config.__namespace__)
+
+
+def add_config_dict_to_env(dict_: Mapping[str, Any], namespace: str = None, overwrite_keys: bool = False) -> None:
+    """Writes values in dict_ back into environment using the naming convention of EnvironProvider. Applies `namespace` if specified. Does not overwrite existing keys by default"""
+    for k, v in dict_.items():
+        env_key = EnvironProvider.get_key_name(k, namespace)
+        if env_key not in os.environ or overwrite_keys:
+            if v is None:
+                os.environ.pop(env_key, None)
+            else:
+                os.environ[env_key] = serialize_value(v)

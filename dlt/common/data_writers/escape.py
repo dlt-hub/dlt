@@ -2,6 +2,8 @@ import re
 from typing import Any
 from datetime import date, datetime  # noqa: I251
 
+from dlt.common import json
+
 # use regex to escape characters in single pass
 SQL_ESCAPE_DICT = {"'": "''", "\\": "\\\\", "\n": "\\n", "\r": "\\r"}
 SQL_ESCAPE_RE = re.compile("|".join([re.escape(k) for k in sorted(SQL_ESCAPE_DICT, key=len, reverse=True)]), flags=re.DOTALL)
@@ -16,7 +18,9 @@ def escape_redshift_literal(v: Any) -> Any:
     if isinstance(v, bytes):
         return f"from_hex('{v.hex()}')"
     if isinstance(v, (datetime, date)):
-        return escape_redshift_literal(v.isoformat())
+        return f"'{v.isoformat()}'"
+    if isinstance(v, (list, dict)):
+        return f"json_parse('{json.dumps(v)}')"
 
     return str(v)
 
@@ -28,7 +32,9 @@ def escape_postgres_literal(v: Any) -> Any:
     if isinstance(v, bytes):
         return f"'\\x{v.hex()}'"
     if isinstance(v, (datetime, date)):
-        return escape_redshift_literal(v.isoformat())
+        return f"'{v.isoformat()}'"
+    if isinstance(v, (list, dict)):
+        return f"'{json.dumps(v)}'"
 
     return str(v)
 

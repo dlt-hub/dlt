@@ -22,7 +22,7 @@ from dlt.destinations.postgres.postgres import PostgresClientBase
 
 
 SCT_TO_PGT: Dict[TDataType, str] = {
-    "complex": "varchar(max)",
+    "complex": "super",
     "text": "varchar(max)",
     "double": "double precision",
     "bool": "boolean",
@@ -33,6 +33,7 @@ SCT_TO_PGT: Dict[TDataType, str] = {
 }
 
 PGT_TO_SCT: Dict[str, TDataType] = {
+    "super": "complex",
     "varchar(max)": "text",
     "double precision": "double",
     "boolean": "bool",

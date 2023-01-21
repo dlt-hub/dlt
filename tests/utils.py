@@ -92,19 +92,6 @@ def clean_test_storage(init_normalize: bool = False, init_loader: bool = False, 
     return storage
 
 
-def add_config_to_env(config: BaseConfiguration) ->  None:
-    # write back default values in configuration back into environment
-    return add_config_dict_to_env(dict(config), config.__namespace__)
-
-
-def add_config_dict_to_env(dict_: Mapping[str, Any], namespace: str = None, overwrite_keys: bool = False) -> None:
-    for k, v in dict_.items():
-        env_key = EnvironProvider.get_key_name(k, namespace)
-        if env_key not in environ or overwrite_keys:
-            if v is not None:
-                environ[env_key] = serialize_value(v)
-
-
 def create_schema_with_name(schema_name) -> Schema:
     schema = Schema(schema_name)
     return schema

@@ -3,7 +3,6 @@ from copy import deepcopy
 
 from dlt.common.utils import uniq_id, custom_environ
 from dlt.common.schema import Schema
-from dlt.common.schema.utils import new_table
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.specs import PostgresCredentials
 
@@ -46,7 +45,7 @@ def test_create_table(client: RedshiftClient) -> None:
     assert '"col6" numeric(38,9)  NOT NULL' in sql
     assert '"col7" varbinary' in sql
     assert '"col8" numeric(38,0)' in sql
-    assert '"col9" varchar(max)  NOT NULL' in sql
+    assert '"col9" super  NOT NULL' in sql
     assert sql.endswith('\nCOMMIT TRANSACTION;')
 
 
@@ -66,7 +65,7 @@ def test_alter_table(client: RedshiftClient) -> None:
     assert '"col6" numeric(38,9)  NOT NULL' in sql
     assert '"col7" varbinary' in sql
     assert '"col8" numeric(38,0)' in sql
-    assert '"col9" varchar(max)  NOT NULL' in sql
+    assert '"col9" super  NOT NULL' in sql
     assert sql.endswith("\nCOMMIT TRANSACTION;")
 
 

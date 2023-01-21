@@ -49,7 +49,7 @@ def test_create_table(gcp_client: BigQueryClient) -> None:
     assert "`col6` NUMERIC(38,9) NOT NULL" in sql
     assert "`col7` BYTES" in sql
     assert "`col8` BIGNUMERIC" in sql
-    assert "`col9` STRING NOT NULL)" in sql
+    assert "`col9` JSON NOT NULL)" in sql
     assert "CLUSTER BY" not in sql
     assert "PARTITION BY" not in sql
 
@@ -67,7 +67,7 @@ def test_alter_table(gcp_client: BigQueryClient) -> None:
     assert "ADD COLUMN `col6` NUMERIC(38,9) NOT NULL" in sql
     assert "ADD COLUMN `col7` BYTES" in sql
     assert "ADD COLUMN `col8` BIGNUMERIC" in sql
-    assert "ADD COLUMN `col9` STRING NOT NULL" in sql
+    assert "ADD COLUMN `col9` JSON NOT NULL" in sql
     # table has col1 already in storage
     mod_table = deepcopy(TABLE_UPDATE)
     mod_table.pop(0)

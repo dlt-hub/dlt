@@ -1,6 +1,6 @@
 from copy import deepcopy
 import os
-from typing import Any, Iterator, List
+from typing import Any, Iterator
 import pytest
 import itertools
 
@@ -19,7 +19,7 @@ from dlt.pipeline.exceptions import CannotRestorePipelineException, PipelineConf
 from tests.utils import ALL_DESTINATIONS, preserve_environ, autouse_test_storage, TEST_STORAGE_ROOT
 # from tests.common.configuration.utils import environment
 from tests.pipeline.utils import drop_dataset_from_env, patch_working_dir
-from tests.load.pipeline.utils import drop_pipeline, assert_data, assert_table
+from tests.load.pipeline.utils import drop_pipeline, assert_data, assert_table, select_data
 
 
 @pytest.mark.parametrize('destination_name,use_single_dataset', itertools.product(ALL_DESTINATIONS, [True, False]))
@@ -268,7 +268,7 @@ def test_source_max_nesting(destination_name: str) -> None:
                     "l": [1, 2, 3],
                     "c": {
                         "a": 1,
-                        "b": Decimal("12.3")
+                        "b": 12.3
                     }
                 }
 
@@ -276,9 +276,18 @@ def test_source_max_nesting(destination_name: str) -> None:
     def complex_data():
         return dlt.resource([
             {
+                "idx": 1,
                 "cn": complex_part
             }
         ], name="complex_cn")
     info = dlt.run(complex_data(), destination=destination_name, dataset_name="ds_" + uniq_id())
     print(info)
-    assert_table(dlt.pipeline(), "complex_cn", [json.dumps(complex_part)])
+    rows = select_data(dlt.pipeline(), "SELECT cn FROM complex_cn")
+    assert len(rows) == 1
+    cn_val = rows[0][0]
+    print(type(cn_val))
+    if isinstance(cn_val, str):
+        print("CASTING")
+        cn_val = json.loads(cn_val)
+    print(type(cn_val))
+    assert cn_val == complex_part
