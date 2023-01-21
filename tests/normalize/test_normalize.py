@@ -131,11 +131,11 @@ def test_preserve_slot_complex_value_json_l(rasa_normalize: Normalize) -> None:
     event_text, lines = expect_lines_file(rasa_normalize.load_storage, load_files["event_slot"], 0)
     assert lines == 1
     filtered_row = json.loads(event_text)
-    assert type(filtered_row["value"]) is str
-    assert filtered_row["value"] == json.dumps({
+    assert type(filtered_row["value"]) is dict
+    assert filtered_row["value"] == {
             "user_id": "world",
             "mitter_id": "hello"
-        })
+        }
 
 
 def test_preserve_slot_complex_value_insert(rasa_normalize: Normalize) -> None:

@@ -28,7 +28,7 @@ from dlt.destinations.postgres.configuration import PostgresClientConfiguration
 
 
 SCT_TO_PGT: Dict[TDataType, str] = {
-    "complex": "varchar",
+    "complex": "jsonb",
     "text": "varchar",
     "double": "double precision",
     "bool": "boolean",
@@ -40,6 +40,7 @@ SCT_TO_PGT: Dict[TDataType, str] = {
 
 PGT_TO_SCT: Dict[str, TDataType] = {
     "varchar": "text",
+    "jsonb": "complex",
     "double precision": "double",
     "boolean": "bool",
     "timestamp with time zone": "timestamp",
@@ -228,7 +229,7 @@ class PostgresClient(PostgresClientBase):
     @staticmethod
     def _sc_t_to_pq_t(sc_t: TDataType) -> str:
         if sc_t == "wei":
-            return f"numeric({2*EVM_DECIMAL_PRECISION}, {EVM_DECIMAL_PRECISION})"
+            return f"numeric({2*EVM_DECIMAL_PRECISION},{EVM_DECIMAL_PRECISION})"
         return SCT_TO_PGT[sc_t]
 
     @staticmethod

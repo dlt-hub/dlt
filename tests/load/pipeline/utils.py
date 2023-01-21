@@ -1,4 +1,4 @@
-from typing import Any, Iterator, List
+from typing import Any, Iterator, List, Sequence
 import pytest
 
 import dlt
@@ -46,15 +46,19 @@ def assert_table(p: dlt.Pipeline, table_name: str, table_data: List[Any], schema
     assert_data(p, f"SELECT * FROM {table_name} ORDER BY 1 NULLS FIRST", table_data, schema_name, info)
 
 
-def assert_data(p: dlt.Pipeline, sql: str, table_data: List[Any], schema_name: str = None, info: LoadInfo = None) -> None:
+def select_data(p: dlt.Pipeline, sql: str, schema_name: str = None) -> List[Sequence[Any]]:
     with p.sql_client(schema_name=schema_name) as c:
         with c.execute_query(sql) as cur:
-            rows = list(cur.fetchall())
-            assert len(rows) == len(table_data)
-            for row, d in zip(rows, table_data):
-                row = list(row)
-                # first element comes from the data
-                assert row[0] == d
-                # the second is load id
-                if info:
-                    assert row[1] in info.loads_ids
+            return list(cur.fetchall())
+
+
+def assert_data(p: dlt.Pipeline, sql: str, table_data: List[Any], schema_name: str = None, info: LoadInfo = None) -> None:
+    rows = select_data(p, sql, schema_name)
+    assert len(rows) == len(table_data)
+    for row, d in zip(rows, table_data):
+        row = list(row)
+        # first element comes from the data
+        assert row[0] == d
+        # the second is load id
+        if info:
+            assert row[1] in info.loads_ids

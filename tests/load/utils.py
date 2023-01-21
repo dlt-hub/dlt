@@ -81,7 +81,7 @@ TABLE_ROW = {
     "col6": Decimal("2323.34"),
     "col7": b'binary data',
     "col8": 2**56 + 92093890840,
-    "col9": "{complex: [1,2,3]}"
+    "col9": {"complex":[1,2,3,"a"]}
 }
 
 def load_table(name: str) -> TTableSchemaColumns:
