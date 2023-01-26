@@ -1,0 +1,75 @@
+config:
+  # do not track usage, do not create .user.yml
+  send_anonymous_usage_stats: False
+
+redshift:
+  target: analytics
+  outputs:
+    analytics:
+      type: redshift
+      host: "{{ env_var('CREDENTIALS__HOST') }}"
+      user: "{{ env_var('CREDENTIALS__USERNAME') }}"
+      password: "{{ env_var('CREDENTIALS__PASSWORD') }}"
+      port: "{{ env_var('CREDENTIALS__PORT', 5439) | as_number }}"
+      dbname: "{{ env_var('CREDENTIALS__DATABASE') }}"
+      schema: "{{ var('destination_dataset_name', var('source_dataset_name')) }}"
+      threads: 4
+      keepalives_idle: 0 # default 0, indicating the system default
+      connect_timeout: "{{ env_var('CREDENTIALS__CONNECT_TIMEOUT') | as_number}}"
+      # search_path: public # optional, not recommended
+      #sslmode: [optional, set the sslmode used to connect to the database (in case this parameter is set, will look for ca in ~/.postgresql/root.crt)]
+      ra3: true # enables cross-database sources
+
+
+postgres:
+  target: analytics
+  outputs:
+    analytics:
+      type: postgres
+      host: "{{ env_var('CREDENTIALS__HOST') }}"
+      user: "{{ env_var('CREDENTIALS__USERNAME') }}"
+      password: "{{ env_var('CREDENTIALS__PASSWORD') }}"
+      port: "{{ env_var('CREDENTIALS__PORT', 5432) | as_number }}"
+      dbname: "{{ env_var('CREDENTIALS__DATABASE') }}"
+      schema: "{{ var('destination_dataset_name', var('source_dataset_name')) }}"
+      threads: 4
+      keepalives_idle: 0 # default 0, indicating the system default
+      connect_timeout: "{{ env_var('CREDENTIALS__CONNECT_TIMEOUT') | as_number}}"
+      # search_path: public # optional, not recommended
+      #sslmode: [optional, set the sslmode used to connect to the database (in case this parameter is set, will look for ca in ~/.postgresql/root.crt)]
+      ra3: true # enables cross-database sources
+
+bigquery_default:
+  target: analytics
+  outputs:
+    analytics:
+      type: bigquery
+      method: oauth
+      project: "{{ env_var('CREDENTIALS__PROJECT_ID') }}"
+      location: "{{ env_var('CREDENTIALS__LOCATION') }}"
+      schema: "{{ var('destination_dataset_name', var('source_dataset_name')) }}"
+      threads: 4
+      keepalives_idle: 0 # default 0, indicating the system default
+      job_execution_timeout_seconds: "{{ env_var('CREDENTIALS__HTTP_TIMEOUT') | as_number}}"
+      job_retry_deadline_seconds: "{{ env_var('CREDENTIALS__RETRY_DEADLINE') | as_number}}"
+
+bigquery:
+  target: analytics
+  outputs:
+    analytics:
+      type: bigquery
+      method: service-account-json
+      project: "{{ env_var('CREDENTIALS__PROJECT_ID') }}"
+      location: "{{ env_var('CREDENTIALS__LOCATION') }}"
+      schema: "{{ var('destination_dataset_name', var('source_dataset_name')) }}"
+      keyfile_json:
+        type: service_account
+        project_id: "{{ env_var('CREDENTIALS__PROJECT_ID') }}"
+        private_key: "{{ env_var('CREDENTIALS__PRIVATE_KEY') }}"
+        client_email: "{{ env_var('CREDENTIALS__CLIENT_EMAIL') }}"
+        token_uri: "{{ env_var('CREDENTIALS__TOKEN_URI') }}"
+      threads: 4
+      keepalives_idle: 0 # default 0, indicating the system default
+      job_execution_timeout_seconds: "{{ env_var('CREDENTIALS__HTTP_TIMEOUT') | as_number}}"
+      job_retry_deadline_seconds: "{{ env_var('CREDENTIALS__RETRY_DEADLINE') | as_number}}"
+
