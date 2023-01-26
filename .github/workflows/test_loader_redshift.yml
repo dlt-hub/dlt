@@ -18,7 +18,7 @@ env:
 
 jobs:
 
-  run_lint:
+  run_loader:
     name: Tests redshift loader
     strategy:
       fail-fast: false

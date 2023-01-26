@@ -1,5 +1,5 @@
 
-name: test loader bigquery
+name: test dbt runner
 
 on:
   pull_request:
@@ -9,16 +9,19 @@ on:
   workflow_dispatch:
 
 env:
+  # all credentials must be present to be passed to dbt runner
+  DESTINATION__POSTGRES__CREDENTIALS: postgres://loader@dlttests.cwz0jfxu0m7m.eu-central-1.rds.amazonaws.com:5432/dlt_data
+  DESTINATION__REDSHIFT__CREDENTIALS: postgres://loader@3.73.90.3:5439/chat_analytics_rasa_ci
+  CREDENTIALS__PASSWORD: ${{ secrets.PG_PASSWORD }}
   CREDENTIALS__PROJECT_ID: chat-analytics-rasa-ci
   CREDENTIALS__CLIENT_EMAIL: chat-analytics-loader@chat-analytics-rasa-ci.iam.gserviceaccount.com
   CREDENTIALS__PRIVATE_KEY: ${{ secrets.BQ_CRED_PRIVATE_KEY }}
   CREDENTIALS__TOKEN_URI: https://oauth2.googleapis.com/token
-  DATASET_NAME: workflowtest
 
 jobs:
 
-  run_loader:
-    name: Tests BigQuery loader
+  run_dbt:
+    name: Tests dbt runner
     strategy:
       fail-fast: false
       matrix:
@@ -38,40 +41,31 @@ jobs:
         with:
           python-version: "3.10.x"
 
-      - name: Install Poetry
+      - name: Install Poetry without dbt
         uses: snok/install-poetry@v1.3.2
         with:
           virtualenvs-create: true
           virtualenvs-in-project: true
           installer-parallel: true
 
-      # - name: Get pip cache dir
-      #   id: pip-cache
-      #   run: |
-      #     echo "::set-output name=dir::$(poetry env info -p)"
-      #     echo "$(poetry env info -p)"
-
-      - name: Load cached venv
+      - name: Load cached venv without dbt
         id: cached-poetry-dependencies
         uses: actions/cache@v2
         with:
           # path: ${{ steps.pip-cache.outputs.dir }}
           path: .venv
-          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}-gcp
+          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}-dbt-runner-no-dbt
 
       - name: Install dependencies
-        # if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction -E bigquery
-
-      # - name: Install self
-      #   run: poetry install --no-interaction
+        # install bare dlt
+        run: poetry install --no-interaction
 
       - run: |
-          RUNTIME__LOG_LEVEL=ERROR poetry run pytest tests --ignore=tests/common --ignore=tests/normalize --ignore=tests/load/redshift --ignore=tests/load/postgres --ignore=tests/dbt_runner --ignore=tests/cli -k '(not redshift and not postgres)'
+          RUNTIME__LOG_LEVEL=ERROR poetry run pytest tests --ignore=tests/common --ignore=tests/normalize --ignore=tests/load --ignore=tests/dbt_runner/local -k '(not local)'
         if: runner.os != 'Windows'
-        name: Run tests Linux/MAC
+        name: Run dbt runner with venv - Linux/MAC
       - run: |
-          poetry run pytest tests --ignore=tests/common --ignore=tests/normalize --ignore=tests/load/redshift --ignore=tests/load/postgres --ignore=tests/dbt_runner --ignore=tests/cli -m "not forked" -k "(not redshift and not postgres)"
+          poetry run pytest tests --ignore=tests/common --ignore=tests/normalize --ignore=tests/load --ignore=tests/dbt_runner/local -m "not forked" -k "(not local)"
         if: runner.os == 'Windows'
-        name: Run tests Windows
+        name: Run dbt runner with venv - Windows
         shell: cmd

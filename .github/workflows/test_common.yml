@@ -10,7 +10,7 @@ on:
 
 jobs:
 
-  run_lint:
+  run_common:
     name: Tests common dlt code
     strategy:
       fail-fast: false
