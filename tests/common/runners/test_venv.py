@@ -91,6 +91,17 @@ print('success')
         assert venv.run_command(venv.context.env_exe, "-c", script) == "success\n"
 
 
+def test_venv_working_dir() -> None:
+    with Venv.create(tempfile.mkdtemp()) as venv:
+        assert venv.run_script("tests/common/scripts/cwd.py").strip() == os.getcwd()
+        script = """
+import os
+
+print(os.getcwd())
+        """
+        assert venv.run_command(venv.context.env_exe, "-c", script).strip() == os.getcwd()
+
+
 def test_run_command_with_error() -> None:
     with Venv.create(tempfile.mkdtemp()) as venv:
         # non existing command

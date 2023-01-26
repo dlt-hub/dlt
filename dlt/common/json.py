@@ -5,6 +5,7 @@ from functools import partial
 from typing import Any, Callable, List, Union
 from uuid import UUID
 from hexbytes import HexBytes
+# TODO: use orjson as default. the only unsupported features are arbitrary integers, orjson supports 64bit ints.
 import simplejson
 from simplejson.raw_json import RawJSON
 import platform

@@ -59,7 +59,7 @@ def load_secret(name: str) -> str:
     return secret
 
 
-def modify_and_commit_file(repo_path: str, file_name: str, content: str = "NEW README CONTENT") -> None:
+def modify_and_commit_file(repo_path: str, file_name: str, content: str = "NEW README CONTENT") -> str:
     file_path = os.path.join(repo_path, file_name)
 
     with open(file_path, "w", encoding="utf-8") as f:
