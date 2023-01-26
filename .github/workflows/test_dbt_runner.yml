@@ -48,24 +48,38 @@ jobs:
           virtualenvs-in-project: true
           installer-parallel: true
 
-      - name: Load cached venv without dbt
+      - name: Load cached venv
         id: cached-poetry-dependencies
         uses: actions/cache@v2
         with:
           # path: ${{ steps.pip-cache.outputs.dir }}
           path: .venv
-          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}-dbt-runner-no-dbt
+          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}-dbt-runner
 
       - name: Install dependencies
-        # install bare dlt
-        run: poetry install --no-interaction
+        # install dlt with postgres support
+        run: poetry install --no-interaction -E postgres -E dbt
 
       - run: |
-          RUNTIME__LOG_LEVEL=ERROR poetry run pytest tests --ignore=tests/common --ignore=tests/normalize --ignore=tests/load --ignore=tests/dbt_runner/local -k '(not local)'
+          RUNTIME__LOG_LEVEL=ERROR poetry run pytest tests --ignore=tests/cli --ignore=tests/common --ignore=tests/normalize --ignore=tests/load -k '(not venv)'
         if: runner.os != 'Windows'
         name: Run dbt runner with venv - Linux/MAC
       - run: |
-          poetry run pytest tests --ignore=tests/common --ignore=tests/normalize --ignore=tests/load --ignore=tests/dbt_runner/local -m "not forked" -k "(not local)"
+          poetry run pytest tests --ignore=tests/cli --ignore=tests/common --ignore=tests/normalize --ignore=tests/load -m "not forked" -k "(not venv)"
+        if: runner.os == 'Windows'
+        name: Run dbt runner with venv - Windows
+        shell: cmd
+
+      - name: Remove dbt-core
+        # install dlt with postgres support
+        run: poetry run pip uninstall dbt-core
+
+      - run: |
+          RUNTIME__LOG_LEVEL=ERROR poetry run pytest tests --ignore=tests/cli --ignore=tests/common --ignore=tests/normalize --ignore=tests/load --ignore=tests/dbt_runner/local -k '(not local)'
+        if: runner.os != 'Windows'
+        name: Run dbt runner with venv - Linux/MAC
+      - run: |
+          poetry run pytest tests --ignore=tests/cli --ignore=tests/common --ignore=tests/normalize --ignore=tests/load --ignore=tests/dbt_runner/local -m "not forked" -k "(not local)"
         if: runner.os == 'Windows'
         name: Run dbt runner with venv - Windows
         shell: cmd

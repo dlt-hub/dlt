@@ -58,7 +58,7 @@ def test_synth_pickler_unknown_types() -> None:
     obj = decode_obj("LfDoYo19lgUOtTn0Ib6JgASVQAAAAAAAAACMH3Rlc3RzLmNvbW1vbi5ydW5uZXJzLnRlc3RfcGlwZXOUjAxfVGVzdFBpY2tsZXiUk5SMA1hZWpRLe4aUgZQu")
     assert type(obj).__name__.endswith("_TestPicklex")
     # this is completely different type
-    assert not isinstance(obj, NamedTuple)
+    assert not isinstance(obj, tuple)
 
     # synth unknown class containing other unknown types
     obj = decode_obj("Koyo502yl4IKMqIxUTJFgASVbQAAAAAAAACMH3Rlc3RzLmNvbW1vbi5ydW5uZXJzLnRlc3RfcGlwZXOUjApfVGVzdENsYXNzlJOUKYGUfZQojAJzMZRoAIwMX1Rlc3RQaWNrbGV4lJOUjAFZlEsXhpSBlIwCczKUjAFVlIwDX3MzlEsDdWIu")

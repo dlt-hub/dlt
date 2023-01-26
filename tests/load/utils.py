@@ -118,7 +118,7 @@ def yield_client(
     default_config_values: StrAny = None,
     schema_name: str = "event"
 ) -> Iterator[SqlJobClientBase]:
-    # os.environ.pop("DATASET_NAME", None)
+    os.environ.pop("DATASET_NAME", None)
     # import destination reference by name
     destination: DestinationReference = import_module(f"dlt.destinations.{destination_name}")
     # create initial config
