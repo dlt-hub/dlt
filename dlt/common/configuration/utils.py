@@ -124,7 +124,7 @@ def current_dot_dlt_path() -> str:
 
 def add_config_to_env(config: BaseConfiguration) ->  None:
     """Writes values in configuration back into environment using the naming convention of EnvironProvider"""
-    return add_config_dict_to_env(dict(config), config.__namespace__)
+    return add_config_dict_to_env(dict(config), config.__namespace__, overwrite_keys=True)
 
 
 def add_config_dict_to_env(dict_: Mapping[str, Any], namespace: str = None, overwrite_keys: bool = False) -> None:

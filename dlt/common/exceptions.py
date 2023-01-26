@@ -2,7 +2,9 @@ from typing import Any, AnyStr, Sequence
 
 
 class DltException(Exception):
-    pass
+    def __reduce__(self) -> Any:
+        """Enables exceptions with parametrized constructor to be pickled"""
+        return type(self).__new__, (type(self), *self.args), self.__dict__
 
 
 class SignalReceivedException(BaseException):

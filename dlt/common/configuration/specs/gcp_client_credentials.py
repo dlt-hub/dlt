@@ -3,7 +3,7 @@ from dlt.common import json
 from dlt.common.configuration.specs.exceptions import InvalidServicesJson
 
 from dlt.common.typing import TSecretValue
-from dlt.common.configuration.specs.base_configuration import CredentialsConfiguration, configspec
+from dlt.common.configuration.specs.base_configuration import CredentialsConfiguration, CredentialsWithDefault, configspec
 
 
 @configspec
@@ -49,7 +49,7 @@ class GcpClientCredentials(CredentialsConfiguration):
 
 
 @configspec
-class GcpClientCredentialsWithDefault(GcpClientCredentials):
+class GcpClientCredentialsWithDefault(CredentialsWithDefault, GcpClientCredentials):
 
     def on_partial(self) -> None:
         try:
@@ -61,7 +61,7 @@ class GcpClientCredentialsWithDefault(GcpClientCredentials):
                 default, project_id = default_credentials()
                 # set the project id - it needs to be known by the client
                 self.project_id = self.project_id or project_id
-                self._default_credentials = default
+                self._set_default_credentials(default)
                 # is resolved
                 self.__is_resolved__ = True
             except DefaultCredentialsError:
@@ -72,7 +72,7 @@ class GcpClientCredentialsWithDefault(GcpClientCredentials):
             raise self.__exception__
 
     def to_service_account_credentials(self) -> Any:
-        if hasattr(self, "_default_credentials"):
-            return self._default_credentials
+        if self.has_default_credentials():
+            return self.default_credentials()
         else:
             return super().to_service_account_credentials()
