@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "python-dlt"
-version = "0.2.0a15"
+version = "0.2.0a16"
 description = "DLT is an open-source python-native scalable data loading framework that does not require any devops efforts to run."
 authors = ["dltHub Inc. <services@dlthub.com>"]
 maintainers = [ "Marcin Rudolf <marcin@dlthub.com>", "Adrian Brudaru <adrian@dlthub.com>", "Ty Dunn <ty@dlthub.com>"]
@@ -41,7 +41,7 @@ pathvalidate = "^2.5.2"
 SQLAlchemy = "^1.3.5"
 typing-extensions = "^4.0.0"
 makefun = "^1.15.0"
-click = "^8.1.3"
+click = "^7.1"
 requirements-parser = "^0.5.0"
 setuptools = "^65.6.0"
 humanize = "^4.4.0"
@@ -60,11 +60,12 @@ google-cloud-bigquery = {version = "^2.26.0", optional = true, python = "<3.11"}
 google-cloud-bigquery-storage = {version = "^2.13.0", optional = true, python = "<3.11"}
 pyarrow = {version = "^8.0.0", optional = true}
 
-dbt-core = {version = ">=1.1.0,<1.2.0", optional = true}
-dbt-redshift = {version = ">=1.0.0,<1.2.0", optional = true}
-dbt-bigquery = {version = ">=1.0.0,<1.2.0", optional = true, python = "<3.11"}
+dbt-core = {version = ">=1.2.0,<1.3.0", optional = true}
+dbt-redshift = {version = ">=1.2.0,<1.3.0", optional = true}
+dbt-bigquery = {version = ">=1.2.0,<1.3.0", optional = true, python = "<3.11"}
 pytz = "^2022.6"
 tqdm = "^4.64.1"
+giturlparse = "^0.10.0"
 
 
 [tool.poetry.dev-dependencies]
@@ -102,6 +103,7 @@ dlt = "dlt.cli._dlt:main"
 
 [tool.poetry.group.dev.dependencies]
 requests-mock = "^1.10.0"
+types-click = "^7.1.8"
 
 [build-system]
 requires = ["poetry-core>=1.0.8"]
