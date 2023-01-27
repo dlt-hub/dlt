@@ -3,9 +3,9 @@ jaffle_shop:
   outputs:
     analytics:
       type: postgres
-      host: localhost
-      user: loader
-      password: loader
+      host: "{{ env_var('CREDENTIALS__HOST') }}"
+      user: "{{ env_var('CREDENTIALS__USERNAME') }}"
+      password: "{{ env_var('CREDENTIALS__PASSWORD') }}"
       port: 5432
       dbname: dlt_data
       schema: "{{ var('dbt_schema') }}"

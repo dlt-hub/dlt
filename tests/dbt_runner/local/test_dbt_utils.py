@@ -1,12 +1,15 @@
 import os
 import shutil
 import pytest
+from dlt.common.configuration.resolve import resolve_configuration
+from dlt.common.configuration.specs import PostgresCredentials
+from dlt.common.configuration.utils import add_config_to_env
 from dlt.common.runners.synth_pickle import decode_obj
 
 from dlt.common.storages import FileStorage
 from dlt.common.utils import uniq_id
 from dlt.dbt_runner.dbt_utils import DBTProcessingError, initialize_dbt_logging, run_dbt_command, is_incremental_schema_out_of_sync_error
-from tests.utils import test_storage
+from tests.utils import test_storage, preserve_environ
 from tests.dbt_runner.utils import clone_jaffle_repo, load_test_case
 
 
@@ -22,11 +25,15 @@ def test_dbt_commands(test_storage: FileStorage) -> None:
     # profiles in cases require this var to be set
     dbt_vars = {"dbt_schema": schema_name}
 
+    # extract postgres creds from env, parse and emit
+    credentials = resolve_configuration(PostgresCredentials(),  namespaces=("destination", "postgres"))
+    add_config_to_env(credentials)
+
     repo_path = clone_jaffle_repo(test_storage)
     # copy profile
     shutil.copy("./tests/dbt_runner/cases/profiles_invalid_credentials.yml", os.path.join(repo_path, "profiles.yml"))
     # initialize logging
-    global_args = initialize_dbt_logging("INFO", False)
+    global_args = initialize_dbt_logging("ERROR", False)
     # run deps, results are None
     assert run_dbt_command(repo_path, "deps", ".", global_args=global_args) is None
 
