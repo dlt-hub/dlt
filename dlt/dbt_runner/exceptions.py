@@ -11,6 +11,10 @@ class PrerequisitesException(DBTRunnerException):
     pass
 
 
+class IncrementalSchemaOutOfSyncError(DBTRunnerException):
+    pass
+
+
 class DBTNodeResult(NamedTuple):
     model_name: str
     message: str

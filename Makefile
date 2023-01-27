@@ -40,7 +40,7 @@ has-poetry:
 	poetry --version
 
 dev: has-poetry
-	poetry install -E "postgres redshift gcp dbt"
+	poetry install -E postgres -E redshift -E bigquery -E dbt
 
 lint:
 	./check-package.sh

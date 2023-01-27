@@ -50,7 +50,7 @@ bigquery_default:
       schema: "{{ var('destination_dataset_name', var('source_dataset_name')) }}"
       threads: 4
       keepalives_idle: 0 # default 0, indicating the system default
-      job_execution_timeout_seconds: "{{ env_var('CREDENTIALS__HTTP_TIMEOUT') | as_number}}"
+      job_creation_timeout_seconds: "{{ env_var('CREDENTIALS__HTTP_TIMEOUT') | as_number}}"
       job_retry_deadline_seconds: "{{ env_var('CREDENTIALS__RETRY_DEADLINE') | as_number}}"
 
 bigquery:
@@ -70,6 +70,6 @@ bigquery:
         token_uri: "{{ env_var('CREDENTIALS__TOKEN_URI') }}"
       threads: 4
       keepalives_idle: 0 # default 0, indicating the system default
-      job_execution_timeout_seconds: "{{ env_var('CREDENTIALS__HTTP_TIMEOUT') | as_number}}"
+      job_creation_timeout_seconds: "{{ env_var('CREDENTIALS__HTTP_TIMEOUT') | as_number}}"
       job_retry_deadline_seconds: "{{ env_var('CREDENTIALS__RETRY_DEADLINE') | as_number}}"
 

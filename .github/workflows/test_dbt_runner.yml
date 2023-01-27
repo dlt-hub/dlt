@@ -18,6 +18,8 @@ env:
   CREDENTIALS__PRIVATE_KEY: ${{ secrets.BQ_CRED_PRIVATE_KEY }}
   CREDENTIALS__TOKEN_URI: https://oauth2.googleapis.com/token
 
+  RUNTIME__LOG_LEVEL: ERROR
+
 jobs:
 
   run_dbt:
@@ -61,7 +63,7 @@ jobs:
         run: poetry install --no-interaction -E postgres -E dbt
 
       - run: |
-          RUNTIME__LOG_LEVEL=ERROR poetry run pytest tests --ignore=tests/cli --ignore=tests/common --ignore=tests/normalize --ignore=tests/load -k '(not venv)'
+          poetry run pytest tests --ignore=tests/cli --ignore=tests/common --ignore=tests/normalize --ignore=tests/load -k '(not venv)'
         if: runner.os != 'Windows'
         name: Run dbt runner with venv - Linux/MAC
       - run: |
@@ -75,7 +77,7 @@ jobs:
         run: poetry run pip uninstall dbt-core
 
       - run: |
-          RUNTIME__LOG_LEVEL=ERROR poetry run pytest tests --ignore=tests/cli --ignore=tests/common --ignore=tests/normalize --ignore=tests/load --ignore=tests/dbt_runner/local -k '(not local)'
+          poetry run pytest tests --ignore=tests/cli --ignore=tests/common --ignore=tests/normalize --ignore=tests/load --ignore=tests/dbt_runner/local -k '(not local)'
         if: runner.os != 'Windows'
         name: Run dbt runner with venv - Linux/MAC
       - run: |

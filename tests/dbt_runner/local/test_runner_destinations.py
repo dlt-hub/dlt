@@ -38,7 +38,6 @@ def test_setup_dbt_runner() -> None:
     })
     assert runner.package_path.endswith("rasa_semantic_schema")
     assert runner.profile_name == "redshift"
-    assert runner.dbt_global_args == ["--log-format", "json"]
     assert runner.package_vars == {"source_dataset_name": "carbon_bot_3", "destination_dataset_name": "eks_dev_dest", "add_var_name": "add_var_value"}
     assert runner.source_dataset_name == "carbon_bot_3"
     assert runner.cloned_package_name == "rasa_semantic_schema"
@@ -91,7 +90,7 @@ def test_dbt_run_full_refresh(destination_info: DBTDestinationInfo) -> None:
     assert all(v.startswith(destination_info.replace_strategy) for k,v in metrics.items()) is True
     assert metrics["_loads"].startswith(destination_info.replace_strategy)
     # all tests should pass
-    runner.run_dbt("test")
+    runner.run_dbt_command("test")
 
 
 def test_dbt_run_error_via_additional_vars(destination_info: DBTDestinationInfo) -> None:

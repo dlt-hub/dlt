@@ -3,9 +3,10 @@ import contextlib
 from typing import Iterator, NamedTuple
 from dlt.common import logger
 from dlt.common.configuration.utils import add_config_to_env
+from dlt.common.runners.venv import Venv
 from dlt.common.typing import StrAny
 from dlt.dbt_runner.configuration import DBTRunnerConfiguration
-from dlt.dbt_runner.runner import DBTRunner, get_runner
+from dlt.dbt_runner.runner import DBTPackageRunner, get_runner
 
 from tests.load.utils import cm_yield_client
 from tests.utils import TEST_STORAGE_ROOT
@@ -20,7 +21,7 @@ class DBTDestinationInfo(NamedTuple):
     incremental_strategy: str
 
 
-def setup_rasa_runner(destination_dataset_name: str, profile_name: str, dataset_name: str = None, override_values: StrAny = None) -> DBTRunner:
+def setup_rasa_runner(destination_dataset_name: str, profile_name: str, dataset_name: str = None, override_values: StrAny = None) -> DBTPackageRunner:
 
     C = DBTRunnerConfiguration()
     # set unique dest schema prefix by default
@@ -36,7 +37,15 @@ def setup_rasa_runner(destination_dataset_name: str, profile_name: str, dataset_
         # for k,v in override_values.items():
         #     setattr(C, k, v)
 
-    runner = get_runner(TEST_STORAGE_ROOT, profile_name, dataset_name or FIXTURES_DATASET_NAME, destination_dataset_name=destination_dataset_name, config=C)
+    runner = get_runner(
+        Venv.restore_current(),
+        None,   # credentials are exported to env in setup_rasa_runner_client
+        TEST_STORAGE_ROOT,
+        profile_name,
+        dataset_name or FIXTURES_DATASET_NAME,
+        destination_dataset_name=destination_dataset_name,
+        config=C
+    )
     # now C is resolved
     logger.init_logging_from_config(C.runtime)
     return runner

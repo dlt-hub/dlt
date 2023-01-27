@@ -1,15 +1,10 @@
-
-from subprocess import CalledProcessError
 from typing import Sequence
 
-from dlt.common.runners.stdout import iter_stdout_with_result
 from dlt.common.runners.venv import Venv
 from dlt.common.destination import DestinationClientDwhConfiguration
 from dlt.common.configuration.specs import CredentialsWithDefault
-from dlt.common.configuration.utils import add_config_to_env
-from dlt.common.utils import with_custom_environ
 
-from dlt.dbt_runner.exceptions import DBTNodeResult
+from dlt.dbt_runner.runner import get_runner, DBTPackageRunner
 
 
 def _default_profile_name(credentials: DestinationClientDwhConfiguration,) -> str:
@@ -21,63 +16,60 @@ def _default_profile_name(credentials: DestinationClientDwhConfiguration,) -> st
     return profile_name
 
 
-@with_custom_environ
-def run_dbt_in_venv(
+# @with_custom_environ
+# def run_dbt_in_venv(
+#     venv: Venv,
+#     credentials: DestinationClientDwhConfiguration,
+#     working_dir: str,
+#     package_location: str,
+#     package_run_params: Sequence[str] = ("--fail-fast", ),
+#     package_source_tests_selector: str = None,
+#     destination_dataset_name: str = None
+# ) -> Sequence[DBTNodeResult]:
+#     # write credentials to environ, those are passed when calling venv
+#     add_config_to_env(credentials.credentials)
+#     default_profile_name = _default_profile_name(credentials)
+#     dataset_name = credentials.dataset_name
+
+#     args = [working_dir, default_profile_name, dataset_name, package_location, package_run_params, package_source_tests_selector, destination_dataset_name]
+
+#     script = f"""
+# from functools import partial
+
+# from dlt.common.runners.stdout import exec_to_stdout
+# from dlt.dbt_runner.runner import get_runner
+
+# r = get_runner({", ".join(map(lambda arg: repr(arg), args))})
+# with exec_to_stdout(r.run):
+#     pass
+# """
+
+#     try:
+#         i = iter_stdout_with_result(venv, "python", "-c", script)
+#         while True:
+#             print(next(i).strip())
+#     except StopIteration as si:
+#         # return result from generator
+#         return si.value  # type: ignore
+#     except CalledProcessError as cpe:
+#         print(cpe.stderr)
+#         raise
+
+
+def dbt_package(
     venv: Venv,
-    credentials: DestinationClientDwhConfiguration,
+    destination_configuration: DestinationClientDwhConfiguration,
     working_dir: str,
     package_location: str,
     package_run_params: Sequence[str] = ("--fail-fast", ),
     package_source_tests_selector: str = None,
     destination_dataset_name: str = None
-) -> Sequence[DBTNodeResult]:
-    # write credentials to environ, those are passed when calling venv
-    add_config_to_env(credentials.credentials)
-    default_profile_name = _default_profile_name(credentials)
-    dataset_name = credentials.dataset_name
-
-    args = [working_dir, default_profile_name, dataset_name, package_location, package_run_params, package_source_tests_selector, destination_dataset_name]
-
-    script = f"""
-from functools import partial
-
-from dlt.common.runners.stdout import exec_to_stdout
-from dlt.dbt_runner.runner import get_runner
-
-r = get_runner({", ".join(map(lambda arg: repr(arg), args))})
-with exec_to_stdout(r.run):
-    pass
-"""
-
-    try:
-        i = iter_stdout_with_result(venv, "python", "-c", script)
-        while True:
-            print(next(i).strip())
-    except StopIteration as si:
-        # return result from generator
-        return si.value  # type: ignore
-    except CalledProcessError as cpe:
-        print(cpe.stderr)
-        raise
-
-
-@with_custom_environ
-def run_dbt(
-    credentials: DestinationClientDwhConfiguration,
-    working_dir: str,
-    package_location: str,
-    package_run_params: Sequence[str] = ("--fail-fast", ),
-    package_source_tests_selector: str = None,
-    destination_dataset_name: str = None
-) -> Sequence[DBTNodeResult]:
-    # lazy import dbt
-    from dlt.dbt_runner.runner import get_runner
-
-    # write credentials to environ
-    add_config_to_env(credentials.credentials)
-    default_profile_name = _default_profile_name(credentials)
-    dataset_name = credentials.dataset_name
+) -> DBTPackageRunner:
+    default_profile_name = _default_profile_name(destination_configuration)
+    dataset_name = destination_configuration.dataset_name
     return get_runner(
+        venv,
+        destination_configuration.credentials,
         working_dir,
         default_profile_name,
         dataset_name,
@@ -85,4 +77,4 @@ def run_dbt(
         package_run_params,
         package_source_tests_selector,
         destination_dataset_name
-    ).run()
+    )

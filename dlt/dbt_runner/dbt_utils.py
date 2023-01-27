@@ -1,13 +1,13 @@
 import os
 import logging
 from typing import Any, Sequence, Optional
+import warnings
 
 from dlt.common import json, logger
 from dlt.common.exceptions import MissingDependencyException
-from dlt.common.runners.synth_pickle import encode_obj
 from dlt.common.typing import StrAny
 
-from dlt.dbt_runner.exceptions import DBTProcessingError, DBTNodeResult
+from dlt.dbt_runner.exceptions import DBTProcessingError, DBTNodeResult, IncrementalSchemaOutOfSyncError
 
 try:
     # block disabling root logger
@@ -23,19 +23,32 @@ try:
 except ImportError:
     raise MissingDependencyException("DBT Core", ["dbt-core"])
 
+_DBT_LOGGER_INITIALIZED = False
+
 
 def initialize_dbt_logging(level: str, is_json_logging: bool) -> Sequence[str]:
     int_level = logging._nameToLevel[level]
 
     # wrap log setup to force out log level
 
+    def set_path_wrapper(self: dbt.logger.LogManager, path: str) -> None:
+        global _DBT_LOGGER_INITIALIZED
+
+        if not _DBT_LOGGER_INITIALIZED:
+            self._file_handler.set_path(path)
+
     def setup_event_logger_wrapper(log_path: str, level_override:str = None) -> None:
-        functions.setup_event_logger(log_path, level)
-        # force log level as file is debug only
-        functions.this.FILE_LOG.setLevel(level)
-        functions.this.FILE_LOG.handlers[0].setLevel(level)
+        global _DBT_LOGGER_INITIALIZED
+
+        if not _DBT_LOGGER_INITIALIZED:
+            functions.setup_event_logger(log_path, level)
+            # force log level as file is debug only
+            functions.this.FILE_LOG.setLevel(level)
+            functions.this.FILE_LOG.handlers[0].setLevel(level)
+        _DBT_LOGGER_INITIALIZED = True
 
     dbt.main.setup_event_logger = setup_event_logger_wrapper
+    dbt.logger.LogManager.set_path = set_path_wrapper
 
     globs = []
     if int_level <= logging.DEBUG:
@@ -50,10 +63,6 @@ def initialize_dbt_logging(level: str, is_json_logging: bool) -> Sequence[str]:
 
 
 def is_incremental_schema_out_of_sync_error(error: Any) -> bool:
-    # print("IS_INCREMENTAL_SCHEMA_OUT_OF_SYNC_ERROR")
-    # print(error)
-    # print("X:" + encode_obj(error, ignore_pickle_errors=False))
-    # print("LINE?")
 
     def _check_single_item(error_: dbt_results.RunResult) -> bool:
         return error_.status == dbt_results.RunStatus.Error and "The source and target schemas on this incremental model are out of sync" in error_.message
@@ -82,8 +91,15 @@ def parse_dbt_execution_results(results: Any) -> Sequence[DBTNodeResult]:
         ]
 
 
-def run_dbt_command(package_path: str, command: str, profiles_dir: str, profile_name: Optional[str] = None,
-                    global_args: Sequence[str] = None, command_args: Sequence[str] = None, dbt_vars: StrAny = None) -> dbt_results.ExecutionResult:
+def run_dbt_command(
+        package_path: str,
+        command: str,
+        profiles_dir: str,
+        profile_name: Optional[str] = None,
+        global_args: Sequence[str] = None,
+        command_args: Sequence[str] = None,
+        dbt_vars: StrAny = None
+) -> Sequence[DBTNodeResult]:
     args = ["--profiles-dir", profiles_dir]
     # add profile name if provided
     if profile_name:
@@ -100,17 +116,43 @@ def run_dbt_command(package_path: str, command: str, profiles_dir: str, profile_
     try:
         results: dbt_results.ExecutionResult = None
         success: bool = None
-        results, success = dbt.main.handle_and_check((global_args or []) + [command] + args)  # type: ignore
+        # dbt uses logbook which does not run on python 10. below is a hack that allows that
+        warnings.filterwarnings("ignore", category=DeprecationWarning, module="logbook")
+        with dbt.main.log_manager.applicationbound():
+            results, success = dbt.main.handle_and_check((global_args or []) + [command] + args)  # type: ignore
         assert type(success) is bool
+        parsed_results = parse_dbt_execution_results(results)
         if not success:
-            raise DBTProcessingError(command, parse_dbt_execution_results(results), results)
-        return results
+            dbt_exc = DBTProcessingError(command, parsed_results, results)
+            # detect incremental model out of sync
+            if is_incremental_schema_out_of_sync_error(results):
+                raise IncrementalSchemaOutOfSyncError(dbt_exc)
+            raise dbt_exc
+        return parsed_results or results
     except SystemExit as sys_ex:
+        # oftentimes dbt tries to exit on error
         raise DBTProcessingError(command, None, sys_ex)
     except FailFastException as ff:
-        raise DBTProcessingError(command, parse_dbt_execution_results(ff.result), ff.result) from ff
+        dbt_exc = DBTProcessingError(command, parse_dbt_execution_results(ff.result), ff.result)
+        # detect incremental model out of sync
+        if is_incremental_schema_out_of_sync_error(ff.result):
+            raise IncrementalSchemaOutOfSyncError(dbt_exc) from ff
+        raise dbt_exc from ff
     finally:
-        # unblock logger manager to run next command
-        dbt.logger.log_manager.reset_handlers()
         # go back to working dir
         os.chdir(working_dir)
+
+
+def init_logging_and_run_dbt_command(
+    log_level: str,
+    is_json_logging: bool,
+    package_path: str,
+    command: str,
+    profiles_dir: str,
+    profile_name: Optional[str] = None,
+    command_args: Sequence[str] = None,
+    dbt_vars: StrAny = None
+) -> Any:
+    # initialize dbt logging, returns global parameters to dbt command
+    dbt_global_args = initialize_dbt_logging(log_level, is_json_logging)
+    return run_dbt_command(package_path, command, profiles_dir, profile_name, dbt_global_args, command_args, dbt_vars)
