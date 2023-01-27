@@ -64,25 +64,25 @@ jobs:
         run: poetry install --no-interaction -E postgres -E dbt
 
       - run: |
-          poetry run pytest tests --ignore=tests/cli --ignore=tests/common --ignore=tests/normalize --ignore=tests/load -k '(not venv)'
+          poetry run pytest tests/dbt_runner -k '(not venv)'
         if: runner.os != 'Windows'
-        name: Run dbt runner with venv - Linux/MAC
+        name: Run dbt runner - Linux/MAC
       - run: |
-          poetry run pytest tests --ignore=tests/cli --ignore=tests/common --ignore=tests/normalize --ignore=tests/load -m "not forked" -k "(not venv)"
+          poetry run pytest tests/dbt_runner -k "(not venv)"
         if: runner.os == 'Windows'
-        name: Run dbt runner with venv - Windows
+        name: Run dbt runner - Windows
         shell: cmd
 
       - name: Remove dbt-core
         # install dlt with postgres support
-        run: poetry run pip uninstall dbt-core
+        run: poetry run pip uninstall dbt-core -y
 
       - run: |
-          poetry run pytest tests --ignore=tests/cli --ignore=tests/common --ignore=tests/normalize --ignore=tests/load --ignore=tests/dbt_runner/local -k '(not local)'
+          poetry run pytest tests/dbt_runner --ignore=tests/dbt_runner/local -k '(not local)'
         if: runner.os != 'Windows'
         name: Run dbt runner with venv - Linux/MAC
       - run: |
-          poetry run pytest tests --ignore=tests/cli --ignore=tests/common --ignore=tests/normalize --ignore=tests/load --ignore=tests/dbt_runner/local -m "not forked" -k "(not local)"
+          poetry run pytest tests/dbt_runner --ignore=tests/dbt_runner/local -m "not forked" -k "(not local)"
         if: runner.os == 'Windows'
         name: Run dbt runner with venv - Windows
         shell: cmd
