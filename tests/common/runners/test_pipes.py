@@ -92,14 +92,18 @@ def test_iter_stdout() -> None:
         # empty stdout
         assert cpe.value.output == ""
         assert cpe.value.stderr == ""
+        # three lines with 1 MB size + newline
+        for _i, l in enumerate(iter_stdout(venv, "python", "tests/common/scripts/long_lines.py")):
+            assert len(l) == 1024 * 1024
+        assert _i == 2
 
 
 def test_iter_stdout_raises() -> None:
     with Venv.create(tempfile.mkdtemp()) as venv:
         expected = ["0", "1", "2"]
         with pytest.raises(CalledProcessError) as cpe:
-            for i, l in enumerate(iter_stdout(venv, "python", "tests/common/scripts/raising_counter.py")):
-                assert expected[i] == l
+            for i, line in enumerate(iter_stdout(venv, "python", "tests/common/scripts/raising_counter.py")):
+                assert expected[i] == line
         assert cpe.value.returncode == 1
         # the last output line is available
         assert cpe.value.output.strip() == "2"
@@ -112,6 +116,21 @@ def test_iter_stdout_raises() -> None:
         # empty stdout
         assert cpe.value.output == ""
         assert "no stdout" in cpe.value.stderr
+
+        # three lines with 1 MB size + newline
+        _i = -1
+        with pytest.raises(CalledProcessError) as cpe:
+            for _i, line in enumerate(iter_stdout(venv, "python", "tests/common/scripts/long_lines_fails.py")):
+                assert len(line) == 1024 * 1024
+                assert line == "a" * 1024 * 1024
+        # there were 3 lines
+        assert _i == 2
+        # stderr contains 3 lines
+        _i = -1
+        for _i, line in enumerate(cpe.value.stderr.splitlines()):
+            assert len(line) == 1024 * 1024
+            assert line == "b" * 1024 * 1024
+        assert _i == 2
 
 
 def test_stdout_encode_result() -> None:

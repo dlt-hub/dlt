@@ -173,6 +173,12 @@ def test_run_script() -> None:
         assert cpe.value.returncode == 1
         assert "always raises" in cpe.value.stdout
 
+        # script with several long lines
+        result = venv.run_script("tests/common/scripts/long_lines.py")
+        lines = result.splitlines()
+        # stdin and stdout are mangled but the number of character matches
+        assert sum(len(line) for line in lines) == 6 * 1024 * 1024
+
 
 def test_create_over_venv() -> None:
     # we always wipe out previous env

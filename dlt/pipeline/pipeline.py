@@ -705,7 +705,7 @@ class Pipeline(SupportsPipeline):
     def _wipe_working_folder(self) -> None:
         # kill everything inside the working folder
         if self._pipeline_storage.has_folder(""):
-            self._pipeline_storage.delete_folder("", recursively=True)
+            self._pipeline_storage.delete_folder("", recursively=True, delete_ro=True)
 
     def _attach_pipeline(self) -> None:
         pass

@@ -173,7 +173,6 @@ class FileStorage:
 
     @staticmethod
     def rmtree_del_ro(action: AnyFun, name: str, exc: Any) -> Any:
-        print(locals())
         if action is os.unlink or action is os.remove or action is os.rmdir:
             os.chmod(name, stat.S_IWRITE)
             if os.path.isdir(name):
