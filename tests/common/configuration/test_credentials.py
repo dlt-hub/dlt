@@ -117,10 +117,16 @@ def test_gcp_credentials_native_representation(environment) -> None:
     gcpc_2 = GcpClientCredentialsWithDefault()
     gcpc_2.parse_native_representation(_repr)
     assert dict(gcpc_2) == dict(gcpc)
+    # default credentials are not available
+    assert gcpc.has_default_credentials() is False
+    assert gcpc_2.has_default_credentials() is False
+    assert gcpc.default_credentials() is None
+    assert gcpc_2.default_credentials() is None
 
 
 def test_gcp_credentials_resolved_from_native_representation(environment: Any) -> None:
     gcpc = GcpClientCredentials()
+
     # without password
     gcpc.parse_native_representation(SERVICE_JSON % "")
     assert gcpc.is_partial()

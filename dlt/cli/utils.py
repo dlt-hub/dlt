@@ -25,9 +25,8 @@ GITHUB_WORKFLOWS_DIR = os.path.join(".github", "workflows")
 def clone_command_repo(command: str, branch: str) -> FileStorage:
     template_dir = tempfile.mkdtemp()
     # TODO: handle ImportError (no git command available) gracefully
-    clone_repo(COMMAND_REPO_LOCATION % command, template_dir, branch=branch)
-
-    return FileStorage(template_dir)
+    with clone_repo(COMMAND_REPO_LOCATION % command, template_dir, branch=branch):
+        return FileStorage(template_dir)
 
 
 def load_command_module(template_dir: str) -> ModuleType:

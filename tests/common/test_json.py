@@ -27,6 +27,12 @@ def test_json_decimals() -> None:
     assert s == '{"decimal":"99999999999999999999999999999999999999999999999999999999999999999999999999.999"}'
 
 
+def test_json_large_int() -> int:
+    # optimized json parsers like orjson do not support large integers
+    doc = json.dumps({"a": 2**256})
+    assert json.loads(doc)["a"] == 2**256
+
+
 def test_json_pendulum() -> None:
     dt_str = "2005-04-02T20:37:37.358236+00:00"
     r = json.loads('{"t": "%s"}' % dt_str)

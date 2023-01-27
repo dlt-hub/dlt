@@ -51,7 +51,7 @@ def write_version(storage: FileStorage, version: str) -> None:
 def delete_test_storage() -> None:
     storage = FileStorage(TEST_STORAGE_ROOT)
     if storage.has_folder(""):
-        storage.delete_folder("", recursively=True)
+        storage.delete_folder("", recursively=True, delete_ro=True)
 
 
 @pytest.fixture()

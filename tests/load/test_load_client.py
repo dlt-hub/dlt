@@ -387,19 +387,19 @@ def test_retrieve_job(client: SqlJobClientBase, file_storage: FileStorage) -> No
 
 @pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
 def test_default_schema_name_init_storage(destination_name: str) -> None:
-    with cm_yield_client_with_storage(destination_name, initial_values={
+    with cm_yield_client_with_storage(destination_name, default_config_values={
             "default_schema_name": "event"  # pass the schema that is a default schema. that should create dataset with the name `dataset_name`
         }) as client:
         assert client.sql_client.dataset_name == client.config.dataset_name
         assert client.sql_client.has_dataset()
 
-    with cm_yield_client_with_storage(destination_name, initial_values={
+    with cm_yield_client_with_storage(destination_name, default_config_values={
             "default_schema_name": None  # no default_schema. that should create dataset with the name `dataset_name`
         }) as client:
         assert client.sql_client.dataset_name == client.config.dataset_name
         assert client.sql_client.has_dataset()
 
-    with cm_yield_client_with_storage(destination_name, initial_values={
+    with cm_yield_client_with_storage(destination_name, default_config_values={
             "default_schema_name": "event_2"  # the default schema is not event schema . that should create dataset with the name `dataset_name` with schema suffix
         }) as client:
         assert client.sql_client.dataset_name == client.config.dataset_name + "_event"
@@ -427,7 +427,7 @@ def test_many_schemas_single_dataset(destination_name: str, file_storage: FileSt
         db_rows = list(_client.sql_client.execute_sql("SELECT * FROM event_user"))
         assert len(db_rows) == expected_rows
 
-    with cm_yield_client_with_storage(destination_name, initial_values={"default_schema_name": None}) as client:
+    with cm_yield_client_with_storage(destination_name, default_config_values={"default_schema_name": None}) as client:
         user_table = load_table("event_user")["event_user"]
         client.schema.update_schema(new_table("event_user", columns=user_table.values()))
         client.schema.bump_version()

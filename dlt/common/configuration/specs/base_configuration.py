@@ -226,6 +226,21 @@ class CredentialsConfiguration(BaseConfiguration):
         return super().__str__()
 
 
+class CredentialsWithDefault:
+    """A mixin for credentials that can be instantiated from default ie. from well known env variable with credentials"""
+
+    def has_default_credentials(self) -> bool:
+        return hasattr(self, "_default_credentials")
+
+    def _set_default_credentials(self, credentials: Any) -> None:
+        self._default_credentials = credentials
+
+    def default_credentials(self) -> Any:
+        if self.has_default_credentials():
+            return self._default_credentials
+        return None
+
+
 @configspec
 class ContainerInjectableContext(BaseConfiguration):
     """Base class for all configurations that may be injected from Container. Injectable configurations are called contexts"""

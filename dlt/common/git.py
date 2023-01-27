@@ -33,17 +33,17 @@ def ensure_remote_head(repo_path: str, with_git_command: Optional[str] = None) -
     from git import Repo, RepositoryDirtyError
 
     # update remotes and check if heads are same. ignores locally modified files
-    repo = Repo(repo_path)
-    # use custom environment if specified
-    with repo.git.custom_environment(GIT_SSH_COMMAND=with_git_command):
-        # update origin
-        repo.remote().update()
-        # get branch status
-        status: str = repo.git.status("--short", "--branch", "-uno")
-        # we expect first status line ## main...origin/main
-        status_line = status.split("/n")[0]
-        if not (status_line.startswith("##") and not status_line.endswith("]")):
-            raise RepositoryDirtyError(repo, status)
+    with Repo(repo_path) as repo:
+        # use custom environment if specified
+        with repo.git.custom_environment(GIT_SSH_COMMAND=with_git_command):
+            # update origin
+            repo.remote().update()
+            # get branch status
+            status: str = repo.git.status("--short", "--branch", "-uno")
+            # we expect first status line ## main...origin/main
+            status_line = status.split("/n")[0]
+            if not (status_line.startswith("##") and not status_line.endswith("]")):
+                raise RepositoryDirtyError(repo, status)
 
 
 def clone_repo(repository_url: str, clone_path: str, branch: Optional[str] = None, with_git_command: Optional[str] = None) -> Repo:

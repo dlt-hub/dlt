@@ -28,6 +28,9 @@ def google_spreadsheet(spreadsheet_id: str, sheet_names: Sequence[str], credenti
 
     sheets = _initialize_sheets(cast(GcpClientCredentialsWithDefault, credentials))
 
+    import pprint
+    meta = sheets.spreadsheets().get(spreadsheetId=spreadsheet_id, ranges=sheet_names, includeGridData=True).execute()
+    pprint.pprint(meta)
     def get_sheet(sheet_name: str) -> Iterator[DictStrAny]:
 
         # get list of list of typed values
@@ -40,6 +43,7 @@ def google_spreadsheet(spreadsheet_id: str, sheet_names: Sequence[str], credenti
             dateTimeRenderOption="FORMATTED_STRING"
         ).execute()
 
+        pprint.pprint(result)
         values = result.get('values')
 
         # yield dicts assuming row 0 contains headers and following rows values and all rows have identical length

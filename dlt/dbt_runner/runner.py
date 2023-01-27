@@ -1,206 +1,227 @@
-from typing import Optional, Sequence, Tuple
+import os
+from subprocess import CalledProcessError
+import giturlparse
+from typing import Any, ClassVar, Optional, Sequence
 from prometheus_client import REGISTRY, Gauge, CollectorRegistry, Info
 from prometheus_client.metrics import MetricWrapperBase
 
+import dlt
 from dlt.common import logger
-from dlt.cli import TRunnerArgs
-from dlt.common.typing import DictStrAny, DictStrStr, StrAny
+from dlt.common.configuration.inject import last_config
+from dlt.common.configuration.specs.base_configuration import CredentialsConfiguration
+from dlt.common.configuration.utils import add_config_to_env
+from dlt.common.runners.stdout import iter_stdout_with_result
+from dlt.common.runners.venv import Venv
+from dlt.common.typing import DictStrAny, DictStrStr
 from dlt.common.logger import is_json_logging
 from dlt.common.telemetry import get_logging_extras
-from dlt.common.configuration.specs import GcpClientCredentials
+from dlt.common.configuration import with_config
 from dlt.common.storages import FileStorage
-from dlt.common.runners import initialize_runner, run_pool
-from dlt.common.telemetry import TRunMetrics
 from dlt.common.git import git_custom_key_command, ensure_remote_head, clone_repo
+from dlt.common.utils import with_custom_environ
 
-from dlt.dbt_runner.configuration import DBTRunnerConfiguration, gen_configuration_variant
-from dlt.dbt_runner.utils import DBTProcessingError, dbt_results, initialize_dbt_logging, is_incremental_schema_out_of_sync_error, run_dbt_command
-from dlt.dbt_runner.exceptions import PrerequisitesException
-
-
-CLONED_PACKAGE_NAME = "dbt_package"
-
-CONFIG: DBTRunnerConfiguration = None
-storage: FileStorage = None
-dbt_package_vars: StrAny = None
-global_args: Sequence[str] = None
-repo_path: str = None
-profile_name: str = None
-
-model_elapsed_gauge: Gauge = None
-model_exec_info: Info = None
+from dlt.dbt_runner.configuration import DBTRunnerConfiguration
+from dlt.dbt_runner.exceptions import IncrementalSchemaOutOfSyncError, PrerequisitesException, DBTNodeResult, DBTProcessingError
 
 
-def create_folders() -> Tuple[FileStorage, StrAny, Sequence[str], str, str]:
-    storage_ = FileStorage(CONFIG.package_volume_path, makedirs=True)
-    dbt_package_vars_: DictStrAny = {
-        "source_schema_prefix": CONFIG.source_schema_prefix
-    }
-    if CONFIG.dest_schema_prefix:
-        dbt_package_vars_["dest_schema_prefix"] = CONFIG.dest_schema_prefix
-    if CONFIG.package_additional_vars:
-        dbt_package_vars_.update(CONFIG.package_additional_vars)
+class DBTPackageRunner:
 
-    # initialize dbt logging, returns global parameters to dbt command
-    global_args_ = initialize_dbt_logging(CONFIG.log_level, is_json_logging(CONFIG.log_format))
+    model_elapsed_gauge: ClassVar[Gauge] = None
+    model_exec_info: ClassVar[Info] = None
 
-    # generate path for the dbt package repo
-    repo_path_ = storage_.make_full_path(CLONED_PACKAGE_NAME)
+    def __init__(self,
+        venv: Venv,
+        credentials: CredentialsConfiguration,
+        working_dir: str,
+        source_dataset_name: str,
+        profile_name: str,
+        config: DBTRunnerConfiguration,
+        collector: CollectorRegistry = REGISTRY,
+    ) -> None:
+        self.venv = venv
+        self.credentials = credentials
+        self.working_dir = working_dir
+        self.source_dataset_name = source_dataset_name
+        self.config = config
+        self.profile_name = profile_name
 
-    # generate profile name
-    profile_name_: str = None
-    if CONFIG.package_profile_prefix:
-        if isinstance(CONFIG, GcpClientCredentials):
-            profile_name_ = "%s_bigquery" % (CONFIG.package_profile_prefix)
-        else:
-            profile_name_ = "%s_redshift" % (CONFIG.package_profile_prefix)
+        self.package_vars: DictStrAny = None
+        self.package_path: str = None
+        # set if package is in repo
+        self.repo_storage: FileStorage = None
+        self.cloned_package_name: str = None
 
-    return storage_, dbt_package_vars_, global_args_, repo_path_, profile_name_
-
-
-def create_gauges(registry: CollectorRegistry) -> Tuple[MetricWrapperBase, MetricWrapperBase]:
-    return (
-        Gauge("dbtrunner_model_elapsed_seconds", "Last model processing time", ["model"], registry=registry),
-        Info("dbtrunner_model_status", "Last execution status of the model", registry=registry)
-    )
-
-
-def run_dbt(command: str, command_args: Sequence[str] = None) -> Sequence[dbt_results. BaseResult]:
-    logger.info(f"Exec dbt command: {global_args} {command} {command_args} {dbt_package_vars} on profile {profile_name or '<project_default>'}")
-    return run_dbt_command(
-        repo_path, command,
-        CONFIG.package_profiles_dir,
-        profile_name=profile_name,
-        command_args=command_args,
-        global_args=global_args,
-        dbt_vars=dbt_package_vars
-    )
-
-
-def log_dbt_run_results(results: dbt_results.RunExecutionResult) -> None:
-    # run may return RunResult of something different depending on error
-    if issubclass(type(results), dbt_results.BaseResult):
-        results = [results]  # make it iterable
-    elif issubclass(type(results), dbt_results.ExecutionResult):
-        pass
-    else:
-        logger.warning(f"{type(results)} is unknown and cannot be logged")
-        return
-
-    info: DictStrStr = {}
-    for res in results:
-        name = res.node.name
-        message = res.message
-        time = res.execution_time
-        if res.status == dbt_results.RunStatus.Error:
-            logger.error(f"Model {name} error! Error: {message}")
-        else:
-            logger.info(f"Model {name} {res.status} in {time} seconds with {message}")
-        model_elapsed_gauge.labels(name).set(time)
-        info[name] = message
-
-    # log execution
-    model_exec_info.info(info)
-    logger.metrics("stop", "dbt models", extra=get_logging_extras([model_elapsed_gauge, model_exec_info]))
-
-
-def initialize_package(with_git_command: Optional[str]) -> None:
-    try:
-        # cleanup package folder
-        if storage.has_folder(CLONED_PACKAGE_NAME):
-            storage.delete_folder(CLONED_PACKAGE_NAME, recursively=True)
-        logger.info(f"Will clone {CONFIG.package_repository_url} head {CONFIG.package_repository_branch} into {repo_path}")
-        clone_repo(CONFIG.package_repository_url, repo_path, branch=CONFIG.package_repository_branch, with_git_command=with_git_command)
-        run_dbt("deps")
-    except Exception:
-        # delete folder so we start clean next time
-        if storage.has_folder(CLONED_PACKAGE_NAME):
-            storage.delete_folder(CLONED_PACKAGE_NAME, recursively=True)
-        raise
-
-
-def ensure_newest_package() -> None:
-    from git import GitError
-
-    with git_custom_key_command(CONFIG.package_repository_ssh_key) as ssh_command:
+        self._setup_package()
         try:
-            ensure_remote_head(repo_path, with_git_command=ssh_command)
-        except GitError as err:
-            # cleanup package folder
-            logger.info(f"Package will be cloned due to {type(err).__name__}:{str(err)}")
-            initialize_package(with_git_command=ssh_command)
+            self._create_gauges(collector)
+        except ValueError as v:
+            # ignore re-creation of gauges
+            if "Duplicated" not in str(v):
+                raise
 
+    @staticmethod
+    def _create_gauges(registry: CollectorRegistry) -> None:
+        DBTPackageRunner.model_elapsed_gauge = Gauge("dbtrunner_model_elapsed_seconds", "Last model processing time", ["model"], registry=registry)
+        DBTPackageRunner.model_exec_info = Info("dbtrunner_model_status", "Last execution status of the model", registry=registry)
 
-def run_db_steps() -> Sequence[dbt_results.BaseResult]:
-    # make sure we use package from the remote head
-    ensure_newest_package()
-    # check if raw schema exists
-    try:
-        if CONFIG.package_source_tests_selector:
-            run_dbt("test", ["-s", CONFIG.package_source_tests_selector])
-    except DBTProcessingError as err:
-        raise PrerequisitesException() from err
+    def _setup_package(self) -> None:
+        self.package_vars = {
+            "source_dataset_name": self.source_dataset_name
+        }
+        if self.config.destination_dataset_name:
+            self.package_vars["destination_dataset_name"] = self.config.destination_dataset_name
+        if self.config.package_additional_vars:
+            self.package_vars.update(self.config.package_additional_vars)
 
-    # always run seeds
-    run_dbt("seed")
-    # throws DBTProcessingError
-    try:
-        return run_dbt("run", CONFIG.package_run_params)
-    except DBTProcessingError as e:
-        # detect incremental model out of sync
-        if is_incremental_schema_out_of_sync_error(e.results) and CONFIG.auto_full_refresh_when_out_of_sync:
-            logger.warning(f"Attempting full refresh due to incremental model out of sync on {e.results.message}")
-            return run_dbt("run", CONFIG.package_run_params + ["--full-refresh"])
+        # set the package location
+        url = giturlparse.parse(self.config.package_location, check_domain=False)
+        if not url.valid:
+            self.package_path = self.config.package_location
         else:
+            # location is a repository
+            self.repo_storage = FileStorage(self.working_dir, makedirs=True)
+            self.cloned_package_name = url.name
+            self.package_path = os.path.join(self.working_dir, self.cloned_package_name)
+
+
+    def _log_dbt_run_results(self, results: Sequence[DBTNodeResult]) -> None:
+        if not results:
+            return
+
+        info: DictStrStr = {}
+        for res in results:
+            if res.status == "error":
+                logger.error(f"Model {res.model_name} error! Error: {res.message}")
+            else:
+                logger.info(f"Model {res.model_name} {res.status} in {res.time} seconds with {res.message}")
+            DBTPackageRunner.model_elapsed_gauge.labels(res.model_name).set(res.time)
+            info[res.model_name] = res.message
+
+        # log execution
+        DBTPackageRunner.model_exec_info.info(info)
+        logger.metrics("stop", "dbt models", extra=get_logging_extras([DBTPackageRunner.model_elapsed_gauge, DBTPackageRunner.model_exec_info]))
+
+    def clone_package(self, with_git_command: Optional[str]) -> None:
+        try:
+            # cleanup package folder
+            if self.repo_storage.has_folder(self.cloned_package_name):
+                self.repo_storage.delete_folder(self.cloned_package_name, recursively=True, delete_ro=True)
+            logger.info(f"Will clone {self.config.package_location} head {self.config.package_repository_branch} into {self.package_path}")
+            clone_repo(self.config.package_location, self.package_path, branch=self.config.package_repository_branch, with_git_command=with_git_command).close()
+
+        except Exception:
+            # delete folder so we start clean next time
+            if self.repo_storage.has_folder(self.cloned_package_name):
+                self.repo_storage.delete_folder(self.cloned_package_name, recursively=True, delete_ro=True)
+            raise
+
+    def ensure_newest_package(self) -> None:
+        from git import GitError
+
+        with git_custom_key_command(self.config.package_repository_ssh_key) as ssh_command:
+            try:
+                ensure_remote_head(self.package_path, with_git_command=ssh_command)
+            except GitError as err:
+                # cleanup package folder
+                logger.info(f"Package will be cloned due to {type(err).__name__}:{str(err)}")
+                self.clone_package(with_git_command=ssh_command)
+
+    @with_custom_environ
+    def run_dbt_command(self, command: str, command_args: Sequence[str] = None) -> Sequence[DBTNodeResult]:
+        logger.info(f"Exec dbt command: {command} {command_args} {self.package_vars} on profile {self.profile_name}")
+        # write credentials to environ to pass them to dbt
+        if self.credentials:
+            add_config_to_env(self.credentials)
+        args = [
+            self.config.runtime.log_level,
+            is_json_logging(self.config.runtime.log_format),
+            self.package_path,
+            command,
+            self.config.package_profiles_dir,
+            self.profile_name,
+            command_args,
+            self.package_vars
+        ]
+        script = f"""
+from functools import partial
+
+from dlt.common.runners.stdout import exec_to_stdout
+from dlt.dbt_runner.dbt_utils import init_logging_and_run_dbt_command
+
+f = partial(init_logging_and_run_dbt_command, {", ".join(map(lambda arg: repr(arg), args))})
+with exec_to_stdout(f):
+    pass
+"""
+        try:
+            i = iter_stdout_with_result(self.venv, "python", "-c", script)
+            while True:
+                print(next(i).strip())
+        except StopIteration as si:
+            # return result from generator
+            return si.value  # type: ignore
+        except CalledProcessError as cpe:
+            print(cpe.stderr)
+            raise
+
+    def _run_db_steps(self) -> Sequence[DBTNodeResult]:
+        if self.repo_storage:
+            # make sure we use package from the remote head
+            self.ensure_newest_package()
+        # run package deps
+        self.run_dbt_command("deps")
+        # check if raw schema exists
+        try:
+            if self.config.package_source_tests_selector:
+                self.run_dbt_command("test", ["-s", self.config.package_source_tests_selector])
+        except DBTProcessingError as err:
+            raise PrerequisitesException(err) from err
+
+        # always run seeds
+        self.run_dbt_command("seed")
+        # throws DBTProcessingError
+        try:
+            return self.run_dbt_command("run", self.config.package_run_params)
+        except IncrementalSchemaOutOfSyncError as e:
+            if self.config.auto_full_refresh_when_out_of_sync:
+                logger.warning("Attempting full refresh due to incremental model out of sync")
+                return self.run_dbt_command("run", list(self.config.package_run_params) + ["--full-refresh"])
+            else:
+                # raise internal DBTProcessingError
+                raise e.args[0]
+
+    def run(self) -> Sequence[DBTNodeResult]:
+        # TODO: pass destination dataset, package_run_params, additional vars here, not via config file
+        try:
+            # there were many issues with running the method below with pool.apply
+            # 1 - some exceptions are not serialized well on process boundary and queue hangs
+            # 2 - random hangs event if there's no exception, probably issues with DBT spawning its own workers
+            # instead the runner host was configured to recycle each run
+            results = self._run_db_steps()
+            self._log_dbt_run_results(results)
+            return results
+        except PrerequisitesException:
+            logger.warning("Raw schema test failed, it may yet not be created")
+            # run failed and loads possibly still pending
+            raise
+        except DBTProcessingError as runerr:
+            self._log_dbt_run_results(runerr.run_results)
+            # pass exception to the runner
             raise
 
 
-def run(_: None) -> TRunMetrics:
-    try:
-        # there were many issues with running the method below with pool.apply
-        # 1 - some exceptions are not serialized well on process boundary and queue hangs
-        # 2 - random hangs event if there's no exception, probably issues with DBT spawning its own workers
-        # instead the runner host was configured to recycle each run
-        results = run_db_steps()
-        log_dbt_run_results(results)
-        return TRunMetrics(False, False, 0)
-    except PrerequisitesException:
-        logger.warning("Raw schema test failed, it may yet not be created")
-        # run failed and loads possibly still pending
-        return TRunMetrics(False, True, 1)
-    except DBTProcessingError as runerr:
-        log_dbt_run_results(runerr.results)
-        # pass exception to the runner
-        raise
-
-
-def configure(C: DBTRunnerConfiguration, collector: CollectorRegistry) -> None:
-    global CONFIG
-    global storage, dbt_package_vars, global_args, repo_path, profile_name
-    global model_elapsed_gauge, model_exec_info
-
-    CONFIG = C
-    storage, dbt_package_vars, global_args, repo_path, profile_name = create_folders()
-    try:
-        model_elapsed_gauge, model_exec_info = create_gauges(REGISTRY)
-    except ValueError as v:
-        # ignore re-creation of gauges
-        if "Duplicated" not in str(v):
-            raise
-
-
-def main(args: TRunnerArgs) -> int:
-    C = gen_configuration_variant(args._asdict())
-    # we should force single run
-    initialize_runner(C)
-    try:
-        configure(C, REGISTRY)
-    except Exception:
-        logger.exception("init module")
-        return -1
-
-    return run_pool(C, run)
-
-
-def run_main(args: TRunnerArgs) -> None:
-    exit(main(args))
+@with_config(spec=DBTRunnerConfiguration, namespaces=("dbt_package_runner",))
+def get_runner(
+    venv: Venv,
+    credentials: CredentialsConfiguration,
+    working_dir: str,
+    default_profile_name: str,
+    dataset_name: str,
+    package_location: str = dlt.config.value,
+    package_run_params: Sequence[str] = None,
+    package_source_tests_selector: str = None,
+    destination_dataset_name: str = None,
+    config: DBTRunnerConfiguration = None,
+    **kwargs: Any
+    ) -> DBTPackageRunner:
+    # config: DBTRunnerConfiguration = last_config(**kwargs)
+    return DBTPackageRunner(venv, credentials, working_dir, dataset_name, config.package_profile_name or default_profile_name, config, REGISTRY)

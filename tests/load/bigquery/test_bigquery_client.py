@@ -57,11 +57,15 @@ def test_gcp_credentials_with_default(environment: Any) -> None:
 
     # now set the env
     with custom_environ({"GOOGLE_APPLICATION_CREDENTIALS": storage.make_full_path(dest_path)}):
+        gcpc = GcpClientCredentialsWithDefault()
         resolve_configuration(gcpc)
         # project id recovered from credentials
         assert gcpc.project_id == "level-dragon-333019"
         # check if credentials can be created
         assert gcpc.to_service_account_credentials() is not None
+        # the default credentials are available
+        assert gcpc.has_default_credentials() is True
+        assert gcpc.default_credentials() is not None
 
 
 def test_bigquery_job_errors(client: BigQueryClient, file_storage: FileStorage) -> None:
@@ -100,7 +104,7 @@ def test_bigquery_job_errors(client: BigQueryClient, file_storage: FileStorage) 
 
 @pytest.mark.parametrize('location', ["US", "EU"])
 def test_bigquery_location(location: str, file_storage: FileStorage) -> None:
-    with cm_yield_client_with_storage("bigquery", initial_values={"credentials": {"location": location}}) as client:
+    with cm_yield_client_with_storage("bigquery", default_config_values={"credentials": {"location": location}}) as client:
         user_table_name = prepare_table(client)
         load_json = {
             "_dlt_id": uniq_id(),

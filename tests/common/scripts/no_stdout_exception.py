@@ -1,0 +1,1 @@
+raise Exception("no stdout")

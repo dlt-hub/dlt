@@ -91,6 +91,17 @@ print('success')
         assert venv.run_command(venv.context.env_exe, "-c", script) == "success\n"
 
 
+def test_venv_working_dir() -> None:
+    with Venv.create(tempfile.mkdtemp()) as venv:
+        assert venv.run_script("tests/common/scripts/cwd.py").strip() == os.getcwd()
+        script = """
+import os
+
+print(os.getcwd())
+        """
+        assert venv.run_command(venv.context.env_exe, "-c", script).strip() == os.getcwd()
+
+
 def test_run_command_with_error() -> None:
     with Venv.create(tempfile.mkdtemp()) as venv:
         # non existing command
@@ -161,6 +172,12 @@ def test_run_script() -> None:
             venv.run_script("tests/common/scripts/raises.py")
         assert cpe.value.returncode == 1
         assert "always raises" in cpe.value.stdout
+
+        # script with several long lines
+        result = venv.run_script("tests/common/scripts/long_lines.py")
+        lines = result.splitlines()
+        # stdin and stdout are mangled but the number of character matches
+        assert sum(len(line) for line in lines) == 6 * 1024 * 1024
 
 
 def test_create_over_venv() -> None:

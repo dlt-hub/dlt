@@ -111,43 +111,74 @@ def prepare_table(client: JobClientBase, case_name: str = "event_user", table_na
     return user_table_name
 
 
-def yield_client_with_storage(destination_name: str, default_values: StrAny = None) -> Iterator[SqlJobClientBase]:
+
+def yield_client(
+    destination_name: str,
+    dataset_name: str = None,
+    default_config_values: StrAny = None,
+    schema_name: str = "event"
+) -> Iterator[SqlJobClientBase]:
     os.environ.pop("DATASET_NAME", None)
     # import destination reference by name
     destination: DestinationReference = import_module(f"dlt.destinations.{destination_name}")
-    # create dataset with random name
-    dataset_name = "test_" + uniq_id()
     # create initial config
     config: DestinationClientDwhConfiguration = None
     config = destination.spec()()
     config.dataset_name = dataset_name
 
-    if default_values is not None:
+    if default_config_values is not None:
         # apply the values to credentials, if dict is provided it will be used as default
-        config.credentials = default_values
+        config.credentials = default_config_values
         # also apply to config
-        config.update(default_values)
+        config.update(default_config_values)
     # get event default schema
     C = resolve_configuration(SchemaVolumeConfiguration(), explicit_value={
         "schema_volume_path": "tests/common/cases/schemas/rasa"
     })
     schema_storage = SchemaStorage(C)
-    schema = schema_storage.load_schema("event")
+    schema = schema_storage.load_schema(schema_name)
     # create client and dataset
     client: SqlJobClientBase = None
 
     # lookup for credentials in the namespace that is destination name
     with Container().injectable_context(ConfigNamespacesContext(namespaces=(destination_name,))):
         with destination.client(schema, config) as client:
-            client.initialize_storage()
             yield client
-            # print(dataset_name)
-            client.sql_client.drop_dataset()
 
 
 @contextlib.contextmanager
-def cm_yield_client_with_storage(destination_name: str, initial_values: StrAny = None) -> Iterator[SqlJobClientBase]:
-    return yield_client_with_storage(destination_name, initial_values)
+def cm_yield_client(
+    destination_name: str,
+    dataset_name: str,
+    default_config_values: StrAny = None,
+    schema_name: str = "event"
+) -> Iterator[SqlJobClientBase]:
+    return yield_client(destination_name, dataset_name, default_config_values, schema_name)
+
+
+def yield_client_with_storage(
+    destination_name: str,
+    default_config_values: StrAny = None,
+    schema_name: str = "event"
+) -> Iterator[SqlJobClientBase]:
+
+    # create dataset with random name
+    dataset_name = "test_" + uniq_id()
+
+    with cm_yield_client(destination_name, dataset_name, default_config_values, schema_name) as client:
+        client.initialize_storage()
+        yield client
+        # print(dataset_name)
+        client.sql_client.drop_dataset()
+
+
+@contextlib.contextmanager
+def cm_yield_client_with_storage(
+    destination_name: str,
+    default_config_values: StrAny = None,
+    schema_name: str = "event"
+) -> Iterator[SqlJobClientBase]:
+    return yield_client_with_storage(destination_name, default_config_values, schema_name)
 
 
 def write_dataset(client: JobClientBase, f: IO[Any], rows: Sequence[StrAny], columns_schema: TTableSchemaColumns) -> None:

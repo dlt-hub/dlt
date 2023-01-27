@@ -33,7 +33,7 @@ def test_no_ssh_key_context() -> None:
 def test_clone(test_storage: FileStorage) -> None:
     repo_path = test_storage.make_full_path("awesome_repo")
     # clone a small public repo
-    clone_repo(AWESOME_REPO, repo_path, with_git_command=None)
+    clone_repo(AWESOME_REPO, repo_path, with_git_command=None).close()
     assert test_storage.has_folder("awesome_repo")
     # make sure directory clean
     ensure_remote_head(repo_path, with_git_command=None)
@@ -42,7 +42,7 @@ def test_clone(test_storage: FileStorage) -> None:
 def test_clone_with_commit_id(test_storage: FileStorage) -> None:
     repo_path = test_storage.make_full_path("awesome_repo")
     # clone a small public repo
-    clone_repo(AWESOME_REPO, repo_path, with_git_command=None, branch="7f88000be2d4f265c83465fec4b0b3613af347dd")
+    clone_repo(AWESOME_REPO, repo_path, with_git_command=None, branch="7f88000be2d4f265c83465fec4b0b3613af347dd").close()
     assert test_storage.has_folder("awesome_repo")
     ensure_remote_head(repo_path, with_git_command=None)
 
@@ -67,7 +67,7 @@ def test_clone_with_deploy_key(test_storage: FileStorage) -> None:
     secret = load_secret("deploy_key")
     repo_path = test_storage.make_full_path("private_repo_access")
     with git_custom_key_command(secret) as git_command:
-        clone_repo(PRIVATE_REPO_WITH_ACCESS, repo_path, with_git_command=git_command)
+        clone_repo(PRIVATE_REPO_WITH_ACCESS, repo_path, with_git_command=git_command).close()
         ensure_remote_head(repo_path, with_git_command=git_command)
 
 
@@ -76,7 +76,7 @@ def test_repo_status_update(test_storage: FileStorage) -> None:
     secret = load_secret("deploy_key")
     repo_path = test_storage.make_full_path("private_repo_access")
     with git_custom_key_command(secret) as git_command:
-        clone_repo(PRIVATE_REPO_WITH_ACCESS, repo_path, with_git_command=git_command)
+        clone_repo(PRIVATE_REPO_WITH_ACCESS, repo_path, with_git_command=git_command).close()
         # modify README.md
         readme_path = modify_and_commit_file(repo_path, "README.md")
         assert test_storage.has_file(readme_path)

@@ -8,7 +8,7 @@ from contextlib import contextmanager
 from functools import wraps
 from os import environ
 
-from typing import Any, Dict, Iterable, Iterator, Optional, Sequence, TypeVar, Mapping, List, TypedDict, Union
+from typing import Any, Dict, Iterator, Optional, Sequence, TypeVar, Mapping, List, Union
 
 from dlt.common.typing import AnyFun, StrAny, DictStrAny, StrStr, TAny, TDataItem, TDataItems, TFun
 
@@ -21,15 +21,24 @@ def chunks(seq: Sequence[T], n: int) -> Iterator[Sequence[T]]:
 
 
 def uniq_id(len_: int = 16) -> str:
+    """Returns a hex encoded crypto-grade string of random bytes with desired len_"""
     return secrets.token_hex(len_)
 
 
 def digest128(v: str) -> str:
+    """Returns a base64 encoded shake128 hash of str v with digest of len 15 (20 characters length)"""
     return base64.b64encode(
         hashlib.shake_128(
             v.encode("utf-8")
         ).digest(15)
     ).decode('ascii')
+
+
+def digest128b(v: bytes) -> str:
+    """Returns a base64 encoded shake128 hash of bytes v with digest of len 15 (20 characters length)"""
+    return base64.b64encode(
+            hashlib.shake_128(v).digest(15)
+        ).decode('ascii')
 
 
 def digest256(v: str) -> str:
