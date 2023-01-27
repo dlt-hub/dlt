@@ -69,11 +69,11 @@ jobs:
       #   run: poetry install --no-interaction
 
       - run: |
-          poetry run pytest tests/load --ignore=tests/load/bigquery -k '(not bigquery)'
+          poetry run pytest tests/load tests/cli --ignore=tests/load/bigquery -k '(not bigquery)'
         if: runner.os != 'Windows'
         name: Run tests Linux/MAC
       - run: |
-          poetry run pytest tests --ignore=tests/load/bigquery -m "not forked" -k "(not bigquery)"
+          poetry run pytest tests/load tests/cli --ignore=tests/load/bigquery -m "not forked" -k "(not bigquery)"
         if: runner.os == 'Windows'
         name: Run tests Windows
         shell: cmd

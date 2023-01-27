@@ -64,11 +64,11 @@ jobs:
       #   run: poetry install --no-interaction
 
       - run: |
-          poetry run pytest tests/common
+          poetry run pytest tests/common tests/normalize tests/extract tests/pipeline
         if: runner.os != 'Windows'
         name: Run tests Linux/MAC
       - run: |
-          poetry run pytest tests --ignore=tests/load --ignore=tests/dbt_runner --ignore=tests/cli -m "not forked"
+          poetry run pytest tests/common tests/normalize tests/extract tests/pipeline -m "not forked"
         if: runner.os == 'Windows'
         name: Run tests Windows
         shell: cmd

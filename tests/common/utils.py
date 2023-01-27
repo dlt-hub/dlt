@@ -65,12 +65,12 @@ def modify_and_commit_file(repo_path: str, file_name: str, content: str = "NEW R
     with open(file_path, "w", encoding="utf-8") as f:
         f.write(content)
 
-    repo = Repo(repo_path)
-    # one file modified
-    index = repo.index.entries
-    assert len(index) > 0
-    assert any(e for e in index.keys() if e[0] == file_name)
-    repo.index.add(file_name)
-    repo.index.commit(f"mod {file_name}")
+    with Repo(repo_path) as repo:
+        # one file modified
+        index = repo.index.entries
+        assert len(index) > 0
+        assert any(e for e in index.keys() if e[0] == file_name)
+        repo.index.add(file_name)
+        repo.index.commit(f"mod {file_name}")
 
     return file_path

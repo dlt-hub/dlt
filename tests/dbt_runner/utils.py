@@ -22,7 +22,7 @@ def find_run_result(results: Sequence[DBTNodeResult], model_name: str) -> DBTNod
 def clone_jaffle_repo(test_storage: FileStorage) -> str:
     repo_path = test_storage.make_full_path("jaffle_shop")
     # clone jaffle shop for dbt 1.0.0
-    clone_repo(JAFFLE_SHOP_REPO, repo_path, with_git_command=None, branch="main")  # core-v1.0.0
+    clone_repo(JAFFLE_SHOP_REPO, repo_path, with_git_command=None, branch="main").close()  # core-v1.0.0
     return repo_path
 
 

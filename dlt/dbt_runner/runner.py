@@ -107,7 +107,7 @@ class DBTPackageRunner:
             if self.repo_storage.has_folder(self.cloned_package_name):
                 self.repo_storage.delete_folder(self.cloned_package_name, recursively=True, delete_ro=True)
             logger.info(f"Will clone {self.config.package_location} head {self.config.package_repository_branch} into {self.package_path}")
-            clone_repo(self.config.package_location, self.package_path, branch=self.config.package_repository_branch, with_git_command=with_git_command)
+            clone_repo(self.config.package_location, self.package_path, branch=self.config.package_repository_branch, with_git_command=with_git_command).close()
 
         except Exception:
             # delete folder so we start clean next time
