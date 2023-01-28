@@ -19,8 +19,8 @@ from dlt.common.storages import FileStorage
 from dlt.common.git import git_custom_key_command, ensure_remote_head, clone_repo
 from dlt.common.utils import with_custom_environ
 
-from dlt.dbt.configuration import DBTRunnerConfiguration
-from dlt.dbt.exceptions import IncrementalSchemaOutOfSyncError, PrerequisitesException, DBTNodeResult, DBTProcessingError
+from dlt.helpers.dbt.configuration import DBTRunnerConfiguration
+from dlt.helpers.dbt.exceptions import IncrementalSchemaOutOfSyncError, PrerequisitesException, DBTNodeResult, DBTProcessingError
 
 
 class DBTPackageRunner:
@@ -145,7 +145,7 @@ class DBTPackageRunner:
 from functools import partial
 
 from dlt.common.runners.stdout import exec_to_stdout
-from dlt.dbt_runner.dbt_utils import init_logging_and_run_dbt_command
+from dlt.helpers.dbt.dbt_utils import init_logging_and_run_dbt_command
 
 f = partial(init_logging_and_run_dbt_command, {", ".join(map(lambda arg: repr(arg), args))})
 with exec_to_stdout(f):

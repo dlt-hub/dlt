@@ -7,7 +7,7 @@ from dlt.common import json, logger
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.typing import StrAny
 
-from dlt.dbt.exceptions import DBTProcessingError, DBTNodeResult, IncrementalSchemaOutOfSyncError
+from dlt.helpers.dbt.exceptions import DBTProcessingError, DBTNodeResult, IncrementalSchemaOutOfSyncError
 
 try:
     # block disabling root logger

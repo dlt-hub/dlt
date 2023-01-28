@@ -5,8 +5,8 @@ from dlt.common import logger
 from dlt.common.configuration.utils import add_config_to_env
 from dlt.common.runners.venv import Venv
 from dlt.common.typing import StrAny
-from dlt.dbt.configuration import DBTRunnerConfiguration
-from dlt.dbt.runner import DBTPackageRunner, create_runner
+from dlt.helpers.dbt.configuration import DBTRunnerConfiguration
+from dlt.helpers.dbt.runner import DBTPackageRunner, create_runner
 
 from tests.load.utils import cm_yield_client
 from tests.utils import TEST_STORAGE_ROOT

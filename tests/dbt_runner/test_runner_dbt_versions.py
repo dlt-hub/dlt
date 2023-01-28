@@ -11,12 +11,12 @@ from dlt.common.storages.file_storage import FileStorage
 from dlt.common.runners.synth_pickle import decode_obj, encode_obj
 from dlt.common.runners.venv import Venv
 from dlt.common.typing import AnyFun
-from dlt.dbt.configuration import DBTRunnerConfiguration
+from dlt.helpers.dbt.configuration import DBTRunnerConfiguration
 
 from dlt.destinations.postgres.postgres import PostgresClient
-from dlt.dbt.exceptions import PrerequisitesException, DBTProcessingError
+from dlt.helpers.dbt.exceptions import PrerequisitesException, DBTProcessingError
 
-from dlt.dbt import package_runner
+from dlt.helpers.dbt import package_runner
 from tests.dbt_runner.utils import JAFFLE_SHOP_REPO, assert_jaffle_completed, clone_jaffle_repo, find_run_result
 
 from tests.utils import test_storage, preserve_environ
