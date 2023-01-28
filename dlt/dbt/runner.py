@@ -19,8 +19,8 @@ from dlt.common.storages import FileStorage
 from dlt.common.git import git_custom_key_command, ensure_remote_head, clone_repo
 from dlt.common.utils import with_custom_environ
 
-from dlt.dbt_runner.configuration import DBTRunnerConfiguration
-from dlt.dbt_runner.exceptions import IncrementalSchemaOutOfSyncError, PrerequisitesException, DBTNodeResult, DBTProcessingError
+from dlt.dbt.configuration import DBTRunnerConfiguration
+from dlt.dbt.exceptions import IncrementalSchemaOutOfSyncError, PrerequisitesException, DBTNodeResult, DBTProcessingError
 
 
 class DBTPackageRunner:

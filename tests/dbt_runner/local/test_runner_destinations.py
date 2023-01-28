@@ -7,8 +7,8 @@ from dlt.common.telemetry import get_metrics_from_prometheus
 from dlt.common.typing import StrStr
 from dlt.common.utils import uniq_id
 
-from dlt.dbt_runner.dbt_utils import DBTProcessingError
-from dlt.dbt_runner.exceptions import PrerequisitesException
+from dlt.dbt.dbt_utils import DBTProcessingError
+from dlt.dbt.exceptions import PrerequisitesException
 from tests.dbt_runner.utils import find_run_result
 
 from tests.utils import TEST_STORAGE_ROOT, clean_test_storage, preserve_environ

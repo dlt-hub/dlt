@@ -5,7 +5,7 @@ from dlt.common.destination import DestinationClientDwhConfiguration
 from dlt.common.configuration.specs import CredentialsWithDefault
 from dlt.common.typing import TSecretValue
 
-from dlt.dbt_runner.runner import create_runner, DBTPackageRunner
+from dlt.dbt.runner import create_runner, DBTPackageRunner
 
 
 def _default_profile_name(credentials: DestinationClientDwhConfiguration,) -> str:

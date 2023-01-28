@@ -4,7 +4,7 @@ from prometheus_client import CollectorRegistry
 
 from dlt.common.storages import FileStorage
 from dlt.common.git import clone_repo
-from dlt.dbt_runner.exceptions import DBTNodeResult
+from dlt.dbt.exceptions import DBTNodeResult
 
 JAFFLE_SHOP_REPO = "https://github.com/dbt-labs/jaffle_shop.git"
 TEST_CASES_PATH = "./tests/dbt_runner/cases/"
