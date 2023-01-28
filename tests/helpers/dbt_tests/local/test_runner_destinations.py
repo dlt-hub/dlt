@@ -9,11 +9,11 @@ from dlt.common.utils import uniq_id
 
 from dlt.helpers.dbt.dbt_utils import DBTProcessingError
 from dlt.helpers.dbt.exceptions import PrerequisitesException
-from tests.dbt_runner.utils import find_run_result
+from tests.helpers.dbt_tests.utils import find_run_result
 
 from tests.utils import TEST_STORAGE_ROOT, clean_test_storage, preserve_environ
 from tests.common.utils import modify_and_commit_file, load_secret
-from tests.dbt_runner.local.utils import setup_rasa_runner_client, setup_rasa_runner, DBTDestinationInfo
+from tests.helpers.dbt_tests.local.utils import setup_rasa_runner_client, setup_rasa_runner, DBTDestinationInfo
 
 DESTINATION_DATASET_NAME = "test_" + uniq_id()
 ALL_DBT_DESTINATIONS = [DBTDestinationInfo("redshift", "SELECT", "INSERT"), DBTDestinationInfo("bigquery", "CREATE TABLE", "MERGE")]

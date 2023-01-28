@@ -10,7 +10,7 @@ from dlt.common.storages import FileStorage
 from dlt.common.utils import uniq_id
 from dlt.helpers.dbt.dbt_utils import DBTProcessingError, initialize_dbt_logging, run_dbt_command, is_incremental_schema_out_of_sync_error
 from tests.utils import test_storage, preserve_environ
-from tests.dbt_runner.utils import clone_jaffle_repo, load_test_case
+from tests.helpers.dbt_tests.utils import clone_jaffle_repo, load_test_case
 
 
 def test_is_incremental_schema_out_of_sync_error() -> None:
@@ -31,7 +31,7 @@ def test_dbt_commands(test_storage: FileStorage) -> None:
 
     repo_path = clone_jaffle_repo(test_storage)
     # copy profile
-    shutil.copy("./tests/dbt_runner/cases/profiles_invalid_credentials.yml", os.path.join(repo_path, "profiles.yml"))
+    shutil.copy("./tests/helpers/dbt_tests/cases/profiles_invalid_credentials.yml", os.path.join(repo_path, "profiles.yml"))
     # initialize logging
     global_args = initialize_dbt_logging("ERROR", False)
     # run deps, results are None
@@ -65,7 +65,7 @@ def test_dbt_commands(test_storage: FileStorage) -> None:
     assert dbt_err.value.command == "run"
 
     # copy a correct profile
-    shutil.copy("./tests/dbt_runner/cases/profiles.yml", os.path.join(repo_path, "profiles.yml"))
+    shutil.copy("./tests/helpers/dbt_tests/cases/profiles.yml", os.path.join(repo_path, "profiles.yml"))
 
     results = run_dbt_command(repo_path, "seed", ".", global_args=global_args, package_vars=dbt_vars)
     assert isinstance(results, list)

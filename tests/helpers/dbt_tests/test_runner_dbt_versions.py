@@ -17,7 +17,7 @@ from dlt.destinations.postgres.postgres import PostgresClient
 from dlt.helpers.dbt.exceptions import PrerequisitesException, DBTProcessingError
 
 from dlt.helpers.dbt import package_runner
-from tests.dbt_runner.utils import JAFFLE_SHOP_REPO, assert_jaffle_completed, clone_jaffle_repo, find_run_result
+from tests.helpers.dbt_tests.utils import JAFFLE_SHOP_REPO, assert_jaffle_completed, clone_jaffle_repo, find_run_result
 
 from tests.utils import test_storage, preserve_environ
 from tests.load.utils import yield_client_with_storage
@@ -55,7 +55,7 @@ def test_dbt_configuration() -> None:
     assert C.package_repository_ssh_key == "---NO NEWLINE---\n"
     assert C.package_additional_vars is None
     # profiles are set to the module dir
-    assert C.package_profiles_dir.endswith("dbt_runner")
+    assert C.package_profiles_dir.endswith("dbt")
 
     C = resolve_configuration(
         DBTRunnerConfiguration(),
@@ -90,7 +90,7 @@ def test_runner_setup(client: PostgresClient, test_storage: FileStorage) -> None
     assert r.config.package_repository_branch is None
     assert r.config.package_repository_ssh_key == ""
     assert r.config.package_profile_name == "postgres"
-    assert r.config.package_profiles_dir.endswith("dbt_runner")
+    assert r.config.package_profiles_dir.endswith("dbt")
     assert r.config.package_additional_vars == add_vars
     assert r.config.runtime.log_level == "CRITICAL"
     assert r.config.auto_full_refresh_when_out_of_sync is False
@@ -117,7 +117,7 @@ def test_run_jaffle_from_repo(client: PostgresClient, test_storage: FileStorage,
 def test_run_jaffle_from_folder_incremental(client: PostgresClient, test_storage: FileStorage, dbt_package_f: AnyFun) -> None:
     repo_path = clone_jaffle_repo(test_storage)
     # copy model with error into package to force run error in model
-    shutil.copy("./tests/dbt_runner/cases/jaffle_customers_incremental.sql", os.path.join(repo_path, "models", "customers.sql"))
+    shutil.copy("./tests/helpers/dbt_tests/cases/jaffle_customers_incremental.sql", os.path.join(repo_path, "models", "customers.sql"))
     results = dbt_package_f(client.config, None, repo_path).run_all(run_params=None)
     assert_jaffle_completed(test_storage, results, jaffle_dir="jaffle_shop")
     results = dbt_package_f(client.config, None, repo_path).run_all()
@@ -125,7 +125,7 @@ def test_run_jaffle_from_folder_incremental(client: PostgresClient, test_storage
     customers = find_run_result(results, "customers")
     assert customers.message == "INSERT 0 100"
     # change the column name. that will force dbt to fail (on_schema_change='fail'). the runner should do a full refresh
-    shutil.copy("./tests/dbt_runner/cases/jaffle_customers_incremental_new_column.sql", os.path.join(repo_path, "models", "customers.sql"))
+    shutil.copy("./tests/helpers/dbt_tests/cases/jaffle_customers_incremental_new_column.sql", os.path.join(repo_path, "models", "customers.sql"))
     results = dbt_package_f(client.config, None, repo_path).run_all(run_params=None)
     assert_jaffle_completed(test_storage, results, jaffle_dir="jaffle_shop")
 
@@ -158,7 +158,7 @@ def test_run_jaffle_invalid_run_args(client: PostgresClient, test_storage: FileS
 def test_run_jaffle_failed_run(client: PostgresClient, test_storage: FileStorage, dbt_package_f: AnyFun) -> None:
     repo_path = clone_jaffle_repo(test_storage)
     # copy model with error into package to force run error in model
-    shutil.copy("./tests/dbt_runner/cases/jaffle_customers_with_error.sql", os.path.join(repo_path, "models", "customers.sql"))
+    shutil.copy("./tests/helpers/dbt_tests/cases/jaffle_customers_with_error.sql", os.path.join(repo_path, "models", "customers.sql"))
     with pytest.raises(DBTProcessingError) as pr_exc:
         dbt_package_f(client.config, None, repo_path).run_all(run_params=None)
     assert len(pr_exc.value.run_results) == 5
