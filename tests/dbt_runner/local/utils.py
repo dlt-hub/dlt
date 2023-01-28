@@ -6,7 +6,7 @@ from dlt.common.configuration.utils import add_config_to_env
 from dlt.common.runners.venv import Venv
 from dlt.common.typing import StrAny
 from dlt.dbt_runner.configuration import DBTRunnerConfiguration
-from dlt.dbt_runner.runner import DBTPackageRunner, get_runner
+from dlt.dbt_runner.runner import DBTPackageRunner, create_runner
 
 from tests.load.utils import cm_yield_client
 from tests.utils import TEST_STORAGE_ROOT
@@ -21,13 +21,9 @@ class DBTDestinationInfo(NamedTuple):
     incremental_strategy: str
 
 
-def setup_rasa_runner(destination_dataset_name: str, profile_name: str, dataset_name: str = None, override_values: StrAny = None) -> DBTPackageRunner:
+def setup_rasa_runner(profile_name: str, dataset_name: str = None, override_values: StrAny = None) -> DBTPackageRunner:
 
     C = DBTRunnerConfiguration()
-    # set unique dest schema prefix by default
-    C.destination_dataset_name = destination_dataset_name
-    C.package_run_params = ["--fail-fast", "--full-refresh"]
-    C.package_source_tests_selector: str = "tag:prerequisites"
     C.package_location = "https://github.com/scale-vector/rasa_semantic_schema.git"  # "/home/rudolfix/src/dbt/rasa_semantic_schema"
     C.package_repository_branch = "dlt-dbt-runner-ci-do-not-delete"
 
@@ -37,13 +33,12 @@ def setup_rasa_runner(destination_dataset_name: str, profile_name: str, dataset_
         # for k,v in override_values.items():
         #     setattr(C, k, v)
 
-    runner = get_runner(
+    runner = create_runner(
         Venv.restore_current(),
         None,   # credentials are exported to env in setup_rasa_runner_client
         TEST_STORAGE_ROOT,
-        profile_name,
         dataset_name or FIXTURES_DATASET_NAME,
-        destination_dataset_name=destination_dataset_name,
+        package_profile_name=profile_name,
         config=C
     )
     # now C is resolved

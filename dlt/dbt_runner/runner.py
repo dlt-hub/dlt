@@ -7,12 +7,11 @@ from prometheus_client.metrics import MetricWrapperBase
 
 import dlt
 from dlt.common import logger
-from dlt.common.configuration.inject import last_config
 from dlt.common.configuration.specs.base_configuration import CredentialsConfiguration
 from dlt.common.configuration.utils import add_config_to_env
 from dlt.common.runners.stdout import iter_stdout_with_result
 from dlt.common.runners.venv import Venv
-from dlt.common.typing import DictStrAny, DictStrStr
+from dlt.common.typing import DictStrAny, DictStrStr, StrAny, TSecretValue
 from dlt.common.logger import is_json_logging
 from dlt.common.telemetry import get_logging_extras
 from dlt.common.configuration import with_config
@@ -34,7 +33,6 @@ class DBTPackageRunner:
         credentials: CredentialsConfiguration,
         working_dir: str,
         source_dataset_name: str,
-        profile_name: str,
         config: DBTRunnerConfiguration,
         collector: CollectorRegistry = REGISTRY,
     ) -> None:
@@ -43,15 +41,13 @@ class DBTPackageRunner:
         self.working_dir = working_dir
         self.source_dataset_name = source_dataset_name
         self.config = config
-        self.profile_name = profile_name
 
-        self.package_vars: DictStrAny = None
         self.package_path: str = None
         # set if package is in repo
         self.repo_storage: FileStorage = None
         self.cloned_package_name: str = None
 
-        self._setup_package()
+        self._setup_location()
         try:
             self._create_gauges(collector)
         except ValueError as v:
@@ -64,15 +60,7 @@ class DBTPackageRunner:
         DBTPackageRunner.model_elapsed_gauge = Gauge("dbtrunner_model_elapsed_seconds", "Last model processing time", ["model"], registry=registry)
         DBTPackageRunner.model_exec_info = Info("dbtrunner_model_status", "Last execution status of the model", registry=registry)
 
-    def _setup_package(self) -> None:
-        self.package_vars = {
-            "source_dataset_name": self.source_dataset_name
-        }
-        if self.config.destination_dataset_name:
-            self.package_vars["destination_dataset_name"] = self.config.destination_dataset_name
-        if self.config.package_additional_vars:
-            self.package_vars.update(self.config.package_additional_vars)
-
+    def _setup_location(self) -> None:
         # set the package location
         url = giturlparse.parse(self.config.package_location, check_domain=False)
         if not url.valid:
@@ -83,6 +71,17 @@ class DBTPackageRunner:
             self.cloned_package_name = url.name
             self.package_path = os.path.join(self.working_dir, self.cloned_package_name)
 
+    def _get_package_vars(self, additional_vars: StrAny = None, destination_dataset_name: str = None) -> StrAny:
+        if self.config.package_additional_vars:
+            package_vars = dict(self.config.package_additional_vars)
+        else:
+            package_vars = {}
+        package_vars["source_dataset_name"] = self.source_dataset_name
+        if destination_dataset_name:
+            package_vars["destination_dataset_name"] = destination_dataset_name
+        if additional_vars:
+            package_vars.update(additional_vars)
+        return package_vars
 
     def _log_dbt_run_results(self, results: Sequence[DBTNodeResult]) -> None:
         if not results:
@@ -127,8 +126,8 @@ class DBTPackageRunner:
                 self.clone_package(with_git_command=ssh_command)
 
     @with_custom_environ
-    def run_dbt_command(self, command: str, command_args: Sequence[str] = None) -> Sequence[DBTNodeResult]:
-        logger.info(f"Exec dbt command: {command} {command_args} {self.package_vars} on profile {self.profile_name}")
+    def _run_dbt_command(self, command: str, command_args: Sequence[str] = None, package_vars: StrAny = None) -> Sequence[DBTNodeResult]:
+        logger.info(f"Exec dbt command: {command} {command_args} {package_vars} on profile {self.config.package_profile_name}")
         # write credentials to environ to pass them to dbt
         if self.credentials:
             add_config_to_env(self.credentials)
@@ -138,9 +137,9 @@ class DBTPackageRunner:
             self.package_path,
             command,
             self.config.package_profiles_dir,
-            self.profile_name,
+            self.config.package_profile_name,
             command_args,
-            self.package_vars
+            package_vars
         ]
         script = f"""
 from functools import partial
@@ -163,40 +162,65 @@ with exec_to_stdout(f):
             print(cpe.stderr)
             raise
 
-    def _run_db_steps(self) -> Sequence[DBTNodeResult]:
+    def run(self, cmd_params: Sequence[str] = ("--fail-fast", ), additional_vars: StrAny = None, destination_dataset_name: str = None) -> Sequence[DBTNodeResult]:
+        return self._run_dbt_command(
+            "run",
+            cmd_params,
+            self._get_package_vars(additional_vars, destination_dataset_name)
+        )
+
+    def test(self, cmd_params: Sequence[str] = None, additional_vars: StrAny = None, destination_dataset_name: str = None) -> Sequence[DBTNodeResult]:
+        return self._run_dbt_command(
+            "test",
+            cmd_params,
+            self._get_package_vars(additional_vars, destination_dataset_name)
+        )
+
+    def _run_db_steps(self, run_params: Sequence[str], package_vars: StrAny, source_tests_selector: str) -> Sequence[DBTNodeResult]:
         if self.repo_storage:
             # make sure we use package from the remote head
             self.ensure_newest_package()
         # run package deps
-        self.run_dbt_command("deps")
-        # check if raw schema exists
+        self._run_dbt_command("deps")
+        # run the tests on sources if specified, this prevents to execute package for which ie. the source schema does not yet exist
         try:
-            if self.config.package_source_tests_selector:
-                self.run_dbt_command("test", ["-s", self.config.package_source_tests_selector])
+            if source_tests_selector:
+                self.test(["-s", source_tests_selector], package_vars)
         except DBTProcessingError as err:
             raise PrerequisitesException(err) from err
 
         # always run seeds
-        self.run_dbt_command("seed")
-        # throws DBTProcessingError
+        self._run_dbt_command("seed", package_vars=package_vars)
+
+        # run package
+        if run_params is None:
+            run_params = []
+        if not isinstance(run_params, list):
+            # we always expect lists
+            run_params = list(run_params)
         try:
-            return self.run_dbt_command("run", self.config.package_run_params)
+            return self.run(run_params, package_vars)
         except IncrementalSchemaOutOfSyncError as e:
             if self.config.auto_full_refresh_when_out_of_sync:
                 logger.warning("Attempting full refresh due to incremental model out of sync")
-                return self.run_dbt_command("run", list(self.config.package_run_params) + ["--full-refresh"])
+                return self.run(run_params + ["--full-refresh"], package_vars)
             else:
                 # raise internal DBTProcessingError
                 raise e.args[0]
 
-    def run(self) -> Sequence[DBTNodeResult]:
-        # TODO: pass destination dataset, package_run_params, additional vars here, not via config file
+    def run_all(self,
+        run_params: Sequence[str] = ("--fail-fast", ),
+        additional_vars: StrAny = None,
+        source_tests_selector: str = None,
+        destination_dataset_name: str = None,
+    ) -> Sequence[DBTNodeResult]:
+
         try:
-            # there were many issues with running the method below with pool.apply
-            # 1 - some exceptions are not serialized well on process boundary and queue hangs
-            # 2 - random hangs event if there's no exception, probably issues with DBT spawning its own workers
-            # instead the runner host was configured to recycle each run
-            results = self._run_db_steps()
+            results = self._run_db_steps(
+                run_params,
+                self._get_package_vars(additional_vars, destination_dataset_name),
+                source_tests_selector
+            )
             self._log_dbt_run_results(results)
             return results
         except PrerequisitesException:
@@ -210,18 +234,17 @@ with exec_to_stdout(f):
 
 
 @with_config(spec=DBTRunnerConfiguration, namespaces=("dbt_package_runner",))
-def get_runner(
+def create_runner(
     venv: Venv,
     credentials: CredentialsConfiguration,
     working_dir: str,
-    default_profile_name: str,
     dataset_name: str,
     package_location: str = dlt.config.value,
-    package_run_params: Sequence[str] = None,
-    package_source_tests_selector: str = None,
-    destination_dataset_name: str = None,
-    config: DBTRunnerConfiguration = None,
-    **kwargs: Any
+    package_repository_branch: str = None,
+    package_repository_ssh_key: TSecretValue = TSecretValue(""),  # noqa
+    package_profiles_dir: str = None,
+    package_profile_name: str = None,
+    auto_full_refresh_when_out_of_sync: bool = None,
+    config: DBTRunnerConfiguration = None
     ) -> DBTPackageRunner:
-    # config: DBTRunnerConfiguration = last_config(**kwargs)
-    return DBTPackageRunner(venv, credentials, working_dir, dataset_name, config.package_profile_name or default_profile_name, config, REGISTRY)
+    return DBTPackageRunner(venv, credentials, working_dir, dataset_name, config, REGISTRY)

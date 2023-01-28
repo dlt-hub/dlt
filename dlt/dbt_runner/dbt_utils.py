@@ -98,15 +98,15 @@ def run_dbt_command(
         profile_name: Optional[str] = None,
         global_args: Sequence[str] = None,
         command_args: Sequence[str] = None,
-        dbt_vars: StrAny = None
+        package_vars: StrAny = None
 ) -> Sequence[DBTNodeResult]:
     args = ["--profiles-dir", profiles_dir]
     # add profile name if provided
     if profile_name:
         args += ["--profile", profile_name]
     # serialize dbt variables to pass to package
-    if dbt_vars:
-        args += ["--vars", json.dumps(dbt_vars)]
+    if package_vars:
+        args += ["--vars", json.dumps(package_vars)]
     if command_args:
         args += command_args
 
@@ -151,8 +151,8 @@ def init_logging_and_run_dbt_command(
     profiles_dir: str,
     profile_name: Optional[str] = None,
     command_args: Sequence[str] = None,
-    dbt_vars: StrAny = None
+    package_vars: StrAny = None
 ) -> Any:
     # initialize dbt logging, returns global parameters to dbt command
     dbt_global_args = initialize_dbt_logging(log_level, is_json_logging)
-    return run_dbt_command(package_path, command, profiles_dir, profile_name, dbt_global_args, command_args, dbt_vars)
+    return run_dbt_command(package_path, command, profiles_dir, profile_name, dbt_global_args, command_args, package_vars)
