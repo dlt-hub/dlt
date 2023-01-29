@@ -1,0 +1,49 @@
+version: 2
+
+sources:
+  - name: dlt
+    quoting:
+      database: true
+      schema: true
+      identifier: true
+    schema: "{{ var('source_dataset_name') }}"
+    tables:
+      - name: _dlt_loads
+        # schema: "{{ var('source_dataset_name') }}"
+      - name: _dlt_version
+        # schema: "{{ var('source_dataset_name') }}_event }}"
+        columns:
+          - name: version
+            tests:
+              - dbt_expectations.expect_column_to_exist
+                  # config:
+                  #   tags: prerequisites
+
+  - name: chess
+    quoting:
+      database: true
+      schema: true
+      identifier: true
+    schema: "{{ var('source_dataset_name') }}"
+    tables:
+      - name: players_profiles
+        columns:
+          - name: player_id
+            tests:
+              - unique
+              - not_null
+          - name: _dlt_id
+            tests:
+              - unique
+              - not_null
+      - name: players_games
+        columns:
+          - name: uuid
+            tests:
+              - unique
+              - not_null
+          - name: _dlt_id
+            tests:
+              - unique
+              - not_null
+      - name: players_online_status

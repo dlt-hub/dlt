@@ -1,3 +1,4 @@
+import os
 from typing import Any, Iterator
 
 import dlt
@@ -20,30 +21,33 @@ def chess(chess_url: str = dlt.config.value, title: str = "GM", max_players: int
 
     # this resource takes data from players and returns profiles
     @dlt.transformer(data_from=players, write_disposition="replace")
-    def player_profile(username: Any) -> Iterator[TDataItems]:
+    def players_profiles(username: Any) -> Iterator[TDataItems]:
         r = requests.get(f"{chess_url}player/{username}")
         r.raise_for_status()
         yield r.json()
 
     # this resource takes data from players and returns games for the last month if not specified otherwise
     @dlt.transformer(data_from=players, write_disposition="append")
-    def player_games(username: Any) -> Iterator[TDataItems]:
+    def players_games(username: Any) -> Iterator[TDataItems]:
         # https://api.chess.com/pub/player/{username}/games/{YYYY}/{MM}
         r = requests.get(f"{chess_url}player/{username}/games/{year:04d}/{month:02d}")
         r.raise_for_status()
         yield r.json()["games"]
 
-    return players(), player_profile, player_games
+    return players(), players_profiles, players_games
 
-print("You must run this from the examples/chess folder")
-# chess_url in config.toml, credentials for postgres in secrets.toml, credentials always under credentials key
-# mind the full_refresh: it makes the pipeline to load to a distinct dataset each time it is run and always is resetting the schema and state
-info = dlt.pipeline(
-    destination="postgres",
-    dataset_name="chess",
-    full_refresh=True
-).run(
-    chess(max_players=5, month=9)
-)
-# display where the data went
-print(info)
+if __name__ == "__main__":
+    print("You must run this from the docs/examples/chess folder")
+    assert os.getcwd().endswith("chess")
+    # chess_url in config.toml, credentials for postgres in secrets.toml, credentials always under credentials key
+    # mind the full_refresh: it makes the pipeline to load to a distinct dataset each time it is run and always is resetting the schema and state
+    info = dlt.pipeline(
+        pipeline_name="chess_games",
+        destination="postgres",
+        dataset_name="chess",
+        full_refresh=True
+    ).run(
+        chess(max_players=5, month=9)
+    )
+    # display where the data went
+    print(info)
