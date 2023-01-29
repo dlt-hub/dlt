@@ -234,6 +234,7 @@ def str_representer(dumper: yaml.Dumper, data: str) -> yaml.ScalarNode:
 def wrap_template_str(s: str) -> str:
     return "${{ %s }}" % s
 
+
 def serialize_templated_yaml(tree: StrAny) -> str:
     old_representer = Dumper.yaml_representers[str]
     try:

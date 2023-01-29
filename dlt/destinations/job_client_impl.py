@@ -11,7 +11,7 @@ from dlt.common import json, pendulum, logger
 from dlt.common.schema.typing import LOADS_TABLE_NAME, VERSION_TABLE_NAME
 from dlt.common.storages import FileStorage
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns
-from dlt.common.destination import DestinationClientConfiguration, TLoadJobStatus, LoadJob, JobClientBase
+from dlt.common.destination import DestinationClientConfiguration, DestinationClientDwhConfiguration, TLoadJobStatus, LoadJob, JobClientBase
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 
 from dlt.destinations.typing import TNativeConn
@@ -54,6 +54,8 @@ class SqlJobClientBase(JobClientBase):
     def __init__(self, schema: Schema, config: DestinationClientConfiguration,  sql_client: SqlClientBase[TNativeConn]) -> None:
         super().__init__(schema, config)
         self.sql_client = sql_client
+        assert isinstance(config, DestinationClientDwhConfiguration)
+        self.config: DestinationClientDwhConfiguration = config
 
     def initialize_storage(self) -> None:
         if not self.is_storage_initialized():
