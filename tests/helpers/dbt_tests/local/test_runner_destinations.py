@@ -62,12 +62,12 @@ def test_reinitialize_package() -> None:
     runner = setup_rasa_runner("redshift")
     runner.ensure_newest_package()
     # mod the package
-    readme_path = modify_and_commit_file(runner.package_path, "README.md", content=runner.config.destination_dataset_name)
+    readme_path = modify_and_commit_file(runner.package_path, "README.md", content=runner.config.package_profiles_dir)
     assert os.path.isfile(readme_path)
     # this will wipe out old package and clone again
     runner.ensure_newest_package()
     # we have old file back
-    assert runner.repo_storage.load(f"{runner.cloned_package_name}/README.md") != runner.config.destination_dataset_name
+    assert runner.repo_storage.load(f"{runner.cloned_package_name}/README.md") != runner.config.package_profiles_dir
 
 
 def test_dbt_test_no_raw_schema(destination_info: DBTDestinationInfo) -> None:

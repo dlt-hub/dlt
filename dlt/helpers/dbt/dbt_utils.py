@@ -1,6 +1,6 @@
 import os
 import logging
-from typing import Any, Sequence, Optional
+from typing import Any, Sequence, Optional, Union
 import warnings
 
 from dlt.common import json, logger
@@ -19,9 +19,13 @@ try:
     import dbt.logger
     from dbt.events import functions
     from dbt.contracts import results as dbt_results
-    from dbt.exceptions import FailFastException
 except ImportError:
     raise MissingDependencyException("DBT Core", ["dbt-core"])
+
+try:
+    from dbt.exceptions import FailFastException
+except ImportError:
+    from dbt.exceptions import FailFastError as FailFastException
 
 _DBT_LOGGER_INITIALIZED = False
 
@@ -36,23 +40,26 @@ def initialize_dbt_logging(level: str, is_json_logging: bool) -> Sequence[str]:
 
         if not _DBT_LOGGER_INITIALIZED:
             self._file_handler.set_path(path)
-
-    def setup_event_logger_wrapper(log_path: str, level_override:str = None) -> None:
-        global _DBT_LOGGER_INITIALIZED
-
-        if not _DBT_LOGGER_INITIALIZED:
-            functions.setup_event_logger(log_path, level)
-            # force log level as file is debug only
-            functions.this.FILE_LOG.setLevel(level)
-            functions.this.FILE_LOG.handlers[0].setLevel(level)
         _DBT_LOGGER_INITIALIZED = True
 
-    dbt.main.setup_event_logger = setup_event_logger_wrapper
+    # def setup_event_logger_wrapper(log_path: str, level_override:str = None) -> None:
+    #     global _DBT_LOGGER_INITIALIZED
+
+    #     if not _DBT_LOGGER_INITIALIZED:
+    #         functions.setup_event_logger(log_path, level.lower())
+    #         # force log level as file is debug only
+    #         # functions.this.FILE_LOG.setLevel(level)
+    #         # functions.this.FILE_LOG.handlers[0].setLevel(level)
+    #     _DBT_LOGGER_INITIALIZED = True
+
+    # dbt.main.setup_event_logger = setup_event_logger_wrapper
     dbt.logger.LogManager.set_path = set_path_wrapper
 
     globs = []
     if int_level <= logging.DEBUG:
         globs = ["--debug"]
+    if int_level >= logging.WARNING:
+        globs = ["--quiet", "--no-print"]
 
     # return global parameters to be passed to setup logging
 
@@ -99,7 +106,7 @@ def run_dbt_command(
         global_args: Sequence[str] = None,
         command_args: Sequence[str] = None,
         package_vars: StrAny = None
-) -> Sequence[DBTNodeResult]:
+) -> Union[Sequence[DBTNodeResult], dbt_results.ExecutionResult]:
     args = ["--profiles-dir", profiles_dir]
     # add profile name if provided
     if profile_name:
@@ -152,7 +159,7 @@ def init_logging_and_run_dbt_command(
     profile_name: Optional[str] = None,
     command_args: Sequence[str] = None,
     package_vars: StrAny = None
-) -> Any:
+) -> Union[Sequence[DBTNodeResult], dbt_results.ExecutionResult]:
     # initialize dbt logging, returns global parameters to dbt command
     dbt_global_args = initialize_dbt_logging(log_level, is_json_logging)
     return run_dbt_command(package_path, command, profiles_dir, profile_name, dbt_global_args, command_args, package_vars)

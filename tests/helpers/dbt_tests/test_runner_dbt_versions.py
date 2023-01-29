@@ -34,9 +34,10 @@ def client() -> Iterator[PostgresClient]:
         ["dbt-core==1.1.3", "dbt-postgres==1.1.3"],
         ["dbt-core==1.2.4", "dbt-postgres==1.2.4"],
         ["dbt-core==1.3.2", "dbt-postgres==1.3.2"],
+        ["dbt-core==1.4.0", "dbt-postgres==1.4.0"],
         None
         ],
-    ids=["venv-1.1.3", "venv-1.2.4", "venv-1.3.2", "local"]
+    ids=["venv-1.1.3", "venv-1.2.4", "venv-1.3.2", "venv-1.4.0", "local"]
 )
 def dbt_package_f(request: Any) -> AnyFun:
     if request.param is None:
