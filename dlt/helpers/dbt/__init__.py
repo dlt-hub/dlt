@@ -15,7 +15,7 @@ from dlt.helpers.dbt.runner import create_runner, DBTPackageRunner
 DEFAULT_DLT_VERSION = ">=1.1<1.5"
 
 
-def _default_profile_name(credentials: DestinationClientDwhConfiguration,) -> str:
+def _default_profile_name(credentials: DestinationClientDwhConfiguration) -> str:
     profile_name = credentials.destination_name
     # in case of credentials with default add default to the profile name
     if isinstance(credentials.credentials, CredentialsWithDefault):
@@ -41,8 +41,6 @@ def _create_dbt_deps(destination_names: List[str], dbt_version: str = DEFAULT_DL
         all_packages[idx] = package_w_ver
 
     dlt_requirement = get_installed_requirement_string()
-
-    print(all_packages + [dlt_requirement])
 
     return all_packages + [dlt_requirement]
 

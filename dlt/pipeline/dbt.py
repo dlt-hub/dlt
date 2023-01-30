@@ -1,3 +1,4 @@
+import os
 import contextlib
 from dlt.common.exceptions import VenvNotFound
 from dlt.common.runners.venv import Venv
@@ -9,9 +10,13 @@ from dlt.pipeline.pipeline import Pipeline
 
 
 
-def get_venv(pipeline: Pipeline, venv_name: str = "dbt", dbt_version: str = _DEFAULT_DLT_VERSION) -> Venv:
-    # keep venv inside pipeline
-    venv_dir = pipeline._pipeline_storage.make_full_path(venv_name)
+def get_venv(pipeline: Pipeline, venv_path: str = "dbt", dbt_version: str = _DEFAULT_DLT_VERSION) -> Venv:
+    # keep venv inside pipeline if path is relative
+    if not os.path.isabs(venv_path):
+        pipeline._pipeline_storage.create_folder(venv_path, exists_ok=True)
+        venv_dir = pipeline._pipeline_storage.make_full_path(venv_path)
+    else:
+        venv_dir = venv_path
     # try to restore existing venv
     with contextlib.suppress(VenvNotFound):
         # TODO: check dlt version in venv and update it if local version updated
@@ -28,10 +33,7 @@ def package(
         auto_full_refresh_when_out_of_sync: bool = None,
         venv: Venv = None
 ) -> DBTPackageRunner:
-    if not pipeline.default_schema_name:
-        pipeline._inject_schema(Schema("dbt"))
-
-    schema = pipeline.default_schema
+    schema = pipeline.default_schema if pipeline.default_schema_name else Schema(pipeline.dataset_name)
     job_client = pipeline._sql_job_client(schema)
     if not venv:
         venv = Venv.restore_current()

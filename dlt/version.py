@@ -1,4 +1,5 @@
 from importlib.metadata import version as pkg_version, distribution as pkg_distribution
+from urllib.request import url2pathname
 from urllib.parse import urlparse
 
 DLT_IMPORT_NAME = "dlt"
@@ -19,7 +20,7 @@ def get_installed_requirement_string(package: str = DLT_PKG_NAME) -> str:
         url = urlparse(json.loads(direct_url)["url"])
         # we are interested only in file urls
         if url.scheme == "file":
-            return url.path  # type: ignore
+            return url2pathname(url.path)
 
     if package == DLT_PKG_NAME:
         package_requirement = DLT_PKG_REQUIREMENT

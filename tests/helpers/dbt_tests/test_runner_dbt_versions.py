@@ -7,16 +7,18 @@ import pytest
 from dlt.common import json
 
 from dlt.common.configuration import resolve_configuration
+from dlt.common.configuration.specs import GcpClientCredentialsWithDefault, CredentialsWithDefault
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.runners.synth_pickle import decode_obj, encode_obj
 from dlt.common.runners.venv import Venv
 from dlt.common.typing import AnyFun
-from dlt.helpers.dbt.configuration import DBTRunnerConfiguration
 
 from dlt.destinations.postgres.postgres import PostgresClient
+from dlt.destinations.bigquery import BigQueryClientConfiguration
+from dlt.helpers.dbt.configuration import DBTRunnerConfiguration
 from dlt.helpers.dbt.exceptions import PrerequisitesException, DBTProcessingError
+from dlt.helpers.dbt import package_runner, create_venv, _create_dbt_deps, _default_profile_name, DEFAULT_DLT_VERSION
 
-from dlt.helpers.dbt import package_runner
 from tests.helpers.dbt_tests.utils import JAFFLE_SHOP_REPO, assert_jaffle_completed, clone_jaffle_repo, find_run_result
 
 from tests.utils import test_storage, preserve_environ
@@ -30,21 +32,41 @@ def client() -> Iterator[PostgresClient]:
 
 @pytest.fixture(
     scope="module",
-    params=[
-        ["dbt-core==1.1.3", "dbt-postgres==1.1.3"],
-        ["dbt-core==1.2.4", "dbt-postgres==1.2.4"],
-        ["dbt-core==1.3.2", "dbt-postgres==1.3.2"],
-        ["dbt-core==1.4.0", "dbt-postgres==1.4.0"],
-        None
-        ],
+    params=["1.1.3", "1.2.4", "1.3.2", "1.4.0", None],
     ids=["venv-1.1.3", "venv-1.2.4", "venv-1.3.2", "venv-1.4.0", "local"]
 )
 def dbt_package_f(request: Any) -> AnyFun:
     if request.param is None:
         yield partial(package_runner, Venv.restore_current())
     else:
-        with Venv.create(tempfile.mkdtemp(), [os.getcwd()] + request.param) as venv:
+        with create_venv(tempfile.mkdtemp(), ["postgres"], request.param) as venv:
             yield partial(package_runner, venv)
+
+
+def test_infer_venv_deps() -> None:
+    requirements = _create_dbt_deps(["postgres", "bigquery"])
+    assert requirements[:3] == [f"dbt-postgres{DEFAULT_DLT_VERSION}", f"dbt-bigquery{DEFAULT_DLT_VERSION}", f"dbt-core{DEFAULT_DLT_VERSION}"]
+    # should lead to here
+    assert os.path.isdir(requirements[-1])
+    # provide exact version
+    requirements = _create_dbt_deps(["postgres"], dbt_version="3.3.3")
+    assert requirements[:-1] == ["dbt-postgres==3.3.3", "dbt-core==3.3.3"]
+    # provide version range
+    requirements = _create_dbt_deps(["duckdb"], dbt_version=">3")
+    assert requirements[:-1] == ["dbt-duckdb>3", "dbt-core>3"]
+    # we do not validate version ranges, pip will do it and fail when creating venv
+    requirements = _create_dbt_deps(["duckdb"], dbt_version="y")
+    assert requirements[:-1] == ["dbt-duckdby", "dbt-corey"]
+
+
+def test_default_profile_name() -> None:
+    bigquery_config = BigQueryClientConfiguration(credentials=GcpClientCredentialsWithDefault())
+    assert isinstance(bigquery_config.credentials, CredentialsWithDefault)
+    # default credentials are not present
+    assert _default_profile_name(bigquery_config) == "bigquery"
+    # force them to be present
+    bigquery_config.credentials._set_default_credentials({})
+    assert _default_profile_name(bigquery_config) == "bigquery_default"
 
 
 def test_dbt_configuration() -> None:
