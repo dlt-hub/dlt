@@ -53,10 +53,10 @@ lint-security:
 	poetry run bandit -r dlt/ -n 3 -l
 
 test:
-	(set -a && . tests/.env && poetry run pytest tests --ignore tests/helpers/dbt_tests)
+	(set -a && . tests/.env && poetry run pytest tests)
 
 test-common:
-	poetry run pytest tests --ignore=tests/load --ignore=tests/helpers/dbt_tests --ignore=tests/cli
+	poetry run pytest tests --ignore=tests/load --ignore=tests/helpers --ignore=tests/cli
 
 reset-test-storage:
 	-rm -r _storage
