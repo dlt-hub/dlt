@@ -25,7 +25,9 @@
 
 1. `chess` an example of a pipeline project with its own config and credential files. it is also an example of how transformers are connected to resources and resource selection. **it should be run from examples/chess` folder**
 
-1. `run_dbt_jaffle` runs dbt's jaffle shop example package directly from the repo and queries the results with `sql_client`. Note how the automatic usage of isolated virtual environment to run dbt and sharing of the credentials
+2. `chess/chess_dbt.py`: an example of a `dbt` transformations package working with a dataset loaded by `dlt`. The package is incrementally processing the loaded data following the new records in `_dlt_loads` table.
+
+1. `run_dbt_jaffle` runs dbt's jaffle shop example package directly from the repo and queries the results with `sql_client`. Note the automatic usage of isolated virtual environment to run dbt and sharing of the credentials
 
 Not yet ported:
 

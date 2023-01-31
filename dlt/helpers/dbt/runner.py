@@ -24,6 +24,13 @@ from dlt.helpers.dbt.exceptions import IncrementalSchemaOutOfSyncError, Prerequi
 
 
 class DBTPackageRunner:
+    """A Python wrapper over a dbt package
+
+    The created wrapper minimizes the required effort to run `dbt` packages on datasets created with `dlt`. It clones the package repo and keeps it up to data,
+    shares the `dlt` destination credentials with `dbt` and allows the isolated execution with `venv` parameter.
+    The wrapper creates a `dbt` profile from a passed `dlt` credentials and executes the transformations in `source_dataset_name` schema. Additional configuration is
+    passed via DBTRunnerConfiguration instance
+    """
 
     model_elapsed_gauge: ClassVar[Gauge] = None
     model_exec_info: ClassVar[Info] = None
@@ -100,7 +107,7 @@ class DBTPackageRunner:
         DBTPackageRunner.model_exec_info.info(info)
         logger.metrics("stop", "dbt models", extra=get_logging_extras([DBTPackageRunner.model_elapsed_gauge, DBTPackageRunner.model_exec_info]))
 
-    def clone_package(self, with_git_command: Optional[str]) -> None:
+    def _clone_package(self, with_git_command: Optional[str]) -> None:
         try:
             # cleanup package folder
             if self.repo_storage.has_folder(self.cloned_package_name):
@@ -115,6 +122,7 @@ class DBTPackageRunner:
             raise
 
     def ensure_newest_package(self) -> None:
+        """Clones or brings the dbt package at `package_location` up to date."""
         from git import GitError
 
         with git_custom_key_command(self.config.package_repository_ssh_key) as ssh_command:
@@ -123,7 +131,7 @@ class DBTPackageRunner:
             except GitError as err:
                 # cleanup package folder
                 logger.info(f"Package will be cloned due to {type(err).__name__}:{str(err)}")
-                self.clone_package(with_git_command=ssh_command)
+                self._clone_package(with_git_command=ssh_command)
 
     @with_custom_environ
     def _run_dbt_command(self, command: str, command_args: Sequence[str] = None, package_vars: StrAny = None) -> Sequence[DBTNodeResult]:
@@ -163,6 +171,21 @@ with exec_to_stdout(f):
             raise
 
     def run(self, cmd_params: Sequence[str] = ("--fail-fast", ), additional_vars: StrAny = None, destination_dataset_name: str = None) -> Sequence[DBTNodeResult]:
+        """Runs `dbt` package
+
+        Executes `dbt run` on previously cloned package.
+
+        Args:
+            run_params (Sequence[str], optional): Additional parameters to `run` command ie. `full-refresh`. Defaults to ("--fail-fast", ).
+            additional_vars (StrAny, optional): Additional jinja variables to be passed to the package. Defaults to None.
+            destination_dataset_name (str, optional): Overwrites the dbt schema where transformed models will be created. Useful for testing or creating several copies of transformed data . Defaults to None.
+
+        Returns:
+            Sequence[DBTNodeResult]: A list of processed model with names, statuses, execution messages and execution times
+
+        Exceptions:
+            DBTProcessingError: `run` command failed. Contains a list of models with their execution statuses and error messages
+        """
         return self._run_dbt_command(
             "run",
             cmd_params,
@@ -170,6 +193,21 @@ with exec_to_stdout(f):
         )
 
     def test(self, cmd_params: Sequence[str] = None, additional_vars: StrAny = None, destination_dataset_name: str = None) -> Sequence[DBTNodeResult]:
+        """Tests `dbt` package
+
+        Executes `dbt test` on previously cloned package.
+
+        Args:
+            run_params (Sequence[str], optional): Additional parameters to `test` command ie. test selectors`.
+            additional_vars (StrAny, optional): Additional jinja variables to be passed to the package. Defaults to None.
+            destination_dataset_name (str, optional): Overwrites the dbt schema where transformed models will be created. Useful for testing or creating several copies of transformed data . Defaults to None.
+
+        Returns:
+            Sequence[DBTNodeResult]: A list of executed tests with names, statuses, execution messages and execution times
+
+        Exceptions:
+            DBTProcessingError: `test` command failed. Contains a list of models with their execution statuses and error messages
+        """
         return self._run_dbt_command(
             "test",
             cmd_params,
@@ -200,13 +238,12 @@ with exec_to_stdout(f):
             run_params = list(run_params)
         try:
             return self.run(run_params, package_vars)
-        except IncrementalSchemaOutOfSyncError as e:
+        except IncrementalSchemaOutOfSyncError:
             if self.config.auto_full_refresh_when_out_of_sync:
                 logger.warning("Attempting full refresh due to incremental model out of sync")
                 return self.run(run_params + ["--full-refresh"], package_vars)
             else:
-                # raise internal DBTProcessingError
-                raise e.args[0]
+                raise
 
     def run_all(self,
         run_params: Sequence[str] = ("--fail-fast", ),
@@ -214,7 +251,31 @@ with exec_to_stdout(f):
         source_tests_selector: str = None,
         destination_dataset_name: str = None,
     ) -> Sequence[DBTNodeResult]:
+        """Prepares and runs a dbt package.
 
+        This method executes typical `dbt` workflow with following steps:
+        1. First it clones the package or brings it up to date with the origin. If package location is a local path, it stays intact
+        2. It installs the dependencies (`dbt deps`)
+        3. It runs seed (`dbt seed`)
+        4. It runs optional tests on the sources
+        5. It runs the package (`dbt run`)
+        6. If the `dbt` fails with "incremental model out of sync", it will retry with full-refresh on (only when `auto_full_refresh_when_out_of_sync` is set).
+           See https://docs.getdbt.com/docs/build/incremental-models#what-if-the-columns-of-my-incremental-model-change
+
+        Args:
+            run_params (Sequence[str], optional): Additional parameters to `run` command ie. `full-refresh`. Defaults to ("--fail-fast", ).
+            additional_vars (StrAny, optional): Additional jinja variables to be passed to the package. Defaults to None.
+            source_tests_selector (str, optional): A source tests selector ie. will execute all tests from `sources` model. Defaults to None.
+            destination_dataset_name (str, optional): Overwrites the dbt schema where transformed models will be created. Useful for testing or creating several copies of transformed data . Defaults to None.
+
+        Returns:
+            Sequence[DBTNodeResult]: A list of processed model with names, statuses, execution messages and execution times
+
+        Exceptions:
+            DBTProcessingError: any of the dbt commands failed. Contains a list of models with their execution statuses and error messages
+            PrerequisitesException: the source tests failed
+            IncrementalSchemaOutOfSyncError: `run` failed due to schema being out of sync. the DBTProcessingError with failed model is in `args[0]`
+        """
         try:
             results = self._run_db_steps(
                 run_params,
