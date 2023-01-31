@@ -25,6 +25,10 @@
 
 1. `chess` an example of a pipeline project with its own config and credential files. it is also an example of how transformers are connected to resources and resource selection. **it should be run from examples/chess` folder**
 
+2. `chess/chess_dbt.py`: an example of a `dbt` transformations package working with a dataset loaded by `dlt`. The package is incrementally processing the loaded data following the new records in `_dlt_loads` table.
+
+1. `run_dbt_jaffle` runs dbt's jaffle shop example package directly from the repo and queries the results with `sql_client`. Note the automatic usage of isolated virtual environment to run dbt and sharing of the credentials
+
 Not yet ported:
 
 1. `discord_iterator` an example that load example discord data (messages, channels) into warehouse from supplied files. Shows several auxiliary pipeline functions and an example of pipelining iterators (with `map` function). You can also see that produced schema is quite complicated due to several layers of nesting.

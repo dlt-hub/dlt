@@ -6,7 +6,7 @@ import itertools
 
 import dlt
 
-from dlt.common import Decimal, json
+from dlt.common import json
 from dlt.common.destination import DestinationReference
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import VERSION_TABLE_NAME

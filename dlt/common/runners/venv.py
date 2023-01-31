@@ -19,12 +19,16 @@ class DLTEnvBuilder(venv.EnvBuilder):
 
 
 class Venv():
+    """Creates and wraps the Python Virtual Environment to allow for code execution"""
+
     def __init__(self, context: types.SimpleNamespace, current: bool = False) -> None:
+        """Please use `Venv.create`, `Venv.restore` or `Venv.restore_current` methods to create Venv instance"""
         self.context = context
         self.current = current
 
     @classmethod
     def create(cls, venv_dir: str, dependencies: List[str] = None) -> "Venv":
+        """Creates a new Virtual Environment at the location specified in `venv_dir` and installs `dependencies` via pip. Deletes partially created environment on failure."""
         b = DLTEnvBuilder()
         try:
             b.create(os.path.abspath(venv_dir))
@@ -38,6 +42,7 @@ class Venv():
 
     @classmethod
     def restore(cls, venv_dir: str, current: bool = False) -> "Venv":
+        """Restores Virtual Environment at `venv_dir`"""
         if not os.path.isdir(venv_dir):
             raise VenvNotFound(venv_dir)
         b = venv.EnvBuilder(clear=False, upgrade=False)
@@ -48,6 +53,7 @@ class Venv():
 
     @classmethod
     def restore_current(cls) -> "Venv":
+        """Wraps the current Python environment."""
         try:
             venv = cls.restore(os.environ["VIRTUAL_ENV"], current=True)
         except KeyError:
@@ -63,6 +69,10 @@ class Venv():
         return self
 
     def __exit__(self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: types.TracebackType) -> None:
+        self.delete_environment()
+
+    def delete_environment(self) -> None:
+        """Deletes the Virtual Environment."""
         if self.current:
             raise NotImplementedError("Context manager does not work with current venv")
         # delete venv
@@ -75,12 +85,14 @@ class Venv():
         return subprocess.Popen(cmd, **popen_kwargs)
 
     def run_command(self, entry_point: str, *script_args: Any) -> str:
+        """Runs any `command` with specified `script_args`. Current `os.environ` and cwd is passed to executed process"""
         # runs one of installed entry points typically CLIS coming with packages and installed into PATH
         command = os.path.join(self.context.bin_path, entry_point)
         cmd = [command, *script_args]
         return subprocess.check_output(cmd, stderr=subprocess.STDOUT, text=True)
 
     def run_script(self, script_path: str, *script_args: Any) -> str:
+        """Runs a python `script` source with specified `script_args`. Current `os.environ` and cwd is passed to executed process"""
         # os.environ is passed to executed process
         cmd = [self.context.env_exe, "-I", os.path.abspath(script_path), *script_args]
         try:
@@ -92,6 +104,7 @@ class Venv():
                 raise
 
     def run_module(self, module: str, *module_args: Any) -> str:
+        """Runs a python `module` with specified `module_args`. Current `os.environ` and cwd is passed to executed process"""
         cmd = [self.context.env_exe, "-Im", module, *module_args]
         return subprocess.check_output(cmd, stderr=subprocess.STDOUT, text=True)
 

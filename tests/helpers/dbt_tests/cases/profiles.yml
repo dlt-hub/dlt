@@ -1,3 +1,7 @@
+config:
+  # do not track usage, do not create .user.yml
+  send_anonymous_usage_stats: False
+
 jaffle_shop:
   target: analytics
   outputs:

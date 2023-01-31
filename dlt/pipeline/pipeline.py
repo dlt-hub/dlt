@@ -631,19 +631,22 @@ class Pipeline(SupportsPipeline):
 
     def sql_client(self, schema_name: str = None, credentials: Any = None) -> SqlClientBase[Any]:
         """Returns a sql client configured to query/change the destination and dataset that were used to load the data."""
-        if not self.default_schema_name:
-            raise PipelineConfigMissing(
-                self.pipeline_name,
-                "default_schema_name",
-                "load",
-                "Sql Client is not available in a pipeline without a default schema. Extract some data first or restore the pipeline from the destination using 'restore_from_destination' flag. There's also `_inject_schema` method for advanced users."
-            )
-        schema = self.schemas[schema_name] if schema_name else self.default_schema
+        # if not self.default_schema_name:
+        #     raise PipelineConfigMissing(
+        #         self.pipeline_name,
+        #         "default_schema_name",
+        #         "load",
+        #         "Sql Client is not available in a pipeline without a default schema. Extract some data first or restore the pipeline from the destination using 'restore_from_destination' flag. There's also `_inject_schema` method for advanced users."
+        #     )
+        if schema_name:
+            schema = self.schemas[schema_name]
+        else:
+            schema = self.default_schema if self.default_schema_name else Schema(self.dataset_name)
         return self._sql_job_client(schema, credentials).sql_client
 
     def _sql_job_client(self, schema: Schema, credentials: Any = None) -> SqlJobClientBase:
         client_config = self._get_destination_client_initial_config(credentials)
-        client = self._get_destination_client(schema, client_config)
+        client = self._get_destination_client(schema , client_config)
         if isinstance(client, SqlJobClientBase):
             return client
         else:
