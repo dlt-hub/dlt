@@ -24,7 +24,7 @@ def dbt_venv() -> Iterator[Venv]:
 
 @pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
 def test_run_jaffle_package(destination_name: str, dbt_venv: Venv) -> None:
-    pipeline = dlt.pipeline(destination=destination_name, dataset_name="jaffle_jaffle")
+    pipeline = dlt.pipeline(destination=destination_name, dataset_name="jaffle_jaffle", full_refresh=True)
     # get runner, pass the env from fixture
     dbt = dlt.dbt.package(pipeline, "https://github.com/dbt-labs/jaffle_shop.git", venv=dbt_venv)
     # no default schema

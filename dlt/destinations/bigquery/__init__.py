@@ -16,18 +16,18 @@ def _configure(config: BigQueryClientConfiguration = config.value) -> BigQueryCl
 
 def capabilities() -> DestinationCapabilitiesContext:
     caps = DestinationCapabilitiesContext()
-    caps.update({
-        "preferred_loader_file_format": "jsonl",
-        "supported_loader_file_formats": ["jsonl"],
-        "escape_identifier": escape_bigquery_identifier,
-        "escape_literal": None,
-        "max_identifier_length": 1024,
-        "max_column_identifier_length": 300,
-        "max_query_length": 1024 * 1024,
-        "is_max_query_length_in_bytes": False,
-        "max_text_data_type_length": 10 * 1024 * 1024,
-        "is_max_text_data_type_length_in_bytes": True
-    })
+    caps.preferred_loader_file_format = "jsonl"
+    caps.supported_loader_file_formats = ["jsonl"]
+    caps.escape_identifier = escape_bigquery_identifier
+    caps.escape_literal = None
+    caps.max_identifier_length = 1024
+    caps.max_column_identifier_length = 300
+    caps.max_query_length = 1024 * 1024
+    caps.is_max_query_length_in_bytes = False
+    caps.max_text_data_type_length = 10 * 1024 * 1024
+    caps.is_max_text_data_type_length_in_bytes = True
+    caps.supports_ddl_transactions = False
+
     return caps
 
 

@@ -285,9 +285,6 @@ def test_source_max_nesting(destination_name: str) -> None:
     rows = select_data(dlt.pipeline(), "SELECT cn FROM complex_cn")
     assert len(rows) == 1
     cn_val = rows[0][0]
-    print(type(cn_val))
     if isinstance(cn_val, str):
-        print("CASTING")
         cn_val = json.loads(cn_val)
-    print(type(cn_val))
     assert cn_val == complex_part

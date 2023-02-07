@@ -377,7 +377,7 @@ class Pipeline(SupportsPipeline):
         destination = DestinationReference.from_name(destination)
         self.destination = destination or self.destination
         self._set_dataset_name(dataset_name)
-        self.credentials = credentials
+        self.credentials = credentials or self.credentials
 
 
         # check if any schema is present, if not then no data was extracted

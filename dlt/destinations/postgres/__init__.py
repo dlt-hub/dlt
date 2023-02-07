@@ -17,18 +17,18 @@ def _configure(config: PostgresClientConfiguration = config.value) -> PostgresCl
 def capabilities() -> DestinationCapabilitiesContext:
     # https://www.postgresql.org/docs/current/limits.html
     caps = DestinationCapabilitiesContext()
-    caps.update({
-        "preferred_loader_file_format": "insert_values",
-        "supported_loader_file_formats": ["insert_values"],
-        "escape_identifier": escape_postgres_identifier,
-        "escape_literal": escape_postgres_literal,
-        "max_identifier_length": 63,
-        "max_column_identifier_length": 63,
-        "max_query_length": 32 * 1024 * 1024,
-        "is_max_query_length_in_bytes": True,
-        "max_text_data_type_length": 1024 * 1024 * 1024,
-        "is_max_text_data_type_length_in_bytes": True
-    })
+    caps.preferred_loader_file_format = "insert_values"
+    caps.supported_loader_file_formats = ["insert_values"]
+    caps.escape_identifier = escape_postgres_identifier
+    caps.escape_literal = escape_postgres_literal
+    caps.max_identifier_length = 63
+    caps.max_column_identifier_length = 63
+    caps.max_query_length = 32 * 1024 * 1024
+    caps.is_max_query_length_in_bytes = True
+    caps.max_text_data_type_length = 1024 * 1024 * 1024
+    caps.is_max_text_data_type_length_in_bytes = True
+    caps.supports_ddl_transactions = True
+
     return caps
 
 

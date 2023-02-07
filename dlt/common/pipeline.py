@@ -80,6 +80,8 @@ class SupportsPipeline(Protocol):
     """Name of the dataset to which pipeline will be loaded to"""
     runtime_config: RunConfiguration
     """A configuration of runtime options like logging level and format and various tracing options"""
+    working_dir: str
+    """A working directory of the pipeline"""
 
     @property
     def state(self) -> TPipelineState:

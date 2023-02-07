@@ -133,3 +133,20 @@ class InvalidDestinationReference(DestinationException):
         self.destination_module = destination_module
         msg = f"Destination {destination_module} is not a valid destination module."
         super().__init__(msg)
+
+
+class DestinationTerminalException(DestinationException, TerminalException):
+    pass
+
+
+class DestinationTransientException(DestinationException, TransientException):
+    pass
+
+
+class IdentifierTooLongException(DestinationTerminalException):
+    def __init__(self, destination_name: str, identifier_type: str, identifier_name: str, max_identifier_length: int) -> None:
+        self.destination_name = destination_name
+        self.identifier_type = identifier_type
+        self.identifier_name = identifier_name
+        self.max_identifier_length = max_identifier_length
+        super().__init__(f"The length of {identifier_type} {identifier_name} exceeds {max_identifier_length} allowed for {destination_name}")

@@ -113,7 +113,7 @@ def write_load_status_page(pipeline: Pipeline) -> None:
         )
         loads_no = loads_df.shape[0]
         if loads_df.shape[0] > 0:
-            rel_time = humanize.naturaldelta(pendulum.now() - loads_df.iloc[0, 1]) + " ago"
+            rel_time = humanize.naturaldelta(pendulum.now() - pendulum.from_timestamp(loads_df.iloc[0, 1].timestamp())) + " ago"
             last_load_id = loads_df.iloc[0, 0]
             if loads_no > 100:
                 loads_no = "> " + str(loads_no)

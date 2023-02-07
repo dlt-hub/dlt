@@ -3,14 +3,20 @@ from contextlib import contextmanager
 from functools import wraps
 import inspect
 from types import TracebackType
-from typing import Any, ContextManager, Generic, Iterator, Optional, Sequence, Type, AnyStr
-from dlt.common.typing import TFun
-from dlt.destinations.exceptions import DestinationConnectionError, LoadClientNotConnected
+from typing import Any, ClassVar, ContextManager, Generic, Iterator, Optional, Sequence, Type, AnyStr
 
-from dlt.destinations.typing import TNativeConn, DBCursor
+from dlt.common.typing import TFun
+from dlt.common.destination import DestinationCapabilitiesContext
+
+from dlt.destinations.exceptions import DestinationConnectionError, LoadClientNotConnected
+from dlt.destinations.typing import DBApi, TNativeConn, DBApiCursor, DBTransaction
 
 
 class SqlClientBase(ABC, Generic[TNativeConn]):
+
+    dbapi: ClassVar[DBApi] = None
+    capabilities: ClassVar[DestinationCapabilitiesContext] = None
+
     def __init__(self, dataset_name: str) -> None:
         if not dataset_name:
             raise ValueError(dataset_name)
@@ -22,6 +28,10 @@ class SqlClientBase(ABC, Generic[TNativeConn]):
 
     @abstractmethod
     def close_connection(self) -> None:
+        pass
+
+    @abstractmethod
+    def begin_transaction(self) -> ContextManager[DBTransaction]:
         pass
 
     def __enter__(self) -> "SqlClientBase[TNativeConn]":
@@ -53,15 +63,22 @@ class SqlClientBase(ABC, Generic[TNativeConn]):
         pass
 
     @abstractmethod
-    def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> ContextManager[DBCursor]:
+    def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> ContextManager[DBApiCursor]:
         pass
+
+    def execute_fragments(self, fragments: Sequence[AnyStr], *args: Any, **kwargs: Any) -> Optional[Sequence[Sequence[Any]]]:
+        """Executes several SQL fragments as efficiently as possible to prevent data copying. Default implementation just joins the strings and executes them together.
+        """
+        return self.execute_sql("".join(fragments), *args, **kwargs)  # type: ignore
 
     @abstractmethod
-    def fully_qualified_dataset_name(self) -> str:
+    def fully_qualified_dataset_name(self, escape: bool = True) -> str:
         pass
 
-    def make_qualified_table_name(self, table_name: str) -> str:
-        return f"{self.fully_qualified_dataset_name()}.{table_name}"
+    def make_qualified_table_name(self, table_name: str, escape: bool = True) -> str:
+        if escape:
+            table_name = self.capabilities.escape_identifier(table_name)
+        return f"{self.fully_qualified_dataset_name(escape=escape)}.{table_name}"
 
     @contextmanager
     def with_alternative_dataset_name(self, dataset_name: str) -> Iterator["SqlClientBase[TNativeConn]"]:
@@ -86,7 +103,7 @@ class SqlClientBase(ABC, Generic[TNativeConn]):
     def is_dbapi_exception(ex: Exception) -> bool:
         # crude way to detect dbapi DatabaseError: there's no common set of exceptions, each module must reimplement
         mro = type.mro(type(ex))
-        return any(t.__name__ == "DatabaseError" for t in mro)
+        return any(t.__name__ in ("DatabaseError", "DataError") for t in mro)
 
 
 def raise_database_error(f: TFun) -> TFun:

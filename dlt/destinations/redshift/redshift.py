@@ -8,17 +8,18 @@ else:
     import psycopg2
     # from psycopg2.sql import SQL, Composed
 
-from typing import Dict, Optional
+from typing import ClassVar, Dict, Optional
 
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.schema import TColumnSchema, TDataType, TColumnHint, Schema
 
+from dlt.destinations.insert_job_client import InsertValuesJobClient
 from dlt.destinations.exceptions import DatabaseTerminalException
 
 from dlt.destinations.redshift import capabilities
 from dlt.destinations.redshift.configuration import RedshiftClientConfiguration
-from dlt.destinations.postgres.postgres import PostgresClientBase
+
 
 
 SCT_TO_PGT: Dict[TDataType, str] = {
@@ -52,6 +53,9 @@ HINT_TO_REDSHIFT_ATTR: Dict[TColumnHint, str] = {
 
 
 class RedshiftSqlClient(Psycopg2SqlClient):
+
+    capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
+
     @staticmethod
     def _maybe_make_terminal_exception_from_data_error(pg_ex: psycopg2.DataError) -> Optional[Exception]:
         if "Cannot insert a NULL value into column" in pg_ex.pgerror:
@@ -64,7 +68,9 @@ class RedshiftSqlClient(Psycopg2SqlClient):
         return None
 
 
-class RedshiftClient(PostgresClientBase):
+class RedshiftClient(InsertValuesJobClient):
+
+    capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
     def __init__(self, schema: Schema, config: RedshiftClientConfiguration) -> None:
         sql_client = RedshiftSqlClient (
@@ -74,26 +80,21 @@ class RedshiftClient(PostgresClientBase):
         super().__init__(schema, config, sql_client)
         self.sql_client = sql_client
         self.config: RedshiftClientConfiguration = config
-        self.caps = self.capabilities()
 
     def _get_column_def_sql(self, c: TColumnSchema) -> str:
         hints_str = " ".join(HINT_TO_REDSHIFT_ATTR.get(h, "") for h in HINT_TO_REDSHIFT_ATTR.keys() if c.get(h, False) is True)
-        column_name = self.caps.escape_identifier(c["name"])
-        return f"{column_name} {self._sc_t_to_pq_t(c['data_type'])} {hints_str} {self._gen_not_null(c['nullable'])}"
+        column_name = self.capabilities.escape_identifier(c["name"])
+        return f"{column_name} {self._to_db_type(c['data_type'])} {hints_str} {self._gen_not_null(c['nullable'])}"
 
     @staticmethod
-    def _sc_t_to_pq_t(sc_t: TDataType) -> str:
+    def _to_db_type(sc_t: TDataType) -> str:
         if sc_t == "wei":
             return f"numeric({DEFAULT_NUMERIC_PRECISION},0)"
         return SCT_TO_PGT[sc_t]
 
     @staticmethod
-    def _pq_t_to_sc_t(pq_t: str, precision: Optional[int], scale: Optional[int]) -> TDataType:
+    def _from_db_type(pq_t: str, precision: Optional[int], scale: Optional[int]) -> TDataType:
         if pq_t == "numeric":
             if precision == DEFAULT_NUMERIC_PRECISION and scale == 0:
                 return "wei"
         return PGT_TO_SCT.get(pq_t, "text")
-
-    @classmethod
-    def capabilities(cls) -> DestinationCapabilitiesContext:
-        return capabilities()

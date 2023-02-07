@@ -4,15 +4,16 @@ import binascii
 import contextlib
 import datetime  # noqa: 251
 from types import TracebackType
-from typing import Any, ClassVar, List, NamedTuple, Sequence, Tuple, Type
+from typing import Any, ClassVar, List, NamedTuple, Optional, Sequence, Tuple, Type
 import zlib
 
 from dlt.common import json, pendulum, logger
-from dlt.common.schema.typing import LOADS_TABLE_NAME, VERSION_TABLE_NAME
+from dlt.common.schema.typing import COLUMN_HINTS, LOADS_TABLE_NAME, VERSION_TABLE_NAME, TColumnSchemaBase, TDataType
+from dlt.common.schema.utils import add_missing_hints
 from dlt.common.storages import FileStorage
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns
 from dlt.common.destination import DestinationClientConfiguration, DestinationClientDwhConfiguration, TLoadJobStatus, LoadJob, JobClientBase
-from dlt.destinations.exceptions import DatabaseUndefinedRelation
+from dlt.destinations.exceptions import DatabaseUndefinedRelation, DestinationSchemaWillNotUpdate
 
 from dlt.destinations.typing import TNativeConn
 from dlt.destinations.sql_client import SqlClientBase
@@ -65,16 +66,16 @@ class SqlJobClientBase(JobClientBase):
         return self.sql_client.has_dataset()
 
     def update_storage_schema(self) -> None:
+        super().update_storage_schema()
         schema_info = self.get_schema_by_hash(self.schema.stored_version_hash)
         if schema_info is None:
             logger.info(f"Schema with hash {self.schema.stored_version_hash} not found in the storage. upgrading")
-            # TODO: make it transactional for databases supporting tx DDL
-            updates = self._build_schema_update_sql()
-            if len(updates) > 0:
-                # execute updates in a single batch
-                sql = ";\n".join(updates) + ";"
-                self.sql_client.execute_sql(sql)
-            self._update_schema_in_storage(self.schema)
+
+            if self.capabilities.supports_ddl_transactions:
+                with self.sql_client.begin_transaction():
+                    self._execute_schema_update_sql()
+            else:
+                self._execute_schema_update_sql()
         else:
             logger.info(f"Schema with hash {self.schema.stored_version_hash} inserted at {schema_info.inserted_at} found in storage, no upgrade required")
 
@@ -91,8 +92,45 @@ class SqlJobClientBase(JobClientBase):
     def __exit__(self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: TracebackType) -> None:
         self.sql_client.close_connection()
 
-    @abstractmethod
     def get_storage_table(self, table_name: str) -> Tuple[bool, TTableSchemaColumns]:
+
+        def _null_to_bool(v: str) -> bool:
+            if v == "NO":
+                return False
+            elif v == "YES":
+                return True
+            raise ValueError(v)
+
+        schema_table: TTableSchemaColumns = {}
+        query = """
+                SELECT column_name, data_type, is_nullable, numeric_precision, numeric_scale
+                    FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE table_schema = %s AND table_name = %s
+                ORDER BY ordinal_position;
+                """
+        rows = self.sql_client.execute_sql(query, self.sql_client.fully_qualified_dataset_name(escape=False), table_name)
+        # if no rows we assume that table does not exist
+        if len(rows) == 0:
+            # TODO: additionally check if table exists
+            return False, schema_table
+        # TODO: pull more data to infer indexes, PK and uniques attributes/constraints
+        for c in rows:
+            schema_c: TColumnSchemaBase = {
+                "name": c[0],
+                "nullable": _null_to_bool(c[2]),
+                "data_type": self._from_db_type(c[1], c[3], c[4]),
+            }
+            schema_table[c[0]] = add_missing_hints(schema_c)
+        return True, schema_table
+
+    @staticmethod
+    @abstractmethod
+    def _to_db_type(schema_type: TDataType) -> str:
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def _from_db_type(db_type: str, precision: Optional[int], scale: Optional[int]) -> TDataType:
         pass
 
     def get_newest_schema_from_storage(self) -> StorageSchemaInfo:
@@ -105,6 +143,14 @@ class SqlJobClientBase(JobClientBase):
         query = f"SELECT {self.VERSION_TABLE_SCHEMA_COLUMNS} FROM {name} WHERE version_hash = %s;"
         return self._row_to_schema_info(query, version_hash)
 
+    def _execute_schema_update_sql(self) -> None:
+        updates = self._build_schema_update_sql()
+        if len(updates) > 0:
+            # execute updates in a single batch
+            sql = "\n".join(updates)
+            self.sql_client.execute_sql(sql)
+        self._update_schema_in_storage(self.schema)
+
     def _build_schema_update_sql(self) -> List[str]:
         sql_updates = []
         for table_name in self.schema.tables:
@@ -112,12 +158,38 @@ class SqlJobClientBase(JobClientBase):
             new_columns = self._create_table_update(table_name, storage_table)
             if len(new_columns) > 0:
                 sql = self._get_table_update_sql(table_name, new_columns, exists)
+                if not sql.endswith(";"):
+                    sql += ";"
                 sql_updates.append(sql)
         return sql_updates
 
-    @abstractmethod
     def _get_table_update_sql(self, table_name: str, new_columns: Sequence[TColumnSchema], exists: bool) -> str:
+        # build sql
+        canonical_name = self.sql_client.make_qualified_table_name(table_name)
+        if not exists:
+            # build CREATE
+            sql = f"CREATE TABLE {canonical_name} (\n"
+            sql += ",\n".join([self._get_column_def_sql(c) for c in new_columns])
+            sql += ")"
+        else:
+            # build ALTER as separate statement for each column (redshift limitation)
+            sql = "\n".join([f"ALTER TABLE {canonical_name}\nADD COLUMN {self._get_column_def_sql(c)};" for c in new_columns])
+        # scan columns to get hints
+        if exists:
+            # no hints may be specified on added columns
+            for hint in COLUMN_HINTS:
+                if any(c.get(hint, False) is True for c in new_columns):
+                    hint_columns = [self.capabilities.escape_identifier(c["name"]) for c in new_columns if c.get(hint, False)]
+                    raise DestinationSchemaWillNotUpdate(canonical_name, hint_columns, f"{hint} requested after table was created")
+        return sql
+
+    @abstractmethod
+    def _get_column_def_sql(self, c: TColumnSchema) -> str:
         pass
+
+    @staticmethod
+    def _gen_not_null(v: bool) -> str:
+        return "NOT NULL" if not v else ""
 
     def _create_table_update(self, table_name: str, storage_table: TTableSchemaColumns) -> Sequence[TColumnSchema]:
         # compare table with stored schema and produce delta
@@ -153,8 +225,7 @@ class SqlJobClientBase(JobClientBase):
         schema_str = json.dumps(schema.to_dict())
         # TODO: not all databases store data as utf-8 but this exception is mostly for redshift
         schema_bytes = schema_str.encode("utf-8")
-        caps = self.capabilities()
-        if len(schema_bytes) > caps.max_text_data_type_length:
+        if len(schema_bytes) > self.capabilities.max_text_data_type_length:
             # compress and to base64
             schema_str = base64.b64encode(zlib.compress(schema_bytes, level=9)).decode("ascii")
         # insert

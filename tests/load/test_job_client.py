@@ -15,7 +15,7 @@ from dlt.destinations.exceptions import DatabaseException, DatabaseTerminalExcep
 
 from dlt.destinations.job_client_impl import SqlJobClientBase
 
-from tests.utils import TEST_STORAGE_ROOT, ALL_DESTINATIONS, delete_test_storage
+from tests.utils import TEST_STORAGE_ROOT, ALL_DESTINATIONS, autouse_test_storage
 from tests.common.utils import load_json_case
 from tests.load.utils import (TABLE_UPDATE, TABLE_UPDATE_COLUMNS_SCHEMA, TABLE_ROW, expect_load_file, load_table, yield_client_with_storage,
                                 cm_yield_client_with_storage, write_dataset, prepare_table, ALL_CLIENTS)
@@ -24,11 +24,6 @@ from tests.load.utils import (TABLE_UPDATE, TABLE_UPDATE_COLUMNS_SCHEMA, TABLE_R
 @pytest.fixture
 def file_storage() -> FileStorage:
     return FileStorage(TEST_STORAGE_ROOT, file_type="b", makedirs=True)
-
-
-@pytest.fixture(autouse=True)
-def auto_delete_storage() -> None:
-    delete_test_storage()
 
 
 @pytest.fixture(scope="function")
@@ -44,6 +39,12 @@ def bigquery_client() -> Iterator[SqlJobClientBase]:
 @pytest.fixture(scope="function")
 def postgres_client() -> Iterator[SqlJobClientBase]:
     yield from yield_client_with_storage("postgres")
+
+
+# recreate client every test
+@pytest.fixture(scope="function")
+def duckdb_client() -> Iterator[SqlJobClientBase]:
+    yield from yield_client_with_storage("duckdb")
 
 
 @pytest.fixture(scope="function")
@@ -320,8 +321,6 @@ def test_load_with_all_types(client: SqlJobClientBase, write_disposition: str, f
     if isinstance(db_row[8], str):
         # then it must be json
         db_row[8] = json.loads(db_row[8])
-        # print(db_row[8])
-        # print(list(TABLE_ROW.values())[8])
 
     expected_rows = list(TABLE_ROW.values())
     # expected_rows[8] = COL_9_DICT
@@ -469,7 +468,7 @@ def test_many_schemas_single_dataset(destination_name: str, file_storage: FileSt
         client.schema.bump_version()
         with pytest.raises(DatabaseException) as py_ex:
             client.update_storage_schema()
-        assert "mandatory_column" in str(py_ex.value) or "NOT NULL" in str(py_ex.value)
+        assert "mandatory_column" in str(py_ex.value) or "NOT NULL" in str(py_ex.value) or "Adding columns with constraints not yet supported" in str(py_ex.value)
 
 
 def prepare_schema(client: SqlJobClientBase, case: str) -> None:

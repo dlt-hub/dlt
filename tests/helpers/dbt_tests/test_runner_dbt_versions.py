@@ -32,6 +32,8 @@ def client() -> Iterator[PostgresClient]:
 
 @pytest.fixture(
     scope="module",
+    # params=[None],
+    # ids=["local"]
     params=["1.1.3", "1.2.4", "1.3.2", "1.4.0", None],
     ids=["venv-1.1.3", "venv-1.2.4", "venv-1.3.2", "venv-1.4.0", "local"]
 )

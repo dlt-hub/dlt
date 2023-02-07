@@ -1,6 +1,6 @@
 import random
 from types import TracebackType
-from typing import Dict, Type
+from typing import ClassVar, Dict, Type
 
 from dlt.common import pendulum
 from dlt.common.schema import Schema
@@ -73,9 +73,9 @@ JOBS: Dict[str, LoadDummyJob] = {}
 
 
 class DummyClient(JobClientBase):
-    """
-    dummy client storing jobs in memory
-    """
+    """dummy client storing jobs in memory"""
+
+    capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
     def __init__(self, schema: Schema, config: DummyClientConfiguration) -> None:
         super().__init__(schema, config)
@@ -88,6 +88,7 @@ class DummyClient(JobClientBase):
         return True
 
     def update_storage_schema(self) -> None:
+        super().update_storage_schema()
         if self.config.fail_schema_update:
             raise DestinationTransientException("Raise on schema update due to fail_schema_update config flag")
 
@@ -127,7 +128,3 @@ class DummyClient(JobClientBase):
             completed_prob=self.config.completed_prob,
             timeout=self.config.timeout
             )
-
-    @classmethod
-    def capabilities(cls) -> DestinationCapabilitiesContext:
-        return capabilities()

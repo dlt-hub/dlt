@@ -39,11 +39,11 @@ jobs:
           key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
 
       - name: Install dependencies
-        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction --no-root
+        # if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+        run: poetry install --no-interaction --all-extras
 
-      - name: Install self
-        run: poetry install --no-interaction
+      # - name: Install self
+      #   run: poetry install --no-interaction
 
       - name: Run lint
         run: make lint

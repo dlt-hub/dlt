@@ -14,18 +14,13 @@ from dlt.destinations.exceptions import DatabaseTerminalException
 from dlt.destinations.redshift.redshift import RedshiftClient, psycopg2
 from tests.common.utils import COMMON_TEST_CASES_PATH
 
-from tests.utils import TEST_STORAGE_ROOT, delete_test_storage, skipifpypy
+from tests.utils import TEST_STORAGE_ROOT, autouse_test_storage, skipifpypy
 from tests.load.utils import expect_load_file, prepare_table, yield_client_with_storage
 
 
 @pytest.fixture
 def file_storage() -> FileStorage:
     return FileStorage(TEST_STORAGE_ROOT, file_type="b", makedirs=True)
-
-
-@pytest.fixture(autouse=True)
-def auto_delete_storage() -> None:
-    delete_test_storage()
 
 
 @pytest.fixture(scope="function")
@@ -35,7 +30,7 @@ def client() -> Iterator[RedshiftClient]:
 
 @skipifpypy
 def test_text_too_long(client: RedshiftClient, file_storage: FileStorage) -> None:
-    caps = client.capabilities()
+    caps = client.capabilities
 
     user_table_name = prepare_table(client)
     # insert string longer than redshift maximum
@@ -69,7 +64,7 @@ def test_schema_string_exceeds_max_text_length(client: RedshiftClient) -> None:
     # schema should be compressed and stored as base64
     schema = SchemaStorage.load_schema_file(os.path.join(COMMON_TEST_CASES_PATH, "schemas/ev1"), "event", ("json",))
     schema_str = json.dumps(schema.to_dict())
-    assert len(schema_str.encode("utf-8")) > client.capabilities().max_text_data_type_length
+    assert len(schema_str.encode("utf-8")) > client.capabilities.max_text_data_type_length
     client._update_schema_in_storage(schema)
     schema_info = client.get_newest_schema_from_storage()
     assert schema_info.schema == schema_str
@@ -83,7 +78,7 @@ def test_schema_string_exceeds_max_text_length(client: RedshiftClient) -> None:
 @pytest.mark.skip
 @skipifpypy
 def test_maximum_query_size(client: RedshiftClient, file_storage: FileStorage) -> None:
-    mocked_caps = RedshiftClient.capabilities()
+    mocked_caps = RedshiftClient.capabilities
     # this guarantees that we cross the redshift query limit
     mocked_caps["max_query_length"] = 2 * 20 * 1024 * 1024
 

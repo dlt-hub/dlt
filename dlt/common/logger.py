@@ -9,7 +9,7 @@ from typing import Any, Literal, Protocol
 
 from dlt.version import __version__
 from dlt.common.json import json
-from dlt.common.typing import DictStrAny, StrAny, StrStr
+from dlt.common.typing import DictStrAny, DictStrStr, StrAny, StrStr
 from dlt.common.configuration.specs import RunConfiguration
 from dlt.common.utils import filter_env_vars
 
@@ -133,8 +133,7 @@ def _init_logging(logger_name: str, level: str, fmt: str, component: str, versio
     return logger
 
 
-def _extract_version_info(config: RunConfiguration) -> StrStr:
-
+def _extract_version_info(config: RunConfiguration) -> DictStrStr:
     version_info = {"dlt_version": __version__, "pipeline_name": config.pipeline_name}
     # extract envs with build info
     version_info.update(filter_env_vars(["COMMIT_SHA", "IMAGE_VERSION"]))

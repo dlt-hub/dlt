@@ -73,3 +73,14 @@ bigquery:
       job_creation_timeout_seconds: "{{ env_var('CREDENTIALS__HTTP_TIMEOUT') | as_number}}"
       job_retry_deadline_seconds: "{{ env_var('CREDENTIALS__RETRY_DEADLINE') | as_number}}"
 
+duckdb:
+  target: analytics
+  outputs:
+    analytics:
+      type: duckdb
+      schema: "{{ var('destination_dataset_name', var('source_dataset_name')) }}"
+      path: "{{ env_var('CREDENTIALS__DATABASE') }}"
+      extensions:
+        - httpfs
+        - parquet
+      # TODO: emit the config of duck db

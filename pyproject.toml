@@ -91,7 +91,7 @@ types-python-dateutil = ">=2.8.15"
 flake8-tidy-imports = ">=4.8.0"
 flake8-encodings = "^0.5.0"
 flake8-builtins = "^1.5.3"
-types-SQLAlchemy = "^1.4.53"
+types-SQLAlchemy = ">=1.4.53"
 
 [tool.poetry.extras]
 dbt = ["dbt-core", "dbt-redshift", "dbt-bigquery", "dbt-duckdb"]
