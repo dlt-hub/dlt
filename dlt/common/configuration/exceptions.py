@@ -29,21 +29,23 @@ class ConfigurationWrongTypeException(ConfigurationException):
         super().__init__(f"Invalid configuration instance type {_typ}. Configuration instances must derive from BaseConfiguration.")
 
 
-class ConfigFieldMissingException(ConfigurationException):
+class ConfigFieldMissingException(KeyError, ConfigurationException):
     """raises when not all required config fields are present"""
 
     def __init__(self, spec_name: str, traces: Mapping[str, Sequence[LookupTrace]]) -> None:
         self.traces = traces
         self.spec_name = spec_name
         self.fields = list(traces.keys())
+        super().__init__(spec_name)
 
-        msg = f"Following fields are missing: {str(self.fields)} in configuration with spec {spec_name}\n"
-        for f, field_traces in traces.items():
+    def __str__(self) -> str:
+        msg = f"Following fields are missing: {str(self.fields)} in configuration with spec {self.spec_name}\n"
+        for f, field_traces in self.traces.items():
             msg += f'\tfor field "{f}" config providers and keys were tried in following order:\n'
             for tr in field_traces:
                 msg += f'\t\tIn {tr.provider} key {tr.key} was not found.\n'
         msg += "Please refer to https://dlthub.com/docs/customization/credentials for more information\n"
-        super().__init__(msg)
+        return msg
 
 
 class FinalConfigFieldException(ConfigurationException):

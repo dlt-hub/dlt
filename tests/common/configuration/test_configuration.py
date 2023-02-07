@@ -373,7 +373,7 @@ def test_configuration_is_mutable_mapping(environment: Any) -> None:
         'slack_incoming_hook': None,
         'prometheus_port': None,
         'log_format': '{asctime}|[{levelname:<21}]|{process}|{name}|{filename}|{funcName}:{lineno}|{message}',
-        'log_level': 'INFO',
+        'log_level': 'WARNING',
         'request_timeout': (15, 300),
         'config_files_storage_path': 'storage',
         "secret_value": None
