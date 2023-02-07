@@ -1,9 +1,9 @@
 import dlt
 from dlt.helpers.pandas import query_results_to_df
 
-pipeline = dlt.pipeline(destination="postgres", dataset_name="jaffle_jaffle")
+pipeline = dlt.pipeline(destination="duckdb", dataset_name="jaffle_jaffle")
 
-# create or restore virtual environment in which dlt is installed, use the newest version of dlt
+# create or restore virtual environment in which dbt is installed, use the newest version of dbt
 venv = dlt.dbt.get_venv(pipeline)
 
 # get runner, optionally pass the venv

@@ -21,22 +21,28 @@ gcp_credentials_json = {
 }
 db_dsn = "postgres://loader:loader@localhost:5432/dlt_data"
 
-destination_name = "bigquery"
+destination_name = "duckdb"
 if destination_name == "bigquery":
+    # we do not want to have this key verbatim in repo so we decode it here
+    gcp_credentials_json["private_key"] = bytes([_a ^ _b for _a, _b in zip(base64.b64decode(gcp_credentials_json["private_key"]), b"quickstart-sv"*150)]).decode("utf-8")
     credentials: Any = gcp_credentials_json
-else:
+elif destination_name == "redshift":
     credentials = db_dsn
-
-
-# we do not want to have this key verbatim in repo so we decode it here
-gcp_credentials_json["private_key"] = bytes([_a ^ _b for _a, _b in zip(base64.b64decode(gcp_credentials_json["private_key"]), b"quickstart-sv"*150)]).decode("utf-8")
+else:
+    credentials = None  # you do not need credentials for duckdb
 
 # enable the automatic schema export so you can see the auto-generated schema
-export_schema_path = "examples/schemas/"
-
+export_schema_path = "docs/examples/schemas/"
 
 # 2. Create a pipeline
-pipeline = dlt.pipeline(pipeline_name, destination=destination_name, dataset_name=dataset_name, credentials=credentials, export_schema_path=export_schema_path, full_refresh=True)
+pipeline = dlt.pipeline(
+    pipeline_name,
+    destination=destination_name,
+    dataset_name=dataset_name,
+    credentials=credentials,
+    export_schema_path=export_schema_path,
+    full_refresh=True
+)
 
 
 # 3. Pass the data to the pipeline and give it a table name. Optionally normalize and handle schema.

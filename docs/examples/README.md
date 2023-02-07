@@ -4,7 +4,7 @@
 
 # Examples
 
-1. `quickstart` loads a nested json document into BigQuery and then queries it with built in `sql_client` demonstrating the parent-child table joins.
+1. `quickstart` loads a nested json document into `duckdb` and then queries it with built in `sql_client` demonstrating the parent-child table joins.
 
 1. `sql_query` source and `read_table` example. This source iterates over any `SELECT` statement made against database system supported by `SqlAlchemy`. The example connects to Redshift and iterates a table containing Ethereum transactions. Shows the inferred schema (which nicely preserves typing). Mind that our source is a one-liner :)
 
@@ -25,9 +25,9 @@
 
 1. `chess` an example of a pipeline project with its own config and credential files. it is also an example of how transformers are connected to resources and resource selection. **it should be run from examples/chess` folder**
 
-2. `chess/chess_dbt.py`: an example of a `dbt` transformations package working with a dataset loaded by `dlt`. The package is incrementally processing the loaded data following the new records in `_dlt_loads` table.
+2. `chess/chess_dbt.py`: an example of a `dbt` transformations package working with a dataset loaded by `dlt`. The package is incrementally processing the loaded data following the new loaded packages stored in `_dlt_loads` table at the end of every pipeline run. Note the automatic usage of isolated virtual environment to run dbt and sharing of the credentials.
 
-1. `run_dbt_jaffle` runs dbt's jaffle shop example package directly from the repo and queries the results with `sql_client`. Note the automatic usage of isolated virtual environment to run dbt and sharing of the credentials
+1. `run_dbt_jaffle` runs dbt's jaffle shop example taken directly from the github repo and queries the results with `sql_client`. `duckdb` database is used to load and transform the data. The database `write` access is passed from `dlt` to `dbt` and back.
 
 Not yet ported:
 
