@@ -15,7 +15,7 @@ class RunConfiguration(BaseConfiguration):
     slack_incoming_hook: Optional[str] = None
     prometheus_port: Optional[int] = None  # keep None to disable Prometheus
     log_format: str = '{asctime}|[{levelname:<21}]|{process}|{name}|{filename}|{funcName}:{lineno}|{message}'
-    log_level: str = "INFO"
+    log_level: str = "WARNING"
     request_timeout: Tuple[int, int] = (15, 300)  # default request timeout for all http clients
     config_files_storage_path: str = "/run/config/"
 

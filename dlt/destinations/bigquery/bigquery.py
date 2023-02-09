@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, ClassVar, Dict, List, Optional, Sequence, Tuple
 from dlt.common.storages.file_storage import FileStorage
 import google.cloud.bigquery as bigquery  # noqa: I250
 from google.cloud import exceptions as gcp_exceptions
@@ -89,6 +89,8 @@ class BigQueryLoadJob(LoadJob):
 
 class BigQueryClient(SqlJobClientBase):
 
+    capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
+
     def __init__(self, schema: Schema, config: BigQueryClientConfiguration) -> None:
         sql_client = BigQuerySqlClient(
             schema.normalize_make_dataset_name(config.dataset_name, config.default_schema_name, schema.name),
@@ -97,7 +99,6 @@ class BigQueryClient(SqlJobClientBase):
         super().__init__(schema, config, sql_client)
         self.config: BigQueryClientConfiguration = config
         self.sql_client: BigQuerySqlClient = sql_client
-        self.caps = BigQueryClient.capabilities()
 
     def restore_file_load(self, file_path: str) -> LoadJob:
         try:
@@ -137,50 +138,34 @@ class BigQueryClient(SqlJobClientBase):
             else:
                 raise DestinationTransientException(gace)
 
-
     def _get_table_update_sql(self, table_name: str, new_columns: Sequence[TColumnSchema], exists: bool) -> str:
-        # build sql
+        sql = super()._get_table_update_sql(table_name, new_columns, exists)
         canonical_name = self.sql_client.make_qualified_table_name(table_name)
-        if not exists:
-            # build CREATE
-            sql = f"CREATE TABLE {canonical_name} (\n"
-            sql += ",\n".join([self._get_column_def_sql(c) for c in new_columns])
-            sql += ")"
-        else:
-            # build ALTER
-            sql = f"ALTER TABLE {canonical_name}\n"
-            sql += ",\n".join(["ADD COLUMN " + self._get_column_def_sql(c) for c in new_columns])
-        # scan columns to get hints
 
-        cluster_list = [self.caps.escape_identifier(c["name"]) for c in new_columns if c.get("cluster", False)]
-        partition_list = [self.caps.escape_identifier(c["name"]) for c in new_columns if c.get("partition", False)]
+        cluster_list = [self.capabilities.escape_identifier(c["name"]) for c in new_columns if c.get("cluster", False)]
+        partition_list = [self.capabilities.escape_identifier(c["name"]) for c in new_columns if c.get("partition", False)]
 
         # partition by must be added first
         if len(partition_list) > 0:
-            if exists:
-                raise DestinationSchemaWillNotUpdate(canonical_name, partition_list, "Partition requested after table was created")
-            elif len(partition_list) > 1:
+            if len(partition_list) > 1:
                 raise DestinationSchemaWillNotUpdate(canonical_name, partition_list, "Partition requested for more than one column")
             else:
                 sql += f"\nPARTITION BY DATE({partition_list[0]})"
         if len(cluster_list) > 0:
-            if exists:
-                raise DestinationSchemaWillNotUpdate(canonical_name, cluster_list, "Clustering requested after table was created")
-            else:
                 sql += "\nCLUSTER BY " + ",".join(cluster_list)
 
         return sql
 
     def _get_column_def_sql(self, c: TColumnSchema) -> str:
-        name = self.caps.escape_identifier(c["name"])
-        return f"{name} {self._sc_t_to_bq_t(c['data_type'])} {self._gen_not_null(c['nullable'])}"
+        name = self.capabilities.escape_identifier(c["name"])
+        return f"{name} {self._to_db_type(c['data_type'])} {self._gen_not_null(c['nullable'])}"
 
     def get_storage_table(self, table_name: str) -> Tuple[bool, TTableSchemaColumns]:
         schema_table: TTableSchemaColumns = {}
         try:
             table = self.sql_client.native_connection.get_table(
-                self.sql_client.make_qualified_table_name(table_name),
-                retry=self.sql_client.default_retry,
+                self.sql_client.make_qualified_table_name(table_name, escape=False),
+                retry=self.sql_client._default_retry,
                 timeout=self.config.credentials.http_timeout
             )
             partition_field = table.time_partitioning.field if table.time_partitioning else None
@@ -188,7 +173,7 @@ class BigQueryClient(SqlJobClientBase):
                 schema_c: TColumnSchema = {
                     "name": c.name,
                     "nullable": c.is_nullable,
-                    "data_type": self._bq_t_to_sc_t(c.field_type, c.precision, c.scale),
+                    "data_type": self._from_db_type(c.field_type, c.precision, c.scale),
                     "unique": False,
                     "sort": False,
                     "primary_key": False,
@@ -216,7 +201,7 @@ class BigQueryClient(SqlJobClientBase):
         with open(file_path, "rb") as f:
             return self.sql_client.native_connection.load_table_from_file(
                     f,
-                    self.sql_client.make_qualified_table_name(table_name),
+                    self.sql_client.make_qualified_table_name(table_name, escape=False),
                     job_id=job_id,
                     job_config=job_config,
                     timeout=self.config.credentials.file_upload_timeout
@@ -231,20 +216,12 @@ class BigQueryClient(SqlJobClientBase):
         return Path(file_path).name.replace(".", "_")
 
     @staticmethod
-    def _gen_not_null(v: bool) -> str:
-        return "NOT NULL" if not v else ""
-
-    @staticmethod
-    def _sc_t_to_bq_t(sc_t: TDataType) -> str:
+    def _to_db_type(sc_t: TDataType) -> str:
         return SCT_TO_BQT[sc_t]
 
     @staticmethod
-    def _bq_t_to_sc_t(bq_t: str, precision: Optional[int], scale: Optional[int]) -> TDataType:
+    def _from_db_type(bq_t: str, precision: Optional[int], scale: Optional[int]) -> TDataType:
         if bq_t == "BIGNUMERIC":
             if precision is None:  # biggest numeric possible
                 return "wei"
         return BQT_TO_SCT.get(bq_t, "text")
-
-    @classmethod
-    def capabilities(cls) -> DestinationCapabilitiesContext:
-        return capabilities()

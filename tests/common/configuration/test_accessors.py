@@ -4,6 +4,7 @@ import pytest
 
 import dlt
 from dlt.common import json
+from dlt.common.configuration.exceptions import ConfigFieldMissingException
 
 from dlt.common.configuration.providers import EnvironProvider, ConfigTomlProvider, SecretsTomlProvider
 from dlt.common.configuration.specs import GcpClientCredentials, ConnectionStringCredentials
@@ -26,11 +27,13 @@ def test_accessor_singletons() -> None:
 def test_getter_accessor(toml_providers: ConfigProvidersContext, environment: Any) -> None:
     with pytest.raises(KeyError) as py_ex:
         dlt.config["_unknown"]
-    assert py_ex.value.args[0] == "_unknown"
+    with pytest.raises(ConfigFieldMissingException) as py_ex:
+        dlt.config["_unknown"]
+    assert py_ex.value.fields == ["_unknown"]
 
-    with pytest.raises(KeyError) as py_ex:
+    with pytest.raises(ConfigFieldMissingException) as py_ex:
         dlt.secrets["_unknown"]
-    assert py_ex.value.args[0] == "_unknown"
+    assert py_ex.value.fields == ["_unknown"]
 
     environment["VALUE"] = "{SET"
     assert dlt.config["value"] == "{SET"
@@ -112,7 +115,7 @@ def test_getter_accessor_typed(toml_providers: ConfigProvidersContext, environme
     credentials_str = "databricks+connector://token:<databricks_token>@<databricks_host>:443/<database_or_schema_name>?conn_timeout=15&search_path=a,b,c"
     c = dlt.secrets.get("databricks.credentials", ConnectionStringCredentials)
     # as before: the value in trace is the value coming from the provider (as is)
-    assert RESOLVED_TRACES["databricks.credentials"] == ResolvedValueTrace("credentials", credentials_str, None, ConnectionStringCredentials, ["databricks"], SecretsTomlProvider().name, None)
+    assert RESOLVED_TRACES["databricks.credentials"] == ResolvedValueTrace("credentials", credentials_str, None, ConnectionStringCredentials, ["databricks"], SecretsTomlProvider().name, ConnectionStringCredentials)
     assert c.drivername == "databricks+connector"
     c = dlt.secrets.get("destination.credentials", GcpClientCredentials)
     assert c.client_email == "loader@a7513.iam.gserviceaccount.com"
@@ -128,7 +131,7 @@ def test_secrets_separation(toml_providers: ConfigProvidersContext) -> None:
     assert dlt.secrets.get("api_type") is None
 
 
-def test_access_access_injection(toml_providers: ConfigProvidersContext) -> None:
+def test_access_injection(toml_providers: ConfigProvidersContext) -> None:
 
     @dlt.source
     def the_source(api_type=dlt.config.value, credentials: GcpClientCredentials=dlt.secrets.value, databricks_creds: ConnectionStringCredentials=dlt.secrets.value):

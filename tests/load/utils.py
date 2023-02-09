@@ -20,8 +20,8 @@ from dlt.common.utils import uniq_id
 from dlt.load import Load
 from dlt.destinations.job_client_impl import SqlJobClientBase
 
-ALL_CLIENTS = ["redshift_client", "bigquery_client", "postgres_client"]
-# ALL_CLIENTS = ["postgres_client"]
+ALL_CLIENTS = ["redshift_client", "bigquery_client", "postgres_client", "duckdb_client"]
+# ALL_CLIENTS = ["duckdb_client", "postgres_client"]
 
 TABLE_UPDATE: List[TColumnSchema] = [
     {
@@ -77,9 +77,9 @@ TABLE_ROW = {
     "col2": 898912.821982,
     "col3": True,
     "col4": "2022-05-23T13:26:45+00:00",
-    "col5": "string data",
+    "col5": "string data \n \r \x8e 🦆",
     "col6": Decimal("2323.34"),
-    "col7": b'binary data',
+    "col7": b'binary data \n \r \x8e',
     "col8": 2**56 + 92093890840,
     "col9": {"complex":[1,2,3,"a"]}
 }
@@ -101,10 +101,13 @@ def expect_load_file(client: JobClientBase, file_storage: FileStorage, query: st
     return job
 
 
-def prepare_table(client: JobClientBase, case_name: str = "event_user", table_name: str = "event_user") -> None:
+def prepare_table(client: JobClientBase, case_name: str = "event_user", table_name: str = "event_user", make_uniq_table: bool = True) -> None:
     client.update_storage_schema()
     user_table = load_table(case_name)[table_name]
-    user_table_name = table_name + uniq_id()
+    if make_uniq_table:
+        user_table_name = table_name + uniq_id()
+    else:
+        user_table_name = table_name
     client.schema.update_schema(new_table(user_table_name, columns=user_table.values()))
     client.schema.bump_version()
     client.update_storage_schema()
@@ -182,5 +185,5 @@ def cm_yield_client_with_storage(
 
 
 def write_dataset(client: JobClientBase, f: IO[Any], rows: Sequence[StrAny], columns_schema: TTableSchemaColumns) -> None:
-    writer = DataWriter.from_destination_capabilities(client.capabilities(), f)
+    writer = DataWriter.from_destination_capabilities(client.capabilities, f)
     writer.write_all(columns_schema, rows)

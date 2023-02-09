@@ -1,3 +1,4 @@
+import os
 from typing import List, Sequence
 import pytest
 
@@ -13,7 +14,7 @@ from dlt.common.schema.exceptions import InvalidSchemaName, ParentTableNotFoundE
 from dlt.common.storages import SchemaStorage
 
 from tests.utils import autouse_test_storage
-from tests.common.utils import load_json_case, load_yml_case
+from tests.common.utils import load_json_case, load_yml_case, COMMON_TEST_CASES_PATH
 
 SCHEMA_NAME = "event"
 EXPECTED_FILE_NAME = f"{SCHEMA_NAME}.schema.json"
@@ -124,6 +125,27 @@ def test_invalid_schema_name() -> None:
 def test_create_schema_with_normalize_name() -> None:
     s = Schema("a!b", normalize_name=True)
     assert s.name == "a_b"
+
+
+def test_schema_descriptions_and_annotations(schema_storage: SchemaStorage):
+    schema = SchemaStorage.load_schema_file(os.path.join(COMMON_TEST_CASES_PATH, "schemas/local"), "event", extensions=("yaml", ))
+    assert schema._schema_tables["blocks"]["description"] == "Ethereum blocks"
+    assert schema._schema_tables["blocks"]["x-annotation"] == "this will be preserved on save"
+    assert schema._schema_tables["blocks"]["columns"]["_dlt_load_id"]["description"] == "load id coming from the extractor"
+    assert schema._schema_tables["blocks"]["columns"]["_dlt_load_id"]["x-column-annotation"] == "column annotation preserved on save"
+
+    # mod and save
+    schema._schema_tables["blocks"]["description"] += "Saved"
+    schema._schema_tables["blocks"]["x-annotation"] += "Saved"
+    schema._schema_tables["blocks"]["columns"]["_dlt_load_id"]["description"] += "Saved"
+    schema._schema_tables["blocks"]["columns"]["_dlt_load_id"]["x-column-annotation"] += "Saved"
+
+    print(schema_storage.save_schema(schema))
+    loaded_schema = schema_storage.load_schema("ethereum")
+    assert loaded_schema._schema_tables["blocks"]["description"].endswith("Saved")
+    assert loaded_schema._schema_tables["blocks"]["x-annotation"].endswith("Saved")
+    assert loaded_schema._schema_tables["blocks"]["columns"]["_dlt_load_id"]["description"].endswith("Saved")
+    assert loaded_schema._schema_tables["blocks"]["columns"]["_dlt_load_id"]["x-column-annotation"].endswith("Saved")
 
 
 def test_replace_schema_content() -> None:

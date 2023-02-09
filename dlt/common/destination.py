@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 from importlib import import_module
 from types import TracebackType, ModuleType
-from typing import Any, Callable, ClassVar, List, Optional, Literal, Type, Protocol, Union, TYPE_CHECKING, cast
-from dlt.common.exceptions import InvalidDestinationReference, UnknownDestinationModule
+from typing import Any, Callable, ClassVar, Final, List, Optional, Literal, Type, Protocol, Union, TYPE_CHECKING, cast
+from dlt.common.exceptions import IdentifierTooLongException, InvalidDestinationReference, UnknownDestinationModule
 
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TTableSchema
@@ -31,6 +31,7 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     is_max_query_length_in_bytes: bool
     max_text_data_type_length: int
     is_max_text_data_type_length_in_bytes: bool
+    supports_ddl_transactions: bool
 
     # do not allow to create default value, destination caps must be always explicitly inserted into container
     can_create_default: ClassVar[bool] = False
@@ -48,7 +49,8 @@ class DestinationClientConfiguration(BaseConfiguration):
 
 @configspec(init=True)
 class DestinationClientDwhConfiguration(DestinationClientConfiguration):
-    dataset_name: str = None
+    # keep default/initial value if present
+    dataset_name: Final[str] = None
     """dataset name in the destination to load data to, for schemas that are not default schema, it is used as dataset prefix"""
     default_schema_name: Optional[str] = None
     """name of default schema to be used to name effective dataset to load data to"""
@@ -98,6 +100,9 @@ class LoadJob:
 
 
 class JobClientBase(ABC):
+
+    capabilities: ClassVar[DestinationCapabilitiesContext] = None
+
     def __init__(self, schema: Schema, config: DestinationClientConfiguration) -> None:
         self.schema = schema
         self.config = config
@@ -110,9 +115,8 @@ class JobClientBase(ABC):
     def is_storage_initialized(self) -> bool:
         pass
 
-    @abstractmethod
     def update_storage_schema(self) -> None:
-        pass
+        self._verify_schema_identifier_lengths()
 
     @abstractmethod
     def start_file_load(self, table: TTableSchema, file_path: str) -> LoadJob:
@@ -134,10 +138,22 @@ class JobClientBase(ABC):
     def __exit__(self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: TracebackType) -> None:
         pass
 
-    @classmethod
-    @abstractmethod
-    def capabilities(cls) -> DestinationCapabilitiesContext:
-        pass
+    def _verify_schema_identifier_lengths(self) -> None:
+        """Checks all table and column name lengths against destination capabilities"""
+        for table in self.schema.all_tables():
+            table_name = table["name"]
+            if len(table_name) > self.capabilities.max_identifier_length:
+                raise IdentifierTooLongException(self.config.destination_name, "table", table_name, self.capabilities.max_identifier_length)
+            for column in table["columns"].values():
+                column_name = column["name"]
+                if len(column_name) > self.capabilities.max_column_identifier_length:
+                    raise IdentifierTooLongException(
+                        self.config.destination_name,
+                        "column",
+                        f"{table_name}.{column_name}",
+                        self.capabilities.max_column_identifier_length
+                    )
+
 
 TDestinationReferenceArg = Union["DestinationReference", ModuleType, None, str]
 

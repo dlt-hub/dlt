@@ -59,7 +59,7 @@ class Normalize(Runnable[ProcessPool]):
         Normalize.item_counter = Counter("normalize_item_count", "Items processed in normalize", ["schema"], registry=registry)
         Normalize.item_gauge = Gauge("normalize_last_items", "Number of items processed in last run", ["schema"], registry=registry)
         Normalize.schema_version_gauge = Gauge("normalize_schema_version", "Current schema version", ["schema"], registry=registry)
-        Normalize.load_package_counter = Gauge("normalize_load_packages_created_count", "Count of load package created", ["schema"], registry=registry)
+        Normalize.load_package_counter = Counter("normalize_load_packages_created_count", "Count of load package created", ["schema"], registry=registry)
 
     def create_storages(self) -> None:
         # pass initial normalize storage config embedded in normalize config

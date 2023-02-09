@@ -1,12 +1,12 @@
 import abc
 import contextlib
-from typing import Any, ClassVar, Sequence, Type, TypeVar
+from typing import Any, ClassVar, List, Sequence, Tuple, Type, TypeVar
 from dlt.common import json
 from dlt.common.configuration.container import Container
-from dlt.common.configuration.exceptions import LookupTrace
+from dlt.common.configuration.exceptions import ConfigFieldMissingException, LookupTrace
 
 from dlt.common.configuration.providers.provider import ConfigProvider
-from dlt.common.configuration.specs import is_base_configuration_inner_hint
+from dlt.common.configuration.specs import BaseConfiguration, is_base_configuration_inner_hint
 from dlt.common.configuration.utils import deserialize_value, log_traces
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
 from dlt.common.schema.utils import coerce_value
@@ -19,9 +19,9 @@ TConfigAny = TypeVar("TConfigAny", bound=Any)
 class _Accessor(abc.ABC):
 
     def __getitem__(self, field: str) -> Any:
-        value = self._get_value(field)
+        value, traces = self._get_value(field)
         if value is None:
-            raise KeyError(field)
+            raise ConfigFieldMissingException("Any", {field: traces})
         if isinstance(value, str):
             return self._auto_cast(value)
         else:
@@ -29,7 +29,8 @@ class _Accessor(abc.ABC):
 
 
     def get(self, field: str, expected_type: Type[TConfigAny] = None) -> TConfigAny:
-        value: TConfigAny = self._get_value(field, expected_type)
+        value: TConfigAny
+        value, _ = self._get_value(field, expected_type)
         if value is None:
             return None
         # cast to required type
@@ -69,21 +70,27 @@ class _Accessor(abc.ABC):
                 return c_v
         return value
 
-    def _get_value(self, field: str, type_hint: Type[Any] = None) -> Any:
+    def _get_value(self, field: str, type_hint: Type[Any] = None) -> Tuple[Any, List[LookupTrace]]:
         # get default hint type, in case of dlt.secrets it it TSecretValue
         type_hint = type_hint or self.default_type
         # split field into namespaces and a key
         namespaces = field.split(".")
         key = namespaces.pop()
         value = None
+        traces: List[LookupTrace] = []
         for provider in self.config_providers:
-            value, _ = provider.get_value(key, type_hint, *namespaces)
+            value, effective_field = provider.get_value(key, type_hint, *namespaces)
+            trace = LookupTrace(provider.name, namespaces, effective_field, value)
+            traces.append(trace)
             if value is not None:
                 # log trace
-                trace = LookupTrace(provider.name, namespaces, field, value)
-                log_traces(None, key, type_hint, value, None, [trace])
+                if is_base_configuration_inner_hint(type_hint):
+                    config: BaseConfiguration = type_hint  # type: ignore
+                else:
+                    config = None
+                log_traces(config, key, type_hint, value, None, [trace])
                 break
-        return value
+        return value, traces
 
 
 class _ConfigAccessor(_Accessor):

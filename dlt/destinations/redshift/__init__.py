@@ -16,18 +16,18 @@ def _configure(config: RedshiftClientConfiguration = config.value) -> RedshiftCl
 
 def capabilities() -> DestinationCapabilitiesContext:
     caps = DestinationCapabilitiesContext()
-    caps.update({
-        "preferred_loader_file_format": "insert_values",
-        "supported_loader_file_formats": ["insert_values"],
-        "escape_identifier": escape_redshift_identifier,
-        "escape_literal": escape_redshift_literal,
-        "max_identifier_length": 127,
-        "max_column_identifier_length": 127,
-        "max_query_length": 16 * 1024 * 1024,
-        "is_max_query_length_in_bytes": True,
-        "max_text_data_type_length": 65535,
-        "is_max_text_data_type_length_in_bytes": True
-    })
+    caps.preferred_loader_file_format = "insert_values"
+    caps.supported_loader_file_formats = ["insert_values"]
+    caps.escape_identifier = escape_redshift_identifier
+    caps.escape_literal = escape_redshift_literal
+    caps.max_identifier_length = 127
+    caps.max_column_identifier_length = 127
+    caps.max_query_length = 16 * 1024 * 1024
+    caps.is_max_query_length_in_bytes = True
+    caps.max_text_data_type_length = 65535
+    caps.is_max_text_data_type_length_in_bytes = True
+    caps.supports_ddl_transactions = True
+
     return caps
 
 

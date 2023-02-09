@@ -1,4 +1,5 @@
 import re
+import base64
 from typing import Any
 from datetime import date, datetime  # noqa: I251
 
@@ -29,12 +30,26 @@ def escape_postgres_literal(v: Any) -> Any:
     if isinstance(v, str):
         # we escape extended string which behave like the redshift string
         return "{}{}{}".format("E'", SQL_ESCAPE_RE.sub(lambda x: SQL_ESCAPE_DICT[x.group(0)], v), "'")
-    if isinstance(v, bytes):
-        return f"'\\x{v.hex()}'"
     if isinstance(v, (datetime, date)):
         return f"'{v.isoformat()}'"
     if isinstance(v, (list, dict)):
         return f"'{json.dumps(v)}'"
+    if isinstance(v, bytes):
+        return f"'\\x{v.hex()}'"
+
+    return str(v)
+
+
+def escape_duckdb_literal(v: Any) -> Any:
+    if isinstance(v, str):
+        # we escape extended string which behave like the redshift string
+        return "{}{}{}".format("E'", SQL_ESCAPE_RE.sub(lambda x: SQL_ESCAPE_DICT[x.group(0)], v), "'")
+    if isinstance(v, (datetime, date)):
+        return f"'{v.isoformat()}'"
+    if isinstance(v, (list, dict)):
+        return f"'{json.dumps(v)}'"
+    if isinstance(v, bytes):
+        return f"from_base64('{base64.b64encode(v).decode('ascii')}')"
 
     return str(v)
 

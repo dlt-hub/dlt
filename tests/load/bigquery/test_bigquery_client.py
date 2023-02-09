@@ -116,7 +116,7 @@ def test_bigquery_location(location: str, file_storage: FileStorage) -> None:
 
         # start a job from the same file. it should fallback to retrieve job silently
         client.start_file_load(client.schema.get_table(user_table_name), file_storage.make_full_path(job.file_name()))
-        canonical_name = client.sql_client.make_qualified_table_name(user_table_name)
+        canonical_name = client.sql_client.make_qualified_table_name(user_table_name, escape=False)
         t = client.sql_client.native_connection.get_table(canonical_name)
         assert t.location == location
 

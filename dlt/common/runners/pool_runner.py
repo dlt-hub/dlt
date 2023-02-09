@@ -149,12 +149,12 @@ def _update_metrics(run_metrics: TRunMetrics) -> TRunHealth:
     if run_metrics.has_failed:
         HEALTH_PROPS_GAUGES["runs_failed_count"].inc()
         HEALTH_PROPS_GAUGES["runs_cs_failed_gauge"].inc()
-        HEALTH_PROPS_GAUGES["runs_cs_healthy_gauge"].set(0)
+        HEALTH_PROPS_GAUGES["runs_cs_healthy_gauge"].set(0)  # type: ignore
     else:
         HEALTH_PROPS_GAUGES["runs_healthy_count"].inc()
         HEALTH_PROPS_GAUGES["runs_cs_healthy_gauge"].inc()
-        HEALTH_PROPS_GAUGES["runs_cs_failed_gauge"].set(0)
-    HEALTH_PROPS_GAUGES["runs_pending_items_gauge"].set(run_metrics.pending_items)
+        HEALTH_PROPS_GAUGES["runs_cs_failed_gauge"].set(0)  # type: ignore
+    HEALTH_PROPS_GAUGES["runs_pending_items_gauge"].set(run_metrics.pending_items)  # type: ignore
     health_props = update_gauges()
     logger.metrics("progress", "health", extra={"metrics": health_props})
     logger.metrics("progress", "pool runner", extra=get_logging_extras([RUN_DURATION_GAUGE, RUN_DURATION_SUMMARY]))

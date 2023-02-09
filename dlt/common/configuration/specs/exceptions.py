@@ -14,9 +14,9 @@ class NativeValueError(SpecException, ValueError):
 
 
 class InvalidConnectionString(NativeValueError):
-    def __init__(self, spec: Type[Any], native_value: str):
-        msg = f"The expected representation for {spec.__name__} is a standard database connection string with the following format: driver://username:password@host:port/database. "
-        msg += "In case of PostgresCredentials the driver must be postgresql both for Postgres and Redshift destinations"
+    def __init__(self, spec: Type[Any], native_value: str, driver: str):
+        driver = driver or "driver"
+        msg = f"The expected representation for {spec.__name__} is a standard database connection string with the following format: {driver}://username:password@host:port/database."
         super().__init__(spec, native_value, msg)
 
 

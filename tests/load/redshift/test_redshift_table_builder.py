@@ -35,7 +35,6 @@ def test_configuration() -> None:
 def test_create_table(client: RedshiftClient) -> None:
     # non existing table
     sql = client._get_table_update_sql("event_test_table", TABLE_UPDATE, False)
-    assert sql.startswith("BEGIN TRANSACTION;\n")
     assert "event_test_table" in sql
     assert '"col1" bigint  NOT NULL' in sql
     assert '"col2" double precision  NOT NULL' in sql
@@ -46,14 +45,12 @@ def test_create_table(client: RedshiftClient) -> None:
     assert '"col7" varbinary' in sql
     assert '"col8" numeric(38,0)' in sql
     assert '"col9" super  NOT NULL' in sql
-    assert sql.endswith('\nCOMMIT TRANSACTION;')
 
 
 def test_alter_table(client: RedshiftClient) -> None:
     # existing table has no columns
     sql = client._get_table_update_sql("event_test_table", TABLE_UPDATE, True)
     canonical_name = client.sql_client.make_qualified_table_name("event_test_table")
-    assert sql.startswith("BEGIN TRANSACTION;\n")
     # must have several ALTER TABLE statements
     assert sql.count(f"ALTER TABLE {canonical_name}\nADD COLUMN") == len(TABLE_UPDATE)
     assert "event_test_table" in sql
@@ -66,7 +63,6 @@ def test_alter_table(client: RedshiftClient) -> None:
     assert '"col7" varbinary' in sql
     assert '"col8" numeric(38,0)' in sql
     assert '"col9" super  NOT NULL' in sql
-    assert sql.endswith("\nCOMMIT TRANSACTION;")
 
 
 def test_create_table_with_hints(client: RedshiftClient) -> None:
@@ -92,4 +88,4 @@ def test_hint_alter_table_exception(client: RedshiftClient) -> None:
     mod_update[3]["sort"] = True
     with pytest.raises(DestinationSchemaWillNotUpdate) as excc:
         client._get_table_update_sql("event_test_table", mod_update, True)
-    assert excc.value.columns == ["col4"]
+    assert excc.value.columns == ['"col4"']

@@ -22,8 +22,9 @@ def write_value(toml_table: TOMLTable, name: str, hint: AnyType, default_value: 
 
     if is_base_configuration_inner_hint(hint):
         inner_table = tomlkit.table(False)
-        toml_table[name] = inner_table
         write_spec(inner_table, hint())
+        if len(inner_table) > 0:
+            toml_table[name] = inner_table
     else:
 
         if default_value is None:

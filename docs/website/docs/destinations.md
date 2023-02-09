@@ -4,10 +4,11 @@ sidebar_position: 8
 
 # Destinations
 
-**`dlt` supports three destinations (more coming soon)**
+**`dlt` supports four destinations (more coming soon)**
 - [Google BigQuery](./destinations#google-bigquery)
 - [Postgres](./destinations#postgres)
 - [Amazon Redshift](./destinations#amazon-redshift)
+- [Duckdb](./destinations#duckdb)
 
 Learn how to set up each of the supported destinations below.
 
@@ -48,10 +49,10 @@ You don't need to grant users access to this service account at this time, so cl
 **6. Download the service account JSON**
 
 In the service accounts table page that you are redirected to after clicking `Done` as instructed above,
-select the three dots under the `Actions` column for the service account you just created and 
-select `Manage keys`. 
+select the three dots under the `Actions` column for the service account you just created and
+select `Manage keys`.
 
-This will take you to page where you can click the `Add key` button, then the `Create new key` button, 
+This will take you to page where you can click the `Add key` button, then the `Create new key` button,
 and finally the `Create` button, keeping the preselected `JSON` option.
 
 A `JSON` file that includes your service account private key will then be downloaded.
@@ -75,7 +76,7 @@ client_email = "client_email" # please set me up!
 
 ## Postgres
 
-**1. Initalize a project with a pipeline that loads to Postgres by running**
+**1. Initialize a project with a pipeline that loads to Postgres by running**
 ```
 dlt init chess postgres
 ```
@@ -104,7 +105,7 @@ Add `loader` user and `<password>` password to `.dlt/secrets.toml`.
 ALTER DATABASE dlt_data OWNER TO loader;
 ```
 
-It is possible to set more restrctive permissions (e.g. give user access to a specific schema).
+It is possible to set more restrictive permissions (e.g. give user access to a specific schema).
 
 **6. Your `.dlt/secrets.toml` should now look like**
 ```
@@ -120,7 +121,7 @@ connect_timeout = 15
 
 ## Amazon Redshift
 
-**1. Initalize a project with a pipeline that loads to Redshift by running**
+**1. Initialize a project with a pipeline that loads to Redshift by running**
 ```
 dlt init chess redshift
 ```
@@ -133,4 +134,46 @@ pip install -r requirements.txt
 **3. Edit the `dlt` credentials file with your info**
 ```
 open .dlt/secrets.toml
+```
+
+## Duckdb
+
+**1. Initialize a project with a pipeline that loads to Redshift by running**
+```
+dlt init chess duckdb
+```
+
+**2. Install the necessary dependencies for Duckdb by running**
+```
+pip install -r requirements.txt
+```
+
+**3. Run the pipeline
+```
+python3 chess.py
+```
+
+### Destination Configuration
+
+By default, a `duckdb` database will be created inside the pipeline working directory with a name `quack.duckdb`. It is available in `read/write` mode via `pipeline.sql_client`. As the `duckdb` credentials do not require any secret values, you are free to pass the configuration explicitly via `credentials` parameter to `dlt.pipeline` or `pipeline.run` methods. Examples:
+```python
+# will load data to files/data.db database file
+p = dlt.pipeline(pipeline_name='chess', destination='duckdb', dataset_name='chess_data', full_refresh=False, credentials="files/data.db")
+
+# will load data to /var/local/database.duckdb
+p = dlt.pipeline(pipeline_name='chess', destination='duckdb', dataset_name='chess_data', full_refresh=False, credentials="/var/local/database.duckdb")
+```
+
+The destination accepts `duckdb` connection instance via `credentials` so you are free to open database yourself and pass it to `dlt` for usage. `:memory:` databases are supported.
+```python
+import duckdb
+db = duckdb.connect()
+p = dlt.pipeline(pipeline_name='chess', destination='duckdb', dataset_name='chess_data', full_refresh=False, credentials=db)
+```
+
+The destinations, as with any other, accepts database connection strings in format used by [duckdb-engine](https://github.com/Mause/duckdb_engine#configuration).
+
+Lastly, you are free to configure duckdb as any other [secret / config values](./customization/credentials.md), for example in `secrets.toml`
+```toml
+destination.duckdb.credentials=duckdb:///_storage/test_quack.duckdb
 ```

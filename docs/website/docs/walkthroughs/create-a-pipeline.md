@@ -4,8 +4,8 @@ sidebar_position: 1
 
 # Create a pipeline
 
-Follow the steps below to create a [pipeline](../glossary.md#pipeline) from the Twitter API to 
-Google BigQuery from scratch. The same steps can be repeated for any source and destination of your 
+Follow the steps below to create a [pipeline](../glossary.md#pipeline) from the Twitter API to
+Google BigQuery from scratch. The same steps can be repeated for any source and destination of your
 choice--use `dlt init <source> <destination>` and then build the pipeline for that API instead.
 
 Please make sure you have [installed `dlt`](../installation.mdx) before following the steps below.
@@ -29,7 +29,7 @@ pip install -r requirements.txt
 
 ## 2. Add Google BigQuery credentials
 
-Follow steps 3-7 under [Google BigQuery](../destinations.md#google-bigquery) to create the 
+Follow steps 3-7 under [Google BigQuery](../destinations.md#google-bigquery) to create the
 service account credentials you'll need for BigQuery and add them to `.dlt/secrets.toml`.
 
 ## 3. Add Twitter API credentials
@@ -60,16 +60,16 @@ Your bearer token should be printed out to stdout along with some test data.
 
 ## 4. Request data from Twitter API search endpoint
 
-Replace the `twitter_resource` function definition in the `twitter.py` pipeline script with a call to the 
+Replace the `twitter_resource` function definition in the `twitter.py` pipeline script with a call to the
 [Twitter API search endpoint](https://developer.twitter.com/en/docs/twitter-api/tweets/search/api-reference/get-tweets-search-recent)
 ```
 @dlt.resource(write_disposition="append")
 def twitter_resource(api_secret_key=dlt.secrets.value):
-    
+
     headers = _headers(twitter_bearer_token)
 
     search_term = 'data engineer'
-    
+
     params = {
                 'query': search_term,
                 'max_results': 100,
@@ -79,7 +79,7 @@ def twitter_resource(api_secret_key=dlt.secrets.value):
     url = "https://api.twitter.com/2/tweets/search/recent"
 
     response = requests.get(url, headers=headers, params=params)
-    
+
     response.raise_for_status()
 
     yield response.json()
@@ -120,16 +120,16 @@ Run the `twitter.py` pipeline script to load data to BigQuery
 python3 twitter.py
 ```
 
-Go to the [Google BigQuery](https://console.cloud.google.com/bigquery) console and view the tables 
+Go to the [Google BigQuery](https://console.cloud.google.com/bigquery) console and view the tables
 that have been loaded.
 
 ## 7. Next steps
 
 Now that you have a working pipeline, you have options for what to learn next:
 - Add a function to this pipeline to handle the `next_token` pagination from the Twitter API
-- [Deploy this pipeline](./walkthroughs/deploy-a-pipeline), so that the data is automatically 
+- [Deploy this pipeline](./walkthroughs/deploy-a-pipeline), so that the data is automatically
 loaded on a schedule
 - Transform the [loaded data](./using-loaded-data/transforming-the-data) with dbt or in Pandas DataFrames
-- Set up a [pipeline in production](./running-in-production/scheduling) with scheduling, 
+- Set up a [pipeline in production](./running-in-production/scheduling) with scheduling,
 monitoring, and alerting
-- Try loading data to a [different destination](./destinations) like Amazon Redshift or Postgres
+- Try loading data to a [different destination](./destinations) like Amazon Redshift, Postgres or DuckDb

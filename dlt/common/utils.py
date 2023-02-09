@@ -252,3 +252,9 @@ def obfuscate_pseudo_secret(pseudo_secret: str, pseudo_key: bytes) -> str:
 
 def reveal_pseudo_secret(obfuscated_secret: str, pseudo_key: bytes) -> str:
     return bytes([_a ^ _b for _a, _b in zip(base64.b64decode(obfuscated_secret.encode("ascii"), validate=True), pseudo_key*250)]).decode("utf-8")
+
+
+def derives_from_class_of_name(o: object, name: str) -> bool:
+    """Checks if object o has class of name in its derivation tree"""
+    mro = type.mro(type(o))
+    return any(t.__name__ == name for t in mro)

@@ -7,10 +7,9 @@ import logging
 from os import environ
 
 from dlt.common.configuration.container import Container
-from dlt.common.configuration.providers import EnvironProvider, DictionaryProvider
-from dlt.common.configuration.utils import serialize_value
+from dlt.common.configuration.providers import DictionaryProvider
 from dlt.common.configuration.resolve import resolve_configuration
-from dlt.common.configuration.specs import BaseConfiguration, RunConfiguration
+from dlt.common.configuration.specs import RunConfiguration
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
 from dlt.common.logger import init_logging_from_config
 from dlt.common.storages import FileStorage
@@ -20,8 +19,8 @@ from dlt.common.typing import StrAny
 
 
 TEST_STORAGE_ROOT = "_storage"
-ALL_DESTINATIONS = ["bigquery", "redshift", "postgres"]
-# ALL_DESTINATIONS = ["postgres"]
+ALL_DESTINATIONS = ["bigquery", "redshift", "postgres", "duckdb"]
+# ALL_DESTINATIONS = ["duckdb", "postgres"]
 
 
 def TEST_DICT_CONFIG_PROVIDER():

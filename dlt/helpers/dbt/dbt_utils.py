@@ -25,7 +25,7 @@ except ImportError:
 try:
     from dbt.exceptions import FailFastException
 except ImportError:
-    from dbt.exceptions import FailFastError as FailFastException
+    from dbt.exceptions import FailFastError as FailFastException  # type: ignore
 
 _DBT_LOGGER_INITIALIZED = False
 
@@ -53,7 +53,7 @@ def initialize_dbt_logging(level: str, is_json_logging: bool) -> Sequence[str]:
     #     _DBT_LOGGER_INITIALIZED = True
 
     # dbt.main.setup_event_logger = setup_event_logger_wrapper
-    dbt.logger.LogManager.set_path = set_path_wrapper
+    dbt.logger.LogManager.set_path = set_path_wrapper  # type: ignore
 
     globs = []
     if int_level <= logging.DEBUG:

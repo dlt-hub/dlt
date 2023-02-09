@@ -1,23 +1,29 @@
 import platform
 
+from dlt.common.destination import DestinationCapabilitiesContext
+
 if platform.python_implementation() == "PyPy":
     import psycopg2cffi as psycopg2
     from psycopg2cffi.sql import SQL, Identifier, Literal as SQLLiteral
 else:
     import psycopg2
-    from psycopg2.sql import SQL, Identifier, Literal as SQLLiteral
+    from psycopg2.sql import SQL, Identifier, Literal as SQLLiteral, Composed, Composable
 
 from contextlib import contextmanager
-from typing import Any, AnyStr, Iterator, Optional, Sequence
+from typing import Any, AnyStr, ClassVar, Iterator, Optional, Sequence
 
 from dlt.common.configuration.specs import PostgresCredentials
 
 from dlt.destinations.exceptions import DatabaseTerminalException, DatabaseTransientException, DatabaseUndefinedRelation
-from dlt.destinations.typing import DBCursor
+from dlt.destinations.typing import DBApi, DBApiCursor, DBTransaction
 from dlt.destinations.sql_client import SqlClientBase, raise_database_error, raise_open_connection_error
 
+from dlt.destinations.postgres import capabilities
 
-class Psycopg2SqlClient(SqlClientBase["psycopg2.connection"]):
+class Psycopg2SqlClient(SqlClientBase["psycopg2.connection"], DBTransaction):
+
+    dbapi: ClassVar[DBApi] = psycopg2
+    capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
     def __init__(self, dataset_name: str, credentials: PostgresCredentials) -> None:
         super().__init__(dataset_name)
@@ -38,6 +44,26 @@ class Psycopg2SqlClient(SqlClientBase["psycopg2.connection"]):
             self._conn.close()
             self._conn = None
 
+    @contextmanager
+    def begin_transaction(self) -> Iterator[DBTransaction]:
+        try:
+            self._conn.autocommit = False
+            yield self
+            self.commit_transaction()
+        except Exception:
+            self.rollback_transaction()
+            raise
+
+    @raise_database_error
+    def commit_transaction(self) -> None:
+        self._conn.commit()
+        self._conn.autocommit = True
+
+    @raise_database_error
+    def rollback_transaction(self) -> None:
+        self._conn.rollback()
+        self._conn.autocommit = True
+
     @property
     def native_connection(self) -> "psycopg2.connection":
         return self._conn
@@ -46,20 +72,17 @@ class Psycopg2SqlClient(SqlClientBase["psycopg2.connection"]):
         query = """
                 SELECT 1
                     FROM INFORMATION_SCHEMA.SCHEMATA
-                    WHERE schema_name = {};
+                    WHERE schema_name = %s;
                 """
-        rows = self.execute_sql(SQL(query).format(SQLLiteral(self.fully_qualified_dataset_name())))
+        rows = self.execute_sql(query, self.fully_qualified_dataset_name(escape=False))
         return len(rows) > 0
 
     def create_dataset(self) -> None:
-        self.execute_sql(
-            SQL("CREATE SCHEMA {};").format(Identifier(self.fully_qualified_dataset_name()))
-            )
+        # TODO: escape identifier from capabilities
+        self.execute_sql("CREATE SCHEMA %s" % self.fully_qualified_dataset_name())
 
     def drop_dataset(self) -> None:
-        self.execute_sql(
-            SQL("DROP SCHEMA {} CASCADE;").format(Identifier(self.fully_qualified_dataset_name()))
-            )
+        self.execute_sql("DROP SCHEMA %s CASCADE;" % self.fully_qualified_dataset_name())
 
     # @raise_database_error
     def execute_sql(self, sql: AnyStr, *args: Any, **kwargs: Any) -> Optional[Sequence[Sequence[Any]]]:
@@ -72,8 +95,8 @@ class Psycopg2SqlClient(SqlClientBase["psycopg2.connection"]):
 
     @contextmanager
     @raise_database_error
-    def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBCursor]:
-        curr: DBCursor = None
+    def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBApiCursor]:
+        curr: DBApiCursor = None
         db_args = args if args else kwargs if kwargs else None
         with self._conn.cursor() as curr:
             try:
@@ -81,7 +104,6 @@ class Psycopg2SqlClient(SqlClientBase["psycopg2.connection"]):
                 yield curr
             except psycopg2.Error as outer:
                 try:
-                    self._conn.rollback()
                     self._reset_connection()
                 except psycopg2.Error:
                     self.close_connection()
@@ -89,8 +111,13 @@ class Psycopg2SqlClient(SqlClientBase["psycopg2.connection"]):
 
                 raise outer
 
-    def fully_qualified_dataset_name(self) -> str:
-        return self.dataset_name
+    def execute_fragments(self, fragments: Sequence[AnyStr], *args: Any, **kwargs: Any) -> Optional[Sequence[Sequence[Any]]]:
+        # compose the statements using psycopg2 library
+        composed =  Composed(sql if isinstance(sql, Composable) else SQL(sql) for sql in fragments)
+        return self.execute_sql(composed, *args, **kwargs)
+
+    def fully_qualified_dataset_name(self, escape: bool = True) -> str:
+        return self.capabilities.escape_identifier(self.dataset_name) if escape else self.dataset_name
 
     def _reset_connection(self) -> None:
         # self._conn.autocommit = True

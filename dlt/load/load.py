@@ -206,17 +206,17 @@ class Load(Runnable[ThreadPool]):
         schema = self.load_storage.load_package_schema(load_id)
         logger.info(f"Loaded schema name {schema.name} and version {schema.stored_version}")
         # initialize analytical storage ie. create dataset required by passed schema
-        with self.destination.client(schema, self.initial_client_config) as client:
-            logger.info(f"Client for {client.config.destination_name} will start load")
-            client.initialize_storage()
+        with self.destination.client(schema, self.initial_client_config) as job_client:
+            logger.info(f"Client for {job_client.config.destination_name} will start load")
+            job_client.initialize_storage()
             schema_update = self.load_storage.begin_schema_update(load_id)
             if schema_update:
-                logger.info(f"Client for {client.config.destination_name} will update schema to package schema")
+                logger.info(f"Client for {job_client.config.destination_name} will update schema to package schema")
                 # TODO: this should rather generate an SQL job(s) to be executed PRE loading
-                client.update_storage_schema()
+                job_client.update_storage_schema()
                 self.load_storage.commit_schema_update(load_id)
             # spool or retrieve unfinished jobs
-            jobs_count, jobs = self.retrieve_jobs(client, load_id)
+            jobs_count, jobs = self.retrieve_jobs(job_client, load_id)
         if not jobs:
             # jobs count is a total number of jobs including those that could not be initialized
             jobs_count, jobs = self.spool_new_jobs(load_id, schema)
@@ -231,10 +231,10 @@ class Load(Runnable[ThreadPool]):
             )
         # if there are no existing or new jobs we complete the package
         if jobs_count == 0:
-            with self.destination.client(schema, self.initial_client_config) as client:
+            with self.destination.client(schema, self.initial_client_config) as job_client:
                 # TODO: this script should be executed as a job (and contain also code to merge/upsert data and drop temp tables)
                 # TODO: post loading jobs
-                remaining_jobs = client.complete_load(load_id)
+                remaining_jobs = job_client.complete_load(load_id)
             self.load_storage.complete_load_package(load_id)
             logger.info(f"All jobs completed, archiving package {load_id}")
             self.load_counter.inc()

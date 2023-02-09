@@ -16,16 +16,17 @@ def _configure(config: DummyClientConfiguration = config.value) -> DummyClientCo
 def capabilities() -> DestinationCapabilitiesContext:
     config = _configure()
     caps = DestinationCapabilitiesContext()
-    caps.update({
-        "preferred_loader_file_format": config.loader_file_format,
-        "supported_loader_file_formats": [config.loader_file_format],
-        "max_identifier_length": 127,
-        "max_column_identifier_length": 127,
-        "max_query_length": 8 * 1024 * 1024,
-        "is_max_query_length_in_bytes": True,
-        "max_text_data_type_length": 65535,
-        "is_max_text_data_type_length_in_bytes": True
-    })
+    caps.preferred_loader_file_format = config.loader_file_format
+    caps.supported_loader_file_formats = [config.loader_file_format]
+
+    caps.max_identifier_length = 127
+    caps.max_column_identifier_length = 127
+    caps.max_query_length = 8 * 1024 * 1024
+    caps.is_max_query_length_in_bytes = True
+    caps.max_text_data_type_length = 65536
+    caps.is_max_text_data_type_length_in_bytes = True
+    caps.supports_ddl_transactions = False
+
     return caps
 
 
