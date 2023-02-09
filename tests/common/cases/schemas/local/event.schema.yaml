@@ -47,6 +47,7 @@ tables:
     columns:
       _dlt_load_id:
         description: load id coming from the extractor
+        x-column-annotation: column annotation preserved on save
         data_type: text
         name: _dlt_load_id
         nullable: false
