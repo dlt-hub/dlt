@@ -3,3 +3,7 @@ pipeline_name="chess"
 
 [runtime]
 log_level="WARNING"
+
+[sources.chess.extract]
+max_parallel_items = 5
+workers = 2

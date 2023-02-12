@@ -23,7 +23,7 @@
 
 1. `google_sheets` a source that returns values from specified sheet. The example takes a sheet, infers a schema, loads it to BigQuery/Redshift and displays inferred schema. it uses the `secrets.toml` to manage credentials and is an example of one-liner pipeline
 
-1. `chess` an example of a pipeline project with its own config and credential files. it is also an example of how transformers are connected to resources and resource selection. **it should be run from examples/chess` folder**
+1. `chess` an example of a pipeline project with its own config and credential files. it is also an example of how transformers are connected to resources and resource selection. **it should be run from examples/chess` folder**. It also shows: **how to use retry decorator** and **how to run resources/transformers in parallel with a decorator**
 
 2. `chess/chess_dbt.py`: an example of a `dbt` transformations package working with a dataset loaded by `dlt`. The package is incrementally processing the loaded data following the new loaded packages stored in `_dlt_loads` table at the end of every pipeline run. Note the automatic usage of isolated virtual environment to run dbt and sharing of the credentials.
 
