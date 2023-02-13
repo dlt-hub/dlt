@@ -166,7 +166,7 @@ p = dlt.pipeline(pipeline_name='chess', destination='duckdb', dataset_name='ches
 p = dlt.pipeline(pipeline_name='chess', destination='duckdb', dataset_name='chess_data', full_refresh=False, credentials="/var/local/database.duckdb")
 ```
 
-The destination accepts a `duckdb` connection instance via `credentials`, so you are free to open database yourself and pass it to `dlt` for usage. `:memory:` databases are supported.
+The destination accepts a `duckdb` connection instance via `credentials`, so you can also open a database connection yourself and pass it to `dlt` to use. `:memory:` databases are supported.
 ```python
 import duckdb
 db = duckdb.connect()
