@@ -1,4 +1,4 @@
-from typing import Dict, Any
+from typing import Dict, Any, List
 from abc import ABC, abstractmethod
 
 from dlt.common import logger
@@ -30,7 +30,14 @@ class DataItemStorage(ABC):
         for name, writer in self.buffered_writers.items():
             if name.startswith(extract_id):
                 logger.debug(f"Closing writer for {name} with file {writer._file} and actual name {writer._file_name}")
-                writer.close_writer()
+                writer.close()
+
+    def closed_files(self) -> List[str]:
+        files: List[str] = []
+        for writer in self.buffered_writers.values():
+            files.extend(writer.closed_files)
+
+        return files
 
     @abstractmethod
     def _get_data_item_path_template(self, load_id: str, schema_name: str, table_name: str) -> str:

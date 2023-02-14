@@ -1,6 +1,4 @@
-from typing import List, IO, Any
-
-from copy import deepcopy
+from typing import List, IO, Any, Type
 
 from dlt.common.utils import uniq_id
 from dlt.common.typing import TDataItem, TDataItems
@@ -32,7 +30,7 @@ class BufferedDataWriter:
         self._caps = _caps
         # validate if template has correct placeholders
         self.file_name_template = file_name_template
-        self.all_files: List[str] = []
+        self.closed_files: List[str] = []  # all fully processed files
         # buffered items must be less than max items in file
         self.buffer_max_items = min(buffer_max_items, file_max_items or buffer_max_items)
         self.file_max_bytes = file_max_bytes
@@ -54,9 +52,11 @@ class BufferedDataWriter:
         # rotate file if columns changed and writer does not allow for that
         # as the only allowed change is to add new column (no updates/deletes), we detect the change by comparing lengths
         if self._writer and not self._writer.data_format().supports_schema_changes and len(columns) != len(self._current_columns):
+            assert len(columns) > len(self._current_columns)
             self._rotate_file()
         # until the first chunk is written we can change the columns schema freely
-        self._current_columns = deepcopy(columns)
+        if columns is not None:
+            self._current_columns = dict(columns)
         if isinstance(item, List):
             # items coming in single list will be written together, not matter how many are there
             self._buffered_items.extend(item)
@@ -74,7 +74,7 @@ class BufferedDataWriter:
             if self.file_max_items and self._writer.items_count >= self.file_max_items:
                 self._rotate_file()
 
-    def close_writer(self) -> None:
+    def close(self) -> None:
         self._ensure_open()
         self._flush_and_close_file()
         self._closed = True
@@ -82,6 +82,12 @@ class BufferedDataWriter:
     @property
     def closed(self) -> bool:
         return self._closed
+
+    def __enter__(self) -> "BufferedDataWriter":
+        return self
+
+    def __exit__(self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: Any) -> None:
+        self.close()
 
     def _rotate_file(self) -> None:
         self._flush_and_close_file()
@@ -111,7 +117,7 @@ class BufferedDataWriter:
             self._writer.write_footer()
             self._file.close()
             # add file written to the list so we can commit all the files later
-            self.all_files.append(self._file_name)
+            self.closed_files.append(self._file_name)
             self._writer = None
             self._file = None
 

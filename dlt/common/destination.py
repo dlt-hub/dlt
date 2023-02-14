@@ -2,8 +2,9 @@ from abc import ABC, abstractmethod
 from importlib import import_module
 from types import TracebackType, ModuleType
 from typing import Any, Callable, ClassVar, Final, List, Optional, Literal, Type, Protocol, Union, TYPE_CHECKING, cast
-from dlt.common.exceptions import IdentifierTooLongException, InvalidDestinationReference, UnknownDestinationModule
 
+from dlt.common.configuration.utils import serialize_value
+from dlt.common.exceptions import IdentifierTooLongException, InvalidDestinationReference, UnknownDestinationModule
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TTableSchema
 from dlt.common.configuration import configspec
@@ -35,6 +36,22 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
 
     # do not allow to create default value, destination caps must be always explicitly inserted into container
     can_create_default: ClassVar[bool] = False
+
+
+def generic_destination_capabilities() ->DestinationCapabilitiesContext:
+    caps = DestinationCapabilitiesContext()
+    caps.preferred_loader_file_format=None
+    caps.supported_loader_file_formats = ["jsonl", "insert_values"]
+    caps.escape_identifier = lambda x: x
+    caps.escape_literal = lambda x: serialize_value(x)
+    caps.max_identifier_length = 65536
+    caps.max_column_identifier_length = 65536
+    caps.max_query_length = 32 * 1024 * 1024
+    caps.is_max_query_length_in_bytes = True
+    caps.max_text_data_type_length = 1024 * 1024 * 1024
+    caps.is_max_text_data_type_length_in_bytes = True
+    caps.supports_ddl_transactions = True
+    return caps
 
 
 @configspec(init=True)
