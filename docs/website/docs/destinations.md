@@ -8,7 +8,7 @@ sidebar_position: 8
 - [Google BigQuery](./destinations#google-bigquery)
 - [Postgres](./destinations#postgres)
 - [Amazon Redshift](./destinations#amazon-redshift)
-- [Duckdb](./destinations#duckdb)
+- [DuckDB](./destinations#duckdb)
 
 Learn how to set up each of the supported destinations below.
 
@@ -136,26 +136,28 @@ pip install -r requirements.txt
 open .dlt/secrets.toml
 ```
 
-## Duckdb
+## DuckDB
 
-**1. Initialize a project with a pipeline that loads to Redshift by running**
+**1. Initialize a project with a pipeline that loads to DuckDB by running**
 ```
 dlt init chess duckdb
 ```
 
-**2. Install the necessary dependencies for Duckdb by running**
+**2. Install the necessary dependencies for DuckDB by running**
 ```
 pip install -r requirements.txt
 ```
 
-**3. Run the pipeline
+**3. Run the pipeline**
 ```
 python3 chess.py
 ```
 
 ### Destination Configuration
 
-By default, a `duckdb` database will be created inside the pipeline working directory with a name `quack.duckdb`. It is available in `read/write` mode via `pipeline.sql_client`. As the `duckdb` credentials do not require any secret values, you are free to pass the configuration explicitly via `credentials` parameter to `dlt.pipeline` or `pipeline.run` methods. Examples:
+By default, a DuckDB database will be created inside the pipeline working directory with a name `quack.duckdb`. It is available in `read/write` mode via `pipeline.sql_client`.
+
+As the `duckdb` credentials do not require any secret values, you are free to pass the configuration explicitly via the `credentials` parameter to `dlt.pipeline` or `pipeline.run` methods. For example:
 ```python
 # will load data to files/data.db database file
 p = dlt.pipeline(pipeline_name='chess', destination='duckdb', dataset_name='chess_data', full_refresh=False, credentials="files/data.db")
@@ -164,16 +166,16 @@ p = dlt.pipeline(pipeline_name='chess', destination='duckdb', dataset_name='ches
 p = dlt.pipeline(pipeline_name='chess', destination='duckdb', dataset_name='chess_data', full_refresh=False, credentials="/var/local/database.duckdb")
 ```
 
-The destination accepts `duckdb` connection instance via `credentials` so you are free to open database yourself and pass it to `dlt` for usage. `:memory:` databases are supported.
+The destination accepts a `duckdb` connection instance via `credentials`, so you can also open a database connection yourself and pass it to `dlt` to use. `:memory:` databases are supported.
 ```python
 import duckdb
 db = duckdb.connect()
 p = dlt.pipeline(pipeline_name='chess', destination='duckdb', dataset_name='chess_data', full_refresh=False, credentials=db)
 ```
 
-The destinations, as with any other, accepts database connection strings in format used by [duckdb-engine](https://github.com/Mause/duckdb_engine#configuration).
+This destination accepts database connection strings in format used by [duckdb-engine](https://github.com/Mause/duckdb_engine#configuration).
 
-Lastly, you are free to configure duckdb as any other [secret / config values](./customization/credentials.md), for example in `secrets.toml`
+You can configure a DuckDB destination with [secret / config values](./customization/credentials.md) (e.g. using a `secrets.toml` file)
 ```toml
 destination.duckdb.credentials=duckdb:///_storage/test_quack.duckdb
 ```
