@@ -1,5 +1,7 @@
 from typing import List, IO, Any
 
+from copy import deepcopy
+
 from dlt.common.utils import uniq_id
 from dlt.common.typing import TDataItem, TDataItems
 from dlt.common.data_writers import TLoaderFileFormat
@@ -54,7 +56,7 @@ class BufferedDataWriter:
         if self._writer and not self._writer.data_format().supports_schema_changes and len(columns) != len(self._current_columns):
             self._rotate_file()
         # until the first chunk is written we can change the columns schema freely
-        self._current_columns = columns
+        self._current_columns = deepcopy(columns)
         if isinstance(item, List):
             # items coming in single list will be written together, not matter how many are there
             self._buffered_items.extend(item)
