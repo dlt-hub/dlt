@@ -33,7 +33,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
                     # TODO: serialize str and ints, dbapi args do not work here
                     # TODO: enable various extensions ie. parquet
                     self._conn.execute(f"SET {k} = '{v}'")
-                except duckdb.CatalogException:
+                except duckdb.ProgrammingError:
                     pass
 
     def close_connection(self) -> None:
