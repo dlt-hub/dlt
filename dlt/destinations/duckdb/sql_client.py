@@ -26,14 +26,17 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
     def open_connection(self) -> None:
         self._conn = self.credentials.borrow_conn(read_only=self.credentials.read_only)
         # TODO: apply config settings from credentials
-        config={"search_path": self.fully_qualified_dataset_name()}
+        config={
+            "search_path": self.fully_qualified_dataset_name(),
+            "TimeZone": "UTC"
+        }
         if config:
             for k, v in config.items():
                 try:
                     # TODO: serialize str and ints, dbapi args do not work here
                     # TODO: enable various extensions ie. parquet
                     self._conn.execute(f"SET {k} = '{v}'")
-                except duckdb.ProgrammingError:
+                except (duckdb.CatalogException, duckdb.BinderException):
                     pass
 
     def close_connection(self) -> None:
