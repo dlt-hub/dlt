@@ -17,7 +17,7 @@ from dlt.destinations.postgres.postgres import PostgresClient
 from dlt.destinations.bigquery import BigQueryClientConfiguration
 from dlt.helpers.dbt.configuration import DBTRunnerConfiguration
 from dlt.helpers.dbt.exceptions import PrerequisitesException, DBTProcessingError
-from dlt.helpers.dbt import package_runner, create_venv, _create_dbt_deps, _default_profile_name, DEFAULT_DLT_VERSION
+from dlt.helpers.dbt import package_runner, create_venv, _create_dbt_deps, _default_profile_name, DEFAULT_DBT_VERSION
 
 from tests.helpers.dbt_tests.utils import JAFFLE_SHOP_REPO, assert_jaffle_completed, clone_jaffle_repo, find_run_result
 
@@ -47,7 +47,7 @@ def dbt_package_f(request: Any) -> AnyFun:
 
 def test_infer_venv_deps() -> None:
     requirements = _create_dbt_deps(["postgres", "bigquery"])
-    assert requirements[:3] == [f"dbt-postgres{DEFAULT_DLT_VERSION}", f"dbt-bigquery{DEFAULT_DLT_VERSION}", f"dbt-core{DEFAULT_DLT_VERSION}"]
+    assert requirements[:3] == [f"dbt-postgres{DEFAULT_DBT_VERSION}", f"dbt-bigquery{DEFAULT_DBT_VERSION}", f"dbt-core{DEFAULT_DBT_VERSION}"]
     # should lead to here
     assert os.path.isdir(requirements[-1])
     # provide exact version

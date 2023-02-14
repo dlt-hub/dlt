@@ -38,7 +38,7 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
 
         self._default_retry = bigquery.DEFAULT_RETRY.with_deadline(credentials.retry_deadline)
         self._default_query = bigquery.QueryJobConfig(default_dataset=self.fully_qualified_dataset_name(escape=False))
-        self._session_query = None
+        self._session_query: bigquery.QueryJobConfig = None
 
     @raise_open_connection_error
     def open_connection(self) -> None:
@@ -59,7 +59,7 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
         ) -> Any:
             return query_orig(query, retry=retry, timeout=timeout, **kwargs)
 
-        self._client.query = query_patch
+        self._client.query = query_patch  # type: ignore
 
     def close_connection(self) -> None:
         if self._session_query:

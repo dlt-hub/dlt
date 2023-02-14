@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, ClassVar, Dict, List, Optional, Sequence, Tuple
+from typing import Any, ClassVar, Dict, List, Optional, Sequence, Tuple, cast
 from dlt.common.storages.file_storage import FileStorage
 import google.cloud.bigquery as bigquery  # noqa: I250
 from google.cloud import exceptions as gcp_exceptions
@@ -98,7 +98,7 @@ class BigQueryClient(SqlJobClientBase):
         )
         super().__init__(schema, config, sql_client)
         self.config: BigQueryClientConfiguration = config
-        self.sql_client: BigQuerySqlClient = sql_client
+        self.sql_client: BigQuerySqlClient = sql_client  # type: ignore
 
     def restore_file_load(self, file_path: str) -> LoadJob:
         try:
@@ -209,7 +209,7 @@ class BigQueryClient(SqlJobClientBase):
 
     def _retrieve_load_job(self, file_path: str) -> bigquery.LoadJob:
         job_id = BigQueryClient._get_job_id_from_file_path(file_path)
-        return self.sql_client.native_connection.get_job(job_id)
+        return cast(bigquery.LoadJob, self.sql_client.native_connection.get_job(job_id))
 
     @staticmethod
     def _get_job_id_from_file_path(file_path: str) -> str:
