@@ -7,24 +7,11 @@ class DltException(Exception):
         return type(self).__new__, (type(self), *self.args), self.__dict__
 
 
-class SignalReceivedException(BaseException):
+class SignalReceivedException(KeyboardInterrupt, BaseException):
     """Raises when signal comes. Derives from `BaseException` to not be caught in regular exception handlers."""
     def __init__(self, signal_code: int) -> None:
         self.signal_code = signal_code
         super().__init__(f"Signal {signal_code} received")
-
-
-# class PoolException(DltException):
-#     """
-#     Thrown by worker pool to pass information when thrown during processing an item
-#     """
-#     def __init__(self, pool_name: str = None, item: str = None, internal_exception: Exception = None) -> None:
-#         # we need it to make it pickle compatible
-#         if pool_name:
-#             self.pool_name = pool_name
-#             self.item = item
-#             self.internal_exception = internal_exception
-#             super().__init__(f"Pool {pool_name} raised on item {item} with {str(internal_exception)}")
 
 
 class UnsupportedProcessStartMethodException(DltException):

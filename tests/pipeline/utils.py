@@ -45,5 +45,5 @@ def json_case_path(name: str) -> str:
 
 
 def load_json_case(name: str) -> dict:
-    with open(json_case_path(name), "r", encoding="utf-8") as f:
+    with open(json_case_path(name), "br") as f:
         return json.load(f)

@@ -8,7 +8,7 @@ from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.configuration.inject import get_fun_spec, with_config
 from dlt.common.configuration.providers import EnvironProvider
 from dlt.common.configuration.providers.toml import CONFIG_TOML, SECRETS_TOML, TomlProvider
-from dlt.common.configuration.specs import BaseConfiguration
+from dlt.common.configuration.specs import BaseConfiguration, GcpClientCredentials
 from dlt.common.configuration.specs import PostgresCredentials
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
 from dlt.common.reflection.spec import _get_spec_name_from_f
@@ -79,6 +79,18 @@ def test_arguments_dlt_literal_defaults_are_required(environment: Any) -> None:
     environment["PASSWORD"] = "password"
     assert f_secret() == "password"
     assert f_secret(None) == "password"
+
+
+def test_inject_from_argument_namespace(toml_providers: ConfigProvidersContext) -> None:
+
+    # `gcp_storage` is a key in `secrets.toml` and the default `credentials` namespace of GcpClientCredentials must be replaced with it
+
+    @with_config
+    def f_credentials(gcp_storage: GcpClientCredentials = dlt.secrets.value):
+        # unique project name
+        assert gcp_storage.project_id == "mock-project-id-gcp-storage"
+
+    f_credentials()
 
 
 @pytest.mark.skip("not implemented")

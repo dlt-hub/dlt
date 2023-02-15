@@ -6,11 +6,10 @@ import itertools
 
 import dlt
 
-from dlt.common import json
+from dlt.common import json, sleep
 from dlt.common.destination import DestinationReference
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import VERSION_TABLE_NAME
-from dlt.common.time import sleep
 from dlt.common.typing import TDataItem
 from dlt.common.utils import uniq_id
 from dlt.extract.exceptions import ResourceNameMissing

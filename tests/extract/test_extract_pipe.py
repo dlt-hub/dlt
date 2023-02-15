@@ -7,7 +7,7 @@ from typing import List, Sequence
 import pytest
 
 import dlt
-from dlt.common.time import sleep
+from dlt.common import sleep
 from dlt.common.typing import TDataItems
 from dlt.extract.typing import DataItemWithMeta
 from dlt.extract.pipe import FilterItem, Pipe, PipeItem, PipeIterator

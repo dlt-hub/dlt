@@ -5,6 +5,7 @@ from hexbytes import HexBytes
 
 from dlt.common import pendulum, Wei
 from dlt.common.schema.typing import TDataType
+from dlt.common.time import parse_iso_like_datetime
 
 
 _NOW_TS: float = pendulum.now().timestamp()
@@ -27,9 +28,8 @@ def is_iso_timestamp(t: Type[Any], v: Any) -> Optional[TDataType]:
         return None
     # strict autodetection of iso timestamps
     try:
-        # TODO: use same functions as in coercions
-        dt = pendulum.parse(v, strict=True, exact=True)
-        if isinstance(dt, datetime.datetime):
+        dtv = parse_iso_like_datetime(v)
+        if isinstance(dtv, datetime.datetime):
             return "timestamp"
     except Exception:
         pass

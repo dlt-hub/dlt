@@ -11,6 +11,8 @@ from dlt.common.exceptions import SignalReceivedException
 
 _received_signal: int = 0
 _raise_immediately: bool = False
+_original_sigint_handler = signal.getsignal(signal.SIGINT)
+_original_sigterm_handler = signal.getsignal(signal.SIGTERM)
 exit_event = Event()
 
 
@@ -41,6 +43,21 @@ def raise_if_signalled() -> None:
 def register_signals() -> None:
     signal.signal(signal.SIGINT, signal_receiver)
     signal.signal(signal.SIGTERM, signal_receiver)
+
+
+def restore_signals() -> None:
+    signal.signal(signal.SIGINT, _original_sigint_handler)
+    signal.signal(signal.SIGTERM, _original_sigterm_handler)
+
+
+def sleep(sleep_seconds: float) -> None:
+    """A signal-aware version of sleep function. Will raise SignalReceivedException if signal was received during sleep period."""
+    # do not allow sleeping if signal was received
+    raise_if_signalled()
+    # sleep or wait for signal
+    exit_event.wait(sleep_seconds)
+    # if signal then raise
+    raise_if_signalled()
 
 
 @contextmanager
