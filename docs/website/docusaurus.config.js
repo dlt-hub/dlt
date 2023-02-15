@@ -32,11 +32,13 @@ const config = {
     [
       '@docusaurus/preset-classic',
       ({
-        "docs": {
+        docs: {
           routeBasePath: '/',
           sidebarPath: require.resolve('./sidebars.js'),
         },
-        blog: false,
+        blog: {
+          showReadingTime: true
+        },
         theme: {
           customCss: require.resolve('./src/css/custom.css'),
         },
@@ -63,6 +65,7 @@ const config = {
             position: 'left',
             label: 'data load tool',
           },
+          {to: 'blog', label: 'Blog', position: 'left'},
           {
             href: 'https://github.com/dlt-hub/dlt',
             label: 'GitHub',
