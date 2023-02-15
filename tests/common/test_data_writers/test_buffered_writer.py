@@ -11,19 +11,11 @@ from dlt.common.typing import DictStrAny
 from tests.utils import TEST_STORAGE_ROOT, write_version, autouse_test_storage
 
 
-<<<<<<< HEAD
 def get_insert_writer(_format: TLoaderFileFormat = "insert_values", buffer_max_items: int = 10) -> BufferedDataWriter:
     caps = generic_destination_capabilities()
     caps.preferred_loader_file_format = _format
     file_template = os.path.join(TEST_STORAGE_ROOT, f"{_format}.%s")
     return BufferedDataWriter(_format, file_template, buffer_max_items=buffer_max_items, _caps=caps)
-=======
-def get_insert_writer(format: TLoaderFileFormat = "insert_values", buffer_max_items: int = 10) -> BufferedDataWriter:
-    caps = generic_destination_capabilities()
-    caps.preferred_loader_file_format = format
-    file_template = os.path.join(TEST_STORAGE_ROOT, f"{format}.%s")
-    return BufferedDataWriter(format, file_template, buffer_max_items=buffer_max_items, _caps=caps)
->>>>>>> tests buffered writer rotations
 
 
 def test_write_no_item() -> None:
