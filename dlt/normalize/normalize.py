@@ -1,11 +1,12 @@
-from typing import Callable, List, Dict, Sequence, Tuple
-from multiprocessing.pool import Pool as ProcessPool
-from itertools import chain
+import os
+from typing import Any, Callable, List, Dict, Sequence, Tuple
+from multiprocessing.pool import AsyncResult, Pool as ProcessPool
 from prometheus_client import Counter, CollectorRegistry, REGISTRY, Gauge
 
-from dlt.common import pendulum, signals, json, logger
+from dlt.common import pendulum, signals, json, logger, sleep
 from dlt.common.configuration import with_config
 from dlt.common.configuration.accessors import config
+from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs import LoadVolumeConfiguration, NormalizeVolumeConfiguration
 from dlt.common.data_writers.writers import TLoaderFileFormat
 from dlt.common.json import custom_pua_decode
@@ -21,9 +22,11 @@ from dlt.common.schema.exceptions import CannotCoerceColumnException
 from dlt.normalize.configuration import NormalizeConfiguration
 
 # normalize worker wrapping function (map_parallel, map_single) return type
-TMapFuncRV = Tuple[int, List[TSchemaUpdate], List[Sequence[str]]]  # (total items processed, list of schema updates, list of processed files)
+TMapFuncRV = Tuple[int, Sequence[TSchemaUpdate]]  # (total items processed, total schema updates)
 # normalize worker wrapping function signature
 TMapFuncType = Callable[[Schema, str, Sequence[str]], TMapFuncRV]  # input parameters: (schema name, load_id, list of files to process)
+# tuple returned by the worker
+TWorkerRV = Tuple[List[TSchemaUpdate], int, List[str]]
 
 
 class Normalize(Runnable[ProcessPool]):
@@ -82,46 +85,45 @@ class Normalize(Runnable[ProcessPool]):
     def w_normalize_files(
             normalize_storage_config: NormalizeVolumeConfiguration,
             loader_storage_config: LoadVolumeConfiguration,
-            loader_file_format: TLoaderFileFormat,
+            norm_conf: NormalizeConfiguration,
             stored_schema: TStoredSchema,
             load_id: str,
             extracted_items_files: Sequence[str]
-        ) -> Tuple[TSchemaUpdate, int]:
+        ) -> TWorkerRV:
         schema = Schema.from_stored_schema(stored_schema)
-        load_storage = LoadStorage(False, loader_file_format, LoadStorage.ALL_SUPPORTED_FILE_FORMATS, loader_storage_config)
+        load_storage = LoadStorage(False, norm_conf.destination_capabilities.preferred_loader_file_format, LoadStorage.ALL_SUPPORTED_FILE_FORMATS, loader_storage_config)
         normalize_storage = NormalizeStorage(False, normalize_storage_config)
 
-        schema_update: TSchemaUpdate = {}
+        schema_updates: List[TSchemaUpdate] = []
         total_items = 0
 
         # process all files with data items and write to buffered item storage
-        try:
-            for extracted_items_file in extracted_items_files:
-                line_no: int = 0
-                root_table_name = NormalizeStorage.parse_normalize_file_name(extracted_items_file).table_name
-                logger.debug(f"Processing extracted items in {extracted_items_file} in load_id {load_id} with table name {root_table_name} and schema {schema.name}")
-                with normalize_storage.storage.open_file(extracted_items_file) as f:
-                    # enumerate jsonl file line by line
-                    for line_no, line in enumerate(f):
-                        items: List[TDataItem] = json.loads(line)
-                        partial_update, items_count = Normalize._w_normalize_chunk(load_storage, schema, load_id, root_table_name, items)
-                        schema_update.update(partial_update)
-                        total_items += items_count
-                        logger.debug(f"Processed {line_no} items from file {extracted_items_file}, items {items_count} of total {total_items}")
-                    # if any item found in the file
-                    if items_count > 0:
-                        logger.debug(f"Processed total {line_no + 1} lines from file {extracted_items_file}, total items {total_items}")
-        except Exception:
-            logger.exception(f"Exception when processing file {extracted_items_file}, line {line_no}")
-            raise
-            # logger.debug(f"Affected item: {item}")
-            # raise PoolException("normalize_files", extracted_items_file)
-        finally:
-            load_storage.close_writers(load_id)
+        with Container().injectable_context(norm_conf.destination_capabilities):
+            try:
+                for extracted_items_file in extracted_items_files:
+                    line_no: int = 0
+                    root_table_name = NormalizeStorage.parse_normalize_file_name(extracted_items_file).table_name
+                    logger.debug(f"Processing extracted items in {extracted_items_file} in load_id {load_id} with table name {root_table_name} and schema {schema.name}")
+                    with normalize_storage.storage.open_file(extracted_items_file) as f:
+                        # enumerate jsonl file line by line
+                        for line_no, line in enumerate(f):
+                            items: List[TDataItem] = json.loads(line)
+                            partial_update, items_count = Normalize._w_normalize_chunk(load_storage, schema, load_id, root_table_name, items)
+                            schema_updates.append(partial_update)
+                            total_items += items_count
+                            logger.debug(f"Processed {line_no} items from file {extracted_items_file}, items {items_count} of total {total_items}")
+                        # if any item found in the file
+                        if items_count > 0:
+                            logger.debug(f"Processed total {line_no + 1} lines from file {extracted_items_file}, total items {total_items}")
+            except Exception:
+                logger.exception(f"Exception when processing file {extracted_items_file}, line {line_no}")
+                raise
+            finally:
+                load_storage.close_writers(load_id)
 
-        logger.debug(f"Processed total {total_items} items in {len(extracted_items_files)} files")
+        logger.info(f"Processed total {total_items} items in {len(extracted_items_files)} files")
 
-        return schema_update, total_items
+        return schema_updates, total_items, load_storage.closed_files()
 
     @staticmethod
     def _w_normalize_chunk(load_storage: LoadStorage, schema: Schema, load_id: str, root_table_name: str, items: List[TDataItem]) -> Tuple[TSchemaUpdate, int]:
@@ -156,19 +158,87 @@ class Normalize(Runnable[ProcessPool]):
                     load_storage.write_data_item(load_id, schema_name, table_name, row, columns)
                     # count total items
                     items_count += 1
+            signals.raise_if_signalled()
         return schema_update, items_count
+
+    def update_schema(self, schema: Schema, schema_updates: List[TSchemaUpdate]) -> int:
+        updates_count = 0
+        for schema_update in schema_updates:
+            for table_name, table_updates in schema_update.items():
+                logger.info(f"Updating schema for table {table_name} with {len(table_updates)} deltas")
+                for partial_table in table_updates:
+                    updates_count += 1
+                    schema.update_schema(partial_table)
+                    logger.info(f"Updating schema for table {partial_table}")
+        return updates_count
 
     def map_parallel(self, schema: Schema, load_id: str, files: Sequence[str]) -> TMapFuncRV:
         # TODO: maybe we should chunk by file size, now map all files to workers
-        chunk_files = [files]
-        schema_dict = schema.to_dict()
-        config_tuple = (self.normalize_storage.config, self.load_storage.config, self.loader_file_format, schema_dict)
-        param_chunk = [(*config_tuple, load_id, files) for files in chunk_files]
-        processed_chunks = self.pool.starmap(Normalize.w_normalize_files, param_chunk)
-        return sum([t[1] for t in processed_chunks]), [t[0] for t in processed_chunks], chunk_files
+        from dlt.common.utils import chunks
+        # sort files so the same tables are in the same worker
+        files = list(sorted(files))
+
+        chunk_size = max(len(files) // self.pool._processes, 1)
+        chunk_files = list(chunks(files, chunk_size))
+        if len(chunk_files) > self.pool._processes:
+            for idx, file in enumerate(chunk_files.pop()):
+                print(f"REM:{idx}:" + file)
+                chunk_files[idx].append(file)
+
+
+        print(files)
+        print(chunk_files)
+
+        schema_dict: TStoredSchema = schema.to_dict()
+        config_tuple = (self.normalize_storage.config, self.load_storage.config, self.config, schema_dict)
+        param_chunk = [[*config_tuple, load_id, files] for files in chunk_files]
+        tasks: List[Tuple[AsyncResult[TWorkerRV], List[Any]]] = []
+
+        # return stats
+        schema_updates: List[TSchemaUpdate] = []
+        total_items_processed = 0
+
+        # push all tasks to queue
+        for params in param_chunk:
+            pending: AsyncResult[TWorkerRV] = self.pool.apply_async(Normalize.w_normalize_files, params)
+            tasks.append((pending, params))
+
+        while len(tasks) > 0:
+            sleep(0.3)
+            # operate on copy of the list
+            for task in list(tasks):
+                pending, params = task
+                if pending.ready():
+                    if pending.successful():
+                        result: TWorkerRV = pending.get()
+                        try:
+                            # gather schema from all manifests, validate consistency and combine
+                            self.update_schema(schema, result[0])
+                            schema_updates.extend(result[0])
+                            total_items_processed += result[1]
+                        except CannotCoerceColumnException as exc:
+                            # schema conflicts resulting from parallel executing
+                            logger.warning(f"Parallel schema update conflict, retrying task ({str(exc)}")
+                            # delete all files produced by the task
+                            for file in result[2]:
+                                os.remove(file)
+                            # schedule the task again
+                            schema_dict = schema.to_dict()
+                            # TODO: it's time for a named tuple
+                            params[3] = schema_dict
+                            retry_pending: AsyncResult[TWorkerRV] = self.pool.apply_async(Normalize.w_normalize_files, params)
+                            tasks.append((retry_pending, params))
+                        # remove finished tasks
+                        tasks.remove(task)
+                    else:
+                        # raise the exception
+                        pending.get()
+                        raise AssertionError("unreachable code: pending.get must raise")
+
+        return total_items_processed, schema_updates
 
     def map_single(self, schema: Schema, load_id: str, files: Sequence[str]) -> TMapFuncRV:
-        processed_chunk = Normalize.w_normalize_files(
+        result = Normalize.w_normalize_files(
             self.normalize_storage.config,
             self.load_storage.config,
             self.loader_file_format,
@@ -176,30 +246,20 @@ class Normalize(Runnable[ProcessPool]):
             load_id,
             files
         )
-        return processed_chunk[1], [processed_chunk[0]], [files]
 
-    def update_schema(self, schema: Schema, schema_updates: List[TSchemaUpdate]) -> int:
-        updates_count = 0
-        for schema_update in schema_updates:
-            for table_name, table_updates in schema_update.items():
-                logger.debug(f"Updating schema for table {table_name} with {len(table_updates)} deltas")
-                for partial_table in table_updates:
-                    updates_count += 1
-                    schema.update_schema(partial_table)
-        return updates_count
+        self.update_schema(schema, result[0])
+        return result[1], result[0]
 
     def spool_files(self, schema_name: str, load_id: str, map_f: TMapFuncType, files: Sequence[str]) -> None:
         schema = Normalize.load_or_create_schema(self.schema_storage, schema_name)
 
         # process files in parallel or in single thread, depending on map_f
-        total_items, schema_updates, chunk_files = map_f(schema, load_id, files)
-
-        # gather schema from all manifests, validate consistency and combine
-        updates_count = self.update_schema(schema, schema_updates)
+        total_items, schema_updates = map_f(schema, load_id, files)
+        logger.info(f"In schema {schema_name} {total_items} processed with {len(schema_updates)} schema updates")
         self.schema_version_gauge.labels(schema_name).set(schema.version)
         # logger.metrics("Normalize metrics", extra=get_logging_extras([self.schema_version_gauge.labels(schema_name)]))
-        logger.info(f"Saving schema {schema_name} with version {schema.version}, writing manifest files")
-        if updates_count > 0:
+        if len(schema_updates) > 0:
+            logger.info(f"Saving schema {schema_name} with version {schema.version}, writing manifest files")
             # schema is updated, save it to schema volume
             self.schema_storage.save_schema(schema)
         # save schema to temp load folder
@@ -212,8 +272,10 @@ class Normalize(Runnable[ProcessPool]):
         # rename temp folder to processing
         self.load_storage.commit_temp_load_package(load_id)
         # delete item files to complete commit
-        for item_file in chain.from_iterable(chunk_files):  # flatten chunks
-            self.normalize_storage.storage.delete(item_file)
+        for file in files:
+                self.normalize_storage.storage.delete(file)
+        # for item_file in chain.from_iterable(chunk_files):  # flatten chunks
+        #     self.normalize_storage.storage.delete(item_file)
         # log and update metrics
         logger.info(f"Chunk {load_id} processed")
         self.load_package_counter.labels(schema_name).inc()

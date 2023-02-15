@@ -193,12 +193,14 @@ def test_normalize_many_schemas(rasa_normalize: Normalize) -> None:
         rasa_normalize.normalize_storage,
         ["event.event.many_load_2", "event.event.user_load_1", "ethereum.blocks.9c1d9b504ea240a482b007788d5cd61c_2"]
     )
-    if get_start_method() != "fork":
-        # windows, mac os do not support fork
-        rasa_normalize.run(ThreadPool(processes=4))
-    else:
-        # linux does so use real process pool in tests
-        rasa_normalize.run(Pool(processes=4))
+    # if get_start_method() != "fork":
+    #     # windows, mac os do not support fork
+    #     rasa_normalize.run(ThreadPool(processes=4))
+    # else:
+    # linux does so use real process pool in tests
+    import multiprocessing as mp
+    mp.set_start_method("spawn", force=True)
+    rasa_normalize.run(Pool(processes=4))
     # must have two loading groups with model and event schemas
     loads = rasa_normalize.load_storage.list_packages()
     assert len(loads) == 2
@@ -272,14 +274,15 @@ def normalize_cases(normalize: Normalize, cases: Sequence[str]) -> str:
 def extract_cases(normalize_storage: NormalizeStorage, cases: Sequence[str]) -> None:
     for case in cases:
         schema_name, table_name, _ = NormalizeStorage.parse_normalize_file_name(case + ".jsonl")
-        with open(json_case_path(case), "r", encoding="utf-8") as f:
+        with open(json_case_path(case), "br") as f:
             items = json.load(f)
         extract_items(normalize_storage, items, schema_name, table_name)
 
 
 def expect_load_package(load_storage: LoadStorage, load_id: str, expected_tables: Sequence[str]) -> Dict[str, str]:
     files = load_storage.list_new_jobs(load_id)
-    assert len(files) == len(expected_tables)
+    files_tables = [load_storage.parse_job_file_name(file).table_name for file in files]
+    assert set(files_tables) == set(expected_tables)
     ofl: Dict[str, str] = {}
     for expected_table in expected_tables:
         # find all files for particular table, ignoring file id
@@ -287,15 +290,17 @@ def expect_load_package(load_storage: LoadStorage, load_id: str, expected_tables
         # files are in normalized/<load_id>/new_jobs
         file_path = load_storage._get_job_file_path(load_id, "new_jobs", file_mask)
         candidates = [f for f in files if fnmatch(f, file_path)]
-        assert len(candidates) == 1
-        ofl[expected_table] = candidates[0]
+        # assert len(candidates) == 1
+        ofl[expected_table] = candidates
     return ofl
 
 
-def expect_lines_file(load_storage: LoadStorage, load_file: str, line: int = 0) -> str:
-    with load_storage.storage.open_file(load_file) as f:
-        lines = f.readlines()
-    return lines[line], len(lines)
+def expect_lines_file(load_storage: LoadStorage, loaded_files: List[str], return_line: int = 0) -> str:
+    lines = []
+    for file in loaded_files:
+        with load_storage.storage.open_file(file) as f:
+            lines.extend(f.readlines())
+    return lines[return_line], len(lines)
 
 
 def assert_timestamp_data_type(load_storage: LoadStorage, data_type: TDataType) -> None:
