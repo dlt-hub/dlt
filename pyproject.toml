@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "python-dlt"
-version = "0.2.0a17"
+version = "0.2.0a18"
 description = "DLT is an open-source python-native scalable data loading framework that does not require any devops efforts to run."
 authors = ["dltHub Inc. <services@dlthub.com>"]
 maintainers = [ "Marcin Rudolf <marcin@dlthub.com>", "Adrian Brudaru <adrian@dlthub.com>", "Ty Dunn <ty@dlthub.com>"]
@@ -59,17 +59,17 @@ psycopg2-binary = {version = ">=2.9.1", optional = true}
 # psycopg2cffi = {git = "https://github.com/chtd/psycopg2cffi.git", optional = true, markers="platform_python_implementation == 'PyPy'"}
 psycopg2cffi = {version = ">=2.9.0", optional = true, markers="platform_python_implementation == 'PyPy'"}
 
-grpcio = {version = ">=1.50.0", optional = true, python = "<3.11"}
-google-cloud-bigquery = {version = ">=2.26.0", optional = true, python = "<3.11"}
-google-cloud-bigquery-storage = {version = ">2.13.0", optional = true, python = "<3.11"}
+grpcio = {version = ">=1.50.0", optional = true}
+google-cloud-bigquery = {version = ">=2.26.0", optional = true}
+google-cloud-bigquery-storage = {version = ">2.13.0", optional = true}
 pyarrow = {version = ">=8.0.0", optional = true}
 
-duckdb = {version = ">=0.5.0", optional = true}
+duckdb = {version = ">=0.6.1,<0.8.0", optional = true}
 
-dbt-core = {version = ">=1.3.0,<1.4.0", optional = true}
-dbt-redshift = {version = ">=1.3.0,<1.4.0", optional = true}
-dbt-bigquery = {version = ">=1.3.0,<1.4.0", optional = true, python = "<3.11"}
-dbt-duckdb = {version = ">=1.3.0,<1.4.0", optional = true, python = "<3.11"}
+dbt-core = {version = ">=1.3.0,<1.5.0", optional = true}
+dbt-redshift = {version = ">=1.3.0,<1.5.0", optional = true}
+dbt-bigquery = {version = ">=1.3.0,<1.5.0", optional = true}
+dbt-duckdb = {version = ">=1.3.0,<1.5.0", optional = true}
 
 
 [tool.poetry.dev-dependencies]

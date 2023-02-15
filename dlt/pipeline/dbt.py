@@ -5,12 +5,12 @@ from dlt.common.runners.venv import Venv
 from dlt.common.schema import Schema
 from dlt.common.typing import TSecretValue
 
-from dlt.helpers.dbt import create_venv as _create_venv, package_runner as _package_runner, DBTPackageRunner, DEFAULT_DLT_VERSION as _DEFAULT_DLT_VERSION, restore_venv as _restore_venv
+from dlt.helpers.dbt import create_venv as _create_venv, package_runner as _package_runner, DBTPackageRunner, DEFAULT_DBT_VERSION as _DEFAULT_DBT_VERSION, restore_venv as _restore_venv
 from dlt.pipeline.pipeline import Pipeline
 
 
 
-def get_venv(pipeline: Pipeline, venv_path: str = "dbt", dbt_version: str = _DEFAULT_DLT_VERSION) -> Venv:
+def get_venv(pipeline: Pipeline, venv_path: str = "dbt", dbt_version: str = _DEFAULT_DBT_VERSION) -> Venv:
     """Creates or restores a virtual environment in which the `dbt` packages are executed.
 
     The recommended way to execute dbt package is to use a separate virtual environment where only the dbt-core

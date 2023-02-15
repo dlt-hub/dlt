@@ -18,6 +18,7 @@ from tests.utils import ALL_DESTINATIONS, autouse_test_storage, preserve_environ
 @pytest.fixture(scope="module")
 def dbt_venv() -> Iterator[Venv]:
     # context manager will delete venv at the end
+    # yield Venv.restore_current()
     with create_venv(tempfile.mkdtemp(), ALL_DESTINATIONS) as venv:
         yield venv
 

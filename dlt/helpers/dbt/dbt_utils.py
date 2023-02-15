@@ -23,9 +23,9 @@ except ImportError:
     raise MissingDependencyException("DBT Core", ["dbt-core"])
 
 try:
-    from dbt.exceptions import FailFastException
+    from dbt.exceptions import FailFastException  # type: ignore
 except ImportError:
-    from dbt.exceptions import FailFastError as FailFastException  # type: ignore
+    from dbt.exceptions import FailFastError as FailFastException
 
 _DBT_LOGGER_INITIALIZED = False
 
