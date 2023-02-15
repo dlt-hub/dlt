@@ -1,5 +1,6 @@
 import contextlib
 import os
+import datetime  # noqa: 251
 from contextlib import contextmanager
 from functools import wraps
 from collections.abc import Sequence as C_Sequence
@@ -241,8 +242,8 @@ class Pipeline(SupportsPipeline):
         write_disposition: TWriteDisposition = None,
         columns: Sequence[TColumnSchema] = None,
         schema: Schema = None,
-        max_parallel_items: int = 100,
-        workers: int = 5
+        max_parallel_items: int = None,
+        workers: int = None
     ) -> ExtractInfo:
         """Extracts the `data` and prepare it for the normalization. Does not require destination or credentials to be configured. See `run` method for the arguments' description."""
         def apply_hint_args(resource: DltResource) -> None:
@@ -897,6 +898,9 @@ class Pipeline(SupportsPipeline):
         dataset_name = None
         if isinstance(load.initial_client_config, DestinationClientDwhConfiguration):
             dataset_name = load.initial_client_config.dataset_name
+        started_at: datetime.datetime = None
+        if self._trace:
+            started_at = self._trace.started_at
 
         return LoadInfo(
             self,
@@ -905,6 +909,7 @@ class Pipeline(SupportsPipeline):
             dataset_name,
             {load_id: bool(metrics) for load_id, metrics in load_ids.items()},
             failed_packages,
+            started_at,
             self.first_run
         )
 

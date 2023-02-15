@@ -4,10 +4,11 @@ import asyncio
 import makefun
 from asyncio import Future
 from concurrent.futures import ThreadPoolExecutor
-from copy import deepcopy
+from copy import copy
 from threading import Thread
 from typing import Any, Optional, Sequence, Union, Callable, Iterable, Iterator, List, NamedTuple, Awaitable, Tuple, Type, TYPE_CHECKING
 
+from dlt.common import sleep
 from dlt.common.configuration import configspec
 from dlt.common.configuration.inject import with_config
 from dlt.common.configuration.specs import BaseConfiguration
@@ -22,8 +23,6 @@ if TYPE_CHECKING:
     TItemFuture = Future[Union[TDataItems, DataItemWithMeta]]
 else:
     TItemFuture = Future
-
-from dlt.common.time import sleep
 
 
 class PipeItem(NamedTuple):
@@ -72,8 +71,11 @@ TPipeStep = Union[
 
 
 class ForkPipe:
-    def __init__(self, pipe: "Pipe", step: int = -1) -> None:
+    def __init__(self, pipe: "Pipe", step: int = -1, copy_on_fork: bool = False) -> None:
+        """A transformer that forks the `pipe` and sends the data items to forks added via `add_pipe` method."""
         self._pipes: List[Tuple["Pipe", int]] = []
+        self.copy_on_fork = copy_on_fork
+        """If true, the data items going to a forked pipe will be copied"""
         self.add_pipe(pipe, step)
 
     def add_pipe(self, pipe: "Pipe", step: int = -1) -> None:
@@ -85,7 +87,11 @@ class ForkPipe:
 
     def __call__(self, item: TDataItems, meta: Any) -> Iterator[ResolvablePipeItem]:
         for i, (pipe, step) in enumerate(self._pipes):
-            _it = item if i == 0 else deepcopy(item)
+            if i == 0 or not self.copy_on_fork:
+                _it = item
+            else:
+                # shallow copy the item
+                _it = copy(item)
             # always start at the beginning
             yield ResolvablePipeItem(_it, step, pipe, meta)
 
@@ -173,12 +179,12 @@ class Pipe:
     def __len__(self) -> int:
         return len(self._steps)
 
-    def fork(self, child_pipe: "Pipe", child_step: int = -1) -> "Pipe":
+    def fork(self, child_pipe: "Pipe", child_step: int = -1, copy_on_fork: bool = False) -> "Pipe":
         if len(self._steps) == 0:
             raise CreatePipeException(self.name, f"Cannot fork to empty pipe {child_pipe}")
         fork_step = self.tail
         if not isinstance(fork_step, ForkPipe):
-            fork_step = ForkPipe(child_pipe, child_step)
+            fork_step = ForkPipe(child_pipe, child_step, copy_on_fork)
             self.add_step(fork_step)
         else:
             if not fork_step.has_pipe(child_pipe):
@@ -248,7 +254,7 @@ class Pipe:
             # if pipe head is callable then call it
             if callable(head):
                 try:
-                    # must be parameterless callable or parameters must have defaults
+                    # must be parameter-less callable or parameters must have defaults
                     self._steps[0] = head()  # type: ignore
                 except TypeError:
                     raise ParametrizedResourceUnbound(self.name, get_callable_name(head), inspect.signature(head))
@@ -326,9 +332,12 @@ class PipeIterator(Iterator[PipeItem]):
 
     @configspec
     class PipeIteratorConfiguration(BaseConfiguration):
-        max_parallel_items: int = 100
+        max_parallel_items: int = 20
         workers: int = 5
         futures_poll_interval: float = 0.01
+        copy_on_fork: bool = False
+
+        __namespace__ = "extract"
 
     def __init__(self, max_parallel_items: int, workers: int, futures_poll_interval: float) -> None:
         self.max_parallel_items = max_parallel_items
@@ -343,7 +352,7 @@ class PipeIterator(Iterator[PipeItem]):
 
     @classmethod
     @with_config(spec=PipeIteratorConfiguration)
-    def from_pipe(cls, pipe: Pipe, *, max_parallel_items: int = 100, workers: int = 5, futures_poll_interval: float = 0.01) -> "PipeIterator":
+    def from_pipe(cls, pipe: Pipe, *, max_parallel_items: int = 20, workers: int = 5, futures_poll_interval: float = 0.01) -> "PipeIterator":
         # join all dependent pipes
         if pipe.parent:
             pipe = pipe.full_pipe()
@@ -360,7 +369,16 @@ class PipeIterator(Iterator[PipeItem]):
 
     @classmethod
     @with_config(spec=PipeIteratorConfiguration)
-    def from_pipes(cls, pipes: Sequence[Pipe], yield_parents: bool = True, *, max_parallel_items: int = 100, workers: int = 5, futures_poll_interval: float = 0.01) -> "PipeIterator":
+    def from_pipes(
+        cls,
+        pipes: Sequence[Pipe],
+        yield_parents: bool = True,
+        *,
+        max_parallel_items: int = 20,
+        workers: int = 5,
+        futures_poll_interval: float = 0.01,
+        copy_on_fork: bool = False
+    ) -> "PipeIterator":
         extract = cls(max_parallel_items, workers, futures_poll_interval)
         # TODO: consider removing cloning. pipe are single use and may be iterated only once, here we modify an immediately run
         # clone all pipes before iterating (recursively) as we will fork them and this add steps
@@ -370,11 +388,11 @@ class PipeIterator(Iterator[PipeItem]):
             if pipe.parent:
                 # fork the parent pipe
                 pipe.evaluate_head()
-                pipe.parent.fork(pipe)
+                pipe.parent.fork(pipe, copy_on_fork=copy_on_fork)
                 # make the parent yield by sending a clone of item to itself with position at the end
                 if yield_parents and pipe.parent in pipes:
                     # fork is last step of the pipe so it will yield
-                    pipe.parent.fork(pipe.parent, len(pipe.parent) - 1)
+                    pipe.parent.fork(pipe.parent, len(pipe.parent) - 1, copy_on_fork=copy_on_fork)
                 _fork_pipeline(pipe.parent)
             else:
                 # head of independent pipe must be iterator
@@ -499,10 +517,10 @@ class PipeIterator(Iterator[PipeItem]):
         for f, _, _, _ in self._futures:
             if not f.done():
                 f.cancel()
-        print("stopping loop")
+        # print("stopping loop")
         if self._async_pool:
             self._async_pool.call_soon_threadsafe(stop_background_loop, self._async_pool)
-            print("joining thread")
+            # print("joining thread")
             self._async_pool_thread.join()
             self._async_pool = None
             self._async_pool_thread = None
@@ -546,6 +564,8 @@ class PipeIterator(Iterator[PipeItem]):
 
         # get items from last added iterator, this makes the overall Pipe as close to FIFO as possible
         gen, step, pipe, meta = self._sources[-1]
+        # TODO: count items coming of the generator and stop the generator if reached. that allows for sampling the beginning of a stream
+        # _counts(id(gen)).setdefault(0) + 1
         try:
             item = next(gen)
             # full pipe item may be returned, this is used by ForkPipe step
