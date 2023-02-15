@@ -164,14 +164,14 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.command == "schema":
-        with open(args.file, "r", encoding="utf-8") as f:
+        with open(args.file, "br") as f:
             if os.path.splitext(args.file)[1][1:] == "json":
                 schema_dict: DictStrAny = json.load(f)
             else:
                 schema_dict = yaml.safe_load(f)
         s = Schema.from_dict(schema_dict)
         if args.format == "json":
-            schema_str = json.dumps(s.to_dict(remove_defaults=args.remove_defaults), indent=2)
+            schema_str = json.dumps(s.to_dict(remove_defaults=args.remove_defaults), pretty=True)
         else:
             schema_str = s.to_pretty_yaml(remove_defaults=args.remove_defaults)
         print(schema_str)

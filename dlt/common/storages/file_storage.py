@@ -68,9 +68,10 @@ class FileStorage:
         else:
             raise NotADirectoryError(folder_path)
 
-    def open_file(self, realtive_path: str, mode: str = "r") -> IO[Any]:
-        mode = mode + self.file_type
-        return open(self.make_full_path(realtive_path), mode, encoding=encoding_for_mode(mode))
+    def open_file(self, relative_path: str, mode: str = "r") -> IO[Any]:
+        if "b" not in mode and "t" not in mode:
+            mode = mode + self.file_type
+        return open(self.make_full_path(relative_path), mode, encoding=encoding_for_mode(mode))
 
     def open_temp(self, delete: bool = False, mode: str = "w", file_type: str = None) -> IO[Any]:
         mode = mode + file_type or self.file_type

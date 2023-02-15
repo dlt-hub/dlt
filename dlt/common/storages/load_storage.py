@@ -86,7 +86,9 @@ class LoadStorage(DataItemStorage, VersionedStorage):
 
     def write_temp_job_file(self, load_id: str, table_name: str, table: TTableSchemaColumns, file_id: str, rows: Sequence[StrAny]) -> str:
         file_name = self._get_data_item_path_template(load_id, None, table_name) % file_id + "." + self.loader_file_format
-        with self.storage.open_file(file_name, mode="w") as f:
+        format_spec = DataWriter.data_format_from_file_format(self.loader_file_format)
+        mode = "wb" if format_spec.is_binary_format else "w"
+        with self.storage.open_file(file_name, mode=mode) as f:
             writer = DataWriter.from_file_format(self.loader_file_format, f)
             writer.write_all(table, rows)
         return Path(file_name).name
@@ -107,7 +109,7 @@ class LoadStorage(DataItemStorage, VersionedStorage):
         return self.storage.save(join(load_id, LoadStorage.SCHEMA_FILE_NAME), dump)
 
     def save_temp_schema_updates(self, load_id: str, schema_updates: Sequence[TSchemaUpdate]) -> None:
-        with self.storage.open_file(join(load_id, LoadStorage.SCHEMA_UPDATES_FILE_NAME), mode="w") as f:
+        with self.storage.open_file(join(load_id, LoadStorage.SCHEMA_UPDATES_FILE_NAME), mode="wb") as f:
             json.dump(schema_updates, f)
 
     def commit_temp_load_package(self, load_id: str) -> None:

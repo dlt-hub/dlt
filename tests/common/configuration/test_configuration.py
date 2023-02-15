@@ -20,7 +20,7 @@ INVALID_COERCIONS = {
     # 'STR_VAL': 'test string',  # string always OK
     'int_val': "a12345",
     'bool_val': "not_bool",  # bool overridden by string - that is the most common problem
-    'list_val': {2: 1, "2": 3.0},
+    'list_val': {"2": 1, "2": 3.0},
     'dict_val': "{'a': 1, 'b', '2'}",
     'bytes_val': 'Hello World!',
     'float_val': "invalid",
