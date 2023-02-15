@@ -33,12 +33,12 @@
 #     print(pipeline.root_path)
 
 #     # load our sample data - list of discord channels
-#     with open("examples/data/channels.json", "r", encoding="utf-8") as f:
+#     with open("examples/data/channels.json", "br") as f:
 #         channels = json.load(f)
 #     # and extract it
 #     pipeline.extract(channels, table_name="channels")
 #     # load list of messages
-#     with open("examples/data/messages.json", "r", encoding="utf-8") as f:
+#     with open("examples/data/messages.json", "br") as f:
 #         messages = json.load(f)
 
 #     # but we actually want to process messages before processing so pass mapping function instead

@@ -3,7 +3,7 @@ from importlib import import_module
 import os
 from typing import Any, ContextManager, Iterator, List, Sequence, cast, IO
 
-from dlt.common import json, Decimal
+from dlt.common import json, Decimal, sleep
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs import SchemaVolumeConfiguration
@@ -13,7 +13,6 @@ from dlt.common.data_writers import DataWriter
 from dlt.common.schema import TColumnSchema, TTableSchemaColumns
 from dlt.common.storages import SchemaStorage, FileStorage
 from dlt.common.schema.utils import new_table
-from dlt.common.time import sleep
 from dlt.common.typing import StrAny
 from dlt.common.utils import uniq_id
 
@@ -81,11 +80,11 @@ TABLE_ROW = {
     "col6": Decimal("2323.34"),
     "col7": b'binary data \n \r \x8e',
     "col8": 2**56 + 92093890840,
-    "col9": {"complex":[1,2,3,"a"]}
+    "col9": {"complex":[1,2,3,"a"], "link": "?commen\ntU\nrn=urn%3Ali%3Acomment%3A%28acti\0xA \0x0 \\vity%3A69'08444473\n\n551163392%2C6n \r \x8e9085"}
 }
 
 def load_table(name: str) -> TTableSchemaColumns:
-    with open(f"./tests/load/cases/{name}.json", "tr", encoding="utf-8") as f:
+    with open(f"./tests/load/cases/{name}.json", "br") as f:
         return cast(TTableSchemaColumns, json.load(f))
 
 

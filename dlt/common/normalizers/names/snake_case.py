@@ -3,6 +3,7 @@ from typing import Any, Sequence
 from functools import lru_cache
 
 from dlt.common.schema.exceptions import InvalidDatasetName
+from dlt.common.utils import digest128
 
 
 RE_UNDERSCORES = re.compile("_+")
@@ -71,3 +72,12 @@ def normalize_make_path(*elems: Any) -> str:
 # this function break path into elements
 def normalize_break_path(path: str) -> Sequence[str]:
     return path.split(PATH_SEPARATOR)
+
+
+def shorten_name(name: str, max_length: int, tag_length: int = 10) -> str:
+    """Shortens the `name` to `max_length` and adds a tag to it to make it unique"""
+    if len(name) > max_length:
+        digest = digest128(name)
+        return name[:max_length - tag_length] + digest[:tag_length].lower()
+    else:
+        return name

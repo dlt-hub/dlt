@@ -3,7 +3,7 @@ import pytest
 from typing import Iterator
 
 from dlt.common import pendulum
-from dlt.destinations.postgres import capabilities
+# from dlt.destinations.postgres import capabilities
 from dlt.destinations.redshift import capabilities as redshift_caps
 from dlt.common.data_writers import escape_redshift_literal, escape_redshift_identifier, escape_bigquery_identifier
 from dlt.common.data_writers.writers import DataWriter, InsertValuesWriter
@@ -15,6 +15,10 @@ from tests.common.utils import load_json_case, row_to_column_schemas
 def insert_writer() -> Iterator[DataWriter]:
     with io.StringIO() as f:
         yield InsertValuesWriter(f, caps=redshift_caps())
+
+
+# @pytest.fixture
+# def jsonl_writer() ->
 
 
 def test_simple_insert_writer(insert_writer: DataWriter) -> None:

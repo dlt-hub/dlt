@@ -3,8 +3,7 @@ import pytest
 import time
 from multiprocessing.dummy import Process
 
-from dlt.common import signals
-from dlt.common.time import sleep
+from dlt.common import signals, sleep
 from dlt.common.exceptions import SignalReceivedException
 
 
