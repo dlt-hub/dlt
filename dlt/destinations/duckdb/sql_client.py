@@ -26,10 +26,12 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
     def open_connection(self) -> None:
         self._conn = self.credentials.borrow_conn(read_only=self.credentials.read_only)
         # TODO: apply config settings from credentials
+        self._conn.execute("PRAGMA enable_checkpoint_on_shutdown;")
         config={
             "search_path": self.fully_qualified_dataset_name(),
-            "TimeZone": "UTC"
-        }
+            "TimeZone": "UTC",
+            "checkpoint_threshold": "1gb"
+            }
         if config:
             for k, v in config.items():
                 try:
@@ -89,6 +91,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
     def execute_sql(self, sql: AnyStr, *args: Any, **kwargs: Any) -> Optional[Sequence[Sequence[Any]]]:
         with self.execute_query(sql, *args, **kwargs) as curr:
             if curr.description is None:
+                print(f"query sql executed")
                 return None
             else:
                 f = curr.fetchall()
@@ -129,8 +132,8 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
 
     @classmethod
     def _make_database_exception(cls, ex: Exception) -> Exception:
-        if isinstance(ex, (duckdb.CatalogException)):  # duckdb.errors.UndefinedTable, duckdb.errors.InvalidSchemaName
-            raise DatabaseUndefinedRelation(ex)  # duckdb.errors.SyntaxError, psycopg2.errors.UndefinedFunction
+        if isinstance(ex, (duckdb.CatalogException)):
+            raise DatabaseUndefinedRelation(ex)
         elif isinstance(ex, duckdb.InvalidInputException):
             # duckdb raises TypeError on malformed query parameters
             return DatabaseTransientException(duckdb.ProgrammingError(ex))

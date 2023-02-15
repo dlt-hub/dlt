@@ -9,3 +9,5 @@ class PostgresClientConfiguration(DestinationClientDwhConfiguration):
     destination_name: Final[str] = "postgres"  # type: ignore
     credentials: PostgresCredentials
 
+    create_indexes: bool = True
+

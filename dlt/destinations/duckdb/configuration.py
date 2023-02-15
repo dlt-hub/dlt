@@ -110,3 +110,5 @@ class DuckDbCredentials(ConnectionStringCredentials):
 class DuckDbClientConfiguration(DestinationClientDwhConfiguration):
     destination_name: Final[str] = "duckdb"  # type: ignore
     credentials: DuckDbCredentials
+
+    create_indexes: bool = False  # should unique indexes be created, this slows loading down massively
