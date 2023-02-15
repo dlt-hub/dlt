@@ -106,6 +106,9 @@ tables:
         unique: true
     parent: my_json_doc
 settings:
+  detections:
+  - timestamp
+  - iso_timestamp
   default_hints:
     not_null:
     - _dlt_id
@@ -118,9 +121,6 @@ settings:
     unique:
     - _dlt_id
 normalizers:
-  detections:
-  - timestamp
-  - iso_timestamp
   names: dlt.common.normalizers.names.snake_case
   json:
     module: dlt.common.normalizers.json.relational

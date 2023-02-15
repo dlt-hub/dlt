@@ -8,7 +8,7 @@ from dlt.common.normalizers.names import TNormalizeBreakPath, TNormalizeMakePath
 from dlt.common.normalizers.json import TNormalizeJSONFunc
 from dlt.common.schema.typing import (SCHEMA_ENGINE_VERSION, LOADS_TABLE_NAME, VERSION_TABLE_NAME, TNormalizersConfig, TPartialTableSchema, TSchemaSettings, TSimpleRegex, TStoredSchema,
                                       TSchemaTables, TTableSchema, TTableSchemaColumns, TColumnSchema, TColumnProp, TDataType,
-                                      TColumnHint, TWriteDisposition)
+                                      TColumnHint, TTypeDetections, TWriteDisposition)
 from dlt.common.schema import utils
 from dlt.common.schema.exceptions import (CannotCoerceColumnException, CannotCoerceNullException, InvalidSchemaName,
                                           ParentTableNotFoundException, SchemaCorruptedException)
@@ -45,6 +45,8 @@ class Schema:
     _compiled_excludes: Dict[str, Sequence[REPattern]]
     # compiled include filters per table
     _compiled_includes: Dict[str, Sequence[REPattern]]
+    # type detections
+    _type_detections: Sequence[TTypeDetections]
 
     # normalizers config
     _normalizers_config: TNormalizersConfig
@@ -222,7 +224,7 @@ class Schema:
             else:
                 # set new hint type
                 default_hints[h] = l  # type: ignore
-        self._compile_regexes()
+        self._compile_settings()
 
     def normalize_table_identifiers(self, table: TTableSchema) -> TTableSchema:
         # normalize all identifiers in table according to name normalizer of the schema
@@ -307,7 +309,7 @@ class Schema:
 
     def to_pretty_json(self, remove_defaults: bool = True) -> str:
         d = self.to_dict(remove_defaults=remove_defaults)
-        return json.dumps(d, indent=2)
+        return json.dumps(d, pretty=True)
 
     def to_pretty_yaml(self, remove_defaults: bool = True) -> str:
         d = self.to_dict(remove_defaults=remove_defaults)
@@ -337,7 +339,7 @@ class Schema:
         existing_column = table_columns.get(col_name)
 
         # infer type or get it from existing table
-        col_type = existing_column.get("data_type") if existing_column else self._infer_column_type(v, col_name)
+        col_type = existing_column.get("data_type") if existing_column else self._infer_column_type(v, col_name, skip_preferred=final)
         # get data type of value
         py_type = utils.py_type_to_sc_type(type(v))
         # and coerce type if inference changed the python type
@@ -361,33 +363,25 @@ class Schema:
             if isinstance(coerced_v, tuple):
                 # variant recovered so call recursively with variant column name and variant value
                 variant_col_name = self.normalize_make_path(col_name, VARIANT_FIELD_FORMAT % coerced_v[0])
-                return self._coerce_non_null_value(table_columns, table_name, variant_col_name, coerced_v[1])
+                return self._coerce_non_null_value(table_columns, table_name, variant_col_name, coerced_v[1], final=True)
 
         if not existing_column:
             new_column = self._infer_column(col_name, v, data_type=col_type)
 
         return col_name, new_column, coerced_v
 
-    def _infer_column_type(self, v: Any, col_name: str) -> TDataType:
+    def _infer_column_type(self, v: Any, col_name: str, skip_preferred: bool = False) -> TDataType:
         tv = type(v)
         # try to autodetect data type
-        mapped_type = utils.autodetect_sc_type(self._normalizers_config.get("detections"), tv, v)
+        mapped_type = utils.autodetect_sc_type(self._type_detections, tv, v)
         # if not try standard type mapping
         if mapped_type is None:
             mapped_type = utils.py_type_to_sc_type(tv)
         # get preferred type based on column name
-        preferred_type = self.get_preferred_type(col_name)
-        # try to match python type to preferred
-        if preferred_type:
-            # try to coerce to destination type
-            try:
-                utils.coerce_value(preferred_type, mapped_type, v)
-                # coercion possible so preferred type may be used
-                mapped_type = preferred_type
-            except ValueError:
-                # coercion not possible
-                pass
-        return mapped_type
+        preferred_type: TDataType = None
+        if not skip_preferred:
+            preferred_type = self.get_preferred_type(col_name)
+        return preferred_type or mapped_type
 
     def _infer_hint(self, hint_type: TColumnHint, _: Any, col_name: str) -> bool:
         if hint_type in self._compiled_hints:
@@ -403,6 +397,9 @@ class Schema:
         default_hints = utils.standard_hints()
         if default_hints:
             self._settings["default_hints"] = default_hints
+        type_detections = utils.standard_type_detections()
+        if type_detections:
+            self._settings["detections"] = type_detections
 
     def _configure_normalizers(self) -> None:
         if not self._normalizers_config:
@@ -434,6 +431,7 @@ class Schema:
         self._compiled_hints: Dict[TColumnHint, Sequence[REPattern]] = {}
         self._compiled_excludes: Dict[str, Sequence[REPattern]] = {}
         self._compiled_includes: Dict[str, Sequence[REPattern]] = {}
+        self._type_detections: Sequence[TTypeDetections] = None
 
         self._normalizers_config: TNormalizersConfig = normalizers
         self.normalize_table_name: TNormalizeNameFunc = None
@@ -454,7 +452,7 @@ class Schema:
         # verify schema name after configuring normalizers
         self._set_schema_name(name, normalize_name)
         # compile all known regexes
-        self._compile_regexes()
+        self._compile_settings()
         # set initial version hash
         self._stored_version_hash = self.version_hash
 
@@ -469,8 +467,7 @@ class Schema:
         self._imported_version_hash = stored_schema.get("imported_version_hash")
         self._schema_description = stored_schema.get("description")
         self._settings = stored_schema.get("settings") or {}
-        # compile regexes
-        self._compile_regexes()
+        self._compile_settings()
 
     def _set_schema_name(self, name: str, normalize_name: bool) -> None:
         normalized_name = self.normalize_schema_name(name)
@@ -481,14 +478,14 @@ class Schema:
                 raise InvalidSchemaName(name, normalized_name)
         self._schema_name = name
 
-    def _compile_regexes(self) -> None:
-        if self._settings:
-            for pattern, dt in self._settings.get("preferred_types", {}).items():
-                # add tuples to be searched in coercions
-                self._compiled_preferred_types.append((utils.compile_simple_regex(pattern), dt))
-            for hint_name, hint_list in self._settings.get("default_hints", {}).items():
-                # compile hints which are column matching regexes
-                self._compiled_hints[hint_name] = list(map(utils.compile_simple_regex, hint_list))
+    def _compile_settings(self) -> None:
+        # if self._settings:
+        for pattern, dt in self._settings.get("preferred_types", {}).items():
+            # add tuples to be searched in coercions
+            self._compiled_preferred_types.append((utils.compile_simple_regex(pattern), dt))
+        for hint_name, hint_list in self._settings.get("default_hints", {}).items():
+            # compile hints which are column matching regexes
+            self._compiled_hints[hint_name] = list(map(utils.compile_simple_regex, hint_list))
         if self._schema_tables:
             for table in self._schema_tables.values():
                 if "filters" in table:
@@ -496,6 +493,8 @@ class Schema:
                         self._compiled_excludes[table["name"]] = list(map(utils.compile_simple_regex, table["filters"]["excludes"]))
                     if "includes" in table["filters"]:
                         self._compiled_includes[table["name"]] = list(map(utils.compile_simple_regex, table["filters"]["includes"]))
+        # look for auto-detections in settings and then normalizer
+        self._type_detections = self._settings.get("detections") or self._normalizers_config.get("detections") or []
 
     def __repr__(self) -> str:
         return f"Schema {self.name} at {id(self)}"
