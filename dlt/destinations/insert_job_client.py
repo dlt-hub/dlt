@@ -40,16 +40,21 @@ class InsertValuesLoadJob(LoadJob):
                 if write_disposition == "replace":
                     insert_sql.append("DELETE FROM {};".format(qualified_table_name))
                 while content := f.read(self._sql_client.capabilities.max_query_length // 2):
+                    # write INSERT
+                    insert_sql.extend([header.format(qualified_table_name), values_mark, content])
                     # read one more line in order to
                     # 1. complete the content which ends at "random" position, not an end line
                     # 2. to modify it's ending without a need to re-allocating the 8MB of "content"
-                    until_nl = f.readline().strip("\n")
-                    # write INSERT
-                    insert_sql.extend([header.format(qualified_table_name), values_mark, content])
-                    # are we at end of file
+                    until_nl = f.readline()
+                    # if until next line contains just '\n' try to take another line so we can finish content properly
+                    # TODO: write test for this case (content ends with ",")
+                    if until_nl == "\n":
+                        until_nl = f.readline()
+                    until_nl = until_nl.strip("\n")
+                    # if there was anything left, until_nl contains the last line
                     is_eof = len(until_nl) == 0 or until_nl[-1] == ";"
                     if not is_eof:
-                        # replace the "," with ";"
+                        # print(f'replace the "," with " {until_nl} {len(insert_sql)}')
                         until_nl = until_nl[:-1] + ";\n"
                     # actually this may be empty if we were able to read a full file into content
                     if until_nl:
