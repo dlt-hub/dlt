@@ -11,6 +11,6 @@ tags: [dlthub, mission, dlt]
 
 *Since 2017, the number of Python users has been increasing by millions annually. The vast majority of these people leverage Python as a tool to solve problems at work. **Our mission is to make this next generation of Python users autonomous when they create and use data in their organizations.** For this end, we are building an open source Python library called data load tool (dlt).*
 
-*Python practioners users use dlt in their scripts to turn messy, unstructured data into regularly updated datasets. It empowers them to create highly scalable, easy to maintain, straightforward to deploy data pipelines without having to wait for help from a data engineer. When organisations eventually bring in data engineering to help with data loading in an organization these engineers evolve dlt pipelines and work with them.* 
+*These Python practitioners, as we call them, use dlt in their scripts to turn messy, unstructured data into regularly updated datasets. It empowers them to create highly scalable, easy to maintain, straightforward to deploy data pipelines without having to wait for help from a data engineer. When organizations eventually bring in data engineers to help with data loading, these engineers build on their work and evolve dlt pipelines.* 
 
 *We are dedicated to keeping dlt an open source project surrounded by a vibrant, engaged community. To make this sustainable, dltHub stewards dlt while also offering additional software and services that generate revenue (similar to what GitHub does with Git).*
