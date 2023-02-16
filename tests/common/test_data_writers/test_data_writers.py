@@ -2,13 +2,16 @@ import io
 import pytest
 from typing import Iterator
 
-from dlt.common import pendulum
+from dlt.common import pendulum, json
+from dlt.common.typing import AnyFun
 # from dlt.destinations.postgres import capabilities
 from dlt.destinations.redshift import capabilities as redshift_caps
-from dlt.common.data_writers import escape_redshift_literal, escape_redshift_identifier, escape_bigquery_identifier
-from dlt.common.data_writers.writers import DataWriter, InsertValuesWriter
+from dlt.common.data_writers.escape import escape_redshift_identifier, escape_bigquery_identifier, escape_redshift_literal, escape_postgres_literal, escape_duckdb_literal
+from dlt.common.data_writers.writers import DataWriter, InsertValuesWriter, JsonlWriter
 
 from tests.common.utils import load_json_case, row_to_column_schemas
+
+ALL_LITERAL_ESCAPE = [escape_redshift_literal, escape_postgres_literal, escape_duckdb_literal]
 
 
 @pytest.fixture
@@ -17,8 +20,10 @@ def insert_writer() -> Iterator[DataWriter]:
         yield InsertValuesWriter(f, caps=redshift_caps())
 
 
-# @pytest.fixture
-# def jsonl_writer() ->
+@pytest.fixture
+def jsonl_writer() -> Iterator[DataWriter]:
+    with io.BytesIO() as f:
+        yield JsonlWriter(f)
 
 
 def test_simple_insert_writer(insert_writer: DataWriter) -> None:
@@ -29,6 +34,15 @@ def test_simple_insert_writer(insert_writer: DataWriter) -> None:
     assert '","'.join(rows[0].keys()) in lines[0]
     assert lines[1] == "VALUES"
     assert len(lines) == 4
+
+
+def test_simple_jsonl_writer(jsonl_writer: DataWriter) -> None:
+    rows = load_json_case("simple_row")
+    jsonl_writer.write_all(None, rows)
+    # remove b'' at the end
+    lines = jsonl_writer._f.getvalue().split(b"\n")
+    assert lines[-1] == b''
+    assert len(lines) == 3
 
 
 def test_bytes_insert_writer(insert_writer: DataWriter) -> None:
@@ -74,6 +88,17 @@ def test_string_literal_escape() -> None:
     assert escape_redshift_literal(", NULL);\n DROP TABLE --") == "', NULL);\\n DROP TABLE --'"
     assert escape_redshift_literal(", NULL);\\n DROP TABLE --\\") == "', NULL);\\\\n DROP TABLE --\\\\'"
     # assert escape_redshift_literal(b'hello_word') == "\\x68656c6c6f5f776f7264"
+
+
+@pytest.mark.parametrize("escaper", ALL_LITERAL_ESCAPE)
+def test_string_complex_escape(escaper: AnyFun) -> None:
+    doc = {"complex":[1,2,3,"a"], "link": "?commen\ntU\nrn=urn%3Ali%3Acomment%3A%28acti\0xA \0x0 \\vity%3A69'08444473\n\n551163392%2C6n \r \x8e9085"}
+    escaped = escaper(doc)
+    # should be same as string escape
+    if escaper == escape_redshift_literal:
+        assert escaped == f"json_parse({escaper(json.dumps(doc))})"
+    else:
+        assert escaped == escaper(json.dumps(doc))
 
 
 def test_identifier_escape() -> None:

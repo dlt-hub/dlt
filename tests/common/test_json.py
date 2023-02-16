@@ -35,7 +35,7 @@ def test_load_save_binary(json_impl: SupportsJson) -> None:
 
 @pytest.mark.parametrize("json_impl", _JSON_IMPL)
 def test_string_serialization(json_impl: SupportsJson) -> None:
-    with open(json_case_path("weird_rows"), "r") as f:
+    with open(json_case_path("weird_rows"), "r", encoding="utf-8") as f:
         content = f.read()
     doc = json_impl.loads(content)
     serialized = json_impl.dumps(doc)

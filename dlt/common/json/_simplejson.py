@@ -27,7 +27,7 @@ def dump(obj: Any, fp: IO[bytes], sort_keys: bool = False, pretty:bool = False) 
     # prevent default decimal serializer (use_decimal=False) and binary serializer (encoding=None)
     return simplejson.dump(
         obj,
-        codecs.getwriter("utf-8")(fp),
+        codecs.getwriter("utf-8")(fp),  # type: ignore
         use_decimal=False,
         default=custom_encode,
         encoding=None,
@@ -46,7 +46,7 @@ def typed_dump(obj: Any, fp: IO[bytes], pretty:bool = False) -> None:
     # prevent default decimal serializer (use_decimal=False) and binary serializer (encoding=None)
     return simplejson.dump(
         obj,
-        codecs.getwriter("utf-8")(fp),
+        codecs.getwriter("utf-8")(fp),  # type: ignore
         use_decimal=False,
         default=custom_pua_encode,
         encoding=None,
@@ -78,7 +78,7 @@ def dumpb(obj: Any, sort_keys: bool = False, pretty:bool = False) -> bytes:
 
 
 def load(fp: IO[bytes]) -> Any:
-    return simplejson.load(fp, use_decimal=False)
+    return simplejson.load(fp, use_decimal=False)  # type: ignore
 
 
 def loads(s: str) -> Any:

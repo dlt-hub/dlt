@@ -133,6 +133,8 @@ def write_load_status_page(pipeline: Pipeline) -> None:
         for table in schema.all_tables(with_dlt_tables=False):
             if "parent" in table:
                 continue
+            if "columns" not in table or len(table["columns"]) == 0:
+                continue
 
             table_name = table["name"]
             query_parts.append(f"SELECT '{table_name}' as table_name, COUNT(1) As rows_count FROM {table_name} WHERE _dlt_load_id = '{selected_load_id}'")

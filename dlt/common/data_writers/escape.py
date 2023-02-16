@@ -25,7 +25,7 @@ def escape_redshift_literal(v: Any) -> Any:
     if isinstance(v, (datetime, date)):
         return f"'{v.isoformat()}'"
     if isinstance(v, (list, dict)):
-        return f"json_parse('{json.dumps(v)}')"
+        return "json_parse(%s)" % _escape_extended(json.dumps(v), prefix='\'')
 
     return str(v)
 
