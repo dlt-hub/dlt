@@ -1,4 +1,5 @@
 import os
+from itertools import chain
 from typing import Any, Callable, List, Dict, Sequence, Tuple
 from multiprocessing.pool import AsyncResult, Pool as ProcessPool
 from prometheus_client import Counter, CollectorRegistry, REGISTRY, Gauge
@@ -8,7 +9,7 @@ from dlt.common.configuration import with_config
 from dlt.common.configuration.accessors import config
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs import LoadVolumeConfiguration, NormalizeVolumeConfiguration
-from dlt.common.data_writers.writers import TLoaderFileFormat
+from dlt.common.destination import DestinationCapabilitiesContext, TLoaderFileFormat
 from dlt.common.json import custom_pua_decode
 from dlt.common.runners import TRunMetrics, Runnable
 from dlt.common.schema.typing import TStoredSchema, TTableSchemaColumns
@@ -18,6 +19,7 @@ from dlt.common.telemetry import get_logging_extras
 from dlt.common.typing import TDataItem
 from dlt.common.schema import TSchemaUpdate, Schema
 from dlt.common.schema.exceptions import CannotCoerceColumnException
+from dlt.common.utils import chunks
 
 from dlt.normalize.configuration import NormalizeConfiguration
 
@@ -40,14 +42,13 @@ class Normalize(Runnable[ProcessPool]):
     @with_config(spec=NormalizeConfiguration, namespaces=("normalize",))
     def __init__(self, collector: CollectorRegistry = REGISTRY, schema_storage: SchemaStorage = None, config: NormalizeConfiguration = config.value) -> None:
         self.config = config
-        self.loader_file_format = config.destination_capabilities.preferred_loader_file_format
         self.pool: ProcessPool = None
         self.normalize_storage: NormalizeStorage = None
         self.load_storage: LoadStorage = None
         self.schema_storage: SchemaStorage = None
 
         # setup storages
-        self.create_storages()
+        self.create_storages(config.destination_capabilities.preferred_loader_file_format)
         # create schema storage with give type
         self.schema_storage = schema_storage or SchemaStorage(self.config._schema_storage_config, makedirs=True)
         try:
@@ -64,11 +65,11 @@ class Normalize(Runnable[ProcessPool]):
         Normalize.schema_version_gauge = Gauge("normalize_schema_version", "Current schema version", ["schema"], registry=registry)
         Normalize.load_package_counter = Counter("normalize_load_packages_created_count", "Count of load package created", ["schema"], registry=registry)
 
-    def create_storages(self) -> None:
+    def create_storages(self, loader_file_format: TLoaderFileFormat) -> None:
         # pass initial normalize storage config embedded in normalize config
         self.normalize_storage = NormalizeStorage(True, config=self.config._normalize_storage_config)
         # normalize saves in preferred format but can read all supported formats
-        self.load_storage = LoadStorage(True, self.loader_file_format, LoadStorage.ALL_SUPPORTED_FILE_FORMATS, config=self.config._load_storage_config)
+        self.load_storage = LoadStorage(True, loader_file_format, LoadStorage.ALL_SUPPORTED_FILE_FORMATS, config=self.config._load_storage_config)
 
 
     @staticmethod
@@ -85,20 +86,20 @@ class Normalize(Runnable[ProcessPool]):
     def w_normalize_files(
             normalize_storage_config: NormalizeVolumeConfiguration,
             loader_storage_config: LoadVolumeConfiguration,
-            norm_conf: NormalizeConfiguration,
+            destination_caps: DestinationCapabilitiesContext,
             stored_schema: TStoredSchema,
             load_id: str,
             extracted_items_files: Sequence[str]
         ) -> TWorkerRV:
         schema = Schema.from_stored_schema(stored_schema)
-        load_storage = LoadStorage(False, norm_conf.destination_capabilities.preferred_loader_file_format, LoadStorage.ALL_SUPPORTED_FILE_FORMATS, loader_storage_config)
+        load_storage = LoadStorage(False, destination_caps.preferred_loader_file_format, LoadStorage.ALL_SUPPORTED_FILE_FORMATS, loader_storage_config)
         normalize_storage = NormalizeStorage(False, normalize_storage_config)
 
         schema_updates: List[TSchemaUpdate] = []
         total_items = 0
 
         # process all files with data items and write to buffered item storage
-        with Container().injectable_context(norm_conf.destination_capabilities):
+        with Container().injectable_context(destination_caps):
             try:
                 for extracted_items_file in extracted_items_files:
                     line_no: int = 0
@@ -169,28 +170,31 @@ class Normalize(Runnable[ProcessPool]):
                 for partial_table in table_updates:
                     updates_count += 1
                     schema.update_schema(partial_table)
-                    logger.info(f"Updating schema for table {partial_table}")
+                    # logger.info(f"Updating schema for table {partial_table}")
         return updates_count
 
-    def map_parallel(self, schema: Schema, load_id: str, files: Sequence[str]) -> TMapFuncRV:
-        # TODO: maybe we should chunk by file size, now map all files to workers
-        from dlt.common.utils import chunks
+    @staticmethod
+    def group_worker_files(files: Sequence[str], no_groups: int) -> List[Sequence[str]]:
         # sort files so the same tables are in the same worker
         files = list(sorted(files))
 
-        chunk_size = max(len(files) // self.pool._processes, 1)
+        chunk_size = max(len(files) // no_groups, 1)
         chunk_files = list(chunks(files, chunk_size))
-        if len(chunk_files) > self.pool._processes:
-            for idx, file in enumerate(chunk_files.pop()):
-                print(f"REM:{idx}:" + file)
-                chunk_files[idx].append(file)
+        # distribute the remainder files to existing groups starting from the end
+        remainder_l = len(chunk_files) - no_groups
+        l_idx = 0
+        while remainder_l > 0:
+            for idx, file in enumerate(reversed(chunk_files.pop())):
+                chunk_files[-l_idx - idx - remainder_l].append(file)  # type: ignore
+            remainder_l -=1
+            l_idx = idx + 1
+        return chunk_files
 
-
-        print(files)
-        print(chunk_files)
-
+    def map_parallel(self, schema: Schema, load_id: str, files: Sequence[str]) -> TMapFuncRV:
+        workers = self.pool._processes  # type: ignore
+        chunk_files = self.group_worker_files(files, workers)
         schema_dict: TStoredSchema = schema.to_dict()
-        config_tuple = (self.normalize_storage.config, self.load_storage.config, self.config, schema_dict)
+        config_tuple = (self.normalize_storage.config, self.load_storage.config, self.config.destination_capabilities, schema_dict)
         param_chunk = [[*config_tuple, load_id, files] for files in chunk_files]
         tasks: List[Tuple[AsyncResult[TWorkerRV], List[Any]]] = []
 
@@ -241,7 +245,7 @@ class Normalize(Runnable[ProcessPool]):
         result = Normalize.w_normalize_files(
             self.normalize_storage.config,
             self.load_storage.config,
-            self.loader_file_format,
+            self.config.destination_capabilities,
             schema.to_dict(),
             load_id,
             files
