@@ -1,4 +1,4 @@
-from typing import Iterator
+from typing import Iterator, List
 import pytest
 from unittest.mock import patch
 
@@ -130,25 +130,78 @@ def test_loading_errors(client: InsertValuesJobClient, file_storage: FileStorage
 @pytest.mark.parametrize('client', ALL_CLIENTS, indirect=True)
 def test_query_split(client: InsertValuesJobClient, file_storage: FileStorage) -> None:
     mocked_caps = client.sql_client.__class__.capabilities
+    insert_sql = prepare_insert_statement(10)
 
     # this guarantees that we execute inserts line by line
-    with patch.object(mocked_caps, "max_query_length", 2):
+    with patch.object(mocked_caps, "max_query_length", 2), patch.object(client.sql_client, "execute_fragments") as mocked_fragments:
         user_table_name = prepare_table(client)
-        insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp)\nVALUES\n"
-        insert_values = "('{}', '{}', '90238094809sajlkjxoiewjhduuiuehd', '{}')"
-        ids = []
-        for i in range(10):
-            id_ = uniq_id()
-            ids.append(id_)
-            insert_sql += insert_values.format(id_, uniq_id(), str(pendulum.now().add(seconds=i)))
-            if i < 9:
-                insert_sql += ",\n"
-            else:
-                insert_sql += ";"
+        expect_load_file(client, file_storage, insert_sql, user_table_name)
+        # print(mocked_fragments.mock_calls)
+    # split in 10 lines
+    assert mocked_fragments.call_count == 10
+    for idx, call in enumerate(mocked_fragments.call_args_list):
+        fragment:List[str] = call.args[0]
+        # last elem of fragment is a data list, first element is id, and must end with ;\n
+        assert fragment[-1].startswith(f"'{idx}'")
+        assert fragment[-1].endswith(");")
+    assert_load_with_max_query(client, file_storage, 10, 2)
+
+    start_idx = insert_sql.find("S\n(")
+    idx = insert_sql.find("),\n", len(insert_sql)//2)
+
+    # set query length so it reads data until "," (followed by \n)
+    query_length = (idx - start_idx - 1) * 2
+    with patch.object(mocked_caps, "max_query_length", query_length), patch.object(client.sql_client, "execute_fragments") as mocked_fragments:
+        user_table_name = prepare_table(client)
+        expect_load_file(client, file_storage, insert_sql, user_table_name)
+    # split in 2 on ','
+    assert mocked_fragments.call_count == 2
+
+    # so it reads until "\n"
+    query_length = (idx - start_idx) * 2
+    with patch.object(mocked_caps, "max_query_length", query_length), patch.object(client.sql_client, "execute_fragments") as mocked_fragments:
+        user_table_name = prepare_table(client)
+        expect_load_file(client, file_storage, insert_sql, user_table_name)
+    # split in 2 on ','
+    assert mocked_fragments.call_count == 2
+
+    # so it reads till the last ;
+    query_length = (len(insert_sql) - start_idx - 3) * 2
+    with patch.object(mocked_caps, "max_query_length", query_length), patch.object(client.sql_client, "execute_fragments") as mocked_fragments:
+        user_table_name = prepare_table(client)
+        expect_load_file(client, file_storage, insert_sql, user_table_name)
+    # split in 2 on ','
+    assert mocked_fragments.call_count == 1
+
+
+def assert_load_with_max_query(client: InsertValuesJobClient, file_storage: FileStorage, insert_lines: int, max_query_length: int) -> None:
+    # load and check for real
+    mocked_caps = client.sql_client.__class__.capabilities
+    with patch.object(mocked_caps, "max_query_length", max_query_length):
+        user_table_name = prepare_table(client)
+        insert_sql = prepare_insert_statement(insert_lines)
         expect_load_file(client, file_storage, insert_sql, user_table_name)
         rows_count = client.sql_client.execute_sql(f"SELECT COUNT(1) FROM {user_table_name}")[0][0]
-        assert rows_count == 10
+        assert rows_count == insert_lines
         # get all uniq ids in order
         with client.sql_client.execute_query(f"SELECT _dlt_id FROM {user_table_name} ORDER BY timestamp ASC;") as c:
-            v_ids = list(map(lambda i: i[0], c.fetchall()))
-        assert ids == v_ids
+            rows = list(c.fetchall())
+            v_ids = list(map(lambda i: i[0], rows))
+        assert list(map(str, range(0, insert_lines))) == v_ids
+    client.sql_client.execute_sql(f"DELETE FROM {user_table_name}")
+
+
+def prepare_insert_statement(lines: int) -> str:
+    insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp)\nVALUES\n"
+    insert_values = "('{}', '{}', '90238094809sajlkjxoiewjhduuiuehd', '{}')"
+    #ids = []
+    for i in range(lines):
+        # id_ = uniq_id()
+        # ids.append(id_)
+        insert_sql += insert_values.format(str(i), uniq_id(), str(pendulum.now().add(seconds=i)))
+        if i < 9:
+            insert_sql += ",\n"
+        else:
+            insert_sql += ";"
+    # print(insert_sql)
+    return insert_sql
