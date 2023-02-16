@@ -1,6 +1,6 @@
 import contextlib
 from typing import Any, Optional  # noqa
-import datetime
+import datetime  # noqa: I251
 
 from dlt.common.pendulum import pendulum
 from pendulum.parsing import parse_iso8601, _parse_common as parse_datetime_common
@@ -50,4 +50,5 @@ def parse_iso_like_datetime(value: Any) -> datetime.datetime:
             dtv.microsecond,
             tz=dtv.tzinfo or UTC  # type: ignore
         )
-    return dtv
+    # no typings for pendulum
+    return dtv  # type: ignore

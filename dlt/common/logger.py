@@ -211,7 +211,7 @@ def init_telemetry(config: RunConfiguration) -> None:
         Info("runs_component_name", "Name of the executing component").info(_extract_version_info(config))
 
 
-def init_logging_from_config(C: RunConfiguration) -> None:
+def init_logging_from_config(config: RunConfiguration) -> None:
     global LOGGER
 
     # add HEALTH and METRICS log levels
@@ -219,16 +219,16 @@ def init_logging_from_config(C: RunConfiguration) -> None:
         # _add_logging_level("HEALTH", logging.WARNING - 1, "health")
         _add_logging_level("METRICS", logging.WARNING - 2, "metrics")
 
-    version = _extract_version_info(C)
+    version = _extract_version_info(config)
     LOGGER = _init_logging(
         DLT_LOGGER_NAME,
-        C.log_level,
-        C.log_format,
-        C.pipeline_name,
+        config.log_level,
+        config.log_format,
+        config.pipeline_name,
         version)
 
-    if C.sentry_dsn:
-        _init_sentry(C, version)
+    if config.sentry_dsn:
+        _init_sentry(config, version)
 
 
 def is_logging() -> bool:

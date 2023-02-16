@@ -7,10 +7,12 @@ from dlt.cli import TRunnerArgs
 from dlt.common import signals
 from dlt.common.configuration import resolve_configuration, configspec
 from dlt.common.configuration.specs import PoolRunnerConfiguration, TPoolType
+from dlt.common.configuration.specs.run_configuration import RunConfiguration
 from dlt.common.exceptions import DltException, SignalReceivedException, TimeRangeExhaustedException, UnsupportedProcessStartMethodException
 from dlt.common.runners import pool_runner as runner
+from dlt.common.runners.init import initialize_runner
 
-from tests.common.runners.utils import _TestRunnable
+from tests.common.runners.utils import _TestRunnableWorkerMethod, _TestRunnableWorker, ALL_METHODS, mp_method_auto
 from tests.utils import init_logger
 
 
@@ -292,7 +294,7 @@ def test_single_run_short_wl() -> None:
 
 
 def test_runnable_with_runner() -> None:
-    r = _TestRunnable(4)
+    r = _TestRunnableWorkerMethod(4)
     code = runner.run_pool(
         configure(ThreadPoolConfiguration, TRunnerArgs(True, 0)),
         r
@@ -301,9 +303,17 @@ def test_runnable_with_runner() -> None:
     assert [v[0] for v in r.rv] == list(range(4))
 
 
-@pytest.mark.forked
-def test_spawn_pool() -> None:
-    multiprocessing.set_start_method("spawn", force=True)
-    with pytest.raises(UnsupportedProcessStartMethodException) as exc:
-        runner.run_pool(ProcessPoolConfiguration, idle_run)
-    assert exc.value.method == "spawn"
+@pytest.mark.parametrize('method', ALL_METHODS)
+def test_pool_runner_process_methods(method) -> None:
+    multiprocessing.set_start_method(method, force=True)
+    r = _TestRunnableWorker(4)
+    # make sure signals and logging is initialized
+    C = resolve_configuration(RunConfiguration())
+    initialize_runner(C)
+
+    code = runner.run_pool(
+        configure(ProcessPoolConfiguration, TRunnerArgs(True, 0)),
+        r
+    )
+    assert code == 0
+    assert [v[0] for v in r.rv] == list(range(4))
