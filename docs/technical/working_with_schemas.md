@@ -171,7 +171,7 @@ Which will expose pipeline schemas to the user in `yml` format.
 ## Working with schema in code
 `dlt` user can "check-out" any pipeline schema for modification in the code.
 
-> I do not have any cool API to work with the table, columns and other hints in the code - the schema is a typed dictionary and currently it is the only way.
+> ⛔ I do not have any cool API to work with the table, columns and other hints in the code - the schema is a typed dictionary and currently it is the only way.
 
 `dlt` will "commit" all the schema changes with any call to `run`, `extract`, `normalize` or `load` methods.
 
@@ -194,16 +194,32 @@ p.run()
 ## Attaching schemas to sources
 The general approach when creating a new pipeline is to setup a few global schema settings and then let the table and column schemas to be generated from the resource hints and data itself.
 
-> I do not have any cool "schema builder" api yet to see the global settings.
+> ⛔ I do not have any cool "schema builder" api yet to see the global settings.
+
+The `dlt.source` decorator accepts a schema instance that you can create yourself and whatever you want. It also support a few typical use cases:
+
+### Schema created implicitly by decorator
+If no schema instance is passed, the decorator creates a schema with the name set to source name and all the settings to default.
+
+### Automatically load schema file stored with source python module
+If no schema instance is passed, and a file with a name `{source name}_schema.yml` exists in the same folder as the module with the decorated function, it will be automatically loaded and used as the schema.
+
+This should make easier to bundle a fully specified (or non trivially configured) schema with a source.
+
+### Schema is modified in the source function body
+What if you can configure your schema or add some tables only inside your schema function, when ie. you have the source credentials and user settings? You could for example add detailed schemas of all the database tables when someone requests a table data to be loaded. This information is available only at the moment source function is called.
+
+Similarly to the `state`, source and resource function has current schema available via `dlt.current.source_schema`
 
 Example:
 
 ```python
 
-schema: Schema = None
+# apply schema to the source
+@dlt.source
+def createx(nesting_level: int):
 
-def setup_schema(nesting_level, hash_names_convention=False):
-    nonlocal schema
+    schema = dlt.current.source_schema()
 
     # get default normalizer config
     normalizer_conf = dlt.schema.normalizer_config()
@@ -220,15 +236,8 @@ def setup_schema(nesting_level, hash_names_convention=False):
     schema._settings["detections"].insert(0, "all_text")
     schema.compile_settings()
 
-# apply schema to the source
-@dlt.source(schema=schema)
-def createx():
-    ...
+    return dlt.resource(...)
 
 ```
 
-### Storing schema file with the source
-Two other behaviors are supported
-1. bare `dlt.source` will create empty schema with the source name
-2. `dlt.source(name=...)` will first try to load `{name}_schema.yml` from the same folder the source python file exist. If not found, new empty schema will be created
-
+Also look at the following [test](/tests/extract/test_decorators.py) : `test_source_schema_context`

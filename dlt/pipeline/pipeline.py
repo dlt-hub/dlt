@@ -8,7 +8,7 @@ from typing import Any, Callable, ClassVar, Dict, List, Iterator, Mapping, Optio
 
 from dlt import version
 from dlt.common import json, logger, signals, pendulum
-from dlt.common.configuration import inject_section
+from dlt.common.configuration import inject_section, known_sections
 from dlt.common.configuration.specs import RunConfiguration, NormalizeVolumeConfiguration, SchemaVolumeConfiguration, LoadVolumeConfiguration, PoolRunnerConfiguration
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
@@ -29,6 +29,7 @@ from dlt.common.storages.file_storage import FileStorage
 from dlt.common.utils import is_interactive
 
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
+from dlt.extract.decorators import SourceSchemaInjectableContext
 
 from dlt.extract.exceptions import SourceExhausted
 from dlt.extract.extract import ExtractorStorage, extract
@@ -232,7 +233,7 @@ class Pipeline(SupportsPipeline):
     @with_runtime_trace
     @with_schemas_sync  # this must precede with_state_sync
     @with_state_sync(may_extract_state=True)
-    @with_config_section(("extract",))
+    @with_config_section((known_sections.EXTRACT,))
     def extract(
         self,
         data: Any,
@@ -326,7 +327,7 @@ class Pipeline(SupportsPipeline):
 
     @with_runtime_trace
     @with_schemas_sync
-    @with_config_section(("normalize",))
+    @with_config_section((known_sections.NORMALIZE,))
     def normalize(self, workers: int = 1) -> NormalizeInfo:
         """Normalizes the data prepared with `extract` method, infers the schema and creates load packages for the `load` method. Requires `destination` to be known."""
         if is_interactive() and workers > 1:
@@ -361,7 +362,7 @@ class Pipeline(SupportsPipeline):
     @with_runtime_trace
     @with_schemas_sync
     @with_state_sync()
-    @with_config_section(("load",))
+    @with_config_section((known_sections.LOAD,))
     def load(
         self,
         destination: DestinationReference = None,
@@ -751,17 +752,18 @@ class Pipeline(SupportsPipeline):
     def _iterate_source(self, storage: ExtractorStorage, source: DltSource, pipeline_schema: Schema, max_parallel_items: int, workers: int) -> str:
         # generate extract_id to be able to commit all the sources together later
         extract_id = storage.create_extract_id()
-        # inject the config section with the current source name
-        with inject_section(ConfigSectionContext(sections=("sources", source.name))):
-            # make CTRL-C working while running user code
-            with signals.raise_immediately():
-                extractor = extract(extract_id, source, storage, max_parallel_items=max_parallel_items, workers=workers)
-                # source iterates
-                source.exhausted = True
-                # iterate over all items in the pipeline and update the schema if dynamic table hints were present
-                for _, partials in extractor.items():
-                    for partial in partials:
-                        pipeline_schema.update_schema(pipeline_schema.normalize_table_identifiers(partial))
+        with Container().injectable_context(SourceSchemaInjectableContext(pipeline_schema)):
+            # inject the config section with the current source name
+            with inject_section(ConfigSectionContext(sections=(known_sections.SOURCES, source.name))):
+                # make CTRL-C working while running user code
+                with signals.raise_immediately():
+                    extractor = extract(extract_id, source, storage, max_parallel_items=max_parallel_items, workers=workers)
+                    # source iterates
+                    source.exhausted = True
+                    # iterate over all items in the pipeline and update the schema if dynamic table hints were present
+                    for _, partials in extractor.items():
+                        for partial in partials:
+                            pipeline_schema.update_schema(pipeline_schema.normalize_table_identifiers(partial))
 
         return extract_id
 

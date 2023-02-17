@@ -28,10 +28,11 @@ from dlt.common.typing import TSecretValue as _TSecretValue
 from dlt.common.configuration.specs import CredentialsConfiguration as _CredentialsConfiguration
 from dlt.extract.decorators import source, resource, transformer, defer
 from dlt.extract.source import with_table_name
-from dlt.pipeline import pipeline as _pipeline, run, attach, Pipeline, dbt
+from dlt.pipeline import pipeline as _pipeline, run, attach, Pipeline, dbt, current as _current
 from dlt.pipeline.state import state
 
 pipeline = _pipeline
+current = _current
 
 TSecretValue = _TSecretValue
 "When typing source/resource function arguments it indicates that a given argument is a secret and should be taken from dlt.secrets."
