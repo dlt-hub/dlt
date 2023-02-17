@@ -3,9 +3,9 @@ from prometheus_client import Counter, Gauge, Summary, CollectorRegistry, REGIST
 from typing import Callable, Dict, Union, cast
 from multiprocessing.pool import ThreadPool, Pool
 
-from dlt.common import logger, signals
+from dlt.common import logger, signals, sleep
+from dlt.common.runners import init
 from dlt.common.runners.runnable import Runnable, TPool
-from dlt.common.time import sleep
 from dlt.common.telemetry import TRunHealth, TRunMetrics, get_logging_extras, get_metrics_from_prometheus
 from dlt.common.exceptions import SignalReceivedException, TimeRangeExhaustedException, UnsupportedProcessStartMethodException
 from dlt.common.configuration.specs import PoolRunnerConfiguration
@@ -51,10 +51,12 @@ def run_pool(C: PoolRunnerConfiguration, run_f: Union[Runnable[TPool], Callable[
     # start pool
     pool: Pool = None
     if C.pool_type == "process":
-        # our pool implementation do not work on spawn
-        if multiprocessing.get_start_method() != "fork":
-            raise UnsupportedProcessStartMethodException(multiprocessing.get_start_method())
-        pool = Pool(processes=C.workers)
+        # if not fork method, provide initializer for logs and configuration
+        if multiprocessing.get_start_method() != "fork" and init._INITIALIZED:
+            pool = Pool(processes=C.workers, initializer=init.initialize_runner, initargs=(init._RUN_CONFIGURATION, ))
+           # raise UnsupportedProcessStartMethodException(multiprocessing.get_start_method())
+        else:
+            pool = Pool(processes=C.workers)
     elif C.pool_type == "thread":
         pool = ThreadPool(processes=C.workers)
     else:

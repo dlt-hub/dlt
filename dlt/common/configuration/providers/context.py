@@ -18,8 +18,8 @@ class ContextProvider(ConfigProvider):
     def name(self) -> str:
         return ContextProvider.NAME
 
-    def get_value(self, key: str, hint: Type[Any], *namespaces: str) -> Tuple[Optional[Any], str]:
-        assert namespaces == ()
+    def get_value(self, key: str, hint: Type[Any], *sections: str) -> Tuple[Optional[Any], str]:
+        assert sections == ()
 
         # only context is a valid hint
         with contextlib.suppress(KeyError, TypeError):
@@ -34,5 +34,5 @@ class ContextProvider(ConfigProvider):
         return True
 
     @property
-    def supports_namespaces(self) -> bool:
+    def supports_sections(self) -> bool:
         return False

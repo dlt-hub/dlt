@@ -38,9 +38,9 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     can_create_default: ClassVar[bool] = False
 
 
-def generic_destination_capabilities() ->DestinationCapabilitiesContext:
+def generic_destination_capabilities(preferred_loader_file_format: TLoaderFileFormat = None) ->DestinationCapabilitiesContext:
     caps = DestinationCapabilitiesContext()
-    caps.preferred_loader_file_format=None
+    caps.preferred_loader_file_format = preferred_loader_file_format
     caps.supported_loader_file_formats = ["jsonl", "insert_values"]
     caps.escape_identifier = lambda x: x
     caps.escape_literal = lambda x: serialize_value(x)

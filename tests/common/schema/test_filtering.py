@@ -96,7 +96,7 @@ def test_filter_parent_table_schema_update(schema: Schema) -> None:
     schema = Schema("event")
     _add_excludes(schema)
     schema.get_table("event_bot")["filters"]["includes"].extend(["re:^metadata___dlt_", "re:^metadata__elvl1___dlt_"])
-    schema._compile_regexes()
+    schema._compile_settings()
     for (t, p), row in schema.normalize_data_item(schema, source_row, "load_id", "event_bot"):
         row = schema.filter_row(t, row)
         if p is None:
@@ -118,4 +118,4 @@ def _add_excludes(schema: Schema) -> None:
     bot_table.setdefault("filters", {})["excludes"] = ["re:^metadata", "re:^is_flagged$", "re:^data", "re:^custom_data"]
     bot_table["filters"]["includes"] = ["re:^data__custom$", "re:^custom_data__included_object__", "re:^metadata__elvl1__elvl2__"]
     schema.update_schema(bot_table)
-    schema._compile_regexes()
+    schema._compile_settings()

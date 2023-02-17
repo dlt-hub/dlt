@@ -4,7 +4,7 @@ from tempfile import mkdtemp
 import dlt
 from dlt.common.runners.venv import Venv
 
-from examples.sources.singer_tap import tap
+from docs.examples.sources.singer_tap import tap
 
 # create Venv with desired dependencies, in this case csv tap
 # venv creation costs time so it should be created only once and reused

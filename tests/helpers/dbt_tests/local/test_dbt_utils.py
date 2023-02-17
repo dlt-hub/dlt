@@ -26,7 +26,7 @@ def test_dbt_commands(test_storage: FileStorage) -> None:
     dbt_vars = {"dbt_schema": schema_name}
 
     # extract postgres creds from env, parse and emit
-    credentials = resolve_configuration(PostgresCredentials(),  namespaces=("destination", "postgres"))
+    credentials = resolve_configuration(PostgresCredentials(),  sections=("destination", "postgres"))
     add_config_to_env(credentials)
 
     repo_path = clone_jaffle_repo(test_storage)

@@ -5,7 +5,7 @@ from dlt.common.configuration.providers.provider import ConfigProvider
 from dlt.common.typing import AnyType, StrAny, TSecretValue, is_final_type, is_optional_type
 
 from dlt.common.configuration.specs.base_configuration import BaseConfiguration, CredentialsConfiguration, is_secret_hint, extract_inner_hint, is_context_inner_hint, is_base_configuration_inner_hint
-from dlt.common.configuration.specs.config_namespace_context import ConfigNamespacesContext
+from dlt.common.configuration.specs.config_namespace_context import ConfigSectionContext
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
 from dlt.common.configuration.utils import log_traces, deserialize_value
@@ -14,48 +14,48 @@ from dlt.common.configuration.exceptions import (FinalConfigFieldException, Look
 TConfiguration = TypeVar("TConfiguration", bound=BaseConfiguration)
 
 
-def resolve_configuration(config: TConfiguration, *, namespaces: Tuple[str, ...] = (), explicit_value: Any = None, accept_partial: bool = False) -> TConfiguration:
+def resolve_configuration(config: TConfiguration, *, sections: Tuple[str, ...] = (), explicit_value: Any = None, accept_partial: bool = False) -> TConfiguration:
     if not isinstance(config, BaseConfiguration):
         raise ConfigurationWrongTypeException(type(config))
 
-    # try to get the native representation of the top level configuration using the config namespace as a key
+    # try to get the native representation of the top level configuration using the config section as a key
     # allows, for example, to store connection string or service.json in their native form in single env variable or under single vault key
-    if config.__namespace__ and explicit_value is None:
+    if config.__section__ and explicit_value is None:
         initial_hint = TSecretValue if isinstance(config, CredentialsConfiguration) else AnyType
-        explicit_value, traces = _resolve_single_value(config.__namespace__, initial_hint, AnyType, None, namespaces, ())
+        explicit_value, traces = _resolve_single_value(config.__section__, initial_hint, AnyType, None, sections, ())
         if isinstance(explicit_value, C_Mapping):
             # mappings cannot be used as explicit values, we want to enumerate mappings and request the fields' values one by one
             explicit_value = None
         else:
-            log_traces(None, config.__namespace__, type(config), explicit_value, None, traces)
+            log_traces(None, config.__section__, type(config), explicit_value, None, traces)
 
-    return _resolve_configuration(config, namespaces, (), explicit_value, accept_partial)
+    return _resolve_configuration(config, sections, (), explicit_value, accept_partial)
 
 
-def inject_namespace(namespace_context: ConfigNamespacesContext, merge_existing: bool = True) -> ContextManager[ConfigNamespacesContext]:
-    """Adds `namespace` context to container, making it injectable. Optionally merges the context already in the container with the one provided
+def inject_section(section_context: ConfigSectionContext, merge_existing: bool = True) -> ContextManager[ConfigSectionContext]:
+    """Context manager that sets section specified in `section_context` to be used during configuration resolution. Optionally merges the context already in the container with the one provided
 
     Args:
-        namespace_context (ConfigNamespacesContext): Instance providing a pipeline name and namespace context
-        merge_existing (bool, optional): Gets `pipeline_name` and `namespaces` from existing context if they are not provided in `namespace` argument. Defaults to True.
+        section_context (ConfigSectionContext): Instance providing a pipeline name and section context
+        merge_existing (bool, optional): Gets `pipeline_name` and `sections` from existing context if they are not provided in `section` argument. Defaults to True.
 
     Yields:
-        Iterator[ConfigNamespacesContext]: Context manager with current namespace context
+        Iterator[ConfigSectionContext]: Context manager with current section context
     """
     container = Container()
-    existing_context = container[ConfigNamespacesContext]
+    existing_context = container[ConfigSectionContext]
 
     if merge_existing:
-        namespace_context.pipeline_name = namespace_context.pipeline_name or existing_context.pipeline_name
-        namespace_context.namespaces = namespace_context.namespaces or existing_context.namespaces
+        section_context.pipeline_name = section_context.pipeline_name or existing_context.pipeline_name
+        section_context.sections = section_context.sections or existing_context.sections
 
-    return container.injectable_context(namespace_context)
+    return container.injectable_context(section_context)
 
 
 def _resolve_configuration(
         config: TConfiguration,
-        explicit_namespaces: Tuple[str, ...],
-        embedded_namespaces: Tuple[str, ...],
+        explicit_sections: Tuple[str, ...],
+        embedded_sections: Tuple[str, ...],
         explicit_value: Any,
         accept_partial: bool
     ) -> TConfiguration:
@@ -73,7 +73,7 @@ def _resolve_configuration(
                     config.parse_native_representation(explicit_value)
                 except ValueError as v_err:
                     # provide generic exception
-                    raise InvalidNativeValue(type(config), type(explicit_value), embedded_namespaces, v_err)
+                    raise InvalidNativeValue(type(config), type(explicit_value), embedded_sections, v_err)
                 except NotImplementedError:
                     pass
                 # explicit value was consumed
@@ -81,7 +81,7 @@ def _resolve_configuration(
 
             # if native representation didn't fully resolve the config, we try to resolve field by field
             if not config.is_resolved():
-                _resolve_config_fields(config, explicit_value, explicit_namespaces, embedded_namespaces, accept_partial)
+                _resolve_config_fields(config, explicit_value, explicit_sections, embedded_sections, accept_partial)
 
             _call_method_in_mro(config, "on_resolved")
             # full configuration was resolved
@@ -107,8 +107,8 @@ def _resolve_configuration(
 def _resolve_config_fields(
         config: BaseConfiguration,
         explicit_values: StrAny,
-        explicit_namespaces: Tuple[str, ...],
-        embedded_namespaces: Tuple[str, ...],
+        explicit_sections: Tuple[str, ...],
+        embedded_sections: Tuple[str, ...],
         accept_partial: bool
     ) -> None:
 
@@ -128,7 +128,7 @@ def _resolve_config_fields(
             else:
                 explicit_value = None
 
-        current_value, traces = _resolve_config_field(key, hint, default_value, explicit_value, config, config.__namespace__, explicit_namespaces, embedded_namespaces, accept_partial)
+        current_value, traces = _resolve_config_field(key, hint, default_value, explicit_value, config, config.__section__, explicit_sections, embedded_sections, accept_partial)
         # check if hint optional
         is_optional = is_optional_type(hint)
         # collect unresolved fields
@@ -150,9 +150,9 @@ def _resolve_config_field(
         default_value: Any,
         explicit_value: Any,
         config: BaseConfiguration,
-        config_namespace: str,
-        explicit_namespaces: Tuple[str, ...],
-        embedded_namespaces: Tuple[str, ...],
+        config_sections: str,
+        explicit_sections: Tuple[str, ...],
+        embedded_sections: Tuple[str, ...],
         accept_partial: bool
     ) -> Tuple[Any, List[LookupTrace]]:
 
@@ -163,7 +163,7 @@ def _resolve_config_field(
         traces: List[LookupTrace] = []
     else:
         # resolve key value via active providers passing the original hint ie. to preserve TSecretValue
-        value, traces = _resolve_single_value(key, hint, inner_hint, config_namespace, explicit_namespaces, embedded_namespaces)
+        value, traces = _resolve_single_value(key, hint, inner_hint, config_sections, explicit_sections, embedded_sections)
         log_traces(config, key, hint, value, default_value, traces)
     # contexts must be resolved as a whole
     if is_context_inner_hint(inner_hint):
@@ -185,13 +185,13 @@ def _resolve_config_field(
             # injected context will be resolved
             value = embedded_config
         else:
-            # only config with namespaces may look for initial values
-            if embedded_config.__namespace__ and value is None:
-                # config namespace becomes the key if the key does not start with, otherwise it keeps its original value
-                initial_key, initial_embedded = _apply_embedded_namespaces_to_config_namespace(embedded_config.__namespace__, embedded_namespaces + (key,))
+            # only config with sections may look for initial values
+            if embedded_config.__section__ and value is None:
+                # config section becomes the key if the key does not start with, otherwise it keeps its original value
+                initial_key, initial_embedded = _apply_embedded_sections_to_config_sections(embedded_config.__section__, embedded_sections + (key,))
                 # it must be a secret value is config is credentials
                 initial_hint = TSecretValue if isinstance(embedded_config, CredentialsConfiguration) else AnyType
-                value, initial_traces = _resolve_single_value(initial_key, initial_hint, AnyType, None, explicit_namespaces, initial_embedded)
+                value, initial_traces = _resolve_single_value(initial_key, initial_hint, AnyType, None, explicit_sections, initial_embedded)
                 if isinstance(value, C_Mapping):
                     # mappings are not passed as initials
                     value = None
@@ -203,8 +203,8 @@ def _resolve_config_field(
             is_optional = is_optional_type(hint)
             # accept partial becomes True if type if optional so we do not fail on optional configs that do not resolve fully
             accept_partial = accept_partial or is_optional
-            # create new instance and pass value from the provider as initial, add key to namespaces
-            value = _resolve_configuration(embedded_config, explicit_namespaces, embedded_namespaces + (key,), default_value if value is None else value, accept_partial)
+            # create new instance and pass value from the provider as initial, add key to sections
+            value = _resolve_configuration(embedded_config, explicit_sections, embedded_sections + (key,), default_value if value is None else value, accept_partial)
     else:
         # if value is resolved, then deserialize and coerce it
         if value is not None:
@@ -233,9 +233,9 @@ def _resolve_single_value(
         key: str,
         hint: Type[Any],
         inner_hint: Type[Any],
-        config_namespace: str,
-        explicit_namespaces: Tuple[str, ...],
-        embedded_namespaces: Tuple[str, ...]
+        config_section: str,
+        explicit_sections: Tuple[str, ...],
+        embedded_sections: Tuple[str, ...]
     ) -> Tuple[Optional[Any], List[LookupTrace]]:
 
     traces: List[LookupTrace] = []
@@ -254,23 +254,23 @@ def _resolve_single_value(
         return value, traces
 
     # resolve a field of the config
-    config_namespace, embedded_namespaces = _apply_embedded_namespaces_to_config_namespace(config_namespace, embedded_namespaces)
+    config_section, embedded_sections = _apply_embedded_sections_to_config_sections(config_section, embedded_sections)
     providers = providers_context.providers
-    # get additional namespaces to look in from container
-    namespaces_context = container[ConfigNamespacesContext]
+    # get additional sections to look in from container
+    sections_context = container[ConfigSectionContext]
 
-    def look_namespaces(pipeline_name: str = None) -> Any:
-        # start looking from the top provider with most specific set of namespaces first
+    def look_sections(pipeline_name: str = None) -> Any:
+        # start looking from the top provider with most specific set of sections first
         for provider in providers:
             value, provider_traces = resolve_single_provider_value(
                 provider,
                 key,
                 hint,
                 pipeline_name,
-                config_namespace,
-                # if explicit namespaces are provided, ignore the injected context
-                explicit_namespaces or namespaces_context.namespaces,
-                embedded_namespaces
+                config_section,
+                # if explicit sections are provided, ignore the injected context
+                explicit_sections or sections_context.sections,
+                embedded_sections
             )
             traces.extend(provider_traces)
             if value is not None:
@@ -279,12 +279,12 @@ def _resolve_single_value(
 
         return value
 
-    # first try with pipeline name as namespace, if present
-    if namespaces_context.pipeline_name:
-        value = look_namespaces(namespaces_context.pipeline_name)
+    # first try with pipeline name as section, if present
+    if sections_context.pipeline_name:
+        value = look_sections(sections_context.pipeline_name)
     # then without it
     if value is None:
-        value = look_namespaces()
+        value = look_sections()
 
     return value, traces
 
@@ -294,35 +294,34 @@ def resolve_single_provider_value(
     key: str,
     hint: Type[Any],
     pipeline_name: str = None,
-    config_namespace: str = None,
-    explicit_namespaces: Tuple[str, ...] = (),
-    embedded_namespaces: Tuple[str, ...] = (),
-    # context_namespaces: Tuple[str, ...] = (),
-    ) -> Tuple[Optional[Any], List[LookupTrace]]:
+    config_section: str = None,
+    explicit_sections: Tuple[str, ...] = (),
+    embedded_sections: Tuple[str, ...] = ()
+) -> Tuple[Optional[Any], List[LookupTrace]]:
     traces: List[LookupTrace] = []
 
-    if provider.supports_namespaces:
-        ns = list(explicit_namespaces)
-        # always extend with embedded namespaces
-        ns.extend(embedded_namespaces)
+    if provider.supports_sections:
+        ns = list(explicit_sections)
+        # always extend with embedded sections
+        ns.extend(embedded_sections)
     else:
-        # if provider does not support namespaces and pipeline name is set then ignore it
+        # if provider does not support sections and pipeline name is set then ignore it
         if pipeline_name:
             return None, traces
         else:
-            # pass empty namespaces
+            # pass empty sections
             ns = []
 
     value = None
     while True:
-        if (pipeline_name or config_namespace) and provider.supports_namespaces:
+        if (pipeline_name or config_section) and provider.supports_sections:
             full_ns = ns.copy()
             # pipeline, when provided, is the most outer and always present
             if pipeline_name:
                 full_ns.insert(0, pipeline_name)
-            # config namespace, is always present and innermost
-            if config_namespace:
-                full_ns.append(config_namespace)
+            # config section, is always present and innermost
+            if config_section:
+                full_ns.append(config_section)
         else:
             full_ns = ns
         value, ns_key = provider.get_value(key, hint, *full_ns)
@@ -336,25 +335,25 @@ def resolve_single_provider_value(
             traces.append(LookupTrace(provider.name, full_ns, ns_key, value))
 
         if value is not None:
-            # value found, ignore further namespaces
+            # value found, ignore further sections
             break
         if len(ns) == 0:
-            # namespaces exhausted
+            # sections exhausted
             break
-        # pop optional namespaces for less precise lookup
+        # pop optional sections for less precise lookup
         ns.pop()
 
     return value, traces
 
 
-def _apply_embedded_namespaces_to_config_namespace(config_namespace: str, embedded_namespaces: Tuple[str, ...]) -> Tuple[str, Tuple[str, ...]]:
-    # for the configurations that have __namespace__ (config_namespace) defined and are embedded in other configurations,
-    # the innermost embedded namespace replaces config_namespace
-    if embedded_namespaces:
-        # do not add key to embedded namespaces if it starts with _, those namespaces must be ignored
-        if not embedded_namespaces[-1].startswith("_"):
-            config_namespace = embedded_namespaces[-1]
-        embedded_namespaces = embedded_namespaces[:-1]
+def _apply_embedded_sections_to_config_sections(config_section: str, embedded_sections: Tuple[str, ...]) -> Tuple[str, Tuple[str, ...]]:
+    # for the configurations that have __section__ (config_section) defined and are embedded in other configurations,
+    # the innermost embedded section replaces config_section
+    if embedded_sections:
+        # do not add key to embedded sections if it starts with _, those sections must be ignored
+        if not embedded_sections[-1].startswith("_"):
+            config_section = embedded_sections[-1]
+        embedded_sections = embedded_sections[:-1]
 
     # remove all embedded ns starting with _
-    return config_namespace, tuple(ns for ns in embedded_namespaces if not ns.startswith("_"))
+    return config_section, tuple(ns for ns in embedded_sections if not ns.startswith("_"))

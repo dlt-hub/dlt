@@ -1,5 +1,4 @@
-
-
+import os
 import asyncio
 import inspect
 from typing import List, Sequence
@@ -7,10 +6,12 @@ from typing import List, Sequence
 import pytest
 
 import dlt
-from dlt.common.time import sleep
+from dlt.common import sleep
 from dlt.common.typing import TDataItems
 from dlt.extract.typing import DataItemWithMeta
 from dlt.extract.pipe import FilterItem, Pipe, PipeItem, PipeIterator
+
+# from tests.utils import preserve_environ
 
 
 def test_add_step() -> None:
@@ -250,6 +251,25 @@ def test_filter_step() -> None:
     p = Pipe.from_data("data", [[1, 3], 2, [3, 4]])
     p.add_step(FilterItem(lambda item: item % 2 == 0))
     assert _f_items(list(PipeIterator.from_pipe(p))) == [2, [4]]
+
+
+def test_pipe_copy_on_fork() -> None:
+    doc = {"e": 1, "l": 2}
+    parent = Pipe.from_data("data", [doc])
+    child1 = Pipe("tr1", [lambda x: x], parent=parent)
+    child2 = Pipe("tr2", [lambda x: x], parent=parent)
+
+    # no copy, construct iterator
+    elems = list(PipeIterator.from_pipes([child1, child2], yield_parents=False, copy_on_fork=False))
+    # those are the same instances
+    assert doc is elems[0].item is elems[1].item
+
+    # copy item on fork
+    elems = list(PipeIterator.from_pipes([child1, child2], yield_parents=False, copy_on_fork=True))
+    # first fork does not copy
+    assert doc is elems[0].item
+    # second fork copies
+    assert elems[0].item is not elems[1].item
 
 
 @pytest.mark.skip("Not implemented")

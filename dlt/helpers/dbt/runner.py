@@ -294,7 +294,7 @@ with exec_to_stdout(f):
             raise
 
 
-@with_config(spec=DBTRunnerConfiguration, namespaces=("dbt_package_runner",))
+@with_config(spec=DBTRunnerConfiguration, sections=("dbt_package_runner",))
 def create_runner(
     venv: Venv,
     credentials: CredentialsConfiguration,

@@ -8,8 +8,8 @@ from dlt.common.typing import StrAny
 
 @configspec(init=True)
 class SchemaNormalizersConfiguration(BaseConfiguration):
-    # always in namespace
-    __namespace__: str = "schema"
+    # always in section
+    __section__: str = "schema"
 
     detections: Optional[List[str]] = None
     names: str

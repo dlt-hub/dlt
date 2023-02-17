@@ -1,8 +1,10 @@
 import os
 import tempfile
 import datetime  # noqa: 251
+import humanize
 from typing import Any, Callable, ClassVar, Dict, List, NamedTuple, Optional, Protocol, Sequence, Tuple, TypedDict
 
+from dlt.common import pendulum
 from dlt.common.configuration.container import ContainerInjectableContext
 from dlt.common.configuration import configspec, DOT_DLT
 from dlt.common.configuration.specs import RunConfiguration
@@ -29,10 +31,17 @@ class LoadInfo(NamedTuple):
     dataset_name: str
     loads_ids: Dict[str, bool]
     failed_jobs: Dict[str, Sequence[Tuple[str, str]]]
+    started_at: datetime.datetime
     first_run: bool
 
     def __str__(self) -> str:
-        msg = f"{len(self.loads_ids)} load package(s) were loaded to destination {self.destination_name} and into dataset {self.dataset_name}\n"
+        msg = f"Pipeline {self.pipeline.pipeline_name} completed in "
+        if self.started_at:
+            elapsed = pendulum.now() - self.started_at
+            msg += humanize.precisedelta(elapsed)
+        else:
+            msg += "---"
+        msg += f"\n{len(self.loads_ids)} load package(s) were loaded to destination {self.destination_name} and into dataset {self.dataset_name}\n"
         msg += f"The {self.destination_name} destination used {self.destination_displayable_credentials} location to store data\n"
         for load_id, completed in self.loads_ids.items():
             cstr = "COMPLETED" if completed else "NOT COMPLETED"

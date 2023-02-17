@@ -34,6 +34,7 @@ def test_map_column_preferred_type(schema: Schema) -> None:
     # preferred type can be coerced
     assert schema._infer_column_type(1278712, "confidence") == "double"
     assert schema._infer_column_type("18271", "confidence") == "double"
+
     # timestamp from coercable type
     assert schema._infer_column_type(18271, "timestamp") == "timestamp"
     assert schema._infer_column_type("18271.11", "timestamp") == "timestamp"
@@ -43,6 +44,15 @@ def test_map_column_preferred_type(schema: Schema) -> None:
     assert schema._infer_column_type(" 0xfe ", "value") == "wei"
     # number should be decimal
     assert schema._infer_column_type(" -0.821 ", "number") == "decimal"
+
+    # if value cannot be coerced, column type still preferred types
+    assert schema._infer_column_type(False, "value") == "wei"
+    assert schema._infer_column_type("AA", "confidence") == "double"
+
+    # skip preferred
+    assert schema._infer_column_type(False, "value", skip_preferred=True) == "bool"
+    assert schema._infer_column_type("AA", "confidence", skip_preferred=True) == "text"
+
 
 
 def test_map_column_type(schema: Schema) -> None:
@@ -310,7 +320,7 @@ def test_corece_new_null_value(schema: Schema) -> None:
     assert new_table is None
 
 
-def test_corece_null_value_over_existing(schema: Schema) -> None:
+def test_coerce_null_value_over_existing(schema: Schema) -> None:
     row = {"timestamp": 82178.1298812}
     new_row, new_table = schema.coerce_row("event_user", None, row)
     schema.update_schema(new_table)
@@ -332,7 +342,7 @@ def test_corece_null_value_over_not_null(schema: Schema) -> None:
 def test_infer_with_autodetection(schema: Schema) -> None:
     c = schema._infer_column("ts", pendulum.now().timestamp())
     assert c["data_type"] == "timestamp"
-    schema._normalizers_config["detections"] = None
+    schema._type_detections = []
     c = schema._infer_column("ts", pendulum.now().timestamp())
     assert c["data_type"] == "double"
 
@@ -411,12 +421,12 @@ def _add_preferred_types(schema: Schema) -> None:
     # number should be decimal
     schema._settings["preferred_types"]["re:^number$"] = "decimal"
 
-    schema._compile_regexes()
+    schema._compile_settings()
 
 
 def test_autodetect_convert_type(schema: Schema) -> None:
     # add to wei to float converter
-    schema._normalizers_config["detections"].append("wei_to_double")
+    schema._type_detections.append("wei_to_double")
     row = {"evm": Wei(1)}
     c_row, new_table = schema.coerce_row("eth", None, row)
     assert c_row["evm"] == 1.0

@@ -10,7 +10,7 @@ class WritableConfigValue(NamedTuple):
     name: Any
     hint: AnyType
     # default_value: Any
-    namespaces: Tuple[str, ...]
+    sections: Tuple[str, ...]
 
 
 def write_value(toml_table: TOMLTable, name: str, hint: AnyType, default_value: Any = None, is_default_of_interest: bool = False) -> None:
@@ -46,12 +46,12 @@ def write_spec(toml_table: TOMLTable, config: BaseConfiguration) -> None:
 def write_values(toml: tomlkit.TOMLDocument, values: Iterable[WritableConfigValue]) -> None:
     for value in values:
         toml_table: TOMLTable = toml  # type: ignore
-        for namespace in value.namespaces:
-            if namespace not in toml_table:
+        for section in value.sections:
+            if section not in toml_table:
                 inner_table = tomlkit.table(True)
-                toml_table[namespace] = inner_table
+                toml_table[section] = inner_table
                 toml_table = inner_table
             else:
-                toml_table = toml_table[namespace]  # type: ignore
+                toml_table = toml_table[section]  # type: ignore
 
         write_value(toml_table, value.name, value.hint)

@@ -120,8 +120,8 @@ class BaseConfiguration(MutableMapping[str, Any]):
 
     __is_resolved__: bool = dataclasses.field(default = False, init=False, repr=False)
     """True when all config fields were resolved and have a specified value type"""
-    __namespace__: str = dataclasses.field(default = None, init=False, repr=False)
-    """Namespace used by config providers when searching for keys"""
+    __section__: str = dataclasses.field(default = None, init=False, repr=False)
+    """Section used by config providers when searching for keys"""
     __exception__: Exception = dataclasses.field(default = None, init=False, repr=False)
     """Holds the exception that prevented the full resolution"""
     __config_gen_annotations__: ClassVar[List[str]] = None
@@ -219,7 +219,7 @@ _F_BaseConfiguration = BaseConfiguration
 class CredentialsConfiguration(BaseConfiguration):
     """Base class for all credentials. Credentials are configurations that may be stored only by providers supporting secrets."""
 
-    __namespace__: str = "credentials"
+    __section__: str = "credentials"
 
     def __str__(self) -> str:
         """Get string representation of credentials to be displayed, with all secret parts removed """

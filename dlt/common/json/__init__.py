@@ -1,26 +1,47 @@
+import os
 import base64
 import pendulum
 from datetime import date, datetime  # noqa: I251
-from functools import partial
-from typing import Any, Callable, List, Union
+from typing import Any, Callable, List, Protocol, IO, Union
 from uuid import UUID
 from hexbytes import HexBytes
-# TODO: use orjson as default. the only unsupported features are arbitrary integers, orjson supports 64bit ints.
-import simplejson
-from simplejson.raw_json import RawJSON
-import platform
 
-if platform.python_implementation() == "PyPy":
-    # disable speedups on PyPy, it can be actually faster than Python C
-    simplejson._toggle_speedups(False)  # type: ignore
 
 from dlt.common.arithmetics import Decimal
 from dlt.common.wei import Wei
 
 
+class SupportsJson(Protocol):
+    """Minimum adapter for different json parser implementations"""
+
+    _impl_name: str
+    """Implementation name"""
+
+    def dump(self, obj: Any, fp: IO[bytes], sort_keys: bool = False, pretty:bool = False) -> None:
+        ...
+
+    def typed_dump(self, obj: Any, fp: IO[bytes], pretty:bool = False) -> None:
+        ...
+
+    def dumps(self, obj: Any, sort_keys: bool = False, pretty:bool = False) -> str:
+        ...
+
+    def dumpb(self, obj: Any, sort_keys: bool = False, pretty:bool = False) -> bytes:
+        ...
+
+    def load(self, fp: IO[bytes]) -> Any:
+        ...
+
+    def loads(self, s: str) -> Any:
+        ...
+
+    def loadb(self, s: Union[bytes, bytearray, memoryview]) -> Any:
+        ...
+
+
 def custom_encode(obj: Any) -> str:
     if isinstance(obj, Decimal):
-        # always return decimals as string (not RawJSON) so they are not deserialized back to float
+        # always return decimals as string so they are not deserialized back to float
         return str(obj)
     # this works both for standard datetime and pendulum
     elif isinstance(obj, datetime):
@@ -63,7 +84,7 @@ DECODERS: List[Callable[[Any], Any]] = [
 ]
 
 
-def custom_pua_encode(obj: Any) -> Union[RawJSON, str]:
+def custom_pua_encode(obj: Any) -> str:
     # wei is subclass of decimal and must be checked first
     if isinstance(obj, Wei):
         return _WEI + str(obj)
@@ -105,14 +126,15 @@ def custom_pua_remove(obj: Any) -> Any:
     return obj
 
 
-simplejson.loads = partial(simplejson.loads, use_decimal=False)
-simplejson.load = partial(simplejson.load, use_decimal=False)
-# prevent default decimal serializer (use_decimal=False) and binary serializer (encoding=None)
-simplejson.dumps = partial(simplejson.dumps, use_decimal=False, default=custom_encode, encoding=None, ensure_ascii=False, separators=(',', ':'))
-simplejson.dump = partial(simplejson.dump, use_decimal=False, default=custom_encode, encoding=None, ensure_ascii=False, separators=(',', ':'))
-
-# provide drop-in replacement
-json = simplejson
-# helpers for typed dump
-json_typed_dumps: Callable[..., str] = partial(simplejson.dumps, use_decimal=False, default=custom_pua_encode, encoding=None, ensure_ascii=False, separators=(',', ':'))
-json_typed_dump: Callable[..., None] = partial(simplejson.dump, use_decimal=False, default=custom_pua_encode, encoding=None, ensure_ascii=False, separators=(',', ':'))
+# pick the right impl
+json: SupportsJson = None
+if os.environ.get("DLT_USE_JSON") == "simplejson":
+    from dlt.common.json import _simplejson as _json_d
+    json = _json_d
+else:
+    try:
+        from dlt.common.json import _orjson as _json_or
+        json = _json_or
+    except ImportError:
+        from dlt.common.json import _simplejson as _json_simple
+        json = _json_simple

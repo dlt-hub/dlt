@@ -73,14 +73,14 @@ class _Accessor(abc.ABC):
     def _get_value(self, field: str, type_hint: Type[Any] = None) -> Tuple[Any, List[LookupTrace]]:
         # get default hint type, in case of dlt.secrets it it TSecretValue
         type_hint = type_hint or self.default_type
-        # split field into namespaces and a key
-        namespaces = field.split(".")
-        key = namespaces.pop()
+        # split field into sections and a key
+        sections = field.split(".")
+        key = sections.pop()
         value = None
         traces: List[LookupTrace] = []
         for provider in self.config_providers:
-            value, effective_field = provider.get_value(key, type_hint, *namespaces)
-            trace = LookupTrace(provider.name, namespaces, effective_field, value)
+            value, effective_field = provider.get_value(key, type_hint, *sections)
+            trace = LookupTrace(provider.name, sections, effective_field, value)
             traces.append(trace)
             if value is not None:
                 # log trace

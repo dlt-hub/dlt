@@ -49,11 +49,6 @@ def cn_schema() -> Schema:
     })
 
 
-# @pytest.fixture(autouse=True)
-# def auto_delete_storage() -> None:
-#     delete_storage()
-
-
 def test_normalize_schema_name(schema: Schema) -> None:
     assert schema.normalize_schema_name("BAN_ANA") == "ban_ana"
     assert schema.normalize_schema_name("event-.!:value") == "event_value"
@@ -445,6 +440,8 @@ def assert_new_schema_values(schema: Schema) -> None:
     assert schema.version_hash is not None
     assert schema.ENGINE_VERSION == 5
     assert len(schema.settings["default_hints"]) > 0
+    # check settings
+    assert utils.standard_type_detections() == schema.settings["detections"] == schema._type_detections
     # check normalizers config
     assert schema._normalizers_config["names"] == "dlt.common.normalizers.names.snake_case"
     assert schema._normalizers_config["json"]["module"] == "dlt.common.normalizers.json.relational"

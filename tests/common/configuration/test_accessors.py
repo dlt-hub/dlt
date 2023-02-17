@@ -41,7 +41,7 @@ def test_getter_accessor(toml_providers: ConfigProvidersContext, environment: An
     assert dlt.secrets["value"] == "{SET"
     assert RESOLVED_TRACES[".value"] == ResolvedValueTrace("value", "{SET", None, TSecretValue, [], EnvironProvider().name, None)
 
-    # get namespaced values
+    # get sectioned values
     assert dlt.config["typecheck.str_val"] == "test string"
     assert RESOLVED_TRACES["typecheck.str_val"] == ResolvedValueTrace("str_val", "test string", None, AnyType, ["typecheck"], ConfigTomlProvider().name, None)
 

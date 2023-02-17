@@ -5,7 +5,7 @@ from dlt.common.exceptions import DltException
 
 class LookupTrace(NamedTuple):
     provider: str
-    namespaces: Sequence[str]
+    sections: Sequence[str]
     key: str
     value: Any
 
@@ -107,14 +107,14 @@ class ValueNotSecretException(ConfigurationException):
 
 
 class InvalidNativeValue(ConfigurationException):
-    def __init__(self, spec: Type[Any], native_value_type: Type[Any], embedded_namespaces: Tuple[str, ...], inner_exception: Exception) -> None:
+    def __init__(self, spec: Type[Any], native_value_type: Type[Any], embedded_sections: Tuple[str, ...], inner_exception: Exception) -> None:
         self.spec = spec
         self.native_value_type = native_value_type
-        self.embedded_namespaces = embedded_namespaces
+        self.embedded_sections = embedded_sections
         self.inner_exception = inner_exception
         inner_msg = f" {self.inner_exception}" if inner_exception is not ValueError else ""
         super().__init__(
-            f"{spec.__name__} cannot parse the configuration value provided. The value is of type {native_value_type.__name__} and comes from the {embedded_namespaces} namespace(s).{inner_msg}")
+            f"{spec.__name__} cannot parse the configuration value provided. The value is of type {native_value_type.__name__} and comes from the {embedded_sections} section(s).{inner_msg}")
 
 
 class ContainerInjectableContextMangled(ContainerException):

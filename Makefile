@@ -23,6 +23,8 @@ help:
 	@echo "			runs flake and mypy"
 	@echo "		test"
 	@echo "			tests all the components including destinations"
+	@echo "		test-local"
+	@echo "			tests all components unsing local destinations: duckdb and postgres"
 	@echo "		test-common"
 	@echo "			tests common components"
 	@echo "		build-library"
@@ -54,6 +56,9 @@ lint-security:
 
 test:
 	(set -a && . tests/.env && poetry run pytest tests)
+
+test-local:
+	DESTINATION__POSTGRES__CREDENTIALS=postgresql://loader:loader@localhost:5432/dlt_data DESTINATION__DUCKDB__CREDENTIALS=duckdb:///_storage/test_quack.duckdb  poetry run pytest tests -k '(not redshift and not bigquery)'
 
 test-common:
 	poetry run pytest tests --ignore=tests/load --ignore=tests/helpers --ignore=tests/cli

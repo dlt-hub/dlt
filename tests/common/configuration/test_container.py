@@ -136,7 +136,7 @@ def test_container_provider(container: Container) -> None:
     v, _ = provider.get_value("n/a", NoDefaultInjectableContext)
     assert v is original
 
-    # must assert if namespaces are provided
+    # must assert if sections are provided
     with pytest.raises(AssertionError):
         provider.get_value("n/a", InjectableTestContext, ("ns1",))
 

@@ -1,11 +1,10 @@
 import abc
-import jsonlines
+# import jsonlines
 from dataclasses import dataclass
 from typing import Any, Dict, Sequence, IO, Type
 
 from dlt.common import json
 from dlt.common.typing import StrAny
-from dlt.common.json import json_typed_dumps
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.destination import TLoaderFileFormat, DestinationCapabilitiesContext
 
@@ -78,16 +77,16 @@ class JsonlWriter(DataWriter):
 
     def write_data(self, rows: Sequence[Any]) -> None:
         super().write_data(rows)
-        # use jsonl to write load files https://jsonlines.org/
-        with jsonlines.Writer(self._f, dumps=json.dumps) as w:
-            w.write_all(rows)
+        for row in rows:
+            json.dump(row, self._f)
+            self._f.write(b"\n")
 
     def write_footer(self) -> None:
         pass
 
     @classmethod
     def data_format(cls) -> TFileFormatSpec:
-        return TFileFormatSpec("jsonl", "jsonl", False, True)
+        return TFileFormatSpec("jsonl", "jsonl", True, True)
 
 
 class JsonlListPUAEncodeWriter(JsonlWriter):
@@ -95,14 +94,14 @@ class JsonlListPUAEncodeWriter(JsonlWriter):
     def write_data(self, rows: Sequence[Any]) -> None:
         # skip JsonlWriter when calling super
         super(JsonlWriter, self).write_data(rows)
+        # write all rows as one list which will require to write just one line
         # encode types with PUA characters
-        with jsonlines.Writer(self._f, dumps=json_typed_dumps) as w:
-            # write all rows as one list which will require to write just one line
-            w.write_all([rows])
+        json.typed_dump(rows, self._f)
+        self._f.write(b"\n")
 
     @classmethod
     def data_format(cls) -> TFileFormatSpec:
-        return TFileFormatSpec("puae-jsonl", "jsonl", False, True)
+        return TFileFormatSpec("puae-jsonl", "jsonl", True, True)
 
 
 class InsertValuesWriter(DataWriter):
@@ -114,6 +113,7 @@ class InsertValuesWriter(DataWriter):
 
     def write_header(self, columns_schema: TTableSchemaColumns) -> None:
         assert self._chunks_written == 0
+        assert columns_schema is not None, "column schema required"
         headers = columns_schema.keys()
         # dict lookup is always faster
         self._headers_lookup = {v: i for i, v in enumerate(headers)}

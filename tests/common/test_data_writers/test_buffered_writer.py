@@ -149,9 +149,9 @@ def test_NO_rotation_on_schema_change() -> None:
 
 def test_writer_requiring_schema() -> None:
     # assertion on flushing
-    # with pytest.raises(AssertionError):
-    #     with get_insert_writer() as writer:
-    #         writer.write_data_item([{"col1": 1}], None)
+    with pytest.raises(AssertionError):
+        with get_insert_writer() as writer:
+            writer.write_data_item([{"col1": 1}], None)
     # just single schema is enough
     c1 = new_column("col1", "bigint")
     t1 = {"col1": c1}
@@ -164,19 +164,3 @@ def test_writer_optional_schema() -> None:
     with get_insert_writer(_format="jsonl") as writer:
             writer.write_data_item([{"col1": 1}], None)
             writer.write_data_item([{"col1": 1}], None)
-
-
-# json tests for the whole protocol
-# insert_values: # TODO: write test for this case (content ends with ",") we must hit exactly the end of line with "content", we must hit exactly ";" with content
-# sql builder: indexes for duck db and potgres
-# escape - json escape, all types test add weird characters
-# test copy_on_fork in Pipe
-# load: create jobs for all files and push them with async
-# normalize: test schema evolution via really many separate files each with different dictionary, both multi and single process
-# extract and test file grouping function:
-# write buffered tests on file rotation when schema changes
-# - max buffered items == max items in file == schema changes happen at this moment
-# - earlier
-# - later
-
-# commit: DataItemStorage

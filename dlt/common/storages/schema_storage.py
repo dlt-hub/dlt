@@ -18,7 +18,7 @@ class SchemaStorage(Mapping[str, Schema]):
     SCHEMA_FILE_NAME = "schema.%s"
     NAMED_SCHEMA_FILE_PATTERN = f"%s.{SCHEMA_FILE_NAME}"
 
-    @with_config(spec=SchemaVolumeConfiguration, namespaces=("schema",))
+    @with_config(spec=SchemaVolumeConfiguration, sections=("schema",))
     def __init__(self, config: SchemaVolumeConfiguration = config.value, makedirs: bool = False) -> None:
         self.config = config
         self.storage = FileStorage(config.schema_volume_path, makedirs=makedirs)

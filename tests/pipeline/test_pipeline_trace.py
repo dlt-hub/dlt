@@ -223,6 +223,6 @@ def test_broken_slack_hook(environment: StrStr) -> None:
     assert run_step.step_exception is None
 
 
-def _find_resolved_value(resolved: List[SerializableResolvedValueTrace], key: str, namespaces: List[str]) -> SerializableResolvedValueTrace:
-    return next((v for v in resolved if v.key == key and v.namespaces == namespaces), None)
+def _find_resolved_value(resolved: List[SerializableResolvedValueTrace], key: str, sections: List[str]) -> SerializableResolvedValueTrace:
+    return next((v for v in resolved if v.key == key and v.sections == sections), None)
 

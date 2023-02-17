@@ -9,7 +9,7 @@ from dlt.common.destination import DestinationCapabilitiesContext, JobClientBase
 from dlt.destinations.duckdb.configuration import DuckDbClientConfiguration
 
 
-@with_config(spec=DuckDbClientConfiguration, namespaces=("destination", "duckdb",))
+@with_config(spec=DuckDbClientConfiguration, sections=("destination", "duckdb",))
 def _configure(config: DuckDbClientConfiguration = config.value) -> DuckDbClientConfiguration:
     return config
 

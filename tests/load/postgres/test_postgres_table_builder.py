@@ -68,3 +68,8 @@ def test_create_table_with_hints(client: PostgresClient) -> None:
     # no hints
     assert '"col3" boolean  NOT NULL' in sql
     assert '"col4" timestamp with time zone  NOT NULL' in sql
+
+    # same thing without indexes
+    client = PostgresClient(client.schema, PostgresClientConfiguration(dataset_name="test_" + uniq_id(), create_indexes=False))
+    sql = client._get_table_update_sql("event_test_table", mod_update, False)
+    assert '"col2" double precision  NOT NULL' in sql

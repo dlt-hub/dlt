@@ -8,7 +8,7 @@ from dlt.common.destination import DestinationCapabilitiesContext, JobClientBase
 from dlt.destinations.dummy.configuration import DummyClientConfiguration
 
 
-@with_config(spec=DummyClientConfiguration, namespaces=("destination", "dummy",))
+@with_config(spec=DummyClientConfiguration, sections=("destination", "dummy",))
 def _configure(config: DummyClientConfiguration = config.value) -> DummyClientConfiguration:
     return config
 

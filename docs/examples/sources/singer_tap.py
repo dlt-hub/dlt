@@ -8,7 +8,7 @@ from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.runners.venv import Venv
 from dlt.common.typing import DictStrAny, StrAny, StrOrBytesPath, TDataItem, TDataItems
 
-from examples.sources.stdout import json_stdout as singer_process_pipe
+from docs.examples.sources.stdout import json_stdout as singer_process_pipe
 
 FilePathOrDict = Union[StrAny, StrOrBytesPath]
 
@@ -63,7 +63,7 @@ def tap(venv: Venv, tap_name: str, config_file: FilePathOrDict, catalog_file: Fi
     def as_config_file(config: FilePathOrDict) -> StrOrBytesPath:
         if type(config) is dict:
             fd, tmp_name = tempfile.mkstemp(dir=venv.context.env_dir)
-            with os.fdopen(fd, "w") as f:
+            with os.fdopen(fd, "wb") as f:
                 json.dump(config, f)
             return cast(str, tmp_name)
         else:

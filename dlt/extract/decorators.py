@@ -5,9 +5,9 @@ from functools import wraps
 from typing import Any, Callable, Dict, Iterator, List, NamedTuple, Optional, Tuple, Type, TypeVar, Union, cast, overload
 
 from dlt.common.configuration import with_config, get_fun_spec
-from dlt.common.configuration.resolve import inject_namespace
+from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs import BaseConfiguration
-from dlt.common.configuration.specs.config_namespace_context import ConfigNamespacesContext
+from dlt.common.configuration.specs.config_namespace_context import ConfigSectionContext
 from dlt.common.exceptions import ArgumentsOverloadException
 from dlt.common.normalizers.json import relational as relational_normalizer
 from dlt.common.schema.schema import Schema
@@ -102,14 +102,14 @@ def source(func: Optional[AnyFun] = None, /, name: str = None, max_table_nesting
                 }
             )
 
-        # wrap source extraction function in configuration with namespace
-        source_namespaces = ("sources", name)
-        conf_f = with_config(f, spec=spec, namespaces=source_namespaces)
+        # wrap source extraction function in configuration with section
+        source_sections = ("sources", name)
+        conf_f = with_config(f, spec=spec, sections=source_sections)
 
         @wraps(conf_f)
         def _wrap(*args: Any, **kwargs: Any) -> DltSource:
-            # configurations will be accessed in this namespace in the source
-            with inject_namespace(ConfigNamespacesContext(namespaces=source_namespaces)):
+            # configurations will be accessed in this section in the source
+            with inject_section(ConfigSectionContext(sections=source_sections)):
                 rv = conf_f(*args, **kwargs)
 
             # if generator, consume it immediately
@@ -257,8 +257,8 @@ def resource(
         if is_inner_callable(f):
             conf_f = f
         else:
-            # wrap source extraction function in configuration with namespace
-            conf_f = with_config(f, spec=spec, namespaces=("sources", resource_name))
+            # wrap source extraction function in configuration with section
+            conf_f = with_config(f, spec=spec, sections=("sources", resource_name))
             # get spec for wrapped function
             SPEC = get_fun_spec(conf_f)
 

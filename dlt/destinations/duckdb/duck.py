@@ -50,9 +50,10 @@ class DuckDbClient(InsertValuesJobClient):
         super().__init__(schema, config, sql_client)
         self.config: DuckDbClientConfiguration = config
         self.sql_client: DuckDbSqlClient = sql_client  # type: ignore
+        self.active_hints = HINT_TO_POSTGRES_ATTR if self.config.create_indexes else {}
 
     def _get_column_def_sql(self, c: TColumnSchema) -> str:
-        hints_str = " ".join(HINT_TO_POSTGRES_ATTR.get(h, "") for h in HINT_TO_POSTGRES_ATTR.keys() if c.get(h, False) is True)
+        hints_str = " ".join(self.active_hints.get(h, "") for h in self.active_hints.keys() if c.get(h, False) is True)
         column_name = self.capabilities.escape_identifier(c["name"])
         return f"{column_name} {self._to_db_type(c['data_type'])} {hints_str} {self._gen_not_null(c['nullable'])}"
 

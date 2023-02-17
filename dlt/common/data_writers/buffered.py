@@ -12,7 +12,7 @@ from dlt.common.destination import DestinationCapabilitiesContext
 
 class BufferedDataWriter:
 
-    @with_config(only_kw=True, namespaces=("data_writer",))
+    @with_config(only_kw=True, sections=("data_writer",))
     def __init__(
         self,
         file_format: TLoaderFileFormat,

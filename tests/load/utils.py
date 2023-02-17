@@ -1,19 +1,19 @@
 import contextlib
 from importlib import import_module
+import codecs
 import os
 from typing import Any, ContextManager, Iterator, List, Sequence, cast, IO
 
-from dlt.common import json, Decimal
+from dlt.common import json, Decimal, sleep
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs import SchemaVolumeConfiguration
-from dlt.common.configuration.specs.config_namespace_context import ConfigNamespacesContext
+from dlt.common.configuration.specs.config_namespace_context import ConfigSectionContext
 from dlt.common.destination import DestinationClientDwhConfiguration, DestinationReference, JobClientBase, LoadJob
 from dlt.common.data_writers import DataWriter
 from dlt.common.schema import TColumnSchema, TTableSchemaColumns
 from dlt.common.storages import SchemaStorage, FileStorage
 from dlt.common.schema.utils import new_table
-from dlt.common.time import sleep
 from dlt.common.typing import StrAny
 from dlt.common.utils import uniq_id
 
@@ -81,11 +81,11 @@ TABLE_ROW = {
     "col6": Decimal("2323.34"),
     "col7": b'binary data \n \r \x8e',
     "col8": 2**56 + 92093890840,
-    "col9": {"complex":[1,2,3,"a"]}
+    "col9": {"complex":[1,2,3,"a"], "link": "?commen\ntU\nrn=urn%3Ali%3Acomment%3A%28acti\012 \6 \\vity%3A69'08444473\n\n551163392%2C6n \r \x8e9085"}
 }
 
 def load_table(name: str) -> TTableSchemaColumns:
-    with open(f"./tests/load/cases/{name}.json", "tr", encoding="utf-8") as f:
+    with open(f"./tests/load/cases/{name}.json", "br") as f:
         return cast(TTableSchemaColumns, json.load(f))
 
 
@@ -112,7 +112,6 @@ def prepare_table(client: JobClientBase, case_name: str = "event_user", table_na
     client.schema.bump_version()
     client.update_storage_schema()
     return user_table_name
-
 
 
 def yield_client(
@@ -143,8 +142,8 @@ def yield_client(
     # create client and dataset
     client: SqlJobClientBase = None
 
-    # lookup for credentials in the namespace that is destination name
-    with Container().injectable_context(ConfigNamespacesContext(namespaces=(destination_name,))):
+    # lookup for credentials in the section that is destination name
+    with Container().injectable_context(ConfigSectionContext(sections=(destination_name,))):
         with destination.client(schema, config) as client:
             yield client
 
@@ -184,6 +183,10 @@ def cm_yield_client_with_storage(
     return yield_client_with_storage(destination_name, default_config_values, schema_name)
 
 
-def write_dataset(client: JobClientBase, f: IO[Any], rows: Sequence[StrAny], columns_schema: TTableSchemaColumns) -> None:
+def write_dataset(client: JobClientBase, f: IO[bytes], rows: Sequence[StrAny], columns_schema: TTableSchemaColumns) -> None:
+    data_format = DataWriter.data_format_from_file_format(client.capabilities.preferred_loader_file_format)
+    # adapt bytes stream to text file format
+    if not data_format.is_binary_format and isinstance(f.read(0), bytes):
+        f = codecs.getwriter("utf-8")(f)
     writer = DataWriter.from_destination_capabilities(client.capabilities, f)
     writer.write_all(columns_schema, rows)

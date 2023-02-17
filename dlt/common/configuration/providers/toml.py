@@ -24,18 +24,18 @@ class TomlProvider(ConfigProvider):
             raise TomlProviderReadException(self.name, file_name, self._toml_path, str(ex))
 
     @staticmethod
-    def get_key_name(key: str, *namespaces: str) -> str:
+    def get_key_name(key: str, *sections: str) -> str:
         # env key is always upper case
-        if namespaces:
-            namespaces = filter(lambda x: bool(x), namespaces)  # type: ignore
-            env_key = ".".join((*namespaces, key))
+        if sections:
+            sections = filter(lambda x: bool(x), sections)  # type: ignore
+            env_key = ".".join((*sections, key))
         else:
             env_key = key
         return env_key
 
-    def get_value(self, key: str, hint: Type[Any], *namespaces: str) -> Tuple[Optional[Any], str]:
-        full_path = namespaces + (key,)
-        full_key = self.get_key_name(key, *namespaces)
+    def get_value(self, key: str, hint: Type[Any], *sections: str) -> Tuple[Optional[Any], str]:
+        full_path = sections + (key,)
+        full_key = self.get_key_name(key, *sections)
         node: Union[TOMLContainer, TOMLItem] = self._toml
         try:
             for k in  full_path:
@@ -47,7 +47,7 @@ class TomlProvider(ConfigProvider):
             return None, full_key
 
     @property
-    def supports_namespaces(self) -> bool:
+    def supports_sections(self) -> bool:
         return True
 
     def _write_toml(self) -> None:

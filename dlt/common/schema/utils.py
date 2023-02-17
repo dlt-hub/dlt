@@ -4,20 +4,20 @@ import base64
 import binascii
 import hashlib
 import datetime  # noqa: I251
-import contextlib
+
 from copy import deepcopy
 from collections.abc import Mapping as C_Mapping, Sequence as C_Sequence
 from types import ModuleType
 from typing import Dict, List, Sequence, Tuple, Type, Any, cast
 
 from dlt.common import pendulum, json, Decimal, Wei
-from pendulum.parsing import parse_iso8601, _parse_common as parse_datetime_common
-from pendulum.tz import UTC
-from dlt.common.json import custom_encode as json_custom_encode, custom_pua_remove
+from dlt.common.json import custom_pua_remove
+from dlt.common.json._simplejson import custom_encode as json_custom_encode
 from dlt.common.arithmetics import InvalidOperation
 from dlt.common.exceptions import DictValidationException
 from dlt.common.normalizers.names import TNormalizeNameFunc
 from dlt.common.typing import DictStrAny, REPattern
+from dlt.common.time import parse_iso_like_datetime
 from dlt.common.utils import map_nested_in_place, str2bool
 from dlt.common.validation import TCustomValidator, validate_dict
 from dlt.common.schema import detections
@@ -399,31 +399,7 @@ def coerce_value(to_type: TDataType, from_type: TDataType, value: Any) -> Any:
 
             if from_type == "text":
                 try:
-                    # we use internal pendulum parse function. the generic function for example parses string "now" as now()
-                    # it also tries to parse ISO intervals but the code is very low quality
-                    # so it does not seem to be under control
-
-                    # only iso dates are allowed
-                    dtv = None
-                    with contextlib.suppress(ValueError):
-                        dtv = parse_iso8601(value)
-                    # now try to parse a set of ISO like dates
-                    if not dtv:
-                        dtv = parse_datetime_common(value)
-                    if isinstance(dtv, datetime.time):
-                        raise ValueError(value)
-                    if isinstance(dtv, datetime.datetime):
-                        return pendulum.datetime(
-                            dtv.year,
-                            dtv.month,
-                            dtv.day,
-                            dtv.hour,
-                            dtv.minute,
-                            dtv.second,
-                            dtv.microsecond,
-                            tz=dtv.tzinfo or UTC  # type: ignore
-                        )
-                    return dtv
+                    return parse_iso_like_datetime(value)
                 except ValueError:
                     # try to convert string to integer, or float
                     try:
@@ -614,7 +590,6 @@ def new_column(column_name: str, data_type: TDataType, nullable: bool = True, va
 
 def default_normalizers() -> TNormalizersConfig:
     return {
-                "detections": ["timestamp", "iso_timestamp"],
                 "names": "dlt.common.normalizers.names.snake_case",
                 "json": {
                     "module": "dlt.common.normalizers.json.relational"
@@ -631,3 +606,7 @@ def import_normalizers(normalizers_config: TNormalizersConfig) -> Tuple[ModuleTy
 
 def standard_hints() -> Dict[TColumnHint, List[TSimpleRegex]]:
     return None
+
+
+def standard_type_detections() -> List[TTypeDetections]:
+    return ["timestamp", "iso_timestamp"]

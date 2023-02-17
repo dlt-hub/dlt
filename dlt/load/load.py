@@ -29,7 +29,7 @@ class Load(Runnable[ThreadPool]):
     job_counter: Counter = None
     job_wait_summary: Summary = None
 
-    @with_config(spec=LoaderConfiguration, namespaces=("load",))
+    @with_config(spec=LoaderConfiguration, sections=("load",))
     def __init__(
         self,
         destination: DestinationReference,

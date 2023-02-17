@@ -9,7 +9,7 @@ from dlt.common.destination import DestinationCapabilitiesContext, JobClientBase
 from dlt.destinations.bigquery.configuration import BigQueryClientConfiguration
 
 
-@with_config(spec=BigQueryClientConfiguration, namespaces=("destination", "bigquery",))
+@with_config(spec=BigQueryClientConfiguration, sections=("destination", "bigquery",))
 def _configure(config: BigQueryClientConfiguration = config.value) -> BigQueryClientConfiguration:
     return config
 

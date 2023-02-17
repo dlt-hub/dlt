@@ -13,7 +13,7 @@ from dlt.common.configuration import configspec
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import ContextDefaultCannotBeCreated
 from dlt.common.configuration.specs import ContainerInjectableContext
-from dlt.common.configuration.specs.config_namespace_context import ConfigNamespacesContext
+from dlt.common.configuration.specs.config_namespace_context import ConfigSectionContext
 from dlt.common.pipeline import PipelineContext, TPipelineState
 from dlt.common.typing import DictStrAny
 from dlt.common.schema.typing import LOADS_TABLE_NAME, TTableSchemaColumns
@@ -164,12 +164,12 @@ def state() -> DictStrAny:
     global _last_full_state
 
     container = Container()
-    # get the source name from the namespace context
+    # get the source name from the section context
     source_name: str = None
     with contextlib.suppress(ContextDefaultCannotBeCreated):
-        namespaces = container[ConfigNamespacesContext].namespaces
-        if namespaces and len(namespaces) > 1 and namespaces[0] == "sources":
-            source_name = namespaces[1]
+        sections = container[ConfigSectionContext].sections
+        if sections and len(sections) > 1 and sections[0] == "sources":
+            source_name = sections[1]
     try:
         # get managed state that is read/write
         state: TSourceState = container[StateInjectableContext].state  # type: ignore

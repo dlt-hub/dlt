@@ -9,7 +9,7 @@ from dlt.common.destination import DestinationCapabilitiesContext, JobClientBase
 from dlt.destinations.redshift.configuration import RedshiftClientConfiguration
 
 
-@with_config(spec=RedshiftClientConfiguration, namespaces=("destination", "redshift",))
+@with_config(spec=RedshiftClientConfiguration, sections=("destination", "redshift",))
 def _configure(config: RedshiftClientConfiguration = config.value) -> RedshiftClientConfiguration:
     return config
 

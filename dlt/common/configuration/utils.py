@@ -17,7 +17,7 @@ class ResolvedValueTrace(NamedTuple):
     value: Any
     default_value: Any
     hint: AnyType
-    namespaces: Sequence[str]
+    sections: Sequence[str]
     provider_name: str
     config: BaseConfiguration
 
@@ -100,8 +100,8 @@ def log_traces(config: Optional[BaseConfiguration], key: str, hint: Type[Any], v
     # store all traces with resolved values
     resolved_trace = next((trace for trace in traces if trace.value is not None), None)
     if resolved_trace is not None:
-        path = f'{".".join(resolved_trace.namespaces)}.{key}'
-        _RESOLVED_TRACES[path] = ResolvedValueTrace(key, resolved_trace.value, default_value, hint, resolved_trace.namespaces, resolved_trace.provider, config)
+        path = f'{".".join(resolved_trace.sections)}.{key}'
+        _RESOLVED_TRACES[path] = ResolvedValueTrace(key, resolved_trace.value, default_value, hint, resolved_trace.sections, resolved_trace.provider, config)
 
 
 def get_resolved_traces() -> Mapping[str, ResolvedValueTrace]:
@@ -124,13 +124,13 @@ def current_dot_dlt_path() -> str:
 
 def add_config_to_env(config: BaseConfiguration) ->  None:
     """Writes values in configuration back into environment using the naming convention of EnvironProvider"""
-    return add_config_dict_to_env(dict(config), config.__namespace__, overwrite_keys=True)
+    return add_config_dict_to_env(dict(config), config.__section__, overwrite_keys=True)
 
 
-def add_config_dict_to_env(dict_: Mapping[str, Any], namespace: str = None, overwrite_keys: bool = False) -> None:
-    """Writes values in dict_ back into environment using the naming convention of EnvironProvider. Applies `namespace` if specified. Does not overwrite existing keys by default"""
+def add_config_dict_to_env(dict_: Mapping[str, Any], section: str = None, overwrite_keys: bool = False) -> None:
+    """Writes values in dict_ back into environment using the naming convention of EnvironProvider. Applies `section` if specified. Does not overwrite existing keys by default"""
     for k, v in dict_.items():
-        env_key = EnvironProvider.get_key_name(k, namespace)
+        env_key = EnvironProvider.get_key_name(k, section)
         if env_key not in os.environ or overwrite_keys:
             if v is None:
                 os.environ.pop(env_key, None)

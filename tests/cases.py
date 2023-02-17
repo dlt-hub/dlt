@@ -8,7 +8,7 @@ from dlt.common.typing import StrAny
 from dlt.common.wei import Wei
 
 
-_UUID = "c8209ee7-ee95-4b90-8c9f-f7a0f8b51014"
+# _UUID = "c8209ee7-ee95-4b90-8c9f-f7a0f8b51014"
 JSON_TYPED_DICT: StrAny = {
     "str": "string",
     "decimal": Decimal("21.37"),

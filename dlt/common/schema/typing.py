@@ -72,7 +72,7 @@ class TJSONNormalizer(TypedDict, total=False):
     config: Optional[StrAny]  # config is a free form and is consumed by `module`
 
 
-class TNormalizersConfig(TypedDict, total=True):
+class TNormalizersConfig(TypedDict, total=False):
     names: str
     detections: Optional[List[TTypeDetections]]
     json: TJSONNormalizer
@@ -80,6 +80,7 @@ class TNormalizersConfig(TypedDict, total=True):
 
 class TSchemaSettings(TypedDict, total=False):
     schema_sealed: Optional[bool]
+    detections: Optional[List[TTypeDetections]]
     default_hints: Optional[Dict[TColumnHint, List[TSimpleRegex]]]
     preferred_types: Optional[Dict[TSimpleRegex, TDataType]]
 
