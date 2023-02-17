@@ -32,7 +32,7 @@ def test_resolves_from_environ(environment: Any) -> None:
     environment["NONECONFIGVAR"] = "Some"
 
     C = WrongConfiguration()
-    resolve._resolve_config_fields(C, explicit_values=None, explicit_namespaces=(), embedded_namespaces=(), accept_partial=False)
+    resolve._resolve_config_fields(C, explicit_values=None, explicit_sections=(), embedded_sections=(), accept_partial=False)
     assert not C.is_partial()
 
     assert C.NoneConfigVar == environment["NONECONFIGVAR"]
@@ -42,7 +42,7 @@ def test_resolves_from_environ_with_coercion(environment: Any) -> None:
     environment["TEST_BOOL"] = 'yes'
 
     C = SimpleConfiguration()
-    resolve._resolve_config_fields(C, explicit_values=None, explicit_namespaces=(), embedded_namespaces=(), accept_partial=False)
+    resolve._resolve_config_fields(C, explicit_values=None, explicit_sections=(), embedded_sections=(), accept_partial=False)
     assert not C.is_partial()
 
     # value will be coerced to bool

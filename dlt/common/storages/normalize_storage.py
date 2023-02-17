@@ -20,7 +20,7 @@ class NormalizeStorage(VersionedStorage):
     STORAGE_VERSION: ClassVar[str] = "1.0.0"
     EXTRACTED_FOLDER: ClassVar[str] = "extracted"  # folder within the volume where extracted files to be normalized are stored
 
-    @with_config(spec=NormalizeVolumeConfiguration, namespaces=("normalize",))
+    @with_config(spec=NormalizeVolumeConfiguration, sections=("normalize",))
     def __init__(self, is_owner: bool, config: NormalizeVolumeConfiguration = config.value) -> None:
         super().__init__(NormalizeStorage.STORAGE_VERSION, is_owner, FileStorage(config.normalize_volume_path, "t", makedirs=is_owner))
         self.config = config

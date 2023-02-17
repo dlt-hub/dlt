@@ -2,12 +2,12 @@ import pytest
 from typing import Any, Optional
 from dlt.common.configuration.container import Container
 
-from dlt.common.configuration import configspec, ConfigFieldMissingException, resolve, inject_namespace
-from dlt.common.configuration.specs import BaseConfiguration, ConfigNamespacesContext
+from dlt.common.configuration import configspec, ConfigFieldMissingException, resolve, inject_section
+from dlt.common.configuration.specs import BaseConfiguration, ConfigSectionContext
 from dlt.common.configuration.exceptions import LookupTrace
 
 from tests.utils import preserve_environ
-from tests.common.configuration.utils import MockProvider, NamespacedConfiguration, environment, mock_provider
+from tests.common.configuration.utils import MockProvider, SectionedConfiguration, environment, mock_provider
 
 
 @configspec
@@ -21,56 +21,56 @@ class EmbeddedConfiguration(BaseConfiguration):
 
 
 @configspec
-class EmbeddedWithNamespacedConfiguration(BaseConfiguration):
-    embedded: NamespacedConfiguration
+class EmbeddedWithSectionedConfiguration(BaseConfiguration):
+    embedded: SectionedConfiguration
 
 
 @configspec
 class EmbeddedIgnoredConfiguration(BaseConfiguration):
-    # underscore prevents the field name to be added to embedded namespaces
+    # underscore prevents the field name to be added to embedded sections
     _sv_config: Optional[SingleValConfiguration]
 
 
 @configspec
-class EmbeddedIgnoredWithNamespacedConfiguration(BaseConfiguration):
-    _embedded: NamespacedConfiguration
+class EmbeddedIgnoredWithSectionedConfiguration(BaseConfiguration):
+    _embedded: SectionedConfiguration
 
 
 @configspec
 class EmbeddedWithIgnoredEmbeddedConfiguration(BaseConfiguration):
-    ignored_embedded: EmbeddedIgnoredWithNamespacedConfiguration
+    ignored_embedded: EmbeddedIgnoredWithSectionedConfiguration
 
 
-def test_namespaced_configuration(environment: Any) -> None:
+def test_sectioned_configuration(environment: Any) -> None:
     with pytest.raises(ConfigFieldMissingException) as exc_val:
-        resolve.resolve_configuration(NamespacedConfiguration())
+        resolve.resolve_configuration(SectionedConfiguration())
 
     assert list(exc_val.value.traces.keys()) == ["password"]
-    assert exc_val.value.spec_name == "NamespacedConfiguration"
+    assert exc_val.value.spec_name == "SectionedConfiguration"
     # check trace
     traces = exc_val.value.traces["password"]
-    # only one provider and namespace was tried
+    # only one provider and section was tried
     assert len(traces) == 3
     assert traces[0] == LookupTrace("Environment Variables", ["DLT_TEST"], "DLT_TEST__PASSWORD", None)
     assert traces[1] == LookupTrace("secrets.toml", ["DLT_TEST"], "DLT_TEST.password", None)
     assert traces[2] == LookupTrace("config.toml", ["DLT_TEST"], "DLT_TEST.password", None)
 
-    # init vars work without namespace
-    C = resolve.resolve_configuration(NamespacedConfiguration(), explicit_value={"password": "PASS"})
+    # init vars work without section
+    C = resolve.resolve_configuration(SectionedConfiguration(), explicit_value={"password": "PASS"})
     assert C.password == "PASS"
 
     # env var must be prefixed
     environment["PASSWORD"] = "PASS"
     with pytest.raises(ConfigFieldMissingException) as exc_val:
-        resolve.resolve_configuration(NamespacedConfiguration())
+        resolve.resolve_configuration(SectionedConfiguration())
     environment["DLT_TEST__PASSWORD"] = "PASS"
-    C = resolve.resolve_configuration(NamespacedConfiguration())
+    C = resolve.resolve_configuration(SectionedConfiguration())
     assert C.password == "PASS"
 
 
-def test_explicit_namespaces(mock_provider: MockProvider) -> None:
+def test_explicit_sections(mock_provider: MockProvider) -> None:
     mock_provider.value = "value"
-    # mock providers separates namespaces with | and key with -
+    # mock providers separates sections with | and key with -
     _, k = mock_provider.get_value("key", Any)
     assert k == "-key"
     _, k = mock_provider.get_value("key", Any, "ns1")
@@ -81,187 +81,187 @@ def test_explicit_namespaces(mock_provider: MockProvider) -> None:
     # via make configuration
     mock_provider.reset_stats()
     resolve.resolve_configuration(SingleValConfiguration())
-    assert mock_provider.last_namespace == ()
+    assert mock_provider.last_section == ()
     mock_provider.reset_stats()
-    resolve.resolve_configuration(SingleValConfiguration(), namespaces=("ns1",))
-    # value is returned only on empty namespace
-    assert mock_provider.last_namespace == ()
-    # always start with more precise namespace
-    assert mock_provider.last_namespaces == [("ns1",), ()]
+    resolve.resolve_configuration(SingleValConfiguration(), sections=("ns1",))
+    # value is returned only on empty section
+    assert mock_provider.last_section == ()
+    # always start with more precise section
+    assert mock_provider.last_sections == [("ns1",), ()]
     mock_provider.reset_stats()
-    resolve.resolve_configuration(SingleValConfiguration(), namespaces=("ns1", "ns2"))
-    assert mock_provider.last_namespaces == [("ns1", "ns2"), ("ns1",), ()]
+    resolve.resolve_configuration(SingleValConfiguration(), sections=("ns1", "ns2"))
+    assert mock_provider.last_sections == [("ns1", "ns2"), ("ns1",), ()]
 
 
-def test_explicit_namespaces_with_namespaced_config(mock_provider: MockProvider) -> None:
+def test_explicit_sections_with_sectioned_config(mock_provider: MockProvider) -> None:
     mock_provider.value = "value"
-    # with namespaced config
+    # with sectiond config
     mock_provider.return_value_on = ("DLT_TEST",)
-    resolve.resolve_configuration(NamespacedConfiguration())
-    assert mock_provider.last_namespace == ("DLT_TEST",)
-    # first the native representation of NamespacedConfiguration is queried with (), and then the fields in NamespacedConfiguration are queried only in DLT_TEST
-    assert mock_provider.last_namespaces == [(), ("DLT_TEST",)]
-    # namespaced config is always innermost
+    resolve.resolve_configuration(SectionedConfiguration())
+    assert mock_provider.last_section == ("DLT_TEST",)
+    # first the native representation of SectionedConfiguration is queried with (), and then the fields in SectionedConfiguration are queried only in DLT_TEST
+    assert mock_provider.last_sections == [(), ("DLT_TEST",)]
+    # sectioned config is always innermost
     mock_provider.reset_stats()
-    resolve.resolve_configuration(NamespacedConfiguration(), namespaces=("ns1",))
-    assert mock_provider.last_namespaces == [("ns1",), (), ("ns1", "DLT_TEST"), ("DLT_TEST",)]
+    resolve.resolve_configuration(SectionedConfiguration(), sections=("ns1",))
+    assert mock_provider.last_sections == [("ns1",), (), ("ns1", "DLT_TEST"), ("DLT_TEST",)]
     mock_provider.reset_stats()
-    resolve.resolve_configuration(NamespacedConfiguration(), namespaces=("ns1", "ns2"))
-    assert mock_provider.last_namespaces == [("ns1", "ns2"), ("ns1",), (), ("ns1", "ns2", "DLT_TEST"), ("ns1", "DLT_TEST"), ("DLT_TEST",)]
+    resolve.resolve_configuration(SectionedConfiguration(), sections=("ns1", "ns2"))
+    assert mock_provider.last_sections == [("ns1", "ns2"), ("ns1",), (), ("ns1", "ns2", "DLT_TEST"), ("ns1", "DLT_TEST"), ("DLT_TEST",)]
 
 
-def test_overwrite_config_namespace_from_embedded(mock_provider: MockProvider) -> None:
+def test_overwrite_config_section_from_embedded(mock_provider: MockProvider) -> None:
     mock_provider.value = {}
     mock_provider.return_value_on = ("embedded",)
-    resolve.resolve_configuration(EmbeddedWithNamespacedConfiguration())
-    # when resolving the config namespace DLT_TEST was removed and the embedded namespace was used instead
-    assert mock_provider.last_namespace == ("embedded",)
+    resolve.resolve_configuration(EmbeddedWithSectionedConfiguration())
+    # when resolving the config section DLT_TEST was removed and the embedded section was used instead
+    assert mock_provider.last_section == ("embedded",)
     # lookup in order: () - parent config when looking for "embedded", then from "embedded" config
-    assert mock_provider.last_namespaces == [(), ("embedded",)]
+    assert mock_provider.last_sections == [(), ("embedded",)]
 
 
-def test_explicit_namespaces_from_embedded_config(mock_provider: MockProvider) -> None:
+def test_explicit_sections_from_embedded_config(mock_provider: MockProvider) -> None:
     mock_provider.value = {"sv": "A"}
     mock_provider.return_value_on = ("sv_config",)
     c = resolve.resolve_configuration(EmbeddedConfiguration())
     # we mock the dictionary below as the value for all requests
     assert c.sv_config.sv == '{"sv":"A"}'
-    # following namespaces were used when resolving EmbeddedConfig:
-    # - initial value for the whole embedded sv_config skipped because it does not have namespace
+    # following sections were used when resolving EmbeddedConfig:
+    # - initial value for the whole embedded sv_config skipped because it does not have section
     # - then ("sv_config",) resolve sv in sv_config
-    assert mock_provider.last_namespaces == [("sv_config",)]
-    # embedded namespace inner of explicit
+    assert mock_provider.last_sections == [("sv_config",)]
+    # embedded section inner of explicit
     mock_provider.reset_stats()
-    resolve.resolve_configuration(EmbeddedConfiguration(), namespaces=("ns1",))
-    assert mock_provider.last_namespaces == [("ns1", "sv_config",), ("sv_config",)]
+    resolve.resolve_configuration(EmbeddedConfiguration(), sections=("ns1",))
+    assert mock_provider.last_sections == [("ns1", "sv_config",), ("sv_config",)]
 
 
-def test_ignore_embedded_namespace_by_field_name(mock_provider: MockProvider) -> None:
+def test_ignore_embedded_section_by_field_name(mock_provider: MockProvider) -> None:
     mock_provider.value = {"sv": "A"}
     resolve.resolve_configuration(EmbeddedIgnoredConfiguration())
-    # _sv_config will not be added to embedded namespaces and looked up
-    assert mock_provider.last_namespaces == [()]
+    # _sv_config will not be added to embedded sections and looked up
+    assert mock_provider.last_sections == [()]
     mock_provider.reset_stats()
-    resolve.resolve_configuration(EmbeddedIgnoredConfiguration(), namespaces=("ns1",))
-    assert mock_provider.last_namespaces == [("ns1",), ()]
-    # if namespace config exist, it won't be replaced by embedded namespace
+    resolve.resolve_configuration(EmbeddedIgnoredConfiguration(), sections=("ns1",))
+    assert mock_provider.last_sections == [("ns1",), ()]
+    # if section config exist, it won't be replaced by embedded section
     mock_provider.reset_stats()
     mock_provider.value = {}
     mock_provider.return_value_on = ("DLT_TEST",)
-    resolve.resolve_configuration(EmbeddedIgnoredWithNamespacedConfiguration())
-    assert mock_provider.last_namespaces == [(), ("DLT_TEST",)]
+    resolve.resolve_configuration(EmbeddedIgnoredWithSectionedConfiguration())
+    assert mock_provider.last_sections == [(), ("DLT_TEST",)]
     # embedded configuration of depth 2: first normal, second - ignored
     mock_provider.reset_stats()
     mock_provider.return_value_on = ("DLT_TEST",)
     resolve.resolve_configuration(EmbeddedWithIgnoredEmbeddedConfiguration())
-    assert mock_provider.last_namespaces == [('ignored_embedded',), ('ignored_embedded', 'DLT_TEST'), ('DLT_TEST',)]
+    assert mock_provider.last_sections == [('ignored_embedded',), ('ignored_embedded', 'DLT_TEST'), ('DLT_TEST',)]
 
 
-def test_injected_namespaces(mock_provider: MockProvider) -> None:
+def test_injected_sections(mock_provider: MockProvider) -> None:
     container = Container()
     mock_provider.value = "value"
 
-    with container.injectable_context(ConfigNamespacesContext(namespaces=("inj-ns1",))):
+    with container.injectable_context(ConfigSectionContext(sections=("inj-ns1",))):
         resolve.resolve_configuration(SingleValConfiguration())
-        assert mock_provider.last_namespaces == [("inj-ns1",), ()]
+        assert mock_provider.last_sections == [("inj-ns1",), ()]
         mock_provider.reset_stats()
-        # explicit namespace preempts injected namespace
-        resolve.resolve_configuration(SingleValConfiguration(), namespaces=("ns1",))
-        assert mock_provider.last_namespaces == [("ns1",), ()]
-        # namespaced config inner of injected
+        # explicit section preempts injected section
+        resolve.resolve_configuration(SingleValConfiguration(), sections=("ns1",))
+        assert mock_provider.last_sections == [("ns1",), ()]
+        # sectiond config inner of injected
         mock_provider.reset_stats()
         mock_provider.return_value_on = ("DLT_TEST",)
-        resolve.resolve_configuration(NamespacedConfiguration())
-        assert mock_provider.last_namespaces == [("inj-ns1",), (), ("inj-ns1", "DLT_TEST"), ("DLT_TEST",)]
-        # injected namespace inner of ns coming from embedded config
+        resolve.resolve_configuration(SectionedConfiguration())
+        assert mock_provider.last_sections == [("inj-ns1",), (), ("inj-ns1", "DLT_TEST"), ("DLT_TEST",)]
+        # injected section inner of ns coming from embedded config
         mock_provider.reset_stats()
         mock_provider.return_value_on = ()
         mock_provider.value = {"sv": "A"}
         resolve.resolve_configuration(EmbeddedConfiguration())
-        assert mock_provider.last_namespaces == [("inj-ns1", "sv_config"), ("sv_config",)]
+        assert mock_provider.last_sections == [("inj-ns1", "sv_config"), ("sv_config",)]
 
-    # multiple injected namespaces
-    with container.injectable_context(ConfigNamespacesContext(namespaces=("inj-ns1", "inj-ns2"))):
+    # multiple injected sections
+    with container.injectable_context(ConfigSectionContext(sections=("inj-ns1", "inj-ns2"))):
         mock_provider.reset_stats()
         resolve.resolve_configuration(SingleValConfiguration())
-        assert mock_provider.last_namespaces == [("inj-ns1", "inj-ns2"), ("inj-ns1",), ()]
+        assert mock_provider.last_sections == [("inj-ns1", "inj-ns2"), ("inj-ns1",), ()]
         mock_provider.reset_stats()
 
 
-def test_namespace_with_pipeline_name(mock_provider: MockProvider) -> None:
-    # if pipeline name is present, keys will be looked up twice: with pipeline as top level namespace and without it
+def test_section_with_pipeline_name(mock_provider: MockProvider) -> None:
+    # if pipeline name is present, keys will be looked up twice: with pipeline as top level section and without it
 
     container = Container()
     mock_provider.value = "value"
 
-    with container.injectable_context(ConfigNamespacesContext(pipeline_name="PIPE")):
+    with container.injectable_context(ConfigSectionContext(pipeline_name="PIPE")):
         mock_provider.return_value_on = ()
         resolve.resolve_configuration(SingleValConfiguration())
-        assert mock_provider.last_namespaces == [("PIPE",), ()]
+        assert mock_provider.last_sections == [("PIPE",), ()]
 
         mock_provider.reset_stats()
-        resolve.resolve_configuration(SingleValConfiguration(), namespaces=("ns1",))
-        # PIPE namespace is exhausted then another lookup without PIPE
-        assert mock_provider.last_namespaces == [("PIPE", "ns1"), ("PIPE",), ("ns1",), ()]
+        resolve.resolve_configuration(SingleValConfiguration(), sections=("ns1",))
+        # PIPE section is exhausted then another lookup without PIPE
+        assert mock_provider.last_sections == [("PIPE", "ns1"), ("PIPE",), ("ns1",), ()]
 
         mock_provider.return_value_on = ("PIPE", )
         mock_provider.reset_stats()
-        resolve.resolve_configuration(SingleValConfiguration(), namespaces=("ns1",))
-        assert mock_provider.last_namespaces == [("PIPE", "ns1"), ("PIPE",)]
+        resolve.resolve_configuration(SingleValConfiguration(), sections=("ns1",))
+        assert mock_provider.last_sections == [("PIPE", "ns1"), ("PIPE",)]
 
-        # with both pipe and config namespaces are always present in lookup
+        # with both pipe and config sections are always present in lookup
         # "PIPE", "DLT_TEST"
         mock_provider.return_value_on = ()
         mock_provider.reset_stats()
         # () will never be searched
         with pytest.raises(ConfigFieldMissingException):
-            resolve.resolve_configuration(NamespacedConfiguration())
+            resolve.resolve_configuration(SectionedConfiguration())
         mock_provider.return_value_on = ("DLT_TEST",)
         mock_provider.reset_stats()
-        resolve.resolve_configuration(NamespacedConfiguration())
-        # first the whole NamespacedConfiguration is looked under key DLT_TEST (namespaces: ('PIPE',), ()), then fields of NamespacedConfiguration
-        assert mock_provider.last_namespaces == [('PIPE',), (), ("PIPE", "DLT_TEST"), ("DLT_TEST",)]
+        resolve.resolve_configuration(SectionedConfiguration())
+        # first the whole SectionedConfiguration is looked under key DLT_TEST (sections: ('PIPE',), ()), then fields of SectionedConfiguration
+        assert mock_provider.last_sections == [('PIPE',), (), ("PIPE", "DLT_TEST"), ("DLT_TEST",)]
 
-    # with pipeline and injected namespaces
-    with container.injectable_context(ConfigNamespacesContext(pipeline_name="PIPE", namespaces=("inj-ns1",))):
+    # with pipeline and injected sections
+    with container.injectable_context(ConfigSectionContext(pipeline_name="PIPE", sections=("inj-ns1",))):
         mock_provider.return_value_on = ()
         mock_provider.reset_stats()
         resolve.resolve_configuration(SingleValConfiguration())
-        assert mock_provider.last_namespaces == [("PIPE", "inj-ns1"), ("PIPE",), ("inj-ns1",), ()]
+        assert mock_provider.last_sections == [("PIPE", "inj-ns1"), ("PIPE",), ("inj-ns1",), ()]
 
 
-# def test_namespaces_with_duplicate(mock_provider: MockProvider) -> None:
+# def test_sections_with_duplicate(mock_provider: MockProvider) -> None:
 #     container = Container()
 #     mock_provider.value = "value"
 
-#     with container.injectable_context(ConfigNamespacesContext(pipeline_name="DLT_TEST", namespaces=("DLT_TEST", "DLT_TEST"))):
+#     with container.injectable_context(ConfigNamespacesContext(pipeline_name="DLT_TEST", sections=("DLT_TEST", "DLT_TEST"))):
 #         mock_provider.return_value_on = ("DLT_TEST",)
-#         resolve.resolve_configuration(NamespacedConfiguration(), namespaces=("DLT_TEST", "DLT_TEST"))
+#         resolve.resolve_configuration(SectionedConfiguration(), sections=("DLT_TEST", "DLT_TEST"))
 #         # no duplicates are removed, duplicates are misconfiguration
 #         # note: use dict.fromkeys to create ordered sets from lists if we ever want to remove duplicates
 #         # the lookup tuples are create as follows:
-#         # 1. (pipeline name, deduplicated namespaces, config namespace)
-#         # 2. (deduplicated namespaces, config namespace)
-#         # 3. (pipeline name, config namespace)
-#         # 4. (config namespace)
-#         assert mock_provider.last_namespaces == [("DLT_TEST", "DLT_TEST", "DLT_TEST", "DLT_TEST"), ("DLT_TEST", "DLT_TEST", "DLT_TEST"), ("DLT_TEST", "DLT_TEST"), ("DLT_TEST", "DLT_TEST"), ("DLT_TEST",)]
+#         # 1. (pipeline name, deduplicated sections, config section)
+#         # 2. (deduplicated sections, config section)
+#         # 3. (pipeline name, config section)
+#         # 4. (config section)
+#         assert mock_provider.last_sections == [("DLT_TEST", "DLT_TEST", "DLT_TEST", "DLT_TEST"), ("DLT_TEST", "DLT_TEST", "DLT_TEST"), ("DLT_TEST", "DLT_TEST"), ("DLT_TEST", "DLT_TEST"), ("DLT_TEST",)]
 
 
-def test_inject_namespace(mock_provider: MockProvider) -> None:
+def test_inject_section(mock_provider: MockProvider) -> None:
     mock_provider.value = "value"
 
-    with inject_namespace(ConfigNamespacesContext(pipeline_name="PIPE", namespaces=("inj-ns1",))):
+    with inject_section(ConfigSectionContext(pipeline_name="PIPE", sections=("inj-ns1",))):
         resolve.resolve_configuration(SingleValConfiguration())
-        assert mock_provider.last_namespaces == [("PIPE", "inj-ns1"), ("PIPE",), ("inj-ns1",), ()]
+        assert mock_provider.last_sections == [("PIPE", "inj-ns1"), ("PIPE",), ("inj-ns1",), ()]
 
         # inject with merge previous
-        with inject_namespace(ConfigNamespacesContext(namespaces=("inj-ns2",))):
+        with inject_section(ConfigSectionContext(sections=("inj-ns2",))):
             mock_provider.reset_stats()
             resolve.resolve_configuration(SingleValConfiguration())
-            assert mock_provider.last_namespaces == [("PIPE", "inj-ns2"), ("PIPE",), ("inj-ns2",), ()]
+            assert mock_provider.last_sections == [("PIPE", "inj-ns2"), ("PIPE",), ("inj-ns2",), ()]
 
             # inject without merge
             mock_provider.reset_stats()
-            with inject_namespace(ConfigNamespacesContext(), merge_existing=False):
+            with inject_section(ConfigSectionContext(), merge_existing=False):
                 resolve.resolve_configuration(SingleValConfiguration())
-                assert mock_provider.last_namespaces == [()]
+                assert mock_provider.last_sections == [()]

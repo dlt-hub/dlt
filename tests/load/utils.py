@@ -8,7 +8,7 @@ from dlt.common import json, Decimal, sleep
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs import SchemaVolumeConfiguration
-from dlt.common.configuration.specs.config_namespace_context import ConfigNamespacesContext
+from dlt.common.configuration.specs.config_namespace_context import ConfigSectionContext
 from dlt.common.destination import DestinationClientDwhConfiguration, DestinationReference, JobClientBase, LoadJob
 from dlt.common.data_writers import DataWriter
 from dlt.common.schema import TColumnSchema, TTableSchemaColumns
@@ -142,8 +142,8 @@ def yield_client(
     # create client and dataset
     client: SqlJobClientBase = None
 
-    # lookup for credentials in the namespace that is destination name
-    with Container().injectable_context(ConfigNamespacesContext(namespaces=(destination_name,))):
+    # lookup for credentials in the section that is destination name
+    with Container().injectable_context(ConfigSectionContext(sections=(destination_name,))):
         with destination.client(schema, config) as client:
             yield client
 

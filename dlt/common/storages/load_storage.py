@@ -43,7 +43,7 @@ class LoadStorage(DataItemStorage, VersionedStorage):
 
     ALL_SUPPORTED_FILE_FORMATS: Set[TLoaderFileFormat] = set(get_args(TLoaderFileFormat))
 
-    @with_config(spec=LoadVolumeConfiguration, namespaces=("load",))
+    @with_config(spec=LoadVolumeConfiguration, sections=("load",))
     def __init__(
         self,
         is_owner: bool,

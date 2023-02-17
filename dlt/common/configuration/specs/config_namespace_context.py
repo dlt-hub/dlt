@@ -4,11 +4,11 @@ from dlt.common.configuration.specs.base_configuration import ContainerInjectabl
 
 
 @configspec(init=True)
-class ConfigNamespacesContext(ContainerInjectableContext):
+class ConfigSectionContext(ContainerInjectableContext):
     pipeline_name: Optional[str]
-    namespaces: Tuple[str, ...] = ()
+    sections: Tuple[str, ...] = ()
 
     if TYPE_CHECKING:
         # provide __init__ signature when type checking
-        def __init__(self, pipeline_name:str = None, namespaces: Tuple[str, ...] = ()) -> None:
+        def __init__(self, pipeline_name:str = None, sections: Tuple[str, ...] = ()) -> None:
             ...

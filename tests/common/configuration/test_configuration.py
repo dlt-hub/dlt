@@ -14,7 +14,7 @@ from dlt.common.configuration.providers import environ as environ_provider, toml
 from dlt.common.configuration.utils import get_resolved_traces, ResolvedValueTrace, serialize_value, deserialize_value, add_config_dict_to_env
 
 from tests.utils import preserve_environ
-from tests.common.configuration.utils import MockProvider, CoercionTestConfiguration, COERCIONS, SecretCredentials, WithCredentialsConfiguration, WrongConfiguration, SecretConfiguration, NamespacedConfiguration, environment, mock_provider, reset_resolved_traces
+from tests.common.configuration.utils import MockProvider, CoercionTestConfiguration, COERCIONS, SecretCredentials, WithCredentialsConfiguration, WrongConfiguration, SecretConfiguration, SectionedConfiguration, environment, mock_provider, reset_resolved_traces
 
 INVALID_COERCIONS = {
     # 'STR_VAL': 'test string',  # string always OK
@@ -103,7 +103,7 @@ class InstrumentedConfiguration(BaseConfiguration):
 class EmbeddedConfiguration(BaseConfiguration):
     default: str
     instrumented: InstrumentedConfiguration
-    namespaced: NamespacedConfiguration
+    sectioned: SectionedConfiguration
 
 
 @configspec
@@ -130,7 +130,7 @@ SecondOrderStr = NewType("SecondOrderStr", FirstOrderStr)
 
 def test_initial_config_state() -> None:
     assert BaseConfiguration.__is_resolved__ is False
-    assert BaseConfiguration.__namespace__ is None
+    assert BaseConfiguration.__section__ is None
     c = BaseConfiguration()
     assert c.__is_resolved__ is False
     assert c.is_resolved() is False
@@ -218,8 +218,8 @@ def test_raises_on_final_value_change(environment: Any) -> None:
 
 
 def test_explicit_native_always_skips_resolve(environment: Any) -> None:
-    # make the instance namespaced so it can read from INSTRUMENTED
-    with patch.object(InstrumentedConfiguration, "__namespace__", "ins"):
+    # make the instance sectioned so it can read from INSTRUMENTED
+    with patch.object(InstrumentedConfiguration, "__section__", "ins"):
         # explicit native representations skips resolve
         environment["INS__HEELS"] = "xhe"
         c = resolve.resolve_configuration(InstrumentedConfiguration(), explicit_value="h>a>b>he")
@@ -240,9 +240,9 @@ def test_explicit_native_always_skips_resolve(environment: Any) -> None:
         assert c.heels == "uhe"
 
 
-def test_lookup_native_config_value_if_config_namespace(environment: Any) -> None:
-    # mock the __namespace__ to enable the query
-    with patch.object(InstrumentedConfiguration, "__namespace__", "snake"):
+def test_lookup_native_config_value_if_config_section(environment: Any) -> None:
+    # mock the __section__ to enable the query
+    with patch.object(InstrumentedConfiguration, "__section__", "snake"):
         c = InstrumentedConfiguration(head="h", tube=["a", "b"], heels="he")
         # provide the native value
         environment["SNAKE"] = "h>tu>be>xhe"
@@ -251,11 +251,11 @@ def test_lookup_native_config_value_if_config_namespace(environment: Any) -> Non
         assert c.heels == "xhe"
 
 
-def test_skip_lookup_native_config_value_if_no_config_namespace(environment: Any) -> None:
-    # the INSTRUMENTED is not looked up because InstrumentedConfiguration has no namespace
+def test_skip_lookup_native_config_value_if_no_config_section(environment: Any) -> None:
+    # the INSTRUMENTED is not looked up because InstrumentedConfiguration has no section
     with custom_environ({"INSTRUMENTED": "he>tu>u>be>h"}):
         with pytest.raises(ConfigFieldMissingException) as py_ex:
-            resolve.resolve_configuration(EmbeddedConfiguration(), explicit_value={"default": "set", "namespaced": {"password": "pwd"}})
+            resolve.resolve_configuration(EmbeddedConfiguration(), explicit_value={"default": "set", "sectioned": {"password": "pwd"}})
         assert py_ex.value.spec_name == "InstrumentedConfiguration"
         assert py_ex.value.fields == ["head", "tube", "heels"]
 
@@ -268,7 +268,7 @@ def test_invalid_native_config_value() -> None:
         resolve.resolve_configuration(InstrumentedConfiguration(), explicit_value=2137)
     assert py_ex.value.spec is InstrumentedConfiguration
     assert py_ex.value.native_value_type is int
-    assert py_ex.value.embedded_namespaces == ()
+    assert py_ex.value.embedded_sections == ()
 
 
 def test_on_resolved(environment: Any) -> None:
@@ -278,49 +278,49 @@ def test_on_resolved(environment: Any) -> None:
 
 
 def test_embedded_config(environment: Any) -> None:
-    # resolve all embedded config, using explicit value for instrumented config and explicit dict for namespaced config
-    C = resolve.resolve_configuration(EmbeddedConfiguration(), explicit_value={"default": "set", "instrumented": "h>tu>be>xhe", "namespaced": {"password": "pwd"}})
+    # resolve all embedded config, using explicit value for instrumented config and explicit dict for sectioned config
+    C = resolve.resolve_configuration(EmbeddedConfiguration(), explicit_value={"default": "set", "instrumented": "h>tu>be>xhe", "sectioned": {"password": "pwd"}})
     assert C.default == "set"
     assert C.instrumented.to_native_representation() == "h>tu>be>xhe"
-    assert C.namespaced.password == "pwd"
+    assert C.sectioned.password == "pwd"
 
     # resolve but providing values via env
     with custom_environ(
-            {"INSTRUMENTED__HEAD": "h", "INSTRUMENTED__TUBE": '["tu", "u", "be"]', "INSTRUMENTED__HEELS": "xhe", "NAMESPACED__PASSWORD": "passwd", "DEFAULT": "DEF"}):
+            {"INSTRUMENTED__HEAD": "h", "INSTRUMENTED__TUBE": '["tu", "u", "be"]', "INSTRUMENTED__HEELS": "xhe", "SECTIONED__PASSWORD": "passwd", "DEFAULT": "DEF"}):
         C = resolve.resolve_configuration(EmbeddedConfiguration())
         assert C.default == "DEF"
         assert C.instrumented.to_native_representation() == "h>tu>u>be>xhe"
-        assert C.namespaced.password == "passwd"
+        assert C.sectioned.password == "passwd"
 
     # resolve partial, partial is passed to embedded
     C = resolve.resolve_configuration(EmbeddedConfiguration(), accept_partial=True)
     assert not C.__is_resolved__
-    assert not C.namespaced.__is_resolved__
+    assert not C.sectioned.__is_resolved__
     assert not C.instrumented.__is_resolved__
 
     # some are partial, some are not
-    with custom_environ({"NAMESPACED__PASSWORD": "passwd"}):
+    with custom_environ({"SECTIONED__PASSWORD": "passwd"}):
         C = resolve.resolve_configuration(EmbeddedConfiguration(), accept_partial=True)
         assert not C.__is_resolved__
-        assert C.namespaced.__is_resolved__
+        assert C.sectioned.__is_resolved__
         assert not C.instrumented.__is_resolved__
 
     # single integrity error fails all the embeds
-    # make the instance namespaced so it can read from INSTRUMENTED
-    with patch.object(InstrumentedConfiguration, "__namespace__", "instrumented"):
+    # make the instance sectioned so it can read from INSTRUMENTED
+    with patch.object(InstrumentedConfiguration, "__section__", "instrumented"):
         with custom_environ({"INSTRUMENTED": "he>tu>u>be>h"}):
             with pytest.raises(RuntimeError):
-                resolve.resolve_configuration(EmbeddedConfiguration(), explicit_value={"default": "set", "namespaced": {"password": "pwd"}})
+                resolve.resolve_configuration(EmbeddedConfiguration(), explicit_value={"default": "set", "sectioned": {"password": "pwd"}})
 
     # part via env part via explicit values
     with custom_environ({"INSTRUMENTED__HEAD": "h", "INSTRUMENTED__TUBE": '["tu", "u", "be"]', "INSTRUMENTED__HEELS": "xhe"}):
-        C = resolve.resolve_configuration(EmbeddedConfiguration(), explicit_value={"default": "set", "namespaced": {"password": "pwd"}})
+        C = resolve.resolve_configuration(EmbeddedConfiguration(), explicit_value={"default": "set", "sectioned": {"password": "pwd"}})
         assert C.instrumented.to_native_representation() == "h>tu>u>be>xhe"
 
 
 def test_embedded_explicit_value_over_provider(environment: Any) -> None:
-    # make the instance namespaced so it can read from INSTRUMENTED
-    with patch.object(InstrumentedConfiguration, "__namespace__", "instrumented"):
+    # make the instance sectioned so it can read from INSTRUMENTED
+    with patch.object(InstrumentedConfiguration, "__section__", "instrumented"):
         with custom_environ({"INSTRUMENTED": "h>tu>u>be>he"}):
             # explicit value over the env
             c = resolve.resolve_configuration(EmbeddedConfiguration(), explicit_value={"instrumented": "h>tu>be>xhe"}, accept_partial=True)
@@ -335,8 +335,8 @@ def test_embedded_explicit_value_over_provider(environment: Any) -> None:
 
 
 def test_provider_values_over_embedded_default(environment: Any) -> None:
-    # make the instance namespaced so it can read from INSTRUMENTED
-    with patch.object(InstrumentedConfiguration, "__namespace__", "instrumented"):
+    # make the instance sectioned so it can read from INSTRUMENTED
+    with patch.object(InstrumentedConfiguration, "__section__", "instrumented"):
         with custom_environ({"INSTRUMENTED": "h>tu>u>be>he"}):
             # read from env - over the default values
             emb = InstrumentedConfiguration().parse_native_representation("h>tu>be>xhe")
@@ -399,7 +399,7 @@ def test_configuration_is_mutable_mapping(environment: Any) -> None:
         assert c[key] == expected_dict[key]
     # version is present as attr but not present in dict
     assert hasattr(c, "__is_resolved__")
-    assert hasattr(c, "__namespace__")
+    assert hasattr(c, "__section__")
 
     # set ops
     # update supported and non existing attributes are ignored
@@ -440,17 +440,17 @@ def test_init_method_gen(environment: Any) -> None:
 def test_multi_derivation_defaults(environment: Any) -> None:
 
     @configspec
-    class MultiConfiguration(MockProdConfiguration, ConfigurationWithOptionalTypes, NamespacedConfiguration):
+    class MultiConfiguration(MockProdConfiguration, ConfigurationWithOptionalTypes, SectionedConfiguration):
         pass
 
     # apparently dataclasses set default in reverse mro so MockProdConfiguration overwrites
     C = MultiConfiguration()
     assert C.pipeline_name == MultiConfiguration.pipeline_name == "comp"
-    # but keys are ordered in MRO so password from NamespacedConfiguration goes first
+    # but keys are ordered in MRO so password from SectionedConfiguration goes first
     keys = list(C.keys())
     assert keys[0] == "password"
     assert keys[-1] == "bool_val"
-    assert C.__namespace__ == "DLT_TEST"
+    assert C.__section__ == "DLT_TEST"
 
 
 def test_raises_on_unresolved_field(environment: Any) -> None:
@@ -509,7 +509,7 @@ def test_coercion_to_hint_types(environment: Any) -> None:
     add_config_dict_to_env(COERCIONS)
 
     C = CoercionTestConfiguration()
-    resolve._resolve_config_fields(C, explicit_values=None, explicit_namespaces=(), embedded_namespaces=(), accept_partial=False)
+    resolve._resolve_config_fields(C, explicit_values=None, explicit_sections=(), embedded_sections=(), accept_partial=False)
 
     for key in COERCIONS:
         assert getattr(C, key) == COERCIONS[key]
@@ -570,7 +570,7 @@ def test_invalid_coercions(environment: Any) -> None:
     add_config_dict_to_env(INVALID_COERCIONS)
     for key, value in INVALID_COERCIONS.items():
         try:
-            resolve._resolve_config_fields(C, explicit_values=None, explicit_namespaces=(), embedded_namespaces=(), accept_partial=False)
+            resolve._resolve_config_fields(C, explicit_values=None, explicit_sections=(), embedded_sections=(), accept_partial=False)
         except ConfigValueCannotBeCoercedException as coerc_exc:
             # must fail exactly on expected value
             if coerc_exc.field_name != key:
@@ -585,7 +585,7 @@ def test_excepted_coercions(environment: Any) -> None:
     C = CoercionTestConfiguration()
     add_config_dict_to_env(COERCIONS)
     add_config_dict_to_env(EXCEPTED_COERCIONS, overwrite_keys=True)
-    resolve._resolve_config_fields(C, explicit_values=None, explicit_namespaces=(), embedded_namespaces=(), accept_partial=False)
+    resolve._resolve_config_fields(C, explicit_values=None, explicit_sections=(), embedded_sections=(), accept_partial=False)
     for key in EXCEPTED_COERCIONS:
         assert getattr(C, key) == COERCED_EXCEPTIONS[key]
 
@@ -710,14 +710,14 @@ def test_secret_value_not_secret_provider(mock_provider: MockProvider) -> None:
 
     # TSecretValue will fail
     with pytest.raises(ValueNotSecretException) as py_ex:
-        resolve.resolve_configuration(SecretConfiguration(), namespaces=("mock",))
+        resolve.resolve_configuration(SecretConfiguration(), sections=("mock",))
     assert py_ex.value.provider_name == "Mock Provider"
     assert py_ex.value.key == "-secret_value"
 
     # anything derived from CredentialsConfiguration will fail
-    with patch.object(SecretCredentials, "__namespace__", "credentials"):
+    with patch.object(SecretCredentials, "__section__", "credentials"):
         with pytest.raises(ValueNotSecretException) as py_ex:
-            resolve.resolve_configuration(WithCredentialsConfiguration(), namespaces=("mock",))
+            resolve.resolve_configuration(WithCredentialsConfiguration(), sections=("mock",))
         assert py_ex.value.provider_name == "Mock Provider"
         assert py_ex.value.key == "-credentials"
 
@@ -780,7 +780,7 @@ def test_last_resolve_exception(environment: Any) -> None:
 
 def test_resolved_trace(environment: Any) -> None:
     with custom_environ(
-            {"INSTRUMENTED__HEAD": "h", "INSTRUMENTED__TUBE": '["tu", "u", "be"]', "INSTRUMENTED__HEELS": "xhe", "NAMESPACED__PASSWORD": "passwd", "DEFAULT": "DEF"}):
+            {"INSTRUMENTED__HEAD": "h", "INSTRUMENTED__TUBE": '["tu", "u", "be"]', "INSTRUMENTED__HEELS": "xhe", "SECTIONED__PASSWORD": "passwd", "DEFAULT": "DEF"}):
         c = resolve.resolve_configuration(EmbeddedConfiguration(default="_DEFF"))
     traces = get_resolved_traces()
     prov_name = environ_provider.EnvironProvider().name
@@ -790,13 +790,13 @@ def test_resolved_trace(environment: Any) -> None:
     assert traces["instrumented.tube"] == ResolvedValueTrace("tube", '["tu", "u", "be"]', None, List[str], ["instrumented"], prov_name, c.instrumented)
     assert deserialize_value("tube", traces["instrumented.tube"].value, resolve.extract_inner_hint(List[str])) == ["tu", "u", "be"]
     assert traces["instrumented.heels"] == ResolvedValueTrace("heels", "xhe", None, str, ["instrumented"], prov_name, c.instrumented)
-    assert traces["namespaced.password"] == ResolvedValueTrace("password", "passwd", None, str, ["namespaced"], prov_name, c.namespaced)
+    assert traces["sectioned.password"] == ResolvedValueTrace("password", "passwd", None, str, ["sectioned"], prov_name, c.sectioned)
     assert len(traces) == 5
 
     # try to get native representation
-    with patch.object(InstrumentedConfiguration, "__namespace__", "snake"):
+    with patch.object(InstrumentedConfiguration, "__section__", "snake"):
         with custom_environ(
-                {"INSTRUMENTED": "h>t>t>t>he", "NAMESPACED__PASSWORD": "pass", "DEFAULT": "UNDEF", "SNAKE": "h>t>t>t>he"}):
+                {"INSTRUMENTED": "h>t>t>t>he", "SECTIONED__PASSWORD": "pass", "DEFAULT": "UNDEF", "SNAKE": "h>t>t>t>he"}):
             c = resolve.resolve_configuration(EmbeddedConfiguration())
             resolve.resolve_configuration(InstrumentedConfiguration())
 

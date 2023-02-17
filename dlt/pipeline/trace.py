@@ -30,7 +30,7 @@ class SerializableResolvedValueTrace(NamedTuple):
     value: Any
     default_value: Any
     is_secret_hint: bool
-    namespaces: Sequence[str]
+    sections: Sequence[str]
     provider_name: str
     config_type_name: str
 
@@ -143,7 +143,7 @@ def end_trace_step(trace: PipelineRuntimeTrace, step: PipelineStepTrace, pipelin
             v.value,
             v.default_value,
             is_secret_hint(v.hint),
-            v.namespaces,
+            v.sections,
             v.provider_name,
             str(type(v.config).__qualname__)
         ) , _RESOLVED_TRACES.values())

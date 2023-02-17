@@ -39,7 +39,7 @@ class Normalize(Runnable[ProcessPool]):
     schema_version_gauge: Gauge = None
     load_package_counter: Counter = None
 
-    @with_config(spec=NormalizeConfiguration, namespaces=("normalize",))
+    @with_config(spec=NormalizeConfiguration, sections=("normalize",))
     def __init__(self, collector: CollectorRegistry = REGISTRY, schema_storage: SchemaStorage = None, config: NormalizeConfiguration = config.value) -> None:
         self.config = config
         self.pool: ProcessPool = None

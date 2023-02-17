@@ -8,11 +8,11 @@ from typing import Any, Callable, ClassVar, Dict, List, Iterator, Mapping, Optio
 
 from dlt import version
 from dlt.common import json, logger, signals, pendulum
-from dlt.common.configuration import inject_namespace
+from dlt.common.configuration import inject_section
 from dlt.common.configuration.specs import RunConfiguration, NormalizeVolumeConfiguration, SchemaVolumeConfiguration, LoadVolumeConfiguration, PoolRunnerConfiguration
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
-from dlt.common.configuration.specs.config_namespace_context import ConfigNamespacesContext
+from dlt.common.configuration.specs.config_namespace_context import ConfigSectionContext
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.runners.runnable import Runnable
 from dlt.common.schema.exceptions import InvalidDatasetName
@@ -120,14 +120,14 @@ def with_runtime_trace(f: TFun) -> TFun:
     return _wrap  # type: ignore
 
 
-def with_config_namespace(namespaces: Tuple[str, ...]) -> Callable[[TFun], TFun]:
+def with_config_section(sections: Tuple[str, ...]) -> Callable[[TFun], TFun]:
 
     def decorator(f: TFun) -> TFun:
 
         @wraps(f)
         def _wrap(self: "Pipeline", *args: Any, **kwargs: Any) -> Any:
-            # add namespace context to the container to be used by all configuration without explicit namespaces resolution
-            with inject_namespace(ConfigNamespacesContext(pipeline_name=self.pipeline_name, namespaces=namespaces)):
+            # add section context to the container to be used by all configuration without explicit sections resolution
+            with inject_section(ConfigSectionContext(pipeline_name=self.pipeline_name, sections=sections)):
                 return f(self, *args, **kwargs)
 
         return _wrap  # type: ignore
@@ -232,7 +232,7 @@ class Pipeline(SupportsPipeline):
     @with_runtime_trace
     @with_schemas_sync  # this must precede with_state_sync
     @with_state_sync(may_extract_state=True)
-    @with_config_namespace(("extract",))
+    @with_config_section(("extract",))
     def extract(
         self,
         data: Any,
@@ -326,7 +326,7 @@ class Pipeline(SupportsPipeline):
 
     @with_runtime_trace
     @with_schemas_sync
-    @with_config_namespace(("normalize",))
+    @with_config_section(("normalize",))
     def normalize(self, workers: int = 1) -> NormalizeInfo:
         """Normalizes the data prepared with `extract` method, infers the schema and creates load packages for the `load` method. Requires `destination` to be known."""
         if is_interactive() and workers > 1:
@@ -361,7 +361,7 @@ class Pipeline(SupportsPipeline):
     @with_runtime_trace
     @with_schemas_sync
     @with_state_sync()
-    @with_config_namespace(("load",))
+    @with_config_section(("load",))
     def load(
         self,
         destination: DestinationReference = None,
@@ -407,7 +407,7 @@ class Pipeline(SupportsPipeline):
             raise
 
     @with_runtime_trace
-    @with_config_namespace(("run",))
+    @with_config_section(("run",))
     def run(
         self,
         data: Any = None,
@@ -751,8 +751,8 @@ class Pipeline(SupportsPipeline):
     def _iterate_source(self, storage: ExtractorStorage, source: DltSource, pipeline_schema: Schema, max_parallel_items: int, workers: int) -> str:
         # generate extract_id to be able to commit all the sources together later
         extract_id = storage.create_extract_id()
-        # inject the config namespace with the current source name
-        with inject_namespace(ConfigNamespacesContext(namespaces=("sources", source.name))):
+        # inject the config section with the current source name
+        with inject_section(ConfigSectionContext(sections=("sources", source.name))):
             # make CTRL-C working while running user code
             with signals.raise_immediately():
                 extractor = extract(extract_id, source, storage, max_parallel_items=max_parallel_items, workers=workers)

@@ -11,11 +11,11 @@ SECRET_STORAGE_PATH: str = "/run/secrets/%s"
 class EnvironProvider(ConfigProvider):
 
     @staticmethod
-    def get_key_name(key: str, *namespaces: str) -> str:
+    def get_key_name(key: str, *sections: str) -> str:
         # env key is always upper case
-        if namespaces:
-            namespaces = filter(lambda x: bool(x), namespaces)  # type: ignore
-            env_key = "__".join((*namespaces, key))
+        if sections:
+            sections = filter(lambda x: bool(x), sections)  # type: ignore
+            env_key = "__".join((*sections, key))
         else:
             env_key = key
         return env_key.upper()
@@ -24,9 +24,9 @@ class EnvironProvider(ConfigProvider):
     def name(self) -> str:
         return "Environment Variables"
 
-    def get_value(self, key: str, hint: Type[Any], *namespaces: str) -> Tuple[Optional[Any], str]:
-        # apply namespace to the key
-        key = self.get_key_name(key, *namespaces)
+    def get_value(self, key: str, hint: Type[Any], *sections: str) -> Tuple[Optional[Any], str]:
+        # apply section to the key
+        key = self.get_key_name(key, *sections)
         if hint is TSecretValue:
             # try secret storage
             try:
@@ -54,5 +54,5 @@ class EnvironProvider(ConfigProvider):
         return True
 
     @property
-    def supports_namespaces(self) -> bool:
+    def supports_sections(self) -> bool:
         return True

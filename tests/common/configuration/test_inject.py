@@ -81,9 +81,9 @@ def test_arguments_dlt_literal_defaults_are_required(environment: Any) -> None:
     assert f_secret(None) == "password"
 
 
-def test_inject_from_argument_namespace(toml_providers: ConfigProvidersContext) -> None:
+def test_inject_from_argument_section(toml_providers: ConfigProvidersContext) -> None:
 
-    # `gcp_storage` is a key in `secrets.toml` and the default `credentials` namespace of GcpClientCredentials must be replaced with it
+    # `gcp_storage` is a key in `secrets.toml` and the default `credentials` section of GcpClientCredentials must be replaced with it
 
     @with_config
     def f_credentials(gcp_storage: GcpClientCredentials = dlt.secrets.value):
@@ -109,10 +109,10 @@ def test_inject_without_spec_kw_only() -> None:
     pass
 
 
-def test_inject_with_auto_namespace(environment: Any) -> None:
+def test_inject_with_auto_section(environment: Any) -> None:
     environment["PIPE__VALUE"] = "test"
 
-    @with_config(auto_namespace=True)
+    @with_config(auto_section=True)
     def f(pipeline_name=dlt.config.value, value=dlt.secrets.value):
         assert value == "test"
 
@@ -129,14 +129,14 @@ def test_inject_with_spec() -> None:
 
 
 @pytest.mark.skip("not implemented")
-def test_inject_with_str_namespaces() -> None:
-    # namespaces param is str not tuple
+def test_inject_with_str_sections() -> None:
+    # sections param is str not tuple
     pass
 
 
 @pytest.mark.skip("not implemented")
-def test_inject_with_func_namespace() -> None:
-    # function to get namespaces from the arguments is provided
+def test_inject_with_func_section() -> None:
+    # function to get sections from the arguments is provided
     pass
 
 

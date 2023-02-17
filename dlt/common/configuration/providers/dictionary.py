@@ -17,8 +17,8 @@ class DictionaryProvider(ConfigProvider):
     def name(self) -> str:
         return self.NAME
 
-    def get_value(self, key: str, hint: Type[Any], *namespaces: str) -> Tuple[Optional[Any], str]:
-        full_path = namespaces + (key,)
+    def get_value(self, key: str, hint: Type[Any], *sections: str) -> Tuple[Optional[Any], str]:
+        full_path = sections + (key,)
         full_key = "__".join(full_path)
         node = self._values
         try:
@@ -35,7 +35,7 @@ class DictionaryProvider(ConfigProvider):
         return True
 
     @property
-    def supports_namespaces(self) -> bool:
+    def supports_sections(self) -> bool:
         return True
 
 

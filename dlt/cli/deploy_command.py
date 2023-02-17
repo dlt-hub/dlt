@@ -115,13 +115,13 @@ def deploy_command(pipeline_script_path: str, deployment_method: str, schedule: 
             for resolved_value in trace.resolved_config_values:
                 if resolved_value.is_secret_hint:
                     # generate special forms for all secrets
-                    secret_envs.append(LookupTrace(env_prov.name, tuple(resolved_value.namespaces), resolved_value.key, resolved_value.value))
-                    # click.echo(f"{resolved_value.key}:{resolved_value.value}{type(resolved_value.value)} in {resolved_value.namespaces} is SECRET")
+                    secret_envs.append(LookupTrace(env_prov.name, tuple(resolved_value.sections), resolved_value.key, resolved_value.value))
+                    # click.echo(f"{resolved_value.key}:{resolved_value.value}{type(resolved_value.value)} in {resolved_value.sections} is SECRET")
                 else:
                     # move all config values that are not in config.toml into env
                     if resolved_value.provider_name != config_prov.name:
-                        envs.append(LookupTrace(env_prov.name, tuple(resolved_value.namespaces), resolved_value.key, resolved_value.value))
-                        # click.echo(f"{resolved_value.key} in {resolved_value.namespaces} moved to CONFIG")
+                        envs.append(LookupTrace(env_prov.name, tuple(resolved_value.sections), resolved_value.key, resolved_value.value))
+                        # click.echo(f"{resolved_value.key} in {resolved_value.sections} moved to CONFIG")
 
         # validate schedule
         schedule_description = cron_descriptor.get_description(schedule)
@@ -141,11 +141,11 @@ def deploy_command(pipeline_script_path: str, deployment_method: str, schedule: 
         workflow["on"]["schedule"] = [{"cron": schedule}]
         workflow["env"] = {}
         for env_var in envs:
-            env_key = env_prov.get_key_name(env_var.key, *env_var.namespaces)
+            env_key = env_prov.get_key_name(env_var.key, *env_var.sections)
             # print(serialize_value(env_var.value))
             workflow["env"][env_key] = str(serialize_value(env_var.value))
         for secret_var in secret_envs:
-            env_key = env_prov.get_key_name(secret_var.key, *secret_var.namespaces)
+            env_key = env_prov.get_key_name(secret_var.key, *secret_var.sections)
             workflow["env"][env_key] = wrap_template_str("secrets.%s") % env_key
 
         # run the correct script at the end
@@ -185,14 +185,14 @@ def deploy_command(pipeline_script_path: str, deployment_method: str, schedule: 
         click.echo("You should now add the secrets to github repository secrets, commit and push the pipeline files to github.")
         click.echo("1. Add the following secret values (typically stored in %s): \n%s\nin %s" % (
             fmt.bold(make_dot_dlt_path(SECRETS_TOML)),
-            fmt.bold("\n".join(env_prov.get_key_name(s_v.key, *s_v.namespaces) for s_v in secret_envs)),
+            fmt.bold("\n".join(env_prov.get_key_name(s_v.key, *s_v.sections) for s_v in secret_envs)),
             fmt.bold(github_origin_to_url(origin, "/settings/secrets/actions"))
         ))
         click.echo()
         # if click.confirm("Do you want to list the values of the secrets in the format suitable for github?", default=True):
         for s_v in secret_envs:
             click.secho("Name:", fg="green")
-            click.echo(fmt.bold(env_prov.get_key_name(s_v.key, *s_v.namespaces)))
+            click.echo(fmt.bold(env_prov.get_key_name(s_v.key, *s_v.sections)))
             click.secho("Secret:", fg="green")
             click.echo(s_v.value)
             click.echo()

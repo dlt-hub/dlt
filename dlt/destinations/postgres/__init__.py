@@ -9,7 +9,7 @@ from dlt.common.destination import DestinationCapabilitiesContext, JobClientBase
 from dlt.destinations.postgres.configuration import PostgresClientConfiguration
 
 
-@with_config(spec=PostgresClientConfiguration, namespaces=("destination", "postgres",))
+@with_config(spec=PostgresClientConfiguration, sections=("destination", "postgres",))
 def _configure(config: PostgresClientConfiguration = config.value) -> PostgresClientConfiguration:
     return config
 

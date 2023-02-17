@@ -8,7 +8,7 @@ from dlt.common.configuration.exceptions import ConfigurationException
 class ConfigProvider(abc.ABC):
 
     @abc.abstractmethod
-    def get_value(self, key: str, hint: Type[Any], *namespaces: str) -> Tuple[Optional[Any], str]:
+    def get_value(self, key: str, hint: Type[Any], *sections: str) -> Tuple[Optional[Any], str]:
         pass
 
     @property
@@ -18,7 +18,7 @@ class ConfigProvider(abc.ABC):
 
     @property
     @abc.abstractmethod
-    def supports_namespaces(self) -> bool:
+    def supports_sections(self) -> bool:
         pass
 
     @property

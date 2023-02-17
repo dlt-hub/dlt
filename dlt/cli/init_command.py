@@ -69,9 +69,9 @@ def _find_source_calls_to_replace(visitor: PipelineScriptVisitor, pipeline_name:
 
 
 def _detect_required_configs(visitor: PipelineScriptVisitor) -> Tuple[Dict[str, WritableConfigValue], Dict[str, WritableConfigValue]]:
-    # all detected secrets with namespaces
+    # all detected secrets with sections
     required_secrets: Dict[str, WritableConfigValue] = {}
-    # all detected configs with namespaces
+    # all detected configs with sections
     required_config: Dict[str, WritableConfigValue] = {}
 
     # skip sources without spec. those are not imported and most probably are inner functions. also skip the sources that are not called
@@ -92,8 +92,8 @@ def _detect_required_configs(visitor: PipelineScriptVisitor) -> Tuple[Dict[str, 
                 val_store = required_config
 
             if val_store is not None:
-                # we are sure that all resources come from single file so we can put them in single namespace
-                # namespaces = () if len(known_imported_sources) == 1 else ("sources", source_name)
+                # we are sure that all resources come from single file so we can put them in single section
+                # sections = () if len(known_imported_sources) == 1 else ("sources", source_name)
                 val_store[source_name + ":" + field_name] = WritableConfigValue(field_name, field_type, ())
 
     return required_secrets, required_config

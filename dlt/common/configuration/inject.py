@@ -4,9 +4,9 @@ from typing import Callable, Dict, Type, Any, Optional, Tuple, TypeVar, overload
 from inspect import Signature, Parameter
 
 from dlt.common.typing import DictStrAny, StrAny, TFun, AnyFun
-from dlt.common.configuration.resolve import resolve_configuration, inject_namespace
+from dlt.common.configuration.resolve import resolve_configuration, inject_section
 from dlt.common.configuration.specs.base_configuration import BaseConfiguration
-from dlt.common.configuration.specs.config_namespace_context import ConfigNamespacesContext
+from dlt.common.configuration.specs.config_namespace_context import ConfigSectionContext
 from dlt.common.reflection.spec import spec_from_signature
 
 
@@ -23,21 +23,21 @@ def get_fun_spec(f: AnyFun) -> Type[BaseConfiguration]:
 
 
 @overload
-def with_config(func: TFun, /, spec: Type[BaseConfiguration] = None, auto_namespace: bool = False, only_kw: bool = False, namespaces: Tuple[str, ...] = ()) ->  TFun:
+def with_config(func: TFun, /, spec: Type[BaseConfiguration] = None, auto_section: bool = False, only_kw: bool = False, sections: Tuple[str, ...] = ()) ->  TFun:
     ...
 
 
 @overload
-def with_config(func: None = ..., /, spec: Type[BaseConfiguration] = None, auto_namespace: bool = False, only_kw: bool = False, namespaces: Tuple[str, ...] = ()) ->  Callable[[TFun], TFun]:
+def with_config(func: None = ..., /, spec: Type[BaseConfiguration] = None, auto_section: bool = False, only_kw: bool = False, sections: Tuple[str, ...] = ()) ->  Callable[[TFun], TFun]:
     ...
 
 
-def with_config(func: Optional[AnyFun] = None, /, spec: Type[BaseConfiguration] = None, auto_namespace: bool = False, only_kw: bool = False, namespaces: Tuple[str, ...] = ()) ->  Callable[[TFun], TFun]:
+def with_config(func: Optional[AnyFun] = None, /, spec: Type[BaseConfiguration] = None, auto_section: bool = False, only_kw: bool = False, sections: Tuple[str, ...] = ()) ->  Callable[[TFun], TFun]:
 
-    namespace_f: Callable[[StrAny], str] = None
-    # namespace may be a function from function arguments to namespace
-    if callable(namespaces):
-        namespace_f = namespaces
+    section_f: Callable[[StrAny], str] = None
+    # section may be a function from function arguments to section
+    if callable(sections):
+        section_f = sections
 
     def decorator(f: TFun) -> TFun:
         SPEC: Type[BaseConfiguration] = None
@@ -45,7 +45,7 @@ def with_config(func: Optional[AnyFun] = None, /, spec: Type[BaseConfiguration] 
         kwargs_arg = next((p for p in sig.parameters.values() if p.kind == Parameter.VAR_KEYWORD), None)
         spec_arg: Parameter = None
         pipeline_name_arg: Parameter = None
-        namespace_context = ConfigNamespacesContext()
+        section_context = ConfigSectionContext()
 
         if spec is None:
             SPEC = spec_from_signature(f, sig, only_kw)
@@ -59,8 +59,8 @@ def with_config(func: Optional[AnyFun] = None, /, spec: Type[BaseConfiguration] 
             if p.annotation is SPEC:
                 # if any argument has type SPEC then us it to take initial value
                 spec_arg = p
-            if p.name == "pipeline_name" and auto_namespace:
-                # if argument has name pipeline_name and auto_namespace is used, use it to generate namespace context
+            if p.name == "pipeline_name" and auto_section:
+                # if argument has name pipeline_name and auto_section is used, use it to generate section context
                 pipeline_name_arg = p
                 pipeline_name_arg_default = None if p.default == Parameter.empty else p.default
 
@@ -74,21 +74,21 @@ def with_config(func: Optional[AnyFun] = None, /, spec: Type[BaseConfiguration] 
             if _LAST_DLT_CONFIG in kwargs:
                 config = last_config(**kwargs)
             else:
-                # if namespace derivation function was provided then call it
-                nonlocal namespaces
-                if namespace_f:
-                    namespaces = (namespace_f(bound_args.arguments), )
-                # namespaces may be a string
-                if isinstance(namespaces, str):
-                    namespaces = (namespaces,)
+                # if section derivation function was provided then call it
+                nonlocal sections
+                if section_f:
+                    sections = (section_f(bound_args.arguments), )
+                # sections may be a string
+                if isinstance(sections, str):
+                    sections = (sections,)
                 # if one of arguments is spec the use it as initial value
                 if spec_arg:
                     config = bound_args.arguments.get(spec_arg.name, None)
-                # resolve SPEC, also provide namespace_context with pipeline_name
+                # resolve SPEC, also provide section_context with pipeline_name
                 if pipeline_name_arg:
-                    namespace_context.pipeline_name = bound_args.arguments.get(pipeline_name_arg.name, pipeline_name_arg_default)
-                with inject_namespace(namespace_context):
-                    config = resolve_configuration(config or SPEC(), namespaces=namespaces, explicit_value=bound_args.arguments)
+                    section_context.pipeline_name = bound_args.arguments.get(pipeline_name_arg.name, pipeline_name_arg_default)
+                with inject_section(section_context):
+                    config = resolve_configuration(config or SPEC(), sections=sections, explicit_value=bound_args.arguments)
             resolved_params = dict(config)
             bound_args.apply_defaults()
             # overwrite or add resolved params

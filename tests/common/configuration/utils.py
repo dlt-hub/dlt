@@ -58,8 +58,8 @@ class WithCredentialsConfiguration(BaseConfiguration):
 
 
 @configspec
-class NamespacedConfiguration(BaseConfiguration):
-    __namespace__ = "DLT_TEST"
+class SectionedConfiguration(BaseConfiguration):
+    __section__ = "DLT_TEST"
 
     password: str = None
 
@@ -108,25 +108,24 @@ class MockProvider(ConfigProvider):
         self.reset_stats()
 
     def reset_stats(self) -> None:
-        self.last_namespace: Tuple[str] = None
-        self.last_namespaces: List[Tuple[str]] = []
+        self.last_section: Tuple[str] = None
+        self.last_sections: List[Tuple[str]] = []
 
-    def get_value(self, key: str, hint: Type[Any], *namespaces: str) -> Tuple[Optional[Any], str]:
-        self.last_namespace = namespaces
-        self.last_namespaces.append(namespaces)
-        # print("|".join(namespaces) + "-" + key)
-        if namespaces == self.return_value_on:
+    def get_value(self, key: str, hint: Type[Any], *sections: str) -> Tuple[Optional[Any], str]:
+        self.last_section = sections
+        self.last_sections.append(sections)
+        if sections == self.return_value_on:
             rv = self.value
         else:
             rv = None
-        return rv, "|".join(namespaces) + "-" + key
+        return rv, "|".join(sections) + "-" + key
 
     @property
     def supports_secrets(self) -> bool:
         return False
 
     @property
-    def supports_namespaces(self) -> bool:
+    def supports_sections(self) -> bool:
         return True
 
     @property
