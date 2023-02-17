@@ -161,7 +161,7 @@ Yeah definitely possible. Just replace `@source` with `@resource` decorator.
 
 ```python
 @dlt.resource(name="logs", write_disposition="append")
-def taktile_data(initial_log_id, taktile_api_key):
+def taktile_data(initial_log_id, taktile_api_key=dlt.secret.value):
 
     # yes, this will also work but data will be obtained immediately when taktile_data() is called.
     resp = requests.get(
@@ -192,6 +192,11 @@ When using the state:
 ## Stream resources
 What about resource like rasa tracker or singer tap that send a stream of events that should be routed to different tables? we have an answer: `dlt.with_table_name` see [here](docs/examples/sources/rasa/rasa.py) and [here](docs/examples/sources/singer_tap.py)
 
+## Source / resource config sections and arguments injection
+You should read [secrets_and_config](secrets_and_config.md) now to understand how configs and credentials are passed to the decorated functions and how the users of them can configure their projects.
+
+Also look at the following [test](/tests/extract/test_decorators.py) : `test_source_sections`
+
 ## Example sources and resources
 
 ### With inner resource function
@@ -207,7 +212,7 @@ import dlt
 # @source may also **yield** resources or generators - if yielding is more convenient
 # if @source returns or yields data - this will generate exception with a proper explanation. dlt user can always load the data directly without any decorators like in the previous example!
 @dlt.source
-def taktile_data(initial_log_id, taktile_api_key):
+def taktile_data(initial_log_id, taktile_api_key=dlt.secret.value):
 
     # the `dlt.resource` tells the `dlt.source` that the function defines a resource
     # will use function name `logs` as resource/table name by default
@@ -234,7 +239,7 @@ def taktile_data(initial_log_id, taktile_api_key):
 ### With outer generator yielding data, and @resource created dynamically
 ```python
 
-def taktile_logs_data(initial_log_id, taktile_api_key)
+def taktile_logs_data(initial_log_id, taktile_api_key=dlt.secret.value)
     yield data
 
 
@@ -250,7 +255,7 @@ Example of the above
 from taktile.resources import logs
 
 @dlt.source
-def taktile_data(initial_log_id, taktile_api_key):
+def taktile_data(initial_log_id, taktile_api_key=dlt.secret.value):
     return logs(initial_log_id, taktile_api_key)
 ```
 
@@ -306,6 +311,11 @@ You can attach any number of transformations to your resource that are evaluated
 * ☮️ map - modify the data item
 * filter
 * ☮️ flat map - a map that returns iterator (so single row may generate many rows)
+
+* ☮️ a recursive versions of the map, filter and flat map which can be applied to any nesting level of the data item (the standard transformations work on recursion level 0). Possible applications
+  - ☮️ recursive rename of dict keys
+  - ☮️ converting all values to strings
+  - etc.
 
 > Your transformations always deal with single items even if you return lists.
 > It is a good practice to provide a list of transformations in your source that user can pick up to customize the pipeline. Ie. the field rename could be a transformation.

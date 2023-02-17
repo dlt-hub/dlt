@@ -6,13 +6,13 @@ from dlt.common.data_writers import TLoaderFileFormat
 from dlt.common.data_writers.exceptions import BufferedDataWriterClosed, DestinationCapabilitiesRequired, InvalidFileNameTemplateException
 from dlt.common.data_writers.writers import DataWriter
 from dlt.common.schema.typing import TTableSchemaColumns
-from dlt.common.configuration import with_config
+from dlt.common.configuration import with_config, known_sections
 from dlt.common.destination import DestinationCapabilitiesContext
 
 
 class BufferedDataWriter:
 
-    @with_config(only_kw=True, sections=("data_writer",))
+    @with_config(only_kw=True, sections=(known_sections.DATA_WRITER,))
     def __init__(
         self,
         file_format: TLoaderFileFormat,

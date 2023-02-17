@@ -337,7 +337,7 @@ class PipeIterator(Iterator[PipeItem]):
         futures_poll_interval: float = 0.01
         copy_on_fork: bool = False
 
-        __namespace__ = "extract"
+        __sections__ = "extract"
 
     def __init__(self, max_parallel_items: int, workers: int, futures_poll_interval: float) -> None:
         self.max_parallel_items = max_parallel_items

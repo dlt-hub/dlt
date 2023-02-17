@@ -1,7 +1,7 @@
 from typing import Type
 
 from dlt.common.schema.schema import Schema
-from dlt.common.configuration import with_config
+from dlt.common.configuration import with_config, known_sections
 from dlt.common.configuration.accessors import config
 from dlt.common.data_writers.escape import escape_postgres_identifier, escape_postgres_literal
 from dlt.common.destination import DestinationCapabilitiesContext, JobClientBase, DestinationClientConfiguration
@@ -9,7 +9,7 @@ from dlt.common.destination import DestinationCapabilitiesContext, JobClientBase
 from dlt.destinations.postgres.configuration import PostgresClientConfiguration
 
 
-@with_config(spec=PostgresClientConfiguration, sections=("destination", "postgres",))
+@with_config(spec=PostgresClientConfiguration, sections=(known_sections.DESTINATION, "postgres",))
 def _configure(config: PostgresClientConfiguration = config.value) -> PostgresClientConfiguration:
     return config
 

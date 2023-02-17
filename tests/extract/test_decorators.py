@@ -1,9 +1,14 @@
+import os
 import pytest
 
 import dlt
-from dlt.extract.exceptions import InvalidResourceDataTypeFunctionNotAGenerator, InvalidResourceDataTypeIsNone, ParametrizedResourceUnbound, PipeNotBoundToData, ResourceFunctionExpected, SourceDataIsNone, SourceIsAClassTypeError, SourceNotAFunction
-from dlt.extract.source import DltResource
+from dlt.common.configuration import known_sections
+from dlt.common.schema import Schema
+from dlt.common.schema.utils import new_table
+from dlt.extract.exceptions import InvalidResourceDataTypeFunctionNotAGenerator, InvalidResourceDataTypeIsNone, ParametrizedResourceUnbound, PipeNotBoundToData, ResourceFunctionExpected, SourceDataIsNone, SourceIsAClassTypeError, SourceNotAFunction, SourceSchemaNotAvailable
+from dlt.extract.source import DltResource, DltSource
 
+from tests.utils import preserve_environ
 from tests.common.utils import IMPORTED_VERSION_HASH_ETH_V5
 
 
@@ -138,6 +143,97 @@ def test_resource_name_from_generator() -> None:
     assert r.name == "some_data"
 
 
+def test_source_sections() -> None:
+    # source in __init__.py of module
+    from tests.extract.cases.section_source import init_source_f_1, init_resource_f_2
+    # source in file module with name override
+    from tests.extract.cases.section_source.named_module import source_f_1, resource_f_2
+
+    # we crawl the sections from the most general (no section) to full path
+
+    # values without section
+    os.environ["VAL"] = "TOP LEVEL"
+    assert list(init_source_f_1()) == ["TOP LEVEL"]
+    assert list(init_resource_f_2()) == ["TOP LEVEL"]
+    assert list(source_f_1()) == ["TOP LEVEL"]
+    assert list(resource_f_2()) == ["TOP LEVEL"]
+
+    # values in sources section
+    os.environ[f"{known_sections.SOURCES.upper()}__VAL"] = "SOURCES LEVEL"
+    assert list(init_source_f_1()) == ["SOURCES LEVEL"]
+    assert list(init_resource_f_2()) == ["SOURCES LEVEL"]
+    assert list(source_f_1()) == ["SOURCES LEVEL"]
+    assert list(resource_f_2()) == ["SOURCES LEVEL"]
+
+    # values in module section
+    os.environ[f"{known_sections.SOURCES.upper()}__SECTION_SOURCE__VAL"] = "SECTION SOURCE LEVEL"
+    assert list(init_source_f_1()) == ["SECTION SOURCE LEVEL"]
+    assert list(init_resource_f_2()) == ["SECTION SOURCE LEVEL"]
+    # here overridden by __source_name__
+    os.environ[f"{known_sections.SOURCES.upper()}__NAME_OVERRIDDEN__VAL"] = "NAME OVERRIDDEN LEVEL"
+    assert list(source_f_1()) == ["NAME OVERRIDDEN LEVEL"]
+    assert list(resource_f_2()) == ["NAME OVERRIDDEN LEVEL"]
+
+    # values in function name section
+    os.environ[f"{known_sections.SOURCES.upper()}__SECTION_SOURCE__INIT_SOURCE_F_1__VAL"] = "SECTION INIT_SOURCE_F_1 LEVEL"
+    assert list(init_source_f_1()) == ["SECTION INIT_SOURCE_F_1 LEVEL"]
+    os.environ[f"{known_sections.SOURCES.upper()}__SECTION_SOURCE__INIT_RESOURCE_F_2__VAL"] = "SECTION INIT_RESOURCE_F_2 LEVEL"
+    assert list(init_resource_f_2()) == ["SECTION INIT_RESOURCE_F_2 LEVEL"]
+    os.environ[f"{known_sections.SOURCES.upper()}__NAME_OVERRIDDEN__SOURCE_F_1__VAL"] = "NAME SOURCE_F_1 LEVEL"
+    assert list(source_f_1()) == ["NAME SOURCE_F_1 LEVEL"]
+    os.environ[f"{known_sections.SOURCES.upper()}__NAME_OVERRIDDEN__RESOURCE_F_2__VAL"] = "NAME RESOURCE_F_2 LEVEL"
+    assert list(resource_f_2()) == ["NAME RESOURCE_F_2 LEVEL"]
+
+
+def test_source_schema_context() -> None:
+    import dlt
+
+    # global schema directly in the module
+    global_schema = Schema("global")
+
+    # not called from the source
+    with pytest.raises(SourceSchemaNotAvailable):
+        dlt.current.source_schema()
+
+    def _assert_source_schema(s: DltSource, expected_name: str) -> None:
+        assert list(s) == [1, 2, 3]
+        assert s.discover_schema().name == expected_name
+        assert "source_table" in s.discover_schema()._schema_tables
+
+    # schema created by the source
+    @dlt.source
+    def created_ad_hoc():
+        schema = dlt.current.source_schema()
+        assert schema.name == "created_ad_hoc"
+        # modify schema in place
+        schema.update_schema(new_table("source_table"))
+        return dlt.resource([1, 2, 3], name="res")
+
+    _assert_source_schema(created_ad_hoc(), "created_ad_hoc")
+
+    # schema created directly
+    @dlt.source(schema=Schema("explicit"))
+    def created_explicit():
+        schema = dlt.current.source_schema()
+        assert schema.name == "explicit"
+        # modify schema in place
+        schema.update_schema(new_table("source_table"))
+        return dlt.resource([1, 2, 3], name="res")
+
+    _assert_source_schema(created_explicit(), "explicit")
+
+    # schema instance from a module
+    @dlt.source(schema=global_schema)
+    def created_global():
+        schema = dlt.current.source_schema()
+        assert schema.name == "global"
+        # modify schema in place
+        schema.update_schema(new_table("source_table"))
+        return dlt.resource([1, 2, 3], name="res")
+
+    _assert_source_schema(created_global(), "global")
+
+
 @pytest.mark.skip
 def test_resource_sets_invalid_write_disposition() -> None:
     # write_disposition="xxx" # this will fail schema
@@ -153,6 +249,7 @@ def test_class_source() -> None:
         def __call__(self, more: int = 1):
             return dlt.resource(["A", "V"] * self.elems * more, name="_list")
 
+    # CAN decorate callable classes
     s = dlt.source(_Source(4))(more=1)
     assert s.name == "_Source"
     schema = s.discover_schema()
@@ -160,6 +257,7 @@ def test_class_source() -> None:
     assert "_list" in schema._schema_tables
     assert list(s) == ['A', 'V', 'A', 'V', 'A', 'V', 'A', 'V']
 
+    # CAN'T decorate classes themselves
     with pytest.raises(SourceIsAClassTypeError):
         @dlt.source(name="planB")
         class _SourceB:

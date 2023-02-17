@@ -203,22 +203,26 @@ tabs=["tab1", "tab2"]
 pipeline_name
     |
     |-sources
-        |-<source name 1>
-        | |- all source and resource options and secrets
-        |-<source name 2>
-        | |- all source and resource options and secrets
+        |-<source 1 module name>
+          |-<source function 1 name>
+            |- {all source and resource options and secrets}
+          |-<source function 2 name>
+            |- {all source and resource options and secrets}
+        |-<source 2 module>
+          |...
+
         |-extract
           |- extract options for resources ie. parallelism settings, maybe retries
     |-destination
         |- <destination name>
-          |-all destination options and secrets
+          |- {destination options}
+            |-credentials
+              |-{credentials options}
     |-schema
         |-<schema name>
             |-schema settings: not implemented but I'll let people set nesting level, name convention, normalizer etc. here
     |-load
     |-normalize
-    |--extract
-        |-all extract options ie.
 ```
 
 Lookup rules:
@@ -282,6 +286,18 @@ client_email = <client_email from services.json>
 private_key = <private_key from services.json>
 project_id = <project_id from services json>
 ```
+
+### The `sources` section
+Config and secrets for decorated sources and resources are kept in `sources.<source module name>.<function_name>` section. **All sections are optionsl**. For example if source module is named
+`pipedrive` and the function decorated with `@dlt.source` is `deals(api_key: str=...)` then `dlt` will look for api key in:
+1. `sources.pipedrive.deals.api_key`
+2. `sources.pipedrive.api_key`
+3. `sources.api_key`
+4. `api_key`
+
+Step 2 in search path allows all the sources/resources in a module to share the same set of credentials.
+
+Also look at the following [test](/tests/extract/test_decorators.py) : `test_source_sections`
 
 ## Understanding the exceptions
 Now we can finally understand the `ConfigFieldMissingException`. Let's run `chess.py` example without providing the password:

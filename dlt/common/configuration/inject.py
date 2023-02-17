@@ -12,10 +12,10 @@ from dlt.common.reflection.spec import spec_from_signature
 
 _LAST_DLT_CONFIG = "_dlt_config"
 _ORIGINAL_ARGS = "_dlt_orig_args"
-TConfiguration = TypeVar("TConfiguration", bound=BaseConfiguration)
 # keep a registry of all the decorated functions
 _FUNC_SPECS: Dict[int, Type[BaseConfiguration]] = {}
 
+TConfiguration = TypeVar("TConfiguration", bound=BaseConfiguration)
 
 
 def get_fun_spec(f: AnyFun) -> Type[BaseConfiguration]:

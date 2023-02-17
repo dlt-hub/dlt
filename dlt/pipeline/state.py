@@ -9,7 +9,7 @@ import pendulum
 import dlt
 
 from dlt.common import json
-from dlt.common.configuration import configspec
+from dlt.common.configuration import configspec, known_sections
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import ContextDefaultCannotBeCreated
 from dlt.common.configuration.specs import ContainerInjectableContext
@@ -168,7 +168,7 @@ def state() -> DictStrAny:
     source_name: str = None
     with contextlib.suppress(ContextDefaultCannotBeCreated):
         sections = container[ConfigSectionContext].sections
-        if sections and len(sections) > 1 and sections[0] == "sources":
+        if sections and len(sections) > 1 and sections[0] == known_sections.SOURCES:
             source_name = sections[1]
     try:
         # get managed state that is read/write
@@ -183,7 +183,7 @@ def state() -> DictStrAny:
             # TODO: make sure that state if up to date by syncing the pipeline earlier
             state = proxy.pipeline().state  # type: ignore
 
-    source_state = state.setdefault("sources", {})
+    source_state: DictStrAny = state.setdefault(known_sections.SOURCES, {})  # type: ignore
     if source_name:
         source_state = source_state.setdefault(source_name, {})
 

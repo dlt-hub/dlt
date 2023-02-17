@@ -3,7 +3,7 @@ from multiprocessing.pool import ThreadPool
 from prometheus_client import REGISTRY, Counter, Gauge, CollectorRegistry, Summary
 
 from dlt.common import sleep, logger
-from dlt.common.configuration import with_config
+from dlt.common.configuration import with_config, known_sections
 from dlt.common.configuration.accessors import config
 from dlt.common.typing import StrAny
 from dlt.common.runners import TRunMetrics, Runnable, workermethod
@@ -29,7 +29,7 @@ class Load(Runnable[ThreadPool]):
     job_counter: Counter = None
     job_wait_summary: Summary = None
 
-    @with_config(spec=LoaderConfiguration, sections=("load",))
+    @with_config(spec=LoaderConfiguration, sections=(known_sections.LOAD,))
     def __init__(
         self,
         destination: DestinationReference,

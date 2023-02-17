@@ -13,6 +13,7 @@ from dlt.common.typing import StrAny, TDataItems
 @dlt.source
 def chess(chess_url: str = dlt.config.value, title: str = "GM", max_players: int = 2, year: int = 2022, month: int = 10) -> Any:
 
+    # TODO: retry does not preserve typings, re-implement it
     @retry(tries=10, delay=1, backoff=1.1)
     def _get_data_with_retry(path: str) -> StrAny:
         r = requests.get(f"{chess_url}{path}")
@@ -30,10 +31,10 @@ def chess(chess_url: str = dlt.config.value, title: str = "GM", max_players: int
     # you can still have yielding transformers, look for the test named `test_evolve_schema`
     @dlt.transformer(data_from=players, write_disposition="replace")
     @dlt.defer
-    def players_profiles(username: Any) -> Iterator[TDataItems]:
+    def players_profiles(username: Any) -> TDataItems:
         print(f"getting {username} profile via thread {threading.current_thread().name}")
         sleep(1) # add some latency to show parallel runs
-        return _get_data_with_retry(f"player/{username}")
+        return _get_data_with_retry(f"player/{username}")  # type: ignore
 
     # this resource takes data from players and returns games for the last month if not specified otherwise
     @dlt.transformer(data_from=players, write_disposition="append")
