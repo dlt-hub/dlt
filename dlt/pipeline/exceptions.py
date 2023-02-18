@@ -40,7 +40,7 @@ class SqlClientNotAvailable(PipelineException):
 class PipelineStepFailed(PipelineException):
     def __init__(self, pipeline: SupportsPipeline, step: TPipelineStep, exception: BaseException, run_metrics: TRunMetrics, step_info: Any = None) -> None:
         self.pipeline = pipeline
-        self.stage = step
+        self.step = step
         self.exception = exception
         self.run_metrics = run_metrics
         self.step_info = step_info

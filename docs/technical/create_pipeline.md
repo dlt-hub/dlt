@@ -189,6 +189,11 @@ When using the state:
 * The state available in the `dlt source` is read only and any changes will be discarded. Still it may be used to initialize the resources.
 * The state available in the `dlt resource` is writable and written values will be available only once
 
+### State sharing and isolation across sources
+
+1. Each source and resources contained within (no matter if they are standalone, inner or created dynamically) share the same state dictionary and is separated from other sources
+2. All the standalone resources and generators that do not belong to any source share the same state when being extracted (they are extracted withing ad-hoc created source)
+
 ## Stream resources
 What about resource like rasa tracker or singer tap that send a stream of events that should be routed to different tables? we have an answer: `dlt.with_table_name` see [here](docs/examples/sources/rasa/rasa.py) and [here](docs/examples/sources/singer_tap.py)
 

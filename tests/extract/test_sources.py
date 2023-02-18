@@ -43,7 +43,7 @@ def test_parametrized_resource() -> None:
 
     # as part of the source
     r = DltResource.from_data(parametrized)
-    s = DltSource("source", Schema("source"), [r])
+    s = DltSource("source", "module", Schema("source"), [r])
 
     with pytest.raises(ParametrizedResourceUnbound) as py_ex:
         list(s)
@@ -311,7 +311,7 @@ def test_source_multiple_iterations() -> None:
         yield [1, 2, 3]
         yield [1, 2, 3]
 
-    s = DltSource("source", Schema("default"), [dlt.resource(some_data())])
+    s = DltSource("source", "module", Schema("default"), [dlt.resource(some_data())])
     assert s.exhausted is False
     assert list(s) == [1, 2, 3, 1, 2, 3]
     assert s.exhausted is True

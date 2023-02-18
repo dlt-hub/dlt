@@ -14,7 +14,7 @@ from tests.utils import autouse_test_storage, test_storage
 from tests.pipeline.utils import drop_dataset_from_env, json_case_path, load_json_case, patch_working_dir, drop_pipeline
 
 
-@dlt.resource
+@dlt.resource()
 def some_data():
     last_value = dlt.state().get("last_value", 0)
     yield [1,2,3]
@@ -22,33 +22,36 @@ def some_data():
 
 
 def test_managed_state() -> None:
-
     p = dlt.pipeline(pipeline_name="managed_state")
     p.extract(some_data)
-    # managed state becomes the source name
-    state = p.state["sources"]
-    assert "managed_state" in state
-    assert state["managed_state"]["last_value"] == 1
+    sources_state = p.state["sources"]
+    # standalone resources get state in the section named same as pipeline
+    assert p.pipeline_name in sources_state
+    assert sources_state[p.pipeline_name]["last_value"] == 1
     # run again - increases the last_value
     p.extract(some_data())
-    state = p.state["sources"]
-    assert state["managed_state"]["last_value"] == 2
+    sources_state = p.state["sources"]
+    assert sources_state[p.pipeline_name]["last_value"] == 2
     # attach to different source that will get separate state
 
     @dlt.source
     def some_source():
+        assert "last_value" not in dlt.state()
         return some_data
 
-    p.extract(some_source())
-    state = p.state["sources"]
-    assert state["some_source"]["last_value"] == 1
-    assert state["managed_state"]["last_value"] == 2
-    # attach to a different source by forcing to different schema
+    s = some_source()
+    p.extract(s)
+    sources_state = p.state["sources"]
+    # source and all the resources within get the same state (section named after source section)
+    assert sources_state[s.section]["last_value"] == 1
+    assert sources_state[p.pipeline_name]["last_value"] == 2  # the state for standalone resource not affected
+
+    # the state of the standalone resource does not depend on the schema
     p.extract(some_data(), schema=Schema("default"))
-    state = p.state["sources"]
-    assert state["some_source"]["last_value"] == 1
-    assert state["managed_state"]["last_value"] == 2
-    assert state["default"]["last_value"] == 1
+    sources_state = p.state["sources"]
+    assert sources_state[s.section]["last_value"] == 1
+    assert sources_state[p.pipeline_name]["last_value"] == 3  # increased
+    assert "default" not in sources_state
 
 
 def test_must_have_active_pipeline() -> None:
@@ -66,7 +69,7 @@ def test_must_have_active_pipeline() -> None:
 
     with pytest.raises(PipelineStateNotAvailable) as py_ex:
         some_source()
-    assert py_ex.value.source_name == "some_source"
+    assert py_ex.value.source_name == "test_pipeline_state"
 
 
 def test_unmanaged_state() -> None:
@@ -90,24 +93,24 @@ def test_unmanaged_state() -> None:
         state["last_value"] = value + 1
         return some_data
 
-    some_source()
+    s = some_source()
     # this time the source is there
-    assert state_module._last_full_state["sources"]["some_source"]["last_value"] == 1
+    assert state_module._last_full_state["sources"][s.section]["last_value"] == 1
     # but the state is discarded
     some_source()
-    assert state_module._last_full_state["sources"]["some_source"]["last_value"] == 1
+    assert state_module._last_full_state["sources"][s.section]["last_value"] == 1
 
     # but when you run it inside pipeline
     p.extract(some_source())
-    state = p.state["sources"]
-    assert state["some_source"]["last_value"] == 1
+    sources_state = p.state["sources"]
+    assert sources_state[s.section]["last_value"] == 1
 
     # the unmanaged call later gets the correct pipeline state
     some_source()
-    assert state_module._last_full_state["sources"]["some_source"]["last_value"] == 2
+    assert state_module._last_full_state["sources"][s.section]["last_value"] == 2
     # again - discarded
-    state = p.state["sources"]
-    assert state["some_source"]["last_value"] == 1
+    sources_state = p.state["sources"]
+    assert sources_state[s.section]["last_value"] == 1
 
 
 def test_migrate_state(test_storage: FileStorage) -> None:

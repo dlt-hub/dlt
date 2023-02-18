@@ -38,7 +38,10 @@ def inject_section(section_context: ConfigSectionContext, merge_existing: bool =
 
     Args:
         section_context (ConfigSectionContext): Instance providing a pipeline name and section context
-        merge_existing (bool, optional): Gets `pipeline_name` and `sections` from existing context if they are not provided in `section` argument. Defaults to True.
+        merge_existing (bool, optional): Merges existing section context with `section_context` in the arguments by executing `merge_style` function on `section_context`. Defaults to True.
+
+    Default Merge Style:
+        Gets `pipeline_name` and `sections` from existing context if they are not provided in `section_context` argument.
 
     Yields:
         Iterator[ConfigSectionContext]: Context manager with current section context
@@ -47,8 +50,7 @@ def inject_section(section_context: ConfigSectionContext, merge_existing: bool =
     existing_context = container[ConfigSectionContext]
 
     if merge_existing:
-        section_context.pipeline_name = section_context.pipeline_name or existing_context.pipeline_name
-        section_context.sections = section_context.sections or existing_context.sections
+        section_context.merge(existing_context)
 
     return container.injectable_context(section_context)
 

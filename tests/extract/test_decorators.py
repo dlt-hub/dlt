@@ -3,6 +3,8 @@ import pytest
 
 import dlt
 from dlt.common.configuration import known_sections
+from dlt.common.configuration.resolve import inject_section
+from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.schema import Schema
 from dlt.common.schema.utils import new_table
 from dlt.extract.exceptions import InvalidResourceDataTypeFunctionNotAGenerator, InvalidResourceDataTypeIsNone, ParametrizedResourceUnbound, PipeNotBoundToData, ResourceFunctionExpected, SourceDataIsNone, SourceIsAClassTypeError, SourceNotAFunction, SourceSchemaNotAvailable
@@ -184,6 +186,56 @@ def test_source_sections() -> None:
     os.environ[f"{known_sections.SOURCES.upper()}__NAME_OVERRIDDEN__RESOURCE_F_2__VAL"] = "NAME RESOURCE_F_2 LEVEL"
     assert list(resource_f_2()) == ["NAME RESOURCE_F_2 LEVEL"]
 
+
+def test_resources_injected_sections() -> None:
+    from tests.extract.cases.section_source.external_resources import with_external, with_bound_external
+    # standalone resources must accept the injected sections for lookups
+    os.environ["SOURCES__EXTERNAL_RESOURCES__SOURCE_VAL"] = "SOURCES__EXTERNAL_RESOURCES__SOURCE_VAL"
+    os.environ["SOURCES__EXTERNAL_RESOURCES__VAL"] = "SOURCES__EXTERNAL_RESOURCES__VAL"
+    os.environ["SOURCES__SECTION_SOURCE__VAL"] = "SOURCES__SECTION_SOURCE__VAL"
+    os.environ["SOURCES__NAME_OVERRIDDEN__VAL"] = "SOURCES__NAME_OVERRIDDEN__VAL"
+
+    # the source returns: it's own argument, same via inner resource, and two external resources
+    # the external resources use their standalone sections: no section context is injected
+    assert list(with_external()) == [
+        "SOURCES__EXTERNAL_RESOURCES__SOURCE_VAL",
+        "SOURCES__EXTERNAL_RESOURCES__SOURCE_VAL",
+        "SOURCES__SECTION_SOURCE__VAL","SOURCES__NAME_OVERRIDDEN__VAL"
+    ]
+    # this source will bind external resources before returning them (that is: calling them and obtaining generators)
+    # to arguments are injected in source namespace
+    assert list(with_bound_external()) == [
+        "SOURCES__EXTERNAL_RESOURCES__SOURCE_VAL",
+        "SOURCES__EXTERNAL_RESOURCES__SOURCE_VAL",
+        "SOURCES__EXTERNAL_RESOURCES__VAL",
+        "SOURCES__EXTERNAL_RESOURCES__VAL"
+    ]
+
+    # inject the source sections like the Pipeline object would
+    s = with_external()
+    assert s.name == "with_external"
+    assert s.section == "external_resources"  # from module name hosting the function
+    with inject_section(ConfigSectionContext(pipeline_name="injected_external", sections=("sources", s.section, s.name))):
+        # now the external sources must adopt the injected namespace
+        assert(list(s)) == [
+            "SOURCES__EXTERNAL_RESOURCES__SOURCE_VAL",
+            "SOURCES__EXTERNAL_RESOURCES__SOURCE_VAL",
+            "SOURCES__EXTERNAL_RESOURCES__VAL",
+            "SOURCES__EXTERNAL_RESOURCES__VAL"
+        ]
+
+    # now with environ values that specify source/resource name: the module of the source, the name of the resource
+    os.environ["SOURCES__EXTERNAL_RESOURCES__INIT_RESOURCE_F_2__VAL"] = "SOURCES__EXTERNAL_RESOURCES__INIT_RESOURCE_F_2__VAL"
+    os.environ["SOURCES__EXTERNAL_RESOURCES__RESOURCE_F_2__VAL"] = "SOURCES__EXTERNAL_RESOURCES__RESOURCE_F_2__VAL"
+    s = with_external()
+    with inject_section(ConfigSectionContext(pipeline_name="injected_external", sections=("sources", s.section, s.name))):
+        # now the external sources must adopt the injected namespace
+        assert(list(s)) == [
+            "SOURCES__EXTERNAL_RESOURCES__SOURCE_VAL",
+            "SOURCES__EXTERNAL_RESOURCES__SOURCE_VAL",
+            "SOURCES__EXTERNAL_RESOURCES__INIT_RESOURCE_F_2__VAL",
+            "SOURCES__EXTERNAL_RESOURCES__RESOURCE_F_2__VAL"
+        ]
 
 def test_source_schema_context() -> None:
     import dlt

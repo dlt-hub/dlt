@@ -121,7 +121,8 @@ def source(func: Optional[AnyFun] = None, /, name: str = None, max_table_nesting
 
         # wrap source extraction function in configuration with section
         func_module = inspect.getmodule(f)
-        source_sections = (known_sections.SOURCES, _get_source_section_name(func_module), name)
+        source_section = _get_source_section_name(func_module)
+        source_sections = (known_sections.SOURCES, source_section, name)
         conf_f = with_config(f, spec=spec, sections=source_sections)
 
         @wraps(conf_f)
@@ -140,7 +141,7 @@ def source(func: Optional[AnyFun] = None, /, name: str = None, max_table_nesting
                 raise SourceDataIsNone(name)
 
             # convert to source
-            return DltSource.from_data(name, schema, rv)
+            return DltSource.from_data(name, source_section, schema, rv)
 
         # get spec for wrapped function
         SPEC = get_fun_spec(conf_f)
@@ -279,7 +280,11 @@ def resource(
         else:
             # wrap source extraction function in configuration with section
             func_module = inspect.getmodule(f)
-            conf_f = with_config(f, spec=spec, sections=(known_sections.SOURCES, _get_source_section_name(func_module), resource_name))
+            print(f"STANDALONE RES: {f.__name__} {(known_sections.SOURCES, _get_source_section_name(func_module), resource_name)}")
+            resource_sections = (known_sections.SOURCES, _get_source_section_name(func_module), resource_name)
+            # standalone resource will prefer existing section context when resolving config values
+            # this lets the source to override those values and provide common section for all config values for resources present in that source
+            conf_f = with_config(f, spec=spec, sections=resource_sections, sections_merge_style=ConfigSectionContext.resource_merge_style)
             # get spec for wrapped function
             SPEC = get_fun_spec(conf_f)
 

@@ -407,9 +407,11 @@ class DltSource(Iterable[TDataItem]):
     * You can get the `schema` for the source and all the resources within it.
     * You can use a `run` method to load the data with a default instance of dlt pipeline.
     """
-    def __init__(self, name: str, schema: Schema, resources: Sequence[DltResource] = None) -> None:
+    def __init__(self, name: str, section: str, schema: Schema, resources: Sequence[DltResource] = None) -> None:
         self.name = name
+        self.section = section
         self.exhausted = False
+        """Tells if iterator associated with a source is exhausted"""
         self._schema = schema
         self._resources: DltResourceDict = DltResourceDict(self.name)
         if resources:
@@ -417,8 +419,8 @@ class DltSource(Iterable[TDataItem]):
                 self._add_resource(resource)
 
     @classmethod
-    def from_data(cls, name: str, schema: Schema, data: Any) -> "DltSource":
-        """Converts any `data` supported by `dlt` `run` method into `dlt source` with a name `name` and `schema` schema"""
+    def from_data(cls, name: str, section: str, schema: Schema, data: Any) -> "DltSource":
+        """Converts any `data` supported by `dlt` `run` method into `dlt source` with a name `section`.`name` and `schema` schema."""
         # creates source from various forms of data
         if isinstance(data, DltSource):
             return data
@@ -429,7 +431,7 @@ class DltSource(Iterable[TDataItem]):
         else:
             resources = [DltResource.from_data(data)]
 
-        return cls(name, schema, resources)
+        return cls(name, section, schema, resources)
 
 
     @property

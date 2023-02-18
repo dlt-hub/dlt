@@ -23,17 +23,53 @@ def get_fun_spec(f: AnyFun) -> Type[BaseConfiguration]:
 
 
 @overload
-def with_config(func: TFun, /, spec: Type[BaseConfiguration] = None, auto_section: bool = False, only_kw: bool = False, sections: Tuple[str, ...] = ()) ->  TFun:
+def with_config(
+    func: TFun,
+    /,
+    spec: Type[BaseConfiguration] = None,
+    sections: Tuple[str, ...] = (),
+    sections_merge_style: ConfigSectionContext.TMergeFunc = ConfigSectionContext.prefer_incoming,
+    auto_pipeline_section: bool = False,
+    only_kw: bool = False
+) ->  TFun:
     ...
 
 
 @overload
-def with_config(func: None = ..., /, spec: Type[BaseConfiguration] = None, auto_section: bool = False, only_kw: bool = False, sections: Tuple[str, ...] = ()) ->  Callable[[TFun], TFun]:
+def with_config(
+    func: None = ...,
+    /,
+    spec: Type[BaseConfiguration] = None,
+    sections: Tuple[str, ...] = (),
+    sections_merge_style: ConfigSectionContext.TMergeFunc = ConfigSectionContext.prefer_incoming,
+    auto_pipeline_section: bool = False,
+    only_kw: bool = False
+) ->  Callable[[TFun], TFun]:
     ...
 
 
-def with_config(func: Optional[AnyFun] = None, /, spec: Type[BaseConfiguration] = None, auto_section: bool = False, only_kw: bool = False, sections: Tuple[str, ...] = ()) ->  Callable[[TFun], TFun]:
+def with_config(
+    func: Optional[AnyFun] = None,
+    /,
+    spec: Type[BaseConfiguration] = None,
+    sections: Tuple[str, ...] = (),
+    sections_merge_style: ConfigSectionContext.TMergeFunc = ConfigSectionContext.prefer_incoming,
+    auto_pipeline_section: bool = False,
+    only_kw: bool = False
+) ->  Callable[[TFun], TFun]:
+    """Injects values into decorated function arguments following the specification in `spec` or by deriving one from function's signature.
 
+    Args:
+        func (Optional[AnyFun], optional): A function with arguments to be injected. Defaults to None.
+        spec (Type[BaseConfiguration], optional): A specification of injectable arguments. Defaults to None.
+        sections (Tuple[str, ...], optional): A set of config sections in which to look for arguments values. Defaults to ().
+        prefer_existing_sections: (bool, optional): When joining existing section context, the existing context will be preferred to the one in `sections`. Default: False
+        auto_pipeline_section (bool, optional): If True, a top level pipeline section will be added if `pipeline_name` argument is present . Defaults to False.
+        only_kw (bool, optional): If True and `spec` is not provided, one is synthesized from keyword only arguments ignoring any others. Defaults to False.
+
+    Returns:
+        Callable[[TFun], TFun]: A decorated function
+    """
     section_f: Callable[[StrAny], str] = None
     # section may be a function from function arguments to section
     if callable(sections):
@@ -45,7 +81,7 @@ def with_config(func: Optional[AnyFun] = None, /, spec: Type[BaseConfiguration] 
         kwargs_arg = next((p for p in sig.parameters.values() if p.kind == Parameter.VAR_KEYWORD), None)
         spec_arg: Parameter = None
         pipeline_name_arg: Parameter = None
-        section_context = ConfigSectionContext()
+        section_context = ConfigSectionContext(sections=sections, merge_style=sections_merge_style)
 
         if spec is None:
             SPEC = spec_from_signature(f, sig, only_kw)
@@ -59,7 +95,7 @@ def with_config(func: Optional[AnyFun] = None, /, spec: Type[BaseConfiguration] 
             if p.annotation is SPEC:
                 # if any argument has type SPEC then us it to take initial value
                 spec_arg = p
-            if p.name == "pipeline_name" and auto_section:
+            if p.name == "pipeline_name" and auto_pipeline_section:
                 # if argument has name pipeline_name and auto_section is used, use it to generate section context
                 pipeline_name_arg = p
                 pipeline_name_arg_default = None if p.default == Parameter.empty else p.default
@@ -77,10 +113,11 @@ def with_config(func: Optional[AnyFun] = None, /, spec: Type[BaseConfiguration] 
                 # if section derivation function was provided then call it
                 nonlocal sections
                 if section_f:
-                    sections = (section_f(bound_args.arguments), )
+                    section_context.sections = (section_f(bound_args.arguments), )
                 # sections may be a string
                 if isinstance(sections, str):
-                    sections = (sections,)
+                    section_context.sections = (sections,)
+
                 # if one of arguments is spec the use it as initial value
                 if spec_arg:
                     config = bound_args.arguments.get(spec_arg.name, None)
@@ -88,7 +125,8 @@ def with_config(func: Optional[AnyFun] = None, /, spec: Type[BaseConfiguration] 
                 if pipeline_name_arg:
                     section_context.pipeline_name = bound_args.arguments.get(pipeline_name_arg.name, pipeline_name_arg_default)
                 with inject_section(section_context):
-                    config = resolve_configuration(config or SPEC(), sections=sections, explicit_value=bound_args.arguments)
+                    # print(f"RESOLVE CONF in inject: {f.__name__}: {section_context.sections} vs {sections}")
+                    config = resolve_configuration(config or SPEC(), explicit_value=bound_args.arguments)
             resolved_params = dict(config)
             bound_args.apply_defaults()
             # overwrite or add resolved params

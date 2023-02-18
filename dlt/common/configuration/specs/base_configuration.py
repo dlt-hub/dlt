@@ -127,7 +127,7 @@ class BaseConfiguration(MutableMapping[str, Any]):
     __is_resolved__: bool = dataclasses.field(default = False, init=False, repr=False)
     """True when all config fields were resolved and have a specified value type"""
     __section__: str = dataclasses.field(default = None, init=False, repr=False)
-    """Section used by config providers when searching for keys"""
+    """Obligatory section used by config providers when searching for keys, always present in the search path"""
     __exception__: Exception = dataclasses.field(default = None, init=False, repr=False)
     """Holds the exception that prevented the full resolution"""
     __config_gen_annotations__: ClassVar[List[str]] = None

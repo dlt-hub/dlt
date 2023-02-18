@@ -165,11 +165,11 @@ def state() -> DictStrAny:
 
     container = Container()
     # get the source name from the section context
-    source_name: str = None
+    source_section: str = None
     with contextlib.suppress(ContextDefaultCannotBeCreated):
-        sections = container[ConfigSectionContext].sections
-        if sections and len(sections) > 1 and sections[0] == known_sections.SOURCES:
-            source_name = sections[1]
+        sections_context = container[ConfigSectionContext]
+        with contextlib.suppress(ValueError):
+            source_section = sections_context.source_section()
     try:
         # get managed state that is read/write
         state: TSourceState = container[StateInjectableContext].state  # type: ignore
@@ -177,15 +177,15 @@ def state() -> DictStrAny:
         # check if there's pipeline context
         proxy = container[PipelineContext]
         if not proxy.is_active():
-            raise PipelineStateNotAvailable(source_name)
+            raise PipelineStateNotAvailable(source_section)
         else:
             # get unmanaged state that is read only
             # TODO: make sure that state if up to date by syncing the pipeline earlier
             state = proxy.pipeline().state  # type: ignore
 
     source_state: DictStrAny = state.setdefault(known_sections.SOURCES, {})  # type: ignore
-    if source_name:
-        source_state = source_state.setdefault(source_name, {})
+    if source_section:
+        source_state = source_state.setdefault(source_section, {})
 
     # allow inspection of last returned full state
     _last_full_state = state
