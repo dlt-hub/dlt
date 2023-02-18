@@ -12,7 +12,7 @@ from dlt.common.configuration import inject_section, known_sections
 from dlt.common.configuration.specs import RunConfiguration, NormalizeVolumeConfiguration, SchemaVolumeConfiguration, LoadVolumeConfiguration, PoolRunnerConfiguration
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
-from dlt.common.configuration.specs.config_namespace_context import ConfigSectionContext
+from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.runners.runnable import Runnable
 from dlt.common.schema.exceptions import InvalidDatasetName

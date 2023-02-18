@@ -9,7 +9,7 @@ from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import ContextDefaultCannotBeCreated
 from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs import BaseConfiguration, ContainerInjectableContext
-from dlt.common.configuration.specs.config_namespace_context import ConfigSectionContext
+from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.exceptions import ArgumentsOverloadException
 from dlt.common.normalizers.json import relational as relational_normalizer
 from dlt.common.schema.schema import Schema

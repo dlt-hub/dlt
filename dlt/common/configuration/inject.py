@@ -6,7 +6,7 @@ from inspect import Signature, Parameter
 from dlt.common.typing import DictStrAny, StrAny, TFun, AnyFun
 from dlt.common.configuration.resolve import resolve_configuration, inject_section
 from dlt.common.configuration.specs.base_configuration import BaseConfiguration
-from dlt.common.configuration.specs.config_namespace_context import ConfigSectionContext
+from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.reflection.spec import spec_from_signature
 
 

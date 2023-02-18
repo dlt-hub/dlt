@@ -336,7 +336,6 @@ It tells you exactly which paths `dlt` looked at, via which config providers and
 As an example, let's use `ConnectionStringCredentials` which represents a database connection string.
 
 ```python
-
 @dlt.source
 def query(sql: str, dsn: ConnectionStringCredentials = dlt.secrets.value):
   ...
@@ -375,6 +374,33 @@ query("SELECT * FROM customers", {"database": "dlt_data", "username": "loader"..
 - AWS credentials
 
 
+### Working with alternatives of credentials (Union types)
+If your source/resource allows for many authentication methods you can support those seamlessly for your user. The user just passes the right credentials and `dlt` will inject the right type into your decorated function.
+
+Example:
+
+> read the whole [test](/tests/common/configuration/test_spec_union.py), it shows how to create unions of credentials that derive from the common class so you can handle it seamlessly in your code.
+
+```python
+@dlt.source
+def zen_source(credentials: Union[ZenApiKeyCredentials, ZenEmailCredentials, str] = dlt.secrets.value, some_option: bool = False):
+  # depending on what the user provides in config, ZenApiKeyCredentials or ZenEmailCredentials will be injected in `credentials` argument
+  # both classes implement `auth` so you can always call it
+  credentials.auth()
+  return dlt.resource([credentials], name="credentials")
+
+# pass native value
+os.environ["CREDENTIALS"] = "email:mx:pwd"
+assert list(zen_source())[0].email == "mx"
+
+# pass explicit native value
+assert list(zen_source("secret:🔑:secret"))[0].api_secret == "secret"
+
+# pass explicit dict
+assert list(zen_source(credentials={"email": "emx", "password": "pass"}))[0].email == "emx"
+
+```
+> This applies not only to credentials but to all specs (see next chapter)
 
 ## Writing own specs
 
@@ -386,7 +412,7 @@ query("SELECT * FROM customers", {"database": "dlt_data", "username": "loader"..
 - provide own native value parsers
 - provide own default credentials logic
 - adds all Python dataclass goodies to it
-- adds all Python `dict` gooies to it (`specs` instances can be created from dicts and serialized from dicts)
+- adds all Python `dict` goodies to it (`specs` instances can be created from dicts and serialized from dicts)
 
 This is used a lot in the `dlt` core and may become useful for complicated sources.
 
@@ -398,6 +424,12 @@ class GoogleSheetsConfiguration:
   credentials: GcpClientCredentialsWithDefault = None # mandatory secret
   only_strings: Optional[bool] = False
 ```
+
+> all specs derive from [BaseConfiguration](/dlt/common/configuration/specs//base_configuration.py)
+
+> all credentials derive from [CredentialsConfiguration](/dlt/common/configuration/specs//base_configuration.py)
+
+> Read the docstrings in the code above
 
 ## Interesting / Advanced stuff.
 

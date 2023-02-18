@@ -13,7 +13,7 @@ from dlt.common.configuration import configspec, known_sections
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import ContextDefaultCannotBeCreated
 from dlt.common.configuration.specs import ContainerInjectableContext
-from dlt.common.configuration.specs.config_namespace_context import ConfigSectionContext
+from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.pipeline import PipelineContext, TPipelineState
 from dlt.common.typing import DictStrAny
 from dlt.common.schema.typing import LOADS_TABLE_NAME, TTableSchemaColumns

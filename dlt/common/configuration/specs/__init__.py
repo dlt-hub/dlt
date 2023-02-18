@@ -6,4 +6,4 @@ from .schema_volume_configuration import SchemaVolumeConfiguration, TSchemaFileF
 from .pool_runner_configuration import PoolRunnerConfiguration, TPoolType  # noqa: F401
 from .gcp_client_credentials import GcpClientCredentials, GcpClientCredentialsWithDefault  # noqa: F401
 from .postgres_credentials import PostgresCredentials, RedshiftCredentials, ConnectionStringCredentials  # noqa: F401
-from .config_namespace_context import ConfigSectionContext  # noqa: F401
+from .config_section_context import ConfigSectionContext  # noqa: F401

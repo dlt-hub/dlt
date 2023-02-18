@@ -1,4 +1,5 @@
 from collections.abc import Mapping as C_Mapping, Sequence as C_Sequence
+import inspect
 from re import Pattern as _REPattern
 from typing import Callable, Dict, Any, Final, Literal, List, Mapping, NewType, Tuple, Type, TypeVar, Generic, Protocol, TYPE_CHECKING, Union, runtime_checkable, get_args, get_origin
 from typing_extensions import TypeAlias, ParamSpec, Concatenate
@@ -63,6 +64,10 @@ def is_literal_type(hint: Type[Any]) -> bool:
     return get_origin(hint) is Literal
 
 
+def is_union(hint: Type[Any]) -> bool:
+    return get_origin(hint) is Union
+
+
 def is_newtype_type(t: Type[Any]) -> bool:
     return hasattr(t, "__supertype__")
 
@@ -105,3 +110,7 @@ def extract_inner_type(hint: Type[Any], preserve_new_types: bool = False) -> Typ
         # descend into supertypes of NewType
         return extract_inner_type(hint.__supertype__, preserve_new_types)
     return hint
+
+
+def get_all_types_of_class_in_union(hint: Type[Any], cls: Type[TAny]) -> List[Type[TAny]]:
+    return [t for t in get_args(hint) if inspect.isclass(t) and issubclass(t, cls)]

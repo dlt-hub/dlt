@@ -1,11 +1,12 @@
+import itertools
 from collections.abc import Mapping as C_Mapping
 from typing import Any, Dict, ContextManager, List, Optional, Sequence, Tuple, Type, TypeVar
 
 from dlt.common.configuration.providers.provider import ConfigProvider
-from dlt.common.typing import AnyType, StrAny, TSecretValue, is_final_type, is_optional_type
+from dlt.common.typing import AnyType, StrAny, TSecretValue, get_all_types_of_class_in_union, is_final_type, is_optional_type, is_union
 
 from dlt.common.configuration.specs.base_configuration import BaseConfiguration, CredentialsConfiguration, is_secret_hint, extract_inner_hint, is_context_inner_hint, is_base_configuration_inner_hint
-from dlt.common.configuration.specs.config_namespace_context import ConfigSectionContext
+from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
 from dlt.common.configuration.utils import log_traces, deserialize_value
@@ -118,6 +119,7 @@ def _resolve_config_fields(
     for key, hint in fields.items():
         # get default and explicit values
         default_value = getattr(config, key, None)
+        traces: List[LookupTrace] = []
 
         if explicit_values:
             explicit_value = explicit_values.get(key)
@@ -128,7 +130,30 @@ def _resolve_config_fields(
             else:
                 explicit_value = None
 
-        current_value, traces = _resolve_config_field(key, hint, default_value, explicit_value, config, config.__section__, explicit_sections, embedded_sections, accept_partial)
+        # if hint is union of configurations, any of them must be resolved
+        specs_in_union: List[Type[BaseConfiguration]] = []
+        current_value = None
+        if is_union(hint):
+            # print(f"HINT UNION?: {key}:{hint}")
+            specs_in_union = get_all_types_of_class_in_union(hint, BaseConfiguration)
+        if len(specs_in_union) > 1:
+            for idx, alt_spec in enumerate(specs_in_union):
+                # return first resolved config from an union
+                try:
+                    current_value, traces = _resolve_config_field(key, alt_spec, default_value, explicit_value, config, config.__section__, explicit_sections, embedded_sections, accept_partial)
+                    print(current_value)
+                    break
+                except ConfigFieldMissingException as cfm_ex:
+                    # add traces from unresolved union spec
+                    # TODO: we should group traces per hint - currently user will see all options tried without the key info
+                    traces.extend(list(itertools.chain(*cfm_ex.traces.values())))
+                except InvalidNativeValue:
+                    # if none of specs in union parsed
+                    if idx == len(specs_in_union) - 1:
+                        raise
+        else:
+            current_value, traces = _resolve_config_field(key, hint, default_value, explicit_value, config, config.__section__, explicit_sections, embedded_sections, accept_partial)
+
         # check if hint optional
         is_optional = is_optional_type(hint)
         # collect unresolved fields
