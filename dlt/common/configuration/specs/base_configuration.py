@@ -1,6 +1,7 @@
 import inspect
 import contextlib
 import dataclasses
+from types import FunctionType
 from typing import Callable, List, Optional, Union, Any, Dict, Iterator, MutableMapping, Type, TYPE_CHECKING, get_args, get_origin, overload, ClassVar
 
 if TYPE_CHECKING:
@@ -104,7 +105,7 @@ def configspec(cls: Optional[Type[Any]] = None, /, *, init: bool = False) -> Uni
         # get all attributes without corresponding annotations
         for att_name, att_value in cls.__dict__.items():
             # skip callables, dunder names, class variables and some special names
-            if not callable(att_value) and not att_name.startswith(("__", "_abc_impl")):
+            if not callable(att_value) and not att_name.startswith(("__", "_abc_impl")) and not isinstance(att_value, (staticmethod, classmethod)):
                 if att_name not in cls.__annotations__:
                     raise ConfigFieldMissingTypeHintException(att_name, cls)
                 hint = cls.__annotations__[att_name]
