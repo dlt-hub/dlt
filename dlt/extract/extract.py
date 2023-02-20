@@ -78,30 +78,31 @@ def extract(extract_id: str, source: DltSource, storage: ExtractorStorage, *, ma
         _write_item(table_name, item)
 
     # yield from all selected pipes
-    for pipe_item in PipeIterator.from_pipes(source.resources.selected_pipes, max_parallel_items=max_parallel_items, workers=workers, futures_poll_interval=futures_poll_interval):
-        # TODO: many resources may be returned. if that happens the item meta must be present with table name and this name must match one of resources
-        # TDataItemMeta(table_name, requires_resource, write_disposition, columns, parent etc.)
-        signals.raise_if_signalled()
-        # if meta contains table name
-        if isinstance(pipe_item.meta, TableNameMeta):
-            table_name = pipe_item.meta.table_name
-            existing_table = dynamic_tables.get(table_name)
-            if not existing_table:
-                dynamic_tables[table_name] = [utils.new_table(table_name)]
-            _write_item(table_name, pipe_item.item)
-        else:
-            resource = source.resources.find_by_pipe(pipe_item.pipe)
-            # get partial table from table template
-            if resource._table_name_hint_fun:
-                if isinstance(pipe_item.item, List):
-                    for item in pipe_item.item:
-                        _write_dynamic_table(resource, item)
-                else:
-                    _write_dynamic_table(resource, pipe_item.item)
-            else:
-                # write item belonging to table with static name
-                table_name = resource.table_name
+    with PipeIterator.from_pipes(source.resources.selected_pipes, max_parallel_items=max_parallel_items, workers=workers, futures_poll_interval=futures_poll_interval) as pipes:
+        for pipe_item in pipes:
+            # TODO: many resources may be returned. if that happens the item meta must be present with table name and this name must match one of resources
+            # TDataItemMeta(table_name, requires_resource, write_disposition, columns, parent etc.)
+            signals.raise_if_signalled()
+            # if meta contains table name
+            if isinstance(pipe_item.meta, TableNameMeta):
+                table_name = pipe_item.meta.table_name
+                existing_table = dynamic_tables.get(table_name)
+                if not existing_table:
+                    dynamic_tables[table_name] = [utils.new_table(table_name)]
                 _write_item(table_name, pipe_item.item)
+            else:
+                resource = source.resources.find_by_pipe(pipe_item.pipe)
+                # get partial table from table template
+                if resource._table_name_hint_fun:
+                    if isinstance(pipe_item.item, List):
+                        for item in pipe_item.item:
+                            _write_dynamic_table(resource, item)
+                    else:
+                        _write_dynamic_table(resource, pipe_item.item)
+                else:
+                    # write item belonging to table with static name
+                    table_name = resource.table_name
+                    _write_item(table_name, pipe_item.item)
 
     # flush all buffered writers
     storage.close_writers(extract_id)

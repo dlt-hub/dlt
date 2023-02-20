@@ -15,7 +15,7 @@ from dlt.common.pipeline import PipelineContext, SupportsPipelineRun
 from dlt.common.utils import flatten_list_or_items, get_callable_name
 
 from dlt.extract.typing import DataItemWithMeta, FilterItemFunction, FilterItemFunctionWithMeta, TableNameMeta, TFunHintTemplate, TTableHintTemplate, TTableSchemaTemplate
-from dlt.extract.pipe import FilterItem, Pipe, PipeIterator
+from dlt.extract.pipe import FilterItem, Pipe, ManagedPipeIterator
 from dlt.extract.exceptions import (
     InvalidTransformerDataTypeGeneratorFunctionRequired, InvalidParentResourceDataType, InvalidParentResourceIsAFunction, InvalidResourceDataType, InvalidResourceDataTypeFunctionNotAGenerator, InvalidResourceDataTypeIsNone, InvalidTransformerGeneratorFunction,
     DataItemRequiredForDynamicTableHints, InconsistentTableTemplate, InvalidResourceDataTypeAsync, InvalidResourceDataTypeBasic,
@@ -281,7 +281,7 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
         return resource
 
     def __iter__(self) -> Iterator[TDataItem]:
-        return flatten_list_or_items(map(lambda item: item.item, PipeIterator.from_pipe(self._pipe)))
+        return flatten_list_or_items(map(lambda item: item.item, ManagedPipeIterator.from_pipe(self._pipe)))
 
     def __str__(self) -> str:
         info = f"DltResource {self.name}:"
@@ -488,12 +488,12 @@ class DltSource(Iterable[TDataItem]):
         return self._resources[resource_name]
 
     def __iter__(self) -> Iterator[TDataItem]:
-        _iter = map(lambda item: item.item, PipeIterator.from_pipes(self._resources.selected_pipes))
+        _iter = map(lambda item: item.item, ManagedPipeIterator.from_pipes(self._resources.selected_pipes))
         self.exhausted = True
         return flatten_list_or_items(_iter)
 
     def __str__(self) -> str:
-        info = f"DltSource {self.name} contains {len(self.resources)} resource(s) of which {len(self.selected_resources)} are selected"
+        info = f"DltSource {self.name} section {self.section} contains {len(self.resources)} resource(s) of which {len(self.selected_resources)} are selected"
         for r in self.resources.values():
             selected_info = "selected" if r.selected else "not selected"
             if r.is_transformer:
