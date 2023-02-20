@@ -2,14 +2,14 @@ from typing import Type
 from dlt.common.data_writers.escape import escape_bigquery_identifier
 
 from dlt.common.schema.schema import Schema
-from dlt.common.configuration import with_config
+from dlt.common.configuration import with_config, known_sections
 from dlt.common.configuration.accessors import config
 from dlt.common.destination import DestinationCapabilitiesContext, JobClientBase, DestinationClientConfiguration
 
 from dlt.destinations.bigquery.configuration import BigQueryClientConfiguration
 
 
-@with_config(spec=BigQueryClientConfiguration, sections=("destination", "bigquery",))
+@with_config(spec=BigQueryClientConfiguration, sections=(known_sections.DESTINATION, "bigquery",))
 def _configure(config: BigQueryClientConfiguration = config.value) -> BigQueryClientConfiguration:
     return config
 

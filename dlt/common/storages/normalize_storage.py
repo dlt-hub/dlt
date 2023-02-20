@@ -3,7 +3,7 @@ from itertools import groupby
 from pathlib import Path
 
 from dlt.common.storages.file_storage import FileStorage
-from dlt.common.configuration import with_config
+from dlt.common.configuration import with_config, known_sections
 from dlt.common.configuration.specs import NormalizeVolumeConfiguration
 from dlt.common.storages.versioned_storage import VersionedStorage
 from dlt.common.configuration.accessors import config
@@ -20,7 +20,7 @@ class NormalizeStorage(VersionedStorage):
     STORAGE_VERSION: ClassVar[str] = "1.0.0"
     EXTRACTED_FOLDER: ClassVar[str] = "extracted"  # folder within the volume where extracted files to be normalized are stored
 
-    @with_config(spec=NormalizeVolumeConfiguration, sections=("normalize",))
+    @with_config(spec=NormalizeVolumeConfiguration, sections=(known_sections.NORMALIZE,))
     def __init__(self, is_owner: bool, config: NormalizeVolumeConfiguration = config.value) -> None:
         super().__init__(NormalizeStorage.STORAGE_VERSION, is_owner, FileStorage(config.normalize_volume_path, "t", makedirs=is_owner))
         self.config = config

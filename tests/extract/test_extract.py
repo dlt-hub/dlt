@@ -13,7 +13,7 @@ def test_extract_select_tables() -> None:
     def expect_tables(resource: DltResource) -> dlt.Schema:
         # delete files
         clean_test_storage()
-        source = DltSource("selectables", dlt.Schema("selectables"), [resource(10)])
+        source = DltSource("selectables", "module", dlt.Schema("selectables"), [resource(10)])
         schema = source.discover_schema()
 
         storage = ExtractorStorage(NormalizeVolumeConfiguration())
@@ -38,7 +38,7 @@ def test_extract_select_tables() -> None:
         clean_test_storage()
         storage = ExtractorStorage(NormalizeVolumeConfiguration())
         # same thing but select only odd
-        source = DltSource("selectables", dlt.Schema("selectables"), [resource])
+        source = DltSource("selectables", "module", dlt.Schema("selectables"), [resource])
         source.with_resources(resource.name).selected_resources[resource.name](10).select_tables("odd_table")
         extract_id = storage.create_extract_id()
         schema_update = extract(extract_id, source, storage)

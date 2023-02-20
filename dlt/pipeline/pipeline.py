@@ -8,11 +8,11 @@ from typing import Any, Callable, ClassVar, Dict, List, Iterator, Mapping, Optio
 
 from dlt import version
 from dlt.common import json, logger, signals, pendulum
-from dlt.common.configuration import inject_section
+from dlt.common.configuration import inject_section, known_sections
 from dlt.common.configuration.specs import RunConfiguration, NormalizeVolumeConfiguration, SchemaVolumeConfiguration, LoadVolumeConfiguration, PoolRunnerConfiguration
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
-from dlt.common.configuration.specs.config_namespace_context import ConfigSectionContext
+from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.runners.runnable import Runnable
 from dlt.common.schema.exceptions import InvalidDatasetName
@@ -29,6 +29,7 @@ from dlt.common.storages.file_storage import FileStorage
 from dlt.common.utils import is_interactive
 
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
+from dlt.extract.decorators import SourceSchemaInjectableContext
 
 from dlt.extract.exceptions import SourceExhausted
 from dlt.extract.extract import ExtractorStorage, extract
@@ -232,7 +233,7 @@ class Pipeline(SupportsPipeline):
     @with_runtime_trace
     @with_schemas_sync  # this must precede with_state_sync
     @with_state_sync(may_extract_state=True)
-    @with_config_section(("extract",))
+    @with_config_section((known_sections.EXTRACT,))
     def extract(
         self,
         data: Any,
@@ -246,69 +247,12 @@ class Pipeline(SupportsPipeline):
         workers: int = None
     ) -> ExtractInfo:
         """Extracts the `data` and prepare it for the normalization. Does not require destination or credentials to be configured. See `run` method for the arguments' description."""
-        def apply_hint_args(resource: DltResource) -> None:
-            columns_dict = None
-            if columns:
-                columns_dict = {c["name"]:c for c in columns}
-            # apply hints only if any of the hints is present, table_name must be always present
-            if table_name or parent_table_name or write_disposition or columns:
-                resource.apply_hints(table_name or resource.name, parent_table_name, write_disposition, columns_dict)
-
-        def choose_schema() -> Schema:
-            if schema:
-                return schema
-            if self.default_schema_name:
-                return self.default_schema
-            return self._make_schema_with_default_name()
-
-        effective_schema = choose_schema()
-
-        # a list of sources or a list of resources may be passed as data
-        sources: List[DltSource] = []
-
-        def item_to_source(data_item: Any) -> DltSource:
-            if isinstance(data_item, DltSource):
-                # if schema is explicit then override source schema
-                if schema:
-                    data_item.schema = schema
-                # try to apply hints to resources
-                resources = data_item.resources.values()
-                for r in resources:
-                    apply_hint_args(r)
-                return data_item
-
-            if isinstance(data_item, DltResource):
-                # apply hints
-                apply_hint_args(data_item)
-                # package resource in source
-                return DltSource(effective_schema.name, effective_schema, [data_item])
-
-            # iterator/iterable/generator
-            # create resource first without table template
-            resource = DltResource.from_data(data_item, name=table_name)
-            # apply hints
-            apply_hint_args(resource)
-            # wrap resource in source
-            return DltSource(effective_schema.name, effective_schema, [resource])
-
-        if isinstance(data, C_Sequence) and len(data) > 0:
-            # if first element is source or resource
-            if isinstance(data[0], DltResource):
-                sources.append(item_to_source(DltSource(effective_schema.name, effective_schema, data)))
-            elif isinstance(data[0], DltSource):
-                for source in data:
-                    sources.append(item_to_source(source))
-            else:
-                sources.append(item_to_source(data))
-        else:
-            sources.append(item_to_source(data))
-
         # create extract storage to which all the sources will be extracted
         storage = ExtractorStorage(self._normalize_storage_config)
         extract_ids: List[str] = []
         try:
             # extract all sources
-            for source in sources:
+            for source in self._data_to_sources(data, schema, table_name, parent_table_name, write_disposition, columns):
                 if source.exhausted:
                     raise SourceExhausted(source.name)
                 # TODO: merge infos for all the sources
@@ -326,7 +270,7 @@ class Pipeline(SupportsPipeline):
 
     @with_runtime_trace
     @with_schemas_sync
-    @with_config_section(("normalize",))
+    @with_config_section((known_sections.NORMALIZE,))
     def normalize(self, workers: int = 1) -> NormalizeInfo:
         """Normalizes the data prepared with `extract` method, infers the schema and creates load packages for the `load` method. Requires `destination` to be known."""
         if is_interactive() and workers > 1:
@@ -361,7 +305,7 @@ class Pipeline(SupportsPipeline):
     @with_runtime_trace
     @with_schemas_sync
     @with_state_sync()
-    @with_config_section(("load",))
+    @with_config_section((known_sections.LOAD,))
     def load(
         self,
         destination: DestinationReference = None,
@@ -714,6 +658,74 @@ class Pipeline(SupportsPipeline):
     def _attach_pipeline(self) -> None:
         pass
 
+    def _data_to_sources(self,
+        data: Any,
+        schema: Schema,
+        table_name: str = None,
+        parent_table_name: str = None,
+        write_disposition: TWriteDisposition = None,
+        columns: Sequence[TColumnSchema] = None,
+    ) -> List[DltSource]:
+
+        def apply_hint_args(resource: DltResource) -> None:
+            columns_dict = None
+            if columns:
+                columns_dict = {c["name"]:c for c in columns}
+            # apply hints only if any of the hints is present, table_name must be always present
+            if table_name or parent_table_name or write_disposition or columns:
+                resource.apply_hints(table_name or resource.name, parent_table_name, write_disposition, columns_dict)
+
+        def choose_schema() -> Schema:
+            if schema:
+                return schema
+            if self.default_schema_name:
+                return self.default_schema
+            return self._make_schema_with_default_name()
+
+        effective_schema = choose_schema()
+
+        # a list of sources or a list of resources may be passed as data
+        sources: List[DltSource] = []
+        resources: List[DltResource] = []
+
+        def append_data(data_item: Any) -> None:
+            if isinstance(data_item, DltSource):
+                # if schema is explicit then override source schema
+                if schema:
+                    data_item.schema = schema
+                # try to apply hints to resources
+                _resources = data_item.resources.values()
+                for r in _resources:
+                    apply_hint_args(r)
+                sources.append(data_item)
+            elif isinstance(data_item, DltResource):
+                # apply hints
+                apply_hint_args(data_item)
+                resources.append(data_item)
+            else:
+                # iterator/iterable/generator
+                # create resource first without table template
+                resource = DltResource.from_data(data_item, name=table_name)
+                # apply hints
+                apply_hint_args(resource)
+                resources.append(resource)
+
+        if isinstance(data, C_Sequence) and len(data) > 0:
+            # if first element is source or resource
+            if isinstance(data[0], (DltResource, DltSource)):
+                for item in data:
+                    append_data(item)
+            else:
+                append_data(data)
+        else:
+            append_data(data)
+
+        if resources:
+            # add all the appended resources in one source
+            sources.append(DltSource(effective_schema.name, self.pipeline_name, effective_schema, resources))
+
+        return sources
+
     def _extract_source(self, storage: ExtractorStorage, source: DltSource, max_parallel_items: int, workers: int) -> str:
         # discover the schema from source
         # TODO: do not save any schemas here and do not set default schema, just generate all the schemas and save them one all data is extracted
@@ -751,17 +763,18 @@ class Pipeline(SupportsPipeline):
     def _iterate_source(self, storage: ExtractorStorage, source: DltSource, pipeline_schema: Schema, max_parallel_items: int, workers: int) -> str:
         # generate extract_id to be able to commit all the sources together later
         extract_id = storage.create_extract_id()
-        # inject the config section with the current source name
-        with inject_section(ConfigSectionContext(sections=("sources", source.name))):
-            # make CTRL-C working while running user code
-            with signals.raise_immediately():
-                extractor = extract(extract_id, source, storage, max_parallel_items=max_parallel_items, workers=workers)
-                # source iterates
-                source.exhausted = True
-                # iterate over all items in the pipeline and update the schema if dynamic table hints were present
-                for _, partials in extractor.items():
-                    for partial in partials:
-                        pipeline_schema.update_schema(pipeline_schema.normalize_table_identifiers(partial))
+        with Container().injectable_context(SourceSchemaInjectableContext(pipeline_schema)):
+            # inject the config section with the current source name
+            with inject_section(ConfigSectionContext(sections=(known_sections.SOURCES, source.section, source.name))):
+                # make CTRL-C working while running user code
+                with signals.raise_immediately():
+                    extractor = extract(extract_id, source, storage, max_parallel_items=max_parallel_items, workers=workers)
+                    # source iterates
+                    source.exhausted = True
+                    # iterate over all items in the pipeline and update the schema if dynamic table hints were present
+                    for _, partials in extractor.items():
+                        for partial in partials:
+                            pipeline_schema.update_schema(pipeline_schema.normalize_table_identifiers(partial))
 
         return extract_id
 
@@ -1072,7 +1085,7 @@ class Pipeline(SupportsPipeline):
     def _extract_state(self, state: TPipelineState) -> TPipelineState:
         # this will extract the state into current load package and update the schema with the _dlt_pipeline_state table
         # note: the schema will be persisted because the schema saving decorator is over the state manager decorator for extract
-        state_source = DltSource("pipeline_state", self.default_schema, [state_resource(state)])
+        state_source = DltSource("pipeline_state", self.pipeline_name, self.default_schema, [state_resource(state)])
         storage = ExtractorStorage(self._normalize_storage_config)
         extract_id = self._iterate_source(storage, state_source, self.default_schema, 1, 1)
         storage.commit_extract_files(extract_id)

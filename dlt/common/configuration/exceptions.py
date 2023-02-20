@@ -61,7 +61,7 @@ class ConfigValueCannotBeCoercedException(ConfigurationException, ValueError):
         self.field_name = field_name
         self.field_value = field_value
         self.hint = hint
-        super().__init__('configured value for field %s cannot be coerced into type %s' % (str(hint), field_name))
+        super().__init__('Configured value for field %s cannot be coerced into type %s' % (field_name, str(hint)))
 
 
 # class ConfigIntegrityException(ConfigurationException):

@@ -5,7 +5,7 @@ from multiprocessing.pool import AsyncResult, Pool as ProcessPool
 from prometheus_client import Counter, CollectorRegistry, REGISTRY, Gauge
 
 from dlt.common import pendulum, signals, json, logger, sleep
-from dlt.common.configuration import with_config
+from dlt.common.configuration import with_config, known_sections
 from dlt.common.configuration.accessors import config
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs import LoadVolumeConfiguration, NormalizeVolumeConfiguration
@@ -39,7 +39,7 @@ class Normalize(Runnable[ProcessPool]):
     schema_version_gauge: Gauge = None
     load_package_counter: Counter = None
 
-    @with_config(spec=NormalizeConfiguration, sections=("normalize",))
+    @with_config(spec=NormalizeConfiguration, sections=(known_sections.NORMALIZE,))
     def __init__(self, collector: CollectorRegistry = REGISTRY, schema_storage: SchemaStorage = None, config: NormalizeConfiguration = config.value) -> None:
         self.config = config
         self.pool: ProcessPool = None

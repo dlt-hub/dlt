@@ -1,4 +1,4 @@
-from typing import List, IO, Any, Type
+from typing import List, IO, Any, Optional, Type
 
 from dlt.common.utils import uniq_id
 from dlt.common.typing import TDataItem, TDataItems
@@ -6,13 +6,24 @@ from dlt.common.data_writers import TLoaderFileFormat
 from dlt.common.data_writers.exceptions import BufferedDataWriterClosed, DestinationCapabilitiesRequired, InvalidFileNameTemplateException
 from dlt.common.data_writers.writers import DataWriter
 from dlt.common.schema.typing import TTableSchemaColumns
-from dlt.common.configuration import with_config
+from dlt.common.configuration import with_config, known_sections, configspec
+from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.destination import DestinationCapabilitiesContext
 
 
 class BufferedDataWriter:
 
-    @with_config(only_kw=True, sections=("data_writer",))
+    @configspec
+    class BufferedDataWriterConfiguration(BaseConfiguration):
+        buffer_max_items: int = 5000
+        file_max_items: Optional[int] = None
+        file_max_bytes: Optional[int] = None
+        _caps: Optional[DestinationCapabilitiesContext] = None
+
+    __section__ = known_sections.DATA_WRITER
+
+
+    @with_config(spec=BufferedDataWriterConfiguration)
     def __init__(
         self,
         file_format: TLoaderFileFormat,

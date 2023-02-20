@@ -7,14 +7,14 @@ from prometheus_client.metrics import MetricWrapperBase
 
 import dlt
 from dlt.common import logger
-from dlt.common.configuration.specs.base_configuration import CredentialsConfiguration
+from dlt.common.configuration import with_config, known_sections
+from dlt.common.configuration.specs import CredentialsConfiguration
 from dlt.common.configuration.utils import add_config_to_env
 from dlt.common.runners.stdout import iter_stdout_with_result
 from dlt.common.runners.venv import Venv
 from dlt.common.typing import DictStrAny, DictStrStr, StrAny, TSecretValue
 from dlt.common.logger import is_json_logging
 from dlt.common.telemetry import get_logging_extras
-from dlt.common.configuration import with_config
 from dlt.common.storages import FileStorage
 from dlt.common.git import git_custom_key_command, ensure_remote_head, clone_repo
 from dlt.common.utils import with_custom_environ
@@ -294,7 +294,7 @@ with exec_to_stdout(f):
             raise
 
 
-@with_config(spec=DBTRunnerConfiguration, sections=("dbt_package_runner",))
+@with_config(spec=DBTRunnerConfiguration, sections=(known_sections.DBT_PACKAGE_RUNNER,))
 def create_runner(
     venv: Venv,
     credentials: CredentialsConfiguration,

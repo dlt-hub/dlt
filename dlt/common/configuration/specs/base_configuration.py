@@ -1,6 +1,7 @@
 import inspect
 import contextlib
 import dataclasses
+from types import FunctionType
 from typing import Callable, List, Optional, Union, Any, Dict, Iterator, MutableMapping, Type, TYPE_CHECKING, get_args, get_origin, overload, ClassVar
 
 if TYPE_CHECKING:
@@ -8,7 +9,7 @@ if TYPE_CHECKING:
 else:
     TDtcField = dataclasses.Field
 
-from dlt.common.typing import TAnyClass, TSecretValue, extract_inner_type, is_optional_type
+from dlt.common.typing import TAnyClass, TSecretValue, extract_inner_type, is_optional_type, is_union
 from dlt.common.schema.utils import py_type_to_sc_type
 from dlt.common.configuration.exceptions import ConfigFieldMissingTypeHintException, ConfigFieldTypeHintNotSupported
 
@@ -31,7 +32,7 @@ def is_credentials_inner_hint(inner_hint: Type[Any]) -> bool:
 
 
 def get_config_if_union_hint(hint: Type[Any]) -> Type[Any]:
-    if get_origin(hint) is Union:
+    if is_union(hint):
         return next((t for t in get_args(hint) if is_base_configuration_inner_hint(t)), None)
     return None
 
@@ -82,7 +83,13 @@ def configspec(cls: None = ..., /, *, init: bool = False) -> Callable[[Type[TAny
 
 
 def configspec(cls: Optional[Type[Any]] = None, /, *, init: bool = False) -> Union[Type[TAnyClass], Callable[[Type[TAnyClass]], Type[TAnyClass]]]:
+    """Converts (via derivation) any decorated class to a Python dataclass that may be used as a spec to resolve configurations
 
+    In comparison the Python dataclass, a spec implements full dictionary interface for its attributes, allows instance creation from ie. strings
+    or other types (parsing, deserialization) and control over configuration resolution process. See `BaseConfiguration` and CredentialsConfiguration` for
+    more information.
+
+    """
     def wrap(cls: Type[TAnyClass]) -> Type[TAnyClass]:
         is_context = issubclass(cls, _F_ContainerInjectableContext)
         # if type does not derive from BaseConfiguration then derive it
@@ -98,7 +105,7 @@ def configspec(cls: Optional[Type[Any]] = None, /, *, init: bool = False) -> Uni
         # get all attributes without corresponding annotations
         for att_name, att_value in cls.__dict__.items():
             # skip callables, dunder names, class variables and some special names
-            if not callable(att_value) and not att_name.startswith(("__", "_abc_impl")):
+            if not callable(att_value) and not att_name.startswith(("__", "_abc_impl")) and not isinstance(att_value, (staticmethod, classmethod)):
                 if att_name not in cls.__annotations__:
                     raise ConfigFieldMissingTypeHintException(att_name, cls)
                 hint = cls.__annotations__[att_name]
@@ -121,7 +128,7 @@ class BaseConfiguration(MutableMapping[str, Any]):
     __is_resolved__: bool = dataclasses.field(default = False, init=False, repr=False)
     """True when all config fields were resolved and have a specified value type"""
     __section__: str = dataclasses.field(default = None, init=False, repr=False)
-    """Section used by config providers when searching for keys"""
+    """Obligatory section used by config providers when searching for keys, always present in the search path"""
     __exception__: Exception = dataclasses.field(default = None, init=False, repr=False)
     """Holds the exception that prevented the full resolution"""
     __config_gen_annotations__: ClassVar[List[str]] = None

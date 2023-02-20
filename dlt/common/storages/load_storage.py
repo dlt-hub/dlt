@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Iterable, NamedTuple, Literal, Optional, Sequence, Set, get_args, overload
 
 from dlt.common import json, pendulum
+from dlt.common.configuration import known_sections
 from dlt.common.configuration.inject import with_config
 from dlt.common.typing import DictStrAny, StrAny
 from dlt.common.storages.file_storage import FileStorage
@@ -43,7 +44,7 @@ class LoadStorage(DataItemStorage, VersionedStorage):
 
     ALL_SUPPORTED_FILE_FORMATS: Set[TLoaderFileFormat] = set(get_args(TLoaderFileFormat))
 
-    @with_config(spec=LoadVolumeConfiguration, sections=("load",))
+    @with_config(spec=LoadVolumeConfiguration, sections=(known_sections.LOAD,))
     def __init__(
         self,
         is_owner: bool,

@@ -1,5 +1,5 @@
+import os
 from typing import Any, Optional, Union
-
 import pytest
 
 import dlt
@@ -8,9 +8,11 @@ from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.configuration.inject import get_fun_spec, with_config
 from dlt.common.configuration.providers import EnvironProvider
 from dlt.common.configuration.providers.toml import CONFIG_TOML, SECRETS_TOML, TomlProvider
+from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs import BaseConfiguration, GcpClientCredentials
 from dlt.common.configuration.specs import PostgresCredentials
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
+from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.reflection.spec import _get_spec_name_from_f
 from dlt.common.typing import StrAny, TSecretValue
 
@@ -112,7 +114,7 @@ def test_inject_without_spec_kw_only() -> None:
 def test_inject_with_auto_section(environment: Any) -> None:
     environment["PIPE__VALUE"] = "test"
 
-    @with_config(auto_section=True)
+    @with_config(auto_pipeline_section=True)
     def f(pipeline_name=dlt.config.value, value=dlt.secrets.value):
         assert value == "test"
 
@@ -126,6 +128,56 @@ def test_inject_with_auto_section(environment: Any) -> None:
 @pytest.mark.skip("not implemented")
 def test_inject_with_spec() -> None:
     pass
+
+
+@pytest.mark.skip("not implemented")
+def test_inject_with_sections() -> None:
+    pass
+
+
+def test_inject_with_sections_and_sections_context() -> None:
+
+    @with_config
+    def no_sections(value=dlt.config.value):
+        return value
+
+    @with_config(sections=("test", ))
+    def test_sections(value=dlt.config.value):
+        return value
+
+    # a section context that prefers existing context
+    @with_config(sections=("test", ), sections_merge_style=ConfigSectionContext.prefer_existing)
+    def test_sections_pref_existing(value=dlt.config.value):
+        return value
+
+
+    # a section that wants context like dlt resource
+    @with_config(sections=("test", "module", "name"), sections_merge_style=ConfigSectionContext.resource_merge_style)
+    def test_sections_like_resource(value=dlt.config.value):
+        return value
+
+    os.environ["VALUE"] = "no_section"
+    os.environ["TEST__VALUE"] = "test_section"
+    os.environ["INJECTED__VALUE"] = "injected_section"
+    os.environ["TEST__EXISTING_MODULE__NAME__VALUE"] = "resource_style_injected"
+
+    assert no_sections() == "no_section"
+    # looks in "test" section first
+    assert test_sections() == "test_section"
+    assert test_sections_pref_existing() == "test_section"
+    assert test_sections_like_resource() == "test_section"
+
+    with inject_section(ConfigSectionContext(sections=("injected", ))):
+        # the "injected" section is applied to "no_section" func that has no sections
+        assert no_sections() == "injected_section"
+        # but not to "test" - it won't be overridden by section context
+        assert test_sections() == "test_section"
+        assert test_sections_like_resource() == "test_section"
+        # this one explicitly prefers existing context
+        assert test_sections_pref_existing() == "injected_section"
+
+    with inject_section(ConfigSectionContext(sections=("test", "existing_module", "existing_name"))):
+        assert test_sections_like_resource() == "resource_style_injected"
 
 
 @pytest.mark.skip("not implemented")
@@ -239,7 +291,6 @@ def test_use_most_specific_union_type(environment: Any, toml_providers: ConfigPr
 
 
 def test_auto_derived_spec_type_name() -> None:
-
 
     class AutoNameTest:
         @with_config

@@ -1,7 +1,7 @@
 from typing import Type
 
 from dlt.common.schema.schema import Schema
-from dlt.common.configuration import with_config
+from dlt.common.configuration import with_config, known_sections
 from dlt.common.configuration.accessors import config
 from dlt.common.data_writers.escape import escape_postgres_identifier, escape_duckdb_literal
 from dlt.common.destination import DestinationCapabilitiesContext, JobClientBase, DestinationClientConfiguration
@@ -9,7 +9,7 @@ from dlt.common.destination import DestinationCapabilitiesContext, JobClientBase
 from dlt.destinations.duckdb.configuration import DuckDbClientConfiguration
 
 
-@with_config(spec=DuckDbClientConfiguration, sections=("destination", "duckdb",))
+@with_config(spec=DuckDbClientConfiguration, sections=(known_sections.DESTINATION, "duckdb",))
 def _configure(config: DuckDbClientConfiguration = config.value) -> DuckDbClientConfiguration:
     return config
 

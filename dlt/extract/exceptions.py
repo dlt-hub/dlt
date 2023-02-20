@@ -203,3 +203,8 @@ class SourceIsAClassTypeError(DltSourceException):
         self.source_name = source_name
         self.typ = _typ
         super().__init__(f"First parameter to the source {source_name} is a class {_typ.__name__}. Do not decorate classes with @dlt.source. Instead implement __call__ in your class and pass instance of such class to dlt.source() directly")
+
+
+class SourceSchemaNotAvailable(DltSourceException):
+    def __init__(self) -> None:
+        super().__init__("Current source schema is available only when called from a function decorated with dlt.source or dlt.resource")

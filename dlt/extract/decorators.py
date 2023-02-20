@@ -2,12 +2,14 @@ import os
 import inspect
 from types import ModuleType
 from functools import wraps
-from typing import Any, Callable, Dict, Iterator, List, NamedTuple, Optional, Tuple, Type, TypeVar, Union, cast, overload
+from typing import TYPE_CHECKING, Any, Callable, ClassVar, Dict, Iterator, List, NamedTuple, Optional, Tuple, Type, TypeVar, Union, cast, overload
 
-from dlt.common.configuration import with_config, get_fun_spec
+from dlt.common.configuration import with_config, get_fun_spec, known_sections, configspec
+from dlt.common.configuration.container import Container
+from dlt.common.configuration.exceptions import ContextDefaultCannotBeCreated
 from dlt.common.configuration.resolve import inject_section
-from dlt.common.configuration.specs import BaseConfiguration
-from dlt.common.configuration.specs.config_namespace_context import ConfigSectionContext
+from dlt.common.configuration.specs import BaseConfiguration, ContainerInjectableContext
+from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.exceptions import ArgumentsOverloadException
 from dlt.common.normalizers.json import relational as relational_normalizer
 from dlt.common.schema.schema import Schema
@@ -16,19 +18,34 @@ from dlt.common.storages.exceptions import SchemaNotFoundError
 from dlt.common.storages.schema_storage import SchemaStorage
 from dlt.common.typing import AnyFun, ParamSpec, Concatenate, TDataItem, TDataItems
 from dlt.common.utils import get_callable_name, is_inner_callable
-from dlt.extract.exceptions import InvalidTransformerDataTypeGeneratorFunctionRequired, ResourceFunctionExpected, SourceDataIsNone, SourceIsAClassTypeError, SourceNotAFunction
+from dlt.extract.exceptions import InvalidTransformerDataTypeGeneratorFunctionRequired, ResourceFunctionExpected, SourceDataIsNone, SourceIsAClassTypeError, SourceNotAFunction, SourceSchemaNotAvailable
 
 from dlt.extract.typing import TTableHintTemplate
 from dlt.extract.source import DltResource, DltSource, TUnboundDltResource
 
 
+
+@configspec(init=True)
+class SourceSchemaInjectableContext(ContainerInjectableContext):
+    """A context containing the source schema, present when decorated function is executed"""
+    schema: Schema
+
+    can_create_default: ClassVar[bool] = False
+
+    if TYPE_CHECKING:
+        def __init__(self, schema: Schema = None) -> None:
+            ...
+
+
 class SourceInfo(NamedTuple):
+    """Runtime information on the source/resource"""
     SPEC: Type[BaseConfiguration]
     f: AnyFun
     module: ModuleType
 
 
 _SOURCES: Dict[str, SourceInfo] = {}
+"""A registry of all the decorated sources and resources discovered when importing modules"""
 
 TSourceFunParams = ParamSpec("TSourceFunParams")
 TResourceFunParams = ParamSpec("TResourceFunParams")
@@ -103,14 +120,18 @@ def source(func: Optional[AnyFun] = None, /, name: str = None, max_table_nesting
             )
 
         # wrap source extraction function in configuration with section
-        source_sections = ("sources", name)
+        func_module = inspect.getmodule(f)
+        source_section = _get_source_section_name(func_module)
+        source_sections = (known_sections.SOURCES, source_section, name)
         conf_f = with_config(f, spec=spec, sections=source_sections)
 
         @wraps(conf_f)
         def _wrap(*args: Any, **kwargs: Any) -> DltSource:
-            # configurations will be accessed in this section in the source
-            with inject_section(ConfigSectionContext(sections=source_sections)):
-                rv = conf_f(*args, **kwargs)
+            # make schema available to the source
+            with Container().injectable_context(SourceSchemaInjectableContext(schema)):
+                # configurations will be accessed in this section in the source
+                with inject_section(ConfigSectionContext(sections=source_sections)):
+                    rv = conf_f(*args, **kwargs)
 
             # if generator, consume it immediately
             if inspect.isgenerator(rv):
@@ -120,12 +141,12 @@ def source(func: Optional[AnyFun] = None, /, name: str = None, max_table_nesting
                 raise SourceDataIsNone(name)
 
             # convert to source
-            return DltSource.from_data(name, schema, rv)
+            return DltSource.from_data(name, source_section, schema, rv)
 
         # get spec for wrapped function
         SPEC = get_fun_spec(conf_f)
         # store the source information
-        _SOURCES[_wrap.__qualname__] = SourceInfo(SPEC, _wrap, inspect.getmodule(f))
+        _SOURCES[_wrap.__qualname__] = SourceInfo(SPEC, _wrap, func_module)
 
         # the typing is right, but makefun.wraps does not preserve signatures
         return _wrap
@@ -258,13 +279,18 @@ def resource(
             conf_f = f
         else:
             # wrap source extraction function in configuration with section
-            conf_f = with_config(f, spec=spec, sections=("sources", resource_name))
+            func_module = inspect.getmodule(f)
+            # print(f"STANDALONE RES: {f.__name__} {(known_sections.SOURCES, _get_source_section_name(func_module), resource_name)}")
+            resource_sections = (known_sections.SOURCES, _get_source_section_name(func_module), resource_name)
+            # standalone resource will prefer existing section context when resolving config values
+            # this lets the source to override those values and provide common section for all config values for resources present in that source
+            conf_f = with_config(f, spec=spec, sections=resource_sections, sections_merge_style=ConfigSectionContext.resource_merge_style)
             # get spec for wrapped function
             SPEC = get_fun_spec(conf_f)
 
         # store the standalone resource information
         if SPEC:
-            _SOURCES[f.__qualname__] = SourceInfo(SPEC, f, inspect.getmodule(f))
+            _SOURCES[f.__qualname__] = SourceInfo(SPEC, f, func_module)
 
         return make_resource(resource_name, conf_f)
 
@@ -334,6 +360,20 @@ def _get_source_for_inner_function(f: AnyFun) -> Optional[SourceInfo]:
     parts = get_callable_name(f, "__qualname__").split(".")
     parent_fun = ".".join(parts[:-2])
     return _SOURCES.get(parent_fun)
+
+
+def _get_source_section_name(m: ModuleType) -> str:
+    if hasattr(m, "__source_name__"):
+        return cast(str, m.__source_name__)
+    return m.__name__.split(".")[-1]
+
+
+def get_source_schema() -> Schema:
+    """When executed from the function decorated with @dlt.source, returns a writable source Schema"""
+    try:
+        return Container()[SourceSchemaInjectableContext].schema
+    except ContextDefaultCannotBeCreated:
+        raise SourceSchemaNotAvailable()
 
 
 # def with_retry(max_retries: int = 3, retry_sleep: float = 1.0) -> Callable[[Callable[_TFunParams, TBoundItem]], Callable[_TFunParams, TBoundItem]]:

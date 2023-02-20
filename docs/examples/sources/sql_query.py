@@ -40,7 +40,7 @@ def _query_data(
 @dlt.resource
 def query_table(
     table_name: str,
-    credentials: Union[ConnectionStringCredentials, str, StrAny],
+    credentials: Union[ConnectionStringCredentials, str, StrAny] = dlt.secrets.value,
     table_schema_name: str = None,
     # index_col: Union[str, Sequence[str], None] = None,
     coerce_float: bool = True,
@@ -48,6 +48,7 @@ def query_table(
     columns: List[str] = None,
     chunk_size: int = 1000
 ) -> Any:
+    print(credentials)
     assert isinstance(credentials, ConnectionStringCredentials)
     f = partial(pandas.read_sql_table, table_name, credentials.to_native_representation(), table_schema_name, None, coerce_float, parse_dates, columns, chunksize=chunk_size)
     # if resource is returned from decorator function, it will override the hints from decorator
@@ -57,7 +58,7 @@ def query_table(
 @dlt.resource
 def query_sql(
     sql: str,
-    credentials: Union[ConnectionStringCredentials, str, StrAny],
+    credentials: Union[ConnectionStringCredentials, str, StrAny] = dlt.secrets.value,
     coerce_float: bool = True,
     parse_dates: Any = None,
     chunk_size: int = 1000,

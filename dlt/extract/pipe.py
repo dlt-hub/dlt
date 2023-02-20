@@ -337,7 +337,7 @@ class PipeIterator(Iterator[PipeItem]):
         futures_poll_interval: float = 0.01
         copy_on_fork: bool = False
 
-        __namespace__ = "extract"
+        __sections__ = "extract"
 
     def __init__(self, max_parallel_items: int, workers: int, futures_poll_interval: float) -> None:
         self.max_parallel_items = max_parallel_items
@@ -481,6 +481,32 @@ class PipeIterator(Iterator[PipeItem]):
             else:
                 pipe_item = None
 
+    def close(self) -> None:
+        def stop_background_loop(loop: asyncio.AbstractEventLoop) -> None:
+            loop.stop()
+
+        # stop all futures
+        for f, _, _, _ in self._futures:
+            if not f.done():
+                f.cancel()
+        self._futures.clear()
+
+        # close all generators
+        for gen, _, _, _ in self._sources:
+            if inspect.isgenerator(gen):
+                gen.close()
+        self._sources.clear()
+
+        # print("stopping loop")
+        if self._async_pool:
+            self._async_pool.call_soon_threadsafe(stop_background_loop, self._async_pool)
+            # print("joining thread")
+            self._async_pool_thread.join()
+            self._async_pool = None
+            self._async_pool_thread = None
+        if self._thread_pool:
+            self._thread_pool.shutdown(wait=True)
+            self._thread_pool = None
 
     def _ensure_async_pool(self) -> asyncio.AbstractEventLoop:
         # lazily create async pool is separate thread
@@ -510,23 +536,7 @@ class PipeIterator(Iterator[PipeItem]):
         return self
 
     def __exit__(self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: types.TracebackType) -> None:
-
-        def stop_background_loop(loop: asyncio.AbstractEventLoop) -> None:
-            loop.stop()
-
-        for f, _, _, _ in self._futures:
-            if not f.done():
-                f.cancel()
-        # print("stopping loop")
-        if self._async_pool:
-            self._async_pool.call_soon_threadsafe(stop_background_loop, self._async_pool)
-            # print("joining thread")
-            self._async_pool_thread.join()
-            self._async_pool = None
-            self._async_pool_thread = None
-        if self._thread_pool:
-            self._thread_pool.shutdown(wait=True)
-            self._thread_pool = None
+        self.close()
 
     def _next_future(self) -> int:
         return next((i for i, val in enumerate(self._futures) if val.item.done()), -1)
@@ -607,3 +617,15 @@ class PipeIterator(Iterator[PipeItem]):
                 clone = clone.parent
 
         return cloned_pipes
+
+
+class ManagedPipeIterator(PipeIterator):
+    """A version of the pipe iterator that gets closed automatically on an exception in _next_"""
+
+    def __next__(self) -> PipeItem:
+        try:
+            return super().__next__()
+        except Exception:
+            # crash in next
+            self.close()
+            raise

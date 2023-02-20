@@ -73,7 +73,7 @@ def pipeline() -> Pipeline:  # type: ignore
     If not found, it creates a new instance with all the pipeline options set to defaults."""
 
 
-@with_config(spec=PipelineConfiguration, auto_section=True)
+@with_config(spec=PipelineConfiguration, auto_pipeline_section=True)
 def pipeline(
     pipeline_name: str = None,
     pipelines_dir: str = None,
@@ -125,7 +125,7 @@ def pipeline(
     return p
 
 
-@with_config(spec=PipelineConfiguration, auto_section=True)
+@with_config(spec=PipelineConfiguration, auto_pipeline_section=True)
 def attach(
     pipeline_name: str = None,
     pipelines_dir: str = None,

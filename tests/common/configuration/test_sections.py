@@ -188,6 +188,21 @@ def test_injected_sections(mock_provider: MockProvider) -> None:
         mock_provider.reset_stats()
 
 
+def test_section_context() -> None:
+    with pytest.raises(ValueError):
+        ConfigSectionContext().source_name()
+    with pytest.raises(ValueError):
+        ConfigSectionContext(sections=()).source_name()
+    with pytest.raises(ValueError):
+        ConfigSectionContext(sections=("sources", )).source_name()
+    with pytest.raises(ValueError):
+        ConfigSectionContext(sections=("sources", "modules")).source_name()
+
+    assert ConfigSectionContext(sections=("sources", "modules", "func")).source_name() == "func"
+
+    # TODO: test merge functions
+
+
 def test_section_with_pipeline_name(mock_provider: MockProvider) -> None:
     # if pipeline name is present, keys will be looked up twice: with pipeline as top level section and without it
 

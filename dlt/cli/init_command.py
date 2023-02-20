@@ -93,7 +93,6 @@ def _detect_required_configs(visitor: PipelineScriptVisitor) -> Tuple[Dict[str, 
 
             if val_store is not None:
                 # we are sure that all resources come from single file so we can put them in single section
-                # sections = () if len(known_imported_sources) == 1 else ("sources", source_name)
                 val_store[source_name + ":" + field_name] = WritableConfigValue(field_name, field_type, ())
 
     return required_secrets, required_config

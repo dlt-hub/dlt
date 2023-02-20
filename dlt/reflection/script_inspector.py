@@ -11,7 +11,7 @@ from dlt.common.exceptions import DltException
 from dlt.common.typing import DictStrAny
 
 from dlt.pipeline import Pipeline
-from dlt.extract.source import DltSource, PipeIterator
+from dlt.extract.source import DltSource, ManagedPipeIterator
 
 
 def patch__init__(self: Any, *args: Any, **kwargs: Any) -> None:
@@ -40,7 +40,7 @@ def inspect_pipeline_script(module_path:str, script_relative_path: str) -> Modul
     try:
 
         # patch entry points to pipeline, sources and resources to prevent pipeline from running
-        with patch.object(Pipeline, '__init__', patch__init__), patch.object(DltSource, '__init__', patch__init__), patch.object(PipeIterator, '__init__', patch__init__):
+        with patch.object(Pipeline, '__init__', patch__init__), patch.object(DltSource, '__init__', patch__init__), patch.object(ManagedPipeIterator, '__init__', patch__init__):
             logger.info(f"Importing pipeline script from path {path} and module: {package}.{module}")
             return import_module(f"{package}.{module}")
     finally:

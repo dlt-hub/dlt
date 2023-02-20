@@ -204,17 +204,36 @@ def test_restore_state_pipeline(destination_name: str) -> None:
     dataset_name="state_test_" + uniq_id()
     p = dlt.pipeline(pipeline_name=pipeline_name, destination=destination_name, dataset_name=dataset_name)
 
-    @dlt.resource
-    def some_data(param: str) -> Any:
+    def some_data_gen(param: str) -> Any:
         dlt.state()[param] = param
         yield param
 
-    # extract to several schemas
+    @dlt.resource
+    def some_data(param: str):
+        yield from some_data_gen(param)
+
+    @dlt.source(schema=Schema("two"))
+    def source_two(param: str):
+        return some_data(param)
+
+    @dlt.source(schema=Schema("three"))
+    def source_three(param: str):
+        return some_data(param)
+
+    # extract by creating ad hoc source in pipeline that keeps state under pipeline name
     data1 = some_data("state1")
     data1.name = "state1_data"
     p.extract([data1, some_data("state2")], schema=Schema("default"))
-    p.extract([some_data("state3")], schema=Schema("two"))
-    p.extract([some_data("state4")], schema=Schema("three"))
+
+    # mock the source section to keep state in "two" section
+    data_two = source_two("state3")
+    data_two.section = "two"
+    p.extract(data_two)
+
+    data_three = source_three("state4")
+    data_three.section = "three"
+    p.extract(data_three)
+
     p.normalize()
     p.load()
     # keep the orig state
@@ -234,7 +253,7 @@ def test_restore_state_pipeline(destination_name: str) -> None:
     p.run()
     assert p.default_schema_name == "default"
     assert set(p.schema_names) == set(["default", "two", "three"])
-    assert p.state["sources"] == {"default": {'state1': 'state1', 'state2': 'state2'}, "two": {'state3': 'state3'}, "three": {'state4': 'state4'}}
+    assert p.state["sources"] == {pipeline_name: {'state1': 'state1', 'state2': 'state2'}, "two": {'state3': 'state3'}, "three": {'state4': 'state4'}}
     for schema in p.schemas.values():
         assert "some_data" in schema._schema_tables
     # state version must be the same as the original
@@ -381,7 +400,7 @@ def test_restore_state_parallel_changes(destination_name: str) -> None:
     production_p.sync_destination(destination=destination_name, dataset_name=dataset_name)
     assert production_p.default_schema_name == "default"
     prod_state = production_p.state
-    assert prod_state["sources"] == {"default": {'state1': 'state1', 'state2': 'state2'}}
+    assert prod_state["sources"] == {pipeline_name: {'state1': 'state1', 'state2': 'state2'}}
     assert prod_state["_state_version"] == orig_state["_state_version"]
     # generate data on production that modifies the schema but not state
     data2 = some_data("state1")

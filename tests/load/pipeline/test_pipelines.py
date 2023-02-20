@@ -13,7 +13,7 @@ from dlt.common.schema.typing import VERSION_TABLE_NAME
 from dlt.common.typing import TDataItem
 from dlt.common.utils import uniq_id
 from dlt.extract.exceptions import ResourceNameMissing
-from dlt.pipeline.exceptions import CannotRestorePipelineException, PipelineConfigMissing
+from dlt.pipeline.exceptions import CannotRestorePipelineException, PipelineConfigMissing, PipelineStepFailed
 
 from tests.utils import ALL_DESTINATIONS, preserve_environ, autouse_test_storage, TEST_STORAGE_ROOT
 # from tests.common.configuration.utils import environment
@@ -34,8 +34,10 @@ def test_default_pipeline_names(destination_name: str, use_single_dataset: bool)
     assert p.default_schema_name is None
 
     data = ["a", "b", "c"]
-    with pytest.raises(ResourceNameMissing):
+    with pytest.raises(PipelineStepFailed) as step_ex:
         p.extract(data)
+    assert step_ex.value.step == "extract"
+    assert isinstance(step_ex.value.exception, ResourceNameMissing)
 
     def data_fun() -> Iterator[Any]:
         yield data
