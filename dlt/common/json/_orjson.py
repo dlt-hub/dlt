@@ -1,9 +1,4 @@
-import base64
-
 from typing import IO, Any, Union
-from uuid import UUID
-from hexbytes import HexBytes
-
 import orjson
 
 from dlt.common.json import custom_pua_encode, custom_encode
@@ -13,7 +8,7 @@ _impl_name = "orjson"
 
 
 def _dumps(obj: Any, sort_keys: bool, pretty:bool, default:AnyFun = custom_encode, options: int = 0) -> bytes:
-    options = options | orjson.OPT_UTC_Z
+    options = options | orjson.OPT_UTC_Z | orjson.OPT_NON_STR_KEYS
     if pretty:
         options |= orjson.OPT_INDENT_2
     if sort_keys:

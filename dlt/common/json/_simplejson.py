@@ -1,9 +1,5 @@
-import base64
 import codecs
-from datetime import date, datetime  # noqa: I251
 from typing import IO, Any, Union
-from uuid import UUID
-from hexbytes import HexBytes
 
 import simplejson
 import platform
