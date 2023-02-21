@@ -63,8 +63,8 @@ def _flatten(schema: Schema, table: str, dict_row: TDataItemRow, _r_lvl: int) ->
 
     def norm_row_dicts(dict_row: StrAny, __r_lvl: int, parent_name: Optional[str]) -> None:
         for k, v in dict_row.items():
-            corrected_k = schema.normalize_column_name(k)
-            child_name = corrected_k if not parent_name else schema.normalize_make_path(parent_name, corrected_k)
+            corrected_k = schema.naming.normalize_identifier(k)
+            child_name = corrected_k if not parent_name else schema.naming.normalize_make_path(parent_name, corrected_k)
             # for lists and dicts we must check if type is possibly complex
             if isinstance(v, (dict, list)):
                 if not _is_complex_type(schema, table, child_name, __r_lvl):
@@ -143,7 +143,7 @@ def _normalize_list(
             yield from _normalize_row(schema, v, extend, table, parent_table, parent_row_id, idx, _r_lvl)
         elif isinstance(v, list):
             # normalize lists of lists, we assume all lists in the list have the same type so they should go to the same table
-            list_table_name = schema.normalize_make_path(table, "list")
+            list_table_name = schema.naming.normalize_make_path(table, "list")
             yield from _normalize_list(schema, v, extend, list_table_name, parent_table, parent_row_id, _r_lvl + 1)
         else:
             # list of simple types
@@ -197,11 +197,11 @@ def _normalize_row(
 
     # normalize and yield lists
     for k, list_content in lists.items():
-        yield from _normalize_list(schema, list_content, extend, schema.normalize_make_path(table, k), table, row_id, _r_lvl + 1)
+        yield from _normalize_list(schema, list_content, extend, schema.naming.normalize_make_path(table, k), table, row_id, _r_lvl + 1)
 
 
 def _validate_normalizer_config(schema: Schema, config: RelationalNormalizerConfig) -> None:
-    validate_dict(RelationalNormalizerConfig, config, "./normalizers/json/config", validator_f=column_name_validator(schema.normalize_column_name))
+    validate_dict(RelationalNormalizerConfig, config, "./normalizers/json/config", validator_f=column_name_validator(schema.naming))
 
 
 def update_normalizer_config(schema: Schema, config: RelationalNormalizerConfig) -> None:
@@ -247,4 +247,4 @@ def normalize_data_item(schema: Schema, item: TDataItem, load_id: str, table_nam
     row = cast(TDataItemRowRoot, item)
     # identify load id if loaded data must be processed after loading incrementally
     row["_dlt_load_id"] = load_id
-    yield from _normalize_row(schema, cast(TDataItemRowChild, row), {}, schema.normalize_table_name(table_name))
+    yield from _normalize_row(schema, cast(TDataItemRowChild, row), {}, schema.naming.normalize_identifier(table_name))

@@ -74,7 +74,7 @@ class RedshiftClient(InsertValuesJobClient):
 
     def __init__(self, schema: Schema, config: RedshiftClientConfiguration) -> None:
         sql_client = RedshiftSqlClient (
-            schema.normalize_make_dataset_name(config.dataset_name, config.default_schema_name, schema.name),
+            schema.naming.normalize_make_dataset_name(config.dataset_name, config.default_schema_name, schema.name),
             config.credentials
         )
         super().__init__(schema, config, sql_client)

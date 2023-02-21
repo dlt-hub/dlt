@@ -1,33 +1,33 @@
 import pytest
 
-from dlt.common.normalizers.names.snake_case import normalize_column_name, normalize_table_name, normalize_make_dataset_name, RE_NON_ALPHANUMERIC
+from dlt.common.normalizers.names.snake_case import normalize_identifier, normalize_path, normalize_make_dataset_name, RE_NON_ALPHANUMERIC
 from dlt.common.schema.exceptions import InvalidDatasetName
 
 
-def test_normalize_column_name() -> None:
-    assert normalize_column_name("event_value") == "event_value"
-    assert normalize_column_name("event value") == "event_value"
-    assert normalize_column_name("event-.!:<>value") == "event_value"
+def test_normalize_identifier() -> None:
+    assert normalize_identifier("event_value") == "event_value"
+    assert normalize_identifier("event value") == "event_value"
+    assert normalize_identifier("event-.!:<>value") == "event_value"
     # prefix leading digits
-    assert normalize_column_name("1event_n'") == "_1event_n_"
-    assert normalize_column_name("123event_n'") == "_123event_n_"
+    assert normalize_identifier("1event_n'") == "_1event_n_"
+    assert normalize_identifier("123event_n'") == "_123event_n_"
     # all lowercase and converted to snake
-    assert normalize_column_name("123BaNaNa") == "_123_ba_na_na"
+    assert normalize_identifier("123BaNaNa") == "_123_ba_na_na"
     # consecutive capital letters
-    assert normalize_column_name("BANANA") == "banana"
-    assert normalize_column_name("BAN_ANA") == "ban_ana"
-    assert normalize_column_name("BANaNA") == "ba_na_na"
+    assert normalize_identifier("BANANA") == "banana"
+    assert normalize_identifier("BAN_ANA") == "ban_ana"
+    assert normalize_identifier("BANaNA") == "ba_na_na"
     # handling spaces
-    assert normalize_column_name("Small Love Potion") == "small_love_potion"
+    assert normalize_identifier("Small Love Potion") == "small_love_potion"
 
 
-def test_normalize_table_name() -> None:
-    assert normalize_table_name("small_love_potion") == "small_love_potion"
-    assert normalize_table_name("small__love__potion") == "small__love__potion"
-    assert normalize_table_name("Small_Love_Potion") == "small_love_potion"
-    assert normalize_table_name("Small__Love__Potion") == "small__love__potion"
-    assert normalize_table_name("Small Love Potion") == "small_love_potion"
-    assert normalize_table_name("Small  Love  Potion") == "small_love_potion"
+def test_normalize_path() -> None:
+    assert normalize_path("small_love_potion") == "small_love_potion"
+    assert normalize_path("small__love__potion") == "small__love__potion"
+    assert normalize_path("Small_Love_Potion") == "small_love_potion"
+    assert normalize_path("Small__Love__Potion") == "small__love__potion"
+    assert normalize_path("Small Love Potion") == "small_love_potion"
+    assert normalize_path("Small  Love  Potion") == "small_love_potion"
 
 
 def test_normalize_non_alpha_single_underscore() -> None:
@@ -37,8 +37,8 @@ def test_normalize_non_alpha_single_underscore() -> None:
 
 
 def test_normalizes_underscores() -> None:
-    assert normalize_column_name("event__value_value2____") == "event_value_value2_"
-    assert normalize_table_name("e_vent__value_value2____") == "e_vent__value_value2__"
+    assert normalize_identifier("event__value_value2____") == "event_value_value2_"
+    assert normalize_path("e_vent__value_value2___") == "e_vent__value_value2___"
 
 
 def test_normalize_make_dataset_name() -> None:

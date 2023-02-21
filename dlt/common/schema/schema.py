@@ -4,7 +4,7 @@ from typing import ClassVar, Dict, List, Mapping, Optional, Sequence, Tuple, Any
 from dlt.common import json
 
 from dlt.common.typing import DictStrAny, StrAny, REPattern, SupportsVariant, VARIANT_FIELD_FORMAT
-from dlt.common.normalizers.names import TNormalizeBreakPath, TNormalizeMakePath, TNormalizeNameFunc
+from dlt.common.normalizers.names import NamingConvention
 from dlt.common.normalizers.json import TNormalizeJSONFunc
 from dlt.common.schema.typing import (SCHEMA_ENGINE_VERSION, LOADS_TABLE_NAME, VERSION_TABLE_NAME, TNormalizersConfig, TPartialTableSchema, TSchemaSettings, TSimpleRegex, TStoredSchema,
                                       TSchemaTables, TTableSchema, TTableSchemaColumns, TColumnSchema, TColumnProp, TDataType,
@@ -19,12 +19,7 @@ class Schema:
     ENGINE_VERSION: ClassVar[int] = SCHEMA_ENGINE_VERSION
 
     # name normalization functions
-    normalize_table_name: TNormalizeNameFunc
-    normalize_column_name: TNormalizeNameFunc
-    normalize_schema_name: TNormalizeNameFunc
-    normalize_make_dataset_name: TNormalizeMakePath
-    normalize_make_path: TNormalizeMakePath
-    normalize_break_path: TNormalizeBreakPath
+    naming: NamingConvention
     # json normalization function
     normalize_data_item: TNormalizeJSONFunc
 
@@ -117,18 +112,18 @@ class Schema:
             return is_excluded and not is_included
 
         # break table name in components
-        branch = self.normalize_break_path(table_name)
+        branch = self.naming.normalize_break_path(table_name)
 
         # check if any of the rows is excluded by rules in any of the tables
         for i in range(len(branch), 0, -1):  # stop is exclusive in `range`
             # start at the top level table
-            c_t = self.normalize_make_path(*branch[:i])
+            c_t = self.naming.normalize_make_path(*branch[:i])
             excludes = self._compiled_excludes.get(c_t)
             # only if there's possibility to exclude, continue
             if excludes:
                 includes = self._compiled_includes.get(c_t) or []
                 for field_name in list(row.keys()):
-                    path = self.normalize_make_path(*branch[i:], field_name)
+                    path = self.naming.normalize_make_path(*branch[i:], field_name)
                     if _exclude(path, excludes, includes):
                         # TODO: copy to new instance
                         del row[field_name]  # type: ignore
@@ -228,14 +223,14 @@ class Schema:
 
     def normalize_table_identifiers(self, table: TTableSchema) -> TTableSchema:
         # normalize all identifiers in table according to name normalizer of the schema
-        table["name"] = self.normalize_table_name(table["name"])
+        table["name"] = self.naming.normalize_path(table["name"])
         parent = table.get("parent")
         if parent:
-            table["parent"] = self.normalize_table_name(parent)
+            table["parent"] = self.naming.normalize_path(parent)
         columns = table.get("columns")
         if columns:
             for c in columns.values():
-                c["name"] = self.normalize_column_name(c["name"])
+                c["name"] = self.naming.normalize_path(c["name"])
             # re-index columns as the name changed
             table["columns"] = {c["name"]:c for c in columns.values()}
         return table
@@ -353,7 +348,7 @@ class Schema:
             # otherwise we must create variant extension to the table
             # pass final=True so no more auto-variants can be created recursively
             # TODO: generate callback so DLT user can decide what to do
-            variant_col_name = self.normalize_make_path(col_name, VARIANT_FIELD_FORMAT % py_type)
+            variant_col_name = self.naming.normalize_make_path(col_name, VARIANT_FIELD_FORMAT % py_type)
             return self._coerce_non_null_value(table_columns, table_name, variant_col_name, v, final=True)
 
         # if coerced value is variant, then extract variant value
@@ -362,7 +357,7 @@ class Schema:
             coerced_v = coerced_v()
             if isinstance(coerced_v, tuple):
                 # variant recovered so call recursively with variant column name and variant value
-                variant_col_name = self.normalize_make_path(col_name, VARIANT_FIELD_FORMAT % coerced_v[0])
+                variant_col_name = self.naming.normalize_make_path(col_name, VARIANT_FIELD_FORMAT % coerced_v[0])
                 return self._coerce_non_null_value(table_columns, table_name, variant_col_name, coerced_v[1], final=True)
 
         if not existing_column:
@@ -408,12 +403,7 @@ class Schema:
         # import desired modules
         naming_module, json_module = utils.import_normalizers(self._normalizers_config)
         # name normalization functions
-        self.normalize_table_name = naming_module.normalize_table_name
-        self.normalize_column_name = naming_module.normalize_column_name
-        self.normalize_schema_name = naming_module.normalize_schema_name
-        self.normalize_make_dataset_name = naming_module.normalize_make_dataset_name
-        self.normalize_make_path = naming_module.normalize_make_path
-        self.normalize_break_path = naming_module.normalize_break_path
+        self.naming = naming_module
         # data item normalization function
         self.normalize_data_item = json_module.normalize_data_item
         json_module.extend_schema(self)
@@ -434,12 +424,7 @@ class Schema:
         self._type_detections: Sequence[TTypeDetections] = None
 
         self._normalizers_config: TNormalizersConfig = normalizers
-        self.normalize_table_name: TNormalizeNameFunc = None
-        self.normalize_column_name: TNormalizeNameFunc = None
-        self.normalize_schema_name: TNormalizeNameFunc = None
-        self.normalize_make_dataset_name: TNormalizeMakePath = None
-        self.normalize_make_path: TNormalizeMakePath = None
-        self.normalize_break_path: TNormalizeBreakPath = None
+        self.naming = None
         # json normalization function
         self.normalize_data_item: TNormalizeJSONFunc = None
 
@@ -470,7 +455,7 @@ class Schema:
         self._compile_settings()
 
     def _set_schema_name(self, name: str, normalize_name: bool) -> None:
-        normalized_name = self.normalize_schema_name(name)
+        normalized_name = self.naming.normalize_identifier(name)
         if name != normalized_name:
             if normalize_name:
                 name = normalized_name

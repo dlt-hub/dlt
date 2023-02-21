@@ -93,7 +93,7 @@ class BigQueryClient(SqlJobClientBase):
 
     def __init__(self, schema: Schema, config: BigQueryClientConfiguration) -> None:
         sql_client = BigQuerySqlClient(
-            schema.normalize_make_dataset_name(config.dataset_name, config.default_schema_name, schema.name),
+            schema.naming.normalize_make_dataset_name(config.dataset_name, config.default_schema_name, schema.name),
             config.credentials
         )
         super().__init__(schema, config, sql_client)

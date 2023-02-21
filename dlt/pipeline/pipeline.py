@@ -865,7 +865,7 @@ class Pipeline(SupportsPipeline):
         return Schema(self.pipeline_name, normalize_name=True)
 
     def _validate_dataset_name(self, dataset_name: str) -> None:
-        normalized_name = self._default_naming.normalize_schema_name(dataset_name)
+        normalized_name = self._default_naming.normalize_identifier(dataset_name)
         if normalized_name != dataset_name:
             raise InvalidDatasetName(dataset_name, normalized_name)
 
@@ -873,7 +873,7 @@ class Pipeline(SupportsPipeline):
         if not dataset_name:
             if not self.dataset_name:
                 # set default dataset name from pipeline name
-                dataset_name = self._default_naming.normalize_schema_name(self.pipeline_name)
+                dataset_name = self._default_naming.normalize_identifier(self.pipeline_name)
             else:
                 return
 

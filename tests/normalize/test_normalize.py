@@ -283,6 +283,34 @@ def test_schema_changes(raw_normalize: Normalize, caps: DestinationCapabilitiesC
     assert {"_dlt_id", "_dlt_list_idx", "_dlt_parent_id", "str", "int", "bool", "int__v_text"} == set(doc__comp_table["columns"].keys())
 
 
+@pytest.mark.parametrize("caps", ALL_CAPS)
+def test_normalize_twice_with_flatten(raw_normalize: Normalize, caps: DestinationCapabilitiesContext) -> None:
+    mock_destination_caps(raw_normalize, caps)
+    load_id = extract_and_normalize_cases(raw_normalize, ["github.issues.load_page_5_duck"])
+    table_files = expect_load_package(raw_normalize.load_storage, load_id, ["issues", "issues__labels", "issues__assignees"])
+    assert len(table_files["issues"]) == 1
+    _, lines = get_line_from_file(raw_normalize.load_storage, table_files["issues"], 0)
+    # insert writer adds 2 lines
+    assert lines in (100, 102)
+
+    # check if schema contains a few crucial tables
+    def assert_schema(_schema: Schema):
+        assert "reactions___1" in  schema._schema_tables["issues"]["columns"]
+        assert "reactions__1" not in  schema._schema_tables["issues"]["columns"]
+
+    schema = raw_normalize.load_or_create_schema(raw_normalize.schema_storage, "github")
+    assert_schema(schema)
+
+    load_id = extract_and_normalize_cases(raw_normalize, ["github.issues.load_page_5_duck"])
+    table_files = expect_load_package(raw_normalize.load_storage, load_id, ["issues", "issues__labels", "issues__assignees"])
+    assert len(table_files["issues"]) == 1
+    _, lines = get_line_from_file(raw_normalize.load_storage, table_files["issues"], 0)
+    # insert writer adds 2 lines
+    assert lines in (100, 102)
+    schema = raw_normalize.load_or_create_schema(raw_normalize.schema_storage, "github")
+    assert_schema(schema)
+
+
 def test_group_worker_files() -> None:
 
     files = ["f%03d" % idx for idx in range(0, 100)]
@@ -335,10 +363,10 @@ def normalize_pending(normalize: Normalize, schema_name: str = "event") -> str:
     load_id = uniq_id()
     normalize.load_storage.create_temp_load_package(load_id)
     # pool not required for map_single
-    dest_cases = normalize.normalize_storage.storage.list_folder_files(NormalizeStorage.EXTRACTED_FOLDER) # [f"{NormalizeStorage.EXTRACTED_FOLDER}/{c}.extracted.json" for c in cases]
+    files = normalize.normalize_storage.list_files_to_normalize_sorted()
     # create schema if it does not exist
-    Normalize.load_or_create_schema(normalize.schema_storage, schema_name)
-    normalize.spool_files(schema_name, load_id, normalize.map_single, dest_cases)
+    for schema_name, files_in_schema in normalize.normalize_storage.group_by_schema(files):
+        normalize.spool_files(schema_name, load_id, normalize.map_single, list(files_in_schema))
     return load_id
 
 
