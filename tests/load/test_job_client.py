@@ -335,7 +335,7 @@ def test_write_dispositions(client: SqlJobClientBase, write_disposition: str, fi
     client.schema.update_schema(
         new_table(table_name, write_disposition=write_disposition, columns=TABLE_UPDATE)
         )
-    child_table = client.schema.normalize_make_path(table_name, "child")
+    child_table = client.schema.naming.normalize_make_path(table_name, "child")
     # add child table without write disposition so it will be inferred from the parent
     client.schema.update_schema(
         new_table(child_table, columns=TABLE_UPDATE, parent_table_name=table_name)

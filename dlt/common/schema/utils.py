@@ -15,7 +15,7 @@ from dlt.common.json import custom_pua_remove
 from dlt.common.json._simplejson import custom_encode as json_custom_encode
 from dlt.common.arithmetics import InvalidOperation
 from dlt.common.exceptions import DictValidationException
-from dlt.common.normalizers.names import TNormalizeNameFunc
+from dlt.common.normalizers.names import NamingConvention
 from dlt.common.typing import DictStrAny, REPattern
 from dlt.common.time import parse_iso_like_datetime
 from dlt.common.utils import map_nested_in_place, str2bool
@@ -129,13 +129,16 @@ def simple_regex_validator(path: str, pk: str, pv: Any, t: Any) -> bool:
         return False
 
 
-def column_name_validator(normalize_func: TNormalizeNameFunc) -> TCustomValidator:
+def column_name_validator(naming: NamingConvention) -> TCustomValidator:
 
     def validator(path: str, pk: str, pv: Any, t: Any) -> bool:
         if t is TColumnName:
             if not isinstance(pv, str):
                 raise DictValidationException(f"In {path}: field {pk} value {pv} has invalid type {type(pv).__name__} while str is expected", path, pk, pv)
-            if normalize_func(pv) != pv:
+            try:
+                if naming.normalize_path(pv) != pv:
+                    raise DictValidationException(f"In {path}: field {pk}: {pv} is not a valid column name", path, pk, pv)
+            except ValueError:
                 raise DictValidationException(f"In {path}: field {pk}: {pv} is not a valid column name", path, pk, pv)
             return True
         else:
@@ -597,7 +600,7 @@ def default_normalizers() -> TNormalizersConfig:
             }
 
 
-def import_normalizers(normalizers_config: TNormalizersConfig) -> Tuple[ModuleType, ModuleType]:
+def import_normalizers(normalizers_config: TNormalizersConfig) -> Tuple[NamingConvention, ModuleType]:
     # TODO: type the modules with protocols
     naming_module = import_module(normalizers_config["names"])
     json_module = import_module(normalizers_config["json"]["module"])

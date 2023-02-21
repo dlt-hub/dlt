@@ -11,7 +11,7 @@ from importlib.metadata import version as pkg_version
 from dlt.common.configuration import is_secret_hint, DOT_DLT, make_dot_dlt_path
 from dlt.common.configuration.providers import CONFIG_TOML, SECRETS_TOML, ConfigTomlProvider, SecretsTomlProvider
 from dlt.version import DLT_PKG_NAME, __version__
-from dlt.common.normalizers.names.snake_case import normalize_schema_name
+from dlt.common.normalizers.names.snake_case import normalize_identifier
 from dlt.common.destination import DestinationReference
 from dlt.common.reflection.utils import creates_func_def_name_node, rewrite_python_script
 from dlt.common.schema.exceptions import InvalidSchemaName
@@ -131,7 +131,7 @@ def init_command(pipeline_name: str, destination_name: str, use_generic_template
         init_script_name = pipeline_script
 
     # normalize source name
-    norm_source_name = normalize_schema_name(pipeline_name)
+    norm_source_name = normalize_identifier(pipeline_name)
     if norm_source_name != pipeline_name:
         raise InvalidSchemaName(pipeline_name, norm_source_name)
     dest_pipeline_script = norm_source_name + ".py"

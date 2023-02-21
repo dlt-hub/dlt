@@ -18,43 +18,41 @@ SNAKE_CASE_BREAK_2 = re.compile("([a-z0-9])([A-Z])")
 PATH_SEPARATOR = "__"
 
 
-# fix a name so it's acceptable as database table name
+def camel_to_snake(name: str) -> str:
+    name = SNAKE_CASE_BREAK_1.sub(r'\1_\2', name)
+    return SNAKE_CASE_BREAK_2.sub(r'\1_\2', name).lower()
+
+
 @lru_cache(maxsize=None)
-def normalize_table_name(name: str) -> str:
+def normalize_path(path: str) -> str:
+    """Breaks path into identifiers using PATH_SEPARATOR, normalizes components and reconstitutes the path"""
+    return normalize_make_path(*map(normalize_identifier, normalize_break_path(path)))
+
+
+# fix a name so it's an acceptable name for a database column
+@lru_cache(maxsize=None)
+def normalize_identifier(name: str) -> str:
+    """Normalizes the identifier according to naming convention represented by this function"""
     if not name:
         raise ValueError(name)
-
-    def camel_to_snake(name: str) -> str:
-        name = SNAKE_CASE_BREAK_1.sub(r'\1_\2', name)
-        return SNAKE_CASE_BREAK_2.sub(r'\1_\2', name).lower()
-
     # all characters that are not letters digits or a few special chars are replaced with underscore
     # then convert to snake case
     name = camel_to_snake(RE_NON_ALPHANUMERIC.sub("_", name))
     # leading digits will be prefixed
     if RE_LEADING_DIGITS.match(name):
         name = "_" + name
-    # max 2 consecutive underscores are allowed
-    return RE_DOUBLE_UNDERSCORES.sub("__", name)
 
-
-# fix a name so it's an acceptable name for a database column
-@lru_cache(maxsize=None)
-def normalize_column_name(name: str) -> str:
     # replace consecutive underscores with single one to prevent name clashes with PATH_SEPARATOR
-    return RE_UNDERSCORES.sub("_", normalize_table_name(name))
+    return RE_UNDERSCORES.sub("_", name)
 
 
-# fix a name so it is acceptable as schema name
-def normalize_schema_name(name: str) -> str:
-    return normalize_column_name(name)
-
-
-# build full db dataset (dataset) name out of (normalized) default dataset and schema name
 def normalize_make_dataset_name(dataset_name: str, default_schema_name: str, schema_name: str) -> str:
+    """Builds full db dataset (dataset) name out of (normalized) default dataset and schema name"""
     if not schema_name:
-        raise ValueError("schema_name is None")
-    norm_name = normalize_schema_name(dataset_name)
+        raise ValueError("schema_name is None or empty")
+    if not dataset_name:
+        raise ValueError("dataset_name is None or empty")
+    norm_name = normalize_identifier(dataset_name)
     if norm_name != dataset_name:
         raise InvalidDatasetName(dataset_name, norm_name)
     # if default schema is None then suffix is not added
@@ -64,13 +62,13 @@ def normalize_make_dataset_name(dataset_name: str, default_schema_name: str, sch
     return norm_name
 
 
-# this function builds path out of path elements using PATH_SEPARATOR
-def normalize_make_path(*elems: Any) -> str:
-    return PATH_SEPARATOR.join(elems)
+def normalize_make_path(*identifiers: Any) -> str:
+    """Builds path out of path identifiers using PATH_SEPARATOR. Identifiers are not normalized"""
+    return PATH_SEPARATOR.join(identifiers)
 
 
-# this function break path into elements
 def normalize_break_path(path: str) -> Sequence[str]:
+    """Breaks path into sequence of identifiers"""
     return path.split(PATH_SEPARATOR)
 
 

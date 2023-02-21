@@ -9,7 +9,7 @@ import dlt
 from dlt.common import sleep
 from dlt.common.typing import TDataItems
 from dlt.extract.typing import DataItemWithMeta
-from dlt.extract.pipe import FilterItem, Pipe, PipeItem, PipeIterator
+from dlt.extract.pipe import FilterItem, ManagedPipeIterator, Pipe, PipeItem, PipeIterator
 
 # from tests.utils import preserve_environ
 
@@ -272,19 +272,109 @@ def test_pipe_copy_on_fork() -> None:
     assert elems[0].item is not elems[1].item
 
 
-@pytest.mark.skip("Not implemented")
-def test_async_pipe_exception() -> None:
-    pass
+close_pipe_got_exit = False
+close_pipe_yielding = False
 
 
-@pytest.mark.skip("Not implemented")
-def test_thread_pipe_exception() -> None:
-    pass
+def test_close_on_async_exception() -> None:
+    def long_gen():
+        global close_pipe_got_exit, close_pipe_yielding
+
+        async def _next_item(p: int) -> int:
+            return p
+
+        # will be closed by PipeIterator
+        try:
+            close_pipe_yielding = True
+            for i in range(0, 10000):
+                yield _next_item(i)
+            close_pipe_yielding = False
+        except GeneratorExit:
+            close_pipe_got_exit = True
+
+    # execute in a thread
+    async def raise_gen(item: int):
+        if item == 10:
+            raise RuntimeError("we fail")
+        return item
+
+    assert_pipes_closed(raise_gen, long_gen)
 
 
-@pytest.mark.skip("Not implemented")
-def test_sync_pipe_exception() -> None:
-    pass
+def test_close_on_thread_pool_exception() -> None:
+    def long_gen():
+        global close_pipe_got_exit, close_pipe_yielding
+
+        @dlt.defer
+        def _next_item(p: int) -> int:
+            return p
+
+        # will be closed by PipeIterator
+        try:
+            close_pipe_yielding = True
+            for i in range(0, 10000):
+                yield _next_item(i)
+            close_pipe_yielding = False
+        except GeneratorExit:
+            close_pipe_got_exit = True
+
+    # execute in a thread
+    @dlt.defer
+    def raise_gen(item: int):
+        if item == 10:
+            raise RuntimeError("we fail")
+        return item
+
+    assert_pipes_closed(raise_gen, long_gen)
+
+
+def test_close_on_sync_exception() -> None:
+
+    def long_gen():
+        global close_pipe_got_exit, close_pipe_yielding
+
+        # will be closed by PipeIterator
+        try:
+            close_pipe_yielding = True
+            yield from range(0, 10000)
+            close_pipe_yielding = False
+        except GeneratorExit:
+            close_pipe_got_exit = True
+
+    def raise_gen(item: int):
+        if item == 10:
+            raise RuntimeError("we fail")
+        yield item
+
+    assert_pipes_closed(raise_gen, long_gen)
+
+
+def assert_pipes_closed(raise_gen, long_gen) -> None:
+    global close_pipe_got_exit, close_pipe_yielding
+
+    close_pipe_got_exit = False
+    close_pipe_yielding = False
+
+    print("START PIPE")
+    pit: PipeIterator = None
+    with PipeIterator.from_pipe(Pipe.from_data("failing", raise_gen, parent=Pipe.from_data("endless", long_gen()))) as pit:
+        with pytest.raises(RuntimeError):
+            list(pit)
+    # it got closed
+    assert pit._sources == []
+    assert close_pipe_got_exit is True
+    # while long gen was still yielding
+    assert close_pipe_yielding is True
+
+    close_pipe_got_exit = False
+    close_pipe_yielding = False
+    pit = ManagedPipeIterator.from_pipe(Pipe.from_data("failing", raise_gen, parent=Pipe.from_data("endless", long_gen())))
+    with pytest.raises(RuntimeError):
+        list(pit)
+    assert pit._sources == []
+    assert close_pipe_got_exit is True
+    # while long gen was still yielding
+    assert close_pipe_yielding is True
 
 
 def _f_items(pipe_items: Sequence[PipeItem]) -> List[TDataItems]:

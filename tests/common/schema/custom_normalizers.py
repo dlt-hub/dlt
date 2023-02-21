@@ -4,16 +4,14 @@ from dlt.common.schema.schema import Schema
 from dlt.common.typing import TDataItem
 
 
-def normalize_table_name(name: str) -> str:
-    return name.capitalize()
+def normalize_path(path: str) -> str:
+    return normalize_make_path(*map(normalize_identifier, normalize_break_path(path)))
 
 
-def normalize_column_name(name: str) -> str:
+def normalize_identifier(name: str) -> str:
+    if name.startswith("column_"):
+        return name
     return "column_" + name.lower()
-
-
-def normalize_schema_name(name: str) -> str:
-    return name.lower()
 
 
 def extend_schema(schema: Schema) -> None:

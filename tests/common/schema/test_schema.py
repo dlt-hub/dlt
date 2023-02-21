@@ -1,3 +1,4 @@
+from copy import deepcopy
 import os
 from typing import List, Sequence
 import pytest
@@ -38,7 +39,7 @@ def schema() -> Schema:
 
 @pytest.fixture
 def cn_schema() -> Schema:
-    return Schema("default", {
+    return Schema("column_default", {
         "names": "tests.common.schema.custom_normalizers",
         "json": {
             "module": "tests.common.schema.custom_normalizers",
@@ -50,13 +51,13 @@ def cn_schema() -> Schema:
 
 
 def test_normalize_schema_name(schema: Schema) -> None:
-    assert schema.normalize_schema_name("BAN_ANA") == "ban_ana"
-    assert schema.normalize_schema_name("event-.!:value") == "event_value"
-    assert schema.normalize_schema_name("123event-.!:value") == "_123event_value"
+    assert schema.naming.normalize_identifier("BAN_ANA") == "ban_ana"
+    assert schema.naming.normalize_identifier("event-.!:value") == "event_value"
+    assert schema.naming.normalize_identifier("123event-.!:value") == "_123event_value"
     with pytest.raises(ValueError):
-        assert schema.normalize_schema_name("")
+        assert schema.naming.normalize_identifier("")
     with pytest.raises(ValueError):
-        schema.normalize_schema_name(None)
+        schema.naming.normalize_identifier(None)
 
 
 def test_new_schema(schema: Schema) -> None:
@@ -99,16 +100,25 @@ def test_load_corrupted_schema() -> None:
 
 
 def test_column_name_validator(schema: Schema) -> None:
-    assert utils.column_name_validator(schema.normalize_column_name)(".", "k", "v", str) is False
-    assert utils.column_name_validator(schema.normalize_column_name)(".", "k", "v", TColumnName) is True
+    assert utils.column_name_validator(schema.naming)(".", "k", "v", str) is False
+    assert utils.column_name_validator(schema.naming)(".", "k", "v", TColumnName) is True
 
-    assert utils.column_name_validator(schema.normalize_column_name)(".", "k", "snake_case", TColumnName) is True
+    assert utils.column_name_validator(schema.naming)(".", "k", "snake_case", TColumnName) is True
+    # double underscores are accepted
+    assert utils.column_name_validator(schema.naming)(".", "k", "snake__case", TColumnName) is True
+    # triple underscores are accepted
+    assert utils.column_name_validator(schema.naming)(".", "k", "snake___case", TColumnName) is True
+    # quadruple underscores generate empty identifier
     with pytest.raises(DictValidationException) as e:
-        utils.column_name_validator(schema.normalize_column_name)(".", "k", "1snake_case", TColumnName)
+        utils.column_name_validator(schema.naming)(".", "k", "snake____case", TColumnName)
+    assert "not a valid column name" in str(e.value)
+    # this name is invalid
+    with pytest.raises(DictValidationException) as e:
+        utils.column_name_validator(schema.naming)(".", "k", "1snake_case", TColumnName)
     assert "not a valid column name" in str(e.value)
     # expected str as base type
     with pytest.raises(DictValidationException):
-        utils.column_name_validator(schema.normalize_column_name)(".", "k", 1, TColumnName)
+        utils.column_name_validator(schema.naming)(".", "k", 1, TColumnName)
 
 
 def test_invalid_schema_name() -> None:
@@ -188,7 +198,7 @@ def test_save_store_schema(schema: Schema, schema_storage: SchemaStorage) -> Non
 
 def test_save_store_schema_custom_normalizers(cn_schema: Schema, schema_storage: SchemaStorage) -> None:
     schema_storage.save_schema(cn_schema)
-    schema_copy = schema_storage.load_schema("default")
+    schema_copy = schema_storage.load_schema(cn_schema.name)
     assert_new_schema_values_custom_normalizers(schema_copy)
 
 
@@ -416,6 +426,17 @@ def test_compare_columns() -> None:
         assert utils.compare_column(table["columns"]["col3"], table["columns"]["col4"]) is True
 
 
+def test_normalize_table_identifiers() -> None:
+    schema_dict: TStoredSchema = load_json_case("schemas/github/issues.schema")
+    schema = Schema.from_dict(schema_dict)
+    # assert column generated from "reactions/+1" and "-1", it is a valid identifier even with three underscores
+    assert "reactions___1" in schema._schema_tables["issues"]["columns"]
+    issues_table = deepcopy(schema._schema_tables["issues"])
+    # this schema is already normalized so normalization is idempotent
+    assert schema._schema_tables["issues"] == schema.normalize_table_identifiers(issues_table)
+    assert schema._schema_tables["issues"] == schema.normalize_table_identifiers(schema.normalize_table_identifiers(issues_table))
+
+
 def assert_new_schema_values_custom_normalizers(schema: Schema) -> None:
     # check normalizers config
     assert schema._normalizers_config["names"] == "tests.common.schema.custom_normalizers"
@@ -423,12 +444,12 @@ def assert_new_schema_values_custom_normalizers(schema: Schema) -> None:
     # check if schema was extended by json normalizer
     assert ["fake_id"] == schema.settings["default_hints"]["not_null"]
     # call normalizers
-    assert schema.normalize_column_name("a") == "column_a"
-    assert schema.normalize_table_name("a__b") == "A__b"
-    assert schema.normalize_schema_name("1A_b") == "1a_b"
+    assert schema.naming.normalize_identifier("a") == "column_a"
+    assert schema.naming.normalize_path("a__b") == "column_a__column_b"
+    assert schema.naming.normalize_identifier("1A_b") == "column_1a_b"
     # assumes elements are normalized
-    assert schema.normalize_make_path("A", "B", "!C") == "A__B__!C"
-    assert schema.normalize_break_path("A__B__!C") == ["A", "B", "!C"]
+    assert schema.naming.normalize_make_path("A", "B", "!C") == "A__B__!C"
+    assert schema.naming.normalize_break_path("A__B__!C") == ["A", "B", "!C"]
     row = list(schema.normalize_data_item(schema, {"bool": True}, "load_id", "a_table"))
     assert row[0] == (("a_table", None), {"bool": True})
 
@@ -448,12 +469,13 @@ def assert_new_schema_values(schema: Schema) -> None:
     # check if schema was extended by json normalizer
     assert set(["_dlt_id", "_dlt_root_id", "_dlt_parent_id", "_dlt_list_idx", "_dlt_load_id"]).issubset(schema.settings["default_hints"]["not_null"])
     # call normalizers
-    assert schema.normalize_column_name("A") == "a"
-    assert schema.normalize_table_name("A__B") == "a__b"
-    assert schema.normalize_schema_name("1A_b") == "_1_a_b"
+    assert schema.naming.normalize_identifier("A") == "a"
+    assert schema.naming.normalize_path("A__B") == "a__b"
+    assert schema.naming.normalize_identifier("1A_b") == "_1_a_b"
     # assumes elements are normalized
-    assert schema.normalize_make_path("A", "B", "!C") == "A__B__!C"
-    assert schema.normalize_break_path("A__B__!C") == ["A", "B", "!C"]
+    assert schema.naming.normalize_make_path("A", "B", "!C") == "A__B__!C"
+    assert schema.naming.normalize_break_path("A__B__!C") == ["A", "B", "!C"]
+    assert schema.naming.normalize_break_path("reactions___1") == ["reactions", "_1"]
     schema.normalize_data_item(schema, {}, "load_id", schema.name)
     # check default tables
     tables = schema.tables

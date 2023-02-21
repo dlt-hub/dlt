@@ -233,10 +233,10 @@ def test_save_store_schema_over_import_sync(synced_storage: SchemaStorage) -> No
 def test_save_store_schema(storage: SchemaStorage) -> None:
     d_n = default_normalizers()
     d_n["names"] = "tests.common.schema.custom_normalizers"
-    schema = Schema("event", normalizers=d_n)
+    schema = Schema("column_event", normalizers=d_n)
     storage.save_schema(schema)
-    assert storage.storage.has_file(SchemaStorage.NAMED_SCHEMA_FILE_PATTERN % ("event", "json"))
-    loaded_schema = storage.load_schema("event")
+    assert storage.storage.has_file(SchemaStorage.NAMED_SCHEMA_FILE_PATTERN % ("column_event", "json"))
+    loaded_schema = storage.load_schema("column_event")
     assert loaded_schema.to_dict()["tables"]["_dlt_loads"] == schema.to_dict()["tables"]["_dlt_loads"]
     assert loaded_schema.to_dict() == schema.to_dict()
 

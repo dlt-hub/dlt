@@ -58,7 +58,7 @@ def extract(extract_id: str, source: DltSource, storage: ExtractorStorage, *, ma
         # note: normalize function should be cached so there's almost no penalty on frequent calling
         # note: column schema is not required for jsonl writer used here
         # event.pop(DLT_METADATA_FIELD, None)  # type: ignore
-        storage.write_data_item(extract_id, schema.name, schema.normalize_table_name(table_name), item, None)
+        storage.write_data_item(extract_id, schema.name, schema.naming.normalize_identifier(table_name), item, None)
 
     def _write_dynamic_table(resource: DltResource, item: TDataItem) -> None:
         table_name = resource._table_name_hint_fun(item)
