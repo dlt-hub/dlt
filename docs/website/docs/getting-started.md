@@ -38,7 +38,7 @@ conn = duckdb.connect('quack.duckdb')
 conn.sql('SELECT COUNT(*) FROM games').show()
 ```
 
-Run `query.py` to run the script and execute the SQL query to see the number of games:
+Run `query.py` to execute the script and SQL query to see how many total games were loaded from the API:
 ```
 python3 query.py
 ```
