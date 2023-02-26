@@ -62,6 +62,18 @@ def test_singleton(container: Container) -> None:
     assert container_configurations is singleton.contexts
 
 
+def test_container_items(container: Container) -> None:
+    # will add InjectableTestContext instance to container
+    container[InjectableTestContext]
+    assert InjectableTestContext in container
+    del container[InjectableTestContext]
+    assert InjectableTestContext not in container
+    container[InjectableTestContext] = InjectableTestContext(current_value="S")
+    assert container[InjectableTestContext].current_value == "S"
+    container[InjectableTestContext] = InjectableTestContext(current_value="SS")
+    assert container[InjectableTestContext].current_value == "SS"
+
+
 def test_get_default_injectable_config(container: Container) -> None:
     injectable = container[InjectableTestContext]
     assert injectable.current_value is None
