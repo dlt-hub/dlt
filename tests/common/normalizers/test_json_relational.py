@@ -31,15 +31,15 @@ def test_flatten_fix_field_name(schema: Schema) -> None:
     flattened_row, lists = _flatten(schema, "mock_table", row, 0)
     assert "f_1" in flattened_row
     # assert "f_2" in flattened_row
-    assert "f_3__f4" in flattened_row
-    assert "f_3__f_5" in flattened_row
-    assert "f_3__f_6__c" in flattened_row
-    assert "f_3__f_6__c_v" in flattened_row
+    assert "fl3__f4" in flattened_row
+    assert "fl3__f_5" in flattened_row
+    assert "fl3__fx6__c" in flattened_row
+    assert "fl3__fx6__c_v" in flattened_row
     # assert "f_3__f_6__c_x" in flattened_row
-    assert "f_3" not in flattened_row
+    assert "fl3" not in flattened_row
 
-    assert "f_2" in lists
-    assert "f_3__f_6__c_x" in lists
+    assert ("f_2", ) in lists
+    assert ("fl3", "fx6", "c_x", ) in lists
 
 
 def test_preserve_complex_value(schema: Schema) -> None:
@@ -98,7 +98,7 @@ def test_child_table_linking(schema: Schema) -> None:
     # request _dlt_root_id propagation
     add_dlt_root_id_propagation(schema)
 
-    rows = list(_normalize_row(schema, row, {}, "table"))
+    rows = list(_normalize_row(schema, row, {}, ("table", )))
     # should have 7 entries (root + level 1 + 3 * list + 2 * object)
     assert len(rows) == 7
     # root elem will not have a root hash if not explicitly added, "extend" is added only to child
@@ -151,7 +151,7 @@ def test_child_table_linking_primary_key(schema: Schema) -> None:
     schema.merge_hints({"primary_key": ["id"]})
     schema._compile_settings()
 
-    rows = list(_normalize_row(schema, row, {}, "table"))
+    rows = list(_normalize_row(schema, row, {}, ("table", )))
     root = next(t for t in rows if t[0][0] == "table")[1]
     # record hash must be derived from natural key
     assert root["_dlt_id"] == digest128("level0")
@@ -186,7 +186,7 @@ def test_yields_parents_first(schema: Schema) -> None:
             "l": ["a"]
         }]
     }
-    rows = list(_normalize_row(schema, row, {}, "table"))
+    rows = list(_normalize_row(schema, row, {}, ("table", )))
     tables = list(r[0][0] for r in rows)
     # child tables are always yielded before parent tables
     expected_tables = ['table', 'table__f', 'table__f__l', 'table__f__l', 'table__f__l', 'table__f__o', 'table__f__o', 'table__g', 'table__g__l']
@@ -218,7 +218,7 @@ def test_yields_parent_relation(schema: Schema) -> None:
             }
         }]
     }
-    rows = list(_normalize_row(schema, row, {}, "table"))
+    rows = list(_normalize_row(schema, row, {}, ("table", )))
     # normalizer must return parent table first and move in order of the list elements when yielding child tables
     # the yielding order if fully defined
     expected_parents = [
@@ -267,7 +267,7 @@ def test_child_table_linking_compound_primary_key(schema: Schema) -> None:
     schema.merge_hints({"primary_key": ["id", "offset", "item_no"]})
     schema._compile_settings()
 
-    rows = list(_normalize_row(schema, row, {}, "table"))
+    rows = list(_normalize_row(schema, row, {}, ("table", )))
     root = next(t for t in rows if t[0][0] == "table")[1]
     # record hash must be derived from natural key
     assert root["_dlt_id"] == digest128("level0_12102.45")
@@ -283,7 +283,7 @@ def test_list_position(schema: Schema) -> None:
             "lo": [{"e": "a"}, {"e": "b"}, {"e":"c"}]
         }]
     }
-    rows = list(_normalize_row(schema, row, {}, "table"))
+    rows = list(_normalize_row(schema, row, {}, ("table", )))
     # root has no pos
     root = [t for t in rows if t[0][0] == "table"][0][1]
     assert "_dlt_list_idx" not in root
@@ -313,7 +313,7 @@ def test_list_of_lists(schema: Schema) -> None:
             "a", 1, 1.1
         ]
     }
-    rows = list(_normalize_row(schema, row, {}, "table"))
+    rows = list(_normalize_row(schema, row, {}, ("table", )))
     print(rows)
 
 
@@ -328,7 +328,7 @@ def test_child_row_deterministic_hash(schema: Schema) -> None:
             "lo": [{"e": "a"}, {"e": "b"}, {"e":"c"}]
         }]
     }
-    rows = list(_normalize_row(schema, row, {}, "table"))
+    rows = list(_normalize_row(schema, row, {}, ("table", )))
     children = [t for t in rows if t[0][0] != "table"]
     # all hashes must be different
     distinct_hashes = set([ch[1]["_dlt_id"] for ch in children])
@@ -345,19 +345,19 @@ def test_child_row_deterministic_hash(schema: Schema) -> None:
     assert f_lo_p2["_dlt_id"] == digest128(f"{el_f['_dlt_id']}_table__f__lo_2")
 
     # same data with same table and row_id
-    rows_2 = list(_normalize_row(schema, row, {}, "table"))
+    rows_2 = list(_normalize_row(schema, row, {}, ("table", )))
     children_2 = [t for t in rows_2 if t[0][0] != "table"]
     # corresponding hashes must be identical
     assert all(ch[0][1]["_dlt_id"] == ch[1][1]["_dlt_id"] for ch in zip(children, children_2))
 
     # change parent table and all child hashes must be different
-    rows_4 = list(_normalize_row(schema, row, {}, "other_table"))
+    rows_4 = list(_normalize_row(schema, row, {}, ("other_table", )))
     children_4 = [t for t in rows_4 if t[0][0] != "other_table"]
     assert all(ch[0][1]["_dlt_id"] != ch[1][1]["_dlt_id"] for ch in zip(children, children_4))
 
     # change parent hash and all child hashes must be different
     row["_dlt_id"] = uniq_id()
-    rows_3 = list(_normalize_row(schema, row, {}, "table"))
+    rows_3 = list(_normalize_row(schema, row, {}, ("table", )))
     children_3 = [t for t in rows_3 if t[0][0] != "table"]
     assert all(ch[0][1]["_dlt_id"] != ch[1][1]["_dlt_id"] for ch in zip(children, children_3))
 
@@ -368,14 +368,14 @@ def test_keeps_dlt_id(schema: Schema) -> None:
         "a": "b",
         "_dlt_id": h
     }
-    rows = list(_normalize_row(schema, row, {}, "table"))
+    rows = list(_normalize_row(schema, row, {}, ("table", )))
     root = [t for t in rows if t[0][0] == "table"][0][1]
     assert root["_dlt_id"] == h
 
 
 def test_propagate_hardcoded_context(schema: Schema) -> None:
     row = {"level": 1, "list": ["a", "b", "c"], "comp": [{"_timestamp": "a"}]}
-    rows = list(_normalize_row(schema, row, {"_timestamp": 1238.9, "_dist_key": "SENDER_3000"}, "table"))
+    rows = list(_normalize_row(schema, row, {"_timestamp": 1238.9, "_dist_key": "SENDER_3000"}, ("table", )))
     # context is not added to root element
     root = next(t for t in rows if t[0][0] == "table")[1]
     assert "_timestamp" in root
@@ -392,7 +392,7 @@ def test_propagates_root_context(schema: Schema) -> None:
     schema._normalizers_config["json"]["config"]["propagation"]["root"]["__not_found"] = "__not_found"
 
     row = {"_dlt_id": "###", "timestamp": 12918291.1212, "dependent_list":[1, 2,3], "dependent_objects": [{"vx": "ax"}]}
-    normalized_rows = list(_normalize_row(schema, row, {}, "table"))
+    normalized_rows = list(_normalize_row(schema, row, {}, ("table", )))
     # all non-root rows must have:
     non_root = [r for r in normalized_rows if r[0][1] is not None]
     assert all(r[1]["_dlt_root_id"] == "###" for r in non_root)
@@ -431,7 +431,7 @@ def test_propagates_table_context(schema: Schema, add_pk: bool, add_dlt_id: bool
         # to reproduce a bug where rows with _dlt_id set were not extended
         row["lvl1"][0]["_dlt_id"] = "row_id_lvl1"
 
-    normalized_rows = list(_normalize_row(schema, row, {}, "table"))
+    normalized_rows = list(_normalize_row(schema, row, {}, ("table", )))
     non_root = [r for r in normalized_rows if r[0][1] is not None]
     # _dlt_root_id in all non root
     assert all(r[1]["_dlt_root_id"] == "###" for r in non_root)
@@ -454,7 +454,7 @@ def test_propagates_table_context_to_lists(schema: Schema) -> None:
             "timestamp": 12918291.1212,
             "lvl1": [1, 2, 3, [4, 5, 6]]
     }
-    normalized_rows = list(_normalize_row(schema, row, {}, "table"))
+    normalized_rows = list(_normalize_row(schema, row, {}, ("table", )))
     # _partition_ts == timestamp on all child tables
     non_root = [r for r in normalized_rows if r[0][1] is not None]
     assert all(r[1]["_partition_ts"] == 12918291.1212 for r in non_root)
@@ -467,7 +467,7 @@ def test_removes_normalized_list(schema: Schema) -> None:
     # after normalizing the list that got normalized into child table must be deleted
     row = {"comp": [{"_timestamp": "a"}]}
     # get iterator
-    normalized_rows_i = _normalize_row(schema, row, {}, "table")
+    normalized_rows_i = _normalize_row(schema, row, {}, ("table", ))
     # yield just one item
     root_row = next(normalized_rows_i)
     # root_row = next(r for r in normalized_rows if r[0][1] is None)
@@ -488,7 +488,7 @@ def test_preserves_complex_types_list(schema: Schema) -> None:
     row = {
         "value": ["from", {"complex": True}]
     }
-    normalized_rows = list(_normalize_row(schema, row, {}, "event_slot"))
+    normalized_rows = list(_normalize_row(schema, row, {}, ("event_slot", )))
     # make sure only 1 row is emitted, the list is not normalized
     assert len(normalized_rows) == 1
     # value is kept in root row -> market as complex
@@ -499,7 +499,7 @@ def test_preserves_complex_types_list(schema: Schema) -> None:
     row = {
         "value": ["from", ["complex", True]]
     }
-    normalized_rows = list(_normalize_row(schema, row, {}, "event_slot"))
+    normalized_rows = list(_normalize_row(schema, row, {}, ("event_slot", )))
     # make sure only 1 row is emitted, the list is not normalized
     assert len(normalized_rows) == 1
     # value is kept in root row -> market as complex
