@@ -13,7 +13,7 @@ from dlt.common.schema import Schema
 from dlt.common.schema.typing import TTableSchema
 from dlt.common.storages import LoadStorage
 from dlt.common.telemetry import get_logging_extras, set_gauge_all_labels
-from dlt.common.destination import JobClientBase, DestinationReference, LoadJob, TLoadJobStatus, DestinationClientConfiguration
+from dlt.common.destination.reference import JobClientBase, DestinationReference, LoadJob, TLoadJobStatus, DestinationClientConfiguration
 
 from dlt.destinations.job_client_impl import LoadEmptyJob
 from dlt.destinations.exceptions import DestinationTerminalException, DestinationTransientException, LoadJobUnknownTableException

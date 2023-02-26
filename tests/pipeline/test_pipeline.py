@@ -6,6 +6,7 @@ import pytest
 import dlt
 from dlt.common import json, logger
 from dlt.common.configuration.container import Container
+from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.exceptions import UnknownDestinationModule
 from dlt.common.pipeline import PipelineContext
 from dlt.common.schema.exceptions import InvalidDatasetName
@@ -70,13 +71,13 @@ def test_pipeline_with_non_alpha_name() -> None:
     p = dlt.pipeline(pipeline_name=name)
     assert p.pipeline_name == name
     # default dataset is set
-    assert p.dataset_name == "another_pipeline_8329_"
+    assert p.dataset_name == "another_pipeline_8329x"
     # also pipeline name in runtime must be correct
     assert p.runtime_config.pipeline_name == p.pipeline_name
 
     # this will create default schema
     p.extract(["a", "b", "c"], table_name="data")
-    assert p.default_schema_name == "another_pipeline_8329_"
+    assert p.default_schema_name == "another_pipeline_8329x"
 
 
 def test_invalid_dataset_name() -> None:
@@ -138,13 +139,25 @@ def test_deterministic_salt(environment) -> None:
     p3 = dlt.pipeline(pipeline_name="postgres_redshift")
     assert p.pipeline_salt != p3.pipeline_salt
 
+@pytest.mark.parametrize("destination", ALL_DESTINATIONS)
+def test_create_pipeline_all_destinations(destination: str) -> None:
+    # create pipelines, extract and normalize. that should be possible without installing any dependencies
+    p = dlt.pipeline(pipeline_name=destination + "_pipeline", destination=destination)
+    # are capabilities injected
+    caps = p._container[DestinationCapabilitiesContext]
+    # are right naming conventions created
+    assert p._default_naming.max_length == min(caps.max_column_identifier_length, caps.max_identifier_length)
+    p.extract([1, "2", 3], table_name="data")
+    # is default schema with right naming convention
+    assert p.default_schema.naming.max_length == min(caps.max_column_identifier_length, caps.max_identifier_length)
+    p.normalize()
+    assert p.default_schema.naming.max_length == min(caps.max_column_identifier_length, caps.max_identifier_length)
 
-def test_create_pipeline_all_destinations() -> None:
-    for dest in ALL_DESTINATIONS:
-        # create pipelines, extract and normalize. that should be possible without installing any dependencies
-        p = dlt.pipeline(pipeline_name=dest + "_pipeline", destination=dest)
-        p.extract([1, "2", 3], table_name="data")
-        p.normalize()
+
+# def test_create_naming_convention() -> None:
+#     pass
+# test attach detach
+# test wipe out all contexts
 
 
 def test_extract_source_twice() -> None:

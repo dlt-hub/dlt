@@ -4,7 +4,7 @@ import datetime  # noqa: 251
 from contextlib import contextmanager
 from functools import wraps
 from collections.abc import Sequence as C_Sequence
-from typing import Any, Callable, ClassVar, Dict, List, Iterator, Mapping, Optional, Sequence, Tuple, cast, get_type_hints
+from typing import Any, Callable, ClassVar, Dict, List, Iterator, Mapping, Optional, Sequence, Tuple, cast, get_type_hints, ContextManager
 
 from dlt import version
 from dlt.common import json, logger, signals, pendulum
@@ -14,15 +14,16 @@ from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.exceptions import MissingDependencyException
+from dlt.common.normalizers import default_normalizers, import_normalizers
 from dlt.common.runners.runnable import Runnable
 from dlt.common.schema.exceptions import InvalidDatasetName
 from dlt.common.schema.typing import TColumnSchema, TWriteDisposition
-from dlt.common.schema.utils import default_normalizers, import_normalizers
 from dlt.common.storages.load_storage import LoadStorage
 from dlt.common.typing import TFun, TSecretValue
 from dlt.common.runners import pool_runner as runner, TRunMetrics, initialize_runner
 from dlt.common.storages import LiveSchemaStorage, NormalizeStorage
-from dlt.common.destination import DestinationCapabilitiesContext, DestinationReference, JobClientBase, DestinationClientConfiguration, DestinationClientDwhConfiguration, TDestinationReferenceArg
+from dlt.common.destination import DestinationCapabilitiesContext
+from dlt.common.destination.reference import DestinationReference, JobClientBase, DestinationClientConfiguration, DestinationClientDwhConfiguration, TDestinationReferenceArg
 from dlt.common.pipeline import ExtractInfo, LoadInfo, NormalizeInfo, SupportsPipeline, TPipelineLocalState, TPipelineState
 from dlt.common.schema import Schema
 from dlt.common.storages.file_storage import FileStorage
@@ -159,6 +160,8 @@ class Pipeline(SupportsPipeline):
     dataset_name: str = None
     """Name of the dataset to which pipeline will be loaded to"""
     credentials: Any = None
+    is_active: bool = False
+    """Tells if instance is currently active and available via dlt.pipeline()"""
     config: PipelineConfiguration
     runtime_config: RunConfiguration
 
@@ -185,8 +188,6 @@ class Pipeline(SupportsPipeline):
         self.full_refresh = full_refresh
 
         self._container = Container()
-        # TODO: pass default normalizers as context or as config with defaults
-        self._default_naming, _ = import_normalizers(default_normalizers())
         self._pipeline_instance_id = pendulum.now().format("_YYYYMMDDhhmmss")
         self._pipeline_storage: FileStorage = None
         self._schema_storage: LiveSchemaStorage = None
@@ -205,7 +206,7 @@ class Pipeline(SupportsPipeline):
             # set the pipeline properties from state
             self._state_to_props(state)
             # we overwrite the state with the values from init
-            self.destination = destination or self.destination  # changing the destination could be dangerous if pipeline has not loaded items
+            self._set_destination(destination)  # changing the destination could be dangerous if pipeline has not loaded items
             self._set_dataset_name(dataset_name)
             self.credentials = credentials
             self._configure(import_schema_path, export_schema_path, must_attach_to_local_pipeline)
@@ -251,19 +252,20 @@ class Pipeline(SupportsPipeline):
         storage = ExtractorStorage(self._normalize_storage_config)
         extract_ids: List[str] = []
         try:
-            # extract all sources
-            for source in self._data_to_sources(data, schema, table_name, parent_table_name, write_disposition, columns):
-                if source.exhausted:
-                    raise SourceExhausted(source.name)
-                # TODO: merge infos for all the sources
-                extract_ids.append(
-                    self._extract_source(storage, source, max_parallel_items, workers)
-                )
-            # commit extract ids
-            # TODO: if we fail here we should probably wipe out the whole extract folder
-            for extract_id in extract_ids:
-                storage.commit_extract_files(extract_id)
-            return ExtractInfo()
+            with self._maybe_destination_capabilities():
+                # extract all sources
+                for source in self._data_to_sources(data, schema, table_name, parent_table_name, write_disposition, columns):
+                    if source.exhausted:
+                        raise SourceExhausted(source.name)
+                    # TODO: merge infos for all the sources
+                    extract_ids.append(
+                        self._extract_source(storage, source, max_parallel_items, workers)
+                    )
+                # commit extract ids
+                # TODO: if we fail here we should probably wipe out the whole extract folder
+                for extract_id in extract_ids:
+                    storage.commit_extract_files(extract_id)
+                return ExtractInfo()
         except Exception as exc:
             # TODO: provide metrics from extractor
             raise PipelineStepFailed(self, "extract", exc, runner.LAST_RUN_METRICS, ExtractInfo()) from exc
@@ -279,8 +281,8 @@ class Pipeline(SupportsPipeline):
         if not self.default_schema_name:
             return None
 
-        # get destination capabilities
-        destination_caps = self._get_destination_capabilities()
+        # make sure destination capabilities are available
+        self._get_destination_capabilities()
         # create default normalize config
         normalize_config = NormalizeConfiguration(
             is_single_run=True,
@@ -292,7 +294,7 @@ class Pipeline(SupportsPipeline):
             _load_storage_config=self._load_storage_config
         )
         # run with destination context
-        with self._container.injectable_context(destination_caps):
+        with self._maybe_destination_capabilities():
             # shares schema storage with the pipeline so we do not need to install
             normalize = Normalize(config=normalize_config, schema_storage=self._schema_storage)
             try:
@@ -308,7 +310,7 @@ class Pipeline(SupportsPipeline):
     @with_config_section((known_sections.LOAD,))
     def load(
         self,
-        destination: DestinationReference = None,
+        destination: TDestinationReferenceArg = None,
         dataset_name: str = None,
         credentials: Any = None,
         # raise_on_failed_jobs = False,
@@ -319,8 +321,7 @@ class Pipeline(SupportsPipeline):
     ) -> LoadInfo:
         """Loads the packages prepared by `normalize` method into the `dataset_name` at `destination`, using provided `credentials`"""
         # set destination and default dataset if provided
-        destination = DestinationReference.from_name(destination)
-        self.destination = destination or self.destination
+        self._set_destination(destination)
         self._set_dataset_name(dataset_name)
         self.credentials = credentials or self.credentials
 
@@ -413,8 +414,7 @@ class Pipeline(SupportsPipeline):
         ### Returns:
             LoadInfo: Information on loaded data including the list of package ids and failed job statuses. Please not that `dlt` will not raise if a single job terminally fails. Such information is provided via LoadInfo.
         """
-        destination = DestinationReference.from_name(destination)
-        self.destination = destination or self.destination
+        self._set_destination(destination)
         self._set_dataset_name(dataset_name)
 
         # sync state with destination
@@ -451,8 +451,7 @@ class Pipeline(SupportsPipeline):
         Note: this method is executed by the `run` method before any operation on data. Use `restore_from_destination` configuration option to disable that behavior.
 
         """
-        destination_mod = DestinationReference.from_name(destination)
-        self.destination = destination_mod or self.destination
+        self._set_destination(destination)
         self._set_dataset_name(dataset_name)
 
         state = self._get_state()
@@ -869,6 +868,41 @@ class Pipeline(SupportsPipeline):
         if normalized_name != dataset_name:
             raise InvalidDatasetName(dataset_name, normalized_name)
 
+    def _set_context(self, is_active: bool) -> None:
+        self.is_active = is_active
+        if is_active:
+            # set destination context on activation
+            if self.destination:
+                # inject capabilities context
+                self._container[DestinationCapabilitiesContext] = self._get_destination_capabilities()
+        else:
+            # remove destination context on deactivation
+            if DestinationCapabilitiesContext in self._container:
+                del self._container[DestinationCapabilitiesContext]
+
+    def _set_destination(self, destination: TDestinationReferenceArg) -> None:
+        destination_mod = DestinationReference.from_name(destination)
+        self.destination = destination_mod or self.destination
+        with self._maybe_destination_capabilities():
+            # default normalizers must match the destination
+            self._set_default_normalizers()
+
+    @contextmanager
+    def _maybe_destination_capabilities(self) -> Iterator[DestinationCapabilitiesContext]:
+        try:
+            caps: DestinationCapabilitiesContext = None
+            injected_caps: ContextManager[DestinationCapabilitiesContext] = None
+            if self.destination:
+                injected_caps = self._container.injectable_context(self._get_destination_capabilities())
+                caps = injected_caps.__enter__()
+            yield caps
+        finally:
+            if injected_caps:
+                injected_caps.__exit__(None, None, None)
+
+    def _set_default_normalizers(self) -> None:
+        self._default_naming, _ = import_normalizers(default_normalizers())
+
     def _set_dataset_name(self, dataset_name: str) -> None:
         if not dataset_name:
             if not self.dataset_name:
@@ -1065,7 +1099,7 @@ class Pipeline(SupportsPipeline):
             if prop in state["_local"] and not prop.startswith("_"):
                 setattr(self, prop, state["_local"][prop])  # type: ignore
         if "destination" in state:
-            self.destination = DestinationReference.from_name(self.destination)
+            self._set_destination(DestinationReference.from_name(self.destination))
 
     def _props_to_state(self, state: TPipelineState) -> None:
         """Write pipeline props to `state`"""

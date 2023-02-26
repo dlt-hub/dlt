@@ -1,11 +1,11 @@
 import multiprocessing
 import platform
-from typing import Any, Mapping
 import requests
 import pytest
 import logging
 from os import environ
 
+import dlt
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.providers import DictionaryProvider
 from dlt.common.configuration.resolve import resolve_configuration
@@ -19,7 +19,7 @@ from dlt.common.typing import StrAny
 
 
 TEST_STORAGE_ROOT = "_storage"
-ALL_DESTINATIONS = ["bigquery", "redshift", "postgres", "duckdb"]
+ALL_DESTINATIONS = dlt.config.get("ALL_DESTINATIONS", list) or ["bigquery", "redshift", "postgres", "duckdb"]
 # ALL_DESTINATIONS = ["duckdb", "postgres"]
 
 

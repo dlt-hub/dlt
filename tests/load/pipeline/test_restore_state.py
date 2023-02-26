@@ -174,7 +174,7 @@ def test_get_schemas_from_destination(destination_name: str, use_single_dataset:
     restored_schemas = p._get_schemas_from_destination([], always_download=False)
     assert restored_schemas == []
     # restore unknown schema
-    restored_schemas = p._get_schemas_from_destination(["_unknown_"], always_download=False)
+    restored_schemas = p._get_schemas_from_destination(["_unknown"], always_download=False)
     assert restored_schemas == []
     # restore default schema
     p.default_schema_name = "state"

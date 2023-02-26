@@ -7,7 +7,7 @@ from dlt.common.typing import TSecretValue, Any
 from dlt.common.configuration import with_config
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.inject import get_orig_args, last_config
-from dlt.common.destination import DestinationReference, TDestinationReferenceArg
+from dlt.common.destination.reference import DestinationReference, TDestinationReferenceArg
 from dlt.common.pipeline import LoadInfo, PipelineContext, get_default_pipelines_dir
 
 from dlt.pipeline.configuration import PipelineConfiguration, ensure_correct_pipeline_kwargs

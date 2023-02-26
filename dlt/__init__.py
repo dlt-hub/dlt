@@ -22,7 +22,6 @@ For more detailed info, see https://dlthub.com/docs/getting-started
 """
 
 from dlt.version import __version__
-from dlt.common.schema import Schema
 from dlt.common.configuration.accessors import config, secrets
 from dlt.common.typing import TSecretValue as _TSecretValue
 from dlt.common.configuration.specs import CredentialsConfiguration as _CredentialsConfiguration
@@ -30,6 +29,7 @@ from dlt.extract.decorators import source, resource, transformer, defer
 from dlt.extract.source import with_table_name
 from dlt.pipeline import pipeline as _pipeline, run, attach, Pipeline, dbt, current as _current
 from dlt.pipeline.state import state
+from dlt.common.schema import Schema
 
 pipeline = _pipeline
 current = _current
