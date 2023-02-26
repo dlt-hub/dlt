@@ -4,7 +4,7 @@ from typing import Any, AnyStr, ClassVar, Iterator, List, Optional, Sequence
 
 import google.cloud.bigquery as bigquery  # noqa: I250
 from google.cloud.bigquery import dbapi as bq_dbapi
-from google.cloud.bigquery.dbapi import Connection as DbApiConnection
+from google.cloud.bigquery.dbapi import Connection as DbApiConnection, Cursor as BQDbApiCursor
 from google.cloud import exceptions as gcp_exceptions
 from google.cloud.bigquery.dbapi import exceptions as dbapi_exceptions
 from google.api_core import exceptions as api_core_exceptions
@@ -14,9 +14,9 @@ from dlt.common.configuration.specs import GcpClientCredentials
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.typing import StrAny
 
-from dlt.destinations.typing import DBApi, DBApiCursor, DBTransaction
+from dlt.destinations.typing import DBApi, DBApiCursor, DBTransaction, DataFrame
 from dlt.destinations.exceptions import DatabaseTerminalException, DatabaseTransientException, DatabaseUndefinedRelation
-from dlt.destinations.sql_client import SqlClientBase, raise_database_error, raise_open_connection_error
+from dlt.destinations.sql_client import DBApiCursorImpl, SqlClientBase, raise_database_error, raise_open_connection_error
 
 from dlt.destinations.bigquery import capabilities
 
@@ -24,6 +24,23 @@ from dlt.destinations.bigquery import capabilities
 # https://cloud.google.com/bigquery/docs/error-messages
 BQ_TERMINAL_REASONS = ["billingTierLimitExceeded", "duplicate", "invalid", "notFound", "notImplemented", "stopped", "tableUnavailable"]
 # invalidQuery is an transient error -> must be fixed by programmer
+
+
+class BigQueryDBApiCursorImpl(DBApiCursorImpl):
+    """Use native BigQuery data frame support if available"""
+    native_cursor: BQDbApiCursor  # type: ignore
+
+    def df(self, chunk_size: int = None, **kwargs: Any) -> DataFrame:
+        query_job: bigquery.QueryJob = self.native_cursor._query_job
+
+        if chunk_size is None:
+            try:
+                return query_job.to_dataframe(**kwargs)
+            except ValueError:
+                # no pyarrow/db-types, fallback to our implementation
+                return super().df()
+        else:
+            return super().df(chunk_size=chunk_size)
 
 
 class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
@@ -41,7 +58,7 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
         self._session_query: bigquery.QueryJobConfig = None
 
     @raise_open_connection_error
-    def open_connection(self) -> None:
+    def open_connection(self) -> bigquery.Client:
         self._client = bigquery.Client(
             self.credentials.project_id,
             credentials=self.credentials.to_service_account_credentials(),
@@ -60,6 +77,7 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
             return query_orig(query, retry=retry, timeout=timeout, **kwargs)
 
         self._client.query = query_patch  # type: ignore
+        return self._client
 
     def close_connection(self) -> None:
         if self._session_query:
@@ -169,7 +187,7 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
             curr = conn.cursor()
             # if session exists give it a preference
             curr.execute(query, db_args, job_config=self._session_query or self._default_query)
-            yield curr
+            yield BigQueryDBApiCursorImpl(curr)  # type: ignore
         finally:
             if conn:
                 # will also close all cursors

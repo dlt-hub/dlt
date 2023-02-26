@@ -12,7 +12,8 @@ from typing import ClassVar, Dict, Optional
 
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.schema import TColumnSchema, TDataType, TColumnHint, Schema
+from dlt.common.data_types import TDataType
+from dlt.common.schema import TColumnSchema, TColumnHint, Schema
 
 from dlt.destinations.insert_job_client import InsertValuesJobClient
 from dlt.destinations.exceptions import DatabaseTerminalException
@@ -74,7 +75,7 @@ class RedshiftClient(InsertValuesJobClient):
 
     def __init__(self, schema: Schema, config: RedshiftClientConfiguration) -> None:
         sql_client = RedshiftSqlClient (
-            schema.naming.normalize_make_dataset_name(config.dataset_name, config.default_schema_name, schema.name),
+            self.make_dataset_name(schema, config.dataset_name, config.default_schema_name),
             config.credentials
         )
         super().__init__(schema, config, sql_client)

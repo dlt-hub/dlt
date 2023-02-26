@@ -8,11 +8,12 @@ from typing import Any, ClassVar, List, NamedTuple, Optional, Sequence, Tuple, T
 import zlib
 
 from dlt.common import json, pendulum, logger
-from dlt.common.schema.typing import COLUMN_HINTS, LOADS_TABLE_NAME, VERSION_TABLE_NAME, TColumnSchemaBase, TDataType
+from dlt.common.data_types import TDataType
+from dlt.common.schema.typing import COLUMN_HINTS, LOADS_TABLE_NAME, VERSION_TABLE_NAME, TColumnSchemaBase
 from dlt.common.schema.utils import add_missing_hints
 from dlt.common.storages import FileStorage
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns
-from dlt.common.destination import DestinationClientConfiguration, DestinationClientDwhConfiguration, TLoadJobStatus, LoadJob, JobClientBase
+from dlt.common.destination.reference import DestinationClientConfiguration, DestinationClientDwhConfiguration, TLoadJobStatus, LoadJob, JobClientBase
 from dlt.destinations.exceptions import DatabaseUndefinedRelation, DestinationSchemaWillNotUpdate
 
 from dlt.destinations.typing import TNativeConn

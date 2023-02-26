@@ -5,11 +5,28 @@ from typing import Any, AnyStr, ClassVar, Iterator, Optional, Sequence
 from dlt.common.destination import DestinationCapabilitiesContext
 
 from dlt.destinations.exceptions import DatabaseTerminalException, DatabaseTransientException, DatabaseUndefinedRelation
-from dlt.destinations.typing import DBApi, DBApiCursor, DBTransaction
-from dlt.destinations.sql_client import SqlClientBase, raise_database_error, raise_open_connection_error
+from dlt.destinations.typing import DBApi, DBApiCursor, DBTransaction, DataFrame
+from dlt.destinations.sql_client import SqlClientBase, DBApiCursorImpl, raise_database_error, raise_open_connection_error
 
 from dlt.destinations.duckdb import capabilities
 from dlt.destinations.duckdb.configuration import DuckDbCredentials
+
+
+class DuckDBDBApiCursorImpl(DBApiCursorImpl):
+    """Use native BigQuery data frame support if available"""
+    native_cursor: duckdb.DuckDBPyConnection  # type: ignore
+    vector_size: ClassVar[int] = 2048
+
+    def df(self, chunk_size: int = None, **kwargs: Any) -> DataFrame:
+        if chunk_size is None:
+            return self.native_cursor.df(**kwargs)
+        else:
+            multiple = chunk_size // self.vector_size + (0 if self.vector_size % chunk_size == 0 else 1)
+            df = self.native_cursor.fetch_df_chunk(multiple, **kwargs)
+            if df.shape[0] == 0:
+                return None
+            else:
+                return df
 
 
 class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
@@ -23,7 +40,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
         self.credentials = credentials
 
     @raise_open_connection_error
-    def open_connection(self) -> None:
+    def open_connection(self) -> duckdb.DuckDBPyConnection:
         self._conn = self.credentials.borrow_conn(read_only=self.credentials.read_only)
         # TODO: apply config settings from credentials
         self._conn.execute("PRAGMA enable_checkpoint_on_shutdown;")
@@ -40,6 +57,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
                     self._conn.execute(f"SET {k} = '{v}'")
                 except (duckdb.CatalogException, duckdb.BinderException):
                     pass
+        return self._conn
 
     def close_connection(self) -> None:
         if self._conn:
@@ -106,7 +124,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
             query = query.replace("%s", "?")
         try:
             self._conn.execute(query, db_args)
-            yield self._conn  # type: ignore
+            yield DuckDBDBApiCursorImpl(self._conn)  # type: ignore
         except duckdb.Error as outer:
             self.close_connection()
             self.open_connection()

@@ -1,6 +1,6 @@
 from typing import Sequence
 from dlt.common.exceptions import DestinationTerminalException, DestinationTransientException, DestinationException
-from dlt.common.destination import TLoadJobStatus
+from dlt.common.destination.reference import TLoadJobStatus
 
 
 class DatabaseException(DestinationException):
