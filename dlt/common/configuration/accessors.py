@@ -9,7 +9,7 @@ from dlt.common.configuration.providers.provider import ConfigProvider
 from dlt.common.configuration.specs import BaseConfiguration, is_base_configuration_inner_hint
 from dlt.common.configuration.utils import deserialize_value, log_traces
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
-from dlt.common.schema.utils import coerce_value
+from dlt.common.data_types import coerce_value
 from dlt.common.typing import AnyType, ConfigValue, TSecretValue
 
 DLT_SECRETS_VALUE = "secrets.value"

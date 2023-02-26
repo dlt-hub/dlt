@@ -1,7 +1,6 @@
 import inspect
 import contextlib
 import dataclasses
-from types import FunctionType
 from typing import Callable, List, Optional, Union, Any, Dict, Iterator, MutableMapping, Type, TYPE_CHECKING, get_args, get_origin, overload, ClassVar
 
 if TYPE_CHECKING:
@@ -10,7 +9,7 @@ else:
     TDtcField = dataclasses.Field
 
 from dlt.common.typing import TAnyClass, TSecretValue, extract_inner_type, is_optional_type, is_union
-from dlt.common.schema.utils import py_type_to_sc_type
+from dlt.common.data_types import py_type_to_sc_type
 from dlt.common.configuration.exceptions import ConfigFieldMissingTypeHintException, ConfigFieldTypeHintNotSupported
 
 
