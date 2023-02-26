@@ -1,7 +1,7 @@
 from typing import Any
 
 from dlt.common.exceptions import DltException
-from dlt.common.schema.typing import TDataType
+from dlt.common.data_types import TDataType
 
 
 class SchemaException(DltException):

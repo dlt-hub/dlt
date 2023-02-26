@@ -91,15 +91,15 @@ class Normalize(Runnable[ProcessPool]):
             load_id: str,
             extracted_items_files: Sequence[str]
         ) -> TWorkerRV:
-        schema = Schema.from_stored_schema(stored_schema)
-        load_storage = LoadStorage(False, destination_caps.preferred_loader_file_format, LoadStorage.ALL_SUPPORTED_FILE_FORMATS, loader_storage_config)
-        normalize_storage = NormalizeStorage(False, normalize_storage_config)
 
         schema_updates: List[TSchemaUpdate] = []
         total_items = 0
-
         # process all files with data items and write to buffered item storage
         with Container().injectable_context(destination_caps):
+            schema = Schema.from_stored_schema(stored_schema)
+            load_storage = LoadStorage(False, destination_caps.preferred_loader_file_format, LoadStorage.ALL_SUPPORTED_FILE_FORMATS, loader_storage_config)
+            normalize_storage = NormalizeStorage(False, normalize_storage_config)
+
             try:
                 for extracted_items_file in extracted_items_files:
                     line_no: int = 0

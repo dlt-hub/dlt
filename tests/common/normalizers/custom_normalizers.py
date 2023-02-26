@@ -1,17 +1,15 @@
 from dlt.common.normalizers.json import TNormalizedRowIterator
-from dlt.common.normalizers.names.snake_case import normalize_make_path, normalize_break_path, normalize_make_dataset_name  # import path functions from snake case
+from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCaseNamingConvention
 from dlt.common.schema.schema import Schema
 from dlt.common.typing import TDataItem
 
 
-def normalize_path(path: str) -> str:
-    return normalize_make_path(*map(normalize_identifier, normalize_break_path(path)))
+class NamingConvention(SnakeCaseNamingConvention):
 
-
-def normalize_identifier(name: str) -> str:
-    if name.startswith("column_"):
-        return name
-    return "column_" + name.lower()
+    def normalize_identifier(self, identifier: str) -> str:
+        if identifier.startswith("column_"):
+            return identifier
+        return "column_" + identifier.lower()
 
 
 def extend_schema(schema: Schema) -> None:
