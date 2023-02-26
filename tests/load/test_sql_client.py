@@ -189,7 +189,7 @@ def test_execute_df(client: SqlJobClientBase) -> None:
     client.update_storage_schema()
     client.sql_client.execute_sql(f"CREATE TABLE tmp_{uniq_suffix} (col INT);")
     insert_query = ",".join([f"({idx})" for idx in range(0, total_records)])
-    print(insert_query)
+
     client.sql_client.execute_sql(f"INSERT INTO tmp_{uniq_suffix} VALUES {insert_query};")
     with client.sql_client.execute_query(f"SELECT * FROM tmp_{uniq_suffix} ORDER BY col ASC") as curr:
         df = curr.df()

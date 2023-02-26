@@ -107,6 +107,7 @@ dlt = "dlt.cli._dlt:main"
 [tool.poetry.group.dev.dependencies]
 requests-mock = "^1.10.0"
 types-click = "^7.1.8"
+pandas = "^1.5.3"
 
 [build-system]
 requires = ["poetry-core>=1.0.8"]
