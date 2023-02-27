@@ -97,6 +97,12 @@ class SupportsPipeline(Protocol):
     def state(self) -> TPipelineState:
         """Returns dictionary with pipeline state"""
 
+    def set_local_state_val(self, key: str, value: Any) -> None:
+        """Sets value in local state. Local state is not synchronized with destination."""
+
+    def get_local_state_val(self, key: str) -> Any:
+        """Gets value from local state. Local state is not synchronized with destination."""
+
     def run(
         self,
         data: Any = None,

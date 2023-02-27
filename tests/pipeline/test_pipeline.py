@@ -416,3 +416,24 @@ def test_extract_exception() -> None:
 def test_extract_all_data_types() -> None:
     # list, iterators, generators, resource, source, list of resources, list of sources
     pass
+
+
+def test_set_get_local_Value() -> None:
+    p = dlt.pipeline(destination="dummy", full_refresh=True)
+    value = uniq_id()
+    # value is set
+    p.set_local_state_val(value, value)
+    assert p.get_local_state_val(value) == value
+    # check if this is actual local state
+    assert p.state["_local"][value] == value
+
+    new_val = uniq_id()
+    # check in context manager
+    @dlt.resource
+    def _w_local_state():
+        # join existing managed state
+        p.set_local_state_val(new_val, new_val)
+        yield 1
+
+    p.extract(_w_local_state)
+    assert p.state["_local"][new_val] == new_val
