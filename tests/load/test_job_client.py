@@ -17,7 +17,7 @@ from dlt.destinations.job_client_impl import SqlJobClientBase
 
 from tests.utils import TEST_STORAGE_ROOT, ALL_DESTINATIONS, autouse_test_storage
 from tests.common.utils import load_json_case
-from tests.load.utils import (TABLE_UPDATE, TABLE_UPDATE_COLUMNS_SCHEMA, TABLE_ROW, expect_load_file, load_table, yield_client_with_storage,
+from tests.load.utils import (ALL_CLIENTS_SUBSET, TABLE_UPDATE, TABLE_UPDATE_COLUMNS_SCHEMA, TABLE_ROW, expect_load_file, load_table, yield_client_with_storage,
                                 cm_yield_client_with_storage, write_dataset, prepare_table, ALL_CLIENTS)
 
 
@@ -156,7 +156,7 @@ def test_complete_load(client: SqlJobClientBase) -> None:
     assert len(load_rows) == 2
 
 
-@pytest.mark.parametrize('client', ["redshift_client", "postgres_client"], indirect=True)
+@pytest.mark.parametrize('client', ALL_CLIENTS_SUBSET(["redshift_client", "postgres_client"]), indirect=True)
 def test_schema_update_create_table_redshift(client: SqlJobClientBase) -> None:
     # infer typical rasa event schema
     schema = client.schema
@@ -177,7 +177,7 @@ def test_schema_update_create_table_redshift(client: SqlJobClientBase) -> None:
     assert exists is True
 
 
-@pytest.mark.parametrize('client', ["bigquery_client"], indirect=True)
+@pytest.mark.parametrize('client', ALL_CLIENTS_SUBSET(["bigquery_client"]), indirect=True)
 def test_schema_update_create_table_bigquery(client: SqlJobClientBase) -> None:
     # infer typical rasa event schema
     schema = client.schema
@@ -335,7 +335,7 @@ def test_write_dispositions(client: SqlJobClientBase, write_disposition: str, fi
     client.schema.update_schema(
         new_table(table_name, write_disposition=write_disposition, columns=TABLE_UPDATE)
         )
-    child_table = client.schema.naming.normalize_make_path(table_name, "child")
+    child_table = client.schema.naming.make_path(table_name, "child")
     # add child table without write disposition so it will be inferred from the parent
     client.schema.update_schema(
         new_table(child_table, columns=TABLE_UPDATE, parent_table_name=table_name)

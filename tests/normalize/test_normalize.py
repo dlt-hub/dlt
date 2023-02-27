@@ -1,6 +1,6 @@
 import pytest
 from fnmatch import fnmatch
-from typing import Dict, List, Sequence, Tuple
+from typing import Dict, Iterator, List, Sequence, Tuple
 from prometheus_client import CollectorRegistry
 from multiprocessing import get_start_method, Pool
 from multiprocessing.dummy import Pool as ThreadPool
@@ -10,22 +10,41 @@ from dlt.common.destination import TLoaderFileFormat
 from dlt.common.schema.schema import Schema
 from dlt.common.utils import uniq_id
 from dlt.common.typing import StrAny
-from dlt.common.schema import TDataType
+from dlt.common.data_types import TDataType
 from dlt.common.storages import NormalizeStorage, LoadStorage
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.configuration.container import Container
 
 from dlt.extract.extract import ExtractorStorage
 from dlt.normalize import Normalize
-from dlt.destinations.postgres import capabilities as insert_caps
+from dlt.destinations.duckdb import capabilities as duck_insert_caps
+from dlt.destinations.redshift import capabilities as rd_insert_caps
+from dlt.destinations.postgres import capabilities as pg_insert_caps
 from dlt.destinations.bigquery import capabilities as jsonl_caps
 
 from tests.cases import JSON_TYPED_DICT, JSON_TYPED_DICT_TYPES
-from tests.utils import TEST_STORAGE_ROOT, TEST_DICT_CONFIG_PROVIDER, assert_no_dict_key_starts_with, write_version, clean_test_storage, init_logger
+from tests.utils import TEST_STORAGE_ROOT, TEST_DICT_CONFIG_PROVIDER, assert_no_dict_key_starts_with, clean_test_storage, init_logger
 from tests.normalize.utils import json_case_path
 
 
-ALL_CAPS = [insert_caps(), jsonl_caps()]
+INSERT_CAPS = [duck_insert_caps, rd_insert_caps, pg_insert_caps]
+JSONL_CAPS = [jsonl_caps]
+ALL_CAPS = INSERT_CAPS + JSONL_CAPS
+
+
+@pytest.fixture(scope="module", autouse=True)
+def default_caps() -> Iterator[DestinationCapabilitiesContext]:
+    # set the postgres caps as default for the whole module
+    with Container().injectable_context(pg_insert_caps()) as caps:
+        yield caps
+
+
+@pytest.fixture
+def caps(request) -> Iterator[DestinationCapabilitiesContext]:
+    # NOTE: you must put this fixture before any normalize fixture
+    _caps = request.param()
+    with Container().injectable_context(_caps):
+        yield _caps
 
 
 @pytest.fixture()
@@ -42,16 +61,13 @@ def rasa_normalize() -> Normalize:
     yield from init_normalize("tests/normalize/cases/schemas")
 
 
-def init_normalize(default_schemas_path: str = None) -> Normalize:
+def init_normalize(default_schemas_path: str = None) -> Iterator[Normalize]:
     clean_test_storage()
     # pass schema config fields to schema storage via dict config provider
     with TEST_DICT_CONFIG_PROVIDER().values({"import_schema_path": default_schemas_path, "external_schema_format": "json"}):
         # inject the destination capabilities
-        with Container().injectable_context(insert_caps()):
-            n = Normalize(collector=CollectorRegistry())
-            assert n.load_storage.loader_file_format == "insert_values"
-            assert n.config.destination_capabilities.preferred_loader_file_format == "insert_values"
-            yield n
+        n = Normalize(collector=CollectorRegistry())
+        yield n
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -64,8 +80,8 @@ def test_initialize(rasa_normalize: Normalize) -> None:
     pass
 
 
-def test_normalize_single_user_event_jsonl(raw_normalize: Normalize) -> None:
-    mock_destination_caps(raw_normalize, jsonl_caps())
+@pytest.mark.parametrize("caps", JSONL_CAPS, indirect=True)
+def test_normalize_single_user_event_jsonl(caps: DestinationCapabilitiesContext, raw_normalize: Normalize) -> None:
     expected_tables, load_files = normalize_event_user(raw_normalize, "event.event.user_load_1", EXPECTED_USER_TABLES)
     # load, parse and verify jsonl
     for expected_table in expected_tables:
@@ -85,8 +101,9 @@ def test_normalize_single_user_event_jsonl(raw_normalize: Normalize) -> None:
     assert "intent_response_key" in event_json
 
 
-def test_normalize_single_user_event_insert(raw_normalize: Normalize) -> None:
-    mock_destination_caps(raw_normalize, insert_caps())
+@pytest.mark.parametrize("caps", INSERT_CAPS, indirect=True)
+def test_normalize_single_user_event_insert(caps: DestinationCapabilitiesContext, raw_normalize: Normalize) -> None:
+    # mock_destination_caps(raw_normalize, caps)
     expected_tables, load_files = normalize_event_user(raw_normalize, "event.event.user_load_1", EXPECTED_USER_TABLES)
     # verify values line
     for expected_table in expected_tables:
@@ -102,10 +119,10 @@ def test_normalize_single_user_event_insert(raw_normalize: Normalize) -> None:
     assert "(7005479104644416710," in event_text
 
 
-def test_normalize_filter_user_event(rasa_normalize: Normalize) -> None:
-    mock_destination_caps(rasa_normalize, jsonl_caps())
+@pytest.mark.parametrize("caps", JSONL_CAPS, indirect=True)
+def test_normalize_filter_user_event(caps: DestinationCapabilitiesContext, rasa_normalize: Normalize) -> None:
     load_id = extract_and_normalize_cases(rasa_normalize, ["event.event.user_load_v228_1"])
-    load_files = expect_load_package(
+    _, load_files = expect_load_package(
         rasa_normalize.load_storage,
         load_id,
         ["event", "event_user", "event_user__metadata__user_nicknames",
@@ -119,10 +136,10 @@ def test_normalize_filter_user_event(rasa_normalize: Normalize) -> None:
     assert_no_dict_key_starts_with(filtered_row, "parse_data__response_selector")
 
 
-def test_normalize_filter_bot_event(rasa_normalize: Normalize) -> None:
-    mock_destination_caps(rasa_normalize, jsonl_caps())
+@pytest.mark.parametrize("caps", JSONL_CAPS, indirect=True)
+def test_normalize_filter_bot_event(caps: DestinationCapabilitiesContext, rasa_normalize: Normalize) -> None:
     load_id = extract_and_normalize_cases(rasa_normalize, ["event.event.bot_load_metadata_2987398237498798"])
-    load_files = expect_load_package(rasa_normalize.load_storage, load_id, ["event", "event_bot"])
+    _, load_files = expect_load_package(rasa_normalize.load_storage, load_id, ["event", "event_bot"])
     event_text, lines = get_line_from_file(rasa_normalize.load_storage, load_files["event_bot"], 0)
     assert lines == 1
     filtered_row = json.loads(event_text)
@@ -130,10 +147,10 @@ def test_normalize_filter_bot_event(rasa_normalize: Normalize) -> None:
     assert "metadata__account_balance" not in filtered_row
 
 
-def test_preserve_slot_complex_value_json_l(rasa_normalize: Normalize) -> None:
-    mock_destination_caps(rasa_normalize, jsonl_caps())
+@pytest.mark.parametrize("caps", JSONL_CAPS, indirect=True)
+def test_preserve_slot_complex_value_json_l(caps: DestinationCapabilitiesContext, rasa_normalize: Normalize) -> None:
     load_id = extract_and_normalize_cases(rasa_normalize, ["event.event.slot_session_metadata_1"])
-    load_files = expect_load_package(rasa_normalize.load_storage, load_id, ["event", "event_slot"])
+    _, load_files = expect_load_package(rasa_normalize.load_storage, load_id, ["event", "event_slot"])
     event_text, lines = get_line_from_file(rasa_normalize.load_storage, load_files["event_slot"], 0)
     assert lines == 1
     filtered_row = json.loads(event_text)
@@ -144,10 +161,10 @@ def test_preserve_slot_complex_value_json_l(rasa_normalize: Normalize) -> None:
         }
 
 
-def test_preserve_slot_complex_value_insert(rasa_normalize: Normalize) -> None:
-    mock_destination_caps(rasa_normalize, insert_caps())
+@pytest.mark.parametrize("caps", INSERT_CAPS, indirect=True)
+def test_preserve_slot_complex_value_insert(caps: DestinationCapabilitiesContext, rasa_normalize: Normalize) -> None:
     load_id = extract_and_normalize_cases(rasa_normalize, ["event.event.slot_session_metadata_1"])
-    load_files = expect_load_package(rasa_normalize.load_storage, load_id, ["event", "event_slot"])
+    _, load_files = expect_load_package(rasa_normalize.load_storage, load_id, ["event", "event_slot"])
     event_text, lines = get_line_from_file(rasa_normalize.load_storage, load_files["event_slot"], 2)
     assert lines == 3
     c_val = json.dumps({
@@ -157,11 +174,11 @@ def test_preserve_slot_complex_value_insert(rasa_normalize: Normalize) -> None:
     assert c_val in event_text
 
 
-def test_normalize_many_events_insert(rasa_normalize: Normalize) -> None:
-    mock_destination_caps(rasa_normalize, insert_caps())
+@pytest.mark.parametrize("caps", INSERT_CAPS, indirect=True)
+def test_normalize_many_events_insert(caps: DestinationCapabilitiesContext, rasa_normalize: Normalize) -> None:
     load_id = extract_and_normalize_cases(rasa_normalize, ["event.event.many_load_2", "event.event.user_load_1"])
     expected_tables = EXPECTED_USER_TABLES_RASA_NORMALIZER + ["event_bot", "event_action"]
-    load_files = expect_load_package(rasa_normalize.load_storage, load_id, expected_tables)
+    _, load_files = expect_load_package(rasa_normalize.load_storage, load_id, expected_tables)
     # return first values line from event_user file
     event_text, lines = get_line_from_file(rasa_normalize.load_storage, load_files["event"], 4)
     # 2 lines header + 3 lines data
@@ -169,11 +186,11 @@ def test_normalize_many_events_insert(rasa_normalize: Normalize) -> None:
     assert f"'{load_id}'" in event_text
 
 
-def test_normalize_many_events(rasa_normalize: Normalize) -> None:
-    mock_destination_caps(rasa_normalize, jsonl_caps())
+@pytest.mark.parametrize("caps", JSONL_CAPS, indirect=True)
+def test_normalize_many_events(caps: DestinationCapabilitiesContext, rasa_normalize: Normalize) -> None:
     load_id = extract_and_normalize_cases(rasa_normalize, ["event.event.many_load_2", "event.event.user_load_1"])
     expected_tables = EXPECTED_USER_TABLES_RASA_NORMALIZER + ["event_bot", "event_action"]
-    load_files = expect_load_package(rasa_normalize.load_storage, load_id, expected_tables)
+    _, load_files = expect_load_package(rasa_normalize.load_storage, load_id, expected_tables)
     # return first values line from event_user file
     event_text, lines = get_line_from_file(rasa_normalize.load_storage, load_files["event"], 2)
     # 3 lines data
@@ -181,23 +198,20 @@ def test_normalize_many_events(rasa_normalize: Normalize) -> None:
     assert f"{load_id}" in event_text
 
 
-@pytest.mark.parametrize("caps", ALL_CAPS)
-def test_normalize_raw_no_type_hints(raw_normalize: Normalize, caps: DestinationCapabilitiesContext) -> None:
-    mock_destination_caps(raw_normalize, caps)
+@pytest.mark.parametrize("caps", ALL_CAPS, indirect=True)
+def test_normalize_raw_no_type_hints(caps: DestinationCapabilitiesContext, raw_normalize: Normalize) -> None:
     normalize_event_user(raw_normalize, "event.event.user_load_1", EXPECTED_USER_TABLES)
     assert_timestamp_data_type(raw_normalize.load_storage, "double")
 
 
-@pytest.mark.parametrize("caps", ALL_CAPS)
-def test_normalize_raw_type_hints(rasa_normalize: Normalize, caps: DestinationCapabilitiesContext) -> None:
-    mock_destination_caps(rasa_normalize, caps)
+@pytest.mark.parametrize("caps", ALL_CAPS, indirect=True)
+def test_normalize_raw_type_hints(caps: DestinationCapabilitiesContext, rasa_normalize: Normalize) -> None:
     extract_and_normalize_cases(rasa_normalize, ["event.event.user_load_1"])
     assert_timestamp_data_type(rasa_normalize.load_storage, "timestamp")
 
 
-@pytest.mark.parametrize("caps", ALL_CAPS)
-def test_normalize_many_schemas(rasa_normalize: Normalize, caps: DestinationCapabilitiesContext) -> None:
-    mock_destination_caps(rasa_normalize, caps)
+@pytest.mark.parametrize("caps", ALL_CAPS, indirect=True)
+def test_normalize_many_schemas(caps: DestinationCapabilitiesContext, rasa_normalize: Normalize) -> None:
     extract_cases(
         rasa_normalize.normalize_storage,
         ["event.event.many_load_2", "event.event.user_load_1", "ethereum.blocks.9c1d9b504ea240a482b007788d5cd61c_2"]
@@ -221,9 +235,8 @@ def test_normalize_many_schemas(rasa_normalize: Normalize, caps: DestinationCapa
     assert set(schemas) == set(["ethereum", "event"])
 
 
-@pytest.mark.parametrize("caps", ALL_CAPS)
-def test_normalize_typed_json(raw_normalize: Normalize, caps: DestinationCapabilitiesContext) -> None:
-    mock_destination_caps(raw_normalize, caps)
+@pytest.mark.parametrize("caps", ALL_CAPS, indirect=True)
+def test_normalize_typed_json(caps: DestinationCapabilitiesContext, raw_normalize: Normalize) -> None:
     extract_items(raw_normalize.normalize_storage, [JSON_TYPED_DICT], "special", "special")
     raw_normalize.run(ThreadPool(processes=1))
     loads = raw_normalize.load_storage.list_packages()
@@ -238,14 +251,12 @@ def test_normalize_typed_json(raw_normalize: Normalize, caps: DestinationCapabil
         assert table[k]["data_type"] == v
 
 
-@pytest.mark.parametrize("caps", ALL_CAPS)
-def test_schema_changes(raw_normalize: Normalize, caps: DestinationCapabilitiesContext) -> None:
-    mock_destination_caps(raw_normalize, caps)
-
+@pytest.mark.parametrize("caps", ALL_CAPS, indirect=True)
+def test_schema_changes(caps: DestinationCapabilitiesContext, raw_normalize: Normalize) -> None:
     doc = {"str": "text", "int": 1}
     extract_items(raw_normalize.normalize_storage, [doc], "evolution", "doc")
     load_id = normalize_pending(raw_normalize, "evolution")
-    table_files = expect_load_package(raw_normalize.load_storage, load_id, ["doc"])
+    _, table_files = expect_load_package(raw_normalize.load_storage, load_id, ["doc"])
     get_line_from_file(raw_normalize.load_storage, table_files["doc"], 0)
     assert len(table_files["doc"]) == 1
     s: Schema = raw_normalize.load_or_create_schema(raw_normalize.schema_storage, "evolution")
@@ -257,7 +268,7 @@ def test_schema_changes(raw_normalize: Normalize, caps: DestinationCapabilitiesC
     doc2 = {"str": "text", "int": 1, "bool": True}
     extract_items(raw_normalize.normalize_storage, [doc, doc2, doc], "evolution", "doc")
     load_id = normalize_pending(raw_normalize, "evolution")
-    table_files = expect_load_package(raw_normalize.load_storage, load_id, ["doc"])
+    _, table_files = expect_load_package(raw_normalize.load_storage, load_id, ["doc"])
     assert len(table_files["doc"]) == 1
     s: Schema = raw_normalize.load_or_create_schema(raw_normalize.schema_storage, "evolution")
     doc_table = s.get_table("doc")
@@ -272,7 +283,7 @@ def test_schema_changes(raw_normalize: Normalize, caps: DestinationCapabilitiesC
     extract_items(raw_normalize.normalize_storage, [doc3_2v, doc3_doc_v], "evolution", "doc")
     load_id = normalize_pending(raw_normalize, "evolution")
 
-    table_files = expect_load_package(raw_normalize.load_storage, load_id, ["doc", "doc__comp"])
+    _, table_files = expect_load_package(raw_normalize.load_storage, load_id, ["doc", "doc__comp"])
     assert len(table_files["doc"]) == 1
     assert len(table_files["doc__comp"]) == 1
     s: Schema = raw_normalize.load_or_create_schema(raw_normalize.schema_storage, "evolution")
@@ -283,11 +294,10 @@ def test_schema_changes(raw_normalize: Normalize, caps: DestinationCapabilitiesC
     assert {"_dlt_id", "_dlt_list_idx", "_dlt_parent_id", "str", "int", "bool", "int__v_text"} == set(doc__comp_table["columns"].keys())
 
 
-@pytest.mark.parametrize("caps", ALL_CAPS)
-def test_normalize_twice_with_flatten(raw_normalize: Normalize, caps: DestinationCapabilitiesContext) -> None:
-    mock_destination_caps(raw_normalize, caps)
+@pytest.mark.parametrize("caps", ALL_CAPS, indirect=True)
+def test_normalize_twice_with_flatten(caps: DestinationCapabilitiesContext, raw_normalize: Normalize) -> None:
     load_id = extract_and_normalize_cases(raw_normalize, ["github.issues.load_page_5_duck"])
-    table_files = expect_load_package(raw_normalize.load_storage, load_id, ["issues", "issues__labels", "issues__assignees"])
+    _, table_files = expect_load_package(raw_normalize.load_storage, load_id, ["issues", "issues__labels", "issues__assignees"])
     assert len(table_files["issues"]) == 1
     _, lines = get_line_from_file(raw_normalize.load_storage, table_files["issues"], 0)
     # insert writer adds 2 lines
@@ -295,14 +305,22 @@ def test_normalize_twice_with_flatten(raw_normalize: Normalize, caps: Destinatio
 
     # check if schema contains a few crucial tables
     def assert_schema(_schema: Schema):
-        assert "reactions___1" in  schema._schema_tables["issues"]["columns"]
-        assert "reactions__1" not in  schema._schema_tables["issues"]["columns"]
+        convention = _schema._normalizers_config["names"]
+        if convention == "snake_case":
+            assert "reactions___1" in _schema._schema_tables["issues"]["columns"]
+            assert "reactions__x1" in _schema._schema_tables["issues"]["columns"]
+            assert "reactions__1" not in _schema._schema_tables["issues"]["columns"]
+        elif convention == "duck_case":
+            assert "reactions__+1" in _schema._schema_tables["issues"]["columns"]
+            assert "reactions__-1" in _schema._schema_tables["issues"]["columns"]
+        else:
+            raise ValueError(f"convention {convention} cannot be checked")
 
     schema = raw_normalize.load_or_create_schema(raw_normalize.schema_storage, "github")
     assert_schema(schema)
 
     load_id = extract_and_normalize_cases(raw_normalize, ["github.issues.load_page_5_duck"])
-    table_files = expect_load_package(raw_normalize.load_storage, load_id, ["issues", "issues__labels", "issues__assignees"])
+    _, table_files = expect_load_package(raw_normalize.load_storage, load_id, ["issues", "issues__labels", "issues__assignees"])
     assert len(table_files["issues"]) == 1
     _, lines = get_line_from_file(raw_normalize.load_storage, table_files["issues"], 0)
     # insert writer adds 2 lines
@@ -351,7 +369,7 @@ def extract_items(normalize_storage: NormalizeStorage, items: Sequence[StrAny], 
 def normalize_event_user(normalize: Normalize, case: str, expected_user_tables: List[str] = None) -> None:
     expected_user_tables = expected_user_tables or EXPECTED_USER_TABLES_RASA_NORMALIZER
     load_id = extract_and_normalize_cases(normalize, [case])
-    return expected_user_tables, expect_load_package(normalize.load_storage, load_id, expected_user_tables)
+    return expect_load_package(normalize.load_storage, load_id, expected_user_tables)
 
 
 def extract_and_normalize_cases(normalize: Normalize, cases: Sequence[str]) -> str:
@@ -379,6 +397,13 @@ def extract_cases(normalize_storage: NormalizeStorage, cases: Sequence[str]) -> 
 
 
 def expect_load_package(load_storage: LoadStorage, load_id: str, expected_tables: Sequence[str]) -> Dict[str, str]:
+    # normalize tables as paths (original json is snake case so we may do it without real lineage info)
+    schema = load_storage.load_package_schema(load_id)
+    # we are still in destination caps context so schema contains length
+    assert schema.naming.max_length > 0
+    expected_tables = [schema.naming.shorten_fragments(*schema.naming.break_path(table)) for table in expected_tables]
+
+    # find jobs and processed files
     files = load_storage.list_new_jobs(load_id)
     files_tables = [load_storage.parse_job_file_name(file).table_name for file in files]
     assert set(files_tables) == set(expected_tables)
@@ -391,7 +416,7 @@ def expect_load_package(load_storage: LoadStorage, load_id: str, expected_tables
         candidates = [f for f in files if fnmatch(f, file_path)]
         # assert len(candidates) == 1
         ofl[expected_table] = candidates
-    return ofl
+    return expected_tables, ofl
 
 
 def get_line_from_file(load_storage: LoadStorage, loaded_files: List[str], return_line: int = 0) -> Tuple[str, int]:
@@ -410,7 +435,7 @@ def assert_timestamp_data_type(load_storage: LoadStorage, data_type: TDataType) 
     assert event_schema.get_table_columns("event")["timestamp"]["data_type"] == data_type
 
 
-def mock_destination_caps(n: Normalize, caps: DestinationCapabilitiesContext) -> None:
-    # TODO: mock full capabilities here and inject them properly, this only works because jsonl does not need full caps
-    n.config.destination_capabilities = caps
-    n.load_storage.loader_file_format = caps.preferred_loader_file_format
+# def mock_destination_caps(n: Normalize, caps: DestinationCapabilitiesContext) -> None:
+#     # TODO: mock full capabilities here and inject them properly, this only works because jsonl does not need full caps
+#     n.config.destination_capabilities = caps
+#     n.load_storage.loader_file_format = caps.preferred_loader_file_format

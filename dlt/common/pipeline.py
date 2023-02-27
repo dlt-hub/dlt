@@ -8,7 +8,7 @@ from dlt.common import pendulum
 from dlt.common.configuration.container import ContainerInjectableContext
 from dlt.common.configuration import configspec, DOT_DLT
 from dlt.common.configuration.specs import RunConfiguration
-from dlt.common.destination import DestinationReference, TDestinationReferenceArg
+from dlt.common.destination.reference import DestinationReference, TDestinationReferenceArg
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TColumnSchema, TWriteDisposition
 
@@ -79,6 +79,7 @@ class TPipelineState(TypedDict, total=False):
     _local: TPipelineLocalState
     """A section of state that is not synchronized with the destination and does not participate in change merging and version control"""
 
+
 class SupportsPipeline(Protocol):
     """A protocol with core pipeline operations that lets high level abstractions ie. sources to access pipeline methods and properties"""
     pipeline_name: str
@@ -110,6 +111,10 @@ class SupportsPipeline(Protocol):
     ) -> LoadInfo:
         ...
 
+    def _set_context(self, is_active: bool) -> None:
+        """Called when pipeline context activated or deactivate"""
+        ...
+
 
 class SupportsPipelineRun(Protocol):
     def __call__(
@@ -137,16 +142,20 @@ class PipelineContext(ContainerInjectableContext):
         """Creates or returns exiting pipeline"""
         if not self._pipeline:
             # delayed pipeline creation
-            self._pipeline = self._deferred_pipeline()
+            self.activate(self._deferred_pipeline())
         return self._pipeline
 
     def activate(self, pipeline: SupportsPipeline) -> None:
+        self.deactivate()
+        pipeline._set_context(True)
         self._pipeline = pipeline
 
     def is_active(self) -> bool:
         return self._pipeline is not None
 
     def deactivate(self) -> None:
+        if self.is_active():
+            self._pipeline._set_context(False)
         self._pipeline = None
 
     def __init__(self, deferred_pipeline: Callable[..., SupportsPipeline]) -> None:

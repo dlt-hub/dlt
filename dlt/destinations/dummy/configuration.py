@@ -1,5 +1,6 @@
 from dlt.common.configuration import configspec
-from dlt.common.destination import DestinationClientConfiguration, CredentialsConfiguration, TLoaderFileFormat
+from dlt.common.destination import TLoaderFileFormat
+from dlt.common.destination.reference import DestinationClientConfiguration, CredentialsConfiguration
 
 
 @configspec

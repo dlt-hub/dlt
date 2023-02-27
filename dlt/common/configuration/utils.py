@@ -5,7 +5,7 @@ from typing import Any, Dict, Mapping, NamedTuple, Optional, Type, Sequence
 
 from dlt.common import json, logger
 from dlt.common.typing import AnyType, TAny
-from dlt.common.schema.utils import coerce_value, py_type_to_sc_type
+from dlt.common.data_types import coerce_value, py_type_to_sc_type
 from dlt.common.configuration import DOT_DLT
 from dlt.common.configuration.providers import EnvironProvider
 from dlt.common.configuration.exceptions import ConfigValueCannotBeCoercedException, LookupTrace

@@ -4,7 +4,8 @@ from dlt.common.schema.schema import Schema
 from dlt.common.configuration import with_config, known_sections
 from dlt.common.configuration.accessors import config
 from dlt.common.data_writers.escape import escape_postgres_identifier, escape_duckdb_literal
-from dlt.common.destination import DestinationCapabilitiesContext, JobClientBase, DestinationClientConfiguration
+from dlt.common.destination import DestinationCapabilitiesContext
+from dlt.common.destination.reference import JobClientBase, DestinationClientConfiguration
 
 from dlt.destinations.duckdb.configuration import DuckDbClientConfiguration
 
@@ -22,6 +23,7 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.escape_literal = escape_duckdb_literal
     caps.max_identifier_length = 65536
     caps.max_column_identifier_length = 65536
+    caps.naming_convention = "duck_case"
     caps.max_query_length = 32 * 1024 * 1024
     caps.is_max_query_length_in_bytes = True
     caps.max_text_data_type_length = 1024 * 1024 * 1024

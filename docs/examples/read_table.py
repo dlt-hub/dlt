@@ -1,6 +1,6 @@
 import dlt
 from dlt.destinations import postgres
-from dlt.common.schema import utils
+from dlt.common.data_types.type_helpers import py_type_to_sc_type
 
 from docs.examples.sources.sql_query import query_table, query_sql
 
@@ -15,7 +15,7 @@ items = query_table("blocks__transactions", source_dsn, table_schema_name="mainn
 for i in items:
     assert isinstance(i, dict)
     for k, v in i.items():
-        print(f"{k}:{v} ({type(v)}:{utils.py_type_to_sc_type(type(v))})")
+        print(f"{k}:{v} ({type(v)}:{py_type_to_sc_type(type(v))})")
 
 # get data from query
 items = query_sql("select *  from mainnet_2_ethereum.blocks__transactions limit 10", source_dsn)

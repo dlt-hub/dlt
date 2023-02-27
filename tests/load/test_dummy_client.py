@@ -11,7 +11,7 @@ from dlt.common.schema import Schema
 from dlt.common.storages import FileStorage, LoadStorage
 from dlt.common.storages.load_storage import JobWithUnsupportedWriterException
 from dlt.common.utils import uniq_id
-from dlt.common.destination import DestinationReference, LoadJob
+from dlt.common.destination.reference import DestinationReference, LoadJob
 
 from dlt.load import Load
 from dlt.destinations.job_client_impl import LoadEmptyJob

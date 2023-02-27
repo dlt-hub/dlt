@@ -2,14 +2,14 @@ import contextlib
 from importlib import import_module
 import codecs
 import os
-from typing import Any, ContextManager, Iterator, List, Sequence, cast, IO
+from typing import Iterator, List, Sequence, cast, IO
 
 from dlt.common import json, Decimal, sleep
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs import SchemaVolumeConfiguration
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
-from dlt.common.destination import DestinationClientDwhConfiguration, DestinationReference, JobClientBase, LoadJob
+from dlt.common.destination.reference import DestinationClientDwhConfiguration, DestinationReference, JobClientBase, LoadJob
 from dlt.common.data_writers import DataWriter
 from dlt.common.schema import TColumnSchema, TTableSchemaColumns
 from dlt.common.storages import SchemaStorage, FileStorage
@@ -20,8 +20,14 @@ from dlt.common.utils import uniq_id
 from dlt.load import Load
 from dlt.destinations.job_client_impl import SqlJobClientBase
 
-ALL_CLIENTS = ["redshift_client", "bigquery_client", "postgres_client", "duckdb_client"]
-# ALL_CLIENTS = ["duckdb_client", "postgres_client"]
+from tests.utils import ALL_DESTINATIONS
+
+ALL_CLIENTS = [f"{name}_client" for name in ALL_DESTINATIONS]
+
+
+def ALL_CLIENTS_SUBSET(subset: Sequence[str]) -> List[str]:
+    return list(set(subset).intersection(ALL_CLIENTS))
+
 
 TABLE_UPDATE: List[TColumnSchema] = [
     {

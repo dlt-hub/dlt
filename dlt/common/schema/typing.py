@@ -1,6 +1,7 @@
 from typing import Any, Callable, Dict, List, Literal, Optional, Set, Type, TypedDict, NewType, get_args
 
-from dlt.common.typing import StrAny
+from dlt.common.data_types import TDataType
+from dlt.common.normalizers.typing import TNormalizersConfig
 
 # current version of schema engine
 SCHEMA_ENGINE_VERSION = 5
@@ -9,14 +10,12 @@ SCHEMA_ENGINE_VERSION = 5
 VERSION_TABLE_NAME = "_dlt_version"
 LOADS_TABLE_NAME = "_dlt_loads"
 
-TDataType = Literal["text", "double", "bool", "timestamp", "bigint", "binary", "complex", "decimal", "wei"]
 TColumnHint = Literal["not_null", "partition", "cluster", "primary_key", "foreign_key", "sort", "unique"]
 TColumnProp = Literal["name", "data_type", "nullable", "partition", "cluster", "primary_key", "foreign_key", "sort", "unique"]
 TWriteDisposition = Literal["skip", "append", "replace", "merge"]
 TTypeDetections = Literal["timestamp", "iso_timestamp", "large_integer", "hexbytes_to_text", "wei_to_double"]
 TTypeDetectionFunc = Callable[[Type[Any], Any], Optional[TDataType]]
 
-DATA_TYPES: Set[TDataType] = set(get_args(TDataType))
 COLUMN_PROPS: Set[TColumnProp] = set(get_args(TColumnProp))
 COLUMN_HINTS: Set[TColumnHint] = set(["partition", "cluster", "primary_key", "foreign_key", "sort", "unique"])
 WRITE_DISPOSITIONS: Set[TWriteDisposition] = set(get_args(TWriteDisposition))
@@ -65,18 +64,6 @@ class TPartialTableSchema(TTableSchema):
 
 TSchemaTables = Dict[str, TTableSchema]
 TSchemaUpdate = Dict[str, List[TPartialTableSchema]]
-
-
-class TJSONNormalizer(TypedDict, total=False):
-    module: str
-    config: Optional[StrAny]  # config is a free form and is consumed by `module`
-
-
-class TNormalizersConfig(TypedDict, total=False):
-    names: str
-    detections: Optional[List[TTypeDetections]]
-    json: TJSONNormalizer
-
 
 class TSchemaSettings(TypedDict, total=False):
     schema_sealed: Optional[bool]

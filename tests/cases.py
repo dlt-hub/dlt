@@ -3,7 +3,7 @@ from uuid import UUID
 from hexbytes import HexBytes
 
 from dlt.common import Decimal, pendulum
-from dlt.common.schema.typing import TDataType
+from dlt.common.data_types import TDataType
 from dlt.common.typing import StrAny
 from dlt.common.wei import Wei
 

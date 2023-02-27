@@ -6,11 +6,13 @@ from google.cloud import exceptions as gcp_exceptions
 from google.api_core import exceptions as api_core_exceptions
 
 from dlt.common import json, logger
-from dlt.common.schema.typing import TTableSchema, TWriteDisposition
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 from dlt.common.configuration.specs import GcpClientCredentials
-from dlt.common.destination import DestinationCapabilitiesContext, TLoadJobStatus, LoadJob
-from dlt.common.schema import TColumnSchema, TDataType, Schema, TTableSchemaColumns
+from dlt.common.destination import DestinationCapabilitiesContext
+from dlt.common.destination.reference import TLoadJobStatus, LoadJob
+from dlt.common.data_types import TDataType
+from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns
+from dlt.common.schema.typing import TTableSchema, TWriteDisposition
 
 from dlt.destinations.job_client_impl import SqlJobClientBase
 from dlt.destinations.exceptions import DestinationSchemaWillNotUpdate, DestinationTransientException, LoadJobNotExistsException, LoadJobTerminalException, LoadJobUnknownTableException
@@ -93,7 +95,7 @@ class BigQueryClient(SqlJobClientBase):
 
     def __init__(self, schema: Schema, config: BigQueryClientConfiguration) -> None:
         sql_client = BigQuerySqlClient(
-            schema.naming.normalize_make_dataset_name(config.dataset_name, config.default_schema_name, schema.name),
+            self.make_dataset_name(schema, config.dataset_name, config.default_schema_name),
             config.credentials
         )
         super().__init__(schema, config, sql_client)

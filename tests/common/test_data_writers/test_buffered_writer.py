@@ -3,7 +3,7 @@ import pytest
 
 from dlt.common.data_writers.buffered import BufferedDataWriter
 from dlt.common.data_writers.exceptions import BufferedDataWriterClosed
-from dlt.common.destination import TLoaderFileFormat, generic_destination_capabilities
+from dlt.common.destination import TLoaderFileFormat, DestinationCapabilitiesContext
 from dlt.common.schema.utils import new_column
 
 from dlt.common.typing import DictStrAny
@@ -12,7 +12,7 @@ from tests.utils import TEST_STORAGE_ROOT, write_version, autouse_test_storage
 
 
 def get_insert_writer(_format: TLoaderFileFormat = "insert_values", buffer_max_items: int = 10) -> BufferedDataWriter:
-    caps = generic_destination_capabilities()
+    caps = DestinationCapabilitiesContext.generic_capabilities()
     caps.preferred_loader_file_format = _format
     file_template = os.path.join(TEST_STORAGE_ROOT, f"{_format}.%s")
     return BufferedDataWriter(_format, file_template, buffer_max_items=buffer_max_items, _caps=caps)

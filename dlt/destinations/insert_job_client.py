@@ -1,6 +1,6 @@
 from typing import Any, Iterator, List
 
-from dlt.common.destination import LoadJob, TLoadJobStatus
+from dlt.common.destination.reference import LoadJob, TLoadJobStatus
 from dlt.common.schema.typing import TTableSchema, TWriteDisposition
 from dlt.common.storages.file_storage import FileStorage
 

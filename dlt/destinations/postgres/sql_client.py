@@ -16,7 +16,7 @@ from dlt.common.configuration.specs import PostgresCredentials
 
 from dlt.destinations.exceptions import DatabaseTerminalException, DatabaseTransientException, DatabaseUndefinedRelation
 from dlt.destinations.typing import DBApi, DBApiCursor, DBTransaction
-from dlt.destinations.sql_client import SqlClientBase, raise_database_error, raise_open_connection_error
+from dlt.destinations.sql_client import DBApiCursorImpl, SqlClientBase, raise_database_error, raise_open_connection_error
 
 from dlt.destinations.postgres import capabilities
 
@@ -30,13 +30,14 @@ class Psycopg2SqlClient(SqlClientBase["psycopg2.connection"], DBTransaction):
         self._conn: psycopg2.connection = None
         self.credentials = credentials
 
-    def open_connection(self) -> None:
+    def open_connection(self) -> "psycopg2.connection":
         self._conn = psycopg2.connect(
                              dsn=self.credentials.to_native_representation(),
                              options=f"-c search_path={self.fully_qualified_dataset_name()},public"
                              )
         # we'll provide explicit transactions see _reset
         self._reset_connection()
+        return self._conn
 
     @raise_open_connection_error
     def close_connection(self) -> None:
@@ -101,14 +102,13 @@ class Psycopg2SqlClient(SqlClientBase["psycopg2.connection"], DBTransaction):
         with self._conn.cursor() as curr:
             try:
                 curr.execute(query, db_args)
-                yield curr
+                yield DBApiCursorImpl(curr)  # type: ignore
             except psycopg2.Error as outer:
                 try:
                     self._reset_connection()
                 except psycopg2.Error:
                     self.close_connection()
                     self.open_connection()
-
                 raise outer
 
     def execute_fragments(self, fragments: Sequence[AnyStr], *args: Any, **kwargs: Any) -> Optional[Sequence[Sequence[Any]]]:

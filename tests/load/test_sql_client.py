@@ -177,6 +177,35 @@ def test_execute_query(client: SqlJobClientBase) -> None:
 
 
 @pytest.mark.parametrize('client', ALL_CLIENTS, indirect=True)
+def test_execute_df(client: SqlJobClientBase) -> None:
+    if client.config.destination_name == "bigquery":
+        chunk_size = 50
+        total_records = 80
+    else:
+        chunk_size = 2048
+        total_records = 3000
+
+    uniq_suffix = uniq_id()
+    client.update_storage_schema()
+    client.sql_client.execute_sql(f"CREATE TABLE tmp_{uniq_suffix} (col INT);")
+    insert_query = ",".join([f"({idx})" for idx in range(0, total_records)])
+
+    client.sql_client.execute_sql(f"INSERT INTO tmp_{uniq_suffix} VALUES {insert_query};")
+    with client.sql_client.execute_query(f"SELECT * FROM tmp_{uniq_suffix} ORDER BY col ASC") as curr:
+        df = curr.df()
+        assert list(df["col"]) == list(range(0, total_records))
+    # get chunked
+    with client.sql_client.execute_query(f"SELECT * FROM tmp_{uniq_suffix} ORDER BY col ASC") as curr:
+        # be compatible with duckdb vector size
+        df_1 = curr.df(chunk_size=chunk_size)
+        df_2 = curr.df(chunk_size=chunk_size)
+        df_3 = curr.df(chunk_size=chunk_size)
+    assert list(df_1["col"]) == list(range(0, chunk_size))
+    assert list(df_2["col"]) == list(range(chunk_size, total_records))
+    assert df_3 is None
+
+
+@pytest.mark.parametrize('client', ALL_CLIENTS, indirect=True)
 def test_database_exceptions(client: SqlJobClientBase) -> None:
     client.update_storage_schema()
     # invalid table

@@ -43,6 +43,9 @@ class Container:
         # put it into context
         self.contexts[spec] = value
 
+    def __delitem__(self, spec: Type[TConfiguration]) -> None:
+        del self.contexts[spec]
+
     def __contains__(self, spec: Type[TConfiguration]) -> bool:
         return spec in self.contexts
 

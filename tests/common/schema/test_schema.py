@@ -5,16 +5,19 @@ import pytest
 
 from dlt.common import pendulum
 from dlt.common.configuration import resolve_configuration
+from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs import SchemaVolumeConfiguration
+from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.exceptions import DictValidationException
-from dlt.common.schema.typing import LOADS_TABLE_NAME, VERSION_TABLE_NAME, TColumnName, TSimpleRegex, COLUMN_HINTS
+from dlt.common.normalizers.naming import snake_case, direct
 from dlt.common.typing import DictStrAny, StrAny
 from dlt.common.utils import uniq_id
 from dlt.common.schema import TColumnSchema, Schema, TStoredSchema, utils
 from dlt.common.schema.exceptions import InvalidSchemaName, ParentTableNotFoundException, SchemaEngineNoUpgradePathException
+from dlt.common.schema.typing import LOADS_TABLE_NAME, VERSION_TABLE_NAME, TColumnName, TSimpleRegex, COLUMN_HINTS
 from dlt.common.storages import SchemaStorage
 
-from tests.utils import autouse_test_storage
+from tests.utils import autouse_test_storage, preserve_environ
 from tests.common.utils import load_json_case, load_yml_case, COMMON_TEST_CASES_PATH
 
 SCHEMA_NAME = "event"
@@ -40,9 +43,9 @@ def schema() -> Schema:
 @pytest.fixture
 def cn_schema() -> Schema:
     return Schema("column_default", {
-        "names": "tests.common.schema.custom_normalizers",
+        "names": "tests.common.normalizers.custom_normalizers",
         "json": {
-            "module": "tests.common.schema.custom_normalizers",
+            "module": "tests.common.normalizers.custom_normalizers",
             "config": {
                 "not_null": ["fake_id"]
             }
@@ -52,8 +55,8 @@ def cn_schema() -> Schema:
 
 def test_normalize_schema_name(schema: Schema) -> None:
     assert schema.naming.normalize_identifier("BAN_ANA") == "ban_ana"
-    assert schema.naming.normalize_identifier("event-.!:value") == "event_value"
-    assert schema.naming.normalize_identifier("123event-.!:value") == "_123event_value"
+    assert schema.naming.normalize_identifier("event-.!:value") == "event_livalue"
+    assert schema.naming.normalize_identifier("123event-.!:value") == "_123event_livalue"
     with pytest.raises(ValueError):
         assert schema.naming.normalize_identifier("")
     with pytest.raises(ValueError):
@@ -71,6 +74,33 @@ def test_new_schema(schema: Schema) -> None:
 
 def test_new_schema_custom_normalizers(cn_schema: Schema) -> None:
     assert_new_schema_values_custom_normalizers(cn_schema)
+
+
+def test_schema_config_normalizers(schema: Schema, schema_storage: SchemaStorage) -> None:
+    # save snake case schema
+    schema_storage.save_schema(schema)
+    # config direct naming convention
+    os.environ["SCHEMA__NAMING"] = "direct"
+    # new schema has direct naming convention
+    schema_direct_nc = Schema("direct_naming")
+    assert schema_direct_nc._normalizers_config["names"] == "direct"
+    # still after loading the config is "snake"
+    schema = schema_storage.load_schema(schema.name)
+    assert schema._normalizers_config["names"] == "snake_case"
+    # provide capabilities context
+    destination_caps = DestinationCapabilitiesContext.generic_capabilities()
+    destination_caps.naming_convention = "snake_case"
+    destination_caps.max_identifier_length = 127
+    with Container().injectable_context(destination_caps):
+        # caps are ignored if schema is configured
+        schema_direct_nc = Schema("direct_naming")
+        assert schema_direct_nc._normalizers_config["names"] == "direct"
+        # but length is there
+        assert schema_direct_nc.naming.max_length == 127
+        # also for loaded schema
+        schema = schema_storage.load_schema(schema.name)
+        assert schema._normalizers_config["names"] == "snake_case"
+        assert schema.naming.max_length == 127
 
 
 def test_simple_regex_validator() -> None:
@@ -129,7 +159,7 @@ def test_invalid_schema_name() -> None:
 
 def test_create_schema_with_normalize_name() -> None:
     s = Schema("a!b", normalize_name=True)
-    assert s.name == "a_b"
+    assert s.name == "alb"
 
 
 def test_schema_descriptions_and_annotations(schema_storage: SchemaStorage):
@@ -439,8 +469,8 @@ def test_normalize_table_identifiers() -> None:
 
 def assert_new_schema_values_custom_normalizers(schema: Schema) -> None:
     # check normalizers config
-    assert schema._normalizers_config["names"] == "tests.common.schema.custom_normalizers"
-    assert schema._normalizers_config["json"]["module"] == "tests.common.schema.custom_normalizers"
+    assert schema._normalizers_config["names"] == "tests.common.normalizers.custom_normalizers"
+    assert schema._normalizers_config["json"]["module"] == "tests.common.normalizers.custom_normalizers"
     # check if schema was extended by json normalizer
     assert ["fake_id"] == schema.settings["default_hints"]["not_null"]
     # call normalizers
@@ -448,8 +478,8 @@ def assert_new_schema_values_custom_normalizers(schema: Schema) -> None:
     assert schema.naming.normalize_path("a__b") == "column_a__column_b"
     assert schema.naming.normalize_identifier("1A_b") == "column_1a_b"
     # assumes elements are normalized
-    assert schema.naming.normalize_make_path("A", "B", "!C") == "A__B__!C"
-    assert schema.naming.normalize_break_path("A__B__!C") == ["A", "B", "!C"]
+    assert schema.naming.make_path("A", "B", "!C") == "A__B__!C"
+    assert schema.naming.break_path("A__B__!C") == ["A", "B", "!C"]
     row = list(schema.normalize_data_item(schema, {"bool": True}, "load_id", "a_table"))
     assert row[0] == (("a_table", None), {"bool": True})
 
@@ -464,8 +494,9 @@ def assert_new_schema_values(schema: Schema) -> None:
     # check settings
     assert utils.standard_type_detections() == schema.settings["detections"] == schema._type_detections
     # check normalizers config
-    assert schema._normalizers_config["names"] == "dlt.common.normalizers.names.snake_case"
+    assert schema._normalizers_config["names"] == "snake_case"
     assert schema._normalizers_config["json"]["module"] == "dlt.common.normalizers.json.relational"
+    assert isinstance(schema.naming, snake_case.NamingConvention)
     # check if schema was extended by json normalizer
     assert set(["_dlt_id", "_dlt_root_id", "_dlt_parent_id", "_dlt_list_idx", "_dlt_load_id"]).issubset(schema.settings["default_hints"]["not_null"])
     # call normalizers
@@ -473,9 +504,9 @@ def assert_new_schema_values(schema: Schema) -> None:
     assert schema.naming.normalize_path("A__B") == "a__b"
     assert schema.naming.normalize_identifier("1A_b") == "_1_a_b"
     # assumes elements are normalized
-    assert schema.naming.normalize_make_path("A", "B", "!C") == "A__B__!C"
-    assert schema.naming.normalize_break_path("A__B__!C") == ["A", "B", "!C"]
-    assert schema.naming.normalize_break_path("reactions___1") == ["reactions", "_1"]
+    assert schema.naming.make_path("A", "B", "!C") == "A__B__!C"
+    assert schema.naming.break_path("A__B__!C") == ["A", "B", "!C"]
+    assert schema.naming.break_path("reactions___1") == ["reactions", "_1"]
     schema.normalize_data_item(schema, {}, "load_id", schema.name)
     # check default tables
     tables = schema.tables

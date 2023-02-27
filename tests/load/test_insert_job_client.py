@@ -11,9 +11,9 @@ from dlt.destinations.exceptions import DatabaseTerminalException, DatabaseTrans
 from dlt.destinations.insert_job_client import InsertValuesJobClient
 
 from tests.utils import TEST_STORAGE_ROOT, autouse_test_storage, skipifpypy
-from tests.load.utils import expect_load_file, prepare_table, yield_client_with_storage
+from tests.load.utils import expect_load_file, prepare_table, yield_client_with_storage, ALL_CLIENTS_SUBSET
 
-ALL_CLIENTS = ["duckdb_client", "redshift_client", "postgres_client"]
+ALL_CLIENTS = ALL_CLIENTS_SUBSET(["duckdb_client", "redshift_client", "postgres_client"])
 
 
 @pytest.fixture

@@ -9,7 +9,7 @@ from dlt.common.schema.typing import LOADS_TABLE_NAME, VERSION_TABLE_NAME
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.exceptions import MissingDependencyException
 
-from dlt.helpers.pandas import query_results_to_df, pd
+from dlt.helpers.pandas import pd
 from dlt.pipeline import Pipeline
 from dlt.pipeline.exceptions import CannotRestorePipelineException
 from dlt.pipeline.state import load_state_from_destination
@@ -20,6 +20,12 @@ try:
 except ImportError:
     raise MissingDependencyException("DLT Streamlit Helpers", ["streamlit"], "DLT Helpers for Streamlit should be run within a streamlit app.")
 
+
+# use right caching function to disable deprecation message
+if hasattr(st, "cache_data"):
+    cache_data = st.cache_data
+else:
+    cache_data = st.experimental_memo
 
 # def restore_pipeline() -> Pipeline:
 #     """Restores Pipeline instance and associated credentials from Streamlit secrets
@@ -90,15 +96,15 @@ except ImportError:
 def write_load_status_page(pipeline: Pipeline) -> None:
     """Display pipeline loading information. Will be moved to python-dlt once tested"""
 
-    @st.experimental_memo(ttl=600)
+    @cache_data(ttl=600)
     def _query_data(query: str, schema_name: str = None) -> pd.DataFrame:
         with pipeline.sql_client(schema_name) as client:
-            df = query_results_to_df(client, query)
-            return df
+            with client.execute_query(query) as curr:
+                return curr.df()
 
     try:
         st.header("Pipeline info")
-        credentials = pipeline.sql_client().credentials  # type: ignore
+        credentials = pipeline.sql_client().credentials
         st.markdown(f"""
         * pipeline name: **{pipeline.pipeline_name}**
         * destination: **{str(credentials)}** in **{pipeline.destination.__name__}**
@@ -200,11 +206,11 @@ def write_data_explorer_page(pipeline: Pipeline, schema_name: str = None, show_d
         MissingDependencyException: Raised when a particular python dependency is not installed
     """
 
-    @st.experimental_memo(ttl=600)
-    def _query_data(query: str) -> pd.DataFrame:
+    @cache_data(ttl=600)
+    def _query_data(query: str, chunk_size: int = None) -> pd.DataFrame:
         with pipeline.sql_client(schema_name) as client:
-            df = query_results_to_df(client, query)
-            return df
+            with client.execute_query(query) as curr:
+                return curr.df(chunk_size=chunk_size)
 
     if schema_name:
         schema = pipeline.schemas[schema_name]
@@ -227,20 +233,24 @@ def write_data_explorer_page(pipeline: Pipeline, schema_name: str = None, show_d
         st.table(map(essentials_f, table["columns"].values()))
         # add a button that when pressed will show the full content of a table
         if st.button("SHOW DATA", key=table_name):
-            st.text(f"Full {table_name} table content")
-            st.dataframe(_query_data(f"SELECT * FROM {table_name}"))
+            df = _query_data(f"SELECT * FROM {table_name}", chunk_size=2048)
+            rows_count = df.shape[0]
+            if df.shape[0] < 2048:
+                st.text(f"All {rows_count} row(s)")
+            else:
+                st.text(f"Top {rows_count} row(s)")
+            st.dataframe(df)
 
     st.title("Run your query")
     sql_query = st.text_area("Enter your SQL query", value=example_query)
     if st.button("Run Query"):
         if sql_query:
-            st.text("Results of a query")
             try:
                 # run the query from the text area
                 df = _query_data(sql_query)
-                # and display the results
+                rows_count = df.shape[0]
+                st.text(f"{rows_count} row(s) returned")
                 st.dataframe(df)
-
                 try:
                     # now if the dataset has supported shape try to display the bar or altair chart
                     if df.dtypes.shape[0] == 1 and show_charts:

@@ -1,4 +1,4 @@
-from typing import Dict, Mapping, Optional, Sequence, Tuple, cast, TypedDict, Any
+from typing import Dict, List, Mapping, Optional, Sequence, Tuple, cast, TypedDict, Any
 from dlt.common.normalizers.exceptions import InvalidJsonNormalizer
 
 from dlt.common.typing import DictStrAny, DictStrStr, TDataItem, StrAny
@@ -57,24 +57,32 @@ def _is_complex_type(schema: Schema, table_name: str, field_name: str, _r_lvl: i
     return data_type == "complex"
 
 
-def _flatten(schema: Schema, table: str, dict_row: TDataItemRow, _r_lvl: int) -> Tuple[TDataItemRow, Dict[str, Sequence[Any]]]:
-    out_rec_row: DictStrAny = {}
-    out_rec_list: Dict[str, Sequence[Any]] = {}
+def _flatten(
+    schema: Schema,
+    table: str,
+    dict_row: TDataItemRow,
+    _r_lvl: int
+) -> Tuple[TDataItemRow, Dict[Tuple[str, ...], Sequence[Any]]]:
 
-    def norm_row_dicts(dict_row: StrAny, __r_lvl: int, parent_name: Optional[str]) -> None:
+    out_rec_row: DictStrAny = {}
+    out_rec_list: Dict[Tuple[str, ...], Sequence[Any]] = {}
+
+    def norm_row_dicts(dict_row: StrAny, __r_lvl: int, path: Tuple[str, ...] = ()) -> None:
         for k, v in dict_row.items():
-            corrected_k = schema.naming.normalize_identifier(k)
-            child_name = corrected_k if not parent_name else schema.naming.normalize_make_path(parent_name, corrected_k)
+            norm_k = schema.naming.normalize_identifier(k)
+            # if norm_k != k:
+            #     print(f"{k} -> {norm_k}")
+            child_name = norm_k if path == () else schema.naming.shorten_fragments(*path, norm_k)
             # for lists and dicts we must check if type is possibly complex
             if isinstance(v, (dict, list)):
                 if not _is_complex_type(schema, table, child_name, __r_lvl):
                     # TODO: if schema contains table {table}__{child_name} then convert v into single element list
                     if isinstance(v, dict):
                         # flatten the dict more
-                        norm_row_dicts(v, __r_lvl + 1, parent_name=child_name)
+                        norm_row_dicts(v, __r_lvl + 1, path + (norm_k,))
                     else:
                         # pass the list to out_rec_list
-                        out_rec_list[child_name] = v
+                        out_rec_list[path + (norm_k,)] = v
                     continue
                 else:
                     # pass the complex value to out_rec_row
@@ -82,7 +90,7 @@ def _flatten(schema: Schema, table: str, dict_row: TDataItemRow, _r_lvl: int) ->
 
             out_rec_row[child_name] = v
 
-    norm_row_dicts(dict_row, _r_lvl, None)
+    norm_row_dicts(dict_row, _r_lvl)
     return cast(TDataItemRow, out_rec_row), out_rec_list
 
 
@@ -130,21 +138,22 @@ def _normalize_list(
     schema: Schema,
     seq: Sequence[Any],
     extend: DictStrAny,
-    table: str,
-    parent_table: str,
+    ident_path: Tuple[str, ...],
+    parent_path: Tuple[str, ...],
     parent_row_id: Optional[str] = None,
     _r_lvl: int = 0
 ) -> TNormalizedRowIterator:
 
     v: TDataItemRowChild = None
+    table = schema.naming.shorten_fragments(*parent_path, *ident_path)
+
     for idx, v in enumerate(seq):
         # yield child table row
         if isinstance(v, dict):
-            yield from _normalize_row(schema, v, extend, table, parent_table, parent_row_id, idx, _r_lvl)
+            yield from _normalize_row(schema, v, extend, ident_path, parent_path, parent_row_id, idx, _r_lvl)
         elif isinstance(v, list):
             # normalize lists of lists, we assume all lists in the list have the same type so they should go to the same table
-            list_table_name = schema.naming.normalize_make_path(table, "list")
-            yield from _normalize_list(schema, v, extend, list_table_name, parent_table, parent_row_id, _r_lvl + 1)
+            yield from _normalize_list(schema, v, extend, ("list", ), parent_path + ident_path, parent_row_id, _r_lvl + 1)
         else:
             # list of simple types
             child_row_hash = _get_child_row_hash(parent_row_id, table, idx)
@@ -152,21 +161,23 @@ def _normalize_list(
             wrap_v["_dlt_id"] = child_row_hash
             e = _link_row(wrap_v, parent_row_id, idx)
             _extend_row(extend, e)
-            yield (table, parent_table), e
+            yield (table, schema.naming.shorten_fragments(*parent_path)), e
 
 
 def _normalize_row(
     schema: Schema,
     dict_row: TDataItemRow,
     extend: DictStrAny,
-    table: str,
-    parent_table: Optional[str] = None,
+    ident_path: Tuple[str, ...],
+    parent_path: Tuple[str, ...] = (),
     parent_row_id: Optional[str] = None,
     pos: Optional[int] = None,
     _r_lvl: int = 0
 ) -> TNormalizedRowIterator:
 
-    is_top_level = parent_table is None
+    is_top_level = parent_path == ()
+    table = schema.naming.shorten_fragments(*parent_path, *ident_path)
+
     # flatten current row and extract all lists to recur into
     flattened_row, lists = _flatten(schema, table, dict_row, _r_lvl)
     # always extend row
@@ -193,11 +204,11 @@ def _normalize_row(
     extend.update(_get_propagated_values(schema, table, flattened_row, is_top_level))
 
     # yield parent table first
-    yield (table, parent_table), flattened_row
+    yield (table, schema.naming.shorten_fragments(*parent_path)), flattened_row
 
     # normalize and yield lists
-    for k, list_content in lists.items():
-        yield from _normalize_list(schema, list_content, extend, schema.naming.normalize_make_path(table, k), table, row_id, _r_lvl + 1)
+    for list_path, list_content in lists.items():
+        yield from _normalize_list(schema, list_content, extend, list_path, parent_path + ident_path, row_id, _r_lvl + 1)
 
 
 def _validate_normalizer_config(schema: Schema, config: RelationalNormalizerConfig) -> None:
@@ -247,4 +258,4 @@ def normalize_data_item(schema: Schema, item: TDataItem, load_id: str, table_nam
     row = cast(TDataItemRowRoot, item)
     # identify load id if loaded data must be processed after loading incrementally
     row["_dlt_load_id"] = load_id
-    yield from _normalize_row(schema, cast(TDataItemRowChild, row), {}, schema.naming.normalize_identifier(table_name))
+    yield from _normalize_row(schema, cast(TDataItemRowChild, row), {}, (schema.naming.normalize_identifier(table_name),))

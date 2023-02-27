@@ -3,10 +3,6 @@ from contextlib import contextmanager
 from threading import Event
 from typing import Any, TYPE_CHECKING, Iterator
 
-if not TYPE_CHECKING:
-    from dlt.common import logger
-else:
-    logger: Any = None
 from dlt.common.exceptions import SignalReceivedException
 
 _received_signal: int = 0
@@ -17,6 +13,11 @@ exit_event = Event()
 
 
 def signal_receiver(sig: int, frame: Any) -> None:
+    if not TYPE_CHECKING:
+        from dlt.common import logger
+    else:
+        logger: Any = None
+
     global _received_signal
 
     logger.info(f"Signal {sig} received")

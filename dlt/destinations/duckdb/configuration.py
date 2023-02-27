@@ -1,12 +1,12 @@
 import os
 import threading
 from pathvalidate import is_valid_filepath
-from typing import Any, ClassVar, Final, List, Optional
+from typing import Any, Final, Optional
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.configuration.specs.exceptions import InvalidConnectionString
-from dlt.common.destination import DestinationClientDwhConfiguration
+from dlt.common.destination.reference import DestinationClientDwhConfiguration
 from dlt.common.typing import DictStrAny, TSecretValue
 
 DEFAULT_DUCK_DB_NAME = "quack.duckdb"

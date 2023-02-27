@@ -9,7 +9,7 @@ from dlt.common.typing import TFun
 from dlt.common.destination import DestinationCapabilitiesContext
 
 from dlt.destinations.exceptions import DestinationConnectionError, LoadClientNotConnected
-from dlt.destinations.typing import DBApi, TNativeConn, DBApiCursor, DBTransaction
+from dlt.destinations.typing import DBApi, TNativeConn, DBApiCursor, DataFrame, DBTransaction
 
 
 class SqlClientBase(ABC, Generic[TNativeConn]):
@@ -23,7 +23,7 @@ class SqlClientBase(ABC, Generic[TNativeConn]):
         self.dataset_name = dataset_name
 
     @abstractmethod
-    def open_connection(self) -> None:
+    def open_connection(self) -> TNativeConn:
         pass
 
     @abstractmethod
@@ -33,6 +33,12 @@ class SqlClientBase(ABC, Generic[TNativeConn]):
     @abstractmethod
     def begin_transaction(self) -> ContextManager[DBTransaction]:
         pass
+
+    def __getattr__(self, name: str) -> Any:
+        # pass unresolved attrs to native connections
+        if not self.native_connection:
+            raise AttributeError(name)
+        return getattr(self.native_connection, name)
 
     def __enter__(self) -> "SqlClientBase[TNativeConn]":
         self.open_connection()
@@ -104,6 +110,36 @@ class SqlClientBase(ABC, Generic[TNativeConn]):
         # crude way to detect dbapi DatabaseError: there's no common set of exceptions, each module must reimplement
         mro = type.mro(type(ex))
         return any(t.__name__ in ("DatabaseError", "DataError") for t in mro)
+
+
+
+class DBApiCursorImpl(DBApiCursor):
+    """A DBApi Cursor wrapper with dataframes reading functionality"""
+    def __init__(self, curr: DBApiCursor) -> None:
+        self.native_cursor = curr
+
+        # wire protocol methods
+        self.execute = curr.execute  # type: ignore
+        self.fetchall = curr.fetchall  # type: ignore
+        self.fetchmany = curr.fetchmany  # type: ignore
+        self.fetchone = curr.fetchone  # type: ignore
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self.native_cursor, name)
+
+    def df(self, chunk_size: int = None, **kwargs: Any) -> Optional[DataFrame]:
+        from dlt.helpers.pandas import _wrap_result
+
+        columns = [c[0] for c in self.native_cursor.description]
+        if chunk_size is None:
+            return _wrap_result(self.native_cursor.fetchall(), columns, **kwargs)
+        else:
+            df = _wrap_result(self.native_cursor.fetchmany(chunk_size), columns, **kwargs)
+            # if no rows return None
+            if df.shape[0] == 0:
+                return None
+            else:
+                return df
 
 
 def raise_database_error(f: TFun) -> TFun:

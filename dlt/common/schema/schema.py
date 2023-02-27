@@ -4,12 +4,13 @@ from typing import ClassVar, Dict, List, Mapping, Optional, Sequence, Tuple, Any
 from dlt.common import json
 
 from dlt.common.typing import DictStrAny, StrAny, REPattern, SupportsVariant, VARIANT_FIELD_FORMAT
-from dlt.common.normalizers.names import NamingConvention
+from dlt.common.normalizers import TNormalizersConfig, default_normalizers, import_normalizers
+from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.normalizers.json import TNormalizeJSONFunc
-from dlt.common.schema.typing import (SCHEMA_ENGINE_VERSION, LOADS_TABLE_NAME, VERSION_TABLE_NAME, TNormalizersConfig, TPartialTableSchema, TSchemaSettings, TSimpleRegex, TStoredSchema,
-                                      TSchemaTables, TTableSchema, TTableSchemaColumns, TColumnSchema, TColumnProp, TDataType,
-                                      TColumnHint, TTypeDetections, TWriteDisposition)
 from dlt.common.schema import utils
+from dlt.common.data_types import py_type_to_sc_type, coerce_value, TDataType
+from dlt.common.schema.typing import (SCHEMA_ENGINE_VERSION, LOADS_TABLE_NAME, VERSION_TABLE_NAME, TPartialTableSchema, TSchemaSettings, TSimpleRegex, TStoredSchema,
+                                      TSchemaTables, TTableSchema, TTableSchemaColumns, TColumnSchema, TColumnProp, TColumnHint, TTypeDetections, TWriteDisposition)
 from dlt.common.schema.exceptions import (CannotCoerceColumnException, CannotCoerceNullException, InvalidSchemaName,
                                           ParentTableNotFoundException, SchemaCorruptedException)
 from dlt.common.validation import validate_dict
@@ -112,18 +113,18 @@ class Schema:
             return is_excluded and not is_included
 
         # break table name in components
-        branch = self.naming.normalize_break_path(table_name)
+        branch = self.naming.break_path(table_name)
 
         # check if any of the rows is excluded by rules in any of the tables
         for i in range(len(branch), 0, -1):  # stop is exclusive in `range`
             # start at the top level table
-            c_t = self.naming.normalize_make_path(*branch[:i])
+            c_t = self.naming.make_path(*branch[:i])
             excludes = self._compiled_excludes.get(c_t)
             # only if there's possibility to exclude, continue
             if excludes:
                 includes = self._compiled_includes.get(c_t) or []
                 for field_name in list(row.keys()):
-                    path = self.naming.normalize_make_path(*branch[i:], field_name)
+                    path = self.naming.make_path(*branch[i:], field_name)
                     if _exclude(path, excludes, includes):
                         # TODO: copy to new instance
                         del row[field_name]  # type: ignore
@@ -336,10 +337,10 @@ class Schema:
         # infer type or get it from existing table
         col_type = existing_column.get("data_type") if existing_column else self._infer_column_type(v, col_name, skip_preferred=final)
         # get data type of value
-        py_type = utils.py_type_to_sc_type(type(v))
+        py_type = py_type_to_sc_type(type(v))
         # and coerce type if inference changed the python type
         try:
-            coerced_v = utils.coerce_value(col_type, py_type, v)
+            coerced_v = coerce_value(col_type, py_type, v)
             # print(f"co: {py_type} -> {col_type} {v}")
         except (ValueError, SyntaxError):
             if final:
@@ -348,7 +349,7 @@ class Schema:
             # otherwise we must create variant extension to the table
             # pass final=True so no more auto-variants can be created recursively
             # TODO: generate callback so DLT user can decide what to do
-            variant_col_name = self.naming.normalize_make_path(col_name, VARIANT_FIELD_FORMAT % py_type)
+            variant_col_name = self.naming.shorten_fragments(col_name, VARIANT_FIELD_FORMAT % py_type)
             return self._coerce_non_null_value(table_columns, table_name, variant_col_name, v, final=True)
 
         # if coerced value is variant, then extract variant value
@@ -357,7 +358,7 @@ class Schema:
             coerced_v = coerced_v()
             if isinstance(coerced_v, tuple):
                 # variant recovered so call recursively with variant column name and variant value
-                variant_col_name = self.naming.normalize_make_path(col_name, VARIANT_FIELD_FORMAT % coerced_v[0])
+                variant_col_name = self.naming.shorten_fragments(col_name, VARIANT_FIELD_FORMAT % coerced_v[0])
                 return self._coerce_non_null_value(table_columns, table_name, variant_col_name, coerced_v[1], final=True)
 
         if not existing_column:
@@ -371,7 +372,7 @@ class Schema:
         mapped_type = utils.autodetect_sc_type(self._type_detections, tv, v)
         # if not try standard type mapping
         if mapped_type is None:
-            mapped_type = utils.py_type_to_sc_type(tv)
+            mapped_type = py_type_to_sc_type(tv)
         # get preferred type based on column name
         preferred_type: TDataType = None
         if not skip_preferred:
@@ -399,9 +400,9 @@ class Schema:
     def _configure_normalizers(self) -> None:
         if not self._normalizers_config:
             # create default normalizer config
-            self._normalizers_config = utils.default_normalizers()
+            self._normalizers_config = default_normalizers()
         # import desired modules
-        naming_module, json_module = utils.import_normalizers(self._normalizers_config)
+        naming_module, json_module = import_normalizers(self._normalizers_config)
         # name normalization functions
         self.naming = naming_module
         # data item normalization function
@@ -479,7 +480,7 @@ class Schema:
                     if "includes" in table["filters"]:
                         self._compiled_includes[table["name"]] = list(map(utils.compile_simple_regex, table["filters"]["includes"]))
         # look for auto-detections in settings and then normalizer
-        self._type_detections = self._settings.get("detections") or self._normalizers_config.get("detections") or []
+        self._type_detections = self._settings.get("detections") or self._normalizers_config.get("detections") or []  # type: ignore
 
     def __repr__(self) -> str:
         return f"Schema {self.name} at {id(self)}"
