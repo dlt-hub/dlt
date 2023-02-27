@@ -101,17 +101,29 @@ def test_pipeline_context() -> None:
     p = dlt.pipeline()
     assert ctx.is_active() is True
     assert ctx.pipeline() is p
+    assert p.is_active is True
+    # has no destination context
+    assert DestinationCapabilitiesContext not in Container()
 
     # create another pipeline
-    p2 = dlt.pipeline(pipeline_name="another pipeline")
+    p2 = dlt.pipeline(pipeline_name="another pipeline", destination="duckdb")
     assert ctx.pipeline() is p2
+    assert p.is_active is False
+    assert p2.is_active is True
+    assert Container()[DestinationCapabilitiesContext].naming_convention == "duck_case"
 
-    p3 = dlt.pipeline(pipeline_name="more pipelines")
+    p3 = dlt.pipeline(pipeline_name="more pipelines", destination="dummy")
     assert ctx.pipeline() is p3
+    assert p3.is_active is True
+    assert p2.is_active is False
+    assert Container()[DestinationCapabilitiesContext].naming_convention == "snake_case"
 
     # restore previous
     p2 = dlt.attach("another pipeline")
     assert ctx.pipeline() is p2
+    assert p3.is_active is False
+    assert p2.is_active is True
+    assert Container()[DestinationCapabilitiesContext].naming_convention == "duck_case"
 
 
 def test_import_unknown_destination() -> None:
@@ -152,12 +164,6 @@ def test_create_pipeline_all_destinations(destination: str) -> None:
     assert p.default_schema.naming.max_length == min(caps.max_column_identifier_length, caps.max_identifier_length)
     p.normalize()
     assert p.default_schema.naming.max_length == min(caps.max_column_identifier_length, caps.max_identifier_length)
-
-
-# def test_create_naming_convention() -> None:
-#     pass
-# test attach detach
-# test wipe out all contexts
 
 
 def test_extract_source_twice() -> None:

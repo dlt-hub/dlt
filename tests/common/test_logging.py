@@ -9,7 +9,7 @@ from dlt.common.typing import StrStr
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import RunConfiguration
 
-from tests.utils import preserve_environ
+from tests.utils import preserve_environ, skipifspawn
 
 
 @configspec
@@ -111,6 +111,7 @@ def test_sentry_log_level() -> None:
     assert sll._handler.level == logging._nameToLevel["WARNING"]
 
 
+@skipifspawn
 @pytest.mark.forked
 def test_sentry_init(environment: StrStr) -> None:
     _mock_image_env(environment)

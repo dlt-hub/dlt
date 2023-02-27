@@ -1,6 +1,7 @@
 import pytest
-from dlt.common.schema.typing import TSimpleRegex
 
+from dlt.common.normalizers.naming import NamingConvention, snake_case
+from dlt.common.schema.typing import TSimpleRegex
 from dlt.common.utils import digest128, uniq_id
 from dlt.common.schema import Schema
 from dlt.common.schema.utils import new_table
@@ -649,6 +650,47 @@ def test_keeps_none_values() -> None:
     normalized_row = rows[0][1]
     assert normalized_row["a"] is None
     assert normalized_row["_dlt_load_id"] == "1762162.1212"
+
+
+def test_normalize_and_shorten_deterministically() -> None:
+    schema = create_schema_with_name("other")
+    # shorten at 16 chars
+    schema.naming.max_length = 16
+
+    data = {
+        "short>ident:1": {
+            "short>ident:2": {
+                "short>ident:3": "a"
+            },
+        },
+        "LIST+ident:1": {
+            "LIST+ident:2": {
+                "LIST+ident:3": [1]
+            }
+        },
+        "long+long:SO+LONG:_>16": True
+    }
+    rows = list(normalize_data_item(schema, data, "1762162.1212", "s"))
+    # all identifiers are 16 chars or shorter
+    for tables, row in rows:
+        assert len(tables[0]) <= 16
+        assert len(tables[1] or "") <= 16
+        assert all(len(name) <= 16 for name in row.keys())
+        print(tables[0])
+
+    # all contain tags based on the full non shortened path
+    root_data = rows[0][1]
+    root_data_keys = list(root_data.keys())
+    # "short:ident:2": "a" will be flattened into root
+    tag = NamingConvention._compute_tag("short_identi1__short_identi2__short_identi3", NamingConvention._DEFAULT_COLLISION_PROB)
+    assert tag in root_data_keys[0]
+    # long:SO+LONG:_>16 shortened on normalized name
+    tag = NamingConvention._compute_tag("long+long:SO+LONG:_>16", NamingConvention._DEFAULT_COLLISION_PROB)
+    assert tag in root_data_keys[1]
+    # table name in second row
+    table_name = rows[1][0][0]
+    tag = NamingConvention._compute_tag("s__lis_txidenti1__lis_txidenti2__lis_txidenti3", NamingConvention._DEFAULT_COLLISION_PROB)
+    assert tag in table_name
 
 
 def set_max_nesting(schema: Schema, max_nesting: int) -> None:

@@ -574,7 +574,7 @@ class Pipeline(SupportsPipeline):
             client.update_storage_schema()
 
     def sql_client(self, schema_name: str = None, credentials: Any = None) -> SqlClientBase[Any]:
-        """Returns a sql client configured to query/change the destination and dataset that were used to load the data."""
+        """Returns a sql connection configured to query/change the destination and dataset that were used to load the data."""
         # if not self.default_schema_name:
         #     raise PipelineConfigMissing(
         #         self.pipeline_name,

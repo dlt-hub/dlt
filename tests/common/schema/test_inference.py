@@ -168,6 +168,26 @@ def test_coerce_row_iso_timestamp(schema: Schema) -> None:
     assert new_columns[0]["name"] == "timestamp__v_text"
 
 
+def test_shorten_variant_column(schema: Schema) -> None:
+    schema.naming.max_length = 9
+    _add_preferred_types(schema)
+    timestamp_float = 78172.128
+    # add new column with preferred
+    row_1 = {"timestamp": timestamp_float, "confidence": "0.1", "value": "0xFF", "number": Decimal("128.67")}
+    _, new_table = schema.coerce_row("event_user", None, row_1)
+    # schema assumes that identifiers are already normalized so confidence even if it is longer than 9 chars
+    schema.update_schema(new_table)
+    assert "confidence" in schema._schema_tables["event_user"]["columns"]
+    # confidence_123456
+    # now variant is created and this will be normalized
+    # TODO: we should move the handling of variants to normalizer
+    new_row_2, new_table = schema.coerce_row("event_user", None, {"confidence": False})
+    tag = schema.naming._compute_tag("confidence__v_bool", collision_prob=schema.naming._DEFAULT_COLLISION_PROB)
+    new_row_2_keys = list(new_row_2.keys())
+    assert tag in new_row_2_keys[0]
+    assert len(new_row_2_keys[0]) == 9
+
+
 def test_coerce_complex_variant(schema: Schema) -> None:
     # create two columns to which complex type cannot be coerced
     row = {"floatX": 78172.128, "confidenceX": 1.2, "strX": "STR"}
