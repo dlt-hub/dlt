@@ -33,10 +33,11 @@ def py_type_to_sc_type(t: Type[Any]) -> TDataType:
         return "wei"
     if issubclass(t, Decimal):
         return "decimal"
-    # TODO: implement new "date" type, currently assign "datetime"
-    if issubclass(t, (datetime.datetime, datetime.date)):
+    # datetime is subclass of date and must be checked first
+    if issubclass(t, datetime.datetime):
         return "timestamp"
-
+    if issubclass(t, datetime.date):
+        return "date"
     # check again for subclassed basic types
     if issubclass(t, str):
         return "text"
