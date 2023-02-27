@@ -50,7 +50,7 @@ def test_duckdb_database_path() -> None:
     db_path = os.path.abspath(os.path.join(".", DEFAULT_DUCK_DB_NAME))
     assert c.credentials.database.lower() == db_path.lower()
     # but it is kept in the local state
-    assert p.get_local_state_val("duckdb_database").lower() == db_path
+    assert p.get_local_state_val("duckdb_database").lower() == db_path.lower()
     # connect
     try:
         conn = c.credentials.borrow_conn(read_only=False)
@@ -68,7 +68,7 @@ def test_duckdb_database_path() -> None:
     conn = c.credentials.borrow_conn(read_only=False)
     c.credentials.return_conn(conn)
     assert os.path.isfile(db_path)
-    assert p.get_local_state_val("duckdb_database").lower() == db_path
+    assert p.get_local_state_val("duckdb_database").lower() == db_path.lower()
 
     # provide relative path
     db_path = "_storage/test_quack.duckdb"

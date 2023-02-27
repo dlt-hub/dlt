@@ -71,12 +71,15 @@ class DuckDbCredentials(ConnectionStringCredentials):
         try:
             super().parse_native_representation(native_value)
         except InvalidConnectionString:
-            if is_valid_filepath(native_value, platform="auto"):
+            if native_value == ":pipeline:" or is_valid_filepath(native_value, platform="auto"):
                 self.database = native_value
             else:
                 raise
 
     def on_resolved(self) -> None:
+        # do not set any paths for external database
+        if self.database == ":external:":
+            return
         # try the pipeline context
         if self.database == ":pipeline:":
             self.database = self._path_in_pipeline(DEFAULT_DUCK_DB_NAME)
