@@ -39,4 +39,4 @@ Follow the [Deploy a pipeline](./walkthroughs/deploy-a-pipeline.md) walkthrough 
 dlt pipeline <pipeline name> show
 ```
 
-Generates and launches a simple [Streamlit](https://streamlit.io/) app where you can inspect your pipeline state, loading status / stats and also explore generated schemas and data in the destination's dataset. Requires `streamlit` to be installed.
+Generates and launches a simple [Streamlit](https://streamlit.io/) app that you can use to inspect the schemas and data in the destination as well as your pipeline state and loading status / stats. Requires `streamlit` to be installed.

@@ -28,19 +28,13 @@ Run the pipeline to load data from the chess.com API to DuckDB by running:
 python3 chess.py
 ```
 
-## 3. Query DuckDB database
+## 3. Query the data in DuckDB
 
-Create a `query.py` file where you can write SQL queries:
-```
-import duckdb
+Your data has been loaded into `chess.duckdb`, which has been added to your project directory.
 
-conn = duckdb.connect('quack.duckdb')
-conn.sql('SELECT COUNT(*) FROM games').show()
+Run this command to see a quick overview of the data loaded:
 ```
-
-Run `query.py` to execute the script and SQL query to see how many total games were loaded from the API:
-```
-python3 query.py
+dlt pipeline chess show
 ```
 
 Learn more about how to query DuckDB [here](https://duckdb.org/docs/sql/introduction#querying-a-table).
