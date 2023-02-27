@@ -203,7 +203,7 @@ def test_py_type_to_sc_type() -> None:
     assert py_type_to_sc_type(str) == "text"
     assert py_type_to_sc_type(type(pendulum.now())) == "timestamp"
     assert py_type_to_sc_type(type(datetime.datetime(1988, 12, 1))) == "timestamp"
-    assert py_type_to_sc_type(type(pendulum.today())) == "date"
+    assert py_type_to_sc_type(type(pendulum.date(2023, 2, 27))) == "date"
     assert py_type_to_sc_type(type(datetime.date.today())) == "date"
     assert py_type_to_sc_type(type(Decimal(1))) == "decimal"
     assert py_type_to_sc_type(type(HexBytes("0xFF"))) == "binary"
