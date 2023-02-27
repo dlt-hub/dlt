@@ -10,6 +10,7 @@ from dlt.common.destination.reference import DestinationClientDwhConfiguration
 from dlt.common.typing import DictStrAny, TSecretValue
 
 DEFAULT_DUCK_DB_NAME = "quack.duckdb"
+LOCAL_STATE_KEY = "duckdb_database"
 
 
 @configspec
@@ -25,7 +26,7 @@ class DuckDbCredentials(ConnectionStringCredentials):
 
     # __config_gen_annotations__: ClassVar[List[str]] = ["database"]
 
-    def borrow_conn(self, read_only: bool, config: DictStrAny = None) -> Any:
+    def borrow_conn(self, read_only: bool) -> Any:
         import duckdb
 
         if not hasattr(self, "_conn_lock"):
@@ -34,7 +35,7 @@ class DuckDbCredentials(ConnectionStringCredentials):
         # obtain a lock because duck releases the GIL and we have refcount concurrency
         with self._conn_lock:
             if not hasattr(self, "_conn"):
-                self._conn = duckdb.connect(database=self.database, read_only=read_only, config=config)
+                self._conn = duckdb.connect(database=self.database, read_only=read_only)
                 self._conn_owner = True
                 self._conn_borrows = 0
 
@@ -76,24 +77,48 @@ class DuckDbCredentials(ConnectionStringCredentials):
                 raise
 
     def on_resolved(self) -> None:
-        # if database is not set, try the pipeline context
-        if not self.database:
+        # try the pipeline context
+        if self.database == ":pipeline:":
             self.database = self._path_in_pipeline(DEFAULT_DUCK_DB_NAME)
-        # if pipeline context was not present
+        # if pipeline context was not present or database was not set
         if not self.database:
             # create database locally
-            self.database = DEFAULT_DUCK_DB_NAME
+            self.database = self._path_from_pipeline(DEFAULT_DUCK_DB_NAME)
         # always make database an abs path
         self.database = os.path.abspath(self.database)
+        self._path_to_pipeline(self.database)
 
     def _path_in_pipeline(self, rel_path: str) -> str:
         from dlt.common.configuration.container import Container
         from dlt.common.pipeline import PipelineContext
+
         context = Container()[PipelineContext]
         if context.is_active():
             # pipeline is active, get the working directory
             return os.path.join(context.pipeline().working_dir, rel_path)
         return None
+
+
+    def _path_to_pipeline(self, abspath: str) -> None:
+        from dlt.common.configuration.container import Container
+        from dlt.common.pipeline import PipelineContext
+
+        context = Container()[PipelineContext]
+        if context.is_active():
+            context.pipeline().set_local_state_val(LOCAL_STATE_KEY, abspath)
+
+    def _path_from_pipeline(self, default_path: str) -> str:
+        from dlt.common.configuration.container import Container
+        from dlt.common.pipeline import PipelineContext
+
+        context = Container()[PipelineContext]
+        if context.is_active():
+            try:
+                # get
+                return context.pipeline().get_local_state_val(LOCAL_STATE_KEY)  # type: ignore
+            except KeyError:
+                pass
+        return default_path
 
     def _delete_conn(self) -> None:
         # print("Closing conn because is owner")
