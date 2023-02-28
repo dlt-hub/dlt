@@ -75,6 +75,11 @@ TABLE_UPDATE: List[TColumnSchema] = [
         "data_type": "complex",
         "nullable": False
     },
+    {
+        "name": "col10",
+        "data_type": "date",
+        "nullable": False
+    }
 ]
 TABLE_UPDATE_COLUMNS_SCHEMA: TTableSchemaColumns = {t["name"]:t for t in TABLE_UPDATE}
 
@@ -87,7 +92,8 @@ TABLE_ROW = {
     "col6": Decimal("2323.34"),
     "col7": b'binary data \n \r \x8e',
     "col8": 2**56 + 92093890840,
-    "col9": {"complex":[1,2,3,"a"], "link": "?commen\ntU\nrn=urn%3Ali%3Acomment%3A%28acti\012 \6 \\vity%3A69'08444473\n\n551163392%2C6n \r \x8e9085"}
+    "col9": {"complex":[1,2,3,"a"], "link": "?commen\ntU\nrn=urn%3Ali%3Acomment%3A%28acti\012 \6 \\vity%3A69'08444473\n\n551163392%2C6n \r \x8e9085"},
+    "col10": "2023-02-27"
 }
 
 def load_table(name: str) -> TTableSchemaColumns:

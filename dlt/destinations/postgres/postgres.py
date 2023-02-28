@@ -29,6 +29,7 @@ SCT_TO_PGT: Dict[TDataType, str] = {
     "double": "double precision",
     "bool": "boolean",
     "timestamp": "timestamp with time zone",
+    "date": "date",
     "bigint": "bigint",
     "binary": "bytea",
     "decimal": f"numeric({DEFAULT_NUMERIC_PRECISION},{DEFAULT_NUMERIC_SCALE})"
@@ -40,6 +41,7 @@ PGT_TO_SCT: Dict[str, TDataType] = {
     "double precision": "double",
     "boolean": "bool",
     "timestamp with time zone": "timestamp",
+    "date": "date",
     "bigint": "bigint",
     "bytea": "binary",
     "numeric": "decimal"

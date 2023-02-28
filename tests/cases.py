@@ -26,7 +26,7 @@ JSON_TYPED_DICT_TYPES: Dict[str, TDataType] = {
     "decimal": "decimal",
     "big_decimal": "decimal",
     "datetime": "timestamp",
-    "date": "timestamp",
+    "date": "date",
     # "uuid": "text",
     "hexbytes": "binary",
     "bytes": "binary",

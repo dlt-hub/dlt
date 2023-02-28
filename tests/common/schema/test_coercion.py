@@ -5,6 +5,8 @@ import pytest
 import datetime  # noqa: I251
 from hexbytes import HexBytes
 
+from pendulum.tz import UTC
+
 from dlt.common import Decimal, Wei, json, pendulum
 from dlt.common.json import _DATETIME, custom_pua_decode
 from dlt.common.data_types import coerce_value, py_type_to_sc_type, TDataType
@@ -144,7 +146,9 @@ def test_coerce_type_to_timestamp() -> None:
     assert coerce_value("timestamp", "text", "2022-04-26 10:36+02") == pendulum.parse("2022-04-26T10:36:00+02:00")
     assert coerce_value("timestamp", "text", "2022-04-26 10:36") == pendulum.parse("2022-04-26T10:36:00+00:00")
     # parse date string
-    assert coerce_value("timestamp", "text", "2021-04-25") == pendulum.parse("2021-04-25", exact=True)
+    assert coerce_value("timestamp", "text", "2021-04-25") == pendulum.parse("2021-04-25")
+    # from date type
+    assert coerce_value("timestamp", "date", datetime.date(2023, 2, 27)) == pendulum.parse("2023-02-27")
 
     # fails on "now" - yes pendulum by default parses "now" as .now()
     with pytest.raises(ValueError):
@@ -181,6 +185,23 @@ def test_coerce_type_to_timestamp() -> None:
         coerce_value("timestamp", "text", "x2022-05-10T03:41:31.466000X+00:00")
 
 
+def test_coerce_type_to_date() -> None:
+    # from datetime object
+    assert coerce_value("date", "timestamp", pendulum.datetime(1995, 5, 6, 00, 1, 1, tz=UTC)) == pendulum.parse("1995-05-06", exact=True)
+    # from unix timestamp
+    assert coerce_value("date", "double", 1677546399.494264) == pendulum.parse("2023-02-28", exact=True)
+    assert coerce_value("date", "text", " 1677546399 ") == pendulum.parse("2023-02-28", exact=True)
+    # ISO date string
+    assert coerce_value("date", "text", "2023-02-27") == pendulum.parse("2023-02-27", exact=True)
+    # ISO datetime string
+    assert coerce_value("date", "text", "2022-05-10T03:41:31.466000+00:00") == pendulum.parse("2022-05-10", exact=True)
+    assert coerce_value("date", "text", "2022-05-10T03:41:31.466+02:00") == pendulum.parse("2022-05-10", exact=True)
+    assert coerce_value("date", "text", "2022-05-10T03:41:31.466+0200") == pendulum.parse("2022-05-10", exact=True)
+    # almost ISO compliant string
+    assert coerce_value("date", "text", "2022-04-26 10:36+02") == pendulum.parse("2022-04-26", exact=True)
+    assert coerce_value("date", "text", "2022-04-26 10:36") == pendulum.parse("2022-04-26", exact=True)
+
+
 def test_coerce_type_to_binary() -> None:
     # from hex string
     assert coerce_value("binary", "text", "0x30") == b'0'
@@ -203,6 +224,8 @@ def test_py_type_to_sc_type() -> None:
     assert py_type_to_sc_type(str) == "text"
     assert py_type_to_sc_type(type(pendulum.now())) == "timestamp"
     assert py_type_to_sc_type(type(datetime.datetime(1988, 12, 1))) == "timestamp"
+    assert py_type_to_sc_type(type(pendulum.date(2023, 2, 27))) == "date"
+    assert py_type_to_sc_type(type(datetime.date.today())) == "date"
     assert py_type_to_sc_type(type(Decimal(1))) == "decimal"
     assert py_type_to_sc_type(type(HexBytes("0xFF"))) == "binary"
     assert py_type_to_sc_type(type(Wei.from_int256(2137, decimals=2))) == "wei"

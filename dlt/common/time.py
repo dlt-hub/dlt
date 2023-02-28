@@ -1,5 +1,5 @@
 import contextlib
-from typing import Any, Optional  # noqa
+from typing import Any, Optional, Union  # noqa
 import datetime  # noqa: I251
 
 from dlt.common.pendulum import pendulum
@@ -52,3 +52,19 @@ def parse_iso_like_datetime(value: Any) -> datetime.datetime:
         )
     # no typings for pendulum
     return dtv  # type: ignore
+
+
+def ensure_datetime(value: Union[datetime.datetime, datetime.date]) -> datetime.datetime:
+    """
+    Convert `date` to `datetime` if needed
+    """
+    if isinstance(value, datetime.datetime):
+        return value
+    return pendulum.datetime(
+        value.year, value.month, value.day, tz=UTC
+    )
+
+def ensure_date(value: Union[datetime.datetime, datetime.date]) -> datetime.date:
+    if isinstance(value, datetime.datetime):
+        return value.date()
+    return value
