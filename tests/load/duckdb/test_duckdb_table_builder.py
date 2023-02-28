@@ -32,6 +32,7 @@ def test_create_table_with_hints(client: DuckDbClient) -> None:
     assert '"col1" BIGINT  NOT NULL' in sql
     assert '"col2" DOUBLE  NOT NULL' in sql
     assert '"col5" VARCHAR ' in sql
+    assert '"col10" DATE ' in sql
     # no hints
     assert '"col3" BOOLEAN  NOT NULL' in sql
     assert '"col4" TIMESTAMP WITH TIME ZONE  NOT NULL' in sql

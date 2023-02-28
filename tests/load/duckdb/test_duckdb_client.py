@@ -16,6 +16,8 @@ def delete_default_duckdb_credentials() -> None:
     # remove the default duckdb config
     # os.environ.pop("DESTINATION__DUCKDB__CREDENTIALS", None)
     os.environ.clear()
+    yield
+    delete_quack_db()
 
 
 def test_duckdb_open_conn_default() -> None:
@@ -40,16 +42,33 @@ def test_duckdb_open_conn_default() -> None:
 def test_duckdb_database_path() -> None:
     # resolve without any path provided
     c = resolve_configuration(DuckDbClientConfiguration(dataset_name="test_dataset"))
-    assert c.credentials.database.lower() == os.path.abspath(DEFAULT_DUCK_DB_NAME).lower()
+    assert c.credentials.database.lower() == os.path.abspath("quack.duckdb").lower()
     # resolve without any path but with pipeline context
     p = dlt.pipeline(pipeline_name="quack_pipeline")
     c = resolve_configuration(DuckDbClientConfiguration(dataset_name="test_dataset"))
+    # still cwd
+    db_path = os.path.abspath(os.path.join(".", "quack_pipeline.duckdb"))
+    assert c.credentials.database.lower() == db_path.lower()
+    # but it is kept in the local state
+    assert p.get_local_state_val("duckdb_database").lower() == db_path.lower()
+    # connect
+    try:
+        conn = c.credentials.borrow_conn(read_only=False)
+        c.credentials.return_conn(conn)
+        assert os.path.isfile(db_path)
+    finally:
+        if os.path.isfile(db_path):
+            os.unlink(db_path)
+
+    # test special :pipeline: path to create in pipeline folder
+    c = resolve_configuration(DuckDbClientConfiguration(dataset_name="test_dataset", credentials=":pipeline:"))
     db_path = os.path.abspath(os.path.join(p.working_dir, DEFAULT_DUCK_DB_NAME))
     assert c.credentials.database.lower() == db_path.lower()
     # connect
     conn = c.credentials.borrow_conn(read_only=False)
     c.credentials.return_conn(conn)
     assert os.path.isfile(db_path)
+    assert p.get_local_state_val("duckdb_database").lower() == db_path.lower()
 
     # provide relative path
     db_path = "_storage/test_quack.duckdb"
@@ -90,6 +109,33 @@ def test_duckdb_database_path() -> None:
     with pytest.raises(duckdb.IOException):
         c = resolve_configuration(DuckDbClientConfiguration(dataset_name="test_dataset", credentials=TEST_STORAGE_ROOT))
         conn = c.credentials.borrow_conn(read_only=False)
+
+
+def test_keeps_initial_db_path() -> None:
+    db_path = "_storage/path_test_quack.duckdb"
+    p = dlt.pipeline(pipeline_name="quack_pipeline", credentials=db_path, destination="duckdb")
+    with p.sql_client() as conn:
+        # still cwd
+        assert conn.credentials.database.lower() == os.path.abspath(db_path).lower()
+        # but it is kept in the local state
+        assert p.get_local_state_val("duckdb_database").lower() == os.path.abspath(db_path).lower()
+
+    # attach the pipeline
+    p = dlt.attach(pipeline_name="quack_pipeline")
+    assert p.get_local_state_val("duckdb_database").lower() == os.path.abspath(db_path).lower()
+    with p.sql_client() as conn:
+        # still cwd
+        assert p.get_local_state_val("duckdb_database").lower() == os.path.abspath(db_path).lower()
+        assert conn.credentials.database.lower() == os.path.abspath(db_path).lower()
+
+    # now create a new pipeline
+    dlt.pipeline(pipeline_name="not_quack", destination="dummy")
+    with p.sql_client() as conn:
+        # still cwd
+        assert p.get_local_state_val("duckdb_database").lower() == os.path.abspath(db_path).lower()
+        # new pipeline context took over
+        # TODO: restore pipeline context on each call
+        assert conn.credentials.database.lower() != os.path.abspath(db_path).lower()
 
 
 def test_external_duckdb_database() -> None:

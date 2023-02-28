@@ -11,7 +11,7 @@ from dlt.common import json, logger, signals, pendulum
 from dlt.common.configuration import inject_section, known_sections
 from dlt.common.configuration.specs import RunConfiguration, NormalizeVolumeConfiguration, SchemaVolumeConfiguration, LoadVolumeConfiguration, PoolRunnerConfiguration
 from dlt.common.configuration.container import Container
-from dlt.common.configuration.exceptions import ConfigFieldMissingException
+from dlt.common.configuration.exceptions import ConfigFieldMissingException, ContextDefaultCannotBeCreated
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.normalizers import default_normalizers, import_normalizers
@@ -572,6 +572,29 @@ class Pipeline(SupportsPipeline):
         with self._get_destination_client(schema, client_config) as client:
             client.initialize_storage()
             client.update_storage_schema()
+
+
+    def set_local_state_val(self, key: str, value: Any) -> None:
+        """Sets value in local state. Local state is not synchronized with destination."""
+        try:
+            # get managed state that is read/write
+            state = self._container[StateInjectableContext].state
+            state["_local"][key] = value  # type: ignore
+        except ContextDefaultCannotBeCreated:
+            state = self._get_state()
+            state["_local"][key] = value  # type: ignore
+            self._save_state(state)
+
+
+    def get_local_state_val(self, key: str) -> Any:
+        """Gets value from local state. Local state is not synchronized with destination."""
+        try:
+            # get managed state that is read/write
+            state = self._container[StateInjectableContext].state
+        except ContextDefaultCannotBeCreated:
+            state = self._get_state()
+        return state["_local"][key]   # type: ignore
+
 
     def sql_client(self, schema_name: str = None, credentials: Any = None) -> SqlClientBase[Any]:
         """Returns a sql connection configured to query/change the destination and dataset that were used to load the data."""
