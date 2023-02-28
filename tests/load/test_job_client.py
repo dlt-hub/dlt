@@ -322,6 +322,8 @@ def test_load_with_all_types(client: SqlJobClientBase, write_disposition: str, f
         # then it must be json
         db_row[8] = json.loads(db_row[8])
 
+    db_row[9] = db_row[9].isoformat()
+
     expected_rows = list(TABLE_ROW.values())
     # expected_rows[8] = COL_9_DICT
 
