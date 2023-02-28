@@ -42,12 +42,12 @@ def test_duckdb_open_conn_default() -> None:
 def test_duckdb_database_path() -> None:
     # resolve without any path provided
     c = resolve_configuration(DuckDbClientConfiguration(dataset_name="test_dataset"))
-    assert c.credentials.database.lower() == os.path.abspath(DEFAULT_DUCK_DB_NAME).lower()
+    assert c.credentials.database.lower() == os.path.abspath("quack.duckdb").lower()
     # resolve without any path but with pipeline context
     p = dlt.pipeline(pipeline_name="quack_pipeline")
     c = resolve_configuration(DuckDbClientConfiguration(dataset_name="test_dataset"))
     # still cwd
-    db_path = os.path.abspath(os.path.join(".", DEFAULT_DUCK_DB_NAME))
+    db_path = os.path.abspath(os.path.join(".", "quack_pipeline.duckdb"))
     assert c.credentials.database.lower() == db_path.lower()
     # but it is kept in the local state
     assert p.get_local_state_val("duckdb_database").lower() == db_path.lower()

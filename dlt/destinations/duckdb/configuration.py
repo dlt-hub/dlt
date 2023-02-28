@@ -9,7 +9,8 @@ from dlt.common.configuration.specs.exceptions import InvalidConnectionString
 from dlt.common.destination.reference import DestinationClientDwhConfiguration
 from dlt.common.typing import DictStrAny, TSecretValue
 
-DEFAULT_DUCK_DB_NAME = "quack.duckdb"
+DUCK_DB_NAME = "%s.duckdb"
+DEFAULT_DUCK_DB_NAME = DUCK_DB_NAME % "quack"
 LOCAL_STATE_KEY = "duckdb_database"
 
 
@@ -117,7 +118,8 @@ class DuckDbCredentials(ConnectionStringCredentials):
         context = Container()[PipelineContext]
         if context.is_active():
             try:
-                # get
+                # use pipeline name as default
+                default_path = DUCK_DB_NAME % context.pipeline().pipeline_name
                 return context.pipeline().get_local_state_val(LOCAL_STATE_KEY)  # type: ignore
             except KeyError:
                 pass

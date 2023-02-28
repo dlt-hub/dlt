@@ -14,6 +14,7 @@ experiments/*
 secrets.toml
 *.session.sql
 *.duckdb
+*.wal
 
 # Byte-compiled / optimized / DLL files
 **/__pycache__/

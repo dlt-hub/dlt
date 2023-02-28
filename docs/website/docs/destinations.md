@@ -155,7 +155,7 @@ python3 chess.py
 
 ### Destination Configuration
 
-By default, a DuckDB database will be created in the current working directory with a name `quack.duckdb`. After loading, it is available in `read/write` mode via `with pipeline.sql_client() as con:` which is a wrapper over `DuckDBPyConnection`. See [duckdb docs](https://duckdb.org/docs/api/python/overview#persistent-storage) for details.
+By default, a DuckDB database will be created in the current working directory with a name `<pipeline_name>.duckdb` (`chess.duckdb` in the example above). After loading, it is available in `read/write` mode via `with pipeline.sql_client() as con:` which is a wrapper over `DuckDBPyConnection`. See [duckdb docs](https://duckdb.org/docs/api/python/overview#persistent-storage) for details.
 
 The `duckdb` credentials do not require any secret values. You are free to pass the configuration explicitly via the `credentials` parameter to `dlt.pipeline` or `pipeline.run` methods. For example:
 ```python
