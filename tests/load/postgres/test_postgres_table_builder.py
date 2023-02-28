@@ -34,6 +34,7 @@ def test_create_table(client: PostgresClient) -> None:
     assert '"col7" bytea' in sql
     assert '"col8" numeric(156,78)' in sql
     assert '"col9" jsonb  NOT NULL' in sql
+    assert '"col10" date  NOT NULL' in sql
 
 
 def test_alter_table(client: PostgresClient) -> None:
@@ -52,6 +53,7 @@ def test_alter_table(client: PostgresClient) -> None:
     assert '"col7" bytea' in sql
     assert '"col8" numeric(156,78)' in sql
     assert '"col9" jsonb  NOT NULL' in sql
+    assert '"col10" date  NOT NULL' in sql
 
 
 def test_create_table_with_hints(client: PostgresClient) -> None:

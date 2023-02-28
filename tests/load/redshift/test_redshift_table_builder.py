@@ -45,6 +45,7 @@ def test_create_table(client: RedshiftClient) -> None:
     assert '"col7" varbinary' in sql
     assert '"col8" numeric(38,0)' in sql
     assert '"col9" super  NOT NULL' in sql
+    assert '"col10" date  NOT NULL' in sql
 
 
 def test_alter_table(client: RedshiftClient) -> None:
@@ -63,6 +64,7 @@ def test_alter_table(client: RedshiftClient) -> None:
     assert '"col7" varbinary' in sql
     assert '"col8" numeric(38,0)' in sql
     assert '"col9" super  NOT NULL' in sql
+    assert '"col10" date  NOT NULL' in sql
 
 
 def test_create_table_with_hints(client: RedshiftClient) -> None:
