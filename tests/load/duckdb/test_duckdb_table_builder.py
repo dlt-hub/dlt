@@ -1,5 +1,6 @@
 import pytest
 from copy import deepcopy
+import sqlfluff
 
 from dlt.common.utils import uniq_id
 from dlt.common.schema import Schema
@@ -40,4 +41,14 @@ def test_create_table_with_hints(client: DuckDbClient) -> None:
     # same thing with indexes
     client = DuckDbClient(client.schema, DuckDbClientConfiguration(dataset_name="test_" + uniq_id(), create_indexes=True))
     sql = client._get_table_update_sql("event_test_table", mod_update, False)
+    sqlfluff.parse(sql)
     assert '"col2" DOUBLE UNIQUE NOT NULL' in sql
+
+
+def test_alter_table(client: DuckDbClient) -> None:
+    # existing table has no columns
+    sql = client._get_table_update_sql("event_test_table", TABLE_UPDATE, True)
+    sqlfluff.parse(sql)
+    assert sql.startswith("ALTER TABLE")
+    assert sql.count("ALTER TABLE") == 1
+    assert "event_test_table" in sql

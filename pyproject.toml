@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "python-dlt"
-version = "0.2.0a22"
+version = "0.2.0a23"
 description = "DLT is an open-source python-native scalable data loading framework that does not require any devops efforts to run."
 authors = ["dltHub Inc. <services@dlthub.com>"]
 maintainers = [ "Marcin Rudolf <marcin@dlthub.com>", "Adrian Brudaru <adrian@dlthub.com>", "Ty Dunn <ty@dlthub.com>"]
@@ -108,6 +108,7 @@ dlt = "dlt.cli._dlt:main"
 requests-mock = "^1.10.0"
 types-click = "^7.1.8"
 pandas = "^1.5.3"
+sqlfluff = "^1.4.5"
 
 [build-system]
 requires = ["poetry-core>=1.0.8"]
