@@ -50,5 +50,5 @@ def test_alter_table(client: DuckDbClient) -> None:
     sql = client._get_table_update_sql("event_test_table", TABLE_UPDATE, True)
     sqlfluff.parse(sql)
     assert sql.startswith("ALTER TABLE")
-    assert sql.count("ALTER TABLE") == 1
+    assert sql.count("ALTER TABLE") == len(TABLE_UPDATE)
     assert "event_test_table" in sql

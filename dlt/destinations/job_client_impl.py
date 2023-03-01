@@ -164,7 +164,7 @@ class SqlJobClientBase(JobClientBase):
                 sql_updates.append(sql)
         return sql_updates
 
-    def _get_table_update_sql(self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool, separate_alters: bool = False) -> str:
+    def _get_table_update_sql(self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool) -> str:
         # build sql
         canonical_name = self.sql_client.make_qualified_table_name(table_name)
         if not generate_alter:
@@ -174,13 +174,12 @@ class SqlJobClientBase(JobClientBase):
             sql += ")"
         else:
             sql = f"ALTER TABLE {canonical_name}\n"
-            if separate_alters:
+            if self.capabilities.alter_add_multi_column:
+                column_sql = ",\n"
+            else:
                 # build ALTER as separate statement for each column (redshift limitation)
                 column_sql = ";" + sql
-            else:
-                column_sql = ",\n"
             sql += column_sql.join([f"ADD COLUMN {self._get_column_def_sql(c)}" for c in new_columns])
-            sql += ";"
         # scan columns to get hints
         if generate_alter:
             # no hints may be specified on added columns

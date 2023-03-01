@@ -84,10 +84,6 @@ class RedshiftClient(InsertValuesJobClient):
         self.sql_client = sql_client
         self.config: RedshiftClientConfiguration = config
 
-    def _get_table_update_sql(self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool, separate_alters: bool = False) -> str:
-        # build ALTER as separate statement for each column (redshift limitation)
-        return super()._get_table_update_sql(table_name, new_columns, generate_alter, separate_alters=True)
-
     def _get_column_def_sql(self, c: TColumnSchema) -> str:
         hints_str = " ".join(HINT_TO_REDSHIFT_ATTR.get(h, "") for h in HINT_TO_REDSHIFT_ATTR.keys() if c.get(h, False) is True)
         column_name = self.capabilities.escape_identifier(c["name"])
