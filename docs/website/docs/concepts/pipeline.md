@@ -8,7 +8,7 @@ sidebar_position: 3
   in the schema (i.e. extracting, normalizing, and loading the data).
 
 
-A [pipeline](./glossary.md#pipeline) is a connection to the destination. We pass sources or resources to the pipeline. We can also pass generators to the pipeline. When the pipeline runs, the resources get executed and the data is loaded at destination.
+A [pipeline](../glossary.md#pipeline) is a connection to the destination. We pass sources or resources to the pipeline. We can also pass generators to the pipeline. When the pipeline runs, the resources get executed and the data is loaded at destination.
 
 Arguments:
 - `source` Source may be a dlt source, resource or a generator

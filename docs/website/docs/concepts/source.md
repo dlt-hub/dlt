@@ -4,7 +4,7 @@ sidebar_position: 2
 
 # Source
 
-A [source](./glossary.md#source) contains:
+A [source](../glossary.md#source) contains:
 - API methods for authentication, pagination
 - Resources are functions that produce data. Resources are to sources what endpoints are to an API.
 - workflow and customisation code.
