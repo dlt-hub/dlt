@@ -1,4 +1,5 @@
 import pytest
+import sqlfluff
 from copy import deepcopy
 
 from dlt.common.utils import custom_environ, uniq_id
@@ -41,6 +42,7 @@ def gcp_client(schema: Schema) -> BigQueryClient:
 def test_create_table(gcp_client: BigQueryClient) -> None:
     # non existing table
     sql = gcp_client._get_table_update_sql("event_test_table", TABLE_UPDATE, False)
+    sqlfluff.parse(sql, dialect="bigquery")
     assert sql.startswith("CREATE TABLE")
     assert "event_test_table" in sql
     assert "`col1` INTEGER NOT NULL" in sql
@@ -60,7 +62,9 @@ def test_create_table(gcp_client: BigQueryClient) -> None:
 def test_alter_table(gcp_client: BigQueryClient) -> None:
     # existing table has no columns
     sql = gcp_client._get_table_update_sql("event_test_table", TABLE_UPDATE, True)
+    sqlfluff.parse(sql, dialect="bigquery")
     assert sql.startswith("ALTER TABLE")
+    assert sql.count("ALTER TABLE") == 1
     assert "event_test_table" in sql
     assert "ADD COLUMN `col1` INTEGER NOT NULL" in sql
     assert "ADD COLUMN `col2` FLOAT64 NOT NULL" in sql
@@ -87,6 +91,7 @@ def test_create_table_with_partition_and_cluster(gcp_client: BigQueryClient) -> 
     mod_update[4]["cluster"] = True
     mod_update[1]["cluster"] = True
     sql = gcp_client._get_table_update_sql("event_test_table", mod_update, False)
+    sqlfluff.parse(sql, dialect="bigquery")
     # clustering must be the last
     assert sql.endswith("CLUSTER BY `col2`,`col5`")
     assert "PARTITION BY DATE(`col4`)" in sql

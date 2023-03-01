@@ -1,5 +1,6 @@
 import os
 import dataclasses
+import logging
 
 def pytest_configure(config):
     # patch the configurations to use test storage by default, we modify the types (classes) fields
@@ -27,3 +28,7 @@ def pytest_configure(config):
 
     assert run_configuration.RunConfiguration.config_files_storage_path == os.path.join(test_storage_root, "config/")
     assert run_configuration.RunConfiguration().config_files_storage_path == os.path.join(test_storage_root, "config/")
+
+    # disable sqlfluff logging
+    for log in ["sqlfluff.parser", "sqlfluff.linter", "sqlfluff.templater", "sqlfluff.lexer"]:
+        logging.getLogger(log).setLevel("ERROR")

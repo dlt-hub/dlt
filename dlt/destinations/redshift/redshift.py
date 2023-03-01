@@ -8,7 +8,7 @@ else:
     import psycopg2
     # from psycopg2.sql import SQL, Composed
 
-from typing import ClassVar, Dict, Optional
+from typing import ClassVar, Dict, Optional, Sequence
 
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 from dlt.common.destination import DestinationCapabilitiesContext

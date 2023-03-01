@@ -164,19 +164,24 @@ class SqlJobClientBase(JobClientBase):
                 sql_updates.append(sql)
         return sql_updates
 
-    def _get_table_update_sql(self, table_name: str, new_columns: Sequence[TColumnSchema], exists: bool) -> str:
+    def _get_table_update_sql(self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool) -> str:
         # build sql
         canonical_name = self.sql_client.make_qualified_table_name(table_name)
-        if not exists:
+        if not generate_alter:
             # build CREATE
             sql = f"CREATE TABLE {canonical_name} (\n"
             sql += ",\n".join([self._get_column_def_sql(c) for c in new_columns])
             sql += ")"
         else:
-            # build ALTER as separate statement for each column (redshift limitation)
-            sql = "\n".join([f"ALTER TABLE {canonical_name}\nADD COLUMN {self._get_column_def_sql(c)};" for c in new_columns])
+            sql = f"ALTER TABLE {canonical_name}\n"
+            if self.capabilities.alter_add_multi_column:
+                column_sql = ",\n"
+            else:
+                # build ALTER as separate statement for each column (redshift limitation)
+                column_sql = ";" + sql
+            sql += column_sql.join([f"ADD COLUMN {self._get_column_def_sql(c)}" for c in new_columns])
         # scan columns to get hints
-        if exists:
+        if generate_alter:
             # no hints may be specified on added columns
             for hint in COLUMN_HINTS:
                 if any(c.get(hint, False) is True for c in new_columns):

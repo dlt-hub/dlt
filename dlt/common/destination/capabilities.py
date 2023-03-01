@@ -27,6 +27,7 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     is_max_text_data_type_length_in_bytes: bool
     supports_ddl_transactions: bool
     naming_convention: str = "snake_case"
+    alter_add_multi_column: bool = True
 
     # do not allow to create default value, destination caps must be always explicitly inserted into container
     can_create_default: ClassVar[bool] = False
