@@ -31,6 +31,8 @@ Here’s an example for running a package from github: [jaffle shop example](htt
 
 Here is an example where we run a dlt pipeline and then a dbt package via dlt:
 
+> **💡**  Docstrings are available to read in your IDE.
+
 ```python
 
 # load all pipedrive endpoints to pipedrive_raw dataset
