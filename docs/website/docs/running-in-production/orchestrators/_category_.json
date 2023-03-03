@@ -1,6 +1,6 @@
 {
     "label": "Orchestrators",
-    "position": 5,
+    "position": 1,
     "link": {
       "type": "generated-index",
       "description": "Information about running `dlt` on various orchestrators"
