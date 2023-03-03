@@ -4,29 +4,28 @@ sidebar_position: 1
 
 # Incremental loading
 
-Incremental loading the act of loading only new or changed data and not old records that we already loaded. It enables low-latency and low cost data transfer.
+Incremental loading is the act of loading only new or changed data and not old records that we already loaded. It enables low-latency and low cost data transfer.
 
-The challenge of incremental pipelines is that if we do not keep track of the state of the load (which increments were loaded, which are to be loaded). Read more about how to use state in the concepts documentation
+The challenge of incremental pipelines is that if we do not keep track of the state of the load (i.e. which increments were loaded and which are to be loaded). Read more about state [here](../concepts/state.md).
 
 ### There are 3 types of common loading methods:
 
-**Full load** - This type of load replaces the destination dataset with whatever the source produced on this run. To achieve this, use `write_disposition=’replace’`in your resources.
+**Full load**: replaces the destination dataset with whatever the source produced on this run. To achieve this, use `write_disposition=’replace’`in your resources.
 
-**Append** - This type of load appends the new data to the destination. Use `write_disposition=’append’`.
+**Append**: appends the new data to the destination. Use `write_disposition=’append’`.
 
-**Upsert or merge** - This mode is not currently supported but is on our immediate roadmap. Until we offer support for it, you can use full or append load with a dbt merge materialisation to generate a merge or similar data.
+**Upsert or merge**: not currently supported, but it is on our immediate roadmap. Until we offer support for it, you can use full or append load with a `dbt` merge materialisation to generate a merge or similar.
 
 ### How to do incremental loading
 
 To do incremental loading, we need to
-
 - figure out where we left off with the last load (e.g. “last value”, “last updated at”, etc)
 - request the new part only (how we do this depends on the source API)
 - add the increment into the destination by appending stateless data (e.g. events)
 
 Preserving the last value in state.
 
-The state is a python dictionary which gets commited atomically with the data - it is in essence metadata that you can keep in sync with your data.
+The state is a python dictionary which gets committed automically with the data; it is in essence metadata that you can keep in sync with your data.
 
 For the purpose of preserving the “last value” or similar loading checkpoints, we can open a dlt state dictionary with a key and a default value as below. When the resource is executed and the data is loaded, the yielded resource data will be loaded at the same time with the update to the state.
 
@@ -44,8 +43,7 @@ def persons():
 
 ### Examining an incremental pipeline
 
-Let’s look at the `player_games` resource from the chess pipeline
-
+Let’s look at the `player_games` resource from the chess pipeline:
 - dlt state is like a python dictionary that is preserved in the destination
 - Even if our run environment is not persistent, the state is persisted anyway
 - It’s accessible in Python like any global variable dictionary (i.e. usable in any function)
@@ -57,7 +55,8 @@ Let’s look at the `player_games` resource from the chess pipeline
 - This will allow us to track what data we have loaded
 - When the data is loaded, the list of archives is loaded with it
 - Later we can read this list and know what data has already been loaded
-- In the following example, we initialize a variable with an empty list as a default:
+
+In the following example, we initialize a variable with an empty list as a default:
 
 ```python
 @dlt.resource(write_disposition="append")
