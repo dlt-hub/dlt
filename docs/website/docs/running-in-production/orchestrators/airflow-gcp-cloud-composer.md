@@ -14,17 +14,17 @@ Alternatively, you can repeat this setup for a dev envirionment on which you cou
     - dags
         - with another folder called `pipedrive`that will contain a dlt pipeline
 
-   ![folder-structure](/img/orchestrator_gcp/folder-structure.png)
+   ![folder-structure](/img/folder-structure.png)
 - In cloud build, add a trigger on commit to main
 - point it to your cloud build file. In our example, we place our file at `build/cloudbuild.yaml`
 
-    ![trigger-config](/img/orchestrator_gcp/trigger-config.png)
+    ![trigger-config](/img/trigger-config.png)
 
 
 - Now, create this file in your repository. To fill it, we need to get the name of the dags bucket from Cloud composer, so we know where to deploy.
 - Go to cloud composer, click on the dags folder, and get the bucket name
 
-![test-composer](/img/orchestrator_gcp/test-composer.png)
+![test-composer](/img/test-composer.png)
 
 - in your `cloudbuild.yaml`, paste the below code and replace the bucket name with the correct bucket name. This code copies the dags folder from the repo into the bucket’s dags folder.
 
@@ -38,7 +38,7 @@ steps:
 - Run the trigger you build (in cloud build)
 - Wait a minute, and check if your files arrived in the bucket. In our case, we added a `pipedrive`folder, and we can see it appeared.
 
-![bucket-details](/img/walkthroughs/bucket-details.png)
+![bucket-details](/img/bucket-details.png)
 
 ### Airflow setup
 
@@ -53,7 +53,7 @@ Assuming you already spun up a cloud composer
 - Navigate to your composer environment and add the needed libraries. In the case of this example pipedrive pipeline, we only need dlt, so add `python-dlt` library
 
 
-![add-package](/img/orchestrator_gcp/add-package.png)
+![add-package](/img/add-package.png)
 
 ### Adding credentials
 
@@ -79,7 +79,7 @@ def pipedrive_source(pipedrive_api_key=dlt.secrets.value, fix_custom_fields=True
 
 - Capitalize it and add it into airflow’s env variables, save it. Now, dlt can pick it up.
 
-![add-credential](/img/orchestrator_gcp/add-credential.png)
+![add-credential](/img/add-credential.png)
 
 ### Destination credentials
 
@@ -99,6 +99,6 @@ You can follow the Pipedrive example for a different source, by doing the step b
 3. Add a dag that calls your source such as the one here: [https://github.com/dlt-hub/airflow_example/blob/main/dags/dag_pipedrive.py](https://github.com/dlt-hub/airflow_example/blob/main/dags/dag_pipedrive.py)
 4. git add, commit, push, and you should see your pipeline in Airflow
 
-![pipeline](/img/orchestrator_gcp/pipeline.png)
+![pipeline](/img/pipeline.png)
 
 5. Read about how to transform data [here](./using-loaded-data).
