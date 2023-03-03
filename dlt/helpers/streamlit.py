@@ -287,8 +287,8 @@ def display(pipeline_name: str) -> None:
     pipeline = dlt.attach(pipeline_name)
 
     pages: Dict[str, AnyFun] = {
-        "Pipeline info": write_load_status_page,
         "Explore data": write_data_explorer_page,
+        "Pipeline info": write_load_status_page,
     }
 
     st.title(f"Show {pipeline_name} pipeline")
