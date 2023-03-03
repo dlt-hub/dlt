@@ -2,6 +2,10 @@
 
 ### CI-CD setup
 
+This setup will allow you to deploy the main branch of your airflow project from github to cloud composer.
+The suggested setup is that you have a PR review and merge process before merging to main.
+Alternatively, you can repeat this setup for a dev envirionment on which you could deploy before deploying to main.
+
 - Create a github repository
 - in google cloud web interface, go to Source repositories and create a repository that mirrors your github repo. This will simplify the authentication by doing it through this mirroring service.
 - in this github repository, add the following folders:
