@@ -21,7 +21,7 @@ from dlt.common.utils import set_working_dir, uniq_id
 
 
 from dlt.cli import init_command, echo
-from dlt.cli.init_command import PIPELINES_MODULE_NAME, utils as cli_utils, files_ops
+from dlt.cli.init_command import PIPELINES_MODULE_NAME, DEFAULT_PIPELINES_REPO, utils as cli_utils, files_ops
 from dlt.cli.exceptions import CliCommandException
 from dlt.extract.decorators import _SOURCES
 from dlt.reflection.script_visitor import PipelineScriptVisitor
@@ -32,7 +32,8 @@ from tests.pipeline.utils import patch_working_dir, drop_pipeline
 from tests.utils import preserve_environ, autouse_test_storage, TEST_STORAGE_ROOT, clean_test_storage
 
 
-INIT_REPO_LOCATION = "/home/rudolfix/src/python-dlt-verified-pipelines/"
+INIT_REPO_LOCATION = DEFAULT_PIPELINES_REPO
+INIT_REPO_BRANCH = "rfix/prepares-for-dlt-init"
 PROJECT_DIR = os.path.join(TEST_STORAGE_ROOT, "project")
 # INITIAL_PIPELINE_CANDIDATES: List[str] = None
 
@@ -54,7 +55,7 @@ def unload_modules() -> None:
 
 @pytest.fixture(scope="module")
 def cloned_pipeline() -> FileStorage:
-    return git.get_fresh_repo_files(INIT_REPO_LOCATION, get_default_repos_dir())
+    return git.get_fresh_repo_files(INIT_REPO_LOCATION, get_default_repos_dir(), branch=INIT_REPO_BRANCH)
 
 
 @pytest.fixture

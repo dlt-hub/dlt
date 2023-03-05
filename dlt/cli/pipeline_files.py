@@ -184,12 +184,12 @@ def gen_index_diff(
         if name not in remote_index["files"]:
             deleted[name] = entry
 
-    print("NEW")
-    print(new)
-    print("MOD")
-    print(modified)
-    print("DEL")
-    print(deleted)
+    # print("NEW")
+    # print(new)
+    # print("MOD")
+    # print(modified)
+    # print("DEL")
+    # print(deleted)
     return new, modified, deleted
 
 

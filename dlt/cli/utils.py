@@ -5,10 +5,7 @@ import sys
 import tempfile
 from importlib import import_module
 from types import ModuleType
-from typing import List, Tuple
-from dlt.common.exceptions import MissingDependencyException
 
-from dlt.common.git import clone_repo, ensure_remote_head, git_custom_key_command
 from dlt.common.reflection.utils import set_ast_parents
 from dlt.common.storages import FileStorage
 
@@ -18,7 +15,6 @@ from dlt.cli.exceptions import CliCommandException
 
 
 COMMAND_REPO_LOCATION = "https://github.com/dlt-hub/python-dlt-%s-template.git"
-DEFAULT_PIPELINES_REPO = "https://github.com/dlt-hub/pipelines.git"
 REQUIREMENTS_TXT = "requirements.txt"
 PYPROJECT_TOML = "pyproject.toml"
 GITHUB_WORKFLOWS_DIR = os.path.join(".github", "workflows")

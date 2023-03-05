@@ -28,6 +28,7 @@ from dlt.cli.pipeline_files import PipelineFiles, TPipelineFileEntry, TPipelineF
 from dlt.cli.exceptions import CliCommandException
 
 DLT_INIT_DOCS_URL = "https://dlthub.com/docs/command-line-interface#dlt-init"
+DEFAULT_PIPELINES_REPO = "https://github.com/dlt-hub/pipelines.git"
 INIT_MODULE_NAME = "init"
 PIPELINES_MODULE_NAME = "pipelines"
 
@@ -154,8 +155,6 @@ def init_command(pipeline_name: str, destination_name: str, use_generic_template
     pipeline_script, template_files = _get_template_files(init_module, use_generic_template)
     # get local index of pipeline files
     local_index = files_ops.load_pipeline_local_index(pipeline_name)
-    print("LOCAL IDX")
-    print(local_index)
 
     # prepare destination storage
     dest_storage = FileStorage(os.path.abspath("."))
@@ -163,7 +162,6 @@ def init_command(pipeline_name: str, destination_name: str, use_generic_template
         dest_storage.create_folder(DOT_DLT)
     # folder deleted at dest - full refresh
     if not dest_storage.has_folder(pipeline_name):
-        print("FULL DELL")
         local_index["files"] = {}
 
     # look for existing pipeline
