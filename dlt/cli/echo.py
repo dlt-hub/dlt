@@ -1,5 +1,11 @@
+from typing import Any, Iterable, Optional
 import click
 
+
+ALWAYS_CHOOSE_DEFAULT = False
+ALWAYS_CHOOSE_VALUE: Any = None
+
+echo = click.echo
 
 def bold(msg: str) -> str:
     return click.style(msg, bold=True, reset=True)
@@ -11,3 +17,23 @@ def warning(msg: str) -> None:
 
 def note(msg: str) -> None:
     click.secho("NOTE: " + msg, fg="green")
+
+
+def confirm(text: str, default: Optional[bool] = None) -> bool:
+    if ALWAYS_CHOOSE_VALUE:
+        return bool(ALWAYS_CHOOSE_VALUE)
+    if ALWAYS_CHOOSE_DEFAULT:
+        assert default is not None
+        return default
+    return click.confirm(text, default=default)
+
+
+def prompt(text: str, choices: Iterable[str], default: Optional[Any] = None) -> Any:
+    if ALWAYS_CHOOSE_VALUE:
+        assert ALWAYS_CHOOSE_VALUE in choices
+        return ALWAYS_CHOOSE_VALUE
+    if ALWAYS_CHOOSE_DEFAULT:
+        assert default is not None
+        return default
+    click_choices = click.Choice(choices)
+    return click.prompt(text, type=click_choices, default=default)

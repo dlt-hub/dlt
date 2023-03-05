@@ -6,3 +6,9 @@ class CliCommandException(DltException):
         self.cmd = cmd
         self.inner_exc = inner_exc
         super().__init__(msg)
+
+
+class PipelineRepoError(DltException):
+    def __init__(self, msg: str, pipeline_name: str) -> None:
+        self.pipeline_name = pipeline_name
+        super().__init__(msg)

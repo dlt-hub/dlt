@@ -1,49 +1,90 @@
 from typing import Any, Iterable, NamedTuple, Tuple
 import tomlkit
 from tomlkit.items import Table as TOMLTable
+from collections.abc import Sequence as C_Sequence
 
+from dlt.common import pendulum
 from dlt.common.configuration.specs import BaseConfiguration, is_base_configuration_inner_hint, extract_inner_hint
+from dlt.common.data_types import py_type_to_sc_type
 from dlt.common.typing import AnyType, is_final_type, is_optional_type
 
 
 class WritableConfigValue(NamedTuple):
     name: Any
     hint: AnyType
-    # default_value: Any
+    default_value: Any
     sections: Tuple[str, ...]
 
 
-def write_value(toml_table: TOMLTable, name: str, hint: AnyType, default_value: Any = None, is_default_of_interest: bool = False) -> None:
+def generate_typed_example(name: str, hint: AnyType) -> Any:
+    inner_hint = extract_inner_hint(hint)
+    try:
+        sc_type = py_type_to_sc_type(inner_hint)
+        if sc_type == "text":
+            return name
+        if sc_type == "bigint":
+            return 0
+        if sc_type == "double":
+            return 1.0
+        if sc_type == "bool":
+            return True
+        if sc_type == "complex":
+            if issubclass(inner_hint, C_Sequence):
+                return ["a", "b", "c"]
+            else:
+                table = tomlkit.table(False)
+                table["key"] = "value"
+                return table
+        if sc_type == "timestamp":
+            return pendulum.now().to_iso8601_string()
+        if sc_type == "date":
+            return pendulum.now().date().to_date_string()
+        if sc_type in ("wei", "decimal"):
+            return "1.0"
+        raise TypeError(sc_type)
+    except TypeError:
+        return name
+
+
+def write_value(
+    toml_table: TOMLTable,
+    name: str,
+    hint: AnyType,
+    overwrite_existing: bool,
+    default_value: Any = None,
+    is_default_of_interest: bool = False
+) -> None:
+    # skip if table contains the name already
+    if name in toml_table and not overwrite_existing:
+        return
+    # do not dump final fields
     if is_final_type(hint) or is_optional_type(hint):
-        # do not dump final fields
         return
     # get the inner hint to generate cool examples
     hint = extract_inner_hint(hint)
 
     if is_base_configuration_inner_hint(hint):
         inner_table = tomlkit.table(False)
-        write_spec(inner_table, hint())
+        write_spec(inner_table, hint(), overwrite_existing)
         if len(inner_table) > 0:
             toml_table[name] = inner_table
     else:
-
         if default_value is None:
-            # TODO: generate typed examples
-            toml_table[name] = name
+            toml_table[name] = generate_typed_example(name, hint)
             toml_table[name].comment("please set me up!")
         elif is_default_of_interest:
             toml_table[name] = default_value
 
 
-def write_spec(toml_table: TOMLTable, config: BaseConfiguration) -> None:
+def write_spec(toml_table: TOMLTable, config: BaseConfiguration, overwrite_existing: bool) -> None:
     for name, hint in config.get_resolvable_fields().items():
         default_value = getattr(config, name, None)
         # check if field is of particular interest and should be included if it has default
         is_default_of_interest = name in config.__config_gen_annotations__
-        write_value(toml_table, name, hint, default_value, is_default_of_interest)
+        write_value(toml_table, name, hint, overwrite_existing, default_value=default_value, is_default_of_interest=is_default_of_interest)
 
 
-def write_values(toml: tomlkit.TOMLDocument, values: Iterable[WritableConfigValue]) -> None:
+def write_values(toml: tomlkit.TOMLDocument, values: Iterable[WritableConfigValue], overwrite_existing: bool) -> None:
     for value in values:
         toml_table: TOMLTable = toml  # type: ignore
         for section in value.sections:
@@ -54,4 +95,4 @@ def write_values(toml: tomlkit.TOMLDocument, values: Iterable[WritableConfigValu
             else:
                 toml_table = toml_table[section]  # type: ignore
 
-        write_value(toml_table, value.name, value.hint)
+        write_value(toml_table, value.name, value.hint, overwrite_existing, default_value=value.default_value)

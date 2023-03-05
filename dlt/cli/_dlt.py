@@ -16,33 +16,37 @@ from dlt.pipeline import attach
 
 import dlt.cli.echo as fmt
 from dlt.cli import utils
-from dlt.cli.init_command import init_command, DLT_INIT_DOCS_URL
+from dlt.cli.init_command import init_command, list_pipelines_command, DLT_INIT_DOCS_URL
 from dlt.cli.deploy_command import PipelineWasNotRun, deploy_command, DLT_DEPLOY_DOCS_URL
 from dlt.pipeline.exceptions import CannotRestorePipelineException
 
 
-# def str2bool_a(v: str) -> bool:
-#     try:
-#         return str2bool(v)
-#     except ValueError:
-#         raise argparse.ArgumentTypeError('Boolean value expected.')
-
-
-def init_command_wrapper(pipeline_name: str, destination_name: str, use_generic_template: bool, branch: str) -> None:
+def init_command_wrapper(pipeline_name: str, destination_name: str, use_generic_template: bool, repo_location: str, branch: str) -> int:
     try:
-        init_command(pipeline_name, destination_name, use_generic_template, branch)
+        init_command(pipeline_name, destination_name, use_generic_template, repo_location, branch)
     except Exception as ex:
         click.secho(str(ex), err=True, fg="red")
         fmt.note("Please refer to %s for further assistance" % fmt.bold(DLT_INIT_DOCS_URL))
         raise
+    return 0
 
 
-def deploy_command_wrapper(pipeline_script_path: str, deployment_method: str, schedule: str, run_on_push: bool, run_on_dispatch: bool, branch: str) -> None:
+def list_pipelines_command_wrapper(repo_location: str, branch: str) -> int:
+    try:
+        list_pipelines_command(repo_location, branch)
+    except Exception as ex:
+        click.secho(str(ex), err=True, fg="red")
+        fmt.note("Please refer to %s for further assistance" % fmt.bold(DLT_INIT_DOCS_URL))
+        return -1
+    return 0
+
+
+def deploy_command_wrapper(pipeline_script_path: str, deployment_method: str, schedule: str, run_on_push: bool, run_on_dispatch: bool, branch: str) -> int:
     try:
         utils.ensure_git_command("deploy")
     except Exception as ex:
         click.secho(str(ex), err=True, fg="red")
-        exit(-1)
+        return -1
 
     from git import InvalidGitRepositoryError, NoSuchPathError
     try:
@@ -51,7 +55,7 @@ def deploy_command_wrapper(pipeline_script_path: str, deployment_method: str, sc
         click.secho(str(ex), err=True, fg="red")
         fmt.note("You must run the pipeline locally successfully at least once in order to deploy it.")
         fmt.note("Please refer to %s for further assistance" % fmt.bold(DLT_DEPLOY_DOCS_URL))
-        exit(-1)
+        return -1
     except InvalidGitRepositoryError:
         click.secho(
             "No git repository found for pipeline script %s.\nAdd your local code to Github as described here: %s" % (fmt.bold(pipeline_script_path), fmt.bold("https://docs.github.com/en/get-started/importing-your-projects-to-github/importing-source-code-to-github/adding-locally-hosted-code-to-github")),
@@ -59,22 +63,23 @@ def deploy_command_wrapper(pipeline_script_path: str, deployment_method: str, sc
             fg="red"
         )
         fmt.note("Please refer to %s for further assistance" % fmt.bold(DLT_DEPLOY_DOCS_URL))
-        exit(-1)
+        return -1
     except NoSuchPathError as path_ex:
         click.secho(
             "The pipeline script does not exist\n%s" % str(path_ex),
             err=True,
             fg="red"
         )
-        exit(-1)
+        return -1
     except Exception as ex:
         click.secho(str(ex), err=True, fg="red")
         fmt.note("Please refer to %s for further assistance" % fmt.bold(DLT_DEPLOY_DOCS_URL))
         # TODO: display stack trace if with debug flag
         raise
+    return 0
 
 
-def pipeline_command_wrapper(operation: str, name: str, pipelines_dir: str) -> None:
+def pipeline_command_wrapper(operation: str, name: str, pipelines_dir: str) -> int:
 
     try:
         if operation == "list":
@@ -87,7 +92,7 @@ def pipeline_command_wrapper(operation: str, name: str, pipelines_dir: str) -> N
                 click.echo("No pipelines found in %s" % fmt.bold(pipelines_dir))
             for _dir in dirs:
                 click.secho(_dir, fg="green")
-            return
+            return 0
 
         p = attach(pipeline_name=name, pipelines_dir=pipelines_dir)
         click.echo("Found pipeline %s in %s" % (fmt.bold(p.pipeline_name), fmt.bold(p.pipelines_dir)))
@@ -119,21 +124,24 @@ def pipeline_command_wrapper(operation: str, name: str, pipelines_dir: str) -> N
             if click.confirm("About to drop the local state of the pipeline and reset all the schemas. The destination state, data and schemas are left intact. Proceed?", default=False):
                 p = p.drop()
                 p.sync_destination()
+        return 0
     except (CannotRestorePipelineException, Exception) as ex:
         click.secho(str(ex), err=True, fg="red")
-        exit(1)
+        return 1
 
 
-def main() -> None:
+def main() -> int:
     parser = argparse.ArgumentParser(description="Runs various DLT modules", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--version', action='version', version='%(prog)s {version}'.format(version=__version__))
     subparsers = parser.add_subparsers(dest="command")
 
-    init_cmd = subparsers.add_parser("init", help="Creates a new pipeline script from a selected template.")
-    init_cmd.add_argument("source", help="Data source name. If pipeline for given data source already exists it will be used as a template. Otherwise new template will be created.")
-    init_cmd.add_argument("destination", help="Name of a destination ie. bigquery or redshift")
-    init_cmd.add_argument("--generic", default=False, action="store_true", help="When present uses a generic template with all the dlt loading code present will be used. Otherwise a debug template is used that can be immediately run to get familiar with the dlt sources.")
+    init_cmd = subparsers.add_parser("init", help="Adds or creates a pipeline in the current folder.")
+    init_cmd.add_argument("--list-pipelines", "-l",  default=False, action="store_true", help="List available pipelines")
+    init_cmd.add_argument("pipeline", nargs='?', help="Pipeline name. Adds existing pipeline or creates a new pipeline template if pipeline for your data source is not yet implemented.")
+    init_cmd.add_argument("destination", nargs='?', help="Name of a destination ie. bigquery or redshift")
+    init_cmd.add_argument("--location", default=utils.DEFAULT_PIPELINES_REPO, help="Advanced. Uses a specific url or local path to pipelines repository.")
     init_cmd.add_argument("--branch", default=None, help="Advanced. Uses specific branch of the init repository to fetch the template.")
+    init_cmd.add_argument("--generic", default=False, action="store_true", help="When present uses a generic template with all the dlt loading code present will be used. Otherwise a debug template is used that can be immediately run to get familiar with the dlt sources.")
 
     deploy_cmd = subparsers.add_parser("deploy", help="Creates a deployment package for a selected pipeline script")
     deploy_cmd.add_argument("pipeline_script_path", help="Path to a pipeline script")
@@ -175,20 +183,28 @@ def main() -> None:
         else:
             schema_str = s.to_pretty_yaml(remove_defaults=args.remove_defaults)
         print(schema_str)
-        exit(0)
     elif args.command == "pipeline":
-        pipeline_command_wrapper(args.operation, args.name, args.pipelines_dir)
-        exit(0)
+        return pipeline_command_wrapper(args.operation, args.name, args.pipelines_dir)
     elif args.command == "init":
-        init_command_wrapper(args.source, args.destination, args.generic, args.branch)
-        exit(0)
+        if args.list_pipelines:
+            return list_pipelines_command_wrapper(args.location, args.branch)
+        else:
+            if not args.pipeline or not args.destination:
+                init_cmd.print_usage()
+                return -1
+            else:
+                return init_command_wrapper(args.pipeline, args.destination, args.generic, args.location, args.branch)
     elif args.command == "deploy":
-        deploy_command_wrapper(args.pipeline_script_path, args.deployment_method, args.schedule, args.run_on_push, args.run_manually, args.branch)
-        exit(0)
+        return deploy_command_wrapper(args.pipeline_script_path, args.deployment_method, args.schedule, args.run_on_push, args.run_manually, args.branch)
     else:
         parser.print_help()
-        exit(-1)
+        return -1
+    return 0
+
+
+def _main() -> None:
+    exit(main())
 
 
 if __name__ == "__main__":
-    main()
+    exit(main())

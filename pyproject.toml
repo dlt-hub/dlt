@@ -102,7 +102,7 @@ redshift = ["psycopg2-binary", "psycopg2cffi"]
 duckdb = ["duckdb"]
 
 [tool.poetry.scripts]
-dlt = "dlt.cli._dlt:main"
+dlt = "dlt.cli._dlt:_main"
 
 [tool.poetry.group.dev.dependencies]
 requests-mock = "^1.10.0"
