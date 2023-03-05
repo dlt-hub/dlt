@@ -1,8 +1,8 @@
 import pytest
 import os
 import yaml
-from git import Repo
-from typing import Mapping, cast
+from git import Repo, Commit
+from typing import Mapping, Tuple, cast
 
 from dlt.common import json
 from dlt.common.typing import StrAny
@@ -59,7 +59,7 @@ def load_secret(name: str) -> str:
     return secret
 
 
-def modify_and_commit_file(repo_path: str, file_name: str, content: str = "NEW README CONTENT") -> str:
+def modify_and_commit_file(repo_path: str, file_name: str, content: str = "NEW README CONTENT") -> Tuple[str, Commit]:
     file_path = os.path.join(repo_path, file_name)
 
     with open(file_path, "w", encoding="utf-8") as f:
@@ -71,6 +71,6 @@ def modify_and_commit_file(repo_path: str, file_name: str, content: str = "NEW R
         assert len(index) > 0
         assert any(e for e in index.keys() if e[0] == file_name)
         repo.index.add(file_name)
-        repo.index.commit(f"mod {file_name}")
+        commit = repo.index.commit(f"mod {file_name}")
 
-    return file_path
+    return file_path, commit
