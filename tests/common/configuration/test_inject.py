@@ -1,20 +1,21 @@
 import os
-from typing import Any, Optional, Union
+from typing import Any, Dict, Optional, Type, Union
 import pytest
 
 import dlt
 
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
-from dlt.common.configuration.inject import get_fun_spec, with_config
+from dlt.common.configuration.inject import get_fun_spec, last_config, with_config
 from dlt.common.configuration.providers import EnvironProvider
 from dlt.common.configuration.providers.toml import CONFIG_TOML, SECRETS_TOML, TomlProvider
 from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs import BaseConfiguration, GcpClientCredentials
 from dlt.common.configuration.specs import PostgresCredentials
+from dlt.common.configuration.specs.base_configuration import is_secret_hint
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.reflection.spec import _get_spec_name_from_f
-from dlt.common.typing import StrAny, TSecretValue
+from dlt.common.typing import StrAny, TSecretValue, is_newtype_type
 
 from tests.utils import preserve_environ
 from tests.common.configuration.utils import environment, toml_providers
@@ -93,6 +94,28 @@ def test_inject_from_argument_section(toml_providers: ConfigProvidersContext) ->
         assert gcp_storage.project_id == "mock-project-id-gcp-storage"
 
     f_credentials()
+
+
+def test_inject_secret_value_secret_type(environment: Any) -> None:
+
+    @with_config
+    def f_custom_secret_type(_dict: Dict[str, Any] = dlt.secrets.value, _int: int = dlt.secrets.value, **kwargs: Any):
+        # secret values were coerced into types
+        assert _dict == {"a":1}
+        assert _int == 1234
+        cfg = last_config(**kwargs)
+        spec: Type[BaseConfiguration] = cfg.__class__
+        # assert that types are secret
+        for f in ["_dict", "_int"]:
+            f_type = spec.__dataclass_fields__[f].type
+            assert is_secret_hint(f_type)
+            assert cfg.get_resolvable_fields()[f] is f_type
+            assert is_newtype_type(f_type)
+
+    environment["_DICT"] = '{"a":1}'
+    environment["_INT"] = "1234"
+
+    f_custom_secret_type()
 
 
 @pytest.mark.skip("not implemented")
