@@ -141,7 +141,7 @@ def _welcome_message(pipeline_name: str, destination_name: str, pipeline_files: 
     if is_new_pipeline:
         fmt.echo("* Read %s for more information" % fmt.bold("https://dlthub.com/docs/walkthroughs/create-a-pipeline"))
     else:
-        fmt.echo("* Read %s for more information" % fmt.bold("https://dlthub.com/docs/walkthroughs/customize-a-pipeline"))
+        fmt.echo("* Read %s for more information" % fmt.bold("https://dlthub.com/docs/walkthroughs/add-a-pipeline"))
 
 
 def list_pipelines_command(repo_location: str, branch: str = None) -> None:
@@ -251,6 +251,12 @@ def init_command(pipeline_name: str, destination_name: str, use_generic_template
 
     # detect all the required secrets and configs that should go into tomls files
     if pipeline_files.is_template:
+        # replace destination, pipeline_name and dataset_name in templates
+        transformed_nodes = source_detection.find_call_arguments_to_replace(
+            visitor,
+            [("destination", destination_name), ("pipeline_name", pipeline_name), ("dataset_name", pipeline_name + "_data")],
+            pipeline_files.pipeline_script
+        )
         # template sources are always in module starting with "pipeline"
         # for templates, place config and secrets into top level section
         required_secrets, required_config, checked_sources = source_detection.detect_source_configs(_SOURCES, "pipeline", ())
@@ -261,6 +267,8 @@ def init_command(pipeline_name: str, destination_name: str, use_generic_template
         # rename sources and resources
         transformed_nodes.extend(source_detection.find_source_calls_to_replace(visitor, pipeline_name))
     else:
+        # replace only destination for existing pipelines
+        transformed_nodes = source_detection.find_call_arguments_to_replace(visitor, [("destination", destination_name)], pipeline_files.pipeline_script)
         # pipeline sources are in module with name starting from {pipeline_name}
         # for verified pipelines place in the specific source section
         required_secrets, required_config, checked_sources = source_detection.detect_source_configs(_SOURCES, pipeline_name, (known_sections.SOURCES, pipeline_name))
