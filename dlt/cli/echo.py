@@ -1,9 +1,25 @@
-from typing import Any, Iterable, Optional
+import contextlib
+from typing import Any, Iterable, Iterator, Optional
 import click
 
 
 ALWAYS_CHOOSE_DEFAULT = False
 ALWAYS_CHOOSE_VALUE: Any = None
+
+
+@contextlib.contextmanager
+def always_choose(always_choose_default: bool, always_choose_value: Any) -> Iterator[None]:
+    """Temporarily answer all confirmations and prompts with the values specified in arguments"""
+    global ALWAYS_CHOOSE_DEFAULT, ALWAYS_CHOOSE_VALUE
+    _always_choose_default = ALWAYS_CHOOSE_DEFAULT
+    _always_choose_value = ALWAYS_CHOOSE_VALUE
+    ALWAYS_CHOOSE_DEFAULT = always_choose_default
+    ALWAYS_CHOOSE_VALUE = always_choose_value
+    yield
+    ALWAYS_CHOOSE_DEFAULT = _always_choose_default
+    ALWAYS_CHOOSE_VALUE = _always_choose_value
+
+
 
 echo = click.echo
 

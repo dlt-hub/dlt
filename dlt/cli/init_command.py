@@ -48,7 +48,7 @@ def _select_pipeline_files(
     remote_deleted: Dict[str, TPipelineFileEntry],
     conflict_modified: Sequence[str],
     conflict_deleted: Sequence[str]
-) -> Tuple[Dict[str, TPipelineFileEntry], Dict[str, TPipelineFileEntry]]:
+) -> Tuple[str, Dict[str, TPipelineFileEntry], Dict[str, TPipelineFileEntry]]:
     # some files were changed and cannot be updated (or are created without index)
     fmt.echo("Existing files for %s pipeline were changed and cannot be automatically updated" % fmt.bold(pipeline_name))
     if conflict_modified:
@@ -62,26 +62,28 @@ def _select_pipeline_files(
             fmt.echo("Following files can be automatically UPDATED: %s" % fmt.bold(", ".join(can_update_files)))
         if len(can_delete_files) > 0:
             fmt.echo("Following files can be automatically DELETED: %s" % fmt.bold(", ".join(can_delete_files)))
-        prompt = "Should incoming changes be Skipped, Applied or Merged (%s UPDATED | %s DELETED | all local changes remain)?" % (fmt.bold(",".join(can_update_files)), fmt.bold(",".join(can_delete_files)))
+        prompt = "Should incoming changes be Skipped, Applied (local changes will be lost) or Merged (%s UPDATED | %s DELETED | all local changes remain)?" % (fmt.bold(",".join(can_update_files)), fmt.bold(",".join(can_delete_files)))
         choices = "sam"
     else:
         prompt = "Should incoming changes be Skipped or Applied?"
         choices = "sa"
     # Skip / Apply / Merge
-    val = fmt.prompt(prompt, choices, default="s")
-    if val == "s":
+    resolution = fmt.prompt(prompt, choices, default="s")
+    if resolution == "s":
         # do not copy nor delete any files
+        fmt.echo("Skipping all incoming changes. No local files were modified.")
         remote_modified.clear()
         remote_deleted.clear()
-    elif val == "p":
+    elif resolution == "m":
         # update what we can
+        fmt.echo("Merging the incoming changes. No files with local changes were modified.")
         remote_modified = {n:e for n, e in remote_modified.items() if n in can_update_files}
         remote_deleted = {n:e for n, e in remote_deleted.items() if n in can_delete_files}
     else:
         # fully overwrite, leave all files to be copied
-        pass
+        fmt.echo("Applying all incoming changes to local files.")
 
-    return remote_modified, remote_deleted
+    return resolution, remote_modified, remote_deleted
 
 
 def _get_dependency_system(dest_storage: FileStorage) -> str:
@@ -107,16 +109,21 @@ def _list_pipelines(repo_location: str, branch: str = None) -> Dict[str, Pipelin
     return pipelines
 
 
-def _welcome_message(pipeline_name: str, destination_name: str, pipeline_files: PipelineFiles, dependency_system: str) -> None:
+def _welcome_message(pipeline_name: str, destination_name: str, pipeline_files: PipelineFiles, dependency_system: str, is_new_pipeline: bool) -> None:
     fmt.echo()
     if pipeline_files.is_template:
         fmt.echo("Your new pipeline %s is ready to be customized!" % fmt.bold(pipeline_name))
         fmt.echo("* Review and change how dlt loads your data in %s" % fmt.bold(pipeline_files.dest_pipeline_script))
     else:
-        fmt.echo("Pipeline %s was added to your project!" % fmt.bold(pipeline_name))
-        fmt.echo("* See the usage examples and code snippets to copy from %s" % fmt.bold(pipeline_files.dest_pipeline_script))
+        if is_new_pipeline:
+            fmt.echo("Pipeline %s was added to your project!" % fmt.bold(pipeline_name))
+            fmt.echo("* See the usage examples and code snippets to copy from %s" % fmt.bold(pipeline_files.dest_pipeline_script))
+        else:
+            fmt.echo("Pipeline %s was updated to the newest version!" % fmt.bold(pipeline_name))
 
-    fmt.echo("* Add credentials for %s and other secrets in %s" % (fmt.bold(destination_name), fmt.bold(make_dot_dlt_path(SECRETS_TOML))))
+    if is_new_pipeline:
+        fmt.echo("* Add credentials for %s and other secrets in %s" % (fmt.bold(destination_name), fmt.bold(make_dot_dlt_path(SECRETS_TOML))))
+
     if dependency_system:
         fmt.echo("* Add the required dependencies to %s:" % fmt.bold(dependency_system))
         for dep in pipeline_files.requirements:
@@ -130,7 +137,11 @@ def _welcome_message(pipeline_name: str, destination_name: str, pipeline_files: 
         fmt.echo()
     else:
         fmt.echo("* %s was created. Install it with:\npip3 install -r %s" % (fmt.bold(utils.REQUIREMENTS_TXT), utils.REQUIREMENTS_TXT))
-    fmt.echo("* Read %s for more information" % fmt.bold("https://dlthub.com/docs/walkthroughs/create-a-pipeline"))
+
+    if is_new_pipeline:
+        fmt.echo("* Read %s for more information" % fmt.bold("https://dlthub.com/docs/walkthroughs/create-a-pipeline"))
+    else:
+        fmt.echo("* Read %s for more information" % fmt.bold("https://dlthub.com/docs/walkthroughs/customize-a-pipeline"))
 
 
 def list_pipelines_command(repo_location: str, branch: str = None) -> None:
@@ -155,6 +166,8 @@ def init_command(pipeline_name: str, destination_name: str, use_generic_template
     pipeline_script, template_files = _get_template_files(init_module, use_generic_template)
     # get local index of pipeline files
     local_index = files_ops.load_pipeline_local_index(pipeline_name)
+    # is update or new pipeline
+    is_new_pipeline = len(local_index["files"]) == 0
 
     # prepare destination storage
     dest_storage = FileStorage(os.path.abspath("."))
@@ -180,13 +193,17 @@ def init_command(pipeline_name: str, destination_name: str, use_generic_template
         remote_modified.update(remote_new)
         if conflict_modified or conflict_deleted:
             # select pipeline files that can be copied/updated
-            remote_modified, remote_deleted = _select_pipeline_files(
+            _, remote_modified, remote_deleted = _select_pipeline_files(
                 pipeline_name,
                 remote_modified,
                 remote_deleted,
                 conflict_modified,
                 conflict_deleted
             )
+        if not remote_deleted and not remote_modified:
+            fmt.echo("No files to update, exiting")
+            return
+
         if remote_index["is_dirty"]:
             fmt.warning(f"The pipelines repository is dirty. {pipeline_name} pipeline files may not update correctly in the future.")
         # add template files
@@ -200,6 +217,9 @@ def init_command(pipeline_name: str, destination_name: str, use_generic_template
             raise InvalidSchemaName(pipeline_name, norm_source_name)
         dest_pipeline_script = norm_source_name + ".py"
         pipeline_files = PipelineFiles(True, init_storage, pipeline_script, dest_pipeline_script, template_files, [], "")
+        if dest_storage.has_file(dest_pipeline_script):
+            fmt.warning("Pipeline script %s already exist, exiting" % dest_pipeline_script)
+            return
 
     # add .dlt/*.toml files to be copied
     pipeline_files.files.extend([make_dot_dlt_path(CONFIG_TOML), make_dot_dlt_path(SECRETS_TOML)])
@@ -260,17 +280,18 @@ def init_command(pipeline_name: str, destination_name: str, use_generic_template
     ast.parse(source=dest_script_source)
 
     # ask for confirmation
-    if pipeline_files.is_template:
-        fmt.echo("An existing pipeline %s was not found. Creating a new pipeline with name %s." % (fmt.bold(pipeline_name), fmt.bold(pipeline_name)))
-    else:
-        fmt.echo("Cloning and configuring an existing pipeline %s (%s)" % (fmt.bold(pipeline_name), pipeline_files.doc))
-        if use_generic_template:
-            fmt.warning("--generic parameter is meaningless if verified pipeline is used")
-    if not fmt.confirm("Do you want to proceed?", default=True):
-        raise CliCommandException("init", "Aborted")
+    if is_new_pipeline:
+        if pipeline_files.is_template:
+            fmt.echo("An existing pipeline %s was not found. Creating a new pipeline with name %s." % (fmt.bold(pipeline_name), fmt.bold(pipeline_name)))
+        else:
+            fmt.echo("Cloning and configuring an existing pipeline %s (%s)" % (fmt.bold(pipeline_name), pipeline_files.doc))
+            if use_generic_template:
+                fmt.warning("--generic parameter is meaningless if verified pipeline is used")
+        if not fmt.confirm("Do you want to proceed?", default=True):
+            raise CliCommandException("init", "Aborted")
 
     dependency_system = _get_dependency_system(dest_storage)
-    _welcome_message(pipeline_name, destination_name, pipeline_files, dependency_system)
+    _welcome_message(pipeline_name, destination_name, pipeline_files, dependency_system, is_new_pipeline)
 
     # copy files at the very end
     for file_name in pipeline_files.files:

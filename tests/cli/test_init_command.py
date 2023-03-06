@@ -1,3 +1,4 @@
+from copy import deepcopy
 import hashlib
 import os
 import sys
@@ -21,7 +22,7 @@ from dlt.common.utils import set_working_dir, uniq_id
 
 
 from dlt.cli import init_command, echo
-from dlt.cli.init_command import PIPELINES_MODULE_NAME, DEFAULT_PIPELINES_REPO, utils as cli_utils, files_ops
+from dlt.cli.init_command import PIPELINES_MODULE_NAME, DEFAULT_PIPELINES_REPO, utils as cli_utils, files_ops, _select_pipeline_files
 from dlt.cli.exceptions import CliCommandException
 from dlt.extract.decorators import _SOURCES
 from dlt.reflection.script_visitor import PipelineScriptVisitor
@@ -33,7 +34,7 @@ from tests.utils import preserve_environ, autouse_test_storage, TEST_STORAGE_ROO
 
 
 INIT_REPO_LOCATION = DEFAULT_PIPELINES_REPO
-INIT_REPO_BRANCH = "rfix/prepares-for-dlt-init"
+INIT_REPO_BRANCH = "master"
 PROJECT_DIR = os.path.join(TEST_STORAGE_ROOT, "project")
 # INITIAL_PIPELINE_CANDIDATES: List[str] = None
 
@@ -177,8 +178,117 @@ def test_init_all_destinations(project_files: FileStorage) -> None:
     pass
 
 
-def test_init_code_update(repo_dir: str, project_files: FileStorage) -> None:
+def test_init_code_update_index_diff(repo_dir: str, project_files: FileStorage) -> None:
+    pipelines_storage = FileStorage(os.path.join(repo_dir, PIPELINES_MODULE_NAME))
+    new_content = '"""New docstrings"""'
+    new_content_hash = hashlib.sha3_256(bytes(new_content, encoding="ascii")).hexdigest()
     init_command.init_command("pipedrive", "duckdb", False, repo_dir)
+
+    # modify existing file, no commit
+    mod_file_path = os.path.join("pipedrive", "__init__.py")
+    new_file_path = os.path.join("pipedrive", "new_pipedrive_X.py")
+    del_file_path = os.path.join("pipedrive", "ReadMe.md")
+    # remote_path = os.path.join(PIPELINES_MODULE_NAME, local_path)
+    pipelines_storage.save(mod_file_path, new_content)
+    pipelines_storage.save(new_file_path, new_content)
+    pipelines_storage.delete(del_file_path)
+
+    pipeline_files = files_ops.get_pipeline_files(pipelines_storage, "pipedrive")
+    remote_index = files_ops.get_remote_pipeline_index(pipelines_storage.storage_path, pipeline_files.files)
+    assert mod_file_path in remote_index["files"]
+    assert remote_index["is_dirty"] is True
+    assert remote_index["files"][mod_file_path]["sha3_256"] == new_content_hash
+    assert remote_index["files"][new_file_path]["sha3_256"] == new_content_hash
+
+    # get diff
+    local_index = files_ops.load_pipeline_local_index("pipedrive")
+    new, modified, deleted = files_ops.gen_index_diff(local_index, remote_index)
+    # remote file entry in new
+    assert new[new_file_path] == remote_index["files"][new_file_path]
+    #no git sha yet
+    assert new[new_file_path]["git_sha"] is None
+    # remote file entry in modified
+    assert modified[mod_file_path] == remote_index["files"][mod_file_path]
+    # git sha didn't change (not committed)
+    assert modified[mod_file_path]["git_sha"] == local_index["files"][mod_file_path]["git_sha"]
+    # local entry in deleted
+    assert deleted[del_file_path] == local_index["files"][del_file_path]
+
+    # get conflicts
+    conflict_modified, conflict_deleted = files_ops.find_conflict_files(local_index, new, modified, deleted, project_files)
+    assert conflict_modified == []
+    assert conflict_deleted == []
+
+    # merge into local index
+    modified.update(new)
+    local_index = files_ops._merge_remote_index(local_index, remote_index, modified, deleted)
+    assert new_file_path in local_index["files"]
+    assert del_file_path not in local_index["files"]
+    assert local_index["files"][mod_file_path]["sha3_256"] == new_content_hash
+
+    # generate local conflicts
+    local_content = '"""Local changes"""'
+    project_files.save(new_file_path, local_content)
+    project_files.save(mod_file_path, local_content)
+    project_files.save(del_file_path, local_content)
+    # add one more modified REMOTE file without conflict to test Merge option
+    mod_file_path_2 = os.path.join("pipedrive", "new_munger_X.py")
+    pipelines_storage.save(mod_file_path_2, local_content)
+    local_index = files_ops.load_pipeline_local_index("pipedrive")
+    pipeline_files = files_ops.get_pipeline_files(pipelines_storage, "pipedrive")
+    remote_index = files_ops.get_remote_pipeline_index(pipelines_storage.storage_path, pipeline_files.files)
+    new, modified, deleted = files_ops.gen_index_diff(local_index, remote_index)
+    assert mod_file_path_2 in new
+    conflict_modified, conflict_deleted = files_ops.find_conflict_files(local_index, new, modified, deleted, project_files)
+    assert set(conflict_modified) == set([mod_file_path, new_file_path])
+    assert set(conflict_deleted) == set([del_file_path])
+
+    modified.update(new)
+    # resolve conflicts in three different ways
+    # skip option (the default)
+    res, sel_modified, sel_deleted = _select_pipeline_files("pipedrive", deepcopy(modified), deepcopy(deleted), conflict_modified, conflict_deleted)
+    # noting is written, including non-conflicting file
+    assert res == "s"
+    assert sel_modified == {}
+    assert sel_deleted == {}
+    # Apply option - local changes will be lost
+    with echo.always_choose(False, "a"):
+        res, sel_modified, sel_deleted = _select_pipeline_files("pipedrive", deepcopy(modified), deepcopy(deleted), conflict_modified, conflict_deleted)
+        assert res == "a"
+        assert sel_modified == modified
+        assert sel_deleted == deleted
+    # merge only non conflicting changes are applied
+    with echo.always_choose(False, "m"):
+        res, sel_modified, sel_deleted = _select_pipeline_files("pipedrive", deepcopy(modified), deepcopy(deleted), conflict_modified, conflict_deleted)
+        assert res == "m"
+        assert len(sel_modified) == 1 and mod_file_path_2 in sel_modified
+        assert sel_deleted == {}
+
+    # get rid of all the conflicts by making the local changes identical to the remote changes so they can be fast forwarded
+    pipelines_storage.save(new_file_path, local_content)
+    pipelines_storage.save(mod_file_path, local_content)
+    project_files.delete(del_file_path)
+    pipeline_files = files_ops.get_pipeline_files(pipelines_storage, "pipedrive")
+    remote_index = files_ops.get_remote_pipeline_index(pipelines_storage.storage_path, pipeline_files.files)
+    new, modified, deleted = files_ops.gen_index_diff(local_index, remote_index)
+    conflict_modified, conflict_deleted = files_ops.find_conflict_files(local_index, new, modified, deleted, project_files)
+    assert conflict_modified == []
+    assert conflict_deleted == []
+
+    # generate a conflict by deleting file locally that is modified on remote
+    project_files.delete(mod_file_path)
+    pipeline_files = files_ops.get_pipeline_files(pipelines_storage, "pipedrive")
+    remote_index = files_ops.get_remote_pipeline_index(pipelines_storage.storage_path, pipeline_files.files)
+    new, modified, deleted = files_ops.gen_index_diff(local_index, remote_index)
+    conflict_modified, conflict_deleted = files_ops.find_conflict_files(local_index, new, modified, deleted, project_files)
+    assert conflict_modified == [mod_file_path]
+
+
+def test_init_code_update_no_conflict(repo_dir: str, project_files: FileStorage) -> None:
+    init_command.init_command("pipedrive", "duckdb", False, repo_dir)
+
+    # a case of a new commit to existing file
+
     # get local index
     local_index = files_ops.load_pipeline_local_index("pipedrive")
     # modify file in original dir
@@ -191,6 +301,7 @@ def test_init_code_update(repo_dir: str, project_files: FileStorage) -> None:
     # update without conflict
     init_command.init_command("pipedrive", "duckdb", False, repo_dir)
     new_local_index = files_ops.load_pipeline_local_index("pipedrive")
+    assert new_local_index["is_dirty"] is False
     assert new_local_index["last_commit_sha"] == commit.hexsha
     assert new_local_index["files"][local_path]["commit_sha"] == commit.hexsha
     assert new_local_index["files"][local_path]["sha3_256"] == hashlib.sha3_256(bytes(new_content, encoding="ascii")).hexdigest()
@@ -201,7 +312,10 @@ def test_init_code_update(repo_dir: str, project_files: FileStorage) -> None:
         if old_f[0] != local_path:
             assert old_f[1]["git_sha"] == new_f[1]["git_sha"]
             assert old_f[1]["sha3_256"] == new_f[1]["sha3_256"]
-    # assert_pipeline_files(project_files, "pipedrive", "duckdb")
+
+    # a case of existing file modification, no commit
+    # local_index = files_ops.load_pipeline_local_index("pipedrive")
+    # project_files.save(local_path, new_content)
 
 
 # def test_init_code_update_conflict(project_files: FileStorage) -> None:

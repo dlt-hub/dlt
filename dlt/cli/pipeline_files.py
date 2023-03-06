@@ -68,6 +68,25 @@ def _load_dot_pipelines() -> TPipelinesFileIndex:
         }
 
 
+def _merge_remote_index(
+    local_index: TPipelineFileIndex,
+    remote_index: TPipelineFileIndex,
+    remote_modified: Dict[str, TPipelineFileEntry],
+    remote_deleted: Dict[str, TPipelineFileEntry]
+) -> TPipelineFileIndex:
+    # update all modified files
+    local_index["files"].update(remote_modified)
+    # delete all deleted
+    for deleted in remote_deleted:
+        del local_index["files"][deleted]
+    # update global info
+    local_index["is_dirty"] = remote_index["is_dirty"]
+    local_index["last_commit_sha"] = remote_index["last_commit_sha"]
+    local_index["last_commit_timestamp"] = remote_index["last_commit_timestamp"]
+
+    return local_index
+
+
 def load_pipeline_local_index(pipeline_name: str) -> TPipelineFileIndex:
     return _load_dot_pipelines()["pipelines"].get(pipeline_name, {
         "is_dirty": False,
@@ -87,15 +106,7 @@ def save_pipeline_local_index(
 
     all_pipelines = _load_dot_pipelines()
     local_index = all_pipelines["pipelines"].setdefault(pipeline_name, remote_index)
-    # update all modified files
-    local_index["files"].update(remote_modified)
-    # delete all deleted
-    for deleted in remote_deleted:
-        del local_index["files"][deleted]
-    # update global info
-    local_index["is_dirty"] = remote_index["is_dirty"]
-    local_index["last_commit_sha"] = remote_index["last_commit_sha"]
-    local_index["last_commit_timestamp"] = remote_index["last_commit_timestamp"]
+    _merge_remote_index(local_index, remote_index, remote_modified, remote_deleted)
     _save_dot_pipelines(all_pipelines)
 
 
@@ -177,7 +188,7 @@ def gen_index_diff(
     for name, entry in remote_index["files"].items():
         if name not in local_index["files"]:
             new[name] = entry
-        elif entry["git_sha"] != local_index["files"][name]["git_sha"]:
+        elif entry["sha3_256"] != local_index["files"][name]["sha3_256"]:
             modified[name] = entry
 
     for name, entry in local_index["files"].items():

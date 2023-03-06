@@ -6,6 +6,7 @@ import tempfile
 from importlib import import_module
 from types import ModuleType
 
+from dlt.common import git
 from dlt.common.reflection.utils import set_ast_parents
 from dlt.common.storages import FileStorage
 
@@ -25,7 +26,7 @@ MODULE_INIT = "__init__.py"
 def clone_command_repo(command: str, branch: str) -> FileStorage:
     template_dir = tempfile.mkdtemp()
     # TODO: handle ImportError (no git command available) gracefully
-    with clone_repo(COMMAND_REPO_LOCATION % command, template_dir, branch=branch):
+    with git.clone_repo(COMMAND_REPO_LOCATION % command, template_dir, branch=branch):
         return FileStorage(template_dir)
 
 
