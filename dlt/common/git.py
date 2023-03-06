@@ -31,13 +31,22 @@ def git_custom_key_command(private_key: Optional[str]) -> Iterator[str]:
         yield 'ssh -o "StrictHostKeyChecking accept-new"'
 
 
-def is_dirty(repo: Repo) -> bool:
+def is_clean_and_synced(repo: Repo) -> bool:
+    """Checks if repo is clean and synced with origin"""
     # get branch status
     status: str = repo.git.status("--short", "--branch")
     # we expect first status line ## main...origin/main
     status_lines = status.splitlines()
     first_line = status_lines[0]
-    return len(status_lines) > 1 or (not (first_line.startswith("##") and not first_line.endswith("]")))
+    # we expect first status line is not ## main...origin/main [ahead 1]
+    return len(status_lines) == 1 and first_line.startswith("##") and not first_line.endswith("]")
+
+
+def is_dirty(repo: Repo) -> bool:
+    # get branch status
+    status: str = repo.git.status("--short", "--branch")
+    # we expect first status line ## main...origin/main
+    return len(status.splitlines()) > 1
 
 
 def ensure_remote_head(repo_path: str, branch: Optional[str] = None, with_git_command: Optional[str] = None) -> None:
@@ -52,7 +61,7 @@ def ensure_remote_head(repo_path: str, branch: Optional[str] = None, with_git_co
                 repo.git.checkout(branch)
             # update origin
             repo.remote().update()
-            if is_dirty(repo):
+            if not is_clean_and_synced(repo):
                 status: str = repo.git.status("--short", "--branch")
                 raise RepositoryDirtyError(repo, status)
 

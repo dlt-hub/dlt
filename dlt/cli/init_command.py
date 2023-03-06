@@ -164,18 +164,17 @@ def init_command(pipeline_name: str, destination_name: str, use_generic_template
     # load init module and get init files and script
     init_module = utils.load_command_module(init_storage.storage_path)
     pipeline_script, template_files = _get_template_files(init_module, use_generic_template)
-    # get local index of pipeline files
-    local_index = files_ops.load_pipeline_local_index(pipeline_name)
-    # is update or new pipeline
-    is_new_pipeline = len(local_index["files"]) == 0
-
     # prepare destination storage
     dest_storage = FileStorage(os.path.abspath("."))
     if not dest_storage.has_folder(DOT_DLT):
         dest_storage.create_folder(DOT_DLT)
+    # get local index of pipeline files
+    local_index = files_ops.load_pipeline_local_index(pipeline_name)
     # folder deleted at dest - full refresh
     if not dest_storage.has_folder(pipeline_name):
         local_index["files"] = {}
+    # is update or new pipeline
+    is_new_pipeline = len(local_index["files"]) == 0
 
     # look for existing pipeline
     pipeline_files: PipelineFiles = None

@@ -1,8 +1,10 @@
+import io
 from copy import deepcopy
 import hashlib
 import os
 import sys
 import shutil
+import contextlib
 from subprocess import CalledProcessError
 from typing import Any, List, Tuple
 from unittest.mock import patch
@@ -29,7 +31,6 @@ from dlt.reflection.script_visitor import PipelineScriptVisitor
 from dlt.reflection import names as n
 from tests.common.utils import modify_and_commit_file
 
-from tests.pipeline.utils import patch_working_dir, drop_pipeline
 from tests.utils import preserve_environ, autouse_test_storage, TEST_STORAGE_ROOT, clean_test_storage
 
 
@@ -104,6 +105,14 @@ def test_init_command_generic(repo_dir: str, project_files: FileStorage) -> None
     assert len(visitor.known_resource_calls) > 1
 
 
+def test_init_command_new_pipeline_same_name(repo_dir: str, project_files: FileStorage) -> None:
+    init_command.init_command("debug_pipeline", "bigquery", False, repo_dir)
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        init_command.init_command("debug_pipeline", "bigquery", False, repo_dir)
+        _out = buf.getvalue()
+    assert "already exist, exiting" in _out
+
+
 def test_init_command_chess_verified_pipeline(repo_dir: str, project_files: FileStorage) -> None:
     init_command.init_command("chess", "duckdb", False, repo_dir)
     assert_pipeline_files(project_files, "chess", "duckdb", has_source_section=True)
@@ -114,6 +123,14 @@ def test_init_command_chess_verified_pipeline(repo_dir: str, project_files: File
     assert len(local_index["files"]) == 1
     # relative to "pipelines" folder
     assert local_index["files"]["chess/__init__.py"] is not None
+
+    # delete existing pipeline if exist
+    # works only if working dir is not changed by fixture
+    try:
+        pipeline = dlt.attach(pipeline_name="chess_players_games")
+        pipeline.drop()
+    except Exception as e:
+        print(e)
 
     # now run the pipeline
     venv = Venv.restore_current()
@@ -286,6 +303,8 @@ def test_init_code_update_index_diff(repo_dir: str, project_files: FileStorage) 
 
 def test_init_code_update_no_conflict(repo_dir: str, project_files: FileStorage) -> None:
     init_command.init_command("pipedrive", "duckdb", False, repo_dir)
+    with git.get_repo(repo_dir) as repo:
+        assert git.is_clean_and_synced(repo) is True
 
     # a case of a new commit to existing file
 
@@ -294,31 +313,98 @@ def test_init_code_update_no_conflict(repo_dir: str, project_files: FileStorage)
     # modify file in original dir
     assert "_storage" in repo_dir
     new_content = '"""New docstrings"""'
-    local_path = os.path.join("pipedrive", "__init__.py")
-    remote_path = os.path.join(PIPELINES_MODULE_NAME, local_path)
-    assert project_files.has_file(local_path)
-    _, commit = modify_and_commit_file(repo_dir, remote_path, content=new_content)
+    mod_local_path = os.path.join("pipedrive", "__init__.py")
+    mod_remote_path = os.path.join(PIPELINES_MODULE_NAME, mod_local_path)
+    assert project_files.has_file(mod_local_path)
+    _, commit = modify_and_commit_file(repo_dir, mod_remote_path, content=new_content)
     # update without conflict
     init_command.init_command("pipedrive", "duckdb", False, repo_dir)
+    # was file copied
+    assert project_files.load(mod_local_path) == new_content
+    with git.get_repo(repo_dir) as repo:
+        assert git.is_clean_and_synced(repo) is False
+        assert git.is_dirty(repo) is False
     new_local_index = files_ops.load_pipeline_local_index("pipedrive")
     assert new_local_index["is_dirty"] is False
     assert new_local_index["last_commit_sha"] == commit.hexsha
-    assert new_local_index["files"][local_path]["commit_sha"] == commit.hexsha
-    assert new_local_index["files"][local_path]["sha3_256"] == hashlib.sha3_256(bytes(new_content, encoding="ascii")).hexdigest()
-    assert new_local_index["files"][local_path]["git_sha"] != local_index["files"][local_path]["git_sha"]
-    # all the other files must keep the old hashesh
+    assert new_local_index["files"][mod_local_path]["commit_sha"] == commit.hexsha
+    assert new_local_index["files"][mod_local_path]["sha3_256"] == hashlib.sha3_256(bytes(new_content, encoding="ascii")).hexdigest()
+    assert new_local_index["files"][mod_local_path]["git_sha"] != local_index["files"][mod_local_path]["git_sha"]
+    # all the other files must keep the old hashes
     for old_f, new_f in zip(local_index["files"].items(), new_local_index["files"].items()):
         # assert new_f[1]["commit_sha"] == commit.hexsha
-        if old_f[0] != local_path:
+        if old_f[0] != mod_local_path:
             assert old_f[1]["git_sha"] == new_f[1]["git_sha"]
             assert old_f[1]["sha3_256"] == new_f[1]["sha3_256"]
 
-    # a case of existing file modification, no commit
-    # local_index = files_ops.load_pipeline_local_index("pipedrive")
-    # project_files.save(local_path, new_content)
+    # repeat the same: no files to update
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        init_command.init_command("pipedrive", "duckdb", False, repo_dir)
+        _out = buf.getvalue()
+    assert "No files to update, exiting" in _out
+
+    # delete file
+    repo_storage = FileStorage(repo_dir)
+    repo_storage.delete(mod_remote_path)
+    init_command.init_command("pipedrive", "duckdb", False, repo_dir)
+    # file should be deleted
+    assert not project_files.has_file(mod_local_path)
+
+    # new file
+    new_local_path = os.path.join("pipedrive", "__init__X.py")
+    new_remote_path = os.path.join(PIPELINES_MODULE_NAME, new_local_path)
+    repo_storage.save(new_remote_path, new_content)
+    init_command.init_command("pipedrive", "duckdb", False, repo_dir)
+    # was file copied
+    assert project_files.load(new_local_path) == new_content
+
+    # deleting the pipeline folder will fully reload
+    project_files.delete_folder("pipedrive", recursively=True)
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        init_command.init_command("pipedrive", "duckdb", False, repo_dir)
+        _out = buf.getvalue()
+    # pipeline was added anew
+    assert "was added to your project!" in _out
+    assert project_files.has_folder("pipedrive")
+    # files are there
+    assert project_files.load(new_local_path) == new_content
 
 
-# def test_init_code_update_conflict(project_files: FileStorage) -> None:
+@pytest.mark.parametrize("resolution", ["s", "a", "m"])
+def test_init_code_update_conflict(repo_dir: str, project_files: FileStorage, resolution: str) -> None:
+    init_command.init_command("pipedrive", "duckdb", False, repo_dir)
+    repo_storage = FileStorage(repo_dir)
+    mod_local_path = os.path.join("pipedrive", "__init__.py")
+    mod_remote_path = os.path.join(PIPELINES_MODULE_NAME, mod_local_path)
+    mod_local_path_2 = os.path.join("pipedrive", "__init__X.py")
+    mod_remote_path_2 = os.path.join(PIPELINES_MODULE_NAME, "pipedrive", "__init__X.py")
+    # change remote
+    repo_storage.save(mod_remote_path, "'''VERSION 1'''")
+    repo_storage.save(mod_remote_path_2, "'''VERSION 3'''")
+    # change local
+    project_files.save(mod_local_path, "'''VERSION 2'''")
+
+    with echo.always_choose(False, resolution):
+        with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+            init_command.init_command("pipedrive", "duckdb", False, repo_dir)
+            _out = buf.getvalue()
+
+    print(_out)
+    if resolution == "s":
+        assert "Skipping all incoming changes" in _out
+        # local not touched
+        assert project_files.load(mod_local_path) == "'''VERSION 2'''"
+        assert not project_files.has_file(mod_local_path_2)
+    elif resolution == "a":
+        assert "Applying all incoming changes" in _out
+        assert project_files.load(mod_local_path) == "'''VERSION 1'''"
+        assert project_files.load(mod_local_path_2) == "'''VERSION 3'''"
+    elif resolution == "m":
+        assert "Merging the incoming changes" in _out
+        # local changes not touched
+        assert project_files.load(mod_local_path) == "'''VERSION 2'''"
+        # remote changes without conflicts applied
+        assert project_files.load(mod_local_path_2) == "'''VERSION 3'''"
 
 
 def test_init_pyproject_toml() -> None:

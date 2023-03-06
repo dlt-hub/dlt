@@ -86,7 +86,7 @@ class Venv():
 
     def run_command(self, entry_point: str, *script_args: Any) -> str:
         """Runs any `command` with specified `script_args`. Current `os.environ` and cwd is passed to executed process"""
-        # runs one of installed entry points typically CLIS coming with packages and installed into PATH
+        # runs one of installed entry points typically CLIs coming with packages and installed into PATH
         command = os.path.join(self.context.bin_path, entry_point)
         cmd = [command, *script_args]
         return subprocess.check_output(cmd, stderr=subprocess.STDOUT, text=True)
