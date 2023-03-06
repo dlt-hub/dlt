@@ -25,7 +25,7 @@ To do incremental loading, we need to
 
 Preserving the last value in state.
 
-The state is a python dictionary which gets committed automically with the data; it is in essence metadata that you can keep in sync with your data.
+The state is a python dictionary which gets committed atomically with the data; it is in essence metadata that you can keep in sync with your data.
 
 For the purpose of preserving the “last value” or similar loading checkpoints, we can open a dlt state dictionary with a key and a default value as below. When the resource is executed and the data is loaded, the yielded resource data will be loaded at the same time with the update to the state.
 
