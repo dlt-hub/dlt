@@ -79,6 +79,11 @@ You can modify an existing pipeline.
 ```
 dlt init chess duckdb
 ```
+To add another pipeline, just run the dlt init command at the same location as the first pipeline
+- the shared files will be updated (secrets, config)
+- a new folder will be created for the new pipeline
+- do not forget to install the requirements for the second pipeline!
+
 
 ## 7. Update the pipeline with the newest version
 To update the pipeline you have to the newest online version just do the same init command in the parent folder.
