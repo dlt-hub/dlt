@@ -7,7 +7,8 @@ from dlt.common.normalizers.naming.snake_case import NamingConvention as BaseNam
 class NamingConvention(BaseNamingConvention):
 
     _RE_NON_ALPHANUMERIC = re.compile(r"[^a-zA-Z\d_+-]+")
-    _TR_REDUCE_ALPHABET = str.maketrans("!$*@#=|:", "lsxah_li")
+    _REDUCE_ALPHABET = ("*@|", "xal")
+    _TR_REDUCE_ALPHABET = str.maketrans(_REDUCE_ALPHABET[0], _REDUCE_ALPHABET[1])
 
     @staticmethod
     @lru_cache(maxsize=None)

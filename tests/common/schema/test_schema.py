@@ -55,8 +55,8 @@ def cn_schema() -> Schema:
 
 def test_normalize_schema_name(schema: Schema) -> None:
     assert schema.naming.normalize_identifier("BAN_ANA") == "ban_ana"
-    assert schema.naming.normalize_identifier("event-.!:value") == "event_livalue"
-    assert schema.naming.normalize_identifier("123event-.!:value") == "_123event_livalue"
+    assert schema.naming.normalize_identifier("event-.!:value") == "event_value"
+    assert schema.naming.normalize_identifier("123event-.!:value") == "_123event_value"
     with pytest.raises(ValueError):
         assert schema.naming.normalize_identifier("")
     with pytest.raises(ValueError):
@@ -159,7 +159,7 @@ def test_invalid_schema_name() -> None:
 
 def test_create_schema_with_normalize_name() -> None:
     s = Schema("a!b", normalize_name=True)
-    assert s.name == "alb"
+    assert s.name == "a_b"
 
 
 def test_schema_descriptions_and_annotations(schema_storage: SchemaStorage):
