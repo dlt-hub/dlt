@@ -165,7 +165,9 @@ def get_pipeline_files(pipelines_storage: FileStorage, pipeline_name: str) -> Pi
     init_py =  os.path.join(pipeline_name, utils.MODULE_INIT)
     docstring: str = ""
     if pipelines_storage.has_file(init_py):
-        docstring = get_module_docstring(pipelines_storage.load(init_py)).splitlines()[0]
+        docstring = get_module_docstring(pipelines_storage.load(init_py))
+        if docstring:
+            docstring = docstring.splitlines()[0]
     # read requirements
     requirements_path = os.path.join(pipeline_name, utils.REQUIREMENTS_TXT)
     if pipelines_storage.has_file(requirements_path):
