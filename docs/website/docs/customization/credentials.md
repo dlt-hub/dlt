@@ -56,8 +56,8 @@ You can see that the pipedrive soure expects a `pipedrive_api_key`. So you could
 
 Of course, be careful not to put your credentials directly in code - use your own credential vault instead.
 ```python
-    api_key = "set-me-up"
-    load_info = pipeline.run(pipedrive_source(api_key))
+    api_key = BaseHook.get_connection('pipedrive_api_key').extra # get it from airflow or other credential store
+    load_info = pipeline.run(pipedrive_source(pipedrive_api_key=api_key))
 
 ```
 
