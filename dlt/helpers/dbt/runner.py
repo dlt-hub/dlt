@@ -3,7 +3,6 @@ from subprocess import CalledProcessError
 import giturlparse
 from typing import Any, ClassVar, Optional, Sequence
 from prometheus_client import REGISTRY, Gauge, CollectorRegistry, Info
-from prometheus_client.metrics import MetricWrapperBase
 
 import dlt
 from dlt.common import logger
@@ -16,7 +15,7 @@ from dlt.common.typing import DictStrAny, DictStrStr, StrAny, TSecretValue
 from dlt.common.logger import is_json_logging
 from dlt.common.telemetry import get_logging_extras
 from dlt.common.storages import FileStorage
-from dlt.common.git import git_custom_key_command, ensure_remote_head, clone_repo
+from dlt.common.git import git_custom_key_command, ensure_remote_head, force_clone_repo
 from dlt.common.utils import with_custom_environ
 
 from dlt.helpers.dbt.configuration import DBTRunnerConfiguration
@@ -107,31 +106,18 @@ class DBTPackageRunner:
         DBTPackageRunner.model_exec_info.info(info)
         logger.metrics("stop", "dbt models", extra=get_logging_extras([DBTPackageRunner.model_elapsed_gauge, DBTPackageRunner.model_exec_info]))
 
-    def _clone_package(self, with_git_command: Optional[str]) -> None:
-        try:
-            # cleanup package folder
-            if self.repo_storage.has_folder(self.cloned_package_name):
-                self.repo_storage.delete_folder(self.cloned_package_name, recursively=True, delete_ro=True)
-            logger.info(f"Will clone {self.config.package_location} head {self.config.package_repository_branch} into {self.package_path}")
-            clone_repo(self.config.package_location, self.package_path, branch=self.config.package_repository_branch, with_git_command=with_git_command).close()
-
-        except Exception:
-            # delete folder so we start clean next time
-            if self.repo_storage.has_folder(self.cloned_package_name):
-                self.repo_storage.delete_folder(self.cloned_package_name, recursively=True, delete_ro=True)
-            raise
-
     def ensure_newest_package(self) -> None:
         """Clones or brings the dbt package at `package_location` up to date."""
         from git import GitError
 
         with git_custom_key_command(self.config.package_repository_ssh_key) as ssh_command:
             try:
-                ensure_remote_head(self.package_path, with_git_command=ssh_command)
+                ensure_remote_head(self.package_path, branch=self.config.package_repository_branch, with_git_command=ssh_command)
             except GitError as err:
                 # cleanup package folder
                 logger.info(f"Package will be cloned due to {type(err).__name__}:{str(err)}")
-                self._clone_package(with_git_command=ssh_command)
+                logger.info(f"Will clone {self.config.package_location} head {self.config.package_repository_branch} into {self.package_path}")
+                force_clone_repo(self.config.package_location, self.repo_storage, self.cloned_package_name, self.config.package_repository_branch, with_git_command=ssh_command)
 
     @with_custom_environ
     def _run_dbt_command(self, command: str, command_args: Sequence[str] = None, package_vars: StrAny = None) -> Sequence[DBTNodeResult]:

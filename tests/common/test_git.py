@@ -78,7 +78,7 @@ def test_repo_status_update(test_storage: FileStorage) -> None:
     with git_custom_key_command(secret) as git_command:
         clone_repo(PRIVATE_REPO_WITH_ACCESS, repo_path, with_git_command=git_command).close()
         # modify README.md
-        readme_path = modify_and_commit_file(repo_path, "README.md")
+        readme_path, _ = modify_and_commit_file(repo_path, "README.md")
         assert test_storage.has_file(readme_path)
         with pytest.raises(RepositoryDirtyError):
             ensure_remote_head(repo_path, with_git_command=git_command)

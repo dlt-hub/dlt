@@ -824,6 +824,8 @@ def test_extract_inner_hint() -> None:
 def test_is_secret_hint() -> None:
     assert resolve.is_secret_hint(GcpClientCredentials) is True
     assert resolve.is_secret_hint(Optional[GcpClientCredentials]) is True
+    assert resolve.is_secret_hint(TSecretValue) is True
+    assert resolve.is_secret_hint(Optional[TSecretValue]) is True
     assert resolve.is_secret_hint(InstrumentedConfiguration) is False
     # do not recognize new types
     TTestSecretNt = NewType("TTestSecretNt", GcpClientCredentials)
@@ -832,10 +834,15 @@ def test_is_secret_hint() -> None:
     assert resolve.is_secret_hint(Union[GcpClientCredentials, StrAny, str]) is True
     # we do not recognize unions if they do not contain configuration types
     assert resolve.is_secret_hint(Union[TSecretValue, StrAny, str]) is False
-    assert resolve.is_secret_hint(Optional[TSecretValue]) is True
     assert resolve.is_secret_hint(Optional[str]) is False
     assert resolve.is_secret_hint(str) is False
     assert resolve.is_secret_hint(AnyType) is False
+
+
+def test_is_secret_hint_custom_type() -> None:
+    # any new type named TSecretValue is a secret
+    assert resolve.is_secret_hint(NewType("TSecretValue", int)) is True
+    assert resolve.is_secret_hint(NewType("TSecretValueX", int)) is False
 
 
 def coerce_single_value(key: str, value: str, hint: Type[Any]) -> Any:

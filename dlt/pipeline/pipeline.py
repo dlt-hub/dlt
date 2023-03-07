@@ -501,13 +501,19 @@ class Pipeline(SupportsPipeline):
             # storage not present. wipe the pipeline if pipeline not new
             # do it only if pipeline has any data
             if self.has_data:
-                with self._sql_job_client(self.default_schema) as job_client:
-                    # and storage is not initialized
-                    if not job_client.is_storage_initialized():
-                        # reset pipeline
-                        self._wipe_working_folder()
-                        state = self._get_state()
-                        self._configure(self._schema_storage_config.export_schema_path, self._schema_storage_config.import_schema_path, False)
+                should_wipe = False
+                if self.default_schema_name is None:
+                    should_wipe = True
+                else:
+                    with self._sql_job_client(self.default_schema) as job_client:
+                        # and storage is not initialized
+                        should_wipe = not job_client.is_storage_initialized()
+                if should_wipe:
+                    # reset pipeline
+                    self._wipe_working_folder()
+                    state = self._get_state()
+                    self._configure(self._schema_storage_config.export_schema_path, self._schema_storage_config.import_schema_path, False)
+
 
         # write the state back
         state = merged_state or state

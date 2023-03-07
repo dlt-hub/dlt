@@ -86,7 +86,7 @@ class Venv():
 
     def run_command(self, entry_point: str, *script_args: Any) -> str:
         """Runs any `command` with specified `script_args`. Current `os.environ` and cwd is passed to executed process"""
-        # runs one of installed entry points typically CLIS coming with packages and installed into PATH
+        # runs one of installed entry points typically CLIs coming with packages and installed into PATH
         command = os.path.join(self.context.bin_path, entry_point)
         cmd = [command, *script_args]
         return subprocess.check_output(cmd, stderr=subprocess.STDOUT, text=True)
@@ -94,7 +94,7 @@ class Venv():
     def run_script(self, script_path: str, *script_args: Any) -> str:
         """Runs a python `script` source with specified `script_args`. Current `os.environ` and cwd is passed to executed process"""
         # os.environ is passed to executed process
-        cmd = [self.context.env_exe, "-I", os.path.abspath(script_path), *script_args]
+        cmd = [self.context.env_exe, os.path.abspath(script_path), *script_args]
         try:
             return subprocess.check_output(cmd, stderr=subprocess.STDOUT, text=True)
         except subprocess.CalledProcessError as cpe:
@@ -105,7 +105,7 @@ class Venv():
 
     def run_module(self, module: str, *module_args: Any) -> str:
         """Runs a python `module` with specified `module_args`. Current `os.environ` and cwd is passed to executed process"""
-        cmd = [self.context.env_exe, "-Im", module, *module_args]
+        cmd = [self.context.env_exe, "-m", module, *module_args]
         return subprocess.check_output(cmd, stderr=subprocess.STDOUT, text=True)
 
     def add_dependencies(self, dependencies: List[str] = None) -> None:

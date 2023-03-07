@@ -64,10 +64,16 @@ def extract_inner_hint(hint: Type[Any], preserve_new_types: bool = False) -> Typ
 
 
 def is_secret_hint(hint: Type[Any]) -> bool:
-    is_secret =  hint is TSecretValue
+    is_secret =  False
+    if hasattr(hint, "__name__"):
+        is_secret = hint.__name__ == "TSecretValue"
     if not is_secret:
-        hint = extract_inner_hint(hint, preserve_new_types=True)
-        is_secret = hint is TSecretValue or is_credentials_inner_hint(hint)
+        is_secret = is_credentials_inner_hint(hint)
+    if not is_secret:
+        inner_hint = extract_inner_hint(hint, preserve_new_types=True)
+        # something was encapsulated
+        if inner_hint is not hint:
+            is_secret = is_secret_hint(inner_hint)
     return is_secret
 
 

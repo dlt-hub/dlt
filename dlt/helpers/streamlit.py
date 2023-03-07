@@ -234,12 +234,15 @@ def write_data_explorer_page(pipeline: Pipeline, schema_name: str = None, show_d
         # add a button that when pressed will show the full content of a table
         if st.button("SHOW DATA", key=table_name):
             df = _query_data(f"SELECT * FROM {table_name}", chunk_size=2048)
-            rows_count = df.shape[0]
-            if df.shape[0] < 2048:
-                st.text(f"All {rows_count} row(s)")
+            if df is None:
+                st.text("No rows returned")
             else:
-                st.text(f"Top {rows_count} row(s)")
-            st.dataframe(df)
+                rows_count = df.shape[0]
+                if df.shape[0] < 2048:
+                    st.text(f"All {rows_count} row(s)")
+                else:
+                    st.text(f"Top {rows_count} row(s)")
+                st.dataframe(df)
 
     st.title("Run your query")
     sql_query = st.text_area("Enter your SQL query", value=example_query)
@@ -248,34 +251,37 @@ def write_data_explorer_page(pipeline: Pipeline, schema_name: str = None, show_d
             try:
                 # run the query from the text area
                 df = _query_data(sql_query)
-                rows_count = df.shape[0]
-                st.text(f"{rows_count} row(s) returned")
-                st.dataframe(df)
-                try:
-                    # now if the dataset has supported shape try to display the bar or altair chart
-                    if df.dtypes.shape[0] == 1 and show_charts:
-                        # try barchart
-                        st.bar_chart(df)
-                    if df.dtypes.shape[0] == 2 and show_charts:
+                if df is None:
+                    st.text("No rows returned")
+                else:
+                    rows_count = df.shape[0]
+                    st.text(f"{rows_count} row(s) returned")
+                    st.dataframe(df)
+                    try:
+                        # now if the dataset has supported shape try to display the bar or altair chart
+                        if df.dtypes.shape[0] == 1 and show_charts:
+                            # try barchart
+                            st.bar_chart(df)
+                        if df.dtypes.shape[0] == 2 and show_charts:
 
-                        # try to import altair charts
-                        try:
-                            import altair as alt
-                        except ImportError:
-                            raise MissingDependencyException(
-                                "DLT Streamlit Helpers",
-                                ["altair"],
-                                "DLT Helpers for Streamlit should be run within a streamlit app."
+                            # try to import altair charts
+                            try:
+                                import altair as alt
+                            except ImportError:
+                                raise MissingDependencyException(
+                                    "DLT Streamlit Helpers",
+                                    ["altair"],
+                                    "DLT Helpers for Streamlit should be run within a streamlit app."
+                                )
+
+                            # try altair
+                            bar_chart = alt.Chart(df).mark_bar().encode(
+                                x=f'{df.columns[1]}:Q',
+                                y=alt.Y(f'{df.columns[0]}:N', sort='-x')
                             )
-
-                        # try altair
-                        bar_chart = alt.Chart(df).mark_bar().encode(
-                            x=f'{df.columns[1]}:Q',
-                            y=alt.Y(f'{df.columns[0]}:N', sort='-x')
-                        )
-                        st.altair_chart(bar_chart, use_container_width=True)
-                except Exception as ex:
-                    st.error(f"Chart failed due to: {ex}")
+                            st.altair_chart(bar_chart, use_container_width=True)
+                    except Exception as ex:
+                        st.error(f"Chart failed due to: {ex}")
             except Exception as ex:
                 st.text("Exception when running query")
                 st.exception(ex)

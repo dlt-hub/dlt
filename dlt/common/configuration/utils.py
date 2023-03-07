@@ -109,6 +109,7 @@ def get_resolved_traces() -> Mapping[str, ResolvedValueTrace]:
 
 
 def make_dot_dlt_path(path: str) -> str:
+    """Returns path to file in local settings folder. The path is always relative to the current working directory"""
     return os.path.join(DOT_DLT, path)
 
 
