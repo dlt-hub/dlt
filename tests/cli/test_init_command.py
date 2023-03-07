@@ -133,6 +133,7 @@ def test_init_command_chess_verified_pipeline(repo_dir: str, project_files: File
         print(e)
 
     # now run the pipeline
+    os.environ.pop("DESTINATION__DUCKDB__CREDENTIALS", None)  # settings from local project (secrets.toml etc.)
     venv = Venv.restore_current()
     try:
         print(venv.run_script("chess_pipeline.py"))

@@ -151,6 +151,7 @@ def test_deterministic_salt(environment) -> None:
     p3 = dlt.pipeline(pipeline_name="postgres_redshift")
     assert p.pipeline_salt != p3.pipeline_salt
 
+
 @pytest.mark.parametrize("destination", ALL_DESTINATIONS)
 def test_create_pipeline_all_destinations(destination: str) -> None:
     # create pipelines, extract and normalize. that should be possible without installing any dependencies

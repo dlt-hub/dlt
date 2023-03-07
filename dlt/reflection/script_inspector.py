@@ -48,7 +48,7 @@ def _import_module(name: str, missing_modules: Tuple[str, ...] = ()) -> ModuleTy
             except ImportError as ie:
                 if ie.name is None:
                     raise
-                print(f"ADD {ie.name} {ie.path} vs {name} vs {str(ie)}")
+                # print(f"ADD {ie.name} {ie.path} vs {name} vs {str(ie)}")
                 if ie.name in missing_modules:
                     raise
                 missing_modules += (ie.name, )
@@ -59,7 +59,7 @@ def _import_module(name: str, missing_modules: Tuple[str, ...] = ()) -> ModuleTy
                     if me.__context__.name in missing_modules:
                         # print(f"{me.__context__.name} IN :/")
                         raise
-                    print(f"ADD {me.__context__.name}")
+                    # print(f"ADD {me.__context__.name}")
                     missing_modules += (me.__context__.name, )
                 else:
                     raise
