@@ -19,7 +19,7 @@ from dlt.common.storages.file_storage import FileStorage
 
 from dlt.extract.decorators import _SOURCES
 import dlt.reflection.names as n
-from dlt.reflection.script_inspector import inspect_pipeline_script
+from dlt.reflection.script_inspector import inspect_pipeline_script, load_script_module
 
 from dlt.cli import echo as fmt, pipeline_files as files_ops, source_detection
 from dlt.cli import utils
@@ -162,7 +162,7 @@ def init_command(pipeline_name: str, destination_name: str, use_generic_template
     # copy pipeline files from here
     pipelines_storage = FileStorage(clone_storage.make_full_path(PIPELINES_MODULE_NAME))
     # load init module and get init files and script
-    init_module = utils.load_command_module(init_storage.storage_path)
+    init_module = load_script_module(clone_storage.storage_path, INIT_MODULE_NAME)
     pipeline_script, template_files = _get_template_files(init_module, use_generic_template)
     # prepare destination storage
     dest_storage = FileStorage(os.path.abspath("."))

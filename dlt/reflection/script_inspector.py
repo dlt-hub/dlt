@@ -73,9 +73,9 @@ def load_script_module(module_path:str, script_relative_path: str, ignore_missin
     """
     if os.path.isabs(script_relative_path):
         raise ValueError(script_relative_path, f"Not relative path to {module_path}")
-    script_path = os.path.join(module_path, script_relative_path)
-    if not os.path.isfile(script_path):
-        raise FileNotFoundError(script_path)
+    # script_path = os.path.join(module_path, script_relative_path)
+    # if not os.path.isfile(script_path) and not os.path:
+    #     raise FileNotFoundError(script_path)
 
     module, _ = os.path.splitext(script_relative_path)
     module = ".".join(Path(module).parts)
