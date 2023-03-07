@@ -2,6 +2,7 @@ import pytest
 import os
 import yaml
 from git import Repo, Commit
+from pathlib import Path
 from typing import Mapping, Tuple, cast
 
 from dlt.common import json
@@ -69,7 +70,7 @@ def modify_and_commit_file(repo_path: str, file_name: str, content: str = "NEW R
         # one file modified
         index = repo.index.entries
         assert len(index) > 0
-        assert any(e for e in index.keys() if e[0] == file_name)
+        assert any(e for e in index.keys() if os.path.join(*Path(e[0]).parts) == file_name)
         repo.index.add(file_name)
         commit = repo.index.commit(f"mod {file_name}")
 

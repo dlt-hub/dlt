@@ -7,7 +7,6 @@ import shutil
 import contextlib
 from subprocess import CalledProcessError
 from typing import Any, List, Tuple
-from unittest.mock import patch
 from hexbytes import HexBytes
 import pytest
 
@@ -15,8 +14,8 @@ import dlt
 
 from dlt.common import git
 from dlt.common.configuration import make_dot_dlt_path
-from dlt.common.configuration.providers import CONFIG_TOML, SECRETS_TOML, ConfigTomlProvider, SecretsTomlProvider
-from dlt.common.pipeline import PipelineContext, get_default_repos_dir
+from dlt.common.configuration.providers import CONFIG_TOML, SECRETS_TOML, SecretsTomlProvider
+from dlt.common.pipeline import get_default_repos_dir
 from dlt.common.runners.venv import Venv
 from dlt.common.storages.file_storage import FileStorage
 
@@ -41,6 +40,7 @@ PROJECT_DIR = os.path.join(TEST_STORAGE_ROOT, "project")
 
 @pytest.fixture(autouse=True)
 def echo_default_choice() -> None:
+    """Always answer default in CLI interactions"""
     echo.ALWAYS_CHOOSE_DEFAULT = True
     yield
     echo.ALWAYS_CHOOSE_DEFAULT = False
@@ -48,6 +48,7 @@ def echo_default_choice() -> None:
 
 @pytest.fixture(autouse=True)
 def unload_modules() -> None:
+    """Unload all modules inspected in this tests"""
     prev_modules = dict(sys.modules)
     yield
     mod_diff = set(sys.modules.keys()) - set(prev_modules.keys())
@@ -122,7 +123,7 @@ def test_init_command_chess_verified_pipeline(repo_dir: str, project_files: File
     # chess has one file
     assert len(local_index["files"]) == 1
     # relative to "pipelines" folder
-    assert local_index["files"]["chess/__init__.py"] is not None
+    assert local_index["files"][os.path.join("chess", "__init__.py")] is not None
 
     # delete existing pipeline if exist
     # works only if working dir is not changed by fixture

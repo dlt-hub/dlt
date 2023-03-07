@@ -3,6 +3,7 @@ import hashlib
 import os
 import yaml
 import posixpath
+from pathlib import Path
 from typing import Dict, NamedTuple, Sequence, Tuple, TypedDict, List
 from dlt.cli.exceptions import PipelineRepoError
 
@@ -117,8 +118,9 @@ def get_remote_pipeline_index(repo_path: str, files: Sequence[str]) -> TPipeline
         commit_sha = repo.head.commit.hexsha
         files_sha: Dict[str, TPipelineFileEntry] = {}
         for file in files:
-            posix_file = posixpath.join(*os.path.split(repo_path), *os.path.split(file))
+            posix_file = os.path.join(repo_path, file)
             posix_file = os.path.relpath(posix_file, repo.working_dir)
+            posix_file = posixpath.join(*Path(posix_file).parts)
             try:
                 blob_sha3 = tree.join(posix_file).hexsha
             except KeyError:

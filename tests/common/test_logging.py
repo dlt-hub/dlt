@@ -9,7 +9,7 @@ from dlt.common.typing import StrStr
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import RunConfiguration
 
-from tests.utils import preserve_environ, skipifspawn
+from tests.utils import preserve_environ, skipifspawn, skipifwindows
 
 
 @configspec
@@ -70,6 +70,7 @@ def test_github_info_extract(environment: StrStr) -> None:
 
 
 
+@skipifwindows
 @pytest.mark.forked
 def test_text_logger_init(environment: StrStr) -> None:
     _mock_image_env(environment)
@@ -84,6 +85,7 @@ def test_text_logger_init(environment: StrStr) -> None:
         logger.exception("DIV")
 
 
+@skipifwindows
 @pytest.mark.forked
 def test_json_logger_init(environment: StrStr) -> None:
     _mock_image_env(environment)

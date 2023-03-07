@@ -65,10 +65,10 @@ jobs:
 
       - run: |
           make test-common
-        # if: runner.os != 'Windows'
+        if: runner.os != 'Windows'
         name: Run tests Linux/MAC
-      # - run: |
-      #     make test-common
-      #   if: runner.os == 'Windows'
-      #   name: Run tests Windows
-      #   shell: cmd
+      - run: |
+          poetry run pytest tests/common tests/normalize tests/extract tests/pipeline tests/reflection -m "not forked"
+        if: runner.os == 'Windows'
+        name: Run tests Windows
+        shell: cmd
