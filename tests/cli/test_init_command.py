@@ -31,13 +31,13 @@ from dlt.reflection.script_visitor import PipelineScriptVisitor
 from dlt.reflection import names as n
 from tests.common.utils import modify_and_commit_file
 
-from tests.utils import preserve_environ, autouse_test_storage, TEST_STORAGE_ROOT, clean_test_storage
+from tests.utils import ALL_DESTINATIONS, preserve_environ, autouse_test_storage, TEST_STORAGE_ROOT, clean_test_storage
 
 
 INIT_REPO_LOCATION = DEFAULT_PIPELINES_REPO
 INIT_REPO_BRANCH = "master"
 PROJECT_DIR = os.path.join(TEST_STORAGE_ROOT, "project")
-# INITIAL_PIPELINE_CANDIDATES: List[str] = None
+
 
 @pytest.fixture(autouse=True)
 def echo_default_choice() -> None:
@@ -191,8 +191,11 @@ def test_init_all_pipelines_isolated(cloned_pipeline: FileStorage) -> None:
             assert_requests_txt(files)
 
 
-def test_init_all_destinations(project_files: FileStorage) -> None:
-    pass
+@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
+def test_init_all_destinations(destination_name: str, project_files: FileStorage, repo_dir: str) -> None:
+    pipeline_name = f"generic_{destination_name}_pipeline"
+    init_command.init_command(pipeline_name, destination_name, True, repo_dir)
+    assert_init_files(project_files, pipeline_name, destination_name)
 
 
 def test_init_code_update_index_diff(repo_dir: str, project_files: FileStorage) -> None:
@@ -389,7 +392,6 @@ def test_init_code_update_conflict(repo_dir: str, project_files: FileStorage, re
             init_command.init_command("pipedrive", "duckdb", False, repo_dir)
             _out = buf.getvalue()
 
-    print(_out)
     if resolution == "s":
         assert "Skipping all incoming changes" in _out
         # local not touched
@@ -407,12 +409,26 @@ def test_init_code_update_conflict(repo_dir: str, project_files: FileStorage, re
         assert project_files.load(mod_local_path_2) == "'''VERSION 3'''"
 
 
-def test_init_pyproject_toml() -> None:
-    pass
+def test_init_pyproject_toml(repo_dir: str, project_files: FileStorage) -> None:
+    # add pyproject.toml to trigger dependency system
+    project_files.save(cli_utils.PYPROJECT_TOML, "# toml")
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        init_command.init_command("google_sheets", "bigquery", False, repo_dir)
+        _out = buf.getvalue()
+    assert "pyproject.toml" in _out
+    assert "google-api-python-client" in _out
+    assert "poetry add python-dlt -E bigquery" in _out
 
 
-def test_init_requirements_text() -> None:
-    pass
+def test_init_requirements_text(repo_dir: str, project_files: FileStorage) -> None:
+    # add pyproject.toml to trigger dependency system
+    project_files.save(cli_utils.REQUIREMENTS_TXT, "# requirements")
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        init_command.init_command("google_sheets", "bigquery", False, repo_dir)
+        _out = buf.getvalue()
+    assert "requirements.txt" in _out
+    assert "google-api-python-client" in _out
+    assert "pip3 install" in _out
 
 
 def test_pipeline_template_sources_in_single_file(repo_dir: str, project_files: FileStorage) -> None:
