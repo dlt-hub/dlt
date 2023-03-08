@@ -25,7 +25,7 @@ client_email = "client_email" # please set me up!
 location = "US"
 ```
 
-For destination credentials, read this [guide](./destinations) for how create and configure destination credentials.
+For destination credentials, read this [guide](../destinations) for how create and configure destination credentials.
 
 For source credential, read the source's readme to find how to get credentials.
 
