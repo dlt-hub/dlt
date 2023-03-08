@@ -11,7 +11,7 @@ def naming_unlimited() -> NamingConvention:
 def test_normalize_identifier(naming_unlimited: NamingConvention) -> None:
     assert naming_unlimited.normalize_identifier("event_value") == "event_value"
     assert naming_unlimited.normalize_identifier("event value") == "event_value"
-    assert naming_unlimited.normalize_identifier("event-.!:<>value") == "event_li_value"
+    assert naming_unlimited.normalize_identifier("event-.!:*<>value") == "event_x_value"
     # prefix leading digits
     assert naming_unlimited.normalize_identifier("1event_n'") == "_1event_nx"
     assert naming_unlimited.normalize_identifier("123event_n'") == "_123event_nx"
@@ -28,13 +28,17 @@ def test_normalize_identifier(naming_unlimited: NamingConvention) -> None:
     assert naming_unlimited.normalize_identifier("BANANA_") == "bananax"
     assert naming_unlimited.normalize_identifier("BANANA____") == "bananaxxxx"
     # current special characters translation table
-    assert naming_unlimited.normalize_identifier("+-!$*@#=|:") == "x_lsxah_li"
+    assert naming_unlimited.normalize_identifier("+-!$*@#=|:") == "x_xa_lx"
     # some other cases
     assert naming_unlimited.normalize_identifier("+1") == "x1"
     assert naming_unlimited.normalize_identifier("-1") == "_1"
 
     # non latin alphabets
     # assert naming_unlimited.normalize_identifier("Ölübeµrsईउऊऋऌऍऎएc⇨usǁs⛔lÄnder") == "ölüberschussländer"
+
+
+def test_alphabet_reduction(naming_unlimited: NamingConvention) -> None:
+    assert naming_unlimited.normalize_identifier(NamingConvention._REDUCE_ALPHABET[0]) == NamingConvention._REDUCE_ALPHABET[1]
 
 
 def test_normalize_path(naming_unlimited: NamingConvention) -> None:

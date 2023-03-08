@@ -30,24 +30,6 @@ def clone_command_repo(command: str, branch: str) -> FileStorage:
         return FileStorage(template_dir)
 
 
-def load_command_module(template_dir: str) -> ModuleType:
-    # import the settings from the clone
-    template_dir, template_module_name = os.path.split(template_dir.rstrip("/"))
-    module_path, package = os.path.split(template_dir)
-    module, _ = os.path.splitext(template_module_name)
-    module = ".".join(Path(module).parts)
-
-    sys_path: str = None
-    if module_path not in sys.path:
-        sys_path = module_path
-        # path must be first so we always load our module of
-        sys.path.insert(0, sys_path)
-    try:
-        return import_module(f"{package}.{module}")
-    finally:
-        sys.path.remove(sys_path)
-
-
 def parse_init_script(command: str, script_source: str, init_script_name: str) -> PipelineScriptVisitor:
     # parse the script first
     tree = ast.parse(source=script_source)
