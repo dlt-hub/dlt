@@ -1,7 +1,7 @@
 from functools import partial
 
+from dlt.common.runners import TRunMetrics
 from dlt.common.runners.stdout import exec_to_stdout
-from dlt.common.runtime.telemetry import TRunMetrics
 
 
 def worker(data1, data2):

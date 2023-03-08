@@ -4,7 +4,7 @@ import pytest
 import tempfile
 
 import dlt
-from dlt.common.runners.venv import Venv
+from dlt.common.runners import Venv
 from dlt.common.schema.schema import Schema
 from dlt.common.utils import uniq_id
 from dlt.helpers.dbt import create_venv

@@ -3,7 +3,7 @@ import contextlib
 from typing import Iterator, NamedTuple
 from dlt.common import logger
 from dlt.common.configuration.utils import add_config_to_env
-from dlt.common.runners.venv import Venv
+from dlt.common.runners import Venv
 from dlt.common.typing import StrAny
 from dlt.helpers.dbt.configuration import DBTRunnerConfiguration
 from dlt.helpers.dbt.runner import DBTPackageRunner, create_runner

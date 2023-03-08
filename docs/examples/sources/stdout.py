@@ -4,7 +4,7 @@ import dlt
 
 from dlt.common import json
 from dlt.common.configuration.specs import BaseConfiguration
-from dlt.common.runners.venv import Venv
+from dlt.common.runners import Venv
 from dlt.common.runners.stdout import iter_stdout
 from dlt.common.typing import DictStrAny
 

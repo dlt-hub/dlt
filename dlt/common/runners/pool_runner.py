@@ -7,8 +7,9 @@ from dlt.common import logger, sleep
 from dlt.common.runners import init
 from dlt.common.runners.runnable import Runnable, TPool
 from dlt.common.runners.configuration import PoolRunnerConfiguration
+from dlt.common.runners.typing import TRunMetrics, TRunHealth
 from dlt.common.runtime import signals
-from dlt.common.runtime.telemetry import TRunHealth, TRunMetrics, get_logging_extras, get_metrics_from_prometheus
+from dlt.common.runtime.telemetry import get_logging_extras, get_metrics_from_prometheus
 from dlt.common.exceptions import SignalReceivedException, TimeRangeExhaustedException
 
 

@@ -6,8 +6,7 @@ from typing import Iterator, Tuple
 from multiprocessing.pool import Pool
 
 from dlt.common import logger
-from dlt.common.runners.runnable import Runnable, workermethod
-from dlt.common.runtime.telemetry import TRunMetrics
+from dlt.common.runners import TRunMetrics, Runnable, workermethod
 from dlt.common.utils import uniq_id
 
 ALL_METHODS = multiprocessing.get_all_start_methods()

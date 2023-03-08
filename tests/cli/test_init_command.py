@@ -16,7 +16,7 @@ from dlt.common import git
 from dlt.common.configuration import make_dot_dlt_path
 from dlt.common.configuration.providers import CONFIG_TOML, SECRETS_TOML, SecretsTomlProvider
 from dlt.common.pipeline import get_default_repos_dir
-from dlt.common.runners.venv import Venv
+from dlt.common.runners import Venv
 from dlt.common.storages.file_storage import FileStorage
 
 from dlt.common.utils import set_working_dir, uniq_id

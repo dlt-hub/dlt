@@ -1,10 +1,9 @@
-import os
 import contextlib
 from typing import List
 import pkg_resources
 import semver
 
-from dlt.common.runners.venv import Venv
+from dlt.common.runners import Venv
 from dlt.common.destination.reference import DestinationClientDwhConfiguration
 from dlt.common.configuration.specs import CredentialsWithDefault
 from dlt.common.typing import TSecretValue

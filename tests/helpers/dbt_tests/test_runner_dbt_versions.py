@@ -9,8 +9,8 @@ from dlt.common import json
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.specs import GcpClientCredentialsWithDefault, CredentialsWithDefault
 from dlt.common.storages.file_storage import FileStorage
+from dlt.common.runners import Venv
 from dlt.common.runners.synth_pickle import decode_obj, encode_obj
-from dlt.common.runners.venv import Venv
 from dlt.common.typing import AnyFun
 
 from dlt.destinations.postgres.postgres import PostgresClient

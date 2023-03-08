@@ -3,8 +3,8 @@ import os
 import argparse
 import click
 from dlt.common.pipeline import get_default_pipelines_dir
+from dlt.common.runners import Venv
 from dlt.common.runners.stdout import iter_stdout
-from dlt.common.runners.venv import Venv
 from dlt.common.storages.file_storage import FileStorage
 
 from dlt.version import __version__
