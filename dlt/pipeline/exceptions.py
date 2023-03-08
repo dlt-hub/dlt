@@ -1,7 +1,7 @@
 from typing import Any, Sequence
 from dlt.common.exceptions import DltException
 from dlt.common.pipeline import SupportsPipeline
-from dlt.common.telemetry import TRunMetrics
+from dlt.common.runtime.telemetry import TRunMetrics
 from dlt.pipeline.typing import TPipelineStep
 
 

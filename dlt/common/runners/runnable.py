@@ -5,7 +5,7 @@ from multiprocessing.pool import Pool
 from weakref import WeakValueDictionary
 
 from dlt.common.typing import TFun
-from dlt.common.telemetry import TRunMetrics
+from dlt.common.runtime.telemetry import TRunMetrics
 
 TPool = TypeVar("TPool", bound=Pool)
 

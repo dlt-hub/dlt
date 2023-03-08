@@ -2,7 +2,7 @@ import os
 from typing import Any
 from git import GitCommandError
 import pytest
-from dlt.common.telemetry import get_metrics_from_prometheus
+from dlt.common.runtime.telemetry import get_metrics_from_prometheus
 
 from dlt.common.typing import StrStr
 from dlt.common.utils import uniq_id

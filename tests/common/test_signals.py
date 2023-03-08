@@ -3,8 +3,9 @@ import pytest
 import time
 from multiprocessing.dummy import Process
 
-from dlt.common import signals, sleep
+from dlt.common import sleep
 from dlt.common.exceptions import SignalReceivedException
+from dlt.common.runtime import signals
 
 from tests.utils import skipifwindows
 

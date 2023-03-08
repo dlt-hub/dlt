@@ -1,8 +1,8 @@
 import threading
 
 from dlt.common import logger
-from dlt.common.logger import init_logging_from_config, init_telemetry
-from dlt.common.signals import register_signals
+from dlt.common.runtime.logger import init_logging_from_config, init_telemetry
+from dlt.common.runtime.signals import register_signals
 from dlt.common.configuration.specs import RunConfiguration
 
 # signals and telemetry should be initialized only once

@@ -13,7 +13,7 @@ from dlt.common import json, pendulum
 from dlt.common import logger
 from dlt.common.configuration import is_secret_hint
 from dlt.common.configuration.utils import _RESOLVED_TRACES
-from dlt.common.logger import _extract_github_info
+from dlt.common.runtime.logger import _extract_github_info
 from dlt.common.pipeline import LoadInfo, SupportsPipeline
 from dlt.common.utils import uniq_id
 

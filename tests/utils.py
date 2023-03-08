@@ -11,7 +11,7 @@ from dlt.common.configuration.providers import DictionaryProvider
 from dlt.common.configuration.resolve import resolve_configuration
 from dlt.common.configuration.specs import RunConfiguration
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
-from dlt.common.logger import init_logging_from_config
+from dlt.common.runtime.logger import init_logging_from_config
 from dlt.common.storages import FileStorage
 from dlt.common.schema import Schema
 from dlt.common.storages.versioned_storage import VersionedStorage

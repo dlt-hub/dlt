@@ -7,7 +7,7 @@ from dlt.common.exceptions import UnsupportedProcessStartMethodException
 from dlt.common.runners.stdout import iter_stdout, iter_stdout_with_result
 from dlt.common.runners.synth_pickle import encode_obj, decode_obj, decode_last_obj
 from dlt.common.runners.venv import Venv
-from dlt.common.telemetry import TRunMetrics
+from dlt.common.runtime.telemetry import TRunMetrics
 from dlt.common.utils import digest128b
 
 

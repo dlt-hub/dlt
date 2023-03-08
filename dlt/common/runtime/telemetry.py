@@ -10,7 +10,7 @@ class TRunHealth(TypedDict):
     runs_count: int
     # count not idle runs
     runs_not_idle_count: int
-    # succesfull runs
+    # successful runs
     runs_healthy_count: int
     # count consecutive successful runs
     runs_cs_healthy_gauge: int

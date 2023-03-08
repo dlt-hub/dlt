@@ -3,7 +3,7 @@ import ast
 import contextlib
 from typing import Any, Dict, Mapping, NamedTuple, Optional, Type, Sequence
 
-from dlt.common import json, logger
+from dlt.common import json
 from dlt.common.typing import AnyType, TAny
 from dlt.common.data_types import coerce_value, py_type_to_sc_type
 from dlt.common.configuration import DOT_DLT
@@ -91,6 +91,8 @@ def serialize_value(value: Any) -> Any:
 
 
 def log_traces(config: Optional[BaseConfiguration], key: str, hint: Type[Any], value: Any, default_value: Any, traces: Sequence[LookupTrace]) -> None:
+    from dlt.common import logger
+
     if logger.is_logging() and logger.log_level() == "DEBUG" and config:
         logger.debug(f"Field {key} with type {hint} in {type(config).__name__} {'NOT RESOLVED' if value is None else 'RESOLVED'}")
         # print(f"Field {key} with type {hint} in {type(config).__name__} {'NOT RESOLVED' if value is None else 'RESOLVED'}")
