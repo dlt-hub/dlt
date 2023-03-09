@@ -1,13 +1,14 @@
 ---
-slug: dlthub-mission
-title: dltHub Mission
+slug: duckdb-1M-downloads-users
+title: As DuckDB crosses 1M downloads / month, what do its users do?
 authors:
   name: Matthaus Krzykowski
   title: Co-Founder & CEO at dltHub
   url: https://twitter.com/matthausk
   image_url: https://pbs.twimg.com/profile_images/642282396751130624/9ixo0Opj_400x400.jpg
-tags: [dlthub, mission, dlt]
+tags: [DuckDB]
 ---
+import { TwitterTweetEmbed } from 'react-twitter-embed';
 
 # As DuckDB crosses 1M downloads / month, what do its users do?
 
@@ -15,11 +16,11 @@ tags: [dlthub, mission, dlt]
 
 The excitement around DuckDB has steadily increased over the last year. The project has consistently crossed the 1M downloads per month mark over the last three months (Dec ‘22, Jan ‘23, Feb ‘23), a large increase from the ~250k downloads per month in February ‘22.
 
-Like so many others, we are excited about the project, too. Recently, we attended the DuckDB conference and spoke with many members of the community to learn why people are excited about it. We examined [issues on GitHub](https://github.com/duckdb/duckdb/issues), interviewed some of the top contributors to the project, and even experimented with DuckDB ourselves to determine [how we could contribute](https://duckdb.org/why_duckdb#other-projects). 
+Like so many others, we are excited about the project, too. Recently, we attended the DuckDB conference and spoke with many members of the community to learn why people are excited about it. We examined [issues on GitHub](https://github.com/duckdb/duckdb/issues), interviewed some of the top contributors to the project, and even experimented with DuckDB ourselves to determine [how we could contribute](https://duckdb.org/why_duckdb#other-projects).
 
 We aimed to identify the most popular reasons why people try out DuckDB with our research. We found five perspectives that people commonly have when trying out DuckDB.
 
-IMAGE
+![Marcin watching a MotherDuck presentation](/img/Marcin-dltHub-DuckDB-DuckCon-Brussels.jpg)
 
 dltHub co-founder Marcin watching a MotherDuck presentation at DuckCon in Brussels in February
 
@@ -35,9 +36,15 @@ Normies have a specific way of solving problems that breaks some behavior patter
 
 Many at Normconf agreed that DuckDB is also a “normie tool”. It has a Python wrapper and can be dropped into any Python script, notebook, or Streamlit app. It has helpers and integrates with other libraries that are part of typical workflows (e.g. Pandas, Parquet, Arrow, etc). It is a powerful analytical database and brings local SQL execution without credentials and other hassles. You can scan data from and export data to Parquet, CSV, or JSON and query an S3 bucket directly.
 
-<blockquote class="twitter-tweet"><p lang="en" dir="ltr">excited to share an alpha version of <a href="https://twitter.com/RillData?ref_src=twsrc%5Etfw">@RillData</a> Developer, a reactive EDA-centric SQL tool for exploring and transforming datasets. Something I&#39;ve always wanted as a data person :) Powered by <a href="https://twitter.com/duckdb?ref_src=twsrc%5Etfw">@duckdb</a> and <a href="https://twitter.com/sveltejs?ref_src=twsrc%5Etfw">@sveltejs</a> ✨<br><br>try it &amp; let me know what you think!<a href="https://t.co/V2RMp0VFnw">https://t.co/V2RMp0VFnw</a> <a href="https://t.co/xP6wlUyEFv">pic.twitter.com/xP6wlUyEFv</a></p>&mdash; Hamilton Ulmer (@hamiltonulmer) <a href="https://twitter.com/hamiltonulmer/status/1516858639729913856?ref_src=twsrc%5Etfw">April 20, 2022</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
-
-<blockquote class="twitter-tweet"><p lang="en" dir="ltr"><a href="https://twitter.com/hashtag/DuckDB?src=hash&amp;ref_src=twsrc%5Etfw">#DuckDB</a> by itself is cool and all, but the real magic is what dev build on top of it !!! <a href="https://t.co/DAkpADwYsS">https://t.co/DAkpADwYsS</a></p>&mdash; Mimoune Djouallah (@mim_djo) <a href="https://twitter.com/mim_djo/status/1629409595436470272?ref_src=twsrc%5Etfw">February 25, 2023</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
+<center>
+    <TwitterTweetEmbed
+        tweetId={'1516858639729913856'}
+    />
+    <br/>
+    <TwitterTweetEmbed
+        tweetId={'1629409595436470272'}
+    />
+</center>
 
 ## 2) Local Data Workflows Are Going Mainstream, and DuckDB Is at the Center
 
@@ -91,7 +98,7 @@ We encountered a different related pattern with DuckDB users. DuckDB users often
 
 The community frequently experiments with making such a setup work. In a recent post from frequent DuckDB issue contributor Mimoune Djouallah, [he describes how he used Azure Storage, DuckDB, and an Azure ML Notebook to build a cost-effective data engineering pipeline for smaller data workloads](https://datamonkeysite.com/2023/02/23/implementing-a-poor-mans-lakehouse-in-azure/). The pipeline involves reading data from Azure Storage, running complex queries, and saving the results in a bucket. The resulting bucket can be consumed in Synapse Serverless/PowerBI/Notebook, etc. We wonder, just like Mimoune and [others](https://www.kleinerperkins.com/perspectives/infrastructure-in-23/) do, if vendors will be building more support for smaller data workloads going forward.
 
-It is probably worth mentioning at this stage that DuckDB and even PostgreSQL are not databases in the traditional sense. Rather, they are relational "database" management systems (RDBMS) that manage structured collections of data. While both can be used for querying internally stored data and reading external data like files or federated databases, DuckDB focuses primarily on the latter. 
+It is probably worth mentioning at this stage that DuckDB and even PostgreSQL are not databases in the traditional sense. Rather, they are relational "database" management systems (RDBMS) that manage structured collections of data. While both can be used for querying internally stored data and reading external data like files or federated databases, DuckDB focuses primarily on the latter.
 
 This means that it functions more as an RDBMS without an attached database. Therefore, it is inaccurate to refer to DuckDB as a database. Instead, we should consider the parquet file or data lake as the actual database, with DuckDB serving as a tool for managing and querying the data.
 
