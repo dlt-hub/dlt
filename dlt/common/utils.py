@@ -7,10 +7,11 @@ import secrets
 from contextlib import contextmanager
 from functools import wraps
 from os import environ
+from datetime import timedelta
 
-from typing import Any, Dict, Iterator, Optional, Sequence, TypeVar, Mapping, List, Union
+from typing import Any, Dict, Iterator, Optional, Sequence, TypeVar, Mapping, List, Union, overload
 
-from dlt.common.typing import AnyFun, StrAny, DictStrAny, StrStr, TAny, TDataItem, TDataItems, TFun
+from dlt.common.typing import AnyFun, StrAny, DictStrAny, StrStr, TAny, TDataItem, TDataItems, TFun, TimedeltaSeconds
 
 T = TypeVar("T")
 
@@ -258,3 +259,20 @@ def derives_from_class_of_name(o: object, name: str) -> bool:
     """Checks if object o has class of name in its derivation tree"""
     mro = type.mro(type(o))
     return any(t.__name__ == name for t in mro)
+
+
+
+@overload
+def to_seconds(td: None) -> None:
+    pass
+
+
+@overload
+def to_seconds(td: TimedeltaSeconds) -> float:
+    pass
+
+
+def to_seconds(td: Optional[TimedeltaSeconds]) -> Optional[float]:
+    if isinstance(td, timedelta):
+        return td.total_seconds()
+    return td
