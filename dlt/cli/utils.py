@@ -1,14 +1,18 @@
 import ast
+import inspect
 import os
-from pathlib import Path
-import sys
 import tempfile
-from importlib import import_module
-from types import ModuleType
+import time
+from typing import Any, Callable, Tuple
 
 from dlt.common import git
 from dlt.common.reflection.utils import set_ast_parents
 from dlt.common.storages import FileStorage
+from dlt.common.typing import TFun
+from dlt.common.runtime.telemetry import start_telemetry
+from dlt.common.runtime.segment import track
+from dlt.common.configuration import resolve_configuration
+from dlt.common.configuration.specs import RunConfiguration
 
 from dlt.reflection.script_visitor import PipelineScriptVisitor
 
@@ -53,3 +57,38 @@ def ensure_git_command(command: str) -> None:
             "'git' command is not available. Install and setup git with the following the guide %s" % "https://docs.github.com/en/get-started/quickstart/set-up-git",
             imp_ex
         ) from imp_ex
+
+
+def track_command(command: str, track_before: bool, *args: str) -> Callable[[TFun], TFun]:
+    """Adds telemetry to f: TFun and add optional f *args values to `properties` of telemetry event"""
+    def decorator(f: TFun) -> TFun:
+        sig: inspect.Signature = inspect.signature(f)
+        def _wrap(*f_args: Any, **f_kwargs: Any) -> Any:
+            # look for additional arguments
+            bound_args = sig.bind(*f_args, **f_kwargs)
+            props = {p:bound_args.arguments[p] for p in args if p in bound_args.arguments}
+            start_ts = time.time()
+
+            def _track(success: bool) -> None:
+                props["elapsed"] = time.time() - start_ts
+                props["success"] = success
+                # resolve runtime config and init telemetry
+                c = resolve_configuration(RunConfiguration())
+                start_telemetry(c)
+                track("command", command, props)
+
+            # some commands should be tracked before execution
+            if track_before:
+                _track(True)
+                return f(*f_args, **f_kwargs)
+            # some commands we track after, where we can pass the success
+            try:
+                rv = f(*f_args, **f_kwargs)
+                _track(rv == 0)
+                return rv
+            except Exception:
+                _track(False)
+                raise
+
+        return _wrap  # type: ignore
+    return decorator
