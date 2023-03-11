@@ -1,23 +1,19 @@
 import os
 import threading
-from reretry import retry
 from typing import Any, Iterator
 
 import dlt
-import requests
 
 from dlt.common import sleep
 from dlt.common.typing import StrAny, TDataItems
+from dlt.sources.helpers import requests
 
 
 @dlt.source
 def chess(chess_url: str = dlt.config.value, title: str = "GM", max_players: int = 2, year: int = 2022, month: int = 10) -> Any:
 
-    # TODO: retry does not preserve typings, re-implement it
-    @retry(tries=10, delay=1, backoff=1.1)
     def _get_data_with_retry(path: str) -> StrAny:
         r = requests.get(f"{chess_url}{path}")
-        r.raise_for_status()
         return r.json()  # type: ignore
 
     @dlt.resource(write_disposition="replace")
@@ -34,7 +30,7 @@ def chess(chess_url: str = dlt.config.value, title: str = "GM", max_players: int
     def players_profiles(username: Any) -> TDataItems:
         print(f"getting {username} profile via thread {threading.current_thread().name}")
         sleep(1) # add some latency to show parallel runs
-        return _get_data_with_retry(f"player/{username}")  # type: ignore
+        return _get_data_with_retry(f"player/{username}")
 
     # this resource takes data from players and returns games for the last month if not specified otherwise
     @dlt.transformer(data_from=players, write_disposition="append")
