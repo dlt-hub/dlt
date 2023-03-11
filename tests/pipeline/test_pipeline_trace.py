@@ -1,7 +1,7 @@
 import os
 import asyncio
 import datetime  # noqa: 251
-from typing import List
+from typing import Any, List
 from unittest.mock import patch
 import pytest
 import requests_mock
@@ -11,14 +11,14 @@ import dlt
 from dlt.common.configuration.specs import CredentialsConfiguration
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
 from dlt.common.pipeline import ExtractInfo
-from dlt.common.typing import StrStr, TSecretValue
+from dlt.common.typing import DictStrAny, StrStr, TSecretValue
 from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.pipeline.pipeline import Pipeline
 from dlt.pipeline.trace import SerializableResolvedValueTrace, load_trace
 
-from tests.utils import preserve_environ
+from tests.utils import preserve_environ, patch_home_dir, start_test_telemetry
 from tests.common.configuration.utils import toml_providers, environment
-from tests.pipeline.utils import drop_dataset_from_env, patch_working_dir, drop_pipeline
+from tests.pipeline.utils import drop_dataset_from_env, drop_pipeline
 
 def test_create_trace(toml_providers: ConfigProvidersContext) -> None:
 
@@ -195,6 +195,46 @@ def test_load_none_trace() -> None:
     assert load_trace(p.working_dir) is None
 
 
+def test_trace_telemetry() -> None:
+    with patch("dlt.common.runtime.sentry.before_send", _mock_sentry_before_send), patch("dlt.common.runtime.segment.before_send", _mock_segment_before_send):
+        start_test_telemetry()
+
+        SEGMENT_SENT_ITEMS.clear()
+        SENTRY_SENT_ITEMS.clear()
+        # default dummy fails all files
+        dlt.pipeline().run([1,2,3], table_name="data", destination="dummy")
+        # we should have 4 segment items
+        assert len(SEGMENT_SENT_ITEMS) == 4
+        expected_steps = ["extract", "normalize", "load", "run"]
+        for event, step in zip(SEGMENT_SENT_ITEMS, expected_steps):
+            assert event["event"] == f"pipeline_{step}"
+            assert event["properties"]["success"] is True
+            assert event["properties"]["destination_name"] == "dummy"
+            assert isinstance(event["properties"]["elapsed"], float)
+            assert isinstance(event["properties"]["transaction_id"], str)
+        # we have two failed files (state and data) that should be logged by sentry
+        assert len(SENTRY_SENT_ITEMS) == 2
+
+        # trace with exception
+        @dlt.resource
+        def data():
+            raise NotImplementedError()
+            yield
+
+        SEGMENT_SENT_ITEMS.clear()
+        SENTRY_SENT_ITEMS.clear()
+        with pytest.raises(PipelineStepFailed):
+            dlt.pipeline().run(data, destination="dummy")
+        assert len(SEGMENT_SENT_ITEMS) == 2
+        event = SEGMENT_SENT_ITEMS[0]
+        assert event["event"] == "pipeline_extract"
+        assert event["properties"]["success"] is False
+        assert event["properties"]["destination_name"] == "dummy"
+        assert isinstance(event["properties"]["elapsed"], float)
+        # we didn't log any errors
+        assert len(SENTRY_SENT_ITEMS) == 0
+
+
 def test_slack_hook(environment: StrStr) -> None:
     hook_url = "https://hooks.slack.com/services/T04DHMAF13Q/B04E7B1MQ1H/TDHEI123WUEE"
     environment["COMPLETED_PROB"] = "1.0"
@@ -226,3 +266,14 @@ def test_broken_slack_hook(environment: StrStr) -> None:
 def _find_resolved_value(resolved: List[SerializableResolvedValueTrace], key: str, sections: List[str]) -> SerializableResolvedValueTrace:
     return next((v for v in resolved if v.key == key and v.sections == sections), None)
 
+
+SEGMENT_SENT_ITEMS = []
+def _mock_segment_before_send(event: DictStrAny) -> DictStrAny:
+    SEGMENT_SENT_ITEMS.append(event)
+    return event
+
+
+SENTRY_SENT_ITEMS = []
+def _mock_sentry_before_send(event: DictStrAny, _unused_hint: Any = None) -> DictStrAny:
+    SENTRY_SENT_ITEMS.append(event)
+    return event
