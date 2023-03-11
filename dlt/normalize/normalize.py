@@ -16,7 +16,7 @@ from dlt.common.runtime import signals
 from dlt.common.schema.typing import TStoredSchema, TTableSchemaColumns
 from dlt.common.storages.exceptions import SchemaNotFoundError
 from dlt.common.storages import NormalizeStorage, SchemaStorage, LoadStorage
-from dlt.common.runtime.telemetry import get_logging_extras
+from dlt.common.runtime.prometheus import get_logging_extras
 from dlt.common.typing import TDataItem
 from dlt.common.schema import TSchemaUpdate, Schema
 from dlt.common.schema.exceptions import CannotCoerceColumnException

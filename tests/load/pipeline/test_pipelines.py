@@ -15,9 +15,9 @@ from dlt.common.utils import uniq_id
 from dlt.extract.exceptions import ResourceNameMissing
 from dlt.pipeline.exceptions import CannotRestorePipelineException, PipelineConfigMissing, PipelineStepFailed
 
-from tests.utils import ALL_DESTINATIONS, preserve_environ, autouse_test_storage, TEST_STORAGE_ROOT
+from tests.utils import ALL_DESTINATIONS, patch_home_dir, preserve_environ, autouse_test_storage, TEST_STORAGE_ROOT
 # from tests.common.configuration.utils import environment
-from tests.pipeline.utils import drop_dataset_from_env, patch_working_dir
+from tests.pipeline.utils import drop_dataset_from_env
 from tests.load.pipeline.utils import drop_pipeline, assert_data, assert_table, select_data
 
 

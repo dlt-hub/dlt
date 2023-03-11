@@ -20,7 +20,7 @@ from dlt.destinations import dummy
 from dlt.destinations.dummy import dummy as dummy_impl
 from dlt.destinations.dummy.configuration import DummyClientConfiguration
 
-from tests.utils import clean_test_storage, init_logger, TEST_DICT_CONFIG_PROVIDER
+from tests.utils import clean_test_storage, init_test_logging, TEST_DICT_CONFIG_PROVIDER
 
 
 NORMALIZED_FILES = [
@@ -36,7 +36,7 @@ def storage() -> FileStorage:
 
 @pytest.fixture(scope="module", autouse=True)
 def logger_autouse() -> None:
-    init_logger()
+    init_test_logging()
 
 
 def test_spool_job_started() -> None:

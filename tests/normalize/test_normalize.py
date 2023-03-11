@@ -23,7 +23,7 @@ from dlt.destinations.postgres import capabilities as pg_insert_caps
 from dlt.destinations.bigquery import capabilities as jsonl_caps
 
 from tests.cases import JSON_TYPED_DICT, JSON_TYPED_DICT_TYPES
-from tests.utils import TEST_STORAGE_ROOT, TEST_DICT_CONFIG_PROVIDER, assert_no_dict_key_starts_with, clean_test_storage, init_logger
+from tests.utils import TEST_STORAGE_ROOT, TEST_DICT_CONFIG_PROVIDER, assert_no_dict_key_starts_with, clean_test_storage, init_test_logging
 from tests.normalize.utils import json_case_path
 
 
@@ -72,7 +72,7 @@ def init_normalize(default_schemas_path: str = None) -> Iterator[Normalize]:
 
 @pytest.fixture(scope="module", autouse=True)
 def logger_autouse() -> None:
-    init_logger()
+    init_test_logging()
 
 
 def test_initialize(rasa_normalize: Normalize) -> None:

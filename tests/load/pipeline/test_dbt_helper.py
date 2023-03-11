@@ -10,9 +10,9 @@ from dlt.common.utils import uniq_id
 from dlt.helpers.dbt import create_venv
 from dlt.helpers.dbt.exceptions import DBTProcessingError, PrerequisitesException
 
-from tests.pipeline.utils import drop_dataset_from_env, patch_working_dir
+from tests.pipeline.utils import drop_dataset_from_env
 from tests.load.pipeline.utils import select_data, drop_pipeline
-from tests.utils import ALL_DESTINATIONS, autouse_test_storage, preserve_environ
+from tests.utils import ALL_DESTINATIONS, autouse_test_storage, preserve_environ, patch_home_dir
 
 
 @pytest.fixture(scope="module")

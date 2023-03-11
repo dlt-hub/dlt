@@ -48,7 +48,7 @@ lint:
 	./check-package.sh
 	poetry run mypy --config-file mypy.ini dlt docs/examples
 	poetry run flake8 --max-line-length=200 dlt docs/examples
-	poetry run flake8 --max-line-length=200 tests
+	poetry run flake8 --max-line-length=200 tests --exclude tests/reflection/module_cases
 	# $(MAKE) lint-security
 
 lint-security:

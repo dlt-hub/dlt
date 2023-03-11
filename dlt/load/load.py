@@ -12,7 +12,7 @@ from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TTableSchema
 from dlt.common.storages import LoadStorage
-from dlt.common.runtime.telemetry import get_logging_extras, set_gauge_all_labels
+from dlt.common.runtime.prometheus import get_logging_extras, set_gauge_all_labels
 from dlt.common.destination.reference import JobClientBase, DestinationReference, LoadJob, TLoadJobStatus, DestinationClientConfiguration
 
 from dlt.destinations.job_client_impl import LoadEmptyJob

@@ -7,8 +7,7 @@ from dlt.common.configuration.specs.exceptions import NativeValueError
 
 from dlt.destinations.duckdb.configuration import DuckDbCredentials, DuckDbClientConfiguration, DEFAULT_DUCK_DB_NAME
 
-from tests.utils import autouse_test_storage, preserve_environ, TEST_STORAGE_ROOT
-from tests.pipeline.utils import patch_working_dir
+from tests.utils import patch_home_dir, autouse_test_storage, preserve_environ, TEST_STORAGE_ROOT
 
 
 @pytest.fixture(autouse=True)

@@ -13,7 +13,7 @@ from dlt.common.runners import Venv
 from dlt.common.runners.stdout import iter_stdout_with_result
 from dlt.common.typing import DictStrStr, StrAny, TSecretValue
 from dlt.common.runtime.logger import is_json_logging
-from dlt.common.runtime.telemetry import get_logging_extras
+from dlt.common.runtime.prometheus import get_logging_extras
 from dlt.common.storages import FileStorage
 from dlt.common.git import git_custom_key_command, ensure_remote_head, force_clone_repo
 from dlt.common.utils import with_custom_environ
