@@ -43,10 +43,14 @@ def is_clean_and_synced(repo: Repo) -> bool:
 
 
 def is_dirty(repo: Repo) -> bool:
-    # get branch status
-    status: str = repo.git.status("--short", "--branch")
-    # we expect first status line ## main...origin/main
-    return len(status.splitlines()) > 1
+    status: str = repo.git.status("--short")
+    return len(status.strip()) > 0
+
+# def is_dirty(repo: Repo) -> bool:
+#     # get branch status
+#     status: str = repo.git.status("--short", "--branch")
+#     # we expect first status line ## main...origin/main
+#     return len(status.splitlines()) > 1
 
 
 def ensure_remote_head(repo_path: str, branch: Optional[str] = None, with_git_command: Optional[str] = None) -> None:
@@ -60,7 +64,7 @@ def ensure_remote_head(repo_path: str, branch: Optional[str] = None, with_git_co
             if branch:
                 repo.git.checkout(branch)
             # update origin
-            repo.remote().update()
+            repo.remote().pull()
             if not is_clean_and_synced(repo):
                 status: str = repo.git.status("--short", "--branch")
                 raise RepositoryDirtyError(repo, status)
@@ -122,8 +126,3 @@ def get_repo(path: str) -> Repo:
 
 def get_origin(repo: Repo) -> str:
     return repo.remote().url
-
-
-def is_repo_dirty(repo: Repo) -> bool:
-    status: str = repo.git.status("--short")
-    return len(status.strip()) > 0
