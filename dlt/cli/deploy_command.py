@@ -2,7 +2,6 @@ from itertools import chain
 import os
 import re
 from typing import List
-import click
 from astunparse import unparse
 import yaml
 from yaml import Dumper
@@ -14,8 +13,9 @@ import dlt
 
 from dlt.common.configuration.exceptions import LookupTrace
 from dlt.common.configuration.providers import ConfigTomlProvider, EnvironProvider, SECRETS_TOML
-from dlt.common.configuration.utils import make_dot_dlt_path, serialize_value
-from dlt.common.git import get_origin, get_repo, is_repo_dirty
+from dlt.common.configuration.paths import make_dlt_project_path
+from dlt.common.configuration.utils import serialize_value
+from dlt.common.git import get_origin, get_repo, is_dirty
 from dlt.common.configuration.specs.run_configuration import get_default_pipeline_name
 from dlt.common.reflection.utils import evaluate_node_literal
 from dlt.common.pipeline import LoadInfo
@@ -68,7 +68,7 @@ def deploy_command(pipeline_script_path: str, deployment_method: str, schedule: 
                     if f_r_value is None:
                         fmt.warning(f"The value of `full_refresh` in call to `dlt.pipeline` cannot be determined from {unparse(f_r_node).strip()}. We assume that you know what you are doing :)")
                     if f_r_value is True:
-                        if click.confirm("The value of 'full_refresh' is set to True. Do you want to abort to set it to False?", default=True):
+                        if fmt.confirm("The value of 'full_refresh' is set to True. Do you want to abort to set it to False?", default=True):
                             return
                 p_d_node = call_args.arguments.get("pipelines_dir")
                 if p_d_node:
@@ -116,12 +116,12 @@ def deploy_command(pipeline_script_path: str, deployment_method: str, schedule: 
                 if resolved_value.is_secret_hint:
                     # generate special forms for all secrets
                     secret_envs.append(LookupTrace(env_prov.name, tuple(resolved_value.sections), resolved_value.key, resolved_value.value))
-                    # click.echo(f"{resolved_value.key}:{resolved_value.value}{type(resolved_value.value)} in {resolved_value.sections} is SECRET")
+                    # fmt.echo(f"{resolved_value.key}:{resolved_value.value}{type(resolved_value.value)} in {resolved_value.sections} is SECRET")
                 else:
                     # move all config values that are not in config.toml into env
                     if resolved_value.provider_name != config_prov.name:
                         envs.append(LookupTrace(env_prov.name, tuple(resolved_value.sections), resolved_value.key, resolved_value.value))
-                        # click.echo(f"{resolved_value.key} in {resolved_value.sections} moved to CONFIG")
+                        # fmt.echo(f"{resolved_value.key} in {resolved_value.sections} moved to CONFIG")
 
         # validate schedule
         schedule_description = cron_descriptor.get_description(schedule)
@@ -168,48 +168,48 @@ def deploy_command(pipeline_script_path: str, deployment_method: str, schedule: 
         requirements_txt_name = REQUIREMENTS_GITHUB_ACTION
 
         # if repo_storage.has_file(utils.REQUIREMENTS_TXT):
-        click.echo("Your %s deployment for pipeline %s in script %s is ready!" % (
+        fmt.echo("Your %s deployment for pipeline %s in script %s is ready!" % (
             fmt.bold(deployment_method), fmt.bold(state["pipeline_name"]), fmt.bold(pipeline_script_path)
         ))
         #  It contains all relevant configurations and references to credentials that are needed to run the pipeline
-        click.echo("* A github workflow file %s was created in %s." % (
+        fmt.echo("* A github workflow file %s was created in %s." % (
             fmt.bold(serialized_workflow_name), fmt.bold(utils.GITHUB_WORKFLOWS_DIR)
         ))
-        click.echo("* The schedule with which the pipeline is run is: %s.%s%s" % (
+        fmt.echo("* The schedule with which the pipeline is run is: %s.%s%s" % (
             fmt.bold(schedule_description),
             " You can also run the pipeline manually." if run_on_dispatch else "",
             " Pipeline will also run on each push to the repository." if run_on_push else "",
         ))
-        click.echo("* The dependencies that will be used to run the pipeline are stored in %s. If you change add more dependencies, remember to refresh your deployment by running the same 'deploy' command again." % fmt.bold(requirements_txt_name))
-        click.echo()
-        click.echo("You should now add the secrets to github repository secrets, commit and push the pipeline files to github.")
-        click.echo("1. Add the following secret values (typically stored in %s): \n%s\nin %s" % (
-            fmt.bold(make_dot_dlt_path(SECRETS_TOML)),
+        fmt.echo("* The dependencies that will be used to run the pipeline are stored in %s. If you change add more dependencies, remember to refresh your deployment by running the same 'deploy' command again." % fmt.bold(requirements_txt_name))
+        fmt.echo()
+        fmt.echo("You should now add the secrets to github repository secrets, commit and push the pipeline files to github.")
+        fmt.echo("1. Add the following secret values (typically stored in %s): \n%s\nin %s" % (
+            fmt.bold(make_dlt_project_path(SECRETS_TOML)),
             fmt.bold("\n".join(env_prov.get_key_name(s_v.key, *s_v.sections) for s_v in secret_envs)),
             fmt.bold(github_origin_to_url(origin, "/settings/secrets/actions"))
         ))
-        click.echo()
-        # if click.confirm("Do you want to list the values of the secrets in the format suitable for github?", default=True):
+        fmt.echo()
+        # if fmt.confirm("Do you want to list the values of the secrets in the format suitable for github?", default=True):
         for s_v in secret_envs:
-            click.secho("Name:", fg="green")
-            click.echo(fmt.bold(env_prov.get_key_name(s_v.key, *s_v.sections)))
-            click.secho("Secret:", fg="green")
-            click.echo(s_v.value)
-            click.echo()
+            fmt.secho("Name:", fg="green")
+            fmt.echo(fmt.bold(env_prov.get_key_name(s_v.key, *s_v.sections)))
+            fmt.secho("Secret:", fg="green")
+            fmt.echo(s_v.value)
+            fmt.echo()
 
-        click.echo("2. Add stage deployment files to commit. Use your Git UI or the following command")
-        click.echo(fmt.bold(f"git add {repo_storage.from_relative_path_to_wd(requirements_txt_name)} {repo_storage.from_relative_path_to_wd(os.path.join(utils.GITHUB_WORKFLOWS_DIR, serialized_workflow_name))}"))
-        click.echo()
-        click.echo("3. Commit the files above. Use your Git UI or the following command")
-        click.echo(fmt.bold(f"git commit -m 'run {state['pipeline_name']} pipeline with github action'"))
-        if is_repo_dirty(repo):
+        fmt.echo("2. Add stage deployment files to commit. Use your Git UI or the following command")
+        fmt.echo(fmt.bold(f"git add {repo_storage.from_relative_path_to_wd(requirements_txt_name)} {repo_storage.from_relative_path_to_wd(os.path.join(utils.GITHUB_WORKFLOWS_DIR, serialized_workflow_name))}"))
+        fmt.echo()
+        fmt.echo("3. Commit the files above. Use your Git UI or the following command")
+        fmt.echo(fmt.bold(f"git commit -m 'run {state['pipeline_name']} pipeline with github action'"))
+        if is_dirty(repo):
             fmt.warning("You have modified files in your repository. Do not forget to push changes to your pipeline script as well!")
-        click.echo()
-        click.echo("4. Push changes to github. Use your Git UI or the following command")
-        click.echo(fmt.bold("git push origin"))
-        click.echo()
-        click.echo("5. Your pipeline should be running! You can monitor it here:")
-        click.echo(fmt.bold(github_origin_to_url(origin, f"/actions/workflows/{serialized_workflow_name}")))
+        fmt.echo()
+        fmt.echo("4. Push changes to github. Use your Git UI or the following command")
+        fmt.echo(fmt.bold("git push origin"))
+        fmt.echo()
+        fmt.echo("5. Your pipeline should be running! You can monitor it here:")
+        fmt.echo(fmt.bold(github_origin_to_url(origin, f"/actions/workflows/{serialized_workflow_name}")))
 
         if not repo_storage.has_folder(utils.GITHUB_WORKFLOWS_DIR):
             repo_storage.create_folder(utils.GITHUB_WORKFLOWS_DIR)
@@ -285,7 +285,7 @@ def generate_pip_freeze(requirements_blacklist: List[str]) -> str:
         fmt.warning(f"Unable to create dependencies for the github action. Please edit {REQUIREMENTS_GITHUB_ACTION} yourself")
         pipdeptree.render_conflicts_text(conflicts)
         pipdeptree.render_cycles_text(cycles)
-        click.echo()
+        fmt.echo()
         # do not create package because it will most probably fail
         return "# please provide valid dependencies including python-dlt"
 

@@ -2,7 +2,6 @@ import io
 from copy import deepcopy
 import hashlib
 import os
-import sys
 import shutil
 import contextlib
 from subprocess import CalledProcessError
@@ -13,9 +12,9 @@ import pytest
 import dlt
 
 from dlt.common import git
-from dlt.common.configuration import make_dot_dlt_path
+from dlt.common.configuration.paths import make_dlt_project_path
 from dlt.common.configuration.providers import CONFIG_TOML, SECRETS_TOML, SecretsTomlProvider
-from dlt.common.pipeline import get_default_repos_dir
+from dlt.common.pipeline import get_dlt_repos_dir
 from dlt.common.runners import Venv
 from dlt.common.storages.file_storage import FileStorage
 
@@ -28,9 +27,10 @@ from dlt.cli.exceptions import CliCommandException
 from dlt.extract.decorators import _SOURCES
 from dlt.reflection.script_visitor import PipelineScriptVisitor
 from dlt.reflection import names as n
-from tests.common.utils import modify_and_commit_file
 
-from tests.utils import ALL_DESTINATIONS, preserve_environ, autouse_test_storage, TEST_STORAGE_ROOT, clean_test_storage
+from tests.common.utils import modify_and_commit_file
+from tests.pipeline.utils import drop_pipeline
+from tests.utils import ALL_DESTINATIONS, preserve_environ, autouse_test_storage, TEST_STORAGE_ROOT, clean_test_storage, unload_modules
 
 
 INIT_REPO_LOCATION = DEFAULT_PIPELINES_REPO
@@ -46,19 +46,9 @@ def echo_default_choice() -> None:
     echo.ALWAYS_CHOOSE_DEFAULT = False
 
 
-@pytest.fixture(autouse=True)
-def unload_modules() -> None:
-    """Unload all modules inspected in this tests"""
-    prev_modules = dict(sys.modules)
-    yield
-    mod_diff = set(sys.modules.keys()) - set(prev_modules.keys())
-    for mod in mod_diff:
-        del sys.modules[mod]
-
-
 @pytest.fixture(scope="module")
 def cloned_pipeline() -> FileStorage:
-    return git.get_fresh_repo_files(INIT_REPO_LOCATION, get_default_repos_dir(), branch=INIT_REPO_BRANCH)
+    return git.get_fresh_repo_files(INIT_REPO_LOCATION, get_dlt_repos_dir(), branch=INIT_REPO_BRANCH)
 
 
 @pytest.fixture
@@ -479,8 +469,8 @@ def assert_pipeline_files(project_files: FileStorage, pipeline_name: str, destin
 def assert_common_files(project_files: FileStorage, pipeline_script: str, destination_name: str) -> Tuple[PipelineScriptVisitor, SecretsTomlProvider]:
     # cwd must be project files - otherwise assert won't work
     assert os.getcwd() == project_files.storage_path
-    assert project_files.has_file(make_dot_dlt_path(SECRETS_TOML))
-    assert project_files.has_file(make_dot_dlt_path(CONFIG_TOML))
+    assert project_files.has_file(make_dlt_project_path(SECRETS_TOML))
+    assert project_files.has_file(make_dlt_project_path(CONFIG_TOML))
     assert project_files.has_file(".gitignore")
     assert project_files.has_file(pipeline_script)
     # inspect script

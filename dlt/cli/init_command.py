@@ -6,11 +6,11 @@ from typing import Dict, List, Sequence, Tuple
 from importlib.metadata import version as pkg_version
 
 from dlt.common import git
-from dlt.common.configuration import DOT_DLT, make_dot_dlt_path
+from dlt.common.configuration.paths import get_dlt_project_dir, make_dlt_project_path
 from dlt.common.configuration.specs import known_sections
 from dlt.common.configuration.providers import CONFIG_TOML, SECRETS_TOML, ConfigTomlProvider, SecretsTomlProvider
 from dlt.common.normalizers import default_normalizers, import_normalizers
-from dlt.common.pipeline import get_default_repos_dir
+from dlt.common.pipeline import get_dlt_repos_dir
 from dlt.version import DLT_PKG_NAME, __version__
 from dlt.common.destination.reference import DestinationReference
 from dlt.common.reflection.utils import rewrite_python_script
@@ -96,7 +96,7 @@ def _get_dependency_system(dest_storage: FileStorage) -> str:
 
 
 def _list_pipelines(repo_location: str, branch: str = None) -> Dict[str, PipelineFiles]:
-    clone_storage = git.get_fresh_repo_files(repo_location, get_default_repos_dir(), branch=branch)
+    clone_storage = git.get_fresh_repo_files(repo_location, get_dlt_repos_dir(), branch=branch)
     pipelines_storage = FileStorage(clone_storage.make_full_path(PIPELINES_MODULE_NAME))
 
     pipelines: Dict[str, PipelineFiles] = {}
@@ -122,7 +122,7 @@ def _welcome_message(pipeline_name: str, destination_name: str, pipeline_files: 
             fmt.echo("Pipeline %s was updated to the newest version!" % fmt.bold(pipeline_name))
 
     if is_new_pipeline:
-        fmt.echo("* Add credentials for %s and other secrets in %s" % (fmt.bold(destination_name), fmt.bold(make_dot_dlt_path(SECRETS_TOML))))
+        fmt.echo("* Add credentials for %s and other secrets in %s" % (fmt.bold(destination_name), fmt.bold(make_dlt_project_path(SECRETS_TOML))))
 
     if dependency_system:
         fmt.echo("* Add the required dependencies to %s:" % fmt.bold(dependency_system))
@@ -156,7 +156,7 @@ def init_command(pipeline_name: str, destination_name: str, use_generic_template
     destination_spec = destination_reference.spec()
 
     fmt.echo("Looking up the init scripts in %s..." % fmt.bold(repo_location))
-    clone_storage = git.get_fresh_repo_files(repo_location, get_default_repos_dir(), branch=branch)
+    clone_storage = git.get_fresh_repo_files(repo_location, get_dlt_repos_dir(), branch=branch)
     # copy init files from here
     init_storage = FileStorage(clone_storage.make_full_path(INIT_MODULE_NAME))
     # copy pipeline files from here
@@ -166,8 +166,8 @@ def init_command(pipeline_name: str, destination_name: str, use_generic_template
     pipeline_script, template_files = _get_template_files(init_module, use_generic_template)
     # prepare destination storage
     dest_storage = FileStorage(os.path.abspath("."))
-    if not dest_storage.has_folder(DOT_DLT):
-        dest_storage.create_folder(DOT_DLT)
+    if not dest_storage.has_folder(get_dlt_project_dir()):
+        dest_storage.create_folder(get_dlt_project_dir())
     # get local index of pipeline files
     local_index = files_ops.load_pipeline_local_index(pipeline_name)
     # folder deleted at dest - full refresh
@@ -221,7 +221,7 @@ def init_command(pipeline_name: str, destination_name: str, use_generic_template
             return
 
     # add .dlt/*.toml files to be copied
-    pipeline_files.files.extend([make_dot_dlt_path(CONFIG_TOML), make_dot_dlt_path(SECRETS_TOML)])
+    pipeline_files.files.extend([make_dlt_project_path(CONFIG_TOML), make_dlt_project_path(SECRETS_TOML)])
 
     # add dlt extras line to requirements
     req_dep = f"{DLT_PKG_NAME}[{destination_name}]"
@@ -335,8 +335,8 @@ def init_command(pipeline_name: str, destination_name: str, use_generic_template
     config_prov = ConfigTomlProvider()
     write_values(config_prov._toml, required_config.values(), overwrite_existing=False)
     # write toml files
-    secrets_prov._write_toml()
-    config_prov._write_toml()
+    secrets_prov.write_toml()
+    config_prov.write_toml()
 
     # if there's no dependency system write the requirements file
     if dependency_system is None:

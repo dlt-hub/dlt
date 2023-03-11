@@ -8,7 +8,7 @@ from typing import Dict, NamedTuple, Sequence, Tuple, TypedDict, List
 from dlt.cli.exceptions import PipelineRepoError
 
 from dlt.common import git
-from dlt.common.configuration import make_dot_dlt_path
+from dlt.common.configuration.paths import make_dlt_project_path
 from dlt.common.storages import FileStorage
 
 from dlt.common.reflection.utils import get_module_docstring
@@ -51,13 +51,13 @@ class TPipelinesFileIndex(TypedDict):
 
 
 def _save_dot_pipelines(index: TPipelinesFileIndex) -> None:
-    with open(make_dot_dlt_path(PIPELINES_INIT_INFO_FILE), "w", encoding="utf-8") as f:
+    with open(make_dlt_project_path(PIPELINES_INIT_INFO_FILE), "w", encoding="utf-8") as f:
         yaml.dump(index, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
 
 
 def _load_dot_pipelines() -> TPipelinesFileIndex:
     try:
-        with open(make_dot_dlt_path(PIPELINES_INIT_INFO_FILE), "r", encoding="utf-8") as f:
+        with open(make_dlt_project_path(PIPELINES_INIT_INFO_FILE), "r", encoding="utf-8") as f:
             index: TPipelinesFileIndex = yaml.safe_load(f)
             if not index:
                 raise FileNotFoundError(PIPELINES_INIT_INFO_FILE)
