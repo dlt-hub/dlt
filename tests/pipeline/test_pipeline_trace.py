@@ -11,6 +11,7 @@ import dlt
 from dlt.common.configuration.specs import CredentialsConfiguration
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
 from dlt.common.pipeline import ExtractInfo
+from dlt.common.runtime.telemetry import stop_telemetry
 from dlt.common.typing import DictStrAny, StrStr, TSecretValue
 from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.pipeline.pipeline import Pipeline
@@ -236,9 +237,11 @@ def test_trace_telemetry() -> None:
 
 
 def test_slack_hook(environment: StrStr) -> None:
+    stop_telemetry()
     hook_url = "https://hooks.slack.com/services/T04DHMAF13Q/B04E7B1MQ1H/TDHEI123WUEE"
     environment["COMPLETED_PROB"] = "1.0"
     environment["GITHUB_USER"] = "rudolfix"
+    environment["RUNTIME__DLTHUB_TELEMETRY"] = "False"
     environment["RUNTIME__SLACK_INCOMING_HOOK"] = hook_url
     with requests_mock.mock() as m:
         m.post(hook_url, json={})

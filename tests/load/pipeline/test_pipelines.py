@@ -28,7 +28,7 @@ def test_default_pipeline_names(destination_name: str, use_single_dataset: bool)
     # this is a name of executing test harness or blank pipeline on windows
     possible_names = ["dlt_pytest", "dlt_pipeline"]
     assert p.pipeline_name in possible_names
-    assert p.pipelines_dir == os.path.join(TEST_STORAGE_ROOT, ".dlt", "pipelines")
+    assert p.pipelines_dir == os.path.abspath(os.path.join(TEST_STORAGE_ROOT, ".dlt", "pipelines"))
     assert p.dataset_name in possible_names
     assert p.destination is None
     assert p.default_schema_name is None

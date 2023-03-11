@@ -29,7 +29,7 @@ def test_default_pipeline() -> None:
     # this is a name of executing test harness or blank pipeline on windows
     possible_names = ["dlt_pytest", "dlt_pipeline"]
     assert p.pipeline_name in possible_names
-    assert p.pipelines_dir == os.path.join(TEST_STORAGE_ROOT, ".dlt", "pipelines")
+    assert p.pipelines_dir == os.path.abspath(os.path.join(TEST_STORAGE_ROOT, ".dlt", "pipelines"))
     assert p.runtime_config.pipeline_name == p.pipeline_name
     # dataset that will be used to load data is the pipeline name
     assert p.dataset_name in possible_names
