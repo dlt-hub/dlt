@@ -1,7 +1,8 @@
 import threading
 
 from dlt.common import logger
-from dlt.common.runtime.logger import init_logging_from_config, init_telemetry
+from dlt.common.runtime.logger import init_logging
+from dlt.common.runtime.telemetry import start_telemetry
 from dlt.common.runtime.signals import register_signals
 from dlt.common.configuration.specs import RunConfiguration
 
@@ -14,11 +15,11 @@ def initialize_runner(config: RunConfiguration) -> None:
     global _INITIALIZED, _RUN_CONFIGURATION
 
     # initialize or re-initialize logging with new settings
-    init_logging_from_config(config)
+    init_logging(config)
 
     # initialize only once
     if not _INITIALIZED:
-        init_telemetry(config)
+        start_telemetry(config)
 
         if threading.current_thread() is threading.main_thread():
             register_signals()

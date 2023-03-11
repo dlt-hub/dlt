@@ -13,7 +13,7 @@ from dlt.common.runners.init import initialize_runner
 from dlt.common.runners.configuration import PoolRunnerConfiguration, TPoolType
 
 from tests.common.runners.utils import _TestRunnableWorkerMethod, _TestRunnableWorker, ALL_METHODS, mp_method_auto
-from tests.utils import init_logger
+from tests.utils import init_test_logging
 
 
 @configspec
@@ -55,7 +55,7 @@ def configure(C: Type[PoolRunnerConfiguration], args: TRunnerArgs) -> PoolRunner
 
 @pytest.fixture(scope="module", autouse=True)
 def logger_autouse() -> None:
-    init_logger()
+    init_test_logging()
 
 
 @pytest.fixture(autouse=True)
