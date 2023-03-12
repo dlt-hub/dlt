@@ -150,11 +150,25 @@ class TelemetryAction(argparse.Action):
         telemetry_change_status_command_wrapper(option_string == "--enable-telemetry")
 
 
+class NonInteractiveAction(argparse.Action):
+    def __init__(self, option_strings: Sequence[str], dest: Any = argparse.SUPPRESS, default: Any = argparse.SUPPRESS, help: str = None) -> None:  # noqa
+        super(NonInteractiveAction, self).__init__(
+            option_strings=option_strings,
+            dest=dest,
+            default=default,
+            nargs=0,
+            help=help
+        )
+    def __call__(self, parser: argparse.ArgumentParser, namespace: argparse.Namespace, values: Any, option_string: str = None) -> None:
+        fmt.ALWAYS_CHOOSE_DEFAULT = True
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Runs various DLT modules", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--version', action="version", version='%(prog)s {version}'.format(version=__version__))
     parser.add_argument('--disable-telemetry', action=TelemetryAction, help="Disables telemetry before command is executed")
     parser.add_argument('--enable-telemetry', action=TelemetryAction, help="Enables telemetry before command is executed")
+    parser.add_argument('--non-interactive', action=NonInteractiveAction, help="Non interactive mode. Default choices are automatically made for confirmations and prompts.")
     subparsers = parser.add_subparsers(dest="command")
 
     init_cmd = subparsers.add_parser("init", help="Adds or creates a pipeline in the current folder.")
