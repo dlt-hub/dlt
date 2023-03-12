@@ -4,6 +4,7 @@ import shutil
 from types import ModuleType
 from typing import Dict, List, Sequence, Tuple
 from importlib.metadata import version as pkg_version
+from dlt.cli.telemetry_command import telemetry_status_command
 
 from dlt.common import git
 from dlt.common.configuration.paths import get_dlt_project_dir, make_dlt_project_path
@@ -279,6 +280,8 @@ def init_command(pipeline_name: str, destination_name: str, use_generic_template
     # add destination spec to required secrets
     credentials_type = destination_spec().get_resolvable_fields()["credentials"]
     required_secrets["destinations:" + destination_name] = WritableConfigValue("credentials", credentials_type, None, ("destination", destination_name))
+    # add the global telemetry to required config
+    required_config["runtime.dlthub_telemetry"] = WritableConfigValue("dlthub_telemetry", bool, utils.get_telemetry_status(), ("runtime", ))
 
     # modify the script
     script_lines = rewrite_python_script(visitor.source_lines, transformed_nodes)
@@ -337,6 +340,8 @@ def init_command(pipeline_name: str, destination_name: str, use_generic_template
     # write toml files
     secrets_prov.write_toml()
     config_prov.write_toml()
+
+    # telemetry_status_command()
 
     # if there's no dependency system write the requirements file
     if dependency_system is None:

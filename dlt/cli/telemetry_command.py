@@ -6,6 +6,7 @@ from dlt.common.configuration.providers.toml import ConfigTomlProvider
 from dlt.common.configuration.specs import RunConfiguration
 
 from dlt.cli import echo as fmt
+from dlt.cli.utils import get_telemetry_status
 from dlt.cli.config_toml_writer import WritableConfigValue, write_values
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
 
@@ -13,9 +14,7 @@ DLT_TELEMETRY_DOCS_URL = "https://dlthub.com/docs/telemetry"
 
 
 def telemetry_status_command() -> None:
-    # resolve run configuration
-    c = resolve_configuration(RunConfiguration())
-    if c.dlthub_telemetry:
+    if get_telemetry_status():
         fmt.echo("Telemetry is %s" % fmt.bold("ENABLED"))
     else:
         fmt.echo("Telemetry is %s" % fmt.bold("DISABLED"))

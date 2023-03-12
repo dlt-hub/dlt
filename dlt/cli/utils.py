@@ -92,3 +92,8 @@ def track_command(command: str, track_before: bool, *args: str) -> Callable[[TFu
 
         return _wrap  # type: ignore
     return decorator
+
+
+def get_telemetry_status() -> bool:
+    c = resolve_configuration(RunConfiguration())
+    return c.dlthub_telemetry

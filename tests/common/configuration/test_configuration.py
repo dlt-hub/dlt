@@ -373,7 +373,7 @@ def test_configuration_is_mutable_mapping(environment: Any) -> None:
         'slack_incoming_hook': None,
         'prometheus_port': None,
         'dlthub_telemetry': True,
-        'dlthub_telemetry_segment_write_key': 'a1F2gc6cNYw2plyAt02sZouZcsRjG7TD',
+        'dlthub_telemetry_segment_write_key': 'TLJiyRkGVZGCi2TtjClamXpFcxAA1rSB',
         'log_format': '{asctime}|[{levelname:<21}]|{process}|{name}|{filename}|{funcName}:{lineno}|{message}',
         'log_level': 'WARNING',
         'request_timeout': (15, 300),
