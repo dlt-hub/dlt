@@ -41,6 +41,14 @@ def persons():
 	last_val = data["last_updated_at"]
 ```
 
+### Using the dlt state
+
+Step by step explanation of how to get or set the state:
+1. We can use the function `var = dlt.state().setdefault("key", [])`. This allows us to retrieve the values of `key`. If `key` was not set yet, we will get the default value `[]` instead
+2. We now can treat `var` as a python list - We can append new values to it, or if applicable we can read the values from previous loads.
+3. On pipeline run, the data will load, and the new `var`'s value will get saved in the state. The state is stored at the destination, so it will be available on subsequent runs.
+
+
 ### Examining an incremental pipeline
 
 Let’s look at the `player_games` resource from the chess pipeline:
@@ -62,21 +70,12 @@ In the following example, we initialize a variable with an empty list as a defau
 @dlt.resource(write_disposition="append")
 def players_games(chess_url, players, start_month=None, end_month=None):
 
-		# dlt state is like a dictionary that is preserved in the destination
-		# here we init a variable with an empty list as a default
-
-		# we will add the archives urls to this list as we load the data,
-		# so we know which archives were already loaded
-
-		# the cache gets commited together with the data transactionaly
-		# so it will not be out of sync with actual data.
-
     loaded_archives_cache = dlt.state().setdefault("archives", [])
 
 		# as far as python is concerned, this variable behaves like
-    # state = {'archives': query_destination_for_loaded_archives() or [] }
-    # loaded_archives_cache = state['archives']
-    # and when the data is loaded, so is the cache, for the next run
+    # loaded_archives_cache = state['archives'] or []
+    # afterwards we can modify list, and finally
+    # when the data is loaded, the cache is updated with our loaded_archives_cache
 
 		# get archives
 		# if not in cache, yield the data and cache the URL
