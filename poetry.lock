@@ -2969,18 +2969,6 @@ files = [
 types-setuptools = ">=57.0.0"
 
 [[package]]
-name = "reretry"
-version = "0.11.8"
-description = "An easy to use, but functional decorator for retrying on exceptions."
-category = "main"
-optional = false
-python-versions = ">=3.7"
-files = [
-    {file = "reretry-0.11.8-py2.py3-none-any.whl", hash = "sha256:5ec1084cd9644271ee386d34cd5dd24bdb3e91d55961b076d1a31d585ad68a79"},
-    {file = "reretry-0.11.8.tar.gz", hash = "sha256:f2791fcebe512ea2f1d153a2874778523a8064860b591cd90afc21a8bed432e3"},
-]
-
-[[package]]
 name = "rsa"
 version = "4.9"
 description = "Pure-Python RSA implementation"
@@ -3653,4 +3641,4 @@ redshift = ["psycopg2-binary", "psycopg2cffi"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8,<4.0"
-content-hash = "d4991a7957d92466fa8726a4b6a1a3ec8f7411da368dd9209ae120723ee6984e"
+content-hash = "9ded2b8bc826a9693bc2227812f043fa8649d7110504365a0a4a8bad8595901e"
