@@ -15,7 +15,6 @@ from dlt.common.runtime import logger
 from dlt.common.configuration.specs import RunConfiguration
 from dlt.common.runtime.exec_info import exec_info_names, in_continuous_integration
 from dlt.common.typing import DictStrAny, StrAny
-from dlt.common.utils import uniq_id
 from dlt.version import __version__, DLT_PKG_NAME
 
 TEventCategory = Literal["pipeline", "command"]
@@ -125,7 +124,7 @@ def _segment_request_payload(
         Valid segment payload.
     """
     return {
-        "anonymousId": uniq_id(),  # we do not track users
+        "anonymousId": "8c45f93d27f72347a3604521e2d4c33b",
         "event": event_name,
         "properties": properties,
         "context": context,

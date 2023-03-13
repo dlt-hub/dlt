@@ -33,7 +33,7 @@ Anonymous telemetry is sent when:
 Example `dlt init` telemetry message
 ```json
 {
-  "anonymousId": "933dd165453d196a58adaf49444e9b4c",
+  "anonymousId": "8c45f93d27f72347a3604521e2d4c33b",
   "context": {
     "ci_run": false,
     "cpu": 8,
@@ -63,7 +63,7 @@ Example `dlt init` telemetry message
 Example for `load` pipeline run step.
 ```json
 {
-  "anonymousId": "570816b273a41d16caacc26a797204d9",
+  "anonymousId": "8c45f93d27f72347a3604521e2d4c33b",
   "context": {
     "ci_run": false,
     "cpu": 3,
@@ -91,7 +91,7 @@ Example for `load` pipeline run step.
 ```
 ### The message `context`
 The message context contains following information
-* the `anonymousId` is a random number different for each message. It is required by Segment.
+* the `anonymousId` is same for every message. We do not track users but it is required by Segment.
 * `ci_run` a flag indicating if the message was sent from a CI environment ie. from Github Actions or Travis
 * `cpu` contains number of cores
 * `exec_info` contains a list of strings that identify execution environment: ie. `kubernetes`, `docker`, `airflow` etc.
