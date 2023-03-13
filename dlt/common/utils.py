@@ -12,6 +12,8 @@ from typing import Any, Dict, Iterator, Optional, Sequence, TypeVar, Mapping, Li
 from collections.abc import Mapping as C_Mapping
 
 from dlt.common.typing import AnyFun, StrAny, DictStrAny, StrStr, TAny, TDataItem, TDataItems, TFun, TimedeltaSeconds
+from dlt.common.pendulum import timedelta
+
 
 T = TypeVar("T")
 TDict = TypeVar("TDict", bound=DictStrAny)
