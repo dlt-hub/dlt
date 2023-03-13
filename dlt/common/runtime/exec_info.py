@@ -6,7 +6,7 @@ from dlt.common.utils import filter_env_vars
 from dlt.version import __version__
 
 
-TExecInfoNames = Literal["kubernetes", "docker", "codespaces", "github_actions", "airflow"]
+TExecInfoNames = Literal["kubernetes", "docker", "codespaces", "github_actions", "airflow", "notebook", "colab"]
 # if one of these environment variables is set, we assume to be running in CI env
 CI_ENVIRONMENT_TELL = [
     "bamboo.buildKey",
@@ -34,15 +34,39 @@ def exec_info_names() -> List[TExecInfoNames]:
         names.append("kubernetes")
     if is_docker():
         names.append("docker")
-    github = github_info()
-    if github:
-        if "github_user" in github:
-            names.append("codespaces")
-        if "github_actions" in github:
-            names.append("github_actions")
+    if is_codespaces():
+        names.append("codespaces")
+    if is_github_actions():
+        names.append("github_actions")
+    if is_notebook():
+        names.append("notebook")
+    if is_colab():
+        names.append("colab")
     if airflow_info():
         names.append("airflow")
     return names
+
+
+def is_codespaces() -> bool:
+    return "CODESPACES" in os.environ
+
+
+def is_github_actions() -> bool:
+    return "GITHUB_ACTIONS" in os.environ
+
+
+def is_notebook() -> bool:
+    try:
+        return bool(str(get_ipython()))  # type: ignore
+    except NameError:
+        return False
+
+
+def is_colab() -> bool:
+    try:
+        return "COLAB_RELEASE_TAG" in os.environ or "google.colab" in str(get_ipython())  # type: ignore
+    except NameError:
+        return False
 
 
 def airflow_info() -> StrAny:
@@ -70,7 +94,7 @@ def kube_pod_info() -> StrStr:
 
 def github_info() -> StrStr:
     """Extracts github info"""
-    info = filter_env_vars(["GITHUB_USER", "GITHUB_REPOSITORY", "GITHUB_REPOSITORY_OWNER", "GITHUB_ACTIONS"])
+    info = filter_env_vars(["GITHUB_USER", "GITHUB_REPOSITORY", "GITHUB_REPOSITORY_OWNER"])
     # set GITHUB_REPOSITORY_OWNER as github user if not present. GITHUB_REPOSITORY_OWNER is available in github action context
     if "github_user" not in info and "github_repository_owner" in info:
         info["github_user"] = info["github_repository_owner"]  # type: ignore
