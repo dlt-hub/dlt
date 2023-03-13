@@ -10,7 +10,7 @@ from dlt.cli.utils import get_telemetry_status
 from dlt.cli.config_toml_writer import WritableConfigValue, write_values
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
 
-DLT_TELEMETRY_DOCS_URL = "https://dlthub.com/docs/telemetry"
+DLT_TELEMETRY_DOCS_URL = "https://dlthub.com/docs/reference/telemetry"
 
 
 def telemetry_status_command() -> None:

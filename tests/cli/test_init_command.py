@@ -199,7 +199,7 @@ def test_init_code_update_index_diff(repo_dir: str, project_files: FileStorage) 
     # modify existing file, no commit
     mod_file_path = os.path.join("pipedrive", "__init__.py")
     new_file_path = os.path.join("pipedrive", "new_pipedrive_X.py")
-    del_file_path = os.path.join("pipedrive", "ReadMe.md")
+    del_file_path = os.path.join("pipedrive", "README.md")
     # remote_path = os.path.join(PIPELINES_MODULE_NAME, local_path)
     pipelines_storage.save(mod_file_path, new_content)
     pipelines_storage.save(new_file_path, new_content)
