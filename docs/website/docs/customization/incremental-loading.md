@@ -74,7 +74,7 @@ def players_games(chess_url, players, start_month=None, end_month=None):
 
 		# as far as python is concerned, this variable behaves like
     # loaded_archives_cache = state['archives'] or []
-    # and when we can add to this list, and finally
+    # afterwards we can modify list, and finally
     # when the data is loaded, the cache is updated with our loaded_archives_cache
 
 		# get archives
