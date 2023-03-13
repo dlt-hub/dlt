@@ -7,11 +7,12 @@ import secrets
 from contextlib import contextmanager
 from functools import wraps
 from os import environ
-from datetime import timedelta
 
 from typing import Any, Dict, Iterator, Optional, Sequence, TypeVar, Mapping, List, Union, overload
 
 from dlt.common.typing import AnyFun, StrAny, DictStrAny, StrStr, TAny, TDataItem, TDataItems, TFun, TimedeltaSeconds
+from dlt.common.pendulum import timedelta
+
 
 T = TypeVar("T")
 
