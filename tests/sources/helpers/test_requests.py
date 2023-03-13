@@ -66,7 +66,7 @@ def test_retry_on_status_all_fails(mock_sleep: mock.MagicMock) -> None:
 def test_retry_on_status_success_after_2(mock_sleep: mock.MagicMock) -> None:
     """Test successful request after 2 retries
     """
-    session = requests_with_retry()    
+    session = requests_with_retry()
     url = 'https://example.com/data'
 
     responses = [
