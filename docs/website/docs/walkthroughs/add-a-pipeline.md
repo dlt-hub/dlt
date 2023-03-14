@@ -90,3 +90,8 @@ To update the pipeline you have to the newest online version just do the same in
 ```
 dlt init pipedrive bigquery
 ```
+
+# Advanced: Using dlt init with branches, local folders or git repos.
+To find out more info about this command, use `dlt init --help`
+For example, using the flags -- location or --branch allow us to do dlt init from branch.
+

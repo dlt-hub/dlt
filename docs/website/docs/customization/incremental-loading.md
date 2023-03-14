@@ -31,15 +31,29 @@ For the purpose of preserving the “last value” or similar loading checkpoint
 
 ```python
 @resource()
-def persons():
+def tweets():
 	# Get a last value from loaded metadata. If not exist, get None
-	last_val = dlt.state().setdefault("last_updated_person", None)
+	last_val = dlt.state().setdefault("last_updated", None)
 	# get data and yield it
 	data = get_data(start_from=last_val)
 	yield data
-	# set last val
-	last_val = data["last_updated_at"]
+	# change the state to the new value
+  dlt.state()["last_updated"]  = data["last_timestamp"]
 ```
+if we use a list or a dictionary, we can modify the underlying values in the objects and thus we do not need to set the state back explicitly.
+```python
+@resource()
+def tweets():
+	# Get a last value from loaded metadata. If not exist, get None
+	loaded_dates = dlt.state().setdefault("days_loaded", [])
+	# do stuff: get data and add new values to the list
+  # `loaded_date` is a shallow copy of the `dlt.state()["days_loaded"]` list
+  # and thus modifying it modifies the state
+  yield data
+  loaded_dates.append('2023-01-01')
+```
+
+
 
 ### Using the dlt state
 
@@ -108,9 +122,11 @@ def search_tweets(twitter_bearer_token=dlt.secrets.value, search_terms=None, sta
         for page in response:
             page['search_term'] = search_term
             last_id = page.get('meta', {}).get('newest_id', 0)
-            last_value_cache = max(last_value_cache or 0, int(last_id))
+            #set it back - not needed if we
+            dlt.state()[f"last_value_{search_term}"] = max(last_value_cache or 0, int(last_id))
 						# print the value for each search term
             print(f'new_last_value_cache for term {search_term}: {last_value_cache}')
+
             yield page
 ```
 
