@@ -7,7 +7,7 @@ import pytest
 import shutil
 
 from dlt.common.exceptions import CannotInstallDependency
-from dlt.common.runners.venv import Venv, VenvNotFound
+from dlt.common.runners import Venv, VenvNotFound
 from dlt.common.utils import custom_environ
 
 from tests.utils import preserve_environ

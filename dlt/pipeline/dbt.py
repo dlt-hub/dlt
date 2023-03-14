@@ -1,7 +1,7 @@
 import os
 import contextlib
 from dlt.common.exceptions import VenvNotFound
-from dlt.common.runners.venv import Venv
+from dlt.common.runners import Venv
 from dlt.common.schema import Schema
 from dlt.common.typing import TSecretValue
 

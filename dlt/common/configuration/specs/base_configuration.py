@@ -136,7 +136,7 @@ class BaseConfiguration(MutableMapping[str, Any]):
     """Obligatory section used by config providers when searching for keys, always present in the search path"""
     __exception__: Exception = dataclasses.field(default = None, init=False, repr=False)
     """Holds the exception that prevented the full resolution"""
-    __config_gen_annotations__: ClassVar[List[str]] = None
+    __config_gen_annotations__: ClassVar[List[str]] = []
     """Additional annotations for config generator, currently holds a list of fields of interest that have defaults"""
 
     def parse_native_representation(self, native_value: Any) -> None:

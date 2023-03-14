@@ -1,9 +1,12 @@
+import os
+import sys
 import multiprocessing
 import platform
 import requests
 import pytest
 import logging
 from os import environ
+from unittest.mock import patch
 
 import dlt
 from dlt.common.configuration.container import Container
@@ -11,7 +14,8 @@ from dlt.common.configuration.providers import DictionaryProvider
 from dlt.common.configuration.resolve import resolve_configuration
 from dlt.common.configuration.specs import RunConfiguration
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
-from dlt.common.logger import init_logging_from_config
+from dlt.common.runtime.logger import init_logging
+from dlt.common.runtime.telemetry import start_telemetry, stop_telemetry
 from dlt.common.storages import FileStorage
 from dlt.common.schema import Schema
 from dlt.common.storages.versioned_storage import VersionedStorage
@@ -71,11 +75,34 @@ def preserve_environ() -> None:
     environ.update(saved_environ)
 
 
-def init_logger(C: RunConfiguration = None) -> None:
-    if not hasattr(logging, "metrics"):
-        if not C:
-            C = resolve_configuration(RunConfiguration())
-        init_logging_from_config(C)
+@pytest.fixture(autouse=True)
+def patch_home_dir() -> None:
+    with patch("dlt.common.configuration.paths._get_user_home_dir") as _get_home_dir:
+        _get_home_dir.return_value = os.path.abspath(TEST_STORAGE_ROOT)
+        yield
+
+
+@pytest.fixture(autouse=True)
+def unload_modules() -> None:
+    """Unload all modules inspected in this tests"""
+    prev_modules = dict(sys.modules)
+    yield
+    mod_diff = set(sys.modules.keys()) - set(prev_modules.keys())
+    for mod in mod_diff:
+        del sys.modules[mod]
+
+
+def init_test_logging(c: RunConfiguration = None) -> None:
+    if not c:
+        c = resolve_configuration(RunConfiguration())
+    init_logging(c)
+
+
+def start_test_telemetry(c: RunConfiguration = None):
+    stop_telemetry()
+    if not c:
+        c = resolve_configuration(RunConfiguration())
+    start_telemetry(c)
 
 
 def clean_test_storage(init_normalize: bool = False, init_loader: bool = False, mode: str = "t") -> FileStorage:

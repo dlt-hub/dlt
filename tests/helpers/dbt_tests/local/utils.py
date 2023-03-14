@@ -3,13 +3,13 @@ import contextlib
 from typing import Iterator, NamedTuple
 from dlt.common import logger
 from dlt.common.configuration.utils import add_config_to_env
-from dlt.common.runners.venv import Venv
+from dlt.common.runners import Venv
 from dlt.common.typing import StrAny
 from dlt.helpers.dbt.configuration import DBTRunnerConfiguration
 from dlt.helpers.dbt.runner import DBTPackageRunner, create_runner
 
 from tests.load.utils import cm_yield_client
-from tests.utils import TEST_STORAGE_ROOT
+from tests.utils import TEST_STORAGE_ROOT, init_test_logging
 
 
 FIXTURES_DATASET_NAME = "test_fixture_carbon_bot_session_cases"
@@ -42,7 +42,7 @@ def setup_rasa_runner(profile_name: str, dataset_name: str = None, override_valu
         config=C
     )
     # now C is resolved
-    logger.init_logging_from_config(C.runtime)
+    init_test_logging(C.runtime)
     return runner
 
 

@@ -5,7 +5,7 @@ import pytest
 
 import dlt
 
-from dlt.common.runners.venv import Venv
+from dlt.common.runners import Venv
 from dlt.common.storages.file_storage import FileStorage
 
 from dlt.common.utils import set_working_dir

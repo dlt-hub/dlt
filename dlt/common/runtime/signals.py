@@ -14,7 +14,7 @@ exit_event = Event()
 
 def signal_receiver(sig: int, frame: Any) -> None:
     if not TYPE_CHECKING:
-        from dlt.common import logger
+        from dlt.common.runtime import logger
     else:
         logger: Any = None
 

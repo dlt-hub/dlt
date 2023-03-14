@@ -5,7 +5,7 @@ from typing import Any, Iterator, List, Optional, Tuple, Type, Dict, MutableMapp
 
 from dlt.common import Decimal, pendulum
 from dlt.common.configuration import configspec
-from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration, RunConfiguration
+from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.providers import ConfigProvider, EnvironProvider, ConfigTomlProvider, SecretsTomlProvider
 from dlt.common.configuration.utils import get_resolved_traces
@@ -14,14 +14,14 @@ from dlt.common.typing import TSecretValue, StrAny
 
 
 @configspec
-class WrongConfiguration(RunConfiguration):
+class WrongConfiguration(BaseConfiguration):
     pipeline_name: str = "Some Name"
     NoneConfigVar: str = None
     log_color: bool = True
 
 
 @configspec
-class CoercionTestConfiguration(RunConfiguration):
+class CoercionTestConfiguration(BaseConfiguration):
     pipeline_name: str = "Some Name"
     str_val: str = None
     int_val: int = None

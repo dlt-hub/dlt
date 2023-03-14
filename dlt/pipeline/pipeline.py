@@ -7,20 +7,22 @@ from collections.abc import Sequence as C_Sequence
 from typing import Any, Callable, ClassVar, Dict, List, Iterator, Mapping, Optional, Sequence, Tuple, cast, get_type_hints, ContextManager
 
 from dlt import version
-from dlt.common import json, logger, signals, pendulum
+from dlt.common import json, logger, pendulum
 from dlt.common.configuration import inject_section, known_sections
-from dlt.common.configuration.specs import RunConfiguration, NormalizeVolumeConfiguration, SchemaVolumeConfiguration, LoadVolumeConfiguration, PoolRunnerConfiguration
+from dlt.common.configuration.specs import RunConfiguration, NormalizeVolumeConfiguration, SchemaVolumeConfiguration, LoadVolumeConfiguration
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import ConfigFieldMissingException, ContextDefaultCannotBeCreated
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.normalizers import default_normalizers, import_normalizers
 from dlt.common.runners.runnable import Runnable
+from dlt.common.runtime import signals
 from dlt.common.schema.exceptions import InvalidDatasetName
 from dlt.common.schema.typing import TColumnSchema, TWriteDisposition
 from dlt.common.storages.load_storage import LoadStorage
 from dlt.common.typing import TFun, TSecretValue
 from dlt.common.runners import pool_runner as runner, TRunMetrics, initialize_runner
+from dlt.common.runners.configuration import PoolRunnerConfiguration
 from dlt.common.storages import LiveSchemaStorage, NormalizeStorage
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import DestinationReference, JobClientBase, DestinationClientConfiguration, DestinationClientDwhConfiguration, TDestinationReferenceArg

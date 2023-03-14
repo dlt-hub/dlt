@@ -1,7 +1,6 @@
 from typing import Iterator
 import pytest
 from os import environ
-from unittest.mock import patch
 
 import dlt
 from dlt.common import json
@@ -17,13 +16,6 @@ PIPELINE_TEST_CASES_PATH = "./tests/pipeline/cases/"
 def drop_dataset_from_env() -> None:
     if "DATASET_NAME" in environ:
         del environ["DATASET_NAME"]
-
-
-@pytest.fixture(autouse=True)
-def patch_working_dir() -> None:
-    with patch("dlt.common.pipeline._get_home_dir") as _get_home_dir:
-        _get_home_dir.return_value = TEST_STORAGE_ROOT
-        yield
 
 
 @pytest.fixture(autouse=True)

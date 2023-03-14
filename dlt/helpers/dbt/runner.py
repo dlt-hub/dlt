@@ -9,11 +9,11 @@ from dlt.common import logger
 from dlt.common.configuration import with_config, known_sections
 from dlt.common.configuration.specs import CredentialsConfiguration
 from dlt.common.configuration.utils import add_config_to_env
+from dlt.common.runners import Venv
 from dlt.common.runners.stdout import iter_stdout_with_result
-from dlt.common.runners.venv import Venv
-from dlt.common.typing import DictStrAny, DictStrStr, StrAny, TSecretValue
-from dlt.common.logger import is_json_logging
-from dlt.common.telemetry import get_logging_extras
+from dlt.common.typing import DictStrStr, StrAny, TSecretValue
+from dlt.common.runtime.logger import is_json_logging
+from dlt.common.runtime.prometheus import get_logging_extras
 from dlt.common.storages import FileStorage
 from dlt.common.git import git_custom_key_command, ensure_remote_head, force_clone_repo
 from dlt.common.utils import with_custom_environ

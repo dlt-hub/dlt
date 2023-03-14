@@ -14,10 +14,14 @@ class RunConfiguration(BaseConfiguration):
     sentry_dsn: Optional[str] = None  # keep None to disable Sentry
     slack_incoming_hook: Optional[str] = None
     prometheus_port: Optional[int] = None  # keep None to disable Prometheus
+    dlthub_telemetry: bool = True  # enable or disable dlthub telemetry
+    dlthub_telemetry_segment_write_key: str = "a1F2gc6cNYw2plyAt02sZouZcsRjG7TD"
     log_format: str = '{asctime}|[{levelname:<21}]|{process}|{name}|{filename}|{funcName}:{lineno}|{message}'
     log_level: str = "WARNING"
     request_timeout: Tuple[int, int] = (15, 300)  # default request timeout for all http clients
     config_files_storage_path: str = "/run/config/"
+
+    __section__ = "runtime"
 
     def on_resolved(self) -> None:
         # generate pipeline name from the entry point script name

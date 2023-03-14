@@ -372,6 +372,8 @@ def test_configuration_is_mutable_mapping(environment: Any) -> None:
         'sentry_dsn': None,
         'slack_incoming_hook': None,
         'prometheus_port': None,
+        'dlthub_telemetry': True,
+        'dlthub_telemetry_segment_write_key': 'TLJiyRkGVZGCi2TtjClamXpFcxAA1rSB',
         'log_format': '{asctime}|[{levelname:<21}]|{process}|{name}|{filename}|{funcName}:{lineno}|{message}',
         'log_level': 'WARNING',
         'request_timeout': (15, 300),
@@ -380,7 +382,7 @@ def test_configuration_is_mutable_mapping(environment: Any) -> None:
     }
     assert dict(_SecretCredentials()) == expected_dict
 
-    environment["SECRET_VALUE"] = "secret"
+    environment["RUNTIME__SECRET_VALUE"] = "secret"
     c = resolve.resolve_configuration(_SecretCredentials())
     expected_dict["secret_value"] = "secret"
     assert dict(c) == expected_dict
@@ -440,16 +442,19 @@ def test_init_method_gen(environment: Any) -> None:
 def test_multi_derivation_defaults(environment: Any) -> None:
 
     @configspec
-    class MultiConfiguration(MockProdConfiguration, ConfigurationWithOptionalTypes, SectionedConfiguration):
+    class MultiConfiguration(SectionedConfiguration, MockProdConfiguration, ConfigurationWithOptionalTypes):
         pass
 
     # apparently dataclasses set default in reverse mro so MockProdConfiguration overwrites
     C = MultiConfiguration()
     assert C.pipeline_name == MultiConfiguration.pipeline_name == "comp"
-    # but keys are ordered in MRO so password from SectionedConfiguration goes first
+    # but keys are ordered in MRO so password from ConfigurationWithOptionalTypes goes first
     keys = list(C.keys())
-    assert keys[0] == "password"
-    assert keys[-1] == "bool_val"
+    assert keys[0] == "pipeline_name"
+    # SectionedConfiguration last field goes last
+    assert keys[-1] == "password"
+
+    # section from SectionedConfiguration prevails
     assert C.__section__ == "DLT_TEST"
 
 

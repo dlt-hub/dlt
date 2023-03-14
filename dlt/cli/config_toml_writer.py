@@ -95,4 +95,4 @@ def write_values(toml: tomlkit.TOMLDocument, values: Iterable[WritableConfigValu
             else:
                 toml_table = toml_table[section]  # type: ignore
 
-        write_value(toml_table, value.name, value.hint, overwrite_existing, default_value=value.default_value)
+        write_value(toml_table, value.name, value.hint, overwrite_existing, default_value=value.default_value, is_default_of_interest=True)

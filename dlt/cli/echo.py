@@ -22,6 +22,9 @@ def always_choose(always_choose_default: bool, always_choose_value: Any) -> Iter
 
 
 echo = click.echo
+secho = click.secho
+style = click.style
+
 
 def bold(msg: str) -> str:
     return click.style(msg, bold=True, reset=True)

@@ -1,6 +1,6 @@
 import os
 from typing import ClassVar, List
-from dlt.common import signals
+from dlt.common.runtime import signals
 
 from dlt.common.utils import uniq_id
 from dlt.common.typing import TDataItems, TDataItem
