@@ -11,7 +11,7 @@ from os import environ
 from typing import Any, Dict, Iterator, Optional, Sequence, TypeVar, Mapping, List, Union, Counter
 from collections.abc import Mapping as C_Mapping
 
-from dlt.common.typing import AnyFun, StrAny, DictStrAny, StrStr, TAny, TDataItem, TDataItems, TFun
+from dlt.common.typing import AnyFun, StrAny, DictStrAny, StrStr, TAny, TDataItem, TDataItems, TFun, TimedeltaSeconds
 
 T = TypeVar("T")
 TDict = TypeVar("TDict", bound=DictStrAny)
