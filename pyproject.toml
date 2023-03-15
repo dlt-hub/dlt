@@ -51,6 +51,7 @@ gitpython = ">=3.1.29"
 pytz = ">=2022.6"
 tqdm = ">=4.64.1"
 giturlparse = ">=0.10.0"
+reretry = ">=0.11.8"
 orjson = {version = "^3.8.6", markers="platform_python_implementation != 'PyPy'"}
 
 psycopg2-binary = {version = ">=2.9.1", optional = true}
