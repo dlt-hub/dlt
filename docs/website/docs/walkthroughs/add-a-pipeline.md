@@ -91,7 +91,26 @@ To update the pipeline you have to the newest online version just do the same in
 dlt init pipedrive bigquery
 ```
 
-# Advanced: Using dlt init with branches, local folders or git repos.
-To find out more info about this command, use `dlt init --help`
-For example, using the flags -- location or --branch allow us to do dlt init from branch.
+## Advanced: Using dlt init with branches, local folders or git repos.
+To find out more info about this command, use --help.
+
+```
+dlt init --help
+```
+
+
+To deploy from a branch of the pipelines repo, you can use the following:
+
+```
+dlt init source destination --branch branchname
+```
+
+To deploy from another repo, you could fork the pipelines repo and then provide the new repo url as below, replacing `dlt-hub` with your fork name
+
+```
+dlt init pipedrive bigquery --location "https://github.com/dlt-hub/pipelines/pipelines"
+```
+
+
+`
 
