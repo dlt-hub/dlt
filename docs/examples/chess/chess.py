@@ -6,14 +6,15 @@ import dlt
 
 from dlt.common import sleep
 from dlt.common.typing import StrAny, TDataItems
-from dlt.sources.helpers import requests
+from dlt.sources.helpers.requests import requests_with_retry
 
 
 @dlt.source
 def chess(chess_url: str = dlt.config.value, title: str = "GM", max_players: int = 2, year: int = 2022, month: int = 10) -> Any:
 
     def _get_data_with_retry(path: str) -> StrAny:
-        r = requests.get(f"{chess_url}{path}")
+        session = requests_with_retry()
+        r = session.get(f"{chess_url}{path}")
         return r.json()  # type: ignore
 
     @dlt.resource(write_disposition="replace")
