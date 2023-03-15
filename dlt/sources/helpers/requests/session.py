@@ -3,7 +3,7 @@ from tenacity import Retrying, retry_if_exception_type
 from typing import Optional, TYPE_CHECKING, Sequence, Union, Tuple, Type, TypeVar
 
 from dlt.common.typing import TimedeltaSeconds
-from dlt.common.utils import to_seconds
+from dlt.common.time import to_seconds
 
 
 TSession = TypeVar("TSession", bound=BaseSession)
