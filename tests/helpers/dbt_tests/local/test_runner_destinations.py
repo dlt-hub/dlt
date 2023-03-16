@@ -2,7 +2,7 @@ import os
 from typing import Any
 from git import GitCommandError
 import pytest
-from dlt.common.telemetry import get_metrics_from_prometheus
+from dlt.common.runtime.prometheus import get_metrics_from_prometheus
 
 from dlt.common.typing import StrStr
 from dlt.common.utils import uniq_id
@@ -62,7 +62,7 @@ def test_reinitialize_package() -> None:
     runner = setup_rasa_runner("redshift")
     runner.ensure_newest_package()
     # mod the package
-    readme_path = modify_and_commit_file(runner.package_path, "README.md", content=runner.config.package_profiles_dir)
+    readme_path, _ = modify_and_commit_file(runner.package_path, "README.md", content=runner.config.package_profiles_dir)
     assert os.path.isfile(readme_path)
     # this will wipe out old package and clone again
     runner.ensure_newest_package()

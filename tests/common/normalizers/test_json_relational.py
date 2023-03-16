@@ -32,15 +32,15 @@ def test_flatten_fix_field_name(schema: Schema) -> None:
     flattened_row, lists = _flatten(schema, "mock_table", row, 0)
     assert "f_1" in flattened_row
     # assert "f_2" in flattened_row
-    assert "fl3__f4" in flattened_row
-    assert "fl3__f_5" in flattened_row
-    assert "fl3__fx6__c" in flattened_row
-    assert "fl3__fx6__c_v" in flattened_row
+    assert "f_3__f4" in flattened_row
+    assert "f_3__f_5" in flattened_row
+    assert "f_3__fx6__c" in flattened_row
+    assert "f_3__fx6__c_v" in flattened_row
     # assert "f_3__f_6__c_x" in flattened_row
-    assert "fl3" not in flattened_row
+    assert "f_3" not in flattened_row
 
     assert ("f_2", ) in lists
-    assert ("fl3", "fx6", "c_x", ) in lists
+    assert ("f_3", "fx6", "c_x", ) in lists
 
 
 def test_preserve_complex_value(schema: Schema) -> None:
@@ -682,14 +682,14 @@ def test_normalize_and_shorten_deterministically() -> None:
     root_data = rows[0][1]
     root_data_keys = list(root_data.keys())
     # "short:ident:2": "a" will be flattened into root
-    tag = NamingConvention._compute_tag("short_identi1__short_identi2__short_identi3", NamingConvention._DEFAULT_COLLISION_PROB)
+    tag = NamingConvention._compute_tag("short_ident_1__short_ident_2__short_ident_3", NamingConvention._DEFAULT_COLLISION_PROB)
     assert tag in root_data_keys[0]
     # long:SO+LONG:_>16 shortened on normalized name
     tag = NamingConvention._compute_tag("long+long:SO+LONG:_>16", NamingConvention._DEFAULT_COLLISION_PROB)
     assert tag in root_data_keys[1]
     # table name in second row
     table_name = rows[1][0][0]
-    tag = NamingConvention._compute_tag("s__lis_txidenti1__lis_txidenti2__lis_txidenti3", NamingConvention._DEFAULT_COLLISION_PROB)
+    tag = NamingConvention._compute_tag("s__lis_txident_1__lis_txident_2__lis_txident_3", NamingConvention._DEFAULT_COLLISION_PROB)
     assert tag in table_name
 
 

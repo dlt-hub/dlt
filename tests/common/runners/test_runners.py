@@ -4,16 +4,16 @@ from typing import Type
 from prometheus_client import registry
 
 from dlt.cli import TRunnerArgs
-from dlt.common import signals
+from dlt.common.runtime import signals
 from dlt.common.configuration import resolve_configuration, configspec
-from dlt.common.configuration.specs import PoolRunnerConfiguration, TPoolType
 from dlt.common.configuration.specs.run_configuration import RunConfiguration
 from dlt.common.exceptions import DltException, SignalReceivedException, TimeRangeExhaustedException, UnsupportedProcessStartMethodException
 from dlt.common.runners import pool_runner as runner
 from dlt.common.runners.init import initialize_runner
+from dlt.common.runners.configuration import PoolRunnerConfiguration, TPoolType
 
 from tests.common.runners.utils import _TestRunnableWorkerMethod, _TestRunnableWorker, ALL_METHODS, mp_method_auto
-from tests.utils import init_logger
+from tests.utils import init_test_logging
 
 
 @configspec
@@ -55,7 +55,7 @@ def configure(C: Type[PoolRunnerConfiguration], args: TRunnerArgs) -> PoolRunner
 
 @pytest.fixture(scope="module", autouse=True)
 def logger_autouse() -> None:
-    init_logger()
+    init_test_logging()
 
 
 @pytest.fixture(autouse=True)

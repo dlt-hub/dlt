@@ -2,7 +2,7 @@ import os
 from tempfile import mkdtemp
 
 import dlt
-from dlt.common.runners.venv import Venv
+from dlt.common.runners import Venv
 
 from docs.examples.sources.singer_tap import tap
 

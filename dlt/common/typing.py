@@ -72,18 +72,18 @@ def is_newtype_type(t: Type[Any]) -> bool:
     return hasattr(t, "__supertype__")
 
 
-def is_typeddict(t: Any) -> bool:
+def is_typeddict(t: Type[Any]) -> bool:
     return isinstance(t, _TypedDict)
 
 
-def is_list_generic_type(t: Any) -> bool:
+def is_list_generic_type(t: Type[Any]) -> bool:
     try:
         return issubclass(get_origin(t), C_Sequence)
     except TypeError:
         return False
 
 
-def is_dict_generic_type(t: Any) -> bool:
+def is_dict_generic_type(t: Type[Any]) -> bool:
     try:
         return issubclass(get_origin(t), C_Mapping)
     except TypeError:

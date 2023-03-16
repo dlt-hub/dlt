@@ -15,9 +15,9 @@ from dlt.common.utils import uniq_id
 from dlt.extract.exceptions import ResourceNameMissing
 from dlt.pipeline.exceptions import CannotRestorePipelineException, PipelineConfigMissing, PipelineStepFailed
 
-from tests.utils import ALL_DESTINATIONS, preserve_environ, autouse_test_storage, TEST_STORAGE_ROOT
+from tests.utils import ALL_DESTINATIONS, patch_home_dir, preserve_environ, autouse_test_storage, TEST_STORAGE_ROOT
 # from tests.common.configuration.utils import environment
-from tests.pipeline.utils import drop_dataset_from_env, patch_working_dir
+from tests.pipeline.utils import drop_dataset_from_env
 from tests.load.pipeline.utils import drop_pipeline, assert_data, assert_table, select_data
 
 
@@ -28,7 +28,7 @@ def test_default_pipeline_names(destination_name: str, use_single_dataset: bool)
     # this is a name of executing test harness or blank pipeline on windows
     possible_names = ["dlt_pytest", "dlt_pipeline"]
     assert p.pipeline_name in possible_names
-    assert p.pipelines_dir == os.path.join(TEST_STORAGE_ROOT, ".dlt", "pipelines")
+    assert p.pipelines_dir == os.path.abspath(os.path.join(TEST_STORAGE_ROOT, ".dlt", "pipelines"))
     assert p.dataset_name in possible_names
     assert p.destination is None
     assert p.default_schema_name is None

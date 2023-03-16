@@ -11,12 +11,12 @@ from dlt.common.configuration.specs.base_configuration import ContainerInjectabl
 class ConfigProvidersContext(ContainerInjectableContext):
     """Injectable list of providers used by the configuration `resolve` module"""
     providers: List[ConfigProvider]
-    # context_provider: ContextProvider
+    context_provider: ConfigProvider
 
     def __init__(self) -> None:
         super().__init__()
         # add default providers
-        self.providers = [EnvironProvider(), SecretsTomlProvider(), ConfigTomlProvider()]
+        self.providers = ConfigProvidersContext.initial_providers()
         # ContextProvider will provide contexts when embedded in configurations
         self.context_provider = ContextProvider()
 
@@ -37,6 +37,10 @@ class ConfigProvidersContext(ContainerInjectableContext):
         if provider.name in self:
             raise DuplicateConfigProviderException(provider.name)
         self.providers.append(provider)
+
+    @staticmethod
+    def initial_providers() -> List[ConfigProvider]:
+        return [EnvironProvider(), SecretsTomlProvider(add_global_config=True), ConfigTomlProvider(add_global_config=True)]
 
 
 # TODO: implement ConfigProvidersConfiguration and

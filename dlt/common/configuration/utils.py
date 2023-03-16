@@ -3,13 +3,12 @@ import ast
 import contextlib
 from typing import Any, Dict, Mapping, NamedTuple, Optional, Type, Sequence
 
-from dlt.common import json, logger
+from dlt.common import json
 from dlt.common.typing import AnyType, TAny
 from dlt.common.data_types import coerce_value, py_type_to_sc_type
-from dlt.common.configuration import DOT_DLT
 from dlt.common.configuration.providers import EnvironProvider
 from dlt.common.configuration.exceptions import ConfigValueCannotBeCoercedException, LookupTrace
-from dlt.common.configuration.specs.base_configuration import BaseConfiguration, get_config_if_union_hint, is_base_configuration_inner_hint
+from dlt.common.configuration.specs.base_configuration import BaseConfiguration, is_base_configuration_inner_hint
 
 
 class ResolvedValueTrace(NamedTuple):
@@ -91,6 +90,8 @@ def serialize_value(value: Any) -> Any:
 
 
 def log_traces(config: Optional[BaseConfiguration], key: str, hint: Type[Any], value: Any, default_value: Any, traces: Sequence[LookupTrace]) -> None:
+    from dlt.common import logger
+
     if logger.is_logging() and logger.log_level() == "DEBUG" and config:
         logger.debug(f"Field {key} with type {hint} in {type(config).__name__} {'NOT RESOLVED' if value is None else 'RESOLVED'}")
         # print(f"Field {key} with type {hint} in {type(config).__name__} {'NOT RESOLVED' if value is None else 'RESOLVED'}")
@@ -106,20 +107,6 @@ def log_traces(config: Optional[BaseConfiguration], key: str, hint: Type[Any], v
 
 def get_resolved_traces() -> Mapping[str, ResolvedValueTrace]:
     return _RESOLVED_TRACES
-
-
-def make_dot_dlt_path(path: str) -> str:
-    return os.path.join(DOT_DLT, path)
-
-
-def current_dot_dlt_path() -> str:
-    """Returns current path to the .dlt folder. The path is computed with the relation to the current working directory."""
-    # entry_path = main_module_file_path()
-    # if entry_path:
-    #     path, _ = os.path.split(entry_path)
-    # else:
-    #     path = None
-    return os.path.abspath(os.path.join(".", DOT_DLT))
 
 
 def add_config_to_env(config: BaseConfiguration) ->  None:

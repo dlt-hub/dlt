@@ -18,10 +18,10 @@ from dlt.pipeline.exceptions import InvalidPipelineName, PipelineStepFailed
 from dlt.pipeline.state import STATE_TABLE_NAME
 from tests.common.utils import TEST_SENTRY_DSN
 
-from tests.utils import ALL_DESTINATIONS, TEST_STORAGE_ROOT, preserve_environ, autouse_test_storage
+from tests.utils import ALL_DESTINATIONS, TEST_STORAGE_ROOT, preserve_environ, autouse_test_storage, patch_home_dir
 from tests.common.configuration.utils import environment
 from tests.extract.utils import expect_extracted_file
-from tests.pipeline.utils import drop_dataset_from_env, patch_working_dir, drop_pipeline
+from tests.pipeline.utils import drop_dataset_from_env, drop_pipeline
 
 
 def test_default_pipeline() -> None:
@@ -29,7 +29,7 @@ def test_default_pipeline() -> None:
     # this is a name of executing test harness or blank pipeline on windows
     possible_names = ["dlt_pytest", "dlt_pipeline"]
     assert p.pipeline_name in possible_names
-    assert p.pipelines_dir == os.path.join(TEST_STORAGE_ROOT, ".dlt", "pipelines")
+    assert p.pipelines_dir == os.path.abspath(os.path.join(TEST_STORAGE_ROOT, ".dlt", "pipelines"))
     assert p.runtime_config.pipeline_name == p.pipeline_name
     # dataset that will be used to load data is the pipeline name
     assert p.dataset_name in possible_names
@@ -150,6 +150,7 @@ def test_deterministic_salt(environment) -> None:
 
     p3 = dlt.pipeline(pipeline_name="postgres_redshift")
     assert p.pipeline_salt != p3.pipeline_salt
+
 
 @pytest.mark.parametrize("destination", ALL_DESTINATIONS)
 def test_create_pipeline_all_destinations(destination: str) -> None:

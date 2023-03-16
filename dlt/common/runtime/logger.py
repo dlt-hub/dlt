@@ -1,17 +1,14 @@
+import contextlib
 import logging
 import json_logging
 import traceback
-import sentry_sdk
-from sentry_sdk.transport import HttpTransport
-from sentry_sdk.integrations.logging import LoggingIntegration
 from logging import LogRecord, Logger
-from typing import Any, Literal, Protocol
+from typing import Any, Iterator, Literal, Protocol
 
-from dlt.version import __version__
 from dlt.common.json import json
-from dlt.common.typing import DictStrAny, DictStrStr, StrAny, StrStr
+from dlt.common.runtime.exec_info import dlt_version_info
+from dlt.common.typing import StrAny, StrStr
 from dlt.common.configuration.specs import RunConfiguration
-from dlt.common.utils import filter_env_vars
 
 DLT_LOGGER_NAME = "dlt"
 LOGGER: Logger = None
@@ -24,7 +21,7 @@ class LogMethod(Protocol):
 
 
 def __getattr__(name: str) -> LogMethod:
-    """A catch all function for a module that forwards calls to unknown methods to LOGGER"""
+    """Forwards log method calls (debug, info, error etc.) to LOGGER"""
     def wrapper(msg: str, *args: Any, **kwargs: Any) -> None:
         if LOGGER:
             # skip stack frames when displaying log so the original logging frame is displayed
@@ -37,8 +34,52 @@ def __getattr__(name: str) -> LogMethod:
 
 
 def metrics(category: TMetricsCategory, name: str, extra: StrAny, stacklevel: int = 1) -> None:
+    """Forwards metrics call to LOGGER"""
     if LOGGER:
         LOGGER.metrics(f"{category}:{name}", extra=extra, stacklevel=stacklevel)  # type: ignore
+
+
+@contextlib.contextmanager
+def suppress_and_warn() -> Iterator[None]:
+    try:
+        yield
+    except Exception:
+        LOGGER.warning("Suppressed exception", exc_info=True)
+
+
+def init_logging(config: RunConfiguration) -> None:
+    global LOGGER
+
+    # add HEALTH and METRICS log levels
+    if not hasattr(logging, "metrics"):
+        # _add_logging_level("HEALTH", logging.WARNING - 1, "health")
+        _add_logging_level("METRICS", logging.WARNING - 2, "metrics")
+
+    version = dlt_version_info(config)
+    LOGGER = _init_logging(
+        DLT_LOGGER_NAME,
+        config.log_level,
+        config.log_format,
+        config.pipeline_name,
+        version)
+
+
+def is_logging() -> bool:
+    return LOGGER is not None
+
+
+def log_level() -> str:
+    if not LOGGER:
+        raise RuntimeError("Logger not initialized")
+    return logging.getLevelName(LOGGER.level)  # type: ignore
+
+
+def is_json_logging(log_format: str) -> bool:
+    return log_format == "JSON"
+
+
+def pretty_format_exception() -> str:
+    return traceback.format_exc()
 
 
 def _add_logging_level(level_name: str, level: int, method_name:str = None) -> None:
@@ -131,119 +172,3 @@ def _init_logging(logger_name: str, level: str, fmt: str, component: str, versio
         handler.setFormatter(_MetricsFormatter(fmt=fmt, style='{'))
 
     return logger
-
-
-def _extract_version_info(config: RunConfiguration) -> DictStrStr:
-    version_info = {"dlt_version": __version__, "pipeline_name": config.pipeline_name}
-    # extract envs with build info
-    version_info.update(filter_env_vars(["COMMIT_SHA", "IMAGE_VERSION"]))
-    return version_info
-
-
-def _extract_pod_info() -> StrStr:
-    return filter_env_vars(["KUBE_NODE_NAME", "KUBE_POD_NAME", "KUBE_POD_NAMESPACE"])
-
-
-def _extract_github_info() -> StrStr:
-    info = filter_env_vars(["GITHUB_USER", "GITHUB_REPOSITORY", "GITHUB_REPOSITORY_OWNER"])
-    # set GITHUB_REPOSITORY_OWNER as github user if not present. GITHUB_REPOSITORY_OWNER is available in github action context
-    if "github_user" not in info and "github_repository_owner" in info:
-        info["github_user"] = info["github_repository_owner"]  # type: ignore
-    return info
-
-
-class _SentryHttpTransport(HttpTransport):
-
-    timeout: int = 0
-
-    def _get_pool_options(self, *a: Any, **kw: Any) -> DictStrAny:
-        rv = HttpTransport._get_pool_options(self, *a, **kw)
-        rv['timeout'] = self.timeout
-        return rv
-
-
-def _get_sentry_log_level(C: RunConfiguration) -> LoggingIntegration:
-    log_level = logging._nameToLevel[C.log_level]
-    event_level = logging.WARNING if log_level <= logging.WARNING else log_level
-    return LoggingIntegration(
-        level=logging.INFO,        # Capture info and above as breadcrumbs
-        event_level=event_level  # Send errors as events
-    )
-
-
-def _init_sentry(C: RunConfiguration, version: StrStr) -> None:
-    sys_ver = version["dlt_version"]
-    release = sys_ver + "_" + version.get("commit_sha", "")
-    _SentryHttpTransport.timeout = C.request_timeout[0]
-    # TODO: ignore certain loggers ie. dbt loggers
-    # https://docs.sentry.io/platforms/python/guides/logging/
-    sentry_sdk.init(
-        C.sentry_dsn,
-        traces_sample_rate=1.0,
-        # disable tornado, boto3, sql alchemy etc.
-        auto_enabling_integrations = False,
-        integrations=[_get_sentry_log_level(C)],
-        release=release,
-        transport=_SentryHttpTransport
-    )
-    # add version tags
-    for k, v in version.items():
-        sentry_sdk.set_tag(k, v)
-    # add kubernetes tags
-    pod_tags = _extract_pod_info()
-    for k, v in pod_tags.items():
-        sentry_sdk.set_tag(k, v)
-    # add github info
-    github_tags = _extract_github_info()
-    for k, v in github_tags.items():
-        sentry_sdk.set_tag(k, v)
-    if "github_user" in github_tags:
-        sentry_sdk.set_user({"username": github_tags["github_user"]})
-
-
-def init_telemetry(config: RunConfiguration) -> None:
-    if config.prometheus_port:
-        from prometheus_client import start_http_server, Info
-
-        logging.info(f"Starting prometheus server port {config.prometheus_port}")
-        start_http_server(config.prometheus_port)
-        # collect info
-        Info("runs_component_name", "Name of the executing component").info(_extract_version_info(config))
-
-
-def init_logging_from_config(config: RunConfiguration) -> None:
-    global LOGGER
-
-    # add HEALTH and METRICS log levels
-    if not hasattr(logging, "metrics"):
-        # _add_logging_level("HEALTH", logging.WARNING - 1, "health")
-        _add_logging_level("METRICS", logging.WARNING - 2, "metrics")
-
-    version = _extract_version_info(config)
-    LOGGER = _init_logging(
-        DLT_LOGGER_NAME,
-        config.log_level,
-        config.log_format,
-        config.pipeline_name,
-        version)
-
-    if config.sentry_dsn:
-        _init_sentry(config, version)
-
-
-def is_logging() -> bool:
-    return LOGGER is not None
-
-
-def log_level() -> str:
-    if not LOGGER:
-        raise RuntimeError("Logger not initialized")
-    return logging.getLevelName(LOGGER.level)  # type: ignore
-
-
-def is_json_logging(log_format: str) -> bool:
-    return log_format == "JSON"
-
-
-def pretty_format_exception() -> str:
-    return traceback.format_exc()

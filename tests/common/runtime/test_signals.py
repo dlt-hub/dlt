@@ -3,8 +3,11 @@ import pytest
 import time
 from multiprocessing.dummy import Process
 
-from dlt.common import signals, sleep
+from dlt.common import sleep
 from dlt.common.exceptions import SignalReceivedException
+from dlt.common.runtime import signals
+
+from tests.utils import skipifwindows
 
 
 @pytest.fixture(autouse=True)
@@ -83,6 +86,7 @@ def test_raise_signal_received_exception() -> None:
             pass
 
 
+@skipifwindows
 @pytest.mark.forked
 def test_signalling() -> None:
     signals.register_signals()

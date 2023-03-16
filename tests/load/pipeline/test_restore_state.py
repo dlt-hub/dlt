@@ -13,10 +13,10 @@ from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.pipeline.pipeline import Pipeline
 from dlt.pipeline.state import STATE_TABLE_NAME, load_state_from_destination, state_resource
 
-from tests.utils import ALL_DESTINATIONS, preserve_environ, autouse_test_storage, TEST_STORAGE_ROOT
+from tests.utils import ALL_DESTINATIONS, patch_home_dir, preserve_environ, autouse_test_storage, TEST_STORAGE_ROOT
 from tests.common.utils import IMPORTED_VERSION_HASH_ETH_V5, yml_case_path as common_yml_case_path
 from tests.common.configuration.utils import environment
-from tests.pipeline.utils import drop_dataset_from_env, patch_working_dir
+from tests.pipeline.utils import drop_dataset_from_env
 from tests.load.pipeline.utils import assert_data, drop_pipeline
 
 

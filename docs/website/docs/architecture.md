@@ -15,7 +15,7 @@ it to the location where you will store it.
 ## Extract
 
 The Python script requests data from an API or a similar [source](./glossary.md#source). Once this data 
-is recieved, the script parses the JSON and provides it to `dlt` as input, which then normalizes that data.
+is received, the script parses the JSON and provides it to `dlt` as input, which then normalizes that data.
 
 ## Normalize
 

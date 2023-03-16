@@ -8,11 +8,13 @@ from contextlib import contextmanager
 from functools import wraps
 from os import environ
 
-from typing import Any, Dict, Iterator, Optional, Sequence, TypeVar, Mapping, List, Union
+from typing import Any, Dict, Iterator, Optional, Sequence, TypeVar, Mapping, List, Union, Counter
+from collections.abc import Mapping as C_Mapping
 
 from dlt.common.typing import AnyFun, StrAny, DictStrAny, StrStr, TAny, TDataItem, TDataItems, TFun
 
 T = TypeVar("T")
+TDict = TypeVar("TDict", bound=DictStrAny)
 
 
 def chunks(seq: Sequence[T], n: int) -> Iterator[Sequence[T]]:
@@ -144,6 +146,30 @@ def update_dict_with_prune(dest: DictStrAny, update: StrAny) -> None:
             dest[k] = v
         elif k in dest:
             del dest[k]
+
+
+def update_dict_nested(dst: TDict, src: StrAny) -> TDict:
+    # based on https://github.com/clarketm/mergedeep/blob/master/mergedeep/mergedeep.py
+
+    def _is_recursive_merge(a: StrAny, b: StrAny) -> bool:
+        both_mapping = isinstance(a, C_Mapping) and isinstance(b, C_Mapping)
+        both_counter = isinstance(a, Counter) and isinstance(b, Counter)
+        return both_mapping and not both_counter
+
+    for key in src:
+        if key in dst:
+            if _is_recursive_merge(dst[key], src[key]):
+                # If the key for both `dst` and `src` are both Mapping types (e.g. dict), then recurse.
+                update_dict_nested(dst[key], src[key])
+            elif dst[key] is src[key]:
+                # If a key exists in both objects and the values are `same`, the value from the `dst` object will be used.
+                pass
+            else:
+                dst[key] = src[key]
+        else:
+            # If the key exists only in `src`, the value from the `src` object will be used.
+            dst[key] = src[key]
+    return dst
 
 
 def map_nested_in_place(func: AnyFun, _complex: TAny) -> TAny:

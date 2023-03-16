@@ -3,12 +3,14 @@ from prometheus_client import Counter, Gauge, Summary, CollectorRegistry, REGIST
 from typing import Callable, Dict, Union, cast
 from multiprocessing.pool import ThreadPool, Pool
 
-from dlt.common import logger, signals, sleep
+from dlt.common import logger, sleep
 from dlt.common.runners import init
 from dlt.common.runners.runnable import Runnable, TPool
-from dlt.common.telemetry import TRunHealth, TRunMetrics, get_logging_extras, get_metrics_from_prometheus
-from dlt.common.exceptions import SignalReceivedException, TimeRangeExhaustedException, UnsupportedProcessStartMethodException
-from dlt.common.configuration.specs import PoolRunnerConfiguration
+from dlt.common.runners.configuration import PoolRunnerConfiguration
+from dlt.common.runners.typing import TRunMetrics, TRunHealth
+from dlt.common.runtime import signals
+from dlt.common.runtime.prometheus import get_logging_extras, get_metrics_from_prometheus
+from dlt.common.exceptions import SignalReceivedException, TimeRangeExhaustedException
 
 
 HEALTH_PROPS_GAUGES: Dict[str, Union[Counter, Gauge]] = None

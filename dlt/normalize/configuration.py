@@ -1,8 +1,9 @@
 from typing import TYPE_CHECKING
 
 from dlt.common.configuration import configspec
-from dlt.common.configuration.specs import LoadVolumeConfiguration, NormalizeVolumeConfiguration, SchemaVolumeConfiguration, PoolRunnerConfiguration, TPoolType
+from dlt.common.configuration.specs import LoadVolumeConfiguration, NormalizeVolumeConfiguration, SchemaVolumeConfiguration
 from dlt.common.destination import DestinationCapabilitiesContext
+from dlt.common.runners.configuration import PoolRunnerConfiguration, TPoolType
 
 
 @configspec(init=True)

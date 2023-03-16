@@ -48,7 +48,7 @@ lint:
 	./check-package.sh
 	poetry run mypy --config-file mypy.ini dlt docs/examples
 	poetry run flake8 --max-line-length=200 dlt docs/examples
-	poetry run flake8 --max-line-length=200 tests
+	poetry run flake8 --max-line-length=200 tests --exclude tests/reflection/module_cases
 	# $(MAKE) lint-security
 
 lint-security:
@@ -61,7 +61,7 @@ test-local:
 	DESTINATION__POSTGRES__CREDENTIALS=postgresql://loader:loader@localhost:5432/dlt_data DESTINATION__DUCKDB__CREDENTIALS=duckdb:///_storage/test_quack.duckdb  poetry run pytest tests -k '(not redshift and not bigquery)'
 
 test-common:
-	poetry run pytest tests --ignore=tests/load --ignore=tests/helpers --ignore=tests/cli
+	poetry run pytest tests/common tests/normalize tests/extract tests/pipeline tests/reflection
 
 reset-test-storage:
 	-rm -r _storage

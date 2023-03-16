@@ -15,7 +15,9 @@ env:
   # password is the same so it will be shared
   CREDENTIALS__PASSWORD: ${{ secrets.PG_PASSWORD }}
 
+  RUNTIME__SENTRY_DSN: https://6f6f7b6f8e0f458a89be4187603b55fe@o1061158.ingest.sentry.io/4504819859914752
   RUNTIME__LOG_LEVEL: ERROR
+  RUNTIME__DLTHUB_TELEMETRY_SEGMENT_WRITE_KEY: TLJiyRkGVZGCi2TtjClamXpFcxAA1rSB
 
 jobs:
 
@@ -73,7 +75,7 @@ jobs:
         if: runner.os != 'Windows'
         name: Run tests Linux/MAC
       - run: |
-          poetry run pytest tests/load tests/cli --ignore=tests/load/bigquery -m "not forked" -k "(not bigquery)"
+          poetry run pytest tests/load tests/cli --ignore=tests/load/bigquery -k "(not bigquery)"
         if: runner.os == 'Windows'
         name: Run tests Windows
         shell: cmd

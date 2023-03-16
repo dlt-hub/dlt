@@ -1,31 +1,20 @@
-from typing import Iterable, Sequence, TypedDict, NamedTuple
+from typing import Iterable
 from prometheus_client import Gauge
 from prometheus_client.metrics import MetricWrapperBase
 
+from dlt.common.configuration.specs import RunConfiguration
+from dlt.common.runtime import logger
+from dlt.common.runtime.exec_info import dlt_version_info
 from dlt.common.typing import DictStrAny, StrAny
 
 
-class TRunHealth(TypedDict):
-    # count runs
-    runs_count: int
-    # count not idle runs
-    runs_not_idle_count: int
-    # succesfull runs
-    runs_healthy_count: int
-    # count consecutive successful runs
-    runs_cs_healthy_gauge: int
-    # count failed runs
-    runs_failed_count: int
-    # count consecutive failed runs
-    runs_cs_failed_gauge: int
-    # number of items pending at the end of the run
-    runs_pending_items_gauge: int
+def init_prometheus(config: RunConfiguration) -> None:
+        from prometheus_client import start_http_server, Info
 
-
-class TRunMetrics(NamedTuple):
-    was_idle: bool
-    has_failed: bool
-    pending_items: int
+        logger.info(f"Starting prometheus server port {config.prometheus_port}")
+        start_http_server(config.prometheus_port)
+        # collect info
+        Info("runs_component_name", "Name of the executing component").info(dlt_version_info(config))  # type: ignore
 
 
 def get_metrics_from_prometheus(gauges: Iterable[MetricWrapperBase]) -> StrAny:

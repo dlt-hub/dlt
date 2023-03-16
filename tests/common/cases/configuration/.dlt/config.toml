@@ -28,3 +28,6 @@ sequence_val=["A", "B", "KAPPA"]
 gen_list_val=["C", "Z", "N"]
 mapping_val={"FL"=1, "FR"={"1"=2}}
 mutable_mapping_val={"str"="str"}
+
+[runtime]
+log_level="ERROR"

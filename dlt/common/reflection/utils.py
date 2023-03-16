@@ -111,3 +111,11 @@ def evaluate_node_literal(node: ast.AST) -> Any:
         return ast.literal_eval(node)
     except ValueError:
         return None
+
+
+def get_module_docstring(module_script: str) -> str:
+    module = ast.parse(module_script)
+    docstring = ast.get_docstring(module)
+    if docstring is None:
+        docstring = ""
+    return docstring

@@ -1,12 +1,12 @@
 import os
-import tempfile
 import datetime  # noqa: 251
 import humanize
 from typing import Any, Callable, ClassVar, Dict, List, NamedTuple, Optional, Protocol, Sequence, Tuple, TypedDict
 
 from dlt.common import pendulum
+from dlt.common.configuration import configspec
 from dlt.common.configuration.container import ContainerInjectableContext
-from dlt.common.configuration import configspec, DOT_DLT
+from dlt.common.configuration.paths import get_dlt_home_dir
 from dlt.common.configuration.specs import RunConfiguration
 from dlt.common.destination.reference import DestinationReference, TDestinationReferenceArg
 from dlt.common.schema import Schema
@@ -169,25 +169,15 @@ class PipelineContext(ContainerInjectableContext):
         self._deferred_pipeline = deferred_pipeline
 
 
-def get_default_pipelines_dir() -> str:
+def get_dlt_pipelines_dir() -> str:
     """ Gets default directory where pipelines' data will be stored
         1. in user home directory ~/.dlt/pipelines/
         2. if current user is root in /var/dlt/pipelines
         3. if current user does not have a home directory in /tmp/dlt/pipelines
     """
-    # getuid not available on Windows
-    if hasattr(os, "getuid") and os.geteuid() == 0:
-        # we are root so use standard /var
-        return os.path.join("/var", "dlt", "pipelines")
-
-    home = _get_home_dir()
-    if home is None:
-        # no home dir - use temp
-        return os.path.join(tempfile.gettempdir(), "dlt", "pipelines")
-    else:
-        # if home directory is available use ~/.dlt/pipelines
-        return os.path.join(home, DOT_DLT, "pipelines")
+    return os.path.join(get_dlt_home_dir(), "pipelines")
 
 
-def _get_home_dir() -> str:
-    return os.path.expanduser("~")
+def get_dlt_repos_dir() -> str:
+    """Gets default directory where command repositories will be stored"""
+    return os.path.join(get_dlt_home_dir(), "repos")

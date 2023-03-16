@@ -1,6 +1,7 @@
 from typing import Literal, Optional
 
-from dlt.common.configuration.specs.base_configuration import BaseConfiguration, configspec
+from dlt.common.configuration import configspec
+from dlt.common.configuration.specs import BaseConfiguration
 
 TPoolType = Literal["process", "thread", "none"]
 

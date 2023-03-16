@@ -10,8 +10,8 @@ from dlt.pipeline import state as state_module
 from dlt.pipeline.exceptions import PipelineStateEngineNoUpgradePathException, PipelineStateNotAvailable
 from dlt.pipeline.pipeline import Pipeline
 
-from tests.utils import autouse_test_storage, test_storage
-from tests.pipeline.utils import drop_dataset_from_env, json_case_path, load_json_case, patch_working_dir, drop_pipeline
+from tests.utils import autouse_test_storage, test_storage, patch_home_dir
+from tests.pipeline.utils import drop_dataset_from_env, json_case_path, load_json_case, drop_pipeline
 
 
 @dlt.resource()

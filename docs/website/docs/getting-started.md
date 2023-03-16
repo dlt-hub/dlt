@@ -25,16 +25,16 @@ pip install -r requirements.txt
 
 Run the pipeline to load data from the chess.com API to DuckDB by running:
 ```
-python3 chess.py
+python3 chess_pipeline.py
 ```
 
 ## 3. Query the data in DuckDB
 
-Your data has been loaded into `chess.duckdb`, which has been added to your project directory.
+Your data has been loaded into `chess_pipeline.duckdb`, which has been added to your project directory.
 
 Run this command to see a quick overview of the data loaded:
 ```
-dlt pipeline chess show
+dlt pipeline chess_pipeline show
 ```
 
 Learn more about how to query DuckDB [here](https://duckdb.org/docs/sql/introduction#querying-a-table).

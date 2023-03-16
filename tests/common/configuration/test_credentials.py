@@ -146,17 +146,17 @@ def test_gcp_credentials_resolved_from_native_representation(environment: Any) -
 
 def test_run_configuration_slack_credentials(environment: Any) -> None:
     hook = "https://im.slack.com/hook"
-    environment["SLACK_INCOMING_HOOK"] = hook
+    environment["RUNTIME__SLACK_INCOMING_HOOK"] = hook
 
     c = resolve_configuration(RunConfiguration())
     assert c.slack_incoming_hook == hook
 
     # and obfuscated
-    environment["SLACK_INCOMING_HOOK"] = "DBgAXQFPQVsAAEteXlFRWUoPG0BdHQEbAg=="
+    environment["RUNTIME__SLACK_INCOMING_HOOK"] = "DBgAXQFPQVsAAEteXlFRWUoPG0BdHQEbAg=="
     c = resolve_configuration(RunConfiguration())
     assert c.slack_incoming_hook == hook
 
     # and obfuscated-like but really not
-    environment["SLACK_INCOMING_HOOK"] = "DBgAXQFPQVsAAEteXlFRWUoPG0BdHQ-EbAg=="
+    environment["RUNTIME__SLACK_INCOMING_HOOK"] = "DBgAXQFPQVsAAEteXlFRWUoPG0BdHQ-EbAg=="
     c = resolve_configuration(RunConfiguration())
     assert c.slack_incoming_hook == "DBgAXQFPQVsAAEteXlFRWUoPG0BdHQ-EbAg=="

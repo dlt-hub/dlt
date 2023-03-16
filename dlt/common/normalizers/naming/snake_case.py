@@ -13,7 +13,8 @@ class NamingConvention(BaseNamingConvention):
     _RE_NON_ALPHANUMERIC = re.compile(r"[^a-zA-Z\d_]+")
     _SNAKE_CASE_BREAK_1 = re.compile("([^_])([A-Z][a-z]+)")
     _SNAKE_CASE_BREAK_2 = re.compile("([a-z0-9])([A-Z])")
-    _TR_REDUCE_ALPHABET = str.maketrans("+-!$*@#=|:", "x_lsxah_li")
+    _REDUCE_ALPHABET = ("+-*@|", "x_xal")
+    _TR_REDUCE_ALPHABET = str.maketrans(_REDUCE_ALPHABET[0], _REDUCE_ALPHABET[1])
 
     # subsequent nested fields will be separated with the string below, applies both to field and table names
     PATH_SEPARATOR = "__"

@@ -116,7 +116,7 @@ def test_source_name_is_invalid_schema_name() -> None:
     s = dlt.source(camelCase, name="source!")()
     assert s.name == "source!"
     schema = s.discover_schema()
-    assert schema.name == "sourcel"
+    assert schema.name == "sourcex"
     assert list(s) == [1, 2, 3]
 
 
@@ -132,10 +132,10 @@ def test_resource_name_is_invalid_table_name_and_columns() -> None:
 
     # get schema and check table name
     schema = s.discover_schema()
-    assert "resource_l" in schema._schema_tables
+    assert "resourcex" in schema._schema_tables
     # has the column with identifiers normalized
-    assert "k_al_ax" in schema.get_table("resource_l")["columns"]
-    assert schema.get_table("resource_l")["columns"]["k_al_ax"]["name"] == "k_al_ax"
+    assert "ka_ax" in schema.get_table("resourcex")["columns"]
+    assert schema.get_table("resourcex")["columns"]["ka_ax"]["name"] == "ka_ax"
 
 
 def test_resource_name_from_generator() -> None:

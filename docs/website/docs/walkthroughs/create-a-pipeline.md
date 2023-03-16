@@ -14,7 +14,7 @@ Please make sure you have [installed `dlt`](../installation.mdx) before followin
 
 Create a new empty directory for your `dlt` project by running
 ```
-mkdir twitter-bigquery
+mkdir twitter_bigquery
 ```
 
 Start a `dlt` project with a pipeline template that loads data to Google BigQuery by running

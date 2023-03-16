@@ -3,7 +3,7 @@ from typing import Any
 
 from dlt.common.typing import TSecretValue
 from dlt.common.configuration import configspec, ConfigFieldMissingException, ConfigFileNotFoundException, resolve
-from dlt.common.configuration.specs import RunConfiguration
+from dlt.common.configuration.specs import RunConfiguration, BaseConfiguration
 from dlt.common.configuration.providers import environ as environ_provider
 
 from tests.utils import preserve_environ
@@ -11,19 +11,19 @@ from tests.common.configuration.utils import WrongConfiguration, SecretConfigura
 
 
 @configspec
-class SimpleConfiguration(RunConfiguration):
+class SimpleRunConfiguration(RunConfiguration):
     pipeline_name: str = "Some Name"
     test_bool: bool = False
 
 
 @configspec
-class SecretKubeConfiguration(RunConfiguration):
+class SecretKubeConfiguration(BaseConfiguration):
     pipeline_name: str = "secret kube"
     secret_kube: TSecretValue = None
 
 
 @configspec
-class MockProdConfigurationVar(RunConfiguration):
+class MockProdRunConfigurationVar(RunConfiguration):
     pipeline_name: str = "comp"
 
 
@@ -39,9 +39,9 @@ def test_resolves_from_environ(environment: Any) -> None:
 
 
 def test_resolves_from_environ_with_coercion(environment: Any) -> None:
-    environment["TEST_BOOL"] = 'yes'
+    environment["RUNTIME__TEST_BOOL"] = 'yes'
 
-    C = SimpleConfiguration()
+    C = SimpleRunConfiguration()
     resolve._resolve_config_fields(C, explicit_values=None, explicit_sections=(), embedded_sections=(), accept_partial=False)
     assert not C.is_partial()
 
@@ -94,9 +94,9 @@ def test_secret_kube_fallback(environment: Any) -> None:
 
 def test_configuration_files(environment: Any) -> None:
     # overwrite config file paths
-    environment["CONFIG_FILES_STORAGE_PATH"] = "./tests/common/cases/schemas/ev1/"
-    C = resolve.resolve_configuration(MockProdConfigurationVar())
-    assert C.config_files_storage_path == environment["CONFIG_FILES_STORAGE_PATH"]
+    environment["RUNTIME__CONFIG_FILES_STORAGE_PATH"] = "./tests/common/cases/schemas/ev1/"
+    C = resolve.resolve_configuration(MockProdRunConfigurationVar())
+    assert C.config_files_storage_path == environment["RUNTIME__CONFIG_FILES_STORAGE_PATH"]
     assert C.has_configuration_file("hasn't") is False
     assert C.has_configuration_file("event.schema.json") is True
     assert C.get_configuration_file_path("event.schema.json") == "./tests/common/cases/schemas/ev1/event.schema.json"

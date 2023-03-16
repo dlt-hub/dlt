@@ -8,7 +8,7 @@ from dlt.common.configuration import with_config
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.inject import get_orig_args, last_config
 from dlt.common.destination.reference import DestinationReference, TDestinationReferenceArg
-from dlt.common.pipeline import LoadInfo, PipelineContext, get_default_pipelines_dir
+from dlt.common.pipeline import LoadInfo, PipelineContext, get_dlt_pipelines_dir
 
 from dlt.pipeline.configuration import PipelineConfiguration, ensure_correct_pipeline_kwargs
 from dlt.pipeline.pipeline import Pipeline
@@ -102,7 +102,7 @@ def pipeline(
 
     # if working_dir not provided use temp folder
     if not pipelines_dir:
-        pipelines_dir = get_default_pipelines_dir()
+        pipelines_dir = get_dlt_pipelines_dir()
 
     destination = DestinationReference.from_name(destination or kwargs["destination_name"])
     # create new pipeline instance
@@ -136,7 +136,7 @@ def attach(
     ensure_correct_pipeline_kwargs(attach, **kwargs)
     # if working_dir not provided use temp folder
     if not pipelines_dir:
-        pipelines_dir = get_default_pipelines_dir()
+        pipelines_dir = get_dlt_pipelines_dir()
     # create new pipeline instance
     p = Pipeline(pipeline_name, pipelines_dir, pipeline_salt, None, None, None, None, None, full_refresh, True, last_config(**kwargs), kwargs["runtime"])
     # set it as current pipeline
@@ -216,6 +216,9 @@ def run(
         schema=schema
     )
 
+# plug default tracking module
+from dlt.pipeline import trace, track
+trace.TRACKING_MODULE = track
 
 # setup default pipeline in the container
 Container()[PipelineContext] = PipelineContext(pipeline)
