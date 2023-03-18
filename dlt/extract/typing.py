@@ -1,6 +1,8 @@
-from typing import Any, Callable, TypedDict, TypeVar, Union, Awaitable
+import inspect
+from abc import ABC, abstractmethod
+from typing import Any, Callable, Generic, Iterator, Optional, TypedDict, TypeVar, Union, Awaitable
 
-from dlt.common.typing import TDataItem, TDataItems
+from dlt.common.typing import TAny, TDataItem, TDataItems, TypeAlias
 from dlt.common.schema.typing import TTableSchemaColumns, TWriteDisposition
 
 
@@ -42,10 +44,83 @@ class TableNameMeta:
         self.table_name = table_name
 
 
-# define basic transformation functions
-# class FilterItemFunctionWithMeta(Protocol):
-#     def __call__(self, item: TDataItem, meta: Any = ...) -> bool:
-#         ...
+ItemTransformFunctionWithMeta = Callable[[TDataItem, str], TAny]
+ItemTransformFunctionNoMeta = Callable[[TDataItem], TAny]
+ItemTransformFunc = Union[ItemTransformFunctionWithMeta[TAny], ItemTransformFunctionNoMeta[TAny]]
 
-FilterItemFunctionWithMeta = Callable[[TDataItem, str], bool]
-FilterItemFunction = Callable[[TDataItem], bool]
+class ItemTransform(ABC, Generic[TAny]):
+    _f_meta: ItemTransformFunctionWithMeta[TAny] = None
+    _f: ItemTransformFunctionNoMeta[TAny] = None
+
+    def __init__(self, transform_f: ItemTransformFunc[TAny]) -> None:
+        # inspect the signature
+        sig = inspect.signature(transform_f)
+        # TODO: use TypeGuard here to get rid of type ignore
+        if len(sig.parameters) == 1:
+            self._f = transform_f  # type: ignore
+        else:  # TODO: do better check
+            self._f_meta = transform_f  # type: ignore
+
+    @abstractmethod
+    def __call__(self, item: TDataItems, meta: Any = None) -> Optional[TDataItems]:
+        """Transforms `item` (a list of TDataItem or a single TDataItem) and returns or yields TDataItems. Returns None to consume item (filter out)"""
+        pass
+
+
+class FilterItem(ItemTransform[bool]):
+    # mypy needs those to type correctly
+    _f_meta: ItemTransformFunctionWithMeta[bool]
+    _f: ItemTransformFunctionNoMeta[bool]
+
+    def __call__(self, item: TDataItems, meta: Any = None) -> Optional[TDataItems]:
+        if isinstance(item, list):
+            if self._f_meta:
+                item = [i for i in item if self._f_meta(i, meta)]
+            else:
+                item = [i for i in item if self._f(i)]
+            if not item:
+                # item was fully consumed by the filter
+                return None
+            return item
+        else:
+            if self._f_meta:
+                return item if self._f_meta(item, meta) else None
+            else:
+                return item if self._f(item) else None
+
+
+class MapItem(ItemTransform[TDataItem]):
+    # mypy needs those to type correctly
+    _f_meta: ItemTransformFunctionWithMeta[TDataItem]
+    _f: ItemTransformFunctionNoMeta[TDataItem]
+
+    def __call__(self, item: TDataItems, meta: Any = None) -> Optional[TDataItems]:
+        if isinstance(item, list):
+            if self._f_meta:
+                return [self._f_meta(i, meta) for i in item]
+            else:
+                return [self._f(i) for i in item]
+        else:
+            if self._f_meta:
+                return self._f_meta(item, meta)
+            else:
+                return self._f(item)
+
+
+class YieldMapItem(ItemTransform[Iterator[TDataItem]]):
+     # mypy needs those to type correctly
+    _f_meta: ItemTransformFunctionWithMeta[TDataItem]
+    _f: ItemTransformFunctionNoMeta[TDataItem]
+
+    def __call__(self, item: TDataItems, meta: Any = None) -> Optional[TDataItems]:
+        if isinstance(item, list):
+            for i in item:
+                if self._f_meta:
+                    yield from self._f_meta(i, meta)
+                else:
+                    yield from self._f(i)
+        else:
+            if self._f_meta:
+                yield from self._f_meta(item, meta)
+            else:
+                yield from self._f(item)

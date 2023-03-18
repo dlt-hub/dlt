@@ -8,8 +8,9 @@ import pytest
 import dlt
 from dlt.common import sleep
 from dlt.common.typing import TDataItems
-from dlt.extract.typing import DataItemWithMeta
-from dlt.extract.pipe import FilterItem, ManagedPipeIterator, Pipe, PipeItem, PipeIterator
+from dlt.extract.exceptions import CreatePipeException
+from dlt.extract.typing import DataItemWithMeta, FilterItem, MapItem, YieldMapItem
+from dlt.extract.pipe import ManagedPipeIterator, Pipe, PipeItem, PipeIterator
 
 # from tests.utils import preserve_environ
 
@@ -28,9 +29,10 @@ def test_add_step() -> None:
         assert meta is None
         return item
 
-    p.add_step(item_step)
-    p.add_step(item_meta_step)
-    assert p.head is data_iter
+    p.append_step(item_step)
+    p.append_step(item_meta_step)
+    assert p.gen is data_iter
+    assert p._gen_idx == 0
     assert p.tail is item_meta_step
     assert p.tail(3, None) == 3
     # the middle step should be wrapped
@@ -46,6 +48,93 @@ def test_add_step() -> None:
 
     _l = list(PipeIterator.from_pipe(p))
     assert [pi.item for pi in _l] == data
+
+
+def test_insert_remove_step() -> None:
+    data = [1, 2, 3]
+    # data_iter = iter(data)
+    pp = Pipe.from_data("data", data)
+
+    def tx(item):
+        yield item*2
+
+    # create pipe with transformer
+    p = Pipe.from_data("tx", tx, parent=pp)
+
+    # try to remove gen
+    with pytest.raises(CreatePipeException):
+        pp.remove_step(0)
+    with pytest.raises(CreatePipeException):
+        p.remove_step(0)
+
+    # try to insert before pp gen (resource cannot have any transform before data is in)
+    with pytest.raises(CreatePipeException):
+        pp.insert_step(tx, 0)
+    # but transformer can
+    p.insert_step(tx, 0)
+    # gen idx moved
+    assert p._gen_idx == 1
+
+    # get data: there are two tx that mul by 2
+    _l = list(PipeIterator.from_pipe(p))
+    assert [pi.item for pi in _l] == [4, 8, 12]
+
+    def pp_item_step(item):
+        assert item in data
+        return item * 0.5
+
+    # add pp step to pp after gen
+    pp.insert_step(pp_item_step, 1)
+    assert pp._gen_idx == 0
+    _l = list(PipeIterator.from_pipe(p))
+    assert [pi.item for pi in _l] == [2, 4, 6]
+
+    # add item with meta
+    def item_meta_step(item, meta):
+        assert meta is None
+        return item * 0.5
+
+    p.insert_step(item_meta_step, 2)
+    assert p._gen_idx == 1
+
+    _l = list(PipeIterator.from_pipe(p))
+    assert [pi.item for pi in _l] == [1, 2, 3]
+
+    # can't remove gen
+    with pytest.raises(CreatePipeException):
+        p.remove_step(1)
+
+    # can remove tx at 0
+    p.remove_step(0)
+    assert p._gen_idx == 0
+    _l = list(PipeIterator.from_pipe(p))
+    assert [pi.item for pi in _l] == [0.5, 1, 3/2]
+    # remove all remaining txs
+    p.remove_step(1)
+    pp.remove_step(1)
+    _l = list(PipeIterator.from_pipe(p))
+    assert [pi.item for pi in _l] == [2, 4, 6]
+
+    # replaces gen
+    pp.replace_gen([-1, -2, -3])
+    _l = list(PipeIterator.from_pipe(p))
+    assert [pi.item for pi in _l] == [-2, -4, -6]
+
+    # def tx_meta_minus(item, meta):
+    #     assert meta is None
+    #     yield item*-2
+
+    # p.replace_gen(tx_meta_minus)
+    # _l = list(PipeIterator.from_pipe(p))
+    # assert [pi.item for pi in _l] == [2, 4, 6]
+
+    def tx_minus(item, meta):
+        assert meta is None
+        yield item*-4
+
+    p.replace_gen(tx_minus)
+    _l = list(PipeIterator.from_pipe(p))
+    assert [pi.item for pi in _l] == [4, 8, 12]
 
 
 def test_pipe_propagate_meta() -> None:
@@ -67,14 +156,14 @@ def test_pipe_propagate_meta() -> None:
         assert _meta[item-1] == meta
         return item*2
 
-    p.add_step(item_meta_step)
+    p.append_step(item_meta_step)
     _l = list(PipeIterator.from_pipe(p))
     assert [pi.item / 2 for pi in _l] == data
     assert [pi.meta for pi in _l] == _meta
 
     # pass meta through transformer
     p = Pipe.from_data("data", iter(meta_data))
-    p.add_step(item_meta_step)
+    p.append_step(item_meta_step)
 
     # does not take meta
     def transformer(item):
@@ -87,7 +176,7 @@ def test_pipe_propagate_meta() -> None:
         return item*2
 
     t = Pipe("tran", [transformer], parent=p)
-    t.add_step(item_meta_step_trans)
+    t.append_step(item_meta_step_trans)
     _l = list(PipeIterator.from_pipe(t))
     # item got propagated through transformation -> transformer -> transformation
     assert [int((pi.item//2)**0.5//2) for pi in _l] == data
@@ -95,9 +184,9 @@ def test_pipe_propagate_meta() -> None:
 
     # same but with the fork step
     p = Pipe.from_data("data", iter(meta_data))
-    p.add_step(item_meta_step)
+    p.append_step(item_meta_step)
     t = Pipe("tran", [transformer], parent=p)
-    t.add_step(item_meta_step_trans)
+    t.append_step(item_meta_step_trans)
     # do not yield parents
     _l = list(PipeIterator.from_pipes([p, t], yield_parents=False))
     # same result
@@ -106,9 +195,9 @@ def test_pipe_propagate_meta() -> None:
 
     # same but yield parents
     p = Pipe.from_data("data", iter(meta_data))
-    p.add_step(item_meta_step)
+    p.append_step(item_meta_step)
     t = Pipe("tran", [transformer], parent=p)
-    t.add_step(item_meta_step_trans)
+    t.append_step(item_meta_step_trans)
     _l = list(PipeIterator.from_pipes([p, t], yield_parents=True))
     # same result for transformer
     tran_l = [pi for pi in _l if pi.pipe._pipe_id == t._pipe_id]
@@ -132,7 +221,7 @@ def test_pipe_transformation_changes_meta() -> None:
         # return meta, it should overwrite existing one
         return DataItemWithMeta("X" + str(item), item*2)
 
-    p.add_step(item_meta_step)
+    p.append_step(item_meta_step)
     _l = list(PipeIterator.from_pipe(p))
     assert [pi.item / 2 for pi in _l] == data
     assert [pi.meta for pi in _l] == ["X1", "X2", "X3"]
@@ -146,7 +235,7 @@ def test_pipe_transformation_changes_meta() -> None:
         return DataItemWithMeta("X" + str(item), item*2)
 
     p = Pipe.from_data("data", iter(meta_data))
-    p.add_step(item_meta_step_defer)
+    p.append_step(item_meta_step_defer)
     _l = list(PipeIterator.from_pipe(p))
     assert [pi.item / 2 for pi in _l] == data
     assert [pi.meta for pi in _l] == ["X1", "X2", "X3"]
@@ -158,7 +247,7 @@ def test_pipe_transformation_changes_meta() -> None:
         yield DataItemWithMeta("X" + str(item), item*2)
 
     p = Pipe.from_data("data", iter(meta_data))
-    p.add_step(item_meta_step_flat)
+    p.append_step(item_meta_step_flat)
     _l = list(PipeIterator.from_pipe(p))
     assert [pi.item / 2 for pi in _l] == data
     assert [pi.meta for pi in _l] == ["X1", "X2", "X3"]
@@ -171,7 +260,7 @@ def test_pipe_transformation_changes_meta() -> None:
         return DataItemWithMeta("X" + str(item), item*2)
 
     p = Pipe.from_data("data", iter(meta_data))
-    p.add_step(item_meta_step_async)
+    p.append_step(item_meta_step_async)
     _l = list(PipeIterator.from_pipe(p))
     assert [pi.item / 2 for pi in _l] == data
     assert [pi.meta for pi in _l] == ["X1", "X2", "X3"]
@@ -228,11 +317,11 @@ def test_pipe_multiple_iterations() -> None:
 
 def test_filter_step() -> None:
     p = Pipe.from_data("data", [1, 2, 3, 4])
-    p.add_step(FilterItem(lambda item, _: item % 2 == 0))
+    p.append_step(FilterItem(lambda item, _: item % 2 == 0))
     assert _f_items(list(PipeIterator.from_pipe(p))) == [2, 4]
     # also should work on the list which if fully filtered must become None
     p = Pipe.from_data("data", [[1, 3], 2, [3, 4]])
-    p.add_step(FilterItem(lambda item, _: item % 2 == 0))
+    p.append_step(FilterItem(lambda item, _: item % 2 == 0))
     assert _f_items(list(PipeIterator.from_pipe(p))) == [2, [4]]
     # also should filter based on meta
     data = [1, 2, 3]
@@ -240,17 +329,51 @@ def test_filter_step() -> None:
     # package items into meta wrapper
     meta_data = [DataItemWithMeta(m, d) for m, d in zip(meta, data)]
     p = Pipe.from_data("data", meta_data)
-    p.add_step(FilterItem(lambda _, meta: bool(meta)))
+    p.append_step(FilterItem(lambda _, meta: bool(meta)))
     assert _f_items(list(PipeIterator.from_pipe(p))) == [1, 2]
 
     # try the lambda that takes only item (no meta)
     p = Pipe.from_data("data", [1, 2, 3, 4])
-    p.add_step(FilterItem(lambda item: item % 2 == 0))
+    p.append_step(FilterItem(lambda item: item % 2 == 0))
     assert _f_items(list(PipeIterator.from_pipe(p))) == [2, 4]
     # also should work on the list which if fully filtered must become None
     p = Pipe.from_data("data", [[1, 3], 2, [3, 4]])
-    p.add_step(FilterItem(lambda item: item % 2 == 0))
+    p.append_step(FilterItem(lambda item: item % 2 == 0))
     assert _f_items(list(PipeIterator.from_pipe(p))) == [2, [4]]
+
+
+def test_map_step() -> None:
+    p = Pipe.from_data("data", ["A", "B", "C"])
+    # doubles all letters
+    p.append_step(MapItem(lambda item, _: item * 2))
+    assert _f_items(list(PipeIterator.from_pipe(p))) == ["AA", "BB", "CC"]
+    # lists and items
+    p = Pipe.from_data("data", ["A", ["B", "C"]])
+    # doubles all letters
+    p.append_step(MapItem(lambda item: item * 2))
+    assert _f_items(list(PipeIterator.from_pipe(p))) == ["AA", ["BB", "CC"]]
+    # pass meta
+    data = ["A", "B", "C"]
+    meta = [1, 2, 3]
+    # package items into meta wrapper
+    meta_data = [DataItemWithMeta(m, d) for m, d in zip(meta, data)]
+    p = Pipe.from_data("data", meta_data)
+    p.append_step(MapItem(lambda item, meta: item * meta))
+    assert _f_items(list(PipeIterator.from_pipe(p))) == ["A", "BB", "CCC"]
+
+
+def test_yield_map_step() -> None:
+    p = Pipe.from_data("data", [1, 2, 3])
+    # this creates number of rows as passed by the data
+    p.append_step(YieldMapItem(lambda item: (yield from [f"item_{x}" for x in range(item)])))
+    assert _f_items(list(PipeIterator.from_pipe(p))) == ["item_0", "item_0", "item_1", "item_0", "item_1", "item_2"]
+    data = [1, 2, 3]
+    meta = ["A", "B", "C"]
+    # package items into meta wrapper
+    meta_data = [DataItemWithMeta(m, d) for m, d in zip(meta, data)]
+    p = Pipe.from_data("data", meta_data)
+    p.append_step(YieldMapItem(lambda item, meta: (yield from [f"item_{meta}_{x}" for x in range(item)])))
+    assert _f_items(list(PipeIterator.from_pipe(p))) == ["item_A_0", "item_B_0", "item_B_1", "item_C_0", "item_C_1", "item_C_2"]
 
 
 def test_pipe_copy_on_fork() -> None:
@@ -270,6 +393,78 @@ def test_pipe_copy_on_fork() -> None:
     assert doc is elems[0].item
     # second fork copies
     assert elems[0].item is not elems[1].item
+
+
+def test_clone_pipes() -> None:
+
+    def pass_gen(item, meta):
+        yield item*2
+
+    data = [1, 2, 3]
+    p1 = Pipe("p1", [data])
+    p2 = Pipe("p2", [data])
+    p1_p3 = Pipe("p1_p3", [pass_gen], parent=p1)
+    p1_p4 = Pipe("p1_p4", [pass_gen], parent=p1)
+    p2_p5 = Pipe("p2_p5", [pass_gen], parent=p2)
+    p5_p6 = Pipe("p5_p6", [pass_gen], parent=p2_p5)
+
+    # pass all pipes explicitly
+    pipes = [p1, p2, p1_p3, p1_p4, p2_p5, p5_p6]
+    cloned_pipes = PipeIterator.clone_pipes(pipes)
+    assert_cloned_pipes(pipes, cloned_pipes)
+
+    # clone only two top end pipes, still all parents must be cloned as well
+    pipes = [p1_p4, p5_p6]
+    cloned_pipes = PipeIterator.clone_pipes(pipes)
+    assert_cloned_pipes(pipes, cloned_pipes)
+    c_p5_p6 = cloned_pipes[-1]
+    assert c_p5_p6.parent.parent is not p2
+    assert c_p5_p6.parent.parent._pipe_id == p2._pipe_id
+
+    # try circular deps
+
+
+
+def assert_cloned_pipes(pipes: List[Pipe], cloned_pipes: List[Pipe]):
+    # clones pipes must be separate instances but must preserve pipe id and names
+    for pipe, cloned_pipe in zip(pipes, cloned_pipes):
+        while True:
+            assert pipe is not cloned_pipe
+            assert pipe.name == cloned_pipe.name
+            assert pipe._pipe_id == cloned_pipe._pipe_id
+            assert pipe.has_parent == cloned_pipe.has_parent
+
+            # check all the parents
+            if not pipe.has_parent:
+                break
+            pipe = pipe.parent
+            cloned_pipe = cloned_pipe.parent
+
+    # must yield same data
+    for pipe, cloned_pipe in zip(pipes, cloned_pipes):
+        assert _f_items(list(PipeIterator.from_pipe(pipe))) == _f_items(list(PipeIterator.from_pipe(cloned_pipe)))
+
+
+def test_circular_deps() -> None:
+
+    def pass_gen(item, meta):
+        yield item*2
+
+    c_p1_p3 = Pipe("c_p1_p3", [pass_gen])
+    c_p1_p4 = Pipe("c_p1_p4", [pass_gen], parent=c_p1_p3)
+    c_p1_p3.parent = c_p1_p4
+    pipes = [c_p1_p3, c_p1_p4]
+
+    # can be cloned
+    cloned_pipes = PipeIterator.clone_pipes(pipes)
+
+    # cannot be evaluated
+    with pytest.raises(RecursionError):
+        _f_items(list(PipeIterator.from_pipe(pipes[-1])))
+    with pytest.raises(RecursionError):
+        _f_items(list(PipeIterator.from_pipe(cloned_pipes[-1])))
+    with pytest.raises(RecursionError):
+        _f_items(list(PipeIterator.from_pipes(pipes)))
 
 
 close_pipe_got_exit = False
@@ -355,7 +550,6 @@ def assert_pipes_closed(raise_gen, long_gen) -> None:
     close_pipe_got_exit = False
     close_pipe_yielding = False
 
-    print("START PIPE")
     pit: PipeIterator = None
     with PipeIterator.from_pipe(Pipe.from_data("failing", raise_gen, parent=Pipe.from_data("endless", long_gen()))) as pit:
         with pytest.raises(RuntimeError):

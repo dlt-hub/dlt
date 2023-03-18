@@ -6,7 +6,7 @@ from asyncio import Future
 from concurrent.futures import ThreadPoolExecutor
 from copy import copy
 from threading import Thread
-from typing import Any, Optional, Sequence, Union, Callable, Iterable, Iterator, List, NamedTuple, Awaitable, Tuple, Type, TYPE_CHECKING
+from typing import Any, ContextManager, Optional, Sequence, Union, Callable, Iterable, Iterator, List, NamedTuple, Awaitable, Tuple, Type, TYPE_CHECKING
 
 from dlt.common import sleep
 from dlt.common.configuration import configspec
@@ -15,9 +15,8 @@ from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.typing import AnyFun, TDataItems
 from dlt.common.utils import get_callable_name
 
-from dlt.extract.exceptions import CreatePipeException, InvalidStepFunctionArguments, ParametrizedResourceUnbound, PipeItemProcessingError, PipeNotBoundToData
-from dlt.extract.typing import DataItemWithMeta, FilterItemFunction, FilterItemFunctionWithMeta, TPipedDataItems
-
+from dlt.extract.exceptions import CreatePipeException, InvalidStepFunctionArguments, InvalidTransformerGeneratorFunction, ParametrizedResourceUnbound, PipeItemProcessingError, PipeNotBoundToData
+from dlt.extract.typing import DataItemWithMeta, TPipedDataItems
 
 if TYPE_CHECKING:
     TItemFuture = Future[Union[TDataItems, DataItemWithMeta]]
@@ -64,12 +63,6 @@ TPipeStep = Union[
 ]
 
 
-# def _meta_wrapper(f: AnyFun, *args: Any, **kwargs: Any) -> Any:
-#     """Wraps a single argument transformation expecting item in two argument transformation also accepting meta"""
-#     # TODO: must find first arg or kwarg and pass it to f
-#     return f(args[0])
-
-
 class ForkPipe:
     def __init__(self, pipe: "Pipe", step: int = -1, copy_on_fork: bool = False) -> None:
         """A transformer that forks the `pipe` and sends the data items to forks added via `add_pipe` method."""
@@ -96,48 +89,17 @@ class ForkPipe:
             yield ResolvablePipeItem(_it, step, pipe, meta)
 
 
-class FilterItem:
-    _filter_f_meta: FilterItemFunctionWithMeta = None
-    _filter_f: FilterItemFunction = None
-
-    def __init__(self, filter_f: Union[FilterItemFunctionWithMeta, FilterItemFunction]) -> None:
-        # TODO: extract this into a helper function
-        # inspect the signature
-        sig = inspect.signature(filter_f)
-        # TODO: use TypeGuard here to get rid of type ignore
-        if len(sig.parameters) == 1:
-            self._filter_f = filter_f  # type: ignore
-        else:  # TODO: do better check
-            self._filter_f_meta = filter_f  # type: ignore
-
-    def __call__(self, item: TDataItems, meta: Any = None) -> Optional[TDataItems]:
-        # item may be a list TDataItem or a single TDataItem
-        if isinstance(item, list):
-            if self._filter_f_meta:
-                item = [i for i in item if self._filter_f_meta(i, meta)]
-            else:
-                item = [i for i in item if self._filter_f(i)]
-            if not item:
-                # item was fully consumed by the filter
-                return None
-            return item
-        else:
-            if self._filter_f_meta:
-                return item if self._filter_f_meta(item, meta) else None
-            else:
-                return item if self._filter_f(item) else None
-
-
 class Pipe:
     def __init__(self, name: str, steps: List[TPipeStep] = None, parent: "Pipe" = None) -> None:
         self.name = name
+        self._gen_idx = 0
         self._steps: List[TPipeStep] = []
         self._pipe_id = f"{name}_{id(self)}"
         self.parent = parent
         # add the steps, this will check and mod transformations
         if steps:
             for step in steps:
-                self.add_step(step)
+                self.append_step(step)
 
     @classmethod
     def from_data(cls, name: str, gen: Union[Iterable[TPipedDataItems], Iterator[TPipedDataItems], AnyFun], parent: "Pipe" = None) -> "Pipe":
@@ -162,8 +124,9 @@ class Pipe:
             return not self.is_empty
 
     @property
-    def head(self) -> TPipeStep:
-        return self._steps[0]
+    def gen(self) -> TPipeStep:
+        """A data generating step"""
+        return self._steps[self._gen_idx]
 
     @property
     def tail(self) -> TPipeStep:
@@ -185,52 +148,59 @@ class Pipe:
         fork_step = self.tail
         if not isinstance(fork_step, ForkPipe):
             fork_step = ForkPipe(child_pipe, child_step, copy_on_fork)
-            self.add_step(fork_step)
+            self.append_step(fork_step)
         else:
             if not fork_step.has_pipe(child_pipe):
                 fork_step.add_pipe(child_pipe, child_step)
         return self
 
-    def clone(self) -> "Pipe":
-        p = Pipe(self.name, [], self.parent)
-        p._steps = self._steps.copy()
-        # clone shares the id with the original
-        p._pipe_id = self._pipe_id
-        return p
-
-    # def backup(self) -> None:
-    #     if self.has_backup:
-    #         raise PipeBackupException("Pipe backup already exists, restore pipe first")
-    #     self._backup_steps = self._steps.copy()
-
-    # @property
-    # def has_backup(self) -> bool:
-    #     return self._backup_steps is not None
-
-
-    # def restore(self) -> None:
-    #     if not self.has_backup:
-    #         raise PipeBackupException("No pipe backup to restore")
-    #     self._steps = self._backup_steps
-    #     self._backup_steps = None
-
-    def add_step(self, step: TPipeStep) -> "Pipe":
+    def append_step(self, step: TPipeStep) -> "Pipe":
+        """Appends pipeline step. On first added step performs additional verification if step is a valid data generator"""
         step_no = len(self._steps)
         if step_no == 0 and not self.has_parent:
-            self._add_head(step)
+            self._verify_head_step(step)
         else:
-            # step must be a callable: a transformer or a transformation
-            if isinstance(step, (Iterable, Iterator)):
-                if self.has_parent:
-                    raise CreatePipeException(self.name, "Iterable or Iterator cannot be a step in transformer pipe")
-                else:
-                    raise CreatePipeException(self.name, "Iterable or Iterator can only be a first step in resource pipe")
-            self._add_transformer_step(step_no, step)
+            step = self._wrap_transform_step_meta(step_no, step)
+
+        self._steps.append(step)
         return self
 
+    def insert_step(self, step: TPipeStep, index: int) -> "Pipe":
+        """Inserts step at a given index in the pipeline. Allows prepending only for transformers"""
+        step_no = len(self._steps)
+        if step_no == 0:
+            return self.append_step(step)
+        if index == 0:
+            if not self.has_parent:
+                raise CreatePipeException(self.name, "You cannot insert a step before head of the resource that is not a transformer")
+        step = self._wrap_transform_step_meta(index, step)
+        # actually insert in the list
+        self._steps.insert(index, step)
+        # increase the _gen_idx if added before generator
+        if index <= self._gen_idx:
+            self._gen_idx += 1
+        return self
+
+    def remove_step(self, index: int) -> None:
+        """Removes steps at a given index. Gen step cannot be removed"""
+        if index == self._gen_idx:
+            raise CreatePipeException(self.name, f"Step at index {index} holds a data generator for this pipe and cannot be removed")
+        self._steps.pop(index)
+        if index < self._gen_idx:
+            self._gen_idx -= 1
+
+    def replace_gen(self, gen: TPipeStep) -> None:
+        """Replaces data generating step. Assumes that you know what are you doing"""
+        assert not self.is_empty
+        self._steps[self._gen_idx] = gen
+
     def full_pipe(self) -> "Pipe":
+        """Creates a pipe that from the current and all the parent pipes."""
         # prevent creating full pipe with unbound heads
-        self._ensure_step_function(0, self.head)
+        if self.has_parent:
+            self._ensure_transform_step(self._gen_idx, self.gen)
+        else:
+            self.ensure_gen_bound()
 
         if self.has_parent:
             steps = self.parent.full_pipe().steps
@@ -244,35 +214,54 @@ class Pipe:
         # return pipe with resolved dependencies
         return p
 
-    def evaluate_head(self) -> None:
-        """Lazily evaluate head of the pipe when creating PipeIterator. Allows creating multiple use pipes from generator functions and lists"""
+    def ensure_gen_bound(self) -> None:
+        """Verifies that gen step is bound to data"""
+        head = self.gen
+        if not callable(head):
+            return
+        sig = inspect.signature(head)
+        try:
+            # must bind without arguments
+            sig.bind()
+        except TypeError:
+            callable_name = get_callable_name(head)
+            raise ParametrizedResourceUnbound(self.name, callable_name, sig.replace(parameters=list(sig.parameters.values())[1:]), "resource")
+
+    def evaluate_gen(self) -> None:
+        """Lazily evaluate gen of the pipe when creating PipeIterator. Allows creating multiple use pipes from generator functions and lists"""
         if not self.is_data_bound:
             raise PipeNotBoundToData(self.name, self.has_parent)
 
-        head = self.head
+        gen = self.gen
         if not self.has_parent:
             # if pipe head is callable then call it
-            if callable(head):
+            if callable(gen):
                 try:
                     # must be parameter-less callable or parameters must have defaults
-                    self._steps[0] = head()  # type: ignore
+                    self._steps[0] = gen()  # type: ignore
                 except TypeError:
-                    raise ParametrizedResourceUnbound(self.name, get_callable_name(head), inspect.signature(head))
-            elif isinstance(head, Iterable):
-                self._steps[0] = iter(head)
+                    raise ParametrizedResourceUnbound(self.name, get_callable_name(gen), inspect.signature(gen))
+            elif isinstance(gen, Iterable):
+                self._steps[0] = iter(gen)
         else:
             # verify if transformer can be called
-            self._ensure_step_function(0, head)
+            self._ensure_transform_step(self._gen_idx, gen)
 
-    def _add_head(self, step: TPipeStep) -> None:
+    def _verify_head_step(self, step: TPipeStep) -> None:
         # first element must be Iterable, Iterator or Callable in resource pipe
         if not isinstance(step, (Iterable, Iterator)) and not callable(step):
-            raise CreatePipeException(self.name, "A head of a resource pipe must be Iterable or Iterator or Callable that can be called without arguments")
-        self._steps.append(step)
+            raise CreatePipeException(self.name, "A head of a resource pipe must be Iterable, Iterator or a Callable")
 
-    def _add_transformer_step(self, step_no: int, step: TPipeStep) -> None:
+    def _wrap_transform_step_meta(self, step_no: int, step: TPipeStep) -> TPipeStep:
+        # step must be a callable: a transformer or a transformation
+        if isinstance(step, (Iterable, Iterator)):
+            if self.has_parent:
+                raise CreatePipeException(self.name, "Iterable or Iterator cannot be a step in transformer pipe")
+            else:
+                raise CreatePipeException(self.name, "Iterable or Iterator can only be a first step in resource pipe")
+
         if not callable(step):
-            raise CreatePipeException(self.name, "Pipe step must be a callable taking exactly one data item as argument")
+            raise CreatePipeException(self.name, "Pipe step must be a callable taking one data item as argument and optional second meta argument")
         else:
             # check the signature
             sig = inspect.signature(step)
@@ -285,8 +274,8 @@ class Pipe:
             if meta_arg is not None:
                 if meta_arg.kind not in (meta_arg.KEYWORD_ONLY, meta_arg.POSITIONAL_OR_KEYWORD):
                     raise InvalidStepFunctionArguments(self.name, callable_name, sig, "'meta' cannot be pos only argument '")
-            elif step_no > 0 or sig_arg_count == 1:  # transformer always has meta added by the resource
-                # add meta parameter, in case of other number of params (0 or >1) let the pipe code fail later
+            elif sig_arg_count == 1:
+                # add meta parameter when functions takes just one argument
                 orig_step = step
 
                 def _partial(*args: Any, **kwargs: Any) -> Any:
@@ -299,26 +288,40 @@ class Pipe:
                         append_args=inspect.Parameter("meta", inspect._ParameterKind.KEYWORD_ONLY, default=None)
                     )(_partial)
 
-            # verify the step callable
-            if step_no > 0:
-                self._ensure_step_function(step_no, step)
+            # verify the step callable, gen may be parametrized and will be evaluated at run time
+            if not self.is_empty:
+                self._ensure_transform_step(step_no, step)
+        return step
 
-        self._steps.append(step)
 
-    def _ensure_step_function(self, step_no: int, step: TPipeStep) -> None:
-        if not callable(step):
-            return
+    def _ensure_transform_step(self, step_no: int, step: TPipeStep) -> None:
+        """Verifies that `step` is a valid callable to be a transform step of the pipeline"""
+        assert callable(step), f"{step} must be callable"
+
+        sig = inspect.signature(step)
         try:
             # get eventually modified sig
-            sig = inspect.signature(step)
             sig.bind("item", meta="meta")
         except TypeError as ty_ex:
+            print(ty_ex)
             callable_name = get_callable_name(step)
-            if step_no == 0:
-                # show the sig without first argument
-                raise ParametrizedResourceUnbound(self.name, callable_name, sig.replace(parameters=list(sig.parameters.values())[1:]), "transformer")
-            if step_no > 0:
+            if step_no == self._gen_idx:
+                # error for gen step
+                if len(sig.parameters) == 0:
+                    raise InvalidTransformerGeneratorFunction(self.name, callable_name, sig, code=1)
+                else:
+                    # show the sig without first argument
+                    raise ParametrizedResourceUnbound(self.name, callable_name, sig.replace(parameters=list(sig.parameters.values())[1:]), "transformer")
+            else:
                 raise InvalidStepFunctionArguments(self.name, callable_name, sig, str(ty_ex))
+
+    def _clone(self) -> "Pipe":
+        """Clones the pipe steps, keeping the pipe id. Used internally to clone a list of connected pipes."""
+        p = Pipe(self.name, [], self.parent)
+        p._steps = self._steps.copy()
+        # clone shares the id with the original
+        p._pipe_id = self._pipe_id
+        return p
 
     def __repr__(self) -> str:
         if self.has_parent:
@@ -357,14 +360,14 @@ class PipeIterator(Iterator[PipeItem]):
         if pipe.parent:
             pipe = pipe.full_pipe()
         # clone pipe to allow multiple iterations on pipe based on iterables/callables
-        pipe = pipe.clone()
+        pipe = pipe._clone()
         # head must be iterator
-        pipe.evaluate_head()
-        assert isinstance(pipe.head, Iterator)
+        pipe.evaluate_gen()
+        assert isinstance(pipe.gen, Iterator)
         # create extractor
         extract = cls(max_parallel_items, workers, futures_poll_interval)
         # add as first source
-        extract._sources.append(SourcePipeItem(pipe.head, 0, pipe, None))
+        extract._sources.append(SourcePipeItem(pipe.gen, 0, pipe, None))
         return extract
 
     @classmethod
@@ -380,14 +383,13 @@ class PipeIterator(Iterator[PipeItem]):
         copy_on_fork: bool = False
     ) -> "PipeIterator":
         extract = cls(max_parallel_items, workers, futures_poll_interval)
-        # TODO: consider removing cloning. pipe are single use and may be iterated only once, here we modify an immediately run
-        # clone all pipes before iterating (recursively) as we will fork them and this add steps
+        # clone all pipes before iterating (recursively) as we will fork them (this add steps) and evaluate gens
         pipes = PipeIterator.clone_pipes(pipes)
 
         def _fork_pipeline(pipe: Pipe) -> None:
             if pipe.parent:
                 # fork the parent pipe
-                pipe.evaluate_head()
+                pipe.evaluate_gen()
                 pipe.parent.fork(pipe, copy_on_fork=copy_on_fork)
                 # make the parent yield by sending a clone of item to itself with position at the end
                 if yield_parents and pipe.parent in pipes:
@@ -396,11 +398,11 @@ class PipeIterator(Iterator[PipeItem]):
                 _fork_pipeline(pipe.parent)
             else:
                 # head of independent pipe must be iterator
-                pipe.evaluate_head()
-                assert isinstance(pipe.head, Iterator)
+                pipe.evaluate_gen()
+                assert isinstance(pipe.gen, Iterator)
                 # add every head as source only once
                 if not any(i.pipe == pipe for i in extract._sources):
-                    extract._sources.append(SourcePipeItem(pipe.head, 0, pipe, None))
+                    extract._sources.append(SourcePipeItem(pipe.gen, 0, pipe, None))
 
         for pipe in reversed(pipes):
             _fork_pipeline(pipe)
@@ -595,8 +597,8 @@ class PipeIterator(Iterator[PipeItem]):
 
     @staticmethod
     def clone_pipes(pipes: Sequence[Pipe]) -> Sequence[Pipe]:
-        # will clone the pipes including the dependent ones
-        cloned_pipes = [p.clone() for p in pipes]
+        """This will clone pipes and fix the parent/dependent references"""
+        cloned_pipes = [p._clone() for p in pipes]
         cloned_pairs = {id(p): c for p, c in zip(pipes, cloned_pipes)}
 
         for clone in cloned_pipes:
@@ -609,7 +611,7 @@ class PipeIterator(Iterator[PipeItem]):
                 # clone if parent pipe not yet cloned
                 if id(clone.parent) not in cloned_pairs:
                     # print("cloning:" + clone.parent.name)
-                    cloned_pairs[id(clone.parent)] = clone.parent.clone()
+                    cloned_pairs[id(clone.parent)] = clone.parent._clone()
                 # replace with clone
                 # print(f"replace depends on {clone.name} to {clone.parent.name}")
                 clone.parent = cloned_pairs[id(clone.parent)]
@@ -621,11 +623,23 @@ class PipeIterator(Iterator[PipeItem]):
 
 class ManagedPipeIterator(PipeIterator):
     """A version of the pipe iterator that gets closed automatically on an exception in _next_"""
+    _context_manager: ContextManager[Any] = None
+
+    def set_context_manager(self, ctx: ContextManager[Any]) -> None:
+        """Enters the context manager that will exit automatically when iterator is closed"""
+        ctx.__enter__()
+        self._context_manager = ctx
 
     def __next__(self) -> PipeItem:
         try:
             return super().__next__()
-        except Exception:
+        except Exception as ex:
+            # release context manager
+            if self._context_manager:
+                if isinstance(ex, StopIteration):
+                    self._context_manager.__exit__(None, None, None)
+                else:
+                    self._context_manager.__exit__(type(ex), ex, None)
             # crash in next
             self.close()
             raise
