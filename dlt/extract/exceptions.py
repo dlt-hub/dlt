@@ -97,7 +97,7 @@ class InvalidResourceDataTypeMultiplePipes(InvalidResourceDataType):
 
 
 class InvalidTransformerDataTypeGeneratorFunctionRequired(InvalidResourceDataType):
-    def __init__(self, resource_name: str, item: Any,_typ: Type[Any]) -> None:
+    def __init__(self, resource_name: str, item: Any, _typ: Type[Any]) -> None:
         super().__init__(resource_name, item, _typ,
             "Transformer must be a function decorated with @dlt.transformer that takes data item as its first argument. Only first argument may be 'positional only'.")
 
@@ -148,7 +148,12 @@ class ParametrizedResourceUnbound(DltResourceException):
     def __init__(self, resource_name: str, func_name: str, sig: Signature, kind: str = "resource") -> None:
         self.func_name = func_name
         self.sig = sig
-        super().__init__(resource_name, f"The {kind} {resource_name} is parametrized and expects following arguments: {sig}. Did you forget to call the {func_name} function? For example from `source.{resource_name}(...)")
+        super().__init__(resource_name, f"The {kind} {resource_name} is parametrized and expects following arguments: {sig}. Did you forget to bind the {func_name} function? For example from `source.{resource_name}.bind(...)")
+
+
+class ResourceNotATransformer(DltResourceException):
+    def __init__(self, resource_name: str, msg: str) -> None:
+        super().__init__(resource_name, f"This resource is not a transformer: {msg}")
 
 
 class TableNameMissing(DltSourceException):

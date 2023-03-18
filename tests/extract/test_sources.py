@@ -4,7 +4,8 @@ import dlt
 from dlt.common.schema import Schema
 from dlt.common.typing import TDataItems
 from dlt.extract.exceptions import InvalidParentResourceDataType, InvalidParentResourceIsAFunction, InvalidTransformerDataTypeGeneratorFunctionRequired, InvalidTransformerGeneratorFunction, ParametrizedResourceUnbound, ResourcesNotFoundError
-from dlt.extract.pipe import FilterItem
+from dlt.extract.pipe import Pipe
+from dlt.extract.typing import FilterItem, MapItem
 from dlt.extract.source import DltResource, DltSource
 
 
@@ -23,9 +24,10 @@ def test_parametrized_resource() -> None:
 
     r = DltResource.from_data(parametrized)
     info = str(r)
+
     # contains parametrized info
     assert "This resource is parametrized and takes the following arguments" in info
-    # does not contain iterate infro
+    # does not contain iterate info
     assert "If you want to see the data items in the resource you" not in info
 
     # iterating the source will raise unbound exception
@@ -48,8 +50,14 @@ def test_parametrized_resource() -> None:
     with pytest.raises(ParametrizedResourceUnbound) as py_ex:
         list(s)
 
-    # bind
-    assert list(s.resources["parametrized"]("p1", 1, p3=None)) == [1]
+    # call the resource
+    assert list(s.parametrized("p1", 1, p3=None)) == [1]
+    # the resource in the source is still unbound
+    with pytest.raises(ParametrizedResourceUnbound) as py_ex:
+        list(s)
+    # so bind it
+    s.parametrized.bind("p1", 1)
+    assert list(s) == [1]
 
 
 def test_parametrized_transformer() -> None:
@@ -155,16 +163,142 @@ def test_resource_bind_when_in_source() -> None:
     # we cloned the instance
     assert s.resources["parametrized"] is not parametrized
     cloned_r = s.resources["parametrized"]
+    # calling resources always create a copy
     cr_1 = cloned_r(10)
-    assert cloned_r is cr_1
+    # different instance
+    assert cloned_r is not cr_1
+    # call bind directly to replace resource in place
+    s.parametrized.bind(10)
     # will raise
     with pytest.raises(TypeError):
         # already bound
         cloned_r(10)
+    assert list(s) == list(range(10))
 
 
-def test_resource_double_bind() -> None:
-    pass
+def test_resource_bind_call_forms() -> None:
+
+    @dlt.resource
+    def returns_res(_input):
+        # resource returning resource
+        return dlt.resource(_input, name="internal_res")
+
+    @dlt.resource
+    def returns_pipe(_input):
+        # returns pipe
+        return Pipe.from_data("internal_pipe", _input)
+
+    @dlt.resource
+    def regular(_input):
+        yield from _input
+
+    # add filtering lambda
+    regular.add_filter(lambda x: x == "A")
+    assert len(regular._pipe) == 2
+    # binding via call preserves filter (only gen replaced, other steps remain)
+    b_regular = regular("ABCA")
+    assert len(b_regular._pipe) == 2
+    # filter works
+    assert list(b_regular) == ["A", "A"]
+    # resource is different instance
+    assert regular is not b_regular
+    assert regular._pipe is not b_regular._pipe
+    # pipe has same id
+    assert regular._pipe._pipe_id == b_regular._pipe._pipe_id
+
+    # pipe is replaced on resource returning resource (new pipe created)
+    returns_res.add_filter(lambda x: x == "A")
+    assert len(returns_res._pipe) == 2
+    b_returns_res = returns_res(["A", "A", "B", "B"])
+    assert len(b_returns_res._pipe) == 1
+    assert returns_res is not b_returns_res
+    assert returns_res._pipe is not b_returns_res._pipe
+
+    # pipe is replaced on resource returning pipe
+    returns_pipe.add_filter(lambda x: x == "A")
+    assert len(returns_pipe._pipe) == 2
+    b_returns_pipe = returns_pipe("ABCA")
+    assert len(b_returns_pipe._pipe) == 1
+
+
+    @dlt.source
+    def test_source():
+        return returns_res, returns_pipe, regular
+
+    # similar rests within sources
+    s = test_source()
+
+    # clone of resource in the source, including pipe
+    assert s.regular is not regular
+    assert s.regular._pipe is not regular._pipe
+
+    # will repeat each string 3 times
+    s.regular.add_map(lambda i: i*3)
+    assert len(regular._pipe) == 2
+    assert len(s.regular._pipe) == 3
+
+    # call
+    assert list(s.regular(["A", "A", "B", "B"])) == ["AAA", "AAA"]
+    # bind
+    s.regular.bind([["A"], ["A"], ["B", "A"], ["B", "C"]])
+    assert list(s.regular) == ["AAA", "AAA", "AAA"]
+
+    # binding resource that returns resource will replace the object content, keeping the object id
+    s.returns_res.add_map(lambda i: i*3)
+    s.returns_res.bind(["X", "Y", "Z"])
+    # got rid of all mapping and filter functions
+    assert len(s.returns_res._pipe) == 1
+    assert list(s.returns_res) == ["X", "Y", "Z"]
+
+    # same for resource returning pipe
+    s.returns_pipe.add_map(lambda i: i*3)
+    s.returns_pipe.bind(["X", "Y", "M"])
+    # got rid of all mapping and filter functions
+    assert len(s.returns_pipe._pipe) == 1
+    assert list(s.returns_pipe) == ["X", "Y", "M"]
+
+    # s.regular is exhausted so set it again
+    # add lambda that after filtering for A, will multiply it by 4
+    s.resources["regular"] = regular.add_map(lambda i: i*4)(["A", "Y"])
+    assert list(s) == ['X', 'Y', 'Z', 'X', 'Y', 'M', 'AAAA']
+
+
+def test_resource_bind_lazy_eval() -> None:
+
+    @dlt.resource
+    def needs_param(param):
+        yield from range(param)
+
+    @dlt.transformer(needs_param(3))
+    def tx_form(item, multi):
+        yield item*multi
+
+    @dlt.transformer(tx_form(2))
+    def tx_form_fin(item, div):
+        yield item / div
+
+    @dlt.transformer(needs_param)
+    def tx_form_dir(item, multi):
+        yield item*multi
+
+    # tx_form takes data from needs_param(3) which is lazily evaluated
+    assert list(tx_form(2)) == [0, 2, 4]
+    # so it will not get exhausted
+    assert list(tx_form(2)) == [0, 2, 4]
+
+    # same for tx_form_fin
+    assert list(tx_form_fin(3)) == [0, 2/3, 4/3]
+    assert list(tx_form_fin(3)) == [0, 2/3, 4/3]
+
+    # binding `needs_param`` in place will not affect the tx_form and tx_form_fin (they operate on copies)
+    needs_param.bind(4)
+    assert list(tx_form(2)) == [0, 2, 4]
+    # eval needs_param
+    assert list(needs_param) == [0, 1, 2, 3]
+    assert list(tx_form(2)) == [0, 2, 4]
+
+    # this also works, evaluations always happen on copies
+    assert list(tx_form_dir(3)) == [0, 3, 6, 9]
 
 
 def test_transformer_preliminary_step() -> None:
@@ -175,13 +309,13 @@ def test_transformer_preliminary_step() -> None:
 
     tx_stage = dlt.transformer()(yield_twice)()
     # filter out small caps and insert this before the head
-    tx_stage._pipe._steps.insert(0, FilterItem(lambda letter: letter.isupper()))
+    tx_stage.add_filter(FilterItem(lambda letter: letter.isupper()), 0)
     # be got filtered out before duplication
     assert list(dlt.resource(["A", "b", "C"], name="data") | tx_stage) == ['A', 'A', 'C', 'C']
 
     # filter after duplication
     tx_stage = dlt.transformer()(yield_twice)()
-    tx_stage.filter(FilterItem(lambda letter: letter.isupper()))
+    tx_stage.add_filter(FilterItem(lambda letter: letter.isupper()))
     # nothing is filtered out: on duplicate we also capitalize so filter does not trigger
     assert list(dlt.resource(["A", "b", "C"], name="data") | tx_stage) == ['A', 'A', 'B', 'B', 'C', 'C']
 
@@ -259,18 +393,19 @@ def test_multiple_parametrized_transformers() -> None:
     # this s contains all resources
     s = _source(1)
     # parametrize now
-    s._t1("2")
-    s._t2(2)
+    s.resources["_t1"].bind("2")
+    s._t2.bind(2)
+    # print(list(s._t2))
     assert list(s) == expected_data
 
     # this s contains only transformers
     s2 = _source(2)
-    s2._t1("2")
-    s2._t2(2)
+    s2._t1.bind("2")
+    s2._t2.bind(2)
     assert list(s2) == expected_data
 
     s3 = _source(3)
-    s3._t2(2)
+    s3._t2.bind(2)
     assert list(s3) == expected_data
 
     s4 = _source(4)
@@ -292,16 +427,28 @@ def test_source_dynamic_resource_attrs() -> None:
         s.resource_30
 
 
+def test_add_transform_steps() -> None:
+    # add all step types, using indexes. final steps
+    # gen -> map that converts to str and multiplies character -> filter str of len 2 -> yield all characters in str separately
+    r = dlt.resource([1, 2, 3], name="all").add_yield_map(lambda i: (yield from i)).add_map(lambda i: str(i) * i, 1).add_filter(lambda i: len(i) == 2, 2)
+    assert list(r) == ["2", "2"]
+
+
+def test_add_transform_steps_pipe() -> None:
+    r = dlt.resource([1, 2, 3], name="all") | (lambda i: str(i) * i) | (lambda i: (yield from i))
+    assert list(r) == ['1', '2', '2', '3', '3', '3']
+
+
+# def test_add_resources_to_source_simple() -> None:
+#     pass
+
+
 @pytest.mark.skip("not implemented")
 def test_resource_dict() -> None:
     # the dict of resources in source
     # test clone
     # test delete
 
-    pass
-
-@pytest.mark.skip("not implemented")
-def test_resource_multiple_iterations() -> None:
     pass
 
 
