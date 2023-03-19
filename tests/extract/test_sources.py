@@ -203,8 +203,8 @@ def test_resource_bind_call_forms() -> None:
     # resource is different instance
     assert regular is not b_regular
     assert regular._pipe is not b_regular._pipe
-    # pipe has same id
-    assert regular._pipe._pipe_id == b_regular._pipe._pipe_id
+    # pipe has different id
+    assert regular._pipe._pipe_id != b_regular._pipe._pipe_id
 
     # pipe is replaced on resource returning resource (new pipe created)
     returns_res.add_filter(lambda x: x == "A")
@@ -261,6 +261,27 @@ def test_resource_bind_call_forms() -> None:
     # add lambda that after filtering for A, will multiply it by 4
     s.resources["regular"] = regular.add_map(lambda i: i*4)(["A", "Y"])
     assert list(s) == ['X', 'Y', 'Z', 'X', 'Y', 'M', 'AAAA']
+
+
+def test_call_clone_separate_pipe() -> None:
+
+    all_yields = []
+
+    def some_data_gen(param: str):
+        all_yields.append(param)
+        yield param
+
+    @dlt.resource
+    def some_data(param: str):
+        yield from some_data_gen(param)
+
+    # create two resource instances and extract in single ad hoc resource
+    data1 = some_data("state1")
+    data1.name = "state1_data"
+    dlt.pipeline(full_refresh=True).extract([data1, some_data("state2")], schema=Schema("default"))
+    # both should be extracted. what we test here is the combination of binding the resource by calling it that clones the internal pipe
+    # and then creating a source with both clones. if we keep same pipe id when cloning on call, a single pipe would be created shared by two resources
+    assert all_yields == ["state1", "state2"]
 
 
 def test_resource_bind_lazy_eval() -> None:

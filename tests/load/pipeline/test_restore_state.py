@@ -283,7 +283,7 @@ def test_restore_state_pipeline(destination_name: str) -> None:
     # second run will not restore
     p._inject_schema(Schema("second"))  # this will modify state, run does not sync if states are identical
     assert p.state["_state_version"] > orig_state["_state_version"]
-    print(p.state)
+    # print(p.state)
     p.run()
     assert set(p.schema_names) == set(["default", "two", "three", "second"])  # we keep our local copy
     # clear internal flag and decrease state version so restore triggers

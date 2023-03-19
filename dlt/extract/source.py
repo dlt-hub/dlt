@@ -322,7 +322,7 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
             if isinstance(gen, Pipe):
                 return r
             # clone existing pipe
-            r._pipe = self._pipe._clone()
+            r._pipe = self._pipe._clone(keep_pipe_id=False)
             # replace with bound generator
             r._pipe.replace_gen(gen)
             return r
@@ -348,23 +348,24 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
         # create wrappers with partial
         if self.is_transformer:
             # also provide optional meta so pipe does not need to update arguments
+
             def _tx_partial(item: TDataItems, *, meta: Any = None) -> Any:
                 # print(f"ITEM:{item},{args}{kwargs}")
                 if "meta" in kwargs:
                     kwargs["meta"] = meta
                 return head(item, *args, **kwargs)  # type: ignore
+
             _data = makefun.wraps(head, new_sig=inspect.signature(_tx_partial))(_tx_partial)
         else:
             if inspect.isgeneratorfunction(inspect.unwrap(head)) or inspect.isgenerator(head):
                 # always wrap generators and generator functions. evaluate only at runtime!
-                print(f"WRAPPING RES {self.name}")
+
                 def _partial() -> Any:
-                    print(f"CALL WRAPPED RES {self.name}")
                     return head(*args, **kwargs)  # type: ignore
+
                 _data = makefun.wraps(head, new_sig=inspect.signature(_partial))(_partial)
             else:
                 # call regular function to check what is inside
-                print(f"BINDING RES head() {self.name}")
                 _data = head(*args, **kwargs)
                 # accept if resource is returned
                 if not isinstance(_data, (DltResource, Pipe)):

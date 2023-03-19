@@ -315,12 +315,13 @@ class Pipe:
             else:
                 raise InvalidStepFunctionArguments(self.name, callable_name, sig, str(ty_ex))
 
-    def _clone(self) -> "Pipe":
-        """Clones the pipe steps, keeping the pipe id. Used internally to clone a list of connected pipes."""
+    def _clone(self, keep_pipe_id: bool = True) -> "Pipe":
+        """Clones the pipe steps, optionally keeping the pipe id. Used internally to clone a list of connected pipes."""
         p = Pipe(self.name, [], self.parent)
         p._steps = self._steps.copy()
         # clone shares the id with the original
-        p._pipe_id = self._pipe_id
+        if keep_pipe_id:
+            p._pipe_id = self._pipe_id
         return p
 
     def __repr__(self) -> str:

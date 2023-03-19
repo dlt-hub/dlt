@@ -21,7 +21,7 @@ from tests.common.utils import TEST_SENTRY_DSN
 from tests.utils import ALL_DESTINATIONS, TEST_STORAGE_ROOT, preserve_environ, autouse_test_storage, patch_home_dir
 from tests.common.configuration.utils import environment
 from tests.extract.utils import expect_extracted_file
-from tests.pipeline.utils import drop_dataset_from_env
+from tests.pipeline.utils import drop_dataset_from_env, drop_pipeline
 
 
 def test_default_pipeline() -> None:
