@@ -20,7 +20,7 @@ class BufferedDataWriter:
         file_max_bytes: Optional[int] = None
         _caps: Optional[DestinationCapabilitiesContext] = None
 
-    __section__ = known_sections.DATA_WRITER
+        __section__ = known_sections.DATA_WRITER
 
 
     @with_config(spec=BufferedDataWriterConfiguration)

@@ -693,6 +693,22 @@ def test_normalize_and_shorten_deterministically() -> None:
     assert tag in table_name
 
 
+def test_normalize_empty_keys() -> None:
+    schema = create_schema_with_name("other")
+    # root
+    data = {"a": 1, "": 2}
+    rows = list(normalize_data_item(schema, data, "1762162.1212", "s"))
+    assert rows[0][1]["_empty"] == 2
+    # flatten
+    data = {"a": 1, "b": {"": 2}}
+    rows = list(normalize_data_item(schema, data, "1762162.1212", "s"))
+    assert rows[0][1]["b___empty"] == 2
+    # nested
+    data = {"a": 1, "b": [{"": 2}]}
+    rows = list(normalize_data_item(schema, data, "1762162.1212", "s"))
+    assert rows[1][1]["_empty"] == 2
+
+
 def set_max_nesting(schema: Schema, max_nesting: int) -> None:
     update_normalizer_config(schema,
         {

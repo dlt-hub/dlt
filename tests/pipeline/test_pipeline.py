@@ -406,6 +406,17 @@ def test_pipeline_state_on_extract_exception() -> None:
     assert p.schema_names == p._schema_storage.list_schemas()
 
 
+def test_run_with_table_name_exceeding_path_length() -> None:
+    pipeline_name = "pipe_" + uniq_id()
+    # os.environ["COMPLETED_PROB"] = "1.0"  # make it complete immediately
+    p = dlt.pipeline(pipeline_name=pipeline_name)
+
+    # we must fix that
+    with pytest.raises(PipelineStepFailed) as sf_ex:
+        p.extract([1, 2, 3], table_name="TABLE_" + "a" * 230)
+    assert isinstance(sf_ex.value.__context__, OSError)
+
+
 @pytest.mark.skip("Not implemented")
 def test_extract_exception() -> None:
     # make sure that PipelineStepFailed contains right step information
@@ -419,7 +430,7 @@ def test_extract_all_data_types() -> None:
     pass
 
 
-def test_set_get_local_Value() -> None:
+def test_set_get_local_value() -> None:
     p = dlt.pipeline(destination="dummy", full_refresh=True)
     value = uniq_id()
     # value is set

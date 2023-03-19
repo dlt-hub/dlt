@@ -800,6 +800,7 @@ class Pipeline(SupportsPipeline):
                 with signals.raise_immediately():
                     extractor = extract(extract_id, source, storage, max_parallel_items=max_parallel_items, workers=workers)
                     # source iterates
+                    # TODO: implement a real check if source is exhausted. most of the resources should be not
                     source.exhausted = True
                     # iterate over all items in the pipeline and update the schema if dynamic table hints were present
                     for _, partials in extractor.items():

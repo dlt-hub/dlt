@@ -39,7 +39,7 @@ def test_extract_select_tables() -> None:
         storage = ExtractorStorage(NormalizeVolumeConfiguration())
         # same thing but select only odd
         source = DltSource("selectables", "module", dlt.Schema("selectables"), [resource])
-        source.with_resources(resource.name).selected_resources[resource.name](10).select_tables("odd_table")
+        source.with_resources(resource.name).selected_resources[resource.name].bind(10).select_tables("odd_table")
         extract_id = storage.create_extract_id()
         schema_update = extract(extract_id, source, storage)
         assert len(schema_update) == 1

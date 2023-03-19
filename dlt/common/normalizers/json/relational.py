@@ -7,9 +7,9 @@ from dlt.common.schema.typing import TColumnSchema, TColumnName, TSimpleRegex
 from dlt.common.schema.utils import column_name_validator
 from dlt.common.utils import uniq_id, digest128
 from dlt.common.normalizers.json import TNormalizedRowIterator, wrap_in_dict
-# from dlt.common.source import TEventDLTMeta
 from dlt.common.validation import validate_dict
 
+EMPTY_KEY_IDENTIFIER = "_empty"  # replace empty keys with this
 
 class TDataItemRow(TypedDict, total=False):
     _dlt_id: str  # unique id of current row
@@ -69,7 +69,11 @@ def _flatten(
 
     def norm_row_dicts(dict_row: StrAny, __r_lvl: int, path: Tuple[str, ...] = ()) -> None:
         for k, v in dict_row.items():
-            norm_k = schema.naming.normalize_identifier(k)
+            if k.strip():
+                norm_k = schema.naming.normalize_identifier(k)
+            else:
+                # for empty keys in the data use _
+                norm_k = EMPTY_KEY_IDENTIFIER
             # if norm_k != k:
             #     print(f"{k} -> {norm_k}")
             child_name = norm_k if path == () else schema.naming.shorten_fragments(*path, norm_k)
