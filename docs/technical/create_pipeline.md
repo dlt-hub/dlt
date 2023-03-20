@@ -180,7 +180,7 @@ How standalone resource works:
 2. The main difference is that when extracted it will join the default schema in the pipeline (or explicitly passed schema)
 3. It can be called from a `@source` function and then it becomes a resource of that source and joins the source schema
 
-## `dlt.state` availability
+## `dlt` state availability
 
 The state is a python dictionary-like object that is available within the `@dlt.source` and `@dlt.resource` decorated functions and may be read and written to.
 The data within the state is loaded into destination together with any other extracted data and made automatically available to the source/resource extractor functions when they are run next time.
@@ -204,7 +204,7 @@ def repo_events() -> Iterator[TDataItems]:
     yield item
 ```
 
-2. You can mark the yielded data with a table name (`dlt.with_table_name`). This gives you full control on the name of the table
+2. You can mark the yielded data with a table name (`dlt.mark.with_table_name`). This gives you full control on the name of the table
 
 see [here](docs/examples/sources/rasa/rasa.py) and [here](docs/examples/sources/singer_tap.py).
 
@@ -378,7 +378,7 @@ def pivot_props(user):
   yield user
   # yield user props to user_props table
   yield from [
-    dlt.with_table_name({"user_id": user["user_id"], "name": k, "value": v}, "user_props") for k, v in user["props"]
+    dlt.mark.with_table_name({"user_id": user["user_id"], "name": k, "value": v}, "user_props") for k, v in user["props"]
     ]
 
 source.user.add_yield_map(pivot_props)
@@ -421,7 +421,7 @@ The Python function that yields is not a function but magical object that `dlt` 
 def lazy_function(endpoint_name):
     # INIT - this will be executed only once when DLT wants!
     get_configuration()
-    from_item = dlt.state.get("last_item", 0)
+    from_item = dlt.current.state.get("last_item", 0)
     l = get_item_list_from_api(api_key, endpoint_name)
 
     # ITERATOR - this will be executed many times also when DLT wants more data!
@@ -429,7 +429,7 @@ def lazy_function(endpoint_name):
         yield requests.get(url, api_key, "%s?id=%s" % (endpoint_name, item["id"])).json()
     # CLEANUP
     # this will be executed only once after the last item was yielded!
-    dlt.state["last_item"] = item["id"]
+    dlt.current.state["last_item"] = item["id"]
 ```
 
 3. dlt will execute this generator in extractor. the whole execution is atomic (including writing to state). if anything fails with exception the whole extract function fails.

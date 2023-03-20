@@ -19,14 +19,14 @@ For example, the “last id” or “last timestamp” of a loaded data set, so 
 
 **Where is state created and maintained?**
 
-The state is stored in the `dlt_state`table at the destination and contains information about the pipeline, pipeline run (that the state belongs to) and state.
+The state is stored in the `_dlt_pipeline_state` table at the destination and contains information about the pipeline, pipeline run (that the state belongs to) and state blob.
 You can create the state in your python script as such
 
 Example: Track ONE state for a single resource
 ```python
 
 # Get archives from state. If state does not exist, get the default, in this case empty list []
-loaded_archives = dlt.state().setdefault("archives", [])
+loaded_archives = dlt.current.state().setdefault("archives", [])
 new_archives = get_archives(url)
 archives_to_be_loaded = [a for a in new_archives if a not in loaded_archives]
 for archive in archives_to_be_loaded:
@@ -36,7 +36,7 @@ for archive in archives_to_be_loaded:
 Example: Track multiple states for multiple search terms
 ```python
 # get dlt state to store last values of tweets for each search term we request
-last_value_cache = dlt.state().setdefault("last_value_cache", {})
+last_value_cache = dlt.current.state().setdefault("last_value_cache", {})
 # use `last_value` to initialize state on the first run of the pipeline
 last_value = last_value_cache.setdefault(search_term, last_value or None)
 # if we have a last value, then use it for request params. If not, then we make an unparametrised request and get all data.
