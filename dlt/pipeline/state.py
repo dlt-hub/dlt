@@ -144,7 +144,7 @@ def state() -> DictStrAny:
     The most typical use case for the state is to implement incremental load.
     >>> @dlt.resource(write_disposition="append")
     >>> def players_games(chess_url, players, start_month=None, end_month=None):
-    >>>     checked_archives = dlt.state().setdefault("archives", [])
+    >>>     checked_archives = dlt.current.state().setdefault("archives", [])
     >>>     archives = players_archives(chess_url, players)
     >>>     for url in archives:
     >>>         if url in checked_archives:

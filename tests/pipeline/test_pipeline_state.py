@@ -16,9 +16,9 @@ from tests.pipeline.utils import drop_dataset_from_env, json_case_path, load_jso
 
 @dlt.resource()
 def some_data():
-    last_value = dlt.state().get("last_value", 0)
+    last_value = dlt.current.state().get("last_value", 0)
     yield [1,2,3]
-    dlt.state()["last_value"] = last_value + 1
+    dlt.current.state()["last_value"] = last_value + 1
 
 
 def test_managed_state() -> None:
@@ -36,7 +36,7 @@ def test_managed_state() -> None:
 
     @dlt.source
     def some_source():
-        assert "last_value" not in dlt.state()
+        assert "last_value" not in dlt.current.state()
         return some_data
 
     s = some_source()
@@ -64,7 +64,7 @@ def test_must_have_active_pipeline() -> None:
     # call source that reads state
     @dlt.source
     def some_source():
-        dlt.state().get("last_value", 0)
+        dlt.current.state().get("last_value", 0)
         return some_data
 
     with pytest.raises(PipelineStateNotAvailable) as py_ex:
@@ -88,7 +88,7 @@ def test_unmanaged_state() -> None:
 
     @dlt.source
     def some_source():
-        state = dlt.state()
+        state = dlt.current.state()
         value = state.get("last_value", 0)
         state["last_value"] = value + 1
         return some_data

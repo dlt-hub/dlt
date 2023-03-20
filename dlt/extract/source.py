@@ -26,7 +26,8 @@ from dlt.extract.exceptions import (
 
 
 def with_table_name(item: TDataItems, table_name: str) -> DataItemWithMeta:
-        return DataItemWithMeta(TableNameMeta(table_name), item)
+    """Marks `item` to be dispatched to table `table_name` when yielded from resource function."""
+    return DataItemWithMeta(TableNameMeta(table_name), item)
 
 
 class DltResourceSchema:
