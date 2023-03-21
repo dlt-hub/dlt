@@ -52,7 +52,8 @@ for row in generate_rows(20):
 You can mark some of resource arguments as configuration and [credentials](../customization/credentials.md) values so `dlt` can pass them automatically to your functions.
 
 ### Dispatch data to many tables
-You can load data to many tables from a single resource. The most common case is a stream of events of different types, each with different data schema. To deal with this you can use `table_name` argument on `dlt.resource` that accepts functions taking the data item as argument and returning table as a string.
+You can load data to many tables from a single resource. The most common case is a stream of events of different types, each with different data schema.
+To deal with this you can use `table_name` argument on `dlt.resource`. You could pass the table name as a function taking the data item as argument and returning table_name as a string.
 
 For example a resource that loads github repository event wants to send 'issue', 'pull request' and 'comment` events to separate tables. The type of the event is in the "type" field.
 
@@ -72,7 +73,7 @@ def repo_events() -> Iterator[TDataItems]:
 ```
 
 ### Feeding data from one resource into another
-You can feed data form a resource into another one. The most common case is when you have an API that returns a list of objects (ie. users) in one endpoint and user details in another. You can deal with this by declaring a resource that obtains a list of users and another resource that receives items from the list and downloads the profiles.
+You can feed data from a resource into another one. The most common case is when you have an API that returns a list of objects (ie. users) in one endpoint and user details in another. You can deal with this by declaring a resource that obtains a list of users and another resource that receives items from the list and downloads the profiles.
 
 ```python
 @dlt.resource(write_disposition="replace")
@@ -80,7 +81,7 @@ def users(limit=None):
     for u in _get_users(limit):
         yield u
 
-# feed data form users as user_item below, all transformers must have at least one argument that will receive data from the parent resource
+# feed data from users as user_item below, all transformers must have at least one argument that will receive data from the parent resource
 @transformer(data_from=users)
 def users_details(user_item):
   for detail in _get_details(user_item["user_id"]):
