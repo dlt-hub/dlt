@@ -100,5 +100,5 @@ You can follow the Pipedrive example for a different source, by doing the step b
 4. git add, commit, push, and you should see your pipeline in Airflow
 
 ![pipeline](/img/pipeline.png)
-
-5. Read about how to transform data [here](./using-loaded-data).
+(./customization/credentials.md)
+5. Read about how to transform data [here](/docs/using-loaded-data/transforming-the-data.md).
