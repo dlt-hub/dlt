@@ -81,7 +81,7 @@ If dlt tries to read this from environment variables, it will use a different na
 For environment variables all names are capitalized and sections are separated with double underscore "__"
 
 For example for the above secrets, we would need to put into environment
-```commandline
+```shell
 SOURCES__PIPEDRIVE__PIPEDRIVE_API_KEY
 DESTINATION__BIGQUERY__CREDENTIALS__PROJECT_ID
 DESTINATION__BIGQUERY__CREDENTIALS__PRIVATE_KEY

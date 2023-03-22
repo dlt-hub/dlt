@@ -57,7 +57,7 @@ def test_extract_select_tables() -> None:
     @dlt.resource
     def table_with_name_selectable(_range):
         for i in range(_range):
-            yield dlt.with_table_name(i, n_f(i))
+            yield dlt.mark.with_table_name(i, n_f(i))
 
     schema = expect_tables(table_with_name_selectable)
     # TODO: this one should not be there but we cannot remove it really, except explicit flag

@@ -33,21 +33,21 @@ For the purpose of preserving the “last value” or similar loading checkpoint
 @resource()
 def tweets():
 	# Get a last value from loaded metadata. If not exist, get None
-	last_val = dlt.state().setdefault("last_updated", None)
+	last_val = dlt.current.state().setdefault("last_updated", None)
 	# get data and yield it
 	data = get_data(start_from=last_val)
 	yield data
 	# change the state to the new value
-  dlt.state()["last_updated"]  = data["last_timestamp"]
+  dlt.current.state()["last_updated"]  = data["last_timestamp"]
 ```
 if we use a list or a dictionary, we can modify the underlying values in the objects and thus we do not need to set the state back explicitly.
 ```python
 @resource()
 def tweets():
 	# Get a last value from loaded metadata. If not exist, get None
-	loaded_dates = dlt.state().setdefault("days_loaded", [])
+	loaded_dates = dlt.current.state().setdefault("days_loaded", [])
 	# do stuff: get data and add new values to the list
-  # `loaded_date` is a shallow copy of the `dlt.state()["days_loaded"]` list
+  # `loaded_date` is a shallow copy of the `dlt.current.state()["days_loaded"]` list
   # and thus modifying it modifies the state
   yield data
   loaded_dates.append('2023-01-01')
@@ -58,7 +58,7 @@ def tweets():
 ### Using the dlt state
 
 Step by step explanation of how to get or set the state:
-1. We can use the function `var = dlt.state().setdefault("key", [])`. This allows us to retrieve the values of `key`. If `key` was not set yet, we will get the default value `[]` instead
+1. We can use the function `var = dlt.current.state().setdefault("key", [])`. This allows us to retrieve the values of `key`. If `key` was not set yet, we will get the default value `[]` instead
 2. We now can treat `var` as a python list - We can append new values to it, or if applicable we can read the values from previous loads.
 3. On pipeline run, the data will load, and the new `var`'s value will get saved in the state. The state is stored at the destination, so it will be available on subsequent runs.
 
@@ -84,7 +84,7 @@ In the following example, we initialize a variable with an empty list as a defau
 @dlt.resource(write_disposition="append")
 def players_games(chess_url, players, start_month=None, end_month=None):
 
-    loaded_archives_cache = dlt.state().setdefault("archives", [])
+    loaded_archives_cache = dlt.current.state().setdefault("archives", [])
 
 		# as far as python is concerned, this variable behaves like
     # loaded_archives_cache = state['archives'] or []
@@ -113,7 +113,7 @@ def search_tweets(twitter_bearer_token=dlt.secrets.value, search_terms=None, sta
     headers = _headers(twitter_bearer_token)
     for search_term in search_terms:
 				# make cache for each term
-        last_value_cache = dlt.state().setdefault(f"last_value_{search_term}", None)
+        last_value_cache = dlt.current.state().setdefault(f"last_value_{search_term}", None)
         print(f'last_value_cache: {last_value_cache}')
         params = {...
                   }
@@ -123,7 +123,7 @@ def search_tweets(twitter_bearer_token=dlt.secrets.value, search_terms=None, sta
             page['search_term'] = search_term
             last_id = page.get('meta', {}).get('newest_id', 0)
             #set it back - not needed if we
-            dlt.state()[f"last_value_{search_term}"] = max(last_value_cache or 0, int(last_id))
+            dlt.current.state()[f"last_value_{search_term}"] = max(last_value_cache or 0, int(last_id))
 						# print the value for each search term
             print(f'new_last_value_cache for term {search_term}: {last_value_cache}')
 
