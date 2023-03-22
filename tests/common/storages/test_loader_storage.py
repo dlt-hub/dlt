@@ -3,8 +3,8 @@ import pytest
 from pathlib import Path
 from typing import Sequence, Tuple
 
-from dlt.common import sleep
-from dlt.common.schema import Schema
+from dlt.common import sleep, json
+from dlt.common.schema import Schema, TSchemaTables
 from dlt.common.storages.load_storage import LoadStorage, TParsedJobFileName
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.specs import LoadVolumeConfiguration
@@ -31,8 +31,10 @@ def test_complete_successful_package(storage: LoadStorage) -> None:
     storage.complete_load_package(load_id)
     # deleted from loading
     assert not storage.storage.has_folder(storage.get_package_path(load_id))
-    # deleted from package
-    assert not storage.storage.has_folder(storage.get_completed_package_path(load_id))
+    # has package
+    assert storage.storage.has_folder(storage.get_completed_package_path(load_id))
+    # but completed packages are deleted
+    assert not storage.storage.has_folder(storage._get_job_folder_completed_path(load_id, "completed_jobs"))
 
     # do not delete completed jobs
     storage.config.delete_completed_jobs = False
@@ -43,6 +45,8 @@ def test_complete_successful_package(storage: LoadStorage) -> None:
     assert not storage.storage.has_folder(storage.get_package_path(load_id))
     # has load preserved
     assert storage.storage.has_folder(storage.get_completed_package_path(load_id))
+    # has completed loads
+    assert storage.storage.has_folder(storage._get_job_folder_completed_path(load_id, "completed_jobs"))
 
 
 def test_complete_package_failed_jobs(storage: LoadStorage) -> None:
@@ -56,6 +60,16 @@ def test_complete_package_failed_jobs(storage: LoadStorage) -> None:
     assert not storage.storage.has_folder(storage.get_package_path(load_id))
     # present in completed loads folder
     assert storage.storage.has_folder(storage.get_completed_package_path(load_id))
+    # has completed loads
+    assert storage.storage.has_folder(storage._get_job_folder_completed_path(load_id, "completed_jobs"))
+
+    # get failed jobs info
+    failed_files = storage.list_completed_failed_jobs(load_id)
+    # job + message
+    assert len(failed_files) == 2
+    assert storage.storage.has_file(failed_files[0])
+    failed_info = storage.list_failed_jobs_in_completed_package(load_id)
+    assert failed_info[0] == (storage.storage.make_full_path(failed_files[0]), "EXCEPTION")
 
 
 def test_save_load_schema(storage: LoadStorage) -> None:
@@ -130,14 +144,18 @@ def test_process_schema_update(storage: LoadStorage) -> None:
     with pytest.raises(FileNotFoundError):
         storage.begin_schema_update("load_id")
     load_id, fn = start_loading_file(storage, "test file")
-    assert storage.begin_schema_update(load_id) == [{}]
-    assert storage.begin_schema_update(load_id) == [{}]
-    storage.commit_schema_update(load_id)
+    assert storage.begin_schema_update(load_id) == {}
+    assert storage.begin_schema_update(load_id) == {}
+    # store the applied schema update
+    applied_update: TSchemaTables = {"table": {"name": "table", "columns": {}}}
+    storage.commit_schema_update(load_id, applied_update)
     with pytest.raises(FileNotFoundError):
-        storage.commit_schema_update(load_id)
+        storage.commit_schema_update(load_id, applied_update)
     assert storage.begin_schema_update(load_id) is None
     # processed file exists
-    assert storage.storage.has_file(os.path.join(storage.get_package_path(load_id), LoadStorage.PROCESSED_SCHEMA_UPDATES_FILE_NAME))
+    processed_update_path = os.path.join(storage.get_package_path(load_id), LoadStorage.PROCESSED_SCHEMA_UPDATES_FILE_NAME)
+    assert storage.storage.has_file(processed_update_path)
+    assert json.loads(storage.storage.load(processed_update_path)) == applied_update
 
 
 def test_full_migration_path() -> None:
@@ -167,7 +185,7 @@ def start_loading_file(s: LoadStorage, content: Sequence[StrAny]) -> Tuple[str, 
     file_name = s.write_temp_job_file(load_id, "mock_table", None, uniq_id(), content)
     # write schema and schema update
     s.save_temp_schema(Schema("mock"), load_id)
-    s.save_temp_schema_updates(load_id, [{}])
+    s.save_temp_schema_updates(load_id, {})
     s.commit_temp_load_package(load_id)
     s.start_job(load_id, file_name)
     return load_id, file_name
