@@ -141,7 +141,7 @@ def source(func: Optional[AnyFun] = None, /, name: str = None, max_table_nesting
                 raise SourceDataIsNone(name)
 
             # convert to source
-            return DltSource.from_data(name, source_section, schema, rv)
+            return DltSource.from_data(name, source_section, schema.clone(), rv)
 
         # get spec for wrapped function
         SPEC = get_fun_spec(conf_f)
