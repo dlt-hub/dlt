@@ -33,10 +33,12 @@ for row in sql_source().resources.get('table_users')
 
 ```
 
-The most common pattern to declare and group resources is to do that within a [source function](source.md).
+Typically, resources are declared and grouped with related resources within a [source](source.md) function.
 
 ### Parametrize a resource
-You can add arguments to your resource functions like to any other. Below we parametrize our `generate_row` resource to generate the number of rows we wish
+
+You can add arguments to your resource functions like to any other. Below we parametrize our `generate_row` resource to generate the number of rows we request
+
 ```python
 @dlt.resource(name='table_name', write_disposition='replace')
 def generate_rows(nr):
@@ -49,13 +51,14 @@ for row in generate_rows(10):
 for row in generate_rows(20):
 		print row
 ```
+
 You can mark some of resource arguments as configuration and [credentials](../customization/credentials.md) values so `dlt` can pass them automatically to your functions.
 
 ### Dispatch data to many tables
-You can load data to many tables from a single resource. The most common case is a stream of events of different types, each with different data schema.
-To deal with this you can use `table_name` argument on `dlt.resource`. You could pass the table name as a function taking the data item as argument and returning table_name as a string.
 
-For example a resource that loads github repository event wants to send 'issue', 'pull request' and 'comment` events to separate tables. The type of the event is in the "type" field.
+You can load data to many tables from a single resource. The most common case is a stream of events of different types, each with different data schema. To deal with this, you can use `table_name` argument on `dlt.resource`. You could pass the table name as a function with the data item as an argument and the `table_name` string as a return value.
+
+For example, a resource that loads GitHub repository events wants to send 'issue', 'pull request', and 'comment` events to separate tables. The type of the event is in the "type" field.
 
 ```python
 # send item to a table with name item["type"]
@@ -73,6 +76,7 @@ def repo_events() -> Iterator[TDataItems]:
 ```
 
 ### Feeding data from one resource into another
+
 You can feed data from a resource into another one. The most common case is when you have an API that returns a list of objects (ie. users) in one endpoint and user details in another. You can deal with this by declaring a resource that obtains a list of users and another resource that receives items from the list and downloads the profiles.
 
 ```python
@@ -120,6 +124,7 @@ def users():
 
 ```
 Here's our script that defines transformations and loads the data.
+
 ```python
 from pipedrive import users
 
@@ -131,10 +136,10 @@ def anonymize_user(user_data):
 # add the filter and anonymize function to users resource and enumerate
 for user in users().add_filter(lambda user: user["user_id"] != "me").add_map(anonymize_user):
   print(user)
-
 ```
 
 ## Load resources
+
 You can pass individual resources or list of resources to the `dlt.pipeline` object. The resources loaded outside the source context, will be added to the [default schema](../customization/schema.md) of the pipeline.
 
 Example using the `generate_rows` resource above:
