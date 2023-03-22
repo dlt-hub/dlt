@@ -35,6 +35,7 @@ class TColumnSchema(TColumnSchemaBase, total=False):
     sort: Optional[bool]
     primary_key: Optional[bool]
     foreign_key: Optional[bool]
+    variant: Optional[bool]
 
 
 TTableSchemaColumns = Dict[str, TColumnSchema]

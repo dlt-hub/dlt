@@ -41,7 +41,8 @@
         "columns": {
             "value": {
             "data_type": "complex",
-            "nullable": true
+            "nullable": true,
+            "variant": true
             }
         },
         "write_disposition": "append"
