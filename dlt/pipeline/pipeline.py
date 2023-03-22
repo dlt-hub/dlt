@@ -18,7 +18,7 @@ from dlt.common.normalizers import default_normalizers, import_normalizers
 from dlt.common.runners.runnable import Runnable
 from dlt.common.runtime import signals
 from dlt.common.schema.exceptions import InvalidDatasetName
-from dlt.common.schema.typing import TColumnSchema, TWriteDisposition
+from dlt.common.schema.typing import TColumnSchema, TSchemaTables, TWriteDisposition
 from dlt.common.storages.load_storage import LoadStorage
 from dlt.common.typing import TFun, TSecretValue
 from dlt.common.runners import pool_runner as runner, TRunMetrics, initialize_runner
@@ -547,7 +547,7 @@ class Pipeline(SupportsPipeline):
         return runner.LAST_RUN_EXCEPTION
 
     def list_extracted_resources(self) -> Sequence[str]:
-        """Returns a list of all the files contained extracted resources that will be normalized."""
+        """Returns a list of all the files with extracted resources that will be normalized."""
         return self._get_normalize_storage().list_files_to_normalize_sorted()
 
     def list_normalized_load_packages(self) -> Sequence[str]:
@@ -570,7 +570,7 @@ class Pipeline(SupportsPipeline):
                 failed_jobs.append((storage.storage.make_full_path(file), failed_message))
         return failed_jobs
 
-    def sync_schema(self, schema_name: str = None, credentials: Any = None) -> None:
+    def sync_schema(self, schema_name: str = None, credentials: Any = None) -> TSchemaTables:
         """Synchronizes the schema `schema_name` with the destination. If no name is provided, the default schema will be synchronized."""
         if not schema_name and not self.default_schema_name:
             raise PipelineConfigMissing(self.pipeline_name, "default_schema_name", "load", "Pipeline contains no schemas. Please extract any data with `extract` or `run` methods.")
@@ -579,7 +579,7 @@ class Pipeline(SupportsPipeline):
         client_config = self._get_destination_client_initial_config(credentials)
         with self._get_destination_client(schema, client_config) as client:
             client.initialize_storage()
-            client.update_storage_schema()
+            return client.update_storage_schema()
 
 
     def set_local_state_val(self, key: str, value: Any) -> None:

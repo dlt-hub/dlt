@@ -2,7 +2,7 @@ import contextlib
 from importlib import import_module
 import codecs
 import os
-from typing import Iterator, List, Sequence, cast, IO
+from typing import Any, Iterator, List, Sequence, cast, IO
 
 from dlt.common import json, Decimal, sleep
 from dlt.common.configuration import resolve_configuration
@@ -18,6 +18,7 @@ from dlt.common.typing import StrAny
 from dlt.common.utils import uniq_id
 
 from dlt.load import Load
+from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
 
 from tests.utils import ALL_DESTINATIONS
@@ -73,7 +74,8 @@ TABLE_UPDATE: List[TColumnSchema] = [
     {
         "name": "col9",
         "data_type": "complex",
-        "nullable": False
+        "nullable": False,
+        "variant": True
     },
     {
         "name": "col10",
@@ -184,6 +186,14 @@ def yield_client_with_storage(
         yield client
         # print(dataset_name)
         client.sql_client.drop_dataset()
+
+
+def delete_dataset(client: SqlClientBase[Any], dataset_name: str) -> None:
+    try:
+        with client.with_alternative_dataset_name(dataset_name) as client:
+            client.drop_dataset()
+    except Exception as ex1:
+        print(f"Error when deleting temp dataset {dataset_name}: {str(ex1)}")
 
 
 @contextlib.contextmanager

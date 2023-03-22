@@ -9,7 +9,8 @@ from dlt.common import logger
 from dlt.common.runners import TRunMetrics, Runnable, workermethod
 from dlt.common.utils import uniq_id
 
-ALL_METHODS = multiprocessing.get_all_start_methods()
+# remove fork-server because it hangs the tests no CI
+ALL_METHODS = set(multiprocessing.get_all_start_methods()).intersection(['fork', 'spawn'])
 
 
 @pytest.fixture(autouse=True)

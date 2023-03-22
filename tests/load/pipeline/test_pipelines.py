@@ -1,24 +1,26 @@
 from copy import deepcopy
 import os
-from typing import Any, Iterator
+from typing import Any, Callable, Iterator, Tuple
 import pytest
 import itertools
 
 import dlt
 
-from dlt.common import json, sleep
+from dlt.common import json, sleep, logger
 from dlt.common.destination.reference import DestinationReference
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import VERSION_TABLE_NAME
 from dlt.common.typing import TDataItem
 from dlt.common.utils import uniq_id
 from dlt.extract.exceptions import ResourceNameMissing
+from dlt.extract.source import DltSource
 from dlt.pipeline.exceptions import CannotRestorePipelineException, PipelineConfigMissing, PipelineStepFailed
 
 from tests.utils import ALL_DESTINATIONS, patch_home_dir, preserve_environ, autouse_test_storage, TEST_STORAGE_ROOT
 # from tests.common.configuration.utils import environment
 from tests.pipeline.utils import drop_dataset_from_env
-from tests.load.pipeline.utils import drop_pipeline, assert_data, assert_table, select_data
+from tests.load.utils import delete_dataset
+from tests.load.pipeline.utils import assert_load_info, drop_pipeline, assert_query_data, assert_table, load_table_counts, select_data
 
 
 @pytest.mark.parametrize('destination_name,use_single_dataset', itertools.product(ALL_DESTINATIONS, [True, False]))
@@ -255,7 +257,7 @@ def test_evolve_schema(destination_name: str) -> None:
     # TODO: test export and import schema
     # test data
     id_data = sorted(["level" + str(n) for n in range(10)] + ["level" + str(n) for n in range(100, 110)])
-    assert_data(p, "SELECT * FROM simple_rows ORDER BY id", id_data)
+    assert_query_data(p, "SELECT * FROM simple_rows ORDER BY id", id_data)
 
 
 # def test_evolve_schema_conflict() -> None:
@@ -289,3 +291,50 @@ def test_source_max_nesting(destination_name: str) -> None:
     if isinstance(cn_val, str):
         cn_val = json.loads(cn_val)
     assert cn_val == complex_part
+
+
+@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
+def test_dataset_name_change(destination_name: str) -> None:
+    ds_1_name = "iteration" + uniq_id()
+    ds_2_name = "iteration" + uniq_id()
+    ds_3_name = "iteration" + uniq_id()
+    p, s = simple_nested_pipeline(destination_name, dataset_name=ds_1_name, full_refresh=False)
+    try:
+        info = p.run(s())
+        assert_load_info(info)
+        assert info.dataset_name == ds_1_name
+        ds_1_counts = load_table_counts(p, "lists", "lists__value")
+        # run to another dataset
+        info = p.run(s(), dataset_name=ds_2_name)
+        assert_load_info(info)
+        assert info.dataset_name == ds_2_name
+        ds_2_counts = load_table_counts(p, "lists", "lists__value")
+        assert ds_1_counts == ds_2_counts
+        # set name and run to another dataset
+        p.dataset_name = ds_3_name
+        info = p.run(s())
+        assert_load_info(info)
+        assert info.dataset_name == ds_3_name
+        ds_3_counts = load_table_counts(p, "lists", "lists__value")
+        assert ds_1_counts == ds_3_counts
+
+    finally:
+        # we have to clean dataset ourselves
+        with p.sql_client() as client:
+            delete_dataset(client, ds_1_name)
+            delete_dataset(client, ds_2_name)
+            # delete_dataset(client, ds_3_name)  # will be deleted by the fixture
+
+
+def simple_nested_pipeline(destination_name: str, dataset_name: str, full_refresh: bool) -> Tuple[dlt.Pipeline, Callable[[], DltSource]]:
+    data = ["a", ["a", "b", "c"], ["a", "b", "c"]]
+
+    def d():
+        yield data
+
+    @dlt.source(name="nested")
+    def _data():
+        return dlt.resource(d(), name="lists", write_disposition="append")
+
+    p = dlt.pipeline(full_refresh=full_refresh, destination=destination_name, dataset_name=dataset_name)
+    return p, _data
