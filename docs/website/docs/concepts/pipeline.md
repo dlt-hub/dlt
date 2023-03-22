@@ -11,9 +11,9 @@ sidebar_position: 3
 A [pipeline](../glossary.md#pipeline) is a connection to the destination. We pass sources or resources to the pipeline. We can also pass generators to the pipeline. When the pipeline runs, the resources get executed and the data is loaded at destination.
 
 Arguments:
-- `source` Source may be a dlt source, resource, generator function or any iterator or iterable ie. a list or result of `map` function.
-- `name` is the unique identifier for the pipeline. This unique identifier is used to reference the logs and the state of the pipeline.
-- `full_refresh` (bool) is a toggle you can use during development to avoid conflicts between pipeline states as you develop them. Full refresh will create a new dataset version with a timestamp in the name. Once you are done developing, make sure to turn it off to funnel the data back into the right dataset.
+- `source` may be a dlt source, resource, generator function, or any iterator / iterable (i.e. a list or the result of `map` function)
+- `name` is the unique identifier for the pipeline, which is used to reference the logs and the state of the pipeline
+- `full_refresh` is a boolean you can toggle during development to avoid conflicts between pipeline states as you develop them. Full refresh will create a new dataset version with a timestamp in the name. Once you are done developing, make sure to turn it off to funnel the data back into the right dataset.
 
 Example: This pipeline will load a list of objects into table with a name "three"
 ```python
