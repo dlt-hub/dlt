@@ -15,7 +15,7 @@ Arguments:
 - `name` is the unique identifier for the pipeline. This unique identifier is used to reference the logs and the state of the pipeline.
 - `full_refresh` (bool) is a toggle you can use during development to avoid conflicts between pipeline states as you develop them. Full refresh will create a new dataset version with a timestamp in the name. Once you are done developing, make sure to turn it off to funnel the data back into the right dataset.
 
-Example: This pipeline will load a list of objects into table with name "three"
+Example: This pipeline will load a list of objects into table with a name "three"
 ```python
 import dlt
 
@@ -26,8 +26,7 @@ info = pipeline.run([{'id':1}, {'id':2}, {'id':3}], table_name="three")
 print(info)
 ```
 
-Example: This pipeline will load the data the generator `gen(10)`produces
-
+Example: This pipeline will load the data the generator `gen(10)` produces
 ```python
 import dlt
 
