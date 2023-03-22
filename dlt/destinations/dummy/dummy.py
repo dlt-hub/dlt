@@ -1,11 +1,10 @@
 import random
 from types import TracebackType
-from typing import ClassVar, Dict, Type
+from typing import ClassVar, Dict, Optional, Type
 
 from dlt.common import pendulum
-from dlt.common.schema import Schema
+from dlt.common.schema import Schema, TTableSchema, TSchemaTables
 from dlt.common.storages import FileStorage
-from dlt.common.schema.typing import TTableSchema
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import TLoadJobStatus, LoadJob, JobClientBase
 
@@ -88,10 +87,11 @@ class DummyClient(JobClientBase):
     def is_storage_initialized(self) -> bool:
         return True
 
-    def update_storage_schema(self) -> None:
-        super().update_storage_schema()
+    def update_storage_schema(self, schema_update: Optional[TSchemaTables]) -> Optional[TSchemaTables]:
+        schema_update = super().update_storage_schema(schema_update)
         if self.config.fail_schema_update:
             raise DestinationTransientException("Raise on schema update due to fail_schema_update config flag")
+        return schema_update
 
     def start_file_load(self, table: TTableSchema, file_path: str) -> LoadJob:
         job_id = FileStorage.get_file_name_from_file_path(file_path)

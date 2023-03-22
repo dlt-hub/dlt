@@ -210,11 +210,11 @@ class Load(Runnable[ThreadPool]):
             logger.info(f"Client for {job_client.config.destination_name} will start load")
             job_client.initialize_storage()
             schema_update = self.load_storage.begin_schema_update(load_id)
-            if schema_update:
+            if schema_update is not None:
                 logger.info(f"Client for {job_client.config.destination_name} will update schema to package schema")
                 # TODO: this should rather generate an SQL job(s) to be executed PRE loading
-                job_client.update_storage_schema()
-                self.load_storage.commit_schema_update(load_id)
+                applied_update = job_client.update_storage_schema(schema_update)
+                self.load_storage.commit_schema_update(load_id, applied_update)
             # spool or retrieve unfinished jobs
             jobs_count, jobs = self.retrieve_jobs(job_client, load_id)
         if not jobs:

@@ -2,6 +2,7 @@ from abc import abstractmethod
 import base64
 import binascii
 import contextlib
+from copy import copy
 import datetime  # noqa: 251
 from types import TracebackType
 from typing import Any, ClassVar, List, NamedTuple, Optional, Sequence, Tuple, Type
@@ -12,7 +13,7 @@ from dlt.common.data_types import TDataType
 from dlt.common.schema.typing import COLUMN_HINTS, LOADS_TABLE_NAME, VERSION_TABLE_NAME, TColumnSchemaBase
 from dlt.common.schema.utils import add_missing_hints
 from dlt.common.storages import FileStorage
-from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns
+from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns, TSchemaTables
 from dlt.common.destination.reference import DestinationClientConfiguration, DestinationClientDwhConfiguration, TLoadJobStatus, LoadJob, JobClientBase
 from dlt.destinations.exceptions import DatabaseUndefinedRelation, DestinationSchemaWillNotUpdate
 
@@ -66,19 +67,21 @@ class SqlJobClientBase(JobClientBase):
     def is_storage_initialized(self) -> bool:
         return self.sql_client.has_dataset()
 
-    def update_storage_schema(self) -> None:
-        super().update_storage_schema()
+    def update_storage_schema(self, schema_update: Optional[TSchemaTables] = None) -> Optional[TSchemaTables]:
+        super().update_storage_schema(schema_update)
+        applied_update: TSchemaTables = {}
         schema_info = self.get_schema_by_hash(self.schema.stored_version_hash)
         if schema_info is None:
             logger.info(f"Schema with hash {self.schema.stored_version_hash} not found in the storage. upgrading")
 
             if self.capabilities.supports_ddl_transactions:
                 with self.sql_client.begin_transaction():
-                    self._execute_schema_update_sql()
+                    applied_update = self._execute_schema_update_sql()
             else:
-                self._execute_schema_update_sql()
+                applied_update = self._execute_schema_update_sql()
         else:
             logger.info(f"Schema with hash {self.schema.stored_version_hash} inserted at {schema_info.inserted_at} found in storage, no upgrade required")
+        return applied_update
 
     def complete_load(self, load_id: str) -> None:
         name = self.sql_client.make_qualified_table_name(LOADS_TABLE_NAME)
@@ -144,25 +147,35 @@ class SqlJobClientBase(JobClientBase):
         query = f"SELECT {self.VERSION_TABLE_SCHEMA_COLUMNS} FROM {name} WHERE version_hash = %s;"
         return self._row_to_schema_info(query, version_hash)
 
-    def _execute_schema_update_sql(self) -> None:
-        updates = self._build_schema_update_sql()
-        if len(updates) > 0:
+    def _execute_schema_update_sql(self) -> TSchemaTables:
+        sql_scripts, schema_update = self._build_schema_update_sql()
+        if len(schema_update) > 0:
             # execute updates in a single batch
-            sql = "\n".join(updates)
+            sql = "\n".join(sql_scripts)
             self.sql_client.execute_sql(sql)
         self._update_schema_in_storage(self.schema)
+        return schema_update
 
-    def _build_schema_update_sql(self) -> List[str]:
+    def _build_schema_update_sql(self) -> Tuple[List[str], TSchemaTables]:
+        """Generates CREATE/ALTER sql for tables and a Schema Update with all changes performed"""
         sql_updates = []
+        schema_update: TSchemaTables = {}
         for table_name in self.schema.tables:
             exists, storage_table = self.get_storage_table(table_name)
             new_columns = self._create_table_update(table_name, storage_table)
             if len(new_columns) > 0:
+                # build and add sql to execute
                 sql = self._get_table_update_sql(table_name, new_columns, exists)
                 if not sql.endswith(";"):
                     sql += ";"
                 sql_updates.append(sql)
-        return sql_updates
+                # create a schema update for particular table
+                partial_table = copy(self.schema.get_table(table_name))
+                # keep only new columns
+                partial_table["columns"] = {c["name"]: c for c in new_columns}
+                schema_update[table_name] = partial_table
+
+        return sql_updates, schema_update
 
     def _get_table_update_sql(self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool) -> str:
         # build sql

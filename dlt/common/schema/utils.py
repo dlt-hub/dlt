@@ -13,7 +13,7 @@ from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.typing import DictStrAny, REPattern
 from dlt.common.validation import TCustomValidator, validate_dict
 from dlt.common.schema import detections
-from dlt.common.schema.typing import (SCHEMA_ENGINE_VERSION, LOADS_TABLE_NAME, SIMPLE_REGEX_PREFIX, VERSION_TABLE_NAME, TColumnName, TPartialTableSchema,
+from dlt.common.schema.typing import (SCHEMA_ENGINE_VERSION, LOADS_TABLE_NAME, SIMPLE_REGEX_PREFIX, VERSION_TABLE_NAME, TColumnName, TPartialTableSchema, TSchemaTables, TSchemaUpdate,
                                       TSimpleRegex, TStoredSchema, TTableSchema, TTableSchemaColumns, TColumnSchemaBase, TColumnSchema, TColumnProp,
                                       TColumnHint, TTypeDetectionFunc, TTypeDetections, TWriteDisposition)
 from dlt.common.schema.exceptions import CannotCoerceColumnException, ParentTableNotFoundException, SchemaEngineNoUpgradePathException, SchemaException, TablePropertiesConflictException
@@ -331,6 +331,17 @@ def hint_to_column_prop(h: TColumnHint) -> TColumnProp:
     if h == "not_null":
         return "nullable"
     return h
+
+
+def merge_schema_updates(schema_updates: Sequence[TSchemaUpdate]) -> TSchemaTables:
+    aggregated_update: TSchemaTables = {}
+    for schema_update in schema_updates:
+        for table_name, table_updates in schema_update.items():
+            for partial_table in table_updates:
+                # aggregate schema updates
+                aggregated_table = aggregated_update.setdefault(table_name, partial_table)
+                aggregated_table["columns"].update(partial_table["columns"])
+    return aggregated_update
 
 
 def version_table() -> TTableSchema:
