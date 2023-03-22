@@ -1,6 +1,6 @@
 import io
 import os
-from typing import List
+from typing import List, NamedTuple
 import pytest
 
 from dlt.common import json, Decimal, pendulum
@@ -10,6 +10,11 @@ from dlt.common.json import _DECIMAL, _WEI, custom_pua_decode, _orjson, _simplej
 from tests.utils import autouse_test_storage, TEST_STORAGE_ROOT
 from tests.cases import JSON_TYPED_DICT
 from tests.common.utils import json_case_path, load_json_case
+
+
+class TestNamedTuple(NamedTuple):
+    str_field: str
+    dec_field: Decimal
 
 
 _JSON_IMPL: List[SupportsJson] = [_orjson, _simplejson]
@@ -175,6 +180,11 @@ def test_json_pendulum(json_impl: SupportsJson) -> None:
     # mock hh:mm (incorrect) TZ notation which must serialize to UTC as well
     s_r = json_impl.loads(s[:-3] + '+00:00"}')
     assert pendulum.parse(s_r["t"]) == now
+
+
+@pytest.mark.parametrize("json_impl", _JSON_IMPL)
+def test_json_named_tuple(json_impl: SupportsJson) -> None:
+    assert json_impl.dumps(TestNamedTuple("STR", Decimal("1.3333"))) == '{"str_field":"STR","dec_field":"1.3333"}'
 
 
 @pytest.mark.parametrize("json_impl", _JSON_IMPL)

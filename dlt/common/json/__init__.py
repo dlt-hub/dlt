@@ -61,6 +61,8 @@ def custom_encode(obj: Any) -> str:
         return obj.hex()
     elif isinstance(obj, bytes):
         return base64.b64encode(obj).decode('ascii')
+    elif hasattr(obj, '_asdict'):
+        return obj._asdict()  # type: ignore
     raise TypeError(repr(obj) + " is not JSON serializable")
 
 
