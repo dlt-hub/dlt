@@ -1,14 +1,17 @@
 import os
 import dlt
+
+from dlt.common import json
 from dlt.common.pipeline import get_dlt_pipelines_dir
 from dlt.common.runners import Venv
 from dlt.common.runners.stdout import iter_stdout
 from dlt.common.storages.file_storage import FileStorage
 
 from dlt.cli import echo as fmt
+from dlt.pipeline.state import TSourceState
 
 
-def pipeline_command(operation: str, pipeline_name: str, pipelines_dir: str) -> None:
+def pipeline_command(operation: str, pipeline_name: str, pipelines_dir: str, verbose: bool) -> None:
     if operation == "list":
         pipelines_dir = pipelines_dir or get_dlt_pipelines_dir()
         storage = FileStorage(pipelines_dir)
@@ -31,10 +34,21 @@ def pipeline_command(operation: str, pipeline_name: str, pipelines_dir: str) -> 
             fmt.echo(line)
 
     if operation == "info":
-        state = p.state
+        state: TSourceState = p.state  # type: ignore
+        fmt.echo("Synchronized state:")
         for k, v in state.items():
             if not isinstance(v, dict):
                 fmt.echo("%s: %s" % (fmt.style(k, fg="green"), v))
+        if "sources" in state and state["sources"]:
+            fmt.echo()
+            fmt.secho("sources:", fg="green")
+            if verbose:
+                fmt.echo(json.dumps(state["sources"], pretty=True))
+            else:
+                print("Add -v option to see sources state. Note that it could be large.")
+
+        fmt.echo()
+        fmt.echo("Local state:")
         for k, v in state["_local"].items():
             if not isinstance(v, dict):
                 fmt.echo("%s: %s" % (fmt.style(k, fg="green"), v))

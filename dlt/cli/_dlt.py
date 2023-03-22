@@ -80,9 +80,9 @@ def deploy_command_wrapper(pipeline_script_path: str, deployment_method: str, sc
 
 
 @utils.track_command("pipeline", True, "operation")
-def pipeline_command_wrapper(operation: str, pipeline_name: str, pipelines_dir: str) -> int:
+def pipeline_command_wrapper(operation: str, pipeline_name: str, pipelines_dir: str, verbose: bool) -> int:
     try:
-        pipeline_command(operation, pipeline_name, pipelines_dir)
+        pipeline_command(operation, pipeline_name, pipelines_dir, verbose)
         return 0
     except (CannotRestorePipelineException, Exception) as ex:
         click.secho(str(ex), err=True, fg="red")
@@ -204,6 +204,7 @@ def main() -> int:
 'sync' - drops the local state of the pipeline and resets all the schemas and restores it from destination. The destination state, data and schemas are left intact."""
     )
     pipe_cmd.add_argument("--pipelines_dir", help="Pipelines working directory", default=None)
+    pipe_cmd.add_argument("--verbose", "-v", default=False, action="store_true", help="Provides more information for certain commands.")
     subparsers.add_parser("telemetry", help="Shows telemetry status")
 
     args = parser.parse_args()
@@ -211,7 +212,7 @@ def main() -> int:
     if args.command == "schema":
         return schema_command_wrapper(args.file, args.format, args.remove_defaults)
     elif args.command == "pipeline":
-        return pipeline_command_wrapper(args.operation, args.name, args.pipelines_dir)
+        return pipeline_command_wrapper(args.operation, args.name, args.pipelines_dir, args.verbose)
     elif args.command == "init":
         if args.list_pipelines:
             return list_pipelines_command_wrapper(args.location, args.branch)
