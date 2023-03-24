@@ -6,9 +6,9 @@ sidebar_position: 4
 
 > **💡** The “state” of a pipeline refers to metadata that we store about the data.
 >
-> We can use the state as a persistent python dictionary peristed between pipeline runs in which we can store any information
+> We can use the state as a persistent Python dictionary that stores any information between pipeline runs.
 >
->For incremental pipelines, the state stores information about what was loaded, to know where to resume.
+> For incremental pipelines, the state stores information about what was loaded, to know where to resume.
 
 **What is stored in the state?**
 
@@ -39,11 +39,11 @@ Example: Track multiple states for multiple search terms
 last_value_cache = dlt.current.state().setdefault("last_value_cache", {})
 # use `last_value` to initialize state on the first run of the pipeline
 last_value = last_value_cache.setdefault(search_term, last_value or None)
-# if we have a last value, then use it for request params. If not, then we make an unparametrised request and get all data.
+# if we have a last value, then use it for request params. If not, then we make an unparameterized request and get all data.
 if last_value:
   request_params['since_id'] = last_value
 # ... get data and set the new state
-# the state will be comitted atomically with the data - you do not need to yield it or do anything more
+# the state will be committed atomically with the data - you do not need to yield it or do anything more
 last_value_cache[search_term] = max(last_value_cache[search_term], int(last_id))
 
 ```
