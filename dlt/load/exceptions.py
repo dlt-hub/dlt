@@ -8,6 +8,14 @@ class LoadException(DltException):
         super().__init__(msg)
 
 
+class LoadClientJobFailed(DestinationTerminalException):
+    def __init__(self, load_id: str, job_id: str, failed_message: str) -> None:
+        self.load_id = load_id
+        self.job_id = job_id
+        self.failed_message = failed_message
+        super().__init__(f"Job for {job_id} failed terminally in load {load_id} with message {failed_message}")
+
+
 class LoadClientUnsupportedFileFormats(DestinationTerminalException):
     def __init__(self, file_format: str, supported_file_format: Sequence[str], file_path: str) -> None:
         self.file_format = file_format

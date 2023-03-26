@@ -19,7 +19,7 @@ from dlt.destinations.job_client_impl import LoadEmptyJob
 from dlt.destinations.exceptions import DestinationTerminalException, DestinationTransientException, LoadJobUnknownTableException
 
 from dlt.load.configuration import LoaderConfiguration
-from dlt.load.exceptions import LoadClientUnsupportedWriteDisposition, LoadClientUnsupportedFileFormats
+from dlt.load.exceptions import LoadClientJobFailed, LoadClientUnsupportedWriteDisposition, LoadClientUnsupportedFileFormats
 
 
 class Load(Runnable[ThreadPool]):
@@ -167,13 +167,16 @@ class Load(Runnable[ThreadPool]):
                 # try to get exception message from job
                 failed_message = job.exception()
                 final_location = self.load_storage.fail_job(load_id, job.file_name(), failed_message)
-                logger.error(f"Job for {job.file_name()} failed terminally in load {load_id} with message {failed_message}")
+                if self.config.raise_on_failed_jobs:
+                    raise LoadClientJobFailed(load_id, job.file_name(), failed_message)
+                else:
+                    logger.error(f"Job for {job.file_name()} failed terminally in load {load_id} with message {failed_message}")
             elif status == "retry":
                 # try to get exception message from job
                 retry_message = job.exception()
                 # move back to new folder to try again
                 self.load_storage.retry_job(load_id, job.file_name())
-                logger.error(f"Job for {job.file_name()} retried in load {load_id} with message {retry_message}")
+                logger.warning(f"Job for {job.file_name()} retried in load {load_id} with message {retry_message}")
             elif status == "completed":
                 # move to completed folder
                 final_location = self.load_storage.complete_job(load_id, job.file_name())
@@ -200,7 +203,7 @@ class Load(Runnable[ThreadPool]):
 
         # get top job id and mark as being processed
         load_id = loads[0]
-        # TODO: here full info should be gathered: load_ids, jobs, their results and possible error messages, elapsed times etc.
+        # TODO: another place where tracing must be refactored
         self._processed_load_ids[load_id] = None
         logger.info(f"Loading schema from load package in {load_id}")
         schema = self.load_storage.load_package_schema(load_id)
