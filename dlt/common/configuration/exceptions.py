@@ -1,6 +1,6 @@
-from typing import Any, Mapping, Type, Tuple, Union, NamedTuple, Sequence
+from typing import Any, Mapping, Type, Tuple, NamedTuple, Sequence
 
-from dlt.common.exceptions import DltException
+from dlt.common.exceptions import DltException, TerminalException
 
 
 class LookupTrace(NamedTuple):
@@ -10,11 +10,11 @@ class LookupTrace(NamedTuple):
     value: Any
 
 
-class ConfigurationException(DltException):
+class ConfigurationException(DltException, TerminalException):
     pass
 
 
-class ContainerException(ConfigurationException):
+class ContainerException(DltException):
     """base exception for all exceptions related to injectable container"""
     pass
 
