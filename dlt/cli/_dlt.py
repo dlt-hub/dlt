@@ -80,9 +80,9 @@ def deploy_command_wrapper(pipeline_script_path: str, deployment_method: str, sc
 
 
 @utils.track_command("pipeline", True, "operation")
-def pipeline_command_wrapper(operation: str, pipeline_name: str, pipelines_dir: str, verbose: bool) -> int:
+def pipeline_command_wrapper(operation: str, pipeline_name: str, pipelines_dir: str, verbosity: int, load_id: str = None) -> int:
     try:
-        pipeline_command(operation, pipeline_name, pipelines_dir, verbose)
+        pipeline_command(operation, pipeline_name, pipelines_dir, verbosity, load_id)
         return 0
     except (CannotRestorePipelineException, Exception) as ex:
         click.secho(str(ex), err=True, fg="red")
@@ -193,18 +193,20 @@ def main() -> int:
     schema.add_argument("--remove-defaults", action="store_true", help="Does not show default hint values")
 
     pipe_cmd = subparsers.add_parser("pipeline", help="Operations on pipelines that were ran locally")
-    pipe_cmd.add_argument("name", help="Pipeline name")
-    pipe_cmd.add_argument(
-        "operation",
-        choices=["info", "show", "list", "failed_loads", "sync"],
-        default="info",
-        help="""'info' - displays state of the pipeline,
-'show' - launches Streamlit app with the loading status and dataset explorer,
-'failed_loads' - displays information on all the failed loads, failed jobs and associated error messages,
-'sync' - drops the local state of the pipeline and resets all the schemas and restores it from destination. The destination state, data and schemas are left intact."""
-    )
+    pipe_cmd.add_argument("--list-pipelines", "-l",  default=False, action="store_true", help="List local pipelines")
+    pipe_cmd.add_argument("name", nargs='?', help="Pipeline name")
     pipe_cmd.add_argument("--pipelines_dir", help="Pipelines working directory", default=None)
-    pipe_cmd.add_argument("--verbose", "-v", default=False, action="store_true", help="Provides more information for certain commands.")
+    pipe_cmd.add_argument("--verbose", "-v", action='count', default=0, help="Provides more information for certain commands.")
+
+    pipeline_subparsers = pipe_cmd.add_subparsers(dest="operation", required=False)
+    pipeline_subparsers.add_parser("info", help="Displays state of the pipeline, use -v or -vv for more info")
+    pipeline_subparsers.add_parser("show", help="Generates and launches Streamlit app with the loading status and dataset explorer")
+    pipeline_subparsers.add_parser("failed_jobs", help="Displays information on all the failed loads in all completed packages, failed jobs and associated error messages")
+    pipeline_subparsers.add_parser("sync", help="Drops the local state of the pipeline and resets all the schemas and restores it from destination. The destination state, data and schemas are left intact.")
+    pipeline_subparsers.add_parser("trace", help="Displays last run trace, use -v or -vv for more info")
+    pipe_cmd_package = pipeline_subparsers.add_parser("load_package", help="Displays information on load package, use -v or -vv for more info")
+    pipe_cmd_package.add_argument("load_id", help="Load id of completed or normalized package. ")
+
     subparsers.add_parser("telemetry", help="Shows telemetry status")
 
     args = parser.parse_args()
@@ -212,7 +214,11 @@ def main() -> int:
     if args.command == "schema":
         return schema_command_wrapper(args.file, args.format, args.remove_defaults)
     elif args.command == "pipeline":
-        return pipeline_command_wrapper(args.operation, args.name, args.pipelines_dir, args.verbose)
+        if args.list_pipelines:
+            return pipeline_command_wrapper("list", "-", args.pipelines_dir, args.verbose)
+        else:
+            load_id = args.load_id if args.operation == "load_package" else None
+            return pipeline_command_wrapper(args.operation or "info", args.name, args.pipelines_dir, args.verbose, load_id)
     elif args.command == "init":
         if args.list_pipelines:
             return list_pipelines_command_wrapper(args.location, args.branch)
