@@ -148,6 +148,7 @@ def test_init_list_pipelines(repo_dir: str, project_files: FileStorage) -> None:
 
 def test_init_all_pipelines_together(repo_dir: str, project_files: FileStorage) -> None:
     pipeline_candidates = get_pipeline_candidates(repo_dir)
+    # pipeline_candidates = ["dlt_asana"]
     for pipeline_name in pipeline_candidates:
         # all must install correctly
         init_command.init_command(pipeline_name, "bigquery", False, repo_dir)

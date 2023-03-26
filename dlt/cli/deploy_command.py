@@ -23,7 +23,6 @@ from dlt.common.storages import FileStorage
 from dlt.common.typing import StrAny
 from dlt.common.utils import set_working_dir
 
-from dlt.pipeline.trace import load_trace
 from dlt.reflection import names as n
 
 from dlt.cli import utils
@@ -95,7 +94,7 @@ def deploy_command(pipeline_script_path: str, deployment_method: str, schedule: 
             # attach to pipeline name, get state and trace
             pipeline = dlt.attach(pipeline_name=pipeline_name, pipelines_dir=pipelines_dir)
             # trace must exist and end with successful loading step
-            trace = load_trace(pipeline.working_dir)
+            trace = pipeline.last_trace
             if trace is None or len(trace.steps) == 0:
                 raise PipelineWasNotRun("Pipeline run trace could not be found. Please run the pipeline at least once locally.")
             last_step = trace.steps[-1]
