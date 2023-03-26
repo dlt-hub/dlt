@@ -91,7 +91,7 @@ class JobClientBase(ABC):
     def is_storage_initialized(self) -> bool:
         pass
 
-    def update_storage_schema(self, schema_update: Optional[TSchemaTables]) -> Optional[TSchemaTables]:
+    def update_storage_schema(self, schema_update: Optional[TSchemaTables] = None) -> Optional[TSchemaTables]:
         """Performs schema update according to held schema and/or schema update passed. Returns an update that was applied at the destination."""
         self._verify_schema_identifier_lengths()
         return schema_update

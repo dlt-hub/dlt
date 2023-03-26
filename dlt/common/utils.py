@@ -175,16 +175,22 @@ def update_dict_nested(dst: TDict, src: StrAny) -> TDict:
 
 def map_nested_in_place(func: AnyFun, _complex: TAny) -> TAny:
     """Applies `func` to all elements in `_dict` recursively, replacing elements in nested dictionaries and lists in place."""
+    if isinstance(_complex, tuple):
+        if hasattr(_complex, "_asdict"):
+            _complex = _complex._asdict()  # type: ignore
+        else:
+            _complex = list(_complex)  # type: ignore
+
     if isinstance(_complex, dict):
         for k, v in _complex.items():
-            if isinstance(v, (dict, list)):
-                map_nested_in_place(func, v)
+            if isinstance(v, (dict, list, tuple)):
+                _complex[k] = map_nested_in_place(func, v)
             else:
                 _complex[k] = func(v)
     elif isinstance(_complex, list):
         for idx, _l in enumerate(_complex):
-            if isinstance(_l, (dict, list)):
-                map_nested_in_place(func, _l)
+            if isinstance(_l, (dict, list, tuple)):
+                _complex[idx] = map_nested_in_place(func, _l)
             else:
                 _complex[idx] = func(_l)
     else:

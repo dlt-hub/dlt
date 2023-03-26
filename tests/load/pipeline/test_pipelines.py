@@ -240,7 +240,7 @@ def test_evolve_schema(destination_name: str) -> None:
         err_info = p.run(source(1).with_resources("simple_rows"))
         # print(err_info)
         # we have failed jobs
-        assert len(next(iter(err_info.failed_jobs.values()))) == 1
+        assert len(err_info.load_packages[0].jobs["failed_jobs"]) == 1
 
     # update schema
     # - new column in "simple_rows" table

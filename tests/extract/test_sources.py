@@ -2,7 +2,6 @@ import pytest
 
 import dlt
 from dlt.common.schema import Schema
-from dlt.common.schema.utils import new_table
 from dlt.common.typing import TDataItems
 from dlt.extract.exceptions import InvalidParentResourceDataType, InvalidParentResourceIsAFunction, InvalidTransformerDataTypeGeneratorFunctionRequired, InvalidTransformerGeneratorFunction, ParametrizedResourceUnbound, ResourcesNotFoundError
 from dlt.extract.pipe import Pipe

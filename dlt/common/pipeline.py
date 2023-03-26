@@ -11,16 +11,32 @@ from dlt.common.configuration.specs import RunConfiguration
 from dlt.common.destination.reference import DestinationReference, TDestinationReferenceArg
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TColumnSchema, TWriteDisposition
+from dlt.common.storages.load_storage import LoadPackageInfo
+from dlt.common.typing import DictStrAny
 
 
 class ExtractInfo(NamedTuple):
     """A tuple holding information on extracted data items. Returned by pipeline `extract` method."""
-    pass
+    def asdict(self) -> DictStrAny:
+        return {}
+
+    def asstr(self, verbosity: int = 0) -> str:
+        return ""
+
+    def __str__(self) -> str:
+        return self.asstr(verbosity=0)
 
 
 class NormalizeInfo(NamedTuple):
     """A tuple holding information on normalized data items. Returned by pipeline `normalize` method."""
-    pass
+    def asdict(self) -> DictStrAny:
+        return {}
+
+    def asstr(self, verbosity: int = 0) -> str:
+        return ""
+
+    def __str__(self) -> str:
+        return self.asstr(verbosity=0)
 
 
 class LoadInfo(NamedTuple):
@@ -29,12 +45,23 @@ class LoadInfo(NamedTuple):
     destination_name: str
     destination_displayable_credentials: str
     dataset_name: str
-    loads_ids: Dict[str, bool]
-    failed_jobs: Dict[str, Sequence[Tuple[str, str]]]
+    loads_ids: List[str]
+    """ids of the loaded packages"""
+    load_packages: List[LoadPackageInfo]
+    """Information on loaded packages"""
     started_at: datetime.datetime
     first_run: bool
 
-    def __str__(self) -> str:
+    def asdict(self) -> DictStrAny:
+        """A dictionary representation of LoadInfo that can be loaded with `dlt`"""
+        d = self._asdict()
+        d["pipeline"] = {
+            "pipeline_name": self.pipeline.pipeline_name
+        }
+        d["load_packages"] = [package.asdict() for package in self.load_packages]
+        return d
+
+    def asstr(self, verbosity: int = 0) -> str:
         msg = f"Pipeline {self.pipeline.pipeline_name} completed in "
         if self.started_at:
             elapsed = pendulum.now() - self.started_at
@@ -42,19 +69,24 @@ class LoadInfo(NamedTuple):
         else:
             msg += "---"
         msg += f"\n{len(self.loads_ids)} load package(s) were loaded to destination {self.destination_name} and into dataset {self.dataset_name}\n"
-        msg += f"The {self.destination_name} destination used {self.destination_displayable_credentials} location to store data\n"
-        for load_id, completed in self.loads_ids.items():
-            cstr = "COMPLETED" if completed else "NOT COMPLETED"
-
+        msg += f"The {self.destination_name} destination used {self.destination_displayable_credentials} location to store data"
+        for load_package in self.load_packages:
+            cstr = "COMPLETED" if load_package.completed_at else "NOT COMPLETED"
             # now enumerate all complete loads if we have any failed packages
             # complete but failed job will not raise any exceptions
-            failed_jobs = self.failed_jobs.get(load_id)
-            jobs_str = "no failed jobs\n" if not failed_jobs else f"{len(failed_jobs)} FAILED job(s)!\n"
-            msg += f"Load package {load_id} is {cstr} and contains {jobs_str}"
-            for job_id, failed_message in failed_jobs:
-                msg += f"\t{job_id}: {failed_message}\n"
+            failed_jobs = load_package.jobs["failed_jobs"]
+            jobs_str = "no failed jobs" if not failed_jobs else f"{len(failed_jobs)} FAILED job(s)!"
+            msg += f"\nLoad package {load_package.load_id} is {cstr} and contains {jobs_str}"
+            if verbosity > 0:
+                for failed_job in failed_jobs:
+                    msg += f"\n\t[{failed_job.job_file_info.job_id()}]: {failed_job.failed_message}\n"
+            if verbosity > 1:
+                msg += "\nPackage details:\n"
+                msg += load_package.asstr() + "\n"
         return msg
 
+    def __str__(self) -> str:
+        return self.asstr(verbosity=1)
 
 class TPipelineLocalState(TypedDict, total=False):
     first_run: bool

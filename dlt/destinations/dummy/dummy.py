@@ -87,7 +87,7 @@ class DummyClient(JobClientBase):
     def is_storage_initialized(self) -> bool:
         return True
 
-    def update_storage_schema(self, schema_update: Optional[TSchemaTables]) -> Optional[TSchemaTables]:
+    def update_storage_schema(self, schema_update: Optional[TSchemaTables] = None) -> Optional[TSchemaTables]:
         schema_update = super().update_storage_schema(schema_update)
         if self.config.fail_schema_update:
             raise DestinationTransientException("Raise on schema update due to fail_schema_update config flag")

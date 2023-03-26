@@ -19,8 +19,9 @@ from dlt.destinations.job_client_impl import LoadEmptyJob
 from dlt.destinations import dummy
 from dlt.destinations.dummy import dummy as dummy_impl
 from dlt.destinations.dummy.configuration import DummyClientConfiguration
+from dlt.load.exceptions import LoadClientJobFailed
 
-from tests.utils import clean_test_storage, init_test_logging, TEST_DICT_CONFIG_PROVIDER
+from tests.utils import clean_test_storage, init_test_logging, TEST_DICT_CONFIG_PROVIDER, preserve_environ
 
 
 NORMALIZED_FILES = [
@@ -109,6 +110,19 @@ def test_spool_job_failed() -> None:
         assert load.load_storage.storage.has_file(load.load_storage._get_job_file_path(load_id, LoadStorage.FAILED_JOBS_FOLDER, job.file_name() + ".exception"))
     started_files = load.load_storage.list_started_jobs(load_id)
     assert len(started_files) == 0
+
+
+def test_spool_job_failed_exception() -> None:
+    # this config fails job on start
+    os.environ["RAISE_ON_FAILED_JOBS"] = "true"
+    load = setup_loader(client_config=DummyClientConfiguration(fail_prob=1.0))
+    load_id, _ = prepare_load_package(
+        load.load_storage,
+        NORMALIZED_FILES
+    )
+    with pytest.raises(LoadClientJobFailed) as py_ex:
+        load.run(ThreadPool())
+    assert py_ex.value.load_id == load_id
 
 
 def test_spool_job_retry_new() -> None:
@@ -279,12 +293,12 @@ def assert_complete_job(load: Load, storage: FileStorage, should_delete_complete
     with patch.object(dummy_impl.DummyClient, "complete_load") as complete_load:
         load.run(ThreadPool())
         # did process schema update
-        assert storage.has_file(os.path.join(load.load_storage.get_package_path(load_id), LoadStorage.PROCESSED_SCHEMA_UPDATES_FILE_NAME))
+        assert storage.has_file(os.path.join(load.load_storage.get_package_path(load_id), LoadStorage.APPLIED_SCHEMA_UPDATES_FILE_NAME))
         # will finalize the whole package
         load.run(ThreadPool())
         # moved to loaded
         assert not storage.has_folder(load.load_storage.get_package_path(load_id))
-        completed_path = load.load_storage.get_completed_package_path(load_id)
+        completed_path = load.load_storage._get_job_folder_completed_path(load_id, "completed_jobs")
         if should_delete_completed:
             # package was deleted
             assert not storage.has_folder(completed_path)

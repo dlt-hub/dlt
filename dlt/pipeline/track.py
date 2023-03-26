@@ -16,7 +16,7 @@ from dlt.common.pipeline import LoadInfo, SupportsPipeline
 from dlt.common.utils import uniq_id
 
 from dlt.pipeline.typing import TPipelineStep
-from dlt.pipeline.trace import PipelineRuntimeTrace, PipelineStepTrace
+from dlt.pipeline.trace import PipelineTrace, PipelineStepTrace
 from dlt.pipeline.exceptions import PipelineStepFailed
 
 
@@ -28,7 +28,7 @@ def _add_sentry_tags(span: Span, pipeline: SupportsPipeline) -> None:
         span.set_tag("dataset_name", pipeline.dataset_name)
 
 
-def _slack_notify_load(incoming_hook: str, load_info: LoadInfo, trace: PipelineRuntimeTrace) -> None:
+def _slack_notify_load(incoming_hook: str, load_info: LoadInfo, trace: PipelineTrace) -> None:
     try:
         author = github_info().get("github_user", "")
         if author:
@@ -68,7 +68,7 @@ def send_slack_message(incoming_hook: str, message: str, is_markdown: bool = Tru
         logger.warning(f"Could not post the notification to slack: {r.status_code}")
 
 
-def on_start_trace(trace: PipelineRuntimeTrace, step: TPipelineStep, pipeline: SupportsPipeline) -> None:
+def on_start_trace(trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline) -> None:
     # https://getsentry.github.io/sentry-python/api.html#sentry_sdk.Hub.capture_event
     if pipeline.runtime_config.sentry_dsn:
         # print(f"START SENTRY TX: {trace.transaction_id} SCOPE: {Hub.current.scope}")
@@ -77,7 +77,7 @@ def on_start_trace(trace: PipelineRuntimeTrace, step: TPipelineStep, pipeline: S
         transaction.__enter__()
 
 
-def on_start_trace_step(trace: PipelineRuntimeTrace, step: TPipelineStep, pipeline: SupportsPipeline) -> None:
+def on_start_trace_step(trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline) -> None:
     if pipeline.runtime_config.sentry_dsn:
         # print(f"START SENTRY SPAN {trace.transaction_id}:{trace_step.span_id} SCOPE: {Hub.current.scope}")
         span = Hub.current.scope.span.start_child(description=step, op=step).__enter__()
@@ -85,7 +85,7 @@ def on_start_trace_step(trace: PipelineRuntimeTrace, step: TPipelineStep, pipeli
         _add_sentry_tags(span, pipeline)
 
 
-def on_end_trace_step(trace: PipelineRuntimeTrace, step: PipelineStepTrace, pipeline: SupportsPipeline, step_info: Any) -> None:
+def on_end_trace_step(trace: PipelineTrace, step: PipelineStepTrace, pipeline: SupportsPipeline, step_info: Any) -> None:
     if pipeline.runtime_config.sentry_dsn:
         # print(f"---END SENTRY SPAN {trace.transaction_id}:{step.span_id}: {step} SCOPE: {Hub.current.scope}")
         with contextlib.suppress(Exception):
@@ -101,7 +101,7 @@ def on_end_trace_step(trace: PipelineRuntimeTrace, step: PipelineStepTrace, pipe
     })
 
 
-def on_end_trace(trace: PipelineRuntimeTrace, pipeline: SupportsPipeline) -> None:
+def on_end_trace(trace: PipelineTrace, pipeline: SupportsPipeline) -> None:
     if pipeline.runtime_config.sentry_dsn:
         # print(f"---END SENTRY TX: {trace.transaction_id} SCOPE: {Hub.current.scope}")
         with contextlib.suppress(Exception):

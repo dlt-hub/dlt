@@ -1,6 +1,7 @@
 import os
 import base64
 import pendulum
+import dataclasses
 from datetime import date, datetime  # noqa: I251
 from typing import Any, Callable, List, Protocol, IO, Union
 from uuid import UUID
@@ -61,8 +62,12 @@ def custom_encode(obj: Any) -> str:
         return obj.hex()
     elif isinstance(obj, bytes):
         return base64.b64encode(obj).decode('ascii')
+    elif hasattr(obj, 'asdict'):
+        return obj.asdict()  # type: ignore
     elif hasattr(obj, '_asdict'):
         return obj._asdict()  # type: ignore
+    elif dataclasses.is_dataclass(obj):
+        return dataclasses.asdict(obj)  # type: ignore
     raise TypeError(repr(obj) + " is not JSON serializable")
 
 
@@ -106,6 +111,12 @@ def custom_pua_encode(obj: Any) -> str:
         return _HEXBYTES + obj.hex()
     elif isinstance(obj, bytes):
         return _B64BYTES + base64.b64encode(obj).decode('ascii')
+    elif hasattr(obj, 'asdict'):
+        return obj.asdict()  # type: ignore
+    elif hasattr(obj, '_asdict'):
+        return obj._asdict()  # type: ignore
+    elif dataclasses.is_dataclass(obj):
+        return dataclasses.asdict(obj)  # type: ignore
     raise TypeError(repr(obj) + " is not JSON serializable")
 
 

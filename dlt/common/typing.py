@@ -52,6 +52,16 @@ class SupportsVariant(Protocol, Generic[TVariantBase]):
         ...
 
 
+class SupportsHumanize(Protocol):
+    def asdict(self) -> DictStrAny:
+        """Represents object as dict with a schema loadable by dlt"""
+        ...
+
+    def asstr(self, verbosity: int = 0) -> str:
+        """Represents object as human readable string"""
+        ...
+
+
 def is_optional_type(t: Type[Any]) -> bool:
     return get_origin(t) is Union and type(None) in get_args(t)
 
