@@ -1,5 +1,6 @@
 import os
-from typing import Any
+from typing import Any, Callable, Tuple
+from tenacity import retry_if_exception, Retrying, stop_after_attempt
 
 import pytest
 
@@ -7,15 +8,18 @@ import dlt
 from dlt.common import json, logger
 from dlt.common.configuration.container import Container
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.exceptions import UnknownDestinationModule
+from dlt.common.exceptions import DestinationTerminalException, TerminalException, UnknownDestinationModule
 from dlt.common.pipeline import PipelineContext
 from dlt.common.schema.exceptions import InvalidDatasetName
 from dlt.common.utils import uniq_id
 from dlt.extract.exceptions import SourceExhausted
 from dlt.extract.extract import ExtractorStorage
 from dlt.extract.source import DltSource
+from dlt.load.exceptions import LoadClientJobFailed
 from dlt.pipeline.exceptions import InvalidPipelineName, PipelineStepFailed
+from dlt.pipeline.helpers import retry_load
 from dlt.pipeline.state import STATE_TABLE_NAME
+from dlt.pipeline.typing import TPipelineStep
 from tests.common.utils import TEST_SENTRY_DSN
 
 from tests.utils import ALL_DESTINATIONS, TEST_STORAGE_ROOT, preserve_environ, autouse_test_storage, patch_home_dir
@@ -415,6 +419,91 @@ def test_run_with_table_name_exceeding_path_length() -> None:
     with pytest.raises(PipelineStepFailed) as sf_ex:
         p.extract([1, 2, 3], table_name="TABLE_" + "a" * 230)
     assert isinstance(sf_ex.value.__context__, OSError)
+
+
+def test_raise_on_failed_job() -> None:
+    os.environ["FAIL_PROB"] = "1.0"
+    os.environ["RAISE_ON_FAILED_JOBS"] = "true"
+    pipeline_name = "pipe_" + uniq_id()
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+    with pytest.raises(PipelineStepFailed) as py_ex:
+        p.run([1, 2, 3], table_name="numbers")
+    assert py_ex.value.step == "load"
+    assert isinstance(py_ex.value.__context__, LoadClientJobFailed)
+    assert isinstance(py_ex.value.__context__, DestinationTerminalException)
+
+
+def test_run_load_pending() -> None:
+    # prepare some data and complete load with run
+    os.environ["COMPLETED_PROB"] = "1.0"
+    pipeline_name = "pipe_" + uniq_id()
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+
+    @dlt.source
+    def source():
+        return dlt.resource([1, 2, 3], name="numbers")
+
+    s = source()
+    p.extract(s)
+    assert s.exhausted
+    # will normalize and load, the data, the source will not be evaluated so there's no exception
+    load_info = p.run(s)
+    assert len(load_info.loads_ids) == 1
+    # now it is
+    with pytest.raises(PipelineStepFailed) as py_ex:
+        p.run(s)
+    assert isinstance(py_ex.value.__context__, SourceExhausted)
+
+    # now only load
+    s = source()
+    p.extract(s)
+    p.normalize()
+    load_info = p.run(s)
+    assert len(load_info.loads_ids) == 1
+
+
+def test_retry_load() -> None:
+    retry_count = 2
+
+    os.environ["COMPLETED_PROB"] = "1.0"
+    pipeline_name = "pipe_" + uniq_id()
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+
+    @dlt.resource
+    def fail_extract():
+        nonlocal retry_count
+        retry_count -= 1
+        if retry_count == 0:
+            yield [1, 2, 3]
+        else:
+            raise Exception("Transient")
+
+    attempt = None
+
+    for attempt in Retrying(stop=stop_after_attempt(3), retry=retry_if_exception(retry_load(("load", "extract"))), reraise=True):
+        with attempt:
+            p.run(fail_extract())
+    # it retried
+    assert retry_count == 0
+
+    # now it fails (extract is terminal exception)
+    retry_count = 2
+    with pytest.raises(PipelineStepFailed) as py_ex:
+        for attempt in Retrying(stop=stop_after_attempt(3), retry=retry_if_exception(retry_load(())), reraise=True):
+            with attempt:
+                p.run(fail_extract())
+    assert isinstance(py_ex.value, PipelineStepFailed)
+    assert py_ex.value.step == "extract"
+
+    os.environ["COMPLETED_PROB"] = "0.0"
+    os.environ["RAISE_ON_FAILED_JOBS"] = "true"
+    os.environ["FAIL_PROB"] = "1.0"
+    with pytest.raises(PipelineStepFailed) as py_ex:
+        for attempt in Retrying(stop=stop_after_attempt(3), retry=retry_if_exception(retry_load(("load", "extract"))), reraise=True):
+            with attempt:
+                p.run(fail_extract())
+    assert isinstance(py_ex.value, PipelineStepFailed)
+    assert py_ex.value.step == "load"
 
 
 @pytest.mark.skip("Not implemented")
