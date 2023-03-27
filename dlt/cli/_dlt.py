@@ -205,7 +205,7 @@ def main() -> int:
     pipeline_subparsers.add_parser("sync", help="Drops the local state of the pipeline and resets all the schemas and restores it from destination. The destination state, data and schemas are left intact.")
     pipeline_subparsers.add_parser("trace", help="Displays last run trace, use -v or -vv for more info")
     pipe_cmd_package = pipeline_subparsers.add_parser("load_package", help="Displays information on load package, use -v or -vv for more info")
-    pipe_cmd_package.add_argument("load_id", help="Load id of completed or normalized package. ")
+    pipe_cmd_package.add_argument("load_id", nargs='?', help="Load id of completed or normalized package. Defaults to the most recent package.")
 
     subparsers.add_parser("telemetry", help="Shows telemetry status")
 

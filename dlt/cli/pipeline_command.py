@@ -1,10 +1,14 @@
 import os
+
+import yaml
 import dlt
+from dlt.cli.exceptions import CliCommandException
 
 from dlt.common import json
 from dlt.common.pipeline import get_dlt_pipelines_dir
 from dlt.common.runners import Venv
 from dlt.common.runners.stdout import iter_stdout
+from dlt.common.schema.utils import remove_defaults
 from dlt.common.storages.file_storage import FileStorage
 
 from dlt.cli import echo as fmt
@@ -45,7 +49,7 @@ def pipeline_command(operation: str, pipeline_name: str, pipelines_dir: str, ver
             if verbosity > 0:
                 fmt.echo(json.dumps(state["sources"], pretty=True))
             else:
-                print("Add -v option to see sources state. Note that it could be large.")
+                fmt.echo("Add -v option to see sources state. Note that it could be large.")
 
         fmt.echo()
         fmt.echo("Local state:")
@@ -98,5 +102,20 @@ def pipeline_command(operation: str, pipeline_name: str, pipelines_dir: str, ver
             p.sync_destination()
 
     if operation == "load_package":
+        if not load_id:
+            packages = sorted(p.list_normalized_load_packages())
+            if not packages:
+                packages = sorted(p.list_completed_load_packages())
+            if not packages:
+                raise CliCommandException("pipeline", "There are no load packages for that pipeline")
+            load_id = packages[-1]
+
         package_info = p.get_load_package_info(load_id)
         fmt.echo(package_info.asstr(verbosity))
+        if len(package_info.schema_update) > 0:
+            if verbosity == 0:
+                print("Add -v option to see schema update. Note that it could be large.")
+            else:
+                tables = remove_defaults({"tables": package_info.schema_update})
+                fmt.echo(fmt.bold("Schema update:"))
+                fmt.echo(yaml.dump(tables, allow_unicode=True, default_flow_style=False, sort_keys=False))
