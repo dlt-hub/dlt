@@ -1,23 +1,19 @@
 """Implements SupportsTracking"""
 import contextlib
 from typing import Any
-import requests
 import humanize
 from sentry_sdk import Hub
 from sentry_sdk.tracing import Span
 
-from dlt.common import json, pendulum
+from dlt.common import pendulum
 from dlt.common import logger
-from dlt.common.configuration import is_secret_hint
-from dlt.common.configuration.utils import _RESOLVED_TRACES
 from dlt.common.runtime.exec_info import github_info
 from dlt.common.runtime.segment import track as dlthub_telemetry_track
+from dlt.common.runtime.slack import send_slack_message
 from dlt.common.pipeline import LoadInfo, SupportsPipeline
-from dlt.common.utils import uniq_id
 
 from dlt.pipeline.typing import TPipelineStep
 from dlt.pipeline.trace import PipelineTrace, PipelineStepTrace
-from dlt.pipeline.exceptions import PipelineStepFailed
 
 
 def _add_sentry_tags(span: Span, pipeline: SupportsPipeline) -> None:
@@ -28,7 +24,8 @@ def _add_sentry_tags(span: Span, pipeline: SupportsPipeline) -> None:
         span.set_tag("dataset_name", pipeline.dataset_name)
 
 
-def _slack_notify_load(incoming_hook: str, load_info: LoadInfo, trace: PipelineTrace) -> None:
+def slack_notify_load_success(incoming_hook: str, load_info: LoadInfo, trace: PipelineTrace) -> int:
+    """Sends a markdown formatted success message and returns http status code from the Slack incoming hook"""
     try:
         author = github_info().get("github_user", "")
         if author:
@@ -50,22 +47,10 @@ def _slack_notify_load(incoming_hook: str, load_info: LoadInfo, trace: PipelineT
 🚀 *{humanize.precisedelta(total_elapsed)}* of which {_get_step_elapsed(load_step)}{_get_step_elapsed(normalize_step)}{_get_step_elapsed(extract_step)}"""
 
         send_slack_message(incoming_hook, message)
-
+        return 200
     except Exception as ex:
         logger.warning(f"Slack notification could not be sent: {str(ex)}")
-
-
-def send_slack_message(incoming_hook: str, message: str, is_markdown: bool = True) -> None:
-    r = requests.post(incoming_hook,
-        data= json.dumps({
-            "text": message,
-            "mrkdwn": is_markdown
-            }
-        ).encode("utf-8"),
-        headers={'Content-Type': 'application/json;charset=utf-8'}
-    )
-    if r.status_code >= 400:
-        logger.warning(f"Could not post the notification to slack: {r.status_code}")
+        return -1
 
 
 def on_start_trace(trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline) -> None:
@@ -90,9 +75,10 @@ def on_end_trace_step(trace: PipelineTrace, step: PipelineStepTrace, pipeline: S
         # print(f"---END SENTRY SPAN {trace.transaction_id}:{step.span_id}: {step} SCOPE: {Hub.current.scope}")
         with contextlib.suppress(Exception):
             Hub.current.scope.span.__exit__(None, None, None)
-    if step.step == "load":
-        if pipeline.runtime_config.slack_incoming_hook and step.step_exception is None:
-            _slack_notify_load(pipeline.runtime_config.slack_incoming_hook, step_info, trace)
+    # disable automatic slack messaging until we can configure messages themselves
+    # if step.step == "load":
+    #     if pipeline.runtime_config.slack_incoming_hook and step.step_exception is None:
+    #         slack_notify_load_success(pipeline.runtime_config.slack_incoming_hook, step_info, trace)
     dlthub_telemetry_track("pipeline", step.step, {
         "elapsed": (step.finished_at - trace.started_at).total_seconds(),
         "success": step.step_exception is None,

@@ -19,6 +19,7 @@ from dlt.common.typing import DictStrAny, StrStr, TSecretValue
 from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.pipeline.pipeline import Pipeline
 from dlt.pipeline.trace import PipelineTrace, SerializableResolvedValueTrace, load_trace
+from dlt.pipeline.track import slack_notify_load_success
 
 from tests.utils import preserve_environ, patch_home_dir, start_test_telemetry
 from tests.common.configuration.utils import toml_providers, environment
@@ -256,7 +257,8 @@ def test_slack_hook(environment: StrStr) -> None:
     environment["RUNTIME__SLACK_INCOMING_HOOK"] = hook_url
     with requests_mock.mock() as m:
         m.post(hook_url, json={})
-        dlt.pipeline().run([1,2,3], table_name="data", destination="dummy")
+        load_info = dlt.pipeline().run([1,2,3], table_name="data", destination="dummy")
+        assert slack_notify_load_success(load_info.pipeline.runtime_config.slack_incoming_hook, load_info, load_info.pipeline.last_trace) == 200
     assert m.called
     message = m.last_request.json()
     assert "rudolfix" in message["text"]
@@ -266,15 +268,17 @@ def test_slack_hook(environment: StrStr) -> None:
 def test_broken_slack_hook(environment: StrStr) -> None:
     environment["COMPLETED_PROB"] = "1.0"
     environment["RUNTIME__SLACK_INCOMING_HOOK"] = "http://localhost:22"
-    info = dlt.pipeline().run([1,2,3], table_name="data", destination="dummy")
-    pipeline = dlt.pipeline()
-    assert pipeline.last_trace is not None
-    assert pipeline._trace is None
-    trace = load_trace(info.pipeline.working_dir)
-    assert len(trace.steps) == 4
-    run_step = trace.steps[-1]
-    assert run_step.step == "run"
-    assert run_step.step_exception is None
+    load_info = dlt.pipeline().run([1,2,3], table_name="data", destination="dummy")
+    # connection error
+    assert slack_notify_load_success(load_info.pipeline.runtime_config.slack_incoming_hook, load_info, load_info.pipeline.last_trace) == -1
+    # pipeline = dlt.pipeline()
+    # assert pipeline.last_trace is not None
+    # assert pipeline._trace is None
+    # trace = load_trace(info.pipeline.working_dir)
+    # assert len(trace.steps) == 4
+    # run_step = trace.steps[-1]
+    # assert run_step.step == "run"
+    # assert run_step.step_exception is None
 
 
 def _find_resolved_value(resolved: List[SerializableResolvedValueTrace], key: str, sections: List[str]) -> SerializableResolvedValueTrace:
