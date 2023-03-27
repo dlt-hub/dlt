@@ -41,7 +41,7 @@ def apply_defaults(stored_schema: TStoredSchema) -> None:
             table["columns"][column_name] = column
 
 
-def remove_defaults(stored_schema: TStoredSchema) -> None:
+def remove_defaults(stored_schema: TStoredSchema) -> TStoredSchema:
     clean_tables = deepcopy(stored_schema["tables"])
     for t in clean_tables.values():
         del t["name"]
@@ -54,6 +54,7 @@ def remove_defaults(stored_schema: TStoredSchema) -> None:
                     del c[h]  # type: ignore
 
     stored_schema["tables"] = clean_tables
+    return stored_schema
 
 
 def bump_version_if_modified(stored_schema: TStoredSchema) -> Tuple[int, str]:

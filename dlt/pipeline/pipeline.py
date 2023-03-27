@@ -568,7 +568,7 @@ class Pipeline(SupportsPipeline):
 
     def list_failed_jobs_in_package(self, load_id: str) -> Sequence[LoadJobInfo]:
         """List all failed jobs and associated error messages for a specified `load_id`"""
-        return self._get_load_storage().get_load_package_info(load_id).jobs["failed_jobs"]
+        return self._get_load_storage().get_load_package_info(load_id).jobs.get("failed_jobs", [])
 
     def sync_schema(self, schema_name: str = None, credentials: Any = None) -> TSchemaTables:
         """Synchronizes the schema `schema_name` with the destination. If no name is provided, the default schema will be synchronized."""

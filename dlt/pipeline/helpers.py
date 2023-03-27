@@ -25,7 +25,6 @@ def retry_load(retry_on_pipeline_steps: Tuple[TPipelineStep, ...] = ("load",)) -
     """
     def _retry_load(ex: Exception) -> bool:
         # do not retry in normalize or extract stages
-        print(ex)
         if isinstance(ex, PipelineStepFailed) and ex.step not in retry_on_pipeline_steps:
             return False
         # do not retry on terminal exceptions

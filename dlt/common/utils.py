@@ -9,7 +9,7 @@ from functools import wraps
 from os import environ
 
 from typing import Any, Dict, Iterator, Optional, Sequence, TypeVar, Mapping, List, Union, Counter
-from collections.abc import Mapping as C_Mapping
+from collections.abc import Mapping as C_Mapping, Sequence as C_Sequence
 
 from dlt.common.typing import AnyFun, StrAny, DictStrAny, StrStr, TAny, TDataItem, TDataItems, TFun
 
@@ -128,9 +128,9 @@ def tuplify_list_of_dicts(dicts: Sequence[DictStrAny]) -> Sequence[DictStrAny]:
     return dicts
 
 
-def flatten_list_or_items(_iter: Iterator[TDataItems]) -> Iterator[TDataItem]:
+def flatten_list_or_items(_iter: Union[Iterator[TAny], Iterator[Sequence[TAny]]]) -> Iterator[TAny]:
     for items in _iter:
-        if isinstance(items, list):
+        if isinstance(items, C_Sequence):
             yield from items
         else:
             yield items

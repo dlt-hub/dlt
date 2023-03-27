@@ -11,7 +11,7 @@ from typing import Dict, Iterable, List, NamedTuple, Literal, Optional, Sequence
 from dlt.common import json, pendulum
 from dlt.common.configuration import known_sections
 from dlt.common.configuration.inject import with_config
-from dlt.common.typing import DictStrAny, StrAny, SupportsHumanize
+from dlt.common.typing import DictStrAny, StrAny
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.data_writers import TLoaderFileFormat, DataWriter
 from dlt.common.configuration.specs import LoadVolumeConfiguration
@@ -82,16 +82,18 @@ class LoadPackageInfo(NamedTuple):
     def asdict(self) -> DictStrAny:
         d = self._asdict()
         # job as list
-        d["jobs"] = [job.asdict() for job in flatten_list_or_items(iter(self.jobs.values()))]
+        d["jobs"] = [job.asdict() for job in flatten_list_or_items(iter(self.jobs.values()))]  # type: ignore
         # flatten update into list of columns
         tables: List[DictStrAny] = deepcopy(list(self.schema_update.values()))  # type: ignore
         for table in tables:
             table.pop("filters", None)
             columns: List[DictStrAny] = []
             table["schema_name"] = self.schema_name
+            table["load_id"] = self.load_id
             for column in table["columns"].values():
                 column["table_name"] = table["name"]
                 column["schema_name"] = self.schema_name
+                column["load_id"] = self.load_id
                 columns.append(column)
             table["columns"] = columns
         d.pop("schema_update")
@@ -102,7 +104,7 @@ class LoadPackageInfo(NamedTuple):
         completed_msg = f"The package was COMPLETED at {self.completed_at}" if self.completed_at else "The package is being PROCESSED"
         msg = f"The package with load id {self.load_id} for schema {self.schema_name} is in {self.state} state. It updated schema for {len(self.schema_update)} tables. {completed_msg}.\n"
         msg += "Jobs details:\n"
-        msg += "\n".join(job.asstr(verbosity) for job in flatten_list_or_items(iter(self.jobs.values())))
+        msg += "\n".join(job.asstr(verbosity) for job in flatten_list_or_items(iter(self.jobs.values())))  # type: ignore
         return msg
 
     def __str__(self) -> str:
