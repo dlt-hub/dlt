@@ -449,3 +449,20 @@ def test_set_get_local_value() -> None:
 
     p.extract(_w_local_state)
     assert p.state["_local"][new_val] == new_val
+
+def test_changed_write_disposition():
+    pipeline_name = "pipe_" + uniq_id()
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+
+    @dlt.resource
+    def resource_1():
+        yield [1, 2, 3]
+
+    p.run(resource_1, write_disposition="append")
+    assert p.default_schema.get_table("resource_1")["write_disposition"] == "append"
+
+    p.run(resource_1, write_disposition="append")
+    assert p.default_schema.get_table("resource_1")["write_disposition"] == "append"
+
+    p.run(resource_1, write_disposition="replace")
+    assert p.default_schema.get_table("resource_1")["write_disposition"] == "replace"
