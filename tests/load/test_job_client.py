@@ -1,5 +1,6 @@
 from copy import deepcopy
 import io
+from time import sleep
 import pytest
 import datetime  # noqa: I251
 from typing import Iterator
@@ -119,10 +120,12 @@ def test_get_update_basic_schema(client: SqlJobClientBase) -> None:
     first_schema._schema_tables["event_bot"]["write_disposition"] = "replace"
     first_schema.bump_version()
     assert first_schema.version == this_schema.version == 2
+    # wait to make get_newest_schema_from_storage deterministic
+    sleep(0.1)
     client._update_schema_in_storage(first_schema)
     this_schema = client.get_schema_by_hash(first_schema.version_hash)
     newest_schema = client.get_newest_schema_from_storage()
-    assert this_schema == newest_schema
+    assert this_schema == newest_schema # error
     assert this_schema.version == first_schema.version == 2
     assert this_schema.version_hash == first_schema.stored_version_hash
 

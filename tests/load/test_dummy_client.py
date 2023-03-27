@@ -1,6 +1,7 @@
 import shutil
 import os
 from multiprocessing.pool import ThreadPool
+from time import sleep
 from typing import List, Sequence, Tuple
 import pytest
 from unittest.mock import patch
@@ -111,18 +112,55 @@ def test_spool_job_failed() -> None:
     started_files = load.load_storage.list_started_jobs(load_id)
     assert len(started_files) == 0
 
+    # test the whole flow
+    load = setup_loader(client_config=DummyClientConfiguration(fail_prob=1.0))
+    load_id, schema = prepare_load_package(
+        load.load_storage,
+        NORMALIZED_FILES
+    )
+    run_all(load)
+    package_info = load.load_storage.get_load_package_info(load_id)
+    assert package_info.state == "loaded"
+    # all jobs failed
+    assert len(package_info.jobs["failed_jobs"]) == 2
 
-def test_spool_job_failed_exception() -> None:
+
+def test_spool_job_failed_exception_init() -> None:
     # this config fails job on start
     os.environ["RAISE_ON_FAILED_JOBS"] = "true"
+    os.environ["FAIL_IN_INIT"] = "true"
     load = setup_loader(client_config=DummyClientConfiguration(fail_prob=1.0))
     load_id, _ = prepare_load_package(
         load.load_storage,
         NORMALIZED_FILES
     )
     with pytest.raises(LoadClientJobFailed) as py_ex:
-        load.run(ThreadPool())
+        run_all(load)
     assert py_ex.value.load_id == load_id
+    package_info = load.load_storage.get_load_package_info(load_id)
+    assert package_info.state == "loaded"
+    # one failed one started
+    assert len(package_info.jobs["failed_jobs"]) == 1
+    assert len(package_info.jobs["started_jobs"]) == 1
+
+
+def test_spool_job_failed_exception_complete() -> None:
+    # this config fails job on start
+    os.environ["RAISE_ON_FAILED_JOBS"] = "true"
+    os.environ["FAIL_IN_INIT"] = "false"
+    load = setup_loader(client_config=DummyClientConfiguration(fail_prob=1.0))
+    load_id, _ = prepare_load_package(
+        load.load_storage,
+        NORMALIZED_FILES
+    )
+    with pytest.raises(LoadClientJobFailed) as py_ex:
+        run_all(load)
+    assert py_ex.value.load_id == load_id
+    package_info = load.load_storage.get_load_package_info(load_id)
+    assert package_info.state == "loaded"
+    # one failed one started
+    assert len(package_info.jobs["failed_jobs"]) == 1
+    assert len(package_info.jobs["started_jobs"]) == 1
 
 
 def test_spool_job_retry_new() -> None:
@@ -160,7 +198,7 @@ def test_spool_job_retry_started() -> None:
         assert job.status() == "running"
         assert  load.load_storage.storage.has_file(load.load_storage._get_job_file_path(load_id, LoadStorage.STARTED_JOBS_FOLDER, job.file_name()))
         # mock job config to make it retry
-        job.retry_prob = 1.0
+        job.config.retry_prob = 1.0
         jobs.append(job)
     files = load.load_storage.list_new_jobs(load_id)
     assert len(files) == 0
@@ -307,6 +345,15 @@ def assert_complete_job(load: Load, storage: FileStorage, should_delete_complete
             assert storage.has_folder(completed_path)
         # complete load on client was called
         complete_load.assert_called_once_with(load_id)
+
+
+def run_all(load: Load) -> None:
+    pool = ThreadPool()
+    while True:
+        metrics = load.run(pool)
+        if metrics.pending_items == 0:
+            return
+        sleep(0.1)
 
 
 def prepare_load_package(load_storage: LoadStorage, cases: Sequence[str]) -> Tuple[str, Schema]:

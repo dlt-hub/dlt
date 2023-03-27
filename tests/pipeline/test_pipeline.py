@@ -1,11 +1,11 @@
 import os
-from typing import Any, Callable, Tuple
+from typing import Any
 from tenacity import retry_if_exception, Retrying, stop_after_attempt
 
 import pytest
 
 import dlt
-from dlt.common import json, logger
+from dlt.common import json
 from dlt.common.configuration.container import Container
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.exceptions import DestinationTerminalException, TerminalException, UnknownDestinationModule
@@ -19,7 +19,6 @@ from dlt.load.exceptions import LoadClientJobFailed
 from dlt.pipeline.exceptions import InvalidPipelineName, PipelineStepFailed
 from dlt.pipeline.helpers import retry_load
 from dlt.pipeline.state import STATE_TABLE_NAME
-from dlt.pipeline.typing import TPipelineStep
 from tests.common.utils import TEST_SENTRY_DSN
 
 from tests.utils import ALL_DESTINATIONS, TEST_STORAGE_ROOT, preserve_environ, autouse_test_storage, patch_home_dir
@@ -429,8 +428,14 @@ def test_raise_on_failed_job() -> None:
     with pytest.raises(PipelineStepFailed) as py_ex:
         p.run([1, 2, 3], table_name="numbers")
     assert py_ex.value.step == "load"
+    # get package info
+    package_info = p.get_load_package_info(py_ex.value.step_info.loads_ids[0])
+    assert package_info.state == "loaded"
     assert isinstance(py_ex.value.__context__, LoadClientJobFailed)
     assert isinstance(py_ex.value.__context__, DestinationTerminalException)
+    # next call to run does nothing
+    load_info = p.run()
+    assert load_info is None
 
 
 def test_run_load_pending() -> None:

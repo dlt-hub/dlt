@@ -190,6 +190,18 @@ class Load(Runnable[ThreadPool]):
         logger.metrics("progress", "jobs", extra=get_logging_extras([self.job_counter, self.job_gauge, self.job_wait_summary]))
         return remaining_jobs
 
+    def complete_package(self, load_id: str, schema: Schema) -> None:
+        with self.destination.client(schema, self.initial_client_config) as job_client:
+            # TODO: this script should be executed as a job (and contain also code to merge/upsert data and drop temp tables)
+            # TODO: post loading jobs
+            job_client.complete_load(load_id)
+        self.load_storage.complete_load_package(load_id)
+        logger.info(f"All jobs completed, archiving package {load_id}")
+        self.load_counter.inc()
+        metrics = get_logging_extras([self.load_counter])
+        self._processed_load_ids[load_id] = metrics
+        logger.metrics("stop", "jobs", extra=metrics)
+
     def run(self, pool: ThreadPool) -> TRunMetrics:
         # store pool
         self.pool = pool
@@ -234,25 +246,21 @@ class Load(Runnable[ThreadPool]):
             )
         # if there are no existing or new jobs we complete the package
         if jobs_count == 0:
-            with self.destination.client(schema, self.initial_client_config) as job_client:
-                # TODO: this script should be executed as a job (and contain also code to merge/upsert data and drop temp tables)
-                # TODO: post loading jobs
-                remaining_jobs = job_client.complete_load(load_id)
-            self.load_storage.complete_load_package(load_id)
-            logger.info(f"All jobs completed, archiving package {load_id}")
-            self.load_counter.inc()
-            metrics = get_logging_extras([self.load_counter])
-            self._processed_load_ids[load_id] = metrics
-            logger.metrics("stop", "jobs", extra=metrics)
+            self.complete_package(load_id, schema)
         else:
             # TODO: this loop must be urgently removed.
             while True:
-                remaining_jobs = self.complete_jobs(load_id, jobs)
-                if len(remaining_jobs) == 0:
-                    break
-                # process remaining jobs again
-                jobs = remaining_jobs
-                # this will raise on signal
-                sleep(1)
+                try:
+                    remaining_jobs = self.complete_jobs(load_id, jobs)
+                    if len(remaining_jobs) == 0:
+                        break
+                    # process remaining jobs again
+                    jobs = remaining_jobs
+                    # this will raise on signal
+                    sleep(1)
+                except LoadClientJobFailed:
+                    # the package is completed and skipped
+                    self.complete_package(load_id, schema)
+                    raise
 
         return TRunMetrics(False, False, len(self.load_storage.list_packages()))

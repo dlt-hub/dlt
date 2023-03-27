@@ -1,4 +1,5 @@
 import random
+from copy import copy
 from types import TracebackType
 from typing import ClassVar, Dict, Optional, Type
 
@@ -16,15 +17,13 @@ from dlt.destinations.dummy.configuration import DummyClientConfiguration
 
 
 class LoadDummyJob(LoadJob):
-    def __init__(self, file_name: str, fail_prob: float = 0.0, retry_prob: float = 0.0, completed_prob: float = 1.0, timeout: float = 10.0) -> None:
-        self.fail_prob = fail_prob
-        self.retry_prob = retry_prob
-        self.completed_prob = completed_prob
-        self.timeout = timeout
+    def __init__(self, file_name: str, config: DummyClientConfiguration) -> None:
+        self.config = copy(config)
         self._status: TLoadJobStatus = "running"
         self._exception: str = None
         self.start_time: float = pendulum.now().timestamp()
         super().__init__(file_name)
+        # if config.fail_in_init:
         s = self.status()
         if s == "failed":
             raise DestinationTerminalException(self._exception)
@@ -36,21 +35,21 @@ class LoadDummyJob(LoadJob):
         # this should poll the server for a job status, here we simulate various outcomes
         if self._status == "running":
             n = pendulum.now().timestamp()
-            if n - self.start_time > self.timeout:
+            if n - self.start_time > self.config.timeout:
                 self._status = "failed"
                 self._exception = "failed due to timeout"
             else:
                 c_r = random.random()
-                if self.completed_prob >= c_r:
+                if self.config.completed_prob >= c_r:
                     self._status = "completed"
                 else:
                     c_r = random.random()
-                    if self.retry_prob >= c_r:
+                    if self.config.retry_prob >= c_r:
                         self._status = "retry"
                         self._exception = "a random retry occured"
                     else:
                         c_r = random.random()
-                        if self.fail_prob >= c_r:
+                        if self.config.fail_prob >= c_r:
                             self._status = "failed"
                             self._exception = "a random fail occured"
 
@@ -124,8 +123,5 @@ class DummyClient(JobClientBase):
     def _create_job(self, job_id: str) -> LoadDummyJob:
         return LoadDummyJob(
             job_id,
-            fail_prob=self.config.fail_prob,
-            retry_prob=self.config.retry_prob,
-            completed_prob=self.config.completed_prob,
-            timeout=self.config.timeout
+            config=self.config
             )
