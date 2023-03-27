@@ -53,13 +53,13 @@ When deploying to an online orchestrator, you can install the requirements to it
 
 Finally, run the pipeline, fill the secrets.toml with your credentials or place your credentials in the supported locations.
 
-# Adding credentials
+## 2. Adding credentials
 
 For adding them locally or on your orchestrator, please see the following guide [credentials](../customization/credentials)
 
 For getting the destination credentials, please see the [guide](../destinations.md).
 
-## 4. Customize or write a pipeline script
+## 3. Customize or write a pipeline script
 
 
 Once you inited the pipeline, you will have a sample file  `pipedrive_pipeline.py`.
@@ -68,14 +68,14 @@ This is the developer's suggested way to use the pipeline, so you can use it as 
 
 You can also use this file as a suggestion and write your own instead.
 
-## 5. Hack a pipeline
+## 4. Hack a pipeline
 
 You can modify an existing pipeline.
 * If that modification is generally useful for anyone using this source, consider contributing it back via a PR. This way, we can ensure it is tested and maintained.
 * If that modification is not a generally shared case, then you are responsible for maintaining it. We suggest making any of your own customisations modular is possible, so you can keep pulling the updated pipeline from the community repo in the event of source maintenance.
 
 
-## 6. Add more pipelines to your project
+## 5. Add more pipelines to your project
 ```
 dlt init chess duckdb
 ```
@@ -85,13 +85,13 @@ To add another pipeline, just run the dlt init command at the same location as t
 - do not forget to install the requirements for the second pipeline!
 
 
-## 7. Update the pipeline with the newest version
+## 6. Update the pipeline with the newest version
 To update the pipeline you have to the newest online version just do the same init command in the parent folder.
 ```
 dlt init pipedrive bigquery
 ```
 
-## Advanced: Using dlt init with branches, local folders or git repos.
+## 7. Advanced: Using dlt init with branches, local folders or git repos.
 To find out more info about this command, use --help.
 
 ```
@@ -111,6 +111,4 @@ To deploy from another repo, you could fork the pipelines repo and then provide 
 dlt init pipedrive bigquery --location "https://github.com/dlt-hub/pipelines/pipelines"
 ```
 
-
-`
-
+## 8. Further reading
