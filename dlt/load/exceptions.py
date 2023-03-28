@@ -3,9 +3,9 @@ from dlt.common.exceptions import DltException
 from dlt.destinations.exceptions import DestinationTerminalException
 
 
-class LoadException(DltException):
-    def __init__(self, msg: str) -> None:
-        super().__init__(msg)
+# class LoadException(DltException):
+#     def __init__(self, msg: str) -> None:
+#         super().__init__(msg)
 
 
 class LoadClientJobFailed(DestinationTerminalException):

@@ -190,13 +190,15 @@ class Load(Runnable[ThreadPool]):
         logger.metrics("progress", "jobs", extra=get_logging_extras([self.job_counter, self.job_gauge, self.job_wait_summary]))
         return remaining_jobs
 
-    def complete_package(self, load_id: str, schema: Schema) -> None:
-        with self.destination.client(schema, self.initial_client_config) as job_client:
-            # TODO: this script should be executed as a job (and contain also code to merge/upsert data and drop temp tables)
-            # TODO: post loading jobs
-            job_client.complete_load(load_id)
-        self.load_storage.complete_load_package(load_id)
-        logger.info(f"All jobs completed, archiving package {load_id}")
+    def complete_package(self, load_id: str, schema: Schema, aborted: bool = False) -> None:
+        # do not commit load id for aborted packages
+        if not aborted:
+            with self.destination.client(schema, self.initial_client_config) as job_client:
+                # TODO: this script should be executed as a job (and contain also code to merge/upsert data and drop temp tables)
+                # TODO: post loading jobs
+                job_client.complete_load(load_id)
+        self.load_storage.complete_load_package(load_id, aborted)
+        logger.info(f"All jobs completed, archiving package {load_id} with aborted set to {aborted}")
         self.load_counter.inc()
         metrics = get_logging_extras([self.load_counter])
         self._processed_load_ids[load_id] = metrics
@@ -246,7 +248,7 @@ class Load(Runnable[ThreadPool]):
             )
         # if there are no existing or new jobs we complete the package
         if jobs_count == 0:
-            self.complete_package(load_id, schema)
+            self.complete_package(load_id, schema, False)
         else:
             # TODO: this loop must be urgently removed.
             while True:
@@ -260,7 +262,7 @@ class Load(Runnable[ThreadPool]):
                     sleep(1)
                 except LoadClientJobFailed:
                     # the package is completed and skipped
-                    self.complete_package(load_id, schema)
+                    self.complete_package(load_id, schema, True)
                     raise
 
         return TRunMetrics(False, False, len(self.load_storage.list_packages()))

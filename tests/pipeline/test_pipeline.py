@@ -8,7 +8,7 @@ import dlt
 from dlt.common import json
 from dlt.common.configuration.container import Container
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.exceptions import DestinationTerminalException, TerminalException, UnknownDestinationModule
+from dlt.common.exceptions import DestinationHasFailedJobs, DestinationTerminalException, TerminalException, UnknownDestinationModule
 from dlt.common.pipeline import PipelineContext
 from dlt.common.schema.exceptions import InvalidDatasetName
 from dlt.common.utils import uniq_id
@@ -436,6 +436,34 @@ def test_raise_on_failed_job() -> None:
     # next call to run does nothing
     load_info = p.run()
     assert load_info is None
+
+
+def test_load_info_raise_on_failed_jobs() -> None:
+    os.environ["COMPLETED_PROB"] = "1.0"
+    pipeline_name = "pipe_" + uniq_id()
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+    load_info = p.run([1, 2, 3], table_name="numbers")
+    assert load_info.has_failed_jobs is False
+    load_info.raise_on_failed_jobs()
+    os.environ["COMPLETED_PROB"] = "0.0"
+    os.environ["FAIL_PROB"] = "1.0"
+
+    load_info = p.run([1, 2, 3], table_name="numbers")
+    assert load_info.has_failed_jobs is True
+    with pytest.raises(DestinationHasFailedJobs) as py_ex:
+        load_info.raise_on_failed_jobs()
+    assert py_ex.value.destination_name == "dummy"
+    assert py_ex.value.load_id == load_info.loads_ids[0]
+
+    os.environ["RAISE_ON_FAILED_JOBS"] = "true"
+    with pytest.raises(PipelineStepFailed) as py_ex_2:
+        p.run([1, 2, 3], table_name="numbers")
+    load_info = py_ex_2.value.step_info
+    assert load_info.has_failed_jobs is True
+    with pytest.raises(DestinationHasFailedJobs) as py_ex:
+        load_info.raise_on_failed_jobs()
+    assert py_ex.value.destination_name == "dummy"
+    assert py_ex.value.load_id == load_info.loads_ids[0]
 
 
 def test_run_load_pending() -> None:
