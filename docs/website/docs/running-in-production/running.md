@@ -60,13 +60,13 @@ You can save only the new tables and column schemas to the destination. Note tha
 ```
 
 ## Data left behind
-By default `dlt` leaves the loaded packages intact so they may be fully queried and inspected after load. This behavior may be changed so the successfully completed jobs are deleted from the loaded package. In that case, for a correctly behaving pipeline, only minimum amount of data will be left behind.
+By default `dlt` leaves the loaded packages intact so they may be fully queried and inspected after load. This behavior may be changed so the successfully completed jobs are deleted from the loaded package. In that case, for a correctly behaving pipeline, only minimum amount of data will be left behind. In `config.toml`:
 ```toml
 load.delete_completed_jobs=true
 ```
 
 ## Using slack to send messages
-`dlt` provides basic support for sending slack messages. You can configure Slack incoming hook via [secrets.toml or environment variables](../customization/credentials.md). Please note that **Slack incoming hook is considered a secret and will be immediately blocked when pushed to github repository**. Examples:
+`dlt` provides basic support for sending slack messages. You can configure Slack incoming hook via [secrets.toml or environment variables](../customization/credentials.md). Please note that **Slack incoming hook is considered a secret and will be immediately blocked when pushed to github repository**. In `secrets.toml`:
 ```toml
 [runtime]
 slack_incoming_hook="https://hooks.slack.com/services/T04DHMAF13Q/B04E7B1MQ1H/TDHEI123WUEE"
@@ -111,20 +111,29 @@ if isinstance(ex, TerminalException) or (ex.__context__ is not None and isinstan
 ```
 
 ### Failed jobs
-If any job in the package fail terminally it will be moved to `failed_jobs` folder and assigned such status. By default **no exception is raised** and other jobs will be processed and completed. You may inspect if the failed job are present by checking the load info as follows:
+If any job in the package **fail terminally** it will be moved to `failed_jobs` folder and assigned such status. By default **no exception is raised** and other jobs will be processed and completed. You may inspect if the failed jobs are present by checking the load info as follows:
 ```python
+# returns true if there are failed jobs in any of the load packages
+load_info.has_failed_jobs
+# raises terminal exception if there are any failed jobs
+load_info.raise_on_failed_jobs()
 ```
-You may also fail the load package with terminal exception. In that case the first terminally failing job will raise.
-
+You may also immediately abort the load package with `LoadClientJobFailed` (terminal exception) on a first failed job. Such package is immediately moved to completed but its load id is not added to the `_dlt_loads` table. The other jobs that are executed in parallel may or may not complete. The dlt state, if present, will not be visible to `dlt`. In other words: **you should know what you are doing**. Here's example `config.toml` to enable this option:
+```toml
+# you should really load just one job at a time to get the deterministic behavior
+load.workers=1
+# I hope you know what you are doing by setting this to true
+load.raise_on_failed_jobs=true
+```
 
 ### What `run` does inside
 Before adding retry to pipeline steps, note how `run` method actually works:
 1. The `run` method will first use `sync_destination` method to synchronize pipeline state and schemas with the destination. Obviously at this point connection to the destination is established (which may fail and be retried)
-2. Next it will make sure that data from the previous is fully processed. If not, `run` method normalizes, loads pending data items and **exits**
+2. Next it will make sure that data from the previous runs is fully processed. If not, `run` method normalizes, loads pending data items and **exits**
 3. If there was no pending data, new data from `data` argument is extracted, normalized and loaded.
 
 ### Retry helpers and `tenacity`
-By default `dlt` does not retry any of the pipeline steps. This is left to the included helpers and the [tenacity](https://tenacity.readthedocs.io/en/latest/) library. Snippet below will retry the `load` stage with the `retry_load` strategy and defined back-off or re-raise exception for any other steps (`extract`, `normalize`) or for terminal exceptions.
+By default `dlt` does not retry any of the pipeline steps. This is left to the included helpers and the [tenacity](https://tenacity.readthedocs.io/en/latest/) library. Snippet below will retry the `load` stage with the `retry_load` strategy and defined back-off or re-raise exception for any other steps (`extract`, `normalize`) and for terminal exceptions.
 ```python
 from tenacity import retry_if_exception, Retrying, retry
 from dlt.common.runtime.slack import send_slack_message
@@ -133,7 +142,7 @@ from dlt.pipeline.helpers import retry_load
 if __name__ == "__main__" :
     pipeline = dlt.pipeline(pipeline_name="chess_pipeline", destination='duckdb', dataset_name="games_data")
     # get data for a few famous players
-    data = chess(['magnuscarlsen','vincentkeymer', 'dommarajugukesh', 'rpragchess'], start_month="2022/11", end_month="2022/12")
+    data = chess(['magnuscarlsen', 'rpragchess'], start_month="2022/11", end_month="2022/12")
     try:
 
         for attempt in Retrying(wait=wait_exponential(multiplier=1, min=4, max=10), retry=retry_if_exception(retry_load(())), reraise=True):
@@ -143,9 +152,10 @@ if __name__ == "__main__" :
     except Exception:
         # we get here after all the retries
         send_slack_message(pipeline.runtime_config.slack_incoming_hook, "BOOO 🤯")
+        raise
 ```
 
-You can also use `tenacity` to decorate functions. This example also retries on `extract`:
+You can also use `tenacity` to decorate functions. This example additionally retries on `extract`:
 ```python
 if __name__ == "__main__" :
     pipeline = dlt.pipeline(pipeline_name="chess_pipeline", destination='duckdb', dataset_name="games_data")

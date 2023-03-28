@@ -68,4 +68,15 @@ dlt pipeline <pipeline name> trace
 Displays the trace of last pipeline run containing the start data of the run, elapsed time and the same information for all the steps (`extract`, `normalize` and `load`). If any of the steps failed, you'll see message of the exceptions that caused that problem. Successful `load` and `run` steps will display the [load info](walkthroughs/run-a-pipeline.md) instead.
 
 
+### Sync pipeline with the destintion
+```
+dlt pipeline <pipeline name> trace
+```
+This command will remove pipeline working folder with all pending packages, not synchronized state changes and schemas and retrieve the last synchronized data from the destination. If you drop the dataset the pipeline is loading to, this command results in a complete reset of pipeline state.
+
+
 ### List all pipelines on the local machine
+```
+dlt pipeline --list-pipelines
+```
+This command lists all the pipelines executed on the local machine with their working data in the default pipelines folder.

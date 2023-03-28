@@ -110,5 +110,3 @@ To deploy from another repo, you could fork the pipelines repo and then provide 
 ```
 dlt init pipedrive bigquery --location "https://github.com/dlt-hub/pipelines/pipelines"
 ```
-
-## 8. Further reading
