@@ -144,6 +144,7 @@ class Pipeline(SupportsPipeline):
     STATE_FILE: ClassVar[str] = "state.json"
     STATE_PROPS: ClassVar[List[str]] = list(get_type_hints(TPipelineState).keys())
     LOCAL_STATE_PROPS: ClassVar[List[str]] = list(get_type_hints(TPipelineLocalState).keys())
+    DEFAULT_DATASET_SUFFIX: ClassVar[str] = "_dataset"
 
     pipeline_name: str
     """Name of the pipeline"""
@@ -940,6 +941,7 @@ class Pipeline(SupportsPipeline):
             if not self.dataset_name:
                 # set default dataset name from pipeline name
                 dataset_name = self._default_naming.normalize_identifier(self.pipeline_name)
+                dataset_name += self.DEFAULT_DATASET_SUFFIX
             else:
                 return
 
