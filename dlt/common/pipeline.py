@@ -9,6 +9,7 @@ from dlt.common.configuration.container import ContainerInjectableContext
 from dlt.common.configuration.paths import get_dlt_home_dir
 from dlt.common.configuration.specs import RunConfiguration
 from dlt.common.destination.reference import DestinationReference, TDestinationReferenceArg
+from dlt.common.exceptions import DestinationHasFailedJobs
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TColumnSchema, TWriteDisposition
 from dlt.common.storages.load_storage import LoadPackageInfo
@@ -71,7 +72,7 @@ class LoadInfo(NamedTuple):
         msg += f"\n{len(self.loads_ids)} load package(s) were loaded to destination {self.destination_name} and into dataset {self.dataset_name}\n"
         msg += f"The {self.destination_name} destination used {self.destination_displayable_credentials} location to store data"
         for load_package in self.load_packages:
-            cstr = "COMPLETED" if load_package.completed_at else "NOT COMPLETED"
+            cstr = load_package.state.upper() if load_package.completed_at else "NOT COMPLETED"
             # now enumerate all complete loads if we have any failed packages
             # complete but failed job will not raise any exceptions
             failed_jobs = load_package.jobs["failed_jobs"]
@@ -84,6 +85,20 @@ class LoadInfo(NamedTuple):
                 msg += "\nPackage details:\n"
                 msg += load_package.asstr() + "\n"
         return msg
+
+    @property
+    def has_failed_jobs(self) -> bool:
+        """Returns True if any of the load packages has a failed job."""
+        for load_package in self.load_packages:
+            if len(load_package.jobs["failed_jobs"]):
+                return True
+        return False
+
+    def raise_on_failed_jobs(self) -> None:
+        """Raises `DestinationHasFailedJobs` exception if any of the load packages has a failed job."""
+        for load_package in self.load_packages:
+            if len(load_package.jobs["failed_jobs"]):
+                raise DestinationHasFailedJobs(self.destination_name, load_package.load_id)
 
     def __str__(self) -> str:
         return self.asstr(verbosity=1)

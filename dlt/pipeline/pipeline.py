@@ -417,6 +417,7 @@ class Pipeline(SupportsPipeline):
         ### Returns:
             LoadInfo: Information on loaded data including the list of package ids and failed job statuses. Please not that `dlt` will not raise if a single job terminally fails. Such information is provided via LoadInfo.
         """
+        signals.raise_if_signalled()
         self._set_destination(destination)
         self._set_dataset_name(dataset_name)
 
@@ -460,70 +461,73 @@ class Pipeline(SupportsPipeline):
         state = self._get_state()
         local_state = state.pop("_local")
         merged_state: TPipelineState = None
-
         try:
-            restored_schemas: Sequence[Schema] = None
-            remote_state = self._restore_state_from_destination()
+            try:
+                restored_schemas: Sequence[Schema] = None
+                remote_state = self._restore_state_from_destination()
 
-            # if remote state is newer or same
-            # print(f'REMOTE STATE: {(remote_state or {}).get("_state_version")} >= {state["_state_version"]}')
-            if remote_state and remote_state["_state_version"] >= state["_state_version"]:
-                # compare changes and updates local state
-                merged_state = merge_state_if_changed(state, remote_state, increase_version=False)
-                # print(f"MERGED STATE: {bool(merged_state)}")
+                # if remote state is newer or same
+                # print(f'REMOTE STATE: {(remote_state or {}).get("_state_version")} >= {state["_state_version"]}')
+                if remote_state and remote_state["_state_version"] >= state["_state_version"]:
+                    # compare changes and updates local state
+                    merged_state = merge_state_if_changed(state, remote_state, increase_version=False)
+                    # print(f"MERGED STATE: {bool(merged_state)}")
+                    if merged_state:
+                        # see if state didn't change the pipeline name
+                        if state["pipeline_name"] != remote_state["pipeline_name"]:
+                            raise CannotRestorePipelineException(
+                                state["pipeline_name"],
+                                self.pipelines_dir,
+                                f"destination state contains state for pipeline with name {remote_state['pipeline_name']}"
+                            )
+                        # if state was modified force get all schemas
+                        restored_schemas = self._get_schemas_from_destination(merged_state["schema_names"], always_download=True)
+                        # TODO: we should probably wipe out pipeline here
+
+                # if we didn't full refresh schemas, get only missing schemas
+                if restored_schemas is None:
+                    restored_schemas = self._get_schemas_from_destination(state["schema_names"], always_download=False)
+                # commit all the changes locally
                 if merged_state:
-                    # see if state didn't change the pipeline name
-                    if state["pipeline_name"] != remote_state["pipeline_name"]:
-                        raise CannotRestorePipelineException(
-                            state["pipeline_name"],
-                            self.pipelines_dir,
-                            f"destination state contains state for pipeline with name {remote_state['pipeline_name']}"
-                        )
-                    # if state was modified force get all schemas
-                    restored_schemas = self._get_schemas_from_destination(merged_state["schema_names"], always_download=True)
-                    # TODO: we should probably wipe out pipeline here
+                    # set the pipeline props from merged state
+                    state["_local"] = local_state
+                    # add that the state is already extracted
+                    state["_local"]["_last_extracted_at"] = pendulum.now()
+                    self._state_to_props(merged_state)
+                    # on merge schemas are replaced so we delete all old versions
+                    self._schema_storage.clear_storage()
+                for schema in restored_schemas:
+                    self._schema_storage.save_schema(schema)
+                # if the remote state is present then unset first run
+                if remote_state is not None:
+                    self.first_run = False
+            except DatabaseUndefinedRelation:
+                # storage not present. wipe the pipeline if pipeline not new
+                # do it only if pipeline has any data
+                if self.has_data:
+                    should_wipe = False
+                    if self.default_schema_name is None:
+                        should_wipe = True
+                    else:
+                        with self._sql_job_client(self.default_schema) as job_client:
+                            # and storage is not initialized
+                            should_wipe = not job_client.is_storage_initialized()
+                    if should_wipe:
+                        # reset pipeline
+                        self._wipe_working_folder()
+                        state = self._get_state()
+                        self._configure(self._schema_storage_config.export_schema_path, self._schema_storage_config.import_schema_path, False)
 
-            # if we didn't full refresh schemas, get only missing schemas
-            if restored_schemas is None:
-                restored_schemas = self._get_schemas_from_destination(state["schema_names"], always_download=False)
-            # commit all the changes locally
-            if merged_state:
-                # set the pipeline props from merged state
+
+            # write the state back
+            state = merged_state or state
+            if "_local" not in state:
                 state["_local"] = local_state
-                # add that the state is already extracted
-                state["_local"]["_last_extracted_at"] = pendulum.now()
-                self._state_to_props(merged_state)
-                # on merge schemas are replaced so we delete all old versions
-                self._schema_storage.clear_storage()
-            for schema in restored_schemas:
-                self._schema_storage.save_schema(schema)
-            # if the remote state is present then unset first run
-            if remote_state is not None:
-                self.first_run = False
-        except DatabaseUndefinedRelation:
-            # storage not present. wipe the pipeline if pipeline not new
-            # do it only if pipeline has any data
-            if self.has_data:
-                should_wipe = False
-                if self.default_schema_name is None:
-                    should_wipe = True
-                else:
-                    with self._sql_job_client(self.default_schema) as job_client:
-                        # and storage is not initialized
-                        should_wipe = not job_client.is_storage_initialized()
-                if should_wipe:
-                    # reset pipeline
-                    self._wipe_working_folder()
-                    state = self._get_state()
-                    self._configure(self._schema_storage_config.export_schema_path, self._schema_storage_config.import_schema_path, False)
+            self._props_to_state(state)
+            self._save_state(state)
+        except Exception as ex:
+            raise PipelineStepFailed(self, "run", ex, None) from ex
 
-
-        # write the state back
-        state = merged_state or state
-        if "_local" not in state:
-            state["_local"] = local_state
-        self._props_to_state(state)
-        self._save_state(state)
 
     @property
     def has_data(self) -> bool:
@@ -563,7 +567,7 @@ class Pipeline(SupportsPipeline):
         return self._get_load_storage().list_completed_packages()
 
     def get_load_package_info(self, load_id: str) -> LoadPackageInfo:
-        """Returns extensive information on a package with given load id"""
+        """Returns information on normalized/completed package with given load_id, all jobs and their statuses."""
         return self._get_load_storage().get_load_package_info(load_id)
 
     def list_failed_jobs_in_package(self, load_id: str) -> Sequence[LoadJobInfo]:

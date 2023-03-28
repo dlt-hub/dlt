@@ -113,8 +113,8 @@ if isinstance(ex, TerminalException) or (ex.__context__ is not None and isinstan
 ### Failed jobs
 If any job in the package **fail terminally** it will be moved to `failed_jobs` folder and assigned such status. By default **no exception is raised** and other jobs will be processed and completed. You may inspect if the failed jobs are present by checking the load info as follows:
 ```python
-# returns true if there are failed jobs in any of the load packages
-load_info.has_failed_jobs
+# returns True if there are failed jobs in any of the load packages
+print(load_info.has_failed_jobs)
 # raises terminal exception if there are any failed jobs
 load_info.raise_on_failed_jobs()
 ```

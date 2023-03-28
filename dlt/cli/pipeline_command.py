@@ -88,13 +88,22 @@ def pipeline_command(operation: str, pipeline_name: str, pipelines_dir: str, ver
 
     if operation == "failed_jobs":
         completed_loads = p.list_completed_load_packages()
-        for load_id in completed_loads:
+        normalized_loads = p.list_normalized_load_packages()
+        for load_id in completed_loads + normalized_loads:  # type: ignore
             fmt.echo("Checking failed jobs in load id '%s'" % fmt.bold(load_id))
-            for failed_job in p.list_failed_jobs_in_package(load_id):
-                fmt.echo("JOB: %s" % fmt.bold(failed_job.job_file_info.job_id()))
-                fmt.echo(failed_job.asstr(verbosity))
-                fmt.secho(failed_job.failed_message, fg="red")
-                fmt.echo()
+            failed_jobs = p.list_failed_jobs_in_package(load_id)
+            if len(failed_jobs) > 0:
+                for failed_job in p.list_failed_jobs_in_package(load_id):
+                    fmt.echo("JOB: %s(%s)" % (fmt.bold(failed_job.job_file_info.job_id()), fmt.bold(failed_job.job_file_info.table_name)))
+                    fmt.echo("JOB file type: %s" % fmt.bold(failed_job.job_file_info.file_format))
+                    fmt.echo("JOB file path: %s" % fmt.bold(failed_job.file_path))
+                    if verbosity > 0:
+                        fmt.echo(failed_job.asstr(verbosity))
+                    fmt.secho(failed_job.failed_message, fg="red")
+                    fmt.echo()
+                else:
+                    fmt.echo("No failed jobs found")
+
 
     if operation == "sync":
         if fmt.confirm("About to drop the local state of the pipeline and reset all the schemas. The destination state, data and schemas are left intact. Proceed?", default=False):
