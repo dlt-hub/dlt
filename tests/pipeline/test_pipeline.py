@@ -430,7 +430,7 @@ def test_raise_on_failed_job() -> None:
     assert py_ex.value.step == "load"
     # get package info
     package_info = p.get_load_package_info(py_ex.value.step_info.loads_ids[0])
-    assert package_info.state == "loaded"
+    assert package_info.state == "aborted"
     assert isinstance(py_ex.value.__context__, LoadClientJobFailed)
     assert isinstance(py_ex.value.__context__, DestinationTerminalException)
     # next call to run does nothing

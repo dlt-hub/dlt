@@ -29,13 +29,13 @@ class VenvNotFound(DltException):
         super().__init__(f"Venv with interpreter {interpreter} not found in path")
 
 
-class TerminalException(Exception):
+class TerminalException(BaseException):
     """
     Marks an exception that cannot be recovered from, should be mixed in into concrete exception class
     """
 
 
-class TransientException(Exception):
+class TransientException(BaseException):
     """
     Marks an exception in operation that can be retried, should be mixed in into concrete exception class
     """
@@ -47,7 +47,7 @@ class TerminalValueError(ValueError, TerminalException):
     """
 
 
-class SignalReceivedException(TerminalException, KeyboardInterrupt, BaseException):
+class SignalReceivedException(KeyboardInterrupt, TerminalException):
     """Raises when signal comes. Derives from `BaseException` to not be caught in regular exception handlers."""
     def __init__(self, signal_code: int) -> None:
         self.signal_code = signal_code

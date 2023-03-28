@@ -320,7 +320,7 @@ def test_wrong_writer_type() -> None:
     assert exv.value.load_id == load_id
 
 
-def test_exceptions() -> None:
+def test_terminal_exceptions() -> None:
     try:
         raise TerminalValueError("a")
     except TerminalException:
