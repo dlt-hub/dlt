@@ -217,7 +217,8 @@ def test_normalize_many_schemas(caps: DestinationCapabilitiesContext, rasa_norma
         ["event.event.many_load_2", "event.event.user_load_1", "ethereum.blocks.9c1d9b504ea240a482b007788d5cd61c_2"]
     )
     # use real process pool in tests
-    rasa_normalize.run(Pool(processes=4))
+    with Pool(processes=4) as p:
+        rasa_normalize.run(p)
     # must have two loading groups with model and event schemas
     loads = rasa_normalize.load_storage.list_packages()
     assert len(loads) == 2
@@ -238,7 +239,8 @@ def test_normalize_many_schemas(caps: DestinationCapabilitiesContext, rasa_norma
 @pytest.mark.parametrize("caps", ALL_CAPS, indirect=True)
 def test_normalize_typed_json(caps: DestinationCapabilitiesContext, raw_normalize: Normalize) -> None:
     extract_items(raw_normalize.normalize_storage, [JSON_TYPED_DICT], "special", "special")
-    raw_normalize.run(ThreadPool(processes=1))
+    with ThreadPool(processes=1) as pool:
+        raw_normalize.run(pool)
     loads = raw_normalize.load_storage.list_packages()
     assert len(loads) == 1
     # load all schemas

@@ -5,7 +5,7 @@ from typing import Sequence, Tuple
 
 from dlt.common import sleep, json, pendulum
 from dlt.common.schema import Schema, TSchemaTables
-from dlt.common.storages.load_storage import LoadPackageInfo, LoadStorage, ParsedLoadJobFileName, TWorkingFolder
+from dlt.common.storages.load_storage import LoadPackageInfo, LoadStorage, ParsedLoadJobFileName, TJobState
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.specs import LoadVolumeConfiguration
 from dlt.common.storages.exceptions import LoadPackageNotFound, NoMigrationPathException
@@ -29,7 +29,7 @@ def test_complete_successful_package(storage: LoadStorage) -> None:
     assert storage.storage.has_folder(storage.get_package_path(load_id))
     storage.complete_job(load_id, file_name)
     assert_package_info(storage, load_id, "normalized", "completed_jobs")
-    storage.complete_load_package(load_id)
+    storage.complete_load_package(load_id, False)
     # deleted from loading
     assert not storage.storage.has_folder(storage.get_package_path(load_id))
     # has package
@@ -46,7 +46,7 @@ def test_complete_successful_package(storage: LoadStorage) -> None:
     storage.config.delete_completed_jobs = False
     load_id, file_name = start_loading_file(storage, [{"content": "a"}, {"content": "b"}])
     storage.complete_job(load_id, file_name)
-    storage.complete_load_package(load_id)
+    storage.complete_load_package(load_id, False)
     # deleted from loading
     assert not storage.storage.has_folder(storage.get_package_path(load_id))
     # has load preserved
@@ -65,7 +65,7 @@ def test_complete_package_failed_jobs(storage: LoadStorage) -> None:
     assert storage.storage.has_folder(storage.get_package_path(load_id))
     storage.fail_job(load_id, file_name, "EXCEPTION")
     assert_package_info(storage, load_id, "normalized", "failed_jobs")
-    storage.complete_load_package(load_id)
+    storage.complete_load_package(load_id, False)
     # deleted from loading
     assert not storage.storage.has_folder(storage.get_package_path(load_id))
     # present in completed loads folder
@@ -92,6 +92,18 @@ def test_complete_package_failed_jobs(storage: LoadStorage) -> None:
     assert package_info.state == "loaded"
     assert package_info.schema_update == {}
     assert package_info.jobs["failed_jobs"] == failed_info
+
+
+def test_abort_package(storage: LoadStorage) -> None:
+    # loads with failed jobs are always persisted
+    storage.config.delete_completed_jobs = True
+    load_id, file_name = start_loading_file(storage, [{"content": "a"}, {"content": "b"}])
+    assert storage.storage.has_folder(storage.get_package_path(load_id))
+    storage.fail_job(load_id, file_name, "EXCEPTION")
+    assert_package_info(storage, load_id, "normalized", "failed_jobs")
+    storage.complete_load_package(load_id, True)
+    assert storage.storage.has_folder(storage._get_job_folder_completed_path(load_id, "completed_jobs"))
+    assert_package_info(storage, load_id, "aborted", "failed_jobs")
 
 
 def test_save_load_schema(storage: LoadStorage) -> None:
@@ -187,7 +199,7 @@ def test_process_schema_update(storage: LoadStorage) -> None:
     package_dict = package_info.asdict()
     assert len(package_dict["tables"]) == 1
     # commit package
-    storage.complete_load_package(load_id)
+    storage.complete_load_package(load_id, False)
     package_info = assert_package_info(storage, load_id, "loaded", "started_jobs")
     # applied update is present
     assert package_info.schema_update == applied_update
@@ -233,7 +245,7 @@ def start_loading_file(s: LoadStorage, content: Sequence[StrAny]) -> Tuple[str, 
     return load_id, file_name
 
 
-def assert_package_info(storage: LoadStorage, load_id: str, package_state: str, job_state: TWorkingFolder, jobs_count: int = 1) -> LoadPackageInfo:
+def assert_package_info(storage: LoadStorage, load_id: str, package_state: str, job_state: TJobState, jobs_count: int = 1) -> LoadPackageInfo:
     package_info = storage.get_load_package_info(load_id)
     # make sure it is serializable
     json.dumps(package_info)

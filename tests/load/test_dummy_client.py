@@ -82,7 +82,8 @@ def test_unsupported_write_disposition() -> None:
     schema.get_table("event_user")["write_disposition"] = "merge"
     # write back schema
     load.load_storage._save_schema(schema, load_id)
-    load.run(ThreadPool())
+    with ThreadPool() as pool:
+        load.run(pool)
     # job with unsupported write disp. is failed
     exception = [f for f in load.load_storage.list_failed_jobs(load_id) if f.endswith(".exception")][0]
     assert "LoadClientUnsupportedWriteDisposition" in load.load_storage.storage.load(exception)
@@ -127,21 +128,24 @@ def test_spool_job_failed() -> None:
 
 def test_spool_job_failed_exception_init() -> None:
     # this config fails job on start
-    os.environ["RAISE_ON_FAILED_JOBS"] = "true"
+    os.environ["LOAD__RAISE_ON_FAILED_JOBS"] = "true"
     os.environ["FAIL_IN_INIT"] = "true"
     load = setup_loader(client_config=DummyClientConfiguration(fail_prob=1.0))
     load_id, _ = prepare_load_package(
         load.load_storage,
         NORMALIZED_FILES
     )
-    with pytest.raises(LoadClientJobFailed) as py_ex:
-        run_all(load)
-    assert py_ex.value.load_id == load_id
-    package_info = load.load_storage.get_load_package_info(load_id)
-    assert package_info.state == "loaded"
-    # one failed one started
-    assert len(package_info.jobs["failed_jobs"]) == 1
-    assert len(package_info.jobs["started_jobs"]) == 1
+    with patch.object(dummy_impl.DummyClient, "complete_load") as complete_load:
+        with pytest.raises(LoadClientJobFailed) as py_ex:
+            run_all(load)
+        assert py_ex.value.load_id == load_id
+        package_info = load.load_storage.get_load_package_info(load_id)
+        assert package_info.state == "aborted"
+        # one failed one started
+        assert len(package_info.jobs["failed_jobs"]) == 1
+        assert len(package_info.jobs["started_jobs"]) == 1
+        # load id was never committed
+        complete_load.assert_not_called()
 
 
 def test_spool_job_failed_exception_complete() -> None:
@@ -157,7 +161,7 @@ def test_spool_job_failed_exception_complete() -> None:
         run_all(load)
     assert py_ex.value.load_id == load_id
     package_info = load.load_storage.get_load_package_info(load_id)
-    assert package_info.state == "loaded"
+    assert package_info.state == "aborted"
     # one failed one started
     assert len(package_info.jobs["failed_jobs"]) == 1
     assert len(package_info.jobs["started_jobs"]) == 1
@@ -176,10 +180,11 @@ def test_spool_job_retry_new() -> None:
         assert job is None
 
     # call higher level function that returns jobs and counts
-    load.pool = ThreadPool()
-    jobs_count, jobs = load.spool_new_jobs(load_id, schema)
-    assert jobs_count == 2
-    assert len(jobs) == 0
+    with ThreadPool() as pool:
+        load.pool = pool
+        jobs_count, jobs = load.spool_new_jobs(load_id, schema)
+        assert jobs_count == 2
+        assert len(jobs) == 0
 
 
 def test_spool_job_retry_started() -> None:
@@ -277,28 +282,29 @@ def test_retry_on_new_loop() -> None:
         load.load_storage,
         NORMALIZED_FILES
     )
-    load.run(ThreadPool())
-    files = load.load_storage.list_new_jobs(load_id)
-    assert len(files) == 2
-    # one job will be completed
-    # print(list(client.JOBS.keys()))
-    # client.JOBS["event_user.839c6e6b514e427687586ccc65bf133f.jsonl"].retry_prob = 0
-    # client.JOBS["event_user.839c6e6b514e427687586ccc65bf133f.jsonl"].completed_prob = 1.0
-    load.run(ThreadPool())
-    files = load.load_storage.list_new_jobs(load_id)
-    assert len(files) == 2
-    # jobs will be completed
-    load = setup_loader(client_config=DummyClientConfiguration(completed_prob=1.0))
-    load.run(ThreadPool())
-    files = load.load_storage.list_new_jobs(load_id)
-    assert len(files) == 0
-    load.run(ThreadPool())
-    assert not load.load_storage.storage.has_folder(load.load_storage.get_package_path(load_id))
-    # parse the completed job names
-    completed_path = load.load_storage.get_completed_package_path(load_id)
-    for fn in load.load_storage.storage.list_folder_files(os.path.join(completed_path, LoadStorage.COMPLETED_JOBS_FOLDER)):
-        # we failed on initializing a job, in that case the retry count will not be updated
-        assert LoadStorage.parse_job_file_name(fn).retry_count == 0
+    with ThreadPool() as pool:
+        load.run(pool)
+        files = load.load_storage.list_new_jobs(load_id)
+        assert len(files) == 2
+        # one job will be completed
+        # print(list(client.JOBS.keys()))
+        # client.JOBS["event_user.839c6e6b514e427687586ccc65bf133f.jsonl"].retry_prob = 0
+        # client.JOBS["event_user.839c6e6b514e427687586ccc65bf133f.jsonl"].completed_prob = 1.0
+        load.run(pool)
+        files = load.load_storage.list_new_jobs(load_id)
+        assert len(files) == 2
+        # jobs will be completed
+        load = setup_loader(client_config=DummyClientConfiguration(completed_prob=1.0))
+        load.run(pool)
+        files = load.load_storage.list_new_jobs(load_id)
+        assert len(files) == 0
+        load.run(pool)
+        assert not load.load_storage.storage.has_folder(load.load_storage.get_package_path(load_id))
+        # parse the completed job names
+        completed_path = load.load_storage.get_completed_package_path(load_id)
+        for fn in load.load_storage.storage.list_folder_files(os.path.join(completed_path, LoadStorage.COMPLETED_JOBS_FOLDER)):
+            # we failed on initializing a job, in that case the retry count will not be updated
+            assert LoadStorage.parse_job_file_name(fn).retry_count == 0
 
 
 def test_wrong_writer_type() -> None:
@@ -308,8 +314,9 @@ def test_wrong_writer_type() -> None:
         ["event_bot.b1d32c6660b242aaabbf3fc27245b7e6.0.insert_values",
         "event_user.b1d32c6660b242aaabbf3fc27245b7e6.0.insert_values"]
     )
-    with pytest.raises(JobWithUnsupportedWriterException) as exv:
-        load.run(ThreadPool())
+    with ThreadPool() as pool:
+        with pytest.raises(JobWithUnsupportedWriterException) as exv:
+            load.run(pool)
     assert exv.value.load_id == load_id
 
 
@@ -329,22 +336,23 @@ def assert_complete_job(load: Load, storage: FileStorage, should_delete_complete
     )
     # will complete all jobs
     with patch.object(dummy_impl.DummyClient, "complete_load") as complete_load:
-        load.run(ThreadPool())
-        # did process schema update
-        assert storage.has_file(os.path.join(load.load_storage.get_package_path(load_id), LoadStorage.APPLIED_SCHEMA_UPDATES_FILE_NAME))
-        # will finalize the whole package
-        load.run(ThreadPool())
-        # moved to loaded
-        assert not storage.has_folder(load.load_storage.get_package_path(load_id))
-        completed_path = load.load_storage._get_job_folder_completed_path(load_id, "completed_jobs")
-        if should_delete_completed:
-            # package was deleted
-            assert not storage.has_folder(completed_path)
-        else:
-            # package not deleted
-            assert storage.has_folder(completed_path)
-        # complete load on client was called
-        complete_load.assert_called_once_with(load_id)
+        with ThreadPool() as pool:
+            load.run(pool)
+            # did process schema update
+            assert storage.has_file(os.path.join(load.load_storage.get_package_path(load_id), LoadStorage.APPLIED_SCHEMA_UPDATES_FILE_NAME))
+            # will finalize the whole package
+            load.run(pool)
+            # moved to loaded
+            assert not storage.has_folder(load.load_storage.get_package_path(load_id))
+            completed_path = load.load_storage._get_job_folder_completed_path(load_id, "completed_jobs")
+            if should_delete_completed:
+                # package was deleted
+                assert not storage.has_folder(completed_path)
+            else:
+                # package not deleted
+                assert storage.has_folder(completed_path)
+            # complete load on client was called
+            complete_load.assert_called_once_with(load_id)
 
 
 def run_all(load: Load) -> None:
