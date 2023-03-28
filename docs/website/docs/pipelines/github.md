@@ -7,7 +7,9 @@ This pipeline can access the GitHub API from two `dlt` sources:
 2. `github_repo_events` with the resource end-point `repo_events`.
 
 ## Grab the API auth token
-You can optionally add API access tokens to avoid making requests as an unauthorized user. To do this, sign-in to your GitHub account and follow these steps:
+You can optionally add API access tokens to avoid making requests as an unauthorized user. Note: If you wish to load reaction data, then the access token is mandatory.
+
+To get the API token, sign-in to your GitHub account and follow these steps:
 
 1. Click on your profile picture on the top right corner.
 2. Choose *Settings*.
@@ -79,9 +81,9 @@ To load the data from the desired repository onto the desired destination, a sou
 
 |Function name| Description |
 | --- | --- |
-| load_duckdb_repo_reactions_issues_only | Loads data on user reactions to issues and user comments on issues from the duckdb repository onto the specified destination |
-| load_airflow_events | Loads all the events associated with the airflow repository onto the specified destination |
-| load_dlthub_dlt_all_data | Loads data on user reactions to issues, user comments on issues, pull requests, and pull request comments from the `dlt` repository onto the specified destination |
+| load_duckdb_repo_reactions_issues_only | Loads data on user reactions to issues and user comments on issues from the duckdb repository onto the specified destination. To run this method, it is necessary to add the API access token in `.dlt/secrets.toml`. |
+| load_airflow_events | Loads all the events associated with the airflow repository onto the specified destination. |
+| load_dlthub_dlt_all_data | Loads data on user reactions to issues, user comments on issues, pull requests, and pull request comments from the `dlt` repository onto the specified destination. To run this method, it is necessary to add the API access token in `.dlt/secrets.toml`. |
 
 Include the source method in the `__main__` block and comment out any other functions. For example, if the source method is `load_airflow_event`, the code block would look as follows:
 ```python
