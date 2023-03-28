@@ -122,4 +122,4 @@ pip install -r requirements.txt
 python3 google_sheets_pipelines.py
 ```
 
-3. Use `dlt pipeline pipedrive_pipeline show` to make sure that everything loaded as expected.
+3. Use `dlt pipeline google_sheets_pipeline show` to make sure that everything loaded as expected.
