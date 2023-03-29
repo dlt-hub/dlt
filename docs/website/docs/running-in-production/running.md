@@ -1,9 +1,11 @@
 ---
 sidebar_position: 4
 ---
+
 # Running
 
-When running the pipeline in production you may consider a few additions to your script. We'll use a script below as a starting point
+When running the pipeline in production, you may consider a few additions to your script. We'll use a script below as a starting point.
+
 ```python
 import dlt
 from chess import chess
@@ -16,7 +18,9 @@ if __name__ == "__main__" :
 ```
 
 ## Inspect and save the load info and trace
-The `load_info` contains plenty of useful information on the recently loaded data. It contains the pipeline and dataset name, the destination information (without secrets) and list of loaded packages. Package information contains its state (`COMPLETED/PROCESSED`) and list of all jobs with their statuses, file sizes, types and in case of failed jobs - the error messages from the destination.
+
+The `load_info` contains plenty of useful information on the recently loaded data. It contains the pipeline and dataset name, the destination information (without secrets) and list of loaded packages. Package information contains its state (`COMPLETED/PROCESSED`) and list of all jobs with their statuses, file sizes, types and in case of failed jobs-the error messages from the destination.
+
 ```python
     # see when load was started
     print(load_info.started_at)
@@ -25,13 +29,16 @@ The `load_info` contains plenty of useful information on the recently loaded dat
     # print the information on the first completed job in first load package
     print(load_info.load_packages[0].jobs["completed_jobs"][0])
 ```
+
 `load_info` may also be loaded into the destinations as below:
+
 ```python
     # we reuse the pipeline instance below and load to the same dataset as data
     pipeline.run([load_info], table_name="_load_info")
 ```
 
 You can also get the runtime trace from the pipeline. It contains timing information on `extract`, `normalize` and `load` steps and also all the config and secret values with full information from where they were obtained. You can display and load trace info as shown below. Use your code editor to explore `trace` object further.
+
 ```python
     # print human friendly trace information
     print(pipeline.last_trace)
@@ -42,7 +49,9 @@ You can also get the runtime trace from the pipeline. It contains timing informa
 Please note that you can inspect the pipeline using [command line](../command-line-interface.md#dlt-pipeline).
 
 ### Inspect, save and alert on schema changes
+
 In package information you can also see the list of all tables and columns created at the destination during loading of that package. Code below displays all tables and schemas. Note that those objects are Typed Dictionaries, use your code editor to explore.
+
 ```python
     # print all the new tables/columns in
     for package in load_info.load_packages:
@@ -53,6 +62,7 @@ In package information you can also see the list of all tables and columns creat
 ```
 
 You can save only the new tables and column schemas to the destination. Note that the code above that saves `load_info` saves this data as well.
+
 ```python
     # save just the new tables
     table_updates = [p.asdict()["tables"] for p in load_info.load_packages]
@@ -60,13 +70,17 @@ You can save only the new tables and column schemas to the destination. Note tha
 ```
 
 ## Data left behind
+
 By default `dlt` leaves the loaded packages intact so they may be fully queried and inspected after load. This behavior may be changed so the successfully completed jobs are deleted from the loaded package. In that case, for a correctly behaving pipeline, only minimum amount of data will be left behind. In `config.toml`:
+
 ```toml
 load.delete_completed_jobs=true
 ```
 
 ## Using slack to send messages
+
 `dlt` provides basic support for sending slack messages. You can configure Slack incoming hook via [secrets.toml or environment variables](../customization/credentials.md). Please note that **Slack incoming hook is considered a secret and will be immediately blocked when pushed to github repository**. In `secrets.toml`:
+
 ```toml
 [runtime]
 slack_incoming_hook="https://hooks.slack.com/services/T04DHMAF13Q/B04E7B1MQ1H/TDHEI123WUEE"
@@ -84,9 +98,11 @@ send_slack_message(pipeline.runtime_config.slack_incoming_hook, message)
 ```
 
 ## Enable Sentry tracing
+
 You can enable exception and runtime [tracing via Sentry](../reference/tracing.md)
 
 ## Set the log level and format
+
 You can set log level and switch logging to json format
 ```toml
 log_level="INFO"
@@ -96,6 +112,7 @@ log_format="JSON"
 Note: redirecting **dlt** log to other logs is not yet supported.
 
 ## Handle exceptions, failed jobs and retry the pipeline
+
 When any of the steps of the pipeline fails, an exception of type `PipelineStepFailed` is raised. Such exception contains the pipeline step name, the pipeline object itself and the step info ie `LoadInfo`. It provides the general information where the problem happened. In most of the cases, you can and should obtain the causing exception using the standard Python exception chaining (`__context__`).
 
 There are two different types of exceptions in `__context__`:
@@ -111,14 +128,18 @@ if isinstance(ex, TerminalException) or (ex.__context__ is not None and isinstan
 ```
 
 ### Failed jobs
+
 If any job in the package **fail terminally** it will be moved to `failed_jobs` folder and assigned such status. By default **no exception is raised** and other jobs will be processed and completed. You may inspect if the failed jobs are present by checking the load info as follows:
+
 ```python
 # returns True if there are failed jobs in any of the load packages
 print(load_info.has_failed_jobs)
 # raises terminal exception if there are any failed jobs
 load_info.raise_on_failed_jobs()
 ```
+
 You may also immediately abort the load package with `LoadClientJobFailed` (terminal exception) on a first failed job. Such package is immediately moved to completed but its load id is not added to the `_dlt_loads` table. The other jobs that are executed in parallel may or may not complete. The dlt state, if present, will not be visible to `dlt`. In other words: **you should know what you are doing**. Here's example `config.toml` to enable this option:
+
 ```toml
 # you should really load just one job at a time to get the deterministic behavior
 load.workers=1
@@ -127,13 +148,16 @@ load.raise_on_failed_jobs=true
 ```
 
 ### What `run` does inside
+
 Before adding retry to pipeline steps, note how `run` method actually works:
 1. The `run` method will first use `sync_destination` method to synchronize pipeline state and schemas with the destination. Obviously at this point connection to the destination is established (which may fail and be retried)
 2. Next it will make sure that data from the previous runs is fully processed. If not, `run` method normalizes, loads pending data items and **exits**
 3. If there was no pending data, new data from `data` argument is extracted, normalized and loaded.
 
 ### Retry helpers and `tenacity`
+
 By default `dlt` does not retry any of the pipeline steps. This is left to the included helpers and the [tenacity](https://tenacity.readthedocs.io/en/latest/) library. Snippet below will retry the `load` stage with the `retry_load` strategy and defined back-off or re-raise exception for any other steps (`extract`, `normalize`) and for terminal exceptions.
+
 ```python
 from tenacity import retry_if_exception, Retrying, retry
 from dlt.common.runtime.slack import send_slack_message
@@ -156,6 +180,7 @@ if __name__ == "__main__" :
 ```
 
 You can also use `tenacity` to decorate functions. This example additionally retries on `extract`:
+
 ```python
 if __name__ == "__main__" :
     pipeline = dlt.pipeline(pipeline_name="chess_pipeline", destination='duckdb', dataset_name="games_data")
