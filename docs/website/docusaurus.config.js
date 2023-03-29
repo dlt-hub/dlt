@@ -90,7 +90,7 @@ const config = {
             items: [
               {
                 label: 'Email',
-                href: 'mailto:team@dlthub.com',
+                href: 'mailto:community@dlthub.com',
               },
             ],
           },
