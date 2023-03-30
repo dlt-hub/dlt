@@ -1,6 +1,6 @@
 # Strapi pipeline setup guide
 
-Strapi is a headless CMS (Content Management System), that allows developers to create powerful API-driven content management systems, without having to write a lot of custom code.
+Strapi is a headless CMS (Content Management System) that allows developers to create powerful API-driven content management systems without having to write a lot of custom code.
 
 Since the endpoints that will be available in Strapi depend on your setup, in order to get data from strapi to your warehouse, you need to be aware of which endpoints you will ingest.
 
