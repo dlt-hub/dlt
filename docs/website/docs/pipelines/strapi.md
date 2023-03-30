@@ -7,7 +7,7 @@ Since the endpoints that will be available in Strapi depend on your setup, in or
 ## Grab API token
 
 1. Login to your Strapi account.
-2. Click on the  ⚙️ settings in the left-hand sidebar menu.
+2. Click on `⚙️ settings` in the left-hand sidebar menu.
 3. In the settings menu, go to ‘API tokens’ option that is present under global settings.
 4. Click on “Create new API token”
 5. Fill in the details like Name, description, and token duration.
