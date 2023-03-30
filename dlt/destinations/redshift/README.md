@@ -11,9 +11,9 @@ https://www.intermix.io/blog/top-14-performance-tuning-techniques-for-amazon-red
 
 # loader account setup
 
-1. Create new database `CREATE DATABASE chat_analytics_rasa_ci`
+1. Create new database `CREATE DATABASE dlt_ci`
 2. Create new user, set password
-3. Set as database owner (we could set lower permission) `ALTER DATABASE chat_analytics_rasa_ci OWNER TO loader`
+3. Set as database owner (we could set lower permission) `ALTER DATABASE dlt_ci OWNER TO loader`
 
 # Public access setup for Serverless
 Follow https://docs.aws.amazon.com/redshift/latest/mgmt/serverless-connecting.html `Connecting from the public subnet to the Amazon Redshift Serverless endpoint using Network Load Balancer`

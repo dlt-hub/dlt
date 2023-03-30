@@ -383,7 +383,9 @@ def test_configuration_is_mutable_mapping(environment: Any) -> None:
     assert dict(_SecretCredentials()) == expected_dict
 
     environment["RUNTIME__SECRET_VALUE"] = "secret"
+    # get_resolved_traces().clear()
     c = resolve.resolve_configuration(_SecretCredentials())
+    # print(get_resolved_traces())
     expected_dict["secret_value"] = "secret"
     assert dict(c) == expected_dict
 

@@ -20,6 +20,7 @@ from dlt.common.storages import FileStorage
 from dlt.common.schema import Schema
 from dlt.common.storages.versioned_storage import VersionedStorage
 from dlt.common.typing import StrAny
+from dlt.common.utils import uniq_id
 
 
 TEST_STORAGE_ROOT = "_storage"
@@ -79,6 +80,15 @@ def preserve_environ() -> None:
 def patch_home_dir() -> None:
     with patch("dlt.common.configuration.paths._get_user_home_dir") as _get_home_dir:
         _get_home_dir.return_value = os.path.abspath(TEST_STORAGE_ROOT)
+        yield
+
+
+@pytest.fixture(autouse=True)
+def patch_random_home_dir() -> None:
+    global_dir = os.path.join(TEST_STORAGE_ROOT, "global_" + uniq_id())
+    os.makedirs(global_dir, exist_ok=True)
+    with patch("dlt.common.configuration.paths._get_user_home_dir") as _get_home_dir:
+        _get_home_dir.return_value = os.path.abspath(global_dir)
         yield
 
 

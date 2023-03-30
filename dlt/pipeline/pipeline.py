@@ -18,10 +18,10 @@ from dlt.common.normalizers import default_normalizers, import_normalizers
 from dlt.common.runners.runnable import Runnable
 from dlt.common.runtime import signals
 from dlt.common.schema.exceptions import InvalidDatasetName
-from dlt.common.schema.typing import TColumnSchema, TWriteDisposition
-from dlt.common.storages.load_storage import LoadStorage
+from dlt.common.schema.typing import TColumnSchema, TSchemaTables, TWriteDisposition
+from dlt.common.storages.load_storage import LoadJobInfo, LoadPackageInfo, LoadStorage
 from dlt.common.typing import TFun, TSecretValue
-from dlt.common.runners import pool_runner as runner, TRunMetrics, initialize_runner
+from dlt.common.runners import pool_runner as runner, initialize_runner
 from dlt.common.runners.configuration import PoolRunnerConfiguration
 from dlt.common.storages import LiveSchemaStorage, NormalizeStorage
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -46,7 +46,7 @@ from dlt.load import Load
 
 from dlt.pipeline.configuration import PipelineConfiguration
 from dlt.pipeline.exceptions import CannotRestorePipelineException, InvalidPipelineName, PipelineConfigMissing, PipelineStepFailed, SqlClientNotAvailable
-from dlt.pipeline.trace import PipelineRuntimeTrace, PipelineStepTrace, merge_traces, start_trace, start_trace_step, end_trace_step, end_trace
+from dlt.pipeline.trace import PipelineTrace, PipelineStepTrace, load_trace, merge_traces, start_trace, start_trace_step, end_trace_step, end_trace
 from dlt.pipeline.typing import TPipelineStep
 from dlt.pipeline.state import STATE_ENGINE_VERSION, load_state_from_destination, merge_state_if_changed, migrate_state, state_resource, StateInjectableContext
 
@@ -87,7 +87,7 @@ def with_runtime_trace(f: TFun) -> TFun:
 
     @wraps(f)
     def _wrap(self: "Pipeline", *args: Any, **kwargs: Any) -> Any:
-        trace: PipelineRuntimeTrace = self._trace
+        trace: PipelineTrace = self._trace
         trace_step: PipelineStepTrace = None
         step_info: Any = None
         is_new_trace = self._trace is None and self.config.enable_runtime_trace
@@ -118,6 +118,9 @@ def with_runtime_trace(f: TFun) -> TFun:
                 # always end trace
                 if is_new_trace:
                     assert self._trace == trace, f"Messed up trace reference {id(self._trace)} vs {id(trace)}"
+                    # if we end new trace that had only 1 step, add it to previous trace
+                    # this way we combine several separate calls to extract, normalize, load as single trace
+                    # the trace of "run" has many steps and will not be merged
                     self._last_trace = merge_traces(self._last_trace, trace)
                     self._trace = None
 
@@ -197,8 +200,8 @@ class Pipeline(SupportsPipeline):
         self._schema_storage_config: SchemaVolumeConfiguration = None
         self._normalize_storage_config: NormalizeVolumeConfiguration = None
         self._load_storage_config: LoadVolumeConfiguration = None
-        self._trace: PipelineRuntimeTrace = None
-        self._last_trace: PipelineRuntimeTrace = None
+        self._trace: PipelineTrace = None
+        self._last_trace: PipelineTrace = None
         self._state_restored: bool = False
 
         initialize_runner(self.runtime_config)
@@ -316,11 +319,9 @@ class Pipeline(SupportsPipeline):
         destination: TDestinationReferenceArg = None,
         dataset_name: str = None,
         credentials: Any = None,
-        # raise_on_failed_jobs = False,
-        # raise_on_incompatible_schema = False,
-        # always_wipe_storage: bool = False,
         *,
-        workers: int = 20
+        workers: int = 20,
+        raise_on_failed_jobs: bool = False
     ) -> LoadInfo:
         """Loads the packages prepared by `normalize` method into the `dataset_name` at `destination`, using provided `credentials`"""
         # set destination and default dataset if provided
@@ -341,7 +342,7 @@ class Pipeline(SupportsPipeline):
             is_single_run=True,
             exit_on_exception=True,
             workers=workers,
-            always_wipe_storage=False,
+            raise_on_failed_jobs=raise_on_failed_jobs,
             _load_storage_config=self._load_storage_config
         )
         load = Load(self.destination, is_storage_owner=False, config=load_config, initial_client_config=client.config)
@@ -383,8 +384,8 @@ class Pipeline(SupportsPipeline):
 
         ### Execution
         The `run` method will first use `sync_destination` method to synchronize pipeline state and schemas with the destination. You can disable this behavior with `restore_from_destination` configuration option.
-        Next it will make sure that data from the previous is fully processed. If not, `run` method normalizes and loads pending data items.
-        Only then the new data from `data` argument is extracted, normalized and loaded.
+        Next it will make sure that data from the previous is fully processed. If not, `run` method normalizes, loads pending data items and **exits**
+        If there was no pending data, new data from `data` argument is extracted, normalized and loaded.
 
         ### Args:
             data (Any): Data to be loaded to destination
@@ -417,6 +418,7 @@ class Pipeline(SupportsPipeline):
         ### Returns:
             LoadInfo: Information on loaded data including the list of package ids and failed job statuses. Please not that `dlt` will not raise if a single job terminally fails. Such information is provided via LoadInfo.
         """
+        signals.raise_if_signalled()
         self._set_destination(destination)
         self._set_dataset_name(dataset_name)
 
@@ -429,9 +431,9 @@ class Pipeline(SupportsPipeline):
         # normalize and load pending data
         if self.list_extracted_resources():
             self.normalize()
-        info: LoadInfo = None
         if self.list_normalized_load_packages():
-            info = self.load(destination, dataset_name, credentials=credentials)
+            # if there were any pending loads, load them and **exit**
+            return self.load(destination, dataset_name, credentials=credentials)
 
         # extract from the source
         if data:
@@ -439,7 +441,7 @@ class Pipeline(SupportsPipeline):
             self.normalize()
             return self.load(destination, dataset_name, credentials=credentials)
         else:
-            return info
+            return None
 
     @with_schemas_sync
     def sync_destination(self, destination: TDestinationReferenceArg = None, dataset_name: str = None) -> None:
@@ -460,70 +462,73 @@ class Pipeline(SupportsPipeline):
         state = self._get_state()
         local_state = state.pop("_local")
         merged_state: TPipelineState = None
-
         try:
-            restored_schemas: Sequence[Schema] = None
-            remote_state = self._restore_state_from_destination()
+            try:
+                restored_schemas: Sequence[Schema] = None
+                remote_state = self._restore_state_from_destination()
 
-            # if remote state is newer or same
-            # print(f'REMOTE STATE: {(remote_state or {}).get("_state_version")} >= {state["_state_version"]}')
-            if remote_state and remote_state["_state_version"] >= state["_state_version"]:
-                # compare changes and updates local state
-                merged_state = merge_state_if_changed(state, remote_state, increase_version=False)
-                # print(f"MERGED STATE: {bool(merged_state)}")
+                # if remote state is newer or same
+                # print(f'REMOTE STATE: {(remote_state or {}).get("_state_version")} >= {state["_state_version"]}')
+                if remote_state and remote_state["_state_version"] >= state["_state_version"]:
+                    # compare changes and updates local state
+                    merged_state = merge_state_if_changed(state, remote_state, increase_version=False)
+                    # print(f"MERGED STATE: {bool(merged_state)}")
+                    if merged_state:
+                        # see if state didn't change the pipeline name
+                        if state["pipeline_name"] != remote_state["pipeline_name"]:
+                            raise CannotRestorePipelineException(
+                                state["pipeline_name"],
+                                self.pipelines_dir,
+                                f"destination state contains state for pipeline with name {remote_state['pipeline_name']}"
+                            )
+                        # if state was modified force get all schemas
+                        restored_schemas = self._get_schemas_from_destination(merged_state["schema_names"], always_download=True)
+                        # TODO: we should probably wipe out pipeline here
+
+                # if we didn't full refresh schemas, get only missing schemas
+                if restored_schemas is None:
+                    restored_schemas = self._get_schemas_from_destination(state["schema_names"], always_download=False)
+                # commit all the changes locally
                 if merged_state:
-                    # see if state didn't change the pipeline name
-                    if state["pipeline_name"] != remote_state["pipeline_name"]:
-                        raise CannotRestorePipelineException(
-                            state["pipeline_name"],
-                            self.pipelines_dir,
-                            f"destination state contains state for pipeline with name {remote_state['pipeline_name']}"
-                        )
-                    # if state was modified force get all schemas
-                    restored_schemas = self._get_schemas_from_destination(merged_state["schema_names"], always_download=True)
-                    # TODO: we should probably wipe out pipeline here
+                    # set the pipeline props from merged state
+                    state["_local"] = local_state
+                    # add that the state is already extracted
+                    state["_local"]["_last_extracted_at"] = pendulum.now()
+                    self._state_to_props(merged_state)
+                    # on merge schemas are replaced so we delete all old versions
+                    self._schema_storage.clear_storage()
+                for schema in restored_schemas:
+                    self._schema_storage.save_schema(schema)
+                # if the remote state is present then unset first run
+                if remote_state is not None:
+                    self.first_run = False
+            except DatabaseUndefinedRelation:
+                # storage not present. wipe the pipeline if pipeline not new
+                # do it only if pipeline has any data
+                if self.has_data:
+                    should_wipe = False
+                    if self.default_schema_name is None:
+                        should_wipe = True
+                    else:
+                        with self._sql_job_client(self.default_schema) as job_client:
+                            # and storage is not initialized
+                            should_wipe = not job_client.is_storage_initialized()
+                    if should_wipe:
+                        # reset pipeline
+                        self._wipe_working_folder()
+                        state = self._get_state()
+                        self._configure(self._schema_storage_config.export_schema_path, self._schema_storage_config.import_schema_path, False)
 
-            # if we didn't full refresh schemas, get only missing schemas
-            if restored_schemas is None:
-                restored_schemas = self._get_schemas_from_destination(state["schema_names"], always_download=False)
-            # commit all the changes locally
-            if merged_state:
-                # set the pipeline props from merged state
+
+            # write the state back
+            state = merged_state or state
+            if "_local" not in state:
                 state["_local"] = local_state
-                # add that the state is already extracted
-                state["_local"]["_last_extracted_at"] = pendulum.now()
-                self._state_to_props(merged_state)
-                # on merge schemas are replaced so we delete all old versions
-                self._schema_storage.clear_storage()
-            for schema in restored_schemas:
-                self._schema_storage.save_schema(schema)
-            # if the remote state is present then unset first run
-            if remote_state is not None:
-                self.first_run = False
-        except DatabaseUndefinedRelation:
-            # storage not present. wipe the pipeline if pipeline not new
-            # do it only if pipeline has any data
-            if self.has_data:
-                should_wipe = False
-                if self.default_schema_name is None:
-                    should_wipe = True
-                else:
-                    with self._sql_job_client(self.default_schema) as job_client:
-                        # and storage is not initialized
-                        should_wipe = not job_client.is_storage_initialized()
-                if should_wipe:
-                    # reset pipeline
-                    self._wipe_working_folder()
-                    state = self._get_state()
-                    self._configure(self._schema_storage_config.export_schema_path, self._schema_storage_config.import_schema_path, False)
+            self._props_to_state(state)
+            self._save_state(state)
+        except Exception as ex:
+            raise PipelineStepFailed(self, "run", ex, None) from ex
 
-
-        # write the state back
-        state = merged_state or state
-        if "_local" not in state:
-            state["_local"] = local_state
-        self._props_to_state(state)
-        self._save_state(state)
 
     @property
     def has_data(self) -> bool:
@@ -544,34 +549,33 @@ class Pipeline(SupportsPipeline):
         return self._get_state()
 
     @property
-    def last_run_exception(self) -> BaseException:
-        return runner.LAST_RUN_EXCEPTION
+    def last_trace(self) -> PipelineTrace:
+        """Returns or loads last trace generated by pipeline. The trace is loaded from standard location."""
+        if self._last_trace:
+            return self._last_trace
+        return load_trace(self.working_dir)
 
     def list_extracted_resources(self) -> Sequence[str]:
-        """Returns a list of all the files contained extracted resources that will be normalized."""
+        """Returns a list of all the files with extracted resources that will be normalized."""
         return self._get_normalize_storage().list_files_to_normalize_sorted()
 
     def list_normalized_load_packages(self) -> Sequence[str]:
-        """Returns a list of all load packages that are or will be loaded."""
+        """Returns a list of all load packages ids that are or will be loaded."""
         return self._get_load_storage().list_packages()
 
     def list_completed_load_packages(self) -> Sequence[str]:
+        """Returns a list of all load package ids that are completely loaded"""
         return self._get_load_storage().list_completed_packages()
 
-    def list_failed_jobs_in_package(self, load_id: str) -> Sequence[Tuple[str, str]]:
-        """List all failed jobs and associated error messages for a specified `load_id`"""
-        storage = self._get_load_storage()
-        failed_jobs: List[Tuple[str, str]] = []
-        for file in storage.list_completed_failed_jobs(load_id):
-            if not file.endswith(".exception"):
-                try:
-                    failed_message = storage.storage.load(file + ".exception")
-                except FileNotFoundError:
-                    failed_message = None
-                failed_jobs.append((storage.storage.make_full_path(file), failed_message))
-        return failed_jobs
+    def get_load_package_info(self, load_id: str) -> LoadPackageInfo:
+        """Returns information on normalized/completed package with given load_id, all jobs and their statuses."""
+        return self._get_load_storage().get_load_package_info(load_id)
 
-    def sync_schema(self, schema_name: str = None, credentials: Any = None) -> None:
+    def list_failed_jobs_in_package(self, load_id: str) -> Sequence[LoadJobInfo]:
+        """List all failed jobs and associated error messages for a specified `load_id`"""
+        return self._get_load_storage().get_load_package_info(load_id).jobs.get("failed_jobs", [])
+
+    def sync_schema(self, schema_name: str = None, credentials: Any = None) -> TSchemaTables:
         """Synchronizes the schema `schema_name` with the destination. If no name is provided, the default schema will be synchronized."""
         if not schema_name and not self.default_schema_name:
             raise PipelineConfigMissing(self.pipeline_name, "default_schema_name", "load", "Pipeline contains no schemas. Please extract any data with `extract` or `run` methods.")
@@ -580,8 +584,7 @@ class Pipeline(SupportsPipeline):
         client_config = self._get_destination_client_initial_config(credentials)
         with self._get_destination_client(schema, client_config) as client:
             client.initialize_storage()
-            client.update_storage_schema()
-
+            return client.update_storage_schema()
 
     def set_local_state_val(self, key: str, value: Any) -> None:
         """Sets value in local state. Local state is not synchronized with destination."""
@@ -594,7 +597,6 @@ class Pipeline(SupportsPipeline):
             state["_local"][key] = value  # type: ignore
             self._save_state(state)
 
-
     def get_local_state_val(self, key: str) -> Any:
         """Gets value from local state. Local state is not synchronized with destination."""
         try:
@@ -603,7 +605,6 @@ class Pipeline(SupportsPipeline):
         except ContextDefaultCannotBeCreated:
             state = self._get_state()
         return state["_local"][key]   # type: ignore
-
 
     def sql_client(self, schema_name: str = None, credentials: Any = None) -> SqlClientBase[Any]:
         """Returns a sql connection configured to query/change the destination and dataset that were used to load the data."""
@@ -811,38 +812,39 @@ class Pipeline(SupportsPipeline):
         return extract_id
 
     def _run_step_in_pool(self, step: TPipelineStep, runnable: Runnable[Any], config: PoolRunnerConfiguration) -> int:
+        # TODO: remove runner altogether. it does not fit into current architecture
         try:
             ec = runner.run_pool(config, runnable)
             # in any other case we raise if runner exited with status failed
             if runner.LAST_RUN_METRICS.has_failed:
-                raise PipelineStepFailed(self, step, self.last_run_exception, runner.LAST_RUN_METRICS)
+                raise PipelineStepFailed(self, step, runner.LAST_RUN_EXCEPTION, runner.LAST_RUN_METRICS)
             return ec
         except Exception as r_ex:
             # if EXIT_ON_EXCEPTION flag is set, exception will bubble up directly
-            raise PipelineStepFailed(self, step, self.last_run_exception, runner.LAST_RUN_METRICS) from r_ex
+            raise PipelineStepFailed(self, step, runner.LAST_RUN_EXCEPTION, runner.LAST_RUN_METRICS) from r_ex
         # finally:
         #     signals.raise_if_signalled()
 
-    def _run_f_in_pool(self, run_f: Callable[..., Any], config: PoolRunnerConfiguration) -> int:
+    # def _run_f_in_pool(self, run_f: Callable[..., Any], config: PoolRunnerConfiguration) -> int:
 
-        def _run(_: Any) -> TRunMetrics:
-            rv = run_f()
-            if isinstance(rv, TRunMetrics):
-                return rv
-            if isinstance(rv, int):
-                pending = rv
-            else:
-                pending = 1
-            return TRunMetrics(False, False, int(pending))
+    #     def _run(_: Any) -> TRunMetrics:
+    #         rv = run_f()
+    #         if isinstance(rv, TRunMetrics):
+    #             return rv
+    #         if isinstance(rv, int):
+    #             pending = rv
+    #         else:
+    #             pending = 1
+    #         return TRunMetrics(False, False, int(pending))
 
-        # run the fun
-        ec = runner.run_pool(config, _run)
-        # ec > 0 - signalled
-        # -1 - runner was not able to start
+    #     # run the fun
+    #     ec = runner.run_pool(config, _run)
+    #     # ec > 0 - signalled
+    #     # -1 - runner was not able to start
 
-        if runner.LAST_RUN_METRICS is not None and runner.LAST_RUN_METRICS.has_failed:
-            raise self.last_run_exception
-        return ec
+    #     if runner.LAST_RUN_METRICS is not None and runner.LAST_RUN_METRICS.has_failed:
+    #         raise runner.last_run_exception
+    #     return ec
 
     def _get_destination_client_initial_config(self, credentials: Any = None) -> DestinationClientConfiguration:
         if not self.destination:
@@ -969,13 +971,12 @@ class Pipeline(SupportsPipeline):
 
     def _get_load_info(self, load: Load) -> LoadInfo:
         # TODO: Load must provide a clear interface to get last loads and metrics
-        # TODO: LoadInfo must hold many packages with different schemas and datasets
+        # TODO: LoadInfo should hold many datasets
         load_ids = load._processed_load_ids
-        failed_packages: Dict[str, Sequence[Tuple[str, str]]] = {}
-        for load_id, metrics in load_ids.items():
-            if metrics:
-                # get failed packages only when package finished
-                failed_packages[load_id] = self.list_failed_jobs_in_package(load_id)
+        load_packages: List[LoadPackageInfo] = []
+        load_storage = self._get_load_storage()
+        for load_id in load_ids:
+            load_packages.append(load_storage.get_load_package_info(load_id))
         dataset_name = None
         if isinstance(load.initial_client_config, DestinationClientDwhConfiguration):
             dataset_name = load.initial_client_config.dataset_name
@@ -988,8 +989,8 @@ class Pipeline(SupportsPipeline):
             load.initial_client_config.destination_name,
             str(load.initial_client_config.credentials),
             dataset_name,
-            {load_id: bool(metrics) for load_id, metrics in load_ids.items()},
-            failed_packages,
+            list(load_ids.keys()),
+            load_packages,
             started_at,
             self.first_run
         )

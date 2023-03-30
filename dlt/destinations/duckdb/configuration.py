@@ -7,7 +7,7 @@ from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.configuration.specs.exceptions import InvalidConnectionString
 from dlt.common.destination.reference import DestinationClientDwhConfiguration
-from dlt.common.typing import DictStrAny, TSecretValue
+from dlt.common.typing import TSecretValue
 
 DUCK_DB_NAME = "%s.duckdb"
 DEFAULT_DUCK_DB_NAME = DUCK_DB_NAME % "quack"

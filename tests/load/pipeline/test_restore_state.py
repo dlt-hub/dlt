@@ -17,7 +17,7 @@ from tests.utils import ALL_DESTINATIONS, patch_home_dir, preserve_environ, auto
 from tests.common.utils import IMPORTED_VERSION_HASH_ETH_V5, yml_case_path as common_yml_case_path
 from tests.common.configuration.utils import environment
 from tests.pipeline.utils import drop_dataset_from_env
-from tests.load.pipeline.utils import assert_data, drop_pipeline
+from tests.load.pipeline.utils import assert_query_data, drop_pipeline
 
 
 @pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
@@ -453,7 +453,7 @@ def test_restore_state_parallel_changes(destination_name: str) -> None:
     assert ra_production_p.state == prod_state
 
     # get all the states, notice version 4 twice (one from production, the other from local)
-    assert_data(p, f"SELECT version, _dlt_load_id FROM {STATE_TABLE_NAME} ORDER BY created_at", [2, 3, 4, 4, 5])
+    assert_query_data(p, f"SELECT version, _dlt_load_id FROM {STATE_TABLE_NAME} ORDER BY created_at", [2, 3, 4, 4, 5])
 
 
 @pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)

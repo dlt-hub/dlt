@@ -1,6 +1,7 @@
 import io
 import os
-from typing import List
+from typing import List, NamedTuple
+from dataclasses import dataclass
 import pytest
 
 from dlt.common import json, Decimal, pendulum
@@ -10,6 +11,18 @@ from dlt.common.json import _DECIMAL, _WEI, custom_pua_decode, _orjson, _simplej
 from tests.utils import autouse_test_storage, TEST_STORAGE_ROOT
 from tests.cases import JSON_TYPED_DICT
 from tests.common.utils import json_case_path, load_json_case
+
+
+class NamedTupleTest(NamedTuple):
+    str_field: str
+    dec_field: Decimal
+
+
+@dataclass
+class DataClassTest:
+    str_field: str
+    int_field: int = 5
+    dec_field: Decimal = Decimal("0.5")
 
 
 _JSON_IMPL: List[SupportsJson] = [_orjson, _simplejson]
@@ -175,6 +188,22 @@ def test_json_pendulum(json_impl: SupportsJson) -> None:
     # mock hh:mm (incorrect) TZ notation which must serialize to UTC as well
     s_r = json_impl.loads(s[:-3] + '+00:00"}')
     assert pendulum.parse(s_r["t"]) == now
+
+
+@pytest.mark.parametrize("json_impl", _JSON_IMPL)
+def test_json_named_tuple(json_impl: SupportsJson) -> None:
+    assert json_impl.dumps(NamedTupleTest("STR", Decimal("1.3333"))) == '{"str_field":"STR","dec_field":"1.3333"}'
+    with io.BytesIO() as b:
+        json_impl.typed_dump(NamedTupleTest("STR", Decimal("1.3333")), b)
+        assert b.getvalue().decode("utf-8") == '{"str_field":"STR","dec_field":"\uF0261.3333"}'
+
+
+@pytest.mark.parametrize("json_impl", _JSON_IMPL)
+def test_data_class(json_impl: SupportsJson) -> None:
+    assert json_impl.dumps(DataClassTest(str_field="AAA")) == '{"str_field":"AAA","int_field":5,"dec_field":"0.5"}'
+    with io.BytesIO() as b:
+        json_impl.typed_dump(DataClassTest(str_field="AAA"), b)
+        assert b.getvalue().decode("utf-8") == '{"str_field":"AAA","int_field":5,"dec_field":"\uF0260.5"}'
 
 
 @pytest.mark.parametrize("json_impl", _JSON_IMPL)

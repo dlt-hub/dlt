@@ -144,7 +144,12 @@ def get_remote_pipeline_index(repo_path: str, files: Sequence[str]) -> TPipeline
 
 
 def get_pipeline_names(pipelines_storage: FileStorage) -> List[str]:
-    return [n for n in pipelines_storage.list_folder_dirs(".", to_root=False) if not any(fnmatch.fnmatch(n, ignore) for ignore in IGNORE_PIPELINES)]
+    candidates: List[str] = []
+    for name in [n for n in pipelines_storage.list_folder_dirs(".", to_root=False) if not any(fnmatch.fnmatch(n, ignore) for ignore in IGNORE_PIPELINES)]:
+        # must contain at least one valid python script
+        if any(f.endswith(".py") for f in pipelines_storage.list_folder_files(name, to_root=False)):
+            candidates.append(name)
+    return candidates
 
 
 def get_pipeline_files(pipelines_storage: FileStorage, pipeline_name: str) -> PipelineFiles:

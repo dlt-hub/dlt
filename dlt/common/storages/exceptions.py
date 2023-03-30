@@ -27,16 +27,22 @@ class WrongStorageVersionException(StorageException):
         super().__init__(f"Expected storage {storage_path} with v {target_version} but found {initial_version}")
 
 
-class LoaderStorageException(StorageException):
+class LoadStorageException(StorageException):
     pass
 
 
-class JobWithUnsupportedWriterException(LoaderStorageException):
+class JobWithUnsupportedWriterException(LoadStorageException):
     def __init__(self, load_id: str, expected_file_formats: Iterable[TLoaderFileFormat], wrong_job: str) -> None:
         self.load_id = load_id
         self.expected_file_formats = expected_file_formats
         self.wrong_job = wrong_job
         super().__init__(f"Job {wrong_job} for load id {load_id} requires loader file format that is not one of {expected_file_formats}")
+
+
+class LoadPackageNotFound(LoadStorageException, FileNotFoundError):
+    def __init__(self, load_id: str) -> None:
+        self.load_id = load_id
+        super().__init__(f"Package with load id {load_id} could not be found")
 
 
 class SchemaStorageException(StorageException):

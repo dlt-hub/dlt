@@ -32,6 +32,7 @@ TAnyClass = TypeVar("TAnyClass", bound=object)
 TimedeltaSeconds = Union[int, float, timedelta]
 # represent secret value ie. coming from Kubernetes/Docker secrets or other providers
 TSecretValue = NewType("TSecretValue", Any)  # type: ignore
+TSecretStrValue = NewType("TSecretValue", str)  # type: ignore
 TDataItem: TypeAlias = Any  # a single data item as extracted from data source
 TDataItems: TypeAlias = Union[TDataItem, List[TDataItem]]  # a single or many data items as extracted from the data source
 
@@ -49,6 +50,16 @@ class SupportsVariant(Protocol, Generic[TVariantBase]):
         See `Wei` type declaration which returns Decimal or str for values greater than supported by destination warehouse.
     """
     def __call__(self) -> Union[TVariantBase, TVariantRV]:
+        ...
+
+
+class SupportsHumanize(Protocol):
+    def asdict(self) -> DictStrAny:
+        """Represents object as dict with a schema loadable by dlt"""
+        ...
+
+    def asstr(self, verbosity: int = 0) -> str:
+        """Represents object as human readable string"""
         ...
 
 

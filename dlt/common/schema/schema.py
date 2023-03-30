@@ -1,5 +1,5 @@
 import yaml
-from copy import copy
+from copy import copy, deepcopy
 from typing import ClassVar, Dict, List, Mapping, Optional, Sequence, Tuple, Any, cast
 from dlt.common import json
 
@@ -311,8 +311,12 @@ class Schema:
         d = self.to_dict(remove_defaults=remove_defaults)
         return cast(str, yaml.dump(d, allow_unicode=True, default_flow_style=False, sort_keys=False))
 
-    def _infer_column(self, k: str, v: Any, data_type: TDataType = None) -> TColumnSchema:
-        return TColumnSchema(
+    def clone(self) -> "Schema":
+        d = deepcopy(self.to_dict())
+        return Schema.from_dict(d)  # type: ignore
+
+    def _infer_column(self, k: str, v: Any, data_type: TDataType = None, is_variant: bool = False) -> TColumnSchema:
+        column_schema =  TColumnSchema(
             name=k,
             data_type=data_type or self._infer_column_type(v, k),
             nullable=not self._infer_hint("not_null", v, k),
@@ -323,6 +327,9 @@ class Schema:
             primary_key=self._infer_hint("primary_key", v, k),
             foreign_key=self._infer_hint("foreign_key", v, k)
         )
+        if is_variant:
+            column_schema["variant"] = is_variant
+        return column_schema
 
     def _coerce_null_value(self, table_columns: TTableSchemaColumns, table_name: str, col_name: str) -> None:
         if col_name in table_columns:
@@ -330,12 +337,12 @@ class Schema:
             if not existing_column["nullable"]:
                 raise CannotCoerceNullException(table_name, col_name)
 
-    def _coerce_non_null_value(self, table_columns: TTableSchemaColumns, table_name: str, col_name: str, v: Any, final: bool = False) -> Tuple[str, TColumnSchema, Any]:
+    def _coerce_non_null_value(self, table_columns: TTableSchemaColumns, table_name: str, col_name: str, v: Any, is_variant: bool = False) -> Tuple[str, TColumnSchema, Any]:
         new_column: TColumnSchema = None
         existing_column = table_columns.get(col_name)
 
         # infer type or get it from existing table
-        col_type = existing_column.get("data_type") if existing_column else self._infer_column_type(v, col_name, skip_preferred=final)
+        col_type = existing_column.get("data_type") if existing_column else self._infer_column_type(v, col_name, skip_preferred=is_variant)
         # get data type of value
         py_type = py_type_to_sc_type(type(v))
         # and coerce type if inference changed the python type
@@ -343,14 +350,14 @@ class Schema:
             coerced_v = coerce_value(col_type, py_type, v)
             # print(f"co: {py_type} -> {col_type} {v}")
         except (ValueError, SyntaxError):
-            if final:
+            if is_variant:
                 # this is final call: we cannot generate any more auto-variants
                 raise CannotCoerceColumnException(table_name, col_name, py_type, table_columns[col_name]["data_type"], v)
             # otherwise we must create variant extension to the table
             # pass final=True so no more auto-variants can be created recursively
             # TODO: generate callback so DLT user can decide what to do
             variant_col_name = self.naming.shorten_fragments(col_name, VARIANT_FIELD_FORMAT % py_type)
-            return self._coerce_non_null_value(table_columns, table_name, variant_col_name, v, final=True)
+            return self._coerce_non_null_value(table_columns, table_name, variant_col_name, v, is_variant=True)
 
         # if coerced value is variant, then extract variant value
         # note: checking runtime protocols with isinstance(coerced_v, SupportsVariant): is extremely slow so we check if callable as every variant is callable
@@ -359,10 +366,10 @@ class Schema:
             if isinstance(coerced_v, tuple):
                 # variant recovered so call recursively with variant column name and variant value
                 variant_col_name = self.naming.shorten_fragments(col_name, VARIANT_FIELD_FORMAT % coerced_v[0])
-                return self._coerce_non_null_value(table_columns, table_name, variant_col_name, coerced_v[1], final=True)
+                return self._coerce_non_null_value(table_columns, table_name, variant_col_name, coerced_v[1], is_variant=True)
 
         if not existing_column:
-            new_column = self._infer_column(col_name, v, data_type=col_type)
+            new_column = self._infer_column(col_name, v, data_type=col_type, is_variant=is_variant)
 
         return col_name, new_column, coerced_v
 

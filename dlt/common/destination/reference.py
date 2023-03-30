@@ -5,8 +5,7 @@ from typing import ClassVar, Final, Optional, Literal, Type, Protocol, Union, TY
 
 from dlt.common.configuration.utils import serialize_value
 from dlt.common.exceptions import IdentifierTooLongException, InvalidDestinationReference, UnknownDestinationModule
-from dlt.common.schema import Schema
-from dlt.common.schema.typing import TTableSchema
+from dlt.common.schema import Schema, TTableSchema, TSchemaTables
 from dlt.common.schema.exceptions import InvalidDatasetName
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration
@@ -92,8 +91,10 @@ class JobClientBase(ABC):
     def is_storage_initialized(self) -> bool:
         pass
 
-    def update_storage_schema(self) -> None:
+    def update_storage_schema(self, schema_update: Optional[TSchemaTables] = None) -> Optional[TSchemaTables]:
+        """Performs schema update according to held schema and/or schema update passed. Returns an update that was applied at the destination."""
         self._verify_schema_identifier_lengths()
+        return schema_update
 
     @abstractmethod
     def start_file_load(self, table: TTableSchema, file_path: str) -> LoadJob:

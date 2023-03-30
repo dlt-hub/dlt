@@ -105,7 +105,7 @@ def log_traces(config: Optional[BaseConfiguration], key: str, hint: Type[Any], v
         _RESOLVED_TRACES[path] = ResolvedValueTrace(key, resolved_trace.value, default_value, hint, resolved_trace.sections, resolved_trace.provider, config)
 
 
-def get_resolved_traces() -> Mapping[str, ResolvedValueTrace]:
+def get_resolved_traces() -> Dict[str, ResolvedValueTrace]:
     return _RESOLVED_TRACES
 
 

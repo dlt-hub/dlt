@@ -62,7 +62,8 @@ class TomlProvider(ConfigProvider):
                 if not isinstance(node, dict):
                     raise KeyError(k)
                 node = node[k]
-            return node, full_key
+            rv = node.unwrap() if isinstance(node, (TOMLContainer, TOMLItem)) else node
+            return rv, full_key
         except KeyError:
             return None, full_key
 

@@ -1,3 +1,4 @@
+import io
 import os
 import asyncio
 import datetime  # noqa: 251
@@ -8,14 +9,17 @@ import requests_mock
 
 import dlt
 
+from dlt.common import json
 from dlt.common.configuration.specs import CredentialsConfiguration
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
 from dlt.common.pipeline import ExtractInfo
 from dlt.common.runtime.telemetry import stop_telemetry
 from dlt.common.typing import DictStrAny, StrStr, TSecretValue
+
 from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.pipeline.pipeline import Pipeline
-from dlt.pipeline.trace import SerializableResolvedValueTrace, load_trace
+from dlt.pipeline.trace import PipelineTrace, SerializableResolvedValueTrace, load_trace
+from dlt.pipeline.track import slack_notify_load_success
 
 from tests.utils import preserve_environ, patch_home_dir, start_test_telemetry
 from tests.common.configuration.utils import toml_providers, environment
@@ -40,7 +44,7 @@ def test_create_trace(toml_providers: ConfigProvidersContext) -> None:
     assert s == databricks_creds
 
     extract_info = p.extract(inject_tomls())
-    trace = p._last_trace
+    trace = p.last_trace
     assert trace is not None
     assert p._trace is None
     assert len(trace.steps) == 1
@@ -66,6 +70,7 @@ def test_create_trace(toml_providers: ConfigProvidersContext) -> None:
     resolved = _find_resolved_value(trace.resolved_config_values, "credentials", ["databricks"])
     assert resolved.is_secret_hint is True
     assert resolved.value == databricks_creds
+    assert_trace_printable(trace)
 
     # extract with exception
     @dlt.source
@@ -86,27 +91,29 @@ def test_create_trace(toml_providers: ConfigProvidersContext) -> None:
     with pytest.raises(PipelineStepFailed):
         p.extract(async_exception())
 
-    trace = p._last_trace
+    trace = p.last_trace
     assert p._trace is None
     assert len(trace.steps) == 2
     step = trace.steps[1]
     assert step.step == "extract"
     assert isinstance(step.step_exception, str)
     assert isinstance(step.step_info, ExtractInfo)
+    assert_trace_printable(trace)
 
     # normalize
     norm_info = p.normalize()
-    trace = p._last_trace
+    trace = p.last_trace
     assert p._trace is None
     assert len(trace.steps) == 3
     step = trace.steps[2]
     assert step.step == "normalize"
     assert step.step_info is norm_info
+    assert_trace_printable(trace)
 
     # load
     os.environ["COMPLETED_PROB"] = "1.0"  # make it complete immediately
     load_info = p.load()
-    trace = p._last_trace
+    trace = p.last_trace
     assert p._trace is None
     assert len(trace.steps) == 4
     step = trace.steps[3]
@@ -116,10 +123,11 @@ def test_create_trace(toml_providers: ConfigProvidersContext) -> None:
     assert resolved.is_secret_hint is False
     assert resolved.value == "1.0"
     assert resolved.config_type_name == "DummyClientConfiguration"
+    assert_trace_printable(trace)
 
     # run resets the trace
     load_info = inject_tomls().run()
-    trace = p._last_trace
+    trace = p.last_trace
     assert p._trace is None
     assert len(trace.steps) == 4  # extract, normalize, load, run
     step = trace.steps[-1]  # the last one should be run
@@ -131,22 +139,25 @@ def test_create_trace(toml_providers: ConfigProvidersContext) -> None:
     assert step.step == "load"
     assert step.step_info is load_info  # same load info
     assert trace.steps[0].step_info is not extract_info
+    assert_trace_printable(trace)
 
 
 def test_save_load_trace() -> None:
     os.environ["COMPLETED_PROB"] = "1.0"
     info = dlt.pipeline().run([1,2,3], table_name="data", destination="dummy")
     pipeline = dlt.pipeline()
-    trace = load_trace(info.pipeline.working_dir)
+    # will get trace from working dir
+    trace = pipeline.last_trace
     assert trace is not None
     assert pipeline._trace is None
-    assert len(trace.steps) == 4 == len(info.pipeline._last_trace.steps)
+    assert len(trace.steps) == 4 == len(info.pipeline.last_trace.steps)
     step = trace.steps[-2]  # the previoius to last one should be load
     assert step.step == "load"
     resolved = _find_resolved_value(trace.resolved_config_values, "completed_prob", [])
     assert resolved.is_secret_hint is False
     assert resolved.value == "1.0"
     assert resolved.config_type_name == "DummyClientConfiguration"
+    assert_trace_printable(trace)
 
     # exception also saves trace
     @dlt.resource
@@ -169,13 +180,14 @@ def test_save_load_trace() -> None:
     assert run_step.step == "run"
     assert run_step.step_exception is not None
     assert step.step_exception == run_step.step_exception
+    assert_trace_printable(trace)
 
 
 def test_disable_trace(environment: StrStr) -> None:
     environment["ENABLE_RUNTIME_TRACE"] = "false"
     environment["COMPLETED_PROB"] = "1.0"
     dlt.pipeline().run([1,2,3], table_name="data", destination="dummy")
-    assert dlt.pipeline()._last_trace is None
+    assert dlt.pipeline().last_trace is None
 
 
 def test_trace_on_restore_state(environment: StrStr) -> None:
@@ -188,7 +200,7 @@ def test_trace_on_restore_state(environment: StrStr) -> None:
 
     with patch.object(Pipeline, 'sync_destination', _sync_destination_patch):
         dlt.pipeline().run([1,2,3], table_name="data", destination="dummy")
-        assert len(dlt.pipeline()._last_trace.steps) == 4
+        assert len(dlt.pipeline().last_trace.steps) == 4
 
 
 def test_load_none_trace() -> None:
@@ -245,7 +257,8 @@ def test_slack_hook(environment: StrStr) -> None:
     environment["RUNTIME__SLACK_INCOMING_HOOK"] = hook_url
     with requests_mock.mock() as m:
         m.post(hook_url, json={})
-        dlt.pipeline().run([1,2,3], table_name="data", destination="dummy")
+        load_info = dlt.pipeline().run([1,2,3], table_name="data", destination="dummy")
+        assert slack_notify_load_success(load_info.pipeline.runtime_config.slack_incoming_hook, load_info, load_info.pipeline.last_trace) == 200
     assert m.called
     message = m.last_request.json()
     assert "rudolfix" in message["text"]
@@ -255,15 +268,17 @@ def test_slack_hook(environment: StrStr) -> None:
 def test_broken_slack_hook(environment: StrStr) -> None:
     environment["COMPLETED_PROB"] = "1.0"
     environment["RUNTIME__SLACK_INCOMING_HOOK"] = "http://localhost:22"
-    info = dlt.pipeline().run([1,2,3], table_name="data", destination="dummy")
-    pipeline = dlt.pipeline()
-    assert pipeline._last_trace is not None
-    assert pipeline._trace is None
-    trace = load_trace(info.pipeline.working_dir)
-    assert len(trace.steps) == 4
-    run_step = trace.steps[-1]
-    assert run_step.step == "run"
-    assert run_step.step_exception is None
+    load_info = dlt.pipeline().run([1,2,3], table_name="data", destination="dummy")
+    # connection error
+    assert slack_notify_load_success(load_info.pipeline.runtime_config.slack_incoming_hook, load_info, load_info.pipeline.last_trace) == -1
+    # pipeline = dlt.pipeline()
+    # assert pipeline.last_trace is not None
+    # assert pipeline._trace is None
+    # trace = load_trace(info.pipeline.working_dir)
+    # assert len(trace.steps) == 4
+    # run_step = trace.steps[-1]
+    # assert run_step.step == "run"
+    # assert run_step.step_exception is None
 
 
 def _find_resolved_value(resolved: List[SerializableResolvedValueTrace], key: str, sections: List[str]) -> SerializableResolvedValueTrace:
@@ -280,3 +295,12 @@ SENTRY_SENT_ITEMS = []
 def _mock_sentry_before_send(event: DictStrAny, _unused_hint: Any = None) -> DictStrAny:
     SENTRY_SENT_ITEMS.append(event)
     return event
+
+def assert_trace_printable(trace: PipelineTrace) -> None:
+    str(trace)
+    trace.asstr(0)
+    trace.asstr(1)
+    json.dumps(trace)
+    with io.BytesIO() as b:
+        json.typed_dump(trace, b)
+        b.getvalue()

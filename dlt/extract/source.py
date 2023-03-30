@@ -193,17 +193,8 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
     @property
     def is_parametrized(self) -> bool:
         """Checks if resource has unbound parameters"""
-        # head = self._pipe.gen
-        # if not callable(head):
-        #     return False
-        # # must be callable without args
-        # skip_items_arg = 1 if self.is_transformer else 0
-        # sig = inspect.signature(head)
-        # no_item_sig = sig.replace(parameters=list(sig.parameters.values())[skip_items_arg:])
-        # # bind parameters to no_item_sig
         try:
             self._pipe.ensure_gen_bound()
-            # no_item_sig.bind()
             return False
         except (TypeError, ParametrizedResourceUnbound):
             return True

@@ -141,7 +141,7 @@ def source(func: Optional[AnyFun] = None, /, name: str = None, max_table_nesting
                 raise SourceDataIsNone(name)
 
             # convert to source
-            return DltSource.from_data(name, source_section, schema, rv)
+            return DltSource.from_data(name, source_section, schema.clone(), rv)
 
         # get spec for wrapped function
         SPEC = get_fun_spec(conf_f)
@@ -280,7 +280,6 @@ def resource(
         else:
             # wrap source extraction function in configuration with section
             func_module = inspect.getmodule(f)
-            # print(f"STANDALONE RES: {f.__name__} {(known_sections.SOURCES, _get_source_section_name(func_module), resource_name)}")
             resource_sections = (known_sections.SOURCES, _get_source_section_name(func_module), resource_name)
             # standalone resource will prefer existing section context when resolving config values
             # this lets the source to override those values and provide common section for all config values for resources present in that source

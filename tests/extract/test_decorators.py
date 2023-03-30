@@ -293,6 +293,19 @@ def test_source_schema_context() -> None:
     _assert_source_schema(created_global(), "global")
 
 
+def test_source_schema_modified() -> None:
+
+    @dlt.source
+    def schema_test():
+        return dlt.resource(["A", "B"], name="alpha")
+
+    s = schema_test()
+    schema = s.discover_schema()
+    schema.update_schema(new_table("table"))
+    s = schema_test()
+    assert "table" not in s.discover_schema()._schema_tables
+
+
 @pytest.mark.skip
 def test_resource_sets_invalid_write_disposition() -> None:
     # write_disposition="xxx" # this will fail schema

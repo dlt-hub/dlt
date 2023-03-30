@@ -3,9 +3,17 @@ from dlt.common.exceptions import DltException
 from dlt.destinations.exceptions import DestinationTerminalException
 
 
-class LoadException(DltException):
-    def __init__(self, msg: str) -> None:
-        super().__init__(msg)
+# class LoadException(DltException):
+#     def __init__(self, msg: str) -> None:
+#         super().__init__(msg)
+
+
+class LoadClientJobFailed(DestinationTerminalException):
+    def __init__(self, load_id: str, job_id: str, failed_message: str) -> None:
+        self.load_id = load_id
+        self.job_id = job_id
+        self.failed_message = failed_message
+        super().__init__(f"Job for {job_id} failed terminally in load {load_id} with message {failed_message}")
 
 
 class LoadClientUnsupportedFileFormats(DestinationTerminalException):

@@ -3,10 +3,11 @@ import pytest
 
 import dlt
 from dlt.common.configuration.resolve import resolve_configuration
-from dlt.common.configuration.specs.exceptions import NativeValueError
+from dlt.common.configuration.utils import get_resolved_traces
 
-from dlt.destinations.duckdb.configuration import DuckDbCredentials, DuckDbClientConfiguration, DEFAULT_DUCK_DB_NAME
+from dlt.destinations.duckdb.configuration import DuckDbClientConfiguration, DEFAULT_DUCK_DB_NAME
 
+from tests.load.pipeline.utils import drop_pipeline
 from tests.utils import patch_home_dir, autouse_test_storage, preserve_environ, TEST_STORAGE_ROOT
 
 
@@ -22,7 +23,11 @@ def delete_default_duckdb_credentials() -> None:
 def test_duckdb_open_conn_default() -> None:
     delete_quack_db()
     try:
+        print(get_resolved_traces().clear())
         c = resolve_configuration(DuckDbClientConfiguration(dataset_name="test_dataset"))
+        print(str(c.credentials))
+        print(str(os.getcwd()))
+        print(get_resolved_traces())
         conn = c.credentials.borrow_conn(read_only=False)
         assert c.credentials._conn_borrows == 1
         assert c.credentials._conn_owner is True
@@ -41,6 +46,8 @@ def test_duckdb_open_conn_default() -> None:
 def test_duckdb_database_path() -> None:
     # resolve without any path provided
     c = resolve_configuration(DuckDbClientConfiguration(dataset_name="test_dataset"))
+    print(str(c.credentials))
+    print(str(os.getcwd()))
     assert c.credentials.database.lower() == os.path.abspath("quack.duckdb").lower()
     # resolve without any path but with pipeline context
     p = dlt.pipeline(pipeline_name="quack_pipeline")
