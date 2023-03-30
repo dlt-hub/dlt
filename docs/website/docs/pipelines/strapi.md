@@ -6,14 +6,14 @@ Since the endpoints that will be available in Strapi depend on your setup, in or
 
 ## Grab API token
 
-1. Login to your Strapi account.
-2. Click on `⚙️ settings` in the left-hand sidebar menu.
-3. In the settings menu, go to ‘API tokens’ option that is present under global settings.
-4. Click on “Create new API token”
-5. Fill in the details like Name, description, and token duration.
-6. In the token type drop-down menu, you can select Read Only, Full access or custom permissions for the API. (If setting custom permission, make sure to select `find` and `findOne`.
-7. API token will be displayed on clicking the “save” button.
-8. Copy the token displayed. (The token created will be used in configuring dlt secrets )
+1. Log in to your Strapi account
+2. Click on `⚙️ settings` in the left-hand sidebar menu
+3. In the settings menu, go to the `API tokens` option that is present under global settings
+4. Click on `Create new API token`
+5. Fill in the details like `Name`, `description`, and `token duration`
+6. In the token type drop-down menu, you can select `Read Only`, `Full access` or custom permissions for the API (note: if setting a custom permission, please make sure to select `find` and `findOne`.
+7. API token will be displayed on clicking the “save” button
+8. Copy the token displayed (i.e. the token will be used in configuring `dlt` secrets)
 
 ## Initialize the pipeline
 
@@ -21,7 +21,7 @@ Initialize the pipeline with the following command:
 
 `dlt init strapi <destination>`
 
-For destination we could use `bigquery` or `duckdb`,  or see the [destination docs](https://dlthub.com/docs/destinations) for other options.
+For destination, you can use `bigquery`, `duckdb`, or one of the other destinations mentioned [here](https://dlthub.com/docs/destinations).
 
 Running this command will create a directory with the following structure:
 
@@ -42,7 +42,7 @@ strapi_pipeline
 
 ## **Add credentials**
 
-1. In the `.dlt` folder, you will find `secrets.toml`, which looks like this:
+In the `.dlt` folder, you will find `secrets.toml`, which looks like this:
 
 ```python
 # put your secret values and credentials here. do not share this file and do not push it to github
@@ -57,13 +57,10 @@ client_email = "set me up" # Service account email
 location = "set me up" # Project location (e.g. “US”)
 ```
 
-1. Replace `"api_secret_key"` with the API token you copied above.
-2. The domain is created automatically by Strapi. 
-3. When you run the Strapi project and a new tab opens in the browser, the URL in the address bar of that tab is the domain) 
-    
-    For example, `[my-strapi.up.railway.app](http://my-strapi.up.railway.app)` ( set it as the domain in `secrets.toml`)
-    
-4. Follow the instructions in the [Destinations](https://dlthub.com/docs/destinations) document to add credentials for your chosen destination.
+1. Replace `"api_secret_key"` with the API token you copied above
+2. The domain is created automatically by Strapi
+3. When you run the Strapi project and a new tab opens in the browser, the URL in the address bar of that tab is the domain). For example, `[my-strapi.up.railway.app](http://my-strapi.up.railway.app)`
+4. Follow the instructions in [Destinations](https://dlthub.com/docs/destinations) to add credentials for your chosen destination
 
 ## Add your endpoint and run  **`strapi_pipeline.py`**
 
@@ -88,7 +85,7 @@ if __name__ == "__main__" :
     load(endpoints)
 ```
 
-In the sample script above, we have one list with one endpoint called “athletes”. Add other endpoints (the endpoints your Strapi setup has) to this list to load them. Afterwards run this file to load the data.
+In the sample script above, we have one list with one endpoint called “athletes”. Add other endpoints (i.e. the endpoints your Strapi setup has) to this list to load them. Afterwards, run this file to load the data.
 
 ## Run the pipeline
 
@@ -103,4 +100,4 @@ In the sample script above, we have one list with one endpoint called “athlete
 3. To make sure that everything is loaded as expected, use the command:
 
 `dlt pipeline <pipeline_name> show`
-(For example, the pipeline_name for the above pipeline is `strapi`, you may also use any custom name instead.)
+(For example, the pipeline_name for the above pipeline is `strapi_pipeline`, you may also use any custom name instead)
