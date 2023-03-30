@@ -52,7 +52,7 @@ def test_airflow_dag_source_task_execution():
         dataset_name="test_dataset",
         full_refresh=False,
         dag=dag
-    ) as _pipeline:
+    ):
         DltAirflowSource(
             name="test_source",
             source=mock_source(),

@@ -1,6 +1,5 @@
-from datetime import datetime
-
 from airflow import DAG
+from pendulum import datetime
 
 import dlt
 from dlt.helpers.airflow.pipeline.pipeline import DltAirflowPipeline
