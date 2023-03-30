@@ -1,5 +1,4 @@
-import logging
-from typing import Any
+from typing import Any, Dict
 
 from dlt.common.exceptions import MissingDependencyException
 
@@ -17,7 +16,7 @@ class DltAirflowSource(BaseOperator):
     A custom Airflow operator for running pipelines on DltSource objects.
     """
 
-    def __init__(self, name: str, source: DltSource, **kwargs: dict) -> None:
+    def __init__(self, name: str, source: DltSource, **kwargs: Dict) -> None:
         """
         Initializes a new instance of the DltAirflowSource class.
 
