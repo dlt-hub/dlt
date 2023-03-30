@@ -567,7 +567,10 @@ class PipeIterator(Iterator[PipeItem]):
             return self._resolve_futures()
 
         if future.exception():
-            raise future.exception()
+            ex = future.exception()
+            if isinstance(ex, (PipelineException, ExtractorException, DltSourceException, PipeException)):
+                raise ex
+            raise ResourceExtractionError(pipe.name, future, str(ex), "future") from ex
 
         item = future.result()
         if isinstance(item, DataItemWithMeta):

@@ -8,7 +8,7 @@ import pytest
 import dlt
 from dlt.common import sleep
 from dlt.common.typing import TDataItems
-from dlt.extract.exceptions import CreatePipeException
+from dlt.extract.exceptions import CreatePipeException, ResourceExtractionError
 from dlt.extract.typing import DataItemWithMeta, FilterItem, MapItem, YieldMapItem
 from dlt.extract.pipe import ManagedPipeIterator, Pipe, PipeItem, PipeIterator
 
@@ -552,8 +552,9 @@ def assert_pipes_closed(raise_gen, long_gen) -> None:
 
     pit: PipeIterator = None
     with PipeIterator.from_pipe(Pipe.from_data("failing", raise_gen, parent=Pipe.from_data("endless", long_gen()))) as pit:
-        with pytest.raises(RuntimeError):
+        with pytest.raises(ResourceExtractionError) as py_ex:
             list(pit)
+        assert isinstance(py_ex.value.__cause__, RuntimeError)
     # it got closed
     assert pit._sources == []
     assert close_pipe_got_exit is True
@@ -563,8 +564,9 @@ def assert_pipes_closed(raise_gen, long_gen) -> None:
     close_pipe_got_exit = False
     close_pipe_yielding = False
     pit = ManagedPipeIterator.from_pipe(Pipe.from_data("failing", raise_gen, parent=Pipe.from_data("endless", long_gen())))
-    with pytest.raises(RuntimeError):
+    with pytest.raises(ResourceExtractionError) as py_ex:
         list(pit)
+    assert isinstance(py_ex.value.__cause__, RuntimeError)
     assert pit._sources == []
     assert close_pipe_got_exit is True
     # while long gen was still yielding

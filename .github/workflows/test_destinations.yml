@@ -10,7 +10,7 @@ on:
 
 env:
   DESTINATION__POSTGRES__CREDENTIALS: postgresql://loader@dlttests.cwz0jfxu0m7m.eu-central-1.rds.amazonaws.com:5432/dlt_data
-  DESTINATION__REDSHIFT__CREDENTIALS: postgresql://loader@3.73.90.3:5439/chat_analytics_rasa_ci
+  DESTINATION__REDSHIFT__CREDENTIALS: postgresql://loader@3.73.90.3:5439/dlt_ci
   DESTINATION__DUCKDB__CREDENTIALS: duckdb:///_storage/test_quack.duckdb
   # password is the same so it will be shared
   CREDENTIALS__PASSWORD: ${{ secrets.PG_PASSWORD }}
