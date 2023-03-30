@@ -2,7 +2,6 @@ import io
 from copy import deepcopy
 import hashlib
 import os
-import shutil
 import contextlib
 from subprocess import CalledProcessError
 from typing import Any, List, Tuple
@@ -14,66 +13,22 @@ import dlt
 from dlt.common import git
 from dlt.common.configuration.paths import make_dlt_project_path
 from dlt.common.configuration.providers import CONFIG_TOML, SECRETS_TOML, SecretsTomlProvider
-from dlt.common.pipeline import get_dlt_repos_dir
 from dlt.common.runners import Venv
 from dlt.common.storages.file_storage import FileStorage
-
-from dlt.common.utils import set_working_dir, uniq_id
+from dlt.common.utils import set_working_dir
 
 
 from dlt.cli import init_command, echo
-from dlt.cli.init_command import PIPELINES_MODULE_NAME, DEFAULT_PIPELINES_REPO, utils as cli_utils, files_ops, _select_pipeline_files
+from dlt.cli.init_command import PIPELINES_MODULE_NAME, utils as cli_utils, files_ops, _select_pipeline_files
 from dlt.cli.exceptions import CliCommandException
 from dlt.extract.decorators import _SOURCES
 from dlt.reflection.script_visitor import PipelineScriptVisitor
 from dlt.reflection import names as n
 
+from tests.cli.utils import echo_default_choice, repo_dir, project_files, cloned_pipeline, get_repo_dir, get_project_files
 from tests.common.utils import modify_and_commit_file
 from tests.pipeline.utils import drop_pipeline
-from tests.utils import ALL_DESTINATIONS, preserve_environ, autouse_test_storage, TEST_STORAGE_ROOT, clean_test_storage, unload_modules
-
-
-INIT_REPO_LOCATION = DEFAULT_PIPELINES_REPO
-INIT_REPO_BRANCH = "master"
-PROJECT_DIR = os.path.join(TEST_STORAGE_ROOT, "project")
-
-
-@pytest.fixture(autouse=True)
-def echo_default_choice() -> None:
-    """Always answer default in CLI interactions"""
-    echo.ALWAYS_CHOOSE_DEFAULT = True
-    yield
-    echo.ALWAYS_CHOOSE_DEFAULT = False
-
-
-@pytest.fixture(scope="module")
-def cloned_pipeline() -> FileStorage:
-    return git.get_fresh_repo_files(INIT_REPO_LOCATION, get_dlt_repos_dir(), branch=INIT_REPO_BRANCH)
-
-
-@pytest.fixture
-def repo_dir(cloned_pipeline: FileStorage) -> str:
-    return get_repo_dir(cloned_pipeline)
-
-
-@pytest.fixture
-def project_files() -> FileStorage:
-    project_files = get_project_files()
-    with set_working_dir(project_files.storage_path):
-        yield project_files
-
-
-def get_repo_dir(cloned_pipeline: FileStorage) -> str:
-    repo_dir = os.path.abspath(os.path.join(TEST_STORAGE_ROOT, f"pipelines_repo_{uniq_id()}"))
-    # copy the whole repo into TEST_STORAGE_ROOT
-    shutil.copytree(cloned_pipeline.storage_path, repo_dir)
-    return repo_dir
-
-
-def get_project_files() -> FileStorage:
-    _SOURCES.clear()
-    # project dir
-    return FileStorage(PROJECT_DIR, makedirs=True)
+from tests.utils import ALL_DESTINATIONS, preserve_environ, autouse_test_storage, clean_test_storage, unload_modules
 
 
 def get_pipeline_candidates(repo_dir: str) -> List[str]:

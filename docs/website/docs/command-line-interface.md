@@ -51,13 +51,13 @@ Displays current state of the pipeline: dataset name, destination, list of schem
 
 ### Get the load package information
 ```
-dlt pipeline <pipeline name> load_package <load id>
+dlt pipeline <pipeline name> load-package <load id>
 ```
 Shows information on a load package with given `load_id`. The `load_id` parameter defaults to the most recent package. Package information includes its state (`COMPLETED/PROCESSED`) and list of all jobs in a package with their statuses, file sizes, types and in case of failed jobs - the error messages from the destination. With verbose flag set `dlt pipeline -v ...` you can also see the list of all tables and columns created at the destination during loading of that package.
 
 ### List all failed jobs
 ```
-dlt pipeline <pipeline name> failed_jobs
+dlt pipeline <pipeline name> failed-jobs
 ```
 This commands scans all the load packages looking for failed jobs and then displays information on files that got loaded and the failure message from the destination.
 

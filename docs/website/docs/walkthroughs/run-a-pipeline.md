@@ -57,11 +57,11 @@ $ dlt pipeline chess_pipeline info
 You can inspect the package, get list of jobs and in case of failed ones, get the associated error messages.
 ```sh
 $ echo "See the most recent load package info"
-$ dlt pipeline chess_pipeline load_package
+$ dlt pipeline chess_pipeline load-package
 $ echo "See package info with given load i"
-$ dlt pipeline chess_pipeline load_package 1679931001.985323
+$ dlt pipeline chess_pipeline load-package 1679931001.985323
 $ echo "Also see the schema changes introduced in the package"
-$ dlt pipeline -v chess_pipeline load_package
+$ dlt pipeline -v chess_pipeline load-package
 ```
 
 `dlt` stores the trace of the most recent data load. The trace contains information on the pipeline processing steps: `extract`, `normalize` and `load`. It also shows the last `load_info`:
@@ -143,7 +143,7 @@ What now?
 
 Investigate further with following command:
 ```sh
-$ dlt pipeline chess_pipeline failed_jobs
+$ dlt pipeline chess_pipeline failed-jobs
 ```
 to get following output:
 ```
