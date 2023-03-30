@@ -3,9 +3,9 @@ from dlt.common import json, logger
 
 
 def send_slack_message(incoming_hook: str, message: str, is_markdown: bool = True) -> None:
-    """Sends a `message` to  Slack `incoming_hook`, by default formatted as markdown. Returns http status code"""
+    """Sends a `message` to  Slack `incoming_hook`, by default formatted as markdown."""
     r = requests.post(incoming_hook,
-        data= json.dumps({
+        data = json.dumps({
             "text": message,
             "mrkdwn": is_markdown
             }

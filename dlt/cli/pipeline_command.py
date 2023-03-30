@@ -1,5 +1,3 @@
-import os
-
 import yaml
 import dlt
 from dlt.cli.exceptions import CliCommandException
@@ -43,7 +41,7 @@ def pipeline_command(operation: str, pipeline_name: str, pipelines_dir: str, ver
         for k, v in state.items():
             if not isinstance(v, dict):
                 fmt.echo("%s: %s" % (fmt.style(k, fg="green"), v))
-        if "sources" in state and state["sources"]:
+        if state.get("sources"):
             fmt.echo()
             fmt.secho("sources:", fg="green")
             if verbosity > 0:
@@ -86,13 +84,13 @@ def pipeline_command(operation: str, pipeline_name: str, pipelines_dir: str, ver
             return
         fmt.echo(trace.asstr(verbosity))
 
-    if operation == "failed_jobs":
+    if operation == "failed-jobs":
         completed_loads = p.list_completed_load_packages()
         normalized_loads = p.list_normalized_load_packages()
         for load_id in completed_loads + normalized_loads:  # type: ignore
             fmt.echo("Checking failed jobs in load id '%s'" % fmt.bold(load_id))
             failed_jobs = p.list_failed_jobs_in_package(load_id)
-            if len(failed_jobs) > 0:
+            if failed_jobs:
                 for failed_job in p.list_failed_jobs_in_package(load_id):
                     fmt.echo("JOB: %s(%s)" % (fmt.bold(failed_job.job_file_info.job_id()), fmt.bold(failed_job.job_file_info.table_name)))
                     fmt.echo("JOB file type: %s" % fmt.bold(failed_job.job_file_info.file_format))
@@ -101,8 +99,8 @@ def pipeline_command(operation: str, pipeline_name: str, pipelines_dir: str, ver
                         fmt.echo(failed_job.asstr(verbosity))
                     fmt.secho(failed_job.failed_message, fg="red")
                     fmt.echo()
-                else:
-                    fmt.echo("No failed jobs found")
+            else:
+                fmt.echo("No failed jobs found")
 
 
     if operation == "sync":
@@ -110,7 +108,7 @@ def pipeline_command(operation: str, pipeline_name: str, pipelines_dir: str, ver
             p = p.drop()
             p.sync_destination()
 
-    if operation == "load_package":
+    if operation == "load-package":
         if not load_id:
             packages = sorted(p.list_normalized_load_packages())
             if not packages:
