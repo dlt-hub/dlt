@@ -574,6 +574,7 @@ def test_set_get_local_value() -> None:
     assert p.state["_local"][new_val] == new_val
 
 def test_changed_write_disposition():
+    os.environ["COMPLETED_PROB"] = "1.0"
     pipeline_name = "pipe_" + uniq_id()
     p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
 

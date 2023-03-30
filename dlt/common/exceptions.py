@@ -143,3 +143,11 @@ class DestinationHasFailedJobs(DestinationTerminalException):
         self.destination_name = destination_name
         self.load_id = load_id
         super().__init__(f"Destination {destination_name} has failed jobs in load package {load_id}")
+
+
+
+class PipelineException(DltException):
+    def __init__(self, pipeline_name: str, msg: str) -> None:
+        """Base class for all pipeline exceptions. Should not be raised."""
+        self.pipeline_name = pipeline_name
+        super().__init__(msg)
