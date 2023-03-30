@@ -15,7 +15,7 @@ from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.typing import AnyFun, TDataItems
 from dlt.common.utils import get_callable_name
 
-from dlt.extract.exceptions import CreatePipeException, InvalidStepFunctionArguments, InvalidTransformerGeneratorFunction, ParametrizedResourceUnbound, PipeItemProcessingError, PipeNotBoundToData
+from dlt.extract.exceptions import CreatePipeException, InvalidStepFunctionArguments, InvalidTransformerGeneratorFunction, ParametrizedResourceUnbound, PipeItemProcessingError, PipeNotBoundToData, ResourceExtractionError
 from dlt.extract.typing import DataItemWithMeta, TPipedDataItems
 
 if TYPE_CHECKING:
@@ -478,6 +478,8 @@ class PipeIterator(Iterator[PipeItem]):
                     next_item = next_item.data
             except TypeError as ty_ex:
                 raise InvalidStepFunctionArguments(pipe_item.pipe.name, get_callable_name(step), inspect.signature(step), str(ty_ex))
+            except Exception as ex:
+                raise ResourceExtractionError(pipe_item.pipe.name, step, str(ex), "transform") from ex
             # create next pipe item if a value was returned. A None means that item was consumed/filtered out and should not be further processed
             if next_item is not None:
                 pipe_item = ResolvablePipeItem(next_item, pipe_item.step + 1, pipe_item.pipe, next_meta)
@@ -595,6 +597,8 @@ class PipeIterator(Iterator[PipeItem]):
             # remove empty iterator and try another source
             self._sources.pop()
             return self._get_source_item()
+        except Exception as ex:
+            raise ResourceExtractionError(pipe.name, gen, str(ex), "generator") from ex
 
     @staticmethod
     def clone_pipes(pipes: Sequence[Pipe]) -> Sequence[Pipe]:

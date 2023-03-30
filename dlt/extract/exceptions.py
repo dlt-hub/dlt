@@ -1,6 +1,8 @@
-from inspect import Signature
+from inspect import Signature, isgenerator
 from typing import Any, Set, Type
+
 from dlt.common.exceptions import DltException
+from dlt.common.utils import get_callable_name
 
 
 class ExtractorException(DltException):
@@ -50,6 +52,14 @@ class InvalidStepFunctionArguments(PipeException):
         self.func_name = func_name
         self.sig = sig
         super().__init__(pipe_name, f"Unable to call {func_name}: {call_error}. The mapping/filtering function {func_name} requires first argument to take data item and optional second argument named 'meta', but the signature is {sig}")
+
+
+class ResourceExtractionError(PipeException):
+    def __init__(self, pipe_name: str, gen: Any, msg: str, kind: str) -> None:
+        self.msg = msg
+        self.kind = kind
+        self.func_name = gen.__name__ if isgenerator(gen) else get_callable_name(gen) if callable(gen) else str(gen)
+        super().__init__(pipe_name, f"extraction of resource {pipe_name} in {kind} {self.func_name} caused an exception: {msg}")
 
 
 class ResourceNameMissing(DltResourceException):
