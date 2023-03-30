@@ -29,9 +29,10 @@ def test_default_pipeline_names(destination_name: str, use_single_dataset: bool)
     p.config.use_single_dataset = use_single_dataset
     # this is a name of executing test harness or blank pipeline on windows
     possible_names = ["dlt_pytest", "dlt_pipeline"]
+    possible_dataset_names = ["dlt_pytest_dataset", "dlt_pipeline_dataset"]
     assert p.pipeline_name in possible_names
     assert p.pipelines_dir == os.path.abspath(os.path.join(TEST_STORAGE_ROOT, ".dlt", "pipelines"))
-    assert p.dataset_name in possible_names
+    assert p.dataset_name in possible_dataset_names
     assert p.destination is None
     assert p.default_schema_name is None
 
@@ -72,6 +73,14 @@ def test_default_pipeline_names(destination_name: str, use_single_dataset: bool)
         # loaded to separate data sets
         assert_table(p, "data_fun", data, info=info)
         assert_table(p, "data_fun", data, schema_name="names", info=info)
+
+
+@pytest.mark.parametrize('destination_name,use_single_dataset', itertools.product(ALL_DESTINATIONS, [True, False]))
+def test_default_dataset_name(destination_name: str, use_single_dataset: bool) -> None:
+    # Check if dataset_name does not collide with pipeline_name
+    data = ["a", "b", "c"]
+    info = dlt.run(data, destination=destination_name, table_name="data")
+    assert_table(info.pipeline, "data", data, info=info)
 
 
 @pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
