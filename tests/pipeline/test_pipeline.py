@@ -28,11 +28,12 @@ def test_default_pipeline() -> None:
     p = dlt.pipeline()
     # this is a name of executing test harness or blank pipeline on windows
     possible_names = ["dlt_pytest", "dlt_pipeline"]
+    possible_dataset_names = ["dlt_pytest_dataset", "dlt_pipeline_dataset"]
     assert p.pipeline_name in possible_names
     assert p.pipelines_dir == os.path.abspath(os.path.join(TEST_STORAGE_ROOT, ".dlt", "pipelines"))
     assert p.runtime_config.pipeline_name == p.pipeline_name
     # dataset that will be used to load data is the pipeline name
-    assert p.dataset_name in possible_names
+    assert p.dataset_name in possible_dataset_names
     assert p.destination is None
     assert p.default_schema_name is None
 
@@ -71,7 +72,7 @@ def test_pipeline_with_non_alpha_name() -> None:
     p = dlt.pipeline(pipeline_name=name)
     assert p.pipeline_name == name
     # default dataset is set
-    assert p.dataset_name == "another_pipeline_8329x"
+    assert p.dataset_name == "another_pipeline_8329x_dataset"
     # also pipeline name in runtime must be correct
     assert p.runtime_config.pipeline_name == p.pipeline_name
 
@@ -406,6 +407,17 @@ def test_pipeline_state_on_extract_exception() -> None:
     assert p.schema_names == p._schema_storage.list_schemas()
 
 
+def test_run_with_table_name_exceeding_path_length() -> None:
+    pipeline_name = "pipe_" + uniq_id()
+    # os.environ["COMPLETED_PROB"] = "1.0"  # make it complete immediately
+    p = dlt.pipeline(pipeline_name=pipeline_name)
+
+    # we must fix that
+    with pytest.raises(PipelineStepFailed) as sf_ex:
+        p.extract([1, 2, 3], table_name="TABLE_" + "a" * 230)
+    assert isinstance(sf_ex.value.__context__, OSError)
+
+
 @pytest.mark.skip("Not implemented")
 def test_extract_exception() -> None:
     # make sure that PipelineStepFailed contains right step information
@@ -419,7 +431,7 @@ def test_extract_all_data_types() -> None:
     pass
 
 
-def test_set_get_local_Value() -> None:
+def test_set_get_local_value() -> None:
     p = dlt.pipeline(destination="dummy", full_refresh=True)
     value = uniq_id()
     # value is set
@@ -438,3 +450,20 @@ def test_set_get_local_Value() -> None:
 
     p.extract(_w_local_state)
     assert p.state["_local"][new_val] == new_val
+
+def test_changed_write_disposition():
+    pipeline_name = "pipe_" + uniq_id()
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+
+    @dlt.resource
+    def resource_1():
+        yield [1, 2, 3]
+
+    p.run(resource_1, write_disposition="append")
+    assert p.default_schema.get_table("resource_1")["write_disposition"] == "append"
+
+    p.run(resource_1, write_disposition="append")
+    assert p.default_schema.get_table("resource_1")["write_disposition"] == "append"
+
+    p.run(resource_1, write_disposition="replace")
+    assert p.default_schema.get_table("resource_1")["write_disposition"] == "replace"

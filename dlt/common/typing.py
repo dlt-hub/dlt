@@ -4,6 +4,9 @@ from re import Pattern as _REPattern
 from typing import Callable, Dict, Any, Final, Literal, List, Mapping, NewType, Tuple, Type, TypeVar, Generic, Protocol, TYPE_CHECKING, Union, runtime_checkable, get_args, get_origin
 from typing_extensions import TypeAlias, ParamSpec, Concatenate
 
+from dlt.common.pendulum import timedelta
+
+
 if TYPE_CHECKING:
     from _typeshed import StrOrBytesPath
     # from typing_extensions import ParamSpec
@@ -26,9 +29,10 @@ AnyFun: TypeAlias = Callable[..., Any]
 TFun = TypeVar("TFun", bound=AnyFun)  # any function
 TAny = TypeVar("TAny", bound=Any)
 TAnyClass = TypeVar("TAnyClass", bound=object)
+TimedeltaSeconds = Union[int, float, timedelta]
 # represent secret value ie. coming from Kubernetes/Docker secrets or other providers
 TSecretValue = NewType("TSecretValue", Any)  # type: ignore
-TDataItem: TypeAlias = object  # a single data item as extracted from data source
+TDataItem: TypeAlias = Any  # a single data item as extracted from data source
 TDataItems: TypeAlias = Union[TDataItem, List[TDataItem]]  # a single or many data items as extracted from the data source
 
 ConfigValue: None = None  # a value of type None indicating argument that may be injected by config provider

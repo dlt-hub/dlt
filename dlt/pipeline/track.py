@@ -96,7 +96,7 @@ def on_end_trace_step(trace: PipelineRuntimeTrace, step: PipelineStepTrace, pipe
     dlthub_telemetry_track("pipeline", step.step, {
         "elapsed": (step.finished_at - trace.started_at).total_seconds(),
         "success": step.step_exception is None,
-        "destination_name": pipeline.destination.__name__.split(".")[-1],
+        "destination_name": pipeline.destination.__name__.split(".")[-1] if pipeline.destination else None,
         "transaction_id": trace.transaction_id
     })
 

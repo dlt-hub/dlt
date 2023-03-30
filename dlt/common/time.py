@@ -1,8 +1,9 @@
 import contextlib
-from typing import Any, Optional, Union  # noqa
+from typing import Any, Optional, Union, overload  # noqa
 import datetime  # noqa: I251
 
-from dlt.common.pendulum import pendulum
+from dlt.common.pendulum import pendulum, timedelta
+from dlt.common.typing import TimedeltaSeconds
 from pendulum.parsing import parse_iso8601, _parse_common as parse_datetime_common
 from pendulum.tz import UTC
 
@@ -68,3 +69,19 @@ def ensure_date(value: Union[datetime.datetime, datetime.date]) -> datetime.date
     if isinstance(value, datetime.datetime):
         return value.date()
     return value
+
+
+@overload
+def to_seconds(td: None) -> None:
+    pass
+
+
+@overload
+def to_seconds(td: TimedeltaSeconds) -> float:
+    pass
+
+
+def to_seconds(td: Optional[TimedeltaSeconds]) -> Optional[float]:
+    if isinstance(td, timedelta):
+        return td.total_seconds()
+    return td

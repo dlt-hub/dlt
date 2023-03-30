@@ -72,7 +72,7 @@ def test_unbound_parametrized_transformer() -> None:
     assert bound_r._pipe.is_data_bound
     assert not bound_r._pipe.has_parent
     assert not bound_r._pipe.is_empty
-    bound_r._pipe.evaluate_head()
+    bound_r._pipe.evaluate_gen()
 
     @dlt.transformer()
     def empty_t_1(items, _meta):
@@ -82,16 +82,16 @@ def test_unbound_parametrized_transformer() -> None:
     assert empty_r._pipe.parent.is_empty
     assert empty_r._pipe.is_data_bound is False
     with pytest.raises(PipeNotBoundToData):
-        empty_r._pipe.evaluate_head()
+        empty_r._pipe.evaluate_gen()
     # create bound pipe
-    (bound_r | empty_r)._pipe.evaluate_head()
+    (bound_r | empty_r)._pipe.evaluate_gen()
 
     assert empty_t_1._pipe.parent.is_empty
     assert empty_t_1._pipe.is_data_bound is False
     with pytest.raises(PipeNotBoundToData):
-        empty_t_1._pipe.evaluate_head()
+        empty_t_1._pipe.evaluate_gen()
     with pytest.raises(ParametrizedResourceUnbound):
-        (bound_r | empty_t_1)._pipe.evaluate_head()
+        (bound_r | empty_t_1)._pipe.evaluate_gen()
 
     assert list(empty_t_1("_meta")) == [1, 2, 3, 1, 2, 3, 1, 2, 3]
 
@@ -189,28 +189,34 @@ def test_source_sections() -> None:
 
 
 def test_resources_injected_sections() -> None:
-    from tests.extract.cases.section_source.external_resources import with_external, with_bound_external
+    from tests.extract.cases.section_source.external_resources import with_external, with_bound_external, init_resource_f_2, resource_f_2
     # standalone resources must accept the injected sections for lookups
     os.environ["SOURCES__EXTERNAL_RESOURCES__SOURCE_VAL"] = "SOURCES__EXTERNAL_RESOURCES__SOURCE_VAL"
     os.environ["SOURCES__EXTERNAL_RESOURCES__VAL"] = "SOURCES__EXTERNAL_RESOURCES__VAL"
     os.environ["SOURCES__SECTION_SOURCE__VAL"] = "SOURCES__SECTION_SOURCE__VAL"
     os.environ["SOURCES__NAME_OVERRIDDEN__VAL"] = "SOURCES__NAME_OVERRIDDEN__VAL"
 
-    # the source returns: it's own argument, same via inner resource, and two external resources
     # the external resources use their standalone sections: no section context is injected
+    assert list(init_resource_f_2()) == ["SOURCES__SECTION_SOURCE__VAL"]
+    assert list(resource_f_2()) == ["SOURCES__NAME_OVERRIDDEN__VAL"]
+
+    # the source returns: it's own argument, same via inner resource, and two external resources that are not bound
+    # the iterator in the source will force its sections so external resource sections are not used
     assert list(with_external()) == [
-        "SOURCES__EXTERNAL_RESOURCES__SOURCE_VAL",
-        "SOURCES__EXTERNAL_RESOURCES__SOURCE_VAL",
-        "SOURCES__SECTION_SOURCE__VAL","SOURCES__NAME_OVERRIDDEN__VAL"
-    ]
-    # this source will bind external resources before returning them (that is: calling them and obtaining generators)
-    # to arguments are injected in source namespace
-    assert list(with_bound_external()) == [
         "SOURCES__EXTERNAL_RESOURCES__SOURCE_VAL",
         "SOURCES__EXTERNAL_RESOURCES__SOURCE_VAL",
         "SOURCES__EXTERNAL_RESOURCES__VAL",
         "SOURCES__EXTERNAL_RESOURCES__VAL"
     ]
+    # this source will bind external resources before returning them (that is: calling them and obtaining generators)
+    # the iterator in the source will force its sections so external resource sections are not used
+    s = with_bound_external()
+    assert list(s) == list([
+        "SOURCES__EXTERNAL_RESOURCES__SOURCE_VAL",
+        "SOURCES__EXTERNAL_RESOURCES__SOURCE_VAL",
+        "SOURCES__EXTERNAL_RESOURCES__VAL",
+        "SOURCES__EXTERNAL_RESOURCES__VAL"
+    ])
 
     # inject the source sections like the Pipeline object would
     s = with_external()

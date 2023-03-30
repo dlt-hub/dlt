@@ -281,12 +281,6 @@ def diff_tables(tab_a: TTableSchema, tab_b: TTableSchema, ignore_table_name: boo
     # check if table properties can be merged
     if tab_a.get("parent") != tab_b.get("parent"):
         raise TablePropertiesConflictException(table_name, "parent", tab_a.get("parent"), tab_b.get("parent"))
-    # check if partial table has write disposition set
-    partial_w_d = tab_b.get("write_disposition")
-    if partial_w_d:
-        existing_w_d = tab_a.get("write_disposition")
-        if existing_w_d != partial_w_d:
-            raise TablePropertiesConflictException(table_name, "write_disposition", existing_w_d, partial_w_d)
 
     # get new columns, changes in the column data type or other properties are not allowed
     table_columns = tab_a["columns"]
@@ -321,6 +315,11 @@ def merge_tables(table: TTableSchema, partial_table: TPartialTableSchema) -> TTa
     diff_table = diff_tables(table, partial_table, ignore_table_name=True)
     # add new columns when all checks passed
     table["columns"].update(diff_table["columns"])
+
+    partial_w_d = partial_table.get("write_disposition")
+    if partial_w_d:
+        table["write_disposition"] = partial_w_d
+
     return table
 
 

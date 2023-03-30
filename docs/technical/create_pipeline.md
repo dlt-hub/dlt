@@ -147,9 +147,9 @@ def chess(chess_api_url):
     return players
 
 s = chess("url")
-# let's parametrize the resource to select masters. you simply call the resource to bind it
+# let's parametrize the resource to select masters. you simply call `bind` method on the resource to bind it
 # if you do not bind it, the default values are used
-s.players("M", max_results=1000)
+s.players.bind("M", max_results=1000)
 # load the masters
 s.run()
 
@@ -180,7 +180,7 @@ How standalone resource works:
 2. The main difference is that when extracted it will join the default schema in the pipeline (or explicitly passed schema)
 3. It can be called from a `@source` function and then it becomes a resource of that source and joins the source schema
 
-## `dlt.state` availability
+## `dlt` state availability
 
 The state is a python dictionary-like object that is available within the `@dlt.source` and `@dlt.resource` decorated functions and may be read and written to.
 The data within the state is loaded into destination together with any other extracted data and made automatically available to the source/resource extractor functions when they are run next time.
@@ -194,8 +194,19 @@ When using the state:
 1. Each source and resources contained within (no matter if they are standalone, inner or created dynamically) share the same state dictionary and is separated from other sources
 2. All the standalone resources and generators that do not belong to any source share the same state when being extracted (they are extracted withing ad-hoc created source)
 
-## Stream resources
-What about resource like rasa tracker or singer tap that send a stream of events that should be routed to different tables? we have an answer: `dlt.with_table_name` see [here](docs/examples/sources/rasa/rasa.py) and [here](docs/examples/sources/singer_tap.py)
+## Stream resources: dispatching data to several tables from single resources
+What about resource like rasa tracker or singer tap that send a stream of events that should be routed to different tables? we have an answer (actually two):
+1. in many cases the table name is based on the data item content (ie. you dispatch events of given type to different tables by event type). We can pass a function that takes the data item as input and returns table name.
+```python
+# send item to a table with name item["type"]
+@dlt.resource(table_name=lambda i: i['type'])
+def repo_events() -> Iterator[TDataItems]:
+    yield item
+```
+
+2. You can mark the yielded data with a table name (`dlt.mark.with_table_name`). This gives you full control on the name of the table
+
+see [here](docs/examples/sources/rasa/rasa.py) and [here](docs/examples/sources/singer_tap.py).
 
 ## Source / resource config sections and arguments injection
 You should read [secrets_and_config](secrets_and_config.md) now to understand how configs and credentials are passed to the decorated functions and how the users of them can configure their projects.
@@ -312,33 +323,32 @@ def spotify():
 
 ## Data item transformations
 
-You can attach any number of transformations to your resource that are evaluated on item per item basis. The available transformations are
-* ☮️ map - modify the data item
-* filter
-* ☮️ flat map - a map that returns iterator (so single row may generate many rows)
+You can attach any number of transformations to your resource that are evaluated on item per item basis. The available transformation types:
+* map - transform the data item
+* filter - filter the data item
+* yield map - a map that returns iterator (so single row may generate many rows)
 
-* ☮️ a recursive versions of the map, filter and flat map which can be applied to any nesting level of the data item (the standard transformations work on recursion level 0). Possible applications
-  - ☮️ recursive rename of dict keys
-  - ☮️ converting all values to strings
-  - etc.
+You can add and insert transformations on the `DltResource` object (ie. decorated function)
+* resource.add_map
+* resource.add_filter
+* resource.add_yield_map
 
-> Your transformations always deal with single items even if you return lists.
-> It is a good practice to provide a list of transformations in your source that user can pick up to customize the pipeline. Ie. the field rename could be a transformation.
+> Transformations always deal with single items even if you return lists.
 
-Speculative example:
-
+You can add transformations to a resource (also within a source) **after it is created**. This allows to customize existing pipelines. The transformations may
+be distributed with the pipeline or written ad hoc in pipeline script.
 ```python
-from dlt.secrets import anonymize
+# anonymize creates nice deterministic hash for any hashable data type (not implemented yet:)
+from dlt.helpers import anonymize
 
-def transform_user(user_data):
-    # anonymize creates nice deterministic hash for any hashable data type
+# example transformation provided by the user
+def anonymize_user(user_data):
     user_data["user_id"] = anonymize(user_data["user_id"])
     user_data["user_email"] = anonymize(user_data["user_email"])
     return user_data
 
-# usage: can be applied in the source
 @dlt.source
-def hubspot(...):
+def pipedrive(...):
     ...
 
     @dlt.resource(write_disposition="replace")
@@ -349,12 +359,38 @@ def hubspot(...):
         yield users
 
     return users, deals, customers
-
-# user of the pipeline determines if s/he wants the anonymized data or not and does it in pipeline script. so the source may offer also transformations that are easily used
-# below we do not to anonymize "me" so we filter it out before map
-hubspot(...).users.filter(lambda user: user["name"] != "me").map(transform_user)
-hubspot.run(...)
 ```
+
+in pipeline script:
+1. we want to remove user with id == "me"
+2. we want to anonymize user data
+3. we want to pivot `user_props` into KV table
+
+```python
+from pipedrive import pipedrive, anonymize_user
+
+source = pipedrive()
+# access resource in the source by name and add filter and map transformation
+source.users.add_filter(lambda user: user["user_id"] != "me").add_map(anonymize_user)
+# now we want to yield user props to separate table. we define our own generator function
+def pivot_props(user):
+  # keep user
+  yield user
+  # yield user props to user_props table
+  yield from [
+    dlt.mark.with_table_name({"user_id": user["user_id"], "name": k, "value": v}, "user_props") for k, v in user["props"]
+    ]
+
+source.user.add_yield_map(pivot_props)
+pipeline.run(source)
+```
+
+We provide a library of various concrete transformations:
+
+* ☮️ a recursive versions of the map, filter and flat map which can be applied to any nesting level of the data item (the standard transformations work on recursion level 0). Possible applications
+  - ☮️ recursive rename of dict keys
+  - ☮️ converting all values to strings
+  - etc.
 
 ## Some CS Theory
 
@@ -385,7 +421,7 @@ The Python function that yields is not a function but magical object that `dlt` 
 def lazy_function(endpoint_name):
     # INIT - this will be executed only once when DLT wants!
     get_configuration()
-    from_item = dlt.state.get("last_item", 0)
+    from_item = dlt.current.state.get("last_item", 0)
     l = get_item_list_from_api(api_key, endpoint_name)
 
     # ITERATOR - this will be executed many times also when DLT wants more data!
@@ -393,7 +429,7 @@ def lazy_function(endpoint_name):
         yield requests.get(url, api_key, "%s?id=%s" % (endpoint_name, item["id"])).json()
     # CLEANUP
     # this will be executed only once after the last item was yielded!
-    dlt.state["last_item"] = item["id"]
+    dlt.current.state["last_item"] = item["id"]
 ```
 
 3. dlt will execute this generator in extractor. the whole execution is atomic (including writing to state). if anything fails with exception the whole extract function fails.

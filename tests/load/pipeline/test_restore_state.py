@@ -205,7 +205,7 @@ def test_restore_state_pipeline(destination_name: str) -> None:
     p = dlt.pipeline(pipeline_name=pipeline_name, destination=destination_name, dataset_name=dataset_name)
 
     def some_data_gen(param: str) -> Any:
-        dlt.state()[param] = param
+        dlt.current.state()[param] = param
         yield param
 
     @dlt.resource
@@ -283,7 +283,7 @@ def test_restore_state_pipeline(destination_name: str) -> None:
     # second run will not restore
     p._inject_schema(Schema("second"))  # this will modify state, run does not sync if states are identical
     assert p.state["_state_version"] > orig_state["_state_version"]
-    print(p.state)
+    # print(p.state)
     p.run()
     assert set(p.schema_names) == set(["default", "two", "three", "second"])  # we keep our local copy
     # clear internal flag and decrease state version so restore triggers
@@ -303,7 +303,7 @@ def test_ignore_state_unfinished_load(destination_name: str) -> None:
 
     @dlt.resource
     def some_data(param: str) -> Any:
-        dlt.state()[param] = param
+        dlt.current.state()[param] = param
         yield param
 
     info = p.run(some_data("fix_1"))
@@ -386,7 +386,7 @@ def test_restore_state_parallel_changes(destination_name: str) -> None:
 
     @dlt.resource
     def some_data(param: str) -> Any:
-        dlt.state()[param] = param
+        dlt.current.state()[param] = param
         yield param
 
     # extract two resources that modify the state
@@ -464,7 +464,7 @@ def test_reset_pipeline_on_deleted_dataset(destination_name: str) -> None:
 
     @dlt.resource
     def some_data(param: str) -> Any:
-        dlt.state()[param] = param
+        dlt.current.state()[param] = param
         yield param
 
     data4 = some_data("state4")

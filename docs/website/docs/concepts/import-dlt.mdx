@@ -1,0 +1,16 @@
+---
+sidebar_position: 1
+---
+
+# Import `dlt`
+
+To use `dlt` functions, please import the `dlt` library:
+```python
+import dlt
+```
+
+In the `dlt` module you can:
+1. Define and run [pipelines](pipeline.md) with `dlt.pipeline`
+2. Declare [sources](source.md) and [resources](resource.md) using `@dlt.source` and `@dlt.resource` decorators
+3. Define and access [configuration](../customization/configuration.md) values and [credentials](../customization/credentials.md) with `dlt.config` and `dlt.secrets`
+4. Access the current pipeline [state](state.md) using `dlt.current.state` in your sources and resources as well as the current schema and pipeline
