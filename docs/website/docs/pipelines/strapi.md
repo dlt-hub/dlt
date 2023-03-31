@@ -1,4 +1,4 @@
-# Strapi pipeline setup guide
+# Strapi
 
 Strapi is a headless CMS (Content Management System) that allows developers to create powerful API-driven content management systems without having to write a lot of custom code.
 
@@ -57,7 +57,7 @@ client_email = "set me up" # Service account email
 location = "set me up" # Project location (e.g. “US”)
 ```
 
-1. Replace `"api_secret_key"` with the API token you copied above
+1. Replace `api_secret_key` with [the API token you copied above](strapi.md#grab-api-token)
 2. The domain is created automatically by Strapi
 3. When you run the Strapi project and a new tab opens in the browser, the URL in the address bar of that tab is the domain). For example, `[my-strapi.up.railway.app](http://my-strapi.up.railway.app)`
 4. Follow the instructions in [Destinations](https://dlthub.com/docs/destinations) to add credentials for your chosen destination
