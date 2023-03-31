@@ -1,4 +1,4 @@
-# Google sheets pipeline setup guide
+# Google Sheets
 
 This pipeline can be used to load data from a [Google sheets](https://www.google.com/sheets/about/) workspace onto a [destination](https://dlthub.com/docs/destinations) of your choice.
 
