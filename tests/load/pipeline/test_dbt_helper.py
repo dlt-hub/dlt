@@ -30,6 +30,8 @@ def test_run_jaffle_package(destination_name: str, dbt_venv: Venv) -> None:
     dbt = dlt.dbt.package(pipeline, "https://github.com/dbt-labs/jaffle_shop.git", venv=dbt_venv)
     # no default schema
     assert pipeline.default_schema_name is None
+    # inject default schema otherwise dataset is not deleted
+    pipeline._inject_schema(Schema("default"))
     # run the package (clone/pull repo, deps, seed, source tests, run)
     models = dbt.run_all()
     # all models were executed

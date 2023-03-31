@@ -19,5 +19,6 @@ class DummyClientConfiguration(DestinationClientConfiguration):
     retry_prob: float = 0.0
     completed_prob: float = 0.0
     timeout: float = 10.0
+    fail_in_init: bool = True
 
     credentials: DummyClientCredentials = None

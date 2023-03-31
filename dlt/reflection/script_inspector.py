@@ -33,6 +33,7 @@ def _import_module(name: str, missing_modules: Tuple[str, ...] = ()) -> ModuleTy
         try:
             return real_import(name, _globals, _locals, fromlist, level)
         except ImportError:
+            # print(f"_import_module {name} {missing_modules}")
             if any(name.startswith(m) for m in missing_modules):
                 return DummyModule(name)
             else:

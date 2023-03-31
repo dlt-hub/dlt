@@ -7,9 +7,11 @@ from dlt.common.runners.configuration import PoolRunnerConfiguration, TPoolType
 
 @configspec(init=True)
 class LoaderConfiguration(PoolRunnerConfiguration):
-    workers: int = 20  # how many parallel loads can be executed
+    workers: int = 20
+    """how many parallel loads can be executed"""
     pool_type: TPoolType = "thread"  # mostly i/o (upload) so may be thread pool
-    always_wipe_storage: bool = False  # removes all data in the storage
+    raise_on_failed_jobs: bool = False
+    """when True, raises on terminally failed jobs immediately"""
     _load_storage_config: LoadVolumeConfiguration = None
 
     if TYPE_CHECKING:
@@ -19,7 +21,7 @@ class LoaderConfiguration(PoolRunnerConfiguration):
             workers: int = None,
             exit_on_exception: bool = None,
             is_single_run: bool = None,
-            always_wipe_storage: bool = None,
+            raise_on_failed_jobs: bool = False,
             _load_storage_config: LoadVolumeConfiguration = None
         ) -> None:
             ...

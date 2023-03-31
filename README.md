@@ -60,10 +60,16 @@ Please use `poetry version prerelease` to bump patch and then `make build-librar
 To test destinations use `make test`. You will need following external resources
 1. `BigQuery` project
 2. `Redshift` cluster
-3. `Postgres` instance. You can find a docker compose for postgres instance [here](tests/load/postgres/docker-compose.yml)
+3. `Postgres` instance. You can find a docker compose for postgres instance [here](tests/load/postgres/docker-compose.yml). When run the instance is configured to work with the tests.
+```shell
+cd tests/load/postgres/
+docker-compose up --build -d
+```
 
-See `tests/.example.env` for the expected environment variables. Then create `tests/.env` from it. You configure the tests as you would configure the dlt pipeline.
+See `tests/.example.env` for the expected environment variables and command line example to run the tests. Then create `tests/.env` from it. You configure the tests as you would configure the dlt pipeline.
 We'll provide you with access to the resources above if you wish to test locally.
+
+To test local destinations (`duckdb` and `postgres`) run `make test-local`. You can run this tests without additional credentials (just copy `.example.env` into `.env`)
 
 ## publishing
 

@@ -86,9 +86,13 @@ def test_coerce_row(schema: Schema) -> None:
     new_columns = list(new_table["columns"].values())
     assert new_columns[0]["data_type"] == "timestamp"
     assert new_columns[0]["name"] == "timestamp"
+    assert "variant" not in new_columns[0]
     assert new_columns[1]["data_type"] == "double"
+    assert "variant" not in new_columns[1]
     assert new_columns[2]["data_type"] == "wei"
+    assert "variant" not in new_columns[2]
     assert new_columns[3]["data_type"] == "decimal"
+    assert "variant" not in new_columns[3]
     # also rows values should be coerced (confidence)
     assert new_row_1 == {"timestamp": pendulum.parse(timestamp_str), "confidence": 0.1, "value": 255, "number": Decimal("128.67")}
 
@@ -114,6 +118,7 @@ def test_coerce_row(schema: Schema) -> None:
     new_columns = list(new_table["columns"].values())
     assert new_columns[0]["data_type"] == "text"
     assert new_columns[0]["name"] == "confidence__v_text"
+    assert new_columns[0]["variant"] is True
     assert new_row_4 == {"timestamp": pendulum.parse(timestamp_str), "confidence__v_text": "STR"}
     schema.update_schema(new_table)
 
@@ -127,6 +132,7 @@ def test_coerce_row(schema: Schema) -> None:
     new_columns = list(new_table["columns"].values())
     assert new_columns[0]["data_type"] == "bool"
     assert new_columns[0]["name"] == "confidence__v_bool"
+    assert new_columns[0]["variant"] is True
     assert new_row_5 == {"confidence__v_bool": False}
     schema.update_schema(new_table)
 
@@ -203,8 +209,10 @@ def test_coerce_complex_variant(schema: Schema) -> None:
     c_new_columns = list(c_new_table["columns"].values())
     assert c_new_columns[0]["name"] == "c_list"
     assert c_new_columns[0]["data_type"] == "complex"
+    assert "variant" not in c_new_columns[0]
     assert c_new_columns[1]["name"] == "c_dict"
     assert c_new_columns[1]["data_type"] == "complex"
+    assert "variant" not in c_new_columns[1]
     assert c_new_row["c_list"] == v_list
     schema.update_schema(c_new_table)
 
@@ -222,6 +230,8 @@ def test_coerce_complex_variant(schema: Schema) -> None:
     assert len(c_new_columns_v) == 2
     assert c_new_columns_v[0]["name"] == "floatX__v_complex"
     assert c_new_columns_v[1]["name"] == "confidenceX__v_complex"
+    assert c_new_columns_v[0]["variant"] is True
+    assert c_new_columns_v[1]["variant"] is True
     assert c_new_row_v["floatX__v_complex"] == v_list
     assert c_new_row_v["confidenceX__v_complex"] == v_dict
     assert c_new_row_v["strX"] == json.dumps(v_dict)
@@ -266,16 +276,17 @@ def test_supports_variant(schema: Schema) -> None:
     assert isinstance(c_row["evm"], Wei)
     assert c_row["evm"] == Wei("21.37")
     assert new_table["columns"]["evm"]["data_type"] == "wei"
+    assert "variant" not in new_table["columns"]["evm"]
     schema.update_schema(new_table)
     # coerce row that should expand to variant
     c_row, new_table = schema.coerce_row("eth", None, normalized_rows[1][1])
     assert isinstance(c_row["evm__v_str"], str)
     assert c_row["evm__v_str"] == str(2**256-1)
     assert new_table["columns"]["evm__v_str"]["data_type"] == "text"
+    assert new_table["columns"]["evm__v_str"]["variant"] is True
 
 
 def test_supports_recursive_variant(schema: Schema) -> None:
-
 
     class RecursiveVariant(int):
         # provide __call__ for SupportVariant
@@ -292,6 +303,7 @@ def test_supports_recursive_variant(schema: Schema) -> None:
     col_name = "rv" + "__v_div2"*3
     assert c_row[col_name] == 1
     assert new_table["columns"][col_name]["data_type"] == "bigint"
+    assert new_table["columns"][col_name]["variant"] is True
 
 
 def test_supports_variant_autovariant_conflict(schema: Schema) -> None:
@@ -365,6 +377,13 @@ def test_infer_with_autodetection(schema: Schema) -> None:
     schema._type_detections = []
     c = schema._infer_column("ts", pendulum.now().timestamp())
     assert c["data_type"] == "double"
+
+
+def test_infer_with_variant(schema: Schema) -> None:
+    c = schema._infer_column("ts", pendulum.now().timestamp(), is_variant=True)
+    assert c["variant"]
+    c = schema._infer_column("ts", pendulum.now().timestamp())
+    assert "variant" not in c
 
 
 def test_update_schema_parent_missing(schema: Schema) -> None:

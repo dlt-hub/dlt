@@ -2,6 +2,7 @@ import binascii
 from os.path import isfile, join
 from pathlib import Path
 from typing import Any, Optional, Tuple, IO
+from dlt.common.typing import TSecretStrValue
 
 from dlt.common.utils import encoding_for_mode, main_module_file_path, reveal_pseudo_secret
 from dlt.common.configuration.specs.base_configuration import BaseConfiguration, configspec
@@ -12,7 +13,7 @@ from dlt.common.configuration.exceptions import ConfigFileNotFoundException
 class RunConfiguration(BaseConfiguration):
     pipeline_name: Optional[str] = None
     sentry_dsn: Optional[str] = None  # keep None to disable Sentry
-    slack_incoming_hook: Optional[str] = None
+    slack_incoming_hook: Optional[TSecretStrValue] = None
     prometheus_port: Optional[int] = None  # keep None to disable Prometheus
     dlthub_telemetry: bool = True  # enable or disable dlthub telemetry
     dlthub_telemetry_segment_write_key: str = "a1F2gc6cNYw2plyAt02sZouZcsRjG7TD"
@@ -31,7 +32,7 @@ class RunConfiguration(BaseConfiguration):
             # it may be obfuscated base64 value
             # TODO: that needs to be removed ASAP
             try:
-                self.slack_incoming_hook = reveal_pseudo_secret(self.slack_incoming_hook, b"dlt-runtime-2022")
+                self.slack_incoming_hook = TSecretStrValue(reveal_pseudo_secret(self.slack_incoming_hook, b"dlt-runtime-2022"))
             except binascii.Error:
                 # just keep the original value
                 pass

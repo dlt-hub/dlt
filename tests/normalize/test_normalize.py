@@ -217,7 +217,8 @@ def test_normalize_many_schemas(caps: DestinationCapabilitiesContext, rasa_norma
         ["event.event.many_load_2", "event.event.user_load_1", "ethereum.blocks.9c1d9b504ea240a482b007788d5cd61c_2"]
     )
     # use real process pool in tests
-    rasa_normalize.run(Pool(processes=4))
+    with Pool(processes=4) as p:
+        rasa_normalize.run(p)
     # must have two loading groups with model and event schemas
     loads = rasa_normalize.load_storage.list_packages()
     assert len(loads) == 2
@@ -231,14 +232,15 @@ def test_normalize_many_schemas(caps: DestinationCapabilitiesContext, rasa_norma
             expected_tables = EXPECTED_USER_TABLES_RASA_NORMALIZER + ["event_bot", "event_action"]
             expect_load_package(rasa_normalize.load_storage, load_id, expected_tables)
         if schema.name == "ethereum":
-            expect_load_package(rasa_normalize.load_storage, load_id, EXPECTED_ETH_TABLES)
+            expect_load_package(rasa_normalize.load_storage, load_id, EXPECTED_ETH_TABLES, full_schema_update=False)
     assert set(schemas) == set(["ethereum", "event"])
 
 
 @pytest.mark.parametrize("caps", ALL_CAPS, indirect=True)
 def test_normalize_typed_json(caps: DestinationCapabilitiesContext, raw_normalize: Normalize) -> None:
     extract_items(raw_normalize.normalize_storage, [JSON_TYPED_DICT], "special", "special")
-    raw_normalize.run(ThreadPool(processes=1))
+    with ThreadPool(processes=1) as pool:
+        raw_normalize.run(pool)
     loads = raw_normalize.load_storage.list_packages()
     assert len(loads) == 1
     # load all schemas
@@ -320,7 +322,7 @@ def test_normalize_twice_with_flatten(caps: DestinationCapabilitiesContext, raw_
     assert_schema(schema)
 
     load_id = extract_and_normalize_cases(raw_normalize, ["github.issues.load_page_5_duck"])
-    _, table_files = expect_load_package(raw_normalize.load_storage, load_id, ["issues", "issues__labels", "issues__assignees"])
+    _, table_files = expect_load_package(raw_normalize.load_storage, load_id, ["issues", "issues__labels", "issues__assignees"], full_schema_update=False)
     assert len(table_files["issues"]) == 1
     _, lines = get_line_from_file(raw_normalize.load_storage, table_files["issues"], 0)
     # insert writer adds 2 lines
@@ -396,7 +398,7 @@ def extract_cases(normalize_storage: NormalizeStorage, cases: Sequence[str]) -> 
         extract_items(normalize_storage, items, schema_name, table_name)
 
 
-def expect_load_package(load_storage: LoadStorage, load_id: str, expected_tables: Sequence[str]) -> Dict[str, str]:
+def expect_load_package(load_storage: LoadStorage, load_id: str, expected_tables: Sequence[str], full_schema_update: bool = True) -> Dict[str, str]:
     # normalize tables as paths (original json is snake case so we may do it without real lineage info)
     schema = load_storage.load_package_schema(load_id)
     # we are still in destination caps context so schema contains length
@@ -416,6 +418,12 @@ def expect_load_package(load_storage: LoadStorage, load_id: str, expected_tables
         candidates = [f for f in files if fnmatch(f, file_path)]
         # assert len(candidates) == 1
         ofl[expected_table] = candidates
+    # get the schema update
+    schema_update = load_storage.begin_schema_update(load_id)
+    if full_schema_update:
+        assert set(expected_tables) == set(schema_update.keys())
+    else:
+        assert set(expected_tables) >= set(schema_update.keys())
     return expected_tables, ofl
 
 
@@ -433,9 +441,3 @@ def assert_timestamp_data_type(load_storage: LoadStorage, data_type: TDataType) 
     event_schema = load_storage.load_package_schema(loads[0])
     # in raw normalize timestamp column must not be coerced to timestamp
     assert event_schema.get_table_columns("event")["timestamp"]["data_type"] == data_type
-
-
-# def mock_destination_caps(n: Normalize, caps: DestinationCapabilitiesContext) -> None:
-#     # TODO: mock full capabilities here and inject them properly, this only works because jsonl does not need full caps
-#     n.config.destination_capabilities = caps
-#     n.load_storage.loader_file_format = caps.preferred_loader_file_format

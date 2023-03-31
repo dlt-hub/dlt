@@ -12,6 +12,7 @@ def mock_pod_env(environment: StrStr) -> None:
 
 
 def mock_github_env(environment: StrStr) -> None:
+    environment["CODESPACES"] = "true"
     environment["GITHUB_USER"] = "rudolfix"
     environment["GITHUB_REPOSITORY"] = "dlt-hub/beginners-workshop-2022"
     environment["GITHUB_REPOSITORY_OWNER"] = "dlt-hub"

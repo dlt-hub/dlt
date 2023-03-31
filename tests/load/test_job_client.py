@@ -1,5 +1,6 @@
 from copy import deepcopy
 import io
+from time import sleep
 import pytest
 import datetime  # noqa: I251
 from typing import Iterator
@@ -74,7 +75,12 @@ def test_get_schema_on_empty_storage(client: SqlJobClientBase) -> None:
 @pytest.mark.parametrize('client', ALL_CLIENTS, indirect=True)
 def test_get_update_basic_schema(client: SqlJobClientBase) -> None:
     schema = client.schema
-    client.update_storage_schema()
+    schema_update = client.update_storage_schema()
+    # expect dlt tables in schema update
+    assert set(schema_update.keys()) == {VERSION_TABLE_NAME, LOADS_TABLE_NAME, "event_slot"}
+    # event_bot and event_user are not present because they have no columns
+    # check is event slot has variant
+    assert schema_update["event_slot"]["columns"]["value"]["variant"] is True
     # now we have dlt tables
     exists, _ = client.get_storage_table(VERSION_TABLE_NAME)
     assert exists is True
@@ -114,10 +120,12 @@ def test_get_update_basic_schema(client: SqlJobClientBase) -> None:
     first_schema._schema_tables["event_bot"]["write_disposition"] = "replace"
     first_schema.bump_version()
     assert first_schema.version == this_schema.version == 2
+    # wait to make get_newest_schema_from_storage deterministic
+    sleep(0.1)
     client._update_schema_in_storage(first_schema)
     this_schema = client.get_schema_by_hash(first_schema.version_hash)
     newest_schema = client.get_newest_schema_from_storage()
-    assert this_schema == newest_schema
+    assert this_schema == newest_schema # error
     assert this_schema.version == first_schema.version == 2
     assert this_schema.version_hash == first_schema.stored_version_hash
 
@@ -128,7 +136,9 @@ def test_get_update_basic_schema(client: SqlJobClientBase) -> None:
     client.schema = Schema("ethereum")
     assert client.get_newest_schema_from_storage() is None
     client.schema.bump_version()
-    client.update_storage_schema()
+    schema_update = client.update_storage_schema()
+    # no schema updates because schema has no tables
+    assert schema_update == {}
     that_info = client.get_newest_schema_from_storage()
     assert that_info.schema_name == "ethereum"
 
@@ -172,7 +182,12 @@ def test_schema_update_create_table_redshift(client: SqlJobClientBase) -> None:
     assert record_hash["unique"] is True
     schema.update_schema(new_table(table_name, columns=[timestamp, sender_id, record_hash]))
     schema.bump_version()
-    client.update_storage_schema()
+    schema_update = client.update_storage_schema()
+    # check hints in schema update
+    table_update = schema_update[table_name]["columns"]
+    assert table_update["timestamp"]["sort"] is True
+    assert table_update["sender_id"]["cluster"] is True
+    assert table_update["_dlt_id"]["unique"] is True
     exists, _ = client.get_storage_table(table_name)
     assert exists is True
 
@@ -189,7 +204,11 @@ def test_schema_update_create_table_bigquery(client: SqlJobClientBase) -> None:
     record_hash = schema._infer_column("_dlt_id", "m,i0392903jdlkasjdlk")
     schema.update_schema(new_table("event_test_table", columns=[timestamp, sender_id, record_hash]))
     schema.bump_version()
-    client.update_storage_schema()
+    schema_update = client.update_storage_schema()
+    # check hints in schema update
+    table_update = schema_update["event_test_table"]["columns"]
+    assert table_update["timestamp"]["partition"] is True
+    assert table_update["_dlt_id"]["nullable"] is False
     exists, storage_table = client.get_storage_table("event_test_table")
     assert exists is True
     assert storage_table["timestamp"]["partition"] is True
@@ -207,19 +226,29 @@ def test_schema_update_alter_table(client: SqlJobClientBase) -> None:
     table_name = "event_test_table" + uniq_id()
     schema.update_schema(new_table(table_name, columns=[col1]))
     schema.bump_version()
-    client.update_storage_schema()
+    schema_update = client.update_storage_schema()
+    assert table_name in schema_update
+    assert len(schema_update[table_name]["columns"]) == 1
+    assert schema_update[table_name]["columns"]["col1"]["data_type"] == "text"
     # with single alter table
     col2 = schema._infer_column("col2", 1)
     schema.update_schema(new_table(table_name, columns=[col2]))
     schema.bump_version()
-    client.update_storage_schema()
+    schema_update = client.update_storage_schema()
+    assert len(schema_update) == 1
+    assert len(schema_update[table_name]["columns"]) == 1
+    assert schema_update[table_name]["columns"]["col2"]["data_type"] == "bigint"
+
     # with 2 alter tables
     col3 = schema._infer_column("col3", 1.2)
     col4 = schema._infer_column("col4", 182879721.182912)
     col4["data_type"] = "timestamp"
     schema.update_schema(new_table(table_name, columns=[col3, col4]))
     schema.bump_version()
-    client.update_storage_schema()
+    schema_update = client.update_storage_schema()
+    assert len(schema_update[table_name]["columns"]) == 2
+    assert schema_update[table_name]["columns"]["col3"]["data_type"] == "double"
+    assert schema_update[table_name]["columns"]["col4"]["data_type"] == "timestamp"
     _, storage_table = client.get_storage_table(table_name)
     # 4 columns
     assert len(storage_table) == 4
@@ -232,7 +261,14 @@ def test_get_storage_table_with_all_types(client: SqlJobClientBase) -> None:
     table_name = "event_test_table" + uniq_id()
     schema.update_schema(new_table(table_name, columns=TABLE_UPDATE))
     schema.bump_version()
-    client.update_storage_schema()
+    schema_update = client.update_storage_schema()
+    # we have all columns in the update
+    table_update = schema_update[table_name]["columns"]
+    assert set(table_update.keys()) == set(TABLE_UPDATE_COLUMNS_SCHEMA.keys())
+    # all columns match
+    for name, column in table_update.items():
+        assert column.items() >= TABLE_UPDATE_COLUMNS_SCHEMA[name].items()
+    # now get the actual schema from the db
     exists, storage_table = client.get_storage_table(table_name)
     assert exists is True
     # column order must match TABLE_UPDATE
@@ -432,7 +468,8 @@ def test_many_schemas_single_dataset(destination_name: str, file_storage: FileSt
         user_table = load_table("event_user")["event_user"]
         client.schema.update_schema(new_table("event_user", columns=user_table.values()))
         client.schema.bump_version()
-        client.update_storage_schema()
+        schema_update = client.update_storage_schema()
+        assert len(schema_update) > 0
 
         _load_something(client, 1)
 
@@ -444,7 +481,9 @@ def test_many_schemas_single_dataset(destination_name: str, file_storage: FileSt
         # swap schemas in client instance
         client.schema = event_2_schema
         client.schema.bump_version()
-        client.update_storage_schema()
+        schema_update = client.update_storage_schema()
+        # no were detected - even if the schema is new. all the tables overlap
+        assert schema_update == {}
         # two different schemas in dataset
         assert event_schema.version_hash != event_2_schema.version_hash
         ev_1_info = client.get_schema_by_hash(event_schema.version_hash)
@@ -461,7 +500,9 @@ def test_many_schemas_single_dataset(destination_name: str, file_storage: FileSt
         # swap schemas in client instance
         client.schema = event_3_schema
         client.schema.bump_version()
-        client.update_storage_schema()
+        schema_update = client.update_storage_schema()
+        # no were detected - even if the schema is new. all the tables overlap and change in nullability does not do any updates
+        assert schema_update == {}
         # 3 rows because we load to the same table
         _load_something(client, 3)
 

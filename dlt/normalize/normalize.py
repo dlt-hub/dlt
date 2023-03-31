@@ -14,6 +14,7 @@ from dlt.common.json import custom_pua_decode
 from dlt.common.runners import TRunMetrics, Runnable
 from dlt.common.runtime import signals
 from dlt.common.schema.typing import TStoredSchema, TTableSchemaColumns
+from dlt.common.schema.utils import merge_schema_updates
 from dlt.common.storages.exceptions import SchemaNotFoundError
 from dlt.common.storages import NormalizeStorage, SchemaStorage, LoadStorage
 from dlt.common.runtime.prometheus import get_logging_extras
@@ -163,16 +164,13 @@ class Normalize(Runnable[ProcessPool]):
             signals.raise_if_signalled()
         return schema_update, items_count
 
-    def update_schema(self, schema: Schema, schema_updates: List[TSchemaUpdate]) -> int:
-        updates_count = 0
+    def update_schema(self, schema: Schema, schema_updates: List[TSchemaUpdate]) -> None:
         for schema_update in schema_updates:
             for table_name, table_updates in schema_update.items():
                 logger.info(f"Updating schema for table {table_name} with {len(table_updates)} deltas")
                 for partial_table in table_updates:
-                    updates_count += 1
+                    # merge columns
                     schema.update_schema(partial_table)
-                    # logger.info(f"Updating schema for table {partial_table}")
-        return updates_count
 
     @staticmethod
     def group_worker_files(files: Sequence[str], no_groups: int) -> List[Sequence[str]]:
@@ -270,7 +268,7 @@ class Normalize(Runnable[ProcessPool]):
         # save schema to temp load folder
         self.load_storage.save_temp_schema(schema, load_id)
         # save schema updates even if empty
-        self.load_storage.save_temp_schema_updates(load_id, schema_updates)
+        self.load_storage.save_temp_schema_updates(load_id, merge_schema_updates(schema_updates))
         # files must be renamed and deleted together so do not attempt that when process is about to be terminated
         signals.raise_if_signalled()
         logger.info("Committing storage, do not kill this process")

@@ -1,14 +1,8 @@
-from typing import Any, Sequence
-from dlt.common.exceptions import DltException
+from typing import Any
+from dlt.common.exceptions import PipelineException
 from dlt.common.pipeline import SupportsPipeline
 from dlt.common.runners import TRunMetrics
 from dlt.pipeline.typing import TPipelineStep
-
-
-class PipelineException(DltException):
-    def __init__(self, pipeline_name: str, msg: str) -> None:
-        self.pipeline_name = pipeline_name
-        super().__init__(msg)
 
 
 class InvalidPipelineName(PipelineException, ValueError):

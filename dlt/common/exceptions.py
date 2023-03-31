@@ -6,14 +6,6 @@ class DltException(Exception):
         """Enables exceptions with parametrized constructor to be pickled"""
         return type(self).__new__, (type(self), *self.args), self.__dict__
 
-
-class SignalReceivedException(KeyboardInterrupt, BaseException):
-    """Raises when signal comes. Derives from `BaseException` to not be caught in regular exception handlers."""
-    def __init__(self, signal_code: int) -> None:
-        self.signal_code = signal_code
-        super().__init__(f"Signal {signal_code} received")
-
-
 class UnsupportedProcessStartMethodException(DltException):
     def __init__(self, method: str) -> None:
         self.method = method
@@ -37,13 +29,13 @@ class VenvNotFound(DltException):
         super().__init__(f"Venv with interpreter {interpreter} not found in path")
 
 
-class TerminalException(Exception):
+class TerminalException(BaseException):
     """
     Marks an exception that cannot be recovered from, should be mixed in into concrete exception class
     """
 
 
-class TransientException(Exception):
+class TransientException(BaseException):
     """
     Marks an exception in operation that can be retried, should be mixed in into concrete exception class
     """
@@ -53,6 +45,13 @@ class TerminalValueError(ValueError, TerminalException):
     """
     ValueError that is unrecoverable
     """
+
+
+class SignalReceivedException(KeyboardInterrupt, TerminalException):
+    """Raises when signal comes. Derives from `BaseException` to not be caught in regular exception handlers."""
+    def __init__(self, signal_code: int) -> None:
+        self.signal_code = signal_code
+        super().__init__(f"Signal {signal_code} received")
 
 
 class TimeRangeExhaustedException(DltException):
@@ -137,3 +136,18 @@ class IdentifierTooLongException(DestinationTerminalException):
         self.identifier_name = identifier_name
         self.max_identifier_length = max_identifier_length
         super().__init__(f"The length of {identifier_type} {identifier_name} exceeds {max_identifier_length} allowed for {destination_name}")
+
+
+class DestinationHasFailedJobs(DestinationTerminalException):
+    def __init__(self, destination_name: str, load_id: str) -> None:
+        self.destination_name = destination_name
+        self.load_id = load_id
+        super().__init__(f"Destination {destination_name} has failed jobs in load package {load_id}")
+
+
+
+class PipelineException(DltException):
+    def __init__(self, pipeline_name: str, msg: str) -> None:
+        """Base class for all pipeline exceptions. Should not be raised."""
+        self.pipeline_name = pipeline_name
+        super().__init__(msg)

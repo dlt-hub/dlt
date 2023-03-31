@@ -16,13 +16,16 @@ from dlt.common.utils import set_working_dir
 from dlt.cli.utils import track_command
 from dlt.cli.telemetry_command import telemetry_status_command, change_telemetry_status_command
 
-from tests.utils import patch_home_dir, start_test_telemetry, test_storage
+from tests.utils import patch_random_home_dir, start_test_telemetry, test_storage
 
 
-def test_telemetry_command(test_storage: FileStorage) -> None:
+def test_main_telemetry_command(test_storage: FileStorage) -> None:
     # home dir is patched to TEST_STORAGE, create project dir
     test_storage.create_folder("project")
-    with set_working_dir(test_storage.make_full_path("project")):
+    # inject provider context so the original providers are restored at the end
+    glob_ctx = ConfigProvidersContext()
+    glob_ctx.providers = [ConfigTomlProvider(add_global_config=True)]
+    with set_working_dir(test_storage.make_full_path("project")), Container().injectable_context(glob_ctx):
         # no config files: status is ON
         with io.StringIO() as buf, contextlib.redirect_stdout(buf):
             telemetry_status_command()
@@ -139,7 +142,7 @@ def test_instrumentation_wrappers() -> None:
         assert msg["event"] == "command_list_pipelines"
 
         SENT_ITEMS.clear()
-        pipeline_command_wrapper("list", "-", None)
+        pipeline_command_wrapper("list", "-", None, 1)
         msg = SENT_ITEMS[0]
         assert msg["event"] == "command_pipeline"
         assert msg["properties"]["operation"] == "list"

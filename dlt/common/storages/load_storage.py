@@ -1,7 +1,12 @@
+import contextlib
+from copy import deepcopy
 import os
+import datetime  # noqa: 251
+import humanize
 from os.path import join
 from pathlib import Path
-from typing import Iterable, NamedTuple, Literal, Optional, Sequence, Set, get_args, overload
+from pendulum.datetime import DateTime
+from typing import Dict, Iterable, List, NamedTuple, Literal, Optional, Sequence, Set, get_args, overload
 
 from dlt.common import json, pendulum
 from dlt.common.configuration import known_sections
@@ -12,19 +17,99 @@ from dlt.common.data_writers import TLoaderFileFormat, DataWriter
 from dlt.common.configuration.specs import LoadVolumeConfiguration
 from dlt.common.configuration.accessors import config
 from dlt.common.exceptions import TerminalValueError
-from dlt.common.schema import Schema, TSchemaUpdate, TTableSchemaColumns
+from dlt.common.schema import Schema, TSchemaTables, TTableSchemaColumns
 from dlt.common.storages.versioned_storage import VersionedStorage
 from dlt.common.storages.data_item_storage import DataItemStorage
-from dlt.common.storages.exceptions import JobWithUnsupportedWriterException
+from dlt.common.storages.exceptions import JobWithUnsupportedWriterException, LoadPackageNotFound
+from dlt.common.utils import flatten_list_or_items
 
 
 # folders to manage load jobs in a single load package
-TWorkingFolder = Literal["new_jobs", "failed_jobs", "started_jobs", "completed_jobs"]
-class TParsedJobFileName(NamedTuple):
+TJobState = Literal["new_jobs", "failed_jobs", "started_jobs", "completed_jobs"]
+WORKING_FOLDERS = set(get_args(TJobState))
+TLoadPackageState = Literal["normalized", "loaded", "aborted"]
+
+
+class ParsedLoadJobFileName(NamedTuple):
     table_name: str
     file_id: str
     retry_count: int
     file_format: TLoaderFileFormat
+
+    def job_id(self) -> str:
+        return f"{self.table_name}.{self.file_id}.{int(self.retry_count)}.{self.file_format}"
+
+
+class LoadJobInfo(NamedTuple):
+    state: TJobState
+    file_path: str
+    file_size: int
+    created_at: datetime.datetime
+    elapsed: float
+    job_file_info: ParsedLoadJobFileName
+    failed_message: str
+
+    def asdict(self) -> DictStrAny:
+        d = self._asdict()
+        # flatten
+        del d["job_file_info"]
+        d.update(self.job_file_info._asdict())
+        return d
+
+    def asstr(self, verbosity: int = 0) -> str:
+        failed_msg = "The job FAILED TERMINALLY and cannot be restarted." if self.failed_message else ""
+        elapsed_msg = humanize.precisedelta(pendulum.duration(seconds=self.elapsed)) if self.elapsed else "---"
+        msg = f"Job: {self.job_file_info.job_id()}, table: {self.job_file_info.table_name} in {self.state}. "
+        msg += f"File type: {self.job_file_info.file_format}, size: {humanize.naturalsize(self.file_size, binary=True, gnu=True)}. "
+        msg += f"Started on: {self.created_at} and completed in {elapsed_msg}."
+        if failed_msg:
+            msg += "\nThe job FAILED TERMINALLY and cannot be restarted."
+            if verbosity > 0:
+                msg += "\n" + self.failed_message
+        return msg
+
+    def __str__(self) -> str:
+        return self.asstr(verbosity=0)
+
+
+class LoadPackageInfo(NamedTuple):
+    load_id: str
+    state: str
+    schema_name: str
+    schema_update: TSchemaTables
+    completed_at: datetime.datetime
+    jobs: Dict[TJobState, List[LoadJobInfo]]
+
+    def asdict(self) -> DictStrAny:
+        d = self._asdict()
+        # job as list
+        d["jobs"] = [job.asdict() for job in flatten_list_or_items(iter(self.jobs.values()))]  # type: ignore
+        # flatten update into list of columns
+        tables: List[DictStrAny] = deepcopy(list(self.schema_update.values()))  # type: ignore
+        for table in tables:
+            table.pop("filters", None)
+            columns: List[DictStrAny] = []
+            table["schema_name"] = self.schema_name
+            table["load_id"] = self.load_id
+            for column in table["columns"].values():
+                column["table_name"] = table["name"]
+                column["schema_name"] = self.schema_name
+                column["load_id"] = self.load_id
+                columns.append(column)
+            table["columns"] = columns
+        d.pop("schema_update")
+        d["tables"] = tables
+        return d
+
+    def asstr(self, verbosity: int = 0) -> str:
+        completed_msg = f"The package was {self.state.upper()} at {self.completed_at}" if self.completed_at else "The package is being PROCESSED"
+        msg = f"The package with load id {self.load_id} for schema {self.schema_name} is in {self.state} state. It updated schema for {len(self.schema_update)} tables. {completed_msg}.\n"
+        msg += "Jobs details:\n"
+        msg += "\n".join(job.asstr(verbosity) for job in flatten_list_or_items(iter(self.jobs.values())))  # type: ignore
+        return msg
+
+    def __str__(self) -> str:
+        return self.asstr(verbosity=0)
 
 
 class LoadStorage(DataItemStorage, VersionedStorage):
@@ -33,14 +118,15 @@ class LoadStorage(DataItemStorage, VersionedStorage):
     NORMALIZED_FOLDER = "normalized"  # folder within the volume where load packages are stored
     LOADED_FOLDER = "loaded"  # folder to keep the loads that were completely processed
 
-    NEW_JOBS_FOLDER: TWorkingFolder = "new_jobs"
-    FAILED_JOBS_FOLDER: TWorkingFolder = "failed_jobs"
-    STARTED_JOBS_FOLDER: TWorkingFolder = "started_jobs"
-    COMPLETED_JOBS_FOLDER: TWorkingFolder = "completed_jobs"
+    NEW_JOBS_FOLDER: TJobState = "new_jobs"
+    FAILED_JOBS_FOLDER: TJobState = "failed_jobs"
+    STARTED_JOBS_FOLDER: TJobState = "started_jobs"
+    COMPLETED_JOBS_FOLDER: TJobState = "completed_jobs"
 
-    SCHEMA_UPDATES_FILE_NAME = "schema_updates.json"
-    PROCESSED_SCHEMA_UPDATES_FILE_NAME = "processed_" + "schema_updates.json"
-    SCHEMA_FILE_NAME = "schema.json"
+    SCHEMA_UPDATES_FILE_NAME = "schema_updates.json"  # updates to the tables in schema created by normalizer
+    APPLIED_SCHEMA_UPDATES_FILE_NAME = "applied_" + "schema_updates.json"  # updates applied to the destination
+    SCHEMA_FILE_NAME = "schema.json"  # package schema
+    PACKAGE_COMPLETED_FILE_NAME = "package_completed.json"  # completed package marker file, currently only to store data with os.stat
 
     ALL_SUPPORTED_FILE_FORMATS: Set[TLoaderFileFormat] = set(get_args(TLoaderFileFormat))
 
@@ -109,9 +195,9 @@ class LoadStorage(DataItemStorage, VersionedStorage):
         dump = json.dumps(schema.to_dict())
         return self.storage.save(join(load_id, LoadStorage.SCHEMA_FILE_NAME), dump)
 
-    def save_temp_schema_updates(self, load_id: str, schema_updates: Sequence[TSchemaUpdate]) -> None:
+    def save_temp_schema_updates(self, load_id: str, schema_update: TSchemaTables) -> None:
         with self.storage.open_file(join(load_id, LoadStorage.SCHEMA_UPDATES_FILE_NAME), mode="wb") as f:
-            json.dump(schema_updates, f)
+            json.dump(schema_update, f)
 
     def commit_temp_load_package(self, load_id: str) -> None:
         self.storage.atomic_rename(load_id, self.get_package_path(load_id))
@@ -141,24 +227,71 @@ class LoadStorage(DataItemStorage, VersionedStorage):
         return self.storage.list_folder_files(self._get_job_folder_path(load_id, LoadStorage.FAILED_JOBS_FOLDER))
 
     def list_completed_failed_jobs(self, load_id: str) -> Sequence[str]:
-        return self.storage.list_folder_files(join(self.get_completed_package_path(load_id), LoadStorage.FAILED_JOBS_FOLDER))
+        return self.storage.list_folder_files(self._get_job_folder_completed_path(load_id, LoadStorage.FAILED_JOBS_FOLDER))
 
-    def begin_schema_update(self, load_id: str) -> Optional[TSchemaUpdate]:
+    def list_failed_jobs_in_completed_package(self, load_id: str) -> Sequence[LoadJobInfo]:
+        """List all failed jobs and associated error messages for a completed load package with `load_id`"""
+        failed_jobs: List[LoadJobInfo] = []
+        package_path = self.get_completed_package_path(load_id)
+        package_created_at = pendulum.from_timestamp(
+            os.path.getmtime(self.storage.make_full_path(join(package_path, LoadStorage.PACKAGE_COMPLETED_FILE_NAME)))
+        )
+        for file in self.list_completed_failed_jobs(load_id):
+            if not file.endswith(".exception"):
+                failed_jobs.append(self._read_job_file_info("failed_jobs", file, package_created_at))
+        return failed_jobs
+
+    def get_load_package_info(self, load_id: str) -> LoadPackageInfo:
+        """Gets information on normalized/completed package with given load_id, all jobs and their statuses."""
+        # check if package is completed or in process
+        package_created_at: DateTime = None
+        package_state: TLoadPackageState = "normalized"
+        package_path = self.get_package_path(load_id)
+        applied_update: TSchemaTables = {}
+        if not self.storage.has_folder(package_path):
+            package_path = self.get_completed_package_path(load_id)
+            if not self.storage.has_folder(package_path):
+                raise LoadPackageNotFound(load_id)
+            completed_file_path = self.storage.make_full_path(join(package_path, LoadStorage.PACKAGE_COMPLETED_FILE_NAME))
+            package_created_at = pendulum.from_timestamp(os.path.getmtime(completed_file_path))
+            package_state = self.storage.load(completed_file_path)
+        applied_schema_update_file = join(package_path, LoadStorage.APPLIED_SCHEMA_UPDATES_FILE_NAME)
+        if self.storage.has_file(applied_schema_update_file):
+            applied_update = json.loads(self.storage.load(applied_schema_update_file))
+        schema = self._load_schema(join(package_path, LoadStorage.SCHEMA_FILE_NAME))
+        # read jobs with all statuses
+        all_jobs: Dict[TJobState, List[LoadJobInfo]] = {}
+        for state in WORKING_FOLDERS:
+            jobs: List[LoadJobInfo] = []
+            with contextlib.suppress(FileNotFoundError):
+                # we ignore if load package lacks one of working folders. completed_jobs may be deleted on archiving
+                for file in self.storage.list_folder_files(join(package_path, state)):
+                    if not file.endswith(".exception"):
+                        jobs.append(self._read_job_file_info(state, file, package_created_at))
+            all_jobs[state] = jobs
+
+        return LoadPackageInfo(load_id, package_state, schema.name, applied_update, package_created_at, all_jobs)
+
+    def begin_schema_update(self, load_id: str) -> Optional[TSchemaTables]:
         package_path = self.get_package_path(load_id)
         if not self.storage.has_folder(package_path):
             raise FileNotFoundError(package_path)
         schema_update_file = join(package_path, LoadStorage.SCHEMA_UPDATES_FILE_NAME)
         if self.storage.has_file(schema_update_file):
-            schema_update: TSchemaUpdate = json.loads(self.storage.load(schema_update_file))
+            schema_update: TSchemaTables = json.loads(self.storage.load(schema_update_file))
             return schema_update
         else:
             return None
 
-    def commit_schema_update(self, load_id: str) -> None:
+    def commit_schema_update(self, load_id: str, applied_update: TSchemaTables) -> None:
+        """Marks schema update as processed and stores the update that was applied at the destination"""
         load_path = self.get_package_path(load_id)
         schema_update_file = join(load_path, LoadStorage.SCHEMA_UPDATES_FILE_NAME)
-        processed_schema_update_file = join(load_path, LoadStorage.PROCESSED_SCHEMA_UPDATES_FILE_NAME)
-        self.storage.atomic_rename(schema_update_file, processed_schema_update_file)
+        processed_schema_update_file = join(load_path, LoadStorage.APPLIED_SCHEMA_UPDATES_FILE_NAME)
+        # delete initial schema update
+        self.storage.delete(schema_update_file)
+        # save applied update
+        self.storage.save(processed_schema_update_file, json.dumps(applied_update))
 
     def start_job(self, load_id: str, file_name: str) -> str:
         return self._move_job(load_id, LoadStorage.NEW_JOBS_FOLDER, LoadStorage.STARTED_JOBS_FOLDER, file_name)
@@ -183,15 +316,26 @@ class LoadStorage(DataItemStorage, VersionedStorage):
     def complete_job(self, load_id: str, file_name: str) -> str:
         return self._move_job(load_id, LoadStorage.STARTED_JOBS_FOLDER, LoadStorage.COMPLETED_JOBS_FOLDER, file_name)
 
-    def complete_load_package(self, load_id: str) -> None:
+    def complete_load_package(self, load_id: str, aborted: bool) -> None:
         load_path = self.get_package_path(load_id)
         has_failed_jobs = len(self.list_failed_jobs(load_id)) > 0
-        # delete load that does not contain failed jobs
+        # delete completed jobs
         if self.config.delete_completed_jobs and not has_failed_jobs:
-            self.storage.delete_folder(load_path, recursively=True)
-        else:
-            completed_path = self.get_completed_package_path(load_id)
-            self.storage.atomic_rename(load_path, completed_path)
+            self.storage.delete_folder(
+                self._get_job_folder_path(load_id, LoadStorage.COMPLETED_JOBS_FOLDER),
+            recursively=True)
+        # save marker file
+        completed_state: TLoadPackageState = "aborted" if aborted else "loaded"
+        self.storage.save(join(load_path, LoadStorage.PACKAGE_COMPLETED_FILE_NAME), completed_state)
+        # move to completed
+        completed_path = self.get_completed_package_path(load_id)
+        self.storage.atomic_rename(load_path, completed_path)
+
+    def delete_completed_package(self, load_id: str) -> None:
+        package_path = self.get_completed_package_path(load_id)
+        if not self.storage.has_folder(package_path):
+            raise LoadPackageNotFound(load_id)
+        self.storage.delete_folder(package_path, recursively=True)
 
     def get_package_path(self, load_id: str) -> str:
         return join(LoadStorage.NORMALIZED_FOLDER, load_id)
@@ -199,8 +343,8 @@ class LoadStorage(DataItemStorage, VersionedStorage):
     def get_completed_package_path(self, load_id: str) -> str:
         return join(LoadStorage.LOADED_FOLDER, load_id)
 
-    def job_elapsed_time_seconds(self, file_path: str) -> float:
-        return pendulum.now().timestamp() - os.path.getmtime(file_path)  # type: ignore
+    def job_elapsed_time_seconds(self, file_path: str, now_ts: float = None) -> float:
+        return (now_ts or pendulum.now().timestamp()) - os.path.getmtime(file_path)
 
     def _save_schema(self, schema: Schema, load_id: str) -> str:
         dump = json.dumps(schema.to_dict())
@@ -211,17 +355,37 @@ class LoadStorage(DataItemStorage, VersionedStorage):
         stored_schema: DictStrAny = json.loads(self.storage.load(schema_path))
         return Schema.from_dict(stored_schema)
 
-    def _move_job(self, load_id: str, source_folder: TWorkingFolder, dest_folder: TWorkingFolder, file_name: str, new_file_name: str = None) -> str:
+    def _move_job(self, load_id: str, source_folder: TJobState, dest_folder: TJobState, file_name: str, new_file_name: str = None) -> str:
         load_path = self.get_package_path(load_id)
         dest_path = join(load_path, dest_folder, new_file_name or file_name)
         self.storage.atomic_rename(join(load_path, source_folder, file_name), dest_path)
         return self.storage.make_full_path(dest_path)
 
-    def _get_job_folder_path(self, load_id: str, folder: TWorkingFolder) -> str:
+    def _get_job_folder_path(self, load_id: str, folder: TJobState) -> str:
         return join(self.get_package_path(load_id), folder)
 
-    def _get_job_file_path(self, load_id: str, folder: TWorkingFolder, file_name: str) -> str:
+    def _get_job_file_path(self, load_id: str, folder: TJobState, file_name: str) -> str:
         return join(self._get_job_folder_path(load_id, folder), file_name)
+
+    def _get_job_folder_completed_path(self, load_id: str, folder: TJobState) -> str:
+        return join(self.get_completed_package_path(load_id), folder)
+
+    def _read_job_file_info(self, state: TJobState, file: str, now: DateTime = None) -> LoadJobInfo:
+        try:
+            failed_message = self.storage.load(file + ".exception")
+        except FileNotFoundError:
+            failed_message = None
+        full_path = self.storage.make_full_path(file)
+        st = os.stat(full_path)
+        return LoadJobInfo(
+            state,
+            full_path,
+            st.st_size,
+            pendulum.from_timestamp(st.st_mtime),
+            self.job_elapsed_time_seconds(full_path, now.timestamp() if now else None),
+            self.parse_job_file_name(file),
+            failed_message
+        )
 
     def build_job_file_name(self, table_name: str, file_id: str, retry_count: int = 0, validate_components: bool = True, with_extension: bool = True) -> str:
         if validate_components:
@@ -233,7 +397,7 @@ class LoadStorage(DataItemStorage, VersionedStorage):
         return fn
 
     @staticmethod
-    def parse_job_file_name(file_name: str) -> TParsedJobFileName:
+    def parse_job_file_name(file_name: str) -> ParsedLoadJobFileName:
         p = Path(file_name)
         parts = p.name.split(".")
         if len(parts) != 4:
@@ -243,4 +407,4 @@ class LoadStorage(DataItemStorage, VersionedStorage):
         if ext not in LoadStorage.ALL_SUPPORTED_FILE_FORMATS:
             raise TerminalValueError(ext)
 
-        return TParsedJobFileName(parts[0], parts[1], int(parts[2]), ext)
+        return ParsedLoadJobFileName(parts[0], parts[1], int(parts[2]), ext)

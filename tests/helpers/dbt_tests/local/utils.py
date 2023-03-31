@@ -8,7 +8,7 @@ from dlt.common.typing import StrAny
 from dlt.helpers.dbt.configuration import DBTRunnerConfiguration
 from dlt.helpers.dbt.runner import DBTPackageRunner, create_runner
 
-from tests.load.utils import cm_yield_client
+from tests.load.utils import cm_yield_client, delete_dataset
 from tests.utils import TEST_STORAGE_ROOT, init_test_logging
 
 
@@ -54,22 +54,8 @@ def setup_rasa_runner_client(destination_name: str, destination_dataset_name: st
         yield
         # delete temp schemas
         dataset_name = f"{destination_dataset_name}_views"
-        try:
-            with client.sql_client.with_alternative_dataset_name(dataset_name):
-                client.sql_client.drop_dataset()
-        except Exception as ex1:
-            logger.error(f"Error when deleting temp dataset {dataset_name}: {str(ex1)}")
-
+        delete_dataset(client.sql_client, dataset_name)
         dataset_name = f"{destination_dataset_name}_staging"
-        try:
-            with client.sql_client.with_alternative_dataset_name(dataset_name):
-                client.sql_client.drop_dataset()
-        except Exception as ex2:
-            logger.error(f"Error when deleting temp dataset {dataset_name}: {str(ex2)}")
-
+        delete_dataset(client.sql_client, dataset_name)
         dataset_name = f"{destination_dataset_name}_event"
-        try:
-            with client.sql_client.with_alternative_dataset_name(dataset_name):
-                client.sql_client.drop_dataset()
-        except Exception as ex2:
-            logger.error(f"Error when deleting temp dataset {dataset_name}: {str(ex2)}")
+        delete_dataset(client.sql_client, dataset_name)
