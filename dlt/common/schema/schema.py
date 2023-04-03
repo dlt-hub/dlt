@@ -347,9 +347,13 @@ class Schema:
     def _coerce_non_null_value(self, table_columns: TTableSchemaColumns, table_name: str, col_name: str, v: Any, is_variant: bool = False) -> Tuple[str, TColumnSchema, Any]:
         new_column: TColumnSchema = None
         existing_column = table_columns.get(col_name)
+        # if column exist but is incomplete then keep it as new column
+        if existing_column and not utils.is_complete_column(existing_column):
+            new_column = existing_column
+            existing_column = None
 
         # infer type or get it from existing table
-        col_type = existing_column.get("data_type") if existing_column else self._infer_column_type(v, col_name, skip_preferred=is_variant)
+        col_type = existing_column["data_type"] if existing_column else self._infer_column_type(v, col_name, skip_preferred=is_variant)
         # get data type of value
         py_type = py_type_to_sc_type(type(v))
         # and coerce type if inference changed the python type
@@ -376,7 +380,12 @@ class Schema:
                 return self._coerce_non_null_value(table_columns, table_name, variant_col_name, coerced_v[1], is_variant=True)
 
         if not existing_column:
-            new_column = self._infer_column(col_name, v, data_type=col_type, is_variant=is_variant)
+            inferred_column = self._infer_column(col_name, v, data_type=col_type, is_variant=is_variant)
+            # if there's partial new_column then merge it with inferred column
+            if new_column:
+                new_column = utils.merge_columns(new_column, inferred_column, merge_defaults=True)
+            else:
+                new_column = inferred_column
 
         return col_name, new_column, coerced_v
 
