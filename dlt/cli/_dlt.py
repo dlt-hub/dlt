@@ -209,7 +209,7 @@ def main() -> int:
     pipe_cmd_schema.add_argument("--remove-defaults", action="store_true", help="Does not show default hint values")
 
     pipe_cmd_package = pipeline_subparsers.add_parser("load-package", help="Displays information on load package, use -v or -vv for more info")
-    pipe_cmd_package.add_argument("load-id", nargs='?', help="Load id of completed or normalized package. Defaults to the most recent package.")
+    pipe_cmd_package.add_argument("load_id", nargs='?', help="Load id of completed or normalized package. Defaults to the most recent package.")
 
     subparsers.add_parser("telemetry", help="Shows telemetry status")
 
@@ -221,7 +221,7 @@ def main() -> int:
         if args.list_pipelines:
             return pipeline_command_wrapper("list", "-", args.pipelines_dir, args.verbose)
         else:
-            load_id = args.load_id if args.operation == "load_package" else None
+            load_id = args.load_id if args.operation == "load-package" else None
             return pipeline_command_wrapper(args.operation or "info", args.name, args.pipelines_dir, args.verbose, load_id)
     elif args.command == "init":
         if args.list_pipelines:

@@ -118,6 +118,7 @@ def pipeline_command(operation: str, pipeline_name: str, pipelines_dir: str, ver
             load_id = packages[-1]
 
         package_info = p.get_load_package_info(load_id)
+        fmt.echo("Package %s found in %s" % (fmt.bold(load_id), fmt.bold(package_info.package_path)))
         fmt.echo(package_info.asstr(verbosity))
         if len(package_info.schema_update) > 0:
             if verbosity == 0:
