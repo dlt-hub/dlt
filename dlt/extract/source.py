@@ -10,14 +10,14 @@ from dlt.common.configuration.specs.config_section_context import ConfigSectionC
 
 
 from dlt.common.schema import Schema
-from dlt.common.schema.utils import new_table
-from dlt.common.schema.typing import TColumnSchema, TPartialTableSchema, TTableSchemaColumns, TWriteDisposition
+from dlt.common.schema.utils import merge_columns, new_column, new_table
+from dlt.common.schema.typing import TColumnProp, TColumnSchema, TPartialTableSchema, TTableSchemaColumns, TWriteDisposition
 from dlt.common.typing import AnyFun, TDataItem, TDataItems, NoneType, TFun
 from dlt.common.configuration.container import Container
 from dlt.common.pipeline import PipelineContext, SupportsPipelineRun
 from dlt.common.utils import flatten_list_or_items, get_callable_name
 
-from dlt.extract.typing import DataItemWithMeta, ItemTransformFunc, TableNameMeta, TFunHintTemplate, TTableHintTemplate, TTableSchemaTemplate, FilterItem, MapItem, YieldMapItem
+from dlt.extract.typing import DataItemWithMeta, ItemTransformFunc, TColumnKey, TableNameMeta, TFunHintTemplate, TTableHintTemplate, TTableSchemaTemplate, FilterItem, MapItem, YieldMapItem
 from dlt.extract.pipe import Pipe, ManagedPipeIterator
 from dlt.extract.exceptions import (
     InvalidTransformerDataTypeGeneratorFunctionRequired, InvalidParentResourceDataType, InvalidParentResourceIsAFunction, InvalidResourceDataType, InvalidResourceDataTypeFunctionNotAGenerator, InvalidResourceDataTypeIsNone, InvalidTransformerGeneratorFunction,
@@ -56,19 +56,44 @@ class DltResourceSchema:
             return self._table_schema
 
         def _resolve_hint(hint: TTableHintTemplate[Any]) -> Any:
+            """Calls each dynamic hint passing a data item"""
             if callable(hint):
                 return hint(item)
             else:
                 return hint
+
+        def _merge_key(hint: TColumnProp, keys: TColumnKey, partial: TPartialTableSchema) -> None:
+            if isinstance(keys, str):
+                keys = [keys]
+            for key in keys:
+                if key in partial["columns"]:
+                    merge_columns(partial["columns"][key], {hint: key})
+                else:
+                    partial["columns"][key] = new_column(key, "text", nullable=False)
+                    partial["columns"][key][hint] = True
+
+        def _merge_keys(t_: TTableSchemaTemplate) -> TPartialTableSchema:
+            """Merges resolved keys into columns"""
+            partial = cast(TPartialTableSchema, t_)
+            # assert not callable(t_["merge_key"])
+            # assert not callable(t_["primary_key"])
+            if "primary_key" in t_:
+                _merge_key("primary_key", t_.pop("primary_key"), partial)
+            if "merge_key" in t_:
+                _merge_key("merge_key", t_.pop("merge_key"), partial)
+
+            print(partial)
+
+            return partial
 
         # if table template present and has dynamic hints, the data item must be provided
         if self._table_name_hint_fun:
             if item is None:
                 raise DataItemRequiredForDynamicTableHints(self.name)
             else:
-                return cast(TPartialTableSchema, {k: _resolve_hint(v) for k, v in self._table_schema_template.items()})
+                return _merge_keys({k: _resolve_hint(v) for k, v in self._table_schema_template.items()})
         else:
-            return cast(TPartialTableSchema, self._table_schema_template)
+            return _merge_keys(self._table_schema_template)
 
     def apply_hints(
         self,
@@ -76,12 +101,14 @@ class DltResourceSchema:
         parent_table_name: TTableHintTemplate[str] = None,
         write_disposition: TTableHintTemplate[TWriteDisposition] = None,
         columns: TTableHintTemplate[TTableSchemaColumns] = None,
+        primary_key: TTableHintTemplate[TColumnKey] = None,
+        merge_key: TTableHintTemplate[TColumnKey] = None
     ) -> None:
-        """Allows to create or modify existing table schema by setting provided hints. Accepts hints based on data."""
+        """Allows to create or modify existing table schema by setting provided hints. Accepts dynamic hints based on data."""
         t = None
         if not self._table_schema_template:
             # if there's no template yet, create and set new one
-            t = self.new_table_template(table_name, parent_table_name, write_disposition, columns)
+            t = self.new_table_template(table_name, parent_table_name, write_disposition, columns, primary_key, merge_key)
         else:
             # set single hints
             t = deepcopy(self._table_schema_template)
@@ -93,6 +120,10 @@ class DltResourceSchema:
                 t["write_disposition"] = write_disposition
             if columns:
                 t["columns"] = columns
+            if primary_key:
+                t["primary_key"] = primary_key
+            if merge_key:
+                t["merge_key"] = merge_key
         self.set_template(t)
 
     def set_template(self, table_schema_template: TTableSchemaTemplate) -> None:
@@ -112,9 +143,12 @@ class DltResourceSchema:
         parent_table_name: TTableHintTemplate[str] = None,
         write_disposition: TTableHintTemplate[TWriteDisposition] = None,
         columns: TTableHintTemplate[TTableSchemaColumns] = None,
+        primary_key: TTableHintTemplate[TColumnKey] = None,
+        merge_key: TTableHintTemplate[TColumnKey] = None
         ) -> TTableSchemaTemplate:
         if not table_name:
             raise TableNameMissing()
+
         # create a table schema template where hints can be functions taking TDataItem
         if isinstance(columns, C_Mapping):
             # new_table accepts a sequence
@@ -125,9 +159,15 @@ class DltResourceSchema:
             columns = column_list  # type: ignore
 
         new_template: TTableSchemaTemplate = new_table(table_name, parent_table_name, write_disposition=write_disposition, columns=columns)  # type: ignore
+        if primary_key:
+            new_template["primary_key"] = primary_key
+        if merge_key:
+            new_template["merge_key"] = merge_key
         # if any of the hints is a function then name must be as well
         if any(callable(v) for k, v in new_template.items() if k != "name") and not callable(table_name):
             raise InconsistentTableTemplate(f"Table name {table_name} must be a function if any other table hint is a function")
+        print("NEW TEMPLATE")
+        print(new_template)
         return new_template
 
 

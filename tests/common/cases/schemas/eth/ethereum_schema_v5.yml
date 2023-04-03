@@ -701,7 +701,7 @@ tables:
         unique: false
         sort: false
         primary_key: false
-        foreign_key: false
+        root_key: true
         data_type: text
         name: _dlt_root_id
         nullable: false
@@ -755,7 +755,7 @@ tables:
         unique: false
         sort: false
         primary_key: false
-        foreign_key: false
+        root_key: true
         data_type: text
         name: _dlt_root_id
         nullable: false
@@ -809,7 +809,7 @@ tables:
         unique: false
         sort: false
         primary_key: false
-        foreign_key: false
+        root_key: true
         data_type: text
         name: _dlt_root_id
         nullable: false
@@ -863,7 +863,7 @@ tables:
         unique: false
         sort: false
         primary_key: false
-        foreign_key: false
+        root_key: true
         data_type: text
         name: _dlt_root_id
         nullable: false
@@ -894,9 +894,11 @@ settings:
     - block_hash
     partition:
     - block_timestamp
+    root_key:
+    - _dlt_root_id
   preferred_types:
     timestamp: timestamp
-    lock_timestamp: timestamp
+    block_timestamp: timestamp
 normalizers:
   names: dlt.common.normalizers.names.snake_case
   json:

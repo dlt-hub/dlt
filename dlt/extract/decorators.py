@@ -13,7 +13,7 @@ from dlt.common.configuration.specs.config_section_context import ConfigSectionC
 from dlt.common.exceptions import ArgumentsOverloadException
 from dlt.common.normalizers.json import relational as relational_normalizer
 from dlt.common.schema.schema import Schema
-from dlt.common.schema.typing import TTableSchemaColumns, TWriteDisposition
+from dlt.common.schema.typing import TColumnKey, TColumnName, TTableSchemaColumns, TWriteDisposition
 from dlt.common.storages.exceptions import SchemaNotFoundError
 from dlt.common.storages.schema_storage import SchemaStorage
 from dlt.common.typing import AnyFun, ParamSpec, Concatenate, TDataItem, TDataItems
@@ -52,14 +52,38 @@ TResourceFunParams = ParamSpec("TResourceFunParams")
 
 
 @overload
-def source(func: Callable[TSourceFunParams, Any], /, name: str = None, max_table_nesting: int = None, schema: Schema = None, spec: Type[BaseConfiguration] = None) -> Callable[TSourceFunParams, DltSource]:
+def source(
+    func: Callable[TSourceFunParams, Any],
+    /,
+    name: str = None,
+    max_table_nesting: int = None,
+    root_key: bool = False,
+    schema: Schema = None,
+    spec: Type[BaseConfiguration] = None
+) -> Callable[TSourceFunParams, DltSource]:
     ...
 
 @overload
-def source(func: None = ..., /, name: str = None, max_table_nesting: int = None, schema: Schema = None, spec: Type[BaseConfiguration] = None) -> Callable[[Callable[TSourceFunParams, Any]], Callable[TSourceFunParams, DltSource]]:
+def source(
+    func: None = ...,
+    /,
+    name: str = None,
+    max_table_nesting: int = None,
+    root_key: bool = False,
+    schema: Schema = None,
+    spec: Type[BaseConfiguration] = None
+) -> Callable[[Callable[TSourceFunParams, Any]], Callable[TSourceFunParams, DltSource]]:
     ...
 
-def source(func: Optional[AnyFun] = None, /, name: str = None, max_table_nesting: int = None, schema: Schema = None, spec: Type[BaseConfiguration] = None) -> Any:
+def source(
+    func: Optional[AnyFun] = None,
+    /,
+    name: str = None,
+    max_table_nesting: int = None,
+    root_key: bool = False,
+    schema: Schema = None,
+    spec: Type[BaseConfiguration] = None
+) -> Any:
     """A decorator that transforms a function returning one or more `dlt resources` into a `dlt source` in order to load it with `dlt`.
 
     ### Summary
@@ -83,6 +107,8 @@ def source(func: Optional[AnyFun] = None, /, name: str = None, max_table_nesting
         name (str, optional): A name of the source which is also the name of the associated schema. If not present, the function name will be used.
 
         max_table_nesting (int, optional): A schema hint that sets the maximum depth of nested table beyond which the remaining nodes are loaded as string.
+
+        root_key (bool): Enables merging on all resources by propagating root foreign key to child tables. This option is most useful if you plan to change write disposition of a resource to disable/enable merge. Defaults to False.
 
         schema (Schema, optional): An explicit `Schema` instance to be associated with the source. If not present, `dlt` creates a new `Schema` object with provided `name`. If such `Schema` already exists in the same folder as the module containing the decorated function, such schema will be loaded from file.
 
@@ -116,6 +142,17 @@ def source(func: Optional[AnyFun] = None, /, name: str = None, max_table_nesting
             relational_normalizer.update_normalizer_config(schema,
                 {
                     "max_nesting": max_table_nesting
+                }
+            )
+        if root_key is not None:
+            # enable root propagation
+            relational_normalizer.update_normalizer_config(schema,{
+                "propagation": {
+                        "root": {
+                            "_dlt_id": TColumnName("_dlt_root_id")
+                        },
+                        "tables": {}
+                    }
                 }
             )
 
@@ -167,6 +204,8 @@ def resource(
     table_name: TTableHintTemplate[str] = None,
     write_disposition: TTableHintTemplate[TWriteDisposition] = None,
     columns: TTableHintTemplate[TTableSchemaColumns] = None,
+    primary_key: TTableHintTemplate[TColumnKey] = None,
+    merge_key: TTableHintTemplate[TColumnKey] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None
 ) -> Callable[TResourceFunParams, DltResource]:
@@ -180,6 +219,8 @@ def resource(
     table_name: TTableHintTemplate[str] = None,
     write_disposition: TTableHintTemplate[TWriteDisposition] = None,
     columns: TTableHintTemplate[TTableSchemaColumns] = None,
+    primary_key: TTableHintTemplate[TColumnKey] = None,
+    merge_key: TTableHintTemplate[TColumnKey] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None
 ) -> Callable[[Callable[TResourceFunParams, Any]], Callable[TResourceFunParams, DltResource]]:
@@ -195,6 +236,8 @@ def resource(
     table_name: TTableHintTemplate[str] = None,
     write_disposition: TTableHintTemplate[TWriteDisposition] = None,
     columns: TTableHintTemplate[TTableSchemaColumns] = None,
+    primary_key: TTableHintTemplate[TColumnKey] = None,
+    merge_key: TTableHintTemplate[TColumnKey] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None
 ) -> DltResource:
@@ -208,6 +251,8 @@ def resource(
     table_name: TTableHintTemplate[str] = None,
     write_disposition: TTableHintTemplate[TWriteDisposition] = None,
     columns: TTableHintTemplate[TTableSchemaColumns] = None,
+    primary_key: TTableHintTemplate[TColumnKey] = None,
+    merge_key: TTableHintTemplate[TColumnKey] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     depends_on: TUnboundDltResource = None
@@ -240,11 +285,15 @@ def resource(
         table_name (TTableHintTemplate[str], optional): An table name, if different from `name`.
         This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
 
-        write_disposition (Literal["skip", "append", "replace"], optional): Controls how to write data to a table. `append` will always add new data at the end of the table. `replace` will replace existing data with new data. `skip` will prevent data from loading. . Defaults to "append".
+        write_disposition (Literal["skip", "append", "replace", "merge"], optional): Controls how to write data to a table. `append` will always add new data at the end of the table. `replace` will replace existing data with new data. `skip` will prevent data from loading. "merge" will deduplicate and merge data based on "primary_key" and "merge_key" hints. Defaults to "append".
         This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
 
         columns (Sequence[TColumnSchema], optional): A list of column schemas. Typed dictionary describing column names, data types, write disposition and performance hints that gives you full control over the created table schema.
         This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
+
+        primary_key (str | Sequence[str]): A column name or a list of column names that comprise a private key. Typically used with "merge" write disposition to deduplicate loaded data.
+
+        merge_key (str | Sequence[str]): A column name or a list of column names that define a merge key. Typically used with "merge" write disposition to remove overlapping data ranges ie. to keep a single record for a given day.
 
         selected (bool, optional): When `True` `dlt pipeline` will extract and load this resource, if `False`, the resource will be ignored.
 
@@ -260,7 +309,7 @@ def resource(
         DltResource instance which may be loaded, iterated or combined with other resources into a pipeline.
     """
     def make_resource(_name: str, _data: Any) -> DltResource:
-        table_template = DltResource.new_table_template(table_name or _name, write_disposition=write_disposition, columns=columns)
+        table_template = DltResource.new_table_template(table_name or _name, write_disposition=write_disposition, columns=columns, primary_key=primary_key, merge_key=merge_key)
         return DltResource.from_data(_data, _name, table_template, selected, cast(DltResource, depends_on))
 
 
@@ -313,6 +362,8 @@ def transformer(
     table_name: TTableHintTemplate[str] = None,
     write_disposition: TTableHintTemplate[TWriteDisposition] = None,
     columns: TTableHintTemplate[TTableSchemaColumns] = None,
+    primary_key: TTableHintTemplate[TColumnKey] = None,
+    merge_key: TTableHintTemplate[TColumnKey] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None
 ) -> Callable[[Callable[Concatenate[TDataItem, TResourceFunParams], Any]], Callable[TResourceFunParams, DltResource]]:
@@ -339,7 +390,18 @@ def transformer(
     if inspect.isfunction(data_from):
         f = data_from
         data_from = DltResource.Empty
-    return resource(f, name=name, table_name=table_name, write_disposition=write_disposition, columns=columns, selected=selected, spec=spec, depends_on=data_from)  # type: ignore
+    return resource(  # type: ignore
+        f,
+        name=name,
+        table_name=table_name,
+        write_disposition=write_disposition,
+        columns=columns,
+        primary_key=primary_key,
+        merge_key=merge_key,
+        selected=selected,
+        spec=spec,
+        depends_on=data_from
+    )
 
 
 def _maybe_load_schema_for_callable(f: AnyFun, name: str) -> Optional[Schema]:
