@@ -1,6 +1,6 @@
 
 from contextlib import contextmanager
-from typing import Any, AnyStr, ClassVar, Iterator, List, Optional, Sequence
+from typing import Any, AnyStr, ClassVar, Iterator, List, Optional, Sequence, Tuple
 
 import google.cloud.bigquery as bigquery  # noqa: I250
 from google.cloud.bigquery import dbapi as bq_dbapi
@@ -164,6 +164,7 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
         )
 
     def execute_sql(self, sql: AnyStr, *args: Any, **kwargs: Any) -> Optional[Sequence[Sequence[Any]]]:
+        print(sql)
         with self.execute_query(sql, *args, **kwargs) as curr:
             if not curr.description:
                 return None

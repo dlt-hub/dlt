@@ -15,7 +15,7 @@ from dlt.common.utils import uniq_id
 from dlt.common.destination.reference import DestinationReference, LoadJob
 
 from dlt.load import Load
-from dlt.destinations.job_client_impl import LoadEmptyJob
+from dlt.destinations.job_client_impl import EmptyLoadJob
 
 from dlt.destinations import dummy
 from dlt.destinations.dummy import dummy as dummy_impl
@@ -54,7 +54,7 @@ def test_spool_job_started() -> None:
     for f in files:
         job = Load.w_spool_job(load, f, load_id, schema)
         assert type(job) is dummy_impl.LoadDummyJob
-        assert job.status() == "running"
+        assert job.state() == "running"
         assert load.load_storage.storage.has_file(load.load_storage._get_job_file_path(load_id, LoadStorage.STARTED_JOBS_FOLDER, job.file_name()))
         jobs.append(job)
     # still running
@@ -100,8 +100,8 @@ def test_spool_job_failed() -> None:
     jobs: List[LoadJob] = []
     for f in files:
         job = Load.w_spool_job(load, f, load_id, schema)
-        assert type(job) is LoadEmptyJob
-        assert job.status() == "failed"
+        assert type(job) is EmptyLoadJob
+        assert job.state() == "failed"
         assert load.load_storage.storage.has_file(load.load_storage._get_job_file_path(load_id, LoadStorage.STARTED_JOBS_FOLDER, job.file_name()))
         jobs.append(job)
     # complete files
@@ -200,7 +200,7 @@ def test_spool_job_retry_started() -> None:
     for f in files:
         job = Load.w_spool_job(load, f, load_id, schema)
         assert type(job) is dummy_impl.LoadDummyJob
-        assert job.status() == "running"
+        assert job.state() == "running"
         assert  load.load_storage.storage.has_file(load.load_storage._get_job_file_path(load_id, LoadStorage.STARTED_JOBS_FOLDER, job.file_name()))
         # mock job config to make it retry
         job.config.retry_prob = 1.0
@@ -220,7 +220,7 @@ def test_spool_job_retry_started() -> None:
         assert LoadStorage.parse_job_file_name(fn).retry_count == 1
     for f in files:
         job = Load.w_spool_job(load, f, load_id, schema)
-        assert job.status() == "running"
+        assert job.state() == "running"
 
 
 def test_try_retrieve_job() -> None:
@@ -239,7 +239,7 @@ def test_try_retrieve_job() -> None:
         job_count, jobs = load.retrieve_jobs(c, load_id)
         assert job_count == 2
         for j in jobs:
-            assert j.status() == "failed"
+            assert j.state() == "failed"
     # new load package
     load_id, schema = prepare_load_package(
         load.load_storage,
@@ -253,7 +253,7 @@ def test_try_retrieve_job() -> None:
         job_count, jobs = load.retrieve_jobs(c, load_id)
         assert job_count == 2
         for j in jobs:
-            assert j.status() == "running"
+            assert j.state() == "running"
 
 
 def test_completed_loop() -> None:

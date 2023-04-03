@@ -102,7 +102,7 @@ def test_get_update_basic_schema(client: SqlJobClientBase) -> None:
     first_version_schema = this_schema.schema
 
     # modify schema
-    schema._schema_tables["event_slot"]["write_disposition"] = "replace"
+    schema.tables["event_slot"]["write_disposition"] = "replace"
     schema.bump_version()
     assert schema.version > this_schema.version
 
@@ -117,7 +117,7 @@ def test_get_update_basic_schema(client: SqlJobClientBase) -> None:
     # simulate parallel write: initial schema is modified differently and written alongside the first one
     # in that case the version will not change or go down
     first_schema = Schema.from_dict(json.loads(first_version_schema))
-    first_schema._schema_tables["event_bot"]["write_disposition"] = "replace"
+    first_schema.tables["event_bot"]["write_disposition"] = "replace"
     first_schema.bump_version()
     assert first_schema.version == this_schema.version == 2
     # wait to make get_newest_schema_from_storage deterministic
@@ -416,10 +416,10 @@ def test_retrieve_job(client: SqlJobClientBase, file_storage: FileStorage) -> No
     # now try to retrieve the job
     # TODO: we should re-create client instance as this call is intended to be run after some disruption ie. stopped loader process
     r_job = client.restore_file_load(file_storage.make_full_path(job.file_name()))
-    assert r_job.status() == "completed"
+    assert r_job.state() == "completed"
     # use just file name to restore
     r_job = client.restore_file_load(job.file_name())
-    assert r_job.status() == "completed"
+    assert r_job.state() == "completed"
 
 
 @pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
@@ -458,7 +458,7 @@ def test_many_schemas_single_dataset(destination_name: str, file_storage: FileSt
             "timestamp": str(pendulum.now())
         }
         with io.BytesIO() as f:
-            write_dataset(_client, f, [user_row], _client.schema._schema_tables["event_user"]["columns"])
+            write_dataset(_client, f, [user_row], _client.schema.tables["event_user"]["columns"])
             query = f.getvalue().decode()
         expect_load_file(_client, file_storage, query, "event_user")
         db_rows = list(_client.sql_client.execute_sql("SELECT * FROM event_user"))
@@ -496,7 +496,7 @@ def test_many_schemas_single_dataset(destination_name: str, file_storage: FileSt
         # use third schema where one of the fields is non null, but the field exists so it is ignored
         schema_dict["name"] = "event_3"
         event_3_schema = Schema.from_stored_schema(schema_dict)
-        event_3_schema._schema_tables["event_user"]["columns"]["input_channel"]["nullable"] = False
+        event_3_schema.tables["event_user"]["columns"]["input_channel"]["nullable"] = False
         # swap schemas in client instance
         client.schema = event_3_schema
         client.schema.bump_version()
@@ -507,7 +507,7 @@ def test_many_schemas_single_dataset(destination_name: str, file_storage: FileSt
         _load_something(client, 3)
 
         # adding new non null column will generate sync error
-        event_3_schema._schema_tables["event_user"]["columns"]["mandatory_column"] = new_column("mandatory_column", "text", nullable=False)
+        event_3_schema.tables["event_user"]["columns"]["mandatory_column"] = new_column("mandatory_column", "text", nullable=False)
         client.schema.bump_version()
         with pytest.raises(DatabaseException) as py_ex:
             client.update_storage_schema()

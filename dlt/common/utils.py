@@ -28,20 +28,23 @@ def uniq_id(len_: int = 16) -> str:
     return secrets.token_hex(len_)
 
 
-def digest128(v: str) -> str:
-    """Returns a base64 encoded shake128 hash of str v with digest of len 15 (20 characters length)"""
-    return base64.b64encode(
-        hashlib.shake_128(
-            v.encode("utf-8")
-        ).digest(15)
-    ).decode('ascii')
+def uniq_id_base64(len_: int = 16) -> str:
+    """Returns a base64 encoded crypto-grade string of random bytes with desired len_"""
+    return base64.b64encode(secrets.token_bytes(len_)).decode('ascii').rstrip("=")
 
 
-def digest128b(v: bytes) -> str:
-    """Returns a base64 encoded shake128 hash of bytes v with digest of len 15 (20 characters length)"""
+def digest128(v: str, len_: int = 15) -> str:
+    """Returns a base64 encoded shake128 hash of str v with digest of length len_ (default: 15 bytes = 20 characters length)"""
     return base64.b64encode(
-            hashlib.shake_128(v).digest(15)
-        ).decode('ascii')
+        hashlib.shake_128(v.encode("utf-8")).digest(len_)
+    ).decode('ascii').rstrip("=")
+
+
+def digest128b(v: bytes, len_: int = 15) -> str:
+    """Returns a base64 encoded shake128 hash of bytes v with digest of length len_ (default: 15 bytes = 20 characters length)"""
+    return base64.b64encode(
+            hashlib.shake_128(v).digest(len_)
+        ).decode('ascii').rstrip("=")
 
 
 def digest256(v: str) -> str:

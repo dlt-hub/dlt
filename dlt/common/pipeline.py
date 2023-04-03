@@ -11,7 +11,7 @@ from dlt.common.configuration.specs import RunConfiguration
 from dlt.common.destination.reference import DestinationReference, TDestinationReferenceArg
 from dlt.common.exceptions import DestinationHasFailedJobs
 from dlt.common.schema import Schema
-from dlt.common.schema.typing import TColumnSchema, TWriteDisposition
+from dlt.common.schema.typing import TColumnKey, TColumnSchema, TWriteDisposition
 from dlt.common.storages.load_storage import LoadPackageInfo
 from dlt.common.typing import DictStrAny
 
@@ -160,6 +160,7 @@ class SupportsPipeline(Protocol):
         table_name: str = None,
         write_disposition: TWriteDisposition = None,
         columns: Sequence[TColumnSchema] = None,
+        primary_key: TColumnKey = None,
         schema: Schema = None
     ) -> LoadInfo:
         ...

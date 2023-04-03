@@ -1,13 +1,13 @@
 import random
 from copy import copy
 from types import TracebackType
-from typing import ClassVar, Dict, Optional, Type
+from typing import ClassVar, Dict, Optional, Sequence, Type
 
 from dlt.common import pendulum
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
 from dlt.common.storages import FileStorage
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import TLoadJobStatus, LoadJob, JobClientBase
+from dlt.common.destination.reference import FollowupJob, NewLoadJob, TLoadJobState, LoadJob, JobClientBase
 
 from dlt.destinations.exceptions import (LoadJobNotExistsException, LoadJobInvalidStateTransitionException,
                                             DestinationTerminalException, DestinationTransientException)
@@ -16,22 +16,22 @@ from dlt.destinations.dummy import capabilities
 from dlt.destinations.dummy.configuration import DummyClientConfiguration
 
 
-class LoadDummyJob(LoadJob):
+class LoadDummyJob(LoadJob, FollowupJob):
     def __init__(self, file_name: str, config: DummyClientConfiguration) -> None:
         self.config = copy(config)
-        self._status: TLoadJobStatus = "running"
+        self._status: TLoadJobState = "running"
         self._exception: str = None
         self.start_time: float = pendulum.now().timestamp()
         super().__init__(file_name)
         # if config.fail_in_init:
-        s = self.status()
+        s = self.state()
         if s == "failed":
             raise DestinationTerminalException(self._exception)
         if s == "retry":
             raise DestinationTransientException(self._exception)
 
 
-    def status(self) -> TLoadJobStatus:
+    def state(self) -> TLoadJobState:
         # this should poll the server for a job status, here we simulate various outcomes
         if self._status == "running":
             n = pendulum.now().timestamp()
@@ -55,9 +55,6 @@ class LoadDummyJob(LoadJob):
 
         return self._status
 
-    def file_name(self) -> str:
-        return self._file_name
-
     def exception(self) -> str:
         # this will typically call server for error messages
         return self._exception
@@ -80,17 +77,17 @@ class DummyClient(JobClientBase):
         super().__init__(schema, config)
         self.config: DummyClientConfiguration = config
 
-    def initialize_storage(self) -> None:
+    def initialize_storage(self, staging: bool = False, truncate_tables: Sequence[str] = None) -> None:
         pass
 
-    def is_storage_initialized(self) -> bool:
+    def is_storage_initialized(self, staging: bool = False) -> bool:
         return True
 
-    def update_storage_schema(self, schema_update: Optional[TSchemaTables] = None) -> Optional[TSchemaTables]:
-        schema_update = super().update_storage_schema(schema_update)
+    def update_storage_schema(self, staging: bool = False, only_tables: Sequence[str] = None, expected_update: TSchemaTables = None) -> Optional[TSchemaTables]:
+        applied_update = super().update_storage_schema(staging, only_tables, expected_update)
         if self.config.fail_schema_update:
             raise DestinationTransientException("Raise on schema update due to fail_schema_update config flag")
-        return schema_update
+        return applied_update
 
     def start_file_load(self, table: TTableSchema, file_path: str) -> LoadJob:
         job_id = FileStorage.get_file_name_from_file_path(file_path)
@@ -100,7 +97,7 @@ class DummyClient(JobClientBase):
             JOBS[job_id] = self._create_job(file_name)
         else:
             job = JOBS[job_id]
-            if job.status == "retry":
+            if job.state == "retry":
                 job.retry()
 
         return JOBS[job_id]
@@ -110,6 +107,9 @@ class DummyClient(JobClientBase):
         if job_id not in JOBS:
             raise LoadJobNotExistsException(job_id)
         return JOBS[job_id]
+
+    def create_merge_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
+        return None
 
     def complete_load(self, load_id: str) -> None:
         pass

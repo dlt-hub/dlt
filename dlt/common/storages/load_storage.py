@@ -6,7 +6,7 @@ import humanize
 from os.path import join
 from pathlib import Path
 from pendulum.datetime import DateTime
-from typing import Dict, Iterable, List, NamedTuple, Literal, Optional, Sequence, Set, get_args, overload
+from typing import Dict, Iterable, List, NamedTuple, Literal, Optional, Sequence, Set, get_args, cast
 
 from dlt.common import json, pendulum
 from dlt.common.configuration import known_sections
@@ -38,6 +38,15 @@ class ParsedLoadJobFileName(NamedTuple):
 
     def job_id(self) -> str:
         return f"{self.table_name}.{self.file_id}.{int(self.retry_count)}.{self.file_format}"
+
+    @staticmethod
+    def parse(file_name: str) -> "ParsedLoadJobFileName":
+        p = Path(file_name)
+        parts = p.name.split(".")
+        if len(parts) != 4:
+            raise TerminalValueError(parts)
+
+        return ParsedLoadJobFileName(parts[0], parts[1], int(parts[2]), cast(TLoaderFileFormat, parts[3]))
 
 
 class LoadJobInfo(NamedTuple):
@@ -74,7 +83,7 @@ class LoadJobInfo(NamedTuple):
 
 class LoadPackageInfo(NamedTuple):
     load_id: str
-    state: str
+    state: TLoadPackageState
     schema_name: str
     schema_update: TSchemaTables
     completed_at: datetime.datetime
@@ -226,6 +235,10 @@ class LoadStorage(DataItemStorage, VersionedStorage):
     def list_failed_jobs(self, load_id: str) -> Sequence[str]:
         return self.storage.list_folder_files(self._get_job_folder_path(load_id, LoadStorage.FAILED_JOBS_FOLDER))
 
+    def list_jobs_for_table(self, load_id: str, table_name: str) -> Sequence[LoadJobInfo]:
+        info = self.get_load_package_info(load_id)
+        return [job for job in flatten_list_or_items(iter(info.jobs.values())) if job.job_file_info.table_name == table_name]
+
     def list_completed_failed_jobs(self, load_id: str) -> Sequence[str]:
         return self.storage.list_folder_files(self._get_job_folder_completed_path(load_id, LoadStorage.FAILED_JOBS_FOLDER))
 
@@ -293,6 +306,10 @@ class LoadStorage(DataItemStorage, VersionedStorage):
         # save applied update
         self.storage.save(processed_schema_update_file, json.dumps(applied_update))
 
+    def add_new_job(self, load_id: str, job_file_path: str, job_state: TJobState = "new_jobs") -> None:
+        """Adds new job by moving the `job_file_path` into `new_jobs` of package `load_id`"""
+        self.storage.atomic_import(job_file_path, self._get_job_folder_path(load_id, job_state))
+
     def start_job(self, load_id: str, file_name: str) -> str:
         return self._move_job(load_id, LoadStorage.NEW_JOBS_FOLDER, LoadStorage.STARTED_JOBS_FOLDER, file_name)
 
@@ -356,9 +373,12 @@ class LoadStorage(DataItemStorage, VersionedStorage):
         return Schema.from_dict(stored_schema)
 
     def _move_job(self, load_id: str, source_folder: TJobState, dest_folder: TJobState, file_name: str, new_file_name: str = None) -> str:
+        # ensure we move file names, not paths
+        assert file_name == FileStorage.get_file_name_from_file_path(file_name)
         load_path = self.get_package_path(load_id)
         dest_path = join(load_path, dest_folder, new_file_name or file_name)
         self.storage.atomic_rename(join(load_path, source_folder, file_name), dest_path)
+        # print(f"{join(load_path, source_folder, file_name)} -> {dest_path}")
         return self.storage.make_full_path(dest_path)
 
     def _get_job_folder_path(self, load_id: str, folder: TJobState) -> str:
@@ -400,11 +420,9 @@ class LoadStorage(DataItemStorage, VersionedStorage):
     def parse_job_file_name(file_name: str) -> ParsedLoadJobFileName:
         p = Path(file_name)
         parts = p.name.split(".")
-        if len(parts) != 4:
-            raise TerminalValueError(parts)
         # verify we know the extension
         ext: TLoaderFileFormat = parts[-1]  # type: ignore
         if ext not in LoadStorage.ALL_SUPPORTED_FILE_FORMATS:
             raise TerminalValueError(ext)
 
-        return ParsedLoadJobFileName(parts[0], parts[1], int(parts[2]), ext)
+        return ParsedLoadJobFileName.parse(file_name)

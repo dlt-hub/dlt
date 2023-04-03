@@ -1,21 +1,24 @@
+import os
 from abc import abstractmethod
 import base64
 import binascii
 import contextlib
 from copy import copy
-import datetime  # noqa: 251
+import datetime
 from types import TracebackType
 from typing import Any, ClassVar, List, NamedTuple, Optional, Sequence, Tuple, Type
 import zlib
 
 from dlt.common import json, pendulum, logger
 from dlt.common.data_types import TDataType
-from dlt.common.schema.typing import COLUMN_HINTS, LOADS_TABLE_NAME, VERSION_TABLE_NAME, TColumnSchemaBase
+from dlt.common.schema.typing import COLUMN_HINTS, LOADS_TABLE_NAME, VERSION_TABLE_NAME, TColumnSchemaBase, TTableSchema
 from dlt.common.schema.utils import add_missing_hints
 from dlt.common.storages import FileStorage
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns, TSchemaTables
-from dlt.common.destination.reference import DestinationClientConfiguration, DestinationClientDwhConfiguration, TLoadJobStatus, LoadJob, JobClientBase
+from dlt.common.destination.reference import DestinationClientConfiguration, DestinationClientDwhConfiguration, NewLoadJob, TLoadJobState, LoadJob, JobClientBase
 from dlt.destinations.exceptions import DatabaseUndefinedRelation, DestinationSchemaWillNotUpdate
+from dlt.destinations.job_impl import EmptyLoadJob, EmptyLoadJobWithoutFollowup
+from dlt.destinations.sql_merge_job import SqlMergeJob
 
 from dlt.destinations.typing import TNativeConn
 from dlt.destinations.sql_client import SqlClientBase
@@ -30,24 +33,28 @@ class StorageSchemaInfo(NamedTuple):
     schema: str
 
 
-class LoadEmptyJob(LoadJob):
-    def __init__(self, file_name: str, status: TLoadJobStatus, exception: str = None) -> None:
-        self._status = status
-        self._exception = exception
-        super().__init__(file_name)
+class SqlLoadJob(LoadJob):
+    """A job executing sql statement, without followup trait"""
 
-    @classmethod
-    def from_file_path(cls, file_path: str, status: TLoadJobStatus, message: str = None) -> "LoadEmptyJob":
-        return cls(FileStorage.get_file_name_from_file_path(file_path), status, exception=message)
+    def __init__(self, file_path: str, sql_client: SqlClientBase[Any]) -> None:
+        super().__init__(FileStorage.get_file_name_from_file_path(file_path))
+        # execute immediately if client present
+        with open(file_path, "r") as f:
+            sql = f.read()
+        with sql_client.begin_transaction():
+            sql_client.execute_sql(sql)
 
-    def status(self) -> TLoadJobStatus:
-        return self._status
-
-    def file_name(self) -> str:
-        return self._file_name
+    def state(self) -> TLoadJobState:
+        # this job is always done
+        return "completed"
 
     def exception(self) -> str:
-        return self._exception
+        # this part of code should be never reached
+        raise NotImplementedError()
+
+    @staticmethod
+    def is_sql_job(file_path: str) -> bool:
+        return os.path.splitext(file_path)[1][1:] == "sql"
 
 
 class SqlJobClientBase(JobClientBase):
@@ -60,28 +67,63 @@ class SqlJobClientBase(JobClientBase):
         assert isinstance(config, DestinationClientDwhConfiguration)
         self.config: DestinationClientDwhConfiguration = config
 
-    def initialize_storage(self) -> None:
-        if not self.is_storage_initialized():
-            self.sql_client.create_dataset()
-
-    def is_storage_initialized(self) -> bool:
-        return self.sql_client.has_dataset()
-
-    def update_storage_schema(self, schema_update: Optional[TSchemaTables] = None) -> Optional[TSchemaTables]:
-        super().update_storage_schema(schema_update)
-        applied_update: TSchemaTables = {}
-        schema_info = self.get_schema_by_hash(self.schema.stored_version_hash)
-        if schema_info is None:
-            logger.info(f"Schema with hash {self.schema.stored_version_hash} not found in the storage. upgrading")
-
-            if self.capabilities.supports_ddl_transactions:
-                with self.sql_client.begin_transaction():
-                    applied_update = self._execute_schema_update_sql()
+    def initialize_storage(self, staging: bool = False, truncate_tables: Sequence[str] = None) -> None:
+        # use regular or staging dataset name
+        with self.sql_client.with_staging_dataset(staging):
+            if not self.is_storage_initialized():
+                self.sql_client.create_dataset()
             else:
-                applied_update = self._execute_schema_update_sql()
-        else:
-            logger.info(f"Schema with hash {self.schema.stored_version_hash} inserted at {schema_info.inserted_at} found in storage, no upgrade required")
-        return applied_update
+                # truncate requested tables
+                if truncate_tables:
+                    self.sql_client.truncate_tables(*truncate_tables)
+
+
+    def is_storage_initialized(self, staging: bool = False) -> bool:
+        with self.sql_client.with_staging_dataset(staging):
+            return self.sql_client.has_dataset()
+
+    def update_storage_schema(self, staging: bool = False, only_tables: Sequence[str] = None, expected_update: TSchemaTables = None) -> Optional[TSchemaTables]:
+        with self.sql_client.with_staging_dataset(staging):
+            super().update_storage_schema(staging, only_tables, expected_update)
+            applied_update: TSchemaTables = {}
+            schema_info = self.get_schema_by_hash(self.schema.stored_version_hash)
+            if schema_info is None:
+                logger.info(f"Schema with hash {self.schema.stored_version_hash} not found in the storage. upgrading")
+
+                if self.capabilities.supports_ddl_transactions:
+                    with self.sql_client.begin_transaction():
+                        applied_update = self._execute_schema_update_sql(only_tables)
+                else:
+                    applied_update = self._execute_schema_update_sql(only_tables)
+            else:
+                logger.info(f"Schema with hash {self.schema.stored_version_hash} inserted at {schema_info.inserted_at} found in storage, no upgrade required")
+            return applied_update
+
+    def create_merge_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
+        return SqlMergeJob.from_table_chain(table_chain, self.sql_client)
+
+    def start_file_load(self, table: TTableSchema, file_path: str) -> LoadJob:
+        """Starts SqlLoadJob for files ending with .sql or returns None to let derived classes to handle their specific jobs"""
+        if SqlLoadJob.is_sql_job(file_path):
+            # execute sql load job
+            return SqlLoadJob(file_path, self.sql_client)
+        return None
+
+    def restore_file_load(self, file_path: str) -> LoadJob:
+        """Returns a completed SqlLoadJob or None to let derived classes to handle their specific jobs
+
+        Returns completed jobs as SqlLoadJob is executed atomically in start_file_load so any jobs that should be recreated are already completed.
+        Obviously the case of asking for jobs that were never created will not be handled. With correctly implemented loader that cannot happen.
+
+        Args:
+            file_path (str): a path to a job file
+
+        Returns:
+            LoadJob: A restored job or none
+        """
+        if SqlLoadJob.is_sql_job(file_path):
+            return EmptyLoadJobWithoutFollowup.from_file_path(file_path, "completed")
+        return None
 
     def complete_load(self, load_id: str) -> None:
         name = self.sql_client.make_qualified_table_name(LOADS_TABLE_NAME)
@@ -147,8 +189,8 @@ class SqlJobClientBase(JobClientBase):
         query = f"SELECT {self.VERSION_TABLE_SCHEMA_COLUMNS} FROM {name} WHERE version_hash = %s;"
         return self._row_to_schema_info(query, version_hash)
 
-    def _execute_schema_update_sql(self) -> TSchemaTables:
-        sql_scripts, schema_update = self._build_schema_update_sql()
+    def _execute_schema_update_sql(self, only_tables: Sequence[str]) -> TSchemaTables:
+        sql_scripts, schema_update = self._build_schema_update_sql(only_tables)
         if len(schema_update) > 0:
             # execute updates in a single batch
             sql = "\n".join(sql_scripts)
@@ -156,11 +198,21 @@ class SqlJobClientBase(JobClientBase):
         self._update_schema_in_storage(self.schema)
         return schema_update
 
-    def _build_schema_update_sql(self) -> Tuple[List[str], TSchemaTables]:
-        """Generates CREATE/ALTER sql for tables and a Schema Update with all changes performed"""
+    def _build_schema_update_sql(self, only_tables: Sequence[str]) -> Tuple[List[str], TSchemaTables]:
+        """Generates CREATE/ALTER sql for tables that differ int the destination and in Schema.
+
+        This method compares all or `only_tables` defined in self.schema to the respective tables in the destination. It detects only new tables and new columns.
+        Any other changes like data types, hints etc. are ignored.
+
+        Args:
+            only_tables (Sequence[str]): Only `only_tables` are included, or all if None.
+
+        Returns:
+            Tuple[List[str], TSchemaTables]: Tuple with a list of CREATE/ALTER scripts and a list of all tables with columns that will be added.
+        """
         sql_updates = []
         schema_update: TSchemaTables = {}
-        for table_name in self.schema.tables:
+        for table_name in only_tables or self.schema.tables:
             exists, storage_table = self.get_storage_table(table_name)
             new_columns = self._create_table_update(table_name, storage_table)
             if len(new_columns) > 0:
@@ -212,7 +264,7 @@ class SqlJobClientBase(JobClientBase):
 
     def _create_table_update(self, table_name: str, storage_table: TTableSchemaColumns) -> Sequence[TColumnSchema]:
         # compare table with stored schema and produce delta
-        updates = self.schema.get_new_columns(table_name, storage_table)
+        updates = self.schema.get_new_complete_columns(table_name, storage_table)
         logger.info(f"Found {len(updates)} updates for {table_name} in {self.schema.name}")
         return updates
 

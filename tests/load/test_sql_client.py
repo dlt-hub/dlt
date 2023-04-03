@@ -341,7 +341,7 @@ def test_max_table_identifier_length(client: SqlJobClientBase) -> None:
     assert py_ex.value.identifier_type == "table"
     assert py_ex.value.identifier_name == table_name
     # remove the table from the schema so further tests are not affected.
-    client.schema._schema_tables.pop(table_name)
+    client.schema.tables.pop(table_name)
 
     # each database handles the too long identifier differently
     # postgres and redshift trim the names on create
@@ -365,7 +365,7 @@ def test_max_column_identifier_length(client: SqlJobClientBase) -> None:
     assert py_ex.value.identifier_type == "column"
     assert py_ex.value.identifier_name == f"{table_name}.{column_name}"
     # remove the table from the schema so further tests are not affected
-    client.schema._schema_tables.pop(table_name)
+    client.schema.tables.pop(table_name)
     # long_column_name = 7 * "prospects_external_data__data365_member__member__feed_activities_created_post__items__comments__items__comments__items__author_details__educations__school_name"
     # assert long_column_name not in table_def
     # assert long_column_name[:client.capabilities.max_column_identifier_length] in table_def

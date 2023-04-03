@@ -127,6 +127,11 @@ class FileStorage:
             self.make_full_path(to_relative_path)
         )
 
+    def atomic_import(self, external_path: str, to_folder: str) -> None:
+        """Moves a file at `file_path` into the `to_folder` effectively importing file into storage"""
+        file_name = FileStorage.get_file_name_from_file_path(external_path)
+        os.rename(external_path, os.path.join(self.make_full_path(to_folder), file_name))
+
     def in_storage(self, path: str) -> bool:
         assert path is not None
         # all paths are relative to root

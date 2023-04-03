@@ -1,9 +1,8 @@
 from abc import ABC, abstractmethod
 from importlib import import_module
 from types import TracebackType, ModuleType
-from typing import ClassVar, Final, Optional, Literal, Type, Protocol, Union, TYPE_CHECKING, cast
+from typing import ClassVar, Final, Optional, Literal, Sequence, Type, Protocol, Union, TYPE_CHECKING, cast
 
-from dlt.common.configuration.utils import serialize_value
 from dlt.common.exceptions import IdentifierTooLongException, InvalidDestinationReference, UnknownDestinationModule
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
 from dlt.common.schema.exceptions import InvalidDatasetName
@@ -11,6 +10,8 @@ from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration
 from dlt.common.configuration.accessors import config
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
+from dlt.common.storages import FileStorage
+from dlt.common.storages.load_storage import ParsedLoadJobFileName
 
 
 @configspec(init=True)
@@ -42,7 +43,7 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
             ...
 
 
-TLoadJobStatus = Literal["running", "failed", "retry", "completed"]
+TLoadJobState = Literal["running", "failed", "retry", "completed"]
 
 
 class LoadJob:
@@ -60,19 +61,45 @@ class LoadJob:
         """
         File name is also a job id (or job id is deterministically derived) so it must be globally unique
         """
+        # ensure file name
+        assert file_name == FileStorage.get_file_name_from_file_path(file_name)
         self._file_name = file_name
+        self._parsed_file_name = ParsedLoadJobFileName.parse(file_name)
 
     @abstractmethod
-    def status(self) -> TLoadJobStatus:
+    def state(self) -> TLoadJobState:
+        """Returns current state. Should poll external resource if necessary."""
         pass
 
-    @abstractmethod
     def file_name(self) -> str:
-        pass
+        """A name of the job file"""
+        return self._file_name
+
+    def job_id(self) -> str:
+        """The job id that is derived from the file name"""
+        return self._parsed_file_name.job_id()
+
+    def job_file_info(self) -> ParsedLoadJobFileName:
+        return self._parsed_file_name
 
     @abstractmethod
     def exception(self) -> str:
+        """The exception associated with failed or retry states"""
         pass
+
+
+class NewLoadJob(LoadJob):
+    """Adds a trait that allows to save new job file"""
+
+    @abstractmethod
+    def new_file_path(self) -> str:
+        """Path to a newly created temporary job file. If empty, no followup job should be created"""
+        pass
+
+
+class FollowupJob:
+    """Adds a trait that allows to create a followup job"""
+    pass
 
 
 class JobClientBase(ABC):
@@ -84,24 +111,46 @@ class JobClientBase(ABC):
         self.config = config
 
     @abstractmethod
-    def initialize_storage(self) -> None:
+    def initialize_storage(self, staging: bool = False, truncate_tables: Sequence[str] = None) -> None:
+        """Prepares storage to be used ie. creates database schema or file system folder. Creates a staging storage if `staging` flag is true. Truncates requested tables.
+        """
         pass
 
     @abstractmethod
-    def is_storage_initialized(self) -> bool:
+    def is_storage_initialized(self, staging: bool = False) -> bool:
+        """Returns if storage is ready to be read/written. Checks staging storage if `staging` flag is true"""
         pass
 
-    def update_storage_schema(self, schema_update: Optional[TSchemaTables] = None) -> Optional[TSchemaTables]:
-        """Performs schema update according to held schema and/or schema update passed. Returns an update that was applied at the destination."""
+    def update_storage_schema(self, staging: bool = False, only_tables: Sequence[str] = None, expected_update: TSchemaTables = None) -> Optional[TSchemaTables]:
+        """Updates storage to the current schema.
+
+        Implementations should not assume that `expected_update` is the exact difference between destination state and the self.schema. This is only the case if
+        destination has single writer and no other processes modify the schema.
+
+        Args:
+            staging (bool, optional): Updates the staging if True. Defaults to False.
+            only_tables (Sequence[str], optional): Updates only listed tables. Defaults to None.
+            expected_update (TSchemaTables, optional): Update that is expected to be applied to the destination
+        Returns:
+            Optional[TSchemaTables]: Returns an update that was applied at the destination.
+        """
         self._verify_schema_identifier_lengths()
-        return schema_update
+        return expected_update
 
     @abstractmethod
     def start_file_load(self, table: TTableSchema, file_path: str) -> LoadJob:
+        """Creates a job for a particular `table` with content in `file_path`"""
         pass
 
     @abstractmethod
     def restore_file_load(self, file_path: str) -> LoadJob:
+        pass
+
+    @abstractmethod
+    def create_merge_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
+        """Creates a table merge job without executing it. The `table_chain` contains a list of tables, ordered by ancestry, that should be merged.
+        Clients that cannot merge should return None
+        """
         pass
 
     @abstractmethod
