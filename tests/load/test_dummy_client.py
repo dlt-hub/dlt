@@ -58,7 +58,7 @@ def test_spool_job_started() -> None:
         assert load.load_storage.storage.has_file(load.load_storage._get_job_file_path(load_id, LoadStorage.STARTED_JOBS_FOLDER, job.file_name()))
         jobs.append(job)
     # still running
-    remaining_jobs = load.complete_jobs(load_id, jobs)
+    remaining_jobs = load.complete_jobs(load_id, jobs, schema)
     assert len(remaining_jobs) == 2
 
 
@@ -79,7 +79,7 @@ def test_unsupported_write_disposition() -> None:
         [NORMALIZED_FILES[0]]
     )
     # mock unsupported disposition
-    schema.get_table("event_user")["write_disposition"] = "merge"
+    schema.get_table("event_user")["write_disposition"] = "skip"
     # write back schema
     load.load_storage._save_schema(schema, load_id)
     with ThreadPool() as pool:
@@ -105,7 +105,7 @@ def test_spool_job_failed() -> None:
         assert load.load_storage.storage.has_file(load.load_storage._get_job_file_path(load_id, LoadStorage.STARTED_JOBS_FOLDER, job.file_name()))
         jobs.append(job)
     # complete files
-    remaining_jobs = load.complete_jobs(load_id, jobs)
+    remaining_jobs = load.complete_jobs(load_id, jobs, schema)
     assert len(remaining_jobs) == 0
     for job in jobs:
         assert load.load_storage.storage.has_file(load.load_storage._get_job_file_path(load_id, LoadStorage.FAILED_JOBS_FOLDER, job.file_name()))
@@ -208,7 +208,7 @@ def test_spool_job_retry_started() -> None:
     files = load.load_storage.list_new_jobs(load_id)
     assert len(files) == 0
     # should retry, that moves jobs into new folder
-    remaining_jobs = load.complete_jobs(load_id, jobs)
+    remaining_jobs = load.complete_jobs(load_id, jobs, schema)
     assert len(remaining_jobs) == 0
     # clear retry flag
     dummy_impl.JOBS = {}

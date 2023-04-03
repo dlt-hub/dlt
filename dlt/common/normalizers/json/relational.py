@@ -51,7 +51,7 @@ class DataItemNormalizer(DataItemNormalizerBase):
         self._reset()
 
     def _reset(self) -> None:
-        self.normalizer_config = self.schema._normalizers_config["json"].get("config") or {}
+        self.normalizer_config = self.schema._normalizers_config["json"].get("config") or {}  # type: ignore
         self.propagation_config = self.normalizer_config.get("propagation", None)
         self.max_nesting = self.normalizer_config.get("max_nesting", 1000)
         self._skip_primary_key = {}
@@ -179,7 +179,6 @@ class DataItemNormalizer(DataItemNormalizerBase):
         extend: DictStrAny = {}
         # propagate root id for merge tables
         if _r_lvl == 0 and self.schema.tables.get(table, {}).get("write_disposition") == "merge":
-            print("ENABLE MERGE _dlt_root_id")
             extend["_dlt_root_id"] = row["_dlt_id"]
 
         config = self.propagation_config

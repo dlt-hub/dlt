@@ -83,6 +83,7 @@ class LoadJobInfo(NamedTuple):
 
 class LoadPackageInfo(NamedTuple):
     load_id: str
+    package_path: str
     state: TLoadPackageState
     schema_name: str
     schema_update: TSchemaTables
@@ -237,7 +238,7 @@ class LoadStorage(DataItemStorage, VersionedStorage):
 
     def list_jobs_for_table(self, load_id: str, table_name: str) -> Sequence[LoadJobInfo]:
         info = self.get_load_package_info(load_id)
-        return [job for job in flatten_list_or_items(iter(info.jobs.values())) if job.job_file_info.table_name == table_name]
+        return [job for job in flatten_list_or_items(iter(info.jobs.values())) if job.job_file_info.table_name == table_name]  # type: ignore
 
     def list_completed_failed_jobs(self, load_id: str) -> Sequence[str]:
         return self.storage.list_folder_files(self._get_job_folder_completed_path(load_id, LoadStorage.FAILED_JOBS_FOLDER))
@@ -283,7 +284,7 @@ class LoadStorage(DataItemStorage, VersionedStorage):
                         jobs.append(self._read_job_file_info(state, file, package_created_at))
             all_jobs[state] = jobs
 
-        return LoadPackageInfo(load_id, package_state, schema.name, applied_update, package_created_at, all_jobs)
+        return LoadPackageInfo(load_id, self.storage.make_full_path(package_path), package_state, schema.name, applied_update, package_created_at, all_jobs)
 
     def begin_schema_update(self, load_id: str) -> Optional[TSchemaTables]:
         package_path = self.get_package_path(load_id)

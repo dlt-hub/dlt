@@ -416,23 +416,23 @@ def test_all_tables(schema: Schema, schema_storage: SchemaStorage) -> None:
 
 def test_write_disposition(schema_storage: SchemaStorage) -> None:
     schema = schema_storage.load_schema("event")
-    assert schema.get_write_disposition("event_slot") == "append"
-    assert schema.get_write_disposition(LOADS_TABLE_NAME) == "skip"
+    assert utils.get_write_disposition(schema.tables, "event_slot") == "append"
+    assert utils.get_write_disposition(schema.tables, LOADS_TABLE_NAME) == "skip"
 
     # child tables
     schema.get_table("event_user")["write_disposition"] = "replace"
     schema.update_schema(utils.new_table("event_user__intents", "event_user"))
     assert schema.get_table("event_user__intents").get("write_disposition") is None
-    assert schema.get_write_disposition("event_user__intents") == "replace"
+    assert utils.get_write_disposition(schema.tables, "event_user__intents") == "replace"
     schema.get_table("event_user__intents")["write_disposition"] = "append"
-    assert schema.get_write_disposition("event_user__intents") == "append"
+    assert utils.get_write_disposition(schema.tables, "event_user__intents") == "append"
 
     # same but with merge
     schema.get_table("event_bot")["write_disposition"] = "merge"
     schema.update_schema(utils.new_table("event_bot__message", "event_bot"))
-    assert schema.get_write_disposition("event_bot__message") == "merge"
+    assert utils.get_write_disposition(schema.tables, "event_bot__message") == "merge"
     schema.get_table("event_bot")["write_disposition"] = "skip"
-    assert schema.get_write_disposition("event_bot__message") == "skip"
+    assert utils.get_write_disposition(schema.tables, "event_bot__message") == "skip"
 
 
 def test_compare_columns() -> None:
@@ -442,18 +442,22 @@ def test_compare_columns() -> None:
         {"name": "col3", "data_type": "timestamp", "nullable": True},
         {"name": "col4", "data_type": "timestamp", "nullable": True}
     ])
+    table2 = utils.new_table("test_table", columns=[
+        {"name": "col1", "data_type": "text", "nullable": False}
+    ])
     # columns identical with self
     for c in table["columns"].values():
         assert utils.compare_complete_columns(c, c) is True
-    assert utils.compare_complete_columns(table["columns"]["col3"], table["columns"]["col4"]) is True
+    assert utils.compare_complete_columns(table["columns"]["col3"], table["columns"]["col4"]) is False
     # data type may not differ
     assert utils.compare_complete_columns(table["columns"]["col1"], table["columns"]["col3"]) is False
-    # nullability may not differ
-    assert utils.compare_complete_columns(table["columns"]["col1"], table["columns"]["col2"]) is False
+    # nullability may differ
+    assert utils.compare_complete_columns(table["columns"]["col1"], table2["columns"]["col1"]) is True
     # any of the hints may differ
     for hint in COLUMN_HINTS:
         table["columns"]["col3"][hint] = True
-        assert utils.compare_complete_columns(table["columns"]["col3"], table["columns"]["col4"]) is True
+    # name may not differ
+    assert utils.compare_complete_columns(table["columns"]["col3"], table["columns"]["col4"]) is False
 
 
 def test_normalize_table_identifiers() -> None:

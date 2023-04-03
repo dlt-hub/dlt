@@ -105,9 +105,9 @@ def load_table(name: str) -> TTableSchemaColumns:
 
 
 def expect_load_file(client: JobClientBase, file_storage: FileStorage, query: str, table_name: str, status = "completed") -> LoadJob:
-    file_name = ParsedLoadJobFileName(table_name, uniq_id(), 0, ".content")
+    file_name = ParsedLoadJobFileName(table_name, uniq_id(), 0, "jsonl").job_id()
     file_storage.save(file_name, query.encode("utf-8"))
-    table = Load.get_load_table(client.schema, table_name, file_name)
+    table = Load.get_load_table(client.schema, file_name)
     job = client.start_file_load(table, file_storage.make_full_path(file_name))
     while job.state() == "running":
         sleep(0.5)

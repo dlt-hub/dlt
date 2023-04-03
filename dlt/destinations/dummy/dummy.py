@@ -1,7 +1,7 @@
 import random
 from copy import copy
 from types import TracebackType
-from typing import ClassVar, Dict, Optional, Sequence, Type
+from typing import ClassVar, Dict, Optional, Sequence, Type, Iterable
 
 from dlt.common import pendulum
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
@@ -77,13 +77,13 @@ class DummyClient(JobClientBase):
         super().__init__(schema, config)
         self.config: DummyClientConfiguration = config
 
-    def initialize_storage(self, staging: bool = False, truncate_tables: Sequence[str] = None) -> None:
+    def initialize_storage(self, staging: bool = False, truncate_tables: Iterable[str] = None) -> None:
         pass
 
     def is_storage_initialized(self, staging: bool = False) -> bool:
         return True
 
-    def update_storage_schema(self, staging: bool = False, only_tables: Sequence[str] = None, expected_update: TSchemaTables = None) -> Optional[TSchemaTables]:
+    def update_storage_schema(self, staging: bool = False, only_tables: Iterable[str] = None, expected_update: TSchemaTables = None) -> Optional[TSchemaTables]:
         applied_update = super().update_storage_schema(staging, only_tables, expected_update)
         if self.config.fail_schema_update:
             raise DestinationTransientException("Raise on schema update due to fail_schema_update config flag")

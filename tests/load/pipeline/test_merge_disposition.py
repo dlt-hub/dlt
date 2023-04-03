@@ -28,7 +28,7 @@ def test_merge_on_keys_in_schema(destination_name: str) -> None:
     # we load a single block
     assert eth_1_counts["blocks"] == 1
     # check root key propagation
-    assert p.default_schema.tables["blocks__transactions"]["columns"]["_dlt_root_id"]["root_key"] == True
+    assert p.default_schema.tables["blocks__transactions"]["columns"]["_dlt_root_id"]["root_key"] is True
     # now we load the whole dataset. blocks should be created which adds columns to blocks
     # if the table would be created before the whole load would fail because new columns have hints
     info = p.run(data, table_name="blocks", write_disposition="merge", schema=schema)
@@ -56,9 +56,9 @@ def test_merge_on_ad_hoc_primary_key(destination_name: str) -> None:
     # 17 issues
     assert github_1_counts["issues"] == 17
     # primary key set on issues
-    assert p.default_schema.tables["issues"]["columns"]["node_id"]["primary_key"] == True
+    assert p.default_schema.tables["issues"]["columns"]["node_id"]["primary_key"] is True
     assert p.default_schema.tables["issues"]["columns"]["node_id"]["data_type"] == "text"
-    assert p.default_schema.tables["issues"]["columns"]["node_id"]["nullable"] == False
+    assert p.default_schema.tables["issues"]["columns"]["node_id"]["nullable"] is False
 
     info = p.run(data, table_name="issues", write_disposition="merge", primary_key="node_id")
     assert_load_info(info)
@@ -75,9 +75,9 @@ def test_merge_source_compound_keys_and_changes(destination_name: str) -> None:
     @dlt.source(root_key=True)
     def github():
 
-        @dlt.resource(table_name="issues", write_disposition="merge", primary_key="id", merge_key=("node_id", "url"), encoding="utf-8")
+        @dlt.resource(table_name="issues", write_disposition="merge", primary_key="id", merge_key=("node_id", "url"))
         def load_issues():
-            with open("tests/normalize/cases/github.issues.load_page_5_duck.json", "r") as f:
+            with open("tests/normalize/cases/github.issues.load_page_5_duck.json", "r", encoding="utf-8") as f:
                 yield from json.load(f)
 
         return load_issues

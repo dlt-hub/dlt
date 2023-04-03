@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from importlib import import_module
 from types import TracebackType, ModuleType
-from typing import ClassVar, Final, Optional, Literal, Sequence, Type, Protocol, Union, TYPE_CHECKING, cast
+from typing import ClassVar, Final, Optional, Literal, Sequence, Iterable, Type, Protocol, Union, TYPE_CHECKING, cast
 
 from dlt.common.exceptions import IdentifierTooLongException, InvalidDestinationReference, UnknownDestinationModule
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
@@ -111,7 +111,7 @@ class JobClientBase(ABC):
         self.config = config
 
     @abstractmethod
-    def initialize_storage(self, staging: bool = False, truncate_tables: Sequence[str] = None) -> None:
+    def initialize_storage(self, staging: bool = False, truncate_tables: Iterable[str] = None) -> None:
         """Prepares storage to be used ie. creates database schema or file system folder. Creates a staging storage if `staging` flag is true. Truncates requested tables.
         """
         pass
@@ -121,7 +121,7 @@ class JobClientBase(ABC):
         """Returns if storage is ready to be read/written. Checks staging storage if `staging` flag is true"""
         pass
 
-    def update_storage_schema(self, staging: bool = False, only_tables: Sequence[str] = None, expected_update: TSchemaTables = None) -> Optional[TSchemaTables]:
+    def update_storage_schema(self, staging: bool = False, only_tables: Iterable[str] = None, expected_update: TSchemaTables = None) -> Optional[TSchemaTables]:
         """Updates storage to the current schema.
 
         Implementations should not assume that `expected_update` is the exact difference between destination state and the self.schema. This is only the case if

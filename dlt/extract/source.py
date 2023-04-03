@@ -67,9 +67,9 @@ class DltResourceSchema:
                 keys = [keys]
             for key in keys:
                 if key in partial["columns"]:
-                    merge_columns(partial["columns"][key], {hint: key})
+                    merge_columns(partial["columns"][key], {hint: key})  # type: ignore
                 else:
-                    partial["columns"][key] = new_column(key, "text", nullable=False)
+                    partial["columns"][key] = new_column(key, nullable=False)
                     partial["columns"][key][hint] = True
 
         def _merge_keys(t_: TTableSchemaTemplate) -> TPartialTableSchema:
@@ -78,11 +78,9 @@ class DltResourceSchema:
             # assert not callable(t_["merge_key"])
             # assert not callable(t_["primary_key"])
             if "primary_key" in t_:
-                _merge_key("primary_key", t_.pop("primary_key"), partial)
+                _merge_key("primary_key", t_.pop("primary_key"), partial)  # type: ignore
             if "merge_key" in t_:
-                _merge_key("merge_key", t_.pop("merge_key"), partial)
-
-            print(partial)
+                _merge_key("merge_key", t_.pop("merge_key"), partial)  # type: ignore
 
             return partial
 
@@ -91,7 +89,8 @@ class DltResourceSchema:
             if item is None:
                 raise DataItemRequiredForDynamicTableHints(self.name)
             else:
-                return _merge_keys({k: _resolve_hint(v) for k, v in self._table_schema_template.items()})
+                resolved_template: TTableSchemaTemplate = {k: _resolve_hint(v) for k, v in self._table_schema_template.items()}  # type: ignore
+                return _merge_keys(resolved_template)
         else:
             return _merge_keys(self._table_schema_template)
 
@@ -166,8 +165,6 @@ class DltResourceSchema:
         # if any of the hints is a function then name must be as well
         if any(callable(v) for k, v in new_template.items() if k != "name") and not callable(table_name):
             raise InconsistentTableTemplate(f"Table name {table_name} must be a function if any other table hint is a function")
-        print("NEW TEMPLATE")
-        print(new_template)
         return new_template
 
 

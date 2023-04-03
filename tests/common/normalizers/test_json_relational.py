@@ -155,22 +155,23 @@ def test_child_table_linking_primary_key(norm: RelationalNormalizer) -> None:
 
     rows = list(norm._normalize_row(row, {}, ("table", )))
     root = next(t for t in rows if t[0][0] == "table")[1]
-    # record hash must be derived from natural key
-    assert root["_dlt_id"] == digest128("level0", DLT_ID_LENGTH_BYTES)
+    # record hash is random for primary keys, not based on their content
+    # this is a change introduced in dlt 0.2.0a30
+    assert root["_dlt_id"] != digest128("level0", DLT_ID_LENGTH_BYTES)
 
     # table at "f"
     t_f = next(t for t in rows if t[0][0] == "table__f")[1]
-    assert t_f["_dlt_id"] == digest128("level1", DLT_ID_LENGTH_BYTES)
+    assert t_f["_dlt_id"] != digest128("level1", DLT_ID_LENGTH_BYTES)
     # we use primary key to link to parent
     assert "_dlt_parent_id" not in t_f
     assert "_dlt_list_idx" not in t_f
     assert "_dlt_root_id" not in t_f
 
     list_rows = [t for t in rows if t[0][0] == "table__f__l"]
-    assert all(e[1]["_dlt_parent_id"] == digest128("level1", DLT_ID_LENGTH_BYTES) for e in list_rows)
+    assert all(e[1]["_dlt_parent_id"] != digest128("level1", DLT_ID_LENGTH_BYTES) for e in list_rows)
     assert all(r[0][1] == "table__f" for r in list_rows)
     obj_rows = [t for t in rows if t[0][0] == "table__f__o"]
-    assert all(e[1]["_dlt_parent_id"] == digest128("level1", DLT_ID_LENGTH_BYTES) for e in obj_rows)
+    assert all(e[1]["_dlt_parent_id"] != digest128("level1", DLT_ID_LENGTH_BYTES) for e in obj_rows)
     assert all(r[0][1] == "table__f" for r in obj_rows)
 
 
@@ -254,27 +255,27 @@ def test_yields_parent_relation(norm: RelationalNormalizer) -> None:
     assert table__f__b__a["_dlt_parent_id"] == table__f["_dlt_id"]
 
 
-def test_child_table_linking_compound_primary_key(norm: RelationalNormalizer) -> None:
-    row = {
-        "id": "level0",
-        "offset": 12102.45,
-        "f": [{
-            "id": "level1",
-            "item_no": 8129173987192873,
-            "l": ["a", "b", "c"],
-            "v": 120,
-            "o": [{"a": 1}, {"a": 2}]
-        }]
-    }
-    norm.schema.merge_hints({"primary_key": ["id", "offset", "item_no"]})
-    norm.schema._compile_settings()
+# def test_child_table_linking_compound_primary_key(norm: RelationalNormalizer) -> None:
+#     row = {
+#         "id": "level0",
+#         "offset": 12102.45,
+#         "f": [{
+#             "id": "level1",
+#             "item_no": 8129173987192873,
+#             "l": ["a", "b", "c"],
+#             "v": 120,
+#             "o": [{"a": 1}, {"a": 2}]
+#         }]
+#     }
+#     norm.schema.merge_hints({"primary_key": ["id", "offset", "item_no"]})
+#     norm.schema._compile_settings()
 
-    rows = list(norm._normalize_row(row, {}, ("table", )))
-    root = next(t for t in rows if t[0][0] == "table")[1]
-    # record hash must be derived from natural key
-    assert root["_dlt_id"] == digest128("level0_12102.45", DLT_ID_LENGTH_BYTES)
-    t_f = next(t for t in rows if t[0][0] == "table__f")[1]
-    assert t_f["_dlt_id"] == digest128("level1_8129173987192873", DLT_ID_LENGTH_BYTES)
+#     rows = list(norm._normalize_row(row, {}, ("table", )))
+#     root = next(t for t in rows if t[0][0] == "table")[1]
+#     # record hash must be derived from natural key
+#     assert root["_dlt_id"] == digest128("level0_12102.45", DLT_ID_LENGTH_BYTES)
+#     t_f = next(t for t in rows if t[0][0] == "table__f")[1]
+#     assert t_f["_dlt_id"] == digest128("level1_8129173987192873", DLT_ID_LENGTH_BYTES)
 
 
 def test_list_position(norm: RelationalNormalizer) -> None:
@@ -622,14 +623,14 @@ def test_parse_with_primary_key() -> None:
     rows = list(schema.normalize_data_item(row, "load_id", "discord"))
     # get root
     root = next(t[1] for t in rows if t[0][0] == "discord")
-    assert root["_dlt_id"] == digest128("817949077341208606", DLT_ID_LENGTH_BYTES)
+    assert root["_dlt_id"] != digest128("817949077341208606", DLT_ID_LENGTH_BYTES)
     assert "_dlt_parent_id" not in root
     assert "_dlt_root_id" not in root
     assert root["_dlt_load_id"] == "load_id"
 
     el_w_id = next(t[1] for t in rows if t[0][0] == "discord__w_id")
     # this also has primary key
-    assert el_w_id["_dlt_id"] == digest128("9128918293891111", DLT_ID_LENGTH_BYTES)
+    assert el_w_id["_dlt_id"] != digest128("9128918293891111", DLT_ID_LENGTH_BYTES)
     assert "_dlt_parent_id" not in el_w_id
     assert "_dlt_list_idx" not in el_w_id
     # if enabled, dlt_root is always propagated
@@ -638,9 +639,9 @@ def test_parse_with_primary_key() -> None:
     # this must have deterministic child key
     f_wo_id = next(t[1] for t in rows if t[0][0] == "discord__w_id__wo_id" and t[1]["_dlt_list_idx"] == 2)
     assert f_wo_id["value"] == 3
-    assert f_wo_id["_dlt_root_id"] == digest128("817949077341208606", DLT_ID_LENGTH_BYTES)
-    assert f_wo_id["_dlt_parent_id"] == digest128("9128918293891111", DLT_ID_LENGTH_BYTES)
-    assert f_wo_id["_dlt_id"] == RelationalNormalizer._get_child_row_hash(digest128("9128918293891111", DLT_ID_LENGTH_BYTES), "discord__w_id__wo_id", 2)
+    assert f_wo_id["_dlt_root_id"] != digest128("817949077341208606", DLT_ID_LENGTH_BYTES)
+    assert f_wo_id["_dlt_parent_id"] != digest128("9128918293891111", DLT_ID_LENGTH_BYTES)
+    assert f_wo_id["_dlt_id"] == RelationalNormalizer._get_child_row_hash(f_wo_id["_dlt_parent_id"], "discord__w_id__wo_id", 2)
 
 
 def test_keeps_none_values() -> None:

@@ -4,9 +4,9 @@ import base64
 import binascii
 import contextlib
 from copy import copy
-import datetime
+import datetime  # noqa: 251
 from types import TracebackType
-from typing import Any, ClassVar, List, NamedTuple, Optional, Sequence, Tuple, Type
+from typing import Any, ClassVar, List, NamedTuple, Optional, Sequence, Tuple, Type, Iterable
 import zlib
 
 from dlt.common import json, pendulum, logger
@@ -39,7 +39,7 @@ class SqlLoadJob(LoadJob):
     def __init__(self, file_path: str, sql_client: SqlClientBase[Any]) -> None:
         super().__init__(FileStorage.get_file_name_from_file_path(file_path))
         # execute immediately if client present
-        with open(file_path, "r") as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             sql = f.read()
         with sql_client.begin_transaction():
             sql_client.execute_sql(sql)
@@ -67,7 +67,7 @@ class SqlJobClientBase(JobClientBase):
         assert isinstance(config, DestinationClientDwhConfiguration)
         self.config: DestinationClientDwhConfiguration = config
 
-    def initialize_storage(self, staging: bool = False, truncate_tables: Sequence[str] = None) -> None:
+    def initialize_storage(self, staging: bool = False, truncate_tables: Iterable[str] = None) -> None:
         # use regular or staging dataset name
         with self.sql_client.with_staging_dataset(staging):
             if not self.is_storage_initialized():
@@ -82,7 +82,7 @@ class SqlJobClientBase(JobClientBase):
         with self.sql_client.with_staging_dataset(staging):
             return self.sql_client.has_dataset()
 
-    def update_storage_schema(self, staging: bool = False, only_tables: Sequence[str] = None, expected_update: TSchemaTables = None) -> Optional[TSchemaTables]:
+    def update_storage_schema(self, staging: bool = False, only_tables: Iterable[str] = None, expected_update: TSchemaTables = None) -> Optional[TSchemaTables]:
         with self.sql_client.with_staging_dataset(staging):
             super().update_storage_schema(staging, only_tables, expected_update)
             applied_update: TSchemaTables = {}
@@ -189,7 +189,7 @@ class SqlJobClientBase(JobClientBase):
         query = f"SELECT {self.VERSION_TABLE_SCHEMA_COLUMNS} FROM {name} WHERE version_hash = %s;"
         return self._row_to_schema_info(query, version_hash)
 
-    def _execute_schema_update_sql(self, only_tables: Sequence[str]) -> TSchemaTables:
+    def _execute_schema_update_sql(self, only_tables: Iterable[str]) -> TSchemaTables:
         sql_scripts, schema_update = self._build_schema_update_sql(only_tables)
         if len(schema_update) > 0:
             # execute updates in a single batch
@@ -198,14 +198,14 @@ class SqlJobClientBase(JobClientBase):
         self._update_schema_in_storage(self.schema)
         return schema_update
 
-    def _build_schema_update_sql(self, only_tables: Sequence[str]) -> Tuple[List[str], TSchemaTables]:
+    def _build_schema_update_sql(self, only_tables: Iterable[str]) -> Tuple[List[str], TSchemaTables]:
         """Generates CREATE/ALTER sql for tables that differ int the destination and in Schema.
 
         This method compares all or `only_tables` defined in self.schema to the respective tables in the destination. It detects only new tables and new columns.
         Any other changes like data types, hints etc. are ignored.
 
         Args:
-            only_tables (Sequence[str]): Only `only_tables` are included, or all if None.
+            only_tables (Iterable[str]): Only `only_tables` are included, or all if None.
 
         Returns:
             Tuple[List[str], TSchemaTables]: Tuple with a list of CREATE/ALTER scripts and a list of all tables with columns that will be added.

@@ -22,7 +22,6 @@ class SqlMergeJob(NewLoadJobImpl):
         try:
             sql = SqlMergeJob._gen_sql(table_chain, sql_client)
             job = cls(file_info.job_id(), "running")
-            print("\n".join(sql))
             job._save_text_file("\n".join(sql))
         except Exception:
             # return failed job
@@ -34,17 +33,26 @@ class SqlMergeJob(NewLoadJobImpl):
 
     @staticmethod
     def _gen_sql(table_chain: Sequence[TTableSchema], sql_client: SqlClientBase[Any]) -> List[str]:
+        """Generates a list of sql statements that merge the data in staging dataset with the data in destination dataset.
+
+        The `table_chain` contains a list schemas of a tables with parent-child relationship, ordered by the ancestry (the root of the tree is first on the list).
+        The root table is merged using primary_key and merge_key hints which can be compound and be both specified. In that case the OR clause is generated.
+        The child tables are merged based on propagated `root_key` which is a type of foreign key but always leading to a root table.
+
+        First we store the root_keys of root table elements to be deleted in the temp table. Then we use the temp table to delete records from root and all child tables in the destination dataset.
+        At the end we copy the data from the staging dataset into destination dataset.
+        """
         sql: List[str] = []
-        top_table = table_chain[0]
+        root_table = table_chain[0]
 
         # get top level table full identifiers
-        top_table_name = sql_client.make_qualified_table_name(top_table["name"])
+        root_table_name = sql_client.make_qualified_table_name(root_table["name"])
         temp_table_name = f"test_{uniq_id()}"
         with sql_client.with_staging_dataset(staging=True):
-            staging_top_table_name = sql_client.make_qualified_table_name(top_table["name"])
+            staging_top_table_name = sql_client.make_qualified_table_name(root_table["name"])
         # get merge and primary keys from top level
-        primary_keys = get_columns_names_with_prop(top_table, "primary_key")
-        merge_keys = get_columns_names_with_prop(top_table, "merge_key")
+        primary_keys = get_columns_names_with_prop(root_table, "primary_key")
+        merge_keys = get_columns_names_with_prop(root_table, "merge_key")
         overlapped_clause = ""
         if primary_keys or merge_keys:
             if primary_keys:
@@ -55,19 +63,19 @@ class SqlMergeJob(NewLoadJobImpl):
                 else:
                     overlapped_clause += " OR "
                 overlapped_clause += " AND ".join([f"data.{c} = staging.{c}" for c in map(sql_client.capabilities.escape_identifier, merge_keys)])
-        select_overlapped = f"FROM {top_table_name} AS data WHERE EXISTS (SELECT 1 FROM {staging_top_table_name} AS staging {overlapped_clause})"
+        select_overlapped = f"FROM {root_table_name} AS data WHERE EXISTS (SELECT 1 FROM {staging_top_table_name} AS staging {overlapped_clause})"
         if len(table_chain) == 1:
             # if no child tables, just delete data from top table
             sql.append(f"DELETE {select_overlapped};")
         else:
             # use unique hint to create temp table with all identifiers to delete
-            unique_columns = get_columns_names_with_prop(top_table, "unique")
+            unique_columns = get_columns_names_with_prop(root_table, "unique")
             if not unique_columns:
                 raise MergeDispositionException(
                     sql_client.fully_qualified_dataset_name(),
                     staging_top_table_name,
                     [t["name"] for t in table_chain],
-                    f"There is no unique column (ie _dlt_id) in top table {top_table['name']} so it is not possible to link child tables to it."
+                    f"There is no unique column (ie _dlt_id) in top table {root_table['name']} so it is not possible to link child tables to it."
                 )
             # get first unique column
             unique_column = sql_client.capabilities.escape_identifier(unique_columns[0])
@@ -75,7 +83,7 @@ class SqlMergeJob(NewLoadJobImpl):
             # sql.append(f"SELECT {unique_column} {select_overlapped};")
             sql.append(f"CREATE TEMP TABLE {temp_table_name} AS SELECT {unique_column} {select_overlapped};")
             # delete top table
-            sql.append(f"DELETE FROM {top_table_name} WHERE {unique_column} IN (SELECT * FROM {temp_table_name});")
+            sql.append(f"DELETE FROM {root_table_name} WHERE {unique_column} IN (SELECT * FROM {temp_table_name});")
             # delete other tables
             for table in table_chain[1:]:
                 table_name = sql_client.make_qualified_table_name(table["name"])
@@ -85,7 +93,7 @@ class SqlMergeJob(NewLoadJobImpl):
                         sql_client.fully_qualified_dataset_name(),
                         staging_top_table_name,
                         [t["name"] for t in table_chain],
-                        f"There is no root foreign key (ie _dlt_root_id) in child table {table['name']} so it is not possible to refer to top level table {top_table['name']} unique column {unique_column}"
+                        f"There is no root foreign key (ie _dlt_root_id) in child table {table['name']} so it is not possible to refer to top level table {root_table['name']} unique column {unique_column}"
                     )
                 root_key_column = sql_client.capabilities.escape_identifier(root_key_columns[0])
                 sql.append(f"DELETE FROM {table_name} WHERE {root_key_column} IN (SELECT * FROM {temp_table_name});")

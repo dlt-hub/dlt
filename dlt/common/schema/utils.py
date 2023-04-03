@@ -47,7 +47,7 @@ def remove_defaults(stored_schema: TStoredSchema) -> TStoredSchema:
         del t["name"]
         for c in t["columns"].values():
             # do not save names
-            del c["name"]  # type: ignore
+            del c["name"]
             # remove hints with default values
             for h in list(c.keys()):
                 if isinstance(c[h], bool) and c[h] is False and h != "nullable":  # type: ignore
@@ -250,20 +250,20 @@ def migrate_schema(schema_dict: DictStrAny, from_engine: int, to_engine: int) ->
 
 
 def add_missing_hints(column: TColumnSchemaBase) -> TColumnSchema:
-    return dict(column)  # type: ignore
-    # {
-    #     **{  # type:ignore
-    #         "partition": False,
-    #         "cluster": False,
-    #         "unique": False,
-    #         "sort": False,
-    #         "primary_key": False,
-    #         "foreign_key": False,
-    #         # "root_key": False,
-    #         # "merge_key": False
-    #     },
-    #     **column
-    # }
+    # return # dict(column)  # type: ignore
+    return {
+        **{  # type:ignore
+            "partition": False,
+            "cluster": False,
+            "unique": False,
+            "sort": False,
+            "primary_key": False,
+            "foreign_key": False,
+            "root_key": False,
+            "merge_key": False
+        },
+        **column
+    }
 
 
 def autodetect_sc_type(detection_fs: Sequence[TTypeDetections], t: Type[Any], v: Any) -> TDataType:
@@ -289,12 +289,12 @@ def compare_complete_columns(a: TColumnSchema, b: TColumnSchema) -> bool:
     return a["data_type"] == b["data_type"] and a["name"] == b["name"]
 
 
-def merge_columns(col_a: TColumnSchema, col_b: TColumnSchema) -> TColumnSchema:
-    """Merges `col_b` into `col_a`."""
+def merge_columns(col_a: TColumnSchema, col_b: TColumnSchema, merge_defaults: bool = False) -> TColumnSchema:
+    """Merges `col_b` into `col_a`. if `merge_defaults` is True, only hints not present in `col_a` will be set."""
+    # print(f"MERGE ({merge_defaults}) {col_b} into {col_a}")
     for n, v in col_b.items():
-        # ??? Only hints not present in `col_a` will be set.
-        # if col_a.get(n) is None:
-        col_a[n] = v  # type: ignore
+        if col_a.get(n) is None or not merge_defaults:
+            col_a[n] = v  # type: ignore
     return col_a
 
 
@@ -513,12 +513,13 @@ def new_table(
     return table
 
 
-def new_column(column_name: str, data_type: TDataType, nullable: bool = True, validate_schema: bool = False) -> TColumnSchema:
+def new_column(column_name: str, data_type: TDataType = None, nullable: bool = True, validate_schema: bool = False) -> TColumnSchema:
     column = add_missing_hints({
                 "name": column_name,
-                "data_type": data_type,
                 "nullable": nullable
             })
+    if data_type:
+        column["data_type"] = data_type
     if validate_schema:
         validate_dict(TColumnSchema, column, f"new_column/{column_name}")
     return column
