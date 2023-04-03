@@ -12,7 +12,7 @@ from dlt.common.runners import TRunMetrics, Runnable, workermethod
 from dlt.common.runtime.logger import pretty_format_exception
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema import Schema
-from dlt.common.schema.typing import TTableSchema
+from dlt.common.schema.typing import TTableSchema, TWriteDisposition
 from dlt.common.storages import LoadStorage
 from dlt.common.runtime.prometheus import get_logging_extras, set_gauge_all_labels
 from dlt.common.destination.reference import FollowupJob, JobClientBase, DestinationReference, LoadJob, NewLoadJob, TLoadJobState, DestinationClientConfiguration
@@ -153,26 +153,30 @@ class Load(Runnable[ThreadPool]):
         logger.metrics("progress", "retrieve jobs", extra=get_logging_extras([self.job_gauge.labels("retrieved"), self.job_counter.labels("retrieved")]))
         return len(jobs), jobs
 
-    def get_merge_jobs_info(self, load_id: str, schema: Schema) -> List[ParsedLoadJobFileName]:
+    def get_jobs_info(self, load_id: str, schema: Schema, disposition: TWriteDisposition = None) -> List[ParsedLoadJobFileName]:
         merge_jobs_info: List[ParsedLoadJobFileName] = []
         new_job_files = self.load_storage.list_new_jobs(load_id)
         for job_file in new_job_files:
-            if self.get_load_table(schema, job_file)["write_disposition"] == "merge":
+            if not disposition or self.get_load_table(schema, job_file)["write_disposition"] == disposition:
                 merge_jobs_info.append(LoadStorage.parse_job_file_name(job_file))
         return merge_jobs_info
 
     def create_merge_job(self, load_id: str, schema: Schema, top_merged_table: TTableSchema, starting_job: LoadJob) -> NewLoadJob:
         # returns ordered list of tables from parent to child leaf tables
-        table_chain = get_child_tables(schema.tables, top_merged_table["name"])
+        table_chain: List[TTableSchema] = []
         # make sure all the jobs for the table chain is completed
-        for table in table_chain:
+        for table in get_child_tables(schema.tables, top_merged_table["name"]):
             table_jobs = self.load_storage.list_jobs_for_table(load_id, table["name"])
+            # if no jobs for table then skip the table in the chain. we assume that if parent has no jobs, the child would also have no jobs
+            # so it will be eliminated by this loop as well
+            if not table_jobs:
+                continue
             # all jobs must be completed in order for merge to be created
-            print("tried to gen MERGE")
             if any(job.state not in ("failed_jobs", "completed_jobs") and job.job_file_info.job_id() != starting_job.job_file_info().job_id() for job in table_jobs):
-                print("MERGE")
-                print(table_jobs)
                 return None
+            table_chain.append(table)
+        # there must be at least 1 job
+        assert len(table_chain) > 0
         # all tables completed, create merge sql job
         return self.destination.client(schema, self.initial_client_config).create_merge_job(table_chain)
 
@@ -265,16 +269,19 @@ class Load(Runnable[ThreadPool]):
                 logger.info(f"Client for {job_client.config.destination_name} will start initialize storage")
                 job_client.initialize_storage()
                 logger.info(f"Client for {job_client.config.destination_name} will update schema to package schema")
-                applied_update = job_client.update_storage_schema(expected_update=expected_update)
+                all_jobs = self.get_jobs_info(load_id, schema)
+                all_tables = [job.table_name for job in all_jobs]
+                dlt_tables = [t["name"] for t in schema.dlt_tables()]
+                # only update tables that are present in the load package
+                applied_update = job_client.update_storage_schema(only_tables=set(all_tables+dlt_tables), expected_update=expected_update)
                 # update the staging dataset
-                merge_jobs = self.get_merge_jobs_info(load_id, schema)
+                merge_jobs = self.get_jobs_info(load_id, schema, "merge")
                 if merge_jobs:
                     logger.info(f"Client for {job_client.config.destination_name} will start initialize STAGING storage")
                     job_client.initialize_storage(staging=True)
                     logger.info(f"Client for {job_client.config.destination_name} will UPDATE STAGING SCHEMA to package schema")
                     merge_tables = [job.table_name for job in merge_jobs]
-                    staging_tables = merge_tables + [t["name"] for t in schema.dlt_tables()]
-                    job_client.update_storage_schema(staging=True, only_tables=staging_tables, expected_update=expected_update)
+                    job_client.update_storage_schema(staging=True, only_tables=set(merge_tables+dlt_tables), expected_update=expected_update)
                     logger.info(f"Client for {job_client.config.destination_name} will TRUNCATE STAGING TABLES: {merge_tables}")
                     job_client.initialize_storage(staging=True, truncate_tables=merge_tables)
                 self.load_storage.commit_schema_update(load_id, applied_update)
