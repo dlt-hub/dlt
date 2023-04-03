@@ -1,10 +1,10 @@
 import dataclasses
-from typing import List, Optional, TYPE_CHECKING, cast
+from typing import Optional, TYPE_CHECKING
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.normalizers.typing import TJSONNormalizer, TNormalizersConfig
+from dlt.common.normalizers.typing import TJSONNormalizer
 from dlt.common.typing import StrAny
 
 
@@ -27,9 +27,6 @@ class NormalizersConfiguration(BaseConfiguration):
             self.__is_resolved__ = True
         else:
             raise self.__exception__
-
-    # def to_native_representation(self) -> TNormalizersConfig:
-    #     return cast(TNormalizersConfig, dict(self))
 
     if TYPE_CHECKING:
         def __init__(self, naming: str = None, json_normalizer: TJSONNormalizer = None) -> None:

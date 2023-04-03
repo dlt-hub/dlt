@@ -1,5 +1,5 @@
-
-from typing import Any, Iterator, Tuple, Callable, TYPE_CHECKING
+import abc
+from typing import Any, Type, Iterator, Tuple, Callable, Protocol, TYPE_CHECKING
 
 from dlt.common.typing import DictStrAny, TDataItem, StrAny
 if TYPE_CHECKING:
@@ -11,7 +11,23 @@ if TYPE_CHECKING:
 TNormalizedRowIterator = Iterator[Tuple[Tuple[str, str], StrAny]]
 
 # normalization function signature
-TNormalizeJSONFunc = Callable[["Schema", TDataItem, str, str], TNormalizedRowIterator]
+# TNormalizeJSONFunc = Callable[["Schema", TDataItem, str, str], TNormalizedRowIterator]
+
+class DataItemNormalizer(abc.ABC):
+
+    @abc.abstractmethod
+    def normalize_data_item(self, item: TDataItem, load_id: str, table_name: str) -> TNormalizedRowIterator:
+        pass
+
+    @abc.abstractmethod
+    def extend_schema(self) -> None:
+        pass
+
+class SupportsDataItemNormalizer(Protocol):
+    """Expected of modules defining data item normalizer"""
+
+    DataItemNormalizer: Type[DataItemNormalizer]
+    """A class with a name DataItemNormalizer deriving from normalizers.json.DataItemNormalizer"""
 
 
 def wrap_in_dict(item: Any) -> DictStrAny:

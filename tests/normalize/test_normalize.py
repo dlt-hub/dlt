@@ -309,12 +309,12 @@ def test_normalize_twice_with_flatten(caps: DestinationCapabilitiesContext, raw_
     def assert_schema(_schema: Schema):
         convention = _schema._normalizers_config["names"]
         if convention == "snake_case":
-            assert "reactions___1" in _schema._schema_tables["issues"]["columns"]
-            assert "reactions__x1" in _schema._schema_tables["issues"]["columns"]
-            assert "reactions__1" not in _schema._schema_tables["issues"]["columns"]
+            assert "reactions___1" in _schema.tables["issues"]["columns"]
+            assert "reactions__x1" in _schema.tables["issues"]["columns"]
+            assert "reactions__1" not in _schema.tables["issues"]["columns"]
         elif convention == "duck_case":
-            assert "reactions__+1" in _schema._schema_tables["issues"]["columns"]
-            assert "reactions__-1" in _schema._schema_tables["issues"]["columns"]
+            assert "reactions__+1" in _schema.tables["issues"]["columns"]
+            assert "reactions__-1" in _schema.tables["issues"]["columns"]
         else:
             raise ValueError(f"convention {convention} cannot be checked")
 

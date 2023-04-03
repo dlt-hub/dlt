@@ -81,4 +81,4 @@ class SupportsNamingConvention(Protocol):
     """Expected of modules defining naming convention"""
 
     NamingConvention: Type[NamingConvention]
-    """A class with a name NamingConvention deriving from normalizers.naming.typing.NamingConvention"""
+    """A class with a name NamingConvention deriving from normalizers.naming.NamingConvention"""

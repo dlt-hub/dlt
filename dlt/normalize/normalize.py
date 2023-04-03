@@ -136,7 +136,7 @@ class Normalize(Runnable[ProcessPool]):
         items_count = 0
 
         for item in items:
-            for (table_name, parent_table), row in schema.normalize_data_item(schema, item, load_id, root_table_name):
+            for (table_name, parent_table), row in schema.normalize_data_item(item, load_id, root_table_name):
                 # filter row, may eliminate some or all fields
                 row = schema.filter_row(table_name, row)
                 # do not process empty rows
