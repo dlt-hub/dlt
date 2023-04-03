@@ -204,6 +204,10 @@ def main() -> int:
     pipeline_subparsers.add_parser("failed-jobs", help="Displays information on all the failed loads in all completed packages, failed jobs and associated error messages")
     pipeline_subparsers.add_parser("sync", help="Drops the local state of the pipeline and resets all the schemas and restores it from destination. The destination state, data and schemas are left intact.")
     pipeline_subparsers.add_parser("trace", help="Displays last run trace, use -v or -vv for more info")
+    pipe_cmd_schema = pipeline_subparsers.add_parser("schema", help="Displays default schema")
+    pipe_cmd_schema.add_argument("--format", choices=["json", "yaml"], default="yaml", help="Display schema in this format")
+    pipe_cmd_schema.add_argument("--remove-defaults", action="store_true", help="Does not show default hint values")
+
     pipe_cmd_package = pipeline_subparsers.add_parser("load-package", help="Displays information on load package, use -v or -vv for more info")
     pipe_cmd_package.add_argument("load-id", nargs='?', help="Load id of completed or normalized package. Defaults to the most recent package.")
 
