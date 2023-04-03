@@ -3,13 +3,13 @@ from copy import copy, deepcopy
 from typing import ClassVar, Dict, List, Mapping, Optional, Sequence, Tuple, Any, cast
 from dlt.common import json
 
-from dlt.common.typing import DictStrAny, StrAny, REPattern, SupportsVariant, VARIANT_FIELD_FORMAT
+from dlt.common.typing import DictStrAny, StrAny, REPattern, SupportsVariant, VARIANT_FIELD_FORMAT, TDataItem
 from dlt.common.normalizers import TNormalizersConfig, default_normalizers, import_normalizers
 from dlt.common.normalizers.naming import NamingConvention
-from dlt.common.normalizers.json import TNormalizeJSONFunc
+from dlt.common.normalizers.json import DataItemNormalizer, TNormalizedRowIterator
 from dlt.common.schema import utils
 from dlt.common.data_types import py_type_to_sc_type, coerce_value, TDataType
-from dlt.common.schema.typing import (SCHEMA_ENGINE_VERSION, LOADS_TABLE_NAME, VERSION_TABLE_NAME, TPartialTableSchema, TSchemaSettings, TSimpleRegex, TStoredSchema,
+from dlt.common.schema.typing import (COLUMN_HINTS, SCHEMA_ENGINE_VERSION, LOADS_TABLE_NAME, VERSION_TABLE_NAME, TColumnSchemaBase, TPartialTableSchema, TSchemaSettings, TSimpleRegex, TStoredSchema,
                                       TSchemaTables, TTableSchema, TTableSchemaColumns, TColumnSchema, TColumnProp, TColumnHint, TTypeDetections, TWriteDisposition)
 from dlt.common.schema.exceptions import (CannotCoerceColumnException, CannotCoerceNullException, InvalidSchemaName,
                                           ParentTableNotFoundException, SchemaCorruptedException)
@@ -19,19 +19,19 @@ from dlt.common.validation import validate_dict
 class Schema:
     ENGINE_VERSION: ClassVar[int] = SCHEMA_ENGINE_VERSION
 
-    # name normalization functions
     naming: NamingConvention
-    # json normalization function
-    normalize_data_item: TNormalizeJSONFunc
+    """Naming convention used by the schema to normalize identifiers"""
+    data_item_normalizer: DataItemNormalizer
+    """Data item normalizer used by the schema to create tables"""
 
-    _schema_tables: TSchemaTables
+
     _schema_name: str
     _stored_version: int  # version at load/creation time
     _stored_version_hash: str  # version hash at load/creation time
     _imported_version_hash: str  # version hash of recently imported schema
     _schema_description: str  # optional schema description
-    # schema settings to hold default hints, preferred types and other settings
-    _settings: TSchemaSettings
+    _schema_tables: TSchemaTables
+    _settings: TSchemaSettings # schema settings to hold default hints, preferred types and other settings
 
     # list of preferred types: map regex on columns into types
     _compiled_preferred_types: List[Tuple[REPattern, TDataType]]
@@ -96,13 +96,22 @@ class Schema:
             utils.remove_defaults(stored_schema)
         return stored_schema
 
+    def normalize_data_item(self, item: TDataItem, load_id: str, table_name: str) -> TNormalizedRowIterator:
+        return self.data_item_normalizer.normalize_data_item(item, load_id, table_name)
+
     def filter_row(self, table_name: str, row: StrAny) -> StrAny:
+        # TODO: remove this. move to extract stage
         # exclude row elements according to the rules in `filter` elements of the table
         # include rules have precedence and are used to make exceptions to exclude rules
         # the procedure will apply rules from the table_name and it's all parent tables up until root
         # parent tables are computed by `normalize_break_path` function so they do not need to exist in the schema
         # note: the above is not very clean. the `parent` element of each table should be used but as the rules
         #  are typically used to prevent not only table fields but whole tables from being created it is not possible
+
+        if not self._compiled_excludes:
+            # if there are no excludes in the whole schema, no modification to a row can be made
+            # most of the schema do not use them
+            return row
 
         def _exclude(path: str, excludes: Sequence[REPattern], includes: Sequence[REPattern]) -> bool:
             is_included = False
@@ -145,7 +154,7 @@ class Schema:
         for col_name, v in row.items():
             # skip None values, we should infer the types later
             if v is None:
-                # just check if column is nullable if exists
+                # just check if column is nullable if it exists
                 self._coerce_null_value(table_columns, table_name, col_name)
             else:
                 new_col_name, new_col_def, new_v = self._coerce_non_null_value(table_columns, table_name, col_name, v)
@@ -236,12 +245,12 @@ class Schema:
             table["columns"] = {c["name"]:c for c in columns.values()}
         return table
 
-    def get_new_columns(self, table_name: str, t: TTableSchemaColumns) -> List[TColumnSchema]:
-        # gets new columns to be added to "t" to bring up to date with stored schema
+    def get_new_complete_columns(self, table_name: str, t: TTableSchemaColumns) -> List[TColumnSchema]:
+        """Gets new columns to be added to "t" to bring up to date with stored schema. Exclude incomplete columns (without data type)"""
         diff_c: List[TColumnSchema] = []
         s_t = self.get_table_columns(table_name)
         for c in s_t.values():
-            if c["name"] not in t:
+            if utils.is_complete_column(c) and c["name"] not in t:
                 diff_c.append(c)
         return diff_c
 
@@ -249,17 +258,16 @@ class Schema:
         return self._schema_tables[table_name]
 
     def get_table_columns(self, table_name: str) -> TTableSchemaColumns:
+        """Gets columns of `table_name`"""
         return self._schema_tables[table_name]["columns"]
 
     def all_tables(self, with_dlt_tables: bool = False) -> List[TTableSchema]:
+        """Gets list of all tables, with or without dlt tables"""
         return [t for t in self._schema_tables.values() if not t["name"].startswith("_dlt") or with_dlt_tables]
 
-    def get_write_disposition(self, table_name: str) -> TWriteDisposition:
-        table = self.get_table(table_name)
-        w_d = table.get("write_disposition")
-        if w_d:
-            return w_d
-        return self.get_write_disposition(table["parent"])
+    def dlt_tables(self) -> List[TTableSchema]:
+        """Gets dlt tables"""
+        return [t for t in self._schema_tables.values() if t["name"].startswith("_dlt")]
 
     def get_preferred_type(self, col_name: str) -> Optional[TDataType]:
         return next((m[1] for m in self._compiled_preferred_types if m[0].search(col_name)), None)
@@ -297,6 +305,7 @@ class Schema:
 
     @property
     def tables(self) -> TSchemaTables:
+        """Dictionary of schema tables"""
         return self._schema_tables
 
     @property
@@ -319,22 +328,20 @@ class Schema:
         column_schema =  TColumnSchema(
             name=k,
             data_type=data_type or self._infer_column_type(v, k),
-            nullable=not self._infer_hint("not_null", v, k),
-            partition=self._infer_hint("partition", v, k),
-            cluster=self._infer_hint("cluster", v, k),
-            sort=self._infer_hint("sort", v, k),
-            unique=self._infer_hint("unique", v, k),
-            primary_key=self._infer_hint("primary_key", v, k),
-            foreign_key=self._infer_hint("foreign_key", v, k)
+            nullable=not self._infer_hint("not_null", v, k)
         )
+        for hint in COLUMN_HINTS:
+            column_schema[utils.hint_to_column_prop(hint)] = self._infer_hint(hint, v, k)
+
         if is_variant:
             column_schema["variant"] = is_variant
         return column_schema
 
     def _coerce_null_value(self, table_columns: TTableSchemaColumns, table_name: str, col_name: str) -> None:
+        """Raises when column is explicitly not nullable"""
         if col_name in table_columns:
             existing_column = table_columns[col_name]
-            if not existing_column["nullable"]:
+            if not existing_column.get("nullable", True):
                 raise CannotCoerceNullException(table_name, col_name)
 
     def _coerce_non_null_value(self, table_columns: TTableSchemaColumns, table_name: str, col_name: str, v: Any, is_variant: bool = False) -> Tuple[str, TColumnSchema, Any]:
@@ -409,12 +416,12 @@ class Schema:
             # create default normalizer config
             self._normalizers_config = default_normalizers()
         # import desired modules
-        naming_module, json_module = import_normalizers(self._normalizers_config)
+        naming_module, item_normalizer_class = import_normalizers(self._normalizers_config)
         # name normalization functions
         self.naming = naming_module
         # data item normalization function
-        self.normalize_data_item = json_module.normalize_data_item
-        json_module.extend_schema(self)
+        self.data_item_normalizer = item_normalizer_class(self)
+        self.data_item_normalizer.extend_schema()
 
     def _reset_schema(self, name: str, normalizers: TNormalizersConfig = None, normalize_name: bool = False) -> None:
         self._schema_tables: TSchemaTables = {}
@@ -433,8 +440,7 @@ class Schema:
 
         self._normalizers_config: TNormalizersConfig = normalizers
         self.naming = None
-        # json normalization function
-        self.normalize_data_item: TNormalizeJSONFunc = None
+        self.data_item_normalizer = None
 
         # add version tables
         self._add_standard_tables()

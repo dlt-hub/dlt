@@ -164,23 +164,23 @@ def test_create_schema_with_normalize_name() -> None:
 
 def test_schema_descriptions_and_annotations(schema_storage: SchemaStorage):
     schema = SchemaStorage.load_schema_file(os.path.join(COMMON_TEST_CASES_PATH, "schemas/local"), "event", extensions=("yaml", ))
-    assert schema._schema_tables["blocks"]["description"] == "Ethereum blocks"
-    assert schema._schema_tables["blocks"]["x-annotation"] == "this will be preserved on save"
-    assert schema._schema_tables["blocks"]["columns"]["_dlt_load_id"]["description"] == "load id coming from the extractor"
-    assert schema._schema_tables["blocks"]["columns"]["_dlt_load_id"]["x-column-annotation"] == "column annotation preserved on save"
+    assert schema.tables["blocks"]["description"] == "Ethereum blocks"
+    assert schema.tables["blocks"]["x-annotation"] == "this will be preserved on save"
+    assert schema.tables["blocks"]["columns"]["_dlt_load_id"]["description"] == "load id coming from the extractor"
+    assert schema.tables["blocks"]["columns"]["_dlt_load_id"]["x-column-annotation"] == "column annotation preserved on save"
 
     # mod and save
-    schema._schema_tables["blocks"]["description"] += "Saved"
-    schema._schema_tables["blocks"]["x-annotation"] += "Saved"
-    schema._schema_tables["blocks"]["columns"]["_dlt_load_id"]["description"] += "Saved"
-    schema._schema_tables["blocks"]["columns"]["_dlt_load_id"]["x-column-annotation"] += "Saved"
+    schema.tables["blocks"]["description"] += "Saved"
+    schema.tables["blocks"]["x-annotation"] += "Saved"
+    schema.tables["blocks"]["columns"]["_dlt_load_id"]["description"] += "Saved"
+    schema.tables["blocks"]["columns"]["_dlt_load_id"]["x-column-annotation"] += "Saved"
 
     print(schema_storage.save_schema(schema))
     loaded_schema = schema_storage.load_schema("ethereum")
-    assert loaded_schema._schema_tables["blocks"]["description"].endswith("Saved")
-    assert loaded_schema._schema_tables["blocks"]["x-annotation"].endswith("Saved")
-    assert loaded_schema._schema_tables["blocks"]["columns"]["_dlt_load_id"]["description"].endswith("Saved")
-    assert loaded_schema._schema_tables["blocks"]["columns"]["_dlt_load_id"]["x-column-annotation"].endswith("Saved")
+    assert loaded_schema.tables["blocks"]["description"].endswith("Saved")
+    assert loaded_schema.tables["blocks"]["x-annotation"].endswith("Saved")
+    assert loaded_schema.tables["blocks"]["columns"]["_dlt_load_id"]["description"].endswith("Saved")
+    assert loaded_schema.tables["blocks"]["columns"]["_dlt_load_id"]["x-column-annotation"].endswith("Saved")
 
 
 def test_replace_schema_content() -> None:
@@ -444,27 +444,27 @@ def test_compare_columns() -> None:
     ])
     # columns identical with self
     for c in table["columns"].values():
-        assert utils.compare_column(c, c) is True
-    assert utils.compare_column(table["columns"]["col3"], table["columns"]["col4"]) is True
+        assert utils.compare_complete_columns(c, c) is True
+    assert utils.compare_complete_columns(table["columns"]["col3"], table["columns"]["col4"]) is True
     # data type may not differ
-    assert utils.compare_column(table["columns"]["col1"], table["columns"]["col3"]) is False
+    assert utils.compare_complete_columns(table["columns"]["col1"], table["columns"]["col3"]) is False
     # nullability may not differ
-    assert utils.compare_column(table["columns"]["col1"], table["columns"]["col2"]) is False
+    assert utils.compare_complete_columns(table["columns"]["col1"], table["columns"]["col2"]) is False
     # any of the hints may differ
     for hint in COLUMN_HINTS:
         table["columns"]["col3"][hint] = True
-        assert utils.compare_column(table["columns"]["col3"], table["columns"]["col4"]) is True
+        assert utils.compare_complete_columns(table["columns"]["col3"], table["columns"]["col4"]) is True
 
 
 def test_normalize_table_identifiers() -> None:
     schema_dict: TStoredSchema = load_json_case("schemas/github/issues.schema")
     schema = Schema.from_dict(schema_dict)
     # assert column generated from "reactions/+1" and "-1", it is a valid identifier even with three underscores
-    assert "reactions___1" in schema._schema_tables["issues"]["columns"]
-    issues_table = deepcopy(schema._schema_tables["issues"])
+    assert "reactions___1" in schema.tables["issues"]["columns"]
+    issues_table = deepcopy(schema.tables["issues"])
     # this schema is already normalized so normalization is idempotent
-    assert schema._schema_tables["issues"] == schema.normalize_table_identifiers(issues_table)
-    assert schema._schema_tables["issues"] == schema.normalize_table_identifiers(schema.normalize_table_identifiers(issues_table))
+    assert schema.tables["issues"] == schema.normalize_table_identifiers(issues_table)
+    assert schema.tables["issues"] == schema.normalize_table_identifiers(schema.normalize_table_identifiers(issues_table))
 
 
 def assert_new_schema_values_custom_normalizers(schema: Schema) -> None:
@@ -480,7 +480,7 @@ def assert_new_schema_values_custom_normalizers(schema: Schema) -> None:
     # assumes elements are normalized
     assert schema.naming.make_path("A", "B", "!C") == "A__B__!C"
     assert schema.naming.break_path("A__B__!C") == ["A", "B", "!C"]
-    row = list(schema.normalize_data_item(schema, {"bool": True}, "load_id", "a_table"))
+    row = list(schema.normalize_data_item({"bool": True}, "load_id", "a_table"))
     assert row[0] == (("a_table", None), {"bool": True})
 
 
@@ -507,7 +507,7 @@ def assert_new_schema_values(schema: Schema) -> None:
     assert schema.naming.make_path("A", "B", "!C") == "A__B__!C"
     assert schema.naming.break_path("A__B__!C") == ["A", "B", "!C"]
     assert schema.naming.break_path("reactions___1") == ["reactions", "_1"]
-    schema.normalize_data_item(schema, {}, "load_id", schema.name)
+    schema.normalize_data_item({}, "load_id", schema.name)
     # check default tables
     tables = schema.tables
     assert "_dlt_version" in tables
