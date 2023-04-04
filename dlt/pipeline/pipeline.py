@@ -829,7 +829,6 @@ class Pipeline(SupportsPipeline):
                 raise PipelineStepFailed(self, step, runner.LAST_RUN_EXCEPTION, runner.LAST_RUN_METRICS)
             return ec
         except Exception as r_ex:
-            print("PIPELINESTEPFAILED(self, step, runner.LAST_RUN_EXCEPTION, runner.LAST_RUN_METRICS) from r_ex")
             # if EXIT_ON_EXCEPTION flag is set, exception will bubble up directly
             raise PipelineStepFailed(self, step, runner.LAST_RUN_EXCEPTION, runner.LAST_RUN_METRICS) from r_ex
         # finally:
