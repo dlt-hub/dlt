@@ -88,18 +88,18 @@ To get an `OAuth token` follow these steps
         
           
         
-    ```bash
+```bash
     curl https://{subdomain}.zendesk.com/oauth/tokens \
       -H "Content-Type: application/json" \
       -d '{"grant_type": "password", "client_id": "{client_name}", 
         "client_secret": "{your_client_secret}", "scope": "read",
         "username": "{zendesk_username}", "password": "{zendesk_password}"}' \
       -X POST
-    ```
+```
         
     you could use the below script to generate the call easier
         
-    ```python
+  ```python
     import requests
     import json
     
@@ -122,17 +122,17 @@ To get an `OAuth token` follow these steps
     response = requests.post(url, headers=headers, data=json.dumps(data))
     
     print(response.json()['access_token'])
-    ```
+  ```
         
     1. In the above code replace the following credentials:
         
-        | Credentials | Description |
-        | --- | --- |
-        | subdomain | Your Zendesk subdomain |
-        | client_name  | Unique identifier given to the OAuth client created in step (d) above |
-        | client_secret | secret token generated for the OAuth client |
-        | zendesk_username  | Your Zendesk email address |
-        | zendesk password | Your Zendesk password |
+  | Credentials | Description |
+  | --- | --- |
+  | subdomain | Your Zendesk subdomain |
+  | client_name  | Unique identifier given to the OAuth client created in step (d) above |
+  | client_secret | secret token generated for the OAuth client |
+  | zendesk_username  | Your Zendesk email address |
+  | zendesk password | Your Zendesk password |
         
 1. After running the above curl command in terminal, you will get an access token in the response. 
         
