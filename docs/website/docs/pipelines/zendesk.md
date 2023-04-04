@@ -124,7 +124,7 @@ To get an `OAuth token` follow these steps
     print(response.json()['access_token'])
   ```
         
-    1. In the above code replace the following credentials:
+  7. In the above code replace the following credentials:
         
   | Credentials | Description |
   | --- | --- |
@@ -134,9 +134,9 @@ To get an `OAuth token` follow these steps
   | zendesk_username  | Your Zendesk email address |
   | zendesk password | Your Zendesk password |
         
-1. After running the above curl command in terminal, you will get an access token in the response. 
+8. After running the above curl command in terminal, you will get an access token in the response. 
         
-2. The access token generated is the oauth_token to be used in  `dlt` secrets.toml.
+9. The access token generated is the oauth_token to be used in  `dlt` secrets.toml.
         
 </details>
 <details>
