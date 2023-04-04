@@ -53,6 +53,9 @@ class SqlMergeJob(NewLoadJobImpl):
         # get merge and primary keys from top level
         primary_keys = get_columns_names_with_prop(root_table, "primary_key")
         merge_keys = get_columns_names_with_prop(root_table, "merge_key")
+        # TODO: remove that and write OR query that works on BIGQUERY
+        if merge_keys:
+            primary_keys = []
         overlapped_clause = ""
         if primary_keys or merge_keys:
             if primary_keys:
