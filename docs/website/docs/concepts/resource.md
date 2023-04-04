@@ -147,7 +147,7 @@ Example using the `generate_rows` resource above:
 
 pipeline = dlt.pipeline(pipeline_name="rows_pipeline", destination="duckdb", dataset_name="rows_data")
 # load individual resource
-dlt.run(generate_rows(10))
+pipeline.run(generate_rows(10))
 # load a list of resources
-dlt.run([generate_rows(10), generate_rows(20)])
+pipeline.run([generate_rows(10), generate_rows(20)])
 ```
