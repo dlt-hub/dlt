@@ -255,7 +255,7 @@ def test_restore_state_pipeline(destination_name: str) -> None:
     assert set(p.schema_names) == set(["default", "two", "three"])
     assert p.state["sources"] == {pipeline_name: {'state1': 'state1', 'state2': 'state2'}, "two": {'state3': 'state3'}, "three": {'state4': 'state4'}}
     for schema in p.schemas.values():
-        assert "some_data" in schema._schema_tables
+        assert "some_data" in schema.tables
     # state version must be the same as the original
     restored_state = p.state
     assert restored_state["_state_version"] == orig_state["_state_version"]
@@ -334,19 +334,19 @@ def test_restore_schemas_while_import_schemas_exist(destination_name: str) -> No
     prepare_import_folder(p)
     # make sure schema got imported
     schema = p.schemas["ethereum"]
-    assert "blocks" in schema._schema_tables
+    assert "blocks" in schema.tables
 
     # extract some additional data to upgrade schema in the pipeline
     p.run(["A", "B", "C"], table_name="labels", schema=schema)
     # schema should be up to date
-    assert "labels" in schema._schema_tables
+    assert "labels" in schema.tables
 
     # re-attach the pipeline
     p = dlt.attach(pipeline_name=pipeline_name)
     p.run(["C", "D", "E"], table_name="annotations")
     schema = p.schemas["ethereum"]
-    assert "labels" in schema._schema_tables
-    assert "annotations" in schema._schema_tables
+    assert "labels" in schema.tables
+    assert "annotations" in schema.tables
 
     # wipe the working dir and restore
     print("----> wipe")
@@ -359,15 +359,15 @@ def test_restore_schemas_while_import_schemas_exist(destination_name: str) -> No
     # use run to get changes
     p.run(destination=destination_name, dataset_name=dataset_name)
     schema = p.schemas["ethereum"]
-    assert "labels" in schema._schema_tables
-    assert "annotations" in schema._schema_tables
+    assert "labels" in schema.tables
+    assert "annotations" in schema.tables
     # check if attached to import schema
     assert schema._imported_version_hash == IMPORTED_VERSION_HASH_ETH_V5
     # extract some data with restored pipeline
     p.run(["C", "D", "E"], table_name="blacklist")
-    assert "labels" in schema._schema_tables
-    assert "annotations" in schema._schema_tables
-    assert "blacklist" in schema._schema_tables
+    assert "labels" in schema.tables
+    assert "annotations" in schema.tables
+    assert "blacklist" in schema.tables
 
 
 @pytest.mark.skip("Not implemented")
@@ -409,13 +409,13 @@ def test_restore_state_parallel_changes(destination_name: str) -> None:
     print("---> run production")
     production_p.run(data2)
     assert production_p.state["_state_version"] == prod_state["_state_version"]
-    print(production_p.default_schema._schema_tables.keys())
-    assert "state1_data2" in production_p.default_schema._schema_tables
+    print(production_p.default_schema.tables.keys())
+    assert "state1_data2" in production_p.default_schema.tables
 
     print("---> run local")
     # sync the local pipeline, state didn't change so new schema is not retrieved
     p.sync_destination()
-    assert "state1_data2" not in p.default_schema._schema_tables
+    assert "state1_data2" not in p.default_schema.tables
 
     # change state on production
     data3 = some_data("state3")
@@ -427,9 +427,9 @@ def test_restore_state_parallel_changes(destination_name: str) -> None:
     print(p.default_schema)
     p.sync_destination()
     # existing schema got overwritten
-    assert "state1_data2" in p._schema_storage.load_schema(p.default_schema_name)._schema_tables
+    assert "state1_data2" in p._schema_storage.load_schema(p.default_schema_name).tables
     print(p.default_schema)
-    assert "state1_data2" in p.default_schema._schema_tables
+    assert "state1_data2" in p.default_schema.tables
 
     # change state locally
     data4 = some_data("state4")

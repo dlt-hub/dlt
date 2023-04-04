@@ -1,9 +1,9 @@
 import inspect
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Generic, Iterator, Optional, TypedDict, TypeVar, Union, Awaitable
+from typing import Any, Callable, Generic, Iterator, Optional, TypedDict, TypeVar, Union, Awaitable, Sequence
 
 from dlt.common.typing import TAny, TDataItem, TDataItems, TypeAlias
-from dlt.common.schema.typing import TTableSchemaColumns, TWriteDisposition
+from dlt.common.schema.typing import TTableSchemaColumns, TWriteDisposition, TColumnKey
 
 
 TDeferredDataItems = Callable[[], TDataItems]
@@ -22,6 +22,8 @@ class TTableSchemaTemplate(TypedDict, total=False):
     # table_sealed: Optional[bool]
     parent: TTableHintTemplate[str]
     columns: TTableHintTemplate[TTableSchemaColumns]
+    primary_key: TTableHintTemplate[TColumnKey]
+    merge_key: TTableHintTemplate[TColumnKey]
 
 
 class DataItemWithMeta:

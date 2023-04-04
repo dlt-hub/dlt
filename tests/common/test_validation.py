@@ -104,20 +104,16 @@ def test_missing_values(test_doc: TTestRecord) -> None:
         validate_dict(TTestRecord, test_doc, ".")
     assert "f_bool" in str(e.value)
 
+    # data type is optional now
     # remove prop at child document
     test_doc = deepcopy(TEST_DOC)
     del test_doc["f_list_of_dict"][0]["data_type"]
-    with pytest.raises(DictValidationException) as e:
-        validate_dict(TTestRecord, test_doc, ".")
-    assert "data_type" in str(e.value)
-    assert e.value.path == "./f_list_of_dict[0]"
+    validate_dict(TTestRecord, test_doc, ".")
 
     test_doc = deepcopy(TEST_DOC)
+    # data type is optional now
     del test_doc["f_map_of_dict"]["col1"]["data_type"]
-    with pytest.raises(DictValidationException) as e:
-        validate_dict(TTestRecord, test_doc, ".")
-    assert "data_type" in str(e.value)
-    assert e.value.path == "./f_map_of_dict[col1]"
+    validate_dict(TTestRecord, test_doc, ".")
 
 
 def test_extra_values(test_doc: TTestRecord) -> None:

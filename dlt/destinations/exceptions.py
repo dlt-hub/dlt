@@ -1,6 +1,6 @@
 from typing import Sequence
 from dlt.common.exceptions import DestinationTerminalException, DestinationTransientException, DestinationException
-from dlt.common.destination.reference import TLoadJobStatus
+from dlt.common.destination.reference import TLoadJobState
 
 
 class DatabaseException(DestinationException):
@@ -62,7 +62,7 @@ class LoadJobUnknownTableException(DestinationTerminalException):
 
 
 class LoadJobInvalidStateTransitionException(DestinationTerminalException):
-    def __init__(self, from_state: TLoadJobStatus, to_state: TLoadJobStatus) -> None:
+    def __init__(self, from_state: TLoadJobState, to_state: TLoadJobState) -> None:
         self.from_state = from_state
         self.to_state = to_state
         super().__init__(f"Load job cannot transition form {from_state} to {to_state}")
@@ -71,3 +71,15 @@ class LoadJobInvalidStateTransitionException(DestinationTerminalException):
 class LoadJobFileTooBig(DestinationTerminalException):
     def __init__(self, file_name: str, max_size: int) -> None:
         super().__init__(f"File {file_name} exceeds {max_size} and cannot be loaded. Split the file and try again.")
+
+
+class MergeDispositionException(DestinationTerminalException):
+    def __init__(self, dataset_name: str, staging_dataset_name: str, tables: Sequence[str], reason: str) -> None:
+        self.dataset_name = dataset_name
+        self.staging_dataset_name = staging_dataset_name
+        self.tables = tables
+        self.reason = reason
+        msg = f"Merge sql job for dataset name {dataset_name}, staging dataset name {staging_dataset_name} COULD NOT BE GENERATED. Merge will not be performed. "
+        msg += f"Data for the following tables ({tables}) is loaded to staging dataset. You may need to write your own materialization. The reason is:\n"
+        msg += reason
+        super().__init__(msg)

@@ -1,5 +1,6 @@
+import os
 from pathlib import Path
-from typing import Any, ClassVar, Dict, List, Optional, Sequence, Tuple, cast
+from typing import ClassVar, Dict, Optional, Sequence, Tuple, cast
 from dlt.common.storages.file_storage import FileStorage
 import google.cloud.bigquery as bigquery  # noqa: I250
 from google.cloud import exceptions as gcp_exceptions
@@ -9,12 +10,12 @@ from dlt.common import json, logger
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 from dlt.common.configuration.specs import GcpClientCredentials
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import TLoadJobStatus, LoadJob
+from dlt.common.destination.reference import FollowupJob, TLoadJobState, LoadJob
 from dlt.common.data_types import TDataType
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns
 from dlt.common.schema.typing import TTableSchema, TWriteDisposition
 
-from dlt.destinations.job_client_impl import SqlJobClientBase
+from dlt.destinations.job_client_impl import SqlLoadJob, SqlJobClientBase
 from dlt.destinations.exceptions import DestinationSchemaWillNotUpdate, DestinationTransientException, LoadJobNotExistsException, LoadJobTerminalException, LoadJobUnknownTableException
 
 from dlt.destinations.bigquery import capabilities
@@ -48,14 +49,14 @@ BQT_TO_SCT: Dict[str, TDataType] = {
     "JSON": "complex"
 }
 
-class BigQueryLoadJob(LoadJob):
+class BigQueryLoadJob(LoadJob, FollowupJob):
     def __init__(self, file_name: str, bq_load_job: bigquery.LoadJob, credentials: GcpClientCredentials) -> None:
         self.bq_load_job = bq_load_job
         self.credentials = credentials
         self.default_retry = bigquery.DEFAULT_RETRY.with_deadline(credentials.retry_deadline)
         super().__init__(file_name)
 
-    def status(self) -> TLoadJobStatus:
+    def state(self) -> TLoadJobState:
         # check server if done
         done = self.bq_load_job.done(retry=self.default_retry, timeout=self.credentials.http_timeout)
         if done:
@@ -77,8 +78,8 @@ class BigQueryLoadJob(LoadJob):
         else:
             return "running"
 
-    def file_name(self) -> str:
-        return self._file_name
+    def job_id(self) -> str:
+        return BigQueryLoadJob.get_job_id_from_file_path(super().job_id())
 
     def exception(self) -> str:
         exception: str = json.dumps({
@@ -89,6 +90,10 @@ class BigQueryLoadJob(LoadJob):
             "job_id": self.bq_load_job.job_id
         })
         return exception
+
+    @staticmethod
+    def get_job_id_from_file_path(file_path: str) -> str:
+        return Path(file_path).name.replace(".", "_")
 
 
 class BigQueryClient(SqlJobClientBase):
@@ -105,42 +110,58 @@ class BigQueryClient(SqlJobClientBase):
         self.sql_client: BigQuerySqlClient = sql_client  # type: ignore
 
     def restore_file_load(self, file_path: str) -> LoadJob:
-        try:
-            return BigQueryLoadJob(
-                FileStorage.get_file_name_from_file_path(file_path),
-                self._retrieve_load_job(file_path),
-                self.config.credentials
-                #self.sql_client.native_connection()
-            )
-        except api_core_exceptions.GoogleAPICallError as gace:
-            reason = BigQuerySqlClient._get_reason_from_errors(gace)
-            if reason == "notFound":
-                raise LoadJobNotExistsException(file_path)
-            elif reason in BQ_TERMINAL_REASONS:
-                raise LoadJobTerminalException(file_path)
-            else:
-                raise DestinationTransientException(gace)
+        """Returns a completed SqlLoadJob or restored BigQueryLoadJob
+
+        See base class for details on SqlLoadJob. BigQueryLoadJob is restored with job id derived from `file_path`
+
+        Args:
+            file_path (str): a path to a job file
+
+        Returns:
+            LoadJob: completed SqlLoadJob or restored BigQueryLoadJob
+        """
+        job = super().restore_file_load(file_path)
+        if not job:
+            try:
+                job = BigQueryLoadJob(
+                    FileStorage.get_file_name_from_file_path(file_path),
+                    self._retrieve_load_job(file_path),
+                    self.config.credentials
+                    #self.sql_client.native_connection()
+                )
+            except api_core_exceptions.GoogleAPICallError as gace:
+                reason = BigQuerySqlClient._get_reason_from_errors(gace)
+                if reason == "notFound":
+                    raise LoadJobNotExistsException(file_path)
+                elif reason in BQ_TERMINAL_REASONS:
+                    raise LoadJobTerminalException(file_path)
+                else:
+                    raise DestinationTransientException(gace)
+        return job
 
     def start_file_load(self, table: TTableSchema, file_path: str) -> LoadJob:
-        try:
-            return BigQueryLoadJob(
-                FileStorage.get_file_name_from_file_path(file_path),
-                self._create_load_job(table["name"], table["write_disposition"], file_path),
-                self.config.credentials
-            )
-        except api_core_exceptions.GoogleAPICallError as gace:
-            reason = BigQuerySqlClient._get_reason_from_errors(gace)
-            if reason == "notFound":
-                # google.api_core.exceptions.NotFound: 404 - table not found
-                raise LoadJobUnknownTableException(table["name"], file_path)
-            elif reason == "duplicate":
-                # google.api_core.exceptions.Conflict: 409 PUT - already exists
-                return self.restore_file_load(file_path)
-            elif reason in BQ_TERMINAL_REASONS:
-                # google.api_core.exceptions.BadRequest - will not be processed ie bad job name
-                raise LoadJobTerminalException(file_path)
-            else:
-                raise DestinationTransientException(gace)
+        job = super().start_file_load(table, file_path)
+        if not job:
+            try:
+                job = BigQueryLoadJob(
+                    FileStorage.get_file_name_from_file_path(file_path),
+                    self._create_load_job(table["name"], table["write_disposition"], file_path),
+                    self.config.credentials
+                )
+            except api_core_exceptions.GoogleAPICallError as gace:
+                reason = BigQuerySqlClient._get_reason_from_errors(gace)
+                if reason == "notFound":
+                    # google.api_core.exceptions.NotFound: 404 - table not found
+                    raise LoadJobUnknownTableException(table["name"], file_path)
+                elif reason == "duplicate":
+                    # google.api_core.exceptions.Conflict: 409 PUT - already exists
+                    return self.restore_file_load(file_path)
+                elif reason in BQ_TERMINAL_REASONS:
+                    # google.api_core.exceptions.BadRequest - will not be processed ie bad job name
+                    raise LoadJobTerminalException(file_path)
+                else:
+                    raise DestinationTransientException(gace)
+        return job
 
     def _get_table_update_sql(self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool, separate_alters: bool = False) -> str:
         sql = super()._get_table_update_sql(table_name, new_columns, generate_alter)
@@ -191,33 +212,30 @@ class BigQueryClient(SqlJobClientBase):
             return False, schema_table
 
     def _create_load_job(self, table_name: str, write_disposition: TWriteDisposition, file_path: str) -> bigquery.LoadJob:
-        bq_wd = bigquery.WriteDisposition.WRITE_APPEND if write_disposition == "append" else bigquery.WriteDisposition.WRITE_TRUNCATE
-        job_id = BigQueryClient._get_job_id_from_file_path(file_path)
-        job_config = bigquery.LoadJobConfig(
-            autodetect=False,
-            write_disposition=bq_wd,
-            create_disposition=bigquery.CreateDisposition.CREATE_NEVER,
-            source_format=bigquery.SourceFormat.NEWLINE_DELIMITED_JSON,
-            ignore_unknown_values=False,
-            max_bad_records=0,
-
-            )
-        with open(file_path, "rb") as f:
-            return self.sql_client.native_connection.load_table_from_file(
-                    f,
-                    self.sql_client.make_qualified_table_name(table_name, escape=False),
-                    job_id=job_id,
-                    job_config=job_config,
-                    timeout=self.config.credentials.file_upload_timeout
-                )
+        # append to table for merge loads (append to stage) and regular appends
+        bq_wd = bigquery.WriteDisposition.WRITE_TRUNCATE if write_disposition == "replace" else bigquery.WriteDisposition.WRITE_APPEND
+        # if merge then load to staging
+        with self.sql_client.with_staging_dataset(write_disposition == "merge"):
+            job_id = BigQueryLoadJob.get_job_id_from_file_path(file_path)
+            job_config = bigquery.LoadJobConfig(
+                autodetect=False,
+                write_disposition=bq_wd,
+                create_disposition=bigquery.CreateDisposition.CREATE_NEVER,
+                source_format=bigquery.SourceFormat.NEWLINE_DELIMITED_JSON,
+                ignore_unknown_values=False,
+                max_bad_records=0)
+            with open(file_path, "rb") as f:
+                return self.sql_client.native_connection.load_table_from_file(
+                        f,
+                        self.sql_client.make_qualified_table_name(table_name, escape=False),
+                        job_id=job_id,
+                        job_config=job_config,
+                        timeout=self.config.credentials.file_upload_timeout
+                    )
 
     def _retrieve_load_job(self, file_path: str) -> bigquery.LoadJob:
-        job_id = BigQueryClient._get_job_id_from_file_path(file_path)
+        job_id = BigQueryLoadJob.get_job_id_from_file_path(file_path)
         return cast(bigquery.LoadJob, self.sql_client.native_connection.get_job(job_id))
-
-    @staticmethod
-    def _get_job_id_from_file_path(file_path: str) -> str:
-        return Path(file_path).name.replace(".", "_")
 
     @staticmethod
     def _to_db_type(sc_t: TDataType) -> str:

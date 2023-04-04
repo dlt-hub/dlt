@@ -72,7 +72,7 @@ def test_filter_parent_table_schema_update(schema: Schema) -> None:
 
     updates = []
 
-    for (t, p), row in schema.normalize_data_item(schema, source_row, "load_id", "event_bot"):
+    for (t, p), row in schema.normalize_data_item(source_row, "load_id", "event_bot"):
         row = schema.filter_row(t, row)
         if not row:
             # those rows are fully removed
@@ -97,7 +97,7 @@ def test_filter_parent_table_schema_update(schema: Schema) -> None:
     _add_excludes(schema)
     schema.get_table("event_bot")["filters"]["includes"].extend(["re:^metadata___dlt_", "re:^metadata__elvl1___dlt_"])
     schema._compile_settings()
-    for (t, p), row in schema.normalize_data_item(schema, source_row, "load_id", "event_bot"):
+    for (t, p), row in schema.normalize_data_item(source_row, "load_id", "event_bot"):
         row = schema.filter_row(t, row)
         if p is None:
             assert "_dlt_id" in row

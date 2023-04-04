@@ -9,7 +9,8 @@ from dlt.common.configuration.specs import ContainerInjectableContext
 # jsonl - new line separated json documents
 # puae-jsonl - internal extract -> normalize format bases on jsonl
 # insert_values - insert SQL statements
-TLoaderFileFormat = Literal["jsonl", "puae-jsonl", "insert_values"]
+# sql - any sql statement
+TLoaderFileFormat = Literal["jsonl", "puae-jsonl", "insert_values", "sql"]
 
 
 @configspec(init=True)

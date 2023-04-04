@@ -118,6 +118,7 @@ def pipeline_command(operation: str, pipeline_name: str, pipelines_dir: str, ver
             load_id = packages[-1]
 
         package_info = p.get_load_package_info(load_id)
+        fmt.echo("Package %s found in %s" % (fmt.bold(load_id), fmt.bold(package_info.package_path)))
         fmt.echo(package_info.asstr(verbosity))
         if len(package_info.schema_update) > 0:
             if verbosity == 0:
@@ -126,3 +127,11 @@ def pipeline_command(operation: str, pipeline_name: str, pipelines_dir: str, ver
                 tables = remove_defaults({"tables": package_info.schema_update})
                 fmt.echo(fmt.bold("Schema update:"))
                 fmt.echo(yaml.dump(tables, allow_unicode=True, default_flow_style=False, sort_keys=False))
+
+    if operation == "schema":
+        if not p.default_schema_name:
+            fmt.warning("Pipeline does not have a default schema")
+        else:
+            fmt.echo("Found schema with name %s" % fmt.bold(p.default_schema_name))
+        schema_str = p.default_schema.to_pretty_yaml(remove_defaults=True)
+        fmt.echo(schema_str)

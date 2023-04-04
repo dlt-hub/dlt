@@ -1,15 +1,14 @@
 from importlib import import_module
-from types import ModuleType
-from typing import Any, Tuple, cast
+from typing import Type, Tuple, cast
 
 import dlt
 from dlt.common.configuration.inject import with_config
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.normalizers.configuration import NormalizersConfiguration
+from dlt.common.normalizers.json import SupportsDataItemNormalizer, DataItemNormalizer
 from dlt.common.normalizers.naming import NamingConvention, SupportsNamingConvention
 from dlt.common.normalizers.naming.exceptions import UnknownNamingModule, InvalidNamingModule
 from dlt.common.normalizers.typing import TJSONNormalizer, TNormalizersConfig
-from dlt.common.typing import StrAny
 
 DEFAULT_NAMING_MODULE = "dlt.common.normalizers.naming.snake_case"
 
@@ -26,7 +25,7 @@ def default_normalizers(
 def import_normalizers(
     normalizers_config: TNormalizersConfig,
     destination_capabilities: DestinationCapabilitiesContext = None
-) -> Tuple[NamingConvention, ModuleType]:
+) -> Tuple[NamingConvention, Type[DataItemNormalizer]]:
     names = normalizers_config["names"]
     try:
         if "." in names:
@@ -47,6 +46,6 @@ def import_normalizers(
         max_length = min(destination_capabilities.max_identifier_length, destination_capabilities.max_column_identifier_length)
     else:
         max_length = None
-    json_module = import_module(normalizers_config["json"]["module"])
+    json_module = cast(SupportsDataItemNormalizer, import_module(normalizers_config["json"]["module"]))
 
-    return naming_module.NamingConvention(max_length), json_module
+    return naming_module.NamingConvention(max_length), json_module.DataItemNormalizer

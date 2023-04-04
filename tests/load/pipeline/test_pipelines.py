@@ -146,8 +146,8 @@ def test_skip_sync_schema_for_tables_without_columns(destination_name: str) -> N
     p = dlt.pipeline(destination=destination_name)
     p.extract(_data)
     schema = p.default_schema
-    assert "data_table" in schema._schema_tables
-    assert schema._schema_tables["data_table"]["columns"] == {}
+    assert "data_table" in schema.tables
+    assert schema.tables["data_table"]["columns"] == {}
 
     p.sync_schema()
 
@@ -239,8 +239,8 @@ def test_evolve_schema(destination_name: str) -> None:
     print(info)
     # print(p.default_schema.to_pretty_yaml())
     schema = p.default_schema
-    assert "simple_rows" in schema._schema_tables
-    assert "simple" not in schema._schema_tables
+    assert "simple_rows" in schema.tables
+    assert "simple" not in schema.tables
     assert "new_column" not in schema.get_table("simple_rows")["columns"]
 
     # lets violate unique constraint on postgres, redshift and BQ ignore unique indexes
@@ -258,10 +258,10 @@ def test_evolve_schema(destination_name: str) -> None:
     print(info_ext)
     # print(p.default_schema.to_pretty_yaml())
     schema = p.default_schema
-    assert "simple_rows" in schema._schema_tables
-    assert "simple" in schema._schema_tables
+    assert "simple_rows" in schema.tables
+    assert "simple" in schema.tables
     assert "new_column" in schema.get_table("simple_rows")["columns"]
-    assert "extended_rows" not in schema._schema_tables
+    assert "extended_rows" not in schema.tables
 
     # TODO: test export and import schema
     # test data

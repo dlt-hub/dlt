@@ -7,7 +7,7 @@ import pathvalidate
 from typing import IO, Any, List
 from dlt.common.typing import AnyFun
 
-from dlt.common.utils import encoding_for_mode
+from dlt.common.utils import encoding_for_mode, uniq_id
 
 
 FILE_COMPONENT_INVALID_CHARACTERS = re.compile(r"[.%{}]")
@@ -41,6 +41,25 @@ class FileStorage:
             if os.path.isfile(tmp_path):
                 os.remove(tmp_path)
             raise
+
+    @staticmethod
+    def copy_atomic(source_file_path: str, dest_folder_path: str) -> str:
+        file_name = os.path.basename(source_file_path)
+        dest_file_path = os.path.join(dest_folder_path, file_name)
+        try:
+            os.rename(source_file_path, dest_file_path)
+        except OSError:
+            # copy to local temp file
+            dest_temp_file = os.path.join(dest_folder_path, uniq_id())
+            try:
+                shutil.copyfile(source_file_path, dest_temp_file)
+                os.rename(dest_temp_file, dest_file_path)
+                os.unlink(source_file_path)
+            except Exception:
+                if os.path.isfile(dest_temp_file):
+                    os.remove(dest_temp_file)
+                raise
+        return dest_file_path
 
     def load(self, relative_path: str) -> Any:
         # raises on file not existing
@@ -126,6 +145,12 @@ class FileStorage:
             self.make_full_path(from_relative_path),
             self.make_full_path(to_relative_path)
         )
+
+    def atomic_import(self, external_file_path: str, to_folder: str) -> str:
+        """Moves a file at `external_file_path` into the `to_folder` effectively importing file into storage"""
+        return self.to_relative_path(FileStorage.copy_atomic(external_file_path, self.make_full_path(to_folder)))
+        # file_name = FileStorage.get_file_name_from_file_path(external_path)
+        # os.rename(external_path, os.path.join(self.make_full_path(to_folder), file_name))
 
     def in_storage(self, path: str) -> bool:
         assert path is not None

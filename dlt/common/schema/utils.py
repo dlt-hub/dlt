@@ -47,7 +47,7 @@ def remove_defaults(stored_schema: TStoredSchema) -> TStoredSchema:
         del t["name"]
         for c in t["columns"].values():
             # do not save names
-            del c["name"]  # type: ignore
+            del c["name"]
             # remove hints with default values
             for h in list(c.keys()):
                 if isinstance(c[h], bool) and c[h] is False and h != "nullable":  # type: ignore
@@ -250,6 +250,7 @@ def migrate_schema(schema_dict: DictStrAny, from_engine: int, to_engine: int) ->
 
 
 def add_missing_hints(column: TColumnSchemaBase) -> TColumnSchema:
+    # return # dict(column)  # type: ignore
     return {
         **{  # type:ignore
             "partition": False,
@@ -258,6 +259,8 @@ def add_missing_hints(column: TColumnSchemaBase) -> TColumnSchema:
             "sort": False,
             "primary_key": False,
             "foreign_key": False,
+            "root_key": False,
+            "merge_key": False
         },
         **column
     }
@@ -274,7 +277,31 @@ def autodetect_sc_type(detection_fs: Sequence[TTypeDetections], t: Type[Any], v:
     return None
 
 
-def diff_tables(tab_a: TTableSchema, tab_b: TTableSchema, ignore_table_name: bool = True) -> TPartialTableSchema:
+def is_complete_column(col: TColumnSchema) -> bool:
+    """Returns true if column contains enough data to be created at the destination. Must contain a name and a data type. Other hints have defaults."""
+    return bool(col.get("name")) and bool(col.get("data_type"))
+
+
+def compare_complete_columns(a: TColumnSchema, b: TColumnSchema) -> bool:
+    """Compares mandatory fields of complete columns"""
+    assert is_complete_column(a)
+    assert is_complete_column(b)
+    return a["data_type"] == b["data_type"] and a["name"] == b["name"]
+
+
+def merge_columns(col_a: TColumnSchema, col_b: TColumnSchema, merge_defaults: bool = False) -> TColumnSchema:
+    """Merges `col_b` into `col_a`. if `merge_defaults` is True, only hints not present in `col_a` will be set."""
+    # print(f"MERGE ({merge_defaults}) {col_b} into {col_a}")
+    for n, v in col_b.items():
+        if col_a.get(n) is None or not merge_defaults:
+            col_a[n] = v  # type: ignore
+    return col_a
+
+
+def diff_tables(tab_a: TTableSchema, tab_b: TPartialTableSchema, ignore_table_name: bool = True) -> TPartialTableSchema:
+    """Creates a partial table that contains properties found in `tab_b` that are not present in `tab_a` or that can be updated.
+    Raises SchemaException if tables cannot be merged
+    """
     table_name = tab_a["name"]
     if not ignore_table_name and table_name != tab_b["name"]:
         raise TablePropertiesConflictException(table_name, "name", table_name, tab_b["name"])
@@ -284,22 +311,31 @@ def diff_tables(tab_a: TTableSchema, tab_b: TTableSchema, ignore_table_name: boo
         raise TablePropertiesConflictException(table_name, "parent", tab_a.get("parent"), tab_b.get("parent"))
 
     # get new columns, changes in the column data type or other properties are not allowed
-    table_columns = tab_a["columns"]
+    tab_a_columns = tab_a["columns"]
     new_columns: List[TColumnSchema] = []
-    for column in tab_b["columns"].values():
-        column_name = column["name"]
-        if column_name in table_columns:
+    for col_b_name, col_b in tab_b["columns"].items():
+        if col_b_name in tab_a_columns:
+            col_a = tab_a_columns[col_b_name]
             # we do not support changing existing columns
-            if not compare_column(table_columns[column_name], column):
-                # attempt to update to incompatible columns
-                raise CannotCoerceColumnException(table_name, column_name, column["data_type"], table_columns[column_name]["data_type"], None)
+            if is_complete_column(col_a) and is_complete_column(col_b):
+                if not compare_complete_columns(tab_a_columns[col_b_name], col_b):
+                    # attempt to update to incompatible columns
+                    raise CannotCoerceColumnException(table_name, col_b_name, col_b["data_type"], tab_a_columns[col_b_name]["data_type"], None)
+            else:
+                new_columns.append(merge_columns(col_a, col_b))
         else:
-            new_columns.append(column)
+            new_columns.append(col_b)
 
-    # TODO: compare filters, description etc.
 
     # return partial table containing only name and properties that differ (column, filters etc.)
-    return new_table(table_name, columns=new_columns)
+    partial_table = new_table(table_name, columns=new_columns)
+    partial_table["write_disposition"] = None
+    # if tab_b.get("write_disposition")
+    # partial_table["write_disposition"] = tab_b.get("write_disposition")
+    # partial_table["description"] = tab_b.get("description")
+    # partial_table["filters"] = deepcopy(tab_b.get("filters"))
+    return partial_table
+
 
 
 def compare_tables(tab_a: TTableSchema, tab_b: TTableSchema) -> bool:
@@ -312,7 +348,8 @@ def compare_tables(tab_a: TTableSchema, tab_b: TTableSchema) -> bool:
 
 
 def merge_tables(table: TTableSchema, partial_table: TPartialTableSchema) -> TTableSchema:
-    # merges "partial_table" into "table", preserving the "table" name
+    """Merges "partial_table" into "table", preserving the "table" name"""
+
     diff_table = diff_tables(table, partial_table, ignore_table_name=True)
     # add new columns when all checks passed
     table["columns"].update(diff_table["columns"])
@@ -324,14 +361,16 @@ def merge_tables(table: TTableSchema, partial_table: TPartialTableSchema) -> TTa
     return table
 
 
-def compare_column(a: TColumnSchema, b: TColumnSchema) -> bool:
-    return a["data_type"] == b["data_type"] and a["nullable"] == b["nullable"]
-
-
 def hint_to_column_prop(h: TColumnHint) -> TColumnProp:
     if h == "not_null":
         return "nullable"
     return h
+
+
+def get_columns_names_with_prop(table: TTableSchema, column_prop: TColumnProp) -> List[str]:
+    # column_prop: TColumnProp = hint_to_column_prop(hint_type)
+    # default = column_prop != "nullable"  # default is true, only for nullable false
+    return [c["name"] for c in table["columns"].values() if c.get(column_prop, False) is True]
 
 
 def merge_schema_updates(schema_updates: Sequence[TSchemaUpdate]) -> TSchemaTables:
@@ -343,6 +382,44 @@ def merge_schema_updates(schema_updates: Sequence[TSchemaUpdate]) -> TSchemaTabl
                 aggregated_table = aggregated_update.setdefault(table_name, partial_table)
                 aggregated_table["columns"].update(partial_table["columns"])
     return aggregated_update
+
+
+def get_write_disposition(tables: TSchemaTables, table_name: str) -> TWriteDisposition:
+    """Returns write disposition of a table if present. If not, looks up into parent table"""
+    table = tables[table_name]
+    w_d = table.get("write_disposition")
+    if w_d:
+        return w_d
+
+    parent = table.get("parent")
+    if parent:
+        return get_write_disposition(tables, parent)
+
+    raise ValueError(f"No write disposition found in the chain of tables for '{table_name}'.")
+
+
+def get_top_level_table(tables: TSchemaTables, table_name: str) -> TTableSchema:
+    """Finds top level (without parent) of a `table_name` following the ancestry hierarchy."""
+    table = tables[table_name]
+    parent = table.get("parent")
+    if parent:
+        return get_top_level_table(tables, parent)
+    return table
+
+
+def get_child_tables(tables: TSchemaTables, table_name: str) -> List[TTableSchema]:
+    """Get child tables for table name and return a list of tables ordered by ancestry so the child tables are always after their parents"""
+    chain: List[TTableSchema] = []
+
+    def _child(t: TTableSchema) -> None:
+        name = t["name"]
+        chain.append(t)
+        for candidate in tables.values():
+            if candidate.get("parent") == name:
+                _child(candidate)
+
+    _child(tables[table_name])
+    return chain
 
 
 def version_table() -> TTableSchema:
@@ -436,12 +513,13 @@ def new_table(
     return table
 
 
-def new_column(column_name: str, data_type: TDataType, nullable: bool = True, validate_schema: bool = False) -> TColumnSchema:
+def new_column(column_name: str, data_type: TDataType = None, nullable: bool = True, validate_schema: bool = False) -> TColumnSchema:
     column = add_missing_hints({
                 "name": column_name,
-                "data_type": data_type,
                 "nullable": nullable
             })
+    if data_type:
+        column["data_type"] = data_type
     if validate_schema:
         validate_dict(TColumnSchema, column, f"new_column/{column_name}")
     return column

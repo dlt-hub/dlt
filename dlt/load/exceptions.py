@@ -1,6 +1,5 @@
 from typing import Sequence
-from dlt.common.exceptions import DltException
-from dlt.destinations.exceptions import DestinationTerminalException
+from dlt.destinations.exceptions import DestinationTerminalException, DestinationTransientException
 
 
 # class LoadException(DltException):
@@ -13,7 +12,16 @@ class LoadClientJobFailed(DestinationTerminalException):
         self.load_id = load_id
         self.job_id = job_id
         self.failed_message = failed_message
-        super().__init__(f"Job for {job_id} failed terminally in load {load_id} with message {failed_message}")
+        super().__init__(f"Job for {job_id} failed terminally in load {load_id} with message {failed_message}. The package is aborted and cannot be retried.")
+
+
+class LoadClientJobRetry(DestinationTransientException):
+    def __init__(self, load_id: str, job_id: str, retry_count: int, max_retry_count: int) -> None:
+        self.load_id = load_id
+        self.job_id = job_id
+        self.retry_count = retry_count
+        self.max_retry_count = max_retry_count
+        super().__init__(f"Job for {job_id} had {retry_count} retries which a multiple of {max_retry_count}. Exiting retry loop. You can still rerun the load package to retry this job.")
 
 
 class LoadClientUnsupportedFileFormats(DestinationTerminalException):

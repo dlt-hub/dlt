@@ -5,10 +5,12 @@ import pytest
 from dlt.common.configuration.container import Container
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.normalizers import default_normalizers, import_normalizers
+from dlt.common.normalizers.json.relational import DataItemNormalizer as RelationalNormalizer
 from dlt.common.normalizers.naming import snake_case
 from dlt.common.normalizers.naming import direct
 from dlt.common.normalizers.naming.exceptions import InvalidNamingModule, UnknownNamingModule
 
+from tests.common.normalizers.custom_normalizers import DataItemNormalizer as CustomRelationalNormalizer
 from tests.utils import preserve_environ
 
 
@@ -45,14 +47,14 @@ def test_import_normalizers() -> None:
     assert isinstance(naming, snake_case.NamingConvention)
     # no maximum length: we do not know the destination capabilities
     assert naming.max_length is None
-    assert json_normalizer.__name__ == "dlt.common.normalizers.json.relational"
+    assert json_normalizer is RelationalNormalizer
 
     os.environ["SCHEMA__NAMING"] = "direct"
     os.environ["SCHEMA__JSON_NORMALIZER"] = '{"module": "tests.common.normalizers.custom_normalizers"}'
     naming, json_normalizer = import_normalizers(default_normalizers())
     assert isinstance(naming, direct.NamingConvention)
     assert naming.max_length is None
-    assert json_normalizer.__name__ == "tests.common.normalizers.custom_normalizers"
+    assert json_normalizer is CustomRelationalNormalizer
 
 
 def test_import_normalizers_with_caps() -> None:

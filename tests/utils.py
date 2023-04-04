@@ -4,7 +4,6 @@ import multiprocessing
 import platform
 import requests
 import pytest
-import logging
 from os import environ
 from unittest.mock import patch
 

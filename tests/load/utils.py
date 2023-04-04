@@ -14,6 +14,7 @@ from dlt.common.data_writers import DataWriter
 from dlt.common.schema import TColumnSchema, TTableSchemaColumns
 from dlt.common.storages import SchemaStorage, FileStorage
 from dlt.common.schema.utils import new_table
+from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.typing import StrAny
 from dlt.common.utils import uniq_id
 
@@ -104,14 +105,14 @@ def load_table(name: str) -> TTableSchemaColumns:
 
 
 def expect_load_file(client: JobClientBase, file_storage: FileStorage, query: str, table_name: str, status = "completed") -> LoadJob:
-    file_name = uniq_id()
+    file_name = ParsedLoadJobFileName(table_name, uniq_id(), 0, "jsonl").job_id()
     file_storage.save(file_name, query.encode("utf-8"))
-    table = Load.get_load_table(client.schema, table_name, file_name)
+    table = Load.get_load_table(client.schema, file_name)
     job = client.start_file_load(table, file_storage.make_full_path(file_name))
-    while job.status() == "running":
+    while job.state() == "running":
         sleep(0.5)
     assert job.file_name() == file_name
-    assert job.status() ==  status
+    assert job.state() ==  status
     return job
 
 

@@ -3,7 +3,7 @@ from contextlib import contextmanager
 from functools import wraps
 import inspect
 from types import TracebackType
-from typing import Any, ClassVar, ContextManager, Generic, Iterator, Optional, Sequence, Type, AnyStr
+from typing import Any, ClassVar, ContextManager, Generic, Iterator, Optional, Sequence, Tuple, Type, AnyStr
 
 from dlt.common.typing import TFun
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -64,6 +64,10 @@ class SqlClientBase(ABC, Generic[TNativeConn]):
     def drop_dataset(self) -> None:
         pass
 
+    def truncate_tables(self, *tables: str) -> None:
+        sql = ";\n".join(f"TRUNCATE TABLE {self.make_qualified_table_name(t)}" for t in tables)
+        self.execute_sql(sql)
+
     @abstractmethod
     def execute_sql(self, sql: AnyStr, *args: Any, **kwargs: Any) -> Optional[Sequence[Sequence[Any]]]:
         pass
@@ -88,6 +92,7 @@ class SqlClientBase(ABC, Generic[TNativeConn]):
 
     @contextmanager
     def with_alternative_dataset_name(self, dataset_name: str) -> Iterator["SqlClientBase[TNativeConn]"]:
+        """Sets the `dataset_name` as the default dataset during the lifetime of the context. Does not modify any search paths in the existing connection."""
         current_dataset_name = self.dataset_name
         try:
             self.dataset_name = dataset_name
@@ -95,6 +100,12 @@ class SqlClientBase(ABC, Generic[TNativeConn]):
         finally:
             # restore previous dataset name
             self.dataset_name = current_dataset_name
+
+    def with_staging_dataset(self, staging: bool = False)-> ContextManager["SqlClientBase[TNativeConn]"]:
+        dataset_name = self.dataset_name
+        if staging:
+            dataset_name = SqlClientBase.make_staging_dataset_name(dataset_name)
+        return self.with_alternative_dataset_name(dataset_name)
 
     def _ensure_native_conn(self) -> None:
         if not self.native_connection:
@@ -110,6 +121,10 @@ class SqlClientBase(ABC, Generic[TNativeConn]):
         # crude way to detect dbapi DatabaseError: there's no common set of exceptions, each module must reimplement
         mro = type.mro(type(ex))
         return any(t.__name__ in ("DatabaseError", "DataError") for t in mro)
+
+    @staticmethod
+    def make_staging_dataset_name(dataset_name: str) -> str:
+        return dataset_name + "_staging"
 
 
 

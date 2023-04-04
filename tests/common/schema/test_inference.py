@@ -183,7 +183,7 @@ def test_shorten_variant_column(schema: Schema) -> None:
     _, new_table = schema.coerce_row("event_user", None, row_1)
     # schema assumes that identifiers are already normalized so confidence even if it is longer than 9 chars
     schema.update_schema(new_table)
-    assert "confidence" in schema._schema_tables["event_user"]["columns"]
+    assert "confidence" in schema.tables["event_user"]["columns"]
     # confidence_123456
     # now variant is created and this will be normalized
     # TODO: we should move the handling of variants to normalizer
@@ -248,7 +248,7 @@ def test_coerce_complex_variant(schema: Schema) -> None:
 
 def test_supports_variant_pua_decode(schema: Schema) -> None:
     rows = load_json_case("pua_encoded_row")
-    normalized_row = list(schema.normalize_data_item(schema, rows[0], "0912uhj222", "event"))
+    normalized_row = list(schema.normalize_data_item(rows[0], "0912uhj222", "event"))
     # pua encoding still present
     assert normalized_row[0][1]["wad"].startswith("")
     # decode pua
@@ -263,7 +263,7 @@ def test_supports_variant(schema: Schema) -> None:
     rows = [{"evm": Wei.from_int256(2137*10**16, decimals=18)}, {"evm": Wei.from_int256(2**256-1)}]
     normalized_rows = []
     for row in rows:
-        normalized_rows.extend(schema.normalize_data_item(schema, row, "128812.2131", "event"))
+        normalized_rows.extend(schema.normalize_data_item(row, "128812.2131", "event"))
     # row 1 contains Wei
     assert isinstance(normalized_rows[0][1]["evm"], Wei)
     assert normalized_rows[0][1]["evm"] == Wei("21.37")
@@ -323,7 +323,7 @@ def test_supports_variant_autovariant_conflict(schema: Schema) -> None:
     rows = [{"pv": PureVariant(3377)}, {"pv": PureVariant(21.37)}]
     normalized_rows = []
     for row in rows:
-        normalized_rows.extend(schema.normalize_data_item(schema, row, "128812.2131", "event"))
+        normalized_rows.extend(schema.normalize_data_item(row, "128812.2131", "event"))
     assert normalized_rows[0][1]["pv"]() == 3377
     assert normalized_rows[1][1]["pv"]() == ("text", 21.37)
     # first normalized row fits into schema (pv is int)

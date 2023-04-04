@@ -61,7 +61,7 @@ def test_extract_select_tables() -> None:
 
     schema = expect_tables(table_with_name_selectable)
     # TODO: this one should not be there but we cannot remove it really, except explicit flag
-    assert "table_with_name_selectable" in schema._schema_tables
+    assert "table_with_name_selectable" in schema.tables
 
     # try the same with lambda function, this is actually advised: should be faster and resource gets removed from schema
 
@@ -70,4 +70,4 @@ def test_extract_select_tables() -> None:
             yield list(range(_range))
 
     schema = expect_tables(table_name_with_lambda)
-    assert "table_name_with_lambda" not in schema._schema_tables
+    assert "table_name_with_lambda" not in schema.tables

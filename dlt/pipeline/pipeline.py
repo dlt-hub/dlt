@@ -34,9 +34,10 @@ from dlt.common.utils import is_interactive
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.extract.decorators import SourceSchemaInjectableContext
 
-from dlt.extract.exceptions import SourceExhausted
+from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, SourceExhausted
 from dlt.extract.extract import ExtractorStorage, extract
 from dlt.extract.source import DltResource, DltSource
+from dlt.extract.typing import TColumnKey
 from dlt.normalize import Normalize
 from dlt.normalize.configuration import NormalizeConfiguration
 from dlt.destinations.sql_client import SqlClientBase
@@ -249,6 +250,7 @@ class Pipeline(SupportsPipeline):
         parent_table_name: str = None,
         write_disposition: TWriteDisposition = None,
         columns: Sequence[TColumnSchema] = None,
+        primary_key: TColumnKey = None,
         schema: Schema = None,
         max_parallel_items: int = None,
         workers: int = None
@@ -260,7 +262,7 @@ class Pipeline(SupportsPipeline):
         try:
             with self._maybe_destination_capabilities():
                 # extract all sources
-                for source in self._data_to_sources(data, schema, table_name, parent_table_name, write_disposition, columns):
+                for source in self._data_to_sources(data, schema, table_name, parent_table_name, write_disposition, columns, primary_key):
                     if source.exhausted:
                         raise SourceExhausted(source.name)
                     # TODO: merge infos for all the sources
@@ -367,6 +369,7 @@ class Pipeline(SupportsPipeline):
         table_name: str = None,
         write_disposition: TWriteDisposition = None,
         columns: Sequence[TColumnSchema] = None,
+        primary_key: TColumnKey = None,
         schema: Schema = None
     ) -> LoadInfo:
         """Loads the data from `data` argument into the destination specified in `destination` and dataset specified in `dataset_name`.
@@ -406,10 +409,12 @@ class Pipeline(SupportsPipeline):
             * `@dlt.resource`: resource contains the full table schema and that includes the table name. `table_name` will override this property. Use with care!
             * `@dlt.source`: source contains several resources each with a table schema. `table_name` will override all table names within the source and load the data into single table.
 
-            write_disposition (Literal["skip", "append", "replace"], optional): Controls how to write data to a table. `append` will always add new data at the end of the table. `replace` will replace existing data with new data. `skip` will prevent data from loading. . Defaults to "append".
+            write_disposition (Literal["skip", "append", "replace", "merge"], optional): Controls how to write data to a table. `append` will always add new data at the end of the table. `replace` will replace existing data with new data. `skip` will prevent data from loading. "merge" will deduplicate and merge data based on "primary_key" and "merge_key" hints. Defaults to "append".
             Please note that in case of `dlt.resource` the table schema value will be overwritten and in case of `dlt.source`, the values in all resources will be overwritten.
 
             columns (Sequence[TColumnSchema], optional): A list of column schemas. Typed dictionary describing column names, data types, write disposition and performance hints that gives you full control over the created table schema.
+
+            primary_key (str | Sequence[str]): A column name or a list of column names that comprise a private key. Typically used with "merge" write disposition to deduplicate loaded data.
 
             schema (Schema, optional): An explicit `Schema` object in which all table schemas will be grouped. By default `dlt` takes the schema from the source (if passed in `data` argument) or creates a default one itself.
 
@@ -437,7 +442,7 @@ class Pipeline(SupportsPipeline):
 
         # extract from the source
         if data:
-            self.extract(data, table_name=table_name, write_disposition=write_disposition, columns=columns, schema=schema)
+            self.extract(data, table_name=table_name, write_disposition=write_disposition, columns=columns, primary_key=primary_key, schema=schema)
             self.normalize()
             return self.load(destination, dataset_name, credentials=credentials)
         else:
@@ -697,6 +702,7 @@ class Pipeline(SupportsPipeline):
         parent_table_name: str = None,
         write_disposition: TWriteDisposition = None,
         columns: Sequence[TColumnSchema] = None,
+        primary_key: TColumnKey = None
     ) -> List[DltSource]:
 
         def apply_hint_args(resource: DltResource) -> None:
@@ -704,8 +710,11 @@ class Pipeline(SupportsPipeline):
             if columns:
                 columns_dict = {c["name"]:c for c in columns}
             # apply hints only if any of the hints is present, table_name must be always present
-            if table_name or parent_table_name or write_disposition or columns:
-                resource.apply_hints(table_name or resource.name, parent_table_name, write_disposition, columns_dict)
+            if table_name or parent_table_name or write_disposition or columns or primary_key:
+                resource_table_name: str = None
+                with contextlib.suppress(DataItemRequiredForDynamicTableHints):
+                    resource_table_name = resource.table_name
+                resource.apply_hints(table_name or resource_table_name or resource.name, parent_table_name, write_disposition, columns_dict, primary_key)
 
         def choose_schema() -> Schema:
             if schema:

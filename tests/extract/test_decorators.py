@@ -132,7 +132,7 @@ def test_resource_name_is_invalid_table_name_and_columns() -> None:
 
     # get schema and check table name
     schema = s.discover_schema()
-    assert "resourcex" in schema._schema_tables
+    assert "resourcex" in schema.tables
     # has the column with identifiers normalized
     assert "ka_ax" in schema.get_table("resourcex")["columns"]
     assert schema.get_table("resourcex")["columns"]["ka_ax"]["name"] == "ka_ax"
@@ -257,7 +257,7 @@ def test_source_schema_context() -> None:
     def _assert_source_schema(s: DltSource, expected_name: str) -> None:
         assert list(s) == [1, 2, 3]
         assert s.discover_schema().name == expected_name
-        assert "source_table" in s.discover_schema()._schema_tables
+        assert "source_table" in s.discover_schema().tables
 
     # schema created by the source
     @dlt.source
@@ -303,7 +303,7 @@ def test_source_schema_modified() -> None:
     schema = s.discover_schema()
     schema.update_schema(new_table("table"))
     s = schema_test()
-    assert "table" not in s.discover_schema()._schema_tables
+    assert "table" not in s.discover_schema().tables
 
 
 @pytest.mark.skip
@@ -326,7 +326,7 @@ def test_class_source() -> None:
     assert s.name == "_Source"
     schema = s.discover_schema()
     assert schema.name == "_source"
-    assert "_list" in schema._schema_tables
+    assert "_list" in schema.tables
     assert list(s) == ['A', 'V', 'A', 'V', 'A', 'V', 'A', 'V']
 
     # CAN'T decorate classes themselves

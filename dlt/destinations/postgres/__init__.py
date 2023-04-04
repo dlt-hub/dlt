@@ -19,7 +19,7 @@ def capabilities() -> DestinationCapabilitiesContext:
     # https://www.postgresql.org/docs/current/limits.html
     caps = DestinationCapabilitiesContext()
     caps.preferred_loader_file_format = "insert_values"
-    caps.supported_loader_file_formats = ["insert_values"]
+    caps.supported_loader_file_formats = ["insert_values", "sql"]
     caps.escape_identifier = escape_postgres_identifier
     caps.escape_literal = escape_postgres_literal
     caps.max_identifier_length = 63

@@ -99,7 +99,7 @@ def test_bigquery_job_errors(client: BigQueryClient, file_storage: FileStorage) 
 
     # start a job from the same file. it should fallback to retrieve job silently
     r_job = client.start_file_load(client.schema.get_table(user_table_name), file_storage.make_full_path(job.file_name()))
-    assert r_job.status() == "completed"
+    assert r_job.state() == "completed"
 
 
 @pytest.mark.parametrize('location', ["US", "EU"])
