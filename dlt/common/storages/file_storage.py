@@ -47,7 +47,6 @@ class FileStorage:
         file_name = os.path.basename(source_file_path)
         dest_file_path = os.path.join(dest_folder_path, file_name)
         try:
-            raise OSError("copy fallback")
             os.rename(source_file_path, dest_file_path)
         except OSError:
             # copy to local temp file

@@ -20,7 +20,7 @@ from dlt.destinations.job_client_impl import EmptyLoadJob
 from dlt.destinations import dummy
 from dlt.destinations.dummy import dummy as dummy_impl
 from dlt.destinations.dummy.configuration import DummyClientConfiguration
-from dlt.load.exceptions import LoadClientJobFailed
+from dlt.load.exceptions import LoadClientJobFailed, LoadClientJobRetry
 
 from tests.utils import clean_test_storage, init_test_logging, TEST_DICT_CONFIG_PROVIDER, preserve_environ
 
@@ -141,9 +141,9 @@ def test_spool_job_failed_exception_init() -> None:
         assert py_ex.value.load_id == load_id
         package_info = load.load_storage.get_load_package_info(load_id)
         assert package_info.state == "aborted"
-        # one failed one started
-        assert len(package_info.jobs["failed_jobs"]) == 1
-        assert len(package_info.jobs["started_jobs"]) == 1
+        # both failed - we wait till the current loop is completed and then raise
+        assert len(package_info.jobs["failed_jobs"]) == 2
+        assert len(package_info.jobs["started_jobs"]) == 0
         # load id was never committed
         complete_load.assert_not_called()
 
@@ -162,9 +162,9 @@ def test_spool_job_failed_exception_complete() -> None:
     assert py_ex.value.load_id == load_id
     package_info = load.load_storage.get_load_package_info(load_id)
     assert package_info.state == "aborted"
-    # one failed one started
-    assert len(package_info.jobs["failed_jobs"]) == 1
-    assert len(package_info.jobs["started_jobs"]) == 1
+    # both failed - we wait till the current loop is completed and then raise
+    assert len(package_info.jobs["failed_jobs"]) == 2
+    assert len(package_info.jobs["started_jobs"]) == 0
 
 
 def test_spool_job_retry_new() -> None:
@@ -177,14 +177,21 @@ def test_spool_job_retry_new() -> None:
     files = load.load_storage.list_new_jobs(load_id)
     for f in files:
         job = Load.w_spool_job(load, f, load_id, schema)
-        assert job is None
+        assert job.state() == "retry"
 
+def test_spool_job_retry_spool_new() -> None:
+    # this config retries job on start (transient fail)
+    load = setup_loader(client_config=DummyClientConfiguration(retry_prob=1.0))
+    load_id, schema = prepare_load_package(
+        load.load_storage,
+        NORMALIZED_FILES
+    )
     # call higher level function that returns jobs and counts
     with ThreadPool() as pool:
         load.pool = pool
         jobs_count, jobs = load.spool_new_jobs(load_id, schema)
         assert jobs_count == 2
-        assert len(jobs) == 0
+        assert len(jobs) == 2
 
 
 def test_spool_job_retry_started() -> None:
@@ -283,28 +290,50 @@ def test_retry_on_new_loop() -> None:
         NORMALIZED_FILES
     )
     with ThreadPool() as pool:
+        # 1st retry
         load.run(pool)
         files = load.load_storage.list_new_jobs(load_id)
         assert len(files) == 2
-        # one job will be completed
-        # print(list(client.JOBS.keys()))
-        # client.JOBS["event_user.839c6e6b514e427687586ccc65bf133f.jsonl"].retry_prob = 0
-        # client.JOBS["event_user.839c6e6b514e427687586ccc65bf133f.jsonl"].completed_prob = 1.0
+        # 2nd retry
         load.run(pool)
         files = load.load_storage.list_new_jobs(load_id)
         assert len(files) == 2
+
         # jobs will be completed
         load = setup_loader(client_config=DummyClientConfiguration(completed_prob=1.0))
         load.run(pool)
         files = load.load_storage.list_new_jobs(load_id)
         assert len(files) == 0
+        # complete package
         load.run(pool)
         assert not load.load_storage.storage.has_folder(load.load_storage.get_package_path(load_id))
         # parse the completed job names
         completed_path = load.load_storage.get_completed_package_path(load_id)
         for fn in load.load_storage.storage.list_folder_files(os.path.join(completed_path, LoadStorage.COMPLETED_JOBS_FOLDER)):
-            # we failed on initializing a job, in that case the retry count will not be updated
-            assert LoadStorage.parse_job_file_name(fn).retry_count == 0
+            # we update a retry count in each case
+            assert LoadStorage.parse_job_file_name(fn).retry_count == 2
+
+
+def test_retry_exceptions() -> None:
+    load = setup_loader(client_config=DummyClientConfiguration(retry_prob=1.0))
+    prepare_load_package(
+        load.load_storage,
+        NORMALIZED_FILES
+    )
+    with ThreadPool() as pool:
+        # 1st retry
+        with pytest.raises(LoadClientJobRetry) as py_ex:
+            while True:
+                load.run(pool)
+        # configured to retry 5 times before exception
+        assert py_ex.value.max_retry_count == py_ex.value.retry_count == 5
+
+        # we can do it again
+        with pytest.raises(LoadClientJobRetry) as py_ex:
+            while True:
+                load.run(pool)
+        # this continues retry
+        assert py_ex.value.max_retry_count * 2 == py_ex.value.retry_count == 10
 
 
 def test_wrong_writer_type() -> None:

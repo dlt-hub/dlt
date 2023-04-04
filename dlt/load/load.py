@@ -21,7 +21,7 @@ from dlt.destinations.job_impl import EmptyLoadJob
 from dlt.destinations.exceptions import DestinationTerminalException, DestinationTransientException, LoadJobUnknownTableException
 
 from dlt.load.configuration import LoaderConfiguration
-from dlt.load.exceptions import LoadClientJobFailed, LoadClientUnsupportedWriteDisposition, LoadClientUnsupportedFileFormats
+from dlt.load.exceptions import LoadClientJobFailed, LoadClientJobRetry, LoadClientUnsupportedWriteDisposition, LoadClientUnsupportedFileFormats
 
 
 class Load(Runnable[ThreadPool]):
@@ -98,12 +98,12 @@ class Load(Runnable[ThreadPool]):
                 job = client.start_file_load(table, self.load_storage.storage.make_full_path(file_path))
         except (DestinationTerminalException, TerminalValueError):
             # if job irreversibly cannot be started, mark it as failed
-            logger.exception(f"Terminal problem with spooling job {file_path}")
+            logger.exception(f"Terminal problem when adding job {file_path}")
             job = EmptyLoadJob.from_file_path(file_path, "failed", pretty_format_exception())
         except (DestinationTransientException, Exception):
             # return no job so file stays in new jobs (root) folder
-            logger.exception(f"Temporary problem with spooling job {file_path}")
-            return None
+            logger.exception(f"Temporary problem when adding job {file_path}")
+            job = EmptyLoadJob.from_file_path(file_path, "retry", pretty_format_exception())
         self.load_storage.start_job(load_id, job.file_name())
         return job
 
@@ -207,10 +207,7 @@ class Load(Runnable[ThreadPool]):
                 # try to get exception message from job
                 failed_message = job.exception()
                 final_location = self.load_storage.fail_job(load_id, job.file_name(), failed_message)
-                if self.config.raise_on_failed_jobs:
-                    raise LoadClientJobFailed(load_id, job.job_id(), failed_message)
-                else:
-                    logger.error(f"Job for {job.job_id()} failed terminally in load {load_id} with message {failed_message}")
+                logger.error(f"Job for {job.job_id()} failed terminally in load {load_id} with message {failed_message}")
             elif state == "retry":
                 # try to get exception message from job
                 retry_message = job.exception()
@@ -303,11 +300,23 @@ class Load(Runnable[ThreadPool]):
         if jobs_count == 0:
             self.complete_package(load_id, schema, False)
         else:
-            # TODO: this loop must be urgently removed.
             while True:
                 try:
                     remaining_jobs = self.complete_jobs(load_id, jobs, schema)
                     if len(remaining_jobs) == 0:
+                        # get package status
+                        package_info = self.load_storage.get_load_package_info(load_id)
+                        # possibly raise on failed jobs
+                        if self.config.raise_on_failed_jobs:
+                            if package_info.jobs["failed_jobs"]:
+                                failed_job = package_info.jobs["failed_jobs"][0]
+                                raise LoadClientJobFailed(load_id, failed_job.job_file_info.job_id(), failed_job.failed_message)
+                        # possibly raise on too many retires
+                        if self.config.raise_on_max_retries:
+                            for new_job in package_info.jobs["new_jobs"]:
+                                r_c = new_job.job_file_info.retry_count
+                                if r_c > 0 and r_c % self.config.raise_on_max_retries == 0:
+                                    raise LoadClientJobRetry(load_id, new_job.job_file_info.job_id(), r_c, self.config.raise_on_max_retries)
                         break
                     # process remaining jobs again
                     jobs = remaining_jobs

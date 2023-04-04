@@ -326,10 +326,10 @@ class LoadStorage(DataItemStorage, VersionedStorage):
 
     def retry_job(self, load_id: str, file_name: str) -> str:
         # when retrying job we must increase the retry count
-        source_fn = LoadStorage.parse_job_file_name(file_name)
-        dest_fn = self.build_job_file_name(source_fn.table_name, source_fn.file_id, source_fn.retry_count + 1)
+        source_fn = ParsedLoadJobFileName.parse(file_name)
+        dest_fn = ParsedLoadJobFileName(source_fn.table_name, source_fn.file_id, source_fn.retry_count + 1, source_fn.file_format)
         # move it directly to new file name
-        return self._move_job(load_id, LoadStorage.STARTED_JOBS_FOLDER, LoadStorage.NEW_JOBS_FOLDER, file_name, dest_fn)
+        return self._move_job(load_id, LoadStorage.STARTED_JOBS_FOLDER, LoadStorage.NEW_JOBS_FOLDER, file_name, dest_fn.job_id())
 
     def complete_job(self, load_id: str, file_name: str) -> str:
         return self._move_job(load_id, LoadStorage.STARTED_JOBS_FOLDER, LoadStorage.COMPLETED_JOBS_FOLDER, file_name)

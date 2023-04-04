@@ -164,7 +164,6 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
         )
 
     def execute_sql(self, sql: AnyStr, *args: Any, **kwargs: Any) -> Optional[Sequence[Sequence[Any]]]:
-        print(sql)
         with self.execute_query(sql, *args, **kwargs) as curr:
             if not curr.description:
                 return None
