@@ -32,3 +32,5 @@ jobs:
             echo "changes_outside_docs=true" >> $GITHUB_OUTPUT
           fi
           echo "changes_outside_docs=true" >> $GITHUB_OUTPUT
+      - name: Get changes_outside_docs
+        run: echo "changes_outside_docs=${{ steps.check_changes.outputs.changes_outside_docs }}"
