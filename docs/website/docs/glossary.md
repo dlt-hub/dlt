@@ -1,3 +1,9 @@
+---
+title: Glossary
+description: Glossary of common dlt terms
+keywords: [glossary, resource, source, pipeline]
+---
+
 # Glossary
 
 ## [Resource](./walkthroughs/create-a-pipeline.md)

@@ -1,3 +1,9 @@
+---
+title: Google Sheets
+description: dlt pipeline for Google Sheets API
+keywords: [google sheets api, google sheets pipeline, google sheets]
+---
+
 # Google Sheets
 
 This pipeline can be used to load data from a [Google sheets](https://www.google.com/sheets/about/) workspace onto a [destination](https://dlthub.com/docs/destinations) of your choice.

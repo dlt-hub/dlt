@@ -1,3 +1,9 @@
+---
+title: Pipeline
+description: Explanation of what a dlt pipeline is
+keywords: [pipeline, source, full refresh]
+---
+
 # Pipeline
 
   > **💡** Moves the data from the source to the destination, according to instructions provided
