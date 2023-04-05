@@ -5,7 +5,9 @@ import pytest
 import duckdb
 
 import dlt
+from dlt.common.pendulum import pendulum, timedelta
 from dlt.common.utils import uniq_id
+from dlt.common.json import json
 from dlt.extract.extract import ExtractorStorage
 from tests.utils import preserve_environ, autouse_test_storage
 
@@ -179,3 +181,76 @@ def test_override_primary_key_in_pipeline() -> None:
 
     p = dlt.pipeline(pipeline_name=uniq_id())
     p.extract(some_data, primary_key=['id', 'other_id'])
+
+
+def test_composite_primary_key() -> None:
+    @dlt.resource(primary_key=['isrc', 'market'])
+    def some_data(created_at=dlt.Incremental('created_at')):
+        yield {'created_at': 1, 'isrc': 'AAA', 'market': 'DE'}
+        yield {'created_at': 2, 'isrc': 'BBB', 'market': 'DE'}
+        yield {'created_at': 2, 'isrc': 'CCC', 'market': 'US'}
+        yield {'created_at': 2, 'isrc': 'AAA', 'market': 'DE'}
+        yield {'created_at': 2, 'isrc': 'CCC', 'market': 'DE'}
+        yield {'created_at': 2, 'isrc': 'DDD', 'market': 'DE'}
+        yield {'created_at': 2, 'isrc': 'CCC', 'market': 'DE'}
+
+    p = dlt.pipeline(pipeline_name=uniq_id(), destination='duckdb', credentials=duckdb.connect(':memory:'))
+    p.run(some_data())
+
+    with p.sql_client() as c:
+        with c.execute_query("SELECT created_at, isrc, market FROM some_data order by created_at, isrc, market") as cur:
+            rows = cur.fetchall()
+
+    assert rows == [(1, 'AAA', 'DE'), (2, 'AAA', 'DE'), (2, 'BBB', 'DE'), (2, 'CCC', 'DE'), (2, 'CCC', 'US'), (2, 'DDD', 'DE')]
+
+
+def test_last_value_func_min() -> None:
+    @dlt.resource
+    def some_data(created_at=dlt.Incremental('created_at', last_value_func=min)):
+        yield {'created_at': 10}
+        yield {'created_at': 11}
+        yield {'created_at': 9}
+        yield {'created_at': 10}
+        yield {'created_at': 8}
+        yield {'created_at': 22}
+
+    p = dlt.pipeline(pipeline_name=uniq_id())
+    p.extract(some_data())
+
+    s = dlt.state()[p.pipeline_name]['resources']['some_data']['incremental']['created_at']
+
+    assert s['last_value'] == 8
+
+
+def test_last_value_func_custom() -> None:
+    def last_value(values):
+        return max(values) + 1
+
+    @dlt.resource
+    def some_data(created_at=dlt.Incremental('created_at', last_value_func=last_value)):
+        yield {'created_at': 9}
+        yield {'created_at': 10}
+
+    p = dlt.pipeline(pipeline_name=uniq_id())
+    p.extract(some_data())
+
+    s = dlt.state()[p.pipeline_name]['resources']['some_data']['incremental']['created_at']
+    assert s['last_value'] == 11
+
+
+def test_cursor_datetime_type() -> None:
+    initial_value = pendulum.now()
+
+    @dlt.resource
+    def some_data(created_at=dlt.Incremental('created_at', initial_value)):
+        yield {'created_at': initial_value + timedelta(minutes=1)}
+        yield {'created_at': initial_value + timedelta(minutes=3)}
+        yield {'created_at': initial_value + timedelta(minutes=2)}
+        yield {'created_at': initial_value + timedelta(minutes=4)}
+        yield {'created_at': initial_value + timedelta(minutes=2)}
+
+    p = dlt.pipeline(pipeline_name=uniq_id())
+    p.extract(some_data())
+
+    s = dlt.state()[p.pipeline_name]['resources']['some_data']['incremental']['created_at']
+    assert s['last_value'] == json.loads(json.dumps(initial_value + timedelta(minutes=4)))

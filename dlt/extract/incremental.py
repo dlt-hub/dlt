@@ -1,5 +1,4 @@
-from hashlib import sha1
-from typing import Generic, TypeVar, Any, Optional, Callable, List, TypedDict, get_origin
+from typing import Generic, TypeVar, Any, Optional, Callable, List, TypedDict, get_origin, Sequence
 import inspect
 from functools import wraps
 
@@ -11,13 +10,14 @@ from dlt.common.schema.typing import TColumnKey
 from dlt.common.configuration import configspec, known_sections, resolve_configuration, ConfigFieldMissingException
 from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.pipeline import state as _state
+from dlt.common.utils import digest256
 from dlt.extract.utils import resolve_column_value
 from dlt.extract.typing import TTableHintTemplate
 
 
 TCursorValue = TypeVar("TCursorValue", bound=Any)
 TUniqueValue = TypeVar("TUniqueValue", bound=Any)
-LastValueFunc = Callable[..., Any]
+LastValueFunc = Callable[[Sequence[TCursorValue]], Any]
 
 
 
@@ -58,7 +58,7 @@ class Incremental(Generic[TCursorValue, TUniqueValue]):
     Args:
         cursor_column: The name of the cursor column. This can be a column name or any valid JSON path.
         initial_value: Optional value used for `last_value` when no state is available, e.g. on the first run of the pipeline. If not provided `last_value` will be `None` on the first run.
-        last_value_func: Callable used to determine which cursor value to save in state. It is called with the stored state value and all cursor vals from currently processing items. Default is `max`
+        last_value_func: Callable used to determine which cursor value to save in state. It is called with a list of the stored state value and all cursor vals from currently processing items. Default is `max`
     """
     resource_name: str = None
 
@@ -66,21 +66,24 @@ class Incremental(Generic[TCursorValue, TUniqueValue]):
             self,
             cursor_column: str,
             initial_value: Optional[TCursorValue]=None,
-            last_value_func: Optional[LastValueFunc]=None,
+            last_value_func: Optional[LastValueFunc[TCursorValue]]=None,
     ) -> None:
         assert cursor_column, "`cursor_column` must be a column name or json path"
         self.cursor_column = cursor_column
         self.cursor_column_p = JSONPath(cursor_column)
-        self.initial_value = initial_value
         self.last_value_func = last_value_func or max
+        self.initial_value =  initial_value
 
     def copy(self) -> "Incremental[TCursorValue, TUniqueValue]":
         return self.__class__(self.cursor_column, initial_value=self.initial_value, last_value_func=self.last_value_func)
 
     @classmethod
-    def from_config(cls, cfg: IncrementalConfigSpec) -> "Incremental[Any, Any]":
+    def from_config(cls, cfg: IncrementalConfigSpec, orig: Optional["Incremental[Any, Any]"]) -> "Incremental[Any, Any]":
         # TODO: last_value_func from name
-        return cls(cfg.cursor_column, initial_value=cfg.initial_value)
+        kwargs = dict(cursor_column=cfg.cursor_column, initial_value=cfg.initial_value)
+        if orig:
+            kwargs['last_value_func'] = orig.last_value_func
+        return cls(**kwargs)
 
     @property
     def state(self) -> IncrementalColumnState:
@@ -101,19 +104,17 @@ class Incremental(Generic[TCursorValue, TUniqueValue]):
         state = self.state
         last_value = state['last_value']
         row_value = json.loads(json.dumps(self.cursor_column_p.parse(row)[0]))  # For now the value needs to match deserialized presentation from state
+        check_values = ([last_value] if last_value is not None else []) + [row_value]
+        new_value = self.last_value_func(check_values)
         if primary_key:
-            unique_value = resolve_column_value(primary_key, row)
+            unique_value = digest256(json.dumps(resolve_column_value(primary_key, row)))
         else:
-            # TODO: Need to think about edge cases.
-            # e.g. if schema has changed since last run, row may have new columns
-            # do we then still want to load a duplicate?
-            unique_value = sha1(json.dumpb(row, sort_keys=True)).hexdigest()
-        if last_value == row_value:
+            unique_value = digest256(json.dumps(row, sort_keys=True))
+        if last_value == new_value:
             if unique_value in state['unique_keys']:
                 return False
             state['unique_keys'].append(unique_value)
             return True
-        new_value = self.last_value_func(last_value, row_value) if last_value is not None else row_value
         if new_value != last_value:
             state.update({'last_value': new_value, 'unique_keys': [unique_value]})
         return True
@@ -124,6 +125,7 @@ class IncrementalResourceWrapper:
 
     def __init__(self, resource_name: str, source_section: str, primary_key: Optional[TTableHintTemplate[TColumnKey]] = None) -> None:
         self.resource_sections = (known_sections.SOURCES, source_section, resource_name)
+        self.resource_name = resource_name
         self.primary_key = primary_key
 
     def wrap(self, func: TFun) -> TFun:
@@ -142,10 +144,12 @@ class IncrementalResourceWrapper:
                 if (inspect.isclass(annotation) and issubclass(annotation, Incremental)) or isinstance(p.default, Incremental):
                     if isinstance(p.default, Incremental):
                         default_incremental = p.default.copy()
+                        default_incremental.resource_name = self.resource_name
                     if p.name in kwargs:
                         explicit_value = kwargs[p.name]
                         if isinstance(explicit_value, Incremental):
                             # Explicit Incremental instance is  untouched
+                            explicit_value.resource_name = self.resource_name
                             self._transform = explicit_value
                             break
                         elif default_incremental:
@@ -162,7 +166,8 @@ class IncrementalResourceWrapper:
                         if not is_optional_type(p.annotation):
                             raise
                     else:
-                        self._transform = new_kwargs[p.name] = Incremental.from_config(cfg)
+                        self._transform = new_kwargs[p.name] = Incremental.from_config(cfg, default_incremental)
+                        self._transform.resource_name = self.resource_name
                         break
             kwargs.update(new_kwargs)
             return func(*args, **kwargs)
