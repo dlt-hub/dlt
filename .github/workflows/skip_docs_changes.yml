@@ -17,7 +17,7 @@ jobs:
           fetch-depth: 0
 
       - id: step1
-        run: echo "test=hello" >> "$GITHUB_OUTPUT"
+        run: echo "test=hello" >> $GITHUB_OUTPUT
 
       - name: Check changes outside docs
         id: check_changes
