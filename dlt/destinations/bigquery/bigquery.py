@@ -1,7 +1,5 @@
-import os
 from pathlib import Path
-from typing import ClassVar, Dict, Optional, Sequence, Tuple, cast
-from dlt.common.storages.file_storage import FileStorage
+from typing import ClassVar, Dict, Optional, Sequence, Tuple, List, cast
 import google.cloud.bigquery as bigquery  # noqa: I250
 from google.cloud import exceptions as gcp_exceptions
 from google.api_core import exceptions as api_core_exceptions
@@ -10,17 +8,19 @@ from dlt.common import json, logger
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 from dlt.common.configuration.specs import GcpClientCredentials
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import FollowupJob, TLoadJobState, LoadJob
+from dlt.common.destination.reference import FollowupJob, NewLoadJob, TLoadJobState, LoadJob
 from dlt.common.data_types import TDataType
+from dlt.common.storages.file_storage import FileStorage
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns
 from dlt.common.schema.typing import TTableSchema, TWriteDisposition
 
-from dlt.destinations.job_client_impl import SqlLoadJob, SqlJobClientBase
+from dlt.destinations.job_client_impl import SqlJobClientBase
 from dlt.destinations.exceptions import DestinationSchemaWillNotUpdate, DestinationTransientException, LoadJobNotExistsException, LoadJobTerminalException, LoadJobUnknownTableException
 
 from dlt.destinations.bigquery import capabilities
 from dlt.destinations.bigquery.configuration import BigQueryClientConfiguration
 from dlt.destinations.bigquery.sql_client import BigQuerySqlClient, BQ_TERMINAL_REASONS
+from dlt.destinations.sql_merge_job import SqlMergeJob
 
 
 SCT_TO_BQT: Dict[TDataType, str] = {
@@ -96,6 +96,17 @@ class BigQueryLoadJob(LoadJob, FollowupJob):
         return Path(file_path).name.replace(".", "_")
 
 
+class BigQueryMergeJob(SqlMergeJob):
+
+    @classmethod
+    def gen_key_table_clauses(cls, root_table_name: str, staging_root_table_name: str, key_clauses: Sequence[str]) -> List[str]:
+        # generate several clauses: BigQuery does not support OR nor unions
+        sql: List[str] = []
+        for clause in key_clauses:
+            sql.append(f"FROM {root_table_name} AS data WHERE EXISTS (SELECT 1 FROM {staging_root_table_name} AS staging WHERE {clause})")
+        return sql
+
+
 class BigQueryClient(SqlJobClientBase):
 
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
@@ -108,6 +119,9 @@ class BigQueryClient(SqlJobClientBase):
         super().__init__(schema, config, sql_client)
         self.config: BigQueryClientConfiguration = config
         self.sql_client: BigQuerySqlClient = sql_client  # type: ignore
+
+    def create_merge_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
+        return BigQueryMergeJob.from_table_chain(table_chain, self.sql_client)
 
     def restore_file_load(self, file_path: str) -> LoadJob:
         """Returns a completed SqlLoadJob or restored BigQueryLoadJob
