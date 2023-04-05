@@ -2,6 +2,10 @@ name: get docs changes
 
 on:
   workflow_call:
+    outputs:
+      changes_outside_docs:
+        description: "Changes outside docs"
+        value: ${{ jobs.get_docs_changes.outputs.changes_outside_docs }}
 
 jobs:
   get_docs_changes:
