@@ -50,8 +50,8 @@ def test_last_value_access_in_resource() -> None:
 
 
 def test_unique_keys_are_deduplicated() -> None:
-    @dlt.resource
-    def some_data(created_at=Incremental('created_at', unique_column='id')):
+    @dlt.resource(primary_key='id')
+    def some_data(created_at=Incremental('created_at')):
         if created_at.last_value is None:
             yield {'created_at': 1, 'id': 'a'}
             yield {'created_at': 2, 'id': 'b'}
@@ -128,15 +128,14 @@ def test_explicit_initial_value() -> None:
 
 
 def test_explicit_incremental_instance() -> None:
-    @dlt.resource
-    def some_data(incremental=Incremental('created_at', unique_column='some_uq', initial_value=0)):
+    @dlt.resource(primary_key='some_uq')
+    def some_data(incremental=Incremental('created_at', initial_value=0)):
         assert incremental.cursor_column == 'inserted_at'
         assert incremental.initial_value == 241
-        assert incremental.unique_column == 'other_uq'
-        yield {'inserted_at': 242, 'other_uq': 444}
+        yield {'inserted_at': 242, 'some_uq': 444}
 
     p = dlt.pipeline(pipeline_name=uniq_id())
-    p.extract(some_data(incremental=Incremental('inserted_at', unique_column='other_uq', initial_value=241)))
+    p.extract(some_data(incremental=Incremental('inserted_at', initial_value=241)))
 
 
 def test_optional_incremental_from_config() -> None:

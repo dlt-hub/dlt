@@ -507,6 +507,19 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
             return 3
         return 0
 
+    def apply_hints(
+        self,
+        table_name: TTableHintTemplate[str] = None,
+        parent_table_name: TTableHintTemplate[str] = None,
+        write_disposition: TTableHintTemplate[TWriteDisposition] = None,
+        columns: TTableHintTemplate[TTableSchemaColumns] = None,
+        primary_key: TTableHintTemplate[TColumnKey] = None,
+        merge_key: TTableHintTemplate[TColumnKey] = None
+    ) -> None:
+        super().apply_hints(table_name, parent_table_name, write_disposition, columns, primary_key, merge_key)
+        if self.incremental:
+            self.incremental.primary_key = primary_key
+
 
 # produce Empty resource singleton
 DltResource.Empty = DltResource(Pipe(None), None, False)

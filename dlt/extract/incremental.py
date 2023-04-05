@@ -7,8 +7,11 @@ from jsonpath import JSONPath
 
 from dlt.common.json import json
 from dlt.common.typing import TDataItem, TDataItems, TFun, extract_inner_type, is_optional_type
+from dlt.common.schema.typing import TColumnKey
 from dlt.common.configuration import configspec, known_sections, resolve_configuration, ConfigFieldMissingException
 from dlt.common.configuration.specs import BaseConfiguration
+from dlt.extract.utils import resolve_column_value
+from dlt.extract.typing import TTableHintTemplate
 
 
 TCursorValue = TypeVar("TCursorValue", bound=Any)
@@ -26,13 +29,11 @@ class IncrementalColumnState(TypedDict):
 class IncrementalConfigSpec(BaseConfiguration):
     cursor_column: str = None
     initial_value: Optional[Any] = None
-    unique_column: Optional[str] = None
 
     def parse_native_representation(self, native_value: Any) -> None:
         if isinstance(native_value, Incremental):
             self.cursor_column = native_value.cursor_column
             self.initial_value = native_value.initial_value
-            self.unique_column = native_value.unique_column
         else:  # TODO: Maybe check if callable(getattr(native_value, '__lt__', None))
             # Passing bare value `incremental=44` gets parsed as initial_value
             self.initial_value = native_value
@@ -46,29 +47,26 @@ class Incremental(Generic[TCursorValue, TUniqueValue]):
             cursor_column: str,
             initial_value: Optional[TCursorValue]=None,
             last_value_func: Optional[LastValueFunc]=None,
-            unique_column: Optional[str] = None,
     ) -> None:
         assert cursor_column, "`cursor_column` must be a column name or json path"
         self.cursor_column = cursor_column
         self.cursor_column_p = JSONPath(cursor_column)
         self.initial_value = initial_value
         self.last_value_func = last_value_func or max
-        self.unique_column = unique_column
-        self.unique_column_p = JSONPath(unique_column) if unique_column else None
         from dlt.pipeline.current import resource_state  # TODO: Resolve circular import
         self._state = resource_state
 
     def copy(self) -> "Incremental[TCursorValue, TUniqueValue]":
-        return self.__class__(self.cursor_column, initial_value=self.initial_value, last_value_func=self.last_value_func, unique_column=self.unique_column)
+        return self.__class__(self.cursor_column, initial_value=self.initial_value, last_value_func=self.last_value_func)
 
     @classmethod
     def from_config(cls, cfg: IncrementalConfigSpec) -> "Incremental[Any, Any]":
         # TODO: last_value_func from name
-        return cls(cfg.cursor_column, initial_value=cfg.initial_value, unique_column=cfg.unique_column)
+        return cls(cfg.cursor_column, initial_value=cfg.initial_value)
 
     @property
     def state(self) -> IncrementalColumnState:
-        return self._state().setdefault('incremental', {}).setdefault(self.cursor_column, {'last_value': self.initial_value, 'unique_keys': []}) # type: ignore
+        return self._state().setdefault('incremental', {}).setdefault(self.cursor_column, {'last_value': json.loads(json.dumps(self.initial_value)), 'unique_keys': []}) # type: ignore
 
     @property
     def last_value(self) -> Optional[TCursorValue]:
@@ -78,14 +76,14 @@ class Incremental(Generic[TCursorValue, TUniqueValue]):
     def unique_keys(self) -> List[TUniqueValue]:
         return self.state['unique_keys']
 
-    def __call__(self, row: TDataItem) -> bool:
+    def __call__(self, row: TDataItem, primary_key: Optional[TTableHintTemplate[TColumnKey]]) -> bool:
         if row is None:
             return True
         state = self.state
         last_value = state['last_value']
         row_value = json.loads(json.dumps(self.cursor_column_p.parse(row)[0]))  # For now the value needs to match deserialized presentation from state
-        if self.unique_column_p:
-            unique_value = self.unique_column_p.parse(row)[0]
+        if primary_key:
+            unique_value = resolve_column_value(primary_key, row)
         else:
             # TODO: Need to think about edge cases.
             # e.g. if schema has changed since last run, row may have new columns
@@ -108,8 +106,9 @@ incremental = Incremental
 class IncrementalResourceWrapper:
     _transform: Optional[Incremental[Any, Any]] = None
 
-    def __init__(self, resource_name: str, source_section: str) -> None:
+    def __init__(self, resource_name: str, source_section: str, primary_key: Optional[TTableHintTemplate[TColumnKey]] = None) -> None:
         self.resource_sections = (known_sections.SOURCES, source_section, resource_name)
+        self.primary_key = primary_key
 
     def wrap(self, func: TFun) -> TFun:
         """Wrap the callable to inject an `Incremental` object configured for the resource.
@@ -157,5 +156,5 @@ class IncrementalResourceWrapper:
         if not self._transform:
             return items
         if isinstance(items, list): # TODO: Handle lists efficiently
-            return [item for item in items if self._transform(item) is True]
-        return items if self._transform(items) is True else None
+            return [item for item in items if self._transform(item, self.primary_key) is True]
+        return items if self._transform(items, self.primary_key) is True else None

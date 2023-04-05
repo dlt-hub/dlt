@@ -333,7 +333,7 @@ def resource(
         # wrap source extraction function in configuration with section
         func_module = inspect.getmodule(f)
         source_section = _get_source_section_name(func_module)
-        incremental = IncrementalResourceWrapper(resource_name, source_section)
+        incremental = IncrementalResourceWrapper(resource_name, source_section, primary_key)
         if is_inner_callable(f):
             conf_f = incremental.wrap(f)  # TODO: Test this
         else:
