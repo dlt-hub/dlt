@@ -13,6 +13,7 @@ env:
 
 jobs:
   get_docs_changes:
+    runs-on: ubuntu-latest
     outputs:
       output1: ${{ steps.step1.outputs.test }}
       output2: abc
