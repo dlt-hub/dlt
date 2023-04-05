@@ -30,4 +30,7 @@ jobs:
           else
             echo "Changes detected outside docs."
             echo "changes_outside_docs='true'" >> $GITHUB_OUTPUT
+            echo "changes_outside_docs='true'"
           fi
+
+          echo "pipelines_list=$changed_pipelines" >> $GITHUB_OUTPUT
