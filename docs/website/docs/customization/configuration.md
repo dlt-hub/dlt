@@ -1,7 +1,3 @@
----
-sidebar_position: 4
----
-
 # Configuration
 
 This page is a work in progress. If you have a question about configuration,

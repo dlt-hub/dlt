@@ -1,7 +1,3 @@
----
-sidebar_position: 3
----
-
 # Run a pipeline
 
 Follow the steps below to run your pipeline script, see your loaded data and tables, inspect pipeline state, trace and handle the most common problems.

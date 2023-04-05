@@ -1,7 +1,3 @@
----
-sidebar_position: 1
----
-
 # Introduction
 
 ![dlt pacman](/img/dlt-pacman.gif)

@@ -1,7 +1,3 @@
----
-sidebar_position: 4
----
-
 # Architecture
 
 `dlt` automatically turns JSON returned by any [source](./glossary.md#source) (e.g. an API)

@@ -1,7 +1,3 @@
----
-sidebar_position: 1
----
-
 # Incremental loading
 
 Incremental loading is the act of loading only new or changed data and not old records that we already loaded. It enables low-latency and low cost data transfer.

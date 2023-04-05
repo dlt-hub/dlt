@@ -1,7 +1,3 @@
----
-sidebar_position: 2
----
-
 # Tracing
 
 `dlt` users can configure [Sentry](https://sentry.io) DSN to start receiving rich information on executed pipelines, including encountered errors and exceptions. **Sentry tracing is disabled by default.**

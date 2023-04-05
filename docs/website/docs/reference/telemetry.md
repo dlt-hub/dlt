@@ -1,7 +1,3 @@
----
-sidebar_position: 1
----
-
 # Telemetry
 
 `dlt` collects and reports **anonymous** usage information. This information is essential to figure out how we should improve the library. Telemetry does not send any personal data. We do not create tracking cookies nor identify users, even anonymously. You can disable telemetry at any moment or send it to your own servers instead.

@@ -1,7 +1,3 @@
----
-sidebar_position: 4
----
-
 # State
 
 > **💡** The “state” of a pipeline refers to metadata that we store about the data.

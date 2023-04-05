@@ -1,7 +1,3 @@
----
-sidebar_position: 4
----
-
 # Deploy a pipeline
 
 Before you can deploy a pipeline, you will need to 1) [install dlt](../installation.mdx),
