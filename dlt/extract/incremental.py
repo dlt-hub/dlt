@@ -16,9 +16,7 @@ from dlt.extract.typing import TTableHintTemplate
 
 
 TCursorValue = TypeVar("TCursorValue", bound=Any)
-TUniqueValue = TypeVar("TUniqueValue", bound=Any)
 LastValueFunc = Callable[[Sequence[TCursorValue]], Any]
-
 
 
 class IncrementalColumnState(TypedDict):
@@ -40,7 +38,7 @@ class IncrementalConfigSpec(BaseConfiguration):
             self.initial_value = native_value
 
 
-class Incremental(Generic[TCursorValue, TUniqueValue]):
+class Incremental(Generic[TCursorValue]):
     """Adds incremental extraction for a resource by storing a cursor value in persistent state.
 
     The cursor could for example be a timestamp for when the record was created and you can use this to load only
@@ -74,11 +72,11 @@ class Incremental(Generic[TCursorValue, TUniqueValue]):
         self.last_value_func = last_value_func or max
         self.initial_value =  initial_value
 
-    def copy(self) -> "Incremental[TCursorValue, TUniqueValue]":
+    def copy(self) -> "Incremental[TCursorValue]":
         return self.__class__(self.cursor_column, initial_value=self.initial_value, last_value_func=self.last_value_func)
 
     @classmethod
-    def from_config(cls, cfg: IncrementalConfigSpec, orig: Optional["Incremental[Any, Any]"]) -> "Incremental[Any, Any]":
+    def from_config(cls, cfg: IncrementalConfigSpec, orig: Optional["Incremental[Any]"]) -> "Incremental[Any]":
         # TODO: last_value_func from name
         kwargs = dict(cursor_column=cfg.cursor_column, initial_value=cfg.initial_value)
         if orig:
@@ -93,10 +91,6 @@ class Incremental(Generic[TCursorValue, TUniqueValue]):
     @property
     def last_value(self) -> Optional[TCursorValue]:
         return self.state['last_value']  # type: ignore
-
-    @property
-    def unique_keys(self) -> List[TUniqueValue]:
-        return self.state['unique_keys']
 
     def __call__(self, row: TDataItem, primary_key: Optional[TTableHintTemplate[TColumnKey]]) -> bool:
         if row is None:
@@ -121,7 +115,7 @@ class Incremental(Generic[TCursorValue, TUniqueValue]):
 
 
 class IncrementalResourceWrapper:
-    _transform: Optional[Incremental[Any, Any]] = None
+    _transform: Optional[Incremental[Any]] = None
 
     def __init__(self, resource_name: str, source_section: str, primary_key: Optional[TTableHintTemplate[TColumnKey]] = None) -> None:
         self.resource_sections = (known_sections.SOURCES, source_section, resource_name)
@@ -140,7 +134,7 @@ class IncrementalResourceWrapper:
             for p in sig.parameters.values():
                 annotation = extract_inner_type(p.annotation)
                 annotation = get_origin(annotation) or annotation
-                default_incremental: Optional[Incremental[Any, Any]] = None
+                default_incremental: Optional[Incremental[Any]] = None
                 if (inspect.isclass(annotation) and issubclass(annotation, Incremental)) or isinstance(p.default, Incremental):
                     if isinstance(p.default, Incremental):
                         default_incremental = p.default.copy()
