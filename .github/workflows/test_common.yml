@@ -17,7 +17,7 @@ jobs:
 
   run_common:
     name: Tests common dlt code
-    if: needs.skip_docs_changes.outputs.changes_outside_docs == 'true'
+    # if: needs.skip_docs_changes.outputs.changes_outside_docs == 'true'
     needs: skip_docs_changes
     strategy:
       fail-fast: false
@@ -29,6 +29,8 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
+      - name: Print needs output
+        run: echo "changes_outside_docs=${{ needs.skip_docs_changes.outputs.changes_outside_docs }}"
 
       - name: Check out
         uses: actions/checkout@master
