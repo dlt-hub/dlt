@@ -3,8 +3,10 @@ import pytest
 
 import dlt
 from dlt.common.configuration import known_sections
+from dlt.common.configuration.container import Container
 from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
+from dlt.common.pipeline import StateInjectableContext, TPipelineState
 from dlt.common.schema import Schema
 from dlt.common.schema.utils import new_table
 from dlt.extract.exceptions import InvalidResourceDataTypeFunctionNotAGenerator, InvalidResourceDataTypeIsNone, ParametrizedResourceUnbound, PipeNotBoundToData, ResourceFunctionExpected, SourceDataIsNone, SourceIsAClassTypeError, SourceNotAFunction, SourceSchemaNotAvailable
@@ -188,6 +190,26 @@ def test_source_sections() -> None:
     assert list(resource_f_2()) == ["NAME RESOURCE_F_2 LEVEL"]
 
 
+def test_source_explicit_section() -> None:
+
+    @dlt.source(section="custom_section")
+    def with_section(secret=dlt.secrets.value):
+
+        @dlt.resource
+        def mod_state():
+            dlt.current.state()["val"] = secret
+            yield 1
+
+        return mod_state
+
+    os.environ["SOURCES__CUSTOM_SECTION__SECRET"] = "CUSTOM"
+    state: TPipelineState = {}
+    with Container().injectable_context(StateInjectableContext(state=state)):
+        assert list(with_section()) == [1]
+        # state should be modified: in the custom section we put the value from custom config
+        assert state["sources"]["custom_section"]["val"] == "CUSTOM"
+
+
 def test_resources_injected_sections() -> None:
     from tests.extract.cases.section_source.external_resources import with_external, with_bound_external, init_resource_f_2, resource_f_2
     # standalone resources must accept the injected sections for lookups
@@ -295,23 +317,34 @@ def test_source_schema_context() -> None:
 
 def test_source_state_context() -> None:
 
+    @dlt.resource(selected=False)
+    def main():
+        state = dlt.current.state()
+        mark = state.setdefault("mark", 1)
+        # increase the multiplier each time state is obtained
+        state["mark"] *= 2
+        yield [1, 2, 3]
+        assert dlt.current.state()["mark"] == mark*2
+
+    @dlt.transformer(data_from=main)
+    def feeding(item):
+        # we must have state
+        assert dlt.current.state()["mark"] > 1
+        mark = dlt.current.state()["mark"]
+        yield from map(lambda i: i*mark, item)
+
     @dlt.source
     def pass_the_state():
-
-        @dlt.resource
-        def main():
-            dlt.current.state().setdefault("mark", "MARK")
-            yield from [1, 2, 3]
-
-        @dlt.transformer(data_from=main)
-        def feeding(item):
-            assert dlt.current.state["mark"] == "MARK"
-            yield from map(lambda i: i*2)
-
         return main, feeding
 
     # must enumerate source correctly and preserve the state between the sources
     assert list(pass_the_state()) == [2, 4, 6]
+    # state is discarded after iteration
+    assert list(pass_the_state()) == [2, 4, 6]
+
+    # must enumerate single resource
+    assert list(feeding) == [2, 4, 6]
+
 
 
 def test_source_schema_modified() -> None:

@@ -12,7 +12,7 @@ from dlt.common.exceptions import MissingDependencyException
 from dlt.helpers.pandas import pd
 from dlt.pipeline import Pipeline
 from dlt.pipeline.exceptions import CannotRestorePipelineException
-from dlt.pipeline.state import load_state_from_destination
+from dlt.pipeline.state_sync import load_state_from_destination
 
 try:
     import streamlit as st

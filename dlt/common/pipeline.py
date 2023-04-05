@@ -2,7 +2,7 @@ import os
 import datetime  # noqa: 251
 import humanize
 import contextlib
-from typing import Any, Callable, ClassVar, Dict, List, NamedTuple, Optional, Protocol, Sequence, TYPE_CHECKING, TypedDict
+from typing import Any, Callable, ClassVar, Dict, List, NamedTuple, Optional, Protocol, Sequence, TYPE_CHECKING, Tuple, TypedDict
 
 from dlt.common import pendulum
 from dlt.common.configuration import configspec
@@ -136,16 +136,6 @@ class TSourceState(TPipelineState):
     sources: Dict[str, Dict[str, Any]]
 
 
-@configspec(init=True)
-class StateInjectableContext(ContainerInjectableContext):
-    state: TPipelineState
-
-    can_create_default: ClassVar[bool] = False
-
-    if TYPE_CHECKING:
-        def __init__(self, state: TPipelineState = None) -> None:
-            ...
-
 
 class SupportsPipeline(Protocol):
     """A protocol with core pipeline operations that lets high level abstractions ie. sources to access pipeline methods and properties"""
@@ -237,6 +227,39 @@ class PipelineContext(ContainerInjectableContext):
         self._deferred_pipeline = deferred_pipeline
 
 
+@configspec(init=True)
+class StateInjectableContext(ContainerInjectableContext):
+    state: TPipelineState
+
+    can_create_default: ClassVar[bool] = False
+
+    if TYPE_CHECKING:
+        def __init__(self, state: TPipelineState = None) -> None:
+            ...
+
+
+def state_value(container: Container, initial_default: TPipelineState = None) -> Tuple[TPipelineState, bool]:
+    """Gets value of the state from context or active pipeline, if none found returns `initial_default`
+
+        Injected state is called "writable": it is injected by the `Pipeline` class and all the changes will be persisted.
+        The state coming from pipeline context or `initial_default` is called "read only" and all the changes to it will be discarded
+
+        Returns tuple (state, writable)
+    """
+    try:
+        # get injected state if present. injected state is typically "managed" so changes will be persisted
+        return container[StateInjectableContext].state, True
+    except ContextDefaultCannotBeCreated:
+        # check if there's pipeline context
+        proxy = container[PipelineContext]
+        if not proxy.is_active():
+            return initial_default, False
+        else:
+            # get unmanaged state that is read only
+            # TODO: make sure that state if up to date by syncing the pipeline earlier
+            return proxy.pipeline().state, False
+
+
 def state() -> DictStrAny:
     """Returns a dictionary with the source/resource state. Such state is preserved across pipeline runs and may be used to implement incremental loads.
 
@@ -278,19 +301,10 @@ def state() -> DictStrAny:
         sections_context = container[ConfigSectionContext]
         with contextlib.suppress(ValueError):
             source_section = sections_context.source_section()
-    try:
-        # get managed state that is read/write
-        state: TSourceState = container[StateInjectableContext].state  # type: ignore
-    except ContextDefaultCannotBeCreated:
-        # check if there's pipeline context
-        proxy = container[PipelineContext]
-        if not proxy.is_active():
+
+        state, _ = state_value(container)
+        if state is None:
             raise PipelineStateNotAvailable(source_section)
-        else:
-            # get unmanaged state that is read only
-            # TODO: make sure that state if up to date by syncing the pipeline earlier
-            print(f"ACTIVE PIPELINE: {proxy.pipeline().state}")
-            state = proxy.pipeline().state  # type: ignore
 
     source_state: DictStrAny = state.setdefault(known_sections.SOURCES, {})  # type: ignore
     if source_section:

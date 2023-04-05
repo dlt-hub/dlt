@@ -3,7 +3,7 @@ from copy import copy, deepcopy
 import makefun
 import inspect
 from collections.abc import Mapping as C_Mapping
-from typing import AsyncIterable, AsyncIterator, ClassVar, Callable, Dict, Iterable, Iterator, List, Sequence, Union, cast, Any
+from typing import AsyncIterable, AsyncIterator, ClassVar, Callable, ContextManager, Dict, Iterable, Iterator, List, Sequence, Union, cast, Any
 from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs import known_sections
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
@@ -12,10 +12,10 @@ from dlt.common.configuration.specs.config_section_context import ConfigSectionC
 from dlt.common.schema import Schema
 from dlt.common.schema.utils import merge_columns, new_column, new_table
 from dlt.common.schema.typing import TColumnProp, TColumnSchema, TPartialTableSchema, TTableSchemaColumns, TWriteDisposition
-from dlt.common.typing import AnyFun, TDataItem, TDataItems, NoneType, TFun
+from dlt.common.typing import AnyFun, TDataItem, TDataItems, NoneType
 from dlt.common.configuration.container import Container
-from dlt.common.pipeline import PipelineContext, SupportsPipelineRun
-from dlt.common.utils import flatten_list_or_items, get_callable_name
+from dlt.common.pipeline import PipelineContext, StateInjectableContext, SupportsPipelineRun, state_value
+from dlt.common.utils import flatten_list_or_items, get_callable_name, multi_context_manager
 
 from dlt.extract.typing import DataItemWithMeta, ItemTransformFunc, TColumnKey, TableNameMeta, TFunHintTemplate, TTableHintTemplate, TTableSchemaTemplate, FilterItem, MapItem, YieldMapItem
 from dlt.extract.pipe import Pipe, ManagedPipeIterator
@@ -417,7 +417,20 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
                 return self.add_map(transform)
 
     def __iter__(self) -> Iterator[TDataItem]:
-        return flatten_list_or_items(map(lambda item: item.item, ManagedPipeIterator.from_pipe(self._pipe)))
+        """Opens iterator that yields the data items from the resources in the same order as in Pipeline class.
+
+            A read-only state is provided, initialized from active pipeline state. The state is discarded after the iterator is closed.
+        """
+        # use the same state dict when opening iterator and when iterator is iterated
+        state, _ = state_value(Container(), {})
+
+        # managed pipe iterator will remove injected contexts when closing
+        with Container().injectable_context(StateInjectableContext(state=state)):
+            pipe_iterator: ManagedPipeIterator = ManagedPipeIterator.from_pipe(self._pipe)  # type: ignore
+
+        pipe_iterator.set_context_manager(Container().injectable_context(StateInjectableContext(state=state)))
+        _iter = map(lambda item: item.item, pipe_iterator)
+        return flatten_list_or_items(_iter)
 
     def __str__(self) -> str:
         info = f"DltResource {self.name}:"
@@ -638,12 +651,25 @@ class DltSource(Iterable[TDataItem]):
             super().__setattr__(name, value)
 
     def __iter__(self) -> Iterator[TDataItem]:
-        with inject_section(ConfigSectionContext(sections=(known_sections.SOURCES, self.section, self.name))):
-            # evaluate the pipes in the section context
+        """Opens iterator that yields the data items from all the resources within the source in the same order as in Pipeline class.
+
+            A read-only state is provided, initialized from active pipeline state. The state is discarded after the iterator is closed.
+
+            A source config section is injected to allow secrets/config injection as during regular extraction.
+        """
+        # use the same state dict when opening iterator and when iterator is iterated
+        mock_state, _ = state_value(Container(), {})
+
+        def _get_context() -> List[ContextManager[Any]]:
+            return [
+                inject_section(ConfigSectionContext(sections=(known_sections.SOURCES, self.section, self.name))),
+                Container().injectable_context(StateInjectableContext(state=mock_state))
+            ]
+
+        # managed pipe iterator will remove injected contexts when closing
+        with multi_context_manager(_get_context()):
             pipe_iterator: ManagedPipeIterator = ManagedPipeIterator.from_pipes(self._resources.selected_pipes)  # type: ignore
-        # keep same context during evaluation
-        context = inject_section(ConfigSectionContext(sections=(known_sections.SOURCES, self.section, self.name)))
-        pipe_iterator.set_context_manager(context)
+        pipe_iterator.set_context_manager(multi_context_manager(_get_context()))
         _iter = map(lambda item: item.item, pipe_iterator)
         self.exhausted = True
         return flatten_list_or_items(_iter)

@@ -18,7 +18,7 @@ from dlt.extract.source import DltSource
 from dlt.load.exceptions import LoadClientJobFailed
 from dlt.pipeline.exceptions import InvalidPipelineName, PipelineStepFailed
 from dlt.pipeline.helpers import retry_load
-from dlt.pipeline.state import STATE_TABLE_NAME
+from dlt.pipeline.state_sync import STATE_TABLE_NAME
 from tests.common.utils import TEST_SENTRY_DSN
 
 from tests.utils import ALL_DESTINATIONS, TEST_STORAGE_ROOT, preserve_environ, autouse_test_storage, patch_home_dir
@@ -573,7 +573,7 @@ def test_set_get_local_value() -> None:
     p.extract(_w_local_state)
     assert p.state["_local"][new_val] == new_val
 
-def test_changed_write_disposition():
+def test_changed_write_disposition() -> None:
     os.environ["COMPLETED_PROB"] = "1.0"
     pipeline_name = "pipe_" + uniq_id()
     p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")

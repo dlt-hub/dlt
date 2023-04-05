@@ -8,6 +8,16 @@ TConfiguration = TypeVar("TConfiguration", bound=ContainerInjectableContext)
 
 
 class Container:
+    """A singleton injection container holding several injection contexts. Implements basic dictionary interface.
+
+    Injection context is identified by its type and available via dict indexer. The common pattern is to instantiate default context value
+    if it is not yet present in container.
+
+    The indexer is settable and allows to explicitly set the value. This is required by for context that needs to be explicitly instantiated.
+
+    The `injectable_context` allows to set a context with a `with` keyword and then restore the previous one after it gets out of scope.
+
+    """
 
     _INSTANCE: "Container" = None
 
@@ -52,6 +62,7 @@ class Container:
 
     @contextmanager
     def injectable_context(self, config: TConfiguration) -> Iterator[TConfiguration]:
+        """A context manager that will insert `config` into the container and restore the previous value when it gets out of scope."""
         spec = type(config)
         previous_config: ContainerInjectableContext = None
         if spec in self.contexts:

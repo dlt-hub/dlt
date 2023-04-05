@@ -255,10 +255,10 @@ class CredentialsWithDefault:
 
 @configspec
 class ContainerInjectableContext(BaseConfiguration):
-    """Base class for all configurations that may be injected from Container. Injectable configurations are called contexts"""
+    """Base class for all configurations that may be injected from a Container. Injectable configuration is called a context"""
 
-    # If True, `Container` is allowed to create default context instance, if none exists
     can_create_default: ClassVar[bool] = True
+    """If True, `Container` is allowed to create default context instance, if none exists"""
 
 
 _F_ContainerInjectableContext = ContainerInjectableContext

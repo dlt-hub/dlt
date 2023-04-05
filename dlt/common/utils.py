@@ -8,7 +8,7 @@ from contextlib import contextmanager
 from functools import wraps
 from os import environ
 
-from typing import Any, Dict, Iterator, Optional, Sequence, TypeVar, Mapping, List, Union, Counter
+from typing import Any, ContextManager, Dict, Iterator, Optional, Sequence, TypeVar, Mapping, List, Union, Counter
 from collections.abc import Mapping as C_Mapping
 
 from dlt.common.typing import AnyFun, StrAny, DictStrAny, StrStr, TAny, TFun
@@ -263,6 +263,27 @@ def set_working_dir(path: str) -> Iterator[str]:
         yield path
     finally:
         os.chdir(curr_dir)
+
+
+@contextmanager
+def multi_context_manager(managers: Sequence[ContextManager[Any]]) -> Iterator[Any]:
+    """A context manager holding several other context managers. Enters and exists all of them. Yields from the last in the list"""
+    try:
+        rv: Any = None
+        for manager in managers:
+            rv = manager.__enter__()
+        yield rv
+    except Exception as ex:
+        # release context manager
+        for manager in managers:
+            if isinstance(ex, StopIteration):
+                manager.__exit__(None, None, None)
+            else:
+                manager.__exit__(type(ex), ex, None)
+        raise
+    else:
+        for manager in managers:
+            manager.__exit__(None, None, None)
 
 
 def get_callable_name(f: AnyFun, name_attr: str = "__name__") -> Optional[str]:
