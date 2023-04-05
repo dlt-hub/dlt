@@ -292,7 +292,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
     def get_normalizer_config(cls, schema: Schema) -> RelationalNormalizerConfig:
         norm_config = schema._normalizers_config["json"]
         cls.ensure_this_normalizer(norm_config)
-        return cast(RelationalNormalizerConfig, norm_config["config"])
+        return cast(RelationalNormalizerConfig, norm_config.get("config", {}))
 
     @staticmethod
     def _validate_normalizer_config(schema: Schema, config: RelationalNormalizerConfig) -> None:

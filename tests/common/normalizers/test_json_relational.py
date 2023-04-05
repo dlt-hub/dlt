@@ -6,7 +6,7 @@ from dlt.common.utils import digest128, uniq_id
 from dlt.common.schema import Schema
 from dlt.common.schema.utils import new_table
 
-from dlt.common.normalizers.json.relational import RelationalNormalizerConfigPropagation, DataItemNormalizer as RelationalNormalizer, update_normalizer_config, DLT_ID_LENGTH_BYTES
+from dlt.common.normalizers.json.relational import RelationalNormalizerConfigPropagation, DataItemNormalizer as RelationalNormalizer, DLT_ID_LENGTH_BYTES
 # _flatten, _get_child_row_hash, _normalize_row, normalize_data_item,
 
 from tests.utils import create_schema_with_name
@@ -712,7 +712,7 @@ def test_normalize_empty_keys() -> None:
 
 
 def set_max_nesting(norm: RelationalNormalizer, max_nesting: int) -> None:
-    update_normalizer_config(norm.schema,
+    RelationalNormalizer.update_normalizer_config(norm.schema,
         {
             "max_nesting": max_nesting
         }
@@ -721,7 +721,7 @@ def set_max_nesting(norm: RelationalNormalizer, max_nesting: int) -> None:
 
 
 def add_dlt_root_id_propagation(norm: RelationalNormalizer) -> None:
-    update_normalizer_config(norm.schema, {
+    RelationalNormalizer.update_normalizer_config(norm.schema, {
         "propagation": {
                 "root": {
                     "_dlt_id": "_dlt_root_id"

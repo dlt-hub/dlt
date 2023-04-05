@@ -628,6 +628,8 @@ class DltSource(Iterable[TDataItem]):
 
         return cls(name, section, schema, resources)
 
+    # TODO: 4 properties below must go somewhere else ie. into RelationalSchema which is Schema + Relational normalizer.
+
     @property
     def max_table_nesting(self) -> int:
         """A schema hint that sets the maximum depth of nested table above which the remaining nodes are loaded as structs or JSON."""
@@ -655,7 +657,9 @@ class DltSource(Iterable[TDataItem]):
             }
             RelationalNormalizer.update_normalizer_config(self._schema, {"propagation": propagation_config})
         else:
-            RelationalNormalizer.get_normalizer_config(self._schema).pop("propagation", None)
+            if self.root_key:
+                propagation_config = RelationalNormalizer.get_normalizer_config(self._schema)["propagation"]
+                propagation_config["root"].pop("_dlt_id")  # type: ignore
 
     @property
     def resources(self) -> DltResourceDict:
