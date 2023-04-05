@@ -18,9 +18,13 @@ env:
   RUNTIME__LOG_LEVEL: ERROR
 
 jobs:
+  get_docs_changes:
+    uses: ./.github/workflows/get_docs_changes.yml
 
   run_loader:
     name: Tests BigQuery loader
+    needs: get_docs_changes
+    if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
     strategy:
       fail-fast: false
       matrix:

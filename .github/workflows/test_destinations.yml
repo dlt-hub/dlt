@@ -20,9 +20,13 @@ env:
   RUNTIME__DLTHUB_TELEMETRY_SEGMENT_WRITE_KEY: TLJiyRkGVZGCi2TtjClamXpFcxAA1rSB
 
 jobs:
+  get_docs_changes:
+    uses: ./.github/workflows/get_docs_changes.yml
 
   run_loader:
     name: test destinations redshift, postgres and duckdb
+    needs: get_docs_changes
+    if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
     strategy:
       fail-fast: false
       matrix:
