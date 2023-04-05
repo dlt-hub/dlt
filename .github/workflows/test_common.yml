@@ -14,8 +14,12 @@ env:
 jobs:
   get_docs_changes:
     outputs:
+      output1: ${{ steps.step1.outputs.test }}
       output2: abc
     # uses: ./.github/workflows/skip_docs_changes.yml
+    steps:
+      - id: step1
+        run: echo "test=hello" >> $GITHUB_OUTPUT
 
   run_common:
     name: Tests common dlt code
