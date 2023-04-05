@@ -13,7 +13,9 @@ env:
 
 jobs:
   get_docs_changes:
-    uses: ./.github/workflows/skip_docs_changes.yml
+    outputs:
+      output2: abc
+    # uses: ./.github/workflows/skip_docs_changes.yml
 
   run_common:
     name: Tests common dlt code
