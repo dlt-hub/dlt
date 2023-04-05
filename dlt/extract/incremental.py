@@ -37,11 +37,28 @@ class IncrementalConfigSpec(BaseConfiguration):
         else:  # TODO: Maybe check if callable(getattr(native_value, '__lt__', None))
             # Passing bare value `incremental=44` gets parsed as initial_value
             self.initial_value = native_value
-        # else:
-        #     raise NativeValueError(self.__class__, native_value, 'Invalid')
 
 
 class Incremental(Generic[TCursorValue, TUniqueValue]):
+    """Adds incremental extraction for a resource by storing a cursor value in persistent state.
+
+    The cursor could for example be a timestamp for when the record was created and you can use this to load only
+    new records created since the last run of the pipeline.
+
+    To use this the resource function should have an argument either type annotated with `Incremental` or a default `Incremental` instance.
+    For example:
+
+    >>> @dlt.resource(primary_key='id')
+    >>> def some_data(created_at=dlt.Incremental('created_at', '2023-01-01T00:00:00Z'):
+    >>>    yield from request_data(created_after=created_at.last_value)
+
+    When the resource has a `primary_key` specified this is used to deduplicate overlapping items with the same cursor value.
+
+    Args:
+        cursor_column: The name of the cursor column. This can be a column name or any valid JSON path.
+        initial_value: Optional value used for `last_value` when no state is available, e.g. on the first run of the pipeline. If not provided `last_value` will be `None` on the first run.
+        last_value_func: Callable used to determine which cursor value to save in state. It is called with the stored state value and all cursor vals from currently processing items. Default is `max`
+    """
     def __init__(
             self,
             cursor_column: str,
@@ -98,9 +115,6 @@ class Incremental(Generic[TCursorValue, TUniqueValue]):
         if new_value != last_value:
             state.update({'last_value': new_value, 'unique_keys': [unique_value]})
         return True
-
-
-incremental = Incremental
 
 
 class IncrementalResourceWrapper:
