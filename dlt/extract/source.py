@@ -179,7 +179,7 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
         self.selected = selected
         self._pipe = pipe
         self.incremental = incremental
-        if self.incremental:
+        if self.incremental and self.incremental.enabled:
             self.add_step(self.incremental)
         super().__init__(self.name, table_schema_template)
 

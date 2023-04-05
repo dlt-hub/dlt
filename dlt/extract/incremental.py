@@ -116,6 +116,8 @@ class Incremental(Generic[TCursorValue]):
 
 class IncrementalResourceWrapper:
     _transform: Optional[Incremental[Any]] = None
+    enabled: bool = True
+    """False when resource function has no `Incremental` typed argument"""
 
     def __init__(self, resource_name: str, source_section: str, primary_key: Optional[TTableHintTemplate[TColumnKey]] = None) -> None:
         self.resource_sections = (known_sections.SOURCES, source_section, resource_name)
@@ -125,46 +127,54 @@ class IncrementalResourceWrapper:
     def wrap(self, func: TFun) -> TFun:
         """Wrap the callable to inject an `Incremental` object configured for the resource.
         """
-        # TODO: Optimize: should look for annotations/defaults outside wrapper and skip adding wrapper/transform step if none
+        sig = inspect.signature(func)
+        incremental_param: Optional[inspect.Parameter] = None
+        for p in sig.parameters.values():
+            annotation = extract_inner_type(p.annotation)
+            annotation = get_origin(annotation) or annotation
+            if (inspect.isclass(annotation) and issubclass(annotation, Incremental)) or isinstance(p.default, Incremental):
+                incremental_param = p
+                break
+        if incremental_param is None:
+            self.enabled = False
+            return func
+
         @wraps(func)
         def _wrap(*args: Any, **kwargs: Any) -> Any:
-            sig = inspect.signature(func)
+            p = incremental_param
+            assert p is not None
+            default_incremental: Optional[Incremental[Any]] = None
+            new_incremental: Optional[Incremental[Any]] = None
             new_kwargs = {}
-
-            for p in sig.parameters.values():
-                annotation = extract_inner_type(p.annotation)
-                annotation = get_origin(annotation) or annotation
-                default_incremental: Optional[Incremental[Any]] = None
-                if (inspect.isclass(annotation) and issubclass(annotation, Incremental)) or isinstance(p.default, Incremental):
-                    if isinstance(p.default, Incremental):
-                        default_incremental = p.default.copy()
-                        default_incremental.resource_name = self.resource_name
-                    if p.name in kwargs:
-                        explicit_value = kwargs[p.name]
-                        if isinstance(explicit_value, Incremental):
-                            # Explicit Incremental instance is  untouched
-                            explicit_value.resource_name = self.resource_name
-                            self._transform = explicit_value
-                            break
-                        elif default_incremental:
-                            # Passing only initial value explicitly updates the default instance
-                            default_incremental.initial_value = explicit_value
-                            new_kwargs[p.name] = default_incremental
-                            self._transform = default_incremental
-                            break
-                    try:
-                        cfg = resolve_configuration(
-                            IncrementalConfigSpec(), sections=self.resource_sections + (p.name, ), explicit_value=default_incremental
-                        )
-                    except ConfigFieldMissingException:
-                        if not is_optional_type(p.annotation):
-                            raise
-                    else:
-                        self._transform = new_kwargs[p.name] = Incremental.from_config(cfg, default_incremental)
-                        self._transform.resource_name = self.resource_name
-                        break
+            if isinstance(p.default, Incremental):
+                default_incremental = p.default.copy()
+                default_incremental.resource_name = self.resource_name
+            if p.name in kwargs:
+                explicit_value = kwargs[p.name]
+                if isinstance(explicit_value, Incremental):
+                    # Explicit Incremental instance is  untouched
+                    explicit_value.resource_name = self.resource_name
+                    new_incremental = explicit_value
+                elif default_incremental:
+                    # Passing only initial value explicitly updates the default instance
+                    default_incremental.initial_value = explicit_value
+                    new_kwargs[p.name] = default_incremental
+                    new_incremental = default_incremental
+            if not new_incremental:
+                try:
+                    cfg = resolve_configuration(
+                        IncrementalConfigSpec(), sections=self.resource_sections + (p.name, ), explicit_value=default_incremental
+                    )
+                except ConfigFieldMissingException:
+                    if not is_optional_type(p.annotation):
+                        raise
+                else:
+                    new_incremental = new_kwargs[p.name] = Incremental.from_config(cfg, default_incremental)
+                    new_incremental.resource_name = self.resource_name
+            self._transform = new_incremental
             kwargs.update(new_kwargs)
             return func(*args, **kwargs)
+
         return _wrap  # type: ignore
 
     def __call__(self, items: TDataItems, meta: Any=None) -> TDataItems:
