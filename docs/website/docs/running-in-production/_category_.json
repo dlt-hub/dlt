@@ -1,8 +1,0 @@
-{
-    "label": "Running in production",
-    "position": 9,
-    "link": {
-      "type": "generated-index",
-      "description": "Information about running `dlt` in production."
-    }
-  }

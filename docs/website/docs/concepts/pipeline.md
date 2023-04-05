@@ -1,7 +1,3 @@
----
-sidebar_position: 3
----
-
 # Pipeline
 
   > **💡** Moves the data from the source to the destination, according to instructions provided

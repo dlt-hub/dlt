@@ -1,7 +1,3 @@
----
-sidebar_position: 3
----
-
 # Transforming the data
 
 If you want to transform the data before loading, you can use Python.

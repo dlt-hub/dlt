@@ -1,7 +1,3 @@
----
-sidebar_position: 6
----
-
 # Advanced pipelines
 
 This page is a work in progress. If you have a question about advanced pipelines,

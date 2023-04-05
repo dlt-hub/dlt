@@ -1,7 +1,3 @@
----
-sidebar_position: 1
----
-
 # Create a pipeline
 
 Follow the steps below to create a [pipeline](../glossary.md#pipeline) from the Twitter API to

@@ -1,7 +1,3 @@
----
-sidebar_position: 4
----
-
 # Running
 
 When running the pipeline in production, you may consider a few additions to your script. We'll use a script below as a starting point.

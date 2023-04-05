@@ -1,7 +1,3 @@
----
-sidebar_position: 5
----
-
 # Monitoring
 
 This page is a work in progress. If you have a question about monitoring,

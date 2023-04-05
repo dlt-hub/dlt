@@ -1,7 +1,3 @@
----
-sidebar_position: 3
----
-
 # Getting started
 
 Follow the steps below to have a working `dlt` [pipeline](./glossary#pipeline) in 5 minutes.

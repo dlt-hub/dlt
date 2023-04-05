@@ -1,7 +1,3 @@
----
-sidebar_position: 7
----
-
 # Destinations
 
 **`dlt` supports four destinations (more coming soon)**

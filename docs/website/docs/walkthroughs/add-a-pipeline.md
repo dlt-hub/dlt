@@ -1,7 +1,3 @@
----
-sidebar_position: 2
----
-
 # Add a pipeline
 
 Follow the steps below to add a [pipeline](../glossary.md#pipeline) pipeline contributed by the other `dlt` users.

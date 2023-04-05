@@ -1,7 +1,3 @@
----
-sidebar_position: 1
----
-
 # Viewing the tables
 
 This page is a work in progress. If you have a question about viewing the tables,

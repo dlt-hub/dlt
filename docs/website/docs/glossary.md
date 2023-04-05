@@ -1,7 +1,3 @@
----
-sidebar_position: 12
----
-
 # Glossary
 
 ## [Resource](./walkthroughs/create-a-pipeline.md)
