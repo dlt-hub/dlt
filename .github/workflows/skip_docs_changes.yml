@@ -4,11 +4,12 @@ on:
   workflow_call:
 
 jobs:
-  skip_docs_changes:
+  get_docs_changes:
     runs-on: ubuntu-latest
     outputs:
       changes_outside_docs: ${{ steps.check_changes.outputs.changes_outside_docs }}
       output1: ${{ steps.step1.outputs.test }}
+      output2: abc
 
     steps:
       - name: Checkout code

@@ -12,13 +12,13 @@ env:
   RUNTIME__LOG_LEVEL: ERROR
 
 jobs:
-  skip_docs_changes:
+  get_docs_changes:
     uses: ./.github/workflows/skip_docs_changes.yml
 
   run_common:
     name: Tests common dlt code
-    needs: skip_docs_changes
-    # if: needs.skip_docs_changes.outputs.changes_outside_docs == 'true'
+    needs: get_docs_changes
+    # if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -30,14 +30,16 @@ jobs:
 
     steps:
       - env:
-          OUTPUT1: ${{needs.job1.outputs.output1}}
-        run: echo "$OUTPUT1"
+          OUTPUT1: ${{needs.get_docs_changes.outputs.output1}}
+          OUTPUT2: ${{needs.get_docs_changes.outputs.output2}}
+
+        run: echo "$OUTPUT1 $OUTPUT2"
 
       - name: Print needs output
-        run: echo "changes_outside_docs=${{ needs.skip_docs_changes.outputs.changes_outside_docs }}"
+        run: echo "changes_outside_docs=${{ needs.get_docs_changes.outputs.changes_outside_docs }}"
 
       - name: Print all output
-        run: echo "changes_outside_docs=${{ toJSON(needs.skip_docs_changes.outputs) }}"
+        run: echo "changes_outside_docs=${{ toJSON(needs.get_docs_changes.outputs) }}"
 
       - name: Check out
         uses: actions/checkout@master
