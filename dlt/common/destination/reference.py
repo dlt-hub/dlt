@@ -3,6 +3,7 @@ from importlib import import_module
 from types import TracebackType, ModuleType
 from typing import ClassVar, Final, Optional, Literal, Sequence, Iterable, Type, Protocol, Union, TYPE_CHECKING, cast
 
+from dlt.common import logger
 from dlt.common.exceptions import IdentifierTooLongException, InvalidDestinationReference, UnknownDestinationModule
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
 from dlt.common.schema.exceptions import InvalidDatasetName
@@ -10,6 +11,7 @@ from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration
 from dlt.common.configuration.accessors import config
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
+from dlt.common.schema.utils import is_complete_column
 from dlt.common.storages import FileStorage
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
 
@@ -134,7 +136,7 @@ class JobClientBase(ABC):
         Returns:
             Optional[TSchemaTables]: Returns an update that was applied at the destination.
         """
-        self._verify_schema_identifier_lengths()
+        self._verify_schema()
         return expected_update
 
     @abstractmethod
@@ -165,14 +167,18 @@ class JobClientBase(ABC):
     def __exit__(self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: TracebackType) -> None:
         pass
 
-    def _verify_schema_identifier_lengths(self) -> None:
-        """Checks all table and column name lengths against destination capabilities"""
+    def _verify_schema(self) -> None:
+        """Verifies and cleans up a schema before loading
+
+        * Checks all table and column name lengths against destination capabilities and raises on too long identifiers
+        * Removes and warns on (unbound) incomplete columns
+        """
+
         for table in self.schema.all_tables():
             table_name = table["name"]
             if len(table_name) > self.capabilities.max_identifier_length:
                 raise IdentifierTooLongException(self.config.destination_name, "table", table_name, self.capabilities.max_identifier_length)
-            for column in table["columns"].values():
-                column_name = column["name"]
+            for column_name, column in dict(table["columns"]).items():
                 if len(column_name) > self.capabilities.max_column_identifier_length:
                     raise IdentifierTooLongException(
                         self.config.destination_name,
@@ -180,6 +186,9 @@ class JobClientBase(ABC):
                         f"{table_name}.{column_name}",
                         self.capabilities.max_column_identifier_length
                     )
+                if not is_complete_column(column):
+                    logger.warning(f"A column {column_name} in table {table_name} in schema {self.schema.name} is incomplete. It was not bound to the data during normalizations stage and its data type is unknown. Did you add this column manually in code ie. as a merge key?")
+                    table["columns"].pop(column_name)
 
     @staticmethod
     def make_dataset_name(schema: Schema, dataset_name: str, default_schema_name: str) -> str:

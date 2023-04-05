@@ -146,15 +146,18 @@ class Normalize(Runnable[ProcessPool]):
                         row[k] = custom_pua_decode(v)  # type: ignore
                     # coerce row of values into schema table, generating partial table with new columns if any
                     row, partial_table = schema.coerce_row(table_name, parent_table, row)
+                    # theres a new table or new columns in existing table
                     if partial_table:
                         # update schema and save the change
                         schema.update_schema(partial_table)
                         table_updates = schema_update.setdefault(table_name, [])
                         table_updates.append(partial_table)
+                        # update our columns
+                        column_schemas[table_name] = schema.get_table_columns(table_name, only_complete=True)
                     # get current columns schema
                     columns = column_schemas.get(table_name)
                     if not columns:
-                        columns = schema.get_table_columns(table_name)
+                        columns = schema.get_table_columns(table_name, only_complete=True)
                         column_schemas[table_name] = columns
                     # store row
                     # TODO: it is possible to write to single file from many processes using this: https://gitlab.com/warsaw/flufl.lock

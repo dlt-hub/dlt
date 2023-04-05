@@ -143,7 +143,7 @@ def test_skip_sync_schema_for_tables_without_columns(destination_name: str) -> N
         for d in data:
             yield d
 
-    p = dlt.pipeline(destination=destination_name)
+    p = dlt.pipeline(destination=destination_name, full_refresh=True)
     p.extract(_data)
     schema = p.default_schema
     assert "data_table" in schema.tables

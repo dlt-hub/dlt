@@ -440,4 +440,4 @@ def assert_timestamp_data_type(load_storage: LoadStorage, data_type: TDataType) 
     loads = load_storage.list_packages()
     event_schema = load_storage.load_package_schema(loads[0])
     # in raw normalize timestamp column must not be coerced to timestamp
-    assert event_schema.get_table_columns("event")["timestamp"]["data_type"] == data_type
+    assert event_schema.get_table_columns("event", only_complete=True)["timestamp"]["data_type"] == data_type

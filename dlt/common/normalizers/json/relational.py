@@ -1,6 +1,7 @@
 from typing import Dict, List, Mapping, Optional, Sequence, Tuple, cast, TypedDict, Any
 from dlt.common.data_types.typing import TDataType
 from dlt.common.normalizers.exceptions import InvalidJsonNormalizer
+from dlt.common.normalizers.typing import TJSONNormalizer
 
 from dlt.common.typing import DictStrAny, DictStrStr, TDataItem, StrAny
 from dlt.common.schema import Schema
@@ -40,7 +41,7 @@ class RelationalNormalizerConfig(TypedDict, total=False):
     propagation: Optional[RelationalNormalizerConfigPropagation]
 
 
-class DataItemNormalizer(DataItemNormalizerBase):
+class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
     normalizer_config: RelationalNormalizerConfig
     propagation_config: RelationalNormalizerConfigPropagation
     max_nesting: int
@@ -153,27 +154,6 @@ class DataItemNormalizer(DataItemNormalizerBase):
                 DataItemNormalizer._link_row(cast(TDataItemRowChild, row), parent_row_id, pos)
         row["_dlt_id"] = row_id
         return row_id
-        # check if we have primary key: if so use it. assume that primary key must be always present in `row`
-        # primary_key: StrAny = None
-        # # check if table has primary keys
-        # skip_primary_key = self._skip_primary_key.get(table)
-        # # find primary key if it had them before or we never checked
-        # # if skip_primary_key is not False :
-
-        # if primary_key:
-        #     # create row id from primary key
-        #     row_id = uniq_id_base64(DLT_ID_LENGTH_BYTES) # digest128("_".join(map(str, primary_key.values())), DLT_ID_LENGTH_BYTES)
-        # elif _r_lvl > 0:
-
-        # else:
-        #     # create random hash
-
-        # row["_dlt_id"] = row_id
-        # # write primary key presence
-        # if skip_primary_key is None:
-        #     self._skip_primary_key[table] = not bool(primary_key)
-        # return row_id
-
 
     def _get_propagated_values(self, table: str, row: TDataItemRow, _r_lvl: int) -> StrAny:
         extend: DictStrAny = {}
@@ -262,7 +242,7 @@ class DataItemNormalizer(DataItemNormalizerBase):
     def extend_schema(self) -> None:
         # validate config
         config = cast(RelationalNormalizerConfig, self.schema._normalizers_config["json"].get("config") or {})
-        _validate_normalizer_config(self.schema, config)
+        DataItemNormalizer._validate_normalizer_config(self.schema, config)
 
         # quick check to see if hints are applied
         default_hints = self.schema.settings.get("default_hints") or {}
@@ -291,19 +271,29 @@ class DataItemNormalizer(DataItemNormalizerBase):
         row["_dlt_load_id"] = load_id
         yield from self._normalize_row(cast(TDataItemRowChild, row), {}, (self.schema.naming.normalize_identifier(table_name),))
 
+    @classmethod
+    def ensure_this_normalizer(cls, norm_config: TJSONNormalizer) -> None:
+        # make sure schema has right normalizer
+        present_normalizer = norm_config["module"]
+        if present_normalizer != __name__:
+            raise InvalidJsonNormalizer(__name__, present_normalizer)
 
-def _validate_normalizer_config(schema: Schema, config: RelationalNormalizerConfig) -> None:
-    validate_dict(RelationalNormalizerConfig, config, "./normalizers/json/config", validator_f=column_name_validator(schema.naming))
+    @classmethod
+    def update_normalizer_config(cls, schema: Schema, config: RelationalNormalizerConfig) -> None:
+        cls._validate_normalizer_config(schema, config)
+        norm_config = schema._normalizers_config["json"]
+        cls.ensure_this_normalizer(norm_config)
+        if "config" in norm_config:
+            update_dict_nested(norm_config["config"], config)  # type: ignore
+        else:
+            norm_config["config"] = config
 
+    @classmethod
+    def get_normalizer_config(cls, schema: Schema) -> RelationalNormalizerConfig:
+        norm_config = schema._normalizers_config["json"]
+        cls.ensure_this_normalizer(norm_config)
+        return cast(RelationalNormalizerConfig, norm_config["config"])
 
-def update_normalizer_config(schema: Schema, config: RelationalNormalizerConfig) -> None:
-    _validate_normalizer_config(schema, config)
-    # make sure schema has right normalizer
-    norm_config = schema._normalizers_config["json"]
-    present_normalizer = norm_config["module"]
-    if present_normalizer != __name__:
-        raise InvalidJsonNormalizer(__name__, present_normalizer)
-    if "config" in norm_config:
-        update_dict_nested(norm_config["config"], config)  # type: ignore
-    else:
-        norm_config["config"] = config
+    @staticmethod
+    def _validate_normalizer_config(schema: Schema, config: RelationalNormalizerConfig) -> None:
+        validate_dict(RelationalNormalizerConfig, config, "./normalizers/json/config", validator_f=column_name_validator(schema.naming))

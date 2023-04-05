@@ -1,5 +1,5 @@
 import abc
-from typing import Any, Type, Iterator, Tuple, Callable, Protocol, TYPE_CHECKING
+from typing import Any, Generic, Type, Iterator, Tuple, Callable, Protocol, TYPE_CHECKING, TypeVar
 
 from dlt.common.typing import DictStrAny, TDataItem, StrAny
 if TYPE_CHECKING:
@@ -12,10 +12,10 @@ else:
 # iterator of form ((table_name, parent_table), dict) must be returned from normalization function
 TNormalizedRowIterator = Iterator[Tuple[Tuple[str, str], StrAny]]
 
-# normalization function signature
-# TNormalizeJSONFunc = Callable[["Schema", TDataItem, str, str], TNormalizedRowIterator]
+# type var for data item normalizer config
+TNormalizerConfig = TypeVar("TNormalizerConfig", bound=Any)
 
-class DataItemNormalizer(abc.ABC):
+class DataItemNormalizer(abc.ABC, Generic[TNormalizerConfig]):
 
     @abc.abstractmethod
     def __init__(self, schema: Schema) -> None:
@@ -29,10 +29,21 @@ class DataItemNormalizer(abc.ABC):
     def extend_schema(self) -> None:
         pass
 
+    @classmethod
+    @abc.abstractmethod
+    def update_normalizer_config(cls, schema: Schema, config: TNormalizerConfig) -> None:
+        pass
+
+    @classmethod
+    @abc.abstractmethod
+    def get_normalizer_config(cls, schema: Schema) -> TNormalizerConfig:
+        pass
+
+
 class SupportsDataItemNormalizer(Protocol):
     """Expected of modules defining data item normalizer"""
 
-    DataItemNormalizer: Type[DataItemNormalizer]
+    DataItemNormalizer: Type[DataItemNormalizer[Any]]
     """A class with a name DataItemNormalizer deriving from normalizers.json.DataItemNormalizer"""
 
 

@@ -366,7 +366,7 @@ def test_load_with_all_types(client: SqlJobClientBase, write_disposition: str, f
     assert db_row == expected_rows
 
 
-@pytest.mark.parametrize('write_disposition', ["append", "replace"])
+@pytest.mark.parametrize('write_disposition', ["append", "replace", "merge"])
 @pytest.mark.parametrize('client', ALL_CLIENTS, indirect=True)
 def test_write_dispositions(client: SqlJobClientBase, write_disposition: str, file_storage: FileStorage) -> None:
     table_name = "event_test_table" + uniq_id()
@@ -380,6 +380,10 @@ def test_write_dispositions(client: SqlJobClientBase, write_disposition: str, fi
         )
     client.schema.bump_version()
     client.update_storage_schema()
+    if write_disposition == "merge":
+        # create staging for merge dataset
+        client.initialize_storage(staging=True)
+        client.update_storage_schema(staging=True)
     for idx in range(2):
         for t in [table_name, child_table]:
             # write row, use col1 (INT) as row number
@@ -389,13 +393,21 @@ def test_write_dispositions(client: SqlJobClientBase, write_disposition: str, fi
                 write_dataset(client, f, [table_row], TABLE_UPDATE_COLUMNS_SCHEMA)
                 query = f.getvalue().decode()
             expect_load_file(client, file_storage, query, t)
-            db_rows = list(client.sql_client.execute_sql(f"SELECT * FROM {t} ORDER BY col1 ASC"))
+            db_rows = list(client.sql_client.execute_sql(f"SELECT * FROM {client.sql_client.make_qualified_table_name(t)} ORDER BY col1 ASC"))
+            # in case of merge
             if write_disposition == "append":
                 # we append 1 row to tables in each iteration
                 assert len(db_rows) == idx + 1
-            else:
-                # we overwrite with the same row
+            elif write_disposition == "replace":
+                # we overwrite with the same row. merge fallbacks to replace when no keys specified
                 assert len(db_rows) == 1
+            else:
+                # merge on client level, without loader, loads to staging dataset. so this table is empty
+                assert len(db_rows) == 0
+                # check staging
+                with client.sql_client.with_staging_dataset(staging=True):
+                    db_rows = list(client.sql_client.execute_sql(f"SELECT * FROM {client.sql_client.make_qualified_table_name(t)} ORDER BY col1 ASC"))
+                    assert len(db_rows) == idx + 1
             # last row must have our last idx - make sure we append and overwrite
             assert db_rows[-1][0] == idx
 
