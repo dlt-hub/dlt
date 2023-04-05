@@ -32,6 +32,9 @@ jobs:
       - name: Print needs output
         run: echo "changes_outside_docs=${{ needs.skip_docs_changes.outputs.changes_outside_docs }}"
 
+      - name: Print all output
+        run: echo "changes_outside_docs=${{ needs.skip_docs_changes.outputs }}"
+
       - name: Check out
         uses: actions/checkout@master
 
