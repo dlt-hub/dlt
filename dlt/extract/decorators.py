@@ -56,6 +56,7 @@ def source(
     func: Callable[TSourceFunParams, Any],
     /,
     name: str = None,
+    section: str = None,
     max_table_nesting: int = None,
     root_key: bool = False,
     schema: Schema = None,
@@ -68,6 +69,7 @@ def source(
     func: None = ...,
     /,
     name: str = None,
+    section: str = None,
     max_table_nesting: int = None,
     root_key: bool = False,
     schema: Schema = None,
@@ -79,6 +81,7 @@ def source(
     func: Optional[AnyFun] = None,
     /,
     name: str = None,
+    section: str = None,
     max_table_nesting: int = None,
     root_key: bool = False,
     schema: Schema = None,
@@ -105,6 +108,8 @@ def source(
         func: A function that returns a dlt resource or a list of those or a list of any data items that can be loaded by `dlt`.
 
         name (str, optional): A name of the source which is also the name of the associated schema. If not present, the function name will be used.
+
+        section (str, optional): A name of configuration and state sections. If not present, the current python module name will be used.
 
         max_table_nesting (int, optional): A schema hint that sets the maximum depth of nested table beyond which the remaining nodes are loaded as string.
 
@@ -158,7 +163,7 @@ def source(
 
         # wrap source extraction function in configuration with section
         func_module = inspect.getmodule(f)
-        source_section = _get_source_section_name(func_module)
+        source_section = section or _get_source_section_name(func_module)
         source_sections = (known_sections.SOURCES, source_section, name)
         conf_f = with_config(f, spec=spec, sections=source_sections)
 

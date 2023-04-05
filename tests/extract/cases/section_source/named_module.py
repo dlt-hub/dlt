@@ -3,7 +3,7 @@ import dlt
 __source_name__ = "name_overridden"
 
 
-@dlt.source
+@dlt.source(section="name_overridden")
 def source_f_1(val: str = dlt.config.value):
     return dlt.resource([val], name="f_1")
 

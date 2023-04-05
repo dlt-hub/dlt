@@ -191,7 +191,8 @@ When using the state:
 
 ### State sharing and isolation across sources
 
-1. Each source and resources contained within (no matter if they are standalone, inner or created dynamically) share the same state dictionary and is separated from other sources
+1. Each source and resources **in the same Python module** (no matter if they are standalone, inner or created dynamically) share the same state dictionary and is separated from other sources
+2. Source accepts `section` argument which creates a separate state for that resource (and separate configuration as well). All sources with the same `section` share the state.
 2. All the standalone resources and generators that do not belong to any source share the same state when being extracted (they are extracted withing ad-hoc created source)
 
 ## Stream resources: dispatching data to several tables from single resources

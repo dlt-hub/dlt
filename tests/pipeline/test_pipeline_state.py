@@ -1,16 +1,20 @@
+import os
 import shutil
 import pytest
 
 import dlt
 
+from dlt.common.exceptions import PipelineStateNotAvailable
 from dlt.common.schema import Schema
 from dlt.common.storages import FileStorage
+from dlt.common import pipeline as state_module
+from dlt.common.utils import uniq_id
 
-from dlt.pipeline import state as state_module
-from dlt.pipeline.exceptions import PipelineStateEngineNoUpgradePathException, PipelineStateNotAvailable
+from dlt.pipeline.exceptions import PipelineStateEngineNoUpgradePathException
 from dlt.pipeline.pipeline import Pipeline
+from dlt.pipeline.state_sync import migrate_state, STATE_ENGINE_VERSION
 
-from tests.utils import autouse_test_storage, test_storage, patch_home_dir
+from tests.utils import autouse_test_storage, test_storage, patch_home_dir, preserve_environ
 from tests.pipeline.utils import drop_dataset_from_env, json_case_path, load_json_case, drop_pipeline
 
 
@@ -54,13 +58,13 @@ def test_managed_state() -> None:
     assert "default" not in sources_state
 
 
-def test_must_have_active_pipeline() -> None:
+def test_no_active_pipeline_required_for_resource() -> None:
     # iterate resource
-    with pytest.raises(PipelineStateNotAvailable) as py_ex:
-        for _ in some_data():
-            pass
-    assert py_ex.value.source_name is None
+    for _ in some_data():
+        pass
 
+
+def test_active_pipeline_required_for_source() -> None:
     # call source that reads state
     @dlt.source
     def some_source():
@@ -68,8 +72,41 @@ def test_must_have_active_pipeline() -> None:
         return some_data
 
     with pytest.raises(PipelineStateNotAvailable) as py_ex:
-        some_source()
+        list(some_source())
     assert py_ex.value.source_name == "test_pipeline_state"
+
+
+def test_source_state_iterator():
+    os.environ["COMPLETED_PROB"] = "1.0"
+    pipeline_name = "pipe_" + uniq_id()
+
+    @dlt.resource(selected=False)
+    def main():
+        state = dlt.current.state()
+        mark = state.setdefault("mark", 1)
+        # increase the multiplier each time state is obtained
+        state["mark"] *= 2
+        yield [1, 2, 3]
+        assert dlt.current.state()["mark"] == mark*2
+
+    @dlt.transformer(data_from=main)
+    def feeding(item):
+        # we must have state
+        assert dlt.current.state()["mark"] > 1
+        mark = dlt.current.state()["mark"]
+        yield from map(lambda i: i*mark, item)
+
+    @dlt.source(section="pass_the_state")
+    def pass_the_state():
+        return main, feeding
+
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+    p.extract(pass_the_state())
+    p.extract(pass_the_state())
+    assert p.state["sources"]["pass_the_state"]["mark"] == 4
+
+    # evaluate source: pipeline stored value should be used
+    assert list(pass_the_state()) == [8, 16, 24]
 
 
 def test_unmanaged_state() -> None:
@@ -115,16 +152,16 @@ def test_unmanaged_state() -> None:
 
 def test_migrate_state(test_storage: FileStorage) -> None:
     state_v1 = load_json_case("state/state.v1")
-    state = state_module.migrate_state("test_pipeline", state_v1, state_v1["_state_engine_version"], state_module.STATE_ENGINE_VERSION)
-    assert state["_state_engine_version"] == state_module.STATE_ENGINE_VERSION
+    state = migrate_state("test_pipeline", state_v1, state_v1["_state_engine_version"], STATE_ENGINE_VERSION)
+    assert state["_state_engine_version"] == STATE_ENGINE_VERSION
     assert "_local" in state
 
     with pytest.raises(PipelineStateEngineNoUpgradePathException) as py_ex:
         state_v1 = load_json_case("state/state.v1")
-        state_module.migrate_state("test_pipeline", state_v1, state_v1["_state_engine_version"], state_module.STATE_ENGINE_VERSION + 1)
+        migrate_state("test_pipeline", state_v1, state_v1["_state_engine_version"], STATE_ENGINE_VERSION + 1)
     assert py_ex.value.init_engine == state_v1["_state_engine_version"]
-    assert py_ex.value.from_engine == state_module.STATE_ENGINE_VERSION
-    assert py_ex.value.to_engine == state_module.STATE_ENGINE_VERSION + 1
+    assert py_ex.value.from_engine == STATE_ENGINE_VERSION
+    assert py_ex.value.to_engine == STATE_ENGINE_VERSION + 1
 
     # also test pipeline init where state is old
     test_storage.create_folder("debug_pipeline")
