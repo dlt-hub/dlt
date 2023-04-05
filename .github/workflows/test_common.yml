@@ -18,7 +18,7 @@ jobs:
   run_common:
     name: Tests common dlt code
     needs: get_docs_changes
-    # if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
+    if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -29,18 +29,6 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - env:
-          OUTPUT1: ${{needs.get_docs_changes.outputs.output1}}
-          OUTPUT2: ${{needs.get_docs_changes.outputs.output2}}
-
-        run: echo "$OUTPUT1 $OUTPUT2"
-
-      - name: Print needs output
-        run: echo "changes_outside_docs=${{ needs.get_docs_changes.outputs.changes_outside_docs }}"
-
-      - name: Print all output
-        run: echo "changes_outside_docs=${{ toJSON(needs.get_docs_changes.outputs) }}"
-
       - name: Check out
         uses: actions/checkout@master
 

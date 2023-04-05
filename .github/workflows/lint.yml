@@ -9,13 +9,13 @@ on:
   workflow_dispatch:
 
 jobs:
-  skip_docs_changes:
-    uses: ./.github/workflows/skip_docs_changes.yml
+  get_docs_changes:
+    uses: ./.github/workflows/get_docs_changes.yml
 
   run_lint:
     name: Runs mypy, flake and bandit
-    if: needs.skip_docs_changes.outputs.changes_outside_docs == 'true'
-    needs: skip_docs_changes
+    needs: get_docs_changes
+    if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
 
     runs-on: ubuntu-latest
 

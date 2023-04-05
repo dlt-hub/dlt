@@ -25,8 +25,8 @@ jobs:
 
   run_loader:
     name: test destinations redshift, postgres and duckdb
-    if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
     needs: get_docs_changes
+    if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
     strategy:
       fail-fast: false
       matrix:

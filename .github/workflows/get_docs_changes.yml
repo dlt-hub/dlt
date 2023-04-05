@@ -12,17 +12,12 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       changes_outside_docs: ${{ steps.check_changes.outputs.changes_outside_docs }}
-      output1: ${{ steps.step1.outputs.test }}
-      output2: abc
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
-
-      - id: step1
-        run: echo "test=hello" >> $GITHUB_OUTPUT
 
       - name: Check changes outside docs
         id: check_changes
@@ -41,6 +36,3 @@ jobs:
             echo "Changes detected outside docs."
             echo "changes_outside_docs=true" >> $GITHUB_OUTPUT
           fi
-          echo "changes_outside_docs=true" >> $GITHUB_OUTPUT
-      - name: Get changes_outside_docs
-        run: echo "changes_outside_docs=${{ steps.check_changes.outputs.changes_outside_docs }}"
