@@ -67,6 +67,11 @@ const config = {
           },
           {to: 'blog', label: 'Blog', position: 'left'},
           {
+            href: 'https://join.slack.com/t/dlthub-community/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g',
+            label: 'Slack',
+            position: 'right',
+          },
+          {
             href: 'https://github.com/dlt-hub/dlt',
             label: 'GitHub',
             position: 'right',
@@ -80,14 +85,22 @@ const config = {
             title: 'Docs',
             items: [
               {
-                label: 'dlt',
+                label: 'data load tool',
                 to: '/intro',
               },
+              {
+                label: 'Blog',
+                to: '/blog',
+              }
             ],
           },
           {
             title: 'Community',
             items: [
+              {
+                label: 'Slack',
+                href: 'https://join.slack.com/t/dlthub-community/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g',
+              },
               {
                 label: 'Email',
                 href: 'mailto:community@dlthub.com',
@@ -101,6 +114,10 @@ const config = {
                 label: 'GitHub',
                 href: 'https://github.com/dlt-hub/dlt',
               },
+              {
+                label: 'Twitter',
+                href: 'https://twitter.com/dlthub',
+              }
             ],
           },
         ],
