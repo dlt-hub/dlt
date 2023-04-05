@@ -34,12 +34,12 @@ def uniq_id_base64(len_: int = 16) -> str:
 
 
 def digest128(v: str, len_: int = 15) -> str:
-    """Returns a base64 encoded shake128 hash of str v with digest of length len_ (default: 15 bytes = 20 characters length)"""
+    """Returns a base64 encoded shake128 hash of str `v` with digest of length `len_` (default: 15 bytes = 20 characters length)"""
     return base64.b64encode(hashlib.shake_128(v.encode("utf-8")).digest(len_)).decode('ascii').rstrip("=")
 
 
 def digest128b(v: bytes, len_: int = 15) -> str:
-    """Returns a base64 encoded shake128 hash of bytes v with digest of length len_ (default: 15 bytes = 20 characters length)"""
+    """Returns a base64 encoded shake128 hash of bytes `v` with digest of length `len_` (default: 15 bytes = 20 characters length)"""
     enc_v = base64.b64encode(hashlib.shake_128(v).digest(len_)).decode('ascii')
     return enc_v.rstrip("=")
 

@@ -3,14 +3,13 @@ import dlt
 from dlt.cli.exceptions import CliCommandException
 
 from dlt.common import json
-from dlt.common.pipeline import get_dlt_pipelines_dir
+from dlt.common.pipeline import get_dlt_pipelines_dir, TSourceState
 from dlt.common.runners import Venv
 from dlt.common.runners.stdout import iter_stdout
 from dlt.common.schema.utils import remove_defaults
 from dlt.common.storages.file_storage import FileStorage
 
 from dlt.cli import echo as fmt
-from dlt.pipeline.state import TSourceState
 
 
 def pipeline_command(operation: str, pipeline_name: str, pipelines_dir: str, verbosity: int, load_id: str = None) -> None:

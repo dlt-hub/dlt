@@ -151,3 +151,14 @@ class PipelineException(DltException):
         """Base class for all pipeline exceptions. Should not be raised."""
         self.pipeline_name = pipeline_name
         super().__init__(msg)
+
+
+class PipelineStateNotAvailable(PipelineException):
+    def __init__(self, source_name: str) -> None:
+        if source_name:
+            msg = f"The source {source_name} requested the access to pipeline state but no pipeline is active right now."
+        else:
+            msg = "The resource you called requested the access to pipeline state but no pipeline is active right now."
+        msg += " Call dlt.pipeline(...) before you call the @dlt.source or  @dlt.resource decorated function."
+        self.source_name = source_name
+        super().__init__(None, msg)

@@ -1,7 +1,6 @@
 import base64
 import binascii
-import contextlib
-from typing import TYPE_CHECKING, Any, ClassVar, Dict, Optional, cast
+from typing import Any, Optional, cast
 import zlib
 
 import pendulum
@@ -9,19 +8,14 @@ import pendulum
 import dlt
 
 from dlt.common import json
-from dlt.common.configuration import configspec, known_sections
-from dlt.common.configuration.container import Container
-from dlt.common.configuration.exceptions import ContextDefaultCannotBeCreated
-from dlt.common.configuration.specs import ContainerInjectableContext
-from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
-from dlt.common.pipeline import PipelineContext, TPipelineState
+from dlt.common.pipeline import TPipelineState
 from dlt.common.typing import DictStrAny
 from dlt.common.schema.typing import LOADS_TABLE_NAME, TTableSchemaColumns
 
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.extract.source import DltResource
 
-from dlt.pipeline.exceptions import PipelineStateEngineNoUpgradePathException, PipelineStateNotAvailable
+from dlt.pipeline.exceptions import PipelineStateEngineNoUpgradePathException
 
 
 # allows to upgrade state when restored with a new version of state logic/schema
@@ -56,21 +50,6 @@ STATE_TABLE_COLUMNS: TTableSchemaColumns = {
         "nullable": False
     }
 }
-
-
-class TSourceState(TPipelineState):
-    sources: Dict[str, Dict[str, Any]]
-
-
-@configspec(init=True)
-class StateInjectableContext(ContainerInjectableContext):
-    state: TPipelineState
-
-    can_create_default: ClassVar[bool] = False
-
-    if TYPE_CHECKING:
-        def __init__(self, state: TPipelineState = None) -> None:
-            ...
 
 
 def merge_state_if_changed(old_state: TPipelineState, new_state: TPipelineState, increase_version: bool = True) -> Optional[TPipelineState]:
@@ -127,68 +106,3 @@ def migrate_state(pipeline_name: str, state: DictStrAny, from_engine: int, to_en
         raise PipelineStateEngineNoUpgradePathException(pipeline_name, state["_state_engine_version"], from_engine, to_engine)
 
     return cast(TPipelineState, state)
-
-
-def state() -> DictStrAny:
-    """Returns a dictionary with the source/resource state. Such state is preserved across pipeline runs and may be used to implement incremental loads.
-
-    ### Summary
-    The state is a python dictionary-like object that is available within the `@dlt.source` and `@dlt.resource` decorated functions and may be read and written to.
-    The data within the state is loaded into destination together with any other extracted data and made automatically available to the source/resource extractor functions when they are run next time.
-    When using the state:
-    * Any JSON-serializable values can be written and the read from the state.
-    * The state available in the `dlt source` is read only and any changes will be discarded. Still it may be used to initialize the resources.
-    * The state available in the `dlt resource` is writable and written values will be available only once
-
-    ### Example
-    The most typical use case for the state is to implement incremental load.
-    >>> @dlt.resource(write_disposition="append")
-    >>> def players_games(chess_url, players, start_month=None, end_month=None):
-    >>>     checked_archives = dlt.current.state().setdefault("archives", [])
-    >>>     archives = players_archives(chess_url, players)
-    >>>     for url in archives:
-    >>>         if url in checked_archives:
-    >>>             print(f"skipping archive {url}")
-    >>>             continue
-    >>>         else:
-    >>>             print(f"getting archive {url}")
-    >>>             checked_archives.append(url)
-    >>>         # get the filtered archive
-    >>>         r = requests.get(url)
-    >>>         r.raise_for_status()
-    >>>         yield r.json().get("games", [])
-
-    Here we store all the urls with game archives in the state and we skip loading them on next run. The archives are immutable. The state will grow with the coming months (and more players).
-    Up to few thousand archives we should be good though.
-    """
-    global _last_full_state
-
-    container = Container()
-    # get the source name from the section context
-    source_section: str = None
-    with contextlib.suppress(ContextDefaultCannotBeCreated):
-        sections_context = container[ConfigSectionContext]
-        with contextlib.suppress(ValueError):
-            source_section = sections_context.source_section()
-    try:
-        # get managed state that is read/write
-        state: TSourceState = container[StateInjectableContext].state  # type: ignore
-    except ContextDefaultCannotBeCreated:
-        # check if there's pipeline context
-        proxy = container[PipelineContext]
-        if not proxy.is_active():
-            raise PipelineStateNotAvailable(source_section)
-        else:
-            # get unmanaged state that is read only
-            # TODO: make sure that state if up to date by syncing the pipeline earlier
-            state = proxy.pipeline().state  # type: ignore
-
-    source_state: DictStrAny = state.setdefault(known_sections.SOURCES, {})  # type: ignore
-    if source_section:
-        source_state = source_state.setdefault(source_section, {})
-
-    # allow inspection of last returned full state
-    _last_full_state = state
-    return source_state
-
-_last_full_state: TPipelineState = None

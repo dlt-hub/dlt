@@ -293,6 +293,27 @@ def test_source_schema_context() -> None:
     _assert_source_schema(created_global(), "global")
 
 
+def test_source_state_context() -> None:
+
+    @dlt.source
+    def pass_the_state():
+
+        @dlt.resource
+        def main():
+            dlt.current.state().setdefault("mark", "MARK")
+            yield from [1, 2, 3]
+
+        @dlt.transformer(data_from=main)
+        def feeding(item):
+            assert dlt.current.state["mark"] == "MARK"
+            yield from map(lambda i: i*2)
+
+        return main, feeding
+
+    # must enumerate source correctly and preserve the state between the sources
+    assert list(pass_the_state()) == [2, 4, 6]
+
+
 def test_source_schema_modified() -> None:
 
     @dlt.source

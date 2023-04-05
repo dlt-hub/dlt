@@ -1,15 +1,20 @@
 import os
 import datetime  # noqa: 251
 import humanize
-from typing import Any, Callable, ClassVar, Dict, List, NamedTuple, Optional, Protocol, Sequence, Tuple, TypedDict
+import contextlib
+from typing import Any, Callable, ClassVar, Dict, List, NamedTuple, Optional, Protocol, Sequence, TYPE_CHECKING, TypedDict
 
 from dlt.common import pendulum
 from dlt.common.configuration import configspec
-from dlt.common.configuration.container import ContainerInjectableContext
+from dlt.common.configuration import known_sections
+from dlt.common.configuration.container import Container
+from dlt.common.configuration.exceptions import ContextDefaultCannotBeCreated
+from dlt.common.configuration.specs import ContainerInjectableContext
+from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.configuration.paths import get_dlt_home_dir
 from dlt.common.configuration.specs import RunConfiguration
 from dlt.common.destination.reference import DestinationReference, TDestinationReferenceArg
-from dlt.common.exceptions import DestinationHasFailedJobs
+from dlt.common.exceptions import DestinationHasFailedJobs, PipelineStateNotAvailable
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TColumnKey, TColumnSchema, TWriteDisposition
 from dlt.common.storages.load_storage import LoadPackageInfo
@@ -127,6 +132,21 @@ class TPipelineState(TypedDict, total=False):
     """A section of state that is not synchronized with the destination and does not participate in change merging and version control"""
 
 
+class TSourceState(TPipelineState):
+    sources: Dict[str, Dict[str, Any]]
+
+
+@configspec(init=True)
+class StateInjectableContext(ContainerInjectableContext):
+    state: TPipelineState
+
+    can_create_default: ClassVar[bool] = False
+
+    if TYPE_CHECKING:
+        def __init__(self, state: TPipelineState = None) -> None:
+            ...
+
+
 class SupportsPipeline(Protocol):
     """A protocol with core pipeline operations that lets high level abstractions ie. sources to access pipeline methods and properties"""
     pipeline_name: str
@@ -215,6 +235,72 @@ class PipelineContext(ContainerInjectableContext):
     def __init__(self, deferred_pipeline: Callable[..., SupportsPipeline]) -> None:
         """Initialize the context with a function returning the Pipeline object to allow creation on first use"""
         self._deferred_pipeline = deferred_pipeline
+
+
+def state() -> DictStrAny:
+    """Returns a dictionary with the source/resource state. Such state is preserved across pipeline runs and may be used to implement incremental loads.
+
+    ### Summary
+    The state is a python dictionary-like object that is available within the `@dlt.source` and `@dlt.resource` decorated functions and may be read and written to.
+    The data within the state is loaded into destination together with any other extracted data and made automatically available to the source/resource extractor functions when they are run next time.
+    When using the state:
+    * Any JSON-serializable values can be written and the read from the state.
+    * The state available in the `dlt source` is read only and any changes will be discarded. Still it may be used to initialize the resources.
+    * The state available in the `dlt resource` is writable and written values will be available only once
+
+    ### Example
+    The most typical use case for the state is to implement incremental load.
+    >>> @dlt.resource(write_disposition="append")
+    >>> def players_games(chess_url, players, start_month=None, end_month=None):
+    >>>     checked_archives = dlt.current.state().setdefault("archives", [])
+    >>>     archives = players_archives(chess_url, players)
+    >>>     for url in archives:
+    >>>         if url in checked_archives:
+    >>>             print(f"skipping archive {url}")
+    >>>             continue
+    >>>         else:
+    >>>             print(f"getting archive {url}")
+    >>>             checked_archives.append(url)
+    >>>         # get the filtered archive
+    >>>         r = requests.get(url)
+    >>>         r.raise_for_status()
+    >>>         yield r.json().get("games", [])
+
+    Here we store all the urls with game archives in the state and we skip loading them on next run. The archives are immutable. The state will grow with the coming months (and more players).
+    Up to few thousand archives we should be good though.
+    """
+    global _last_full_state
+
+    container = Container()
+    # get the source name from the section context
+    source_section: str = None
+    with contextlib.suppress(ContextDefaultCannotBeCreated):
+        sections_context = container[ConfigSectionContext]
+        with contextlib.suppress(ValueError):
+            source_section = sections_context.source_section()
+    try:
+        # get managed state that is read/write
+        state: TSourceState = container[StateInjectableContext].state  # type: ignore
+    except ContextDefaultCannotBeCreated:
+        # check if there's pipeline context
+        proxy = container[PipelineContext]
+        if not proxy.is_active():
+            raise PipelineStateNotAvailable(source_section)
+        else:
+            # get unmanaged state that is read only
+            # TODO: make sure that state if up to date by syncing the pipeline earlier
+            print(f"ACTIVE PIPELINE: {proxy.pipeline().state}")
+            state = proxy.pipeline().state  # type: ignore
+
+    source_state: DictStrAny = state.setdefault(known_sections.SOURCES, {})  # type: ignore
+    if source_section:
+        source_state = source_state.setdefault(source_section, {})
+
+    # allow inspection of last returned full state
+    _last_full_state = state
+    return source_state
+
+_last_full_state: TPipelineState = None
 
 
 def get_dlt_pipelines_dir() -> str:

@@ -41,17 +41,6 @@ class PipelineStepFailed(PipelineException):
         super().__init__(pipeline.pipeline_name, f"Pipeline execution failed at stage {step} with exception:\n\n{type(exception)}\n{exception}")
 
 
-class PipelineStateNotAvailable(PipelineException):
-    def __init__(self, source_name: str) -> None:
-        if source_name:
-            msg = f"The source {source_name} requested the access to pipeline state but no pipeline is active right now."
-        else:
-            msg = "The resource you called requested the access to pipeline state but no pipeline is active right now."
-        msg += " Call dlt.pipeline(...) before you call the @dlt.source or  @dlt.resource decorated function."
-        self.source_name = source_name
-        super().__init__(None, msg)
-
-
 class PipelineStateEngineNoUpgradePathException(PipelineException):
     def __init__(self, pipeline_name: str, init_engine: int, from_engine: int, to_engine: int) -> None:
         self.init_engine = init_engine

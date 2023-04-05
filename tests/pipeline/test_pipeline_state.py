@@ -3,12 +3,13 @@ import pytest
 
 import dlt
 
+from dlt.common.exceptions import PipelineStateNotAvailable
 from dlt.common.schema import Schema
 from dlt.common.storages import FileStorage
+from dlt.common import pipeline as state_module
 
-from dlt.pipeline import state as state_module
-from dlt.pipeline.exceptions import PipelineStateEngineNoUpgradePathException, PipelineStateNotAvailable
-from dlt.pipeline.pipeline import Pipeline
+from dlt.pipeline.exceptions import PipelineStateEngineNoUpgradePathException
+from dlt.pipeline.pipeline import Pipeline, migrate_state
 
 from tests.utils import autouse_test_storage, test_storage, patch_home_dir
 from tests.pipeline.utils import drop_dataset_from_env, json_case_path, load_json_case, drop_pipeline
