@@ -1,3 +1,9 @@
+---
+title: Running
+description: Running a dlt pipeline in production
+keywords: [running, production, tips]
+---
+
 # Running
 
 When running the pipeline in production, you may consider a few additions to your script. We'll use a script below as a starting point.

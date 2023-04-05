@@ -1,3 +1,9 @@
+---
+title: Pipedrive
+description: dlt pipeline for Pipedrive API
+keywords: [pipedrive api, pipedrive pipeline, pipedrive]
+---
+
 # Pipedrive
 
 Here you will find a setup guide for the [Pipedrive](https://developers.pipedrive.com/docs/api/v1) pipeline.

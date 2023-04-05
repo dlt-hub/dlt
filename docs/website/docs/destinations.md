@@ -1,3 +1,9 @@
+---
+title: Destinations
+description: Supported destinations for dlt
+keywords: [google bigquery, postgres, amazon redshift, duckdb]
+---
+
 # Destinations
 
 **`dlt` supports four destinations (more coming soon)**

@@ -1,3 +1,9 @@
+---
+title: Tracing
+description: Rich information on executed dlt pipelines
+keywords: [tracing, sentry, opt in]
+---
+
 # Tracing
 
 `dlt` users can configure [Sentry](https://sentry.io) DSN to start receiving rich information on executed pipelines, including encountered errors and exceptions. **Sentry tracing is disabled by default.**

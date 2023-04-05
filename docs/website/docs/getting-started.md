@@ -1,3 +1,9 @@
+---
+title: Getting started
+description: How to get started with dlt
+keywords: [getting started, dlt init, duckdb]
+---
+
 # Getting started
 
 Follow the steps below to have a working `dlt` [pipeline](./glossary#pipeline) in 5 minutes.

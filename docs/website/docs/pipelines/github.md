@@ -1,3 +1,9 @@
+---
+title: GitHub
+description: dlt pipeline for GitHub API
+keywords: [github api, github pipeline, github]
+---
+
 # GitHub
 
 This pipeline can be used to load data on issues or pull requests from any GitHub repository onto a [destination](https://dlthub.com/docs/destinations) of your choice.

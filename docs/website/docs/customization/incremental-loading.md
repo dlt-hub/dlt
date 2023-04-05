@@ -1,3 +1,9 @@
+---
+title: Incremental loading
+description: Incremental loading with dlt
+keywords: [incremental loading, loading methods, append]
+---
+
 # Incremental loading
 
 Incremental loading is the act of loading only new or changed data and not old records that we already loaded. It enables low-latency and low cost data transfer.
@@ -48,8 +54,6 @@ def tweets():
   yield data
   loaded_dates.append('2023-01-01')
 ```
-
-
 
 ### Using the dlt state
 

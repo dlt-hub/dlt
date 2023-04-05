@@ -1,3 +1,9 @@
+---
+title: Resource
+description: Explanation of what a dlt resource is
+keywords: [resource, api endpoint, dlt.resource]
+---
+
 # Resource
 
 ## Declare a resource

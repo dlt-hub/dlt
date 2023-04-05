@@ -1,3 +1,9 @@
+---
+title: Transforming the data
+description: Transforming the data loaded by a dlt pipeline
+keywords: [transform, dbt, runner]
+---
+
 # Transforming the data
 
 If you want to transform the data before loading, you can use Python.

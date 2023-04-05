@@ -1,3 +1,9 @@
+---
+title: State
+description: Explanation of what a dlt state is
+keywords: [state, metadata, dlt.current.state]
+---
+
 # State
 
 > **💡** The “state” of a pipeline refers to metadata that we store about the data.

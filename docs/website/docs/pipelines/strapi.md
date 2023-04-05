@@ -1,3 +1,9 @@
+---
+title: Strapi
+description: dlt pipeline for Strapi API
+keywords: [strapi api, strapi pipeline, strapi]
+---
+
 # Strapi
 
 Strapi is a headless CMS (Content Management System) that allows developers to create powerful API-driven content management systems without having to write a lot of custom code.

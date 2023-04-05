@@ -1,5 +1,10 @@
-# Choosing an orchestrator
+---
+title: Choosing an orchestrator
+description: How to choose an orchestractor to a deploy dlt pipeline
+keywords: [orchestrator, airflow, github actions]
+---
 
+# Choosing an orchestrator
 
 Orchestrators enable developers to quickly and easily deploy and manage applications in the cloud.
 
@@ -43,9 +48,9 @@ Limitations:
 
 Airflow can manage large scale setups and small alike.
 
-### **Git actions**
+### **GitHub Actions**
 
-Git actions is not a full blown orchestrator, but it works. It supports simple workflows and scheduling, allowing for a visual, lightweight deployment with web-based monitoring (can see runs in git actions).
+GitHub Actions is not a full blown orchestrator, but it works. It supports simple workflows and scheduling, allowing for a visual, lightweight deployment with web-based monitoring (can see runs in git actions).
 It has a free tier, but its pricing is not convenient for large jobs.
 
 To deploy to git actions, [read here about using the dlt deploy command](./walkthroughs/deploy-a-pipeline)

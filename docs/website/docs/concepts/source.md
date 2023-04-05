@@ -1,3 +1,10 @@
+---
+title: Source
+description: Explanation of what a dlt source is
+keywords: [source, api, dlt.source]
+---
+
+
 # Source
 
 A [source](../glossary.md#source) is a logical grouping of resources ie. endpoints of a single API. The most common approach is to define it in a separate Python module.

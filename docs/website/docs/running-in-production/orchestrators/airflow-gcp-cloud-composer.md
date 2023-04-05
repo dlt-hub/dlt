@@ -1,6 +1,12 @@
-# Cloud composer setup
+---
+title: Cloud composer setup
+description: Deploy Airflow project from GitHub to Google Cloud Composer
+keywords: [airflow, github, google cloud composer]
+---
 
-### CI-CD setup
+# Google Cloud composer setup
+
+### CI/CD setup
 
 This setup will allow you to deploy the main branch of your airflow project from github to cloud composer.
 The suggested setup is that you have a PR review and merge process before merging to main.

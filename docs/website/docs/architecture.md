@@ -1,3 +1,9 @@
+---
+title: Architecture
+description: Architecture of data load tool (dlt)
+keywords: [architecture, extract, normalize, load]
+---
+
 # Architecture
 
 `dlt` automatically turns JSON returned by any [source](./glossary.md#source) (e.g. an API)
