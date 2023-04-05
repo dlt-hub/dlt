@@ -1,4 +1,4 @@
-name: skip docs changes
+name: get docs changes
 
 on:
   workflow_call:
