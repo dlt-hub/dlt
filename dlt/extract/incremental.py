@@ -10,6 +10,7 @@ from dlt.common.typing import TDataItem, TDataItems, TFun, extract_inner_type, i
 from dlt.common.schema.typing import TColumnKey
 from dlt.common.configuration import configspec, known_sections, resolve_configuration, ConfigFieldMissingException
 from dlt.common.configuration.specs import BaseConfiguration
+from dlt.common.pipeline import state as _state
 from dlt.extract.utils import resolve_column_value
 from dlt.extract.typing import TTableHintTemplate
 
@@ -59,6 +60,8 @@ class Incremental(Generic[TCursorValue, TUniqueValue]):
         initial_value: Optional value used for `last_value` when no state is available, e.g. on the first run of the pipeline. If not provided `last_value` will be `None` on the first run.
         last_value_func: Callable used to determine which cursor value to save in state. It is called with the stored state value and all cursor vals from currently processing items. Default is `max`
     """
+    resource_name: str = None
+
     def __init__(
             self,
             cursor_column: str,
@@ -70,8 +73,6 @@ class Incremental(Generic[TCursorValue, TUniqueValue]):
         self.cursor_column_p = JSONPath(cursor_column)
         self.initial_value = initial_value
         self.last_value_func = last_value_func or max
-        from dlt.pipeline.current import resource_state  # TODO: Resolve circular import
-        self._state = resource_state
 
     def copy(self) -> "Incremental[TCursorValue, TUniqueValue]":
         return self.__class__(self.cursor_column, initial_value=self.initial_value, last_value_func=self.last_value_func)
@@ -83,7 +84,8 @@ class Incremental(Generic[TCursorValue, TUniqueValue]):
 
     @property
     def state(self) -> IncrementalColumnState:
-        return self._state().setdefault('incremental', {}).setdefault(self.cursor_column, {'last_value': json.loads(json.dumps(self.initial_value)), 'unique_keys': []}) # type: ignore
+        return _state().setdefault('resources', {}).setdefault(self.resource_name, {}).setdefault(  # type: ignore
+            'incremental', {}).setdefault(self.cursor_column, {'last_value': json.loads(json.dumps(self.initial_value)), 'unique_keys': []})
 
     @property
     def last_value(self) -> Optional[TCursorValue]:
