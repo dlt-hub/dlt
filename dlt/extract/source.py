@@ -4,14 +4,14 @@ import makefun
 import inspect
 from collections.abc import Mapping as C_Mapping
 from typing import AsyncIterable, AsyncIterator, ClassVar, Callable, ContextManager, Dict, Iterable, Iterator, List, Sequence, Union, cast, Any
+
 from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs import known_sections
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
-
-
+from dlt.common.normalizers.json.relational import DataItemNormalizer as RelationalNormalizer, RelationalNormalizerConfigPropagation
 from dlt.common.schema import Schema
 from dlt.common.schema.utils import merge_columns, new_column, new_table
-from dlt.common.schema.typing import TColumnProp, TColumnSchema, TPartialTableSchema, TTableSchemaColumns, TWriteDisposition
+from dlt.common.schema.typing import TColumnName, TColumnProp, TColumnSchema, TPartialTableSchema, TTableSchemaColumns, TWriteDisposition
 from dlt.common.typing import AnyFun, TDataItem, TDataItems, NoneType
 from dlt.common.configuration.container import Container
 from dlt.common.pipeline import PipelineContext, StateInjectableContext, SupportsPipelineRun, state_value
@@ -104,7 +104,10 @@ class DltResourceSchema:
         primary_key: TTableHintTemplate[TColumnKey] = None,
         merge_key: TTableHintTemplate[TColumnKey] = None
     ) -> None:
-        """Allows to create or modify existing table schema by setting provided hints. Accepts dynamic hints based on data."""
+        """Allows to create or modify existing table schema by setting provided hints. Accepts dynamic hints based on data.
+           Pass None to keep old value
+           Pass empty value (for particular type) to remove hint
+        """
         t = None
         if not self._table_schema_template:
             # if there's no template yet, create and set new one
@@ -112,17 +115,23 @@ class DltResourceSchema:
         else:
             # set single hints
             t = deepcopy(self._table_schema_template)
-            if table_name:
-                t["name"] = table_name
-            if parent_table_name:
-                t["parent"] = parent_table_name
+            if table_name is not None:
+                if table_name:
+                    t["name"] = table_name
+                else:
+                    t.pop("name", None)
+            if parent_table_name is not None:
+                if parent_table_name:
+                    t["parent"] = parent_table_name
+                else:
+                    t.pop("parent", None)
             if write_disposition:
                 t["write_disposition"] = write_disposition
-            if columns:
+            if columns is not None:
                 t["columns"] = columns
-            if primary_key:
+            if primary_key is not None:
                 t["primary_key"] = primary_key
-            if merge_key:
+            if merge_key is not None:
                 t["merge_key"] = merge_key
         self.set_template(t)
 
@@ -619,6 +628,34 @@ class DltSource(Iterable[TDataItem]):
 
         return cls(name, section, schema, resources)
 
+    @property
+    def max_table_nesting(self) -> int:
+        """A schema hint that sets the maximum depth of nested table above which the remaining nodes are loaded as structs or JSON."""
+        return RelationalNormalizer.get_normalizer_config(self._schema).get("max_nesting")
+
+    @max_table_nesting.setter
+    def max_table_nesting(self, value: int) -> None:
+        RelationalNormalizer.update_normalizer_config(self._schema, {"max_nesting": value})
+
+    @property
+    def root_key(self) -> bool:
+        """Enables merging on all resources by propagating root foreign key to child tables. This option is most useful if you plan to change write disposition of a resource to disable/enable merge"""
+        config = RelationalNormalizer.get_normalizer_config(self._schema).get("propagation")
+        return config is not None and "root" in config and "_dlt_id" in config["root"] and config["root"]["_dlt_id"] == "_dlt_root_id"
+
+
+    @root_key.setter
+    def root_key(self, value: bool) -> None:
+        if value is True:
+            propagation_config: RelationalNormalizerConfigPropagation = {
+                "root": {
+                    "_dlt_id": TColumnName("_dlt_root_id")
+                },
+                "tables": {}
+            }
+            RelationalNormalizer.update_normalizer_config(self._schema, {"propagation": propagation_config})
+        else:
+            RelationalNormalizer.get_normalizer_config(self._schema).pop("propagation", None)
 
     @property
     def resources(self) -> DltResourceDict:
