@@ -9,9 +9,14 @@ on:
   workflow_dispatch:
 
 jobs:
+  skip_docs_changes:
+    uses: ./.github/workflows/skip_docs_changes.yml
 
   run_lint:
     name: Runs mypy, flake and bandit
+    if: needs.skip_docs_changes.outputs.changes_outside_docs == 'true'
+    needs: skip_docs_changes
+
     runs-on: ubuntu-latest
 
     steps:

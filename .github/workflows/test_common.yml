@@ -12,9 +12,13 @@ env:
   RUNTIME__LOG_LEVEL: ERROR
 
 jobs:
+  skip_docs_changes:
+    uses: ./.github/workflows/skip_docs_changes.yml
 
   run_common:
     name: Tests common dlt code
+    if: needs.skip_docs_changes.outputs.changes_outside_docs == 'true'
+    needs: skip_docs_changes
     strategy:
       fail-fast: false
       matrix:
