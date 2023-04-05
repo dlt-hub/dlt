@@ -37,6 +37,7 @@ GitHub Actions workflows:
 GitHub Actions workflow DAG:
 
 ![GitHub Actions workflow DAG](images/github_actions_workflow_dag.png)
+
 ### Sentry
 
 Using `dlt` [tracing](tracing.md), you can configure [Sentry](https://sentry.io) DSN to start receiving rich information on executed pipelines, including encountered errors and exceptions.
