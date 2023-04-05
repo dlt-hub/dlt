@@ -131,7 +131,6 @@ class DuckDbCredentials(ConnectionStringCredentials):
         delattr(self, "_conn")
 
     def __del__(self) -> None:
-        # print("Bye duck")
         if hasattr(self, "_conn") and self._conn_owner:
             self._delete_conn()
 
