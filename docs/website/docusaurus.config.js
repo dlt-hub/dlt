@@ -35,6 +35,7 @@ const config = {
         docs: {
           routeBasePath: '/',
           sidebarPath: require.resolve('./sidebars.js'),
+          editUrl: 'https://github.com/dlt-hub/dlt/tree/devel/docs/website',
         },
         blog: {
           showReadingTime: true
