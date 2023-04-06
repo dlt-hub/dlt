@@ -1,3 +1,9 @@
+---
+title: Chess.com
+description: dlt pipeline for Chess.com API
+keywords: [chess.com api, chess.com pipeline, chess.com]
+---
+
 # Chess.com
 
 This pipeline can be used to load player data from the [Chess.com API](https://www.chess.com/news/view/published-data-api) onto a [destination](https://dlthub.com/docs/destinations) of your choice.
