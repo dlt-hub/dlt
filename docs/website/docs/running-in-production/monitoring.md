@@ -44,6 +44,8 @@ Using `dlt` [tracing](tracing.md), you can configure [Sentry](https://sentry.io)
 
 ## Data monitoring
 
-Data quality monitoring is considered with ensuring that quality data arrives to the data warehouse on time. The reason we do monitoring instead of alerting for this is because we cannot easily define alerts for what could go wrong. 
+Data quality monitoring is considered with ensuring that quality data arrives to the data warehouse on time. The reason we do monitoring instead of alerting for this is because we cannot easily define alerts for what could go wrong.
 
 This is why we want to capture enough context to allow a person to decide if the data looks OK or requires further investigation when monitoring the data quality. A staple of monitoring are line charts and time-series charts that provide a baseline or a pattern that a person can interpret.
+
+For example, to monitor data loading, consider plotting "count of records by "loaded_at" date/hour" or by "created at" or "modified at" or whatever you can use as a recency marker.
