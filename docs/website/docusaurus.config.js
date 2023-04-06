@@ -58,7 +58,7 @@ const config = {
         logo: {
           alt: 'dlt Docs Logo',
           src: 'img/dlt-logo.svg',
-          href: '/'
+          href: 'https://dlthub.com'
         },
         items: [
           {
