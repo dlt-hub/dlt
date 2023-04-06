@@ -13,7 +13,7 @@ from dlt.common.schema.typing import TColumnName
 from dlt.common.typing import AnyFun, TDataItem, TDataItems, NoneType
 from dlt.common.configuration.container import Container
 from dlt.common.pipeline import PipelineContext, StateInjectableContext, SupportsPipelineRun, state_value
-from dlt.common.utils import flatten_list_or_items, get_callable_name, multi_context_manager
+from dlt.common.utils import flatten_list_or_items, get_callable_name, multi_context_manager, uniq_id
 
 from dlt.extract.typing import DataItemWithMeta, ItemTransformFunc, ItemTransformFunctionWithMeta, TableNameMeta, TTableSchemaTemplate, FilterItem, MapItem, YieldMapItem
 from dlt.extract.pipe import Pipe, ManagedPipeIterator
@@ -34,9 +34,17 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
 
     Empty: ClassVar["DltResource"] = None
 
-    def __init__(self, pipe: Pipe, table_schema_template: TTableSchemaTemplate, selected: bool, incremental: IncrementalResourceWrapper = None):
+    def __init__(
+        self,
+        pipe: Pipe,
+        table_schema_template: TTableSchemaTemplate,
+        selected: bool,
+        incremental: IncrementalResourceWrapper = None,
+        section: str = None
+    ) -> None:
         # TODO: allow resource to take name independent from pipe name
         self.name = pipe.name
+        self.section = section
         self.selected = selected
         self._pipe = pipe
         if incremental and not self.incremental:
@@ -45,8 +53,14 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
 
     @classmethod
     def from_data(
-            cls, data: Any, name: str = None, table_schema_template: TTableSchemaTemplate = None, selected: bool = True,
-            depends_on: Union["DltResource", Pipe] = None, incremental: IncrementalResourceWrapper = None
+        cls,
+        data: Any,
+        name: str = None,
+        section: str = None,
+        table_schema_template: TTableSchemaTemplate = None,
+        selected: bool = True,
+        depends_on: Union["DltResource", Pipe] = None,
+        incremental: IncrementalResourceWrapper = None
     ) -> "DltResource":
         if data is None:
             raise InvalidResourceDataTypeIsNone(name, data, NoneType)  # type: ignore
@@ -55,7 +69,7 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
             return data
 
         if isinstance(data, Pipe):
-            return cls(data, table_schema_template, selected, incremental=incremental)
+            return cls(data, table_schema_template, selected, incremental=incremental, section=section)
 
         if callable(data):
             name = name or get_callable_name(data)
@@ -83,7 +97,7 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
         # create resource from iterator, iterable or generator function
         if isinstance(data, (Iterable, Iterator)) or callable(data):
             pipe = Pipe.from_data(name, data, parent=parent_pipe)
-            return cls(pipe, table_schema_template, selected, incremental=incremental)
+            return cls(pipe, table_schema_template, selected, incremental=incremental, section=section)
         else:
             # some other data type that is not supported
             raise InvalidResourceDataType(name, data, type(data), f"The data type is {type(data).__name__}")
@@ -230,7 +244,7 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
         if isinstance(gen, DltResource):
             return gen
         else:
-            r = DltResource.from_data(gen, self.name, self._table_schema_template, self.selected, self._pipe.parent)
+            r = DltResource.from_data(gen, self.name, self.section, self._table_schema_template, self.selected, self._pipe.parent)
             if isinstance(gen, Pipe):
                 return r
             # clone existing pipe
@@ -310,18 +324,32 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
             A read-only state is provided, initialized from active pipeline state. The state is discarded after the iterator is closed.
         """
         # use the same state dict when opening iterator and when iterator is iterated
-        state, _ = state_value(Container(), {})
+        container = Container()
+        state, _ = state_value(container, {})
+        # get section should be active pipeline name
+        proxy = container[PipelineContext]
+        pipeline_name = uniq_id() if not proxy.is_active() else proxy.pipeline().pipeline_name
+
+        def _get_context() -> List[ContextManager[Any]]:
+            return [
+                inject_section(ConfigSectionContext(sections=(known_sections.SOURCES, self.section or pipeline_name, self.name))),
+                Container().injectable_context(StateInjectableContext(state=state))
+            ]
 
         # managed pipe iterator will remove injected contexts when closing
-        with Container().injectable_context(StateInjectableContext(state=state)):
+        with multi_context_manager(_get_context()):
             pipe_iterator: ManagedPipeIterator = ManagedPipeIterator.from_pipe(self._pipe)  # type: ignore
 
-        pipe_iterator.set_context_manager(Container().injectable_context(StateInjectableContext(state=state)))
+        pipe_iterator.set_context_manager(multi_context_manager(_get_context()))
         _iter = map(lambda item: item.item, pipe_iterator)
         return flatten_list_or_items(_iter)
 
     def __str__(self) -> str:
-        info = f"DltResource {self.name}:"
+        info = f"DltResource {self.name}"
+        if self.section:
+            info += f" in section {self.section}:"
+        else:
+            info += ":"
         if self.is_transformer:
             info += f"\nThis resource is a transformer and takes data items from {self._pipe.parent.name}"
         else:
