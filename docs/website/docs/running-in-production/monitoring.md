@@ -40,7 +40,7 @@ GitHub Actions workflow DAG:
 
 ### Sentry
 
-Using `dlt` [tracing](tracing.md), you can configure [Sentry](https://sentry.io) DSN to start receiving rich information on executed pipelines, including encountered errors and exceptions.
+Using `dlt` [tracing](reference/tracing.md), you can configure [Sentry](https://sentry.io) DSN to start receiving rich information on executed pipelines, including encountered errors and exceptions.
 
 ## Data monitoring
 
@@ -48,4 +48,4 @@ Data quality monitoring is considered with ensuring that quality data arrives to
 
 This is why we want to capture enough context to allow a person to decide if the data looks OK or requires further investigation when monitoring the data quality. A staple of monitoring are line charts and time-series charts that provide a baseline or a pattern that a person can interpret.
 
-For example, to monitor data loading, consider plotting "count of records by "loaded_at" date/hour" or by "created at" or "modified at" or whatever you can use as a recency marker.
+For example, to monitor data loading, consider plotting "count of records by `loaded_at` date/hour", "created at", "modified at", or other recency markers.

@@ -25,7 +25,7 @@ We could also use alerts as a way to deliver tests. For example, a customer supp
 
 ## Sentry
 
-Using `dlt` [tracing](tracing.md), you can configure [Sentry](https://sentry.io) DSN to start receiving rich information on executed pipelines, including encountered errors and exceptions.
+Using `dlt` [tracing](reference/tracing.md), you can configure [Sentry](https://sentry.io) DSN to start receiving rich information on executed pipelines, including encountered errors and exceptions.
 
 ## Slack
 
