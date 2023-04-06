@@ -162,3 +162,9 @@ class PipelineStateNotAvailable(PipelineException):
         msg += " Call dlt.pipeline(...) before you call the @dlt.source or  @dlt.resource decorated function."
         self.source_name = source_name
         super().__init__(None, msg)
+
+
+class SourceSectionNotAvailable(PipelineException):
+    def __init__(self) -> None:
+        msg = "Access to state was requested without source section active. State should be requested from within the @dlt.source and @dlt.resource decorated function."
+        super().__init__(None, msg)

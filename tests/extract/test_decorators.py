@@ -146,6 +146,7 @@ def test_resource_name_from_generator() -> None:
 
     r = dlt.resource(some_data())
     assert r.name == "some_data"
+    assert r.section is None
 
 
 def test_source_sections() -> None:
@@ -208,6 +209,24 @@ def test_source_explicit_section() -> None:
         assert list(with_section()) == [1]
         # state should be modified: in the custom section we put the value from custom config
         assert state["sources"]["custom_section"]["val"] == "CUSTOM"
+
+
+def test_resource_section() -> None:
+
+    r = dlt.resource([1, 2, 3], name="T")
+    assert r.name == "T"
+    assert r.section is None
+
+    def _inner_gen():
+        yield from [1, 2, 3]
+
+    r = dlt.resource(_inner_gen)()
+    assert r.name == "_inner_gen"
+    assert r.section == "test_decorators"
+
+    from tests.extract.cases.section_source.external_resources import init_resource_f_2
+    assert init_resource_f_2.name == "init_resource_f_2"
+    assert init_resource_f_2.section == "section_source"
 
 
 def test_resources_injected_sections() -> None:
@@ -344,7 +363,6 @@ def test_source_state_context() -> None:
 
     # must enumerate single resource
     assert list(feeding) == [2, 4, 6]
-
 
 
 def test_source_schema_modified() -> None:

@@ -742,11 +742,12 @@ class Pipeline(SupportsPipeline):
             elif isinstance(data_item, DltResource):
                 # apply hints
                 apply_hint_args(data_item)
-                resources.append(data_item)
+                sources.append(DltSource(data_item.name, data_item.section or self.pipeline_name, effective_schema, [data_item]))
             else:
                 # iterator/iterable/generator
                 # create resource first without table template
-                resource = DltResource.from_data(data_item, name=table_name)
+                resource = DltResource.from_data(data_item, name=table_name, section=self.pipeline_name)
+                print(resource)
                 # apply hints
                 apply_hint_args(resource)
                 resources.append(resource)
