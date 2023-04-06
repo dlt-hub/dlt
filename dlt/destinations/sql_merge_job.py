@@ -46,9 +46,9 @@ class SqlMergeJob(NewLoadJobImpl):
         clauses: List[str] = []
         if primary_keys or merge_keys:
             if primary_keys:
-                clauses.append(" AND ".join([f"data.{c} = staging.{c}" for c in map(escape_identifier, primary_keys)]))
+                clauses.append(" AND ".join(["%s.%s = %s.%s" % ("{d}", c, "{s}", c) for c in map(escape_identifier, primary_keys)]))
             if merge_keys:
-                clauses.append(" AND ".join([f"data.{c} = staging.{c}" for c in map(escape_identifier, merge_keys)]))
+                clauses.append(" AND ".join(["%s.%s = %s.%s" % ("{d}", c, "{s}", c) for c in map(escape_identifier, merge_keys)]))
         return clauses or ["1=1"]
 
     @classmethod
@@ -57,7 +57,7 @@ class SqlMergeJob(NewLoadJobImpl):
 
             A list of clauses may be returned for engines that do not support OR in subqueries. Like BigQuery
         """
-        return [f"FROM {root_table_name} AS data WHERE EXISTS (SELECT 1 FROM {staging_root_table_name} AS staging WHERE {' OR '.join(key_clauses)})"]
+        return [f"FROM {root_table_name} WHERE EXISTS (SELECT 1 FROM {staging_root_table_name} WHERE {' OR '.join([c.format(d=root_table_name,s=staging_root_table_name) for c in key_clauses])})"]
 
     @classmethod
     def gen_temp_table_sql(cls, unique_column: str, key_table_clauses: Sequence[str]) -> Tuple[List[str], str]:

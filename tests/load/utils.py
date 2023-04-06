@@ -35,8 +35,7 @@ TABLE_UPDATE: List[TColumnSchema] = [
     {
         "name": "col1",
         "data_type": "bigint",
-        "nullable": False,
-        "root_key": True  # enable merge
+        "nullable": False
     },
     {
         "name": "col2",

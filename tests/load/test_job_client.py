@@ -381,6 +381,8 @@ def test_write_dispositions(client: SqlJobClientBase, write_disposition: str, fi
     client.schema.bump_version()
     client.update_storage_schema()
     if write_disposition == "merge":
+        # add root key
+        client.schema.tables[table_name]["columns"]["col1"]["root_key"] = True
         # create staging for merge dataset
         client.initialize_storage(staging=True)
         client.update_storage_schema(staging=True)

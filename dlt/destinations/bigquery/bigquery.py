@@ -103,7 +103,7 @@ class BigQueryMergeJob(SqlMergeJob):
         # generate several clauses: BigQuery does not support OR nor unions
         sql: List[str] = []
         for clause in key_clauses:
-            sql.append(f"FROM {root_table_name} AS data WHERE EXISTS (SELECT 1 FROM {staging_root_table_name} AS staging WHERE {clause})")
+            sql.append(f"FROM {root_table_name} AS d WHERE EXISTS (SELECT 1 FROM {staging_root_table_name} AS s WHERE {clause.format(d='d', s='s')})")
         return sql
 
 

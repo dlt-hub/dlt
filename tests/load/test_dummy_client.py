@@ -15,7 +15,7 @@ from dlt.common.utils import uniq_id
 from dlt.common.destination.reference import DestinationReference, LoadJob
 
 from dlt.load import Load
-from dlt.destinations.job_client_impl import EmptyLoadJob
+from dlt.destinations.job_impl import EmptyLoadJob
 
 from dlt.destinations import dummy
 from dlt.destinations.dummy import dummy as dummy_impl
