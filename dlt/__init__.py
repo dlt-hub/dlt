@@ -29,12 +29,12 @@ from dlt.common.pipeline import state
 from dlt.common.schema import Schema
 
 from dlt.extract.decorators import source, resource, transformer, defer
-from dlt.extract.incremental import Incremental
-from dlt.pipeline import pipeline as _pipeline, run, attach, Pipeline, dbt, current as _current, mark as _mark
+from dlt.pipeline import pipeline as _pipeline, run, attach, Pipeline, dbt, current as _current, mark as _mark, sources as _sources
 
 pipeline = _pipeline
 current = _current
 mark = _mark
+sources = _sources
 
 TSecretValue = _TSecretValue
 "When typing source/resource function arguments it indicates that a given argument is a secret and should be taken from dlt.secrets."

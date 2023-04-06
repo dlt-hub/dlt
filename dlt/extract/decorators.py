@@ -302,7 +302,13 @@ def resource(
         DltResource instance which may be loaded, iterated or combined with other resources into a pipeline.
     """
     def make_resource(_name: str, _data: Any, incremental: IncrementalResourceWrapper = None) -> DltResource:
-        table_template = DltResource.new_table_template(table_name or _name, write_disposition=write_disposition, columns=columns, primary_key=primary_key, merge_key=merge_key)
+        table_template = DltResource.new_table_template(
+            table_name or _name,
+            write_disposition=write_disposition,
+            columns=columns,
+            primary_key=primary_key,
+            merge_key=merge_key
+        )
         return DltResource.from_data(_data, _name, table_template, selected, cast(DltResource, depends_on), incremental=incremental)
 
 
@@ -320,9 +326,14 @@ def resource(
         # wrap source extraction function in configuration with section
         func_module = inspect.getmodule(f)
         source_section = _get_source_section_name(func_module)
-        incremental = IncrementalResourceWrapper(resource_name, source_section, primary_key)
+
+        incremental: IncrementalResourceWrapper = None
+        sig = inspect.signature(f)
+        if IncrementalResourceWrapper.should_wrap(sig):
+            incremental = IncrementalResourceWrapper(resource_name, source_section, primary_key)
+
         if is_inner_callable(f):
-            conf_f = incremental.wrap(f)  # TODO: Test this
+            conf_f = f
         else:
             resource_sections = (known_sections.SOURCES, source_section, resource_name)
             # standalone resource will prefer existing section context when resolving config values
@@ -331,10 +342,11 @@ def resource(
                 f,
                 spec=spec, sections=resource_sections, sections_merge_style=ConfigSectionContext.resource_merge_style
             )
-            conf_f = incremental.wrap(conf_f)
-
             # get spec for wrapped function
             SPEC = get_fun_spec(conf_f)
+
+        if incremental:
+            conf_f = incremental.wrap(conf_f)
 
         # store the standalone resource information
         if SPEC:

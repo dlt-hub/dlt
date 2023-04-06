@@ -1,20 +1,18 @@
 import os
 from typing import Optional
 
-import pytest
 import duckdb
 
 import dlt
 from dlt.common.pendulum import pendulum, timedelta
 from dlt.common.utils import uniq_id
 from dlt.common.json import json
-from dlt.extract.extract import ExtractorStorage
 from tests.utils import preserve_environ, autouse_test_storage
 
 
 def test_single_items_last_value_state_is_updated() -> None:
     @dlt.resource
-    def some_data(created_at=dlt.Incremental('created_at')):
+    def some_data(created_at=dlt.sources.incremental('created_at')):
         yield {'created_at': 425}
         yield {'created_at': 426}
 
@@ -27,7 +25,7 @@ def test_single_items_last_value_state_is_updated() -> None:
 
 def test_batch_items_last_value_state_is_updated() -> None:
     @dlt.resource
-    def some_data(created_at=dlt.Incremental('created_at')):
+    def some_data(created_at=dlt.sources.incremental('created_at')):
         yield [{'created_at': i} for i in range(5)]
         yield [{'created_at': i} for i in range(5, 10)]
 
@@ -42,7 +40,7 @@ def test_last_value_access_in_resource() -> None:
     values = []
 
     @dlt.resource
-    def some_data(created_at=dlt.Incremental('created_at')):
+    def some_data(created_at=dlt.sources.incremental('created_at')):
         values.append(created_at.last_value)
         yield [{'created_at': i} for i in range(6)]
 
@@ -55,7 +53,7 @@ def test_last_value_access_in_resource() -> None:
 
 def test_unique_keys_are_deduplicated() -> None:
     @dlt.resource(primary_key='id')
-    def some_data(created_at=dlt.Incremental('created_at')):
+    def some_data(created_at=dlt.sources.incremental('created_at')):
         if created_at.last_value is None:
             yield {'created_at': 1, 'id': 'a'}
             yield {'created_at': 2, 'id': 'b'}
@@ -83,7 +81,7 @@ def test_unique_keys_are_deduplicated() -> None:
 
 def test_unique_rows_by_hash_are_deduplicated() -> None:
     @dlt.resource
-    def some_data(created_at=dlt.Incremental('created_at')):
+    def some_data(created_at=dlt.sources.incremental('created_at')):
         if created_at.last_value is None:
             yield {'created_at': 1, 'id': 'a'}
             yield {'created_at': 2, 'id': 'b'}
@@ -110,7 +108,7 @@ def test_unique_rows_by_hash_are_deduplicated() -> None:
 
 def test_nested_cursor_column() -> None:
     @dlt.resource
-    def some_data(created_at=dlt.Incremental('data.items[0].created_at')):
+    def some_data(created_at=dlt.sources.incremental('data.items[0].created_at')):
         yield {'data': {'items': [{'created_at': 2}]}}
 
     p = dlt.pipeline(pipeline_name=uniq_id())
@@ -122,7 +120,7 @@ def test_nested_cursor_column() -> None:
 
 def test_explicit_initial_value() -> None:
     @dlt.resource
-    def some_data(created_at=dlt.Incremental('created_at')):
+    def some_data(created_at=dlt.sources.incremental('created_at')):
         yield {'created_at': created_at.last_value}
 
     p = dlt.pipeline(pipeline_name=uniq_id())
@@ -134,18 +132,18 @@ def test_explicit_initial_value() -> None:
 
 def test_explicit_incremental_instance() -> None:
     @dlt.resource(primary_key='some_uq')
-    def some_data(incremental=dlt.Incremental('created_at', initial_value=0)):
+    def some_data(incremental=dlt.sources.incremental('created_at', initial_value=0)):
         assert incremental.cursor_column == 'inserted_at'
         assert incremental.initial_value == 241
         yield {'inserted_at': 242, 'some_uq': 444}
 
     p = dlt.pipeline(pipeline_name=uniq_id())
-    p.extract(some_data(incremental=dlt.Incremental('inserted_at', initial_value=241)))
+    p.extract(some_data(incremental=dlt.sources.incremental('inserted_at', initial_value=241)))
 
 
 def test_optional_incremental_from_config() -> None:
     @dlt.resource
-    def some_data(created_at: Optional[dlt.Incremental] = None):
+    def some_data(created_at: Optional[dlt.sources.incremental] = None):
         assert created_at.cursor_column == 'created_at'
         assert created_at.initial_value == '2022-02-03T00:00:00Z'
         yield {'created_at': '2022-02-03T00:00:01Z'}
@@ -159,7 +157,7 @@ def test_optional_incremental_from_config() -> None:
 
 def test_override_initial_value_from_config() -> None:
     @dlt.resource
-    def some_data(created_at=dlt.Incremental('created_at', initial_value='2022-02-03T00:00:00Z')):
+    def some_data(created_at=dlt.sources.incremental('created_at', initial_value='2022-02-03T00:00:00Z')):
         assert created_at.cursor_column == 'created_at'
         assert created_at.initial_value == '2000-02-03T00:00:00Z'
         yield {'created_at': '2023-03-03T00:00:00Z'}
@@ -171,11 +169,13 @@ def test_override_initial_value_from_config() -> None:
 
 
 def test_override_primary_key_in_pipeline() -> None:
-    """Primary key hint passed to pipeline is propogated through apply_hints
+    """Primary key hint passed to pipeline is propagated through apply_hints
     """
     @dlt.resource(primary_key='id')
-    def some_data(created_at=dlt.Incremental('created_at')):
+    def some_data(created_at=dlt.sources.incremental('created_at')):
+        # TODO: this only works because incremental instance is shared across many copies of the resource
         assert some_data.incremental.primary_key == ['id', 'other_id']
+
         yield {'created_at': 22, 'id': 2, 'other_id': 5}
         yield {'created_at': 22, 'id': 2, 'other_id': 6}
 
@@ -185,7 +185,7 @@ def test_override_primary_key_in_pipeline() -> None:
 
 def test_composite_primary_key() -> None:
     @dlt.resource(primary_key=['isrc', 'market'])
-    def some_data(created_at=dlt.Incremental('created_at')):
+    def some_data(created_at=dlt.sources.incremental('created_at')):
         yield {'created_at': 1, 'isrc': 'AAA', 'market': 'DE'}
         yield {'created_at': 2, 'isrc': 'BBB', 'market': 'DE'}
         yield {'created_at': 2, 'isrc': 'CCC', 'market': 'US'}
@@ -206,7 +206,7 @@ def test_composite_primary_key() -> None:
 
 def test_last_value_func_min() -> None:
     @dlt.resource
-    def some_data(created_at=dlt.Incremental('created_at', last_value_func=min)):
+    def some_data(created_at=dlt.sources.incremental('created_at', last_value_func=min)):
         yield {'created_at': 10}
         yield {'created_at': 11}
         yield {'created_at': 9}
@@ -227,7 +227,7 @@ def test_last_value_func_custom() -> None:
         return max(values) + 1
 
     @dlt.resource
-    def some_data(created_at=dlt.Incremental('created_at', last_value_func=last_value)):
+    def some_data(created_at=dlt.sources.incremental('created_at', last_value_func=last_value)):
         yield {'created_at': 9}
         yield {'created_at': 10}
 
@@ -242,7 +242,7 @@ def test_cursor_datetime_type() -> None:
     initial_value = pendulum.now()
 
     @dlt.resource
-    def some_data(created_at=dlt.Incremental('created_at', initial_value)):
+    def some_data(created_at=dlt.sources.incremental('created_at', initial_value)):
         yield {'created_at': initial_value + timedelta(minutes=1)}
         yield {'created_at': initial_value + timedelta(minutes=3)}
         yield {'created_at': initial_value + timedelta(minutes=2)}
