@@ -35,7 +35,7 @@ class ConnectionStringCredentials(CredentialsConfiguration):
 
     def on_resolved(self) -> None:
         if self.database:
-            self.database = self.database.lower()
+            self.database = self.database
         if self.password:
             self.password = TSecretValue(self.password.strip())
 

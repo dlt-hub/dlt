@@ -67,6 +67,21 @@ def test_connection_string_credentials_native_representation(environment) -> Non
     csc.query = None
     assert csc.to_native_representation() == "postgres://"
 
+    # letter case
+    dsn = "postgres://loadeR:pAss@add.A.inter:5432/dlt_data/BASE/q?a=B&c=d"
+    csc = ConnectionStringCredentials()
+    csc.parse_native_representation(dsn)
+    assert csc.to_native_representation() == dsn
+    assert csc.database == "dlt_data/BASE/q"
+    assert csc.query == {"a": "B", "c": "d"}
+
+
+def test_connection_string_letter_case(environment: Any) -> None:
+    dsn = "postgres://loadeR:pAss@add.A.inter:5432/dlt_data/BASE/q?a=B&c=d"
+    os.environ["CREDENTIALS"] = dsn
+    csc = resolve_configuration(ConnectionStringCredentials())
+    assert csc.to_native_representation() == dsn
+
 
 def test_connection_string_resolved_from_native_representation(environment: Any) -> None:
     # sometimes it is sometimes not try URL without password

@@ -46,8 +46,6 @@ def test_duckdb_open_conn_default() -> None:
 def test_duckdb_database_path() -> None:
     # resolve without any path provided
     c = resolve_configuration(DuckDbClientConfiguration(dataset_name="test_dataset"))
-    print(str(c.credentials))
-    print(str(os.getcwd()))
     assert c.credentials.database.lower() == os.path.abspath("quack.duckdb").lower()
     # resolve without any path but with pipeline context
     p = dlt.pipeline(pipeline_name="quack_pipeline")
@@ -142,6 +140,16 @@ def test_keeps_initial_db_path() -> None:
         # new pipeline context took over
         # TODO: restore pipeline context on each call
         assert conn.credentials.database.lower() != os.path.abspath(db_path).lower()
+
+
+def test_case_sensitive_database_name() -> None:
+    # make case sensitive folder name
+    cs_quack = os.path.join(TEST_STORAGE_ROOT, "QuAcK")
+    os.makedirs(cs_quack, exist_ok=True)
+    db_path = os.path.join(cs_quack, "path_TEST_quack.duckdb")
+    p = dlt.pipeline(pipeline_name="NOT_QUAck", credentials=db_path, destination="duckdb")
+    with p.sql_client() as conn:
+        conn.execute_sql("DESCRIBE;")
 
 
 def test_external_duckdb_database() -> None:
