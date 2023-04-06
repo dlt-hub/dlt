@@ -19,6 +19,7 @@ from dlt.common.storages.schema_storage import SchemaStorage
 from dlt.common.typing import AnyFun, ParamSpec, Concatenate, TDataItem, TDataItems
 from dlt.common.utils import get_callable_name, is_inner_callable
 from dlt.extract.exceptions import InvalidTransformerDataTypeGeneratorFunctionRequired, ResourceFunctionExpected, SourceDataIsNone, SourceIsAClassTypeError, SourceNotAFunction, SourceSchemaNotAvailable
+from dlt.extract.incremental import IncrementalResourceWrapper
 
 from dlt.extract.typing import TTableHintTemplate
 from dlt.extract.source import DltResource, DltSource, TUnboundDltResource
@@ -260,7 +261,7 @@ def resource(
     merge_key: TTableHintTemplate[TColumnKey] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
-    depends_on: TUnboundDltResource = None
+    depends_on: TUnboundDltResource = None,
 ) -> Any:
     """When used as a decorator, transforms any generator (yielding) function into a `dlt resource`. When used as a function, it transforms data in `data` argument into a `dlt resource`.
 
@@ -313,9 +314,9 @@ def resource(
     Returns:
         DltResource instance which may be loaded, iterated or combined with other resources into a pipeline.
     """
-    def make_resource(_name: str, _data: Any) -> DltResource:
+    def make_resource(_name: str, _data: Any, incremental: IncrementalResourceWrapper = None) -> DltResource:
         table_template = DltResource.new_table_template(table_name or _name, write_disposition=write_disposition, columns=columns, primary_key=primary_key, merge_key=merge_key)
-        return DltResource.from_data(_data, _name, table_template, selected, cast(DltResource, depends_on))
+        return DltResource.from_data(_data, _name, table_template, selected, cast(DltResource, depends_on), incremental=incremental)
 
 
     def decorator(f: Callable[TResourceFunParams, Any]) -> Callable[TResourceFunParams, DltResource]:
@@ -329,15 +330,22 @@ def resource(
 
         # do not inject config values for inner functions, we assume that they are part of the source
         SPEC: Type[BaseConfiguration] = None
+        # wrap source extraction function in configuration with section
+        func_module = inspect.getmodule(f)
+        source_section = _get_source_section_name(func_module)
+        incremental = IncrementalResourceWrapper(resource_name, source_section, primary_key)
         if is_inner_callable(f):
-            conf_f = f
+            conf_f = incremental.wrap(f)  # TODO: Test this
         else:
-            # wrap source extraction function in configuration with section
-            func_module = inspect.getmodule(f)
-            resource_sections = (known_sections.SOURCES, _get_source_section_name(func_module), resource_name)
+            resource_sections = (known_sections.SOURCES, source_section, resource_name)
             # standalone resource will prefer existing section context when resolving config values
             # this lets the source to override those values and provide common section for all config values for resources present in that source
-            conf_f = with_config(f, spec=spec, sections=resource_sections, sections_merge_style=ConfigSectionContext.resource_merge_style)
+            conf_f = with_config(
+                f,
+                spec=spec, sections=resource_sections, sections_merge_style=ConfigSectionContext.resource_merge_style
+            )
+            conf_f = incremental.wrap(conf_f)
+
             # get spec for wrapped function
             SPEC = get_fun_spec(conf_f)
 
@@ -345,7 +353,7 @@ def resource(
         if SPEC:
             _SOURCES[f.__qualname__] = SourceInfo(SPEC, f, func_module)
 
-        return make_resource(resource_name, conf_f)
+        return make_resource(resource_name, conf_f, incremental)
 
     # if data is callable or none use decorator
     if data is None:

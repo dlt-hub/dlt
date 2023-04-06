@@ -62,7 +62,6 @@ def _resolve_configuration(
         explicit_value: Any,
         accept_partial: bool
     ) -> TConfiguration:
-
     # do not resolve twice
     if config.is_resolved():
         return config
