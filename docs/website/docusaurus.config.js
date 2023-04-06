@@ -87,7 +87,7 @@ const config = {
             title: 'Docs',
             items: [
               {
-                label: 'data load tool',
+                label: 'Docs',
                 to: '/intro',
               },
               {
