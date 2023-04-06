@@ -5,7 +5,7 @@ import duckdb
 
 import dlt
 from dlt.common.pendulum import pendulum, timedelta
-from dlt.common.utils import uniq_id
+from dlt.common.utils import uniq_id, digest256
 from dlt.common.json import json
 from tests.utils import preserve_environ, autouse_test_storage
 
@@ -254,3 +254,22 @@ def test_cursor_datetime_type() -> None:
 
     s = dlt.state()[p.pipeline_name]['resources']['some_data']['incremental']['created_at']
     assert s['last_value'] == json.loads(json.dumps(initial_value + timedelta(minutes=4)))
+
+
+def test_descending_order_unique_hashes() -> None:
+    """Resource returns items in descending order but using `max` last value function.
+    Only hash matching last_value are stored.
+    """
+    @dlt.resource
+    def some_data(created_at=dlt.sources.incremental('created_at', 20)):
+        for i in reversed(range(created_at.last_value, created_at.last_value + 5)):
+            yield {'created_at': i}
+
+    p = dlt.pipeline(pipeline_name=uniq_id())
+    p.extract(some_data())
+
+    s = dlt.state()[p.pipeline_name]['resources']['some_data']['incremental']['created_at']
+
+    last_hash = digest256(json.dumps({'created_at': 24}))
+
+    assert s['unique_hashes'] == [last_hash]

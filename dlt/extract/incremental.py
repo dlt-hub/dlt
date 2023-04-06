@@ -189,7 +189,8 @@ class IncrementalResourceWrapper:
         if last_value == new_value:
             if unique_value in state['unique_hashes']:
                 return False
-            state['unique_hashes'].append(unique_value)
+            if self._incremental.last_value_func([row_value]) == last_value:
+                state['unique_hashes'].append(unique_value)
             return True
         if new_value != last_value:
             state.update({'last_value': new_value, 'unique_hashes': [unique_value]})
