@@ -21,7 +21,7 @@ LastValueFunc = Callable[[Sequence[TCursorValue]], Any]
 
 class IncrementalColumnState(TypedDict):
     last_value: Optional[Any]
-    unique_keys: List[Any]
+    unique_hashes: List[str]
 
 
 @configspec
@@ -86,7 +86,7 @@ class Incremental(Generic[TCursorValue]):
     @property
     def state(self) -> IncrementalColumnState:
         return _state().setdefault('resources', {}).setdefault(self.resource_name, {}).setdefault(  # type: ignore
-            'incremental', {}).setdefault(self.cursor_column, {'last_value': json.loads(json.dumps(self.initial_value)), 'unique_keys': []})
+            'incremental', {}).setdefault(self.cursor_column, {'last_value': json.loads(json.dumps(self.initial_value)), 'unique_hashes': []})
 
     @property
     def last_value(self) -> Optional[TCursorValue]:
@@ -105,12 +105,12 @@ class Incremental(Generic[TCursorValue]):
         else:
             unique_value = digest256(json.dumps(row, sort_keys=True))
         if last_value == new_value:
-            if unique_value in state['unique_keys']:
+            if unique_value in state['unique_hashes']:
                 return False
-            state['unique_keys'].append(unique_value)
+            state['unique_hashes'].append(unique_value)
             return True
         if new_value != last_value:
-            state.update({'last_value': new_value, 'unique_keys': [unique_value]})
+            state.update({'last_value': new_value, 'unique_hashes': [unique_value]})
         return True
 
 
