@@ -54,17 +54,18 @@ const config = {
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
       navbar: {
-        title: 'Docs',
+        title: '',
         logo: {
           alt: 'dlt Docs Logo',
           src: 'img/dlt-logo.svg',
+          href: '/'
         },
         items: [
           {
             type: 'doc',
             docId: 'intro',
             position: 'left',
-            label: 'data load tool',
+            label: 'Docs',
           },
           {to: 'blog', label: 'Blog', position: 'left'},
           {
