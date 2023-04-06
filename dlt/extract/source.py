@@ -1,172 +1,33 @@
 import contextlib
-from copy import copy, deepcopy
+from copy import copy
 import makefun
 import inspect
-from collections.abc import Mapping as C_Mapping
-from typing import AsyncIterable, AsyncIterator, ClassVar, Callable, ContextManager, Dict, Iterable, Iterator, List, Sequence, Union, cast, Any
+from typing import AsyncIterable, AsyncIterator, ClassVar, Callable, ContextManager, Dict, Iterable, Iterator, List, Sequence, Union, Any
+
 from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs import known_sections
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
-
-
+from dlt.common.normalizers.json.relational import DataItemNormalizer as RelationalNormalizer, RelationalNormalizerConfigPropagation
 from dlt.common.schema import Schema
-from dlt.common.schema.utils import merge_columns, new_column, new_table
-from dlt.common.schema.typing import TColumnProp, TColumnSchema, TPartialTableSchema, TTableSchemaColumns, TWriteDisposition
+from dlt.common.schema.typing import TColumnName
 from dlt.common.typing import AnyFun, TDataItem, TDataItems, NoneType
 from dlt.common.configuration.container import Container
 from dlt.common.pipeline import PipelineContext, StateInjectableContext, SupportsPipelineRun, state_value
 from dlt.common.utils import flatten_list_or_items, get_callable_name, multi_context_manager
 
-from dlt.extract.typing import DataItemWithMeta, ItemTransformFunc, ItemTransformFunctionWithMeta, TColumnKey, TableNameMeta, TFunHintTemplate, TTableHintTemplate, TTableSchemaTemplate, FilterItem, MapItem, YieldMapItem
+from dlt.extract.typing import DataItemWithMeta, ItemTransformFunc, ItemTransformFunctionWithMeta, TableNameMeta, TTableSchemaTemplate, FilterItem, MapItem, YieldMapItem
 from dlt.extract.pipe import Pipe, ManagedPipeIterator
+from dlt.extract.schema import DltResourceSchema
 from dlt.extract.incremental import IncrementalResourceWrapper
 from dlt.extract.exceptions import (
     InvalidTransformerDataTypeGeneratorFunctionRequired, InvalidParentResourceDataType, InvalidParentResourceIsAFunction, InvalidResourceDataType, InvalidResourceDataTypeFunctionNotAGenerator, InvalidResourceDataTypeIsNone, InvalidTransformerGeneratorFunction,
-    DataItemRequiredForDynamicTableHints, InconsistentTableTemplate, InvalidResourceDataTypeAsync, InvalidResourceDataTypeBasic,
-    InvalidResourceDataTypeMultiplePipes, ParametrizedResourceUnbound, ResourceNameMissing, ResourceNotATransformer, ResourcesNotFoundError, SourceExhausted, TableNameMissing, DeletingResourcesNotSupported)
+    DataItemRequiredForDynamicTableHints, InvalidResourceDataTypeAsync, InvalidResourceDataTypeBasic,
+    InvalidResourceDataTypeMultiplePipes, ParametrizedResourceUnbound, ResourceNameMissing, ResourceNotATransformer, ResourcesNotFoundError, SourceExhausted, DeletingResourcesNotSupported)
 
 
 def with_table_name(item: TDataItems, table_name: str) -> DataItemWithMeta:
     """Marks `item` to be dispatched to table `table_name` when yielded from resource function."""
     return DataItemWithMeta(TableNameMeta(table_name), item)
-
-
-class DltResourceSchema:
-    def __init__(self, name: str, table_schema_template: TTableSchemaTemplate = None):
-        self.__qualname__ = self.__name__ = self.name = name
-        self._table_name_hint_fun: TFunHintTemplate[str] = None
-        self._table_has_other_dynamic_hints: bool = False
-        self._table_schema_template: TTableSchemaTemplate = None
-        self._table_schema: TPartialTableSchema = None
-        if table_schema_template:
-            self.set_template(table_schema_template)
-
-    @property
-    def table_name(self) -> str:
-        """Get table name to which resource loads data. Raises in case of table names derived from data."""
-        if self._table_name_hint_fun:
-            raise DataItemRequiredForDynamicTableHints(self.name)
-        return self._table_schema_template["name"] if self._table_schema_template else self.name  # type: ignore
-
-    def table_schema(self, item: TDataItem =  None) -> TPartialTableSchema:
-        """Computes the table schema based on hints and column definitions passed during resource creation. `item` parameter is used to resolve table hints based on data"""
-        if not self._table_schema_template:
-            # if table template is not present, generate partial table from name
-            if not self._table_schema:
-                self._table_schema = new_table(self.name)
-            return self._table_schema
-
-        def _resolve_hint(hint: TTableHintTemplate[Any]) -> Any:
-            """Calls each dynamic hint passing a data item"""
-            if callable(hint):
-                return hint(item)
-            else:
-                return hint
-
-        def _merge_key(hint: TColumnProp, keys: TColumnKey, partial: TPartialTableSchema) -> None:
-            if isinstance(keys, str):
-                keys = [keys]
-            for key in keys:
-                if key in partial["columns"]:
-                    merge_columns(partial["columns"][key], {hint: key})  # type: ignore
-                else:
-                    partial["columns"][key] = new_column(key, nullable=False)
-                    partial["columns"][key][hint] = True
-
-        def _merge_keys(t_: TTableSchemaTemplate) -> TPartialTableSchema:
-            """Merges resolved keys into columns"""
-            partial = cast(TPartialTableSchema, t_)
-            # assert not callable(t_["merge_key"])
-            # assert not callable(t_["primary_key"])
-            if "primary_key" in t_:
-                _merge_key("primary_key", t_.pop("primary_key"), partial)  # type: ignore
-            if "merge_key" in t_:
-                _merge_key("merge_key", t_.pop("merge_key"), partial)  # type: ignore
-
-            return partial
-
-        # if table template present and has dynamic hints, the data item must be provided
-        if self._table_name_hint_fun:
-            if item is None:
-                raise DataItemRequiredForDynamicTableHints(self.name)
-            else:
-                resolved_template: TTableSchemaTemplate = {k: _resolve_hint(v) for k, v in self._table_schema_template.items()}  # type: ignore
-                return _merge_keys(resolved_template)
-        else:
-            return _merge_keys(self._table_schema_template)
-
-    def apply_hints(
-        self,
-        table_name: TTableHintTemplate[str] = None,
-        parent_table_name: TTableHintTemplate[str] = None,
-        write_disposition: TTableHintTemplate[TWriteDisposition] = None,
-        columns: TTableHintTemplate[TTableSchemaColumns] = None,
-        primary_key: TTableHintTemplate[TColumnKey] = None,
-        merge_key: TTableHintTemplate[TColumnKey] = None
-    ) -> None:
-        """Allows to create or modify existing table schema by setting provided hints. Accepts dynamic hints based on data."""
-        t = None
-        if not self._table_schema_template:
-            # if there's no template yet, create and set new one
-            t = self.new_table_template(table_name, parent_table_name, write_disposition, columns, primary_key, merge_key)
-        else:
-            # set single hints
-            t = deepcopy(self._table_schema_template)
-            if table_name:
-                t["name"] = table_name
-            if parent_table_name:
-                t["parent"] = parent_table_name
-            if write_disposition:
-                t["write_disposition"] = write_disposition
-            if columns:
-                t["columns"] = columns
-            if primary_key:
-                t["primary_key"] = primary_key
-            if merge_key:
-                t["merge_key"] = merge_key
-        self.set_template(t)
-
-    def set_template(self, table_schema_template: TTableSchemaTemplate) -> None:
-        # if "name" is callable in the template then the table schema requires actual data item to be inferred
-        name_hint = table_schema_template["name"]
-        if callable(name_hint):
-            self._table_name_hint_fun = name_hint
-        else:
-            self._table_name_hint_fun = None
-        # check if any other hints in the table template should be inferred from data
-        self._table_has_other_dynamic_hints = any(callable(v) for k, v in table_schema_template.items() if k != "name")
-        self._table_schema_template = table_schema_template
-
-    @staticmethod
-    def new_table_template(
-        table_name: TTableHintTemplate[str],
-        parent_table_name: TTableHintTemplate[str] = None,
-        write_disposition: TTableHintTemplate[TWriteDisposition] = None,
-        columns: TTableHintTemplate[TTableSchemaColumns] = None,
-        primary_key: TTableHintTemplate[TColumnKey] = None,
-        merge_key: TTableHintTemplate[TColumnKey] = None
-        ) -> TTableSchemaTemplate:
-        if not table_name:
-            raise TableNameMissing()
-
-        # create a table schema template where hints can be functions taking TDataItem
-        if isinstance(columns, C_Mapping):
-            # new_table accepts a sequence
-            column_list: List[TColumnSchema] = []
-            for name, column in columns.items():
-                column["name"] = name
-                column_list.append(column)
-            columns = column_list  # type: ignore
-
-        new_template: TTableSchemaTemplate = new_table(table_name, parent_table_name, write_disposition=write_disposition, columns=columns)  # type: ignore
-        if primary_key:
-            new_template["primary_key"] = primary_key
-        if merge_key:
-            new_template["merge_key"] = merge_key
-        # if any of the hints is a function then name must be as well
-        if any(callable(v) for k, v in new_template.items() if k != "name") and not callable(table_name):
-            raise InconsistentTableTemplate(f"Table name {table_name} must be a function if any other table hint is a function")
-        return new_template
 
 
 class DltResource(Iterable[TDataItem], DltResourceSchema):
@@ -178,9 +39,8 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
         self.name = pipe.name
         self.selected = selected
         self._pipe = pipe
-        self.incremental = incremental
-        if self.incremental and self.incremental.enabled:
-            self.add_step(self.incremental)
+        if incremental and not self.incremental:
+            self.add_step(incremental)
         super().__init__(self.name, table_schema_template)
 
     @classmethod
@@ -241,6 +101,16 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
             return False
         except (TypeError, ParametrizedResourceUnbound):
             return True
+
+    @property
+    def incremental(self) -> IncrementalResourceWrapper:
+        """Gets incremental transform if it is in the pipe"""
+        incremental: IncrementalResourceWrapper = None
+        step_no = self._pipe.find(IncrementalResourceWrapper)
+        if step_no >= 0:
+            # TODO: clone incremental and also scan columns for primary keys
+            incremental = self._pipe.steps[step_no]  # type: ignore
+        return incremental
 
     def pipe_data_from(self, data_from: Union["DltResource", Pipe]) -> None:
         """Replaces the parent in the transformer resource pipe from which the data is piped."""
@@ -369,6 +239,12 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
             r._pipe.replace_gen(gen)
             return r
 
+    def set_template(self, table_schema_template: TTableSchemaTemplate) -> None:
+        super().set_template(table_schema_template)
+        incremental = self.incremental
+        if incremental:
+            incremental.primary_key = table_schema_template.get("primary_key", incremental.primary_key)
+
     def _wrap_gen_step(self, *args: Any, **kwargs: Any) -> Any:
         """Finds and wraps with `args` + `kwargs` the callable generating step in the resource pipe."""
         head = self._pipe.gen
@@ -382,11 +258,6 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
         skip_items_arg = 1 if self.is_transformer else 0  # skip the data item argument for transformers
         sig = inspect.signature(head)
         no_item_sig = sig.replace(parameters=list(sig.parameters.values())[skip_items_arg:])
-        # for key, value in no_item_sig.parameters.items():
-        #     # Inject incremental
-        #     # TODO: Use bind to support overriding with positional arg as well
-        #     if get_origin(value.annotation) is Incremental and key not in kwargs:
-        #         kwargs[key] = self.incremental
         try:
             no_item_sig.bind(*args, **kwargs)
         except TypeError as v_ex:
@@ -507,19 +378,6 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
             return 3
         return 0
 
-    def apply_hints(
-        self,
-        table_name: TTableHintTemplate[str] = None,
-        parent_table_name: TTableHintTemplate[str] = None,
-        write_disposition: TTableHintTemplate[TWriteDisposition] = None,
-        columns: TTableHintTemplate[TTableSchemaColumns] = None,
-        primary_key: TTableHintTemplate[TColumnKey] = None,
-        merge_key: TTableHintTemplate[TColumnKey] = None
-    ) -> None:
-        super().apply_hints(table_name, parent_table_name, write_disposition, columns, primary_key, merge_key)
-        if self.incremental:
-            self.incremental.primary_key = primary_key
-
 
 # produce Empty resource singleton
 DltResource.Empty = DltResource(Pipe(None), None, False)
@@ -619,6 +477,38 @@ class DltSource(Iterable[TDataItem]):
 
         return cls(name, section, schema, resources)
 
+    # TODO: 4 properties below must go somewhere else ie. into RelationalSchema which is Schema + Relational normalizer.
+
+    @property
+    def max_table_nesting(self) -> int:
+        """A schema hint that sets the maximum depth of nested table above which the remaining nodes are loaded as structs or JSON."""
+        return RelationalNormalizer.get_normalizer_config(self._schema).get("max_nesting")
+
+    @max_table_nesting.setter
+    def max_table_nesting(self, value: int) -> None:
+        RelationalNormalizer.update_normalizer_config(self._schema, {"max_nesting": value})
+
+    @property
+    def root_key(self) -> bool:
+        """Enables merging on all resources by propagating root foreign key to child tables. This option is most useful if you plan to change write disposition of a resource to disable/enable merge"""
+        config = RelationalNormalizer.get_normalizer_config(self._schema).get("propagation")
+        return config is not None and "root" in config and "_dlt_id" in config["root"] and config["root"]["_dlt_id"] == "_dlt_root_id"
+
+
+    @root_key.setter
+    def root_key(self, value: bool) -> None:
+        if value is True:
+            propagation_config: RelationalNormalizerConfigPropagation = {
+                "root": {
+                    "_dlt_id": TColumnName("_dlt_root_id")
+                },
+                "tables": {}
+            }
+            RelationalNormalizer.update_normalizer_config(self._schema, {"propagation": propagation_config})
+        else:
+            if self.root_key:
+                propagation_config = RelationalNormalizer.get_normalizer_config(self._schema)["propagation"]
+                propagation_config["root"].pop("_dlt_id")  # type: ignore
 
     @property
     def resources(self) -> DltResourceDict:

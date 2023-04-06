@@ -17,7 +17,7 @@ from dlt.common.storages import FileStorage
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns, TSchemaTables
 from dlt.common.destination.reference import DestinationClientConfiguration, DestinationClientDwhConfiguration, NewLoadJob, TLoadJobState, LoadJob, JobClientBase
 from dlt.destinations.exceptions import DatabaseUndefinedRelation, DestinationSchemaWillNotUpdate
-from dlt.destinations.job_impl import EmptyLoadJob, EmptyLoadJobWithoutFollowup
+from dlt.destinations.job_impl import EmptyLoadJobWithoutFollowup
 from dlt.destinations.sql_merge_job import SqlMergeJob
 
 from dlt.destinations.typing import TNativeConn

@@ -187,6 +187,10 @@ def yield_client_with_storage(
         yield client
         # print(dataset_name)
         client.sql_client.drop_dataset()
+        if client.is_storage_initialized(staging=True):
+            print("DELETE STAGING")
+            with client.sql_client.with_staging_dataset(staging=True):
+                client.sql_client.drop_dataset()
 
 
 def delete_dataset(client: SqlClientBase[Any], dataset_name: str) -> None:

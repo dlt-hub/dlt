@@ -347,8 +347,8 @@ def compare_tables(tab_a: TTableSchema, tab_b: TTableSchema) -> bool:
         return False
 
 
-def merge_tables(table: TTableSchema, partial_table: TPartialTableSchema) -> TTableSchema:
-    """Merges "partial_table" into "table", preserving the "table" name"""
+def merge_tables(table: TTableSchema, partial_table: TPartialTableSchema) -> TPartialTableSchema:
+    """Merges "partial_table" into "table", preserving the "table" name. Returns the diff partial table."""
 
     diff_table = diff_tables(table, partial_table, ignore_table_name=True)
     # add new columns when all checks passed
@@ -358,7 +358,7 @@ def merge_tables(table: TTableSchema, partial_table: TPartialTableSchema) -> TTa
     if partial_w_d:
         table["write_disposition"] = partial_w_d
 
-    return table
+    return diff_table
 
 
 def hint_to_column_prop(h: TColumnHint) -> TColumnProp:
@@ -367,10 +367,10 @@ def hint_to_column_prop(h: TColumnHint) -> TColumnProp:
     return h
 
 
-def get_columns_names_with_prop(table: TTableSchema, column_prop: TColumnProp) -> List[str]:
+def get_columns_names_with_prop(table: TTableSchema, column_prop: TColumnProp, only_completed: bool = False) -> List[str]:
     # column_prop: TColumnProp = hint_to_column_prop(hint_type)
     # default = column_prop != "nullable"  # default is true, only for nullable false
-    return [c["name"] for c in table["columns"].values() if c.get(column_prop, False) is True]
+    return [c["name"] for c in table["columns"].values() if c.get(column_prop, False) is True and (not only_completed or is_complete_column(c))]
 
 
 def merge_schema_updates(schema_updates: Sequence[TSchemaUpdate]) -> TSchemaTables:

@@ -1,4 +1,4 @@
-from typing import Any, List, Sequence, cast
+from typing import Any, Callable, List, Sequence, Tuple, cast
 
 import yaml
 from dlt.common.runtime.logger import pretty_format_exception
@@ -17,10 +17,19 @@ class SqlMergeJob(NewLoadJobImpl):
 
     @classmethod
     def from_table_chain(cls, table_chain: Sequence[TTableSchema], sql_client: SqlClientBase[Any]) -> NewLoadJobImpl:
+        """Generates a list of sql statements that merge the data in staging dataset with the data in destination dataset.
+
+        The `table_chain` contains a list schemas of a tables with parent-child relationship, ordered by the ancestry (the root of the tree is first on the list).
+        The root table is merged using primary_key and merge_key hints which can be compound and be both specified. In that case the OR clause is generated.
+        The child tables are merged based on propagated `root_key` which is a type of foreign key but always leading to a root table.
+
+        First we store the root_keys of root table elements to be deleted in the temp table. Then we use the temp table to delete records from root and all child tables in the destination dataset.
+        At the end we copy the data from the staging dataset into destination dataset.
+        """
         top_table = table_chain[0]
         file_info = ParsedLoadJobFileName(top_table["name"], uniq_id()[:10], 0, "sql")
         try:
-            sql = SqlMergeJob._gen_sql(table_chain, sql_client)
+            sql = cls.gen_merge_sql(table_chain, sql_client)
             job = cls(file_info.job_id(), "running")
             job._save_text_file("\n".join(sql))
         except Exception:
@@ -31,60 +40,72 @@ class SqlMergeJob(NewLoadJobImpl):
             job._save_text_file("\n".join([failed_text, tables_str]))
         return job
 
-    @staticmethod
-    def _gen_sql(table_chain: Sequence[TTableSchema], sql_client: SqlClientBase[Any]) -> List[str]:
-        """Generates a list of sql statements that merge the data in staging dataset with the data in destination dataset.
+    @classmethod
+    def _gen_key_table_clauses(cls, primary_keys: Sequence[str], merge_keys: Sequence[str], escape_identifier: Callable[[str], str])-> List[str]:
+        """Generate sql clauses to select rows to delete via merge and primary key. Return select all clause if no keys defined."""
+        clauses: List[str] = []
+        if primary_keys or merge_keys:
+            if primary_keys:
+                clauses.append(" AND ".join(["%s.%s = %s.%s" % ("{d}", c, "{s}", c) for c in map(escape_identifier, primary_keys)]))
+            if merge_keys:
+                clauses.append(" AND ".join(["%s.%s = %s.%s" % ("{d}", c, "{s}", c) for c in map(escape_identifier, merge_keys)]))
+        return clauses or ["1=1"]
 
-        The `table_chain` contains a list schemas of a tables with parent-child relationship, ordered by the ancestry (the root of the tree is first on the list).
-        The root table is merged using primary_key and merge_key hints which can be compound and be both specified. In that case the OR clause is generated.
-        The child tables are merged based on propagated `root_key` which is a type of foreign key but always leading to a root table.
+    @classmethod
+    def gen_key_table_clauses(cls, root_table_name: str, staging_root_table_name: str, key_clauses: Sequence[str]) -> List[str]:
+        """Generate sql clauses that may be used to select or delete rows in root table of destination dataset
 
-        First we store the root_keys of root table elements to be deleted in the temp table. Then we use the temp table to delete records from root and all child tables in the destination dataset.
-        At the end we copy the data from the staging dataset into destination dataset.
+            A list of clauses may be returned for engines that do not support OR in subqueries. Like BigQuery
         """
+        return [f"FROM {root_table_name} WHERE EXISTS (SELECT 1 FROM {staging_root_table_name} WHERE {' OR '.join([c.format(d=root_table_name,s=staging_root_table_name) for c in key_clauses])})"]
+
+    @classmethod
+    def gen_temp_table_sql(cls, unique_column: str, key_table_clauses: Sequence[str]) -> Tuple[List[str], str]:
+        """Generate sql that creates the temp table and inserts `unique_column` from root table for all records to delete. May return several statements.
+
+           Returns temp table name for cases where special names are required like SQLServer.
+        """
+        sql: List[str] = []
+        temp_table_name = f"test_{uniq_id()}"
+        sql.append(f"CREATE TEMP TABLE {temp_table_name} AS SELECT {unique_column} {key_table_clauses[0]};")
+        for clause in key_table_clauses[1:]:
+            sql.append(f"INSERT INTO {temp_table_name} SELECT {unique_column} {clause};")
+        return sql, temp_table_name
+
+    @classmethod
+    def gen_merge_sql(cls, table_chain: Sequence[TTableSchema], sql_client: SqlClientBase[Any]) -> List[str]:
         sql: List[str] = []
         root_table = table_chain[0]
 
         # get top level table full identifiers
         root_table_name = sql_client.make_qualified_table_name(root_table["name"])
-        temp_table_name = f"test_{uniq_id()}"
         with sql_client.with_staging_dataset(staging=True):
-            staging_top_table_name = sql_client.make_qualified_table_name(root_table["name"])
+            staging_root_table_name = sql_client.make_qualified_table_name(root_table["name"])
         # get merge and primary keys from top level
         primary_keys = get_columns_names_with_prop(root_table, "primary_key")
         merge_keys = get_columns_names_with_prop(root_table, "merge_key")
-        # TODO: remove that and write OR query that works on BIGQUERY
-        if merge_keys:
-            primary_keys = []
-        overlapped_clause = ""
-        if primary_keys or merge_keys:
-            if primary_keys:
-                overlapped_clause = "WHERE " + " AND ".join([f"data.{c} = staging.{c}" for c in map(sql_client.capabilities.escape_identifier, primary_keys)])
-            if merge_keys:
-                if not overlapped_clause:
-                    overlapped_clause = "WHERE "
-                else:
-                    overlapped_clause += " OR "
-                overlapped_clause += " AND ".join([f"data.{c} = staging.{c}" for c in map(sql_client.capabilities.escape_identifier, merge_keys)])
-        select_overlapped = f"FROM {root_table_name} AS data WHERE EXISTS (SELECT 1 FROM {staging_top_table_name} AS staging {overlapped_clause})"
+        key_clauses = cls._gen_key_table_clauses(primary_keys, merge_keys, sql_client.capabilities.escape_identifier)
+        key_table_clauses = cls.gen_key_table_clauses(root_table_name, staging_root_table_name, key_clauses)
+        # select_overlapped =
         if len(table_chain) == 1:
             # if no child tables, just delete data from top table
-            sql.append(f"DELETE {select_overlapped};")
+            for clause in key_table_clauses:
+                sql.append(f"DELETE {clause};")
         else:
             # use unique hint to create temp table with all identifiers to delete
             unique_columns = get_columns_names_with_prop(root_table, "unique")
             if not unique_columns:
                 raise MergeDispositionException(
                     sql_client.fully_qualified_dataset_name(),
-                    staging_top_table_name,
+                    staging_root_table_name,
                     [t["name"] for t in table_chain],
                     f"There is no unique column (ie _dlt_id) in top table {root_table['name']} so it is not possible to link child tables to it."
                 )
             # get first unique column
             unique_column = sql_client.capabilities.escape_identifier(unique_columns[0])
             # create temp table with unique identifier
-            # sql.append(f"SELECT {unique_column} {select_overlapped};")
-            sql.append(f"CREATE TEMP TABLE {temp_table_name} AS SELECT {unique_column} {select_overlapped};")
+            create_table_sql, temp_table_name = cls.gen_temp_table_sql(unique_column, key_table_clauses)
+            sql.extend(create_table_sql)
             # delete top table
             sql.append(f"DELETE FROM {root_table_name} WHERE {unique_column} IN (SELECT * FROM {temp_table_name});")
             # delete other tables
@@ -94,7 +115,7 @@ class SqlMergeJob(NewLoadJobImpl):
                 if not root_key_columns:
                     raise MergeDispositionException(
                         sql_client.fully_qualified_dataset_name(),
-                        staging_top_table_name,
+                        staging_root_table_name,
                         [t["name"] for t in table_chain],
                         f"There is no root foreign key (ie _dlt_root_id) in child table {table['name']} so it is not possible to refer to top level table {root_table['name']} unique column {unique_column}"
                     )

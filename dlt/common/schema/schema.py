@@ -21,7 +21,7 @@ class Schema:
 
     naming: NamingConvention
     """Naming convention used by the schema to normalize identifiers"""
-    data_item_normalizer: DataItemNormalizer
+    data_item_normalizer: DataItemNormalizer[Any]
     """Data item normalizer used by the schema to create tables"""
 
 
@@ -168,7 +168,7 @@ class Schema:
 
         return new_row, updated_table_partial
 
-    def update_schema(self, partial_table: TPartialTableSchema) -> None:
+    def update_schema(self, partial_table: TPartialTableSchema) -> TPartialTableSchema:
         table_name = partial_table["name"]
         parent_table_name = partial_table.get("parent")
         # check if parent table present
@@ -184,7 +184,8 @@ class Schema:
             self._schema_tables[table_name] = partial_table
         else:
             # merge tables performing additional checks
-            utils.merge_tables(table, partial_table)
+            partial_table = utils.merge_tables(table, partial_table)
+        return partial_table
 
     def bump_version(self) -> Tuple[int, str]:
         """Computes schema hash in order to check if schema content was modified. In such case the schema ``stored_version`` and ``stored_version_hash`` are updated.
@@ -248,18 +249,21 @@ class Schema:
     def get_new_complete_columns(self, table_name: str, t: TTableSchemaColumns) -> List[TColumnSchema]:
         """Gets new columns to be added to "t" to bring up to date with stored schema. Exclude incomplete columns (without data type)"""
         diff_c: List[TColumnSchema] = []
-        s_t = self.get_table_columns(table_name)
+        s_t = self.get_table_columns(table_name, only_complete=True)
         for c in s_t.values():
-            if utils.is_complete_column(c) and c["name"] not in t:
+            if c["name"] not in t:
                 diff_c.append(c)
         return diff_c
 
     def get_table(self, table_name: str) -> TTableSchema:
         return self._schema_tables[table_name]
 
-    def get_table_columns(self, table_name: str) -> TTableSchemaColumns:
+    def get_table_columns(self, table_name: str, only_complete: bool = False) -> TTableSchemaColumns:
         """Gets columns of `table_name`"""
-        return self._schema_tables[table_name]["columns"]
+        if only_complete:
+            return {k:v for k, v in self._schema_tables[table_name]["columns"].items() if utils.is_complete_column(v)}
+        else:
+            return self._schema_tables[table_name]["columns"]
 
     def all_tables(self, with_dlt_tables: bool = False) -> List[TTableSchema]:
         """Gets list of all tables, with or without dlt tables"""

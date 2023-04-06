@@ -11,7 +11,6 @@ from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs import BaseConfiguration, ContainerInjectableContext
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.exceptions import ArgumentsOverloadException
-from dlt.common.normalizers.json import relational as relational_normalizer
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import TColumnKey, TColumnName, TTableSchemaColumns, TWriteDisposition
 from dlt.common.storages.exceptions import SchemaNotFoundError
@@ -112,7 +111,7 @@ def source(
 
         section (str, optional): A name of configuration and state sections. If not present, the current python module name will be used.
 
-        max_table_nesting (int, optional): A schema hint that sets the maximum depth of nested table beyond which the remaining nodes are loaded as string.
+        max_table_nesting (int, optional): A schema hint that sets the maximum depth of nested table above which the remaining nodes are loaded as structs or JSON.
 
         root_key (bool): Enables merging on all resources by propagating root foreign key to child tables. This option is most useful if you plan to change write disposition of a resource to disable/enable merge. Defaults to False.
 
@@ -143,25 +142,6 @@ def source(
             # load the schema from file with name_schema.yaml/json from the same directory, the callable resides OR create new default schema
             schema = _maybe_load_schema_for_callable(f, name) or Schema(name, normalize_name=True)
 
-        if max_table_nesting is not None:
-            # limit the number of levels in the parent-child table hierarchy
-            relational_normalizer.update_normalizer_config(schema,
-                {
-                    "max_nesting": max_table_nesting
-                }
-            )
-        if root_key is not None:
-            # enable root propagation
-            relational_normalizer.update_normalizer_config(schema,{
-                "propagation": {
-                        "root": {
-                            "_dlt_id": TColumnName("_dlt_root_id")
-                        },
-                        "tables": {}
-                    }
-                }
-            )
-
         # wrap source extraction function in configuration with section
         func_module = inspect.getmodule(f)
         source_section = section or _get_source_section_name(func_module)
@@ -176,15 +156,22 @@ def source(
                 with inject_section(ConfigSectionContext(sections=source_sections)):
                     rv = conf_f(*args, **kwargs)
 
+            if rv is None:
+                raise SourceDataIsNone(name)
+
             # if generator, consume it immediately
             if inspect.isgenerator(rv):
                 rv = list(rv)
 
-            if rv is None:
-                raise SourceDataIsNone(name)
-
             # convert to source
-            return DltSource.from_data(name, source_section, schema.clone(), rv)
+            s = DltSource.from_data(name, source_section, schema.clone(), rv)
+            # apply hints
+            if max_table_nesting is not None:
+                s.max_table_nesting = max_table_nesting
+            # enable root propagation
+            s.root_key = root_key
+            return s
+
 
         # get spec for wrapped function
         SPEC = get_fun_spec(conf_f)
@@ -315,7 +302,13 @@ def resource(
         DltResource instance which may be loaded, iterated or combined with other resources into a pipeline.
     """
     def make_resource(_name: str, _data: Any, incremental: IncrementalResourceWrapper = None) -> DltResource:
-        table_template = DltResource.new_table_template(table_name or _name, write_disposition=write_disposition, columns=columns, primary_key=primary_key, merge_key=merge_key)
+        table_template = DltResource.new_table_template(
+            table_name or _name,
+            write_disposition=write_disposition,
+            columns=columns,
+            primary_key=primary_key,
+            merge_key=merge_key
+        )
         return DltResource.from_data(_data, _name, table_template, selected, cast(DltResource, depends_on), incremental=incremental)
 
 
@@ -333,9 +326,14 @@ def resource(
         # wrap source extraction function in configuration with section
         func_module = inspect.getmodule(f)
         source_section = _get_source_section_name(func_module)
-        incremental = IncrementalResourceWrapper(resource_name, source_section, primary_key)
+
+        incremental: IncrementalResourceWrapper = None
+        sig = inspect.signature(f)
+        if IncrementalResourceWrapper.should_wrap(sig):
+            incremental = IncrementalResourceWrapper(resource_name, source_section, primary_key)
+
         if is_inner_callable(f):
-            conf_f = incremental.wrap(f)  # TODO: Test this
+            conf_f = f
         else:
             resource_sections = (known_sections.SOURCES, source_section, resource_name)
             # standalone resource will prefer existing section context when resolving config values
@@ -344,10 +342,11 @@ def resource(
                 f,
                 spec=spec, sections=resource_sections, sections_merge_style=ConfigSectionContext.resource_merge_style
             )
-            conf_f = incremental.wrap(conf_f)
-
             # get spec for wrapped function
             SPEC = get_fun_spec(conf_f)
+
+        if incremental:
+            conf_f = incremental.wrap(conf_f)
 
         # store the standalone resource information
         if SPEC:

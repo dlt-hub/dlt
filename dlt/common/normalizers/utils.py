@@ -1,5 +1,5 @@
 from importlib import import_module
-from typing import Type, Tuple, cast
+from typing import Any, Type, Tuple, cast
 
 import dlt
 from dlt.common.configuration.inject import with_config
@@ -25,7 +25,7 @@ def default_normalizers(
 def import_normalizers(
     normalizers_config: TNormalizersConfig,
     destination_capabilities: DestinationCapabilitiesContext = None
-) -> Tuple[NamingConvention, Type[DataItemNormalizer]]:
+) -> Tuple[NamingConvention, Type[DataItemNormalizer[Any]]]:
     names = normalizers_config["names"]
     try:
         if "." in names:

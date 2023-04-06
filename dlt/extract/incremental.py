@@ -5,11 +5,11 @@ from functools import wraps
 from jsonpath import JSONPath
 
 from dlt.common.json import json
-from dlt.common.typing import TDataItem, TDataItems, TFun, extract_inner_type, is_optional_type
+from dlt.common.typing import DictStrAny, TDataItem, TDataItems, TFun, extract_inner_type, is_optional_type
 from dlt.common.schema.typing import TColumnKey
 from dlt.common.configuration import configspec, known_sections, resolve_configuration, ConfigFieldMissingException
 from dlt.common.configuration.specs import BaseConfiguration
-from dlt.common.pipeline import state as _state
+from dlt.common.pipeline import _resource_state, state as _state
 from dlt.common.utils import digest256
 from dlt.extract.utils import resolve_column_value
 from dlt.extract.typing import TTableHintTemplate
@@ -48,7 +48,7 @@ class Incremental(Generic[TCursorValue]):
     For example:
 
     >>> @dlt.resource(primary_key='id')
-    >>> def some_data(created_at=dlt.Incremental('created_at', '2023-01-01T00:00:00Z'):
+    >>> def some_data(created_at=dlt.sources.incremental('created_at', '2023-01-01T00:00:00Z'):
     >>>    yield from request_data(created_after=created_at.last_value)
 
     When the resource has a `primary_key` specified this is used to deduplicate overlapping items with the same cursor value.
@@ -83,51 +83,41 @@ class Incremental(Generic[TCursorValue]):
             kwargs['last_value_func'] = orig.last_value_func
         return cls(**kwargs)
 
-    @property
-    def state(self) -> IncrementalColumnState:
-        return _state().setdefault('resources', {}).setdefault(self.resource_name, {}).setdefault(  # type: ignore
-            'incremental', {}).setdefault(self.cursor_column, {'last_value': json.loads(json.dumps(self.initial_value)), 'unique_hashes': []})
+    def get_state(self, resource_state: DictStrAny) -> IncrementalColumnState:
+        """Given resource state, returns a state fragment for particular cursor column"""
+        state_params: IncrementalColumnState = resource_state.setdefault('incremental', {}).setdefault(self.cursor_column, {})
+        # if state params is empty
+        if len(state_params) == 0:
+            # set the default like this, setdefault evaluates the default no matter if it is needed or not. and our default is heavy
+            state_params.update(
+                {
+                    "last_value": json.loads(json.dumps(self.initial_value)),
+                    'unique_hashes': []
+                }
+            )
+        return state_params
 
     @property
     def last_value(self) -> Optional[TCursorValue]:
-        return self.state['last_value']  # type: ignore
-
-    def __call__(self, row: TDataItem, primary_key: Optional[TTableHintTemplate[TColumnKey]]) -> bool:
-        if row is None:
-            return True
-        state = self.state
-        last_value = state['last_value']
-        row_value = json.loads(json.dumps(self.cursor_column_p.parse(row)[0]))  # For now the value needs to match deserialized presentation from state
-        check_values = ([last_value] if last_value is not None else []) + [row_value]
-        new_value = self.last_value_func(check_values)
-        if primary_key:
-            unique_value = digest256(json.dumps(resolve_column_value(primary_key, row)))
-        else:
-            unique_value = digest256(json.dumps(row, sort_keys=True))
-        if last_value == new_value:
-            if unique_value in state['unique_hashes']:
-                return False
-            state['unique_hashes'].append(unique_value)
-            return True
-        if new_value != last_value:
-            state.update({'last_value': new_value, 'unique_hashes': [unique_value]})
-        return True
+        s = self.get_state(_resource_state(self.resource_name))
+        return s['last_value']  # type: ignore
 
 
 class IncrementalResourceWrapper:
-    _transform: Optional[Incremental[Any]] = None
-    enabled: bool = True
-    """False when resource function has no `Incremental` typed argument"""
+    _incremental: Optional[Incremental[Any]] = None
+    """Keeps the injectable incremental"""
 
     def __init__(self, resource_name: str, source_section: str, primary_key: Optional[TTableHintTemplate[TColumnKey]] = None) -> None:
         self.resource_sections = (known_sections.SOURCES, source_section, resource_name)
         self.resource_name = resource_name
         self.primary_key = primary_key
 
-    def wrap(self, func: TFun) -> TFun:
-        """Wrap the callable to inject an `Incremental` object configured for the resource.
-        """
-        sig = inspect.signature(func)
+    @staticmethod
+    def should_wrap(sig: inspect.Signature) -> bool:
+        return IncrementalResourceWrapper.get_incremental_arg(sig) is not None
+
+    @staticmethod
+    def get_incremental_arg(sig: inspect.Signature) -> Optional[inspect.Parameter]:
         incremental_param: Optional[inspect.Parameter] = None
         for p in sig.parameters.values():
             annotation = extract_inner_type(p.annotation)
@@ -135,9 +125,14 @@ class IncrementalResourceWrapper:
             if (inspect.isclass(annotation) and issubclass(annotation, Incremental)) or isinstance(p.default, Incremental):
                 incremental_param = p
                 break
-        if incremental_param is None:
-            self.enabled = False
-            return func
+        return incremental_param
+
+    def wrap(self, func: TFun) -> TFun:
+        """Wrap the callable to inject an `Incremental` object configured for the resource.
+        """
+        sig = inspect.signature(func)
+        incremental_param = self.get_incremental_arg(sig)
+        assert incremental_param, "Please use `should_wrap` to decide if to call this function"
 
         @wraps(func)
         def _wrap(*args: Any, **kwargs: Any) -> Any:
@@ -171,15 +166,45 @@ class IncrementalResourceWrapper:
                 else:
                     new_incremental = new_kwargs[p.name] = Incremental.from_config(cfg, default_incremental)
                     new_incremental.resource_name = self.resource_name
-            self._transform = new_incremental
+            self._incremental = new_incremental
             kwargs.update(new_kwargs)
             return func(*args, **kwargs)
 
         return _wrap  # type: ignore
 
+    def transform(self, state: IncrementalColumnState, row: TDataItem, primary_key: Optional[TTableHintTemplate[TColumnKey]]) -> bool:
+        if row is None:
+            return True
+
+        last_value = state['last_value']
+        row_value = json.loads(
+            json.dumps(self._incremental.cursor_column_p.parse(row)[0])
+        )  # For now the value needs to match deserialized presentation from state
+        check_values = ([last_value] if last_value is not None else []) + [row_value]
+        new_value = self._incremental.last_value_func(check_values)
+        if primary_key:
+            unique_value = digest256(json.dumps(resolve_column_value(primary_key, row), sort_keys=True))
+        else:
+            unique_value = digest256(json.dumps(row, sort_keys=True))
+        if last_value == new_value:
+            if unique_value in state['unique_hashes']:
+                return False
+            state['unique_hashes'].append(unique_value)
+            return True
+        if new_value != last_value:
+            state.update({'last_value': new_value, 'unique_hashes': [unique_value]})
+        return True
+
     def __call__(self, items: TDataItems, meta: Any=None) -> TDataItems:
-        if not self._transform:
-            return items
-        if isinstance(items, list): # TODO: Handle lists efficiently
-            return [item for item in items if self._transform(item, self.primary_key) is True]
-        return items if self._transform(items, self.primary_key) is True else None
+        # get the state only once for the whole list
+        # TODO: cache the state, this can be done if we are sure that each processing pipe has a separate instance of this class. which is hard to do now.
+        incremental_state = self._incremental.get_state(_resource_state(self.resource_name))
+        # TODO: reuse FilterItem from typing.py does exactly the same
+        if isinstance(items, list):
+            filtered = [item for item in items if self.transform(incremental_state, item, self.primary_key) is True]
+            if not filtered:
+                return None
+            else:
+                return filtered
+
+        return items if self.transform(incremental_state, items, self.primary_key) is True else None

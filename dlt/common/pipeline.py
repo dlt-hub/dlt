@@ -317,6 +317,13 @@ def state() -> DictStrAny:
 _last_full_state: TPipelineState = None
 
 
+def _resource_state(resource_name: str) -> DictStrAny:
+    """Alpha version of the resource state, the signature will change.
+    Returns resource-scoped state.
+    """
+    return state().setdefault('resources', {}).setdefault(resource_name, {})  # type: ignore
+
+
 def get_dlt_pipelines_dir() -> str:
     """ Gets default directory where pipelines' data will be stored
         1. in user home directory ~/.dlt/pipelines/

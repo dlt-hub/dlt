@@ -13,7 +13,7 @@ from dlt.common.configuration import configspec
 from dlt.common.configuration.inject import with_config
 from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.exceptions import PipelineException
-from dlt.common.typing import AnyFun, TDataItems
+from dlt.common.typing import AnyFun, AnyType, TDataItems
 from dlt.common.utils import get_callable_name
 
 from dlt.extract.exceptions import CreatePipeException, DltSourceException, ExtractorException, InvalidStepFunctionArguments, InvalidTransformerGeneratorFunction, ParametrizedResourceUnbound, PipeException, PipeItemProcessingError, PipeNotBoundToData, ResourceExtractionError
@@ -136,6 +136,10 @@ class Pipe:
     @property
     def steps(self) -> List[TPipeStep]:
         return self._steps
+
+    def find(self, step_type: AnyType) -> int:
+        """Finds a step with object of type `step_type`"""
+        return next((i for i,v in enumerate(self._steps) if type(v) is step_type), -1)
 
     def __getitem__(self, i: int) -> TPipeStep:
         return self._steps[i]
