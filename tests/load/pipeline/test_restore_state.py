@@ -18,6 +18,7 @@ from tests.common.utils import IMPORTED_VERSION_HASH_ETH_V5, yml_case_path as co
 from tests.common.configuration.utils import environment
 from tests.pipeline.utils import drop_dataset_from_env
 from tests.load.pipeline.utils import assert_query_data, drop_pipeline
+from tests.cases import JSON_TYPED_DICT
 
 
 @pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
@@ -67,11 +68,11 @@ def test_restore_state_utils(destination_name: str) -> None:
         # extract state again
         with p._managed_state(extract_state=True) as managed_state:
             # this will be saved
-            managed_state["sources"] = {"source": "test"}
+            managed_state["sources"] = {"source": dict(JSON_TYPED_DICT)}
         p.normalize()
         p.load()
         stored_state = load_state_from_destination(p.pipeline_name, job_client.sql_client)
-        assert stored_state["sources"] == {"source": "test"}
+        assert stored_state["sources"] == {"source": JSON_TYPED_DICT}
         local_state = p._get_state()
         local_state.pop("_local")
         assert stored_state == local_state
@@ -214,27 +215,36 @@ def test_restore_state_pipeline(destination_name: str) -> None:
     def some_data(param: str):
         yield from some_data_gen(param)
 
-    @dlt.source(schema=Schema("two"))
+    @dlt.source(schema=Schema("two"), section="two")
     def source_two(param: str):
         return some_data(param)
 
-    @dlt.source(schema=Schema("three"))
+    @dlt.source(schema=Schema("three"), section="three")
     def source_three(param: str):
         return some_data(param)
+
+    @dlt.source(schema=Schema("four"), section="four")
+    def source_four():
+        @dlt.resource
+        def some_data():
+            dlt.current.state()["state5"] = dict(JSON_TYPED_DICT)
+            yield "four"
+
+        return some_data()
 
     # extract by creating ad hoc source in pipeline that keeps state under pipeline name
     data1 = some_data("state1")
     data1.name = "state1_data"
     p.extract([data1, some_data("state2")], schema=Schema("default"))
 
-    # mock the source section to keep state in "two" section
     data_two = source_two("state3")
-    data_two.section = "two"
     p.extract(data_two)
 
     data_three = source_three("state4")
-    data_three.section = "three"
     p.extract(data_three)
+
+    data_four = source_four()
+    p.extract(data_four)
 
     p.normalize()
     p.load()
@@ -254,8 +264,10 @@ def test_restore_state_pipeline(destination_name: str) -> None:
     p = dlt.pipeline(pipeline_name=pipeline_name, destination=destination_name, dataset_name=dataset_name)
     p.run()
     assert p.default_schema_name == "default"
-    assert set(p.schema_names) == set(["default", "two", "three"])
-    assert p.state["sources"] == {"test_restore_state": {'state1': 'state1', 'state2': 'state2'}, "two": {'state3': 'state3'}, "three": {'state4': 'state4'}}
+    assert set(p.schema_names) == set(["default", "two", "three", "four"])
+    assert p.state["sources"] == {
+        "test_restore_state": {'state1': 'state1', 'state2': 'state2'}, "two": {'state3': 'state3'}, "three": {'state4': 'state4'}, "four": {"state5": JSON_TYPED_DICT}
+    }
     for schema in p.schemas.values():
         assert "some_data" in schema.tables
     # state version must be the same as the original
@@ -287,14 +299,14 @@ def test_restore_state_pipeline(destination_name: str) -> None:
     assert p.state["_state_version"] > orig_state["_state_version"]
     # print(p.state)
     p.run()
-    assert set(p.schema_names) == set(["default", "two", "three", "second"])  # we keep our local copy
+    assert set(p.schema_names) == set(["default", "two", "three", "second", "four"])  # we keep our local copy
     # clear internal flag and decrease state version so restore triggers
     state = p.state
     state["_state_version"] -= 1
     p._save_state(state)
     p._state_restored = False
     p.run()
-    assert set(p.schema_names) == set(["default", "two", "three"])
+    assert set(p.schema_names) == set(["default", "two", "three", "four"])
 
 
 @pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
