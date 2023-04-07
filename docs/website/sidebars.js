@@ -33,6 +33,7 @@ const sidebars = {
       type: 'category',
       label: 'Pipelines',
       items: [
+        'pipelines/chess',
         'pipelines/github',
         'pipelines/google_sheets',
         'pipelines/pipedrive',
