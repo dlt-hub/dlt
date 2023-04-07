@@ -7,6 +7,7 @@ import secrets
 from contextlib import contextmanager
 from functools import wraps
 from os import environ
+import zlib
 
 from typing import Any, ContextManager, Dict, Iterator, Optional, Sequence, TypeVar, Mapping, List, Union, Counter
 from collections.abc import Mapping as C_Mapping
@@ -312,3 +313,14 @@ def derives_from_class_of_name(o: object, name: str) -> bool:
     """Checks if object o has class of name in its derivation tree"""
     mro = type.mro(type(o))
     return any(t.__name__ == name for t in mro)
+
+
+def compressed_b64encode(value: bytes) -> str:
+    """Compress and b64 encode the given bytestring"""
+    return base64.b64encode(zlib.compress(value, level=9)).decode('ascii')
+
+
+def compressed_b64decode(value: str) -> bytes:
+    """Decode a bytestring encoded with `compressed_b64encode`"""
+    value_bytes = base64.b64decode(value, validate=True)
+    return zlib.decompress(value_bytes)

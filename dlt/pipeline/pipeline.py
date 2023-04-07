@@ -49,7 +49,7 @@ from dlt.pipeline.configuration import PipelineConfiguration
 from dlt.pipeline.exceptions import CannotRestorePipelineException, InvalidPipelineName, PipelineConfigMissing, PipelineStepFailed, SqlClientNotAvailable
 from dlt.pipeline.trace import PipelineTrace, PipelineStepTrace, load_trace, merge_traces, start_trace, start_trace_step, end_trace_step, end_trace
 from dlt.pipeline.typing import TPipelineStep
-from dlt.pipeline.state_sync import STATE_ENGINE_VERSION, load_state_from_destination, merge_state_if_changed, migrate_state, state_resource
+from dlt.pipeline.state_sync import STATE_ENGINE_VERSION, load_state_from_destination, merge_state_if_changed, migrate_state, state_resource, json_encode_state, json_decode_state
 
 
 def with_state_sync(may_extract_state: bool = False) -> Callable[[TFun], TFun]:
@@ -989,7 +989,7 @@ class Pipeline(SupportsPipeline):
 
     def _get_state(self) -> TPipelineState:
         try:
-            state = json.loads(self._pipeline_storage.load(Pipeline.STATE_FILE))
+            state = json_decode_state(self._pipeline_storage.load(Pipeline.STATE_FILE))
             return migrate_state(self.pipeline_name, state, state["_state_engine_version"], STATE_ENGINE_VERSION)
         except FileNotFoundError:
             return {
@@ -1141,7 +1141,7 @@ class Pipeline(SupportsPipeline):
         state["schema_names"] = self._schema_storage.list_schemas()
 
     def _save_state(self, state: TPipelineState) -> None:
-        self._pipeline_storage.save(Pipeline.STATE_FILE, json.dumps(state))
+        self._pipeline_storage.save(Pipeline.STATE_FILE, json_encode_state(state))
 
     def _extract_state(self, state: TPipelineState) -> TPipelineState:
         # this will extract the state into current load package and update the schema with the _dlt_pipeline_state table

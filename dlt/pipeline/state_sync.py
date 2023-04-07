@@ -1,7 +1,7 @@
 import base64
 import binascii
 from typing import Any, Optional, cast
-import zlib
+import binascii
 
 import pendulum
 
@@ -16,6 +16,7 @@ from dlt.destinations.sql_client import SqlClientBase
 from dlt.extract.source import DltResource
 
 from dlt.pipeline.exceptions import PipelineStateEngineNoUpgradePathException
+from dlt.common.utils import compressed_b64decode, compressed_b64encode
 
 
 # allows to upgrade state when restored with a new version of state logic/schema
@@ -52,6 +53,27 @@ STATE_TABLE_COLUMNS: TTableSchemaColumns = {
 }
 
 
+def json_encode_state(state: TPipelineState) -> str:
+    return json.typed_dumps(state)
+
+
+def json_decode_state(state_str: str) -> DictStrAny:
+    return json.typed_loads(state_str)  # type: ignore[no-any-return]
+
+
+def compress_state(state: TPipelineState) -> str:
+    return compressed_b64encode(json.typed_dumpb(state))
+
+
+def decompress_state(state_str: str) -> DictStrAny:
+    try:
+        state_bytes = compressed_b64decode(state_str)
+    except binascii.Error:
+        return json.typed_loads(state_str)  # type: ignore[no-any-return]
+    else:
+        return json.typed_loadb(state_bytes)  # type: ignore[no-any-return]
+
+
 def merge_state_if_changed(old_state: TPipelineState, new_state: TPipelineState, increase_version: bool = True) -> Optional[TPipelineState]:
     # we may want to compare hashes like we do with schemas
     if json.dumps(old_state, sort_keys=True) == json.dumps(new_state, sort_keys=True):
@@ -64,12 +86,12 @@ def merge_state_if_changed(old_state: TPipelineState, new_state: TPipelineState,
 
 
 def state_resource(state: TPipelineState) -> DltResource:
-    state_str = json.dumps(state)
+    state_str = compress_state(state)
     state_doc = {
         "version": state["_state_version"],
         "engine_version": state["_state_engine_version"],
         "pipeline_name": state["pipeline_name"],
-        "state": base64.b64encode(zlib.compress(state_str.encode("utf-8"), level=9)).decode("ascii"),
+        "state":  state_str,
         "created_at": pendulum.now()
     }
 
@@ -84,12 +106,7 @@ def load_state_from_destination(pipeline_name: str, sql_client: SqlClientBase[An
     if not row:
         return None
     state_str = row[0]
-    try:
-        state_bytes = base64.b64decode(state_str, validate=True)
-        state_str = zlib.decompress(state_bytes).decode("utf-8")
-    except binascii.Error:
-        pass
-    s = json.loads(state_str)
+    s = decompress_state(state_str)
     return migrate_state(pipeline_name, s, s["_state_engine_version"], STATE_ENGINE_VERSION)
 
 
