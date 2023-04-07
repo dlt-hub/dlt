@@ -4,7 +4,7 @@ from typing import IO, Any, Union
 import simplejson
 import platform
 
-from dlt.common.json import custom_pua_encode, custom_encode
+from dlt.common.json import custom_pua_encode, custom_pua_decode_nested, custom_encode
 
 if platform.python_implementation() == "PyPy":
     # disable speedups on PyPy, it can be actually faster than Python C
@@ -50,6 +50,30 @@ def typed_dump(obj: Any, fp: IO[bytes], pretty:bool = False) -> None:
         separators=(',', ':'),
         indent=indent
     )
+
+def typed_dumps(obj: Any, sort_keys: bool = False, pretty: bool = False) -> str:
+    indent = 2 if pretty else None
+    return simplejson.dumps(
+        obj,
+        use_decimal=False,
+        default=custom_pua_encode,
+        encoding=None,
+        ensure_ascii=False,
+        separators=(',', ':'),
+        indent=indent
+    )
+
+
+def typed_loads(s: str) -> Any:
+    return custom_pua_decode_nested(loads(s))
+
+
+def typed_dumpb(obj: Any, sort_keys: bool = False, pretty: bool = False) -> bytes:
+    return typed_dumps(obj, sort_keys, pretty).encode('utf-8')
+
+
+def typed_loadb(s: Union[bytes, bytearray, memoryview]) -> Any:
+    return custom_pua_decode_nested(loadb(s))
 
 
 def dumps(obj: Any, sort_keys: bool = False, pretty:bool = False) -> str:
