@@ -1,3 +1,4 @@
+from copy import deepcopy
 from typing import Dict
 from uuid import UUID
 from hexbytes import HexBytes
@@ -31,4 +32,11 @@ JSON_TYPED_DICT_TYPES: Dict[str, TDataType] = {
     "hexbytes": "binary",
     "bytes": "binary",
     "wei": "wei"
+}
+
+JSON_TYPED_DICT_NESTED = {
+    "dict": dict(JSON_TYPED_DICT),
+    "list_dicts": [dict(JSON_TYPED_DICT), dict(JSON_TYPED_DICT)],
+    "list": list(JSON_TYPED_DICT.values()),
+    **JSON_TYPED_DICT
 }
