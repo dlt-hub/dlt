@@ -14,7 +14,7 @@ from dlt.common.configuration.specs.config_section_context import ConfigSectionC
 from dlt.common.configuration.paths import get_dlt_home_dir
 from dlt.common.configuration.specs import RunConfiguration
 from dlt.common.destination.reference import DestinationReference, TDestinationReferenceArg
-from dlt.common.exceptions import DestinationHasFailedJobs, PipelineStateNotAvailable
+from dlt.common.exceptions import DestinationHasFailedJobs, PipelineStateNotAvailable, SourceSectionNotAvailable
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TColumnKey, TColumnSchema, TWriteDisposition
 from dlt.common.storages.load_storage import LoadPackageInfo
@@ -295,6 +295,7 @@ def state() -> DictStrAny:
     global _last_full_state
 
     container = Container()
+
     # get the source name from the section context
     source_section: str = None
     with contextlib.suppress(ContextDefaultCannotBeCreated):
@@ -302,9 +303,12 @@ def state() -> DictStrAny:
         with contextlib.suppress(ValueError):
             source_section = sections_context.source_section()
 
-        state, _ = state_value(container)
-        if state is None:
-            raise PipelineStateNotAvailable(source_section)
+    if not source_section:
+        raise SourceSectionNotAvailable()
+
+    state, _ = state_value(container)
+    if state is None:
+        raise PipelineStateNotAvailable(source_section)
 
     source_state: DictStrAny = state.setdefault(known_sections.SOURCES, {})  # type: ignore
     if source_section:

@@ -301,7 +301,7 @@ def resource(
     Returns:
         DltResource instance which may be loaded, iterated or combined with other resources into a pipeline.
     """
-    def make_resource(_name: str, _data: Any, incremental: IncrementalResourceWrapper = None) -> DltResource:
+    def make_resource(_name: str, _section: str, _data: Any, incremental: IncrementalResourceWrapper = None) -> DltResource:
         table_template = DltResource.new_table_template(
             table_name or _name,
             write_disposition=write_disposition,
@@ -309,7 +309,7 @@ def resource(
             primary_key=primary_key,
             merge_key=merge_key
         )
-        return DltResource.from_data(_data, _name, table_template, selected, cast(DltResource, depends_on), incremental=incremental)
+        return DltResource.from_data(_data, _name, _section, table_template, selected, cast(DltResource, depends_on), incremental=incremental)
 
 
     def decorator(f: Callable[TResourceFunParams, Any]) -> Callable[TResourceFunParams, DltResource]:
@@ -352,7 +352,7 @@ def resource(
         if SPEC:
             _SOURCES[f.__qualname__] = SourceInfo(SPEC, f, func_module)
 
-        return make_resource(resource_name, conf_f, incremental)
+        return make_resource(resource_name, source_section, conf_f, incremental)
 
     # if data is callable or none use decorator
     if data is None:
@@ -365,7 +365,7 @@ def resource(
         # take name from the generator
         if inspect.isgenerator(data):
             name = name or get_callable_name(data)  # type: ignore
-        return make_resource(name, data)
+        return make_resource(name, None, data)
 
 
 def transformer(

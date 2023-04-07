@@ -9,10 +9,11 @@ from dlt.common.typing import DictStrAny, TDataItem, TDataItems, TFun, extract_i
 from dlt.common.schema.typing import TColumnKey
 from dlt.common.configuration import configspec, known_sections, resolve_configuration, ConfigFieldMissingException
 from dlt.common.configuration.specs import BaseConfiguration
-from dlt.common.pipeline import _resource_state, state as _state
+from dlt.common.pipeline import _resource_state
 from dlt.common.utils import digest256
+from dlt.extract.exceptions import PipeException
 from dlt.extract.utils import resolve_column_value
-from dlt.extract.typing import TTableHintTemplate
+from dlt.extract.typing import FilterItem, TTableHintTemplate
 
 
 TCursorValue = TypeVar("TCursorValue", bound=Any)
@@ -24,14 +25,30 @@ class IncrementalColumnState(TypedDict):
     unique_hashes: List[str]
 
 
+class IncrementalCursorPathMissing(PipeException):
+    def __init__(self, pipe_name: str, json_path: str, item: TDataItem) -> None:
+        self.json_path = json_path
+        self.item = item
+        msg = f"Cursor element with JSON path {json_path} was not found in extracted data item. All data items must contain this path. Use the same names of fields as in your JSON document - if those are different from the names you see in database."
+        super().__init__(pipe_name, msg)
+
+
+class IncrementalPrimaryKeyMissing(PipeException):
+    def __init__(self, pipe_name: str, primary_key_column: str, item: TDataItem) -> None:
+        self.primary_key_column = primary_key_column
+        self.item = item
+        msg = f"Primary key column {primary_key_column} was not found in extracted data item. All data items must contain this column. Use the same names of fields as in your JSON document."
+        super().__init__(pipe_name, msg)
+
+
 @configspec
 class IncrementalConfigSpec(BaseConfiguration):
-    cursor_column: str = None
+    cursor_path: str = None
     initial_value: Optional[Any] = None
 
     def parse_native_representation(self, native_value: Any) -> None:
         if isinstance(native_value, Incremental):
-            self.cursor_column = native_value.cursor_column
+            self.cursor_path = native_value.cursor_path
             self.initial_value = native_value.initial_value
         else:  # TODO: Maybe check if callable(getattr(native_value, '__lt__', None))
             # Passing bare value `incremental=44` gets parsed as initial_value
@@ -54,7 +71,7 @@ class Incremental(Generic[TCursorValue]):
     When the resource has a `primary_key` specified this is used to deduplicate overlapping items with the same cursor value.
 
     Args:
-        cursor_column: The name of the cursor column. This can be a column name or any valid JSON path.
+        cursor_path: The name or a JSON path to an cursor field. Uses the same names of fields as in your JSON document, before they are normalized to store in the database.
         initial_value: Optional value used for `last_value` when no state is available, e.g. on the first run of the pipeline. If not provided `last_value` will be `None` on the first run.
         last_value_func: Callable used to determine which cursor value to save in state. It is called with a list of the stored state value and all cursor vals from currently processing items. Default is `max`
     """
@@ -62,30 +79,30 @@ class Incremental(Generic[TCursorValue]):
 
     def __init__(
             self,
-            cursor_column: str,
+            cursor_path: str,
             initial_value: Optional[TCursorValue]=None,
             last_value_func: Optional[LastValueFunc[TCursorValue]]=None,
     ) -> None:
-        assert cursor_column, "`cursor_column` must be a column name or json path"
-        self.cursor_column = cursor_column
-        self.cursor_column_p = JSONPath(cursor_column)
+        assert cursor_path, "`cursor_path` must be a column name or json path"
+        self.cursor_path = cursor_path
+        self.cursor_path_p = JSONPath(cursor_path)
         self.last_value_func = last_value_func or max
         self.initial_value =  initial_value
 
     def copy(self) -> "Incremental[TCursorValue]":
-        return self.__class__(self.cursor_column, initial_value=self.initial_value, last_value_func=self.last_value_func)
+        return self.__class__(self.cursor_path, initial_value=self.initial_value, last_value_func=self.last_value_func)
 
     @classmethod
     def from_config(cls, cfg: IncrementalConfigSpec, orig: Optional["Incremental[Any]"]) -> "Incremental[Any]":
         # TODO: last_value_func from name
-        kwargs = dict(cursor_column=cfg.cursor_column, initial_value=cfg.initial_value)
+        kwargs = dict(cursor_path=cfg.cursor_path, initial_value=cfg.initial_value)
         if orig:
             kwargs['last_value_func'] = orig.last_value_func
         return cls(**kwargs)
 
     def get_state(self, resource_state: DictStrAny) -> IncrementalColumnState:
         """Given resource state, returns a state fragment for particular cursor column"""
-        state_params: IncrementalColumnState = resource_state.setdefault('incremental', {}).setdefault(self.cursor_column, {})
+        state_params: IncrementalColumnState = resource_state.setdefault('incremental', {}).setdefault(self.cursor_path, {})
         # if state params is empty
         if len(state_params) == 0:
             # set the default like this, setdefault evaluates the default no matter if it is needed or not. and our default is heavy
@@ -103,7 +120,7 @@ class Incremental(Generic[TCursorValue]):
         return s['last_value']  # type: ignore
 
 
-class IncrementalResourceWrapper:
+class IncrementalResourceWrapper(FilterItem):
     _incremental: Optional[Incremental[Any]] = None
     """Keeps the injectable incremental"""
 
@@ -172,26 +189,40 @@ class IncrementalResourceWrapper:
 
         return _wrap  # type: ignore
 
-    def transform(self, state: IncrementalColumnState, row: TDataItem, primary_key: Optional[TTableHintTemplate[TColumnKey]]) -> bool:
+    def unique_value(self, row: TDataItem) -> str:
+        try:
+            if self.primary_key:
+                return digest256(json.dumps(resolve_column_value(self.primary_key, row), sort_keys=True))
+            else:
+                return digest256(json.dumps(row, sort_keys=True))
+        except KeyError as k_err:
+            raise IncrementalPrimaryKeyMissing(self.resource_name, k_err.args[0], row)
+
+    def transform(self, state: IncrementalColumnState, row: TDataItem) -> bool:
         if row is None:
             return True
 
+        row_values = self._incremental.cursor_path_p.parse(row)
+        if len(row_values) == 0:
+            raise IncrementalCursorPathMissing(self.resource_name, self._incremental.cursor_path, row)
+
         last_value = state['last_value']
-        row_value = json.loads(
-            json.dumps(self._incremental.cursor_column_p.parse(row)[0])
-        )  # For now the value needs to match deserialized presentation from state
+        row_value = json.loads(json.dumps(row_values[0]))  # For now the value needs to match deserialized presentation from state
         check_values = ([last_value] if last_value is not None else []) + [row_value]
         new_value = self._incremental.last_value_func(check_values)
-        if primary_key:
-            unique_value = digest256(json.dumps(resolve_column_value(primary_key, row), sort_keys=True))
-        else:
-            unique_value = digest256(json.dumps(row, sort_keys=True))
         if last_value == new_value:
-            if unique_value in state['unique_hashes']:
-                return False
-            state['unique_hashes'].append(unique_value)
-            return True
+            # we store row id for all records with the current "last_value" in state and use it to deduplicate
+            if self._incremental.last_value_func([row_value]) == last_value:
+                unique_value = self.unique_value(row)
+                if unique_value in state['unique_hashes']:
+                    return False
+                # add new hash only if the record row id is same as current last value
+                state['unique_hashes'].append(unique_value)
+                return True
+            # skip the record that is not a last_value or new_value: that record was already processed
+            return False
         if new_value != last_value:
+            unique_value = self.unique_value(row)
             state.update({'last_value': new_value, 'unique_hashes': [unique_value]})
         return True
 
@@ -199,12 +230,10 @@ class IncrementalResourceWrapper:
         # get the state only once for the whole list
         # TODO: cache the state, this can be done if we are sure that each processing pipe has a separate instance of this class. which is hard to do now.
         incremental_state = self._incremental.get_state(_resource_state(self.resource_name))
-        # TODO: reuse FilterItem from typing.py does exactly the same
-        if isinstance(items, list):
-            filtered = [item for item in items if self.transform(incremental_state, item, self.primary_key) is True]
-            if not filtered:
-                return None
-            else:
-                return filtered
 
-        return items if self.transform(incremental_state, items, self.primary_key) is True else None
+        # TODO: if we could cache the state, this wrapper would not be needed as well as __call__ override
+        def _transform(_i: TDataItems) -> bool:
+            return self.transform(incremental_state, _i)
+
+        self._f = _transform  # type: ignore
+        return super().__call__(items, meta)
