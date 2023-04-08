@@ -87,15 +87,16 @@ def test_synthesize_spec_from_sig() -> None:
     fields = SPEC().get_resolvable_fields()
     assert fields == {"pos_only_1": Any, "pos_only_2": str, "kw_only_1": Optional[Any], "kw_only_2": int}
 
-    # kw_only = True will filter in keywords only parameters
+    # skip arguments with defaults
     # deregister spec to disable cache
     del globals()[SPEC.__name__]
-    SPEC = spec_from_signature(f_pos_kw_only, inspect.signature(f_pos_kw_only), kw_only=True)
-    assert SPEC.kw_only_1 is None
-    assert SPEC.kw_only_2 == 2
-    assert not hasattr(SPEC, "pos_only_1")
+    SPEC = spec_from_signature(f_pos_kw_only, inspect.signature(f_pos_kw_only), include_defaults=False)
+    assert not hasattr(SPEC, "kw_only_1")
+    assert not hasattr(SPEC, "kw_only_2")
+    assert not hasattr(SPEC, "pos_only_2")
+    assert hasattr(SPEC, "pos_only_1")
     fields = SPEC().get_resolvable_fields()
-    assert fields == {"kw_only_1": Optional[Any], "kw_only_2": int}
+    assert fields == {"pos_only_1": Any}
 
     def f_variadic(var_1: str = "A", *args, kw_var_1: str, **kwargs) -> None:
         print(locals())
