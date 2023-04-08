@@ -174,7 +174,7 @@ class JobClientBase(ABC):
         * Removes and warns on (unbound) incomplete columns
         """
 
-        for table in self.schema.all_tables():
+        for table in self.schema.data_tables():
             table_name = table["name"]
             if len(table_name) > self.capabilities.max_identifier_length:
                 raise IdentifierTooLongException(self.config.destination_name, "table", table_name, self.capabilities.max_identifier_length)

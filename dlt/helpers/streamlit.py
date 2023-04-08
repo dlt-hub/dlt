@@ -136,7 +136,7 @@ def write_load_status_page(pipeline: Pipeline) -> None:
 
         # construct a union query
         query_parts = []
-        for table in schema.all_tables(with_dlt_tables=False):
+        for table in schema.data_tables():
             if "parent" in table:
                 continue
             if "columns" not in table or len(table["columns"]) == 0:
@@ -219,7 +219,7 @@ def write_data_explorer_page(pipeline: Pipeline, schema_name: str = None, show_d
     st.title(f"Available tables in {schema.name} schema")
     # st.text(schema.to_pretty_yaml())
 
-    for table in schema.all_tables(with_dlt_tables=show_dlt_tables):
+    for table in schema.data_tables():
         table_name = table["name"]
         st.header(table_name)
         if "description" in table:
