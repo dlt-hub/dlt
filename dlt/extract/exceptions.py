@@ -128,6 +128,13 @@ class InvalidTransformerGeneratorFunction(DltResourceException):
         super().__init__(resource_name, msg)
 
 
+class ResourceInnerCallableConfigWrapDisallowed(DltResourceException):
+    def __init__(self, resource_name: str, section: str) -> None:
+        self.section = section
+        msg = f"Resource {resource_name} in section {section} is defined over an inner function and requests config/secrets in its arguments. Requesting secret and config values via 'dlt.secret.values' or 'dlt.config.value' is disallowed for resources that are inner functions. Use the dlt.source to get the required configuration and pass them explicitly to your source."
+        super().__init__(resource_name, msg)
+
+
 class InvalidResourceDataTypeIsNone(InvalidResourceDataType):
     def __init__(self, resource_name: str, item: Any, _typ: Type[Any]) -> None:
         super().__init__(resource_name, item, _typ, "Resource data missing. Did you forget the return statement in @dlt.resource decorated function?")
@@ -155,10 +162,13 @@ class DeletingResourcesNotSupported(DltResourceException):
 
 
 class ParametrizedResourceUnbound(DltResourceException):
-    def __init__(self, resource_name: str, func_name: str, sig: Signature, kind: str = "resource") -> None:
+    def __init__(self, resource_name: str, func_name: str, sig: Signature, kind: str, error: str) -> None:
         self.func_name = func_name
         self.sig = sig
-        super().__init__(resource_name, f"The {kind} {resource_name} is parametrized and expects following arguments: {sig}. Did you forget to bind the {func_name} function? For example from `source.{resource_name}.bind(...)")
+        msg = f"The {kind} {resource_name} is parametrized and expects following arguments: {sig}. Did you forget to bind the {func_name} function? For example from `source.{resource_name}.bind(...)"
+        if error:
+            msg += f" .Details: {error}"
+        super().__init__(resource_name, msg)
 
 
 class ResourceNotATransformer(DltResourceException):

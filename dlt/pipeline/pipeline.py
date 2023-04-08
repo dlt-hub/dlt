@@ -35,7 +35,7 @@ from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.extract.decorators import SourceSchemaInjectableContext
 
 from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, SourceExhausted
-from dlt.extract.extract import ExtractorStorage, extract
+from dlt.extract.extract import ExtractorStorage, extract, extract_with_schema
 from dlt.extract.source import DltResource, DltSource
 from dlt.extract.typing import TColumnKey
 from dlt.normalize import Normalize
@@ -747,7 +747,6 @@ class Pipeline(SupportsPipeline):
                 # iterator/iterable/generator
                 # create resource first without table template
                 resource = DltResource.from_data(data_item, name=table_name, section=self.pipeline_name)
-                print(resource)
                 # apply hints
                 apply_hint_args(resource)
                 resources.append(resource)
@@ -771,7 +770,7 @@ class Pipeline(SupportsPipeline):
     def _extract_source(self, storage: ExtractorStorage, source: DltSource, max_parallel_items: int, workers: int) -> str:
         # discover the schema from source
         # TODO: do not save any schemas here and do not set default schema, just generate all the schemas and save them one all data is extracted
-        source_schema = source.discover_schema()
+        source_schema = source.schema
         pipeline_schema: Schema = None
         with contextlib.suppress(FileNotFoundError):
             pipeline_schema = self._schema_storage.load_schema(source_schema.name)
@@ -791,33 +790,16 @@ class Pipeline(SupportsPipeline):
             self._set_default_schema_name(source_schema)
 
         # get the current schema and merge tables from source_schema, we'll not merge the high level props
-        for table in source_schema.all_tables():
+        for table in source_schema.data_tables():
             pipeline_schema.update_schema(pipeline_schema.normalize_table_identifiers(table))
 
-        extract_id = self._iterate_source(storage, source, pipeline_schema, max_parallel_items, workers)
+        # make CTRL-C working while running user code
+        with signals.raise_immediately():
+            extract_id = extract_with_schema(storage, source, pipeline_schema, max_parallel_items, workers)
 
         # initialize import with fully discovered schema
         if should_initialize_import:
             self._schema_storage.initialize_import_schema(pipeline_schema)
-
-        return extract_id
-
-    def _iterate_source(self, storage: ExtractorStorage, source: DltSource, pipeline_schema: Schema, max_parallel_items: int, workers: int) -> str:
-        # generate extract_id to be able to commit all the sources together later
-        extract_id = storage.create_extract_id()
-        with Container().injectable_context(SourceSchemaInjectableContext(pipeline_schema)):
-            # inject the config section with the current source name
-            with inject_section(ConfigSectionContext(sections=(known_sections.SOURCES, source.section, source.name))):
-                # make CTRL-C working while running user code
-                with signals.raise_immediately():
-                    extractor = extract(extract_id, source, storage, max_parallel_items=max_parallel_items, workers=workers)
-                    # source iterates
-                    # TODO: implement a real check if source is exhausted. most of the resources should be not
-                    source.exhausted = True
-                    # iterate over all items in the pipeline and update the schema if dynamic table hints were present
-                    for _, partials in extractor.items():
-                        for partial in partials:
-                            pipeline_schema.update_schema(pipeline_schema.normalize_table_identifiers(partial))
 
         return extract_id
 
@@ -1166,7 +1148,7 @@ class Pipeline(SupportsPipeline):
         # note: the schema will be persisted because the schema saving decorator is over the state manager decorator for extract
         state_source = DltSource("pipeline_state", self.pipeline_name, self.default_schema, [state_resource(state)])
         storage = ExtractorStorage(self._normalize_storage_config)
-        extract_id = self._iterate_source(storage, state_source, self.default_schema, 1, 1)
+        extract_id = extract_with_schema(storage, state_source, self.default_schema, 1, 1)
         storage.commit_extract_files(extract_id)
         return state
 

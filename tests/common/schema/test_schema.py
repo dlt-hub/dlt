@@ -405,13 +405,15 @@ def test_merge_hints(schema: Schema) -> None:
         assert set(expected_hints[k]) == set(schema._settings["default_hints"][k])
 
 
-def test_all_tables(schema: Schema, schema_storage: SchemaStorage) -> None:
-    assert schema.all_tables() == []
-    dlt_tables = schema.all_tables(with_dlt_tables=True)
+def test_data_tables(schema: Schema, schema_storage: SchemaStorage) -> None:
+    assert schema.data_tables() == []
+    dlt_tables = schema.dlt_tables()
     assert set([t["name"] for t in dlt_tables]) == set([LOADS_TABLE_NAME, VERSION_TABLE_NAME])
     # with tables
     schema = schema_storage.load_schema("event")
-    assert [t["name"] for t in schema.all_tables()] == ['event_slot', 'event_user', 'event_bot']
+    # some of them are incomplete
+    assert set(schema.tables.keys()) == set([LOADS_TABLE_NAME, VERSION_TABLE_NAME, 'event_slot', 'event_user', 'event_bot'])
+    assert [t["name"] for t in schema.data_tables()] == ['event_slot']
 
 
 def test_write_disposition(schema_storage: SchemaStorage) -> None:

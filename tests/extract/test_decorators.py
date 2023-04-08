@@ -9,7 +9,7 @@ from dlt.common.configuration.specs.config_section_context import ConfigSectionC
 from dlt.common.pipeline import StateInjectableContext, TPipelineState
 from dlt.common.schema import Schema
 from dlt.common.schema.utils import new_table
-from dlt.extract.exceptions import InvalidResourceDataTypeFunctionNotAGenerator, InvalidResourceDataTypeIsNone, ParametrizedResourceUnbound, PipeNotBoundToData, ResourceFunctionExpected, SourceDataIsNone, SourceIsAClassTypeError, SourceNotAFunction, SourceSchemaNotAvailable
+from dlt.extract.exceptions import InvalidResourceDataTypeFunctionNotAGenerator, InvalidResourceDataTypeIsNone, ParametrizedResourceUnbound, PipeNotBoundToData, ResourceFunctionExpected, ResourceInnerCallableConfigWrapDisallowed, SourceDataIsNone, SourceIsAClassTypeError, SourceNotAFunction, SourceSchemaNotAvailable
 from dlt.extract.source import DltResource, DltSource
 
 from tests.utils import preserve_environ
@@ -57,7 +57,7 @@ def test_load_schema_for_callable() -> None:
     from tests.extract.cases.eth_source.source import ethereum
 
     s = ethereum()
-    schema = s.discover_schema()
+    schema = s.schema
     assert schema.name == "ethereum"
     # the schema in the associated file has this hash
     assert schema.stored_version_hash == IMPORTED_VERSION_HASH_ETH_V5
@@ -92,9 +92,12 @@ def test_unbound_parametrized_transformer() -> None:
     assert empty_t_1._pipe.is_data_bound is False
     with pytest.raises(PipeNotBoundToData):
         empty_t_1._pipe.evaluate_gen()
-    with pytest.raises(ParametrizedResourceUnbound):
-        (bound_r | empty_t_1)._pipe.evaluate_gen()
 
+    # here we bind the bound_r to empty_t_1 and then evaluate gen on a clone pipe which fails
+    with pytest.raises(ParametrizedResourceUnbound):
+        (bound_r | empty_t_1)._pipe._clone(keep_pipe_id=False).evaluate_gen()
+
+    # here we still have original (non cloned) pipe where gen was not evaluated
     assert list(empty_t_1("_meta")) == [1, 2, 3, 1, 2, 3, 1, 2, 3]
 
     with pytest.raises(ParametrizedResourceUnbound):
@@ -376,6 +379,15 @@ def test_source_schema_modified() -> None:
     schema.update_schema(new_table("table"))
     s = schema_test()
     assert "table" not in s.discover_schema().tables
+
+
+def test_inner_resource_configuration() -> None:
+
+    with pytest.raises(ResourceInnerCallableConfigWrapDisallowed):
+        @dlt.resource(write_disposition="merge", primary_key="id")
+        def duplicates(initial_id = dlt.config.value):
+            yield [{"id": 1, "name": "row1"}, {"id": 1, "name": "row2"}]
+
 
 
 @pytest.mark.skip
