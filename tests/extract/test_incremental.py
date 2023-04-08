@@ -167,9 +167,10 @@ def test_optional_incremental_from_config() -> None:
 class SomeDataOverrideConfiguration:
     created_at: dlt.sources.incremental = dlt.sources.incremental('created_at', initial_value='2022-02-03T00:00:00Z')
 
+
 # provide what to inject via spec. the spec contain the default
 @dlt.resource(spec=SomeDataOverrideConfiguration)
-def some_data_override_config(created_at):
+def some_data_override_config(created_at: dlt.sources.incremental = dlt.config.value):
     assert created_at.cursor_path == 'created_at'
     assert created_at.initial_value == '2000-02-03T00:00:00Z'
     yield {'created_at': '2023-03-03T00:00:00Z'}
@@ -178,8 +179,8 @@ def some_data_override_config(created_at):
 def test_override_initial_value_from_config() -> None:
 
     # use the shortest possible config version
-    os.environ['SOURCES__TEST_INCREMENTAL__SOME_DATA_OVERRIDE_CONFIG__CREATED_AT__INITIAL_VALUE'] = '2000-02-03T00:00:00Z'
-    # os.environ['CREATED_AT__INITIAL_VALUE'] = '2000-02-03T00:00:00Z'
+    # os.environ['SOURCES__TEST_INCREMENTAL__SOME_DATA_OVERRIDE_CONFIG__CREATED_AT__INITIAL_VALUE'] = '2000-02-03T00:00:00Z'
+    os.environ['CREATED_AT__INITIAL_VALUE'] = '2000-02-03T00:00:00Z'
 
     p = dlt.pipeline(pipeline_name=uniq_id())
     p.extract(some_data_override_config())

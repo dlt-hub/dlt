@@ -109,6 +109,25 @@ def test_synthesize_spec_from_sig() -> None:
     assert fields == {"var_1": str}
 
 
+def test_spec_none_when_no_fields() -> None:
+
+    def f_default_only(arg1, arg2=None):
+        pass
+
+    SPEC = spec_from_signature(f_default_only, inspect.signature(f_default_only))
+    assert SPEC is not None
+
+    del globals()[SPEC.__name__]
+    SPEC = spec_from_signature(f_default_only, inspect.signature(f_default_only), include_defaults=False)
+    assert SPEC is None
+
+    def f_no_spec(arg1):
+        pass
+
+    SPEC = spec_from_signature(f_no_spec, inspect.signature(f_no_spec))
+    assert SPEC is None
+
+
 def f_top_kw_defaults_args(arg1, arg2 = "top", arg3 = dlt.config.value, *args, kw1, kw_lit = "12131", kw_secret_val = dlt.secrets.value, **kwargs):
     pass
 

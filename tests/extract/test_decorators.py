@@ -4,11 +4,13 @@ import pytest
 import dlt
 from dlt.common.configuration import known_sections
 from dlt.common.configuration.container import Container
+from dlt.common.configuration.inject import get_fun_spec
 from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.pipeline import StateInjectableContext, TPipelineState
 from dlt.common.schema import Schema
 from dlt.common.schema.utils import new_table
+from dlt.extract.decorators import _SOURCES
 from dlt.extract.exceptions import InvalidResourceDataTypeFunctionNotAGenerator, InvalidResourceDataTypeIsNone, ParametrizedResourceUnbound, PipeNotBoundToData, ResourceFunctionExpected, ResourceInnerCallableConfigWrapDisallowed, SourceDataIsNone, SourceIsAClassTypeError, SourceNotAFunction, SourceSchemaNotAvailable
 from dlt.extract.source import DltResource, DltSource
 
@@ -381,13 +383,39 @@ def test_source_schema_modified() -> None:
     assert "table" not in s.discover_schema().tables
 
 
-def test_inner_resource_configuration() -> None:
+@dlt.resource
+def standalone_resource(secret=dlt.secrets.value, config=dlt.config.value, opt: str = "A"):
+    yield 1
 
-    with pytest.raises(ResourceInnerCallableConfigWrapDisallowed):
+
+def test_spec_generation() -> None:
+
+    # inner resource cannot take configuration
+
+    with pytest.raises(ResourceInnerCallableConfigWrapDisallowed) as py_ex:
+
         @dlt.resource(write_disposition="merge", primary_key="id")
-        def duplicates(initial_id = dlt.config.value):
+        def inner_resource(initial_id = dlt.config.value):
             yield [{"id": 1, "name": "row1"}, {"id": 1, "name": "row2"}]
 
+    assert py_ex.value.resource_name == "inner_resource"
+
+    # outer resource does not take default params
+    SPEC = get_fun_spec(standalone_resource._pipe.gen)
+    fields = SPEC().get_resolvable_fields()
+
+    # args with defaults are ignored
+    assert len(fields) == 2
+    assert "secret" in fields
+    assert "config" in fields
+
+    @dlt.source
+    def inner_source(secret=dlt.secrets.value, config=dlt.config.value, opt: str = "A"):
+        return standalone_resource
+
+    SPEC = _SOURCES[inner_source.__qualname__].SPEC
+    fields = SPEC().get_resolvable_fields()
+    assert {"secret", "config", "opt"} == set(fields.keys())
 
 
 @pytest.mark.skip

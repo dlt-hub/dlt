@@ -11,7 +11,7 @@ from dlt.common.schema.typing import LOADS_TABLE_NAME, VERSION_TABLE_NAME
 from dlt.common.utils import uniq_id
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.pipeline.pipeline import Pipeline
-from dlt.pipeline.state_sync import STATE_TABLE_NAME, load_state_from_destination, state_resource
+from dlt.pipeline.state_sync import STATE_TABLE_COLUMNS, STATE_TABLE_NAME, load_state_from_destination, state_resource
 
 from tests.utils import ALL_DESTINATIONS, patch_home_dir, preserve_environ, autouse_test_storage, TEST_STORAGE_ROOT
 from tests.common.utils import IMPORTED_VERSION_HASH_ETH_V5, yml_case_path as common_yml_case_path
@@ -40,11 +40,13 @@ def test_restore_state_utils(destination_name: str) -> None:
         initial_state = p._get_state()
         # now add table to schema and sync
         initial_state["_local"]["_last_extracted_at"] = pendulum.now()
-        resource = state_resource(initial_state)
-        table_schema = resource.table_schema()
         # add _dlt_id and _dlt_load_id
-        table_schema["columns"]["_dlt_id"] = utils.add_missing_hints({"name": "_dlt_id", "data_type": "text", "nullable": False})
-        table_schema["columns"]["_dlt_load_id"] = utils.add_missing_hints({"name": "_dlt_load_id", "data_type": "text", "nullable": False})
+        resource = state_resource(initial_state)
+        resource.apply_hints(columns={
+            "_dlt_id": utils.add_missing_hints({"name": "_dlt_id", "data_type": "text", "nullable": False}),
+            "_dlt_load_id": utils.add_missing_hints({"name": "_dlt_load_id", "data_type": "text", "nullable": False}),
+            **STATE_TABLE_COLUMNS
+        })
         schema.update_schema(resource.table_schema())
         schema.bump_version()
         p.sync_schema()

@@ -130,7 +130,8 @@ class IncrementalResourceWrapper(FilterItem):
         self.primary_key = primary_key
         self.incremental_state: IncrementalColumnState = None
         self.state_initial_value: Any = None
-        self._f = self.transform  # type: ignore
+        # self._f = self.transform  # type: ignore
+        super().__init__(self.transform)
 
     @staticmethod
     def should_wrap(sig: inspect.Signature) -> bool:
