@@ -18,9 +18,9 @@ from dlt.pipeline.exceptions import CannotRestorePipelineException, PipelineConf
 
 from tests.utils import ALL_DESTINATIONS, patch_home_dir, preserve_environ, autouse_test_storage, TEST_STORAGE_ROOT
 # from tests.common.configuration.utils import environment
-from tests.pipeline.utils import drop_dataset_from_env
+from tests.pipeline.utils import drop_dataset_from_env, assert_load_info
 from tests.load.utils import delete_dataset
-from tests.load.pipeline.utils import assert_load_info, drop_pipeline, assert_query_data, assert_table, load_table_counts, select_data
+from tests.load.pipeline.utils import drop_pipeline, assert_query_data, assert_table, load_table_counts, select_data
 
 
 @pytest.mark.parametrize('destination_name,use_single_dataset', itertools.product(ALL_DESTINATIONS, [True, False]))

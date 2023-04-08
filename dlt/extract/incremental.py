@@ -4,13 +4,14 @@ from functools import wraps
 
 from jsonpath import JSONPath
 
+import dlt
 from dlt.common.json import json
 from dlt.common.typing import DictStrAny, TDataItem, TDataItems, TFun, extract_inner_type, is_optional_type
 from dlt.common.schema.typing import TColumnKey
 from dlt.common.configuration import configspec, known_sections, resolve_configuration, ConfigFieldMissingException
 from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.pipeline import _resource_state
-from dlt.common.utils import digest256
+from dlt.common.utils import digest128
 from dlt.extract.exceptions import PipeException
 from dlt.extract.utils import resolve_column_value
 from dlt.extract.typing import FilterItem, TTableHintTemplate
@@ -42,20 +43,7 @@ class IncrementalPrimaryKeyMissing(PipeException):
 
 
 @configspec
-class IncrementalConfigSpec(BaseConfiguration):
-    cursor_path: str = None
-    initial_value: Optional[Any] = None
-
-    def parse_native_representation(self, native_value: Any) -> None:
-        if isinstance(native_value, Incremental):
-            self.cursor_path = native_value.cursor_path
-            self.initial_value = native_value.initial_value
-        else:  # TODO: Maybe check if callable(getattr(native_value, '__lt__', None))
-            # Passing bare value `incremental=44` gets parsed as initial_value
-            self.initial_value = native_value
-
-
-class Incremental(Generic[TCursorValue]):
+class Incremental(BaseConfiguration, Generic[TCursorValue]):
     """Adds incremental extraction for a resource by storing a cursor value in persistent state.
 
     The cursor could for example be a timestamp for when the record was created and you can use this to load only
@@ -75,30 +63,40 @@ class Incremental(Generic[TCursorValue]):
         initial_value: Optional value used for `last_value` when no state is available, e.g. on the first run of the pipeline. If not provided `last_value` will be `None` on the first run.
         last_value_func: Callable used to determine which cursor value to save in state. It is called with a list of the stored state value and all cursor vals from currently processing items. Default is `max`
     """
-    resource_name: str = None
+    cursor_path: str = None
+    initial_value: Optional[Any] = None
 
     def __init__(
             self,
-            cursor_path: str,
+            cursor_path: str = dlt.config.value,
             initial_value: Optional[TCursorValue]=None,
-            last_value_func: Optional[LastValueFunc[TCursorValue]]=None,
+            last_value_func: Optional[LastValueFunc[TCursorValue]]=max,
     ) -> None:
-        assert cursor_path, "`cursor_path` must be a column name or json path"
         self.cursor_path = cursor_path
-        self.cursor_path_p = JSONPath(cursor_path)
-        self.last_value_func = last_value_func or max
-        self.initial_value =  initial_value
+        if self.cursor_path:
+            self.cursor_path_p = JSONPath(cursor_path)
+        self.last_value_func = last_value_func
+        self.initial_value = initial_value
+        self.resource_name: Optional[str] = None
 
     def copy(self) -> "Incremental[TCursorValue]":
         return self.__class__(self.cursor_path, initial_value=self.initial_value, last_value_func=self.last_value_func)
 
-    @classmethod
-    def from_config(cls, cfg: IncrementalConfigSpec, orig: Optional["Incremental[Any]"]) -> "Incremental[Any]":
-        # TODO: last_value_func from name
-        kwargs = dict(cursor_path=cfg.cursor_path, initial_value=cfg.initial_value)
-        if orig:
-            kwargs['last_value_func'] = orig.last_value_func
-        return cls(**kwargs)
+    def on_resolved(self) -> None:
+        self.cursor_path_p = JSONPath(self.cursor_path)
+
+    def parse_native_representation(self, native_value: Any) -> None:
+        if isinstance(native_value, Incremental):
+            self.cursor_path = native_value.cursor_path
+            self.initial_value = native_value.initial_value
+            self.last_value_func = native_value.last_value_func
+            self.cursor_path_p = self.cursor_path_p
+            self.resource_name = self.resource_name
+        else:  # TODO: Maybe check if callable(getattr(native_value, '__lt__', None))
+            # Passing bare value `incremental=44` gets parsed as initial_value
+            self.initial_value = native_value
+        self.__is_resolved__ = not self.is_partial()
+
 
     def get_state(self, resource_state: DictStrAny) -> IncrementalColumnState:
         """Given resource state, returns a state fragment for particular cursor column"""
@@ -119,15 +117,20 @@ class Incremental(Generic[TCursorValue]):
         s = self.get_state(_resource_state(self.resource_name))
         return s['last_value']  # type: ignore
 
+    def __str__(self) -> str:
+        return f"Incremental at {id(self)} for resource {self.resource_name} with cursor path: {self.cursor_path} initial {self.initial_value} lv_func {self.last_value_func}"
+
 
 class IncrementalResourceWrapper(FilterItem):
     _incremental: Optional[Incremental[Any]] = None
     """Keeps the injectable incremental"""
 
-    def __init__(self, resource_name: str, source_section: str, primary_key: Optional[TTableHintTemplate[TColumnKey]] = None) -> None:
-        self.resource_sections = (known_sections.SOURCES, source_section, resource_name)
+    def __init__(self, resource_name: str, primary_key: Optional[TTableHintTemplate[TColumnKey]] = None) -> None:
         self.resource_name = resource_name
         self.primary_key = primary_key
+        self.incremental_state: IncrementalColumnState = None
+        self.state_initial_value: Any = None
+        self._f = self.transform  # type: ignore
 
     @staticmethod
     def should_wrap(sig: inspect.Signature) -> bool:
@@ -144,10 +147,9 @@ class IncrementalResourceWrapper(FilterItem):
                 break
         return incremental_param
 
-    def wrap(self, func: TFun) -> TFun:
+    def wrap(self, sig: inspect.Signature, func: TFun) -> TFun:
         """Wrap the callable to inject an `Incremental` object configured for the resource.
         """
-        sig = inspect.signature(func)
         incremental_param = self.get_incremental_arg(sig)
         assert incremental_param, "Please use `should_wrap` to decide if to call this function"
 
@@ -155,14 +157,16 @@ class IncrementalResourceWrapper(FilterItem):
         def _wrap(*args: Any, **kwargs: Any) -> Any:
             p = incremental_param
             assert p is not None
-            default_incremental: Optional[Incremental[Any]] = None
-            new_incremental: Optional[Incremental[Any]] = None
-            new_kwargs = {}
+            default_incremental: Incremental[Any] = None
+            new_incremental: Incremental[Any] = None
+
+            bound_args = sig.bind(*args, **kwargs)
             if isinstance(p.default, Incremental):
                 default_incremental = p.default.copy()
                 default_incremental.resource_name = self.resource_name
-            if p.name in kwargs:
-                explicit_value = kwargs[p.name]
+
+            if p.name in bound_args.arguments:
+                explicit_value = bound_args.arguments[p.name]
                 if isinstance(explicit_value, Incremental):
                     # Explicit Incremental instance is  untouched
                     explicit_value.resource_name = self.resource_name
@@ -170,35 +174,26 @@ class IncrementalResourceWrapper(FilterItem):
                 elif default_incremental:
                     # Passing only initial value explicitly updates the default instance
                     default_incremental.initial_value = explicit_value
-                    new_kwargs[p.name] = default_incremental
+                    bound_args.arguments[p.name] = default_incremental
                     new_incremental = default_incremental
+
             if not new_incremental:
-                try:
-                    cfg = resolve_configuration(
-                        IncrementalConfigSpec(), sections=self.resource_sections + (p.name, ), explicit_value=default_incremental
-                    )
-                except ConfigFieldMissingException:
-                    if not is_optional_type(p.annotation):
-                        raise
-                else:
-                    new_incremental = new_kwargs[p.name] = Incremental.from_config(cfg, default_incremental)
-                    new_incremental.resource_name = self.resource_name
+                new_incremental = bound_args.arguments[p.name] = default_incremental
             self._incremental = new_incremental
-            kwargs.update(new_kwargs)
-            return func(*args, **kwargs)
+            return func(*bound_args.args, **bound_args.kwargs)
 
         return _wrap  # type: ignore
 
     def unique_value(self, row: TDataItem) -> str:
         try:
             if self.primary_key:
-                return digest256(json.dumps(resolve_column_value(self.primary_key, row), sort_keys=True))
+                return digest128(json.dumps(resolve_column_value(self.primary_key, row), sort_keys=True))
             else:
-                return digest256(json.dumps(row, sort_keys=True))
+                return digest128(json.dumps(row, sort_keys=True))
         except KeyError as k_err:
             raise IncrementalPrimaryKeyMissing(self.resource_name, k_err.args[0], row)
 
-    def transform(self, state: IncrementalColumnState, row: TDataItem) -> bool:
+    def transform(self, row: TDataItem) -> bool:
         if row is None:
             return True
 
@@ -206,7 +201,7 @@ class IncrementalResourceWrapper(FilterItem):
         if len(row_values) == 0:
             raise IncrementalCursorPathMissing(self.resource_name, self._incremental.cursor_path, row)
 
-        last_value = state['last_value']
+        last_value = self.incremental_state['last_value']
         row_value = json.loads(json.dumps(row_values[0]))  # For now the value needs to match deserialized presentation from state
         check_values = ([last_value] if last_value is not None else []) + [row_value]
         new_value = self._incremental.last_value_func(check_values)
@@ -214,26 +209,32 @@ class IncrementalResourceWrapper(FilterItem):
             # we store row id for all records with the current "last_value" in state and use it to deduplicate
             if self._incremental.last_value_func([row_value]) == last_value:
                 unique_value = self.unique_value(row)
-                if unique_value in state['unique_hashes']:
+                if unique_value in self.incremental_state['unique_hashes']:
                     return False
                 # add new hash only if the record row id is same as current last value
-                state['unique_hashes'].append(unique_value)
+                self.incremental_state['unique_hashes'].append(unique_value)
                 return True
             # skip the record that is not a last_value or new_value: that record was already processed
-            return False
+            check_values = ([self.state_initial_value] if self.state_initial_value is not None else []) + [row_value]
+            new_value = self._incremental.last_value_func(check_values)
+            if new_value == self.state_initial_value:
+                return False
+            else:
+                return True
         if new_value != last_value:
             unique_value = self.unique_value(row)
-            state.update({'last_value': new_value, 'unique_hashes': [unique_value]})
+            self.incremental_state.update({'last_value': new_value, 'unique_hashes': [unique_value]})
         return True
 
-    def __call__(self, items: TDataItems, meta: Any=None) -> TDataItems:
+    def bind(self) -> "IncrementalResourceWrapper":
         # get the state only once for the whole list
         # TODO: cache the state, this can be done if we are sure that each processing pipe has a separate instance of this class. which is hard to do now.
-        incremental_state = self._incremental.get_state(_resource_state(self.resource_name))
+        self.incremental_state = None
+        self.state_initial_value = None
+        return self
 
-        # TODO: if we could cache the state, this wrapper would not be needed as well as __call__ override
-        def _transform(_i: TDataItems) -> bool:
-            return self.transform(incremental_state, _i)
-
-        self._f = _transform  # type: ignore
+    def __call__(self, items: TDataItems, meta: Any=None) -> TDataItems:
+        if not self.incremental_state:
+            self.incremental_state = self._incremental.get_state(_resource_state(self.resource_name))
+            self.state_initial_value = self.incremental_state['last_value']
         return super().__call__(items, meta)

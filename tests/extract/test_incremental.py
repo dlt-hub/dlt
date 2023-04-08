@@ -6,8 +6,9 @@ import duckdb
 import pytest
 
 import dlt
+from dlt.common.configuration.specs.base_configuration import configspec
 from dlt.common.pendulum import pendulum, timedelta
-from dlt.common.utils import uniq_id, digest256
+from dlt.common.utils import uniq_id, digest128
 from dlt.common.json import json
 from dlt.extract.incremental import IncrementalCursorPathMissing, IncrementalPrimaryKeyMissing
 from tests.pipeline.utils import drop_pipeline
@@ -145,31 +146,44 @@ def test_explicit_incremental_instance() -> None:
     p.extract(some_data(incremental=dlt.sources.incremental('inserted_at', initial_value=241)))
 
 
-def test_optional_incremental_from_config() -> None:
-    @dlt.resource
-    def some_data(created_at: Optional[dlt.sources.incremental] = None):
-        assert created_at.cursor_path == 'created_at'
-        assert created_at.initial_value == '2022-02-03T00:00:00Z'
-        yield {'created_at': '2022-02-03T00:00:01Z'}
+@dlt.resource
+def some_data_from_config(created_at: Optional[dlt.sources.incremental] = dlt.secrets.value):
+    assert created_at.cursor_path == 'created_at'
+    assert created_at.initial_value == '2022-02-03T00:00:00Z'
+    yield {'created_at': '2022-02-03T00:00:01Z'}
 
-    os.environ['SOURCES__TEST_INCREMENTAL__SOME_DATA__CREATED_AT__CURSOR_PATH'] = 'created_at'
-    os.environ['SOURCES__TEST_INCREMENTAL__SOME_DATA__CREATED_AT__INITIAL_VALUE'] = '2022-02-03T00:00:00Z'
+
+def test_optional_incremental_from_config() -> None:
+
+    os.environ['SOURCES__TEST_INCREMENTAL__SOME_DATA_FROM_CONFIG__CREATED_AT__CURSOR_PATH'] = 'created_at'
+    os.environ['SOURCES__TEST_INCREMENTAL__SOME_DATA_FROM_CONFIG__CREATED_AT__INITIAL_VALUE'] = '2022-02-03T00:00:00Z'
 
     p = dlt.pipeline(pipeline_name=uniq_id())
-    p.extract(some_data())
+    p.extract(some_data_from_config())
+    p.extract(some_data_from_config())
+
+
+@configspec
+class SomeDataOverrideConfiguration:
+    created_at: dlt.sources.incremental = dlt.sources.incremental('created_at', initial_value='2022-02-03T00:00:00Z')
+
+# provide what to inject via spec. the spec contain the default
+@dlt.resource(spec=SomeDataOverrideConfiguration)
+def some_data_override_config(created_at):
+    assert created_at.cursor_path == 'created_at'
+    assert created_at.initial_value == '2000-02-03T00:00:00Z'
+    yield {'created_at': '2023-03-03T00:00:00Z'}
 
 
 def test_override_initial_value_from_config() -> None:
-    @dlt.resource
-    def some_data(created_at=dlt.sources.incremental('created_at', initial_value='2022-02-03T00:00:00Z')):
-        assert created_at.cursor_path == 'created_at'
-        assert created_at.initial_value == '2000-02-03T00:00:00Z'
-        yield {'created_at': '2023-03-03T00:00:00Z'}
 
-    os.environ['SOURCES__TEST_INCREMENTAL__SOME_DATA__CREATED_AT__INITIAL_VALUE'] = '2000-02-03T00:00:00Z'
+    # use the shortest possible config version
+    os.environ['SOURCES__TEST_INCREMENTAL__SOME_DATA_OVERRIDE_CONFIG__CREATED_AT__INITIAL_VALUE'] = '2000-02-03T00:00:00Z'
+    # os.environ['CREATED_AT__INITIAL_VALUE'] = '2000-02-03T00:00:00Z'
 
     p = dlt.pipeline(pipeline_name=uniq_id())
-    p.extract(some_data())
+    p.extract(some_data_override_config())
+    # p.extract(some_data_override_config())
 
 
 def test_override_primary_key_in_pipeline() -> None:
@@ -274,7 +288,7 @@ def test_descending_order_unique_hashes() -> None:
 
     s = p.state["sources"]["test_incremental"]['resources']['some_data']['incremental']['created_at']
 
-    last_hash = digest256(json.dumps({'created_at': 24}))
+    last_hash = digest128(json.dumps({'created_at': 24}))
 
     assert s['unique_hashes'] == [last_hash]
 
@@ -330,30 +344,30 @@ def test_missing_cursor_field() -> None:
             yield {"delta": i, "item": {"ts": pendulum.now().add(days=i).timestamp()}}
 
     with pytest.raises(IncrementalCursorPathMissing) as py_ex:
-        list(some_data())
+        list(some_data)
     assert py_ex.value.json_path == "item.timestamp"
 
+
+@dlt.resource
+def standalone_some_data(last_timestamp=dlt.sources.incremental("item.timestamp")):
+    for i in range(-10, 10):
+        yield {"delta": i, "item": {"timestamp": pendulum.now().add(days=i).timestamp()}}
 
 
 def test_filter_processed_items() -> None:
     """Checks if already processed items are filtered out"""
 
-    @dlt.resource
-    def some_data(last_timestamp=dlt.sources.incremental("item.timestamp")):
-        for i in range(-10, 10):
-            yield {"delta": i, "item": {"timestamp": pendulum.now().add(days=i).timestamp()}}
-
     # we get all items (no initial - nothing filtered)
-    assert len(list(some_data())) == 20
+    assert len(list(standalone_some_data)) == 20
 
     # provide initial value using max function
-    values = list(some_data(last_timestamp=pendulum.now().timestamp()))
+    values = list(standalone_some_data(last_timestamp=pendulum.now().timestamp()))
     assert len(values) == 10
     # only the future timestamps
     assert all(v["delta"] >= 0 for v in values)
 
     # provide the initial value, use min function
-    values = list(some_data(last_timestamp=dlt.sources.incremental("item.timestamp", pendulum.now().timestamp(), min)))
-    assert len(values) == 1
+    values = list(standalone_some_data(last_timestamp=dlt.sources.incremental("item.timestamp", pendulum.now().timestamp(), min)))
+    assert len(values) == 10
     # the minimum element
     assert values[0]["delta"] == -10

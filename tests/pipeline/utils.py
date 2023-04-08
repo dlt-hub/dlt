@@ -5,7 +5,7 @@ from os import environ
 import dlt
 from dlt.common import json
 from dlt.common.configuration.container import Container
-from dlt.common.pipeline import PipelineContext
+from dlt.common.pipeline import LoadInfo, PipelineContext
 
 from tests.utils import TEST_STORAGE_ROOT
 
@@ -30,6 +30,15 @@ def drop_pipeline() -> Iterator[None]:
         p._wipe_working_folder()
         # deactivate context
         container[PipelineContext].deactivate()
+
+
+def assert_load_info(info: LoadInfo, expected_load_packages: int = 1) -> None:
+    """Asserts that expected number of packages was loaded and there are no failed jobs"""
+    assert len(info.loads_ids) == expected_load_packages
+    # all packages loaded
+    assert all(p.completed_at is not None for p in info.load_packages) is True
+    # no failed jobs in any of the packages
+    assert all(len(p.jobs["failed_jobs"]) == 0 for p in info.load_packages) is True
 
 
 def json_case_path(name: str) -> str:
