@@ -1,15 +1,24 @@
+from copy import copy
+import itertools
+import random
+from typing import List
 import pytest
 import yaml
 
 import dlt
 
-from dlt.common import json
+from dlt.common import json, pendulum
+from dlt.common.configuration.container import Container
+from dlt.common.pipeline import StateInjectableContext, _resource_state
+from dlt.common.typing import AnyFun, StrAny
+from dlt.common.utils import digest128
+from dlt.extract.source import DltResource
 from dlt.sources.helpers.transform import skip_first, take_first
 
 from tests.utils import ALL_DESTINATIONS, patch_home_dir, preserve_environ, autouse_test_storage
-from tests.pipeline.utils import drop_dataset_from_env
+from tests.pipeline.utils import drop_dataset_from_env, assert_load_info
 from tests.load.utils import delete_dataset
-from tests.load.pipeline.utils import assert_load_info, drop_pipeline, load_table_counts, select_data
+from tests.load.pipeline.utils import drop_pipeline, load_table_counts, select_data
 
 
 @pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
@@ -34,13 +43,13 @@ def test_merge_on_keys_in_schema(destination_name: str) -> None:
     # if the table would be created before the whole load would fail because new columns have hints
     info = p.run(data, table_name="blocks", write_disposition="merge", schema=schema)
     assert_load_info(info)
-    eth_2_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.all_tables()])
+    eth_2_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
     # we have 2 blocks in dataset
     assert eth_2_counts["blocks"] == 2
     # make sure we have same record after merging full dataset again
     info = p.run(data, table_name="blocks", write_disposition="merge", schema=schema)
     assert_load_info(info)
-    eth_3_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.all_tables()])
+    eth_3_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
     assert eth_2_counts == eth_3_counts
 
 
@@ -53,7 +62,7 @@ def test_merge_on_ad_hoc_primary_key(destination_name: str) -> None:
     # note: NodeId will be normalized to "node_id" which exists in the schema
     info = p.run(data[:17], table_name="issues", write_disposition="merge", primary_key="NodeId")
     assert_load_info(info)
-    github_1_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.all_tables()])
+    github_1_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
     # 17 issues
     assert github_1_counts["issues"] == 17
     # primary key set on issues
@@ -63,7 +72,7 @@ def test_merge_on_ad_hoc_primary_key(destination_name: str) -> None:
 
     info = p.run(data[5:], table_name="issues", write_disposition="merge", primary_key="node_id")
     assert_load_info(info)
-    github_2_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.all_tables()])
+    github_2_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
     # 100 issues total
     assert github_2_counts["issues"] == 100
     # still 100 after the reload
@@ -86,7 +95,7 @@ def test_merge_source_compound_keys_and_changes(destination_name: str) -> None:
 
     info = p.run(github())
     assert_load_info(info)
-    github_1_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.all_tables()])
+    github_1_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
     # 100 issues total
     assert github_1_counts["issues"] == 100
     # check keys created
@@ -99,7 +108,7 @@ def test_merge_source_compound_keys_and_changes(destination_name: str) -> None:
     assert_load_info(info)
     assert p.default_schema.tables["issues"]["write_disposition"] == "append"
     # the counts of all tables must be double
-    github_2_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.all_tables()])
+    github_2_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
     assert {k:v*2 for k, v in github_1_counts.items()} == github_2_counts
 
     # now replace all resources
@@ -108,7 +117,7 @@ def test_merge_source_compound_keys_and_changes(destination_name: str) -> None:
     assert p.default_schema.tables["issues"]["write_disposition"] == "replace"
     # assert p.default_schema.tables["issues__labels"]["write_disposition"] == "replace"
     # the counts of all tables must be double
-    github_3_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.all_tables()])
+    github_3_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
     assert github_1_counts == github_3_counts
 
 
@@ -127,10 +136,10 @@ def test_merge_no_child_tables(destination_name: str) -> None:
     # take only first 15 elements
     github_data.load_issues.add_filter(take_first(15))
     info = p.run(github_data)
-    assert len(p.default_schema.all_tables()) == 1
+    assert len(p.default_schema.data_tables()) == 1
     assert "issues" in p.default_schema.tables
     assert_load_info(info)
-    github_1_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.all_tables()])
+    github_1_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
     assert github_1_counts["issues"] == 15
 
     # load all
@@ -138,7 +147,7 @@ def test_merge_no_child_tables(destination_name: str) -> None:
     github_data.max_table_nesting = 0
     info = p.run(github_data)
     assert_load_info(info)
-    github_2_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.all_tables()])
+    github_2_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
     # 100 issues total
     assert github_2_counts["issues"] == 100
 
@@ -153,7 +162,7 @@ def test_merge_no_merge_keys(destination_name: str) -> None:
     github_data.load_issues.add_filter(skip_first(45))
     info = p.run(github_data)
     assert_load_info(info)
-    github_1_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.all_tables()])
+    github_1_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
     assert github_1_counts["issues"] == 100 - 45
 
     # take first 10 rows.
@@ -164,7 +173,7 @@ def test_merge_no_merge_keys(destination_name: str) -> None:
     github_data.load_issues.add_filter(take_first(10))
     info = p.run(github_data)
     assert_load_info(info)
-    github_1_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.all_tables()])
+    github_1_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
     # only ten rows remains. merge fallbacks to replace when no keys are specified
     assert github_1_counts["issues"] == 10
 
@@ -179,7 +188,7 @@ def test_merge_keys_non_existing_columns(destination_name: str) -> None:
     github_data.load_issues.add_filter(skip_first(45))
     info = p.run(github_data)
     assert_load_info(info)
-    github_1_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.all_tables()])
+    github_1_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
     assert github_1_counts["issues"] == 100 - 45
     assert p.default_schema.tables["issues"]["columns"]["m_a1"].items() > {"merge_key": True, "nullable": False}.items()
 
@@ -189,9 +198,153 @@ def test_merge_keys_non_existing_columns(destination_name: str) -> None:
     github_data.load_issues.add_filter(take_first(1))
     info = p.run(github_data)
     assert_load_info(info)
-    github_2_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.all_tables()])
+    github_2_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
     assert github_2_counts["issues"] == 1
     with p._sql_job_client(p.default_schema) as job_c:
         _, table_schema = job_c.get_storage_table("issues")
         assert "url" in table_schema
         assert "m_a1" not in table_schema  # unbound columns were not created
+
+
+@dlt.transformer(name="github_repo_events", primary_key="id", write_disposition="merge", table_name=lambda i: i['type'])
+def github_repo_events(page: List[StrAny], last_created_at = dlt.sources.incremental("created_at", "1970-01-01T00:00:00Z")):
+    """A transformer taking a stream of github events and dispatching them to tables named by event type. Deduplicates be 'id'. Loads incrementally by 'created_at' """
+    yield page
+
+
+@dlt.transformer(name="github_repo_events", primary_key="id", write_disposition="merge")
+def github_repo_events_table_meta(page: List[StrAny], last_created_at = dlt.sources.incremental("created_at", "1970-01-01T00:00:00Z")):
+    """A transformer taking a stream of github events and dispatching them to tables using table meta. Deduplicates be 'id'. Loads incrementally by 'created_at' """
+    yield from [dlt.mark.with_table_name(p, p['type']) for p in page]
+
+
+@dlt.resource
+def _get_shuffled_events(shuffle: bool = dlt.secrets.value):
+    with open("tests/normalize/cases/github.events.load_page_1_duck.json", "r", encoding="utf-8") as f:
+        issues = json.load(f)
+        # random order
+        if shuffle:
+            random.shuffle(issues)
+        yield issues
+
+
+@pytest.mark.parametrize('destination_name,github_resource', itertools.product(ALL_DESTINATIONS, [github_repo_events, github_repo_events_table_meta]))
+def test_merge_with_dispatch_and_incremental(destination_name: str, github_resource: DltResource) -> None:
+    newest_issues = list(sorted(_get_shuffled_events(True), key = lambda x: x["created_at"], reverse=True))
+    newest_issue = newest_issues[0]
+
+    @dlt.resource
+    def _new_event(node_id):
+        new_i = copy(newest_issue)
+        new_i["id"] = str(random.randint(0, 2^32))
+        new_i["created_at"] = pendulum.now().isoformat()
+        new_i["node_id"] = node_id
+        # yield pages
+        yield [new_i]
+
+    @dlt.resource
+    def _updated_event(node_id):
+        new_i = copy(newest_issue)
+        new_i["created_at"] = pendulum.now().isoformat()
+        new_i["node_id"] = node_id
+        # yield pages
+        yield [new_i]
+
+    # inject state that we can inspect and will be shared across calls
+    with Container().injectable_context(StateInjectableContext(state={})) as state:
+        assert len(list(_get_shuffled_events(True) | github_resource)) == 100
+        incremental_state = state.state["sources"]["test_merge_disposition"]["resources"]["github_repo_events"]
+        assert incremental_state["incremental"]["created_at"]["last_value"] == newest_issue["created_at"]
+        assert incremental_state["incremental"]["created_at"]["unique_hashes"] == [digest128(f'"{newest_issue["id"]}"')]
+        # subsequent load will skip all elements
+        assert len(list(_get_shuffled_events(True) | github_resource)) == 0
+        # add one more issue
+        assert len(list(_new_event("new_node") | github_resource)) == 1
+        assert incremental_state["incremental"]["created_at"]["last_value"] > newest_issue["created_at"]
+        assert incremental_state["incremental"]["created_at"]["unique_hashes"] != [digest128(str(newest_issue["id"]))]
+
+    # load to destination
+    p = dlt.pipeline(destination=destination_name, dataset_name="github_3", full_refresh=True)
+    info = p.run(_get_shuffled_events(True) | github_resource)
+    assert_load_info(info)
+    # get top tables
+    counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables() if t.get("parent") is None])
+    # total number of events in all top tables == 100
+    assert sum(counts.values()) == 100
+    # this should skip all events due to incremental load
+    info = p.run(_get_shuffled_events(True) | github_resource)
+    # no packages were loaded
+    assert len(info.loads_ids) == 0
+
+    # load one more event with a new id
+    info = p.run(_new_event("new_node") | github_resource)
+    assert_load_info(info)
+    counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables() if t.get("parent") is None])
+    assert sum(counts.values()) == 101
+    # all the columns have primary keys and merge disposition derived from resource
+    for table in  p.default_schema.data_tables():
+        if table.get("parent") is None:
+            assert table["write_disposition"] == "merge"
+            assert table["columns"]["id"]["primary_key"] is True
+
+    # load updated event
+    info = p.run(_updated_event("new_node_X") | github_resource)
+    assert_load_info(info)
+    # still 101
+    counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables() if t.get("parent") is None])
+    assert sum(counts.values()) == 101
+    # but we have it updated
+    with p.sql_client() as c:
+        with c.execute_query("SELECT node_id FROM watch_event WHERE node_id = 'new_node_X'") as q:
+            assert len(list(q.fetchall())) == 1
+
+
+@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
+def test_deduplicate_single_load(destination_name: str) -> None:
+    p = dlt.pipeline(destination=destination_name, dataset_name="abstract", full_refresh=True)
+
+    @dlt.resource(write_disposition="merge", primary_key="id")
+    def duplicates():
+        yield [{"id": 1, "name": "row1", "child": [1, 2, 3]}, {"id": 1, "name": "row2", "child": [4, 5, 6]}]
+
+    info = p.run(duplicates())
+    assert_load_info(info)
+    counts = load_table_counts(p, "duplicates", "duplicates__child")
+    assert counts["duplicates"] == 1
+    assert counts["duplicates__child"] == 3
+    select_data(p, "SELECT * FROM duplicates")[0]
+
+
+    @dlt.resource(write_disposition="merge", primary_key=("id", "subkey"))
+    def duplicates_no_child():
+        yield [{"id": 1, "subkey": "AX", "name": "row1"}, {"id": 1, "subkey": "AX", "name": "row2"}]
+
+    info = p.run(duplicates_no_child())
+    assert_load_info(info)
+    counts = load_table_counts(p, "duplicates_no_child")
+    assert counts["duplicates_no_child"] == 1
+
+
+@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
+def test_no_deduplicate_only_merge_key(destination_name: str) -> None:
+    p = dlt.pipeline(destination=destination_name, dataset_name="abstract", full_refresh=True)
+
+    @dlt.resource(write_disposition="merge", merge_key="id")
+    def duplicates():
+        yield [{"id": 1, "name": "row1", "child": [1, 2, 3]}, {"id": 1, "name": "row2", "child": [4, 5, 6]}]
+
+    info = p.run(duplicates())
+    assert_load_info(info)
+    counts = load_table_counts(p, "duplicates", "duplicates__child")
+    assert counts["duplicates"] == 2
+    assert counts["duplicates__child"] == 6
+
+
+    @dlt.resource(write_disposition="merge", merge_key=("id", "subkey"))
+    def duplicates_no_child():
+        yield [{"id": 1, "subkey": "AX", "name": "row1"}, {"id": 1, "subkey": "AX", "name": "row2"}]
+
+    info = p.run(duplicates_no_child())
+    assert_load_info(info)
+    counts = load_table_counts(p, "duplicates_no_child")
+    assert counts["duplicates_no_child"] == 2
