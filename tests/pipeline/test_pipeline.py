@@ -14,7 +14,7 @@ from dlt.common.schema.exceptions import InvalidDatasetName
 from dlt.common.utils import uniq_id
 from dlt.extract.exceptions import SourceExhausted
 from dlt.extract.extract import ExtractorStorage
-from dlt.extract.source import DltSource
+from dlt.extract.source import DltResource, DltSource
 from dlt.load.exceptions import LoadClientJobFailed
 from dlt.pipeline.exceptions import InvalidPipelineName, PipelineStepFailed
 from dlt.pipeline.helpers import retry_load
@@ -24,7 +24,7 @@ from tests.common.utils import TEST_SENTRY_DSN
 from tests.utils import ALL_DESTINATIONS, TEST_STORAGE_ROOT, preserve_environ, autouse_test_storage, patch_home_dir
 from tests.common.configuration.utils import environment
 from tests.extract.utils import expect_extracted_file
-from tests.pipeline.utils import drop_dataset_from_env, drop_pipeline
+from tests.pipeline.utils import assert_load_info, drop_dataset_from_env, drop_pipeline
 
 
 def test_default_pipeline() -> None:
@@ -590,3 +590,44 @@ def test_changed_write_disposition() -> None:
 
     p.run(resource_1, write_disposition="replace")
     assert p.default_schema.get_table("resource_1")["write_disposition"] == "replace"
+
+
+@dlt.transformer(name="github_repo_events", primary_key="id", write_disposition="merge", table_name=lambda i: i['type'])
+def github_repo_events(page):
+    yield page
+
+
+@dlt.transformer(name="github_repo_events", primary_key="id", write_disposition="merge")
+def github_repo_events_table_meta(page):
+    yield from [dlt.mark.with_table_name(p, p['type']) for p in page]
+
+
+@dlt.resource
+def _get_shuffled_events():
+    with open("tests/normalize/cases/github.events.load_page_1_duck.json", "r", encoding="utf-8") as f:
+        issues = json.load(f)
+        yield issues
+
+
+@pytest.mark.parametrize('github_resource', (github_repo_events_table_meta, github_repo_events))
+def test_dispatch_rows_to_tables(github_resource: DltResource):
+
+    os.environ["COMPLETED_PROB"] = "1.0"
+    pipeline_name = "pipe_" + uniq_id()
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+
+    info = p.run(_get_shuffled_events | github_resource)
+    assert_load_info(info)
+
+    # get all expected tables
+    events = list(_get_shuffled_events)
+    expected_tables = set(map(lambda e: p.default_schema.naming.normalize_identifier(e["type"]), events))
+
+    # all the tables present
+    assert expected_tables.intersection([t["name"] for t in p.default_schema.data_tables()]) == expected_tables
+
+    # all the columns have primary keys and merge disposition derived from resource
+    for table in  p.default_schema.data_tables():
+        if table.get("parent") is None:
+            assert table["write_disposition"] == "merge"
+            assert table["columns"]["id"]["primary_key"] is True

@@ -23,7 +23,7 @@ def _get_spec_name_from_f(f: AnyFun) -> str:
     return "".join(map(_first_up, _SLEEPING_CAT_SPLIT.findall(func_name))) + "Configuration"
 
 
-def spec_from_signature(f: AnyFun, sig: Signature, kw_only: bool = False) -> Type[BaseConfiguration]:
+def spec_from_signature(f: AnyFun, sig: Signature, include_defaults: bool = True) -> Type[BaseConfiguration]:
     name = _get_spec_name_from_f(f)
     module = inspect.getmodule(f)
 
@@ -59,9 +59,8 @@ def spec_from_signature(f: AnyFun, sig: Signature, kw_only: bool = False) -> Typ
     annotations: Dict[str, Any] = {}
 
     for p in sig.parameters.values():
-        # skip *args and **kwargs, skip typical method params and if kw_only flag is set: accept KEYWORD ONLY args
-        if p.kind not in (Parameter.VAR_KEYWORD, Parameter.VAR_POSITIONAL) and p.name not in ["self", "cls"] and \
-           (kw_only and p.kind == Parameter.KEYWORD_ONLY or not kw_only):
+        # skip *args and **kwargs, skip typical method params
+        if p.kind not in (Parameter.VAR_KEYWORD, Parameter.VAR_POSITIONAL) and p.name not in ["self", "cls"]:
             field_type = AnyType if p.annotation == Parameter.empty else p.annotation
             # only valid hints and parameters with defaults are eligible
             if is_valid_hint(field_type) and p.default != Parameter.empty:
@@ -69,6 +68,7 @@ def spec_from_signature(f: AnyFun, sig: Signature, kw_only: bool = False) -> Typ
                 if field_type is AnyType and p.default is not None:
                     field_type = type(p.default)
                 # make type optional if explicit None is provided as default
+                type_from_literal: AnyType = None
                 if p.default is None:
                     # check if the defaults were attributes of the form .config.value or .secrets.value
                     type_from_literal = dlt_config_literal_to_type(p.name)
@@ -88,11 +88,14 @@ def spec_from_signature(f: AnyFun, sig: Signature, kw_only: bool = False) -> Typ
                         # keep type mandatory if config.value
                         # print(f"Param {p.name} is REQUIRED: config literal")
                         pass
+                if include_defaults or type_from_literal is not None:
+                    # set annotations
+                    annotations[p.name] = field_type
+                    # set field with default value
+                    fields[p.name] = p.default
 
-                # set annotations
-                annotations[p.name] = field_type
-                # set field with default value
-                fields[p.name] = p.default
+    if not fields:
+        return None
 
     # new type goes to the module where sig was declared
     fields["__module__"] = module.__name__
