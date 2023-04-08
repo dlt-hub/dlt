@@ -16,8 +16,8 @@ from dlt.common.exceptions import PipelineException
 from dlt.common.typing import AnyFun, AnyType, TDataItems
 from dlt.common.utils import get_callable_name
 
-from dlt.extract.exceptions import CreatePipeException, DltSourceException, ExtractorException, InvalidStepFunctionArguments, InvalidTransformerGeneratorFunction, ParametrizedResourceUnbound, PipeException, PipeItemProcessingError, PipeNotBoundToData, ResourceExtractionError
-from dlt.extract.typing import DataItemWithMeta, TPipedDataItems
+from dlt.extract.exceptions import CreatePipeException, DltSourceException, ExtractorException, InvalidResourceDataTypeFunctionNotAGenerator, InvalidStepFunctionArguments, InvalidTransformerGeneratorFunction, ParametrizedResourceUnbound, PipeException, PipeItemProcessingError, PipeNotBoundToData, ResourceExtractionError
+from dlt.extract.typing import DataItemWithMeta, ItemTransform, TPipedDataItems
 
 if TYPE_CHECKING:
     TItemFuture = Future[Union[TDataItems, DataItemWithMeta]]
@@ -228,9 +228,9 @@ class Pipe:
         try:
             # must bind without arguments
             sig.bind()
-        except TypeError:
+        except TypeError as ex:
             callable_name = get_callable_name(head)
-            raise ParametrizedResourceUnbound(self.name, callable_name, sig.replace(parameters=list(sig.parameters.values())[1:]), "resource")
+            raise ParametrizedResourceUnbound(self.name, callable_name, sig.replace(parameters=list(sig.parameters.values())[1:]), "resource", str(ex))
 
     def evaluate_gen(self) -> None:
         """Lazily evaluate gen of the pipe when creating PipeIterator. Allows creating multiple use pipes from generator functions and lists"""
@@ -239,18 +239,93 @@ class Pipe:
 
         gen = self.gen
         if not self.has_parent:
-            # if pipe head is callable then call it
             if callable(gen):
                 try:
                     # must be parameter-less callable or parameters must have defaults
                     self._steps[0] = gen()  # type: ignore
-                except TypeError:
-                    raise ParametrizedResourceUnbound(self.name, get_callable_name(gen), inspect.signature(gen))
-            elif isinstance(gen, Iterable):
+                except TypeError as ex:
+                    raise ParametrizedResourceUnbound(self.name, get_callable_name(gen), inspect.signature(gen), "resource", str(ex))
+            # otherwise it must be an iterator
+            if isinstance(gen, Iterable):
                 self._steps[0] = iter(gen)
         else:
             # verify if transformer can be called
             self._ensure_transform_step(self._gen_idx, gen)
+
+        # evaluate transforms
+        for step_no, step in enumerate(self._steps):
+            if isinstance(step, ItemTransform):
+                self._steps[step_no] = step.bind()
+
+    def bind_gen(self, *args: Any, **kwargs: Any) -> Any:
+        """Finds and wraps with `args` + `kwargs` the callable generating step in the resource pipe and then replaces the pipe gen with the wrapped one"""
+        try:
+            gen = self._wrap_gen(*args, **kwargs)
+            self.replace_gen(gen)
+            return gen
+        except InvalidResourceDataTypeFunctionNotAGenerator:
+            # call regular function to check what is inside
+            _data = self.gen(*args, **kwargs)  # type: ignore
+            # accept if pipe or object holding pipe is returned
+            # TODO: use a protocol (but protocols are slow)
+            if isinstance(_data, Pipe) or hasattr(_data, "_pipe"):
+                return _data
+            raise
+
+    def _wrap_gen(self, *args: Any, **kwargs: Any) -> Any:
+        """Finds and wraps with `args` + `kwargs` the callable generating step in the resource pipe."""
+        head = self.gen
+        _data: Any = None
+
+        if not callable(head):
+            # just provoke a call to raise default exception
+            head()  # type: ignore
+            raise AssertionError()
+
+        sig = inspect.signature(head)
+        # simulate the call to the underlying callable
+        if args or kwargs:
+            skip_items_arg = 1 if self.has_parent else 0  # skip the data item argument for transformers
+            no_item_sig = sig.replace(parameters=list(sig.parameters.values())[skip_items_arg:])
+            try:
+                no_item_sig.bind(*args, **kwargs)
+            except TypeError as v_ex:
+                raise TypeError(f"{get_callable_name(head)}(): " + str(v_ex))
+
+        # create wrappers with partial
+        if self.has_parent:
+
+            if len(sig.parameters) == 2 and "meta" in sig.parameters:
+                return head
+
+            def _tx_partial(item: TDataItems, meta: Any = None) -> Any:
+                # print(f"_ITEM:{item}{meta},{args}{kwargs}")
+                # also provide optional meta so pipe does not need to update arguments
+                if "meta" in kwargs:
+                    kwargs["meta"] = meta
+                return head(item, *args, **kwargs)  # type: ignore
+
+            # this partial wraps transformer and sets a signature that is compatible with pipe transform calls
+            _data = makefun.wraps(head, new_sig=inspect.signature(_tx_partial))(_tx_partial)
+        else:
+            if inspect.isgeneratorfunction(inspect.unwrap(head)) or inspect.isgenerator(head):
+                # if no arguments then no wrap
+                if len(sig.parameters) == 0:
+                    return head
+
+                # always wrap generators and generator functions. evaluate only at runtime!
+
+                def _partial() -> Any:
+                    # print(f"_PARTIAL: {args} {kwargs} vs {args_}{kwargs_}")
+                    # raise Exception("WTF")
+                    return head(*args, **kwargs)  # type: ignore
+
+                # this partial preserves the original signature and just defers the call to pipe
+                # _data = makefun.wraps(head, new_sig=sig)(_partial)
+                _data = makefun.wraps(head, new_sig=inspect.signature(_partial))(_partial)
+            else:
+                raise InvalidResourceDataTypeFunctionNotAGenerator(self.name, head, type(head))
+        return _data
 
     def _verify_head_step(self, step: TPipeStep) -> None:
         # first element must be Iterable, Iterator or Callable in resource pipe
@@ -279,8 +354,8 @@ class Pipe:
             if meta_arg is not None:
                 if meta_arg.kind not in (meta_arg.KEYWORD_ONLY, meta_arg.POSITIONAL_OR_KEYWORD):
                     raise InvalidStepFunctionArguments(self.name, callable_name, sig, "'meta' cannot be pos only argument '")
-            elif sig_arg_count == 1:
-                # add meta parameter when functions takes just one argument
+            elif meta_arg is None:
+                # add meta parameter when not present
                 orig_step = step
 
                 def _partial(*args: Any, **kwargs: Any) -> Any:
@@ -308,7 +383,6 @@ class Pipe:
             # get eventually modified sig
             sig.bind("item", meta="meta")
         except TypeError as ty_ex:
-            print(ty_ex)
             callable_name = get_callable_name(step)
             if step_no == self._gen_idx:
                 # error for gen step
@@ -316,7 +390,7 @@ class Pipe:
                     raise InvalidTransformerGeneratorFunction(self.name, callable_name, sig, code=1)
                 else:
                     # show the sig without first argument
-                    raise ParametrizedResourceUnbound(self.name, callable_name, sig.replace(parameters=list(sig.parameters.values())[1:]), "transformer")
+                    raise ParametrizedResourceUnbound(self.name, callable_name, sig.replace(parameters=list(sig.parameters.values())[1:]), "transformer", str(ty_ex))
             else:
                 raise InvalidStepFunctionArguments(self.name, callable_name, sig, str(ty_ex))
 

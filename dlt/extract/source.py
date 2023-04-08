@@ -42,11 +42,11 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
         incremental: IncrementalResourceWrapper = None,
         section: str = None
     ) -> None:
-        # TODO: allow resource to take name independent from pipe name
         self.name = pipe.name
         self.section = section
         self.selected = selected
         self._pipe = pipe
+        self._bound = False
         if incremental and not self.incremental:
             self.add_step(incremental)
         super().__init__(self.name, table_schema_template)
@@ -108,7 +108,7 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
         return self._pipe.has_parent
 
     @property
-    def is_parametrized(self) -> bool:
+    def requires_binding(self) -> bool:
         """Checks if resource has unbound parameters"""
         try:
             self._pipe.ensure_gen_bound()
@@ -152,29 +152,6 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
 
         # add filtering function at the end of pipe
         self.add_filter(_filter)
-        return self
-
-    def bind(self, *args: Any, **kwargs: Any) -> "DltResource":
-        """Binds the parametrized resource to passed arguments. Modifies resource pipe in place. Does not evaluate generators or iterators."""
-        gen = self._wrap_gen_step(*args, **kwargs)
-        if isinstance(gen, DltResource):
-            # replace resource in place
-            old_pipe = self._pipe
-            self.__dict__.clear()
-            self.__dict__.update(gen.__dict__)
-            # keep old pipe instance
-            self._pipe = old_pipe
-            self._pipe.__dict__.clear()
-            # write props from new pipe instance
-            self._pipe.__dict__.update(gen._pipe.__dict__)
-        elif isinstance(gen, Pipe):
-            # just replace pipe
-            self._pipe.__dict__.clear()
-            # write props from new pipe instance
-            self._pipe.__dict__.update(gen.__dict__)
-        else:
-            # replace gen element
-            self._pipe.replace_gen(gen)
         return self
 
     def add_map(self, item_map: ItemTransformFunc[TDataItem], insert_at: int = None) -> "DltResource":  # noqa: A003
@@ -238,71 +215,42 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
             self._pipe.insert_step(item_transform, insert_at)
         return self
 
-    def __call__(self, *args: Any, **kwargs: Any) -> "DltResource":
-        """Binds the parametrized resources to passed arguments. Creates and returns a bound resource. Generators and iterators are not evaluated."""
-        gen = self._wrap_gen_step(*args, **kwargs)
-        if isinstance(gen, DltResource):
-            return gen
-        else:
-            r = DltResource.from_data(gen, self.name, self.section, self._table_schema_template, self.selected, self._pipe.parent)
-            if isinstance(gen, Pipe):
-                return r
-            # clone existing pipe
-            r._pipe = self._pipe._clone(keep_pipe_id=False)
-            # replace with bound generator
-            r._pipe.replace_gen(gen)
-            return r
-
     def set_template(self, table_schema_template: TTableSchemaTemplate) -> None:
         super().set_template(table_schema_template)
         incremental = self.incremental
         if incremental:
             incremental.primary_key = table_schema_template.get("primary_key", incremental.primary_key)
 
-    def _wrap_gen_step(self, *args: Any, **kwargs: Any) -> Any:
-        """Finds and wraps with `args` + `kwargs` the callable generating step in the resource pipe."""
-        head = self._pipe.gen
-        _data: Any = None
-        if not callable(head):
-            # just provoke a call to raise default exception
-            head()  # type: ignore
-            raise AssertionError()
-
-        # simulate the call to the underlying callable
-        skip_items_arg = 1 if self.is_transformer else 0  # skip the data item argument for transformers
-        sig = inspect.signature(head)
-        no_item_sig = sig.replace(parameters=list(sig.parameters.values())[skip_items_arg:])
-        try:
-            no_item_sig.bind(*args, **kwargs)
-        except TypeError as v_ex:
-            raise TypeError(f"{get_callable_name(head)}(): " + str(v_ex))
-        # create wrappers with partial
-        if self.is_transformer:
-            # also provide optional meta so pipe does not need to update arguments
-
-            def _tx_partial(item: TDataItems, *, meta: Any = None) -> Any:
-                # print(f"ITEM:{item},{args}{kwargs}")
-                if "meta" in kwargs:
-                    kwargs["meta"] = meta
-                return head(item, *args, **kwargs)  # type: ignore
-
-            _data = makefun.wraps(head, new_sig=inspect.signature(_tx_partial))(_tx_partial)
+    def bind(self, *args: Any, **kwargs: Any) -> "DltResource":
+        """Binds the parametrized resource to passed arguments. Modifies resource pipe in place. Does not evaluate generators or iterators."""
+        if self._bound:
+            raise TypeError("Bound DltResource object is not callable")
+        gen = self._pipe.bind_gen(*args, **kwargs)
+        if isinstance(gen, DltResource):
+            # replace resource in place
+            old_pipe = self._pipe
+            self.__dict__.clear()
+            self.__dict__.update(gen.__dict__)
+            # keep old pipe instance
+            self._pipe = old_pipe
+            self._pipe.__dict__.clear()
+            # write props from new pipe instance
+            self._pipe.__dict__.update(gen._pipe.__dict__)
+        elif isinstance(gen, Pipe):
+            # just replace pipe
+            self._pipe.__dict__.clear()
+            # write props from new pipe instance
+            self._pipe.__dict__.update(gen.__dict__)
         else:
-            if inspect.isgeneratorfunction(inspect.unwrap(head)) or inspect.isgenerator(head):
-                # always wrap generators and generator functions. evaluate only at runtime!
+            self._bound = True
+        return self
 
-                def _partial() -> Any:
-                    return head(*args, **kwargs)  # type: ignore
-
-                _data = makefun.wraps(head, new_sig=inspect.signature(_partial))(_partial)
-            else:
-                # call regular function to check what is inside
-                _data = head(*args, **kwargs)
-                # accept if resource is returned
-                if not isinstance(_data, (DltResource, Pipe)):
-                    raise InvalidResourceDataTypeFunctionNotAGenerator(self.name, head, type(head))
-
-        return _data
+    def __call__(self, *args: Any, **kwargs: Any) -> "DltResource":
+        """Binds the parametrized resources to passed arguments. Creates and returns a bound resource. Generators and iterators are not evaluated."""
+        if self._bound:
+            raise TypeError("Bound DltResource object is not callable")
+        r = DltResource.from_data(self._pipe._clone(keep_pipe_id=False), self.name, self.section, self._table_schema_template, self.selected, self._pipe.parent)
+        return r.bind(*args, **kwargs)
 
     def __or__(self, transform: Union["DltResource", AnyFun]) -> "DltResource":
         """Allows to pipe data from across resources and transform functions with | operator"""
@@ -354,7 +302,7 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
             info += f"\nThis resource is a transformer and takes data items from {self._pipe.parent.name}"
         else:
             if self._pipe.is_data_bound:
-                if self.is_parametrized:
+                if self.requires_binding:
                     head_sig = inspect.signature(self._pipe.gen)  # type: ignore
                     info += f"\nThis resource is parametrized and takes the following arguments {head_sig}. You must call this resource before loading."
                 else:
@@ -417,6 +365,7 @@ class DltResourceDict(Dict[str, DltResource]):
         super().__init__()
         self.source_name = source_name
         self._recently_added: List[DltResource] = []
+        self._known_pipes: Dict[str, DltResource] = {}
 
     @property
     def selected(self) -> Dict[str, DltResource]:
@@ -446,7 +395,9 @@ class DltResourceDict(Dict[str, DltResource]):
     def find_by_pipe(self, pipe: Pipe) -> DltResource:
         # TODO: many resources may share the same pipe so return a list and also filter the resources by self._enabled_resource_names
         # identify pipes by _pipe_id
-        return next(r for r in self.values() if r._pipe._pipe_id is pipe._pipe_id)
+        if pipe._pipe_id in self._known_pipes:
+            return self._known_pipes[pipe._pipe_id]
+        return self._known_pipes.setdefault(pipe._pipe_id, next(r for r in self.values() if r._pipe._pipe_id == pipe._pipe_id))
 
     def clone_new_pipes(self) -> None:
         cloned_pipes = ManagedPipeIterator.clone_pipes([r._pipe for r in self.values() if r in self._recently_added])
@@ -556,14 +507,16 @@ class DltSource(Iterable[TDataItem]):
     def schema(self, value: Schema) -> None:
         self._schema = value
 
-    def discover_schema(self) -> Schema:
-        # extract tables from all resources and update internal schema
+    def discover_schema(self, item: TDataItem = None) -> Schema:
+        """Computes table schemas for all selected resources in the source and merges them with a copy of current source schema. If `item` is provided,
+        dynamic tables will be evaluated, otherwise those tables will be ignored."""
+        schema = self._schema.clone()
         for r in self.selected_resources.values():
             # names must be normalized here
             with contextlib.suppress(DataItemRequiredForDynamicTableHints):
-                partial_table = self._schema.normalize_table_identifiers(r.table_schema())
-                self._schema.update_schema(partial_table)
-        return self._schema
+                partial_table = self._schema.normalize_table_identifiers(r.table_schema(item))
+                schema.update_schema(partial_table)
+        return schema
 
     def with_resources(self, *resource_names: str) -> "DltSource":
         """A convenience method to select one of more resources to be loaded. Returns a source with the specified resources selected."""
