@@ -1,12 +1,18 @@
 import os
 from typing import ClassVar, List
+from dlt.common.configuration.container import Container
+from dlt.common.configuration.resolve import inject_section
+from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
+
 from dlt.common.runtime import signals
+from dlt.common.schema import Schema
 
 from dlt.common.utils import uniq_id
 from dlt.common.typing import TDataItems, TDataItem
 from dlt.common.schema import utils, TSchemaUpdate
 from dlt.common.storages import NormalizeStorage, DataItemStorage
-from dlt.common.configuration.specs import NormalizeVolumeConfiguration
+from dlt.common.configuration.specs import NormalizeVolumeConfiguration, known_sections
+from dlt.extract.decorators import SourceSchemaInjectableContext
 
 
 from dlt.extract.pipe import PipeIterator
@@ -57,7 +63,6 @@ def extract(extract_id: str, source: DltSource, storage: ExtractorStorage, *, ma
         # normalize table name before writing so the name match the name in schema
         # note: normalize function should be cached so there's almost no penalty on frequent calling
         # note: column schema is not required for jsonl writer used here
-        # event.pop(DLT_METADATA_FIELD, None)  # type: ignore
         storage.write_data_item(extract_id, schema.name, schema.naming.normalize_identifier(table_name), item, None)
 
     def _write_dynamic_table(resource: DltResource, item: TDataItem) -> None:
@@ -77,6 +82,13 @@ def extract(extract_id: str, source: DltSource, storage: ExtractorStorage, *, ma
         # write to storage with inferred table name
         _write_item(table_name, item)
 
+    def _write_static_table(resource: DltResource, table_name: str) -> None:
+        existing_table = dynamic_tables.get(table_name)
+        if existing_table is None:
+            static_table = resource.table_schema()
+            static_table["name"] = table_name
+            dynamic_tables[table_name] = [static_table]
+
     # yield from all selected pipes
     with PipeIterator.from_pipes(source.resources.selected_pipes, max_parallel_items=max_parallel_items, workers=workers, futures_poll_interval=futures_poll_interval) as pipes:
         for pipe_item in pipes:
@@ -84,14 +96,12 @@ def extract(extract_id: str, source: DltSource, storage: ExtractorStorage, *, ma
             # TDataItemMeta(table_name, requires_resource, write_disposition, columns, parent etc.)
             signals.raise_if_signalled()
             # if meta contains table name
+            resource = source.resources.find_by_pipe(pipe_item.pipe)
             if isinstance(pipe_item.meta, TableNameMeta):
                 table_name = pipe_item.meta.table_name
-                existing_table = dynamic_tables.get(table_name)
-                if not existing_table:
-                    dynamic_tables[table_name] = [utils.new_table(table_name)]
+                _write_static_table(resource, table_name)
                 _write_item(table_name, pipe_item.item)
             else:
-                resource = source.resources.find_by_pipe(pipe_item.pipe)
                 # get partial table from table template
                 if resource._table_name_hint_fun:
                     if isinstance(pipe_item.item, List):
@@ -102,6 +112,7 @@ def extract(extract_id: str, source: DltSource, storage: ExtractorStorage, *, ma
                 else:
                     # write item belonging to table with static name
                     table_name = resource.table_name
+                    _write_static_table(resource, table_name)
                     _write_item(table_name, pipe_item.item)
 
     # flush all buffered writers
@@ -109,4 +120,22 @@ def extract(extract_id: str, source: DltSource, storage: ExtractorStorage, *, ma
 
     # returns set of partial tables
     return dynamic_tables
+
+
+def extract_with_schema(storage: ExtractorStorage, source: DltSource, schema: Schema, max_parallel_items: int, workers: int) -> str:
+    # generate extract_id to be able to commit all the sources together later
+    extract_id = storage.create_extract_id()
+    with Container().injectable_context(SourceSchemaInjectableContext(schema)):
+        # inject the config section with the current source name
+        with inject_section(ConfigSectionContext(sections=(known_sections.SOURCES, source.section, source.name))):
+            extractor = extract(extract_id, source, storage, max_parallel_items=max_parallel_items, workers=workers)
+            # source iterates
+            # TODO: implement a real check if source is exhausted. most of the resources should be not
+            source.exhausted = True
+            # iterate over all items in the pipeline and update the schema if dynamic table hints were present
+            for _, partials in extractor.items():
+                for partial in partials:
+                    schema.update_schema(schema.normalize_table_identifiers(partial))
+
+    return extract_id
 

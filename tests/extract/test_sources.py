@@ -433,6 +433,45 @@ def test_multiple_parametrized_transformers() -> None:
     assert list(s4) == expected_data
 
 
+def test_illegal_double_bind() -> None:
+    @dlt.resource()
+    def _r1():
+        yield ["a", "b", "c"]
+
+    with pytest.raises(TypeError) as py_ex:
+        _r1()()
+    assert "Bound DltResource" in str(py_ex.value)
+
+    with pytest.raises(TypeError) as py_ex:
+        _r1.bind().bind()
+    assert "Bound DltResource" in str(py_ex.value)
+
+
+
+@dlt.resource
+def res_in_res(table_name, w_d):
+
+    def _gen(s):
+        yield from s
+
+    return dlt.resource(_gen, name=table_name, write_disposition=w_d)
+
+
+def test_resource_returning_resource() -> None:
+
+    @dlt.source
+    def source_r_in_r():
+        yield res_in_res
+
+    s = source_r_in_r()
+    assert s.res_in_res.name == "res_in_res"
+    # this will return internal resource
+    r_i = s.res_in_res("table", "merge")
+    assert r_i.name == "table"
+    assert r_i.table_schema()["write_disposition"] == "merge"
+    assert list(r_i("ABC")) == ["A", "B", "C"]
+
+
 def test_source_dynamic_resource_attrs() -> None:
     # resources are also types
 

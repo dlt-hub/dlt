@@ -54,6 +54,22 @@ def inject_section(section_context: ConfigSectionContext, merge_existing: bool =
 
     return container.injectable_context(section_context)
 
+def _maybe_parse_native_value(config: TConfiguration, explicit_value: Any, embedded_sections: Tuple[str, ...]) -> Any:
+    # use initial value to resolve the whole configuration. if explicit value is a mapping it will be applied field by field later
+    if explicit_value and (not isinstance(explicit_value, C_Mapping) or isinstance(explicit_value, BaseConfiguration)):
+        # print(f"TRYING TO PARSE NATIVE from {explicit_value}")
+        try:
+            config.parse_native_representation(explicit_value)
+            # print("----ok")
+        except ValueError as v_err:
+            # provide generic exception
+            raise InvalidNativeValue(type(config), type(explicit_value), embedded_sections, v_err)
+        except NotImplementedError:
+
+            pass
+        # explicit value was consumed
+        explicit_value = None
+    return explicit_value
 
 def _resolve_configuration(
         config: TConfiguration,
@@ -69,18 +85,7 @@ def _resolve_configuration(
     config.__exception__ = None
     try:
         try:
-            # use initial value to resolve the whole configuration. if explicit value is a mapping it will be applied field by field later
-            if explicit_value and not isinstance(explicit_value, C_Mapping):
-                try:
-                    config.parse_native_representation(explicit_value)
-                except ValueError as v_err:
-                    # provide generic exception
-                    raise InvalidNativeValue(type(config), type(explicit_value), embedded_sections, v_err)
-                except NotImplementedError:
-                    pass
-                # explicit value was consumed
-                explicit_value = None
-
+            explicit_value = _maybe_parse_native_value(config, explicit_value, embedded_sections)
             # if native representation didn't fully resolve the config, we try to resolve field by field
             if not config.is_resolved():
                 _resolve_config_fields(config, explicit_value, explicit_sections, embedded_sections, accept_partial)
@@ -142,7 +147,6 @@ def _resolve_config_fields(
                 # return first resolved config from an union
                 try:
                     current_value, traces = _resolve_config_field(key, alt_spec, default_value, explicit_value, config, config.__section__, explicit_sections, embedded_sections, accept_partial)
-                    print(current_value)
                     break
                 except ConfigFieldMissingException as cfm_ex:
                     # add traces from unresolved union spec
@@ -199,6 +203,7 @@ def _resolve_config_field(
         if isinstance(value, BaseConfiguration):
             # if resolved value is instance of configuration (typically returned by context provider)
             embedded_config = value
+            default_value = None
             value = None
         elif isinstance(default_value, BaseConfiguration):
             # if default value was instance of configuration, use it
@@ -208,7 +213,10 @@ def _resolve_config_field(
             embedded_config = inner_hint()
 
         if embedded_config.is_resolved():
+            # print(f"{embedded_config} IS RESOLVED with VALUE {value}")
             # injected context will be resolved
+            if value is not None:
+                _maybe_parse_native_value(embedded_config, value, embedded_sections + (key,))
             value = embedded_config
         else:
             # only config with sections may look for initial values

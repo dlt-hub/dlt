@@ -63,6 +63,9 @@ class ItemTransform(ABC, Generic[TAny]):
         else:  # TODO: do better check
             self._f_meta = transform_f  # type: ignore
 
+    def bind(self: "ItemTransform[TAny]") -> "ItemTransform[TAny]":
+        return self
+
     @abstractmethod
     def __call__(self, item: TDataItems, meta: Any = None) -> Optional[TDataItems]:
         """Transforms `item` (a list of TDataItem or a single TDataItem) and returns or yields TDataItems. Returns None to consume item (filter out)"""

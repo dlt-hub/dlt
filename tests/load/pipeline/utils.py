@@ -72,15 +72,6 @@ def assert_query_data(p: dlt.Pipeline, sql: str, table_data: List[Any], schema_n
             assert row[1] in info.loads_ids
 
 
-def assert_load_info(info: LoadInfo, expected_load_packages: int = 1) -> None:
-    """Asserts that expected number of packages was loaded and there are no failed jobs"""
-    assert len(info.loads_ids) == expected_load_packages
-    # all packages loaded
-    assert all(p.completed_at is not None for p in info.load_packages) is True
-    # no failed jobs in any of the packages
-    assert all(len(p.jobs["failed_jobs"]) == 0 for p in info.load_packages) is True
-
-
 def load_table_counts(p: dlt.Pipeline, *table_names: str) -> DictStrAny:
     """Returns row counts for `table_names` as dict"""
     query = "\nUNION ALL\n".join([f"SELECT '{name}' as name, COUNT(1) as c FROM {name}" for name in table_names])

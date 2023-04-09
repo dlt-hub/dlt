@@ -30,7 +30,7 @@ def with_config(
     sections: Tuple[str, ...] = (),
     sections_merge_style: ConfigSectionContext.TMergeFunc = ConfigSectionContext.prefer_incoming,
     auto_pipeline_section: bool = False,
-    only_kw: bool = False
+    include_defaults: bool = True
 ) ->  TFun:
     ...
 
@@ -43,7 +43,7 @@ def with_config(
     sections: Tuple[str, ...] = (),
     sections_merge_style: ConfigSectionContext.TMergeFunc = ConfigSectionContext.prefer_incoming,
     auto_pipeline_section: bool = False,
-    only_kw: bool = False
+    include_defaults: bool = True
 ) ->  Callable[[TFun], TFun]:
     ...
 
@@ -55,9 +55,12 @@ def with_config(
     sections: Tuple[str, ...] = (),
     sections_merge_style: ConfigSectionContext.TMergeFunc = ConfigSectionContext.prefer_incoming,
     auto_pipeline_section: bool = False,
-    only_kw: bool = False
+    include_defaults: bool = True
 ) ->  Callable[[TFun], TFun]:
     """Injects values into decorated function arguments following the specification in `spec` or by deriving one from function's signature.
+
+    The synthesized spec contains the arguments marked with `dlt.secrets.value` and `dlt.config.value` which are required to be injected at runtime.
+    Optionally (and by default) arguments with default values are included in spec as well.
 
     Args:
         func (Optional[AnyFun], optional): A function with arguments to be injected. Defaults to None.
@@ -65,7 +68,7 @@ def with_config(
         sections (Tuple[str, ...], optional): A set of config sections in which to look for arguments values. Defaults to ().
         prefer_existing_sections: (bool, optional): When joining existing section context, the existing context will be preferred to the one in `sections`. Default: False
         auto_pipeline_section (bool, optional): If True, a top level pipeline section will be added if `pipeline_name` argument is present . Defaults to False.
-        only_kw (bool, optional): If True and `spec` is not provided, one is synthesized from keyword only arguments ignoring any others. Defaults to False.
+        include_defaults (bool, optional): If True then arguments with default values will be included in synthesized spec. If False only the required arguments marked with `dlt.secrets.value` and `dlt.config.value` are included
 
     Returns:
         Callable[[TFun], TFun]: A decorated function
@@ -84,9 +87,12 @@ def with_config(
         section_context = ConfigSectionContext(sections=sections, merge_style=sections_merge_style)
 
         if spec is None:
-            SPEC = spec_from_signature(f, sig, only_kw)
+            SPEC = spec_from_signature(f, sig, include_defaults)
         else:
             SPEC = spec
+
+        if SPEC is None:
+            return f
 
         for p in sig.parameters.values():
             # for all positional parameters that do not have default value, set default

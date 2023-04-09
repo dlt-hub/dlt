@@ -17,7 +17,7 @@ from dlt.common.storages.exceptions import SchemaNotFoundError
 from dlt.common.storages.schema_storage import SchemaStorage
 from dlt.common.typing import AnyFun, ParamSpec, Concatenate, TDataItem, TDataItems
 from dlt.common.utils import get_callable_name, is_inner_callable
-from dlt.extract.exceptions import InvalidTransformerDataTypeGeneratorFunctionRequired, ResourceFunctionExpected, SourceDataIsNone, SourceIsAClassTypeError, SourceNotAFunction, SourceSchemaNotAvailable
+from dlt.extract.exceptions import InvalidTransformerDataTypeGeneratorFunctionRequired, ResourceFunctionExpected, ResourceInnerCallableConfigWrapDisallowed, SourceDataIsNone, SourceIsAClassTypeError, SourceNotAFunction, SourceSchemaNotAvailable
 from dlt.extract.incremental import IncrementalResourceWrapper
 
 from dlt.extract.typing import TTableHintTemplate
@@ -330,23 +330,20 @@ def resource(
         incremental: IncrementalResourceWrapper = None
         sig = inspect.signature(f)
         if IncrementalResourceWrapper.should_wrap(sig):
-            incremental = IncrementalResourceWrapper(resource_name, source_section, primary_key)
+            incremental = IncrementalResourceWrapper(resource_name, primary_key)
+        incr_f = incremental.wrap(sig, f) if incremental else f
 
-        if is_inner_callable(f):
-            conf_f = f
-        else:
-            resource_sections = (known_sections.SOURCES, source_section, resource_name)
-            # standalone resource will prefer existing section context when resolving config values
-            # this lets the source to override those values and provide common section for all config values for resources present in that source
-            conf_f = with_config(
-                f,
-                spec=spec, sections=resource_sections, sections_merge_style=ConfigSectionContext.resource_merge_style
-            )
-            # get spec for wrapped function
-            SPEC = get_fun_spec(conf_f)
-
-        if incremental:
-            conf_f = incremental.wrap(conf_f)
+        resource_sections = (known_sections.SOURCES, source_section, resource_name)
+        # standalone resource will prefer existing section context when resolving config values
+        # this lets the source to override those values and provide common section for all config values for resources present in that source
+        conf_f = with_config(
+            incr_f,
+            spec=spec, sections=resource_sections, sections_merge_style=ConfigSectionContext.resource_merge_style, include_defaults=False
+        )
+        if conf_f != incr_f and is_inner_callable(f):
+            raise ResourceInnerCallableConfigWrapDisallowed(resource_name, source_section)
+        # get spec for wrapped function
+        SPEC = get_fun_spec(conf_f)
 
         # store the standalone resource information
         if SPEC:

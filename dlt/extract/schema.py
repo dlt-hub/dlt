@@ -1,4 +1,4 @@
-from copy import deepcopy
+from copy import copy, deepcopy
 from collections.abc import Mapping as C_Mapping
 from typing import List, cast, Any
 
@@ -16,7 +16,6 @@ class DltResourceSchema:
         self._table_name_hint_fun: TFunHintTemplate[str] = None
         self._table_has_other_dynamic_hints: bool = False
         self._table_schema_template: TTableSchemaTemplate = None
-        self._table_schema: TPartialTableSchema = None
         if table_schema_template:
             self.set_template(table_schema_template)
 
@@ -30,49 +29,18 @@ class DltResourceSchema:
     def table_schema(self, item: TDataItem =  None) -> TPartialTableSchema:
         """Computes the table schema based on hints and column definitions passed during resource creation. `item` parameter is used to resolve table hints based on data"""
         if not self._table_schema_template:
-            # if table template is not present, generate partial table from name
-            if not self._table_schema:
-                self._table_schema = new_table(self.name)
-            return self._table_schema
+            return new_table(self.name)
 
-        def _resolve_hint(hint: TTableHintTemplate[Any]) -> Any:
-            """Calls each dynamic hint passing a data item"""
-            if callable(hint):
-                return hint(item)
-            else:
-                return hint
-
-        def _merge_key(hint: TColumnProp, keys: TColumnKey, partial: TPartialTableSchema) -> None:
-            if isinstance(keys, str):
-                keys = [keys]
-            for key in keys:
-                if key in partial["columns"]:
-                    merge_columns(partial["columns"][key], {hint: key})  # type: ignore
-                else:
-                    partial["columns"][key] = new_column(key, nullable=False)
-                    partial["columns"][key][hint] = True
-
-        def _merge_keys(t_: TTableSchemaTemplate) -> TPartialTableSchema:
-            """Merges resolved keys into columns"""
-            partial = cast(TPartialTableSchema, t_)
-            # assert not callable(t_["merge_key"])
-            # assert not callable(t_["primary_key"])
-            if "primary_key" in t_:
-                _merge_key("primary_key", t_.pop("primary_key"), partial)  # type: ignore
-            if "merge_key" in t_:
-                _merge_key("merge_key", t_.pop("merge_key"), partial)  # type: ignore
-
-            return partial
+        # resolve a copy of a held template
+        table_template = copy(self._table_schema_template)
+        table_template["columns"] = copy(self._table_schema_template["columns"])
 
         # if table template present and has dynamic hints, the data item must be provided
-        if self._table_name_hint_fun:
-            if item is None:
-                raise DataItemRequiredForDynamicTableHints(self.name)
-            else:
-                resolved_template: TTableSchemaTemplate = {k: _resolve_hint(v) for k, v in self._table_schema_template.items()}  # type: ignore
-                return _merge_keys(resolved_template)
-        else:
-            return _merge_keys(self._table_schema_template)
+        if self._table_name_hint_fun and item is None:
+            raise DataItemRequiredForDynamicTableHints(self.name)
+        # resolve
+        resolved_template: TTableSchemaTemplate = {k: self._resolve_hint(item, v) for k, v in table_template.items()}  # type: ignore
+        return self._merge_keys(resolved_template)
 
     def apply_hints(
         self,
@@ -124,6 +92,38 @@ class DltResourceSchema:
         # check if any other hints in the table template should be inferred from data
         self._table_has_other_dynamic_hints = any(callable(v) for k, v in table_schema_template.items() if k != "name")
         self._table_schema_template = table_schema_template
+
+    @staticmethod
+    def _resolve_hint(item: TDataItem, hint: TTableHintTemplate[Any]) -> Any:
+            """Calls each dynamic hint passing a data item"""
+            if callable(hint):
+                return hint(item)
+            else:
+                return hint
+
+    @staticmethod
+    def _merge_key(hint: TColumnProp, keys: TColumnKey, partial: TPartialTableSchema) -> None:
+        if isinstance(keys, str):
+            keys = [keys]
+        for key in keys:
+            if key in partial["columns"]:
+                merge_columns(partial["columns"][key], {hint: True})  # type: ignore
+            else:
+                partial["columns"][key] = new_column(key, nullable=False)
+                partial["columns"][key][hint] = True
+
+    @staticmethod
+    def _merge_keys(t_: TTableSchemaTemplate) -> TPartialTableSchema:
+        """Merges resolved keys into columns"""
+        partial = cast(TPartialTableSchema, t_)
+        # assert not callable(t_["merge_key"])
+        # assert not callable(t_["primary_key"])
+        if "primary_key" in t_:
+            DltResourceSchema._merge_key("primary_key", t_.pop("primary_key"), partial)  # type: ignore
+        if "merge_key" in t_:
+            DltResourceSchema._merge_key("merge_key", t_.pop("merge_key"), partial)  # type: ignore
+
+        return partial
 
     @staticmethod
     def new_table_template(
