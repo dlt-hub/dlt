@@ -10,6 +10,9 @@ from dlt.common.configuration.specs.base_configuration import configspec
 from dlt.common.pendulum import pendulum, timedelta
 from dlt.common.utils import uniq_id, digest128
 from dlt.common.json import json
+
+from dlt.sources.helpers.transform import take_first
+
 from dlt.extract.incremental import IncrementalCursorPathMissing, IncrementalPrimaryKeyMissing
 from tests.pipeline.utils import drop_pipeline
 from tests.utils import preserve_environ, autouse_test_storage, patch_home_dir
@@ -147,9 +150,13 @@ def test_explicit_incremental_instance() -> None:
 
 
 @dlt.resource
-def some_data_from_config(created_at: Optional[dlt.sources.incremental] = dlt.secrets.value):
+def some_data_from_config(call_no: int, created_at: Optional[dlt.sources.incremental] = dlt.secrets.value):
     assert created_at.cursor_path == 'created_at'
-    assert created_at.initial_value == '2022-02-03T00:00:00Z'
+    # initial value will update to the last_value on next call
+    if call_no == 1:
+        assert created_at.initial_value == '2022-02-03T00:00:00Z'
+    if call_no == 2:
+        assert created_at.initial_value == '2022-02-03T00:00:01Z'
     yield {'created_at': '2022-02-03T00:00:01Z'}
 
 
@@ -159,8 +166,8 @@ def test_optional_incremental_from_config() -> None:
     os.environ['SOURCES__TEST_INCREMENTAL__SOME_DATA_FROM_CONFIG__CREATED_AT__INITIAL_VALUE'] = '2022-02-03T00:00:00Z'
 
     p = dlt.pipeline(pipeline_name=uniq_id())
-    p.extract(some_data_from_config())
-    p.extract(some_data_from_config())
+    p.extract(some_data_from_config(1))
+    p.extract(some_data_from_config(2))
 
 
 @configspec
@@ -372,3 +379,28 @@ def test_filter_processed_items() -> None:
     assert len(values) == 10
     # the minimum element
     assert values[0]["delta"] == -10
+
+
+def test_initial_value_set_to_last_value() -> None:
+    os.environ["COMPLETED_PROB"] = "1.0"
+
+    p = dlt.pipeline(pipeline_name=uniq_id())
+    now = pendulum.now()
+
+    @dlt.resource
+    def some_data(step, last_timestamp=dlt.sources.incremental("item.ts")):
+        print(last_timestamp.initial_value)
+        if step == -10:
+            assert last_timestamp.initial_value is None
+        else:
+            # print(last_timestamp.initial_value)
+            # print(now.add(days=step-1).timestamp())
+            assert last_timestamp.initial_value == now.add(days=step-1).timestamp()
+        for i in range(-10, 10):
+            yield {"delta": i, "item": {"ts": now.add(days=i).timestamp()}}
+
+    for i in range(-10, 10):
+        r = some_data(i)
+        assert len(r._pipe) == 2
+        r.add_filter(take_first(i + 11), 1)
+        p.run(r, destination="dummy")
