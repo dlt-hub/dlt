@@ -10,6 +10,7 @@ from hexbytes import HexBytes
 
 from dlt.common.arithmetics import Decimal
 from dlt.common.wei import Wei
+from dlt.common.utils import map_nested_in_place
 
 
 class SupportsJson(Protocol):
@@ -22,6 +23,18 @@ class SupportsJson(Protocol):
         ...
 
     def typed_dump(self, obj: Any, fp: IO[bytes], pretty:bool = False) -> None:
+        ...
+
+    def typed_dumps(self, obj: Any, sort_keys: bool = False, pretty: bool = False) -> str:
+        ...
+
+    def typed_loads(self, s: str) -> Any:
+        ...
+
+    def typed_dumpb(self, obj: Any, sort_keys: bool = False, pretty: bool = False) -> bytes:
+        ...
+
+    def typed_loadb(self, s: Union[bytes, bytearray, memoryview]) -> Any:
         ...
 
     def dumps(self, obj: Any, sort_keys: bool = False, pretty:bool = False) -> str:
@@ -126,6 +139,14 @@ def custom_pua_decode(obj: Any) -> Any:
         # decode only the PUA space defined in DECODERS
         if c >=0 and c <= 6:
             return DECODERS[c](obj[1:])
+    return obj
+
+
+def custom_pua_decode_nested(obj: Any) -> Any:
+    if isinstance(obj, str):
+        return custom_pua_decode
+    elif isinstance(obj, (list, dict)):
+        return map_nested_in_place(custom_pua_decode, obj)
     return obj
 
 

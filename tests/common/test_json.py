@@ -9,7 +9,7 @@ from dlt.common.arithmetics import numeric_default_context
 from dlt.common.json import _DECIMAL, _WEI, custom_pua_decode, _orjson, _simplejson, SupportsJson
 
 from tests.utils import autouse_test_storage, TEST_STORAGE_ROOT
-from tests.cases import JSON_TYPED_DICT
+from tests.cases import JSON_TYPED_DICT, JSON_TYPED_DICT_NESTED
 from tests.common.utils import json_case_path, load_json_case
 
 
@@ -212,6 +212,15 @@ def test_json_encode(json_impl: SupportsJson) -> None:
     d = json_impl.loads(j)
     # all our values are strings
     assert all(isinstance(v, str) for v in d.values())
+
+
+@pytest.mark.parametrize("json_impl", _JSON_IMPL)
+def test_json_typed_dumps_loads(json_impl: SupportsJson) -> None:
+    s = json_impl.typed_dumps(JSON_TYPED_DICT_NESTED)
+    b = json_impl.typed_dumpb(JSON_TYPED_DICT_NESTED)
+
+    assert json.typed_loads(s) == JSON_TYPED_DICT_NESTED
+    assert json.typed_loadb(b) == JSON_TYPED_DICT_NESTED
 
 
 @pytest.mark.parametrize("json_impl", _JSON_IMPL)

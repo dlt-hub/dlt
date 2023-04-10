@@ -6,7 +6,7 @@ from jsonpath_ng import parse as jsonpath_parse, JSONPath
 
 import dlt
 from dlt.common.json import json
-from dlt.common.typing import DictStrAny, TDataItem, TFun, extract_inner_type
+from dlt.common.typing import DictStrAny, TDataItem, TFun, extract_inner_type, is_optional_type
 from dlt.common.schema.typing import TColumnKey
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import BaseConfiguration
@@ -109,11 +109,10 @@ class Incremental(BaseConfiguration, Generic[TCursorValue]):
         # if state params is empty
         if len(self._cached_state) == 0:
             # set the default like this, setdefault evaluates the default no matter if it is needed or not. and our default is heavy
-            initial_value = json.loads(json.dumps(self.initial_value))
             self._cached_state.update(
                 {
-                    "initial_value": initial_value,
-                    "last_value": initial_value,
+                    "initial_value": self.initial_value,
+                    "last_value": self.initial_value,
                     'unique_hashes': []
                 }
             )
@@ -182,6 +181,8 @@ class IncrementalResourceWrapper(FilterItem):
                 new_incremental = p.default.copy()
 
             if not new_incremental:
+                if is_optional_type(p.annotation):
+                    return func(*args, **kwargs)
                 raise ValueError(f"{p.name} Incremental has no default")
             new_incremental.resource_name = self.resource_name
             # set initial value from last value, in case of a new state those are equal
@@ -203,6 +204,8 @@ class IncrementalResourceWrapper(FilterItem):
             raise IncrementalPrimaryKeyMissing(self.resource_name, k_err.args[0], row)
 
     def transform(self, row: TDataItem) -> bool:
+        if not self._incremental:
+            return True
         if row is None:
             return True
 
@@ -212,7 +215,7 @@ class IncrementalResourceWrapper(FilterItem):
 
         incremental_state = self._incremental._cached_state
         last_value = incremental_state['last_value']
-        row_value = json.loads(json.dumps(row_values[0].value))  # For now the value needs to match deserialized presentation from state
+        row_value = row_values[0].value  # For now the value needs to match deserialized presentation from state
         check_values = [row_value] + ([last_value] if last_value is not None else [])
         new_value = self._incremental.last_value_func(check_values)
         if last_value == new_value:

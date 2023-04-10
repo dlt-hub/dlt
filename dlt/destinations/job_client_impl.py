@@ -278,6 +278,7 @@ class SqlJobClientBase(JobClientBase):
             return None
 
         # get schema as string
+        # TODO: Re-use decompress/compress_state() implementation from dlt.pipeline.state_sync
         schema_str = row[5]
         try:
             schema_bytes = base64.b64decode(schema_str, validate=True)

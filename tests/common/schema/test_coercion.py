@@ -8,10 +8,8 @@ from hexbytes import HexBytes
 from pendulum.tz import UTC
 
 from dlt.common import Decimal, Wei, json, pendulum
-from dlt.common.json import _DATETIME, custom_pua_decode
+from dlt.common.json import _DATETIME, custom_pua_decode_nested
 from dlt.common.data_types import coerce_value, py_type_to_sc_type, TDataType
-from dlt.common.utils import map_nested_in_place
-
 
 from tests.cases import JSON_TYPED_DICT, JSON_TYPED_DICT_TYPES
 
@@ -267,6 +265,6 @@ def test_coerce_type_complex_with_pua() -> None:
     assert coerce_value("complex", "complex", copy(v_dict)) == exp_v
     assert coerce_value("text", "complex", copy(v_dict)) == json.dumps(exp_v)
     # also decode recursively
-    map_nested_in_place(custom_pua_decode, v_dict)
+    custom_pua_decode_nested(v_dict)
     # restores datetime type
     assert v_dict["pua_date"] == pendulum.parse("2022-05-10T01:41:31.466Z")
