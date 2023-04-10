@@ -6,7 +6,7 @@ from jsonpath_ng import parse as jsonpath_parse, JSONPath
 
 import dlt
 from dlt.common.json import json
-from dlt.common.typing import DictStrAny, TDataItem, TFun, extract_inner_type
+from dlt.common.typing import DictStrAny, TDataItem, TFun, extract_inner_type, is_optional_type
 from dlt.common.schema.typing import TColumnKey
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import BaseConfiguration
@@ -181,6 +181,8 @@ class IncrementalResourceWrapper(FilterItem):
                 new_incremental = p.default.copy()
 
             if not new_incremental:
+                if is_optional_type(p.annotation):
+                    return func(*args, **kwargs)
                 raise ValueError(f"{p.name} Incremental has no default")
             new_incremental.resource_name = self.resource_name
             # set initial value from last value, in case of a new state those are equal
@@ -202,6 +204,8 @@ class IncrementalResourceWrapper(FilterItem):
             raise IncrementalPrimaryKeyMissing(self.resource_name, k_err.args[0], row)
 
     def transform(self, row: TDataItem) -> bool:
+        if not self._incremental:
+            return True
         if row is None:
             return True
 

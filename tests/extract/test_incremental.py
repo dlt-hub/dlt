@@ -183,6 +183,16 @@ def some_data_override_config(created_at: dlt.sources.incremental = dlt.config.v
     yield {'created_at': '2023-03-03T00:00:00Z'}
 
 
+def test_optional_incremental_not_passed() -> None:
+    """Resource still runs when no incremental is passed"""
+
+    @dlt.resource
+    def some_data(created_at: Optional[dlt.sources.incremental] = None):
+        yield [1,2,3]
+
+    assert list(some_data()) == [1, 2, 3]
+
+
 def test_override_initial_value_from_config() -> None:
 
     # use the shortest possible config version
