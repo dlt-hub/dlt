@@ -9,7 +9,7 @@ keywords: [source, api, dlt.source]
 
 A [source](../glossary.md#source) is a logical grouping of resources ie. endpoints of a single API. The most common approach is to define it in a separate Python module.
 - a source is a function decorated with `@dlt.source` that returns one or more resources
-- a source can optionally define a [schema](../customization/schema.md) with tables, columns, performance hints and more
+- a source can optionally define a [schema](schema.md) with tables, columns, performance hints and more
 - the source Python module typically contains optional customizations and data transformations.
 - the source Python module typically contains the authentication and pagination code for particular API
 
@@ -33,6 +33,8 @@ def hubspot(api_key=dlt.secrets.value):
         # calling get_resource creates generator, the actual code of the function will be executed in pipeline.run
         yield dlt.resource(get_resource(endpoint), name=endpoint)
 ```
+### Attach and configure schemas
+You can [create, attach and configure schema](schema.md#attaching-schemas-to-sources) that will be used when loading the source.
 
 ## Customize sources
 
@@ -86,6 +88,11 @@ source.resources["deal_scores"] = deal_scores  # this also works
 # load the data: you'll see the new table `deal_scores` in your destination!
 pipeline.run(source)
 ```
+
+### Modify schema
+The schema is available via `schema` property of the source. You can manipulate this schema ie. add tables, change column definitions etc. before the data is loaded. Source provides two other convenience properties:
+1. `max_table_nesting` to set the maximum nesting level of child tables
+2. `root_key` to propagate the `_dlt_id` of from a root table to all child tables.
 
 ## Load sources
 You can pass individual sources or list of sources to the `dlt.pipeline` object. By default all the sources will be loaded to a single dataset.

@@ -26,6 +26,7 @@ const sidebars = {
         'walkthroughs/create-a-pipeline',
         'walkthroughs/add-a-pipeline',
         'walkthroughs/run-a-pipeline',
+        'walkthroughs/work-with-schemas-in-files',
         'walkthroughs/deploy-a-pipeline'
       ],
     },
@@ -75,7 +76,6 @@ const sidebars = {
       items: [
         'customization/incremental-loading',
         'customization/credentials',
-        'customization/schema',
         'customization/configuration',
         'customization/project-structure',
         'customization/advanced-pipelines',
@@ -89,6 +89,7 @@ const sidebars = {
         'concepts/resource',
         'concepts/source',
         'concepts/pipeline',
+        'concepts/schema',
         'concepts/state',
       ],
     },
