@@ -109,11 +109,10 @@ class Incremental(BaseConfiguration, Generic[TCursorValue]):
         # if state params is empty
         if len(self._cached_state) == 0:
             # set the default like this, setdefault evaluates the default no matter if it is needed or not. and our default is heavy
-            initial_value = json.loads(json.dumps(self.initial_value))
             self._cached_state.update(
                 {
-                    "initial_value": initial_value,
-                    "last_value": initial_value,
+                    "initial_value": self.initial_value,
+                    "last_value": self.initial_value,
                     'unique_hashes': []
                 }
             )
@@ -212,7 +211,7 @@ class IncrementalResourceWrapper(FilterItem):
 
         incremental_state = self._incremental._cached_state
         last_value = incremental_state['last_value']
-        row_value = json.loads(json.dumps(row_values[0].value))  # For now the value needs to match deserialized presentation from state
+        row_value = row_values[0].value  # For now the value needs to match deserialized presentation from state
         check_values = [row_value] + ([last_value] if last_value is not None else [])
         new_value = self._incremental.last_value_func(check_values)
         if last_value == new_value:

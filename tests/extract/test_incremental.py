@@ -279,7 +279,7 @@ def test_cursor_datetime_type() -> None:
     p.extract(some_data())
 
     s = p.state["sources"]["test_incremental"]['resources']['some_data']['incremental']['created_at']
-    assert s['last_value'] == json.loads(json.dumps(initial_value + timedelta(minutes=4)))
+    assert s['last_value'] == initial_value + timedelta(minutes=4)
 
 
 def test_descending_order_unique_hashes() -> None:
