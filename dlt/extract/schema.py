@@ -5,6 +5,7 @@ from typing import List, cast, Any
 from dlt.common.schema.utils import DEFAULT_WRITE_DISPOSITION, merge_columns, new_column, new_table
 from dlt.common.schema.typing import TColumnProp, TColumnSchema, TPartialTableSchema, TTableSchemaColumns, TWriteDisposition
 from dlt.common.typing import TDataItem
+from dlt.common.validation import validate_dict
 
 from dlt.extract.typing import TColumnKey, TFunHintTemplate, TTableHintTemplate, TTableSchemaTemplate
 from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, InconsistentTableTemplate, TableNameMissing
@@ -50,7 +51,9 @@ class DltResourceSchema:
             raise DataItemRequiredForDynamicTableHints(self._name)
         # resolve
         resolved_template: TTableSchemaTemplate = {k: self._resolve_hint(item, v) for k, v in table_template.items()}  # type: ignore
-        return self._merge_keys(resolved_template)
+        table_schema = self._merge_keys(resolved_template)
+        validate_dict(TPartialTableSchema, table_schema, f"new_table/{self._name}")
+        return table_schema
 
     def apply_hints(
         self,
