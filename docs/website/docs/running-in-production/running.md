@@ -48,7 +48,7 @@ You can also get the runtime trace from the pipeline. It contains timing informa
     pipeline.run([pipeline.last_trace], table_name="_trace")
 ```
 
-Please note that you can inspect the pipeline using [command line](../command-line-interface.md#dlt-pipeline).
+Please note that you can inspect the pipeline using [command line](../reference/command-line-interface.md#dlt-pipeline).
 
 ### Inspect, save and alert on schema changes
 
@@ -81,7 +81,7 @@ load.delete_completed_jobs=true
 
 ## Using slack to send messages
 
-`dlt` provides basic support for sending slack messages. You can configure Slack incoming hook via [secrets.toml or environment variables](../customization/credentials.md). Please note that **Slack incoming hook is considered a secret and will be immediately blocked when pushed to github repository**. In `secrets.toml`:
+`dlt` provides basic support for sending slack messages. You can configure Slack incoming hook via [secrets.toml or environment variables](../general-usage/credentials.md). Please note that **Slack incoming hook is considered a secret and will be immediately blocked when pushed to github repository**. In `secrets.toml`:
 
 ```toml
 [runtime]
@@ -101,7 +101,7 @@ send_slack_message(pipeline.runtime_config.slack_incoming_hook, message)
 
 ## Enable Sentry tracing
 
-You can enable exception and runtime [tracing via Sentry](../reference/tracing.md)
+You can enable exception and runtime [tracing via Sentry](../running-in-production/tracing.md)
 
 ## Set the log level and format
 

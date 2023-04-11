@@ -6,7 +6,7 @@ keywords: [google sheets api, google sheets pipeline, google sheets]
 
 # Google Sheets
 
-This pipeline can be used to load data from a [Google sheets](https://www.google.com/sheets/about/) workspace onto a [destination](https://dlthub.com/docs/destinations) of your choice.
+This pipeline can be used to load data from a [Google sheets](https://www.google.com/sheets/about/) workspace onto a [destination](../general-usage/glossary.md#destination) of your choice.
 
 1. `dlt` loads each sheet in the workspace as a separate table in the destination.
 2. The tables in destination have same name as individual sheets.

@@ -4,7 +4,6 @@ description: How to use dlt credentials
 keywords: [credentials, secrets.toml, environment variables]
 ---
 
-
 # Credentials
 
 ## Adding credentials locally
@@ -26,9 +25,9 @@ client_email = "client_email" # please set me up!
 location = "US"
 ```
 
-For destination credentials, read this [guide](../destinations) for how create and configure destination credentials.
+For destination credentials, read the docs page for each destination to create and configure credentials.
 
-For source credential, read the source's readme to find how to get credentials.
+For source credentials, read the README for each source to find how to get credentials.
 
 Once you have credentials for the source and destination, add them to the file above and save them
 

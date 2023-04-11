@@ -28,7 +28,7 @@ from dlt.cli.config_toml_writer import WritableConfigValue, write_values
 from dlt.cli.pipeline_files import PipelineFiles, TPipelineFileEntry, TPipelineFileIndex
 from dlt.cli.exceptions import CliCommandException
 
-DLT_INIT_DOCS_URL = "https://dlthub.com/docs/command-line-interface#dlt-init"
+DLT_INIT_DOCS_URL = "https://dlthub.com/docs/reference/command-line-interface#dlt-init"
 DEFAULT_PIPELINES_REPO = "https://github.com/dlt-hub/pipelines.git"
 INIT_MODULE_NAME = "init"
 PIPELINES_MODULE_NAME = "pipelines"
