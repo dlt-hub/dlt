@@ -501,9 +501,7 @@ def test_accepts_optional_missing_fields(environment: Any) -> None:
     # make config with optional embedded config
     C = resolve.resolve_configuration(EmbeddedOptionalConfiguration())
     # embedded config was not fully resolved
-    assert not C.instrumented.__is_resolved__
-    assert not C.instrumented.is_resolved()
-    assert C.instrumented.is_partial()
+    assert C.instrumented is None
 
 
 def test_find_all_keys() -> None:
