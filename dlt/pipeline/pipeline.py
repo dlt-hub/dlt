@@ -774,12 +774,9 @@ class Pipeline(SupportsPipeline):
         pipeline_schema: Schema = None
         with contextlib.suppress(FileNotFoundError):
             pipeline_schema = self._schema_storage.load_schema(source_schema.name)
-        should_initialize_import = False
 
         # if source schema does not exist in the pipeline
         if source_schema.name not in self._schema_storage:
-            # possibly initialize the import schema if it is a new schema
-            should_initialize_import = True
             # save schema into the pipeline
             self._schema_storage.save_schema(source_schema)
         pipeline_schema = self._schema_storage[source_schema.name]
@@ -789,17 +786,16 @@ class Pipeline(SupportsPipeline):
             # this performs additional validations as schema contains the naming module
             self._set_default_schema_name(source_schema)
 
+        # make CTRL-C working while running user code
+        with signals.raise_immediately():
+            extract_id = extract_with_schema(storage, source, source_schema, max_parallel_items, workers)
+
+        # initialize import with fully discovered schema
+        self._schema_storage.save_import_schema_if_not_exists(source_schema)
+
         # get the current schema and merge tables from source_schema, we'll not merge the high level props
         for table in source_schema.data_tables():
             pipeline_schema.update_schema(pipeline_schema.normalize_table_identifiers(table))
-
-        # make CTRL-C working while running user code
-        with signals.raise_immediately():
-            extract_id = extract_with_schema(storage, source, pipeline_schema, max_parallel_items, workers)
-
-        # initialize import with fully discovered schema
-        if should_initialize_import:
-            self._schema_storage.initialize_import_schema(pipeline_schema)
 
         return extract_id
 
