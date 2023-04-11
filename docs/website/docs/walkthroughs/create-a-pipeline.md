@@ -128,4 +128,4 @@ loaded on a schedule
 - Transform the [loaded data](./using-loaded-data/transforming-the-data) with dbt or in Pandas DataFrames
 - Set up a [pipeline in production](./running-in-production/scheduling) with scheduling,
 monitoring, and alerting
-- Try loading data to a [different destination](./destinations) like Amazon Redshift, Postgres or DuckDb
+- Try loading data to a different destination like [Google BigQuery](./destinations/bigquery.md), [Amazon Redshift](./destinations/redshift.md), or [Postgres](./destinations/postgres.md)
