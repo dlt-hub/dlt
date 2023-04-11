@@ -180,9 +180,10 @@ class IncrementalResourceWrapper(FilterItem):
             elif isinstance(p.default, Incremental):
                 new_incremental = p.default.copy()
 
-            if not new_incremental:
+            if not new_incremental or new_incremental.is_partial():
                 if is_optional_type(p.annotation):
-                    return func(*args, **kwargs)
+                    bound_args.arguments[p.name] = None  # Remove partial spec
+                    return func(*bound_args.args, **bound_args.kwargs)
                 raise ValueError(f"{p.name} Incremental has no default")
             new_incremental.resource_name = self.resource_name
             # set initial value from last value, in case of a new state those are equal

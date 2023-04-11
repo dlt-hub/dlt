@@ -1,12 +1,12 @@
 import os
 from time import sleep
-from typing import Optional
+from typing import Optional, Any
 
 import duckdb
 import pytest
 
 import dlt
-from dlt.common.configuration.specs.base_configuration import configspec
+from dlt.common.configuration.specs.base_configuration import configspec, BaseConfiguration
 from dlt.common.pendulum import pendulum, timedelta
 from dlt.common.utils import uniq_id, digest128
 from dlt.common.json import json
@@ -193,8 +193,23 @@ def test_optional_incremental_not_passed() -> None:
     assert list(some_data()) == [1, 2, 3]
 
 
-def test_override_initial_value_from_config() -> None:
+@configspec
+class OptionalIncrementalConfig(BaseConfiguration):
+    incremental: Optional[dlt.sources.incremental] = None  # type: ignore[type-arg]
 
+
+@dlt.resource(spec=OptionalIncrementalConfig)
+def optional_incremental_arg_resource(incremental: Optional[dlt.sources.incremental[Any]] = None) -> Any:
+    assert incremental is None
+    yield [1, 2, 3]
+
+
+def test_optional_arg_from_spec_not_passed() -> None:
+    p = dlt.pipeline(pipeline_name=uniq_id())
+    p.extract(optional_incremental_arg_resource())
+
+
+def test_override_initial_value_from_config() -> None:
     # use the shortest possible config version
     # os.environ['SOURCES__TEST_INCREMENTAL__SOME_DATA_OVERRIDE_CONFIG__CREATED_AT__INITIAL_VALUE'] = '2000-02-03T00:00:00Z'
     os.environ['CREATED_AT__INITIAL_VALUE'] = '2000-02-03T00:00:00Z'
