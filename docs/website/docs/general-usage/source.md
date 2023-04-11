@@ -7,7 +7,7 @@ keywords: [source, api, dlt.source]
 
 # Source
 
-A [source](../glossary.md#source) is a logical grouping of resources ie. endpoints of a single API. The most common approach is to define it in a separate Python module.
+A [source](./general-usage/glossary.md#source) is a logical grouping of resources ie. endpoints of a single API. The most common approach is to define it in a separate Python module.
 - a source is a function decorated with `@dlt.source` that returns one or more resources
 - a source can optionally define a [schema](../customization/schema.md) with tables, columns, performance hints and more
 - the source Python module typically contains optional customizations and data transformations.

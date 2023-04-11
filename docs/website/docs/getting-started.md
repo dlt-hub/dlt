@@ -6,7 +6,7 @@ keywords: [getting started, dlt init, duckdb]
 
 # Getting started
 
-Follow the steps below to have a working `dlt` [pipeline](./glossary#pipeline) in 5 minutes.
+Follow the steps below to have a working `dlt` [pipeline](./general-usage/glossary#pipeline) in 5 minutes.
 
 Please make sure you have [installed `dlt`](./installation.mdx) before getting started here.
 
@@ -41,7 +41,7 @@ dlt pipeline chess_pipeline show
 
 Learn more about how to query DuckDB [here](https://duckdb.org/docs/sql/introduction#querying-a-table).
 
-Read more about the default configuration of the DuckDB destination [here](destinations.md#destination-configuration).
+Read more about the default configuration of the DuckDB destination [here](destinations/duckdb.md#destination-configuration).
 
 ## 4. Next steps
 

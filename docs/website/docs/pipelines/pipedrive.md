@@ -18,7 +18,7 @@ Pipedrive provides a unique domain name that is generally `[company].pipedrive.c
 
 ## Initialize the pipeline
 
-**Initialize the pipeline by using the following command with your [destination](/destinations.md) of choice:**
+**Initialize the pipeline by using the following command with your [destination](./general-usage/glossary.md#destination) of choice:**
 ```bash
 dlt init pipedrive [destination]
 ```
