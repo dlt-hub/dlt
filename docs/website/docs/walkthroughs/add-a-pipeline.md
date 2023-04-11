@@ -51,7 +51,7 @@ Finally, run the pipeline, fill the secrets.toml with your credentials or place 
 
 ## 2. Adding credentials
 
-For adding them locally or on your orchestrator, please see the following guide [credentials](../general-usage/credentials).
+For adding them locally or on your orchestrator, please see the following guide [credentials](../general-usage/credentials.md).
 
 ## 3. Customize or write a pipeline script
 
