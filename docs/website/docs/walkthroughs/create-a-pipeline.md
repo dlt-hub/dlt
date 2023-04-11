@@ -1,3 +1,9 @@
+---
+title: Create a pipeline
+description: How to create a pipeline
+keywords: [how to, create a pipeline]
+---
+
 # Create a pipeline
 
 Follow the steps below to create a [pipeline](../glossary.md#pipeline) from the Twitter API to

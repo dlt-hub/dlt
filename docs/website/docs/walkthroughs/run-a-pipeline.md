@@ -1,3 +1,9 @@
+---
+title: Run a pipeline
+description: How to run a pipeline
+keywords: [how to, run a pipeline]
+---
+
 # Run a pipeline
 
 Follow the steps below to run your pipeline script, see your loaded data and tables, inspect pipeline state, trace and handle the most common problems.

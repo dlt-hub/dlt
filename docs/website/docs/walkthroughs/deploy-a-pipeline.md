@@ -1,3 +1,9 @@
+---
+title: Deploy a pipeline
+description: How to deploy a pipeline
+keywords: [how to, deploy a pipeline]
+---
+
 # Deploy a pipeline
 
 Before you can deploy a pipeline, you will need to 1) [install dlt](../installation.mdx),

@@ -1,6 +1,12 @@
+---
+title: Schema
+description: Schema
+keywords: [schema, dlt schema, yaml]
+---
+
 # Schema
 
-Schema describes the structure of normalized data (e.g. tables, columns, data types, etc.) and provides instructions on how the data should be processed and loaded. `dlt` generates schemas from the data during the normalization process. User can affect this standard behavior by providing **hints** that change how tables, columns and other metadata is generated and how the data is loaded. Such hints can be passed in the code ie. to `dlt.resource` decorator or `pipeline.run` method. Schemas can be also exported and imported as files, which can be directly modified.
+The schema describes the structure of normalized data (e.g. tables, columns, data types, etc.) and provides instructions on how the data should be processed and loaded. `dlt` generates schemas from the data during the normalization process. User can affect this standard behavior by providing **hints** that change how tables, columns and other metadata is generated and how the data is loaded. Such hints can be passed in the code ie. to `dlt.resource` decorator or `pipeline.run` method. Schemas can be also exported and imported as files, which can be directly modified.
 
 > 💡 `dlt` associates a schema with a [source](source.md) and a table schema with a [resource](resource.md)
 

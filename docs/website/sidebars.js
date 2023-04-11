@@ -26,7 +26,7 @@ const sidebars = {
         'walkthroughs/create-a-pipeline',
         'walkthroughs/add-a-pipeline',
         'walkthroughs/run-a-pipeline',
-        'walkthroughs/work-with-schemas-in-files',
+        'walkthroughs/adjust-a-schema',
         'walkthroughs/deploy-a-pipeline'
       ],
     },
