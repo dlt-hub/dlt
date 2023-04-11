@@ -10,7 +10,7 @@ keywords: [pipeline, source, full refresh]
   in the schema (i.e. extracting, normalizing, and loading the data).
 
 
-A [pipeline](./general-usage/glossary.md#pipeline) is a connection to the destination. We pass sources or resources to the pipeline. We can also pass generators to the pipeline. When the pipeline runs, the resources get executed and the data is loaded at destination.
+A [pipeline](general-usage/glossary.md#pipeline) is a connection to the destination. We pass sources or resources to the pipeline. We can also pass generators to the pipeline. When the pipeline runs, the resources get executed and the data is loaded at destination.
 
 Arguments:
 - `source` may be a dlt source, resource, generator function, or any iterator / iterable (i.e. a list or the result of `map` function)

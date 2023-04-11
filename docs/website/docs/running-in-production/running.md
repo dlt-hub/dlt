@@ -81,7 +81,7 @@ load.delete_completed_jobs=true
 
 ## Using slack to send messages
 
-`dlt` provides basic support for sending slack messages. You can configure Slack incoming hook via [secrets.toml or environment variables](../customization/credentials.md). Please note that **Slack incoming hook is considered a secret and will be immediately blocked when pushed to github repository**. In `secrets.toml`:
+`dlt` provides basic support for sending slack messages. You can configure Slack incoming hook via [secrets.toml or environment variables](./credentials.md). Please note that **Slack incoming hook is considered a secret and will be immediately blocked when pushed to github repository**. In `secrets.toml`:
 
 ```toml
 [runtime]

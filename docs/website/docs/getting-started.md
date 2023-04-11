@@ -46,7 +46,7 @@ Read more about the default configuration of the DuckDB destination [here](desti
 ## 4. Next steps
 
 Now that you have a working pipeline, you have options for what to learn next:
-- Try loading data to a different destination like [Google BigQuery](./destinations/bigquery.md), [Amazon Redshift](./destinations/redshift.md), or [Postgres](./destinations/postgres.md)
+- Try loading data to a different destination like [Google BigQuery](destinations/bigquery.md), [Amazon Redshift](destinations/redshift.md), or [Postgres](destinations/postgres.md)
 - [Deploy this pipeline](./walkthroughs/deploy-a-pipeline), so that the data is automatically
 loaded on a schedule
 - [Create a pipeline](./walkthroughs/create-a-pipeline) for an API that has data you want to load and use

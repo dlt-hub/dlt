@@ -1,6 +1,6 @@
 # Create a pipeline
 
-Follow the steps below to create a [pipeline](./general-usage/glossary.md#pipeline) from the Twitter API to
+Follow the steps below to create a [pipeline](../general-usage/glossary.md#pipeline) from the Twitter API to
 Google BigQuery from scratch. The same steps can be repeated for any source and destination of your
 choice--use `dlt init <source> <destination>` and then build the pipeline for that API instead.
 
@@ -25,7 +25,7 @@ pip install -r requirements.txt
 
 ## 2. Add Google BigQuery credentials
 
-Follow steps 3-7 under [Google BigQuery](../destinations/google-bigquery.md) to create the
+Follow steps 3-7 under [Google BigQuery](../destinations/bigquery.md) to create the
 service account credentials you'll need for BigQuery and add them to `.dlt/secrets.toml`.
 
 ## 3. Add Twitter API credentials
@@ -128,4 +128,4 @@ loaded on a schedule
 - Transform the [loaded data](./using-loaded-data/transforming-the-data) with dbt or in Pandas DataFrames
 - Set up a [pipeline in production](./running-in-production/scheduling) with scheduling,
 monitoring, and alerting
-- Try loading data to a different destination like [Google BigQuery](./destinations/bigquery.md), [Amazon Redshift](./destinations/redshift.md), or [Postgres](./destinations/postgres.md)
+- Try loading data to a different destination like [Google BigQuery](../destinations/bigquery.md), [Amazon Redshift](../destinations/redshift.md), or [Postgres](../destinations/postgres.md)

@@ -10,7 +10,7 @@ keywords: [telemetry, usage information, opt out]
 
 ## How to opt-out
 
-You can disable telemetry by adding `--disable-telemetry` to any dlt [command](./reference/command-line-interface.md). 
+You can disable telemetry by adding `--disable-telemetry` to any dlt [command](../reference/command-line-interface.md). 
 
 This command will disable telemtry both in the current project and globally for the whole machine:
 ```shell

@@ -6,10 +6,10 @@ keywords: [architecture, extract, normalize, load]
 
 # How `dlt` works
 
-`dlt` automatically turns JSON returned by any [source](./general-usage/glossary.md#source) (e.g. an API)
-into a live dataset stored in the [destination](./general-usage/glossary.md#destination) of your choice 
-(e.g. Google BigQuery). It does this by first [extracting](./how-dlt-works.md#extract) the JSON data, 
-then [normalizing](./how-dlt-works.md#normalize) it to a schema, and finally [loading](./how-dlt-works#load) 
+`dlt` automatically turns JSON returned by any [source](general-usage/glossary.md#source) (e.g. an API)
+into a live dataset stored in the [destination](general-usage/glossary.md#destination) of your choice 
+(e.g. Google BigQuery). It does this by first [extracting](how-dlt-works.md#extract) the JSON data, 
+then [normalizing](how-dlt-works.md#normalize) it to a schema, and finally [loading](how-dlt-works#load) 
 it to the location where you will store it.
 
 ![architecture-diagram](/img/architecture-diagram.png)

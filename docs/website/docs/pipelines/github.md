@@ -6,7 +6,7 @@ keywords: [github api, github pipeline, github]
 
 # GitHub
 
-This pipeline can be used to load data on issues or pull requests from any GitHub repository onto a [destination](./general-usage/glossary.md#destination) of your choice.
+This pipeline can be used to load data on issues or pull requests from any GitHub repository onto a [destination](../general-usage/glossary.md#destination) of your choice.
 
 This pipeline can access the GitHub API from two `dlt` sources:
 1. `github_reactions` with the resource end-points `issues` and `pullRequests`.
