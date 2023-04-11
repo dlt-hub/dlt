@@ -38,7 +38,7 @@ class LiveSchemaStorage(SchemaStorage):
         # also remove the live schema
         self.live_schemas.pop(name, None)
 
-    def initialize_import_schema(self, schema: Schema) -> None:
+    def save_import_schema_if_not_exists(self, schema: Schema) -> None:
         if self.config.import_schema_path:
             try:
                 self._load_import_schema(schema.name)

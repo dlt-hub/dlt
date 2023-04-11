@@ -136,7 +136,6 @@ class TSourceState(TPipelineState):
     sources: Dict[str, Dict[str, Any]]
 
 
-
 class SupportsPipeline(Protocol):
     """A protocol with core pipeline operations that lets high level abstractions ie. sources to access pipeline methods and properties"""
     pipeline_name: str
@@ -326,6 +325,13 @@ def _resource_state(resource_name: str) -> DictStrAny:
     Returns resource-scoped state.
     """
     return state().setdefault('resources', {}).setdefault(resource_name, {})  # type: ignore
+
+
+def _reset_resource_state(resource_name: str) -> None:
+    """Alpha version of the resource state. Resets the resource states"""
+    state_ = state()
+    if "resources" in state_ and resource_name in state_["resources"]:
+        state_["resources"].pop(resource_name)
 
 
 def get_dlt_pipelines_dir() -> str:

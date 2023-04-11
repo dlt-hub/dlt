@@ -1,8 +1,10 @@
+import contextlib
 import os
 from typing import ClassVar, List
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
+from dlt.common.pipeline import _reset_resource_state
 
 from dlt.common.runtime import signals
 from dlt.common.schema import Schema
@@ -13,6 +15,7 @@ from dlt.common.schema import utils, TSchemaUpdate
 from dlt.common.storages import NormalizeStorage, DataItemStorage
 from dlt.common.configuration.specs import NormalizeVolumeConfiguration, known_sections
 from dlt.extract.decorators import SourceSchemaInjectableContext
+from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints
 
 
 from dlt.extract.pipe import PipeIterator
@@ -128,6 +131,12 @@ def extract_with_schema(storage: ExtractorStorage, source: DltSource, schema: Sc
     with Container().injectable_context(SourceSchemaInjectableContext(schema)):
         # inject the config section with the current source name
         with inject_section(ConfigSectionContext(sections=(known_sections.SOURCES, source.section, source.name))):
+            # reset resource states
+            for resource in source.resources.extracted.values():
+                with contextlib.suppress(DataItemRequiredForDynamicTableHints):
+                    if resource.write_disposition == "replace":
+                        _reset_resource_state(resource._name)
+
             extractor = extract(extract_id, source, storage, max_parallel_items=max_parallel_items, workers=workers)
             # source iterates
             # TODO: implement a real check if source is exhausted. most of the resources should be not

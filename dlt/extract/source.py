@@ -42,14 +42,14 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
         incremental: IncrementalResourceWrapper = None,
         section: str = None
     ) -> None:
-        self.name = pipe.name
+        self._name = pipe.name
         self.section = section
         self.selected = selected
         self._pipe = pipe
         self._bound = False
         if incremental and not self.incremental:
             self.add_step(incremental)
-        super().__init__(self.name, table_schema_template)
+        super().__init__(self._name, table_schema_template)
 
     @classmethod
     def from_data(
@@ -103,6 +103,11 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
             raise InvalidResourceDataType(name, data, type(data), f"The data type is {type(data).__name__}")
 
     @property
+    def name(self) -> str:
+        """Resource name inherited from the pipe"""
+        return self._name
+
+    @property
     def is_transformer(self) -> bool:
         """Checks if the resource is a transformer that takes data from another resource"""
         return self._pipe.has_parent
@@ -122,23 +127,22 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
         incremental: IncrementalResourceWrapper = None
         step_no = self._pipe.find(IncrementalResourceWrapper)
         if step_no >= 0:
-            # TODO: clone incremental and also scan columns for primary keys
             incremental = self._pipe.steps[step_no]  # type: ignore
         return incremental
 
     def pipe_data_from(self, data_from: Union["DltResource", Pipe]) -> None:
         """Replaces the parent in the transformer resource pipe from which the data is piped."""
         if self.is_transformer:
-            DltResource._ensure_valid_transformer_resource(self.name, self._pipe.gen)
+            DltResource._ensure_valid_transformer_resource(self._name, self._pipe.gen)
         else:
-            raise ResourceNotATransformer(self.name, "Cannot pipe data into resource that is not a transformer.")
-        parent_pipe = self._get_parent_pipe(self.name, data_from)
+            raise ResourceNotATransformer(self._name, "Cannot pipe data into resource that is not a transformer.")
+        parent_pipe = self._get_parent_pipe(self._name, data_from)
         self._pipe.parent = parent_pipe
 
     def add_pipe(self, data: Any) -> None:
         """Creates additional pipe for the resource from the specified data"""
         # TODO: (1) self resource cannot be a transformer (2) if data is resource both self must and it must be selected/unselected + cannot be tranformer
-        raise InvalidResourceDataTypeMultiplePipes(self.name, data, type(data))
+        raise InvalidResourceDataTypeMultiplePipes(self._name, data, type(data))
 
     def select_tables(self, *table_names: Iterable[str]) -> "DltResource":
         """For resources that dynamically dispatch data to several tables allows to select tables that will receive data, effectively filtering out other data items.
@@ -219,7 +223,9 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
         super().set_template(table_schema_template)
         incremental = self.incremental
         if incremental:
-            incremental.primary_key = table_schema_template.get("primary_key", incremental.primary_key)
+            primary_key = table_schema_template.get("primary_key", incremental.primary_key)
+            if primary_key:
+                incremental.primary_key = primary_key
 
     def bind(self, *args: Any, **kwargs: Any) -> "DltResource":
         """Binds the parametrized resource to passed arguments. Modifies resource pipe in place. Does not evaluate generators or iterators."""
@@ -249,7 +255,7 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
         """Binds the parametrized resources to passed arguments. Creates and returns a bound resource. Generators and iterators are not evaluated."""
         if self._bound:
             raise TypeError("Bound DltResource object is not callable")
-        r = DltResource.from_data(self._pipe._clone(keep_pipe_id=False), self.name, self.section, self._table_schema_template, self.selected, self._pipe.parent)
+        r = DltResource.from_data(self._pipe._clone(keep_pipe_id=False), self._name, self.section, self._table_schema_template, self.selected, self._pipe.parent)
         return r.bind(*args, **kwargs)
 
     def __or__(self, transform: Union["DltResource", AnyFun]) -> "DltResource":
@@ -280,7 +286,7 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
 
         def _get_context() -> List[ContextManager[Any]]:
             return [
-                inject_section(ConfigSectionContext(sections=(known_sections.SOURCES, self.section or pipeline_name, self.name))),
+                inject_section(ConfigSectionContext(sections=(known_sections.SOURCES, self.section or pipeline_name, self._name))),
                 Container().injectable_context(StateInjectableContext(state=state))
             ]
 
@@ -293,7 +299,7 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
         return flatten_list_or_items(_iter)
 
     def __str__(self) -> str:
-        info = f"DltResource {self.name}"
+        info = f"DltResource {self._name}"
         if self.section:
             info += f" in section {self.section}:"
         else:
@@ -369,7 +375,28 @@ class DltResourceDict(Dict[str, DltResource]):
 
     @property
     def selected(self) -> Dict[str, DltResource]:
+        """Returns a subset of all resources that will be extracted and loaded to the destination."""
         return {k:v for k,v in self.items() if v.selected}
+
+    @property
+    def extracted(self) -> Dict[str, DltResource]:
+        """Returns a dictionary of all resources that will be extracted. That includes selected resources and all their dependencies.
+        For dependencies that are not added explicitly to the source, a mock resource object is created that holds the parent pipe and derives the table
+        schema from the child resource
+        """
+        extracted = self.selected
+        for resource in self.selected.values():
+            while (pipe := resource._pipe.parent) is not None:
+                if not pipe.is_empty:
+                    try:
+                        resource = self.find_by_pipe(pipe)
+                    except KeyError:
+                        # resource for pipe not found: return mock resource
+                        resource = DltResource(pipe, resource._table_schema_template, False, section=resource.section)
+                    extracted[resource._name] = resource
+                else:
+                    break
+        return extracted
 
     @property
     def pipes(self) -> List[Pipe]:
@@ -389,7 +416,7 @@ class DltResourceDict(Dict[str, DltResource]):
                 raise ResourcesNotFoundError(self.source_name, set(self.keys()), set(resource_names))
         # set the selected flags
         for resource in self.values():
-            self[resource.name].selected = resource.name in resource_names
+            self[resource._name].selected = resource._name in resource_names
         return self.selected
 
     def find_by_pipe(self, pipe: Pipe) -> DltResource:
@@ -397,7 +424,10 @@ class DltResourceDict(Dict[str, DltResource]):
         # identify pipes by _pipe_id
         if pipe._pipe_id in self._known_pipes:
             return self._known_pipes[pipe._pipe_id]
-        return self._known_pipes.setdefault(pipe._pipe_id, next(r for r in self.values() if r._pipe._pipe_id == pipe._pipe_id))
+        try:
+            return self._known_pipes.setdefault(pipe._pipe_id, next(r for r in self.values() if r._pipe._pipe_id == pipe._pipe_id))
+        except StopIteration:
+            raise KeyError(pipe)
 
     def clone_new_pipes(self) -> None:
         cloned_pipes = ManagedPipeIterator.clone_pipes([r._pipe for r in self.values() if r in self._recently_added])
@@ -438,7 +468,7 @@ class DltSource(Iterable[TDataItem]):
         self._resources: DltResourceDict = DltResourceDict(self.name)
         if resources:
             for resource in resources:
-                self._add_resource(resource.name, resource)
+                self._add_resource(resource._name, resource)
             self._resources.clone_new_pipes()
 
     @classmethod
@@ -580,9 +610,9 @@ class DltSource(Iterable[TDataItem]):
         for r in self.resources.values():
             selected_info = "selected" if r.selected else "not selected"
             if r.is_transformer:
-                info += f"\ntransformer {r.name} is {selected_info} and takes data from {r._pipe.parent.name}"
+                info += f"\ntransformer {r._name} is {selected_info} and takes data from {r._pipe.parent.name}"
             else:
-                info += f"\nresource {r.name} is {selected_info}"
+                info += f"\nresource {r._name} is {selected_info}"
         if self.exhausted:
             info += "\nSource is already iterated and cannot be used again ie. to display or load data."
         else:
