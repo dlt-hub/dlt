@@ -6,7 +6,7 @@ import duckdb
 import pytest
 
 import dlt
-from dlt.common.configuration.specs.base_configuration import configspec
+from dlt.common.configuration.specs.base_configuration import configspec, BaseConfiguration
 from dlt.common.pendulum import pendulum, timedelta
 from dlt.common.utils import uniq_id, digest128
 from dlt.common.json import json
@@ -192,7 +192,6 @@ def test_optional_incremental_not_passed() -> None:
 
     assert list(some_data()) == [1, 2, 3]
 
-from dlt.common.configuration.specs.base_configuration import BaseConfiguration, configspec
 
 @configspec
 class OptionalIncrementalConfig(BaseConfiguration):
