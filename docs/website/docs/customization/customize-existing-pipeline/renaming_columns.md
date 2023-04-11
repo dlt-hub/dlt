@@ -5,7 +5,8 @@ sidebar_position: 1
 ### Rename columns by replacing the special characters (german umlaut)
 
 In the example below, we createa  dummy source with special characters in the name.
-We then write a function
+We then write a function that we intend to apply to the resource to modify its output, our `replace_umlauts_in_dict_keys`
+
 ```python
 import dlt
 # create a dummy source with umlauts (special characters) in key names (um)
