@@ -85,7 +85,7 @@ jobs:
         shell: cmd
 
   matrix_job_required_check:
-    name: Redshift, PostgreSQL and DuckDB
+    name: Redshift, PostgreSQL and DuckDB tests
     needs: run_loader
     runs-on: ubuntu-latest
     if: always()
