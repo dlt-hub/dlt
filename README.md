@@ -29,7 +29,6 @@ data = chess(['magnuscarlsen', 'rpragchess'], start_month="2022/11", end_month="
 # extract, normalize, and load the data
 pipeline.run(data)
 
-
 ```
 
 **data load tool (dlt)** is a simple, open source Python library that makes data loading easy
