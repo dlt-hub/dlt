@@ -77,7 +77,7 @@ jobs:
         shell: cmd
 
   matrix_job_required_check:
-    name: Test common check
+    name: Common tests
     needs: run_common
     runs-on: ubuntu-latest
     if: always()
