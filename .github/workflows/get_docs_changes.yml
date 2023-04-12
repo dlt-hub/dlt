@@ -8,7 +8,8 @@ on:
         value: ${{ jobs.get_docs_changes.outputs.changes_outside_docs }}
 
 env:
-  EXCLUDED_FILE_PATTERNS: '^docs/|^README.md'
+  EXCLUDED_FILE_PATTERNS: '^docs/|^README.md|^LICENSE\.txt|\.editorconfig|\.gitignore'
+
 
 jobs:
   get_docs_changes:
