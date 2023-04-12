@@ -29,7 +29,6 @@ const sidebars = {
         'pipelines/hubspot',
         'pipelines/pipedrive',
         'pipelines/strapi',
-    	  'pipelines/zendesk'
       ],
     },
     {
