@@ -26,6 +26,7 @@ const sidebars = {
         'pipelines/chess',
         'pipelines/github',
         'pipelines/google_sheets',
+        'pipelines/hubspot',
         'pipelines/pipedrive',
         'pipelines/strapi',
     	  'pipelines/zendesk'
