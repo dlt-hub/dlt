@@ -16,7 +16,7 @@
 
 ```python
 import dlt
-from chess import chess
+from chess import chess # a utility function that grabs data from the chess.com API
 
 # create a dlt pipeline that will load chess game data to the DuckDB destination
 pipeline = dlt.pipeline(pipeline_name="chess_pipeline", destination='duckdb', dataset_name="games_data")
