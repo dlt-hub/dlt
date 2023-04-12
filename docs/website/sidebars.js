@@ -28,7 +28,7 @@ const sidebars = {
         'pipelines/google_sheets',
         'pipelines/pipedrive',
         'pipelines/strapi',
-	  'pipelines/zendesk'
+    	  'pipelines/zendesk'
       ],
     },
     {

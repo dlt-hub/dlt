@@ -1,3 +1,8 @@
+---
+title: Zendesk
+description: dlt pipeline for Zendesk API
+keywords: [zendesk api, zendesk pipeline, zendesk]
+---
 # Zendesk
 
 Zendesk is a cloud-based customer service and support platform. It offers a range of features, including ticket management, self-service options, knowledge base management, live chat, customer analytics, and talks. 
