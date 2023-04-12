@@ -7,6 +7,9 @@ on:
         description: "Changes outside docs"
         value: ${{ jobs.get_docs_changes.outputs.changes_outside_docs }}
 
+env:
+  EXCLUDED_FILE_PATTERNS: '^docs/|^README.md'
+
 jobs:
   get_docs_changes:
     runs-on: ubuntu-latest
@@ -31,7 +34,7 @@ jobs:
 
           changes_outside_docs=$(
             git diff --name-only $merge_base_sha ${{ github.event.pull_request.head.sha }} \
-              | grep -v '^docs/' || true
+              | grep -vE "${{ env.EXCLUDED_FILE_PATTERNS }}" || true
           )
 
           echo $changes_outside_docs
