@@ -8,7 +8,7 @@ keywords: [hubspot api, hubspot pipeline, hubspot]
 
 HubSpot is a customer relationship management (CRM) software and inbound marketing platform that helps businesses to attract visitors, engage customers, and close leads. 
 
-The `dlt` HubSpot pipeline allows you to automatically load data from HubSpot onto a [destination](https://dlthub.com/docs/destinations) of your choice. It loads data from the following endpoints:
+The `dlt` HubSpot pipeline allows you to automatically load data from HubSpot into a [destination](https://dlthub.com/docs/destinations) of your choice. It loads data from the following endpoints:
 
 |API|Data|
 | --- | --- |
