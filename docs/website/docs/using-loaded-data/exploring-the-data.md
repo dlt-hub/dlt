@@ -42,4 +42,9 @@ If a dashboard is the main product of an analyst, they will generally watch it c
 
 ## Tools to create dashboards
 
-[Metabase](https://www.metabase.com/), [Looker Studio](https://lookerstudio.google.com/u/0/), or [Streamlit](https://streamlit.io/) are good tools that you might use to set up dashboards to explore data.
+[Metabase](https://www.metabase.com/), [Looker Studio](https://lookerstudio.google.com/u/0/), or [Streamlit](https://streamlit.io/) are some common tools that you might use to set up dashboards to explore data.
+
+It's worth noting that while many tools are suitable for exploration, different tools enable your organisation to achieve different things. Some organisations use multiple tools for different scopes.
+* Tools like Metabase are intended for data democratisation, where the business user can change the dimension, or granularity to answer follow up questions.
+* Tools like Looker Data studio, Tableau are intended for minimal interaction curated dashboards that business users can filter and read as-is. They are suitable for organisations where business users are less data literate.
+* Tools like Streamlit enable powerful customisations and building of complex apps that are best leveraged by python-first developers, but they do not support self service out of the box.
