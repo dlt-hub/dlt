@@ -1,12 +1,155 @@
 # Zendesk
 
-Zendesk is a cloud-based customer service and support software platform. It offers a range of features, including ticket management, self-service options, knowledge base management, live chat, customer analytics and talks. This pipeline can load data from three Zendesk API clients 
+Zendesk is a cloud-based customer service and support platform. It offers a range of features, including ticket management, self-service options, knowledge base management, live chat, customer analytics, and talks. 
 
-1. Zendesk support 
-2. Zendesk chat
-3. Zendesk talk
+Using this guide, you can set up a pipeline that can automatically load data from three possible Zendesk API Clients ([Zendesk support](https://developer.zendesk.com/api-reference/ticketing/introduction/), [Zendesk chat](https://developer.zendesk.com/api-reference/live-chat/introduction/), [Zendesk talk](https://developer.zendesk.com/api-reference/voice/talk-api/introduction/)) onto a [destination](https://dlthub.com/docs/destinations) of your choice. 
 
-This tutorial gives directions to get credentials for the APIs and set up the pipeline. And, you can also choose to load data from one(API), skip the others, load from two, or  load from all to the destination. 
+## Get API credentials
+
+Before running the pipeline, you will need to get API credentials. You do not need to get credentials for all of the APIs, but only for those from which you wish to request data. The steps for this are detailed below:
+
+<details>
+<summary>Credentials for Zendesk support API</summary>
+
+Zendesk support can be authenticated using any one of the following: 
+
+1. [subdomain](#subdomain) + email address + password
+2. [subdomain](#subdomain) + email address + [API token](#zendesk-support-api-token)
+3. [subdomain](#subdomain) + [OAuth token](#zendesk-support-oauth-token)
+
+The simplest way to authenticate is via subdomain + email address + password, since these details are already available and you don't have to generate any tokens. Alternatively, you can also use API tokens or OAuth tokens. 
+
+### Subdomain
+1. To get the subdomain, simply login to your Zendesk account and grab it from the url.
+2. For example, if the url is https://www.dlthub.zendesk.com, then the subdomain will be `dlthub`.
+
+
+### Zendesk support API token
+    
+1.  Go to Zendesk products in the top right corner and select Admin Center. 
+
+  <img src="docs_images/Zendesk_admin_centre.png" alt="Admin Centre" width="400"/>
+        
+        
+2. Select Apps and Integrations. 
+    
+3. In the left pane, under APIs, choose Zendesk API from the menu on the left, and enable the “**Password access**” and “**Token access**” as shown below.
+    
+
+<img src="docs_images/Zendesk_token_access.png" alt="Admin Centre" width = "70%" />
+
+4. Click on “**Add API token**”, enter a description, and note the `API token`.
+    
+    ***********This token will be displayed only once and should be noted***********
+### Zendesk support OAuth token
+To get an `OAuth token` follow these steps:
+1.  Go to Zendesk products in the top right corner and select Admin Center. 
+
+  <img src="docs_images/Zendesk_admin_centre.png" alt="Admin Centre" width="400"/>
+2. Select Apps and Integrations. 
+3. In the left pane, under APIs, choose Zendesk API from the menu on the left and go to “OAuth Clients” tab.
+4. Click on “Add OAuth Client” and add the details like “Client Name”, “Description”, “Company” , “Redirect URL (if any)”.
+5. Click on save, and a secret token will be displayed, copy it.
+6. Now you need to make a curl request using the following command          
+        
+```bash
+    curl https://{subdomain}.zendesk.com/oauth/tokens \
+      -H "Content-Type: application/json" \
+      -d '{"grant_type": "password", "client_id": "{client_name}", 
+        "client_secret": "{your_client_secret}", "scope": "read",
+        "username": "{zendesk_username}", "password": "{zendesk_password}"}' \
+      -X POST
+```
+        
+  Alternatively, you can use the following Python script:
+        
+  ```python
+    import requests
+    import json
+    
+    subdomain = "set_me_up"
+    client_name = "set_me_up" # generated in the steps above
+    client_secret = "set_me_up" # generated in the steps above
+    zendesk_username = "set_me_up" # zendesk email address
+    zendesk_password = "set_me_up" # zendesk password
+    
+    url = f'https://{subdomain}.zendesk.com/oauth/tokens'
+    headers = {'Content-Type': 'application/json'}
+    data = {
+        'grant_type': 'password',
+        'client_id': client_name,
+        'client_secret': client_secret,
+        'scope': 'read',
+        'username': zendesk_username,
+        'password': zendesk_password
+    }
+    response = requests.post(url, headers=headers, data=json.dumps(data))
+    
+    print(response.json()['access_token'])
+  ```
+        
+7. Include the following in the code above:
+      
+| Credentials | Description |
+| --- | --- |
+| subdomain | Your Zendesk subdomain |
+| client_name  | Unique identifier given to the OAuth client created above |
+| client_secret | secret token generated for the OAuth client |
+| zendesk_username  | Your Zendesk email address |
+| zendesk password | Your Zendesk password |
+      
+8. After running the above curl command in terminal (or the Python script), you will get an access token in the response. 
+      
+9. This is the OAuth token. Save it, as this will need to be added to the pipeline.
+        
+</details>
+<details>
+<summary>Credentials for Zendesk chat API</summary>
+
+To authenticate Zendesk chat, you will need the following credentials: 
+
+[subdomain](#subdomain-1) + [OAuth token](#zendesk-chat-oauth-token)
+
+(Please note that the OAuth token for Zendesk chat and Zendesk support are different, and you need to follow different procedures to generate each.)
+
+
+### Subdomain
+1. To get the subdomain, simply login to your Zendesk account and grab it from the url.
+2. For example, if the url is https://www.dlthub.zendesk.com, then the subdomain will be `dlthub`.
+
+### Zendesk chat OAuth token
+
+1. Login to Zendesk chat. Or go to “Chat” using Zendesk products in the top right corner.
+    
+  <img src="docs_images/Zendesk_admin_centre.png" alt="Admin Centre" width="400"/>
+    
+2. In Zendesk chat, go to **Settings**(on the left) **> Account > API > Add API client.**
+3. Enter the details like client name, company, and redirect URLs (if you don’t have redirect URLs; use: [http://localhost:8080](http://localhost:8080/)).
+4. Note down the displayed `client ID` and `secret`.
+5. The simplest way to get Zendesk chat `OAuth token` is to use the URL given below. 
+```bash
+https://www.zopim.com/oauth2/authorizations/new?response_type=token&redirect_uri=http%3A%2F%2Flocalhost%3A8080&client_id={client_id}&scope=read&subdomain={subdomain_name}
+```
+For more information or an alternative method, see the [documentation](https://developer.zendesk.com/documentation/live-chat/getting-started/auth/#authorization-code-grant-flow).
+6. In the URL, replace `client_id` and `subdomain_name` with your client ID and subdomain. (***also remove the curly brackets***)
+7. Paste it in a browser and hit enter.
+8. Click on Allow. 
+9. After the redirect, the secret token will be displayed in the address bar of the browser as below: 
+```bash
+http://localhost:8080/#**access_token=cSWY9agzy9hsgsEdX5F2PCsBlvSu3tDk3lh4xmISIHFhR4lKtpVqqDRVvkiZPqbI**&token_type=Bearer&scope=read
+
+#access token is "**cSWY9agzy9hsgsEdX5F2PCsBlvSu3tDk3lh4xmISIHFhR4lKtpVqqDRVvkiZPqbI"**
+```
+10. Save the access token. This will need to be added to the pipeline later.
+
+
+</details>
+<details><summary>Credentials for Zendesk talk API</summary>
+
+1. The method for getting the credentials for Zendesk talk is the same as that for [Zendesk support](#grab-zendesk-support-credentials).
+2. You can reuse the same credentials from Zendesk support or generate new ones.
+
+</details>
 
 ## Initialize the pipeline
 
@@ -35,232 +178,52 @@ zendesk_pipeline
 └── requirements.txt`
 ```
 
-## Add Credentials
 
-There are three API clients Zendesk support, chat and talk. Tutorial of adding the credentials for these are as below:
+## Add credentials
 
-
-<details>
-<summary>Zendesk support credentials</summary>
-    
-## Grab Zendesk Support credentials
-
-Zendesk support can be authenticated in following three ways 
-
-1. [subdomain](#subdomain) + email address + password
-2. [subdomain](#subdomain) + email address + [API token](#zendesk-support-api-token)
-3. [subdomain](#subdomain) + [OAuth token](#zendesk-support-oauth-token)
-
-The methods to get the above credentials are below, among the three the simplest and easiest way is to get authenticated via (subdomain + email address + password) because these credentials created by default.  If you need to get authenticated by using methods ‘b’ and ‘c’. Please follow :
-
-### Subdomain
-1. Log in to your Zendesk account.
-2. Grab your subdomain.
-Subdomain is generally the company's name. Like if your company is `dlthub`, then your subdomain will be https://www.dlthub.zendesk.com 
-
-### Zendesk support API token
-1. To get the credentials you can follow these steps
-2. To get `API_token`
-    
-    1.  Go to Zendesk products in the top right corner and to Admin Center, 
-    
-      <img src="docs_images/Zendesk_admin_centre.png" alt="Admin Centre" width="400">
-        
-        
-    2. In the Admin center go-to apps and Integrations. 
-        
-    3. Select Zendesk API from the menu on the left, and enable the “**Password access**” and “**Token access**” as shown below.
-        
-    
-    <img src="docs_images/Zendesk_token_access.png" alt="Admin Centre" width = 70% >
-    
-    4. Go to “**Add API token**” enter a description, and note the `API token`
-    
-    (***********This token will be displayed only once and should be noted).***********
-### Zendesk support OAuth token
-To get an `OAuth token` follow these steps
-  1. Go to Zendesk products in the top right corner and to Admin Center,
-  2. In the Admin center go-to apps and Integrations. 
-  3. Go to “OAuth Clients” tab, and click on “Add OAuth Client”.
-  4. Add the details like “Client Name”, “Description”, “Company” , “Redirect URL (if any)” 
-  5. Click on save, and a secret token will be displayed, copy it.
-  6. Now you need to make a curl request using the code as follows
-        
-          
-        
-```bash
-    curl https://{subdomain}.zendesk.com/oauth/tokens \
-      -H "Content-Type: application/json" \
-      -d '{"grant_type": "password", "client_id": "{client_name}", 
-        "client_secret": "{your_client_secret}", "scope": "read",
-        "username": "{zendesk_username}", "password": "{zendesk_password}"}' \
-      -X POST
-```
-        
-    you could use the below script to generate the call easier
-        
-  ```python
-    import requests
-    import json
-    
-    subdomain = "d3v-dlthub"
-    client_name = "adrian_test"
-    client_secret = "set_me_up"
-    zendesk_username = "adrian@dlthub.com"
-    zendesk_password = "set_me_up"
-    
-    url = f'https://{subdomain}.zendesk.com/oauth/tokens'
-    headers = {'Content-Type': 'application/json'}
-    data = {
-        'grant_type': 'password',
-        'client_id': client_name,
-        'client_secret': client_secret,
-        'scope': 'read',
-        'username': zendesk_username,
-        'password': zendesk_password
-    }
-    response = requests.post(url, headers=headers, data=json.dumps(data))
-    
-    print(response.json()['access_token'])
-  ```
-        
-  7. In the above code replace the following credentials:
-        
-  | Credentials | Description |
-  | --- | --- |
-  | subdomain | Your Zendesk subdomain |
-  | client_name  | Unique identifier given to the OAuth client created in step (d) above |
-  | client_secret | secret token generated for the OAuth client |
-  | zendesk_username  | Your Zendesk email address |
-  | zendesk password | Your Zendesk password |
-        
-8. After running the above curl command in terminal, you will get an access token in the response. 
-        
-9. The access token generated is the oauth_token to be used in  `dlt` secrets.toml.
-        
-</details>
-<details>
-<summary>Zendesk chat credentials</summary>
-    
-  ## Grab Zendesk chat credentials
-Zendesk chat is authenticated using the following credentials 
-
-[subdomain](#subdomain-1) + [OAuth token](#zendesk-chat-oauth-token)
-
-(Please note that a separate OAuth token is to be created for Zendesk chat , that is different from OAuth token for Zendesk support above)
-
-### Subdomain
-
-1. Log in to your Zendesk account.
-2. Grab your subdomain.
-Subdomain is generally the company's name. Like if your company is `dlthub`, then your subdomain will be https://www.dlthub.zendesk.com
-
-### Zendesk chat OAuth token
-
-1. Login to Zendesk chat. Or go to “Chat” using Zendesk products in the top right corner 
-    
-  <img src="docs_images/Zendesk_admin_centre.png" alt="Admin Centre" width="400">
-    
-2. In Zendesk chat, go to **settings**(on the left) **> account > API > Add API client.**
-3. Enter the details like client name, company, and redirect URLs (if you don’t have redirect URLs; use: [http://localhost:8080](http://localhost:8080/)).
-4. A **client ID** and **secret** will be displayed. Note them. ( The `clientID` is required to get an OAuth token for chat )
-5. There are two ways to get the Zendesk chat OAuth token as per the documentation here `(https://developer.zendesk.com/documentation/live-chat/getting-started/auth/#authorization-code-grant-flow)`
-6. Using the implicit grant flow is preferred as it does not require an authorization code from Zendesk chat.
-7. The simplest way to get Zendesk chat `OAuth token` is to use the URL given below. Replace your **client ID** and **subdomain**. (***without curly brackets)*** and paste it into a browser and hit enter.
-
-```bash
-https://www.zopim.com/oauth2/authorizations/new?response_type=token&redirect_uri=http%3A%2F%2Flocalhost%3A8080&client_id={client_id}&scope=read&subdomain={subdomain_name}
-```
-
-8. Click on Allow. 
-9. After the redirect, the secret token will be displayed in the address bar of the browser as below:
-
-```bash
-http://localhost:8080/#**access_token=cSWY9agzy9hsgsEdX5F2PCsBlvSu3tDk3lh4xmISIHFhR4lKtpVqqDRVvkiZPqbI**&token_type=Bearer&scope=read
-
-#access token is "**cSWY9agzy9hsgsEdX5F2PCsBlvSu3tDk3lh4xmISIHFhR4lKtpVqqDRVvkiZPqbI"**
-```
-
-10. Note the access token.
-</details>
-<details><summary>Zendesk talk credentials</summary>
-
-## Grab Zendesk talk credentials
-
-Zendesk talk can be authenticated in following three ways 
-
-   subdomain + email address + password
-   subdomain + email address + API token
-   subdomain + OAuth token
-
-1. You can use the same credentials you got for Zendesk support or can grab new ones for use in Zendesk talk. 
-2. The method for getting the credentials for Zendesk talk is the same as for Zendesk support.
-3. Find guide to getting Zendesk support credentials [here.](#grab-zendesk-support-credentials)
-
-</details>
-
-
-
-## dlt configuration
-
-1. In the `.dlt` folder, you will find `secrets.toml`, in which you can add the credentials for the client as below: (you may add only for the API client you need )
+1. Add credentials for the Zendesk API and your chosen destination in `.dlt/secrets.toml`. 
 
 ```python
 #Zendesk support credentials
 [sources.zendesk.zendesk_support.credentials]
-password = "set me up" # zendesk password
-subdomain = "subdomian" #https://[subdomain].zendesk.com
-token = "set me up" # zendesk API token from step 5 in zendesk support configuration
-email = "set me up" # Zendesk email Id
-oauth_token = "set me up" # Zendesk OAuth token from step 6 in zendesk support configuration
+password = "set me up" # Include this if you with to authenticate using subdomain + email address + password
+subdomain = "subdomian" # Copy subdomain from the url https://[subdomain].zendesk.com
+token = "set me up" # Include this if you wish to authenticate using the API token
+email = "set me up" # Include this if you with to authenticate using subdomain + email address + password
+oauth_token = "set me up" # Include this if you wish to authenticate using OAuth token
 
 [sources.zendesk.zendesk_chat.credentials]
-subdomain = "subdomian". #https://[subdomain].zendesk.com
-oauth_token = "set me up" #Zendesk OAuth token from step 9 in zendesk chat configuration
+subdomain = "subdomian". # Copy subdomain from the url https://[subdomain].zendesk.com
+oauth_token = "set me up" # Follow the steps under Zendesk chat credentials to get this token
 
 #Zendesk talk credentials
 [sources.zendesk.zendesk_talk.credentials]
-password = "set me up" # zendesk password
-subdomain = "subdomian" #https://[subdomain].zendesk.com
-token = "set me up" # zendesk API token from step 5 in zendesk configuration
-email = "set me up" # Zendesk email Id
-oauth_token = "set me up" # Zendesk OAuth token from step 6 in zendesk configuration
+password = "set me up" # Include this if you with to authenticate using subdomain + email address + password
+subdomain = "subdomian" # Copy subdomain from the url https://[subdomain].zendesk.com
+token = "set me up" # Include this if you wish to authenticate using the API token
+email = "set me up" # Include this if you with to authenticate using subdomain + email address + password
+oauth_token = "set me up" # Include this if you wish to authenticate using OAuth token
 
 #bigquery credentials
 [destination.bigquery.credentials]
 project_id = "set me up" # GCP project ID!
 private_key = "set me up" # Unique private key !(Must be copied fully including BEGIN and END PRIVATE KEY)
 client_email = "set me up" # Email for service account
-location = "set me up" #Project location for ex. “US”
+location = "set me up" # Project location for ex. “US”
 ```
 
-2. Setup only for the resources and authentications you want to load and **delete** the rest.
-3. For email and password; Use your Zendesk credentials.
-4. For Subdomain, if the URL is [https://your_company123.zendesk.com](https://your_company123.zendesk.com) then the subdomain is “your_company123”. 
-5. Find the guide for getting Zendesk support credentials [here](#add-credentials)) .
+2. Only add credentials for the APIs from which you wish to request data and remove the rest.
+3. Add credentials as required by your destination. See [here](https://dlthub.com/docs/destinations) for steps on how to do this.
 
-6. Procedure for getting [Zendesk talk credentials](#add-credentials) is the same as the Zendesk support.
+## Specify source methods in `zendesk_pipeline.py`
 
-7.  Add the credentials required by your destination (e.g. [Google BigQuery](http://localhost:3000/docs/destinations#google-bigquery))
-
-## Run the pipeline
-
-1. Install requirements for the pipeline by running the following command:
-
-`pip install -r requirements.txt`
-
-2. Run the pipeline with the following command:
-
-`python3 zendesk_pipeline.py`
-
-3. Use `dlt pipeline zendesk_pipeline show` to make sure that everything loaded as expected.
-
-## Choose which modules the pipeline loads
-
-1. To adjust what is loaded, you can peek into the `zendesk_pipeline.py` file and remove out one or more of the  `data_talk, data_chat or data_support` sources that are passed to the pipeline in `info = pipeline.run(data=[data_support , data_chat, data_talk])`
+1. You can easily specify which APIs the pipeline will load the data from by modifying the data loading function `incremental_load_all_default` in the script `zendesk_pipeline.py`.
+2. By default, the function calls all three source methods, `zendesk_support()`, `zendesk_chat()`, and `zendesk_talk()`.
+3. To adjust this, simply remove the lines that correspond to the APIs from which you do not wish to request data.
+4. Also make the corresponding change in the line `info = pipeline.run(data=[data_support, data_chat, data_talk])`.
 
 ```python
-def load_all():
+def incremental_load_all_default():
     """
     Loads all possible tables for Zendesk Support, Chat, Talk
     """
@@ -274,15 +237,53 @@ def load_all():
     # zendesk talk source function
     data_talk = zendesk_talk()
     # run pipeline with all 3 sources
-    info = pipeline.run(data=[data_support , data_chat, data_talk])
+    info = pipeline.run(data=[data_support, data_chat, data_talk])
     return info
 ```
 
-# Customisations
+## Run the pipeline
 
-Basic dlt pipelines take the information as-is from the source and deliver it without modification.
+1. Install requirements for the pipeline by running the following command:
 
-This pipeline has some custom upgrades to make it more usable.
+`pip install -r requirements.txt`
 
-- **pivot_ticket_fields** is an **OPTIONAL** customisation for zendesk support tickets. Custom fields and their values are emitted as “EAV” model. To load them pivoted so you can use custom fields as columns, pass `pivot_ticket_fields=True`to the zendesk_support function, or use the pipeline function `ticket_pivot_fields`
-- **Custom field rename.** This customisation loads the custom fields with their label name. If the label changes between loads, the initial label continues to be used (is persisted in state). To reset the labels, do a full refresh.
+2. Run the pipeline with the following command:
+
+`python3 zendesk_pipeline.py`
+
+3. To make sure everything is loaded as expected, use the command:
+
+`dlt pipeline zendesk_pipeline show`
+
+
+# Customizations
+
+The Zendesk pipeline has some default customizations that make it more useful:
+
+1. **Pivoting ticket fields:** By default, the pipeline pivots the custom fields in tickets when loading the data, which allows the custom fields to be used as columns after loading. This behavior is due to the fact that the boolean parameter `pivot_ticket_fields` in the source method `zendesk_support()` is set to `True` by default. To change this, set `pivot_ticket_fields=False` when calling the source method from inside the data loading function.  
+```python
+data_support = zendesk_support(pivot_ticket_fields=False)
+```
+  
+  Alternatively, this can be explicitly done by using the function `load_support_with_pivoting` in the script `zendesk_pipeline.py`.
+  ```python
+  def load_support_with_pivoting():
+    """
+    Loads Zendesk Support data with pivoting. Simply done by setting the pivot_ticket_fields to true - default option. Loads only the base tables.
+    """
+    pipeline = dlt.pipeline(pipeline_name="zendesk_support_pivoting", destination='bigquery', full_refresh=False)
+    data = zendesk_support(load_all=False, pivot_ticket_fields=True)
+    info = pipeline.run(data=data)
+    return info
+  ```
+  Simply include this function in the `__main__` block when running the pipeline.
+  ```python
+  if __name__ == "__main__":
+    load_support_with_pivoting()
+  ```
+
+2. **Custom field rename**: The pipeline loads the custom fields with their label names. If the label changes between loads, the initial label continues to be used (is persisted in state). To reset the labels, do a full refresh. This can be achieved by passing `full_refresh=True` when calling `dlt.pipeline`:
+```python
+pipeline = dlt.pipeline(pipeline_name="dlt_zendesk_pipeline", destination='bigquery', full_refresh=True, dataset_name="sample_zendesk_data3")
+```
+
