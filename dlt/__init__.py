@@ -41,5 +41,3 @@ TSecretValue = _TSecretValue
 
 TCredentials = _CredentialsConfiguration
 "When typing source/resource function arguments it indicates that a given argument represents credentials and should be taken from dlt.secrets. Credentials may be a string, dictionary or any other type."
-
-1/0
