@@ -37,7 +37,6 @@ Before running the pipeline, you will need to get API credentials. HubSpot no lo
     2. The following under the Standard options:
     
     ```
-    
     business-intelligence, actions, crm.export, e-commerce, oauth, tickets
     ```
     
