@@ -21,7 +21,7 @@ from chess import chess # a utility function that grabs data from the chess.com 
 # create a dlt pipeline that will load chess game data to the DuckDB destination
 pipeline = dlt.pipeline(pipeline_name="chess_pipeline", destination='duckdb', dataset_name="games_data")
 
-# use chess.com source to grab data about a few players from their API
+# use chess.com API to grab data about a few players
 data = chess(['magnuscarlsen', 'rpragchess'], start_month="2022/11", end_month="2022/12")
 
 # extract, normalize, and load the data
