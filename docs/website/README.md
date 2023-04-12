@@ -38,3 +38,6 @@ npm run build:netlify
 ```
 
 It will place the build in `build/docs` folder. The `netlify.toml` redirects from root path `/` into `/docs`.
+
+
+# Test CI
