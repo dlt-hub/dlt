@@ -22,7 +22,7 @@ The `dlt` HubSpot pipeline allows you to automatically load data from HubSpot in
 
 ## Get API credentials
 
-```
+:::info
 **Please note:**
 As of November 30, 2022, HubSpot API Keys are being deprecated and are no longer supported. Instead, it would be best to authenticate using a private app access token or OAuth.
 ```
