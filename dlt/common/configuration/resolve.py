@@ -239,6 +239,9 @@ def _resolve_config_field(
             accept_partial = accept_partial or is_optional
             # create new instance and pass value from the provider as initial, add key to sections
             value = _resolve_configuration(embedded_config, explicit_sections, embedded_sections + (key,), default_value if value is None else value, accept_partial)
+            if value.is_partial() and is_optional:
+                # do not return partially resolved optional embeds
+                value = None
     else:
         # if value is resolved, then deserialize and coerce it
         if value is not None:

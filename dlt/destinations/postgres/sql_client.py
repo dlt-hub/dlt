@@ -79,7 +79,6 @@ class Psycopg2SqlClient(SqlClientBase["psycopg2.connection"], DBTransaction):
         return len(rows) > 0
 
     def create_dataset(self) -> None:
-        # TODO: escape identifier from capabilities
         self.execute_sql("CREATE SCHEMA %s" % self.fully_qualified_dataset_name())
 
     def drop_dataset(self) -> None:

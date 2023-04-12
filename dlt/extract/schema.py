@@ -2,9 +2,10 @@ from copy import copy, deepcopy
 from collections.abc import Mapping as C_Mapping
 from typing import List, cast, Any
 
-from dlt.common.schema.utils import merge_columns, new_column, new_table
+from dlt.common.schema.utils import DEFAULT_WRITE_DISPOSITION, merge_columns, new_column, new_table
 from dlt.common.schema.typing import TColumnProp, TColumnSchema, TPartialTableSchema, TTableSchemaColumns, TWriteDisposition
 from dlt.common.typing import TDataItem
+from dlt.common.validation import validate_dict
 
 from dlt.extract.typing import TColumnKey, TFunHintTemplate, TTableHintTemplate, TTableSchemaTemplate
 from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, InconsistentTableTemplate, TableNameMissing
@@ -12,7 +13,7 @@ from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, Inconsi
 
 class DltResourceSchema:
     def __init__(self, name: str, table_schema_template: TTableSchemaTemplate = None):
-        self.__qualname__ = self.__name__ = self.name = name
+        self.__qualname__ = self.__name__ = self._name = name
         self._table_name_hint_fun: TFunHintTemplate[str] = None
         self._table_has_other_dynamic_hints: bool = False
         self._table_schema_template: TTableSchemaTemplate = None
@@ -23,13 +24,23 @@ class DltResourceSchema:
     def table_name(self) -> str:
         """Get table name to which resource loads data. Raises in case of table names derived from data."""
         if self._table_name_hint_fun:
-            raise DataItemRequiredForDynamicTableHints(self.name)
-        return self._table_schema_template["name"] if self._table_schema_template else self.name  # type: ignore
+            raise DataItemRequiredForDynamicTableHints(self._name)
+        return self._table_schema_template["name"] if self._table_schema_template else self._name  # type: ignore
+
+    @property
+    def write_disposition(self) -> TWriteDisposition:
+        if self._table_schema_template is None or self._table_schema_template.get("write_disposition") is None:
+            return DEFAULT_WRITE_DISPOSITION
+        w_d = self._table_schema_template.get("write_disposition")
+        if callable(w_d):
+            raise DataItemRequiredForDynamicTableHints(self._name)
+        else:
+            return w_d
 
     def table_schema(self, item: TDataItem =  None) -> TPartialTableSchema:
         """Computes the table schema based on hints and column definitions passed during resource creation. `item` parameter is used to resolve table hints based on data"""
         if not self._table_schema_template:
-            return new_table(self.name)
+            return new_table(self._name)
 
         # resolve a copy of a held template
         table_template = copy(self._table_schema_template)
@@ -37,10 +48,12 @@ class DltResourceSchema:
 
         # if table template present and has dynamic hints, the data item must be provided
         if self._table_name_hint_fun and item is None:
-            raise DataItemRequiredForDynamicTableHints(self.name)
+            raise DataItemRequiredForDynamicTableHints(self._name)
         # resolve
         resolved_template: TTableSchemaTemplate = {k: self._resolve_hint(item, v) for k, v in table_template.items()}  # type: ignore
-        return self._merge_keys(resolved_template)
+        table_schema = self._merge_keys(resolved_template)
+        validate_dict(TPartialTableSchema, table_schema, f"new_table/{self._name}")
+        return table_schema
 
     def apply_hints(
         self,

@@ -1,6 +1,6 @@
 import inspect
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Generic, Iterator, Optional, TypedDict, TypeVar, Union, Awaitable, Sequence
+from typing import Any, Callable, Generic, Iterator, Optional, Protocol, TypedDict, TypeVar, Union, Awaitable, Sequence
 
 from dlt.common.typing import TAny, TDataItem, TDataItems, TypeAlias
 from dlt.common.schema.typing import TTableSchemaColumns, TWriteDisposition, TColumnKey
@@ -46,6 +46,12 @@ class TableNameMeta:
         self.table_name = table_name
 
 
+class SupportsPipe(Protocol):
+    """A protocol with the core Pipe properties and operations"""
+    name: str
+    """Pipe name which is inherited by a resource"""
+
+
 ItemTransformFunctionWithMeta = Callable[[TDataItem, str], TAny]
 ItemTransformFunctionNoMeta = Callable[[TDataItem], TAny]
 ItemTransformFunc = Union[ItemTransformFunctionWithMeta[TAny], ItemTransformFunctionNoMeta[TAny]]
@@ -63,7 +69,7 @@ class ItemTransform(ABC, Generic[TAny]):
         else:  # TODO: do better check
             self._f_meta = transform_f  # type: ignore
 
-    def bind(self: "ItemTransform[TAny]") -> "ItemTransform[TAny]":
+    def bind(self: "ItemTransform[TAny]", pipe: SupportsPipe) -> "ItemTransform[TAny]":
         return self
 
     @abstractmethod
