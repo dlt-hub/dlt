@@ -14,6 +14,8 @@
 
 # data load tool (dlt)
 
+**[Colab Demo](https://colab.research.google.com/drive/1BXvma_9R9MX8p_iSvHE4ebg90sUroty2)**
+
 ```python
 import dlt
 from chess import chess # a utility function that grabs data from the chess.com API
@@ -26,6 +28,8 @@ data = chess(['magnuscarlsen', 'rpragchess'], start_month="2022/11", end_month="
 
 # extract, normalize, and load the data
 pipeline.run(data)
+
+
 ```
 
 **data load tool (dlt)** is a simple, open source Python library that makes data loading easy
