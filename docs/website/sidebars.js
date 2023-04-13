@@ -70,6 +70,20 @@ const sidebars = {
     },
     {
       type: 'category',
+      label: 'Customizations',
+      items: [
+              {
+          type: 'category',
+          label: 'Customizing pipelines',
+          items: [
+            'customizations/customizing-pipelines/renaming_columns',
+            'customizations/customizing-pipelines/pseudonymizing_columns',
+          ]
+        },
+      ],
+    },
+    {
+      type: 'category',
       label: 'Running in production',
       items: [
         {
@@ -95,20 +109,6 @@ const sidebars = {
         'using-loaded-data/viewing-the-tables',
         'using-loaded-data/exploring-the-data',
         'using-loaded-data/transforming-the-data',
-      ],
-    },
-    {
-      type: 'category',
-      label: 'Customization',
-      items: [
-              {
-          type: 'category',
-          label: 'Customize an existing pipeline',
-          items: [
-            'customization/customize-existing-pipeline/anonymising_and_pseudonymising_columns',
-            'customization/customize-existing-pipeline/renaming_columns',
-          ]
-        },
       ],
     },
     {
