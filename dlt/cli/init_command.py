@@ -129,7 +129,7 @@ def _welcome_message(pipeline_name: str, destination_name: str, pipeline_files: 
         fmt.echo("* Add the required dependencies to %s:" % fmt.bold(dependency_system))
         for dep in pipeline_files.requirements:
             fmt.echo("  " + fmt.bold(dep))
-        fmt.echo("  If the python-dlt dependency is already added, make sure you install the extra for %s to it" % fmt.bold(destination_name))
+        fmt.echo("  If the dlt dependency is already added, make sure you install the extra for %s to it" % fmt.bold(destination_name))
         if dependency_system == utils.REQUIREMENTS_TXT:
             qs = "' '"
             fmt.echo("  To install with pip: %s" % fmt.bold(f"pip3 install '{qs.join(pipeline_files.requirements)}'"))

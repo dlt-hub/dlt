@@ -199,7 +199,7 @@ def test_current_venv() -> None:
 
     # use python to run module
     freeze = venv.run_module("pip", "freeze", "--all")
-    # we are in current venv so python-dlt is here
+    # we are in current venv so dlt package is here
     assert "python_dlt" in freeze
 
     # use command

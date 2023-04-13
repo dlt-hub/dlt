@@ -28,7 +28,7 @@ help:
 	@echo "		test-common"
 	@echo "			tests common components"
 	@echo "		build-library"
-	@echo "			makes dev and then builds python-dlt for distribution"
+	@echo "			makes dev and then builds dlt package for distribution"
 	@echo "		publish-library"
 	@echo "			builds library and then publishes it to pypi"
 
