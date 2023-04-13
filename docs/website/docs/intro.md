@@ -18,6 +18,23 @@ Once you set it up, it will then automatically turn JSON returned by any
 [source](general-usage/glossary.md#source) (e.g. an API) into a live dataset stored in the 
 [destination](general-usage/glossary.md#destination) of your choice (e.g. Google BigQuery).
 
+
+**[Colab Demo](https://colab.research.google.com/drive/1BXvma_9R9MX8p_iSvHE4ebg90sUroty2)**
+
+```python
+import dlt
+from chess import chess # a utility function that grabs data from the chess.com API
+
+# create a dlt pipeline that will load chess game data to the DuckDB destination
+pipeline = dlt.pipeline(pipeline_name="chess_pipeline", destination='duckdb', dataset_name="games_data")
+
+# use chess.com API to grab data about a few players
+data = chess(['magnuscarlsen', 'rpragchess'], start_month="2022/11", end_month="2022/12")
+
+# extract, normalize, and load the data
+pipeline.run(data)
+```
+
 ## What does `dlt` do?
 
 **`pip install python-dlt` and then include `import dlt` to use it in your loading script**
