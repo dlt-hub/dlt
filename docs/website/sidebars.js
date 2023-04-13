@@ -82,7 +82,6 @@ const sidebars = {
           ]
         },
         'running-in-production/deploying',
-        'running-in-production/scheduling',
         'running-in-production/running',
         'running-in-production/monitoring',
         'running-in-production/alerting',

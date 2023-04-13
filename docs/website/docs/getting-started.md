@@ -51,5 +51,4 @@ Now that you have a working pipeline, you have options for what to learn next:
 loaded on a schedule
 - [Create a pipeline](./walkthroughs/create-a-pipeline) for an API that has data you want to load and use
 - Transform the [loaded data](./using-loaded-data/transforming-the-data) with dbt or in Pandas DataFrames
-- Set up a [pipeline in production](./running-in-production/scheduling) with scheduling,
-monitoring, and alerting
+- Learn how to [run](./running-in-production/running.md), [monitor](./running-in-production/monitoring.md), and [alert](./running-in-production/alerting.md) when you put your pipeline in production

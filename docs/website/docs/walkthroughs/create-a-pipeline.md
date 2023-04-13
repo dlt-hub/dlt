@@ -124,9 +124,7 @@ This will open a streamlit app that gives you an overview of the data loaded.
 ## 5. Next steps
 
 Now that you have a working pipeline, you have options for what to learn next:
-- [Deploy this pipeline](./deploy-a-pipeline), so that the data is automatically
-loaded on a schedule
-- [Transform the loaded data](../using-loaded-data/transforming-the-data) with dbt or in Pandas DataFrames
-- Set up a pipeline in production with [scheduling](../running-in-production/scheduling),
-[monitoring](../running-in-production/monitoring), and [alerting](../running-in-production/alerting)
+- [Deploy this pipeline](./deploy-a-pipeline.md), so that the data is automatically loaded on a schedule
+- Transform the [loaded data](../using-loaded-data/transforming-the-data) with dbt or in Pandas DataFrames
+- Learn how to [run](../running-in-production/running.md), [monitor](../running-in-production/monitoring.md), and [alert](../running-in-production/alerting.md) when you put your pipeline in production
 - Try loading data to a different destination like [Google BigQuery](../destinations/bigquery.md), [Amazon Redshift](../destinations/redshift.md), or [Postgres](../destinations/postgres.md)
