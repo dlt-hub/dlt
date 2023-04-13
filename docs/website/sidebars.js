@@ -71,6 +71,20 @@ const sidebars = {
     },
     {
       type: 'category',
+      label: 'Customizations',
+      items: [
+              {
+          type: 'category',
+          label: 'Customizing pipelines',
+          items: [
+            'customizations/customizing-pipelines/renaming_columns',
+            'customizations/customizing-pipelines/pseudonymizing_columns',
+          ]
+        },
+      ],
+    },
+    {
+      type: 'category',
       label: 'Running in production',
       items: [
         {
