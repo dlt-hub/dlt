@@ -277,7 +277,7 @@ def test_call_clone_separate_pipe() -> None:
 
     # create two resource instances and extract in single ad hoc resource
     data1 = some_data("state1")
-    data1.name = "state1_data"
+    data1._name = "state1_data"
     dlt.pipeline(full_refresh=True).extract([data1, some_data("state2")], schema=Schema("default"))
     # both should be extracted. what we test here is the combination of binding the resource by calling it that clones the internal pipe
     # and then creating a source with both clones. if we keep same pipe id when cloning on call, a single pipe would be created shared by two resources
@@ -409,28 +409,95 @@ def test_multiple_parametrized_transformers() -> None:
             # true pipelining fun
             return _r1() | _t1("2") | _t2(2)
 
+
     expected_data = ['a_2', 'b_2', 'c_2', 'a_2', 'b_2', 'c_2']
 
     # this s contains all resources
     s = _source(1)
+    # all resources will be extracted (even if just the _t2 is selected)
+    assert set(s.resources.extracted.keys()) == {"_t2", "_r1", "_t1"}
     # parametrize now
     s.resources["_t1"].bind("2")
     s._t2.bind(2)
     # print(list(s._t2))
     assert list(s) == expected_data
+    assert set(s.resources.extracted.keys()) == {"_t2", "_r1", "_t1"}
+    # deselect _t2 and now nothing is selected
+    s._t2.selected = False
+    assert set(s.resources.extracted.keys()) == set()
+    s._r1.selected = True
+    # now only r2
+    assert set(s.resources.extracted.keys()) == {"_r1"}
 
     # this s contains only transformers
     s2 = _source(2)
+    # the _r will be extracted but it is not in the resources list so we create a mock resource for it
+    assert set(s2.resources.extracted.keys()) == {"_t2", "_r1", "_t1"}
     s2._t1.bind("2")
     s2._t2.bind(2)
     assert list(s2) == expected_data
 
     s3 = _source(3)
+    # here _t1 and _r1 are not in the source
+    assert set(s3.resources.extracted.keys()) == {"_t2", "_r1", "_t1"}
     s3._t2.bind(2)
     assert list(s3) == expected_data
 
     s4 = _source(4)
+    # here we return a pipe
+    assert set(s4.resources.extracted.keys()) == {"_t2", "_r1", "_t1"}
     assert list(s4) == expected_data
+
+
+def test_extracted_resources_selector() -> None:
+    @dlt.source
+    def _source(test_set: int = 1):
+
+        @dlt.resource(selected=False, write_disposition="append")
+        def _r1():
+            yield ["a", "b", "c"]
+
+        @dlt.transformer(data_from=_r1, selected=False, write_disposition="replace")
+        def _t1(items, suffix):
+            yield list(map(lambda i: i + "_" + suffix, items))
+
+        @dlt.transformer(data_from=_r1, write_disposition="merge")
+        def _t2(items, mul):
+            yield items*mul
+
+        if test_set == 1:
+            return _r1, _t1, _t2
+        if test_set == 2:
+            return _t1, _t2
+
+    s = _source(1)
+    # t1 not selected
+    assert set(s.resources.extracted.keys()) == {"_t2", "_r1"}
+    # append and replace
+    assert s.resources.extracted["_r1"].write_disposition == "append"
+    assert s.resources.extracted["_t2"].write_disposition == "merge"
+    # # select _t1
+    s._t1.bind("x").selected = True
+    assert set(s.resources.extracted.keys()) == {"_t2", "_r1", "_t1"}
+    assert s.resources.extracted["_t1"].write_disposition == "replace"
+
+    s2 = _source(1)
+    # are we a clone?
+    assert s2._t1.selected is False
+
+    s3 = _source(2)
+    # only _t2 is enabled
+    assert set(s3.resources.extracted.keys()) == {"_t2", "_r1"}
+    # _r1 is merge (inherits from _t2)
+    assert s3.resources.extracted["_r1"].write_disposition == "merge"
+    # we have _r1 as parent for _t1 with "replace" and _t2 with "merge", the write disposition of _r1 is de facto undefined...
+    s3._t1.selected = True
+    assert set(s3.resources.extracted.keys()) == {"_t2", "_r1", "_t1"}
+    assert s3.resources.extracted["_r1"].write_disposition == "merge"
+    s3._t2.selected = False
+    assert set(s3.resources.extracted.keys()) == {"_r1", "_t1"}
+    # inherits from _t1
+    assert s3.resources.extracted["_r1"].write_disposition == "replace"
 
 
 def test_illegal_double_bind() -> None:

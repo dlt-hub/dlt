@@ -253,6 +253,7 @@ def add_missing_hints(column: TColumnSchemaBase) -> TColumnSchema:
     # return # dict(column)  # type: ignore
     return {
         **{  # type:ignore
+            "nullable": True,
             "partition": False,
             "cluster": False,
             "unique": False,
@@ -321,8 +322,8 @@ def diff_tables(tab_a: TTableSchema, tab_b: TPartialTableSchema, ignore_table_na
                 if not compare_complete_columns(tab_a_columns[col_b_name], col_b):
                     # attempt to update to incompatible columns
                     raise CannotCoerceColumnException(table_name, col_b_name, col_b["data_type"], tab_a_columns[col_b_name]["data_type"], None)
-            else:
-                new_columns.append(merge_columns(col_a, col_b))
+            # else:
+            new_columns.append(merge_columns(col_a, col_b))
         else:
             new_columns.append(col_b)
 

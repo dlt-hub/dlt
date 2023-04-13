@@ -7,6 +7,10 @@ on:
         description: "Changes outside docs"
         value: ${{ jobs.get_docs_changes.outputs.changes_outside_docs }}
 
+env:
+  EXCLUDED_FILE_PATTERNS: '^docs/|^README.md|^LICENSE\.txt|\.editorconfig|\.gitignore'
+
+
 jobs:
   get_docs_changes:
     runs-on: ubuntu-latest
@@ -24,10 +28,16 @@ jobs:
         run: |
           echo "base.sha: ${{ github.event.pull_request.base.sha }}"
           echo "head.sha: ${{ github.event.pull_request.head.sha }}"
+
+          merge_base_sha=$(git merge-base ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }})
+
+          echo "merge_base_sha: $merge_base_sha"
+
           changes_outside_docs=$(
-            git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} \
-              | grep -v '^docs/' || true
+            git diff --name-only $merge_base_sha ${{ github.event.pull_request.head.sha }} \
+              | grep -vE "${{ env.EXCLUDED_FILE_PATTERNS }}" || true
           )
+
           echo $changes_outside_docs
           if [ -z "$changes_outside_docs" ]; then
             echo "No changes outside docs. Skipping tests."

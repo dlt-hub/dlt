@@ -35,7 +35,7 @@ def pipeline(
     Please refer to the following doc pages
     - Write your first pipeline walkthrough: https://dlthub.com/docs/walkthroughs/create-a-pipeline
     - Pipeline architecture and data loading steps: https://dlthub.com/docs/architecture
-    - List of supported destinations: https://dlthub.com/docs/destinations
+    - List of supported destinations: https://dlthub.com/docs/destinations/bigquery
 
     ### Args:
         pipeline_name (str, optional): A name of the pipeline that will be used to identify it in monitoring events and to restore its state and data schemas on subsequent runs.

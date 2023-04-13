@@ -7,9 +7,11 @@ from dlt.common.configuration.container import Container
 from dlt.common.configuration.inject import get_fun_spec
 from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
+from dlt.common.exceptions import DictValidationException
 from dlt.common.pipeline import StateInjectableContext, TPipelineState
 from dlt.common.schema import Schema
 from dlt.common.schema.utils import new_table
+from dlt.common.utils import uniq_id
 from dlt.extract.decorators import _SOURCES
 from dlt.extract.exceptions import InvalidResourceDataTypeFunctionNotAGenerator, InvalidResourceDataTypeIsNone, ParametrizedResourceUnbound, PipeNotBoundToData, ResourceFunctionExpected, ResourceInnerCallableConfigWrapDisallowed, SourceDataIsNone, SourceIsAClassTypeError, SourceNotAFunction, SourceSchemaNotAvailable
 from dlt.extract.source import DltResource, DltSource
@@ -143,6 +145,23 @@ def test_resource_name_is_invalid_table_name_and_columns() -> None:
     # has the column with identifiers normalized
     assert "ka_ax" in schema.get_table("resourcex")["columns"]
     assert schema.get_table("resourcex")["columns"]["ka_ax"]["name"] == "ka_ax"
+
+
+def test_columns_argument() -> None:
+
+    @dlt.resource(name="user", columns={"tags": {"data_type": "complex"}})
+    def get_users():
+        yield {"u": "u", "tags": [1, 2 ,3]}
+
+    t = get_users().table_schema()
+    # nullable is added
+    assert t["columns"]["tags"]["nullable"] is True
+    assert t["columns"]["tags"]["data_type"] == "complex"
+
+    r = get_users()
+    r.apply_hints(columns={"invalid": {"data_type": "unk", "wassup": False}})
+    with pytest.raises(DictValidationException):
+        r.table_schema()
 
 
 def test_resource_name_from_generator() -> None:

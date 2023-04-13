@@ -27,7 +27,7 @@ Initialize the pipeline with the following command:
 
 `dlt init strapi <destination>`
 
-For destination, you can use `bigquery`, `duckdb`, or one of the other destinations mentioned [here](https://dlthub.com/docs/destinations).
+For destination, you can use `bigquery`, `duckdb`, or one of the other [destinations](../general-usage/glossary.md#destination).
 
 Running this command will create a directory with the following structure:
 

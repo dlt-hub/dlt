@@ -13,10 +13,27 @@ keywords: [introduction, who, what, how]
 **Automatically turn the JSON returned by any API into a live dataset stored wherever you want it**
 
 `dlt` is an open source library that you include in a Python script to create a highly 
-scalable, easy to maintain, straightforward to deploy data [pipeline](./glossary.md#pipeline).
+scalable, easy to maintain, straightforward to deploy data [pipeline](general-usage/glossary.md#pipeline).
 Once you set it up, it will then automatically turn JSON returned by any 
-[source](./glossary.md#source) (e.g. an API) into a live dataset stored in the 
-[destination](./glossary.md#destination) of your choice (e.g. Google BigQuery).
+[source](general-usage/glossary.md#source) (e.g. an API) into a live dataset stored in the 
+[destination](general-usage/glossary.md#destination) of your choice (e.g. Google BigQuery).
+
+
+**[Colab Demo](https://colab.research.google.com/drive/1BXvma_9R9MX8p_iSvHE4ebg90sUroty2)**
+
+```python
+import dlt
+from chess import chess # a utility function that grabs data from the chess.com API
+
+# create a dlt pipeline that will load chess game data to the DuckDB destination
+pipeline = dlt.pipeline(pipeline_name="chess_pipeline", destination='duckdb', dataset_name="games_data")
+
+# use chess.com API to grab data about a few players
+data = chess(['magnuscarlsen', 'rpragchess'], start_month="2022/11", end_month="2022/12")
+
+# extract, normalize, and load the data
+pipeline.run(data)
+```
 
 ## What does `dlt` do?
 
@@ -30,6 +47,6 @@ Anyone who solves problems in their job using Python (e.g. data scientists, data
 
 ## How does `dlt` work?
 
-`dlt` extracts data from a [source](./glossary.md#source), inspects its structure to create a [schema](./glossary.md#schema), normalizes and verifies the data,
-and then loads the data into a [destination](./glossary.md#destination). 
-You can read more about how it works [here](./architecture.md).
+`dlt` extracts data from a [source](general-usage/glossary.md#source), inspects its structure to create a [schema](general-usage/glossary.md#schema), normalizes and verifies the data,
+and then loads the data into a [destination](general-usage/glossary.md#destination). 
+You can read more about how it works [here](./how-dlt-works.md).

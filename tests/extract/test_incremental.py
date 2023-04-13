@@ -1,20 +1,24 @@
 import os
 from time import sleep
-from typing import Optional
+from typing import Optional, Any
 
 import duckdb
 import pytest
 
 import dlt
-from dlt.common.configuration.specs.base_configuration import configspec
+from dlt.common.configuration.specs.base_configuration import configspec, BaseConfiguration
 from dlt.common.pendulum import pendulum, timedelta
+from dlt.common.pipeline import _resource_state
+from dlt.common.schema.schema import Schema
 from dlt.common.utils import uniq_id, digest128
 from dlt.common.json import json
+from dlt.extract.source import DltSource
 
 from dlt.sources.helpers.transform import take_first
 
 from dlt.extract.incremental import IncrementalCursorPathMissing, IncrementalPrimaryKeyMissing
 from tests.pipeline.utils import drop_pipeline
+# from tests.load.pipeline.utils import load_table_counts
 from tests.utils import preserve_environ, autouse_test_storage, patch_home_dir
 
 
@@ -193,8 +197,23 @@ def test_optional_incremental_not_passed() -> None:
     assert list(some_data()) == [1, 2, 3]
 
 
-def test_override_initial_value_from_config() -> None:
+@configspec
+class OptionalIncrementalConfig(BaseConfiguration):
+    incremental: Optional[dlt.sources.incremental] = None  # type: ignore[type-arg]
 
+
+@dlt.resource(spec=OptionalIncrementalConfig)
+def optional_incremental_arg_resource(incremental: Optional[dlt.sources.incremental[Any]] = None) -> Any:
+    assert incremental is None
+    yield [1, 2, 3]
+
+
+def test_optional_arg_from_spec_not_passed() -> None:
+    p = dlt.pipeline(pipeline_name=uniq_id())
+    p.extract(optional_incremental_arg_resource())
+
+
+def test_override_initial_value_from_config() -> None:
     # use the shortest possible config version
     # os.environ['SOURCES__TEST_INCREMENTAL__SOME_DATA_OVERRIDE_CONFIG__CREATED_AT__INITIAL_VALUE'] = '2000-02-03T00:00:00Z'
     os.environ['CREATED_AT__INITIAL_VALUE'] = '2000-02-03T00:00:00Z'
@@ -367,9 +386,9 @@ def test_missing_cursor_field() -> None:
 
 
 @dlt.resource
-def standalone_some_data(last_timestamp=dlt.sources.incremental("item.timestamp")):
+def standalone_some_data(now=None, last_timestamp=dlt.sources.incremental("item.timestamp")):
     for i in range(-10, 10):
-        yield {"delta": i, "item": {"timestamp": pendulum.now().add(days=i).timestamp()}}
+        yield {"delta": i, "item": {"timestamp": (now or pendulum.now()).add(days=i).timestamp()}}
 
 
 def test_filter_processed_items() -> None:
@@ -399,7 +418,6 @@ def test_initial_value_set_to_last_value() -> None:
 
     @dlt.resource
     def some_data(step, last_timestamp=dlt.sources.incremental("item.ts")):
-        print(last_timestamp.initial_value)
         if step == -10:
             assert last_timestamp.initial_value is None
         else:
@@ -414,3 +432,77 @@ def test_initial_value_set_to_last_value() -> None:
         assert len(r._pipe) == 2
         r.add_filter(take_first(i + 11), 1)
         p.run(r, destination="dummy")
+
+
+def test_replace_resets_state() -> None:
+    os.environ["COMPLETED_PROB"] = "1.0"
+    p = dlt.pipeline(pipeline_name=uniq_id(), destination="dummy")
+    now = pendulum.now()
+
+    info = p.run(standalone_some_data(now))
+    assert len(info.loads_ids) == 1
+    info = p.run(standalone_some_data(now))
+    assert len(info.loads_ids) == 0
+    info = p.run(standalone_some_data(now), write_disposition="replace")
+    assert len(info.loads_ids) == 1
+
+    parent_r = standalone_some_data(now)
+    @dlt.transformer(data_from=parent_r, write_disposition="append")
+    def child(item):
+        state = _resource_state("child")
+        state["mark"] = f"mark:{item['delta']}"
+        yield item
+
+    # also transformer will not receive new data
+    info = p.run(child)
+    assert len(info.loads_ids) == 0
+    # now it will
+    info = p.run(child, write_disposition="replace")
+    assert len(info.loads_ids) == 1
+
+    s = DltSource("comp", "section", Schema("schema"), [parent_r, child])
+
+    p = dlt.pipeline(pipeline_name=uniq_id(), destination="duckdb")
+    info = p.run(s)
+    assert len(info.loads_ids) == 1
+    s.exhausted = False
+    info = p.run(s)
+    # state was reset
+    assert 'child' not in p.state["sources"]["section"]['resources']
+    # there's a load package but it contains 1 job to reset state
+    assert len(info.load_packages[0].jobs['completed_jobs']) == 1
+    assert info.load_packages[0].jobs['completed_jobs'][0].job_file_info.table_name == "_dlt_pipeline_state"
+
+
+def test_incremental_as_transform() -> None:
+
+    now = pendulum.now().timestamp()
+
+    @dlt.resource
+    def some_data():
+        last_value = dlt.sources.incremental.from_existing_state("some_data", "item.ts")
+        assert last_value.initial_value == now
+        assert last_value.cursor_path == "item.ts"
+        assert last_value.last_value == now
+
+        for i in range(-10, 10):
+            yield {"delta": i, "item": {"ts": pendulum.now().add(days=i).timestamp()}}
+
+    r = some_data().add_step(dlt.sources.incremental("item.ts", initial_value=now, primary_key="delta"))
+    p = dlt.pipeline(pipeline_name=uniq_id())
+    info = p.run(r, destination="duckdb")
+    assert len(info.loads_ids) == 1
+
+
+def test_last_value_func_on_dict() -> None:
+    """Test last value which is a dictionary"""
+    def by_type(*event):
+        # print(event)
+        return event[0]
+
+    @dlt.resource(primary_key="id", table_name=lambda i: i['type'])
+    def _get_shuffled_events(last_created_at = dlt.sources.incremental("$", "1970-01-01T00:00:00Z", last_value_func=by_type)):
+        with open("tests/normalize/cases/github.events.load_page_1_duck.json", "r", encoding="utf-8") as f:
+            yield json.load(f)
+
+    list(_get_shuffled_events())
