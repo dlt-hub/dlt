@@ -3,7 +3,7 @@ from urllib.request import url2pathname
 from urllib.parse import urlparse
 
 DLT_IMPORT_NAME = "dlt"
-DLT_PKG_NAME = "python-dlt"
+DLT_PKG_NAME = "dlt"
 __version__ = pkg_version(DLT_PKG_NAME)
 DLT_PKG_REQUIREMENT = f"{DLT_PKG_NAME}=={__version__}"
 
