@@ -162,8 +162,13 @@ for user in users().add_filter(lambda user: user["user_id"] != "me").add_map(ano
 
 ```
 
-### Modify schema
-You can change the schema of a resource, be it standalone or as a part of a source. Look for method named `apply_hints` which takes the same arguments as resource decorator. Obviously you should call this method before data is extracted from the resource.
+### Adjust schema
+You can change the schema of a resource, be it standalone or as a part of a source. Look for method named `apply_hints` which takes the same arguments as resource decorator. Obviously you should call this method before data is extracted from the resource. Example below converts an `append` resource loading the `users` table into merge resource that will keep just one updated record per `user_id`:
+```python
+tables = sql_database()
+tables.users.apply_hints(write_disposition="merge", primary_key="user_id")
+pipeline.run(tables)
+```
 
 ## Load resources
 

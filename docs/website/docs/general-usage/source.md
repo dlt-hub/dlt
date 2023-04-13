@@ -107,3 +107,13 @@ resource_list = sql_source().resources.keys()
 for res in resource_list:
 		pipeline.run(sql_source().with_resources(res))
 ```
+
+### Do a full refresh
+You can temporarily change the write disposition to `replace` on all (or selected) resources within a source to force a full refresh:
+```python
+p.run(merge_source(), write_disposition="replace")
+```
+With selected resources:
+```python
+p.run(tables.with_resources("users"), write_disposition="replace")
+```
