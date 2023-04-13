@@ -164,7 +164,7 @@ Initialize the pipeline with the following command:
 dlt init zendesk bigquery
 ```
 
-Here, we chose BigQuery as the destination. To choose a different destination, replace `bigquery` with your choice of destination.
+Here, we chose BigQuery as the destination. To choose a different destination, replace `bigquery` with your choice of destination.
 
 Running this command will create a directory with the following structure:
 
@@ -291,4 +291,3 @@ data_support = zendesk_support(pivot_ticket_fields=False)
 ```python
 pipeline = dlt.pipeline(pipeline_name="dlt_zendesk_pipeline", destination='bigquery', full_refresh=True, dataset_name="sample_zendesk_data3")
 ```
-
