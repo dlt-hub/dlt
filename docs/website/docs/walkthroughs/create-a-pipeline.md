@@ -123,8 +123,8 @@ that have been loaded.
 
 Now that you have a working pipeline, you have options for what to learn next:
 - Add a function to this pipeline to handle the `next_token` pagination from the Twitter API
-- [Deploy this pipeline](./walkthroughs/deploy-a-pipeline), so that the data is automatically
+- [Deploy this pipeline](./deploy-a-pipeline.md), so that the data is automatically
 loaded on a schedule
-- Transform the [loaded data](./using-loaded-data/transforming-the-data) with dbt or in Pandas DataFrames
-- Learn how to [run](./running-in-production/running.md), [monitor](./running-in-production/monitoring.md), and [alert](./running-in-production/alerting.md) when you put your pipeline in production
+- Transform the [loaded data](../using-loaded-data/transforming-the-data) with dbt or in Pandas DataFrames
+- Learn how to [run](../running-in-production/running.md), [monitor](../running-in-production/monitoring.md), and [alert](../running-in-production/alerting.md) when you put your pipeline in production
 - Try loading data to a different destination like [Google BigQuery](../destinations/bigquery.md), [Amazon Redshift](../destinations/redshift.md), or [Postgres](../destinations/postgres.md)
