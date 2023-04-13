@@ -1,6 +1,3 @@
----
-sidebar_position: 1
----
 
 ### Rename columns by replacing the special characters (german umlaut)
 

@@ -1,6 +1,3 @@
----
-sidebar_position: 2
----
 
 ### Pseudonymize or anonymize columns by replacing the special characters (german umlaut)
 
