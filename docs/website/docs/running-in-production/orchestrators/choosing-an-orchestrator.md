@@ -33,30 +33,26 @@ So in short, unless you need something very lightweight, you can benefit from an
 
 Airflow  is a market standard that’s hard to beat. Any shortcomings it might have are more than compensated for by being an open source mature product with a large community.
 
-**dlt** supports **airflow** **deployments**, meaning it’s particularly easy to deploy dlt pipelines to airflow via simple commands.
+`dlt` supports **airflow deployments**, meaning it’s particularly easy to deploy `dlt` pipelines to airflow via simple commands.
 
 Your airflow options are:
 
-- Broadly used managed airflow vendors:
-    - GCP’s cloud composer (recommended due to GCP being easy to use for non engineers and BQ being a popular solution). Simple to set up with ci-cd
-    - [Astronomer.io](http://Astronomer.io) (recommended for non gcp users). Ci-cd out of the box
-    - Aws’s managed airflow (hardest to use, AWS in general is harder to use than GCP)
-- Self managed airflow:
-    - You can self host and run your own airflow. This is not recommended unless the team plans to have the skills to work with this in house.
+Broadly used managed airflow vendors:
+  - [GCP Cloud Composer](./airflow-gcp-cloud-composer.md) is recommended due to GCP being easy to use for non engineers and Google BigQuery being a popular solution
+  - [Astronomer.io](http://Astronomer.io) (recommended for non gcp users). Ci-cd out of the box
+  - AWS has a managed airflow too, though it is the hardest to use
+
+Self managed airflow:
+- You can self host and run your own airflow. This is not recommended unless the team plans to have the skills to work with this in house.
 
 Limitations:
-
-Airflow can manage large scale setups and small alike.
+- Airflow manages large scale setups and small alike
 
 ### **GitHub Actions**
 
-GitHub Actions is not a full blown orchestrator, but it works. It supports simple workflows and scheduling, allowing for a visual, lightweight deployment with web-based monitoring (can see runs in git actions).
-It has a free tier, but its pricing is not convenient for large jobs.
+GitHub Actions is not a full blown orchestrator, but it works. It supports simple workflows and scheduling, allowing for a visual, lightweight deployment with web-based monitoring (i.e. you can see runs in GitHub Actions). It has a free tier, but its pricing is not convenient for large jobs.
 
-To deploy to git actions, [read here about using the dlt deploy command](./walkthroughs/deploy-a-pipeline)
-
-Read here about the limitations and billing of git actions.
-[https://docs.github.com/en/actions/learn-github-actions/usage-limits-billing-and-administration](https://docs.github.com/en/actions/learn-github-actions/usage-limits-billing-and-administration)
+To deploy a pipeline on GitHub Actions, read [here](./walkthroughs/deploy-a-pipeline) about using the `dlt deploy` command and [here](https://docs.github.com/en/actions/learn-github-actions/usage-limits-billing-and-administration) about the limitations of GitHub Actions and how their billing works.
 
 ### Other orchestrators
 
