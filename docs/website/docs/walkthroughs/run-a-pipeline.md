@@ -1,3 +1,9 @@
+---
+title: Run a pipeline
+description: How to run a pipeline
+keywords: [how to, run a pipeline]
+---
+
 # Run a pipeline
 
 Follow the steps below to run your pipeline script, see your loaded data and tables, inspect pipeline state, trace and handle the most common problems.
@@ -107,7 +113,7 @@ dlt.common.configuration.exceptions.ConfigFieldMissingException: Following field
                 In secrets.toml key destination.postgres.credentials.password was not found.
                 In secrets.toml key destination.credentials.password was not found.
                 In secrets.toml key credentials.password was not found.
-Please refer to https://dlthub.com/docs/customization/credentials for more information
+Please refer to https://dlthub.com/docs/general-usage/credentials for more information
 
 ```
 What this exception tells you?

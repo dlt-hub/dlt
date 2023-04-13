@@ -11,7 +11,7 @@ const config = {
   url: 'https://dlthub.com',
   baseUrl: '/docs',
   onBrokenLinks: 'throw',
-  onBrokenMarkdownLinks: 'warn',
+  onBrokenMarkdownLinks: 'throw',
   favicon: 'img/favicon.ico',
   staticDirectories: ['public', 'static'],
 

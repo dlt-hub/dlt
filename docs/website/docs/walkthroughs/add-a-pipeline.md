@@ -1,3 +1,9 @@
+---
+title: Add a pipeline
+description: How to add a pipeline
+keywords: [how to, add a pipeline]
+---
+
 # Add a pipeline
 
 Follow the steps below to add a [pipeline](../general-usage/glossary.md#pipeline) pipeline contributed by the other `dlt` users.
