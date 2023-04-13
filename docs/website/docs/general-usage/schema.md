@@ -39,7 +39,7 @@ The default naming convention:
 
 > 💡 Use simple, short small caps identifiers for everything!
 
-The naming convention is [configurable](../customization/configuration.md) and users can easily create their own conventions that ie. pass all the identifiers unchanged if the destination accepts that (ie. duckdb).
+The naming convention is [configurable](./configuration.md) and users can easily create their own conventions that ie. pass all the identifiers unchanged if the destination accepts that (ie. duckdb).
 
 ## Data normalizer
 Data normalizer changes the structure of the input data so it can be loaded into destination. The standard `dlt` normalizer creates a relational structure from Python dictionaries and lists. Elements of that structure: table and column definitions, are added to the schema.
@@ -65,7 +65,7 @@ A column schema contains following properties:
 A column schema contains following basic hints
 1. `nullable` tells if column is nullable or not
 2. `primary_key` marks a column as a part of primary key
-3. `merge_key` marks a column as a part of merge key used by [incremental load](../customization/incremental-loading.md#merge-incremental-loading)
+3. `merge_key` marks a column as a part of merge key used by [incremental load](./incremental-loading.md#merge-incremental-loading)
 4. `foreign_key` marks a column as a part of foreign key
 5. `root_key` marks a column as a part of root key which is a type of foreign key referring to the root table.
 6. `unique` tells that column is unique. on some destination that generates unique index
@@ -141,7 +141,7 @@ settings:
 
 
 ## Export and import schema files
-Please follow this [walkthrough](../walkthroughs/work-with-schemas-in-files.md) to export and import `yaml` schema files in your pipeline.
+Please follow this [walkthrough](../walkthroughs/adjust-a-schema.md) to export and import `yaml` schema files in your pipeline.
 
 ## Attaching schemas to sources
 We recommend to not create schemas explicitly. Instead user should provide a few global schema settings and then let the table and column schemas to be generated from the resource hints and the data itself.

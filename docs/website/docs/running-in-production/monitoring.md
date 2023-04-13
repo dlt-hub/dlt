@@ -40,7 +40,7 @@ GitHub Actions workflow DAG:
 
 ### Sentry
 
-Using `dlt` [tracing](reference/tracing.md), you can configure [Sentry](https://sentry.io) DSN to start receiving rich information on executed pipelines, including encountered errors and exceptions.
+Using `dlt` [tracing](./tracing.md), you can configure [Sentry](https://sentry.io) DSN to start receiving rich information on executed pipelines, including encountered errors and exceptions.
 
 ## Data monitoring
 

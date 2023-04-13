@@ -17,7 +17,7 @@ from dlt.common.typing import AnyFun, AnyType, TDataItems
 from dlt.common.utils import get_callable_name
 
 from dlt.extract.exceptions import CreatePipeException, DltSourceException, ExtractorException, InvalidResourceDataTypeFunctionNotAGenerator, InvalidStepFunctionArguments, InvalidTransformerGeneratorFunction, ParametrizedResourceUnbound, PipeException, PipeItemProcessingError, PipeNotBoundToData, ResourceExtractionError
-from dlt.extract.typing import DataItemWithMeta, ItemTransform, TPipedDataItems
+from dlt.extract.typing import DataItemWithMeta, ItemTransform, SupportsPipe, TPipedDataItems
 
 if TYPE_CHECKING:
     TItemFuture = Future[Union[TDataItems, DataItemWithMeta]]
@@ -90,7 +90,7 @@ class ForkPipe:
             yield ResolvablePipeItem(_it, step, pipe, meta)
 
 
-class Pipe:
+class Pipe(SupportsPipe):
     def __init__(self, name: str, steps: List[TPipeStep] = None, parent: "Pipe" = None) -> None:
         self.name = name
         self._gen_idx = 0
@@ -237,25 +237,25 @@ class Pipe:
         if not self.is_data_bound:
             raise PipeNotBoundToData(self.name, self.has_parent)
 
+        # evaluate transforms
+        for step_no, step in enumerate(self._steps):
+            if isinstance(step, ItemTransform):
+                self._steps[step_no] = step.bind(self)
+
         gen = self.gen
         if not self.has_parent:
             if callable(gen):
                 try:
                     # must be parameter-less callable or parameters must have defaults
-                    self._steps[0] = gen()  # type: ignore
+                    self.replace_gen(gen())  # type: ignore
                 except TypeError as ex:
                     raise ParametrizedResourceUnbound(self.name, get_callable_name(gen), inspect.signature(gen), "resource", str(ex))
             # otherwise it must be an iterator
             if isinstance(gen, Iterable):
-                self._steps[0] = iter(gen)
+                self.replace_gen(iter(gen))
         else:
             # verify if transformer can be called
             self._ensure_transform_step(self._gen_idx, gen)
-
-        # evaluate transforms
-        for step_no, step in enumerate(self._steps):
-            if isinstance(step, ItemTransform):
-                self._steps[step_no] = step.bind()
 
     def bind_gen(self, *args: Any, **kwargs: Any) -> Any:
         """Finds and wraps with `args` + `kwargs` the callable generating step in the resource pipe and then replaces the pipe gen with the wrapped one"""
@@ -334,7 +334,7 @@ class Pipe:
 
     def _wrap_transform_step_meta(self, step_no: int, step: TPipeStep) -> TPipeStep:
         # step must be a callable: a transformer or a transformation
-        if isinstance(step, (Iterable, Iterator)):
+        if isinstance(step, (Iterable, Iterator)) and not callable(step):
             if self.has_parent:
                 raise CreatePipeException(self.name, "Iterable or Iterator cannot be a step in transformer pipe")
             else:

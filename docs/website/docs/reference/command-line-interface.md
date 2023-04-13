@@ -13,14 +13,14 @@ dlt init <source> <destination>
 ```
 
 If you want to start from a [generic template](https://github.com/dlt-hub/python-dlt-init-template),
-then run `dlt init` with a [source](./glossary.md#source) name of your choice and one of the three
-[destination](./destinations.md) options. The optional `--generic` flag will provide a more complex
+then run `dlt init` with a [source](../general-usage/glossary.md#source) name of your choice and one of the three
+[destination](../general-usage/glossary.md#destination) options. The optional `--generic` flag will provide a more complex
 example, which can be used to speed up implementation if you have built `dlt` pipelines before.
 
 If you don't want to start with a generic template, then try out the chess.com API to Google BigQuery
 complete example by running `dlt init chess bigquery`.
 
-Follow the [Create a pipeline](./walkthroughs/create-a-pipeline.md) walkthrough to learn more.
+Follow the [Create a pipeline](../walkthroughs/create-a-pipeline.md) walkthrough to learn more.
 
 ## `dlt deploy`
 
@@ -33,7 +33,7 @@ You need to specify when the GitHub Action should run using a [cron schedule exp
 
 For the chess.com API example above, you could deploy it with `dlt deploy chess.py github-action --schedule "*/30 * * * *"`.
 
-Follow the [Deploy a pipeline](./walkthroughs/deploy-a-pipeline.md) walkthrough to learn more.
+Follow the [Deploy a pipeline](../walkthroughs/deploy-a-pipeline.md) walkthrough to learn more.
 
 ## `dlt pipeline`
 

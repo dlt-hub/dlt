@@ -90,3 +90,14 @@ jobs:
         if: runner.os == 'Windows'
         name: Run dbt runner with venv - Windows
         shell: cmd
+
+  matrix_job_required_check:
+    name: dbt runner tests
+    needs: run_dbt
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Check matrix job results
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: |
+          echo "One or more matrix job tests failed or were cancelled. You may need to re-run them." && exit 1

@@ -6,7 +6,7 @@ keywords: [how to, add a pipeline]
 
 # Add a pipeline
 
-Follow the steps below to add a [pipeline](../glossary.md#pipeline) pipeline contributed by the other `dlt` users.
+Follow the steps below to add a [pipeline](../general-usage/glossary.md#pipeline) pipeline contributed by the other `dlt` users.
 
 Please make sure you have [installed `dlt`](../installation.mdx) before following the steps below.
 
@@ -57,9 +57,7 @@ Finally, run the pipeline, fill the secrets.toml with your credentials or place 
 
 ## 2. Adding credentials
 
-For adding them locally or on your orchestrator, please see the following guide [credentials](../customization/credentials)
-
-For getting the destination credentials, please see the [guide](../destinations.md).
+For adding them locally or on your orchestrator, please see the following guide [credentials](../general-usage/credentials.md).
 
 ## 3. Customize or write a pipeline script
 

@@ -11,7 +11,7 @@ const config = {
   url: 'https://dlthub.com',
   baseUrl: '/docs',
   onBrokenLinks: 'throw',
-  onBrokenMarkdownLinks: 'warn',
+  onBrokenMarkdownLinks: 'throw',
   favicon: 'img/favicon.ico',
   staticDirectories: ['public', 'static'],
 
@@ -130,6 +130,19 @@ const config = {
         darkTheme: darkCodeTheme,
       },
       metadata: [{ name: 'keywords', content: 'data loading, elt, etl, extract, load, transform, python, data engineering, data warehouse, data lake'}],
+      algolia: {
+      // The application ID provided by Algolia
+      appId: 'FUTSIDO7MI',
+
+      // Public API key: it is safe to commit it
+      apiKey: '94b8ae9b02673db8232fc6fe712bc5a0',
+
+      indexName: 'dlthub',
+
+      // Optional: see doc section below
+      contextualSearch: true,
+
+      },
     }),
 };
 

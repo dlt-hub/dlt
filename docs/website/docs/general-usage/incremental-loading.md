@@ -8,7 +8,7 @@ keywords: [incremental loading, loading methods, append]
 
 Incremental loading is the act of loading only new or changed data and not old records that we already loaded. It enables low-latency and low cost data transfer.
 
-The challenge of incremental pipelines is that if we do not keep track of the state of the load (i.e. which increments were loaded and which are to be loaded). Read more about state [here](../concepts/state.md).
+The challenge of incremental pipelines is that if we do not keep track of the state of the load (i.e. which increments were loaded and which are to be loaded). Read more about state [here](../general-usage/state.md).
 
 ## There are 3 types of common loading methods:
 
@@ -92,7 +92,7 @@ Once you've figured that out, `dlt` takes care of the loading of the incremental
           yield page
 ```
 
-Here we add `created_at` argument that will receive incremental state, initialized to `1970-01-01T00:00:00Z`. It is configured to track `created_at` field in issues returned by `_get_issues_page` and then yielded. It will store the newest `created_at` value in `dlt` [state](../concepts/state.md) and make it available in `created_at.last_value` on next pipeline run. This value is used to request only issues newer (or equal) via github API.
+Here we add `created_at` argument that will receive incremental state, initialized to `1970-01-01T00:00:00Z`. It is configured to track `created_at` field in issues returned by `_get_issues_page` and then yielded. It will store the newest `created_at` value in `dlt` [state](../general-usage/state.md) and make it available in `created_at.last_value` on next pipeline run. This value is used to request only issues newer (or equal) via github API.
 
 On the first run of this resource, all the issues (we use "1970-01-01T00:00:00Z" as initial to get all of them) will be loaded and the `created_at.last_value` will get the `created_at` of most recent issue. On the second run we'll pass this value to `_get_issues_page` to get only the newer issues.
 

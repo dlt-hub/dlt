@@ -6,11 +6,11 @@ keywords: [how to, adjust a schema]
 
 # Adjust a schema
 
-When you [create](create-a-pipeline.md) and then [run](run-a-pipeline.md) a pipeline, you may want to manually inspect and change the [schema](../usage-guide/schema.md) that `dlt` generated for you. Here's how you do it.
+When you [create](create-a-pipeline.md) and then [run](run-a-pipeline.md) a pipeline, you may want to manually inspect and change the [schema](../general-usage/schema.md) that `dlt` generated for you. Here's how you do it.
 
 ## 1. Export your schemas on each run
 
-Set up an export folder by providing the `export_schema_path` argument to `dlt.pipeline` to save the schema. Set up an import folder from which `dlt` will read your modifications by providing `import_schema_path` argument. 
+Set up an export folder by providing the `export_schema_path` argument to `dlt.pipeline` to save the schema. Set up an import folder from which `dlt` will read your modifications by providing `import_schema_path` argument.
 
 Following our example in [run a pipeline](run-a-pipeline.md):
 
@@ -131,4 +131,4 @@ Let's say you are done with local experimentation and want to load your data to 
 
 ## 4. Keep your import schema
 
-Just add and push the import folder to git. It will be used automatically when cloned. Alternatively [bundle such schema with your source](../usage-guide/schema.md#attaching-schemas-to-sources)
+Just add and push the import folder to git. It will be used automatically when cloned. Alternatively [bundle such schema with your source](../general-usage/schema.md#attaching-schemas-to-sources)

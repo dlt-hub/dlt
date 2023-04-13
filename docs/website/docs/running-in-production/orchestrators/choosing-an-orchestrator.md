@@ -75,4 +75,4 @@ What do you need to consider when using other orchestrators?
 
 **Credentials:**
 
-[See credentials section for passing credentials to or from dlt](./customization/credentials)
+[See credentials section for passing credentials to or from dlt](../../general-usage/credentials.md)
