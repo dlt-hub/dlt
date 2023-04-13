@@ -49,6 +49,7 @@ const sidebars = {
         'walkthroughs/create-a-pipeline',
         'walkthroughs/add-a-pipeline',
         'walkthroughs/run-a-pipeline',
+        'walkthroughs/adjust-a-schema',
         'walkthroughs/deploy-a-pipeline'
       ],
     },

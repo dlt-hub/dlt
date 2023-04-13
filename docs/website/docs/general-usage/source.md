@@ -33,6 +33,8 @@ def hubspot(api_key=dlt.secrets.value):
         # calling get_resource creates generator, the actual code of the function will be executed in pipeline.run
         yield dlt.resource(get_resource(endpoint), name=endpoint)
 ```
+### Attach and configure schemas
+You can [create, attach and configure schema](schema.md#attaching-schemas-to-sources) that will be used when loading the source.
 
 ## Customize sources
 
@@ -87,6 +89,11 @@ source.resources["deal_scores"] = deal_scores  # this also works
 pipeline.run(source)
 ```
 
+### Modify schema
+The schema is available via `schema` property of the source. You can manipulate this schema ie. add tables, change column definitions etc. before the data is loaded. Source provides two other convenience properties:
+1. `max_table_nesting` to set the maximum nesting level of child tables
+2. `root_key` to propagate the `_dlt_id` of from a root table to all child tables.
+
 ## Load sources
 You can pass individual sources or list of sources to the `dlt.pipeline` object. By default all the sources will be loaded to a single dataset.
 
@@ -99,4 +106,14 @@ resource_list = sql_source().resources.keys()
 #now we are able to make a pipeline for each resource
 for res in resource_list:
 		pipeline.run(sql_source().with_resources(res))
+```
+
+### Do a full refresh
+You can temporarily change the write disposition to `replace` on all (or selected) resources within a source to force a full refresh:
+```python
+p.run(merge_source(), write_disposition="replace")
+```
+With selected resources:
+```python
+p.run(tables.with_resources("users"), write_disposition="replace")
 ```
