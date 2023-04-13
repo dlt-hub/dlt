@@ -1,131 +1,126 @@
 # Create a pipeline
 
-Follow the steps below to create a [pipeline](../general-usage/glossary.md#pipeline) from the Twitter API to
-Google BigQuery from scratch. The same steps can be repeated for any source and destination of your
-choice--use `dlt init <source> <destination>` and then build the pipeline for that API instead.
+Follow the steps below to create a [pipeline](../general-usage/glossary.md#pipeline) from the
+WeatherAPI.com API to DuckDB from scratch. The same steps can be repeated for any source and destination of your
+choice—use `dlt init <source> <destination>` and then build the pipeline for that API instead.
 
 Please make sure you have [installed `dlt`](../installation.mdx) before following the steps below.
 
 ## 1. Initialize project
 
 Create a new empty directory for your `dlt` project by running
+
 ```
-mkdir twitter_bigquery
+mkdir weatherapi_duckdb
 ```
 
-Start a `dlt` project with a pipeline template that loads data to Google BigQuery by running
+Start a `dlt` project with a pipeline template that loads data to DuckDB by running
+
 ```
-dlt init twitter bigquery
+dlt init weatherapi duckdb
 ```
 
-Install the dependencies necessary for Google BigQuery:
+Install the dependencies necessary for DuckDB:
+
 ```
 pip install -r requirements.txt
 ```
 
-## 2. Add Google BigQuery credentials
+## 2. Add WeatherAPI.com API credentials
 
-Follow steps 3-7 under [Google BigQuery](../destinations/bigquery.md) to create the
-service account credentials you'll need for BigQuery and add them to `.dlt/secrets.toml`.
+You will need to [sign up for the WeatherAPI.com API](https://www.weatherapi.com/signup.aspx).
 
-## 3. Add Twitter API credentials
+Once you do this, you should see your `API Key` at the top of your [user page](https://www.weatherapi.com/my/).
 
-You will need to [sign up for the Twitter API](https://developer.twitter.com/en/docs/platform-overview)
-and create a project to grab your Bearer Token for the Twitter API.
+Copy the value of the API key into `.dlt/secrets.toml`:
 
-Copy the value of the bearer token into `.dlt/secrets.toml`
 ```
 [sources]
 
-api_secret_key = '<bearer token value>'
-
-[destination.bigquery.credentials]
-
-# ...
+api_secret_key = '<api key value>'
 ```
 
 The secret name must correspond to the argument name in the source (i.e. `api_secret_key=dlt.secrets.value`
-in `def twitter_source(api_secret_key=dlt.secrets.value):`).
+in `def weatherapi_source(api_secret_key=dlt.secrets.value):`).
 
-Run the `twitter.py` pipeline script to test that authentication headers look fine
+Run the `weatherapi_pipeline.py` pipeline script to test that authentication headers look fine:
+
 ```
-python3 twitter.py
+python3 weatherapi_pipeline.py
 ```
 
-Your bearer token should be printed out to stdout along with some test data.
+Your API key should be printed out to stdout along with some test data.
 
-## 4. Request data from Twitter API search endpoint
+## 3. Request data from the WeatherAPI.com API
 
-Replace the `twitter_resource` function definition in the `twitter.py` pipeline script with a call to the
-[Twitter API search endpoint](https://developer.twitter.com/en/docs/twitter-api/tweets/search/api-reference/get-tweets-search-recent)
-```
+Replace the defintion of the `weatherapi_resource` function definition in the `weatherapi.py` pipeline script with a call to the WeatherAPI.com API:
+
+```python
 @dlt.resource(write_disposition="append")
-def twitter_resource(api_secret_key=dlt.secrets.value):
+def weatherapi_resource(api_secret_key=dlt.secrets.value):
 
-    headers = _headers(twitter_bearer_token)
-
-    search_term = 'data engineer'
-
+    url = "https://api.weatherapi.com/v1/current.json"
     params = {
-                'query': search_term,
-                'max_results': 100,
-                'tweet.fields': 'id,text,author_id,created_at',
-             }
-
-    url = "https://api.twitter.com/2/tweets/search/recent"
-
-    response = requests.get(url, headers=headers, params=params)
-
+        "q": "NYC",
+        "key": api_secret_key
+    }
+    response = requests.get(url, params=params)
     response.raise_for_status()
-
     yield response.json()
 ```
 
-Run the `twitter.py` pipeline script to test that the API call works
+Run the `weatherapi.py` pipeline script to test that the API call works:
+
 ```
-python3 twitter.py
+python3 weatherapi.py
 ```
 
-This should print out the tweets that you requested.
+This should print out the weather in New York City right now.
 
-## 5. Load the data
+## 4. Load the data
 
-Remove the `exit()` call from the `main` function in `twitter.py`, so that running the
-`python3 twitter.py` command will now also run the pipeline:
-```
+Remove the `exit()` call from the `main` function in `weatherapi.py`, so that running the
+`python3 weatherapi.py` command will now also run the pipeline:
+
+```python
 if __name__=='__main__':
 
     # configure the pipeline with your destination details
-    pipeline = dlt.pipeline(pipeline_name='twitter', destination='bigquery', dataset_name='twitter_data')
+    pipeline = dlt.pipeline(pipeline_name='weatherapi', destination='duckdb', dataset_name='weatherapi_data')
 
     # print credentials by running the resource
-    data = list(twitter_resource())
+    data = list(weatherapi_resource())
 
     # print the data yielded from resource
     print(data)
 
     # run the pipeline with your parameters
-    load_info = pipeline.run(twitter_source())
+    load_info = pipeline.run(weatherapi_source())
 
     # pretty print the information on data that was loaded
     print(load_info)
 ```
 
-Run the `twitter.py` pipeline script to load data to BigQuery
+Run the `weatherapi.py` pipeline script to load data into DuckDB:
+
 ```
-python3 twitter.py
+python3 weatherapi.py
 ```
 
-Go to the [Google BigQuery](https://console.cloud.google.com/bigquery) console and view the tables
-that have been loaded.
+Then this command to see that the data loaded:
 
-## 7. Next steps
+```
+dlt pipeline weatherapi show
+```
+
+This will open a streamlit app that gives you an overview of the data loaded.
+
+## 5. Next steps
 
 Now that you have a working pipeline, you have options for what to learn next:
-- Add a function to this pipeline to handle the `next_token` pagination from the Twitter API
-- [Deploy this pipeline](./walkthroughs/deploy-a-pipeline), so that the data is automatically
+- [Deploy this pipeline](./deploy-a-pipeline), so that the data is automatically
 loaded on a schedule
-- Transform the [loaded data](./using-loaded-data/transforming-the-data) with dbt or in Pandas DataFrames
-- Set up a [pipeline in production](./running-in-production/scheduling) with scheduling,
-monitoring, and alerting
+- [Transform the loaded data](../using-loaded-data/transforming-the-data) with dbt or in Pandas DataFrames
+- Set up a pipeline in production with [scheduling](../running-in-production/scheduling),
+[monitoring](../running-in-production/monitoring), and [alerting](../running-in-production/alerting)
 - Try loading data to a different destination like [Google BigQuery](../destinations/bigquery.md), [Amazon Redshift](../destinations/redshift.md), or [Postgres](../destinations/postgres.md)
