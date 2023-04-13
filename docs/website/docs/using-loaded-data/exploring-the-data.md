@@ -5,8 +5,11 @@ keywords: [exploring, loaded data, data quality]
 ---
 
 # Exploring the data
-Once you ran a pipeline locally, you can launch a web app that displays the loaded data.
-To do so, run the cli command below with your pipeline name. The pipeline name is found in the code and also displayed in your terminal when loading.
+
+Once you have run a pipeline locally, you can launch a web app that displays the loaded data.
+
+To do so, run the cli command below with your pipeline name. The pipeline name is the name of the Python file where your pipeline is defnied and also displayed in your terminal when loading:
+
 ```bash
 dlt pipeline {pipeline_name} show
 ```
@@ -14,7 +17,7 @@ dlt pipeline {pipeline_name} show
 This will open a streamlit app with
 - information about the loads
 - tables and sample data
-- sql client in which you can run queries to explore the data
+- a sql client that you can use to run queries
 
 ## Data Quality Dashboards
 
@@ -42,9 +45,7 @@ If a dashboard is the main product of an analyst, they will generally watch it c
 
 ## Tools to create dashboards
 
-[Metabase](https://www.metabase.com/), [Looker Studio](https://lookerstudio.google.com/u/0/), or [Streamlit](https://streamlit.io/) are some common tools that you might use to set up dashboards to explore data.
-
-It's worth noting that while many tools are suitable for exploration, different tools enable your organisation to achieve different things. Some organisations use multiple tools for different scopes.
-* Tools like Metabase are intended for data democratisation, where the business user can change the dimension, or granularity to answer follow up questions.
-* Tools like Looker Data studio, Tableau are intended for minimal interaction curated dashboards that business users can filter and read as-is. They are suitable for organisations where business users are less data literate.
-* Tools like Streamlit enable powerful customisations and building of complex apps that are best leveraged by python-first developers, but they do not support self service out of the box.
+[Metabase](https://www.metabase.com/), [Looker Studio](https://lookerstudio.google.com/u/0/), and [Streamlit](https://streamlit.io/) are some common tools that you might use to set up dashboards to explore data. It's worth noting that while many tools are suitable for exploration, different tools enable your organization to achieve different things. Some organizations use multiple tools for different scopes:
+- Tools like [Metabase](https://www.metabase.com/) are intended for data democratization, where the business user can change the dimension or granularity to answer follow up questions
+- Tools like [Looker Studio](https://lookerstudio.google.com/u/0/) and [Tableau](https://www.tableau.com/) are intended for minimal interaction curated dashboards that business users can filter and read as-is with limited training
+- Tools like [Streamlit](https://streamlit.io/) enable powerful customizations and the building of complex apps by Python-first developers, but they generally do not support self service out of the box
