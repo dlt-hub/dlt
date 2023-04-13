@@ -73,6 +73,14 @@ const sidebars = {
       type: 'category',
       label: 'Customization',
       items: [
+              {
+          type: 'category',
+          label: 'Customize an existing pipeline',
+          items: [
+            'customization/customize-existing-pipeline/anonymising_and_pseudonymising_columns',
+            'customization/customize-existing-pipeline/renaming_columns',
+          ]
+        },
         'customization/incremental-loading',
         'customization/credentials',
         'customization/schema',
