@@ -30,21 +30,21 @@ The simplest way to authenticate is via subdomain + email address + password, si
 
 
 ### Zendesk support API token
-
+    
 1.  Go to Zendesk products in the top right corner and select Admin Center. 
 
   <img src="docs_images/Zendesk_admin_centre.png" alt="Admin Centre" width="400"/>
-
-
+        
+        
 2. Select Apps and Integrations. 
-
+    
 3. In the left pane, under APIs, choose Zendesk API from the menu on the left, and enable the “**Password access**” and “**Token access**” as shown below.
-
+    
 
 <img src="docs_images/Zendesk_token_access.png" alt="Admin Centre" width = "70%" />
 
 4. Click on “**Add API token**”, enter a description, and note the `API token`.
-
+    
     ***********This token will be displayed only once and should be noted***********
 ### Zendesk support OAuth token
 To get an `OAuth token` follow these steps:
@@ -56,7 +56,7 @@ To get an `OAuth token` follow these steps:
 4. Click on “Add OAuth Client” and add the details like “Client Name”, “Description”, “Company” , “Redirect URL (if any)”.
 5. Click on save, and a secret token will be displayed, copy it.
 6. Now you need to make a curl request using the following command          
-
+        
 ```bash
     curl https://{subdomain}.zendesk.com/oauth/tokens \
       -H "Content-Type: application/json" \
@@ -65,9 +65,9 @@ To get an `OAuth token` follow these steps:
         "username": "{zendesk_username}", "password": "{zendesk_password}"}' \
       -X POST
 ```
-
+        
   Alternatively, you can use the following Python script:
-
+        
   ```python
     import requests
     import json
@@ -92,9 +92,9 @@ To get an `OAuth token` follow these steps:
     
     print(response.json()['access_token'])
   ```
-
+        
 7. Include the following in the code above:
-
+      
 | Credentials | Description |
 | --- | --- |
 | subdomain | Your Zendesk subdomain |
@@ -102,11 +102,11 @@ To get an `OAuth token` follow these steps:
 | client_secret | secret token generated for the OAuth client |
 | zendesk_username  | Your Zendesk email address |
 | zendesk password | Your Zendesk password |
-
+      
 8. After running the above curl command in terminal (or the Python script), you will get an access token in the response. 
-
+      
 9. This is the OAuth token. Save it, as this will need to be added to the pipeline.
-
+        
 </details>
 <details>
 <summary>Credentials for Zendesk chat API</summary>
@@ -125,9 +125,9 @@ To authenticate Zendesk chat, you will need the following credentials:
 ### Zendesk chat OAuth token
 
 1. Login to Zendesk chat. Or go to “Chat” using Zendesk products in the top right corner.
-
+    
   <img src="docs_images/Zendesk_admin_centre.png" alt="Admin Centre" width="400"/>
-
+    
 2. In Zendesk chat, go to **Settings**(on the left) **> Account > API > Add API client.**
 3. Enter the details like client name, company, and redirect URLs (if you don’t have redirect URLs; use: [http://localhost:8080](http://localhost:8080/)).
 4. Note down the displayed `client ID` and `secret`.
@@ -142,6 +142,7 @@ For more information or an alternative method, see the [documentation](https://d
 9. After the redirect, the secret token will be displayed in the address bar of the browser as below: 
 ```bash
 http://localhost:8080/#**access_token=cSWY9agzy9hsgsEdX5F2PCsBlvSu3tDk3lh4xmISIHFhR4lKtpVqqDRVvkiZPqbI**&token_type=Bearer&scope=read
+
 #access token is "**cSWY9agzy9hsgsEdX5F2PCsBlvSu3tDk3lh4xmISIHFhR4lKtpVqqDRVvkiZPqbI"**
 ```
 10. Save the access token. This will need to be added to the pipeline later.
@@ -181,8 +182,12 @@ zendesk_pipeline
 ├── zendesk_pipeline.py
 └── requirements.txt`
 ```
+
+
 ## Add credentials
+
 1. Add credentials for the Zendesk API and your chosen destination in `.dlt/secrets.toml`. 
+
 ```python
 #Zendesk support credentials
 [sources.zendesk.zendesk_support.credentials]
@@ -191,9 +196,11 @@ subdomain = "subdomian" # Copy subdomain from the url https://[subdomain].zendes
 token = "set me up" # Include this if you wish to authenticate using the API token
 email = "set me up" # Include this if you with to authenticate using subdomain + email address + password
 oauth_token = "set me up" # Include this if you wish to authenticate using OAuth token
+
 [sources.zendesk.zendesk_chat.credentials]
 subdomain = "subdomian". # Copy subdomain from the url https://[subdomain].zendesk.com
 oauth_token = "set me up" # Follow the steps under Zendesk chat credentials to get this token
+
 #Zendesk talk credentials
 [sources.zendesk.zendesk_talk.credentials]
 password = "set me up" # Include this if you with to authenticate using subdomain + email address + password
@@ -201,6 +208,7 @@ subdomain = "subdomian" # Copy subdomain from the url https://[subdomain].zendes
 token = "set me up" # Include this if you wish to authenticate using the API token
 email = "set me up" # Include this if you with to authenticate using subdomain + email address + password
 oauth_token = "set me up" # Include this if you wish to authenticate using OAuth token
+
 #bigquery credentials
 [destination.bigquery.credentials]
 project_id = "set me up" # GCP project ID!
@@ -208,13 +216,17 @@ private_key = "set me up" # Unique private key !(Must be copied fully including 
 client_email = "set me up" # Email for service account
 location = "set me up" # Project location for ex. “US”
 ```
+
 2. Only add credentials for the APIs from which you wish to request data and remove the rest.
 3. Add credentials as required by your destination. See [here](https://dlthub.com/docs/destinations) for steps on how to do this.
+
 ## Specify source methods in `zendesk_pipeline.py`
+
 1. You can easily specify which APIs the pipeline will load the data from by modifying the data loading function `incremental_load_all_default` in the script `zendesk_pipeline.py`.
 2. By default, the function calls all three source methods, `zendesk_support()`, `zendesk_chat()`, and `zendesk_talk()`.
 3. To adjust this, simply remove the lines that correspond to the APIs from which you do not wish to request data.
 4. Also make the corresponding change in the line `info = pipeline.run(data=[data_support, data_chat, data_talk])`.
+
 ```python
 def incremental_load_all_default():
     """
@@ -222,6 +234,7 @@ def incremental_load_all_default():
     """
     # FULL PIPELINE RUN
     pipeline = dlt.pipeline(pipeline_name="dlt_zendesk_pipeline", destination="bigquery", full_refresh=True, dataset_name="sample_zendesk_data3")
+
     # zendesk support source function
     data_support = zendesk_support(load_all=True)
     # zendesk chat source function
@@ -232,15 +245,26 @@ def incremental_load_all_default():
     info = pipeline.run(data=[data_support, data_chat, data_talk])
     return info
 ```
+
 ## Run the pipeline
+
 1. Install requirements for the pipeline by running the following command:
+
 `pip install -r requirements.txt`
+
 2. Run the pipeline with the following command:
+
 `python3 zendesk_pipeline.py`
+
 3. To make sure everything is loaded as expected, use the command:
+
 `dlt pipeline zendesk_pipeline show`
+
+
 # Customizations
+
 The Zendesk pipeline has some default customizations that make it more useful:
+
 1. **Pivoting ticket fields:** By default, the pipeline pivots the custom fields in tickets when loading the data, which allows the custom fields to be used as columns after loading. This behavior is due to the fact that the boolean parameter `pivot_ticket_fields` in the source method `zendesk_support()` is set to `True` by default. To change this, set `pivot_ticket_fields=False` when calling the source method from inside the data loading function.  
 ```python
 data_support = zendesk_support(pivot_ticket_fields=False)
@@ -262,6 +286,7 @@ data_support = zendesk_support(pivot_ticket_fields=False)
   if __name__ == "__main__":
     load_support_with_pivoting()
   ```
+
 2. **Custom field rename**: The pipeline loads the custom fields with their label names. If the label changes between loads, the initial label continues to be used (is persisted in state). To reset the labels, do a full refresh. This can be achieved by passing `full_refresh=True` when calling `dlt.pipeline`:
 ```python
 pipeline = dlt.pipeline(pipeline_name="dlt_zendesk_pipeline", destination='bigquery', full_refresh=True, dataset_name="sample_zendesk_data3")
