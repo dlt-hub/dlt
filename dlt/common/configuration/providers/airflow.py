@@ -1,31 +1,32 @@
 import tomlkit
-from airflow.hooks.base import BaseHook
+from airflow.models import Variable
 
 from .toml import BaseTomlProvider
 
-AIRFLOW_SECRETS_TOML_CONNECTION_ID = 'dlt_secrets_toml'
+AIRFLOW_SECRETS_TOML_VARIABLE_KEY = 'dlt_secrets_toml'
 
 
 class AirflowSecretsTomlProvider(BaseTomlProvider):
     def __init__(
-        self, connection_id: str = AIRFLOW_SECRETS_TOML_CONNECTION_ID
+        self, variable_key: str = AIRFLOW_SECRETS_TOML_VARIABLE_KEY
     ) -> None:
-        """Reads TOML configuration data from an Airflow connection
-        specified by the `connection_id` and initializes a BaseTomlProvider
-        with the parsed content.
+        """Reads TOML configuration data from an Airflow variable specified
+        by the `variable_key` and initializes a BaseTomlProvider with the
+        parsed content.
 
         Args:
-            connection_id (str, optional): The Airflow connection ID to read secrets from.
-                Defaults to AIRFLOW_SECRETS_TOML_CONNECTION_ID.
+            variable_key (str, optional): The Airflow variable key to read secrets from.
+                Defaults to AIRFLOW_SECRETS_TOML_VARIABLE_KEY.
         """
-        toml_content = self._read_toml_from_airflow(connection_id)
+        toml_content = self._read_toml_from_airflow(variable_key)
         super().__init__(toml_content)
 
     def _read_toml_from_airflow(
-        self, connection_id: str
+        self, variable_key: str
     ) -> tomlkit.TOMLDocument:
-        conn = BaseHook.get_connection(connection_id)
-        return tomlkit.parse(conn.password)
+        toml_string = Variable.get(variable_key)
+        print(f"TOML string: {toml_string}")
+        return tomlkit.parse(toml_string)
 
     @property
     def name(self) -> str:
