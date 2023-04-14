@@ -40,7 +40,24 @@ class ConfigProvidersContext(ContainerInjectableContext):
 
     @staticmethod
     def initial_providers() -> List[ConfigProvider]:
-        return [EnvironProvider(), SecretsTomlProvider(add_global_config=True), ConfigTomlProvider(add_global_config=True)]
+        providers = [
+            EnvironProvider(),
+            SecretsTomlProvider(add_global_config=True),
+            ConfigTomlProvider(add_global_config=True)
+        ]
+
+        # Attempt to import Airflow and add AirflowTomlProvider if successful.
+        # Successful import of Airflow means we are running in an Airflow environment
+        # and the AirflowTomlProvider will be able to read configuration
+        # from Airflow's Connections
+        try:
+            import airflow  # noqa
+            from dlt.common.configuration.providers.airflow import AirflowSecretsTomlProvider
+            providers.append(AirflowSecretsTomlProvider())
+        except ImportError:
+            pass
+
+        return providers
 
 
 # TODO: implement ConfigProvidersConfiguration and
