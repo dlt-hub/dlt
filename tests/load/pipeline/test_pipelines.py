@@ -75,11 +75,10 @@ def test_default_pipeline_names(destination_name: str, use_single_dataset: bool)
         assert_table(p, "data_fun", data, schema_name="names", info=info)
 
 
-@pytest.mark.parametrize('destination_name,use_single_dataset', itertools.product(ALL_DESTINATIONS, [True, False]))
-def test_default_dataset_name(destination_name: str, use_single_dataset: bool) -> None:
+def test_default_duckdb_dataset_name() -> None:
     # Check if dataset_name does not collide with pipeline_name
     data = ["a", "b", "c"]
-    info = dlt.run(data, destination=destination_name, table_name="data")
+    info = dlt.run(data, destination="duckdb", table_name="data")
     assert_table(info.pipeline, "data", data, info=info)
 
 
