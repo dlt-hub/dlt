@@ -40,7 +40,7 @@ class DltResourceSchema:
     def table_schema(self, item: TDataItem =  None) -> TPartialTableSchema:
         """Computes the table schema based on hints and column definitions passed during resource creation. `item` parameter is used to resolve table hints based on data"""
         if not self._table_schema_template:
-            return new_table(self._name)
+            return new_table(self._name, resource=self._name)
 
         # resolve a copy of a held template
         table_template = copy(self._table_schema_template)
@@ -52,6 +52,7 @@ class DltResourceSchema:
         # resolve
         resolved_template: TTableSchemaTemplate = {k: self._resolve_hint(item, v) for k, v in table_template.items()}  # type: ignore
         table_schema = self._merge_keys(resolved_template)
+        table_schema["resource"] = self._name
         validate_dict(TPartialTableSchema, table_schema, f"new_table/{self._name}")
         return table_schema
 

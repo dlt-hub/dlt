@@ -29,8 +29,11 @@ def apply_defaults(stored_schema: TStoredSchema) -> None:
         # overwrite name
         table["name"] = table_name
         # add default write disposition to root tables
-        if table.get("parent") is None and table.get("write_disposition") is None:
-            table["write_disposition"] = DEFAULT_WRITE_DISPOSITION
+        if table.get("parent") is None:
+            if table.get("write_disposition") is None:
+                table["write_disposition"] = DEFAULT_WRITE_DISPOSITION
+            if table.get('resource') is None:
+                table['resource'] = table_name
         # add missing hints to columns
         for column_name in table["columns"]:
             # add default hints to tables
@@ -43,8 +46,10 @@ def apply_defaults(stored_schema: TStoredSchema) -> None:
 
 def remove_defaults(stored_schema: TStoredSchema) -> TStoredSchema:
     clean_tables = deepcopy(stored_schema["tables"])
-    for t in clean_tables.values():
+    for table_name, t in clean_tables.items():
         del t["name"]
+        if t.get('resource') == table_name:
+            del t['resource']
         for c in t["columns"].values():
             # do not save names
             del c["name"]
@@ -358,6 +363,8 @@ def merge_tables(table: TTableSchema, partial_table: TPartialTableSchema) -> TPa
     partial_w_d = partial_table.get("write_disposition")
     if partial_w_d:
         table["write_disposition"] = partial_w_d
+    if table.get('parent') is None and (resource := partial_table.get('resource')):
+        table['resource'] = resource
 
     return diff_table
 
@@ -496,7 +503,8 @@ def new_table(
     parent_table_name: str = None,
     write_disposition: TWriteDisposition = None,
     columns: Sequence[TColumnSchema] = None,
-    validate_schema: bool = False
+    validate_schema: bool = False,
+    resource: str = None
 ) -> TTableSchema:
 
     table: TTableSchema = {
@@ -506,9 +514,11 @@ def new_table(
     if parent_table_name:
         table["parent"] = parent_table_name
         assert write_disposition is None
+        assert resource is None
     else:
         # set write disposition only for root tables
         table["write_disposition"] = write_disposition or DEFAULT_WRITE_DISPOSITION
+        table["resource"] = resource or table_name
     if validate_schema:
         validate_dict(TTableSchema, table, f"new_table/{table_name}")
     return table

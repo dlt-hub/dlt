@@ -631,3 +631,36 @@ def test_dispatch_rows_to_tables(github_resource: DltResource):
         if table.get("parent") is None:
             assert table["write_disposition"] == "merge"
             assert table["columns"]["id"]["primary_key"] is True
+
+
+def test_resource_name_in_schema() -> None:
+    @dlt.resource(table_name='some_table')
+    def static_data():
+        yield {'a': 1, 'b': 2}
+
+    @dlt.resource(table_name=lambda x: 'dynamic_func_table')
+    def dynamic_func_data():
+        yield {'a': 1, 'b': 2}
+
+    @dlt.resource
+    def dynamic_mark_data():
+        yield dlt.mark.with_table_name({'a': 1, 'b': 2}, 'dynamic_mark_table')
+
+    @dlt.resource(table_name='parent_table')
+    def nested_data():
+        yield {'a': 1, 'items': [{'c': 2}, {'c': 3}, {'c': 4}]}
+
+    @dlt.source
+    def some_source():
+        return [static_data(), dynamic_func_data(), dynamic_mark_data(), nested_data()]
+
+
+    source = some_source()
+    p = dlt.pipeline(pipeline_name=uniq_id(), destination='dummy')
+    p.run(source)
+
+    assert source.schema.tables['some_table']['resource'] == 'static_data'
+    assert source.schema.tables['dynamic_func_table']['resource'] == 'dynamic_func_data'
+    assert source.schema.tables['dynamic_mark_table']['resource'] == 'dynamic_mark_data'
+    assert source.schema.tables['parent_table']['resource'] == 'nested_data'
+    assert 'resource' not in source.schema.tables['parent_table__items']

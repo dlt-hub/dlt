@@ -1,6 +1,6 @@
 from copy import deepcopy
 import os
-from typing import List, Sequence
+from typing import List, Sequence, cast
 import pytest
 
 from dlt.common import pendulum
@@ -403,6 +403,15 @@ def test_merge_hints(schema: Schema) -> None:
     assert len(expected_hints) == len(schema._settings["default_hints"])
     for k in expected_hints:
         assert set(expected_hints[k]) == set(schema._settings["default_hints"][k])
+
+
+def test_default_table_resource() -> None:
+    """Parent tables without `resource` set default to table name"""
+    eth_v5 = load_yml_case("schemas/eth/ethereum_schema_v5")
+    tables = Schema.from_dict(eth_v5).tables
+
+    assert tables['blocks']['resource'] == 'blocks'
+    assert all([t.get('resource') is None for t in tables.values() if t.get('parent')])
 
 
 def test_data_tables(schema: Schema, schema_storage: SchemaStorage) -> None:
