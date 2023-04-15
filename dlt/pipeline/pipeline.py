@@ -23,7 +23,7 @@ from dlt.common.storages.load_storage import LoadJobInfo, LoadPackageInfo, LoadS
 from dlt.common.typing import TFun, TSecretValue
 from dlt.common.runners import pool_runner as runner, initialize_runner
 from dlt.common.runners.configuration import PoolRunnerConfiguration
-from dlt.common.storages import LiveSchemaStorage, NormalizeStorage
+from dlt.common.storages import LiveSchemaStorage, NormalizeStorage, SchemaStorage
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import DestinationReference, JobClientBase, DestinationClientConfiguration, DestinationClientDwhConfiguration, TDestinationReferenceArg
 from dlt.common.pipeline import ExtractInfo, LoadInfo, NormalizeInfo, SupportsPipeline, TPipelineLocalState, TPipelineState, StateInjectableContext
@@ -542,7 +542,7 @@ class Pipeline(SupportsPipeline):
         return not self.first_run or bool(self.schema_names) or len(self.list_extracted_resources()) > 0 or len(self.list_normalized_load_packages()) > 0
 
     @property
-    def schemas(self) -> Mapping[str, Schema]:
+    def schemas(self) -> SchemaStorage:
         return self._schema_storage
 
     @property

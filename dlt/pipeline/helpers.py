@@ -1,11 +1,13 @@
-
-
-from typing import Callable, Tuple
+from collections import defaultdict
+from typing import Callable, Tuple, Iterable, Optional, Any, cast
 
 from dlt.common.exceptions import TerminalException
+from dlt.common.schema.utils import get_child_tables
 
 from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.pipeline.typing import TPipelineStep
+from dlt.pipeline import Pipeline
+from dlt.common.pipeline import TSourceState
 
 
 def retry_load(retry_on_pipeline_steps: Tuple[TPipelineStep, ...] = ("load",)) -> Callable[[Exception], bool]:
@@ -33,3 +35,76 @@ def retry_load(retry_on_pipeline_steps: Tuple[TPipelineStep, ...] = ("load",)) -
         return True
 
     return _retry_load
+
+
+class DropCommand:
+    def __init__(
+        self,
+        pipeline: Pipeline,
+        tables: Optional[Iterable[str]] = None,
+        resources: Optional[Iterable[str]] = None,
+        schema_name: str = None,
+        drop_all: bool = False,
+    ) -> None:
+        self.pipeline = pipeline
+        self.tables = set(tables or [])
+        self.resources = set(resources or [])
+        self.schema = pipeline.schemas[schema_name or pipeline.default_schema_name]
+        self.schema_tables = self.schema.tables
+
+        # Create a flat list of parent and child tables to drop
+        drop_tables = []
+        for t in self.tables:
+            if t in self.schema_tables:
+                drop_tables += [c for c in get_child_tables(self.schema_tables, t)]
+        self.drop_tables = list(reversed(drop_tables))  # Reverse so children are dropped before parent
+
+        # List resource state keys to drop
+        drop_resources = set(r for r in (t.get('resource') for t in self.drop_tables) if r)
+
+        self.drop_resource_state_keys = self.tables | self.resources | drop_resources
+
+    def drop_destination_tables(self) -> None:
+        with self.pipeline._get_destination_client(self.schema) as client:
+            client.drop_tables([tbl['name'] for tbl in self.drop_tables])
+
+    def delete_pipeline_tables(self) -> None:
+        for tbl in self.drop_tables:
+            del self.schema_tables[tbl['name']]
+
+    def drop_state_keys(self) -> None:
+        state: TSourceState
+        with self.pipeline._managed_state(extract_state=True) as state:  # type: ignore[assignment]
+            source_states = state.get("sources")
+            if not source_states:
+                return
+            for source_state in source_states.values():
+                resources = source_state.get('resources')
+                if not resources:
+                    continue
+                for key in self.drop_resource_state_keys:
+                    resources.pop(key, None)
+
+    def info(self) -> Any:
+        # TODO: Return list of tables, source keys, etc that would be dropped
+        raise NotImplementedError()
+
+    def __call__(self) -> None:
+        self.delete_pipeline_tables()
+        self.schema.bump_version()
+        self.drop_destination_tables()
+        self.drop_state_keys()
+        self.pipeline.schemas.save_schema(self.schema)
+        # Send extracted state to destination
+        # TODO: Other load packages will go too. Is this bad?
+        self.pipeline.load()
+
+
+def drop(
+    pipeline: Pipeline,
+    tables: Optional[Iterable[str]] = None,
+    resources: Optional[Iterable[str]] = None,
+    schema_name: str = None,
+    drop_all: bool = False,
+) -> None:
+    return DropCommand(pipeline, tables, resources, schema_name, drop_all)()
