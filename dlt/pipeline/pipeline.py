@@ -438,10 +438,12 @@ class Pipeline(SupportsPipeline):
             self.normalize()
         if self.list_normalized_load_packages():
             # if there were any pending loads, load them and **exit**
+            if data is not None:
+                logger.warn("The pipeline `run` method will now load the pending load packages. The data you passed to the run function will not be loaded. In order to do that you must run the pipeline again")
             return self.load(destination, dataset_name, credentials=credentials)
 
         # extract from the source
-        if data:
+        if data is not None:
             self.extract(data, table_name=table_name, write_disposition=write_disposition, columns=columns, primary_key=primary_key, schema=schema)
             self.normalize()
             return self.load(destination, dataset_name, credentials=credentials)

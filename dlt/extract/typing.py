@@ -1,8 +1,8 @@
 import inspect
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Generic, Iterator, Optional, Protocol, TypedDict, TypeVar, Union, Awaitable, Sequence
+from typing import Any, Callable, Generic, Iterator, Optional, Protocol, TypedDict, TypeVar, Union, Awaitable
 
-from dlt.common.typing import TAny, TDataItem, TDataItems, TypeAlias
+from dlt.common.typing import TAny, TDataItem, TDataItems
 from dlt.common.schema.typing import TTableSchemaColumns, TWriteDisposition, TColumnKey
 
 
@@ -13,17 +13,6 @@ TPipedDataItems = Union[TDataItems, TDeferredDataItems, TAwaitableDataItems]
 TDynHintType = TypeVar("TDynHintType")
 TFunHintTemplate = Callable[[TDataItem], TDynHintType]
 TTableHintTemplate = Union[TDynHintType, TFunHintTemplate[TDynHintType]]
-
-
-class TTableSchemaTemplate(TypedDict, total=False):
-    name: TTableHintTemplate[str]
-    # description: TTableHintTemplate[str]
-    write_disposition: TTableHintTemplate[TWriteDisposition]
-    # table_sealed: Optional[bool]
-    parent: TTableHintTemplate[str]
-    columns: TTableHintTemplate[TTableSchemaColumns]
-    primary_key: TTableHintTemplate[TColumnKey]
-    merge_key: TTableHintTemplate[TColumnKey]
 
 
 class DataItemWithMeta:
