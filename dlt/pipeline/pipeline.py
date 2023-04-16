@@ -195,7 +195,7 @@ class Pipeline(SupportsPipeline):
         self.full_refresh = full_refresh
 
         self._container = Container()
-        self._pipeline_instance_id = pendulum.now().format("_YYYYMMDDhhmmss")
+        self._pipeline_instance_id = self._create_pipeline_instance_id()
         self._pipeline_storage: FileStorage = None
         self._schema_storage: LiveSchemaStorage = None
         self._schema_storage_config: SchemaVolumeConfiguration = None
@@ -950,6 +950,9 @@ class Pipeline(SupportsPipeline):
     def _set_default_schema_name(self, schema: Schema) -> None:
         assert self.default_schema_name is None
         self.default_schema_name = schema.name
+
+    def _create_pipeline_instance_id(self) -> str:
+        return pendulum.now().format("_YYYYMMDDhhmmss")  # type: ignore
 
     @with_schemas_sync
     @with_state_sync()
