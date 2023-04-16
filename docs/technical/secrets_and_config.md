@@ -319,7 +319,7 @@ dlt.common.configuration.exceptions.ConfigFieldMissingException: Following field
                 In secrets.toml key destination.postgres.credentials.password was not found.
                 In secrets.toml key destination.credentials.password was not found.
                 In secrets.toml key credentials.password was not found.
-Please refer to https://dlthub.com/docs/customization/credentials for more information
+Please refer to https://dlthub.com/docs/general-usage/credentials for more information
 ```
 
 It tells you exactly which paths `dlt` looked at, via which config providers and in which order. In the example above
