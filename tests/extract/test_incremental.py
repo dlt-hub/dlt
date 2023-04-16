@@ -602,7 +602,7 @@ def test_last_value_func_on_dict() -> None:
         with open("tests/normalize/cases/github.events.load_page_1_duck.json", "r", encoding="utf-8") as f:
             yield json.load(f)
 
-    with Container().injectable_context(StateInjectableContext(state={})) as state:
+    with Container().injectable_context(StateInjectableContext(state={})):
         r = _get_shuffled_events()
         all_events = list(r)
         assert len(all_events) == 100
