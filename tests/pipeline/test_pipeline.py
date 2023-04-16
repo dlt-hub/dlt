@@ -664,3 +664,28 @@ def test_resource_name_in_schema() -> None:
     assert source.schema.tables['dynamic_mark_table']['resource'] == 'dynamic_mark_data'
     assert source.schema.tables['parent_table']['resource'] == 'nested_data'
     assert 'resource' not in source.schema.tables['parent_table__items']
+
+
+def test_preserve_fields_order() -> None:
+    pipeline_name = "pipe_" + uniq_id()
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+
+    item = {"col_1": 1, "col_2": 2, "col_3": "list"}
+    p.extract([item], table_name="order_1")
+    p.normalize()
+
+    @dlt.resource(name="order_2")
+    def ordered_dict():
+        yield {"col_1": 1, "col_2": 2, "col_3": "list"}
+
+    def reverse_order(item):
+        rev_dict = {}
+        for k in reversed(item.keys()):
+            rev_dict[k] = item[k]
+        return rev_dict
+
+    p.extract(ordered_dict().add_map(reverse_order))
+    p.normalize()
+
+    assert list(p.default_schema.tables["order_1"]["columns"].keys()) == ["col_1", "col_2", "col_3", '_dlt_load_id', '_dlt_id']
+    assert list(p.default_schema.tables["order_2"]["columns"].keys()) == ["col_3", "col_2", "col_1", '_dlt_load_id', '_dlt_id']

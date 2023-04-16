@@ -282,6 +282,30 @@ def test_get_storage_table_with_all_types(client: SqlJobClientBase) -> None:
 
 
 @pytest.mark.parametrize('client', ALL_CLIENTS, indirect=True)
+def test_preserve_column_order(client: SqlJobClientBase) -> None:
+    schema = client.schema
+    table_name = "event_test_table" + uniq_id()
+    import random
+    columns = deepcopy(TABLE_UPDATE)
+    random.shuffle(columns)
+    print(columns)
+    schema.update_schema(new_table(table_name, columns=columns))
+    schema.bump_version()
+
+    def _assert_columns_order(sql_: str) -> None:
+        idx = 0
+        for c in columns:
+            # find column names
+            idx = sql_.find(c["name"], idx)
+            assert idx > 0, f"column {c['name']} not found in script"
+
+    sql = client._get_table_update_sql(table_name, columns, generate_alter=False)
+    _assert_columns_order(sql)
+    sql = client._get_table_update_sql(table_name, columns, generate_alter=True)
+    _assert_columns_order(sql)
+
+
+@pytest.mark.parametrize('client', ALL_CLIENTS, indirect=True)
 def test_data_writer_load(client: SqlJobClientBase, file_storage: FileStorage) -> None:
     rows, table_name = prepare_schema(client, "simple_row")
     canonical_name = client.sql_client.make_qualified_table_name(table_name)
