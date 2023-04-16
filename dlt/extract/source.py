@@ -10,15 +10,15 @@ from dlt.common.configuration.specs.config_section_context import ConfigSectionC
 from dlt.common.normalizers.json.relational import DataItemNormalizer as RelationalNormalizer, RelationalNormalizerConfigPropagation
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TColumnName
-from dlt.common.typing import AnyFun, TDataItem, TDataItems, NoneType
+from dlt.common.typing import AnyFun, StrAny, TDataItem, TDataItems, NoneType
 from dlt.common.configuration.container import Container
-from dlt.common.pipeline import PipelineContext, StateInjectableContext, SupportsPipelineRun, state_value
+from dlt.common.pipeline import PipelineContext, StateInjectableContext, SupportsPipelineRun, _resource_state, source_state, pipeline_state
 from dlt.common.utils import flatten_list_or_items, get_callable_name, multi_context_manager, uniq_id
 
-from dlt.extract.typing import DataItemWithMeta, ItemTransformFunc, ItemTransformFunctionWithMeta, TableNameMeta, TTableSchemaTemplate, FilterItem, MapItem, YieldMapItem
+from dlt.extract.typing import DataItemWithMeta, ItemTransformFunc, ItemTransformFunctionWithMeta, TableNameMeta, FilterItem, MapItem, YieldMapItem
 from dlt.extract.pipe import Pipe, ManagedPipeIterator
-from dlt.extract.schema import DltResourceSchema
-from dlt.extract.incremental import IncrementalResourceWrapper
+from dlt.extract.schema import DltResourceSchema, TTableSchemaTemplate
+from dlt.extract.incremental import Incremental, IncrementalResourceWrapper
 from dlt.extract.exceptions import (
     InvalidTransformerDataTypeGeneratorFunctionRequired, InvalidParentResourceDataType, InvalidParentResourceIsAFunction, InvalidResourceDataType, InvalidResourceDataTypeFunctionNotAGenerator, InvalidResourceDataTypeIsNone, InvalidTransformerGeneratorFunction,
     DataItemRequiredForDynamicTableHints, InvalidResourceDataTypeAsync, InvalidResourceDataTypeBasic,
@@ -125,7 +125,7 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
     def incremental(self) -> IncrementalResourceWrapper:
         """Gets incremental transform if it is in the pipe"""
         incremental: IncrementalResourceWrapper = None
-        step_no = self._pipe.find(IncrementalResourceWrapper)
+        step_no = self._pipe.find(IncrementalResourceWrapper, Incremental)
         if step_no >= 0:
             incremental = self._pipe.steps[step_no]  # type: ignore
         return incremental
@@ -222,6 +222,15 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
     def set_template(self, table_schema_template: TTableSchemaTemplate) -> None:
         super().set_template(table_schema_template)
         incremental = self.incremental
+        # try to late assign incremental
+        if table_schema_template.get("incremental") is not None:
+            if incremental:
+                incremental._incremental = table_schema_template["incremental"]
+            else:
+                # if there's no wrapper add incremental as a transform
+                incremental = table_schema_template["incremental"]  # type: ignore
+                self.add_step(incremental)
+
         if incremental:
             primary_key = table_schema_template.get("primary_key", incremental.primary_key)
             if primary_key:
@@ -251,6 +260,12 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
             self._bound = True
         return self
 
+    @property
+    def state(self) -> StrAny:
+        """Gets resource-scoped state from the existing pipeline context. If pipeline context is not available, PipelineStateNotAvailable is raised"""
+        with self._get_config_section_context():
+            return _resource_state(self.name)
+
     def __call__(self, *args: Any, **kwargs: Any) -> "DltResource":
         """Binds the parametrized resources to passed arguments. Creates and returns a bound resource. Generators and iterators are not evaluated."""
         if self._bound:
@@ -279,14 +294,11 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
         """
         # use the same state dict when opening iterator and when iterator is iterated
         container = Container()
-        state, _ = state_value(container, {})
-        # get section should be active pipeline name
-        proxy = container[PipelineContext]
-        pipeline_name = uniq_id() if not proxy.is_active() else proxy.pipeline().pipeline_name
+        state, _ = pipeline_state(container, {})
 
         def _get_context() -> List[ContextManager[Any]]:
             return [
-                inject_section(ConfigSectionContext(sections=(known_sections.SOURCES, self.section or pipeline_name, self._name))),
+                self._get_config_section_context(),
                 Container().injectable_context(StateInjectableContext(state=state))
             ]
 
@@ -297,6 +309,12 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
         pipe_iterator.set_context_manager(multi_context_manager(_get_context()))
         _iter = map(lambda item: item.item, pipe_iterator)
         return flatten_list_or_items(_iter)
+
+    def _get_config_section_context(self) -> ContextManager[ConfigSectionContext]:
+        container = Container()
+        proxy = container[PipelineContext]
+        pipeline_name = uniq_id() if not proxy.is_active() else proxy.pipeline().pipeline_name
+        return inject_section(ConfigSectionContext(sections=(known_sections.SOURCES, self.section or pipeline_name, self._name)))
 
     def __str__(self) -> str:
         info = f"DltResource {self._name}"
@@ -367,9 +385,10 @@ TUnboundDltResource = Callable[[], DltResource]
 
 
 class DltResourceDict(Dict[str, DltResource]):
-    def __init__(self, source_name: str) -> None:
+    def __init__(self, source_name: str, source_section: str) -> None:
         super().__init__()
         self.source_name = source_name
+        self.source_section = source_section
         self._recently_added: List[DltResource] = []
         self._known_pipes: Dict[str, DltResource] = {}
 
@@ -392,7 +411,8 @@ class DltResourceDict(Dict[str, DltResource]):
                         resource = self.find_by_pipe(pipe)
                     except KeyError:
                         # resource for pipe not found: return mock resource
-                        resource = DltResource(pipe, resource._table_schema_template, False, section=resource.section)
+                        mock_template = DltResourceSchema.new_table_template(pipe.name, write_disposition=resource._table_schema_template.get("write_disposition"))
+                        resource = DltResource(pipe, mock_template, False, section=resource.section)
                     extracted[resource._name] = resource
                 else:
                     break
@@ -439,6 +459,7 @@ class DltResourceDict(Dict[str, DltResource]):
     def __setitem__(self, resource_name: str, resource: DltResource) -> None:
         # make shallow copy of the resource
         resource = copy(resource)
+        resource.section = self.source_section
         # now set it in dict
         self._recently_added.append(resource)
         return super().__setitem__(resource_name, resource)
@@ -465,7 +486,7 @@ class DltSource(Iterable[TDataItem]):
         self.exhausted = False
         """Tells if iterator associated with a source is exhausted"""
         self._schema = schema
-        self._resources: DltResourceDict = DltResourceDict(self.name)
+        self._resources: DltResourceDict = DltResourceDict(self.name, self.section)
         if resources:
             for resource in resources:
                 self._add_resource(resource._name, resource)
@@ -559,6 +580,39 @@ class DltSource(Iterable[TDataItem]):
         self_run: SupportsPipelineRun = makefun.partial(Container()[PipelineContext].pipeline().run, *(), data=self)
         return self_run
 
+    @property
+    def state(self) -> StrAny:
+        """Gets source-scoped state from the existing pipeline context. If pipeline context is not available, PipelineStateNotAvailable is raised"""
+        with self._get_config_section_context():
+            return source_state()
+
+    def __iter__(self) -> Iterator[TDataItem]:
+        """Opens iterator that yields the data items from all the resources within the source in the same order as in Pipeline class.
+
+            A read-only state is provided, initialized from active pipeline state. The state is discarded after the iterator is closed.
+
+            A source config section is injected to allow secrets/config injection as during regular extraction.
+        """
+        # use the same state dict when opening iterator and when iterator is iterated
+        mock_state, _ = pipeline_state(Container(), {})
+
+        def _get_context() -> List[ContextManager[Any]]:
+            return [
+                self._get_config_section_context(),
+                Container().injectable_context(StateInjectableContext(state=mock_state))
+            ]
+
+        # managed pipe iterator will remove injected contexts when closing
+        with multi_context_manager(_get_context()):
+            pipe_iterator: ManagedPipeIterator = ManagedPipeIterator.from_pipes(self._resources.selected_pipes)  # type: ignore
+        pipe_iterator.set_context_manager(multi_context_manager(_get_context()))
+        _iter = map(lambda item: item.item, pipe_iterator)
+        self.exhausted = True
+        return flatten_list_or_items(_iter)
+
+    def _get_config_section_context(self) -> ContextManager[ConfigSectionContext]:
+        return inject_section(ConfigSectionContext(sections=(known_sections.SOURCES, self.section, self.name)))
+
     def _add_resource(self, name: str, resource: DltResource) -> None:
         if self.exhausted:
             raise SourceExhausted(self.name)
@@ -580,30 +634,6 @@ class DltSource(Iterable[TDataItem]):
             self._add_resource(name, value)
         else:
             super().__setattr__(name, value)
-
-    def __iter__(self) -> Iterator[TDataItem]:
-        """Opens iterator that yields the data items from all the resources within the source in the same order as in Pipeline class.
-
-            A read-only state is provided, initialized from active pipeline state. The state is discarded after the iterator is closed.
-
-            A source config section is injected to allow secrets/config injection as during regular extraction.
-        """
-        # use the same state dict when opening iterator and when iterator is iterated
-        mock_state, _ = state_value(Container(), {})
-
-        def _get_context() -> List[ContextManager[Any]]:
-            return [
-                inject_section(ConfigSectionContext(sections=(known_sections.SOURCES, self.section, self.name))),
-                Container().injectable_context(StateInjectableContext(state=mock_state))
-            ]
-
-        # managed pipe iterator will remove injected contexts when closing
-        with multi_context_manager(_get_context()):
-            pipe_iterator: ManagedPipeIterator = ManagedPipeIterator.from_pipes(self._resources.selected_pipes)  # type: ignore
-        pipe_iterator.set_context_manager(multi_context_manager(_get_context()))
-        _iter = map(lambda item: item.item, pipe_iterator)
-        self.exhausted = True
-        return flatten_list_or_items(_iter)
 
     def __str__(self) -> str:
         info = f"DltSource {self.name} section {self.section} contains {len(self.resources)} resource(s) of which {len(self.selected_resources)} are selected"

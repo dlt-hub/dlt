@@ -1,12 +1,17 @@
 import pytest
 
 import dlt
+from dlt.common.configuration.container import Container
+from dlt.common.exceptions import PipelineStateNotAvailable
+from dlt.common.pipeline import StateInjectableContext, source_state
 from dlt.common.schema import Schema
 from dlt.common.typing import TDataItems
 from dlt.extract.exceptions import InvalidParentResourceDataType, InvalidParentResourceIsAFunction, InvalidTransformerDataTypeGeneratorFunctionRequired, InvalidTransformerGeneratorFunction, ParametrizedResourceUnbound, ResourcesNotFoundError
 from dlt.extract.pipe import Pipe
 from dlt.extract.typing import FilterItem, MapItem
 from dlt.extract.source import DltResource, DltSource
+
+from tests.pipeline.utils import drop_pipeline
 
 
 def test_call_data_resource() -> None:
@@ -564,6 +569,60 @@ def test_add_transform_steps() -> None:
 def test_add_transform_steps_pipe() -> None:
     r = dlt.resource([1, 2, 3], name="all") | (lambda i: str(i) * i) | (lambda i: (yield from i))
     assert list(r) == ['1', '2', '2', '3', '3', '3']
+
+
+def test_source_state() -> None:
+
+    @dlt.source
+    def test_source(expected_state):
+        assert source_state() == expected_state
+        return DltResource(Pipe.from_data("pipe", [1, 2, 3]), None, False)
+
+    with pytest.raises(PipelineStateNotAvailable):
+        test_source({}).state
+
+    dlt.pipeline(full_refresh=True)
+    assert test_source({}).state  == {}
+
+    # inject state to see if what we write in state is there
+    with Container().injectable_context(StateInjectableContext(state={})) as state:
+        test_source({}).state["value"] = 1
+        test_source({"value": 1})
+        assert state.state == {'sources': {'test_sources': {'value': 1}}}
+
+
+def test_resource_state() -> None:
+
+    @dlt.resource
+    def test_resource():
+        yield [1, 2, 3]
+
+    @dlt.source(section="source_section")
+    def test_source():
+        return test_resource
+
+    r = test_resource()
+    s = test_source()
+
+    with pytest.raises(PipelineStateNotAvailable):
+        r.state
+    with pytest.raises(PipelineStateNotAvailable):
+        s.state
+    with pytest.raises(PipelineStateNotAvailable):
+        s.test_resource.state
+
+    dlt.pipeline(full_refresh=True)
+    assert r.state == {}
+    assert s.state == {}
+    assert s.test_resource.state == {}
+
+    with Container().injectable_context(StateInjectableContext(state={})) as state:
+        r.state["direct"] = True
+        s.test_resource.state["in-source"] = True
+        # resource section is current module
+        assert state.state["sources"]["test_sources"] == {'resources': {'test_resource': {'direct': True}}}
+        # in source resource is part of the source state
+        assert s.state == {'resources': {'test_resource': {'in-source': True}}}
 
 
 # def test_add_resources_to_source_simple() -> None:

@@ -20,9 +20,9 @@ from tests.pipeline.utils import drop_dataset_from_env, json_case_path, load_jso
 
 @dlt.resource()
 def some_data():
-    last_value = dlt.current.state().get("last_value", 0)
+    last_value = dlt.current.source_state().get("last_value", 0)
     yield [1,2,3]
-    dlt.current.state()["last_value"] = last_value + 1
+    dlt.current.source_state()["last_value"] = last_value + 1
 
 
 def test_managed_state() -> None:
@@ -40,7 +40,7 @@ def test_managed_state() -> None:
 
     @dlt.source(section="separate_section")
     def some_source():
-        assert "last_value" not in dlt.current.state()
+        assert "last_value" not in dlt.current.source_state()
         return some_data
 
     s = some_source()
@@ -53,7 +53,7 @@ def test_managed_state() -> None:
     @dlt.source
     def source_same_section():
         # default section of the source and standalone resource are the same if defined in the same module, so they share the state
-        assert dlt.current.state()["last_value"] == 2
+        assert dlt.current.source_state()["last_value"] == 2
         return some_data
 
     s = source_same_section()
@@ -90,7 +90,7 @@ def test_active_pipeline_required_for_source() -> None:
     # call source that reads state
     @dlt.source
     def some_source():
-        dlt.current.state().get("last_value", 0)
+        dlt.current.source_state().get("last_value", 0)
         return some_data
 
     with pytest.raises(PipelineStateNotAvailable) as py_ex:
@@ -104,18 +104,18 @@ def test_source_state_iterator():
 
     @dlt.resource(selected=False)
     def main():
-        state = dlt.current.state()
+        state = dlt.current.source_state()
         mark = state.setdefault("mark", 1)
         # increase the multiplier each time state is obtained
         state["mark"] *= 2
         yield [1, 2, 3]
-        assert dlt.current.state()["mark"] == mark*2
+        assert dlt.current.source_state()["mark"] == mark*2
 
     @dlt.transformer(data_from=main)
     def feeding(item):
         # we must have state
-        assert dlt.current.state()["mark"] > 1
-        mark = dlt.current.state()["mark"]
+        assert dlt.current.source_state()["mark"] > 1
+        mark = dlt.current.source_state()["mark"]
         yield from map(lambda i: i*mark, item)
 
     @dlt.source(section="pass_the_state")
@@ -155,7 +155,7 @@ def test_unmanaged_state() -> None:
 
     @dlt.source
     def some_source():
-        state = dlt.current.state()
+        state = dlt.current.source_state()
         value = state.get("last_value", 0)
         state["last_value"] = value + 1
         return some_data
