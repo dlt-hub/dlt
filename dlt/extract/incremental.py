@@ -90,6 +90,9 @@ class Incremental(FilterItem, BaseConfiguration, Generic[TCursorValue]):
             self.cursor_path_p: JSONPath = jsonpath_parse(cursor_path)
         self.last_value_func = last_value_func
         self.initial_value = initial_value
+        """Initial value of last_value"""
+        self.start_value: Any = initial_value
+        """Value of last_value at the beginning of current pipeline run"""
         self.resource_name: Optional[str] = None
         self.primary_key: Optional[TTableHintTemplate[TColumnKey]] = primary_key
         self._cached_state: IncrementalColumnState = None
@@ -179,9 +182,9 @@ class Incremental(FilterItem, BaseConfiguration, Generic[TCursorValue]):
                 incremental_state['unique_hashes'].append(unique_value)
                 return True
             # skip the record that is not a last_value or new_value: that record was already processed
-            check_values = (row_value,) + ((self.initial_value,) if self.initial_value is not None else ())
+            check_values = (row_value,) + ((self.start_value,) if self.start_value is not None else ())
             new_value = self.last_value_func(check_values)
-            if new_value == self.initial_value:
+            if new_value == self.start_value:
                 return False
             else:
                 return True
@@ -197,7 +200,7 @@ class Incremental(FilterItem, BaseConfiguration, Generic[TCursorValue]):
             raise IncrementalCursorPathMissing(pipe.name, None, None)
         self.resource_name = pipe.name
         # set initial value from last value, in case of a new state those are equal
-        self.initial_value = self.last_value
+        self.start_value = self.last_value
         # cache state
         self._cached_state = self.get_state()
         return self

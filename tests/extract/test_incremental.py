@@ -170,11 +170,13 @@ def test_explicit_incremental_instance() -> None:
 @dlt.resource
 def some_data_from_config(call_no: int, created_at: Optional[dlt.sources.incremental] = dlt.secrets.value):
     assert created_at.cursor_path == 'created_at'
-    # initial value will update to the last_value on next call
+    # start value will update to the last_value on next call
     if call_no == 1:
         assert created_at.initial_value == '2022-02-03T00:00:00Z'
+        assert created_at.start_value == '2022-02-03T00:00:00Z'
     if call_no == 2:
-        assert created_at.initial_value == '2022-02-03T00:00:01Z'
+        assert created_at.initial_value == '2022-02-03T00:00:00Z'
+        assert created_at.start_value == '2022-02-03T00:00:01Z'
     yield {'created_at': '2022-02-03T00:00:01Z'}
 
 
@@ -425,7 +427,7 @@ def test_filter_processed_items() -> None:
     assert values[0]["delta"] == -10
 
 
-def test_initial_value_set_to_last_value() -> None:
+def test_start_value_set_to_last_value() -> None:
     os.environ["COMPLETED_PROB"] = "1.0"
 
     p = dlt.pipeline(pipeline_name=uniq_id())
@@ -434,18 +436,18 @@ def test_initial_value_set_to_last_value() -> None:
     @dlt.resource
     def some_data(step, last_timestamp=dlt.sources.incremental("item.ts")):
         if step == -10:
-            assert last_timestamp.initial_value is None
+            assert last_timestamp.start_value is None
         else:
             # print(last_timestamp.initial_value)
             # print(now.add(days=step-1).timestamp())
-            assert last_timestamp.initial_value == last_timestamp.last_value == now.add(days=step-1).timestamp()
+            assert last_timestamp.start_value == last_timestamp.last_value == now.add(days=step-1).timestamp()
         for i in range(-10, 10):
             yield {"delta": i, "item": {"ts": now.add(days=i).timestamp()}}
         # after all yielded
         if step == -10:
-            assert last_timestamp.initial_value is None
+            assert last_timestamp.start_value is None
         else:
-            assert last_timestamp.initial_value == now.add(days=step-1).timestamp() != last_timestamp.last_value
+            assert last_timestamp.start_value == now.add(days=step-1).timestamp() != last_timestamp.last_value
 
     for i in range(-10, 10):
         r = some_data(i)
@@ -504,6 +506,7 @@ def test_incremental_as_transform() -> None:
     def some_data():
         last_value = dlt.sources.incremental.from_existing_state("some_data", "item.ts")
         assert last_value.initial_value == now
+        assert last_value.start_value == now
         assert last_value.cursor_path == "item.ts"
         assert last_value.last_value == now
 
