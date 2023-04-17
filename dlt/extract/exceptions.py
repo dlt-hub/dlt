@@ -131,7 +131,7 @@ class InvalidTransformerGeneratorFunction(DltResourceException):
 class ResourceInnerCallableConfigWrapDisallowed(DltResourceException):
     def __init__(self, resource_name: str, section: str) -> None:
         self.section = section
-        msg = f"Resource {resource_name} in section {section} is defined over an inner function and requests config/secrets in its arguments. Requesting secret and config values via 'dlt.secret.values' or 'dlt.config.value' is disallowed for resources that are inner functions. Use the dlt.source to get the required configuration and pass them explicitly to your source."
+        msg = f"Resource {resource_name} in section {section} is defined over an inner function and requests config/secrets in its arguments. Requesting secret and config values via 'dlt.secrets.values' or 'dlt.config.value' is disallowed for resources that are inner functions. Use the dlt.source to get the required configuration and pass them explicitly to your source."
         super().__init__(resource_name, msg)
 
 
