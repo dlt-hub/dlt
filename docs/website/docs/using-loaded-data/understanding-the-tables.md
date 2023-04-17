@@ -46,4 +46,4 @@ You can add [transformations](./transforming-the-data.md) and chain them togethe
 
 Data lineage can be super relevant for architectures like the [data vault architecture](https://www.data-vault.co.uk/what-is-data-vault/) or when troubleshooting. The data vault architecture is a data warehouse that large organizations use when representing the same process across multiple systems, which adds data lineage requirements. Using the pipeline name and `load_id` provided out of the box by `dlt`, you are able to identify the source and time of data.
 
-You can [save](../running-in-production/running.md#inspect-and-save-the-load-info-and-trace) complete lineage info for a particular `load_id` including a list of loaded files, error messages (if any), elapsed times, schema changes, This can be helpful, for example, when troubleshooting problems.
+You can [save](../running-in-production/running.md#inspect-and-save-the-load-info-and-trace) complete lineage info for a particular `load_id` including a list of loaded files, error messages (if any), elapsed times, schema changes. This can be helpful, for example, when troubleshooting problems.
