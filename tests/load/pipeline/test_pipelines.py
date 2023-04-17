@@ -58,7 +58,7 @@ def test_default_pipeline_names(destination_name: str, use_single_dataset: bool)
         p.normalize()
 
     # mock the correct destinations (never do that in normal code)
-    with p._managed_state():
+    with p.managed_state():
         p.destination = DestinationReference.from_name(destination_name)
     p.normalize()
     info = p.load(dataset_name="d" + uniq_id())

@@ -74,7 +74,7 @@ class DropCommand:
 
     def drop_state_keys(self) -> None:
         state: TSourceState
-        with self.pipeline._managed_state(extract_state=True) as state:  # type: ignore[assignment]
+        with self.pipeline.managed_state(extract_state=True) as state:  # type: ignore[assignment]
             source_states = state.get("sources")
             if not source_states:
                 return

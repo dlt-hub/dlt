@@ -58,7 +58,7 @@ def with_state_sync(may_extract_state: bool = False) -> Callable[[TFun], TFun]:
         def _wrap(self: "Pipeline", *args: Any, **kwargs: Any) -> Any:
             # backup and restore state
             should_extract_state = may_extract_state and self.config.restore_from_destination
-            with self._managed_state(extract_state=should_extract_state) as state:
+            with self.managed_state(extract_state=should_extract_state) as state:
                 # add the state to container as a context
                 with self._container.injectable_context(StateInjectableContext(state=state)):
                     return f(self, *args, **kwargs)
@@ -208,7 +208,7 @@ class Pipeline(SupportsPipeline):
         # initialize pipeline working dir
         self._init_working_dir(pipeline_name, pipelines_dir)
 
-        with self._managed_state() as state:
+        with self.managed_state() as state:
             # set the pipeline properties from state
             self._state_to_props(state)
             # we overwrite the state with the values from init
@@ -1072,7 +1072,7 @@ class Pipeline(SupportsPipeline):
         return restored_schemas
 
     @contextmanager
-    def _managed_state(self, *, extract_state: bool = False) -> Iterator[TPipelineState]:
+    def managed_state(self, *, extract_state: bool = False) -> Iterator[TPipelineState]:
         # load or restore state
         state = self._get_state()
         # TODO: we should backup schemas here
