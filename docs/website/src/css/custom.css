@@ -371,6 +371,9 @@ html[data-theme='dark'] .slack-navbar::before {
   background-image: url(../../static/img/Reference-Active.svg);
 }
 
+.tocCollapsible_node_modules-\@docusaurus-theme-classic-lib-theme-TOCCollapsible-styles-module {
+  background: var(--ifm-gradient);
+}
 
 /* responsive css :start */
 
