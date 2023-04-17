@@ -7,29 +7,29 @@ keywords: [transform, dbt, runner]
 # Transforming the data
 
 If you want to transform the data before loading, you can use Python. If you want to transform the data after loading, you can use one of the following:
-1. [`dbt`](https://github.com/dbt-labs/dbt-core) (recommended)
+1. [dbt](https://github.com/dbt-labs/dbt-core) (recommended)
 2. `dlt` SQL client
 3. Pandas
 
 ## Transforming the data using dbt
 
-`dbt` is a framework that allows simple structuring of your transformations into DAGs. The benefits of using `dbt` include
+dbt is a framework that allows simple structuring of your transformations into DAGs. The benefits of using dbt include
 - end to end cross-db compatibility for dlt→dbt pipelines.
 - easy to use by sql analysts, low learning curve.
 - highly flexible and configurable in usage, supports templating, can run backfills etc.
 - supports testing and accelerates troubleshooting.
 
-**`dbt` runner in `dlt`**
+**dbt runner in `dlt`**
 
-You can run `dbt` with `dlt` by using the `dbt` runner. The `dbt` runner
+You can run dbt with `dlt` by using the dbt runner. The dbt runner
 - can create a virtual env for dbt on the fly.
 - can run a dbt package from online (e.g. GitHub) or from local files.
 - passes configuration and credentials to dbt, so you do not need to handle them separately from dlt, enabling dbt to configured on the fly.
 
-**How to use the `dbt` runner?**
+**How to use the dbt runner?**
 
-For an example of how to use the `dbt` runner, see the [jaffle shop example](https://github.com/dlt-hub/dlt/blob/devel/docs/examples/dbt_run_jaffle.py).
-Included below in another example where we run a `dlt` pipeline and then a `dbt` package via `dlt`:
+For an example of how to use the dbt runner, see the [jaffle shop example](https://github.com/dlt-hub/dlt/blob/devel/docs/examples/dbt_run_jaffle.py).
+Included below in another example where we run a `dlt` pipeline and then a dbt package via `dlt`:
 
 > **💡**  Docstrings are available to read in your IDE
 
@@ -70,7 +70,7 @@ for m in models:
 
 ## Transforming the data using the `dlt` SQL client
 
-A simple alternative to `dbt` is to query the data using the `dlt` native sql client and then performing the transformations using Python.
+A simple alternative to dbt is to query the data using the `dlt` native sql client and then performing the transformations using Python.
 
 ```python
 pipeline = dlt.pipeline(destination="bigquery", dataset_name="tweets")
