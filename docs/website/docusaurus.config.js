@@ -78,19 +78,19 @@ const config = {
           { to: 'blog', label: 'Blog', position: 'left' },
           {
             href: 'https://join.slack.com/t/dlthub-community/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g',
-            label: 'Slack',
+            label: '.',
             position: 'right',
             className: 'slack-navbar'
           },
           {
             href: 'https://github.com/dlt-hub/dlt',
-            label: 'GitHub',
+            label: '.',
             position: 'right',
             className: 'github-navbar',
             "aria-label": "GitHub repository",
           },
           {
-            to:'blog',
+            href:'https://colab.research.google.com/drive/1BXvma_9R9MX8p_iSvHE4ebg90sUroty2',
             label: 'Colab demo',
             position:'right',
           className: 'colab-demo',
