@@ -41,28 +41,34 @@ class DropCommand:
     def __init__(
         self,
         pipeline: Pipeline,
-        tables: Optional[Iterable[str]] = None,
+        # tables: Optional[Iterable[str]] = None,
         resources: Optional[Iterable[str]] = None,
         schema_name: str = None,
-        drop_all: bool = False,
     ) -> None:
         self.pipeline = pipeline
-        self.tables = set(tables or [])
-        self.resources = set(resources or [])
+        # self.tables = set(tables or [])
+        resources = set(resources or [])
         self.schema = pipeline.schemas[schema_name or pipeline.default_schema_name]
         self.schema_tables = self.schema.tables
 
-        # Create a flat list of parent and child tables to drop
         drop_tables = []
-        for t in self.tables:
-            if t in self.schema_tables:
-                drop_tables += [c for c in get_child_tables(self.schema_tables, t)]
-        self.drop_tables = list(reversed(drop_tables))  # Reverse so children are dropped before parent
+        for tbl in self.schema_tables.values():
+            if tbl.get('resource') in resources:
+                drop_tables += get_child_tables(self.schema_tables, tbl['name'])
+        self.drop_tables = list(reversed(drop_tables))
 
-        # List resource state keys to drop
-        drop_resources = set(r for r in (t.get('resource') for t in self.drop_tables) if r)
 
-        self.drop_resource_state_keys = self.tables | self.resources | drop_resources
+        # # Create a flat list of parent and child tables to drop
+        # drop_tables = []
+        # for t in self.tables:
+        #     if t in self.schema_tables:
+        #         drop_tables += [c for c in get_child_tables(self.schema_tables, t)]
+        # self.drop_tables = list(reversed(drop_tables))  # Reverse so children are dropped before parent
+
+        # # List resource state keys to drop
+        # drop_resources = set(r for r in (t.get('resource') for t in self.drop_tables) if r)
+
+        self.drop_resource_state_keys = resources
 
     def drop_destination_tables(self) -> None:
         with self.pipeline._get_destination_client(self.schema) as client:
@@ -78,22 +84,29 @@ class DropCommand:
             source_states = state.get("sources")
             if not source_states:
                 return
-            for source_state in source_states.values():
-                resources = source_state.get('resources')
-                if not resources:
-                    continue
-                for key in self.drop_resource_state_keys:
-                    resources.pop(key, None)
+            source_state = source_states.get(self.schema.name)
+            if not source_state:
+                return
+            resources = source_state.get('resources')
+            if not resources:
+                return
+            for key in self.drop_resource_state_keys:
+                resources.pop(key, None)
 
     def info(self) -> Any:
         # TODO: Return list of tables, source keys, etc that would be dropped
-        raise NotImplementedError()
+        return dict(
+            drop_tables=[tbl['name'] for tbl in self.drop_tables],
+        )
 
     def __call__(self) -> None:
         self.delete_pipeline_tables()
         self.schema.bump_version()
         self.drop_destination_tables()
         self.drop_state_keys()
+        # TODO: (all tables dissappear here) see _update_live_schema() -> replace_schema_content
+        # live schema is same instance
+        # should be working on a copy
         self.pipeline.schemas.save_schema(self.schema)
         # Send extracted state to destination
         # TODO: Other load packages will go too. Is this bad?
@@ -102,9 +115,8 @@ class DropCommand:
 
 def drop(
     pipeline: Pipeline,
-    tables: Optional[Iterable[str]] = None,
+    # tables: Optional[Iterable[str]] = None,
     resources: Optional[Iterable[str]] = None,
     schema_name: str = None,
-    drop_all: bool = False,
 ) -> None:
-    return DropCommand(pipeline, tables, resources, schema_name, drop_all)()
+    return DropCommand(pipeline, resources, schema_name)()
