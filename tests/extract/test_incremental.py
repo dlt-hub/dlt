@@ -31,8 +31,7 @@ def test_single_items_last_value_state_is_updated() -> None:
 
     p = dlt.pipeline(pipeline_name=uniq_id())
     p.extract(some_data())
-
-    s = p.state["sources"]["test_incremental"]['resources']['some_data']['incremental']['created_at']
+    s = some_data.state['incremental']['created_at']
     assert s['last_value'] == 426
 
 
@@ -45,7 +44,7 @@ def test_single_items_last_value_state_is_updated_transformer() -> None:
     p = dlt.pipeline(pipeline_name=uniq_id())
     p.extract(dlt.resource([1,2,3], name="table") | some_data())
 
-    s = p.state["sources"]["test_incremental"]['resources']['some_data']['incremental']['created_at']
+    s = some_data().state['incremental']['created_at']
     assert s['last_value'] == 426
 
 

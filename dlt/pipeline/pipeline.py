@@ -32,10 +32,9 @@ from dlt.common.storages.file_storage import FileStorage
 from dlt.common.utils import is_interactive
 
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
-from dlt.extract.decorators import SourceSchemaInjectableContext
 
 from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, SourceExhausted
-from dlt.extract.extract import ExtractorStorage, extract, extract_with_schema
+from dlt.extract.extract import ExtractorStorage, extract_with_schema
 from dlt.extract.source import DltResource, DltSource
 from dlt.extract.typing import TColumnKey
 from dlt.normalize import Normalize
@@ -719,10 +718,11 @@ class Pipeline(SupportsPipeline):
                 resource.apply_hints(table_name or resource_table_name or resource.name, parent_table_name, write_disposition, columns_dict, primary_key)
 
         def choose_schema() -> Schema:
+            """Except of explicitly passed schema, use a clone that will get discarded if extraction fails"""
             if schema:
                 return schema
             if self.default_schema_name:
-                return self.default_schema
+                return self.default_schema.clone()
             return self._make_schema_with_default_name()
 
         effective_schema = choose_schema()
@@ -771,31 +771,29 @@ class Pipeline(SupportsPipeline):
 
     def _extract_source(self, storage: ExtractorStorage, source: DltSource, max_parallel_items: int, workers: int) -> str:
         # discover the schema from source
-        # TODO: do not save any schemas here and do not set default schema, just generate all the schemas and save them one all data is extracted
         source_schema = source.schema
-        pipeline_schema: Schema = None
-        with contextlib.suppress(FileNotFoundError):
-            pipeline_schema = self._schema_storage.load_schema(source_schema.name)
+
+        # make CTRL-C working while running user code
+        with signals.raise_immediately():
+            extract_id = extract_with_schema(storage, source, source_schema, max_parallel_items, workers)
 
         # if source schema does not exist in the pipeline
         if source_schema.name not in self._schema_storage:
             # save schema into the pipeline
             self._schema_storage.save_schema(source_schema)
-        pipeline_schema = self._schema_storage[source_schema.name]
 
         # and set as default if this is first schema in pipeline
         if not self.default_schema_name:
             # this performs additional validations as schema contains the naming module
             self._set_default_schema_name(source_schema)
 
-        # make CTRL-C working while running user code
-        with signals.raise_immediately():
-            extract_id = extract_with_schema(storage, source, source_schema, max_parallel_items, workers)
+        pipeline_schema = self._schema_storage[source_schema.name]
 
         # initialize import with fully discovered schema
         self._schema_storage.save_import_schema_if_not_exists(source_schema)
 
-        # get the current schema and merge tables from source_schema, we'll not merge the high level props
+        # get the current schema and merge tables from source_schema
+        # note we are not merging props like max nesting or column propagation
         for table in source_schema.data_tables():
             pipeline_schema.update_schema(pipeline_schema.normalize_table_identifiers(table))
 
