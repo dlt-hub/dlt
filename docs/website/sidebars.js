@@ -22,6 +22,7 @@ const sidebars = {
     {
       type: 'category',
       label: 'Pipelines',
+      className: 'project',
       items: [
         'pipelines/chess',
         'pipelines/github',
@@ -73,7 +74,7 @@ const sidebars = {
       type: 'category',
       label: 'Customizations',
       items: [
-              {
+        {
           type: 'category',
           label: 'Customizing pipelines',
           items: [
