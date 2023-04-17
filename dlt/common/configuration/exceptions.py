@@ -44,7 +44,7 @@ class ConfigFieldMissingException(KeyError, ConfigurationException):
             msg += f'\tfor field "{f}" config providers and keys were tried in following order:\n'
             for tr in field_traces:
                 msg += f'\t\tIn {tr.provider} key {tr.key} was not found.\n'
-        msg += "Please refer to https://dlthub.com/docs/customization/credentials for more information\n"
+        msg += "Please refer to https://dlthub.com/docs/general-usage/credentials for more information\n"
         return msg
 
 

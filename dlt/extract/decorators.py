@@ -91,18 +91,20 @@ def source(
 
     ### Summary
     A `dlt source` is a logical grouping of resources that are often extracted and loaded together. A source is associated with a schema, which describes the structure of the loaded data and provides instructions how to load it.
-    Such schema contains table schemas that describe the structure of the data coming from the resources. See https://dlthub.com/docs/glossary for more basic term definitions.
+    Such schema contains table schemas that describe the structure of the data coming from the resources.
+
+    Please refer to https://dlthub.com/docs/general-usage/source for a complete documentation.
 
     ### Passing credentials
     Another important function of the source decorator is to provide credentials and other configuration to the code that extracts data. The decorator may automatically bind the source function arguments to the secret and config values.
     >>> @dlt.source
-    >>> def chess(username, chess_url: str = dlt.config.value, api_secret = dlt.secret.value, title: str = "GM"):
+    >>> def chess(username, chess_url: str = dlt.config.value, api_secret = dlt.secrets.value, title: str = "GM"):
     >>>     return user_profile(username, chess_url, api_secret), user_games(username, chess_url, api_secret, with_titles=title)
     >>>
     >>> list(chess("magnuscarlsen"))
 
     Here `username` is a required, explicit python argument, `chess_url` is a required argument, that if not explicitly passed will be taken from configuration ie. `config.toml`, `api_secret` is a required argument, that if not explicitly passed will be taken from dlt secrets ie. `secrets.toml`.
-    See https://dlthub.com/docs/customization/credentials for details.
+    See https://dlthub.com/docs/general-usage/credentials for details.
 
     ### Args:
         func: A function that returns a dlt resource or a list of those or a list of any data items that can be loaded by `dlt`.
@@ -255,18 +257,20 @@ def resource(
     ### Summary
     A `resource`is a location within a `source` that holds the data with specific structure (schema) or coming from specific origin. A resource may be a rest API endpoint, table in the database or a tab in Google Sheets.
     A `dlt resource` is python representation of a `resource` that combines both data and metadata (table schema) that describes the structure and instructs the loading of the data.
-    A `dlt resource` is also an `Iterable` and can used like any other similar object ie. list or tuple. See https://dlthub.com/docs/glossary for more on basic term definitions.
+    A `dlt resource` is also an `Iterable` and can used like any other iterable object ie. list or tuple.
+
+    Please refer to https://dlthub.com/docs/general-usage/resource for a complete documentation.
 
     ### Passing credentials
     If used as a decorator (`data` argument is a `Generator`), it may automatically bind the source function arguments to the secret and config values.
     >>> @dlt.resource
-    >>> def user_games(username, chess_url: str = dlt.config.value, api_secret = dlt.secret.value):
+    >>> def user_games(username, chess_url: str = dlt.config.value, api_secret = dlt.secrets.value):
     >>>     return requests.get("%s/games/%s" % (chess_url, username), headers={"Authorization": f"Bearer {api_secret}"})
     >>>
     >>> list(user_games("magnuscarlsen"))
 
     Here `username` is a required, explicit python argument, `chess_url` is a required argument, that if not explicitly passed will be taken from configuration ie. `config.toml`, `api_secret` is a required argument, that if not explicitly passed will be taken from dlt secrets ie. `secrets.toml`.
-    See https://dlthub.com/docs/customization/credentials for details.
+    See https://dlthub.com/docs/general-usage/credentials for details.
     Note that if decorated function is an inner function, passing of the credentials will be disabled.
 
     ### Args:
@@ -285,8 +289,10 @@ def resource(
         This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
 
         primary_key (str | Sequence[str]): A column name or a list of column names that comprise a private key. Typically used with "merge" write disposition to deduplicate loaded data.
+        This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
 
         merge_key (str | Sequence[str]): A column name or a list of column names that define a merge key. Typically used with "merge" write disposition to remove overlapping data ranges ie. to keep a single record for a given day.
+        This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
 
         selected (bool, optional): When `True` `dlt pipeline` will extract and load this resource, if `False`, the resource will be ignored.
 

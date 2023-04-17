@@ -134,7 +134,6 @@ def with_config(
                     # print(f"RESOLVE CONF in inject: {f.__name__}: {section_context.sections} vs {sections}")
                     config = resolve_configuration(config or SPEC(), explicit_value=bound_args.arguments)
             resolved_params = dict(config)
-            bound_args.apply_defaults()
             # overwrite or add resolved params
             for p in sig.parameters.values():
                 if p.name in resolved_params:
@@ -143,6 +142,9 @@ def with_config(
                     bound_args.arguments[p.name] = config
             # pass all other config parameters into kwargs if present
             if kwargs_arg is not None:
+                if kwargs_arg.name not in bound_args.arguments:
+                    # add variadic keyword argument
+                    bound_args.arguments[kwargs_arg.name] = {}
                 bound_args.arguments[kwargs_arg.name].update(resolved_params)
                 bound_args.arguments[kwargs_arg.name][_LAST_DLT_CONFIG] = config
                 bound_args.arguments[kwargs_arg.name][_ORIGINAL_ARGS] = (args, kwargs)

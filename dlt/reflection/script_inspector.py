@@ -22,7 +22,12 @@ def patch__init__(self: Any, *args: Any, **kwargs: Any) -> None:
 class DummyModule(ModuleType):
     """A dummy module from which you can import anything"""
     def __getattr__(self, key: str) -> Any:
-        return SimpleNamespace()
+        if key[0].isupper():
+            # if imported name is capitalized, import type
+            return SimpleNamespace
+        else:
+            # otherwise import instance
+            return SimpleNamespace()
     __all__: List[Any] = []   # support wildcard imports
 
 

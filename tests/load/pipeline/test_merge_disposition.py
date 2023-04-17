@@ -251,9 +251,9 @@ def test_merge_with_dispatch_and_incremental(destination_name: str, github_resou
         yield [new_i]
 
     # inject state that we can inspect and will be shared across calls
-    with Container().injectable_context(StateInjectableContext(state={})) as state:
+    with Container().injectable_context(StateInjectableContext(state={})):
         assert len(list(_get_shuffled_events(True) | github_resource)) == 100
-        incremental_state = state.state["sources"]["test_merge_disposition"]["resources"]["github_repo_events"]
+        incremental_state = github_resource.state
         assert incremental_state["incremental"]["created_at"]["last_value"] == newest_issue["created_at"]
         assert incremental_state["incremental"]["created_at"]["unique_hashes"] == [digest128(f'"{newest_issue["id"]}"')]
         # subsequent load will skip all elements

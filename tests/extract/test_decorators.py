@@ -222,7 +222,7 @@ def test_source_explicit_section() -> None:
 
         @dlt.resource
         def mod_state():
-            dlt.current.state()["val"] = secret
+            dlt.current.source_state()["val"] = secret
             yield 1
 
         return mod_state
@@ -367,13 +367,13 @@ def test_source_state_context() -> None:
         # increase the multiplier each time state is obtained
         state["mark"] *= 2
         yield [1, 2, 3]
-        assert dlt.current.state()["mark"] == mark*2
+        assert dlt.state()["mark"] == mark*2
 
     @dlt.transformer(data_from=main)
     def feeding(item):
         # we must have state
-        assert dlt.current.state()["mark"] > 1
-        mark = dlt.current.state()["mark"]
+        assert dlt.current.source_state()["mark"] > 1
+        mark = dlt.current.source_state()["mark"]
         yield from map(lambda i: i*mark, item)
 
     @dlt.source

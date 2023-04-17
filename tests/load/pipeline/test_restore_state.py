@@ -208,7 +208,7 @@ def test_restore_state_pipeline(destination_name: str) -> None:
     p = dlt.pipeline(pipeline_name=pipeline_name, destination=destination_name, dataset_name=dataset_name)
 
     def some_data_gen(param: str) -> Any:
-        dlt.current.state()[param] = param
+        dlt.current.source_state()[param] = param
         yield param
 
     @dlt.resource
@@ -227,7 +227,7 @@ def test_restore_state_pipeline(destination_name: str) -> None:
     def source_four():
         @dlt.resource
         def some_data():
-            dlt.current.state()["state5"] = dict(JSON_TYPED_DICT)
+            dlt.current.source_state()["state5"] = dict(JSON_TYPED_DICT)
             yield "four"
 
         return some_data()
@@ -317,7 +317,7 @@ def test_ignore_state_unfinished_load(destination_name: str) -> None:
 
     @dlt.resource
     def some_data(param: str) -> Any:
-        dlt.current.state()[param] = param
+        dlt.current.source_state()[param] = param
         yield param
 
     info = p.run(some_data("fix_1"))
@@ -400,7 +400,7 @@ def test_restore_state_parallel_changes(destination_name: str) -> None:
 
     @dlt.resource
     def some_data(param: str) -> Any:
-        dlt.current.state()[param] = param
+        dlt.current.source_state()[param] = param
         yield param
 
     # extract two resources that modify the state
@@ -478,7 +478,7 @@ def test_reset_pipeline_on_deleted_dataset(destination_name: str) -> None:
 
     @dlt.resource
     def some_data(param: str) -> Any:
-        dlt.current.state()[param] = param
+        dlt.current.source_state()[param] = param
         yield param
 
     data4 = some_data("state4")

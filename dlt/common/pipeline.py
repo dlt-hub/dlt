@@ -237,7 +237,7 @@ class StateInjectableContext(ContainerInjectableContext):
             ...
 
 
-def state_value(container: Container, initial_default: TPipelineState = None) -> Tuple[TPipelineState, bool]:
+def pipeline_state(container: Container, initial_default: TPipelineState = None) -> Tuple[TPipelineState, bool]:
     """Gets value of the state from context or active pipeline, if none found returns `initial_default`
 
         Injected state is called "writable": it is injected by the `Pipeline` class and all the changes will be persisted.
@@ -259,16 +259,18 @@ def state_value(container: Container, initial_default: TPipelineState = None) ->
             return proxy.pipeline().state, False
 
 
-def state() -> DictStrAny:
-    """Returns a dictionary with the source/resource state. Such state is preserved across pipeline runs and may be used to implement incremental loads.
+def source_state() -> DictStrAny:
+    """Returns a dictionary with the source state. Such state is preserved across pipeline runs and may be used to implement incremental loads.
 
     ### Summary
     The state is a python dictionary-like object that is available within the `@dlt.source` and `@dlt.resource` decorated functions and may be read and written to.
     The data within the state is loaded into destination together with any other extracted data and made automatically available to the source/resource extractor functions when they are run next time.
     When using the state:
-    * Any JSON-serializable values can be written and the read from the state.
-    * The state available in the `dlt source` is read only and any changes will be discarded. Still it may be used to initialize the resources.
-    * The state available in the `dlt resource` is writable and written values will be available only once
+    * The source state is scoped to a section of the source. The source section is set by default to the module name in which source function is defined.
+    * If the `section` argument when decorating source function is not specified, all sources in the module will share the state
+    * Any JSON-serializable values can be written and the read from the state. `dlt` dumps and restores instances of Python bytes, DateTime, Date and Decimal types.
+    * The state available in the source decorated function is read only and any changes will be discarded.
+    * The state available in the resource decorated function is writable and written values will be available on the next pipeline run
 
     ### Example
     The most typical use case for the state is to implement incremental load.
@@ -305,7 +307,7 @@ def state() -> DictStrAny:
     if not source_section:
         raise SourceSectionNotAvailable()
 
-    state, _ = state_value(container)
+    state, _ = pipeline_state(container)
     if state is None:
         raise PipelineStateNotAvailable(source_section)
 
@@ -324,12 +326,12 @@ def _resource_state(resource_name: str) -> DictStrAny:
     """Alpha version of the resource state, the signature will change.
     Returns resource-scoped state.
     """
-    return state().setdefault('resources', {}).setdefault(resource_name, {})  # type: ignore
+    return source_state().setdefault('resources', {}).setdefault(resource_name, {})  # type: ignore
 
 
 def _reset_resource_state(resource_name: str) -> None:
-    """Alpha version of the resource state. Resets the resource states"""
-    state_ = state()
+    """Alpha version of the resource state. Resets the resource state"""
+    state_ = source_state()
     if "resources" in state_ and resource_name in state_["resources"]:
         state_["resources"].pop(resource_name)
 

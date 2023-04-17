@@ -50,7 +50,7 @@ def get_source_from_stream(singer_messages: Iterator[SingerMessage], state: Dict
 @dlt.transformer()
 def singer_raw_stream(singer_messages: TDataItems, use_state: bool = True) -> Iterator[TDataItem]:
     if use_state:
-        state = dlt.current.state()
+        state = dlt.current.source_state()
     else:
         state = None
     yield from get_source_from_stream(cast(Iterator[SingerMessage], singer_messages), state)
@@ -79,11 +79,11 @@ def tap(venv: Venv, tap_name: str, config_file: FilePathOrDict, catalog_file: Fi
     def singer_messages() -> Iterator[TDataItem]:
         # possibly pass state
         if use_state:
-            state = dlt.current.state()
+            state = dlt.current.source_state()
         else:
             state = None
         if state is not None and state.get("singer"):
-            state_params = ("--state", as_config_file(dlt.current.state()["singer"]))
+            state_params = ("--state", as_config_file(dlt.current.source_state()["singer"]))
         else:
             state_params = ()  # type: ignore
 

@@ -107,7 +107,7 @@ const sidebars = {
       type: 'category',
       label: 'Using loaded data',
       items: [
-        'using-loaded-data/viewing-the-tables',
+        'using-loaded-data/understanding-the-tables',
         'using-loaded-data/exploring-the-data',
         'using-loaded-data/transforming-the-data',
       ],
