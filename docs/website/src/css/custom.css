@@ -21,7 +21,9 @@
   --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
   --ifm-heading-color: inherit;
   --ifm-font-color-base: #191937;
-  --ifm-gradient: linear-gradient(135.6deg, #E7F6F9 1.03%, #A8DEE9 48.97%, #59C1D5 100%)
+  --ifm-gradient: linear-gradient(135.6deg, #E7F6F9 1.03%, #A8DEE9 48.97%, #59C1D5 100%);
+  --ifm-menu-color:#191937;
+  --ifm-toc-link-color:#191937;
 }
 
 /* For readability concerns, you should choose a lighter palette in dark mode. */
