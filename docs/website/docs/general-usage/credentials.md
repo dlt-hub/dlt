@@ -8,7 +8,7 @@ keywords: [credentials, secrets.toml, environment variables]
 
 ## Adding credentials locally
 
-When using a pipeline locally, we recommend using the `dlt/.secrets.toml` method.
+When using a pipeline locally, we recommend using the `.dlt/secrets.toml` method.
 
 To do so, open your dlt secrets file and match the source names and credentials to the ones in your script, for example
 
