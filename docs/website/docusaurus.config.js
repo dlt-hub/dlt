@@ -36,6 +36,14 @@ const config = {
           routeBasePath: '/',
           sidebarPath: require.resolve('./sidebars.js'),
           editUrl: 'https://github.com/dlt-hub/dlt/tree/devel/docs/website',
+          versions: {
+            current: {
+              label: 'current',
+            },
+          },
+          lastVersion: 'current',
+          showLastUpdateAuthor: true,
+          showLastUpdateTime: true,
         },
         blog: {
           showReadingTime: true
@@ -67,18 +75,31 @@ const config = {
             position: 'left',
             label: 'Docs',
           },
-          {to: 'blog', label: 'Blog', position: 'left'},
+          { to: 'blog', label: 'Blog', position: 'left' },
+          {
+            href:'https://colab.research.google.com/drive/1BXvma_9R9MX8p_iSvHE4ebg90sUroty2',
+            label: 'Colab demo',
+            position:'right',
+          className: 'colab-demo',
+          },
           {
             href: 'https://join.slack.com/t/dlthub-community/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g',
-            label: 'Slack',
+            label: '.',
             position: 'right',
+            className: 'slack-navbar'
           },
           {
             href: 'https://github.com/dlt-hub/dlt',
-            label: 'GitHub',
+            label: '.',
             position: 'right',
+            className: 'github-navbar',
+            "aria-label": "GitHub repository",
           },
         ],
+      },
+      announcementBar: {
+        content:
+          '⭐️ If you like data load tool (dlt), give it a star on <a target="_blank" rel="noopener noreferrer" href="https://github.com/dlt-hub/dlt">GitHub</a>! ⭐️',
       },
       footer: {
         style: 'dark',
@@ -89,10 +110,12 @@ const config = {
               {
                 label: 'Docs',
                 to: '/intro',
+                className: 'footer-link'
               },
               {
                 label: 'Blog',
                 to: '/blog',
+                className: 'footer-link'
               }
             ],
           },
@@ -102,10 +125,12 @@ const config = {
               {
                 label: 'Slack',
                 href: 'https://join.slack.com/t/dlthub-community/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g',
+                className: 'footer-link'
               },
               {
                 label: 'Email',
                 href: 'mailto:community@dlthub.com',
+                className: 'footer-link'
               },
             ],
           },
@@ -115,10 +140,12 @@ const config = {
               {
                 label: 'GitHub',
                 href: 'https://github.com/dlt-hub/dlt',
+                className: 'footer-link'
               },
               {
                 label: 'Twitter',
                 href: 'https://twitter.com/dlthub',
+                className: 'footer-link'
               }
             ],
           },
@@ -129,18 +156,18 @@ const config = {
         theme: lightCodeTheme,
         darkTheme: darkCodeTheme,
       },
-      metadata: [{ name: 'keywords', content: 'data loading, elt, etl, extract, load, transform, python, data engineering, data warehouse, data lake'}],
+      metadata: [{ name: 'keywords', content: 'data loading, elt, etl, extract, load, transform, python, data engineering, data warehouse, data lake' }],
       algolia: {
-      // The application ID provided by Algolia
-      appId: 'FUTSIDO7MI',
+        // The application ID provided by Algolia
+        appId: 'FUTSIDO7MI',
 
-      // Public API key: it is safe to commit it
-      apiKey: '94b8ae9b02673db8232fc6fe712bc5a0',
+        // Public API key: it is safe to commit it
+        apiKey: '94b8ae9b02673db8232fc6fe712bc5a0',
 
-      indexName: 'dlthub',
+        indexName: 'dlthub',
 
-      // Optional: see doc section below
-      contextualSearch: true,
+        // Optional: see doc section below
+        contextualSearch: true,
 
       },
     }),
