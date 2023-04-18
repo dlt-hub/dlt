@@ -26,7 +26,7 @@ RUN apk update &&\
     rm -r /usr/lib/python*/ensurepip &&\
     pip3 install -r compiled_requirements.txt &&\
     apk del --purge build-deps
-#rm -r /root/.cache
+    #rm -r /root/.cache
 
 # add build labels and envs
 ARG COMMIT_SHA=""
