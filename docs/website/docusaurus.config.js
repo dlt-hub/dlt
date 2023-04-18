@@ -99,7 +99,7 @@ const config = {
       },
       announcementBar: {
         content:
-          '⭐️ If you like DocSearch, give it a star on <a target="_blank" rel="noopener noreferrer" href="https://github.com/">GitHub</a>! ⭐️',
+          '⭐️ If you like data load tool (dlt), give it a star on <a target="_blank" rel="noopener noreferrer" href="https://github.com/dlt-hub/dlt">GitHub</a>! ⭐️',
       },
       footer: {
         style: 'dark',
