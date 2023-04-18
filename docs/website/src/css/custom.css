@@ -335,7 +335,6 @@ html[data-theme='dark'] .slack-navbar::before {
 /* responsive css :start */
 
 @media(min-width:0px) and (max-width:767px){
-
   .colab-demo {
     font-size: 0;
     padding: 4px 5px 4px 14px;
