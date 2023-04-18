@@ -15,17 +15,18 @@ Alternatively, you can repeat this setup for a dev envirionment on which you cou
 - Create a github repository
 - in google cloud web interface, go to Source repositories and create a repository that mirrors your github repo. This will simplify the authentication by doing it through this mirroring service.
 - in this github repository, add the following folders:
-    - build
-        - with a file called `cloudbuild.yaml`, we will use this below
-    - dags
-        - with another folder called `pipedrive`that will contain a dlt pipeline
 
-   ![folder-structure](/img/folder-structure.png)
+  - build
+    - with a file called `cloudbuild.yaml`, we will use this below
+  - dags
+    - with another folder called `pipedrive`that will contain a dlt pipeline
+
+  ![folder-structure](/img/folder-structure.png)
+
 - In cloud build, add a trigger on commit to main
 - point it to your cloud build file. In our example, we place our file at `build/cloudbuild.yaml`
 
-    ![trigger-config](/img/trigger-config.png)
-
+  ![trigger-config](/img/trigger-config.png)
 
 - Now, create this file in your repository. To fill it, we need to get the name of the dags bucket from Cloud composer, so we know where to deploy.
 - Go to cloud composer, click on the dags folder, and get the bucket name
@@ -53,11 +54,10 @@ steps:
 Assuming you already spun up a cloud composer
 
 - Make sure the user you added has rights to change the base image (add libraries). I already had these added, you may get away with less (not clear in docs)
-    - Artifact Registry Administrator
-    - Artifact Registry Repository Administrator
-    - Remote Build Execution Artifact Admin
-- Navigate to your composer environment and add the needed libraries. In the case of this example pipedrive pipeline, we only need dlt, so add `python-dlt` library
-
+  - Artifact Registry Administrator
+  - Artifact Registry Repository Administrator
+  - Remote Build Execution Artifact Admin
+- Navigate to your composer environment and add the needed libraries. In the case of this example pipedrive pipeline, we only need dlt, so add `dlt` library
 
 ![add-package](/img/add-package.png)
 

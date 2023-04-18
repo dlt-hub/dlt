@@ -1,6 +1,6 @@
 ---
 slug: dlthub-who-we-serve
-title: Who we serve 
+title: Who we serve
 authors:
   name: Matthaus Krzykowski
   title: Co-Founder & CEO at dltHub
@@ -17,6 +17,6 @@ At this stage of dlt we are focused on serving the needs of organizations with 1
 
 To achieve our mission of making this next generation of Python users autonomous in these organizations, we believe we need to build dlt in a “Pythonic” way. Anyone that can write a loop in Python script should be able to write a source and load it. There should minimal learning curve. Anyone in these organizations that gets basic Python should be able to use dlt right away.
 
-However, we also recognize the need dlt to be loved not only by Python users but also data engineers to fulfill our mission. This is crucial because eventually these folks will be brought in to help with data loading in an organization. We need data engineers to evolve dlt pipelines rather than ripping them out and replacing them like they almost always do to scripts written by Python practitioners today. 
+However, we also recognize the need dlt to be loved not only by Python users but also data engineers to fulfill our mission. This is crucial because eventually these folks will be brought in to help with data loading in an organization. We need data engineers to evolve dlt pipelines rather than ripping them out and replacing them like they almost always do to scripts written by Python practitioners today.
 
-To develop with dlt, anyone can install it like any other Python library with `pip install python-dlt`. They can then run `dlt init` and be ready to go. Already today data engineers love the automatic schema inference and evolution as well as the customizability of dlt.
+To develop with dlt, anyone can install it like any other Python library with `pip install dlt`. They can then run `dlt init` and be ready to go. Already today data engineers love the automatic schema inference and evolution as well as the customizability of dlt.
