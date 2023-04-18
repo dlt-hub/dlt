@@ -49,7 +49,7 @@ Once you set it up, it will then automatically turn JSON returned by any
 
 ## Who should use `dlt`?
 
-Anyone who solves problems in their job using Python (e.g. data scientists, data analysts, data engineers, etc). should use `dlt`, which is licensed under the Apache License 2.0 and can be used for free forever.
+Anyone who solves problems in their job using Python (e.g. data scientists, data analysts, data engineers, etc) should use `dlt`, which is licensed under the Apache License 2.0 and can be used for free forever.
 
 ## How does `dlt` work?
 
