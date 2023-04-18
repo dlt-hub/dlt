@@ -585,7 +585,7 @@ def test_apply_hints_incremental() -> None:
 def test_last_value_func_on_dict() -> None:
 
     """Test last value which is a dictionary"""
-    def by_type(event):
+    def by_event_type(event):
         last_value = None
         if len(event) == 1:
             item, = event
@@ -601,7 +601,7 @@ def test_last_value_func_on_dict() -> None:
         return last_value
 
     @dlt.resource(primary_key="id", table_name=lambda i: i['type'])
-    def _get_shuffled_events(last_created_at = dlt.sources.incremental("$", last_value_func=by_type)):
+    def _get_shuffled_events(last_created_at = dlt.sources.incremental("$", last_value_func=by_event_type)):
         with open("tests/normalize/cases/github.events.load_page_1_duck.json", "r", encoding="utf-8") as f:
             yield json.load(f)
 

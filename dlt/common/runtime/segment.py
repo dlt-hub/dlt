@@ -1,20 +1,22 @@
 """dltHub telemetry using Segment"""
 
 # several code fragments come from https://github.com/RasaHQ/rasa/blob/main/rasa/telemetry.py
+import os
 import sys
 import multiprocessing
 import atexit
 import base64
 import requests
 import platform
-import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Literal, Optional
+from dlt.common.configuration.paths import get_dlt_home_dir
 
 from dlt.common.runtime import logger
 from dlt.common.configuration.specs import RunConfiguration
 from dlt.common.runtime.exec_info import exec_info_names, in_continuous_integration
 from dlt.common.typing import DictStrAny, StrAny
+from dlt.common.utils import uniq_id
 from dlt.version import __version__, DLT_PKG_NAME
 
 TEventCategory = Literal["pipeline", "command"]
@@ -108,6 +110,22 @@ def _segment_request_header(write_key: str) -> StrAny:
     }
 
 
+def get_anonymous_id() -> str:
+    """Creates or reads a anonymous user id"""
+    home_dir = get_dlt_home_dir()
+    if not os.path.isdir(home_dir):
+        os.makedirs(home_dir, exist_ok=True)
+    anonymous_id_file = os.path.join(home_dir, ".anonymous_id")
+    if not os.path.isfile(anonymous_id_file):
+        anonymous_id = uniq_id()
+        with open(anonymous_id_file, "w", encoding="utf-8") as f:
+            f.write(anonymous_id)
+    else:
+        with open(anonymous_id_file, "r", encoding="utf-8") as f:
+            anonymous_id = f.read()
+    return anonymous_id
+
+
 def _segment_request_payload(
     event_name: str,
     properties: StrAny,
@@ -124,7 +142,7 @@ def _segment_request_payload(
         Valid segment payload.
     """
     return {
-        "anonymousId": "8c45f93d27f72347a3604521e2d4c33b",
+        "anonymousId": get_anonymous_id(),
         "event": event_name,
         "properties": properties,
         "context": context,
@@ -162,7 +180,7 @@ def _send_event(
     properties: StrAny,
     context: StrAny
 ) -> None:
-    """Report the contents segmentof an event to the /track Segment endpoint.
+    """Report the contents segment of an event to the /track Segment endpoint.
 
     Args:
         event_name: Name of the event.
@@ -185,7 +203,6 @@ def _send_event(
 
     def _future_send() -> None:
         # start_ts = time.time()
-        # print("sending to Segment")
         resp = _SESSION.post(_SEGMENT_ENDPOINT, headers=headers, json=payload, timeout=_SEGMENT_REQUEST_TIMEOUT)
         # print(f"sending to Segment done {resp.status_code} {time.time() - start_ts}")
         # handle different failure cases

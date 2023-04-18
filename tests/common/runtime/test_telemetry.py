@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 from dlt.common import logger
 from dlt.common.runtime.sentry import _get_sentry_log_level
-from dlt.common.runtime.segment import track, disable_segment
+from dlt.common.runtime.segment import get_anonymous_id, track, disable_segment
 from dlt.common.typing import DictStrAny, StrStr
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import RunConfiguration
@@ -68,6 +68,7 @@ def test_track_segment_event() -> None:
         # this will send stuff
         disable_segment()
     event = SENT_ITEMS[0]
+    assert event["anonymousId"] == get_anonymous_id()
     assert event["event"] == "pipeline_run"
     assert props.items() <= event["properties"].items()
     assert event["properties"]["event_category"] == "pipeline"

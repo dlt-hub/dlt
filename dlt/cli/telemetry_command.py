@@ -9,6 +9,7 @@ from dlt.cli import echo as fmt
 from dlt.cli.utils import get_telemetry_status
 from dlt.cli.config_toml_writer import WritableConfigValue, write_values
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
+from dlt.common.runtime.segment import get_anonymous_id
 
 DLT_TELEMETRY_DOCS_URL = "https://dlthub.com/docs/reference/telemetry"
 
@@ -16,6 +17,7 @@ DLT_TELEMETRY_DOCS_URL = "https://dlthub.com/docs/reference/telemetry"
 def telemetry_status_command() -> None:
     if get_telemetry_status():
         fmt.echo("Telemetry is %s" % fmt.bold("ENABLED"))
+        fmt.echo("Anonymous id %s" % fmt.bold(get_anonymous_id()))
     else:
         fmt.echo("Telemetry is %s" % fmt.bold("DISABLED"))
 
