@@ -25,7 +25,6 @@ class AirflowSecretsTomlProvider(BaseTomlProvider):
         self, variable_key: str
     ) -> tomlkit.TOMLDocument:
         toml_string = Variable.get(variable_key)
-        print(f"TOML string: {toml_string}")
         return tomlkit.parse(toml_string)
 
     @property

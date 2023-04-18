@@ -1,7 +1,6 @@
 
 
 from typing import List
-
 from dlt.common.configuration.exceptions import DuplicateConfigProviderException
 from dlt.common.configuration.providers import ConfigProvider, EnvironProvider, ContextProvider, SecretsTomlProvider, ConfigTomlProvider
 from dlt.common.configuration.specs.base_configuration import ContainerInjectableContext, configspec
@@ -52,8 +51,21 @@ class ConfigProvidersContext(ContainerInjectableContext):
         # from Airflow's Connections
         try:
             import airflow  # noqa
-            from dlt.common.configuration.providers.airflow import AirflowSecretsTomlProvider
-            providers.append(AirflowSecretsTomlProvider())
+            from airflow.models import Variable # noqa
+            from dlt.common.configuration.providers.airflow import (
+                AirflowSecretsTomlProvider,
+                AIRFLOW_SECRETS_TOML_VARIABLE_KEY
+            )
+            from dlt.common.runtime import logger
+
+            if Variable.get(AIRFLOW_SECRETS_TOML_VARIABLE_KEY, default_var=None) is not None:
+                providers.append(AirflowSecretsTomlProvider())
+            else:
+                logger.warning(
+                    f"Airflow variable '{AIRFLOW_SECRETS_TOML_VARIABLE_KEY}' "
+                    "not found. AirflowSecretsTomlProvider will not be used."
+                )
+
         except ImportError:
             pass
 
