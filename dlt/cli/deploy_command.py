@@ -286,7 +286,7 @@ def generate_pip_freeze(requirements_blacklist: List[str]) -> str:
         pipdeptree.render_cycles_text(cycles)
         fmt.echo()
         # do not create package because it will most probably fail
-        return "# please provide valid dependencies including python-dlt"
+        return "# please provide valid dependencies including dlt package"
 
     lines = [node.render(None, False) for node in nodes]
     return "\n".join(lines)

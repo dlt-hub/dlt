@@ -26,7 +26,7 @@ RUN apk update &&\
     rm -r /usr/lib/python*/ensurepip &&\
     pip3 install -r compiled_requirements.txt &&\
     apk del --purge build-deps
-    #rm -r /root/.cache
+#rm -r /root/.cache
 
 # add build labels and envs
 ARG COMMIT_SHA=""
@@ -37,8 +37,8 @@ ENV COMMIT_SHA=${COMMIT_SHA}
 ENV IMAGE_VERSION=${IMAGE_VERSION}
 
 # install exactly the same version of the library we used to build
-COPY dist/python-dlt-${IMAGE_VERSION}.tar.gz .
-RUN pip3 install /tmp/pydlt/python-dlt-${IMAGE_VERSION}.tar.gz[gcp,redshift]
+COPY dist/dlt-${IMAGE_VERSION}.tar.gz .
+RUN pip3 install /tmp/pydlt/dlt-${IMAGE_VERSION}.tar.gz[gcp,redshift]
 
 WORKDIR /
 RUN rm -r /tmp/pydlt
