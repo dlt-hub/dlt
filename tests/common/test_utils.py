@@ -1,7 +1,9 @@
+import inspect
 import binascii
 import pytest
 
-from dlt.common.utils import flatten_list_of_str_or_dicts, digest128, map_nested_in_place, reveal_pseudo_secret, obfuscate_pseudo_secret
+from dlt.common.runners import Venv
+from dlt.common.utils import flatten_list_of_str_or_dicts, digest128, map_nested_in_place, reveal_pseudo_secret, obfuscate_pseudo_secret, get_module_name
 
 
 def test_flatten_list_of_str_or_dicts() -> None:
@@ -50,3 +52,17 @@ def test_pseudo_obfuscation() -> None:
     # make sure base64 decoding errors are raised
     with pytest.raises(binascii.Error):
         reveal_pseudo_secret("ABBYA", pseudo_key)
+
+
+def test_get_module_name() -> None:
+    m = inspect.getmodule(test_pseudo_obfuscation)
+    assert get_module_name(m) == "test_utils"
+
+    from tests.common.cases.modules.uniq_mod_121 import find_my_module
+
+    m = inspect.getmodule(find_my_module)
+    assert get_module_name(m) == "uniq_mod_121"
+
+    # use exec to get __main__ exception
+    mod_name = Venv.restore_current().run_script("tests/common/cases/modules/uniq_mod_121.py")
+    assert mod_name.strip() == "uniq_mod_121"
