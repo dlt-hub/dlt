@@ -77,5 +77,5 @@ def test_airflow_secrets_toml_provider():
 
     assert ti.state == State.SUCCESS
     assert result['name'] == 'Airflow Secrets TOML Provider'
-    assert result['supports_secrets'] == True
+    assert result['supports_secrets']
     assert result['api_key_from_provider'] == 'test_value'
