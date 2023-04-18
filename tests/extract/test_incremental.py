@@ -529,6 +529,19 @@ def test_incremental_explicit_primary_key() -> None:
     assert py_ex.value.primary_key_column == "DELTA"
 
 
+def test_incremental_explicit_disable_unique_check() -> None:
+    @dlt.resource(primary_key="delta")
+    def some_data(last_timestamp=dlt.sources.incremental("item.ts", primary_key=())):
+        for i in range(-10, 10):
+            yield {"delta": i, "item": {"ts": pendulum.now().timestamp()}}
+
+    with Container().injectable_context(StateInjectableContext(state={})):
+        s = some_data()
+        list(s)
+        # no unique hashes at all
+        assert s.state["incremental"]["item.ts"]["unique_hashes"] == []
+
+
 def test_apply_hints_incremental() -> None:
 
     p = dlt.pipeline(pipeline_name=uniq_id())

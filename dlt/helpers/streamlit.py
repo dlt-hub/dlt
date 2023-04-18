@@ -296,7 +296,7 @@ def display(pipeline_name: str) -> None:
 
     pages: Dict[str, AnyFun] = {
         "Explore data": write_data_explorer_page,
-        "Pipeline info": write_load_status_page,
+        "Load info": write_load_status_page,
     }
 
     st.title(f"Show {pipeline_name} pipeline")

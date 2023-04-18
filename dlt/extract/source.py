@@ -233,7 +233,7 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
 
         if incremental:
             primary_key = table_schema_template.get("primary_key", incremental.primary_key)
-            if primary_key:
+            if primary_key is not None:
                 incremental.primary_key = primary_key
 
     def bind(self, *args: Any, **kwargs: Any) -> "DltResource":
