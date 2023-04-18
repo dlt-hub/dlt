@@ -1,14 +1,27 @@
 from copy import copy, deepcopy
 from collections.abc import Mapping as C_Mapping
-from typing import List, cast, Any
+from typing import List, TypedDict, cast, Any
 
 from dlt.common.schema.utils import DEFAULT_WRITE_DISPOSITION, merge_columns, new_column, new_table
 from dlt.common.schema.typing import TColumnProp, TColumnSchema, TPartialTableSchema, TTableSchemaColumns, TWriteDisposition
 from dlt.common.typing import TDataItem
 from dlt.common.validation import validate_dict
 
-from dlt.extract.typing import TColumnKey, TFunHintTemplate, TTableHintTemplate, TTableSchemaTemplate
+from dlt.extract.incremental import Incremental
+from dlt.extract.typing import TColumnKey, TFunHintTemplate, TTableHintTemplate
 from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, InconsistentTableTemplate, TableNameMissing
+
+
+class TTableSchemaTemplate(TypedDict, total=False):
+    name: TTableHintTemplate[str]
+    # description: TTableHintTemplate[str]
+    write_disposition: TTableHintTemplate[TWriteDisposition]
+    # table_sealed: Optional[bool]
+    parent: TTableHintTemplate[str]
+    columns: TTableHintTemplate[TTableSchemaColumns]
+    primary_key: TTableHintTemplate[TColumnKey]
+    merge_key: TTableHintTemplate[TColumnKey]
+    incremental: Incremental[Any]
 
 
 class DltResourceSchema:
@@ -40,7 +53,7 @@ class DltResourceSchema:
     def table_schema(self, item: TDataItem =  None) -> TPartialTableSchema:
         """Computes the table schema based on hints and column definitions passed during resource creation. `item` parameter is used to resolve table hints based on data"""
         if not self._table_schema_template:
-            return new_table(self._name)
+            return new_table(self._name, resource=self._name)
 
         # resolve a copy of a held template
         table_template = copy(self._table_schema_template)
@@ -51,7 +64,9 @@ class DltResourceSchema:
             raise DataItemRequiredForDynamicTableHints(self._name)
         # resolve
         resolved_template: TTableSchemaTemplate = {k: self._resolve_hint(item, v) for k, v in table_template.items()}  # type: ignore
+        resolved_template.pop("incremental", None)
         table_schema = self._merge_keys(resolved_template)
+        table_schema["resource"] = self._name
         validate_dict(TPartialTableSchema, table_schema, f"new_table/{self._name}")
         return table_schema
 
@@ -62,11 +77,20 @@ class DltResourceSchema:
         write_disposition: TTableHintTemplate[TWriteDisposition] = None,
         columns: TTableHintTemplate[TTableSchemaColumns] = None,
         primary_key: TTableHintTemplate[TColumnKey] = None,
-        merge_key: TTableHintTemplate[TColumnKey] = None
+        merge_key: TTableHintTemplate[TColumnKey] = None,
+        incremental: Incremental[Any] = None
     ) -> None:
-        """Allows to create or modify existing table schema by setting provided hints. Accepts dynamic hints based on data.
-           Pass None to keep old value
-           Pass empty value (for particular type) to remove hint
+        """Creates or modifies existing table schema by setting provided hints. Accepts both static and dynamic hints based on data.
+
+           This method accepts the same table hints arguments as `dlt.resource` decorator with the following additions.
+           Skip the argument or pass None to leave the existing hint.
+           Pass empty value (for particular type ie "" for a string) to remove hint
+
+           parent_table_name (str, optional): A name of parent table if foreign relation is defined. Please note that if you use merge you must define `root_key` columns explicitly
+           incremental (Incremental, optional): Enables the incremental loading for a resource.
+
+           Please note that for efficient incremental loading, the resource must be aware of the Incremental by accepting it as one if its arguments and then using is to skip already loaded data.
+           In non-aware resources, `dlt` will filter out the loaded values, however the resource will yield all the values again.
         """
         t = None
         if not self._table_schema_template:
@@ -93,6 +117,7 @@ class DltResourceSchema:
                 t["primary_key"] = primary_key
             if merge_key is not None:
                 t["merge_key"] = merge_key
+            t["incremental"] = incremental
         self.set_template(t)
 
     def set_template(self, table_schema_template: TTableSchemaTemplate) -> None:

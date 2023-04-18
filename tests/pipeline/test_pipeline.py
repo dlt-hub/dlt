@@ -631,3 +631,61 @@ def test_dispatch_rows_to_tables(github_resource: DltResource):
         if table.get("parent") is None:
             assert table["write_disposition"] == "merge"
             assert table["columns"]["id"]["primary_key"] is True
+
+
+def test_resource_name_in_schema() -> None:
+    @dlt.resource(table_name='some_table')
+    def static_data():
+        yield {'a': 1, 'b': 2}
+
+    @dlt.resource(table_name=lambda x: 'dynamic_func_table')
+    def dynamic_func_data():
+        yield {'a': 1, 'b': 2}
+
+    @dlt.resource
+    def dynamic_mark_data():
+        yield dlt.mark.with_table_name({'a': 1, 'b': 2}, 'dynamic_mark_table')
+
+    @dlt.resource(table_name='parent_table')
+    def nested_data():
+        yield {'a': 1, 'items': [{'c': 2}, {'c': 3}, {'c': 4}]}
+
+    @dlt.source
+    def some_source():
+        return [static_data(), dynamic_func_data(), dynamic_mark_data(), nested_data()]
+
+
+    source = some_source()
+    p = dlt.pipeline(pipeline_name=uniq_id(), destination='dummy')
+    p.run(source)
+
+    assert source.schema.tables['some_table']['resource'] == 'static_data'
+    assert source.schema.tables['dynamic_func_table']['resource'] == 'dynamic_func_data'
+    assert source.schema.tables['dynamic_mark_table']['resource'] == 'dynamic_mark_data'
+    assert source.schema.tables['parent_table']['resource'] == 'nested_data'
+    assert 'resource' not in source.schema.tables['parent_table__items']
+
+
+def test_preserve_fields_order() -> None:
+    pipeline_name = "pipe_" + uniq_id()
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+
+    item = {"col_1": 1, "col_2": 2, "col_3": "list"}
+    p.extract([item], table_name="order_1")
+    p.normalize()
+
+    @dlt.resource(name="order_2")
+    def ordered_dict():
+        yield {"col_1": 1, "col_2": 2, "col_3": "list"}
+
+    def reverse_order(item):
+        rev_dict = {}
+        for k in reversed(item.keys()):
+            rev_dict[k] = item[k]
+        return rev_dict
+
+    p.extract(ordered_dict().add_map(reverse_order))
+    p.normalize()
+
+    assert list(p.default_schema.tables["order_1"]["columns"].keys()) == ["col_1", "col_2", "col_3", '_dlt_load_id', '_dlt_id']
+    assert list(p.default_schema.tables["order_2"]["columns"].keys()) == ["col_3", "col_2", "col_1", '_dlt_load_id', '_dlt_id']

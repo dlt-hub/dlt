@@ -102,6 +102,12 @@ def write_load_status_page(pipeline: Pipeline) -> None:
             with client.execute_query(query) as curr:
                 return curr.df()
 
+    @cache_data(ttl=5)
+    def _query_data_live(query: str, schema_name: str = None) -> pd.DataFrame:
+        with pipeline.sql_client(schema_name) as client:
+            with client.execute_query(query) as curr:
+                return curr.df()
+
     try:
         st.header("Pipeline info")
         credentials = pipeline.sql_client().credentials
@@ -114,7 +120,7 @@ def write_load_status_page(pipeline: Pipeline) -> None:
 
         st.header("Last load info")
         col1, col2, col3 = st.columns(3)
-        loads_df = _query_data(
+        loads_df = _query_data_live(
             f"SELECT load_id, inserted_at FROM {LOADS_TABLE_NAME} WHERE status = 0 ORDER BY inserted_at DESC LIMIT 101 "
         )
         loads_no = loads_df.shape[0]
@@ -139,9 +145,6 @@ def write_load_status_page(pipeline: Pipeline) -> None:
         for table in schema.data_tables():
             if "parent" in table:
                 continue
-            if "columns" not in table or len(table["columns"]) == 0:
-                continue
-
             table_name = table["name"]
             query_parts.append(f"SELECT '{table_name}' as table_name, COUNT(1) As rows_count FROM {table_name} WHERE _dlt_load_id = '{selected_load_id}'")
             query_parts.append("UNION ALL")
@@ -155,7 +158,7 @@ def write_load_status_page(pipeline: Pipeline) -> None:
         st.dataframe(loads_df)
 
         st.header("Schema updates")
-        schemas_df = _query_data(
+        schemas_df = _query_data_live(
             f"SELECT schema_name, inserted_at, version, version_hash FROM {VERSION_TABLE_NAME} ORDER BY inserted_at DESC LIMIT 101 "
             )
         st.markdown("**100 recent schema updates**")
@@ -206,7 +209,7 @@ def write_data_explorer_page(pipeline: Pipeline, schema_name: str = None, show_d
         MissingDependencyException: Raised when a particular python dependency is not installed
     """
 
-    @cache_data(ttl=600)
+    @cache_data(ttl=60)
     def _query_data(query: str, chunk_size: int = None) -> pd.DataFrame:
         with pipeline.sql_client(schema_name) as client:
             with client.execute_query(query) as curr:
@@ -217,7 +220,6 @@ def write_data_explorer_page(pipeline: Pipeline, schema_name: str = None, show_d
     else:
         schema = pipeline.default_schema
     st.title(f"Available tables in {schema.name} schema")
-    # st.text(schema.to_pretty_yaml())
 
     for table in schema.data_tables():
         table_name = table["name"]

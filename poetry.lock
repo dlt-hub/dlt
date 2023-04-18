@@ -1561,14 +1561,6 @@ python-versions = ">=3.6,<4.0"
 types-setuptools = ">=57.0.0"
 
 [[package]]
-name = "reretry"
-version = "0.11.8"
-description = "An easy to use, but functional decorator for retrying on exceptions."
-category = "main"
-optional = false
-python-versions = ">=3.7"
-
-[[package]]
 name = "rsa"
 version = "4.9"
 description = "Pure-Python RSA implementation"
@@ -1988,7 +1980,7 @@ redshift = ["psycopg2-binary", "psycopg2cffi"]
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.8,<4.0"
-content-hash = "5ab9e800a8524b227195572aae2d22799d19db47fd2d87671e615ab864c1ff02"
+content-hash = "faa2b620889c5c195678ca7c6bf435864fc658ec015a8b9ea37b45f40329c32c"
 
 [metadata.files]
 agate = [
@@ -3434,10 +3426,6 @@ requests-mock = [
 requirements-parser = [
     {file = "requirements-parser-0.5.0.tar.gz", hash = "sha256:3336f3a3ae23e06d3f0f88595e4052396e3adf91688787f637e5d2ca1a904069"},
     {file = "requirements_parser-0.5.0-py3-none-any.whl", hash = "sha256:e7fcdcd04f2049e73a9fb150d8a0f9d51ce4108f5f7cbeac74c484e17b12bcd9"},
-]
-reretry = [
-    {file = "reretry-0.11.8-py2.py3-none-any.whl", hash = "sha256:5ec1084cd9644271ee386d34cd5dd24bdb3e91d55961b076d1a31d585ad68a79"},
-    {file = "reretry-0.11.8.tar.gz", hash = "sha256:f2791fcebe512ea2f1d153a2874778523a8064860b591cd90afc21a8bed432e3"},
 ]
 rsa = [
     {file = "rsa-4.9-py3-none-any.whl", hash = "sha256:90260d9058e514786967344d0ef75fa8727eed8a7d2e43ce9f4bcf1b536174f7"},

@@ -38,6 +38,13 @@ def test_import_module_with_missing_dep_exc() -> None:
     assert isinstance(m.e, SimpleNamespace)
 
 
+def test_import_module_capitalized_as_type() -> None:
+    # capitalized names are imported as types
+    m = load_script_module(MODULE_CASES, "import_as_type", ignore_missing_imports=True)
+    assert issubclass(m.Tx, SimpleNamespace)
+    assert isinstance(m.tx, SimpleNamespace)
+
+
 def test_import_wrong_pipeline_script() -> None:
     with pytest.raises(PipelineIsRunning):
         inspect_pipeline_script(MODULE_CASES, "executes_resource", ignore_missing_imports=False)

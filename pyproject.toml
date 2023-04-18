@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dlt"
-version = "0.2.5a1"
+version = "0.2.5a2"
 description = "DLT is an open-source python-native scalable data loading framework that does not require any devops efforts to run."
 authors = ["dltHub Inc. <services@dlthub.com>"]
 maintainers = [ "Marcin Rudolf <marcin@dlthub.com>", "Adrian Brudaru <adrian@dlthub.com>", "Ty Dunn <ty@dlthub.com>"]
@@ -51,7 +51,6 @@ gitpython = ">=3.1.29"
 pytz = ">=2022.6"
 tqdm = ">=4.64.1"
 giturlparse = ">=0.10.0"
-reretry = ">=0.11.8"
 orjson = {version = "^3.8.6", markers="platform_python_implementation != 'PyPy'"}
 
 psycopg2-binary = {version = ">=2.9.1", optional = true}

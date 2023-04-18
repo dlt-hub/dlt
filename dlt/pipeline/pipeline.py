@@ -195,7 +195,7 @@ class Pipeline(SupportsPipeline):
         self.full_refresh = full_refresh
 
         self._container = Container()
-        self._pipeline_instance_id = pendulum.now().format("_YYYYMMDDhhmmss")
+        self._pipeline_instance_id = self._create_pipeline_instance_id()
         self._pipeline_storage: FileStorage = None
         self._schema_storage: LiveSchemaStorage = None
         self._schema_storage_config: SchemaVolumeConfiguration = None
@@ -438,10 +438,12 @@ class Pipeline(SupportsPipeline):
             self.normalize()
         if self.list_normalized_load_packages():
             # if there were any pending loads, load them and **exit**
+            if data is not None:
+                logger.warn("The pipeline `run` method will now load the pending load packages. The data you passed to the run function will not be loaded. In order to do that you must run the pipeline again")
             return self.load(destination, dataset_name, credentials=credentials)
 
         # extract from the source
-        if data:
+        if data is not None:
             self.extract(data, table_name=table_name, write_disposition=write_disposition, columns=columns, primary_key=primary_key, schema=schema)
             self.normalize()
             return self.load(destination, dataset_name, credentials=credentials)
@@ -948,6 +950,9 @@ class Pipeline(SupportsPipeline):
     def _set_default_schema_name(self, schema: Schema) -> None:
         assert self.default_schema_name is None
         self.default_schema_name = schema.name
+
+    def _create_pipeline_instance_id(self) -> str:
+        return pendulum.now().format("_YYYYMMDDhhmmss")  # type: ignore
 
     @with_schemas_sync
     @with_state_sync()

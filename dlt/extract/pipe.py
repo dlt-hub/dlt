@@ -137,9 +137,9 @@ class Pipe(SupportsPipe):
     def steps(self) -> List[TPipeStep]:
         return self._steps
 
-    def find(self, step_type: AnyType) -> int:
+    def find(self, *step_type: AnyType) -> int:
         """Finds a step with object of type `step_type`"""
-        return next((i for i,v in enumerate(self._steps) if type(v) is step_type), -1)
+        return next((i for i,v in enumerate(self._steps) if type(v) in step_type), -1)
 
     def __getitem__(self, i: int) -> TPipeStep:
         return self._steps[i]
@@ -237,11 +237,6 @@ class Pipe(SupportsPipe):
         if not self.is_data_bound:
             raise PipeNotBoundToData(self.name, self.has_parent)
 
-        # evaluate transforms
-        for step_no, step in enumerate(self._steps):
-            if isinstance(step, ItemTransform):
-                self._steps[step_no] = step.bind(self)
-
         gen = self.gen
         if not self.has_parent:
             if callable(gen):
@@ -256,6 +251,12 @@ class Pipe(SupportsPipe):
         else:
             # verify if transformer can be called
             self._ensure_transform_step(self._gen_idx, gen)
+
+        # evaluate transforms
+        for step_no, step in enumerate(self._steps):
+            # print(f"pipe {self.name} step no {step_no} step({step})")
+            if isinstance(step, ItemTransform):
+                self._steps[step_no] = step.bind(self)
 
     def bind_gen(self, *args: Any, **kwargs: Any) -> Any:
         """Finds and wraps with `args` + `kwargs` the callable generating step in the resource pipe and then replaces the pipe gen with the wrapped one"""
@@ -317,11 +318,9 @@ class Pipe(SupportsPipe):
 
                 def _partial() -> Any:
                     # print(f"_PARTIAL: {args} {kwargs} vs {args_}{kwargs_}")
-                    # raise Exception("WTF")
                     return head(*args, **kwargs)  # type: ignore
 
                 # this partial preserves the original signature and just defers the call to pipe
-                # _data = makefun.wraps(head, new_sig=sig)(_partial)
                 _data = makefun.wraps(head, new_sig=inspect.signature(_partial))(_partial)
             else:
                 raise InvalidResourceDataTypeFunctionNotAGenerator(self.name, head, type(head))

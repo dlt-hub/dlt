@@ -60,6 +60,7 @@ class TTableSchema(TypedDict, total=False):
     parent: Optional[str]
     filters: Optional[TRowFilters]
     columns: TTableSchemaColumns
+    resource: Optional[str]
 
 
 class TPartialTableSchema(TTableSchema):

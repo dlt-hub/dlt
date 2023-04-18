@@ -34,7 +34,7 @@ def rasa(
     def events(source_events: TDataItems) -> Iterator[TDataItem]:
         # recover start_timestamp from state if given
         if store_last_timestamp:
-            start_timestamp = max(initial_timestamp or 0, dlt.current.state().get("start_timestamp", 0))
+            start_timestamp = max(initial_timestamp or 0, dlt.current.source_state().get("start_timestamp", 0))
         # we expect tracker store events here
         last_timestamp: int = None
 
@@ -71,6 +71,6 @@ def rasa(
 
         # write state so we can restart
         if store_last_timestamp and last_timestamp:
-            dlt.current.state()["start_timestamp"] = last_timestamp
+            dlt.current.source_state()["start_timestamp"] = last_timestamp
 
     return events
