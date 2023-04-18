@@ -365,7 +365,7 @@ def test_init_pyproject_toml(repo_dir: str, project_files: FileStorage) -> None:
         _out = buf.getvalue()
     assert "pyproject.toml" in _out
     assert "google-api-python-client" in _out
-    assert "poetry add python-dlt -E bigquery" in _out
+    assert "poetry add dlt -E bigquery" in _out
 
 
 def test_init_requirements_text(repo_dir: str, project_files: FileStorage) -> None:
@@ -397,7 +397,7 @@ def assert_init_files(project_files: FileStorage, pipeline_name: str, destinatio
 def assert_requests_txt(project_files: FileStorage) -> None:
     # check requirements
     assert project_files.has_file(cli_utils.REQUIREMENTS_TXT)
-    assert "python-dlt" in project_files.load(cli_utils.REQUIREMENTS_TXT)
+    assert "dlt" in project_files.load(cli_utils.REQUIREMENTS_TXT)
 
 
 def assert_pipeline_files(project_files: FileStorage, pipeline_name: str, destination_name: str, has_source_section: bool = True) -> Tuple[PipelineScriptVisitor, SecretsTomlProvider]:

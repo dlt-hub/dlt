@@ -199,8 +199,8 @@ def test_current_venv() -> None:
 
     # use python to run module
     freeze = venv.run_module("pip", "freeze", "--all")
-    # we are in current venv so python-dlt is here
-    assert "python_dlt" in freeze
+    # we are in current venv so dlt package is here
+    assert "dlt" in freeze
 
     # use command
     with venv.start_command("pip", "freeze", "--all", stdout=PIPE, text=True) as process:
@@ -218,7 +218,7 @@ def test_current_base_python() -> None:
     # use python to run module
     freeze = venv.run_module("pip", "freeze", "--all")
     # we are still in poetry virtual env but directly
-    assert "python_dlt" in freeze
+    assert "dlt" in freeze
 
     # use command
     with venv.start_command("pip", "freeze", "--all", stdout=PIPE, text=True) as process:

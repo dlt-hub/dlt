@@ -865,7 +865,7 @@ class Pipeline(SupportsPipeline):
             raise MissingDependencyException(
                 f"{client_spec.destination_name} destination",
                 [f"{version.DLT_PKG_NAME}[{client_spec.destination_name}]"],
-                "Dependencies for specific destinations are available as extras of python-dlt"
+                "Dependencies for specific destinations are available as extras of dlt"
             )
 
     def _get_destination_capabilities(self) -> DestinationCapabilitiesContext:

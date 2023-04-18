@@ -1,1 +1,1 @@
-python-dlt[redshift] >= 0.2.0a4
+dlt[redshift] >= 0.2.5a1

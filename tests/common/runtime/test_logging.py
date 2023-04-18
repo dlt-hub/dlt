@@ -27,7 +27,7 @@ class JsonLoggerConfiguration(PureBasicConfiguration):
 def test_version_extract(environment: StrStr) -> None:
     version = exec_info.dlt_version_info(PureBasicConfiguration())
     # assert version["dlt_version"].startswith(code_version)
-    lib_version = pkg_version("python-dlt")
+    lib_version = pkg_version("dlt")
     assert version == {'dlt_version': lib_version, 'pipeline_name': 'logger'}
     # mock image info available in container
     mock_image_env(environment)
