@@ -96,16 +96,10 @@ class SqlJobClientBase(JobClientBase):
                 logger.info(f"Schema with hash {self.schema.stored_version_hash} inserted at {schema_info.inserted_at} found in storage, no upgrade required")
             return applied_update
 
-    def drop_tables(self, tables: Iterable[str], staging: bool = False) -> None:
+    def drop_tables(self, *tables: str, staging: bool = False) -> None:
         with self.sql_client.with_staging_dataset(staging):
-            tables = list(tables)
-            table_sql = ", ".join(self.sql_client.make_qualified_table_name(table) for table in tables)
-            if not table_sql:
-                return
-            sql = f"DROP TABLE IF EXISTS {table_sql};"
-
             with self._ddl_transaction():
-                self.sql_client.execute_sql(sql)
+                self.sql_client.drop_tables(*tables)
                 self._update_schema_in_storage(self.schema)
 
     @contextlib.contextmanager

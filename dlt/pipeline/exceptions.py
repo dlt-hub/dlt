@@ -47,3 +47,12 @@ class PipelineStateEngineNoUpgradePathException(PipelineException):
         self.from_engine = from_engine
         self.to_engine = to_engine
         super().__init__(pipeline_name, f"No engine upgrade path for state in pipeline {pipeline_name} from {init_engine} to {to_engine}, stopped at {from_engine}")
+
+
+class PipelineHasPendingDataException(PipelineException):
+    def __init__(self, pipeline_name: str, pipelines_dir: str) -> None:
+        msg = (
+            f" Operation failed because pipeline with name {pipeline_name} in working directory {pipelines_dir} contains pending extracted files or load packages. "
+            "Use `dlt pipeline sync` to reset the local state then run this operation again."
+        )
+        super().__init__(pipeline_name, msg)

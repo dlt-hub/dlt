@@ -140,7 +140,7 @@ class JobClientBase(ABC):
         return expected_update
 
     @abstractmethod
-    def drop_tables(self, tables: Iterable[str]) -> None:
+    def drop_tables(self, *tables: str, staging: bool = False) -> None:
         """Drop the listed tables from storage."""
         pass
 

@@ -542,6 +542,11 @@ class Pipeline(SupportsPipeline):
         return not self.first_run or bool(self.schema_names) or len(self.list_extracted_resources()) > 0 or len(self.list_normalized_load_packages()) > 0
 
     @property
+    def has_pending_data(self) -> bool:
+        """Tells if the pipeline contains any extracted files or pending load packages"""
+        return bool(self.list_normalized_load_packages() or self.list_extracted_resources())
+
+    @property
     def schemas(self) -> SchemaStorage:
         return self._schema_storage
 
