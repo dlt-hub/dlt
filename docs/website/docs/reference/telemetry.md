@@ -6,13 +6,13 @@ keywords: [telemetry, usage information, opt out]
 
 # Telemetry
 
-`dlt` collects and reports **anonymous** usage information. This information is essential to figure out how we should improve the library. Telemetry does not send any personal data. We do not create tracking cookies nor identify users, even anonymously. You can disable telemetry at any moment or send it to your own servers instead.
+`dlt` collects and reports **anonymous** usage information. This information is essential to figure out how we should improve the library. Telemetry does not send any personal data. We create random tracking cookie that is stored in your `~./dlt` directory. You can disable telemetry at any moment or send it to your own servers instead.
 
 ## How to opt-out
 
 You can disable telemetry by adding `--disable-telemetry` to any dlt [command](../reference/command-line-interface.md).
 
-This command will disable telemtry both in the current project and globally for the whole machine:
+This command will disable telemetry both in the current project and globally for the whole machine:
 
 ```shell
 $ dlt --disable-telemetry
@@ -111,7 +111,7 @@ Example for `load` pipeline run step.
 
 The message context contains the following information:
 
-- `anonymousId`: a random number different for each message. It is required by Segment.
+- `anonymousId`: a random tracking cookie stored in `~/.dlt/.anonymous_id`.
 - `ci_run`: a flag indicating if the message was sent from a CI environment (e.g. `Github Actions`, `Travis CI`)
 - `cpu`: contains number of cores
 - `exec_info`: contains a list of strings that identify execution environment: (e.g. `kubernetes`, `docker`, `airflow`)
