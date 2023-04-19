@@ -51,6 +51,9 @@ def test_airflow_secrets_toml_provider():
 
         api_key, _ = provider.get_value('api_key', str, 'sources')
 
+        # There's no pytest context here in the task, so we need to return
+        # the results as a dict and assert them in the test function.
+        # See ti.xcom_pull() below.
         return {
             'name': provider.name,
             'supports_secrets': provider.supports_secrets,
@@ -99,6 +102,9 @@ def test_airflow_secrets_toml_provider_is_loaded():
             for provider in providers
         )
 
+        # There's no pytest context here in the task, so we need to return
+        # the results as a dict and assert them in the test function.
+        # See ti.xcom_pull() below.
         return {
             'airflow_secrets_toml_provider_is_loaded': astp_is_loaded,
         }
@@ -134,6 +140,7 @@ def test_airflow_secrets_toml_provider_missing_variable():
             AIRFLOW_SECRETS_TOML_VARIABLE_KEY,
         )
 
+        # Make sure the variable is not set
         Variable.delete(AIRFLOW_SECRETS_TOML_VARIABLE_KEY)
 
         providers = config_providers_context._extra_providers()
@@ -143,6 +150,9 @@ def test_airflow_secrets_toml_provider_missing_variable():
             for provider in providers
         )
 
+        # There's no pytest context here in the task, so we need to return
+        # the results as a dict and assert them in the test function.
+        # See ti.xcom_pull() below.
         return {
             'airflow_secrets_toml_provider_is_loaded': astp_is_loaded,
         }
@@ -180,6 +190,9 @@ def test_airflow_secrets_toml_provider_invalid_content():
 
         Variable.set(AIRFLOW_SECRETS_TOML_VARIABLE_KEY, 'invalid_content')
 
+        # There's no pytest context here in the task, so we need
+        # to catch the exception manually and return the result
+        # as a dict and do the assertion in the test function.
         exception_raised = False
         try:
             AirflowSecretsTomlProvider()
