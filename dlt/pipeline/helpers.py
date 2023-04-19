@@ -117,7 +117,6 @@ class _DropCommand:
         self.pipeline.schemas.save_schema(self.schema)
         # Send updated state to destination
         self.pipeline.normalize()
-        self.pipeline._get_load_storage().delete_completed_package
         try:
             self.pipeline.load(raise_on_failed_jobs=True)
         except Exception:
