@@ -44,32 +44,46 @@ class ConfigProvidersContext(ContainerInjectableContext):
             SecretsTomlProvider(add_global_config=True),
             ConfigTomlProvider(add_global_config=True)
         ]
-
-        # Attempt to import Airflow and add AirflowTomlProvider if successful.
-        # Successful import of Airflow means we are running in an Airflow environment
-        # and the AirflowTomlProvider will be able to read configuration
-        # from Airflow's Connections
-        try:
-            import airflow  # noqa
-            from airflow.models import Variable # noqa
-            from dlt.common.configuration.providers.airflow import (
-                AirflowSecretsTomlProvider,
-                AIRFLOW_SECRETS_TOML_VARIABLE_KEY
-            )
-            from dlt.common.runtime import logger
-
-            if Variable.get(AIRFLOW_SECRETS_TOML_VARIABLE_KEY, default_var=None) is not None:
-                providers.append(AirflowSecretsTomlProvider())
-            else:
-                logger.warning(
-                    f"Airflow variable '{AIRFLOW_SECRETS_TOML_VARIABLE_KEY}' "
-                    "not found. AirflowSecretsTomlProvider will not be used."
-                )
-
-        except ImportError:
-            pass
-
+        providers += _extra_providers()
         return providers
+
+
+def _extra_providers() -> List[ConfigProvider]:
+    return _airflow_providers()
+
+
+def _airflow_providers() -> List[ConfigProvider]:
+    """Returns a list of configuration providers for an Airflow environment.
+
+    This function attempts to import Airflow to determine whether it 
+    is running in an Airflow environment. If Airflow is not installed,
+    an empty list is returned. If Airflow is installed, the function
+    returns a list containing the Airflow providers.
+    """
+    try:
+        import airflow  # noqa
+        from airflow.models import Variable # noqa
+        from dlt.common.configuration.providers.airflow import (
+            AirflowSecretsTomlProvider,
+            AIRFLOW_SECRETS_TOML_VARIABLE_KEY
+        )
+        from dlt.common.runtime import logger
+    except ImportError:
+        return []
+
+    secrets_toml_var = Variable.get(
+        AIRFLOW_SECRETS_TOML_VARIABLE_KEY, 
+        default_var=None
+    )
+
+    if secrets_toml_var is not None:
+        return [AirflowSecretsTomlProvider()]
+    else:
+        logger.warning(
+            f"Airflow variable '{AIRFLOW_SECRETS_TOML_VARIABLE_KEY}' "
+            "not found. AirflowSecretsTomlProvider will not be used."
+        )
+        return []
 
 
 # TODO: implement ConfigProvidersConfiguration and
