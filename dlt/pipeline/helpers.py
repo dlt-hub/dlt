@@ -2,7 +2,7 @@ from collections import defaultdict
 from typing import Callable, Tuple, Iterable, Optional, Any, cast, List, Iterator, Dict, Union
 
 # from jsonpath_ng import parse as jsonpath_parse, JSONPath
-from dlt.common import jsonpath
+from dlt.common.jsonpath import resolve_paths, TAnyJsonPath, compile_paths
 
 from dlt.common.exceptions import TerminalException
 from dlt.common.schema.utils import get_child_tables
@@ -10,7 +10,7 @@ from dlt.common.schema.utils import get_child_tables
 from dlt.pipeline.exceptions import PipelineStepFailed, PipelineHasPendingDataException
 from dlt.pipeline.typing import TPipelineStep
 from dlt.pipeline import Pipeline
-from dlt.common.pipeline import TSourceState
+from dlt.common.pipeline import TSourceState, _reset_resource_state, sources_state, _delete_source_state_keys
 
 
 def retry_load(retry_on_pipeline_steps: Tuple[TPipelineStep, ...] = ("load",)) -> Callable[[Exception], bool]:
@@ -44,9 +44,9 @@ class _DropCommand:
     def __init__(
         self,
         pipeline: Pipeline,
-        resources: Optional[Union[Iterable[str], str]] = None,
-        schema_name: str = None,
-        state_paths: Optional[Union[Iterable[jsonpath.TJsonPath], jsonpath.TJsonPath]] = None
+        resources: Union[Iterable[str], str] = (),
+        schema_name: Optional[str] = None,
+        state_paths: TAnyJsonPath = ()
     ) -> None:
         self.pipeline = pipeline
         # self.tables = set(tables or [])
@@ -65,8 +65,7 @@ class _DropCommand:
         self.drop_tables = list(reversed(drop_tables))
 
         # # List resource state keys to drop
-        # drop_resources = set(r for r in (t.get('resource') for t in self.drop_tables) if r)
-        self.drop_state_paths = jsonpath.compile_paths(state_paths or [])
+        self.drop_state_paths = compile_paths(state_paths)
         self.drop_resource_state_keys = resources
 
     def drop_destination_tables(self) -> None:
@@ -78,31 +77,18 @@ class _DropCommand:
             del self.schema_tables[tbl['name']]
         self.schema.bump_version()
 
-    def _list_state_paths(self, source_state: Dict[str, Any]) -> Iterator[str]:
-        for path in self.drop_state_paths:
-            matches = path.find(source_state)
-            for match in matches:
-                yield str(match.full_path)
-
-    def _drop_state_paths(self, source_state: Dict[str, Any]) -> None:
-        for path in self.drop_state_paths:
-            path.filter(lambda _: True, source_state)
+    def _list_state_paths(self, source_state: Dict[str, Any]) -> List[str]:
+        return resolve_paths(self.drop_state_paths, source_state)
 
     def drop_state_keys(self) -> None:
         state: TSourceState
         with self.pipeline.managed_state(extract_state=True, extract_unchanged=True) as state:  # type: ignore[assignment]
-            source_states = state.get("sources")
-            if not source_states:
-                return
+            source_states = sources_state(state).values()
             # TODO: Should only drop from source state matching the schema. Not possible atm
-            for source_state in source_states.values():
-                for p in self.drop_state_paths:  # Remove keys by JSON path
-                    p.filter(lambda _: True, source_state)
-                resources = source_state.get('resources')
-                if not resources:
-                    return
+            for source_state in source_states:
                 for key in self.drop_resource_state_keys:
-                    resources.pop(key, None)
+                    _reset_resource_state(key, source_state)
+                _delete_source_state_keys(self.drop_state_paths, source_state)
 
     def info(self) -> Any:
         return dict(
@@ -128,8 +114,8 @@ class _DropCommand:
 
 def drop(
     pipeline: Pipeline,
-    resources: Optional[Union[Iterable[str], str]] = None,
+    resources: Union[Iterable[str], str] = (),
     schema_name: str = None,
-    state_paths: Optional[Union[Iterable[str], str]] = None
+    state_paths: TAnyJsonPath = ()
 ) -> None:
     return _DropCommand(pipeline, resources, schema_name, state_paths)()

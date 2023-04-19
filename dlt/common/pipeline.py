@@ -19,6 +19,7 @@ from dlt.common.schema import Schema
 from dlt.common.schema.typing import TColumnKey, TColumnSchema, TWriteDisposition
 from dlt.common.storages.load_storage import LoadPackageInfo
 from dlt.common.typing import DictStrAny
+from dlt.common.jsonpath import delete_matches, TAnyJsonPath
 
 
 class ExtractInfo(NamedTuple):
@@ -261,6 +262,33 @@ def pipeline_state(container: Container, initial_default: TPipelineState = None)
             return proxy.pipeline().state, False
 
 
+def sources_state(pipeline_state_: Optional[TPipelineState] = None, /) -> DictStrAny:
+    global _last_full_state
+
+    # # get the source name from the section context
+    # source_section: str = None
+    # with contextlib.suppress(ContextDefaultCannotBeCreated):
+    #     sections_context = container[ConfigSectionContext]
+    #     with contextlib.suppress(ValueError):
+    #         source_section = sections_context.source_section()
+
+    # if not source_section:
+    #     raise SourceSectionNotAvailable()
+
+    if pipeline_state_ is None:
+        state, _ = pipeline_state(Container())
+    else:
+        state = pipeline_state_
+    if state is None:
+        raise PipelineStateNotAvailable()
+
+    sources_state_: DictStrAny = state.setdefault(known_sections.SOURCES, {})  # type: ignore
+
+    # allow inspection of last returned full state
+    _last_full_state = state
+    return sources_state_
+
+
 def source_state() -> DictStrAny:
     """Returns a dictionary with the source state. Such state is preserved across pipeline runs and may be used to implement incremental loads.
 
@@ -309,19 +337,24 @@ def source_state() -> DictStrAny:
     if not source_section:
         raise SourceSectionNotAvailable()
 
-    state, _ = pipeline_state(container)
-    if state is None:
-        raise PipelineStateNotAvailable(source_section)
+    try:
+        state = sources_state()
+    except PipelineStateNotAvailable as e:
+        # Reraise with source section
+        raise PipelineStateNotAvailable(source_section) from e
 
-    source_state: DictStrAny = state.setdefault(known_sections.SOURCES, {})  # type: ignore
-    if source_section:
-        source_state = source_state.setdefault(source_section, {})
+    return state.setdefault(source_section, {})  # type: ignore[no-any-return]
 
-    # allow inspection of last returned full state
-    _last_full_state = state
-    return source_state
 
 _last_full_state: TPipelineState = None
+
+
+def _delete_source_state_keys(key: TAnyJsonPath, source_state_: Optional[DictStrAny] = None, /) -> None:
+    """Remove one or more key from the source state.
+    The `key` can be any number of keys and/or json paths to be removed.
+    """
+    state_ = source_state() if source_state_ is None else source_state_
+    delete_matches(key, state_)
 
 
 def _resource_state(resource_name: str) -> DictStrAny:
@@ -331,9 +364,14 @@ def _resource_state(resource_name: str) -> DictStrAny:
     return source_state().setdefault('resources', {}).setdefault(resource_name, {})  # type: ignore
 
 
-def _reset_resource_state(resource_name: str) -> None:
-    """Alpha version of the resource state. Resets the resource state"""
-    state_ = source_state()
+def _reset_resource_state(resource_name: str, source_state_: Optional[DictStrAny] = None, /) -> None:
+    """Alpha version of the resource state. Resets the resource state
+
+    Args:
+        resource_name: The resource key to reset
+        state: Optional source state dictionary to operate on. Use when working outside source context.
+    """
+    state_ = source_state() if source_state_ is None else source_state_
     if "resources" in state_ and resource_name in state_["resources"]:
         state_["resources"].pop(resource_name)
 

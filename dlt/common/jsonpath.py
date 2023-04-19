@@ -6,7 +6,8 @@ from dlt.common.typing import DictStrAny
 from jsonpath_ng import parse as _parse, JSONPath
 
 
-TJsonPath = Union[str, JSONPath]
+TJsonPath = Union[str, JSONPath]  # Jsonpath compiled or str
+TAnyJsonPath = Union[TJsonPath, Iterable[TJsonPath]]  # A single or multiple jsonpaths
 
 
 def compile_path(s: TJsonPath) -> JSONPath:
@@ -15,13 +16,13 @@ def compile_path(s: TJsonPath) -> JSONPath:
     return _parse(s)
 
 
-def compile_paths(s: Union[TJsonPath, Iterable[TJsonPath]]) -> List[JSONPath]:
+def compile_paths(s: TAnyJsonPath) -> List[JSONPath]:
     if isinstance(s, str) or not isinstance(s, Iterable):
         s = [s]
     return [compile_path(p) for p in s]
 
 
-def delete_matches(paths: Union[TJsonPath, Iterable[TJsonPath]], data: DictStrAny) -> None:
+def delete_matches(paths: TAnyJsonPath, data: DictStrAny) -> None:
     """Remove all keys from `data` matching any of given json path(s).
     Filtering is done in place."""
     paths = compile_paths(paths)
@@ -35,7 +36,7 @@ def find_values(path: TJsonPath, data: DictStrAny) -> List[Any]:
     return [m.value for m in path.find(data)]
 
 
-def resolve_paths(paths: Union[TJsonPath, Iterable[TJsonPath]], data: DictStrAny) -> List[str]:
+def resolve_paths(paths: TAnyJsonPath, data: DictStrAny) -> List[str]:
     """Return a list of paths resolved against `data`. The return value is a list of strings.
 
     Example:

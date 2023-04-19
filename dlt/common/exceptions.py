@@ -1,4 +1,4 @@
-from typing import Any, AnyStr, Sequence
+from typing import Any, AnyStr, Sequence, Optional
 
 
 class DltException(Exception):
@@ -154,7 +154,7 @@ class PipelineException(DltException):
 
 
 class PipelineStateNotAvailable(PipelineException):
-    def __init__(self, source_name: str) -> None:
+    def __init__(self, source_name: Optional[str] = None) -> None:
         if source_name:
             msg = f"The source {source_name} requested the access to pipeline state but no pipeline is active right now."
         else:
