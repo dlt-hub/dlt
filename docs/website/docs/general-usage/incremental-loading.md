@@ -117,7 +117,41 @@ Behind the scenes, `dlt` will deduplicate the results ie. in case the last issue
 ```
 We just yield all the events and `dlt` does the filtering (using `id` column declared as `primary_key`). A small optimization will stop requesting subsequent result pages, when `created_at` of the last element in the page is smaller than `last_created_at.initial_value`. `last_created_at.initial_value` keeps the initial `last_value` from the beginning of a run.
 
-`dlt.sources.incremental` allows to define custom `last_value` function. This lets you define `last_value` on complex types ie. dictionaries and store indexes of last values, not just simple types. The `last_value` argument is a [JSON Path](https://github.com/json-path/JsonPath#operators) and let's you select nested and complex data (including the whole data item when `$` is used).
+`dlt.sources.incremental` allows to define custom `last_value` function. This lets you define `last_value` on complex types ie. dictionaries and store indexes of last values, not just simple types. The `last_value` argument is a [JSON Path](https://github.com/json-path/JsonPath#operators) and let's you select nested and complex data (including the whole data item when `$` is used). Example below creates last value which is a dictionary holding a max `created_at` value for each created table name:
+
+```python
+  def by_event_type(event):
+      last_value = None
+      if len(event) == 1:
+          item, = event
+      else:
+          item, last_value = event
+
+      if last_value is None:
+          last_value = {}
+      else:
+          last_value = dict(last_value)
+      item_type = item["type"]
+      last_value[item_type] = max(item["created_at"], last_value.get(item_type, "1970-01-01T00:00:00Z"))
+      return last_value
+
+  @dlt.resource(primary_key="id", table_name=lambda i: i['type'])
+  def get_events(last_created_at = dlt.sources.incremental("$", last_value_func=by_event_type)):
+      with open("tests/normalize/cases/github.events.load_page_1_duck.json", "r", encoding="utf-8") as f:
+          yield json.load(f)
+```
+
+`dlt.sources.incremental` let's you optionally set a `primary_key` that is used exclusively to deduplicate and which does not becomes a table hint. The same setting let's you disable the deduplication altogether when empty tuple is passed. Below we pass `primary_key` directly to `incremental` to disable deduplication. That overrides `delta` primary_key set in the resource:
+
+```python
+@dlt.resource(primary_key="delta")
+  def some_data(last_timestamp=dlt.sources.incremental("item.ts", primary_key=())):
+      for i in range(-10, 10):
+          yield {"delta": i, "item": {"ts": pendulum.now().timestamp()}}
+```
+
+
+
 
 ### Doing a full refresh
 

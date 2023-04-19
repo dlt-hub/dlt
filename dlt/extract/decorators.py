@@ -16,7 +16,7 @@ from dlt.common.schema.typing import TColumnKey, TColumnName, TTableSchemaColumn
 from dlt.common.storages.exceptions import SchemaNotFoundError
 from dlt.common.storages.schema_storage import SchemaStorage
 from dlt.common.typing import AnyFun, ParamSpec, Concatenate, TDataItem, TDataItems
-from dlt.common.utils import get_callable_name, is_inner_callable
+from dlt.common.utils import get_callable_name, get_module_name, is_inner_callable
 from dlt.extract.exceptions import InvalidTransformerDataTypeGeneratorFunctionRequired, ResourceFunctionExpected, ResourceInnerCallableConfigWrapDisallowed, SourceDataIsNone, SourceIsAClassTypeError, SourceNotAFunction, SourceSchemaNotAvailable
 from dlt.extract.incremental import IncrementalResourceWrapper
 
@@ -441,7 +441,7 @@ def _get_source_for_inner_function(f: AnyFun) -> Optional[SourceInfo]:
 def _get_source_section_name(m: ModuleType) -> str:
     if hasattr(m, "__source_name__"):
         return cast(str, m.__source_name__)
-    return m.__name__.split(".")[-1]
+    return get_module_name(m)
 
 
 def get_source_schema() -> Schema:

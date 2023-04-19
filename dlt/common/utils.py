@@ -7,6 +7,7 @@ import secrets
 from contextlib import contextmanager
 from functools import wraps
 from os import environ
+from types import ModuleType
 import zlib
 
 from typing import Any, ContextManager, Dict, Iterator, Optional, Sequence, TypeVar, Mapping, List, Union, Counter
@@ -307,6 +308,15 @@ def obfuscate_pseudo_secret(pseudo_secret: str, pseudo_key: bytes) -> str:
 
 def reveal_pseudo_secret(obfuscated_secret: str, pseudo_key: bytes) -> str:
     return bytes([_a ^ _b for _a, _b in zip(base64.b64decode(obfuscated_secret.encode("ascii"), validate=True), pseudo_key*250)]).decode("utf-8")
+
+
+def get_module_name(m: ModuleType) -> str:
+    """Gets module name from module with a fallback for executing module __main__"""
+    if m.__name__ == "__main__":
+        module_file = os.path.basename(m.__file__)
+        module_name, _ = os.path.splitext(module_file)
+        return module_name
+    return m.__name__.split(".")[-1]
 
 
 def derives_from_class_of_name(o: object, name: str) -> bool:

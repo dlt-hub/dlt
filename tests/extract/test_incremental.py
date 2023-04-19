@@ -31,8 +31,7 @@ def test_single_items_last_value_state_is_updated() -> None:
 
     p = dlt.pipeline(pipeline_name=uniq_id())
     p.extract(some_data())
-
-    s = p.state["sources"]["test_incremental"]['resources']['some_data']['incremental']['created_at']
+    s = some_data.state['incremental']['created_at']
     assert s['last_value'] == 426
 
 
@@ -45,7 +44,7 @@ def test_single_items_last_value_state_is_updated_transformer() -> None:
     p = dlt.pipeline(pipeline_name=uniq_id())
     p.extract(dlt.resource([1,2,3], name="table") | some_data())
 
-    s = p.state["sources"]["test_incremental"]['resources']['some_data']['incremental']['created_at']
+    s = some_data().state['incremental']['created_at']
     assert s['last_value'] == 426
 
 
@@ -528,6 +527,19 @@ def test_incremental_explicit_primary_key() -> None:
     with pytest.raises(IncrementalPrimaryKeyMissing) as py_ex:
         list(some_data())
     assert py_ex.value.primary_key_column == "DELTA"
+
+
+def test_incremental_explicit_disable_unique_check() -> None:
+    @dlt.resource(primary_key="delta")
+    def some_data(last_timestamp=dlt.sources.incremental("item.ts", primary_key=())):
+        for i in range(-10, 10):
+            yield {"delta": i, "item": {"ts": pendulum.now().timestamp()}}
+
+    with Container().injectable_context(StateInjectableContext(state={})):
+        s = some_data()
+        list(s)
+        # no unique hashes at all
+        assert s.state["incremental"]["item.ts"]["unique_hashes"] == []
 
 
 def test_apply_hints_incremental() -> None:

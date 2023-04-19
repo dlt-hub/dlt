@@ -148,6 +148,8 @@ class SupportsPipeline(Protocol):
     """A configuration of runtime options like logging level and format and various tracing options"""
     working_dir: str
     """A working directory of the pipeline"""
+    pipeline_salt: str
+    """A configurable pipeline secret to be used as a salt or a seed for encryption key"""
 
     @property
     def state(self) -> TPipelineState:

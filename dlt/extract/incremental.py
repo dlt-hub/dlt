@@ -73,7 +73,7 @@ class Incremental(FilterItem, BaseConfiguration, Generic[TCursorValue]):
         cursor_path: The name or a JSON path to an cursor field. Uses the same names of fields as in your JSON document, before they are normalized to store in the database.
         initial_value: Optional value used for `last_value` when no state is available, e.g. on the first run of the pipeline. If not provided `last_value` will be `None` on the first run.
         last_value_func: Callable used to determine which cursor value to save in state. It is called with a list of the stored state value and all cursor vals from currently processing items. Default is `max`
-        primary_key: Optional primary key used to deduplicate data. If not provided, a primary key defined by the resource will be used. Pass a tuple to define a compound key
+        primary_key: Optional primary key used to deduplicate data. If not provided, a primary key defined by the resource will be used. Pass a tuple to define a compound key. Pass empty tuple to disable unique checks
     """
     cursor_path: str = None
     initial_value: Optional[Any] = None
@@ -154,8 +154,10 @@ class Incremental(FilterItem, BaseConfiguration, Generic[TCursorValue]):
         try:
             if self.primary_key:
                 return digest128(json.dumps(resolve_column_value(self.primary_key, row), sort_keys=True))
-            else:
+            elif self.primary_key is None:
                 return digest128(json.dumps(row, sort_keys=True))
+            else:
+                return None
         except KeyError as k_err:
             raise IncrementalPrimaryKeyMissing(self.resource_name, k_err.args[0], row)
 
@@ -176,10 +178,12 @@ class Incremental(FilterItem, BaseConfiguration, Generic[TCursorValue]):
             # we store row id for all records with the current "last_value" in state and use it to deduplicate
             if self.last_value_func((row_value, )) == last_value:
                 unique_value = self.unique_value(row)
-                if unique_value in incremental_state['unique_hashes']:
-                    return False
-                # add new hash only if the record row id is same as current last value
-                incremental_state['unique_hashes'].append(unique_value)
+                # if unique value exists then use it to deduplicate
+                if unique_value:
+                    if unique_value in incremental_state['unique_hashes']:
+                        return False
+                    # add new hash only if the record row id is same as current last value
+                    incremental_state['unique_hashes'].append(unique_value)
                 return True
             # skip the record that is not a last_value or new_value: that record was already processed
             check_values = (row_value,) + ((self.start_value,) if self.start_value is not None else ())
@@ -189,8 +193,10 @@ class Incremental(FilterItem, BaseConfiguration, Generic[TCursorValue]):
             else:
                 return True
         if new_value != last_value:
+            incremental_state["last_value"] = new_value
             unique_value = self.unique_value(row)
-            incremental_state.update({'last_value': new_value, 'unique_hashes': [unique_value]})
+            if unique_value:
+                incremental_state["unique_hashes"] = [unique_value]
         return True
 
     def bind(self, pipe: SupportsPipe) -> "Incremental[TCursorValue]":
@@ -282,6 +288,6 @@ class IncrementalResourceWrapper(FilterItem):
     def __call__(self, item: TDataItems, meta: Any = None) -> Optional[TDataItems]:
         if not self._incremental:
             return item
-        if not self._incremental.primary_key:
+        if self._incremental.primary_key is None:
             self._incremental.primary_key = self.primary_key
         return self._incremental(item, meta)

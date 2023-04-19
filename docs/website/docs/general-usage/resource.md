@@ -163,10 +163,10 @@ for user in users().add_filter(lambda user: user["user_id"] != "me").add_map(ano
 ```
 
 ### Adjust schema
-You can change the schema of a resource, be it standalone or as a part of a source. Look for method named `apply_hints` which takes the same arguments as resource decorator. Obviously you should call this method before data is extracted from the resource. Example below converts an `append` resource loading the `users` table into merge resource that will keep just one updated record per `user_id`:
+You can change the schema of a resource, be it standalone or as a part of a source. Look for method named `apply_hints` which takes the same arguments as resource decorator. Obviously you should call this method before data is extracted from the resource. Example below converts an `append` resource loading the `users` table into [merge](incremental-loading.md#merge-incremental-loading) resource that will keep just one updated record per `user_id`. It also adds ["last value" incremental loading](incremental-loading.md#incremental-loading-with-last-value) on `created_at` column to prevent requesting again the already loaded records. :
 ```python
 tables = sql_database()
-tables.users.apply_hints(write_disposition="merge", primary_key="user_id")
+tables.users.apply_hints(write_disposition="merge", primary_key="user_id", incremental=dlt.sources.incremental("updated_at"))
 pipeline.run(tables)
 ```
 
