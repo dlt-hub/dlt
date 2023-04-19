@@ -1077,7 +1077,7 @@ class Pipeline(SupportsPipeline):
         return restored_schemas
 
     @contextmanager
-    def managed_state(self, *, extract_state: bool = False) -> Iterator[TPipelineState]:
+    def managed_state(self, *, extract_state: bool = False, extract_unchanged: bool = False) -> Iterator[TPipelineState]:
         # load or restore state
         state = self._get_state()
         # TODO: we should backup schemas here
@@ -1105,6 +1105,10 @@ class Pipeline(SupportsPipeline):
 
             # check if any state element was changed
             merged_state = merge_state_if_changed(backup_state, state)
+
+            # Force exctract when state hasn't changed
+            if extract_unchanged:
+                local_state.pop('_last_extracted_at', None)
 
             # extract state only when there's change in the state or state was not yet extracted AND we actually want to do it
             if (merged_state or "_last_extracted_at" not in local_state) and extract_state:

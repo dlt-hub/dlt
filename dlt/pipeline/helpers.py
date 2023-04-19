@@ -75,6 +75,7 @@ class _DropCommand:
     def delete_pipeline_tables(self) -> None:
         for tbl in self.drop_tables:
             del self.schema_tables[tbl['name']]
+        self.schema.bump_version()
 
     def _list_state_paths(self, source_state: Dict[str, Any]) -> Iterator[str]:
         for path in self.drop_state_paths:
@@ -88,7 +89,7 @@ class _DropCommand:
 
     def drop_state_keys(self) -> None:
         state: TSourceState
-        with self.pipeline.managed_state(extract_state=True) as state:  # type: ignore[assignment]
+        with self.pipeline.managed_state(extract_state=True, extract_unchanged=True) as state:  # type: ignore[assignment]
             source_states = state.get("sources")
             if not source_states:
                 return
@@ -111,13 +112,18 @@ class _DropCommand:
         if self.pipeline.has_pending_data:  # Raise when there are pending extracted/load files to prevent conflicts
             raise PipelineHasPendingDataException(self.pipeline.pipeline_name, self.pipeline.pipelines_dir)
         self.delete_pipeline_tables()
-        self.schema.bump_version()
         self.drop_destination_tables()
         self.drop_state_keys()
         self.pipeline.schemas.save_schema(self.schema)
         # Send updated state to destination
         self.pipeline.normalize()
-        self.pipeline.load()
+        self.pipeline._get_load_storage().delete_completed_package
+        try:
+            self.pipeline.load(raise_on_failed_jobs=True)
+        except Exception:
+            # Clear extracted state on failure so command can run again
+            self.pipeline._get_load_storage().wipe_normalized_packages()
+            raise
 
 
 def drop(
