@@ -1,7 +1,8 @@
 from collections import defaultdict
 from typing import Callable, Tuple, Iterable, Optional, Any, cast, List, Iterator, Dict, Union
 
-from jsonpath_ng import parse as jsonpath_parse, JSONPath
+# from jsonpath_ng import parse as jsonpath_parse, JSONPath
+from dlt.common import jsonpath
 
 from dlt.common.exceptions import TerminalException
 from dlt.common.schema.utils import get_child_tables
@@ -45,7 +46,7 @@ class _DropCommand:
         pipeline: Pipeline,
         resources: Optional[Union[Iterable[str], str]] = None,
         schema_name: str = None,
-        state_paths: Optional[Union[Iterable[str], str]] = None
+        state_paths: Optional[Union[Iterable[jsonpath.TJsonPath], jsonpath.TJsonPath]] = None
     ) -> None:
         self.pipeline = pipeline
         # self.tables = set(tables or [])
@@ -65,7 +66,7 @@ class _DropCommand:
 
         # # List resource state keys to drop
         # drop_resources = set(r for r in (t.get('resource') for t in self.drop_tables) if r)
-        self.drop_state_paths: List[JSONPath] = [jsonpath_parse(p) for p in state_paths or []]
+        self.drop_state_paths = jsonpath.compile_paths(state_paths or [])
         self.drop_resource_state_keys = resources
 
     def drop_destination_tables(self) -> None:
