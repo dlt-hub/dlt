@@ -94,7 +94,7 @@ else:
 
 
 def write_load_status_page(pipeline: Pipeline) -> None:
-    """Display pipeline loading information. Will be moved to python-dlt once tested"""
+    """Display pipeline loading information. Will be moved to dlt package once tested"""
 
     @cache_data(ttl=600)
     def _query_data(query: str, schema_name: str = None) -> pd.DataFrame:
