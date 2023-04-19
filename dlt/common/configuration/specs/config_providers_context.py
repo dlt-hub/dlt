@@ -55,7 +55,7 @@ def _extra_providers() -> List[ConfigProvider]:
 def _airflow_providers() -> List[ConfigProvider]:
     """Returns a list of configuration providers for an Airflow environment.
 
-    This function attempts to import Airflow to determine whether it 
+    This function attempts to import Airflow to determine whether it
     is running in an Airflow environment. If Airflow is not installed,
     an empty list is returned. If Airflow is installed, the function
     returns a list containing the Airflow providers.
@@ -72,7 +72,7 @@ def _airflow_providers() -> List[ConfigProvider]:
         return []
 
     secrets_toml_var = Variable.get(
-        AIRFLOW_SECRETS_TOML_VARIABLE_KEY, 
+        AIRFLOW_SECRETS_TOML_VARIABLE_KEY,
         default_var=None
     )
 
