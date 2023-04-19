@@ -69,7 +69,10 @@ class SqlClientBase(ABC, Generic[TNativeConn]):
         self.execute_sql(sql)
 
     def drop_tables(self, *tables: str) -> None:
-        sql = "DROP TABLE " + ", ".join(self.make_qualified_table_name(table) for table in tables) + ";"
+        if not tables:
+            return
+        clauses = (f"DROP TABLE IF EXISTS {self.make_qualified_table_name(table)}" for table in tables)
+        sql = ";\n".join(clauses)
         self.execute_sql(sql)
 
     @abstractmethod
