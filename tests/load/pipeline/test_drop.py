@@ -120,6 +120,7 @@ def test_drop_command_resources_and_state(destination_name: str) -> None:
 
 @pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
 def test_drop_destination_tables_fails(destination_name: str) -> None:
+    """Fail on drop tables. Command runs again."""
     source = droppable_source()
     pipeline = dlt.pipeline(pipeline_name='drop_test_' + uniq_id(), destination=destination_name, dataset_name='drop_data_'+uniq_id())
     pipeline.run(source)
@@ -127,6 +128,26 @@ def test_drop_destination_tables_fails(destination_name: str) -> None:
     attached = _attach(pipeline)
 
     with mock.patch.object(helpers._DropCommand, 'drop_destination_tables', side_effect=RuntimeError("Something went wrong")):
+        with pytest.raises(RuntimeError):
+            helpers.drop(attached, resources=('droppable_a', 'droppable_b'))
+
+    attached = _attach(pipeline)
+    helpers.drop(attached, resources=('droppable_a', 'droppable_b'))
+
+    assert_dropped_resources(attached, ['droppable_a', 'droppable_b'])
+    assert_destination_state_loaded(attached)
+
+
+@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
+def test_fail_after_drop_tables(destination_name: str) -> None:
+    """Fail directly after drop tables. Command runs again ignoring destination tables missing."""
+    source = droppable_source()
+    pipeline = dlt.pipeline(pipeline_name='drop_test_' + uniq_id(), destination=destination_name, dataset_name='drop_data_'+uniq_id())
+    pipeline.run(source)
+
+    attached = _attach(pipeline)
+
+    with mock.patch.object(helpers._DropCommand, 'drop_state_keys', side_effect=RuntimeError("Something went wrong")):
         with pytest.raises(RuntimeError):
             helpers.drop(attached, resources=('droppable_a', 'droppable_b'))
 
