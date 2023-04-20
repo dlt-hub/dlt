@@ -18,7 +18,7 @@
   --ifm-color-primary-lightest: #FFFFFF;
   --ifm-font-family-base: 'Karla';
   --ifm-code-font-size: 95%;
-  --docusaurus-highlighted-code-line-bg: #4C4898;
+  --docusaurus-highlighted-code-line-bg: #000000;
   --ifm-heading-color: inherit;
   --ifm-font-color-base: #F3FF36;
   --ifm-gradient: #191937;
@@ -53,6 +53,7 @@ body {
 
 h1 {
   font-family: "Space Mono", sans-serif;
+  font-size: 4rem;
 }
 
 .navbar {
@@ -93,7 +94,7 @@ h1 {
 .colab-demo {
   background: var(--ifm-color-primary);
   border-radius: 8px;
-  color: #fff;
+  color: #F3FF36;
   margin-right: 2px;
   margin-left: 10px;
   padding: 6px 10px 6px 17px;
@@ -115,7 +116,7 @@ h1 {
 } */
 .colab-demo:hover {
   background: var(--ifm-color-primary-light);
-  color: #fff;
+  color: var(--ifm-primary-dark);
 }
 
 .col--3 {
@@ -136,7 +137,6 @@ h1 {
 .github-navbar>svg {
   display: none;
 }
-
 
 .github-navbar:hover, .slack-navbar:hover {
   opacity: 0.6;
