@@ -5601,4 +5601,4 @@ redshift = ["psycopg2-binary", "psycopg2cffi"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8,<4.0"
-content-hash = "552cc8dda00a95859d54d2c523834c1a6effc03ada952f6d5de9a93a15a3005b"
+content-hash = "9532e472bac8995719e926ac1cee2169bef0e1176a91cafefe5c7f288c14b86c"
