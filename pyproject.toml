@@ -111,6 +111,9 @@ types-click = "^7.1.8"
 pandas = "^1.5.3"
 sqlfluff = "^1.4.5"
 
+[tool.poetry.group.airflow.dependencies]
+apache-airflow = "^2.5.3"
+
 [build-system]
 requires = ["poetry-core>=1.0.8"]
 build-backend = "poetry.core.masonry.api"
