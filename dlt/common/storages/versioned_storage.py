@@ -48,7 +48,8 @@ class VersionedStorage:
         return self._load_version()
 
     def _load_version(self) -> semver.VersionInfo:
-        return self.storage.load(VersionedStorage.VERSION_FILE)
+        version_str = self.storage.load(VersionedStorage.VERSION_FILE)
+        return semver.VersionInfo.parse(version_str)
 
     def _save_version(self, version: semver.VersionInfo) -> None:
         self.storage.save(VersionedStorage.VERSION_FILE, str(version))
