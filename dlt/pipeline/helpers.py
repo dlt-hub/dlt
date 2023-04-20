@@ -8,6 +8,7 @@ from dlt.common.jsonpath import resolve_paths, TAnyJsonPath, compile_paths
 from dlt.common.exceptions import TerminalException
 from dlt.common.schema.utils import get_child_tables, group_tables_by_resource, compile_simple_regexes
 from dlt.common.schema.typing import TSimpleRegex
+from dlt.common.typing import REPattern
 
 from dlt.pipeline.exceptions import PipelineStepFailed, PipelineHasPendingDataException
 from dlt.pipeline.typing import TPipelineStep
@@ -51,24 +52,25 @@ class _DropCommand:
         state_paths: TAnyJsonPath = ()
     ) -> None:
         self.pipeline = pipeline
-        # self.tables = set(tables or [])
         if isinstance(resources, str):
             resources = [resources]
         if isinstance(state_paths, str):
             state_paths = [state_paths]
 
-        resources = set(resources)
-        self.resource_pattern = compile_simple_regexes(TSimpleRegex(r) for r in resources)
         self.schema = pipeline.schemas[schema_name or pipeline.default_schema_name].clone()
         self.schema_tables = self.schema.tables
 
-        resource_tables = group_tables_by_resource(self.schema_tables, pattern=self.resource_pattern)
-        self.drop_tables = list(chain.from_iterable(resource_tables.values()))
-        self.drop_tables.reverse()
+        resources = set(resources)
+        if resources:
+            self.resource_pattern = compile_simple_regexes(TSimpleRegex(r) for r in resources)
+            resource_tables = group_tables_by_resource(self.schema_tables, pattern=self.resource_pattern)
+            self.drop_tables = list(chain.from_iterable(resource_tables.values()))
+            self.drop_tables.reverse()
+        else:
+            self.resource_pattern = None
+            self.drop_tables = []
 
-        # # List resource state keys to drop
         self.drop_state_paths = compile_paths(state_paths)
-        self.drop_resource_state_keys = resources
 
     def drop_destination_tables(self) -> None:
         with self.pipeline._get_destination_client(self.schema) as client:
@@ -100,6 +102,9 @@ class _DropCommand:
     def __call__(self) -> None:
         if self.pipeline.has_pending_data:  # Raise when there are pending extracted/load files to prevent conflicts
             raise PipelineHasPendingDataException(self.pipeline.pipeline_name, self.pipeline.pipelines_dir)
+        if self.resource_pattern is None and not self.drop_state_paths:
+            return  # TODO: Nothing to drop, return info
+
         self.delete_pipeline_tables()
         self.drop_destination_tables()
         self.drop_state_keys()
@@ -112,6 +117,7 @@ class _DropCommand:
             # Clear extracted state on failure so command can run again
             self.pipeline._get_load_storage().wipe_normalized_packages()
             raise
+        # TODO: Return info
 
 
 def drop(

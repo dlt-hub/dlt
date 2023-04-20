@@ -196,6 +196,22 @@ def test_resource_regex(destination_name: str) -> None:
     assert_destination_state_loaded(attached)
 
 
+@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
+def test_drop_nothing(destination_name: str) -> None:
+    """No resources, no state keys. Nothing is changed."""
+    source = droppable_source()
+    pipeline = dlt.pipeline(pipeline_name='drop_test_' + uniq_id(), destination=destination_name, dataset_name='drop_data_'+uniq_id())
+    pipeline.run(source)
+
+    attached = _attach(pipeline)
+    previous_state = dict(attached.state)
+
+    helpers.drop(attached)
+
+    assert_dropped_resources(attached, [])
+    assert previous_state == attached.state
+
+
 if __name__ == '__main__':
     import pytest
     pytest.main(['-k', 'load_step_fails', 'tests/load/pipeline/test_drop.py', '--pdb', '-s'])
