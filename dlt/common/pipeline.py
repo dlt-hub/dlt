@@ -18,7 +18,7 @@ from dlt.common.exceptions import DestinationHasFailedJobs, PipelineStateNotAvai
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TColumnKey, TColumnSchema, TWriteDisposition
 from dlt.common.storages.load_storage import LoadPackageInfo
-from dlt.common.typing import DictStrAny
+from dlt.common.typing import DictStrAny, REPattern
 from dlt.common.jsonpath import delete_matches, TAnyJsonPath
 
 
@@ -374,6 +374,14 @@ def _reset_resource_state(resource_name: str, source_state_: Optional[DictStrAny
     state_ = source_state() if source_state_ is None else source_state_
     if "resources" in state_ and resource_name in state_["resources"]:
         state_["resources"].pop(resource_name)
+
+
+def _get_matching_resources(pattern: REPattern, source_state_: Optional[DictStrAny] = None, /) -> List[str]:
+    """Get all resource names in state matching the regex pattern"""
+    state_ = source_state() if source_state_ is None else source_state_
+    if "resources" not in state_:
+        return []
+    return [key for key in state_["resources"] if pattern.match(key)]
 
 
 def get_dlt_pipelines_dir() -> str:

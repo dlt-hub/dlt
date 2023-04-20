@@ -1,16 +1,18 @@
 from collections import defaultdict
 from typing import Callable, Tuple, Iterable, Optional, Any, cast, List, Iterator, Dict, Union
+from itertools import chain
 
 # from jsonpath_ng import parse as jsonpath_parse, JSONPath
 from dlt.common.jsonpath import resolve_paths, TAnyJsonPath, compile_paths
 
 from dlt.common.exceptions import TerminalException
-from dlt.common.schema.utils import get_child_tables
+from dlt.common.schema.utils import get_child_tables, group_tables_by_resource, compile_simple_regexes
+from dlt.common.schema.typing import TSimpleRegex
 
 from dlt.pipeline.exceptions import PipelineStepFailed, PipelineHasPendingDataException
 from dlt.pipeline.typing import TPipelineStep
 from dlt.pipeline import Pipeline
-from dlt.common.pipeline import TSourceState, _reset_resource_state, sources_state, _delete_source_state_keys
+from dlt.common.pipeline import TSourceState, _reset_resource_state, sources_state, _delete_source_state_keys, _get_matching_resources
 
 
 def retry_load(retry_on_pipeline_steps: Tuple[TPipelineStep, ...] = ("load",)) -> Callable[[Exception], bool]:
@@ -44,7 +46,7 @@ class _DropCommand:
     def __init__(
         self,
         pipeline: Pipeline,
-        resources: Union[Iterable[str], str] = (),
+        resources: Union[Iterable[Union[str, TSimpleRegex]], Union[str, TSimpleRegex]] = (),
         schema_name: Optional[str] = None,
         state_paths: TAnyJsonPath = ()
     ) -> None:
@@ -54,15 +56,15 @@ class _DropCommand:
             resources = [resources]
         if isinstance(state_paths, str):
             state_paths = [state_paths]
-        resources = set(resources or [])
+
+        resources = set(resources)
+        self.resource_pattern = compile_simple_regexes(TSimpleRegex(r) for r in resources)
         self.schema = pipeline.schemas[schema_name or pipeline.default_schema_name].clone()
         self.schema_tables = self.schema.tables
 
-        drop_tables = []
-        for tbl in self.schema_tables.values():
-            if tbl.get('resource') in resources:
-                drop_tables += get_child_tables(self.schema_tables, tbl['name'])
-        self.drop_tables = list(reversed(drop_tables))
+        resource_tables = group_tables_by_resource(self.schema_tables, pattern=self.resource_pattern)
+        self.drop_tables = list(chain.from_iterable(resource_tables.values()))
+        self.drop_tables.reverse()
 
         # # List resource state keys to drop
         self.drop_state_paths = compile_paths(state_paths)
@@ -86,7 +88,7 @@ class _DropCommand:
             source_states = sources_state(state).values()
             # TODO: Should only drop from source state matching the schema. Not possible atm
             for source_state in source_states:
-                for key in self.drop_resource_state_keys:
+                for key in _get_matching_resources(self.resource_pattern, source_state):
                     _reset_resource_state(key, source_state)
                 _delete_source_state_keys(self.drop_state_paths, source_state)
 

@@ -180,6 +180,21 @@ def test_load_step_fails(destination_name: str) -> None:
     assert_destination_state_loaded(attached)
 
 
+@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
+def test_resource_regex(destination_name: str) -> None:
+    source = droppable_source()
+    pipeline = dlt.pipeline(pipeline_name='drop_test_' + uniq_id(), destination=destination_name, dataset_name='drop_data_'+uniq_id())
+    pipeline.run(source)
+
+    attached = _attach(pipeline)
+
+    helpers.drop(attached, resources=['re:.+_b', 're:.+_a'])
+
+    attached = _attach(pipeline)
+
+    assert_dropped_resources(attached, ['droppable_a', 'droppable_b'])
+    assert_destination_state_loaded(attached)
+
 
 if __name__ == '__main__':
     import pytest
