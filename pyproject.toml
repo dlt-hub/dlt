@@ -115,7 +115,7 @@ sqlfluff = "^1.4.5"
 optional = true
 
 [tool.poetry.group.airflow.dependencies]
-apache-airflow = "*"
+apache-airflow = "^2.5.3"
 
 [build-system]
 requires = ["poetry-core>=1.0.8"]
