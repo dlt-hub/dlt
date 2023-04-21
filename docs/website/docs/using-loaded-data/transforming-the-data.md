@@ -70,35 +70,19 @@ for m in models:
 
 ## Transforming the data using the `dlt` SQL client
 
-A simple alternative to dbt is to query the data using the `dlt` native sql client and then performing the transformations using Python.
-
+A simple alternative to dbt is to query the data using the `dlt` sql client and then performing the transformations using Python. The `execute_sql` method allows you to execute any SQL statement, including statements that change the database schema or data in the tables. In the example below we insert a row into `customers` table. Note that the syntax is the same as for any standard `dbapi` connection.
 ```python
-pipeline = dlt.pipeline(destination="bigquery", dataset_name="tweets")
+pipeline = dlt.pipeline(destination="bigquery", dataset_name="crm")
 try:
     with pipeline.sql_client() as client:
-        res = client.execute_sql(last_value_query)
-        last_value = res[0][0]
+        client.sql_client.execute_sql(f"INSERT INTO customers VALUES (%s, %s, %s)", 10, "Fred", "fred@fred.com")
 ```
-
-## Transforming the data using Pandas
-
-It is also possible to carry out data transformations directly in Pandas. For this, you will need to define a function that can convert the results of a sql query into a Pandas DataFrame. 
-
-As an example for how to do this:
-1. Construct a function `query_results_to_df` and pass as input parameters a sql client (e.g., the dlt sql client) and the query that you want to execute.
-2. Convert the results of the query into a dataframe by including the rows returned from `curr.fetchall()` inside the `_wrap_result` method in Pandas.
+In case of SELECT queries, the data is returned as a list of rows, with elements of a row corresponding to selected columns.
 
 ```python
-import pandas as pd
-from pandas.io.sql import _wrap_result
-
-def query_results_to_df(client, query, index_col = None, coerce_float = True, parse_dates = None, dtype = None):
-    # dlt sql client returns DB API compatible cursor
-    with client.execute_query(query) as curr:
-        # get column names
-        columns = [c[0] for c in curr.description]
-        # use existing panda function that converts results to data frame
-        # TODO: we may use `_wrap_iterator` to prevent loading the full result to memory first
-        df = _wrap_result(curr.fetchall(), columns, index_col, coerce_float, parse_dates, dtype)
-        return df
+try:
+    with pipeline.sql_client() as client:
+        res = client.execute_sql("SELECT id, name, email FROM customers WHERE id = %s", 10)
+        # prints columns values of first row
+        print(res[0])
 ```

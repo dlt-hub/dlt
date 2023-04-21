@@ -8,7 +8,7 @@ keywords: [exploring, loaded data, data quality]
 
 Once you have run a pipeline locally, you can launch a web app that displays the loaded data.
 
-To do so, run the cli command below with your pipeline name. The pipeline name is the name of the Python file where your pipeline is defnied and also displayed in your terminal when loading:
+To do so, run the cli command below with your pipeline name. The pipeline name is the name of the Python file where your pipeline is defined and also displayed in your terminal when loading:
 
 ```bash
 dlt pipeline {pipeline_name} show
@@ -18,6 +18,45 @@ This will open a streamlit app with
 - information about the loads
 - tables and sample data
 - a sql client that you can use to run queries
+
+## Exploring the data in Python
+You can quickly fetch loaded data from a destination using SQL. The data will be available as a stream of rows or a data frame. Both methods use the same credentials that you set up for your pipeline and hide many intricacies of correctly setting up the connection to your destination.
+
+### Querying the data using the `dlt` SQL client
+Execute any SQL query and get results following the Python [dbapi](https://peps.python.org/pep-0249/) spec. Below we fetch data from the customers table:
+```python
+pipeline = dlt.pipeline(destination="bigquery", dataset_name="crm")
+with pipeline.sql_client() as client:
+    with client.execute_query("SELECT id, name, email FROM customers WHERE id = %s", 10) as cursor:
+        # get all data from the cursor as list of rows
+        print(cursor.fetchall())
+```
+In the above we used `dbapi` parameters placeholders and fetched the data using `fetchall` method that reads all the rows from the cursor.
+
+### Querying data into a data frame
+You can fetch results of any SQL query as a data frame. If the destination is supporting that natively (ie. BigQuery and duckdb), `dlt` uses the native method. Thanks to that, reading data frames may be really fast!. Example below reads Github reactions data from the `issues` table and counts reaction types.
+```python
+pipeline = dlt.pipeline(pipeline_name="github_pipeline", destination="duckdb", dataset_name="github_reactions", full_refresh=True)
+with pipeline.sql_client() as client:
+    with client.execute_query('SELECT "reactions__+1", "reactions__-1", reactions__laugh, reactions__hooray, reactions__rocket FROM issues') as table:
+        # calling `df` on a cursor, returns the data as a data frame
+        reactions = table.df()
+counts = reactions.sum(0).sort_values(0, ascending=False)
+```
+The `df` method above returns all the data in the cursor as data frame. You can also fetch data in chunks by passing `chunk_size` argument to the `df` method.
+
+### Access destination native connection.
+The native connection to your destination like BigQuery `Client` or duckdb `DuckDBPyConnection` is available in case you want to do anything special. Below we take the native connection to `duckdb` to get `DuckDBPyRelation` from a query:
+```python
+import dlt
+import duckdb
+
+pipeline = dlt.pipeline(destination="duckdb", dataset_name="github_reactions")
+with pipeline.sql_client() as client:
+  conn = client.native_connection
+  rel = duckdb.sql('SELECT * FROM issues');
+  rel.limit(3).show()
+```
 
 ## Data Quality Dashboards
 
