@@ -77,7 +77,7 @@ const config = {
           },
           { to: 'blog', label: 'Blog', position: 'left' },
           {
-            href:'https://colab.research.google.com/drive/1BXvma_9R9MX8p_iSvHE4ebg90sUroty2',
+            href:'https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing',
             label: 'Colab demo',
             position:'right',
           className: 'colab-demo',
