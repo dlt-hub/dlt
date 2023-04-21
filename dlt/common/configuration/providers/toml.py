@@ -12,36 +12,9 @@ from .provider import ConfigProvider, ConfigProviderException
 CONFIG_TOML = "config.toml"
 SECRETS_TOML = "secrets.toml"
 
-
-class TomlProvider(ConfigProvider):
-
-    def __init__(self, file_name: str, project_dir: str = None, add_global_config: bool = False) -> None:
-        """Creates config provider from a `toml` file
-
-        The provider loads the `toml` file with specified name and from specified folder. If `add_global_config` flags is specified,
-        it will look for `file_name` in `dlt` home dir. The "project" (`project_dir`) values overwrite the "global" values.
-
-        If none of the files exist, an empty provider is created.
-
-        Args:
-            file_name (str): The name of `toml` file to load
-            project_dir (str, optional): The location of `file_name`. If not specified, defaults to $cwd/.dlt
-            add_global_config (bool, optional): Looks for `file_name` in `dlt` home directory which in most cases is $HOME/.dlt
-
-        Raises:
-            TomlProviderReadException: File could not be read, most probably `toml` parsing error
-        """
-        self._file_name = file_name
-        self._toml_path = os.path.join(project_dir or get_dlt_project_dir(), file_name)
-        self._add_global_config = add_global_config
-        try:
-            project_toml = self._read_toml(self._toml_path)
-            if add_global_config:
-                global_toml = self._read_toml(os.path.join(self.global_config_path(), file_name))
-                project_toml = update_dict_nested(global_toml, project_toml)
-            self._toml = project_toml
-        except Exception as ex:
-            raise TomlProviderReadException(self.name, file_name, self._toml_path, str(ex))
+class BaseTomlProvider(ConfigProvider):
+    def __init__(self, toml_document: tomlkit.TOMLDocument) -> None:
+        self._toml = toml_document
 
     @staticmethod
     def get_key_name(key: str, *sections: str) -> str:
@@ -75,6 +48,40 @@ class TomlProvider(ConfigProvider):
     def is_empty(self) -> bool:
         # no keys
         return self._toml.as_string() == ""
+
+
+class TomlProvider(BaseTomlProvider):
+    def __init__(self, file_name: str, project_dir: str = None, add_global_config: bool = False) -> None:
+        """Creates config provider from a `toml` file
+
+        The provider loads the `toml` file with specified name and from specified folder. If `add_global_config` flags is specified,
+        it will look for `file_name` in `dlt` home dir. The "project" (`project_dir`) values overwrite the "global" values.
+
+        If none of the files exist, an empty provider is created.
+
+        Args:
+            file_name (str): The name of `toml` file to load
+            project_dir (str, optional): The location of `file_name`. If not specified, defaults to $cwd/.dlt
+            add_global_config (bool, optional): Looks for `file_name` in `dlt` home directory which in most cases is $HOME/.dlt
+
+        Raises:
+            TomlProviderReadException: File could not be read, most probably `toml` parsing error
+        """
+        toml_document = self._read_toml_file(file_name, project_dir, add_global_config)
+        super().__init__(toml_document)
+
+    def _read_toml_file(self, file_name: str, project_dir: str = None, add_global_config: bool = False) -> tomlkit.TOMLDocument:
+        self._file_name = file_name
+        self._toml_path = os.path.join(project_dir or get_dlt_project_dir(), file_name)
+        self._add_global_config = add_global_config
+        try:
+            project_toml = self._read_toml(self._toml_path)
+            if add_global_config:
+                global_toml = self._read_toml(os.path.join(self.global_config_path(), file_name))
+                project_toml = update_dict_nested(global_toml, project_toml)
+            return project_toml
+        except Exception as ex:
+            raise TomlProviderReadException(self.name, file_name, self._toml_path, str(ex))
 
     @staticmethod
     def global_config_path() -> str:

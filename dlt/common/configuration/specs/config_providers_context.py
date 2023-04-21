@@ -1,7 +1,6 @@
 
 
 from typing import List
-
 from dlt.common.configuration.exceptions import DuplicateConfigProviderException
 from dlt.common.configuration.providers import ConfigProvider, EnvironProvider, ContextProvider, SecretsTomlProvider, ConfigTomlProvider
 from dlt.common.configuration.specs.base_configuration import ContainerInjectableContext, configspec
@@ -40,7 +39,51 @@ class ConfigProvidersContext(ContainerInjectableContext):
 
     @staticmethod
     def initial_providers() -> List[ConfigProvider]:
-        return [EnvironProvider(), SecretsTomlProvider(add_global_config=True), ConfigTomlProvider(add_global_config=True)]
+        providers = [
+            EnvironProvider(),
+            SecretsTomlProvider(add_global_config=True),
+            ConfigTomlProvider(add_global_config=True)
+        ]
+        providers += _extra_providers()
+        return providers
+
+
+def _extra_providers() -> List[ConfigProvider]:
+    return _airflow_providers()
+
+
+def _airflow_providers() -> List[ConfigProvider]:
+    """Returns a list of configuration providers for an Airflow environment.
+
+    This function attempts to import Airflow to determine whether it
+    is running in an Airflow environment. If Airflow is not installed,
+    an empty list is returned. If Airflow is installed, the function
+    returns a list containing the Airflow providers.
+    """
+    try:
+        import airflow  # noqa
+        from airflow.models import Variable # noqa
+        from dlt.common.configuration.providers.airflow import (
+            AirflowSecretsTomlProvider,
+            AIRFLOW_SECRETS_TOML_VARIABLE_KEY
+        )
+        from dlt.common.runtime import logger
+    except ImportError:
+        return []
+
+    secrets_toml_var = Variable.get(
+        AIRFLOW_SECRETS_TOML_VARIABLE_KEY,
+        default_var=None
+    )
+
+    if secrets_toml_var is not None:
+        return [AirflowSecretsTomlProvider()]
+    else:
+        logger.warning(
+            f"Airflow variable '{AIRFLOW_SECRETS_TOML_VARIABLE_KEY}' "
+            "not found. AirflowSecretsTomlProvider will not be used."
+        )
+        return []
 
 
 # TODO: implement ConfigProvidersConfiguration and
