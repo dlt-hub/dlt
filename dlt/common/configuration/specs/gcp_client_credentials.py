@@ -44,7 +44,7 @@ class GcpClientCredentials(GcpCredentialsBase):
             # must end with new line, otherwise won't be parsed by Crypto
             self.private_key = TSecretValue(self.private_key + "\n")
 
-    def to_service_account_credentials(self) -> Any:
+    def to_google_credentials(self) -> Any:
         from google.oauth2 import service_account
         return service_account.Credentials.from_service_account_info(self)
 
@@ -53,7 +53,7 @@ class GcpClientCredentials(GcpCredentialsBase):
 
 
 @configspec
-class GcpClientCredentialsWithDefault(CredentialsWithDefault, GcpClientCredentials):
+class GcpClientDefaultCredentials(CredentialsWithDefault, GcpClientCredentials):
 
     def on_partial(self) -> None:
         try:
@@ -75,11 +75,14 @@ class GcpClientCredentialsWithDefault(CredentialsWithDefault, GcpClientCredentia
         except ImportError:
             raise self.__exception__
 
-    def to_service_account_credentials(self) -> Any:
+
+@configspec
+class GcpClientCredentialsWithDefault(GcpClientDefaultCredentials):
+    def to_google_credentials(self) -> Any:
         if self.has_default_credentials():
             return self.default_credentials()
         else:
-            return super().to_service_account_credentials()
+            return super().to_google_credentials()
 
 
 @configspec
@@ -128,3 +131,35 @@ class GcpOAuthCredentials(GcpCredentialsBase):
             "token": self.access_token
         })
         return credentials
+
+
+@configspec
+class GcpOAuthDefaultCredentials(CredentialsWithDefault, GcpOAuthCredentials):
+    def on_partial(self) -> None:
+        try:
+            from google.auth import default as default_credentials
+            from google.auth.exceptions import DefaultCredentialsError
+
+            # if config is missing check if credentials can be obtained from defaults
+            try:
+                default, project_id = default_credentials()
+                # set the project id - it needs to be known by the client
+                self.project_id = self.project_id or project_id
+                self._set_default_credentials(default)
+                # is resolved
+                self.__is_resolved__ = True
+            except DefaultCredentialsError:
+                # re-raise preventing exception
+                raise self.__exception__
+        except ImportError:
+            raise self.__exception__
+
+
+@configspec
+class GcpOAuthCredentialsWithDefault(GcpOAuthDefaultCredentials):
+
+    def to_google_credentials(self) -> Any:
+        if self.has_default_credentials():
+            return self.default_credentials()
+        else:
+            return super().to_google_credentials()
