@@ -232,6 +232,21 @@ def test_drop_all_flag(destination_name: str) -> None:
     assert attached.schemas.list_schemas() == []
 
 
+@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
+def test_run_pipeline_after_partial_drop(destination_name: str) -> None:
+    pipeline = dlt.pipeline(pipeline_name='drop_test_' + uniq_id(), destination=destination_name, dataset_name='drop_data_'+uniq_id())
+    pipeline.run(droppable_source())
+
+    attached = _attach(pipeline)
+
+    helpers.drop(attached, resources='droppable_a')
+
+    attached = _attach(pipeline)
+
+    attached.extract(droppable_source())  # TODO: individual steps cause pipeline.run() never raises
+    attached.normalize()
+    attached.load(raise_on_failed_jobs=True)
+
 if __name__ == '__main__':
     import pytest
-    pytest.main(['-k', 'load_step_fails', 'tests/load/pipeline/test_drop.py', '--pdb', '-s'])
+    pytest.main(['-k', 'after_partial', 'tests/load/pipeline/test_drop.py', '--pdb', '-s'])
