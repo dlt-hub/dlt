@@ -33,7 +33,7 @@ data = chess(['magnuscarlsen', 'rpragchess'], start_month='2022/11', end_month='
 pipeline.run(data)
 ```
 
-**data load tool (dlt)** is a simple, open source Python library that makes data loading easy
+**data load tool (dlt)** is an open source Python library that makes data loading easy
 
 - Automatically turn the JSON returned by any API into a live dataset stored wherever you want it
 - `pip install dlt` and then include `import dlt` to use it in your Python loading script
