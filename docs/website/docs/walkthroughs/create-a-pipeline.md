@@ -49,10 +49,10 @@ api_secret_key = '<api key value>'
 The secret name must correspond to the argument name in the source (i.e. `api_secret_key=dlt.secrets.value`
 in `def weatherapi_source(api_secret_key=dlt.secrets.value):`).
 
-Run the `weatherapi_pipeline.py` pipeline script to test that authentication headers look fine:
+Run the `weatherapi.py` pipeline script to test that authentication headers look fine:
 
 ```
-python3 weatherapi_pipeline.py
+python3 weatherapi.py
 ```
 
 Your API key should be printed out to stdout along with some test data.
