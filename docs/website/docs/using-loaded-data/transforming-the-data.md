@@ -26,7 +26,7 @@ You can run dbt with `dlt` by using the dbt runner. The dbt runner
 - can run a dbt package from online (e.g. GitHub) or from local files.
 - passes configuration and credentials to dbt, so you do not need to handle them separately from dlt, enabling dbt to configured on the fly.
 
-**How to use the dbt runner?**
+**How to use the dbt runner**
 
 For an example of how to use the dbt runner, see the [jaffle shop example](https://github.com/dlt-hub/dlt/blob/devel/docs/examples/dbt_run_jaffle.py).
 Included below in another example where we run a `dlt` pipeline and then a dbt package via `dlt`:
@@ -71,13 +71,15 @@ for m in models:
 ## Transforming the data using the `dlt` SQL client
 
 A simple alternative to dbt is to query the data using the `dlt` sql client and then performing the transformations using Python. The `execute_sql` method allows you to execute any SQL statement, including statements that change the database schema or data in the tables. In the example below we insert a row into `customers` table. Note that the syntax is the same as for any standard `dbapi` connection.
+
 ```python
 pipeline = dlt.pipeline(destination="bigquery", dataset_name="crm")
 try:
     with pipeline.sql_client() as client:
         client.sql_client.execute_sql(f"INSERT INTO customers VALUES (%s, %s, %s)", 10, "Fred", "fred@fred.com")
 ```
-In case of SELECT queries, the data is returned as a list of rows, with elements of a row corresponding to selected columns.
+
+In the case of SELECT queries, the data is returned as a list of row, with the elements of a row corresponding to selected columns.
 
 ```python
 try:
@@ -86,3 +88,20 @@ try:
         # prints columns values of first row
         print(res[0])
 ```
+
+## Transforming the data using Pandas
+
+You can fetch results of any SQL query as a data frame. If the destination is supporting that natively (ie. BigQuery and DuckDB), `dlt` uses the native method. Thanks to that, reading data frames may be really fast! The example below reads GitHub reactions data from the `issues` table and counts reaction types.
+
+```python
+pipeline = dlt.pipeline(pipeline_name="github_pipeline", destination="duckdb", dataset_name="github_reactions", full_refresh=True)
+with pipeline.sql_client() as client:
+    with client.execute_query('SELECT "reactions__+1", "reactions__-1", reactions__laugh, reactions__hooray, reactions__rocket FROM issues') as table:
+        # calling `df` on a cursor, returns the data as a data frame
+        reactions = table.df()
+counts = reactions.sum(0).sort_values(0, ascending=False)
+```
+
+The `df` method above returns all the data in the cursor as data frame. You can also fetch data in chunks by passing `chunk_size` argument to the `df` method.
+
+Once your data is in a Pandas data frame, you can transform it as needed.
