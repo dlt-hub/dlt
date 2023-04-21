@@ -160,7 +160,7 @@ def compile_simple_regex(r: TSimpleRegex) -> REPattern:
 
 def compile_simple_regexes(r: Iterable[TSimpleRegex]) -> REPattern:
     """Compile multiple patterns as one"""
-    pattern = '|'.join(_prepare_simple_regex(p) for p in r)
+    pattern = '|'.join(f"({_prepare_simple_regex(p)})" for p in r)
     if not pattern:  # Don't create an empty pattern that matches everything
         raise ValueError("Cannot create a regex pattern from empty sequence")
     return re.compile(pattern)

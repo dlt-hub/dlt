@@ -8,11 +8,13 @@ from dlt.common.runners import Venv
 from dlt.common.runners.stdout import iter_stdout
 from dlt.common.schema.utils import remove_defaults
 from dlt.common.storages.file_storage import FileStorage
+from dlt.common.typing import DictStrAny
+from dlt.pipeline.helpers import DropCommand
 
 from dlt.cli import echo as fmt
 
 
-def pipeline_command(operation: str, pipeline_name: str, pipelines_dir: str, verbosity: int, load_id: str = None) -> None:
+def pipeline_command(operation: str, pipeline_name: str, pipelines_dir: str, verbosity: int, load_id: str = None, drop_args: DictStrAny = None) -> None:
     if operation == "list":
         pipelines_dir = pipelines_dir or get_dlt_pipelines_dir()
         storage = FileStorage(pipelines_dir)
@@ -134,3 +136,14 @@ def pipeline_command(operation: str, pipeline_name: str, pipelines_dir: str, ver
             fmt.echo("Found schema with name %s" % fmt.bold(p.default_schema_name))
         schema_str = p.default_schema.to_pretty_yaml(remove_defaults=True)
         fmt.echo(schema_str)
+
+    if operation == "drop":
+        drop = DropCommand(p, **drop_args)
+        if drop.drop_all:
+            fmt.echo("About to drop all destination and local data for the pipeline:")
+        else:
+            fmt.echo("About to drop the following data for the pipeline:")
+            for k, v in drop.info.items():
+                fmt.echo("%s: %s" % (fmt.style(k, fg="green"), v))
+        if fmt.confirm("Do you want to apply these changes?"):
+            drop()

@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import Callable, Tuple, Iterable, Optional, Any, cast, List, Iterator, Dict, Union
+from typing import Callable, Tuple, Iterable, Optional, Any, cast, List, Iterator, Dict, Union, TypedDict
 from itertools import chain
 
 # from jsonpath_ng import parse as jsonpath_parse, JSONPath
@@ -43,13 +43,26 @@ def retry_load(retry_on_pipeline_steps: Tuple[TPipelineStep, ...] = ("load",)) -
     return _retry_load
 
 
-class _DropCommand:
+class _DropInfo(TypedDict):
+    tables: List[str]
+    resource_states: List[str]
+    resource_names: List[str]
+    state_paths: List[str]
+    schema_name: str
+    dataset_name: str
+    drop_all: bool
+    resource_pattern: Optional[REPattern]
+
+
+class DropCommand:
     def __init__(
         self,
         pipeline: Pipeline,
         resources: Union[Iterable[Union[str, TSimpleRegex]], Union[str, TSimpleRegex]] = (),
         schema_name: Optional[str] = None,
-        state_paths: TAnyJsonPath = ()
+        state_paths: TAnyJsonPath = (),
+        drop_all: bool = False,
+        skip_state_wipe: bool = False
     ) -> None:
         self.pipeline = pipeline
         if isinstance(resources, str):
@@ -59,56 +72,92 @@ class _DropCommand:
 
         self.schema = pipeline.schemas[schema_name or pipeline.default_schema_name].clone()
         self.schema_tables = self.schema.tables
+        self.drop_tables = self.drop_state = True
 
         resources = set(resources)
+        resource_names = []
         if resources:
             self.resource_pattern = compile_simple_regexes(TSimpleRegex(r) for r in resources)
             resource_tables = group_tables_by_resource(self.schema_tables, pattern=self.resource_pattern)
-            self.drop_tables = list(chain.from_iterable(resource_tables.values()))
-            self.drop_tables.reverse()
+            if self.drop_tables:
+                self.tables_to_drop = list(chain.from_iterable(resource_tables.values()))
+                self.tables_to_drop.reverse()
+            resource_names = list(resource_tables.keys())
         else:
             self.resource_pattern = None
-            self.drop_tables = []
+            self.tables_to_drop = []
+            self.drop_tables = False  # No tables to drop
 
-        self.drop_state_paths = compile_paths(state_paths)
+        self.skip_state_wipe = skip_state_wipe or not self.resource_pattern
 
-    def drop_destination_tables(self) -> None:
+        self.state_paths_to_drop = compile_paths(state_paths)
+        self.drop_all = drop_all
+        self.info: _DropInfo = dict(
+            tables=[t['name'] for t in self.tables_to_drop], resource_states=[], state_paths=[],
+            resource_names=resource_names,
+            schema_name=self.schema.name, dataset_name=self.pipeline.dataset_name,
+            drop_all=drop_all,
+            resource_pattern=self.resource_pattern
+        )
+        self._new_state = self._create_modified_state()
+        if self.skip_state_wipe and not self.state_paths_to_drop:
+            self.drop_state = False
+
+    def _drop_destination_tables(self) -> None:
         with self.pipeline._get_destination_client(self.schema) as client:
-            client.drop_tables(*[tbl['name'] for tbl in self.drop_tables])
+            client.drop_tables(*[tbl['name'] for tbl in self.tables_to_drop])
 
-    def delete_pipeline_tables(self) -> None:
-        for tbl in self.drop_tables:
+    def _delete_pipeline_tables(self) -> None:
+        for tbl in self.tables_to_drop:
             del self.schema_tables[tbl['name']]
         self.schema.bump_version()
 
     def _list_state_paths(self, source_state: Dict[str, Any]) -> List[str]:
-        return resolve_paths(self.drop_state_paths, source_state)
+        return resolve_paths(self.state_paths_to_drop, source_state)
 
-    def drop_state_keys(self) -> None:
-        state: TSourceState
-        with self.pipeline.managed_state(extract_state=True, extract_unchanged=True) as state:  # type: ignore[assignment]
-            source_states = sources_state(state).values()
-            # TODO: Should only drop from source state matching the schema. Not possible atm
-            for source_state in source_states:
+    def _create_modified_state(self) -> Dict[str, Any]:
+        state: TSourceState = self.pipeline.state  # type: ignore[assignment]
+        if not self.drop_state:
+            return state  # type: ignore[return-value]
+        source_states = sources_state(state).items()
+        for source_name, source_state in source_states:
+            if not self.skip_state_wipe:
                 for key in _get_matching_resources(self.resource_pattern, source_state):
+                    self.info['resource_states'].append(key)
                     _reset_resource_state(key, source_state)
-                _delete_source_state_keys(self.drop_state_paths, source_state)
+            resolved_paths = resolve_paths(self.state_paths_to_drop, source_state)
+            _delete_source_state_keys(resolved_paths, source_state)
+            self.info['state_paths'].extend(f"{source_name}.{p}" for p in resolved_paths)
+        return state  # type: ignore[return-value]
 
-    def info(self) -> Any:
-        return dict(
-            drop_tables=[tbl['name'] for tbl in self.drop_tables],
-        )
+    def _drop_state_keys(self) -> None:
+        state: Dict[str, Any]
+        with self.pipeline.managed_state(extract_state=True, extract_unchanged=True) as state:  # type: ignore[assignment]
+            state.clear()
+            state.update(self._new_state)
+
+    def _drop_all(self) -> None:
+        with self.pipeline.sql_client(self.schema.name) as client:
+            client.drop_dataset()
+        self.pipeline.drop()
+        self.pipeline.sync_destination()
 
     def __call__(self) -> None:
         if self.pipeline.has_pending_data:  # Raise when there are pending extracted/load files to prevent conflicts
             raise PipelineHasPendingDataException(self.pipeline.pipeline_name, self.pipeline.pipelines_dir)
-        if self.resource_pattern is None and not self.drop_state_paths:
-            return  # TODO: Nothing to drop, return info
+        if self.drop_all:
+            self._drop_all()
+            return
+        if not self.drop_state and not self.drop_tables:
+            return  # Nothing to drop
 
-        self.delete_pipeline_tables()
-        self.drop_destination_tables()
-        self.drop_state_keys()
-        self.pipeline.schemas.save_schema(self.schema)
+        if self.drop_tables:
+            self._delete_pipeline_tables()
+            self._drop_destination_tables()
+        if self.drop_state:
+            self._drop_state_keys()
+        if self.drop_tables:
+            self.pipeline.schemas.save_schema(self.schema)
         # Send updated state to destination
         self.pipeline.normalize()
         try:
@@ -117,13 +166,14 @@ class _DropCommand:
             # Clear extracted state on failure so command can run again
             self.pipeline._get_load_storage().wipe_normalized_packages()
             raise
-        # TODO: Return info
 
 
 def drop(
     pipeline: Pipeline,
     resources: Union[Iterable[str], str] = (),
     schema_name: str = None,
-    state_paths: TAnyJsonPath = ()
+    state_paths: TAnyJsonPath = (),
+    drop_all: bool = False,
+    skip_state_wipe: bool = False,
 ) -> None:
-    return _DropCommand(pipeline, resources, schema_name, state_paths)()
+    return DropCommand(pipeline, resources, schema_name, state_paths, drop_all, skip_state_wipe)()
