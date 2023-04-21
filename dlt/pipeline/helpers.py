@@ -6,7 +6,7 @@ from itertools import chain
 from dlt.common.jsonpath import resolve_paths, TAnyJsonPath, compile_paths
 
 from dlt.common.exceptions import TerminalException
-from dlt.common.schema.utils import get_child_tables, group_tables_by_resource, compile_simple_regexes
+from dlt.common.schema.utils import get_child_tables, group_tables_by_resource, compile_simple_regexes, compile_simple_regex
 from dlt.common.schema.typing import TSimpleRegex
 from dlt.common.typing import REPattern
 
@@ -76,15 +76,21 @@ class DropCommand:
 
         resources = set(resources)
         resource_names = []
-        if resources:
+        if drop_all:
+            self.resource_pattern = compile_simple_regex(TSimpleRegex('re:.*'))  # Match everything
+        elif resources:
             self.resource_pattern = compile_simple_regexes(TSimpleRegex(r) for r in resources)
-            resource_tables = group_tables_by_resource(self.schema_tables, pattern=self.resource_pattern)
+        else:
+            self.resource_pattern = None
+
+        if self.resource_pattern:
+            data_tables = {t["name"]: t for t in self.schema.data_tables()}  # Don't remove _dlt tables
+            resource_tables = group_tables_by_resource(data_tables, pattern=self.resource_pattern)
             if self.drop_tables:
                 self.tables_to_drop = list(chain.from_iterable(resource_tables.values()))
                 self.tables_to_drop.reverse()
             resource_names = list(resource_tables.keys())
         else:
-            self.resource_pattern = None
             self.tables_to_drop = []
             self.drop_tables = False  # No tables to drop
 
@@ -132,22 +138,15 @@ class DropCommand:
 
     def _drop_state_keys(self) -> None:
         state: Dict[str, Any]
-        with self.pipeline.managed_state(extract_state=True, extract_unchanged=True) as state:  # type: ignore[assignment]
+        with self.pipeline.managed_state(extract_state=True, extract_unchanged=False) as state:  # type: ignore[assignment]
             state.clear()
             state.update(self._new_state)
-
-    def _drop_all(self) -> None:
-        with self.pipeline.sql_client(self.schema.name) as client:
-            client.drop_dataset()
-        self.pipeline.drop()
-        self.pipeline.sync_destination()
 
     def __call__(self) -> None:
         if self.pipeline.has_pending_data:  # Raise when there are pending extracted/load files to prevent conflicts
             raise PipelineHasPendingDataException(self.pipeline.pipeline_name, self.pipeline.pipelines_dir)
-        if self.drop_all:
-            self._drop_all()
-            return
+        self.pipeline.sync_destination()
+
         if not self.drop_state and not self.drop_tables:
             return  # Nothing to drop
 
@@ -165,7 +164,8 @@ class DropCommand:
         except Exception:
             # Clear extracted state on failure so command can run again
             self.pipeline._get_load_storage().wipe_normalized_packages()
-            raise
+            with self.pipeline.managed_state() as state:
+                state["_local"].pop("_last_extracted_at", None)
 
 
 def drop(

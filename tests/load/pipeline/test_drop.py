@@ -101,7 +101,7 @@ def test_drop_command_resources_and_state(destination_name: str) -> None:
     """Test the drop command with resource and state path options and
     verify correct data is deleted from destination and locally"""
     source = droppable_source()
-    pipeline = dlt.pipeline(pipeline_name='drop_test_' + uniq_id(), destination=destination_name, dataset_name='drop_data_'+uniq_id())
+    pipeline = dlt.pipeline(pipeline_name='drop_test_' + uniq_id(), destination=destination_name)
     pipeline.run(source)
 
     attached = _attach(pipeline)
@@ -122,7 +122,7 @@ def test_drop_command_resources_and_state(destination_name: str) -> None:
 def test_drop_destination_tables_fails(destination_name: str) -> None:
     """Fail on drop tables. Command runs again."""
     source = droppable_source()
-    pipeline = dlt.pipeline(pipeline_name='drop_test_' + uniq_id(), destination=destination_name, dataset_name='drop_data_'+uniq_id())
+    pipeline = dlt.pipeline(pipeline_name='drop_test_' + uniq_id(), destination=destination_name)
     pipeline.run(source)
 
     attached = _attach(pipeline)
@@ -142,7 +142,7 @@ def test_drop_destination_tables_fails(destination_name: str) -> None:
 def test_fail_after_drop_tables(destination_name: str) -> None:
     """Fail directly after drop tables. Command runs again ignoring destination tables missing."""
     source = droppable_source()
-    pipeline = dlt.pipeline(pipeline_name='drop_test_' + uniq_id(), destination=destination_name, dataset_name='drop_data_'+uniq_id())
+    pipeline = dlt.pipeline(pipeline_name='drop_test_' + uniq_id(), destination=destination_name)
     pipeline.run(source)
 
     attached = _attach(pipeline)
@@ -162,7 +162,7 @@ def test_fail_after_drop_tables(destination_name: str) -> None:
 def test_load_step_fails(destination_name: str) -> None:
     """Test idempotency. pipeline.load() fails. Command can be run again successfully"""
     source = droppable_source()
-    pipeline = dlt.pipeline(pipeline_name='drop_test_' + uniq_id(), destination=destination_name, dataset_name='drop_data_'+uniq_id())
+    pipeline = dlt.pipeline(pipeline_name='drop_test_' + uniq_id(), destination=destination_name)
     pipeline.run(source)
 
     attached = _attach(pipeline)
@@ -183,7 +183,7 @@ def test_load_step_fails(destination_name: str) -> None:
 @pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
 def test_resource_regex(destination_name: str) -> None:
     source = droppable_source()
-    pipeline = dlt.pipeline(pipeline_name='drop_test_' + uniq_id(), destination=destination_name, dataset_name='drop_data_'+uniq_id())
+    pipeline = dlt.pipeline(pipeline_name='drop_test_' + uniq_id(), destination=destination_name)
     pipeline.run(source)
 
     attached = _attach(pipeline)
@@ -200,7 +200,7 @@ def test_resource_regex(destination_name: str) -> None:
 def test_drop_nothing(destination_name: str) -> None:
     """No resources, no state keys. Nothing is changed."""
     source = droppable_source()
-    pipeline = dlt.pipeline(pipeline_name='drop_test_' + uniq_id(), destination=destination_name, dataset_name='drop_data_'+uniq_id())
+    pipeline = dlt.pipeline(pipeline_name='drop_test_' + uniq_id(), destination=destination_name)
     pipeline.run(source)
 
     attached = _attach(pipeline)
@@ -216,8 +216,9 @@ def test_drop_nothing(destination_name: str) -> None:
 def test_drop_all_flag(destination_name: str) -> None:
     """Using drop_all flag. Destination dataset and all local state is deleted"""
     source = droppable_source()
-    pipeline = dlt.pipeline(pipeline_name='drop_test_' + uniq_id(), destination=destination_name, dataset_name='drop_data_'+uniq_id())
+    pipeline = dlt.pipeline(pipeline_name='drop_test_' + uniq_id(), destination=destination_name)
     pipeline.run(source)
+    dlt_tables = [t['name'] for t in pipeline.default_schema.dlt_tables()]  # Original _dlt tables to check for
 
     attached = _attach(pipeline)
 
@@ -225,17 +226,19 @@ def test_drop_all_flag(destination_name: str) -> None:
 
     attached = _attach(pipeline)
 
-    with attached.sql_client() as client:
-        assert client.has_dataset() is False
+    assert_dropped_resources(attached, list(RESOURCE_TABLES))
 
-    assert 'sources' not in attached.state
-    assert attached.schemas.list_schemas() == []
+    # Verify original _dlt tables were not deleted
+    with attached._sql_job_client(attached.default_schema) as client:
+        for tbl in dlt_tables:
+            exists, _ = client.get_storage_table(tbl)
+            assert exists
 
 
 @pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
 def test_run_pipeline_after_partial_drop(destination_name: str) -> None:
     """Pipeline can be run again after dropping some resources"""
-    pipeline = dlt.pipeline(pipeline_name='drop_test_' + uniq_id(), destination=destination_name, dataset_name='drop_data_'+uniq_id())
+    pipeline = dlt.pipeline(pipeline_name='drop_test_' + uniq_id(), destination=destination_name)
     pipeline.run(droppable_source())
 
     attached = _attach(pipeline)
@@ -250,4 +253,4 @@ def test_run_pipeline_after_partial_drop(destination_name: str) -> None:
 
 if __name__ == '__main__':
     import pytest
-    pytest.main(['-k', 'after_partial', 'tests/load/pipeline/test_drop.py', '--pdb', '-s'])
+    pytest.main(['-k', 'drop_all', 'tests/load/pipeline/test_drop.py', '--pdb', '-s'])

@@ -139,11 +139,8 @@ def pipeline_command(operation: str, pipeline_name: str, pipelines_dir: str, ver
 
     if operation == "drop":
         drop = DropCommand(p, **drop_args)
-        if drop.drop_all:
-            fmt.echo("About to drop all destination and local data for the pipeline:")
-        else:
-            fmt.echo("About to drop the following data for the pipeline:")
-            for k, v in drop.info.items():
-                fmt.echo("%s: %s" % (fmt.style(k, fg="green"), v))
+        fmt.echo("About to drop the following data for the pipeline:")
+        for k, v in drop.info.items():
+            fmt.echo("%s: %s" % (fmt.style(k, fg="green"), v))
         if fmt.confirm("Do you want to apply these changes?"):
             drop()
