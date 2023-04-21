@@ -100,7 +100,7 @@ class SqlJobClientBase(JobClientBase):
         with self.sql_client.with_staging_dataset(staging):
             with self._ddl_transaction():
                 self.sql_client.drop_tables(*tables)
-                self._update_schema_in_storage(self.schema)
+                self._replace_schema_in_storage(self.schema)
 
     @contextlib.contextmanager
     def _ddl_transaction(self) -> Iterator[None]:
@@ -301,6 +301,16 @@ class SqlJobClientBase(JobClientBase):
         inserted_at = pendulum.instance(row[4])
 
         return StorageSchemaInfo(row[0], row[1], row[2], row[3], inserted_at, schema_str)
+
+    def _replace_schema_in_storage(self, schema: Schema) -> None:
+        """
+        Save the given schema in storage and remove all previous versions with the same name
+        """
+        name = self.sql_client.make_qualified_table_name(VERSION_TABLE_NAME)
+        self.sql_client.execute_sql(
+            f"DELETE FROM {name} WHERE schema_name = %s;", schema.name
+        )
+        self._update_schema_in_storage(schema)
 
     def _update_schema_in_storage(self, schema: Schema) -> None:
         now_ts = str(pendulum.now())

@@ -140,11 +140,6 @@ class JobClientBase(ABC):
         return expected_update
 
     @abstractmethod
-    def drop_tables(self, *tables: str, staging: bool = False) -> None:
-        """Drop the listed tables from storage."""
-        pass
-
-    @abstractmethod
     def start_file_load(self, table: TTableSchema, file_path: str) -> LoadJob:
         """Creates a job for a particular `table` with content in `file_path`"""
         pass

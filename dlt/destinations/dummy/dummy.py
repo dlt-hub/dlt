@@ -89,9 +89,6 @@ class DummyClient(JobClientBase):
             raise DestinationTransientException("Raise on schema update due to fail_schema_update config flag")
         return applied_update
 
-    def drop_tables(self, *tables: str, staging: bool = False) -> None:
-        raise NotImplementedError()
-
     def start_file_load(self, table: TTableSchema, file_path: str) -> LoadJob:
         job_id = FileStorage.get_file_name_from_file_path(file_path)
         file_name = FileStorage.get_file_name_from_file_path(file_path)

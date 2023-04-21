@@ -104,7 +104,7 @@ class DropCommand:
             self.drop_state = False
 
     def _drop_destination_tables(self) -> None:
-        with self.pipeline._get_destination_client(self.schema) as client:
+        with self.pipeline._sql_job_client(self.schema) as client:
             client.drop_tables(*[tbl['name'] for tbl in self.tables_to_drop])
 
     def _delete_pipeline_tables(self) -> None:
