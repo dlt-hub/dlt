@@ -18,8 +18,7 @@ except ImportError:
 
 def _initialize_sheets(credentials: GcpClientCredentialsWithDefault) -> Any:
     # Build the service object.
-    service = build('sheets', 'v4', credentials=credentials.to_service_account_credentials())
-
+    service = build('sheets', 'v4', credentials=credentials.to_google_credentials())
     return service
 
 
