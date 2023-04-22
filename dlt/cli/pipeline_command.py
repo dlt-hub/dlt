@@ -1,4 +1,5 @@
 import yaml
+from typing import Any
 import dlt
 from dlt.cli.exceptions import CliCommandException
 
@@ -14,7 +15,7 @@ from dlt.pipeline.helpers import DropCommand
 from dlt.cli import echo as fmt
 
 
-def pipeline_command(operation: str, pipeline_name: str, pipelines_dir: str, verbosity: int, load_id: str = None, drop_args: DictStrAny = None) -> None:
+def pipeline_command(operation: str, pipeline_name: str, pipelines_dir: str, verbosity: int, **command_kwargs: Any) -> None:
     if operation == "list":
         pipelines_dir = pipelines_dir or get_dlt_pipelines_dir()
         storage = FileStorage(pipelines_dir)
@@ -110,6 +111,7 @@ def pipeline_command(operation: str, pipeline_name: str, pipelines_dir: str, ver
             p.sync_destination()
 
     if operation == "load-package":
+        load_id = command_kwargs.get('load_id')
         if not load_id:
             packages = sorted(p.list_normalized_load_packages())
             if not packages:
@@ -138,7 +140,7 @@ def pipeline_command(operation: str, pipeline_name: str, pipelines_dir: str, ver
         fmt.echo(schema_str)
 
     if operation == "drop":
-        drop = DropCommand(p, **drop_args)
+        drop = DropCommand(p, **command_kwargs)
         fmt.echo("About to drop the following data for the pipeline:")
         for k, v in drop.info.items():
             fmt.echo("%s: %s" % (fmt.style(k, fg="green"), v))

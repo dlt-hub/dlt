@@ -81,12 +81,10 @@ def deploy_command_wrapper(pipeline_script_path: str, deployment_method: str, sc
 
 @utils.track_command("pipeline", True, "operation")
 def pipeline_command_wrapper(
-        operation: str, pipeline_name: str, pipelines_dir: str, verbosity: int, load_id: str = None,
-        drop_args: DictStrAny = None,
+        operation: str, pipeline_name: str, pipelines_dir: str, verbosity: int, **command_kwargs: Any
 ) -> int:
     try:
-        pipeline_command(operation, pipeline_name, pipelines_dir, verbosity, load_id,
-                         drop_args=drop_args)
+        pipeline_command(operation, pipeline_name, pipelines_dir, verbosity, **command_kwargs)
         return 0
     except (CannotRestorePipelineException, Exception) as ex:
         click.secho(str(ex), err=True, fg="red")
@@ -198,9 +196,9 @@ def main() -> int:
 
     pipe_cmd = subparsers.add_parser("pipeline", help="Operations on pipelines that were ran locally")
     pipe_cmd.add_argument("--list-pipelines", "-l",  default=False, action="store_true", help="List local pipelines")
-    pipe_cmd.add_argument("name", nargs='?', help="Pipeline name")
+    pipe_cmd.add_argument("pipeline_name", nargs='?', help="Pipeline name")
     pipe_cmd.add_argument("--pipelines-dir", help="Pipelines working directory", default=None)
-    pipe_cmd.add_argument("--verbose", "-v", action='count', default=0, help="Provides more information for certain commands.")
+    pipe_cmd.add_argument("--verbose", "-v", action='count', default=0, help="Provides more information for certain commands.", dest="verbosity")
 
     pipeline_subparsers = pipe_cmd.add_subparsers(dest="operation", required=False)
     pipeline_subparsers.add_parser("info", help="Displays state of the pipeline, use -v or -vv for more info")
@@ -212,12 +210,12 @@ def main() -> int:
     pipe_cmd_schema.add_argument("--format", choices=["json", "yaml"], default="yaml", help="Display schema in this format")
     pipe_cmd_schema.add_argument("--remove-defaults", action="store_true", help="Does not show default hint values")
 
-    pipe_cmd_drop = pipeline_subparsers.add_parser("drop", help="Drop pipeline state")
-    pipe_cmd_drop.add_argument("resources", nargs="*", help="Resource names or regex patterns which will be dropped")
-    pipe_cmd_drop.add_argument("--drop-all", action="store_true", default=False, help="Drop entire dataset and local state")
+    pipe_cmd_drop = pipeline_subparsers.add_parser("drop", help="Drop pipeline state and resource tables")
+    pipe_cmd_drop.add_argument("resources", nargs="*", help="One or more resources to drop. Can be exact resource name(s) or regex pattern(s).")
+    pipe_cmd_drop.add_argument("--drop-all", action="store_true", default=False, help="Drop all resources found in schema. Supersedes [resources] argument.")
     pipe_cmd_drop.add_argument("--state-paths", nargs="*", help="State keys or json paths to drop", default=())
-    pipe_cmd_drop.add_argument("--schema", help="Schema name to drop from (if other than default schema)", dest="schema_name")
-    pipe_cmd_drop.add_argument("--skip-state-wipe", action="store_true", help="Don't drop resource keys from pipeline state", default=False)
+    pipe_cmd_drop.add_argument("--schema", help="Schema name to drop from (if other than default schema).", dest="schema_name")
+    pipe_cmd_drop.add_argument("--state-only", action="store_true", help="Only wipe state for matching resources without dropping tables.", default=False)
 
     pipe_cmd_package = pipeline_subparsers.add_parser("load-package", help="Displays information on load package, use -v or -vv for more info")
     pipe_cmd_package.add_argument("load_id", nargs='?', help="Load id of completed or normalized package. Defaults to the most recent package.")
@@ -229,14 +227,14 @@ def main() -> int:
     if args.command == "schema":
         return schema_command_wrapper(args.file, args.format, args.remove_defaults)
     elif args.command == "pipeline":
-        extra_kwargs = {}
-        if args.operation == "drop":
-            extra_kwargs['drop_args'] = dict(drop_all=args.drop_all, schema_name=args.schema_name, state_paths=args.state_paths, resources=args.resources)
         if args.list_pipelines:
-            return pipeline_command_wrapper("list", "-", args.pipelines_dir, args.verbose)
+            return pipeline_command_wrapper("list", "-", args.pipelines_dir, args.verbosity)
         else:
-            load_id = args.load_id if args.operation == "load-package" else None
-            return pipeline_command_wrapper(args.operation or "info", args.name, args.pipelines_dir, args.verbose, load_id, **extra_kwargs)
+            command_kwargs = dict(args._get_kwargs())
+            command_kwargs['operation'] = args.operation or "info"
+            del command_kwargs["command"]
+            del command_kwargs["list_pipelines"]
+            return pipeline_command_wrapper(**command_kwargs)
     elif args.command == "init":
         if args.list_pipelines:
             return list_pipelines_command_wrapper(args.location, args.branch)
