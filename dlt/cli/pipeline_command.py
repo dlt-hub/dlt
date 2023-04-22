@@ -5,17 +5,19 @@ from dlt.cli.exceptions import CliCommandException
 
 from dlt.common import json
 from dlt.common.pipeline import get_dlt_pipelines_dir, TSourceState
+from dlt.common.destination.reference import TDestinationReferenceArg
 from dlt.common.runners import Venv
 from dlt.common.runners.stdout import iter_stdout
 from dlt.common.schema.utils import remove_defaults
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.typing import DictStrAny
 from dlt.pipeline.helpers import DropCommand
+from dlt.pipeline.exceptions import CannotRestorePipelineException
 
 from dlt.cli import echo as fmt
 
 
-def pipeline_command(operation: str, pipeline_name: str, pipelines_dir: str, verbosity: int, **command_kwargs: Any) -> None:
+def pipeline_command(operation: str, pipeline_name: str, pipelines_dir: str, verbosity: int, dataset_name: str = None, destination: TDestinationReferenceArg = None, **command_kwargs: Any) -> None:
     if operation == "list":
         pipelines_dir = pipelines_dir or get_dlt_pipelines_dir()
         storage = FileStorage(pipelines_dir)
@@ -28,7 +30,16 @@ def pipeline_command(operation: str, pipeline_name: str, pipelines_dir: str, ver
             fmt.secho(_dir, fg="green")
         return
 
-    p = dlt.attach(pipeline_name=pipeline_name, pipelines_dir=pipelines_dir)
+    try:
+        p = dlt.attach(pipeline_name=pipeline_name, pipelines_dir=pipelines_dir)
+    except CannotRestorePipelineException as e:
+        fmt.echo(e)
+        if not fmt.confirm("Do you want to attempt to restore from destination?"):
+            return
+        destination = destination or fmt.text_input(f"Enter destination name for pipeline {pipeline_name}")
+        dataset_name = dataset_name or fmt.text_input(f"Enter dataset name for pipeline {pipeline_name}")
+        p = dlt.attach(pipeline_name=pipeline_name, pipelines_dir=pipelines_dir, from_destination=True, dataset_name=dataset_name, destination=destination)
+
     fmt.echo("Found pipeline %s in %s" % (fmt.bold(p.pipeline_name), fmt.bold(p.pipelines_dir)))
 
     if operation == "show":

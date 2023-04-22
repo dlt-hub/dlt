@@ -131,16 +131,23 @@ def attach(
     pipelines_dir: str = None,
     pipeline_salt: TSecretValue = None,
     full_refresh: bool = False,
+    dataset_name: str = None,
+    destination: TDestinationReferenceArg = None,
+    from_destination: bool = False,
     **kwargs: Any
 ) -> Pipeline:
+    destination = DestinationReference.from_name(destination)
     ensure_correct_pipeline_kwargs(attach, **kwargs)
     # if working_dir not provided use temp folder
     if not pipelines_dir:
         pipelines_dir = get_dlt_pipelines_dir()
     # create new pipeline instance
-    p = Pipeline(pipeline_name, pipelines_dir, pipeline_salt, None, None, None, None, None, full_refresh, True, last_config(**kwargs), kwargs["runtime"])
+    must_attach_to_local_pipeline = not from_destination
+    p = Pipeline(pipeline_name, pipelines_dir, pipeline_salt, destination, dataset_name, None, None, None, full_refresh, must_attach_to_local_pipeline, last_config(**kwargs), kwargs["runtime"])
     # set it as current pipeline
     Container()[PipelineContext].activate(p)
+    if from_destination:
+        p.sync_destination()
     return p
 
 
