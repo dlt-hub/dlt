@@ -60,6 +60,10 @@ RESOURCE_TABLES = dict(
 
 
 def assert_dropped_resources(pipeline: Pipeline, resources: List[str]) -> None:
+    assert_dropped_resource_tables(pipeline, resources)
+    assert_dropped_resource_states(pipeline, resources)
+
+def assert_dropped_resource_tables(pipeline: Pipeline, resources: List[str]) -> None:
     # Verify only requested resource tables are removed from pipeline schema
     all_tables = set(chain.from_iterable(RESOURCE_TABLES.values()))
     dropped_tables = set(chain.from_iterable(RESOURCE_TABLES[r] for r in resources))
@@ -79,6 +83,8 @@ def assert_dropped_resources(pipeline: Pipeline, resources: List[str]) -> None:
             exists, _ = client.get_storage_table(table)
             assert exists
 
+
+def assert_dropped_resource_states(pipeline: Pipeline, resources: List[str]) -> None:
     # Verify only requested resource keys are removed from state
     all_resources = set(RESOURCE_TABLES.keys())
     expected_keys = all_resources - set(resources)
@@ -250,6 +256,24 @@ def test_run_pipeline_after_partial_drop(destination_name: str) -> None:
     attached.extract(droppable_source())  # TODO: individual steps cause pipeline.run() never raises
     attached.normalize()
     attached.load(raise_on_failed_jobs=True)
+
+
+@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
+def test_drop_state_only(destination_name: str) -> None:
+    """Pipeline can be run again after dropping some resources"""
+    pipeline = dlt.pipeline(pipeline_name='drop_test_' + uniq_id(), destination=destination_name)
+    pipeline.run(droppable_source())
+
+    attached = _attach(pipeline)
+
+    helpers.drop(attached, resources=('droppable_a', 'droppable_b'), state_only=True)
+
+    attached = _attach(pipeline)
+
+    assert_dropped_resource_tables(attached, [])  # No tables dropped
+    assert_dropped_resource_states(attached, ['droppable_a', 'droppable_b'])
+    assert_destination_state_loaded(attached)
+
 
 if __name__ == '__main__':
     import pytest

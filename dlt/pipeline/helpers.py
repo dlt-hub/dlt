@@ -91,6 +91,8 @@ class DropCommand:
             if self.drop_tables:
                 self.tables_to_drop = list(chain.from_iterable(resource_tables.values()))
                 self.tables_to_drop.reverse()
+            else:
+                self.tables_to_drop = []
             resource_names = list(resource_tables.keys())
         else:
             self.tables_to_drop = []
