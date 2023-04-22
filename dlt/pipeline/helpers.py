@@ -62,7 +62,7 @@ class DropCommand:
         schema_name: Optional[str] = None,
         state_paths: TAnyJsonPath = (),
         drop_all: bool = False,
-        skip_state_wipe: bool = False
+        state_only: bool = False,
     ) -> None:
         self.pipeline = pipeline
         if isinstance(resources, str):
@@ -72,7 +72,9 @@ class DropCommand:
 
         self.schema = pipeline.schemas[schema_name or pipeline.default_schema_name].clone()
         self.schema_tables = self.schema.tables
-        self.drop_tables = self.drop_state = True
+        self.drop_tables = not state_only
+        self.drop_state = True
+        self.state_paths_to_drop = compile_paths(state_paths)
 
         resources = set(resources)
         resource_names = []
@@ -93,10 +95,8 @@ class DropCommand:
         else:
             self.tables_to_drop = []
             self.drop_tables = False  # No tables to drop
+            self.drop_state = not not self.state_paths_to_drop
 
-        self.skip_state_wipe = skip_state_wipe or not self.resource_pattern
-
-        self.state_paths_to_drop = compile_paths(state_paths)
         self.drop_all = drop_all
         self.info: _DropInfo = dict(
             tables=[t['name'] for t in self.tables_to_drop], resource_states=[], state_paths=[],
@@ -106,8 +106,6 @@ class DropCommand:
             resource_pattern=self.resource_pattern
         )
         self._new_state = self._create_modified_state()
-        if self.skip_state_wipe and not self.state_paths_to_drop:
-            self.drop_state = False
 
     def _drop_destination_tables(self) -> None:
         with self.pipeline._sql_job_client(self.schema) as client:
@@ -127,7 +125,7 @@ class DropCommand:
             return state  # type: ignore[return-value]
         source_states = sources_state(state).items()
         for source_name, source_state in source_states:
-            if not self.skip_state_wipe:
+            if self.drop_state:
                 for key in _get_matching_resources(self.resource_pattern, source_state):
                     self.info['resource_states'].append(key)
                     _reset_resource_state(key, source_state)
@@ -174,6 +172,6 @@ def drop(
     schema_name: str = None,
     state_paths: TAnyJsonPath = (),
     drop_all: bool = False,
-    skip_state_wipe: bool = False,
+    state_only: bool = False
 ) -> None:
-    return DropCommand(pipeline, resources, schema_name, state_paths, drop_all, skip_state_wipe)()
+    return DropCommand(pipeline, resources, schema_name, state_paths, drop_all, state_only)()
