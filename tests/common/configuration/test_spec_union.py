@@ -1,12 +1,13 @@
 import itertools
 import os
 import pytest
-from typing import Union, Any
+from typing import Optional, Union, Any
 
 from dlt.common.configuration.exceptions import InvalidNativeValue, ConfigFieldMissingException
 from dlt.common.configuration.providers import EnvironProvider
 from dlt.common.configuration.specs import CredentialsConfiguration, BaseConfiguration
 from dlt.common.configuration import configspec, resolve_configuration
+from dlt.common.configuration.specs.gcp_client_credentials import GcpClientCredentialsWithDefault
 from dlt.common.typing import TSecretValue
 
 from tests.utils import preserve_environ
@@ -162,3 +163,49 @@ def test_union_decorator() -> None:
 
     # pass explicit dict
     assert list(zen_source(credentials={"email": "emx", "password": "pass"}))[0].email == "emx"
+    assert list(zen_source(credentials={"api_key": "🔑", "api_secret": ":secret:"}))[0].api_key == "🔑"
+    # mixed credentials will not work
+    with pytest.raises(ConfigFieldMissingException):
+        assert list(zen_source(credentials={"api_key": "🔑", "password": "pass"}))[0].api_key == "🔑"
+
+import dlt
+
+class GoogleAnalyticsCredentialsBase(CredentialsConfiguration):
+    """
+    The Base version of all the GoogleAnalyticsCredentials classes.
+    """
+    pass
+
+
+@configspec
+class GoogleAnalyticsCredentialsOAuth(GoogleAnalyticsCredentialsBase):
+    """
+    This class is used to store credentials Google Analytics
+    """
+    client_id: str
+    client_secret: TSecretValue
+    project_id: TSecretValue
+    refresh_token: TSecretValue
+    access_token: Optional[TSecretValue] = None
+
+
+@dlt.source(max_table_nesting=2)
+def google_analytics(credentials: Union[GoogleAnalyticsCredentialsOAuth, GcpClientCredentialsWithDefault] = dlt.secrets.value):
+    yield dlt.resource([credentials], name="creds")
+
+
+def test_google_auth_union() -> None:
+    info = {
+        "type" : "service_account",
+        "project_id" : "dlthub-analytics",
+        "private_key_id" : "45cbe97fbd3d756d55d4633a5a72d8530a05b993",
+        "private_key" : "-----BEGIN PRIVATE KEY-----\n\n-----END PRIVATE KEY-----\n",
+        "client_email" : "105150287833-compute@developer.gserviceaccount.com",
+        "client_id" : "106404499083406128146",
+        "auth_uri" : "https://accounts.google.com/o/oauth2/auth",
+        "token_uri" : "https://oauth2.googleapis.com/token",
+        "auth_provider_x509_cert_url" : "https://www.googleapis.com/oauth2/v1/certs",
+        "client_x509_cert_url" : "https://www.googleapis.com/robot/v1/metadata/x509/105150287833-compute%40developer.gserviceaccount.com"
+        }
+
+    assert isinstance(list(google_analytics(credentials=info))[0], GcpClientCredentialsWithDefault)

@@ -50,10 +50,10 @@ def find_outer_func_def(node: ast.AST) -> Optional[ast.FunctionDef]:
     """Finds the outer function definition node in which the 'node' is contained. Returns None if 'node' is toplevel."""
     if not hasattr(node, "parent"):
         raise ValueError("No parent information in node, not enabled in visitor", node)
-    while not isinstance(node.parent, ast.FunctionDef):  # type: ignore
-        if node.parent is None:  # type: ignore
+    while not isinstance(node.parent, ast.FunctionDef):
+        if node.parent is None:
             return None
-        node = node.parent  # type: ignore
+        node = node.parent
     return node  # type: ignore
 
 

@@ -16,8 +16,8 @@ class DBTransaction(Protocol):
 
 
 class DBApi(Protocol):
-    threadsafety: bool
-    apilevel: bool
+    threadsafety: int
+    apilevel: str
     paramstyle: str
 
 

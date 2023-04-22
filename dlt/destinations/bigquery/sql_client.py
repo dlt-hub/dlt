@@ -1,6 +1,6 @@
 
 from contextlib import contextmanager
-from typing import Any, AnyStr, ClassVar, Iterator, List, Optional, Sequence, Tuple
+from typing import Any, AnyStr, ClassVar, Iterator, List, Optional, Sequence
 
 import google.cloud.bigquery as bigquery  # noqa: I250
 from google.cloud.bigquery import dbapi as bq_dbapi
@@ -9,7 +9,6 @@ from google.cloud import exceptions as gcp_exceptions
 from google.cloud.bigquery.dbapi import exceptions as dbapi_exceptions
 from google.api_core import exceptions as api_core_exceptions
 
-from dlt.common import logger
 from dlt.common.configuration.specs import GcpClientCredentials
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.typing import StrAny
@@ -61,7 +60,7 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
     def open_connection(self) -> bigquery.Client:
         self._client = bigquery.Client(
             self.credentials.project_id,
-            credentials=self.credentials.to_service_account_credentials(),
+            credentials=self.credentials.to_google_credentials(),
             location=self.credentials.location
         )
 

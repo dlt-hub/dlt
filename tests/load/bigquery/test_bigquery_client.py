@@ -1,13 +1,14 @@
 import base64
 from copy import copy
-from typing import Any, Iterator
+from typing import Any, Iterator, Tuple
 import pytest
 
 from dlt.common import json, pendulum, Decimal
 from dlt.common.arithmetics import numeric_default_context
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.configuration.resolve import resolve_configuration
-from dlt.common.configuration.specs import GcpClientCredentialsWithDefault
+from dlt.common.configuration.specs import GcpClientCredentialsWithDefault, GcpClientCredentials, GcpOAuthCredentialsWithDefault, GcpOAuthCredentials
+from dlt.common.configuration.specs.exceptions import InvalidGoogleNativeCredentialsType
 from dlt.common.storages import FileStorage
 from dlt.common.schema.schema import Schema
 from dlt.common.utils import uniq_id, custom_environ
@@ -36,7 +37,7 @@ def auto_delete_storage() -> None:
     delete_test_storage()
 
 
-def test_gcp_credentials_with_default(environment: Any) -> None:
+def test_service_credentials_with_default(environment: Any) -> None:
     gcpc = GcpClientCredentialsWithDefault()
     # resolve will miss values and try to find default credentials on the machine
     with pytest.raises(ConfigFieldMissingException) as py_ex:
@@ -44,19 +45,17 @@ def test_gcp_credentials_with_default(environment: Any) -> None:
     assert py_ex.value.fields == ['project_id', 'private_key', 'client_email']
 
     # prepare real service.json
-    storage = FileStorage("_secrets", makedirs=True)
-    with open(common_json_case_path("level-dragon-333019-707809ee408a") + ".b64", mode="br") as f:
-        services_str = base64.b64decode(f.read().strip(), validate=True).decode()
-    dest_path = storage.save("level-dragon-333019-707809ee408a.json", services_str)
+    services_str, dest_path = prepare_service_json()
 
     # create instance of credentials
     gcpc = GcpClientCredentialsWithDefault()
     gcpc.parse_native_representation(services_str)
     # check if credentials can be created
     assert gcpc.to_service_account_credentials() is not None
+    assert gcpc.to_google_credentials() is not None
 
     # now set the env
-    with custom_environ({"GOOGLE_APPLICATION_CREDENTIALS": storage.make_full_path(dest_path)}):
+    with custom_environ({"GOOGLE_APPLICATION_CREDENTIALS": dest_path}):
         gcpc = GcpClientCredentialsWithDefault()
         resolve_configuration(gcpc)
         # project id recovered from credentials
@@ -66,6 +65,113 @@ def test_gcp_credentials_with_default(environment: Any) -> None:
         # the default credentials are available
         assert gcpc.has_default_credentials() is True
         assert gcpc.default_credentials() is not None
+
+
+def test_service_credentials_native_credentials_object(environment: Any) -> None:
+    from google.oauth2.service_account import Credentials as ServiceAccountCredentials
+
+    _, dest_path = prepare_service_json()
+    credentials = ServiceAccountCredentials.from_service_account_file(dest_path)
+
+
+    def _assert_credentials(gcp_credentials):
+        assert gcp_credentials.to_google_credentials() is credentials
+        # check props
+        assert gcp_credentials.project_id == credentials.project_id == "level-dragon-333019"
+        assert gcp_credentials.client_email == credentials.service_account_email
+        assert gcp_credentials.private_key is credentials
+
+    # pass as native value to bare credentials
+    gcpc = GcpClientCredentials()
+    gcpc.parse_native_representation(credentials)
+    _assert_credentials(gcpc)
+
+    # pass as native value to credentials w/ default
+    gcpc = GcpClientCredentialsWithDefault()
+    gcpc.parse_native_representation(credentials)
+    _assert_credentials(gcpc)
+
+    # oauth credentials should fail on invalid type
+    with pytest.raises(InvalidGoogleNativeCredentialsType):
+        gcoauth = GcpOAuthCredentials()
+        gcoauth.parse_native_representation(credentials)
+
+
+def test_oauth_credentials_with_default(environment: Any) -> None:
+    from google.oauth2.credentials import Credentials as GoogleOAuth2Credentials
+
+    gcoauth = GcpOAuthCredentialsWithDefault()
+    # resolve will miss values and try to find default credentials on the machine
+    with pytest.raises(ConfigFieldMissingException) as py_ex:
+        resolve_configuration(gcoauth)
+    assert py_ex.value.fields == ['client_id', 'client_secret', 'refresh_token', 'project_id']
+
+    # prepare real service.json
+    oauth_str, _ = prepare_oauth_json()
+
+    # create instance of credentials
+    gcoauth = GcpOAuthCredentialsWithDefault()
+    gcoauth.parse_native_representation(oauth_str)
+    # check if credentials can be created
+    assert isinstance(gcoauth.to_google_credentials(), GoogleOAuth2Credentials)
+
+    # now set the env
+    _, dest_path = prepare_service_json()
+    with custom_environ({"GOOGLE_APPLICATION_CREDENTIALS": dest_path}):
+        gcoauth = GcpOAuthCredentialsWithDefault()
+        resolve_configuration(gcoauth)
+        # project id recovered from credentials
+        assert gcoauth.project_id == "level-dragon-333019"
+        # check if credentials can be created
+        assert gcoauth.to_google_credentials()
+        # the default credentials are available
+        assert gcoauth.has_default_credentials() is True
+        assert gcoauth.default_credentials() is not None
+
+
+def test_oauth_credentials_native_credentials_object(environment: Any) -> None:
+    from google.oauth2.credentials import Credentials as GoogleOAuth2Credentials
+
+    oauth_str, _ = prepare_oauth_json()
+    oauth_dict = json.loads(oauth_str)
+    # must add refresh_token
+    oauth_dict["installed"]["refresh_token"] = "REFRESH TOKEN"
+    credentials = GoogleOAuth2Credentials.from_authorized_user_info(oauth_dict["installed"])
+
+    def _assert_credentials(gcp_credentials):
+        # check props
+        assert gcp_credentials.project_id == ""
+        assert gcp_credentials.client_id == credentials.client_id
+        assert gcp_credentials.client_secret is credentials.client_secret
+
+    # pass as native value to bare credentials
+    gcoauth = GcpOAuthCredentials()
+    gcoauth.parse_native_representation(credentials)
+    _assert_credentials(gcoauth)
+
+    # check if quota project id is visible
+    cred_with_quota = credentials.with_quota_project("the-quota-project")
+    gcoauth = GcpOAuthCredentials()
+    gcoauth.parse_native_representation(cred_with_quota)
+    assert gcoauth.project_id == "the-quota-project"
+
+    # pass as native value to credentials w/ default
+    gcoauth = GcpOAuthCredentials()
+    gcoauth.parse_native_representation(credentials)
+    _assert_credentials(gcoauth)
+
+    # oauth credentials should fail on invalid type
+    with pytest.raises(InvalidGoogleNativeCredentialsType):
+        gcpc = GcpClientCredentialsWithDefault()
+        gcpc.parse_native_representation(credentials)
+
+
+def test_get_oauth_access_token() -> None:
+    c = resolve_configuration(GcpOAuthCredentials())
+    assert c.refresh_token is not None
+    assert c.token is None
+    c.auth()
+    assert c.token is not None
 
 
 def test_bigquery_job_errors(client: BigQueryClient, file_storage: FileStorage) -> None:
@@ -173,3 +279,21 @@ def test_loading_errors(client: BigQueryClient, file_storage: FileStorage) -> No
     insert_json["parse_data__metadata__rasa_x_id"] = Decimal("5.7896044618658097711785492504343953926634992332820282019728792003956564819968E+38")
     job = expect_load_file(client, file_storage, json.dumps(insert_json), user_table_name, status="failed")
     assert "Invalid BIGNUMERIC value: 578960446186580977117854925043439539266.34992332820282019728792003956564819968 Field: parse_data__metadata__rasa_x_id;" in job.exception()
+
+
+def prepare_oauth_json() -> Tuple[str, str]:
+    # prepare real service.json
+    storage = FileStorage("_secrets", makedirs=True)
+    with open(common_json_case_path("oauth_client_secret_929384042504"), mode="r", encoding="utf-8") as f:
+        oauth_str = f.read()
+    dest_path = storage.save("oauth_client_secret_929384042504.json", oauth_str)
+    return oauth_str, dest_path
+
+
+def prepare_service_json() -> Tuple[str, str]:
+    # prepare real service.json
+    storage = FileStorage("_secrets", makedirs=True)
+    with open(common_json_case_path("level-dragon-333019-707809ee408a") + ".b64", mode="br") as f:
+        services_str = base64.b64decode(f.read().strip(), validate=True).decode()
+    dest_path = storage.save("level-dragon-333019-707809ee408a.json", services_str)
+    return services_str, dest_path

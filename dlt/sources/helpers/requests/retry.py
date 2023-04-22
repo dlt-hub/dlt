@@ -196,7 +196,7 @@ class Client:
         session.mount('http://', self._adapter)
         session.mount('https://', self._adapter)
         retry = _make_retry(**self._retry_kwargs)  # type: ignore[arg-type]
-        session.request = retry.wraps(session.request)  # type: ignore[assignment]
+        session.request = retry.wraps(session.request)  # type: ignore[method-assign]
         return session
 
     @property

@@ -179,7 +179,7 @@ def map_nested_in_place(func: AnyFun, _complex: TAny) -> TAny:
     """Applies `func` to all elements in `_dict` recursively, replacing elements in nested dictionaries and lists in place."""
     if isinstance(_complex, tuple):
         if hasattr(_complex, "_asdict"):
-            _complex = _complex._asdict()  # type: ignore
+            _complex = _complex._asdict()
         else:
             _complex = list(_complex)  # type: ignore
 
@@ -201,7 +201,15 @@ def map_nested_in_place(func: AnyFun, _complex: TAny) -> TAny:
 
 
 def is_interactive() -> bool:
+    """
+    Determine if the current environment is interactive.
+
+    Returns:
+        bool: True if interactive (e.g., REPL, IPython, Jupyter Notebook), False if running as a script.
+    """
     import __main__ as main
+    # When running as a script, the __main__ module has a __file__ attribute.
+    # In an interactive environment, the __file__ attribute is absent.
     return not hasattr(main, '__file__')
 
 

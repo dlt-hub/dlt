@@ -4,8 +4,9 @@ from typing import Any
 
 import pytest
 from dlt.common.configuration import resolve_configuration
-from dlt.common.configuration.specs import PostgresCredentials, RedshiftCredentials, ConnectionStringCredentials, GcpClientCredentials, GcpClientCredentialsWithDefault
-from dlt.common.configuration.specs.exceptions import InvalidConnectionString, InvalidServicesJson
+from dlt.common.configuration.exceptions import ConfigFieldMissingException
+from dlt.common.configuration.specs import PostgresCredentials, RedshiftCredentials, ConnectionStringCredentials, GcpClientCredentials, GcpClientCredentialsWithDefault, GcpOAuthCredentials, GcpOAuthCredentialsWithDefault
+from dlt.common.configuration.specs.exceptions import InvalidConnectionString, InvalidGoogleNativeCredentialsType, InvalidGoogleOauth2Json, InvalidGoogleServicesJson, OAuth2ScopesRequired
 from dlt.common.configuration.specs.run_configuration import RunConfiguration
 
 from tests.utils import preserve_environ
@@ -14,7 +15,7 @@ from tests.common.configuration.utils import environment
 
 
 SERVICE_JSON = """
-    {
+  {
     "type": "service_account",
     "project_id": "chat-analytics",
     "private_key_id": "921837921798379812",
@@ -26,7 +27,29 @@ SERVICE_JSON = """
     "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
     "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/loader40chat-analytics-317513.iam.gserviceaccount.com"
   }
-    """
+"""
+
+OAUTH_USER_INFO = """
+    {
+        "client_id": "921382012504-3mtjaj1s7vuvf53j88mgdq4te7akkjm3.apps.googleusercontent.com",
+        "project_id": "level-dragon-333983",
+        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+        "token_uri": "https://oauth2.googleapis.com/token",
+        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+        "client_secret": "gOCSPX-XdY5znbrvjSMEG3pkpA_GHuLPPth",
+        "scopes": ["email", "service"],
+        %s
+        "redirect_uris": [
+            "http://localhost"
+        ]
+    }
+"""
+
+OAUTH_APP_USER_INFO = """
+{
+    "installed": %s
+}
+""" % OAUTH_USER_INFO
 
 
 def test_connection_string_credentials_native_representation(environment) -> None:
@@ -115,11 +138,11 @@ def test_postgres_and_redshift_credentials_defaults() -> None:
     assert red_cred.port == 5439
 
 
-def test_gcp_credentials_native_representation(environment) -> None:
-    with pytest.raises(InvalidServicesJson):
+def test_gcp_service_credentials_native_representation(environment) -> None:
+    with pytest.raises(InvalidGoogleNativeCredentialsType):
         GcpClientCredentialsWithDefault().parse_native_representation(1)
 
-    with pytest.raises(InvalidServicesJson):
+    with pytest.raises(InvalidGoogleServicesJson):
         GcpClientCredentialsWithDefault().parse_native_representation("notjson")
 
     assert GcpClientCredentialsWithDefault.__config_gen_annotations__ == ["location"]
@@ -144,10 +167,10 @@ def test_gcp_credentials_native_representation(environment) -> None:
     assert gcpc_2.default_credentials() is None
 
 
-def test_gcp_credentials_resolved_from_native_representation(environment: Any) -> None:
+def test_gcp_service_credentials_resolved_from_native_representation(environment: Any) -> None:
     gcpc = GcpClientCredentials()
 
-    # without password
+    # without PK
     gcpc.parse_native_representation(SERVICE_JSON % "")
     assert gcpc.is_partial()
     assert not gcpc.is_resolved()
@@ -157,6 +180,84 @@ def test_gcp_credentials_resolved_from_native_representation(environment: Any) -
 
     environment["CREDENTIALS__PRIVATE_KEY"] = "loader"
     resolve_configuration(gcpc, accept_partial=False)
+
+
+def test_gcp_oauth_credentials_native_representation(environment) -> None:
+
+    with pytest.raises(InvalidGoogleNativeCredentialsType):
+        GcpOAuthCredentialsWithDefault().parse_native_representation(1)
+
+    with pytest.raises(InvalidGoogleOauth2Json):
+        GcpOAuthCredentialsWithDefault().parse_native_representation("notjson")
+
+    gcoauth = GcpOAuthCredentialsWithDefault()
+    gcoauth.parse_native_representation(OAUTH_APP_USER_INFO % '"refresh_token": "refresh_token",')
+    assert gcoauth.is_resolved() is True
+    assert gcoauth.project_id == "level-dragon-333983"
+    assert gcoauth.client_id == "921382012504-3mtjaj1s7vuvf53j88mgdq4te7akkjm3.apps.googleusercontent.com"
+    assert gcoauth.client_secret == "gOCSPX-XdY5znbrvjSMEG3pkpA_GHuLPPth"
+    assert gcoauth.refresh_token == "refresh_token"
+    assert gcoauth.token is None
+    assert gcoauth.scopes == ["email", "service"]
+
+
+    # get native representation, it will also include timeouts
+    _repr = gcoauth.to_native_representation()
+    assert "retry_deadline" in _repr
+    assert "location" in _repr
+    # parse again
+    gcpc_2 = GcpOAuthCredentialsWithDefault()
+    gcpc_2.parse_native_representation(_repr)
+    assert dict(gcpc_2) == dict(gcoauth)
+    # default credentials are not available
+    assert gcoauth.has_default_credentials() is False
+    assert gcpc_2.has_default_credentials() is False
+    assert gcoauth.default_credentials() is None
+    assert gcpc_2.default_credentials() is None
+
+    # use OAUTH_USER_INFO without "installed"
+    gcpc_3 = GcpOAuthCredentialsWithDefault()
+    gcpc_3.parse_native_representation(OAUTH_USER_INFO % '"refresh_token": "refresh_token",')
+    assert dict(gcpc_3) == dict(gcpc_2)
+
+
+def test_gcp_oauth_credentials_resolved_from_native_representation(environment: Any) -> None:
+    gcpc = GcpOAuthCredentials()
+
+    # without refresh token
+    gcpc.parse_native_representation(OAUTH_USER_INFO % "")
+    assert gcpc.is_partial()
+    assert not gcpc.is_resolved()
+
+    resolve_configuration(gcpc, accept_partial=True)
+    assert gcpc.is_partial()
+
+    with pytest.raises(ConfigFieldMissingException):
+        resolve_configuration(gcpc, accept_partial=False)
+
+    environment["CREDENTIALS__REFRESH_TOKEN"] = "refresh_token"
+    resolve_configuration(gcpc, accept_partial=False)
+
+
+def test_needs_scopes_for_refresh_token() -> None:
+    c = GcpOAuthCredentials()
+    # without refresh token
+    c.parse_native_representation(OAUTH_USER_INFO % "")
+    assert c.refresh_token is None
+    assert c.token is None
+    c.scopes = []
+    with pytest.raises(OAuth2ScopesRequired):
+        c.auth()
+
+
+def test_requires_refresh_token_no_tty():
+    c = GcpOAuthCredentials()
+    # without refresh token
+    c.parse_native_representation(OAUTH_USER_INFO % "")
+    assert c.refresh_token is None
+    assert c.token is None
+    with pytest.raises(AssertionError):
+        c.auth()
 
 
 def test_run_configuration_slack_credentials(environment: Any) -> None:
