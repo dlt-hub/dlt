@@ -1,8 +1,9 @@
 import os
 import threading
 from pathvalidate import is_valid_filepath
-from typing import Any, Final, Optional
+from typing import Any, Final, Optional, Tuple
 
+from dlt.common import logger
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.configuration.specs.exceptions import InvalidConnectionString
@@ -82,15 +83,18 @@ class DuckDbCredentials(ConnectionStringCredentials):
         if self.database == ":external:":
             return
         # try the pipeline context
+        is_default_path = False
         if self.database == ":pipeline:":
             self.database = self._path_in_pipeline(DEFAULT_DUCK_DB_NAME)
         # if pipeline context was not present or database was not set
         if not self.database:
             # create database locally
-            self.database = self._path_from_pipeline(DEFAULT_DUCK_DB_NAME)
+            self.database, is_default_path = self._path_from_pipeline(DEFAULT_DUCK_DB_NAME)
         # always make database an abs path
         self.database = os.path.abspath(self.database)
-        self._path_to_pipeline(self.database)
+        # do not save the default path into pipeline's local state
+        if not is_default_path:
+            self._path_to_pipeline(self.database)
 
     def _path_in_pipeline(self, rel_path: str) -> str:
         from dlt.common.configuration.container import Container
@@ -111,7 +115,20 @@ class DuckDbCredentials(ConnectionStringCredentials):
         if context.is_active():
             context.pipeline().set_local_state_val(LOCAL_STATE_KEY, abspath)
 
-    def _path_from_pipeline(self, default_path: str) -> str:
+    def _path_from_pipeline(self, default_path: str) -> Tuple[str, bool]:
+        """
+        Returns path to DuckDB as stored in the active pipeline's local state and a boolean flag.
+
+        If the pipeline state is not available, returns the default DuckDB path that includes the pipeline name and sets the flag to True.
+        If the pipeline context is not available, returns the provided default_path and sets the flag to True.
+
+        Args:
+            default_path (str): The default DuckDB path to return if the pipeline context or state is not available.
+
+        Returns:
+            Tuple[str, bool]: The path to the DuckDB as stored in the active pipeline's local state or the default path if not available,
+            and a boolean flag set to True when the default path is returned.
+        """
         from dlt.common.configuration.container import Container
         from dlt.common.pipeline import PipelineContext
 
@@ -119,11 +136,21 @@ class DuckDbCredentials(ConnectionStringCredentials):
         if context.is_active():
             try:
                 # use pipeline name as default
-                default_path = DUCK_DB_NAME % context.pipeline().pipeline_name
-                return context.pipeline().get_local_state_val(LOCAL_STATE_KEY)  # type: ignore
+                pipeline = context.pipeline()
+                default_path = DUCK_DB_NAME % pipeline.pipeline_name
+                # get pipeline path from local state
+                pipeline_path = pipeline.get_local_state_val(LOCAL_STATE_KEY)
+                # make sure that path exists
+                if not os.path.exists(pipeline_path):
+                    logger.warning(f"Duckdb attached to pipeline {pipeline.pipeline_name} in path {os.path.relpath(pipeline_path)} was deleted. Attaching to duckdb database '{default_path}' in current folder.")
+                else:
+                    return pipeline_path, False
             except KeyError:
+                # no local state: default_path will be used
                 pass
-        return default_path
+
+        return default_path, True
+
 
     def _delete_conn(self) -> None:
         # print("Closing conn because is owner")
