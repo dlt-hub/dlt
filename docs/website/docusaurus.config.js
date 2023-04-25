@@ -54,6 +54,9 @@ const config = {
         gtag: {
           trackingID: 'G-7F1SE12JLR',
         },
+        googleTagManager: {
+          containerId: 'G-PRHSCL1CMK',
+        },
       }),
     ],
   ],
