@@ -8,9 +8,9 @@ keywords: [introduction, who, what, how]
 
 ![dlt pacman](/img/dlt-pacman.gif)
 
-## Summary
+## What is `dlt`?
 
-**Automatically turn the JSON returned by any API into a live dataset stored wherever you want it**
+`dlt` is an open-source library that enables you to create a data [pipeline](./general-usage/glossary.md#pipeline) in a Python script. To use it, `pip install dlt` and then `import dlt`. Once set up, it will automatically load any [source](./general-usage/glossary.md#source) (e.g. an API) into a live dataset stored in the [destination](./general-usage/glossary.md#destination) of your choice.
 
 ```python
 import dlt
@@ -24,7 +24,7 @@ pipeline = dlt.pipeline(
     dataset_name='games_data'
 )
 
-# use chess.com API to grab data about a few players
+# grab some player data from chess.com API
 data = chess(
     ['magnuscarlsen', 'rpragchess'],
     start_month='2022/11',
@@ -35,24 +35,23 @@ data = chess(
 pipeline.run(data)
 ```
 
-`dlt` is an open source library that you include in a Python script to create a highly
-scalable, easy to maintain, straightforward to deploy data [pipeline](general-usage/glossary.md#pipeline).
-Once you set it up, it will then automatically turn JSON returned by any
-[source](general-usage/glossary.md#source) (e.g. an API) into a live dataset stored in the
-[destination](general-usage/glossary.md#destination) of your choice (e.g. Google BigQuery).
-
-## What does `dlt` do?
-
-**`pip install dlt` and then include `import dlt` to use it in your loading script**
-
-`dlt` is used to automate fetching data for others, copying production data to somewhere else, putting data from an API into a database, getting data for dashboards that automatically refresh with new data, and more.
-
-## Who should use `dlt`?
-
-Anyone who solves problems in their job using Python (e.g. data scientists, data analysts, data engineers, etc) should use `dlt`, which is licensed under the Apache License 2.0 and can be used for free forever.
-
-## How does `dlt` work?
-
-`dlt` extracts data from a [source](general-usage/glossary.md#source), inspects its structure to create a [schema](general-usage/glossary.md#schema), normalizes and verifies the data,
+[How it works](./how-dlt-works.md): `dlt` extracts data from a [source](general-usage/glossary.md#source), inspects its structure to create a [schema](general-usage/glossary.md#schema), normalizes and verifies the data,
 and then loads the data into a [destination](general-usage/glossary.md#destination).
-You can read more about how it works [here](./how-dlt-works.md).
+
+## Why use `dlt`?
+
+The `dlt` library can be dropped into a variety of tools (e.g. a Colab notebook, AWS Lambda, an Airflow DAG, your local laptop, a GPT-4 assisted development playground, etc). That is, it was designed to fit into what you are already doing, rather than forcing your solution to fit into `dlt`.
+
+`dlt` pipelines are highly scalable, easy to maintain, and straightforward to deploy in production. People add it to their code for everything from exploring data from a new API with DuckDB in under 15 minutes to building an advanced loading infrastructure for their entire organization.
+
+## Community & Support
+
+### Getting started with `dlt`
+1. Play with the [Google Colab demo](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing)
+2. [Install](installation.mdx) and try the [Getting Started](getting-started.md) tutorial
+3. Select an [existing pipeline](./pipelines/github.md) or start [creating your own](./walkthroughs/create-a-pipeline.md)
+
+### Become part of the `dlt` community
+1. Give the library a ⭐ and check out the code on [GitHub](https://github.com/dlt-hub/dlt)
+2. Ask questions and share how you use the library on [Slack](https://join.slack.com/t/dlthub-community/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g)
+3. Report problems and make feature requests [here](https://github.com/dlt-hub/dlt/issues/new)
