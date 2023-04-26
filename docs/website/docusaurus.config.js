@@ -65,7 +65,7 @@ const config = {
         title: '',
         logo: {
           alt: 'dlt Docs Logo',
-          src: 'img/dlt-logo.svg',
+          src: 'img/dlthub-logo.png',
           href: 'https://dlthub.com'
         },
         items: [
@@ -86,7 +86,7 @@ const config = {
             href: 'https://join.slack.com/t/dlthub-community/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g',
             label: '.',
             position: 'right',
-            className: 'slack-navbar'
+            className: 'slack-navbar',          
           },
           {
             href: 'https://github.com/dlt-hub/dlt',
@@ -168,7 +168,11 @@ const config = {
 
         // Optional: see doc section below
         contextualSearch: true,
-
+      },
+      colorMode: {
+        defaultMode:'dark',
+        disableSwitch: false,
+        respectPrefersColorScheme: true,
       },
     }),
 };
