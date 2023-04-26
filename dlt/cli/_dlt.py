@@ -62,6 +62,7 @@ def deploy_command_wrapper(pipeline_script_path: str, deployment_method: str, sc
             err=True,
             fg="red"
         )
+        fmt.note("If you do not have a repository yet, the easiest way to proceed is to create one on Github and then clone it here.")
         fmt.note("Please refer to %s for further assistance" % fmt.bold(DLT_DEPLOY_DOCS_URL))
         return -1
     except NoSuchPathError as path_ex:
@@ -75,7 +76,6 @@ def deploy_command_wrapper(pipeline_script_path: str, deployment_method: str, sc
         click.secho(str(ex), err=True, fg="red")
         fmt.note("Please refer to %s for further assistance" % fmt.bold(DLT_DEPLOY_DOCS_URL))
         # TODO: display stack trace if with debug flag
-        raise
     return 0
 
 
@@ -186,8 +186,8 @@ def main() -> int:
     init_cmd.add_argument("--generic", default=False, action="store_true", help="When present uses a generic template with all the dlt loading code present will be used. Otherwise a debug template is used that can be immediately run to get familiar with the dlt sources.")
 
     deploy_cmd = subparsers.add_parser("deploy", help="Creates a deployment package for a selected pipeline script")
-    deploy_cmd.add_argument("pipeline-script-path", help="Path to a pipeline script")
-    deploy_cmd.add_argument("deployment-method", choices=["github-action"], default="github-action", help="Deployment method")
+    deploy_cmd.add_argument("pipeline_script_path", metavar="pipeline-script-path", help="Path to a pipeline script")
+    deploy_cmd.add_argument("deployment_method", metavar="deployment-method", choices=["github-action"], default="github-action", help="Deployment method")
     deploy_cmd.add_argument("--schedule", required=True, help="A schedule with which to run the pipeline, in cron format. Example: '*/30 * * * *' will run the pipeline every 30 minutes.")
     deploy_cmd.add_argument("--run-manually", default=True, action="store_true", help="Allows the pipeline to be run manually form Github Actions UI.")
     deploy_cmd.add_argument("--run-on-push", default=False, action="store_true", help="Runs the pipeline with every push to the repository.")
@@ -233,7 +233,7 @@ def main() -> int:
     pipe_cmd_drop.add_argument("--state-only", action="store_true", help="Only wipe state for matching resources without dropping tables.", default=False)
 
     pipe_cmd_package = pipeline_subparsers.add_parser("load-package", help="Displays information on load package, use -v or -vv for more info")
-    pipe_cmd_package.add_argument("load_id", nargs='?', help="Load id of completed or normalized package. Defaults to the most recent package.")
+    pipe_cmd_package.add_argument("load_id", metavar="load-id", nargs='?', help="Load id of completed or normalized package. Defaults to the most recent package.")
 
     subparsers.add_parser("telemetry", help="Shows telemetry status")
 

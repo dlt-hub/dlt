@@ -3,6 +3,7 @@ import inspect
 import os
 import tempfile
 import time
+import contextlib
 from typing import Any, Callable, Tuple
 
 from dlt.common import git
@@ -70,12 +71,13 @@ def track_command(command: str, track_before: bool, *args: str) -> Callable[[TFu
             start_ts = time.time()
 
             def _track(success: bool) -> None:
-                props["elapsed"] = time.time() - start_ts
-                props["success"] = success
-                # resolve runtime config and init telemetry
-                c = resolve_configuration(RunConfiguration())
-                start_telemetry(c)
-                track("command", command, props)
+                with contextlib.suppress(Exception):
+                    props["elapsed"] = time.time() - start_ts
+                    props["success"] = success
+                    # resolve runtime config and init telemetry
+                    c = resolve_configuration(RunConfiguration())
+                    start_telemetry(c)
+                    track("command", command, props)
 
             # some commands should be tracked before execution
             if track_before:
