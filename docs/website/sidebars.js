@@ -45,6 +45,16 @@ const sidebars = {
     },
     {
       type: 'category',
+      label: 'User guides',
+      items: [
+        'user-guides/data-pipeline-engineer',
+        'user-guides/data-engineering-manager',
+        'user-guides/analytics-engineer',
+        'user-guides/aspiring-professional',
+      ],
+    },
+    {
+      type: 'category',
       label: 'Walkthroughs',
       items: [
         'walkthroughs/create-a-pipeline',
