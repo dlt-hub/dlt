@@ -234,7 +234,9 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
                 if count > max_items:
                     return
             return
-        self._pipe.replace_gen(_gen_wrap(self._pipe.gen))
+        # transformers should be limited by their input, so we only limit non-transformers
+        if not self.is_transformer:
+            self._pipe.replace_gen(_gen_wrap(self._pipe.gen))
         return self
 
     def add_step(self, item_transform: ItemTransformFunctionWithMeta[TDataItems], insert_at: int = None) -> "DltResource":  # noqa: A003
