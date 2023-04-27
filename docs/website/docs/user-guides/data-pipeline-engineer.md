@@ -21,8 +21,8 @@ The big advantage of using dlt for this is that it automates what is otherwise a
 Dlt is meant to cater to the entire data team, enabling you to standardize how your entire team loads data. This reduces knowledge requirements to get work done and enables collaborative working between engineers and analysts.
 
 - Analysts can use ready-build sources or pass their unstructured data to dlt and dlt will do a good job of creating a sturdy pipeline.  docs: [get an existing pipeline](../walkthroughs/add-a-pipeline), [build a pipeline](../walkthroughs/create-a-pipeline)
-- Python first users can heavily customise how dlt sources produce data, as dlt supports selecting, filtering, renaming, anonymising and just about any custom operation you could think of. docs: [build a pipeline](../customizations/customizing-pipelines/renaming_columns)
-- Junior data engineers can configure dlt to do what they want - change the loading modes, add performance hints. docs:  [build a pipeline](../walkthroughs/adjust-a-schema)
+- Python first users can heavily customise how dlt sources produce data, as dlt supports selecting, filtering, renaming, anonymising and just about any custom operation you could think of. docs: [rename columns example](../customizations/customizing-pipelines/renaming_columns)
+- Junior data engineers can configure dlt to do what they want - change the loading modes, add performance hints. docs:  [adjust a schema](../walkthroughs/adjust-a-schema)
 - Senior data engineers can dig even deeper into customisation options and change schemas, normalisers, or the way pipelines run such as parallelism etc.
 
 ### Third use case, dlt is a productivity enhancing tool for yourself
