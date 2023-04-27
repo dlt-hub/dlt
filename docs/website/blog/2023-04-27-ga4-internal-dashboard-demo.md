@@ -23,13 +23,13 @@ We decided to make a dashboard that helps us better understand data attribution 
 
 ### Internal dashboard
 
-INSERT PICTURE OF DASHBOARD HERE @rahul
+![Dashboard 1](/img/g4_dashboard_screen_grab_1.png) ![Dashboard 2](/img/g4_dashboard_screen_grab_2.png)
 
-Once we figured out what we wanted to include the dashboard, then we continued to work locally and built the internal dashboard using Streamlit above, following [these steps](https://github.com/dlt-hub/ga4-internal-dashboard-demo/tree/main/internal-dashboards). You can run it on your laptop by cloning [the repo](https://github.com/dlt-hub/ga4-internal-dashboard-demo), installing streamlit with `pip install streamlit`, and then running `streamlit "@rahul update this with streamlit` command.
+Once we figured out what we wanted to include in the dashboard, then we continued to work locally and built the internal dashboard using Streamlit above. You can run it on your laptop by cloning [the repo](https://github.com/dlt-hub/ga4-internal-dashboard-demo), and the following the steps listed [here](https://github.com/dlt-hub/ga4-internal-dashboard-demo/tree/main/internal-dashboards).
 
 ### Deploying the data warehouse
 
-Once it was ready, we decided to store the data on '@rahul update with db`, following [these steps](https://github.com/dlt-hub/README.md).
+Once it was ready, we decided to store the data in a Postgres database on the same Google Cloud VM instance where we planned to deploy the streamlit app. We did this by following [these steps](https://github.com/dlt-hub/README.md).
 
 ### Deploying the `dlt` pipeline with GitHub Actions
 
