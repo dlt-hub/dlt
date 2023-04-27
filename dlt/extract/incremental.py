@@ -5,13 +5,13 @@ from functools import wraps
 import dlt
 from dlt.common.json import json
 from dlt.common.jsonpath import compile_path, find_values, JSONPath
-from dlt.common.typing import DictStrAny, TDataItem, TDataItems, TFun, extract_inner_type, is_optional_type
+from dlt.common.typing import TDataItem, TDataItems, TFun, extract_inner_type, is_optional_type
 from dlt.common.schema.typing import TColumnKey
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.pipeline import _resource_state
 from dlt.common.utils import digest128
-from dlt.extract.exceptions import PipeException
+from dlt.extract.exceptions import IncrementalUnboundError, PipeException
 from dlt.extract.pipe import Pipe
 from dlt.extract.utils import resolve_column_value
 from dlt.extract.typing import FilterItem, SupportsPipe, TTableHintTemplate
@@ -126,6 +126,8 @@ class Incremental(FilterItem, BaseConfiguration, Generic[TCursorValue]):
 
     def get_state(self) -> IncrementalColumnState:
         """Returns an Incremental state for a particular cursor column"""
+        if not self.resource_name:
+            raise IncrementalUnboundError(self.cursor_path)
         self._cached_state = Incremental._get_state(self.resource_name, self.cursor_path)
         if len(self._cached_state) == 0:
             # set the default like this, setdefault evaluates the default no matter if it is needed or not. and our default is heavy
