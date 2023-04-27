@@ -10,10 +10,10 @@ from dlt.common.configuration.specs.base_configuration import CredentialsConfigu
 class ConnectionStringCredentials(CredentialsConfiguration):
     drivername: str = None
     database: str = None
-    password: TSecretValue = None
+    password: Optional[TSecretValue] = None
     username: str = None
-    host: str = None
-    port: int = None
+    host: Optional[str] = None
+    port: Optional[int] = None
     query: Optional[Dict[str, str]] = None
 
     __config_gen_annotations__: ClassVar[List[str]] = ["port"]
@@ -34,8 +34,6 @@ class ConnectionStringCredentials(CredentialsConfiguration):
             raise InvalidConnectionString(self.__class__, native_value, self.drivername)
 
     def on_resolved(self) -> None:
-        if self.database:
-            self.database = self.database
         if self.password:
             self.password = TSecretValue(self.password.strip())
 
@@ -63,7 +61,8 @@ class PostgresCredentials(ConnectionStringCredentials):
 
     def on_resolved(self) -> None:
         self.database = self.database.lower()
-        self.password = TSecretValue(self.password.strip())
+        if self.password:
+            self.password = TSecretValue(self.password.strip())
 
     def to_url(self) -> URL:
         url = super().to_url()
@@ -74,3 +73,6 @@ class PostgresCredentials(ConnectionStringCredentials):
 @configspec
 class RedshiftCredentials(PostgresCredentials):
     port: int = 5439
+    password: TSecretValue = None
+    username: str = None
+    host: str = None

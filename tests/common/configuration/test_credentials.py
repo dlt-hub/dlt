@@ -107,17 +107,18 @@ def test_connection_string_letter_case(environment: Any) -> None:
 
 
 def test_connection_string_resolved_from_native_representation(environment: Any) -> None:
-    # sometimes it is sometimes not try URL without password
-    destination_dsn = "postgres://loader@localhost:5432/dlt_data"
-    c = PostgresCredentials()
+    destination_dsn = "mysql+pymsql://localhost:5432/dlt_data"
+    c = ConnectionStringCredentials()
     c.parse_native_representation(destination_dsn)
     assert c.is_partial()
     assert not c.is_resolved()
+    assert c.username is None
+    assert c.password is None
 
     resolve_configuration(c, accept_partial=True)
     assert c.is_partial()
 
-    environment["CREDENTIALS__PASSWORD"] = "loader"
+    environment["CREDENTIALS__USERNAME"] = "loader"
     resolve_configuration(c, accept_partial=False)
 
 
