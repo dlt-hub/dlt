@@ -201,18 +201,18 @@ html[data-theme='dark'] .token.comment {
   color: #191937;
 }
 
-.toggleButton_node_modules-\@docusaurus-theme-classic-lib-theme-ColorModeToggle-styles-module {
+.navbar__items.navbar__items--right  .clean-btn { 
   background: #191937 !important;
   color: #fff;
 }
 
-html[data-theme='dark'] .toggleButton_node_modules-\@docusaurus-theme-classic-lib-theme-ColorModeToggle-styles-module {
+html[data-theme='dark']  .navbar__items.navbar__items--right  .clean-btn {
   background: #fff !important;
   color: #fff;
 }
 
 
-html[data-theme='dark'] .toggleButton_node_modules-\@docusaurus-theme-classic-lib-theme-ColorModeToggle-styles-module svg>path {
+html[data-theme='dark'] .navbar__items.navbar__items--right  svg>path {
   fill: #8e92af
 }
 
@@ -312,8 +312,6 @@ html[data-theme='dark'] .colab-demo:hover {
 }
 
 
-
-
 /* .container{
   padding: 0 !important;
 } */
@@ -374,7 +372,7 @@ html[data-theme='dark'] .footer__item a:hover{
 
 
 .github-navbar:hover,
-.slack-navbar:hover ,.clean-btn.toggleButton_node_modules-\@docusaurus-theme-classic-lib-theme-ColorModeToggle-styles-module:hover {
+.slack-navbar:hover ,.navbar__items.navbar__items--right  .clean-btn:hover {
   opacity: 0.8;
 }
 
