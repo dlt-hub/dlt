@@ -215,10 +215,11 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
     def add_limit(self, max_items: int) -> "DltResource":  # noqa: A003
         """Adds a limit `max_items` to the resource pipe
 
-        This mutates the encapsulated generator to stop after `max_items` items are yielded.
+        This mutates the encapsulated generator to stop after `max_items` items are yielded. This is useful for testing and debugging. It is
+        a no-op for transformers. Those should be limited by their input data.
 
         Args:
-            max_items (ItemTransformFunc[bool]): A function taking a single data item and optional meta argument. Returns bool. If True, item is kept
+            max_items (int): The maximum number of items to yield
         Returns:
             "DltResource": returns self
         """
