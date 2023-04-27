@@ -1,21 +1,23 @@
+from functools import reduce
+import datetime  # noqa: 251
 from typing import Dict, List, Optional, Tuple
 from multiprocessing.pool import ThreadPool
-from prometheus_client import REGISTRY, Counter, Gauge, CollectorRegistry, Summary
 
 from dlt.common import sleep, logger
 from dlt.common.configuration import with_config, known_sections
 from dlt.common.configuration.accessors import config
+from dlt.common.pipeline import LoadInfo, SupportsPipeline
 from dlt.common.schema.utils import get_child_tables, get_top_level_table, get_write_disposition
-from dlt.common.storages.load_storage import ParsedLoadJobFileName, TJobState
+from dlt.common.storages.load_storage import LoadPackageInfo, ParsedLoadJobFileName, TJobState
 from dlt.common.typing import StrAny
 from dlt.common.runners import TRunMetrics, Runnable, workermethod
+from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.common.runtime.logger import pretty_format_exception
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TTableSchema, TWriteDisposition
 from dlt.common.storages import LoadStorage
-from dlt.common.runtime.prometheus import get_logging_extras, set_gauge_all_labels
-from dlt.common.destination.reference import FollowupJob, JobClientBase, DestinationReference, LoadJob, NewLoadJob, TLoadJobState, DestinationClientConfiguration
+from dlt.common.destination.reference import DestinationClientDwhConfiguration, FollowupJob, JobClientBase, DestinationReference, LoadJob, NewLoadJob, TLoadJobState, DestinationClientConfiguration
 
 from dlt.destinations.job_impl import EmptyLoadJob
 from dlt.destinations.exceptions import DestinationTerminalException, DestinationTransientException, LoadJobUnknownTableException
@@ -26,33 +28,24 @@ from dlt.load.exceptions import LoadClientJobFailed, LoadClientJobRetry, LoadCli
 
 class Load(Runnable[ThreadPool]):
 
-    load_counter: Counter = None
-    job_gauge: Gauge = None
-    job_counter: Counter = None
-    job_wait_summary: Summary = None
-
     @with_config(spec=LoaderConfiguration, sections=(known_sections.LOAD,))
     def __init__(
         self,
         destination: DestinationReference,
-        collector: CollectorRegistry = REGISTRY,
+        collector: Collector = NULL_COLLECTOR,
         is_storage_owner: bool = False,
         config: LoaderConfiguration = config.value,
         initial_client_config: DestinationClientConfiguration = config.value
     ) -> None:
         self.config = config
+        self.collector = collector
         self.initial_client_config = initial_client_config
         self.destination = destination
         self.capabilities = destination.capabilities()
         self.pool: ThreadPool = None
         self.load_storage: LoadStorage = self.create_storage(is_storage_owner)
-        self._processed_load_ids: Dict[str, StrAny] = {}
-        try:
-            Load.create_gauges(collector)
-        except ValueError as v:
-            # ignore re-creation of gauges
-            if "Duplicated" not in str(v):
-                raise
+        self._processed_load_ids: Dict[str, int] = {}
+
 
     def create_storage(self, is_storage_owner: bool) -> LoadStorage:
         load_storage = LoadStorage(
@@ -62,13 +55,6 @@ class Load(Runnable[ThreadPool]):
             config=self.config._load_storage_config
         )
         return load_storage
-
-    @staticmethod
-    def create_gauges(registry: CollectorRegistry) -> None:
-        Load.load_counter = Counter("loader_load_package_counter", "Counts load package processed", registry=registry)
-        Load.job_gauge = Gauge("loader_last_package_jobs_counter", "Counts jobs in last package per state", ["state"], registry=registry)
-        Load.job_counter = Counter("loader_jobs_counter", "Counts jobs per job state", ["state"], registry=registry)
-        Load.job_wait_summary = Summary("loader_jobs_wait_seconds", "Counts jobs total wait until completion", registry=registry)
 
     @staticmethod
     def get_load_table(schema: Schema, file_name: str) -> TTableSchema:
@@ -148,18 +134,15 @@ class Load(Runnable[ThreadPool]):
                 raise
             jobs.append(job)
 
-        self.job_gauge.labels("retrieved").inc()
-        self.job_counter.labels("retrieved").inc()
-        logger.metrics("progress", "retrieve jobs", extra=get_logging_extras([self.job_gauge.labels("retrieved"), self.job_counter.labels("retrieved")]))
         return len(jobs), jobs
 
-    def get_jobs_info(self, load_id: str, schema: Schema, disposition: TWriteDisposition = None) -> List[ParsedLoadJobFileName]:
-        merge_jobs_info: List[ParsedLoadJobFileName] = []
+    def get_new_jobs_info(self, load_id: str, schema: Schema, disposition: TWriteDisposition = None) -> List[ParsedLoadJobFileName]:
+        jobs_info: List[ParsedLoadJobFileName] = []
         new_job_files = self.load_storage.list_new_jobs(load_id)
         for job_file in new_job_files:
             if not disposition or self.get_load_table(schema, job_file)["write_disposition"] == disposition:
-                merge_jobs_info.append(LoadStorage.parse_job_file_name(job_file))
-        return merge_jobs_info
+                jobs_info.append(LoadStorage.parse_job_file_name(job_file))
+        return jobs_info
 
     def create_merge_job(self, load_id: str, schema: Schema, top_merged_table: TTableSchema, starting_job: LoadJob) -> NewLoadJob:
         # returns ordered list of tables from parent to child leaf tables
@@ -198,7 +181,6 @@ class Load(Runnable[ThreadPool]):
             job = jobs[ii]
             logger.debug(f"Checking state for job {job.job_id()}")
             state: TLoadJobState = job.state()
-            final_location: str = None
             if state == "running":
                 # ask again
                 logger.debug(f"job {job.job_id()} still running")
@@ -206,7 +188,7 @@ class Load(Runnable[ThreadPool]):
             elif state == "failed":
                 # try to get exception message from job
                 failed_message = job.exception()
-                final_location = self.load_storage.fail_job(load_id, job.file_name(), failed_message)
+                self.load_storage.fail_job(load_id, job.file_name(), failed_message)
                 logger.error(f"Job for {job.job_id()} failed terminally in load {load_id} with message {failed_message}")
             elif state == "retry":
                 # try to get exception message from job
@@ -228,35 +210,26 @@ class Load(Runnable[ThreadPool]):
                         remaining_jobs.append(followup_job)
                 # move to completed folder after followup jobs are created
                 # in case of exception when creating followup job, the loader will retry operation and try to complete again
-                final_location = self.load_storage.complete_job(load_id, job.file_name())
+                self.load_storage.complete_job(load_id, job.file_name())
                 logger.info(f"Job for {job.job_id()} completed in load {load_id}")
 
             if state in ["failed", "completed"]:
-                self.job_gauge.labels(state).inc()
-                self.job_counter.labels(state).inc()
-                self.job_wait_summary.observe(self.load_storage.job_elapsed_time_seconds(final_location))
+                self.collector.update("Jobs")
+                if state == "failed":
+                    self.collector.update("Jobs", 1, message="WARNING: Some of the jobs failed!", label="Failed")
 
-        logger.metrics("progress", "jobs", extra=get_logging_extras([self.job_counter, self.job_gauge, self.job_wait_summary]))
         return remaining_jobs
 
     def complete_package(self, load_id: str, schema: Schema, aborted: bool = False) -> None:
         # do not commit load id for aborted packages
         if not aborted:
             with self.destination.client(schema, self.initial_client_config) as job_client:
-                # TODO: this script should be executed as a job (and contain also code to merge/upsert data and drop temp tables)
-                # TODO: post loading jobs
                 job_client.complete_load(load_id)
         self.load_storage.complete_load_package(load_id, aborted)
         logger.info(f"All jobs completed, archiving package {load_id} with aborted set to {aborted}")
-        self.load_counter.inc()
-        metrics = get_logging_extras([self.load_counter])
-        self._processed_load_ids[load_id] = metrics
-        logger.metrics("stop", "jobs", extra=metrics)
+        self._processed_load_ids[load_id] = 1
 
-    def load_single_package(self, load_id: str) -> None:
-        logger.info(f"Loading schema from load package in {load_id}")
-        schema = self.load_storage.load_package_schema(load_id)
-        logger.info(f"Loaded schema name {schema.name} and version {schema.stored_version}")
+    def load_single_package(self, load_id: str, schema: Schema) -> None:
         # initialize analytical storage ie. create dataset required by passed schema
         job_client: JobClientBase
         with self.destination.client(schema, self.initial_client_config) as job_client:
@@ -266,13 +239,13 @@ class Load(Runnable[ThreadPool]):
                 logger.info(f"Client for {job_client.config.destination_name} will start initialize storage")
                 job_client.initialize_storage()
                 logger.info(f"Client for {job_client.config.destination_name} will update schema to package schema")
-                all_jobs = self.get_jobs_info(load_id, schema)
+                all_jobs = self.get_new_jobs_info(load_id, schema)
                 all_tables = [job.table_name for job in all_jobs]
                 dlt_tables = [t["name"] for t in schema.dlt_tables()]
                 # only update tables that are present in the load package
                 applied_update = job_client.update_storage_schema(only_tables=set(all_tables+dlt_tables), expected_update=expected_update)
                 # update the staging dataset
-                merge_jobs = self.get_jobs_info(load_id, schema, "merge")
+                merge_jobs = self.get_new_jobs_info(load_id, schema, "merge")
                 if merge_jobs:
                     logger.info(f"Client for {job_client.config.destination_name} will start initialize STAGING storage")
                     job_client.initialize_storage(staging=True)
@@ -284,48 +257,49 @@ class Load(Runnable[ThreadPool]):
                 self.load_storage.commit_schema_update(load_id, applied_update)
             # spool or retrieve unfinished jobs
             jobs_count, jobs = self.retrieve_jobs(job_client, load_id)
+
         if not jobs:
             # jobs count is a total number of jobs including those that could not be initialized
             jobs_count, jobs = self.spool_new_jobs(load_id, schema)
-            if jobs_count > 0:
-                # this is a new  load package
-                # TODO: this is wrong, we must check completed and failed jobs to say that
-                set_gauge_all_labels(self.job_gauge, 0)
-                self.job_gauge.labels("running").inc(len(jobs))
-                self.job_counter.labels("running").inc(len(jobs))
-                logger.metrics("progress", "jobs",
-                                extra=get_logging_extras([self.job_counter.labels("running"), self.job_gauge.labels("running")])
-            )
         # if there are no existing or new jobs we complete the package
         if jobs_count == 0:
             self.complete_package(load_id, schema, False)
-        else:
-            while True:
-                try:
-                    remaining_jobs = self.complete_jobs(load_id, jobs, schema)
-                    if len(remaining_jobs) == 0:
-                        # get package status
-                        package_info = self.load_storage.get_load_package_info(load_id)
-                        # possibly raise on failed jobs
-                        if self.config.raise_on_failed_jobs:
-                            if package_info.jobs["failed_jobs"]:
-                                failed_job = package_info.jobs["failed_jobs"][0]
-                                raise LoadClientJobFailed(load_id, failed_job.job_file_info.job_id(), failed_job.failed_message)
-                        # possibly raise on too many retires
-                        if self.config.raise_on_max_retries:
-                            for new_job in package_info.jobs["new_jobs"]:
-                                r_c = new_job.job_file_info.retry_count
-                                if r_c > 0 and r_c % self.config.raise_on_max_retries == 0:
-                                    raise LoadClientJobRetry(load_id, new_job.job_file_info.job_id(), r_c, self.config.raise_on_max_retries)
-                        break
-                    # process remaining jobs again
-                    jobs = remaining_jobs
-                    # this will raise on signal
-                    sleep(1)
-                except LoadClientJobFailed:
-                    # the package is completed and skipped
-                    self.complete_package(load_id, schema, True)
-                    raise
+            return
+        # update counter we only care about the jobs that are scheduled to be loaded
+        package_info = self.load_storage.get_load_package_info(load_id)
+        total_jobs = reduce(lambda p, c: p + len(c), package_info.jobs.values(), 0)
+        no_failed_jobs = len(package_info.jobs["failed_jobs"])
+        no_completed_jobs = len(package_info.jobs["completed_jobs"]) + no_failed_jobs
+        self.collector.update("Jobs", no_completed_jobs, total_jobs)
+        if no_failed_jobs > 0:
+            self.collector.update("Jobs", no_failed_jobs, message="WARNING: Some of the jobs failed!", label="Failed")
+        # loop until all jobs are processed
+        while True:
+            try:
+                remaining_jobs = self.complete_jobs(load_id, jobs, schema)
+                if len(remaining_jobs) == 0:
+                    # get package status
+                    package_info = self.load_storage.get_load_package_info(load_id)
+                    # possibly raise on failed jobs
+                    if self.config.raise_on_failed_jobs:
+                        if package_info.jobs["failed_jobs"]:
+                            failed_job = package_info.jobs["failed_jobs"][0]
+                            raise LoadClientJobFailed(load_id, failed_job.job_file_info.job_id(), failed_job.failed_message)
+                    # possibly raise on too many retires
+                    if self.config.raise_on_max_retries:
+                        for new_job in package_info.jobs["new_jobs"]:
+                            r_c = new_job.job_file_info.retry_count
+                            if r_c > 0 and r_c % self.config.raise_on_max_retries == 0:
+                                raise LoadClientJobRetry(load_id, new_job.job_file_info.job_id(), r_c, self.config.raise_on_max_retries)
+                    break
+                # process remaining jobs again
+                jobs = remaining_jobs
+                # this will raise on signal
+                sleep(1)
+            except LoadClientJobFailed:
+                # the package is completed and skipped
+                self.complete_package(load_id, schema, True)
+                raise
 
     def run(self, pool: ThreadPool) -> TRunMetrics:
         # store pool
@@ -336,11 +310,39 @@ class Load(Runnable[ThreadPool]):
         loads = self.load_storage.list_packages()
         logger.info(f"Found {len(loads)} load packages")
         if len(loads) == 0:
-            return TRunMetrics(True, False, 0)
+            return TRunMetrics(True, 0)
 
-        # get top job id and mark as being processed
-        # TODO: another place where tracing must be refactored
+        # load the schema from the package
         load_id = loads[0]
+        logger.info(f"Loading schema from load package in {load_id}")
+        schema = self.load_storage.load_package_schema(load_id)
+        logger.info(f"Loaded schema name {schema.name} and version {schema.stored_version}")
+
+        # get top load id and mark as being processed
+        # TODO: another place where tracing must be refactored
         self._processed_load_ids[load_id] = None
-        self.load_single_package(load_id)
-        return TRunMetrics(False, False, len(self.load_storage.list_packages()))
+        with self.collector(f"Load {schema.name} in {load_id}"):
+            self.load_single_package(load_id, schema)
+        return TRunMetrics(False, len(self.load_storage.list_packages()))
+
+    def get_load_info(self, pipeline: SupportsPipeline, started_at: datetime.datetime = None) -> LoadInfo:
+        # TODO: Load must provide a clear interface to get last loads and metrics
+        # TODO: LoadInfo should hold many datasets
+        load_ids = list(self._processed_load_ids.keys())
+        load_packages: List[LoadPackageInfo] = []
+        for load_id in load_ids:
+            load_packages.append(self.load_storage.get_load_package_info(load_id))
+        dataset_name = None
+        if isinstance(self.initial_client_config, DestinationClientDwhConfiguration):
+            dataset_name = self.initial_client_config.dataset_name
+
+        return LoadInfo(
+            pipeline,
+            self.initial_client_config.destination_name,
+            str(self.initial_client_config.credentials),
+            dataset_name,
+            list(load_ids),
+            load_packages,
+            started_at,
+            pipeline.first_run
+        )

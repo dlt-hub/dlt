@@ -19,8 +19,6 @@ class NormalizeConfiguration(PoolRunnerConfiguration):
             self,
             pool_type: TPoolType = None,
             workers: int = None,
-            exit_on_exception: bool = None,
-            is_single_run: bool = None,
             _schema_storage_config: SchemaVolumeConfiguration = None,
             _normalize_storage_config: NormalizeVolumeConfiguration = None,
             _load_storage_config: LoadVolumeConfiguration = None

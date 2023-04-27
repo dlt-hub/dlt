@@ -2,7 +2,6 @@ import os
 from typing import Any
 from git import GitCommandError
 import pytest
-from dlt.common.runtime.prometheus import get_metrics_from_prometheus
 
 from dlt.common.typing import StrStr
 from dlt.common.utils import uniq_id
@@ -93,12 +92,10 @@ def test_dbt_run_full_refresh(destination_info: DBTDestinationInfo) -> None:
     )
     assert all(r.message.startswith(destination_info.replace_strategy) for r in run_results) is True
     assert find_run_result(run_results, "_loads") is not None
-
-    # do the same checks using the metrics
-    metrics: StrStr = get_metrics_from_prometheus([runner.model_exec_info])["dbtrunner_model_status_info"]
     # all models must be SELECT as we do full refresh
-    assert all(v.startswith(destination_info.replace_strategy) for k,v in metrics.items()) is True
-    assert metrics["_loads"].startswith(destination_info.replace_strategy)
+    assert find_run_result(run_results, "_loads").message.startswith(destination_info.replace_strategy)
+    assert all(m.message.startswith(destination_info.replace_strategy) for m in run_results) is True
+
     # all tests should pass
     runner.test(destination_dataset_name=DESTINATION_DATASET_NAME, additional_vars={"user_id": "metadata__user_id"})
 
@@ -116,11 +113,6 @@ def test_dbt_run_error_via_additional_vars(destination_info: DBTDestinationInfo)
     stg_interactions = find_run_result(dbt_err.value.run_results, "stg_interactions")
     assert "metadata__sess_id" in stg_interactions.message
 
-    # same check with metrics
-    metrics: StrStr = get_metrics_from_prometheus([runner.model_exec_info])["dbtrunner_model_status_info"]
-    assert "stg_interactions" in metrics
-    assert "metadata__sess_id" in metrics["stg_interactions"]
-
 
 def test_dbt_incremental_schema_out_of_sync_error(destination_info: DBTDestinationInfo) -> None:
     runner = setup_rasa_runner(destination_info.destination_name)
@@ -134,16 +126,16 @@ def test_dbt_incremental_schema_out_of_sync_error(destination_info: DBTDestinati
     )
 
     # generate schema error on incremental load
-    runner.run_all(
+    results = runner.run_all(
         destination_dataset_name=DESTINATION_DATASET_NAME,
         # run stg_interactions and all parents
         run_params=["--fail-fast", "--model", "+interactions"],
         # allow count metrics to generate schema error
         additional_vars={},
     )
-    metrics: StrStr = get_metrics_from_prometheus([runner.model_exec_info])["dbtrunner_model_status_info"]
+    # metrics: StrStr = get_metrics_from_prometheus([runner.model_exec_info])["dbtrunner_model_status_info"]
     # full refresh on interactions
-    assert metrics["interactions"].startswith(destination_info.replace_strategy)
+    assert find_run_result(results, "interactions").message.startswith(destination_info.replace_strategy)
 
     # now incremental load should happen
     results = runner.run(
