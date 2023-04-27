@@ -4,7 +4,7 @@ import datetime  # noqa: 251
 from contextlib import contextmanager
 from functools import wraps
 from collections.abc import Sequence as C_Sequence
-from typing import Any, Callable, ClassVar, Dict, List, Iterator, Mapping, Optional, Sequence, Tuple, cast, get_type_hints, ContextManager
+from typing import Any, Callable, ClassVar, List, Iterator, Mapping, Optional, Sequence, Tuple, cast, get_type_hints, ContextManager
 
 from dlt import version
 from dlt.common import json, logger, pendulum
@@ -15,14 +15,12 @@ from dlt.common.configuration.exceptions import ConfigFieldMissingException, Con
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.normalizers import default_normalizers, import_normalizers
-from dlt.common.runners.runnable import Runnable
-from dlt.common.runtime import signals
+from dlt.common.runtime import signals, initialize_runtime
 from dlt.common.schema.exceptions import InvalidDatasetName
 from dlt.common.schema.typing import TColumnSchema, TSchemaTables, TWriteDisposition
 from dlt.common.storages.load_storage import LoadJobInfo, LoadPackageInfo, LoadStorage
 from dlt.common.typing import TFun, TSecretValue
-from dlt.common.runners import pool_runner as runner, initialize_runner
-from dlt.common.runners.configuration import PoolRunnerConfiguration
+from dlt.common.runners import pool_runner as runner
 from dlt.common.storages import LiveSchemaStorage, NormalizeStorage, SchemaStorage
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import DestinationReference, JobClientBase, DestinationClientConfiguration, DestinationClientDwhConfiguration, TDestinationReferenceArg
@@ -204,7 +202,7 @@ class Pipeline(SupportsPipeline):
         self._last_trace: PipelineTrace = None
         self._state_restored: bool = False
 
-        initialize_runner(self.runtime_config)
+        initialize_runtime(self.runtime_config)
         # initialize pipeline working dir
         self._init_working_dir(pipeline_name, pipelines_dir)
 
@@ -275,7 +273,7 @@ class Pipeline(SupportsPipeline):
                 return ExtractInfo()
         except Exception as exc:
             # TODO: provide metrics from extractor
-            raise PipelineStepFailed(self, "extract", exc, runner.LAST_RUN_METRICS, ExtractInfo()) from exc
+            raise PipelineStepFailed(self, "extract", exc, ExtractInfo()) from exc
 
     @with_runtime_trace
     @with_schemas_sync
@@ -292,8 +290,6 @@ class Pipeline(SupportsPipeline):
         self._get_destination_capabilities()
         # create default normalize config
         normalize_config = NormalizeConfiguration(
-            is_single_run=True,
-            exit_on_exception=True,
             workers=workers,
             pool_type="none" if workers == 1 else "process",
             _schema_storage_config=self._schema_storage_config,
@@ -305,11 +301,10 @@ class Pipeline(SupportsPipeline):
             # shares schema storage with the pipeline so we do not need to install
             normalize = Normalize(config=normalize_config, schema_storage=self._schema_storage)
             try:
-                self._run_step_in_pool("normalize", normalize, normalize.config)
+                runner.run_pool(normalize.config, normalize)
                 return NormalizeInfo()
-            except PipelineStepFailed as pip_ex:
-                pip_ex.step_info = NormalizeInfo()
-                raise
+            except Exception as n_ex:
+                raise PipelineStepFailed(self, "normalize", n_ex, Normalize()) from n_ex
 
     @with_runtime_trace
     @with_schemas_sync
@@ -338,23 +333,20 @@ class Pipeline(SupportsPipeline):
         # make sure that destination is set and client is importable and can be instantiated
         client = self._get_destination_client(self.default_schema)
 
-        # create initial loader config and the loader
+        # create default loader config and the loader
         load_config = LoaderConfiguration(
-            is_single_run=True,
-            exit_on_exception=True,
             workers=workers,
             raise_on_failed_jobs=raise_on_failed_jobs,
             _load_storage_config=self._load_storage_config
         )
         load = Load(self.destination, is_storage_owner=False, config=load_config, initial_client_config=client.config)
         try:
-            self._run_step_in_pool("load", load, load.config)
+            runner.run_pool(load.config, load)
             info = self._get_load_info(load)
             self.first_run = False
             return info
-        except PipelineStepFailed as pipex:
-            pipex.step_info = self._get_load_info(load)
-            raise
+        except Exception as l_ex:
+            raise PipelineStepFailed(self, "load", l_ex, self._get_load_info(load)) from l_ex
 
     @with_runtime_trace
     @with_config_section(("run",))
@@ -804,41 +796,6 @@ class Pipeline(SupportsPipeline):
 
         return extract_id
 
-    def _run_step_in_pool(self, step: TPipelineStep, runnable: Runnable[Any], config: PoolRunnerConfiguration) -> int:
-        # TODO: remove runner altogether. it does not fit into current architecture
-        try:
-            ec = runner.run_pool(config, runnable)
-            # in any other case we raise if runner exited with status failed
-            if runner.LAST_RUN_METRICS.has_failed:
-                raise PipelineStepFailed(self, step, runner.LAST_RUN_EXCEPTION, runner.LAST_RUN_METRICS)
-            return ec
-        except Exception as r_ex:
-            # if EXIT_ON_EXCEPTION flag is set, exception will bubble up directly
-            raise PipelineStepFailed(self, step, runner.LAST_RUN_EXCEPTION, runner.LAST_RUN_METRICS) from r_ex
-        # finally:
-        #     signals.raise_if_signalled()
-
-    # def _run_f_in_pool(self, run_f: Callable[..., Any], config: PoolRunnerConfiguration) -> int:
-
-    #     def _run(_: Any) -> TRunMetrics:
-    #         rv = run_f()
-    #         if isinstance(rv, TRunMetrics):
-    #             return rv
-    #         if isinstance(rv, int):
-    #             pending = rv
-    #         else:
-    #             pending = 1
-    #         return TRunMetrics(False, False, int(pending))
-
-    #     # run the fun
-    #     ec = runner.run_pool(config, _run)
-    #     # ec > 0 - signalled
-    #     # -1 - runner was not able to start
-
-    #     if runner.LAST_RUN_METRICS is not None and runner.LAST_RUN_METRICS.has_failed:
-    #         raise runner.last_run_exception
-    #     return ec
-
     def _get_destination_client_initial_config(self, credentials: Any = None) -> DestinationClientConfiguration:
         if not self.destination:
             raise PipelineConfigMissing(
@@ -966,30 +923,10 @@ class Pipeline(SupportsPipeline):
             self._set_default_schema_name(schema)
 
     def _get_load_info(self, load: Load) -> LoadInfo:
-        # TODO: Load must provide a clear interface to get last loads and metrics
-        # TODO: LoadInfo should hold many datasets
-        load_ids = load._processed_load_ids
-        load_packages: List[LoadPackageInfo] = []
-        load_storage = self._get_load_storage()
-        for load_id in load_ids:
-            load_packages.append(load_storage.get_load_package_info(load_id))
-        dataset_name = None
-        if isinstance(load.initial_client_config, DestinationClientDwhConfiguration):
-            dataset_name = load.initial_client_config.dataset_name
         started_at: datetime.datetime = None
         if self._trace:
             started_at = self._trace.started_at
-
-        return LoadInfo(
-            self,
-            load.initial_client_config.destination_name,
-            str(load.initial_client_config.credentials),
-            dataset_name,
-            list(load_ids.keys()),
-            load_packages,
-            started_at,
-            self.first_run
-        )
+        return load.get_load_info(self, started_at)
 
     def _get_state(self) -> TPipelineState:
         try:

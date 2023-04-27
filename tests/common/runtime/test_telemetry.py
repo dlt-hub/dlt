@@ -89,6 +89,6 @@ def test_cleanup(environment: StrStr) -> None:
 
 SENT_ITEMS = []
 def _mock_before_send(event: DictStrAny, _unused_hint: Any = None) -> DictStrAny:
-    print(event)
+    # print(event)
     SENT_ITEMS.append(event)
     return event

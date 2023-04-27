@@ -8,13 +8,13 @@ from dlt.common.runtime.exec_info import dlt_version_info
 from dlt.common.typing import DictStrAny, StrAny
 
 
-def init_prometheus(config: RunConfiguration) -> None:
-        from prometheus_client import start_http_server, Info
+# def init_prometheus(config: RunConfiguration) -> None:
+#         from prometheus_client import start_http_server, Info
 
-        logger.info(f"Starting prometheus server port {config.prometheus_port}")
-        start_http_server(config.prometheus_port)
-        # collect info
-        Info("runs_component_name", "Name of the executing component").info(dlt_version_info(config))  # type: ignore
+#         logger.info(f"Starting prometheus server port {config.prometheus_port}")
+#         start_http_server(config.prometheus_port)
+#         # collect info
+#         Info("runs_component_name", "Name of the executing component").info(dlt_version_info(config.pipeline_name))  # type: ignore
 
 
 def get_metrics_from_prometheus(gauges: Iterable[MetricWrapperBase]) -> StrAny:

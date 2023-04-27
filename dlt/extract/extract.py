@@ -111,8 +111,8 @@ def extract(
             for pipe_item in pipes:
 
                 curr_gens = len(pipes._sources)
-                if left_gens > len(curr_gens):
-                    delta = left_gens - len(curr_gens)
+                if left_gens > curr_gens:
+                    delta = left_gens - curr_gens
                     left_gens -= delta
                     collector.update("Resources", delta)
 

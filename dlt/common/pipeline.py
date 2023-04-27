@@ -143,7 +143,7 @@ class SupportsPipeline(Protocol):
     """Name of the pipeline"""
     destination: DestinationReference
     """The destination reference which is ModuleType. `destination.__name__` returns the name string"""
-    dataset_name: str = None
+    dataset_name: str
     """Name of the dataset to which pipeline will be loaded to"""
     runtime_config: RunConfiguration
     """A configuration of runtime options like logging level and format and various tracing options"""
@@ -151,6 +151,8 @@ class SupportsPipeline(Protocol):
     """A working directory of the pipeline"""
     pipeline_salt: str
     """A configurable pipeline secret to be used as a salt or a seed for encryption key"""
+    first_run: bool
+    """Indicates a first run of the pipeline, where run ends with successful loading of the data"""
 
     @property
     def state(self) -> TPipelineState:

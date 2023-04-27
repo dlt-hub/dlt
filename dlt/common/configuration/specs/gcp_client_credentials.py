@@ -217,7 +217,7 @@ class GcpOAuthCredentials(GcpCredentialsBase, OAuth2Credentials):
         try:
             from requests_oauthlib import OAuth2Session
         except ImportError:
-            raise MissingDependencyException("Requests-OAuthlib", ["requests_oauthlib"])
+            raise MissingDependencyException("GcpOAuthCredentials", ["requests_oauthlib"])
 
         google = OAuth2Session(client_id=self.client_id, scope=self.scopes)
         extra = {
@@ -231,7 +231,7 @@ class GcpOAuthCredentials(GcpCredentialsBase, OAuth2Credentials):
         try:
             from google_auth_oauthlib.flow import InstalledAppFlow
         except ImportError:
-            raise MissingDependencyException("Google Auth library", ["google-auth-oauthlib"])
+            raise MissingDependencyException("GcpOAuthCredentials", ["google-auth-oauthlib"])
         flow = InstalledAppFlow.from_client_config(self._installed_dict(redirect_url), self.scopes)
         credentials = flow.run_local_server(port=0)
         return TSecretValue(credentials.refresh_token), TSecretValue(credentials.token)
@@ -244,7 +244,7 @@ class GcpOAuthCredentials(GcpCredentialsBase, OAuth2Credentials):
         try:
             from google.oauth2.credentials import Credentials as GoogleOAuth2Credentials
         except ImportError:
-            raise MissingDependencyException("Google OAuth Library", ["google-auth-oauthlib"])
+            raise MissingDependencyException("GcpOAuthCredentials", ["google-auth-oauthlib"])
 
         credentials = GoogleOAuth2Credentials.from_authorized_user_info(info=dict(self))
         return credentials

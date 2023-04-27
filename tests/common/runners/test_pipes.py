@@ -138,7 +138,7 @@ def test_stdout_encode_result() -> None:
     venv = Venv.restore_current()
     lines = list(iter_stdout(venv, "python", "tests/common/scripts/stdout_encode_result.py"))
     # last line contains results
-    assert decode_obj(lines[-1]) == ("this is string", TRunMetrics(True, True, 300))
+    assert decode_obj(lines[-1]) == ("this is string", TRunMetrics(True, 300))
 
     # stderr will contain pickled exception somewhere
     with pytest.raises(CalledProcessError) as cpe:
@@ -153,7 +153,7 @@ def test_stdout_encode_result() -> None:
 def test_iter_stdout_with_result() -> None:
     venv = Venv.restore_current()
     i = iter_stdout_with_result(venv, "python", "tests/common/scripts/stdout_encode_result.py")
-    assert iter_until_returns(i) == ("this is string", TRunMetrics(True, True, 300))
+    assert iter_until_returns(i) == ("this is string", TRunMetrics(True, 300))
     i = iter_stdout_with_result(venv, "python", "tests/common/scripts/stdout_encode_unpicklable.py")
     assert iter_until_returns(i) is None
     # it just excepts without encoding exception

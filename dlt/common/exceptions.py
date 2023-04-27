@@ -54,16 +54,6 @@ class SignalReceivedException(KeyboardInterrupt, TerminalException):
         super().__init__(f"Signal {signal_code} received")
 
 
-class TimeRangeExhaustedException(DltException):
-    """
-    Raised when backfilling complete and no more time ranges can be generated
-    """
-    def __init__(self, start_ts: float, end_ts: float) -> None:
-        self.start_ts = start_ts
-        self.end_ts = end_ts
-        super().__init__(f"Timerange ({start_ts} to {end_ts}> exhausted")
-
-
 class DictValidationException(DltException):
     def __init__(self, msg: str, path: str, field: str = None, value: Any = None) -> None:
         self.path = path
