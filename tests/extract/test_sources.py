@@ -562,7 +562,7 @@ def test_source_dynamic_resource_attrs() -> None:
 def test_add_transform_steps() -> None:
     # add all step types, using indexes. final steps
     # gen -> map that converts to str and multiplies character -> filter str of len 2 -> yield all characters in str separately
-    r = dlt.resource([1, 2, 3], name="all").add_yield_map(lambda i: (yield from i)).add_map(lambda i: str(i) * i, 1).add_filter(lambda i: len(i) == 2, 2)
+    r = dlt.resource([1, 2, 3, 4], name="all").add_limit(3).add_yield_map(lambda i: (yield from i)).add_map(lambda i: str(i) * i, 1).add_filter(lambda i: len(i) == 2, 2)
     assert list(r) == ["2", "2"]
 
 

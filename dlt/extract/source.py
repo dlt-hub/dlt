@@ -229,11 +229,15 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
             count = 0
             if inspect.isfunction(gen):
                 gen = gen()
-            for i in gen:  # type: ignore # TODO: help me fix this later
-                yield i
-                count += 1
-                if count > max_items:
-                    return
+            try:
+                for i in gen:  # type: ignore # TODO: help me fix this later
+                    yield i
+                    count += 1
+                    if count > max_items:
+                        return
+            finally:
+                if inspect.isgenerator(gen):
+                    gen.close()
             return
         # transformers should be limited by their input, so we only limit non-transformers
         if not self.is_transformer:
