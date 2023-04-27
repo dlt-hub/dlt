@@ -6,13 +6,13 @@ However, this data usually needs to be rearranged to bring it to a structure tha
 
 There is little benefit to separate a pipeline between tools, so dlt supports a dbt runner which allows you to create a virtual environment, install dbt on it, pass it credentials and run a dbt package from a local or online location. To learn more about how to do that, see our docs page TODO
 
-[run dbt from local or repository](../using-loaded-data/transforming-the-data)
+[run dbt from local or repository](./using-loaded-data/transforming-the-data)
 
 ### Use case #2: Clean type or customise how data is produced or loaded
 
 dlt allows you to customise how data is produced, enabling you to filter, modify, rename, or differently customise the data that arrives at your destination. By doing it in python, you can make changes either before dlt normalises the data, or after, enabling you to choose very granularly what to do.
 
-Read here about possible customisations in our docs, for example: [pseudonymizing_columns](../customizations/customizing-pipelines/pseudonymizing_columns)
+Read here about possible customisations in our docs, for example: [pseudonymizing_columns](./customizations/customizing-pipelines/pseudonymizing_columns)
 
 ### Use case #3: Develop your own pipelines in a similar declarative way, so you can use engineering that was already done for you
 
@@ -26,9 +26,9 @@ What’s more, you can develop a pipeline that includes a dbt package and thus u
 
 Read more about it here
 
-- build a pipeline [run dbt from local or repository](../using-loaded-data/transforming-the-data)
-- incremental loading [incremental loading](../general-usage/incremental-loading)
-- Advanced: performance hints and schema [adjust a schema](../walkthroughs/adjust-a-schema)
+- build a pipeline [run dbt from local or repository](./using-loaded-data/transforming-the-data)
+- incremental loading [incremental loading](./general-usage/incremental-loading)
+- Advanced: performance hints and schema [adjust a schema](./walkthroughs/adjust-a-schema)
 - dbt duckdb example [colab duckdb](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing)
 
 ### Use case #4: Contribute dbt packages back
