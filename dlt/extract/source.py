@@ -16,7 +16,7 @@ from dlt.common.pipeline import PipelineContext, StateInjectableContext, Support
 from dlt.common.utils import flatten_list_or_items, get_callable_name, multi_context_manager, uniq_id
 
 from dlt.extract.typing import DataItemWithMeta, ItemTransformFunc, ItemTransformFunctionWithMeta, TableNameMeta, FilterItem, MapItem, YieldMapItem
-from dlt.extract.pipe import Pipe, ManagedPipeIterator
+from dlt.extract.pipe import Pipe, ManagedPipeIterator, TPipeStep
 from dlt.extract.schema import DltResourceSchema, TTableSchemaTemplate
 from dlt.extract.incremental import Incremental, IncrementalResourceWrapper
 from dlt.extract.exceptions import (
@@ -210,6 +210,31 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
             self._pipe.append_step(FilterItem(item_filter))
         else:
             self._pipe.insert_step(FilterItem(item_filter), insert_at)
+        return self
+
+    def add_limit(self, max_items: int) -> "DltResource":  # noqa: A003
+        """Adds a limit `max_items` to the resource pipe
+
+        This mutates the encapsulated generator to stop after `max_items` items are yielded.
+
+        Args:
+            max_items (ItemTransformFunc[bool]): A function taking a single data item and optional meta argument. Returns bool. If True, item is kept
+        Returns:
+            "DltResource": returns self
+        """
+        def _gen_wrap(gen: TPipeStep) -> TPipeStep:
+            """Wrap a generator to take the first 50 records"""
+            nonlocal max_items
+            count = 0
+            if inspect.isfunction(gen):
+                gen = gen()
+            for i in gen:  # type: ignore # TODO: help me fix this later
+                yield i
+                count += 1
+                if count > max_items:
+                    return
+            return
+        self._pipe.replace_gen(_gen_wrap(self._pipe.gen))
         return self
 
     def add_step(self, item_transform: ItemTransformFunctionWithMeta[TDataItems], insert_at: int = None) -> "DltResource":  # noqa: A003
