@@ -17,9 +17,7 @@
   --ifm-color-primary-dark: #191937;
   --ifm-color-primary-darker: #191937;
   --ifm-color-primary-darkest: #191937;
-  /* --ifm-color-primary-light: #AAA8D4;
-  --ifm-color-primary-lighter: #AAA8D4;
-  --ifm-color-primary-lightest: #AAA8D4; */
+  --ifm-color-primary: #191937;
   --ifm-font-family-base: 'Karla';
   --ifm-code-font-size: 95%;
   --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
@@ -28,14 +26,18 @@
   --ifm-gradient: transparent;
   --ifm-menu-color: #191937;
   --ifm-menu-color-active: #4C4898;
-  --ifm-toc-link-color: #4c4898;
   --ifm-menu-link-padding-horizontal: 0.35rem;
   --docsearch-searchbox-background: #191937 !important;
   --docsearch-text-color: #ffffff !important;
   --docsearch-searchbox-focus-background: #191937 !important;
   --ifm-color-content-secondary: #4c4898;
-
-
+  --ifm-navbar-link-hover-color:#4c4898;
+  --ifm-navbar-link-color:#191937;
+  --ifm-toc-link-color: #191937;
+  --ifm-active-toc-link-color:#4C4898;
+  --docsearch-highlight-color:#191937 !important;
+  --docsearch-hit-color: #191937 !important;
+  /* --docsearch-muted-color: #4c4898 !important; */
 }
 
 /* For readability concerns, you should choose a lighter palette in dark mode. */
@@ -44,27 +46,27 @@
   --ifm-navbar-background-color: #191937;
   --ifm-link-color: #ffffff;
   --ifm-background-color: #F7F9FC;
-  /* --ifm-color-primary: #4C4898;
-  --ifm-color-primary-dark: #4C4898;
-  --ifm-color-primary-darker: #4C4898;
-  --ifm-color-primary-darkest: #4C4898;
-  --ifm-color-primary-light: #4C4898;
-  --ifm-color-primary-lighter: #4C4898;
-  --ifm-color-primary-lightest: #4C4898; */
+  --ifm-color-primary: #4C4898;
   --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
   --ifm-font-color-base: #f3ff36;
   --ifm-gradient: transparent;
   --ifm-menu-color: #FFFFFF;
   --ifm-menu-color-active: #f3ff36;
   --ifm-menu-color: #dadde1;
-  --ifm-toc-link-color: #dadde1;
   --ifm-heading-color: #f3ff36;
-  --ifm-navbar-link-hover-color: #ffffff;
   --docsearch-searchbox-background: #ffffff !important;
   --docsearch-text-color: #191937 !important;
   --docsearch-searchbox-focus-background: #ffffff !important;
   --ifm-color-content-secondary: #f3ff36 !important;
-  --ifm-pagination-nav-color-hover: #f3ff36
+  --ifm-pagination-nav-color-hover: #f3ff36;
+  --ifm-navbar-link-color:#ffffff;
+  --ifm-navbar-link-hover-color:#f3ff36;
+  --ifm-toc-link-color:#ffffff;
+  --ifm-active-toc-link-color:#f3ff36;
+  --docsearch-highlight-color:#ffffff !important;
+  --docsearch-hit-active-color: #191937 !important;
+  --docsearch-hit-background: #191937 !important;
+  --docsearch-hit-color: #ffffff !important;
 }
 
 body {
@@ -73,6 +75,14 @@ body {
 
 h1 {
   font-family: 'Space Mono', monospace;
+}
+
+.navbar a{
+  font-family: 'Roboto Mono', monospace;
+
+}
+.navbar__link:hover, .navbar__link--active {
+  font-weight: 700;
 }
 
 p {
@@ -101,6 +111,35 @@ p {
   color: var(--ifm-menu-color-active);
 }
 
+ .sidebarItemLink_node_modules-\@docusaurus-theme-classic-lib-theme-BlogSidebar-Desktop-styles-module:hover {
+  color: #4C4898 !important;
+}
+.sidebarItemLink_node_modules-\@docusaurus-theme-classic-lib-theme-BlogSidebar-Desktop-styles-module.sidebarItemLinkActive_node_modules-\@docusaurus-theme-classic-lib-theme-BlogSidebar-Desktop-styles-module{
+  color: #4C4898 !important;
+}
+
+ .sidebarItemLink_node_modules-\@docusaurus-theme-classic-lib-theme-BlogSidebar-Desktop-styles-module {
+  color: #191937 !important;
+}
+
+
+html[data-theme='dark'] .sidebarItemLink_node_modules-\@docusaurus-theme-classic-lib-theme-BlogSidebar-Desktop-styles-module:hover {
+  color: #f3ff36 !important;
+}
+html[data-theme='dark'] .sidebarItemLink_node_modules-\@docusaurus-theme-classic-lib-theme-BlogSidebar-Desktop-styles-module.sidebarItemLinkActive_node_modules-\@docusaurus-theme-classic-lib-theme-BlogSidebar-Desktop-styles-module{
+  color: #f3ff36 !important;
+}
+
+html[data-theme='dark'] .sidebarItemLink_node_modules-\@docusaurus-theme-classic-lib-theme-BlogSidebar-Desktop-styles-module {
+  color: #ffffff !important;
+}
+
+html[data-theme='dark'] .DocSearch-Hit[aria-selected=true] a {
+background: #f3ff36 ;
+color: #191937 !important;
+}
+
+
 .menu {
   margin-top: 30px;
 }
@@ -121,6 +160,10 @@ pre code {
 
 .token.plain {
   color: #ffffff
+}
+
+time{
+  color: var(--ifm-toc-link-color);
 }
 
 .token.keyword {
@@ -203,7 +246,7 @@ html[data-theme='dark'] .footer__title {
 }
 
 html[data-theme='dark'] .footer--dark {
-  --ifm-footer-background-color: #505B73;
+  --ifm-footer-background-color: #191937;
 }
 
 .footer__link-item:hover {
@@ -222,11 +265,12 @@ html[data-theme='dark'] .footer--dark {
 .table-of-contents__link:hover code,
 .table-of-contents__link--active,
 .table-of-contents__link--active code {
-  color: var(--ifm-link-color);
+  color: var(  --ifm-active-toc-link-color);
   text-decoration: none;
 }
 
 .colab-demo {
+  font-family: 'Karla', sans-serif !important;
   background: var(--ifm-color-primary);
   border-radius: 8px;
   color: #fff;
@@ -247,6 +291,14 @@ html[data-theme='dark'] .footer--dark {
   top: 0px;
 }
 
+.theme-admonition.theme-admonition-tip.alert svg path{
+  fill: #191937;
+}
+
+.theme-admonition-tip a {
+  text-decoration: none;
+  color: #191937;
+}
 
 
 
@@ -274,8 +326,10 @@ html[data-theme='dark'] .footer--dark {
   border-radius: 28px !important;
 }
 
-.DocSearch-Reset {
-  color: #ffffff;
+
+
+.DocSearch-Reset svg path {
+  stroke: #ffffff;
 }
 
 .DocSearch-MagnifierLabel>svg {
@@ -301,7 +355,7 @@ html[data-theme='dark'] .DocSearch-MagnifierLabel>svg {
 
 .github-navbar:hover,
 .slack-navbar:hover {
-  opacity: 0.6;
+  opacity: 1;
 }
 
 .github-navbar,
@@ -314,17 +368,17 @@ html[data-theme='dark'] .DocSearch-MagnifierLabel>svg {
 
 .github-navbar:before {
   content: '';
-  width: 20px;
-  height: 20px;
+  width: 32px;
+  height: 32px;
   display: flex;
-  background: url("data:image/svg+xml,%3Csvg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12'/%3E%3C/svg%3E") no-repeat;
+  background: url("../../static/img/GithubDark.svg") no-repeat;
   position: relative;
   left: 0px;
-  top: 2px;
+  top: 0px;
 }
 
 html[data-theme='dark'] .github-navbar:before {
-  background: url("data:image/svg+xml,%3Csvg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill='white' d='M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12'/%3E%3C/svg%3E") no-repeat;
+  background:  url("../../static/img/GithubLight.svg") no-repeat;
 }
 
 .theme-edit-this-page>svg {
@@ -356,19 +410,18 @@ html[data-theme='dark'] .theme-edit-this-page::before {
 
 .slack-navbar:before {
   content: '';
-  width: 24px;
-  height: 24px;
+  width: 32px;
+  height: 32px;
   display: flex;
-  background: url("../../static/img/slack-Black.svg") no-repeat;
+  background: url("../../static/img/SlackDark.svg") no-repeat;
   position: relative;
-  left: 8px;
-  top: 2px;
-  background-size: 20px;
+  left: 10px;
+  top: 0px;
+
 }
 
 html[data-theme='dark'] .slack-navbar::before {
-  background: url("../../static/img/slack-White.svg") no-repeat;
-  background-size: 20px;
+  background: url("../../static/img/SlackLight.svg") no-repeat;
 }
 
 /* siderbar-icons */
@@ -392,6 +445,8 @@ html[data-theme='dark'] .slack-navbar::before {
   position: relative;
   padding-left: 8px;
 }
+
+.menu__link{padding-bottom: 15px !important;}
 
 .colab-demo>svg {
   display: none;
@@ -422,6 +477,10 @@ html[data-theme='dark'] .slack-navbar::before {
   position: absolute;
   left: -37px;
   background-repeat: no-repeat;
+}
+
+.slack-navbar{
+  padding-left: 3px;
 }
 
 .menu__link {
@@ -667,7 +726,7 @@ html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(12)>div>
   .colab-demo {
     font-size: 0;
     padding: 4px 5px 4px 14px;
-    margin-right: 10px;
+    margin-right: 16px;
     margin-left: 0;
   }
 
@@ -685,6 +744,8 @@ html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(12)>div>
 
   .menu__link.colab-demo {
     display: table;
+    background: var(--ifm-color-primary) !important;
+    padding-bottom: 4px!important;
   }
 
   .menu__link.slack-navbar:before,
