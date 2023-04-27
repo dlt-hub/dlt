@@ -107,9 +107,24 @@ You can enable exception and runtime [tracing via Sentry](../running-in-producti
 
 You can set log level and switch logging to json format
 ```toml
+[runtime]
 log_level="INFO"
 log_format="JSON"
 ```
+`log_level` accepts the [Python standard logging level names](https://docs.python.org/3/library/logging.html#logging-levels).
+* The default log level is `WARNING`.
+* `INFO` log level is useful when diagnosing problems in production.
+* `CRITICAL` will disable logging
+* `DEBUG` should not be used in production.
+
+`log_format` accepts:
+* `json` to get the log in json format
+* [Python standard log format specifier](https://docs.python.org/3/library/logging.html#logrecord-attributes)
+
+As with any other configuration, you can use environment variables instead of the `toml` file.
+* `RUNTIME__LOG_LEVEL` to set the log level
+* `LOG_FORMAT` to set the log format
+
 `dlt` logs to a logger named **dlt**.
 Note: redirecting **dlt** log to other logs is not yet supported.
 
