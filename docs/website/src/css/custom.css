@@ -212,7 +212,7 @@ html[data-theme='dark']  .navbar__items.navbar__items--right  .clean-btn {
 }
 
 
-html[data-theme='dark'] .navbar__items.navbar__items--right  svg>path {
+html[data-theme='dark'] .navbar__items.navbar__items--right  .clean-btn svg > path {
   fill: #8e92af
 }
 
@@ -346,8 +346,8 @@ html[data-theme='dark'] .colab-demo:hover {
   color: #ffffff !important
 }
 
-html[data-theme='dark'] .DocSearch-Reset {
-  color: #191937;
+html[data-theme='dark'] .DocSearch-Reset svg > path {
+  stroke: #191937;
 }
 
 html[data-theme='dark'] .DocSearch-MagnifierLabel>svg {
