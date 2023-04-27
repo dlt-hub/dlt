@@ -17,6 +17,7 @@
   --ifm-color-primary-dark: #191937;
   --ifm-color-primary-darker: #191937;
   --ifm-color-primary-darkest: #191937;
+  --ifm-color-primary-light:#4c4898; 
   --ifm-color-primary: #191937;
   --ifm-font-family-base: 'Karla';
   --ifm-code-font-size: 95%;
@@ -37,7 +38,7 @@
   --ifm-active-toc-link-color:#4C4898;
   --docsearch-highlight-color:#191937 !important;
   --docsearch-hit-color: #191937 !important;
-  /* --docsearch-muted-color: #4c4898 !important; */
+
 }
 
 /* For readability concerns, you should choose a lighter palette in dark mode. */
@@ -67,6 +68,7 @@
   --docsearch-hit-active-color: #191937 !important;
   --docsearch-hit-background: #191937 !important;
   --docsearch-hit-color: #ffffff !important;
+  --ifm-color-primary-light:#f3ff36; 
 }
 
 body {
@@ -280,6 +282,8 @@ html[data-theme='dark'] .footer--dark {
   display: flex;
 }
 
+
+
 .colab-demo::before {
   content: '';
   width: 25px;
@@ -291,13 +295,20 @@ html[data-theme='dark'] .footer--dark {
   top: 0px;
 }
 
+html[data-theme='dark'] .colab-demo:hover {
+  color: #191937;
+  }
+
+  html[data-theme='dark'] .colab-demo:hover::before {
+    background: url("../../static/img/CO-Blue.svg") no-repeat;
+    }
+
 .theme-admonition.theme-admonition-tip.alert svg path{
   fill: #191937;
 }
 
 .theme-admonition-tip a {
-  text-decoration: none;
-  color: #191937;
+  color: #191937 !important;
 }
 
 
@@ -306,6 +317,7 @@ html[data-theme='dark'] .footer--dark {
 /* .container{
   padding: 0 !important;
 } */
+
 .colab-demo:hover {
   background: var(--ifm-color-primary-light);
   color: #fff;
@@ -343,6 +355,14 @@ html[data-theme='dark'] .DocSearch-Reset {
 html[data-theme='dark'] .DocSearch-MagnifierLabel>svg {
   color: #191937 !important;
 }
+.footer__item a:hover{
+  color:#4C4898;
+  text-decoration: none;
+}
+html[data-theme='dark'] .footer__item a:hover{
+  color:#f3ff36;
+  text-decoration: none;
+}
 
 .slack-navbar>svg {
   display: none;
@@ -354,8 +374,8 @@ html[data-theme='dark'] .DocSearch-MagnifierLabel>svg {
 
 
 .github-navbar:hover,
-.slack-navbar:hover {
-  opacity: 1;
+.slack-navbar:hover ,.clean-btn.toggleButton_node_modules-\@docusaurus-theme-classic-lib-theme-ColorModeToggle-styles-module:hover {
+  opacity: 0.8;
 }
 
 .github-navbar,
@@ -461,11 +481,11 @@ html[data-theme='dark'] .slack-navbar::before {
 .theme-admonition-tip {
   background: #f6b7b3;
   border-color: #EE746D;
-  color: var(--ifm-color-primary);
+  color: #191937;
 }
 
 .theme-admonition-tip a {
-  text-decoration-color: var(--ifm-color-primary);
+  text-decoration-color: #191937;
 }
 
 /* tip-block-css end*/
