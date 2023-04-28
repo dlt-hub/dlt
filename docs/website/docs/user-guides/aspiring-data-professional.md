@@ -65,7 +65,17 @@ A good project might be something like
 
 Do you have example projects you want to show off? Do a PR and link to your github project.
 
+Docs you will need:
+  - [Getting started](../getting-started)
+  - [Create a pipeline](../walkthroughs/create-a-pipeline)
+  - [Run a pipeline](../walkthroughs/run-a-pipeline)
+  - [Deploy a pipeline](../walkthroughs/deploy-a-pipeline)
+  - [Understand the loaded data](../using-loaded-data/understanding-the-tables)
+  - [Explore the loaded data in Streamlit](../using-loaded-data/exploring-the-data)
+  - [Transform the data with sql or python](../using-loaded-data/transforming-the-data)
+  - [Contribute a pipeline](https://github.com/dlt-hub/pipelines)
+
 Examples:
-- We showcase dlt in this [colab duckdb](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing) If you are a data scientist applying for a company that has pubic repos, you could do a spin off of this.
+- We showcase dlt in this [Google Colab Duckdb](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing) If you are a data scientist applying for a company that has pubic repos, you could do a spin off of this.
 - We are planning to add other examples such as mrr and churn calculations on stripe data.
 - Do you have examples that involve dlt? do a pull request to our [docs](https://github.com/dlt-hub/dlt/tree/devel/docs/website/docs) with your example.
