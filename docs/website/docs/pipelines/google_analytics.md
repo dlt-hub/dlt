@@ -76,23 +76,23 @@ location = "set me up" #Project Location For ex. “US”
 ## Add Property_ID and queries
 
 1. `property_id` is a unique number that identifies a particular property. As below “GA4- Google Merch Shop” is the name of the property and “213025502” is the `property_id`
-    
+
     <img src="docs_images/GA4_Property_ID.png" alt="Admin Centre" width = "50%" />
-    
+
 2. Note the `property_id`of the property you want to get the data from google analytics.
 3. You can set the metrics you want to get data for by defining them in `queries`
 4. Below is an example, `config.toml` of setting the `property_id` and `queries`
 
 ```bash
 [sources.google_analytics]
-property_id = "299059933" 
+property_id = "299059933"
 queries = [
     {"resource_name"= "sample_analytics_data1", "dimensions"= ["browser", "city"], "metrics"= ["totalUsers", "transactions"]},
     {"resource_name"= "sample_analytics_data2", "dimensions"= ["browser", "city", "dateHour"], "metrics"= ["totalUsers"]}
 ]
 ```
 
-5. `property_id` and `queries` need to be set in config.toml. 
+5. `property_id` and `queries` need to be set in config.toml.
 
 ## **Run the pipeline**
 
@@ -121,16 +121,16 @@ if __name__ == "__main__":
 ## Customize **the pipeline**
 
 This pipeline has some predefined methods that you can use; or you can also define your own methods to run the pipeline. The predefined methods are:
-<details>
+
 <summary>simple_load() method</summary>
 1. If you don’t want to define the `property_id` and `queries` in the `config.toml` you can define them in the `google_analytics_pipeline.py` as defined below:
-    
+
  ```python
     queries = [
-        {"resource_name": "sample_analytics_data1", "dimensions": ["browser", "city"], "metrics": ["totalUsers", "transactions"]},
-        {"resource_name": "sample_analytics_data2", "dimensions": ["browser", "city", "dateHour"], "metrics": ["totalUsers"]}
+        {"resource_name":"sample_analytics_data1", "dimensions":["browser", "city"], "metrics":["totalUsers", "transactions"]},
+        {"resource_name":"sample_analytics_data2", "dimensions":["browser", "city", "dateHour"], "metrics":["totalUsers"]}
     ] # Define the queries as these are defined
-    
+
     def simple_load():
         """
         Just loads the data normally. Incremental loading for this pipeline is on, the last load time is saved in dlt_state and the next load of the pipeline will have the last load as a starting date.
@@ -145,22 +145,21 @@ This pipeline has some predefined methods that you can use; or you can also defi
         print(info)
         return info
  ```
-    
+
 2. In the main method of `google_analytics_pipeline.py`, run the following function `simple_load().`
 3. And Run the pipeline as above.
-</details>
-<details>
+
 <summary>chose_date_first_load() method </summary>
 1. In this method you can choose the starting date for which you want to load the data.
 2. This method will take `property_id` and `queries` from `config.toml`
 3. You can define the start date from which you want to load the data for your website/app as follows:
-    
+
     ```python
     def chose_date_first_load(start_date: str = "2000-01-01"):
     ```
-    
+
 4. The `start_date` for the above method is “2000-01-01”, you can set this as required.
 5. In the main method of `google_analytics_pipeline.py`, run the following function `chose_date_first_load()`
 6. And Run the pipeline as above.
-</details>
+
 `The incremental loading for these pipelines is on which means the last load time is saved in dlt_state and the next load of the pipeline will have the last load as a starting date.`
