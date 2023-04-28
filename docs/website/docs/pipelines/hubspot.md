@@ -71,7 +71,7 @@ hubspot_pipeline
 ## Add credentials
 
 1. Open `.dlt/secrets.toml`
-2. Enter the token created [above](#get-api-credentials) via creating app.
+2. Enter the token created [above](#get-api-credentials) via app.
 ```
 # put your secret values and credentials here. do not share this file and do not push it to github
 [sources.hubspot]
