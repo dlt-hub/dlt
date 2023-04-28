@@ -60,7 +60,7 @@ def _maybe_parse_native_value(config: TConfiguration, explicit_value: Any, embed
         # print(f"TRYING TO PARSE NATIVE from {explicit_value}")
         try:
             config.parse_native_representation(explicit_value)
-            # print("----ok")
+            config.__is_resolved__ = not config.is_partial()
         except ValueError as v_err:
             # provide generic exception
             raise InvalidNativeValue(type(config), type(explicit_value), embedded_sections, v_err)

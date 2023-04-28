@@ -29,7 +29,7 @@ class ConnectionStringCredentials(CredentialsConfiguration):
             )
             if self.query is not None:
                 self.query = dict(self.query)
-            self.__is_resolved__ = not self.is_partial()
+            # self.__is_resolved__ = not self.is_partial()
         except Exception:
             raise InvalidConnectionString(self.__class__, native_value, self.drivername)
 

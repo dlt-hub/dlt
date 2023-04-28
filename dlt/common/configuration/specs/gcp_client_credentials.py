@@ -37,7 +37,7 @@ class GcpCredentialsBase(CredentialsConfiguration):
 
     def _from_info_dict(self, info: StrAny) -> None:
         self.update(info)
-        self.__is_resolved__ = not self.is_partial()
+        # self.__is_resolved__ = not self.is_partial()
 
     def __str__(self) -> str:
         return f"{self.project_id}[{self.location}]"
@@ -107,6 +107,7 @@ class GcpClientCredentials(GcpCredentialsBase):
                     "client_email": native_value.service_account_email,
                     "private_key": native_value  # keep native credentials in private key
                 }
+                self.__is_resolved__ = True
         except ImportError:
             pass
 
@@ -173,6 +174,8 @@ class GcpOAuthCredentials(GcpCredentialsBase, OAuth2Credentials):
                     "scopes": native_value.scopes,
                     "token": native_value.token
                 }
+                # if token is present, we are logged in
+                self.__is_resolved__ = native_value.token is not None
         except ImportError:
             pass
 

@@ -193,7 +193,10 @@ def test_gcp_oauth_credentials_native_representation(environment) -> None:
 
     gcoauth = GcpOAuthCredentialsWithDefault()
     gcoauth.parse_native_representation(OAUTH_APP_USER_INFO % '"refresh_token": "refresh_token",')
-    assert gcoauth.is_resolved() is True
+    # is not resolved, we resolve only when default credentials are present
+    assert gcoauth.is_resolved() is False
+    # but is not partial - all required fields are present
+    assert gcoauth.is_partial() is False
     assert gcoauth.project_id == "level-dragon-333983"
     assert gcoauth.client_id == "921382012504-3mtjaj1s7vuvf53j88mgdq4te7akkjm3.apps.googleusercontent.com"
     assert gcoauth.client_secret == "gOCSPX-XdY5znbrvjSMEG3pkpA_GHuLPPth"
