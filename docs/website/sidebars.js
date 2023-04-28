@@ -50,7 +50,7 @@ const sidebars = {
         'user-guides/data-pipeline-engineer',
         'user-guides/data-engineering-manager',
         'user-guides/analytics-engineer',
-        'user-guides/aspiring-professional',
+        'user-guides/aspiring-data-professional',
       ],
     },
     {
