@@ -60,106 +60,103 @@ directory
 
 ## Add credentials
 
-1. Open `.dlt/secrets.toml`
-2. From the .json that you downloaded earlier, copy `project_id`, `private_key`, and `client_email` under `[sources.google_spreadsheet.credentials]`
+1. Open `.dlt/secrets.toml`.
+2. From the .json that you downloaded earlier, copy `project_id`, `private_key`, and `client_email` under `[sources.google_spreadsheet.credentials]`.
 
-```python
-[sources.google_analytics.credentials]
-project_id = "set me up" # GCP Source project ID!
-private_key = "set me up" # Unique private key !(Must be copied fully including BEGIN and END PRIVATE KEY)
-client_email = "set me up" # Email for source service account
-location = "set me up" #Project Location For ex. “US”
-```
+    ```python
+    [sources.google_analytics.credentials]
+    project_id = "set me up" # GCP Source project ID!
+    private_key = "set me up" # Unique private key !(Must be copied fully including BEGIN and END PRIVATE KEY)
+    client_email = "set me up" # Email for source service account
+    location = "set me up" #Project Location For ex. “US”
+    ```
+3. Alternatively, if you're using service account credentials, replace the the fields and values with those present in the credentials .json that you generated above.
+4. Enter credentials for your chosen destination as per the [docs](https://dlthub.com/docs/destinations#google-bigquery).
 
-3. Enter credentials for your chosen destination as per the [docs](https://dlthub.com/docs/destinations#google-bigquery)
+## Pass property_id and request parameters
 
-## Add Property_ID and queries
-
-1. `property_id` is a unique number that identifies a particular property. As below “GA4- Google Merch Shop” is the name of the property and “213025502” is the `property_id`
-
+1. `property_id` is a unique number that identifies a particular property. You will need to explicity pass it to get data from the property that you're interested in. For example, if the property that you want to get data from is “GA4- Google Merch Shop” then you will need to pass its propery id 213025502.
+    
     <img src="docs_images/GA4_Property_ID.png" alt="Admin Centre" width = "50%" />
+    
+2. You can also specify the parameters of the API requests such as dimensions and metrics to get your desired data.
+3. An example of how you can pass all of this in `dlt` is to simply insert it in the `.dlt/config.toml` file as below:
 
-2. Note the `property_id`of the property you want to get the data from google analytics.
-3. You can set the metrics you want to get data for by defining them in `queries`
-4. Below is an example, `config.toml` of setting the `property_id` and `queries`
+    ```bash
+    [sources.google_analytics]
+    property_id = "299059933" 
+    queries = [
+        {"resource_name"= "sample_analytics_data1", "dimensions"= ["browser", "city"], "metrics"= ["totalUsers", "transactions"]},
+        {"resource_name"= "sample_analytics_data2", "dimensions"= ["browser", "city", "dateHour"], "metrics"= ["totalUsers"]}
+    ]
+    ```
+    In this example, we pass our request parameters inside a list called `queries`. The data from each request will be loaded onto a table having the table name specified by the parameter `resource_name`.
+4. If you're adding the property_id and queries to `.dlt/config.toml`, then you will need to modify the script `google_analytics_pipeline.py`.
+5. In the main method of the script `google_analytics_pipeline.py`, replace the function `simple_load()` with the function `simple_load_config()`. This function will automatically read the property_id and queries from `.dlt/config.toml`.
+    ```python
+    if __name__ == "__main__":
+        start_time = time.time()
+        simple_load_config()       # Insert the function here
+        end_time = time.time()
+        print(f"Time taken: {end_time-start_time}")
+    ```
 
-```bash
-[sources.google_analytics]
-property_id = "299059933"
-queries = [
-    {"resource_name"= "sample_analytics_data1", "dimensions"= ["browser", "city"], "metrics"= ["totalUsers", "transactions"]},
-    {"resource_name"= "sample_analytics_data2", "dimensions"= ["browser", "city", "dateHour"], "metrics"= ["totalUsers"]}
-]
-```
-
-5. `property_id` and `queries` need to be set in config.toml.
-
-## **Run the pipeline**
+## Run the pipeline
 
 1. Install the requirements by using the following command
 
-`pip install -r requirements.txt`
+    `pip install -r requirements.txt`
 
-2. In the  main method of `google_analytics_pipeline.py`, run the following function `simple_load_config()` as follows:
+2. Run the pipeline by using the following command
 
-```python
-if __name__ == "__main__":
-    start_time = time.time()
-    simple_load_config()       # This function runs !
-    end_time = time.time()
-    print(f"Time taken: {end_time-start_time}")
-```
+    `python3 google_analytics_pipelines.py`
 
-3. Run the pipeline by using the following command
+3. Make sure that everything is loaded as expected, by using the command:
 
-`python3 google_analytics_pipelines.py`
+    `dlt pipeline <pipeline_name> show`   
 
-4. To make sure that everything is loaded as expected, use the command:
+    For example, the pipeline_name for the above pipeline is `dlt_google_analytics_pipeline`  
+    To change this, you can replace it in  
+    `dlt.pipeline(pipeline_name="dlt_google_analytics_pipeline", ... )`
 
-`dlt pipeline <pipeline_name> show` (For example, the pipeline_name for the above pipeline is `dlt_google_analytics_pipeline`, you may also use any custom name instead)
+## Customize the pipeline
 
-## Customize **the pipeline**
+This pipeline has some predefined methods that you can use; or you can also define your own methods to run the pipeline. The predefined methods are:  
 
-This pipeline has some predefined methods that you can use; or you can also define your own methods to run the pipeline. The predefined methods are:
+- **Incremental Loading**: The incremental loading for these pipelines is on which means the last load time is saved in dlt_state and the next load of the pipeline will have the last load as a starting date.
 
-<summary>simple_load() method</summary>
-1. If you don’t want to define the `property_id` and `queries` in the `config.toml` you can define them in the `google_analytics_pipeline.py` as defined below:
+- **simple_load()**
+    1. If you don’t want to define the `property_id` and `queries` in the `config.toml` you can define them in the `google_analytics_pipeline.py` as defined below:
+        
+        ```python
+            queries = [
+                {"resource_name": "sample_analytics_data1", "dimensions": ["browser", "city"], "metrics": ["totalUsers", "transactions"]},
+                {"resource_name": "sample_analytics_data2", "dimensions": ["browser", "city", "dateHour"], "metrics": ["totalUsers"]}
+            ] # Define the queries as these are defined
+            
+            def simple_load():
+                """
+                Just loads the data normally. Incremental loading for this pipeline is on, the last load time is saved in dlt_state and the next load of the pipeline will have the last load as a starting date.
+                :returns: Load info on the pipeline that has been run
+                """
+                # FULL PIPELINE RUN
+                pipeline = dlt.pipeline(pipeline_name="dlt_google_analytics_pipeline", destination='bigquery', full_refresh=False, dataset_name="sample_analytics_data")
+                # Google Analytics source function - taking data from queries defined locally instead of config
+                # TODO: pass your google analytics property id'
+                data_analytics = google_analytics(property_id="12345678", queries=queries) # Pass the property_id and queries here
+                info = pipeline.run(data=data_analytics)
+                print(info)
+                return info
+        ```
+        
+    2. Include the function `simple_load()` in the main method in `google_analytics_pipeline.py`
+    3. Run the pipeline as above.
+- **chose_date_first_load()**
 
- ```python
-    queries = [
-        {"resource_name":"sample_analytics_data1", "dimensions":["browser", "city"], "metrics":["totalUsers", "transactions"]},
-        {"resource_name":"sample_analytics_data2", "dimensions":["browser", "city", "dateHour"], "metrics":["totalUsers"]}
-    ] # Define the queries as these are defined
+    1. With this method, you can choose the starting date from when you want to load the data.
+    2. This method will take `property_id` and `queries` from `config.toml`
+    3. By default, the start date is "2000-01-01"
+    4. To specify a different start date, pass it as a string in yyyy-mm-dd format when calling the function in the main method:  
+    `chose_date_first_load(start_date="yyyy-mm-dd")`
 
-    def simple_load():
-        """
-        Just loads the data normally. Incremental loading for this pipeline is on, the last load time is saved in dlt_state and the next load of the pipeline will have the last load as a starting date.
-        :returns: Load info on the pipeline that has been run
-        """
-        # FULL PIPELINE RUN
-        pipeline = dlt.pipeline(pipeline_name="dlt_google_analytics_pipeline", destination='bigquery', full_refresh=False, dataset_name="sample_analytics_data")
-        # Google Analytics source function - taking data from queries defined locally instead of config
-        # TODO: pass your google analytics property id'
-        data_analytics = google_analytics(property_id="12345678", queries=queries) # Here property_id is defined
-        info = pipeline.run(data=data_analytics)
-        print(info)
-        return info
- ```
 
-2. In the main method of `google_analytics_pipeline.py`, run the following function `simple_load().`
-3. And Run the pipeline as above.
-
-<summary>chose_date_first_load() method </summary>
-1. In this method you can choose the starting date for which you want to load the data.
-2. This method will take `property_id` and `queries` from `config.toml`
-3. You can define the start date from which you want to load the data for your website/app as follows:
-
-    ```python
-    def chose_date_first_load(start_date: str = "2000-01-01"):
-    ```
-
-4. The `start_date` for the above method is “2000-01-01”, you can set this as required.
-5. In the main method of `google_analytics_pipeline.py`, run the following function `chose_date_first_load()`
-6. And Run the pipeline as above.
-
-`The incremental loading for these pipelines is on which means the last load time is saved in dlt_state and the next load of the pipeline will have the last load as a starting date.`
