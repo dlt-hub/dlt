@@ -10,7 +10,7 @@ from dlt.extract.source import DltResource
 from dlt.common.utils import uniq_id
 from dlt.pipeline import helpers, state_sync, Pipeline
 from dlt.load import Load
-from dlt.pipeline.exceptions import PipelineHasPendingDataException
+from dlt.pipeline.exceptions import PipelineHasPendingDataException, PipelineStepFailed
 from dlt.common.pipeline import _resource_state
 from dlt.destinations.job_client_impl import SqlJobClientBase
 
@@ -174,10 +174,9 @@ def test_load_step_fails(destination_name: str) -> None:
     attached = _attach(pipeline)
 
     with mock.patch.object(Load, 'run', side_effect=RuntimeError("Something went wrong")):
-        try:
+        with pytest.raises(PipelineStepFailed) as e:
             helpers.drop(attached, resources=('droppable_a', 'droppable_b'))
-        except Exception as e:
-            assert isinstance(e.exception, RuntimeError)  # type: ignore
+        assert isinstance(e.value.exception, RuntimeError)
 
     attached = _attach(pipeline)
     helpers.drop(attached, resources=('droppable_a', 'droppable_b'))
