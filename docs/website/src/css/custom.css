@@ -69,6 +69,7 @@
   --docsearch-hit-background: #191937 !important;
   --docsearch-hit-color: #ffffff !important;
   --ifm-color-primary-light:#f3ff36; 
+
 }
 
 body {
@@ -172,7 +173,7 @@ time{
   color: #f3ff36 !important
 }
 
-html[data-theme='dark'] .token.comment {
+.token.comment {
   color: #8e92af !important;
 }
 
