@@ -153,6 +153,7 @@ def extract_with_schema(
     storage: ExtractorStorage,
     source: DltSource,
     schema: Schema,
+    collector: Collector,
     max_parallel_items: int,
     workers: int
 ) -> str:
@@ -167,7 +168,7 @@ def extract_with_schema(
                     if resource.write_disposition == "replace":
                         _reset_resource_state(resource._name)
 
-            extractor = extract(extract_id, source, storage, max_parallel_items=max_parallel_items, workers=workers)
+            extractor = extract(extract_id, source, storage, collector, max_parallel_items=max_parallel_items, workers=workers)
             # source iterates
             # TODO: implement a real check if source is exhausted. most of the resources should be not
             source.exhausted = True

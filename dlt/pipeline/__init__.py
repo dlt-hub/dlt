@@ -12,6 +12,7 @@ from dlt.common.pipeline import LoadInfo, PipelineContext, get_dlt_pipelines_dir
 
 from dlt.pipeline.configuration import PipelineConfiguration, ensure_correct_pipeline_kwargs
 from dlt.pipeline.pipeline import Pipeline
+from dlt.pipeline.progress import _from_name as collector_from_name, TCollectorArg, _NULL_COLLECTOR
 
 
 @overload
@@ -24,7 +25,8 @@ def pipeline(
     import_schema_path: str = None,
     export_schema_path: str = None,
     full_refresh: bool = False,
-    credentials: Any = None
+    credentials: Any = None,
+    progress: TCollectorArg = _NULL_COLLECTOR
 ) -> Pipeline:
     """Creates a new instance of `dlt` pipeline, which moves the data from the source ie. a REST API to a destination ie. database or a data lake.
 
@@ -62,6 +64,10 @@ def pipeline(
         credentials (Any, optional): Credentials for the `destination` ie. database connection string or a dictionary with google cloud credentials.
         In most cases should be set to None, which lets `dlt` to use `secrets.toml` or environment variables to infer right credentials values.
 
+        progress(str, Collector): A progress monitor that shows progress bars, console or log messages with current information on sources, resources, data items etc. processed in
+        `extract`, `normalize` and `load` stage. Pass a string with a collector name or configure your own by choosing from `dlt.progress` module.
+        We support most of the progress libraries: try passing `tqdm`, `enlighten` or `alive_progress` or `log` to write to console/log.
+
     ### Returns:
         Pipeline: An instance of `Pipeline` class with. Please check the documentation of `run` method for information on what to do with it.
     """
@@ -84,6 +90,7 @@ def pipeline(
     export_schema_path: str = None,
     full_refresh: bool = False,
     credentials: Any = None,
+    progress: TCollectorArg = _NULL_COLLECTOR,
     **kwargs: Any
 ) -> Pipeline:
     ensure_correct_pipeline_kwargs(pipeline, **kwargs)
@@ -105,6 +112,7 @@ def pipeline(
         pipelines_dir = get_dlt_pipelines_dir()
 
     destination = DestinationReference.from_name(destination or kwargs["destination_name"])
+    progress = collector_from_name(progress)
     # create new pipeline instance
     p = Pipeline(
         pipeline_name,
@@ -116,6 +124,7 @@ def pipeline(
         import_schema_path,
         export_schema_path,
         full_refresh,
+        progress,
         False,
         last_config(**kwargs),
         kwargs["runtime"])
@@ -131,14 +140,16 @@ def attach(
     pipelines_dir: str = None,
     pipeline_salt: TSecretValue = None,
     full_refresh: bool = False,
+    progress: TCollectorArg = _NULL_COLLECTOR,
     **kwargs: Any
 ) -> Pipeline:
     ensure_correct_pipeline_kwargs(attach, **kwargs)
     # if working_dir not provided use temp folder
     if not pipelines_dir:
         pipelines_dir = get_dlt_pipelines_dir()
+    progress = collector_from_name(progress)
     # create new pipeline instance
-    p = Pipeline(pipeline_name, pipelines_dir, pipeline_salt, None, None, None, None, None, full_refresh, True, last_config(**kwargs), kwargs["runtime"])
+    p = Pipeline(pipeline_name, pipelines_dir, pipeline_salt, None, None, None, None, None, full_refresh, progress, True, last_config(**kwargs), kwargs["runtime"])
     # set it as current pipeline
     Container()[PipelineContext].activate(p)
     return p

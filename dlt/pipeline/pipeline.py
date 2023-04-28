@@ -43,6 +43,7 @@ from dlt.load.configuration import LoaderConfiguration
 from dlt.load import Load
 
 from dlt.pipeline.configuration import PipelineConfiguration
+from dlt.pipeline.progress import _Collector, _NULL_COLLECTOR
 from dlt.pipeline.exceptions import CannotRestorePipelineException, InvalidPipelineName, PipelineConfigMissing, PipelineStepFailed, SqlClientNotAvailable
 from dlt.pipeline.trace import PipelineTrace, PipelineStepTrace, load_trace, merge_traces, start_trace, start_trace_step, end_trace_step, end_trace
 from dlt.pipeline.typing import TPipelineStep
@@ -166,6 +167,7 @@ class Pipeline(SupportsPipeline):
     credentials: Any = None
     is_active: bool = False
     """Tells if instance is currently active and available via dlt.pipeline()"""
+    collector: _Collector
     config: PipelineConfiguration
     runtime_config: RunConfiguration
 
@@ -180,6 +182,7 @@ class Pipeline(SupportsPipeline):
             import_schema_path: str,
             export_schema_path: str,
             full_refresh: bool,
+            progress: _Collector,
             must_attach_to_local_pipeline: bool,
             config: PipelineConfiguration,
             runtime: RunConfiguration
@@ -190,6 +193,7 @@ class Pipeline(SupportsPipeline):
         self.config = config
         self.runtime_config = runtime
         self.full_refresh = full_refresh
+        self.collector = progress or _NULL_COLLECTOR
 
         self._container = Container()
         self._pipeline_instance_id = self._create_pipeline_instance_id()
@@ -230,6 +234,7 @@ class Pipeline(SupportsPipeline):
             self._schema_storage.config.import_schema_path,
             self._schema_storage.config.export_schema_path,
             self.full_refresh,
+            self.collector,
             False,
             self.config,
             self.runtime_config
@@ -299,9 +304,10 @@ class Pipeline(SupportsPipeline):
         # run with destination context
         with self._maybe_destination_capabilities():
             # shares schema storage with the pipeline so we do not need to install
-            normalize = Normalize(config=normalize_config, schema_storage=self._schema_storage)
+            normalize = Normalize(collector=self.collector, config=normalize_config, schema_storage=self._schema_storage)
             try:
-                runner.run_pool(normalize.config, normalize)
+                with signals.delayed_signals():
+                    runner.run_pool(normalize.config, normalize)
                 return NormalizeInfo()
             except Exception as n_ex:
                 raise PipelineStepFailed(self, "normalize", n_ex, Normalize()) from n_ex
@@ -339,9 +345,10 @@ class Pipeline(SupportsPipeline):
             raise_on_failed_jobs=raise_on_failed_jobs,
             _load_storage_config=self._load_storage_config
         )
-        load = Load(self.destination, is_storage_owner=False, config=load_config, initial_client_config=client.config)
+        load = Load(self.destination, collector=self.collector, is_storage_owner=False, config=load_config, initial_client_config=client.config)
         try:
-            runner.run_pool(load.config, load)
+            with signals.delayed_signals():
+                runner.run_pool(load.config, load)
             info = self._get_load_info(load)
             self.first_run = False
             return info
@@ -770,9 +777,7 @@ class Pipeline(SupportsPipeline):
         # discover the schema from source
         source_schema = source.schema
 
-        # make CTRL-C working while running user code
-        with signals.raise_immediately():
-            extract_id = extract_with_schema(storage, source, source_schema, max_parallel_items, workers)
+        extract_id = extract_with_schema(storage, source, source_schema, self.collector, max_parallel_items, workers)
 
         # if source schema does not exist in the pipeline
         if source_schema.name not in self._schema_storage:
@@ -1089,7 +1094,7 @@ class Pipeline(SupportsPipeline):
         # note: the schema will be persisted because the schema saving decorator is over the state manager decorator for extract
         state_source = DltSource("pipeline_state", self.pipeline_name, self.default_schema, [state_resource(state)])
         storage = ExtractorStorage(self._normalize_storage_config)
-        extract_id = extract_with_schema(storage, state_source, self.default_schema, 1, 1)
+        extract_id = extract_with_schema(storage, state_source, self.default_schema, _NULL_COLLECTOR, 1, 1)
         storage.commit_extract_files(extract_id)
         return state
 

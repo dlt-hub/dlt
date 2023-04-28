@@ -2364,7 +2364,7 @@ python-versions = ">=3.7"
 name = "psutil"
 version = "5.9.5"
 description = "Cross-platform lib for process and system monitoring in Python."
-category = "dev"
+category = "main"
 optional = false
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
 
@@ -3313,7 +3313,7 @@ redshift = ["psycopg2-binary", "psycopg2cffi"]
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.8,<4.0"
-content-hash = "4f7979a8b4166346e6324555d3d4e8f9948e2ce160ed30cacd49bee6367e8e15"
+content-hash = "f4a6d79a2d68be6719744bc443082461e212a2122fb676d9c331568669415e9a"
 
 [metadata.files]
 about-time = [
