@@ -33,12 +33,17 @@ def pipeline_command(operation: str, pipeline_name: str, pipelines_dir: str, ver
     try:
         p = dlt.attach(pipeline_name=pipeline_name, pipelines_dir=pipelines_dir)
     except CannotRestorePipelineException as e:
+        if operation not in {"sync", "drop"}:
+            raise
         fmt.echo(e)
-        if not fmt.confirm("Do you want to attempt to restore from destination?"):
+        if not fmt.confirm("Do you want to attempt to restore the pipeline state from destination?", default=False):
             return
-        destination = destination or fmt.text_input(f"Enter destination name for pipeline {pipeline_name}")
-        dataset_name = dataset_name or fmt.text_input(f"Enter dataset name for pipeline {pipeline_name}")
-        p = dlt.attach(pipeline_name=pipeline_name, pipelines_dir=pipelines_dir, from_destination=True, dataset_name=dataset_name, destination=destination)
+        destination = destination or fmt.text_input(f"Enter destination name for pipeline {fmt.bold(pipeline_name)}")
+        dataset_name = dataset_name or fmt.text_input(f"Enter dataset name for pipeline {fmt.bold(pipeline_name)}")
+        p = dlt.pipeline(pipeline_name, pipelines_dir, destination=destination, dataset_name=dataset_name)
+        p.sync_destination()
+        if operation == "sync":
+            return  # No need to sync again
 
     fmt.echo("Found pipeline %s in %s" % (fmt.bold(p.pipeline_name), fmt.bold(p.pipelines_dir)))
 
@@ -155,5 +160,5 @@ def pipeline_command(operation: str, pipeline_name: str, pipelines_dir: str, ver
         fmt.echo("About to drop the following data for the pipeline:")
         for k, v in drop.info.items():
             fmt.echo("%s: %s" % (fmt.style(k, fg="green"), v))
-        if fmt.confirm("Do you want to apply these changes?"):
+        if fmt.confirm("Do you want to apply these changes?", default=False):
             drop()

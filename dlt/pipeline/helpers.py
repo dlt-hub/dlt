@@ -2,7 +2,6 @@ from collections import defaultdict
 from typing import Callable, Tuple, Iterable, Optional, Any, cast, List, Iterator, Dict, Union, TypedDict
 from itertools import chain
 
-# from jsonpath_ng import parse as jsonpath_parse, JSONPath
 from dlt.common.jsonpath import resolve_paths, TAnyJsonPath, compile_paths
 
 from dlt.common.exceptions import TerminalException
@@ -138,7 +137,7 @@ class DropCommand:
 
     def _drop_state_keys(self) -> None:
         state: Dict[str, Any]
-        with self.pipeline.managed_state(extract_state=True, extract_unchanged=False) as state:  # type: ignore[assignment]
+        with self.pipeline.managed_state(extract_state=True) as state:  # type: ignore[assignment]
             state.clear()
             state.update(self._new_state)
 

@@ -86,7 +86,11 @@ def pipeline_command_wrapper(
     try:
         pipeline_command(operation, pipeline_name, pipelines_dir, verbosity, **command_kwargs)
         return 0
-    except (CannotRestorePipelineException, Exception) as ex:
+    except CannotRestorePipelineException as ex:
+        click.secho(str(ex), err=True, fg="red")
+        click.secho("Try command %s to restore the pipeline state from destination" % fmt.bold(f"dlt pipeline {pipeline_name} sync"))
+        return 1
+    except Exception as ex:
         click.secho(str(ex), err=True, fg="red")
         return 1
 
@@ -199,20 +203,29 @@ def main() -> int:
     pipe_cmd.add_argument("pipeline_name", nargs='?', help="Pipeline name")
     pipe_cmd.add_argument("--pipelines-dir", help="Pipelines working directory", default=None)
     pipe_cmd.add_argument("--verbose", "-v", action='count', default=0, help="Provides more information for certain commands.", dest="verbosity")
-    pipe_cmd.add_argument("--dataset-name", help="Dataset name used to sync destination when local pipeline state is missing.")
-    pipe_cmd.add_argument("--destination", help="Destination name used to to sync when local pipeline state is missing.")
+    # pipe_cmd.add_argument("--dataset-name", help="Dataset name used to sync destination when local pipeline state is missing.")
+    # pipe_cmd.add_argument("--destination", help="Destination name used to to sync when local pipeline state is missing.")
 
     pipeline_subparsers = pipe_cmd.add_subparsers(dest="operation", required=False)
+
+    pipe_cmd_sync_parent = argparse.ArgumentParser(add_help=False)
+    pipe_cmd_sync_parent.add_argument("--destination", help="Sync from this destination when local pipeline state is missing.")
+    pipe_cmd_sync_parent.add_argument("--dataset-name", help="Dataset name to sync from when local pipeline state is missing.")
+
     pipeline_subparsers.add_parser("info", help="Displays state of the pipeline, use -v or -vv for more info")
     pipeline_subparsers.add_parser("show", help="Generates and launches Streamlit app with the loading status and dataset explorer")
     pipeline_subparsers.add_parser("failed-jobs", help="Displays information on all the failed loads in all completed packages, failed jobs and associated error messages")
-    pipeline_subparsers.add_parser("sync", help="Drops the local state of the pipeline and resets all the schemas and restores it from destination. The destination state, data and schemas are left intact.")
+    pipeline_subparsers.add_parser(
+        "sync",
+        help="Drops the local state of the pipeline and resets all the schemas and restores it from destination. The destination state, data and schemas are left intact.",
+        parents=[pipe_cmd_sync_parent]
+    )
     pipeline_subparsers.add_parser("trace", help="Displays last run trace, use -v or -vv for more info")
     pipe_cmd_schema = pipeline_subparsers.add_parser("schema", help="Displays default schema")
     pipe_cmd_schema.add_argument("--format", choices=["json", "yaml"], default="yaml", help="Display schema in this format")
     pipe_cmd_schema.add_argument("--remove-defaults", action="store_true", help="Does not show default hint values")
 
-    pipe_cmd_drop = pipeline_subparsers.add_parser("drop", help="Drop pipeline state and resource tables")
+    pipe_cmd_drop = pipeline_subparsers.add_parser("drop", help="Drop pipeline state and resource tables", parents=[pipe_cmd_sync_parent])
     pipe_cmd_drop.add_argument("resources", nargs="*", help="One or more resources to drop. Can be exact resource name(s) or regex pattern(s).")
     pipe_cmd_drop.add_argument("--drop-all", action="store_true", default=False, help="Drop all resources found in schema. Supersedes [resources] argument.")
     pipe_cmd_drop.add_argument("--state-paths", nargs="*", help="State keys or json paths to drop", default=())
