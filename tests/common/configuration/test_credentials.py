@@ -120,6 +120,37 @@ def test_connection_string_resolved_from_native_representation(environment: Any)
 
     environment["CREDENTIALS__USERNAME"] = "loader"
     resolve_configuration(c, accept_partial=False)
+    assert c.username == "loader"
+    assert c.password is None
+
+    # password must resolve
+    c = ConnectionStringCredentials()
+    c.parse_native_representation("mysql+pymsql://USER@/dlt_data")
+    # not partial! password is optional
+    assert not c.is_partial()
+    assert not c.is_resolved()
+    environment["CREDENTIALS__PASSWORD"] = "pwd"
+    resolve_configuration(c)
+    # env var has precedence
+    assert c.username == "loader"
+    # password filled
+    assert c.password == "pwd"
+
+
+def test_connection_string_resolved_from_native_representation_env(environment: Any) -> None:
+    environment["CREDENTIALS"] = "mysql+pymsql://USER@/dlt_data"
+    c = resolve_configuration(ConnectionStringCredentials())
+    assert not c.is_partial()
+    assert c.is_resolved()
+    assert c.password is None
+    assert c.port is None
+    assert c.host is None
+
+    environment["CREDENTIALS__PASSWORD"] = "!pwd"
+    environment["CREDENTIALS__HOST"] = "aws.12.1"
+    c = resolve_configuration(ConnectionStringCredentials())
+    assert c.password == "!pwd"
+    assert c.host == "aws.12.1"
 
 
 def test_postgres_and_redshift_credentials_defaults() -> None:

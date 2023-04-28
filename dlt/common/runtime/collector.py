@@ -156,7 +156,7 @@ class LogCollector(Collector):
         for name, count in self.counters.items():
             info = self.counter_info[name]
             elapsed_time = current_time - info.start_time
-            items_per_second = count / elapsed_time
+            items_per_second = (count / elapsed_time) if elapsed_time > 0 else 0
 
             progress = f"{count}/{info.total}" if info.total is not None else f"{count}"
             percentage = f"({count / info.total * 100:.1f}%)" if info.total is not None else ""
