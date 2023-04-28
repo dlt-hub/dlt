@@ -23,20 +23,22 @@ We decided to make a dashboard that helps us better understand data attribution 
 
 ### Internal dashboard
 
-![Dashboard 1](/img/g4_dashboard_screen_grab_1.png) ![Dashboard 2](/img/g4_dashboard_screen_grab_2.png)
+![Dashboard 1](/img/g4_dashboard_screen_grab_1.jpg) ![Dashboard 2](/img/g4_dashboard_screen_grab_2.jpg)
 
-Once we figured out what we wanted to include in the dashboard, then we continued to work locally and built the internal dashboard using Streamlit above. You can run it on your laptop by cloning [the repo](https://github.com/dlt-hub/ga4-internal-dashboard-demo), and the following the steps listed [here](https://github.com/dlt-hub/ga4-internal-dashboard-demo/tree/main/internal-dashboards).
+With the data locally locally, we were able to build the dashboard on our system using Streamlit. You can also do this on your system by simply cloning [this repo](https://github.com/dlt-hub/ga4-internal-dashboard-demo) and following the steps listed [here](https://github.com/dlt-hub/ga4-internal-dashboard-demo/tree/main/intial-explorations).  
+
+After having the pipeline and the dashboard set up just how we liked it, we were now ready to deploy it.
 
 ### Deploying the data warehouse
 
-Once it was ready, we decided to store the data in a Postgres database on the same Google Cloud VM instance where we planned to deploy the streamlit app. We did this by following [these steps](https://github.com/dlt-hub/README.md).
+We decided to deploy our Streamlit app on a [Google Cloud VM instance](https://cloud.google.com/compute). This means that instead of storing the data locally, it would need to be in a location that could be accessed by the Streamlit app. Hence we decided to load the data onto a PostgreSQL database in the VM. [See here](https://github.com/dlt-hub/ga4-internal-dashboard-demo/tree/main/internal-dashboards) for more details on our process.
 
 ### Deploying the `dlt` pipeline with GitHub Actions
 
- We then followed the [deploy a pipeline](https://dlthub.com/docs/walkthroughs/deploy-a-pipeline) walkthrough to load the data daily with GitHub Actions.
+Once we had our data warehouse set up, we were ready to deploy the pipeline. We then followed the [deploy a pipeline](https://dlthub.com/docs/walkthroughs/deploy-a-pipeline) walkthrough to configure and deploy a pipeline that will load the data daily onto our data warehouse.
 
 ### Deploying the dashboard
 
-Finally, we deployed the Streamlit app on a [Google Cloud VM](https://cloud.google.com/compute), following [these steps](https://github.com/dlt-hub/ga4-internal-dashboard-demo).
+We finally deployed our Streamlit app on our Google Cloud VM instance by following [these steps](https://github.com/dlt-hub/ga4-internal-dashboard-demo/tree/main/internal-dashboards).
 
 ### Enjoy this blog post? Give `dlt` a ⭐ on [GitHub](https://github.com/dlt-hub/dlt) 🤜🤛
