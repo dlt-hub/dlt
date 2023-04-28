@@ -1,7 +1,7 @@
 import os
 import pytest
 import time
-from multiprocessing.dummy import Process
+from multiprocessing.dummy import Process as DummyProcess
 
 from dlt.common import sleep
 from dlt.common.exceptions import SignalReceivedException
@@ -47,12 +47,20 @@ def test_raise_if_signalled() -> None:
     assert exc.value.signal_code == 8
 
 
-def test_raise_immediately_context_manager() -> None:
-    with signals.raise_immediately():
-        # raise only on SIGINT
+def test_delayed_signals_context_manager() -> None:
+    signals.raise_if_signalled()
+
+    with signals.delayed_signals():
         with pytest.raises(SignalReceivedException):
             signals.signal_receiver(2, None)
-        signals.signal_receiver(1, None)
+            # now it raises
+            signals.raise_if_signalled()
+
+    # and now it is disabled
+    try:
+        signals.raise_if_signalled()
+    except SignalReceivedException:
+        pytest.fail("Unexpected SignalReceivedException was raised")
 
 
 def test_sleep_signal() -> None:
@@ -68,7 +76,7 @@ def test_sleep_signal() -> None:
         except SignalReceivedException as siex:
             thread_signal = siex.signal_code
 
-    p = Process(target=_thread)
+    p = DummyProcess(target=_thread)
     p.start()
     time.sleep(0.1)
     # this sets exit event
@@ -89,8 +97,6 @@ def test_raise_signal_received_exception() -> None:
 @skipifwindows
 @pytest.mark.forked
 def test_signalling() -> None:
-    signals.register_signals()
-
     thread_signal = 0
 
     def _thread() -> None:
@@ -102,14 +108,16 @@ def test_signalling() -> None:
         except SignalReceivedException as siex:
             thread_signal = siex.signal_code
 
-    p = Process(target=_thread)
+    p = DummyProcess(target=_thread)
     p.start()
 
-    # now signal to itself
-    os.kill(os.getpid(), signals.signal.SIGTERM)
-    # handler is executed in the main thread (here)
-    with pytest.raises(SignalReceivedException) as exc:
-        signals.raise_if_signalled()
-    assert exc.value.signal_code == 15
-    p.join()
-    assert thread_signal == 15
+    # handle signals without killing the process
+    with signals.delayed_signals():
+        # now signal to itself
+        os.kill(os.getpid(), signals.signal.SIGTERM)
+        # handler is executed in the main thread (here)
+        with pytest.raises(SignalReceivedException) as exc:
+            signals.raise_if_signalled()
+        assert exc.value.signal_code == 15
+        p.join()
+        assert thread_signal == 15
