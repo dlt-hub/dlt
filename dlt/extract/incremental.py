@@ -2,10 +2,9 @@ from typing import Generic, TypeVar, Any, Optional, Callable, List, TypedDict, g
 import inspect
 from functools import wraps
 
-from jsonpath_ng import parse as jsonpath_parse, JSONPath
-
 import dlt
 from dlt.common.json import json
+from dlt.common.jsonpath import compile_path, find_values, JSONPath
 from dlt.common.typing import DictStrAny, TDataItem, TDataItems, TFun, extract_inner_type, is_optional_type
 from dlt.common.schema.typing import TColumnKey
 from dlt.common.configuration import configspec
@@ -87,7 +86,7 @@ class Incremental(FilterItem, BaseConfiguration, Generic[TCursorValue]):
     ) -> None:
         self.cursor_path = cursor_path
         if self.cursor_path:
-            self.cursor_path_p: JSONPath = jsonpath_parse(cursor_path)
+            self.cursor_path_p: JSONPath = compile_path(cursor_path)
         self.last_value_func = last_value_func
         self.initial_value = initial_value
         """Initial value of last_value"""
@@ -111,7 +110,7 @@ class Incremental(FilterItem, BaseConfiguration, Generic[TCursorValue]):
         return self.__class__(self.cursor_path, initial_value=self.initial_value, last_value_func=self.last_value_func, primary_key=self.primary_key)
 
     def on_resolved(self) -> None:
-        self.cursor_path_p = jsonpath_parse(self.cursor_path)
+        self.cursor_path_p = compile_path(self.cursor_path)
 
     def parse_native_representation(self, native_value: Any) -> None:
         if isinstance(native_value, Incremental):
@@ -165,13 +164,13 @@ class Incremental(FilterItem, BaseConfiguration, Generic[TCursorValue]):
         if row is None:
             return True
 
-        row_values = self.cursor_path_p.find(row)
-        if len(row_values) == 0:
+        row_values = find_values(self.cursor_path_p, row)
+        if not row_values:
             raise IncrementalCursorPathMissing(self.resource_name, self.cursor_path, row)
 
         incremental_state = self._cached_state
         last_value = incremental_state['last_value']
-        row_value = row_values[0].value  # For now the value needs to match deserialized presentation from state
+        row_value = row_values[0]  # For now the value needs to match deserialized presentation from state
         check_values = (row_value,) + ((last_value, ) if last_value is not None else ())
         new_value = self.last_value_func(check_values)
         if last_value == new_value:
