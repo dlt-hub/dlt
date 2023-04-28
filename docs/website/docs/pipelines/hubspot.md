@@ -68,14 +68,23 @@ hubspot_pipeline
 ├── hubspot_pipeline.py
 └── requirements.txt
 ```
+## Add credentials
 
-## Specify the data loading function
+1. Open `.dlt/secrets.toml`
+2. Enter the token created [above](#get-api-credentials) via app.
+```
+# put your secret values and credentials here. do not share this file and do not push it to github
+[sources.hubspot]
+api_key = "api_key" # please set me up!
+```
+3. Enter credentials for your chosen destination as per the [docs](https://dlthub.com/docs/destinations#google-bigquery)
+## Define the data loading function
 
 1. There are two data loading functions inside the script `hubspot_pipeline.py`:
     1. `load_without_events()`: This function loads data from HubSpot to the destination without enabling company events.
     2. `load_with_company_events()`: This function loads data from HubSpot to the destination with company and contacts events selected.
     
-2. To specify a loading function, simply include it in the `__main__` block:
+2. To define a loading function, simply include it in the `__main__` block as follows:
 ```python
 if __name__ == "__main__":
 
