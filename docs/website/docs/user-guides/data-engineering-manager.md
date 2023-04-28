@@ -1,4 +1,4 @@
-# I.  About Data Platform Engineers
+# Data engineering manager
 
 ## Why do we have data platform engineers?
 
@@ -75,10 +75,11 @@ Other EL solutions are
 
 ### Notify schema changes: Autonomy and governance to the producer
 
+
 When a stakeholder has to request something from another human, the pain of asking becomes an obstacle, and in larger orgs the request chain might prove to be a dead end.
 
 For this reason, there have been attempts to solve such problems through governing paradigm shifts, such as data mesh.
 
 Dlt’s automation of data normalisation at ingestion supports shortcutting the human element - the producer can easily adjust their source schema and the data will be automatically made available downstream in the analytical system, where they or an analyst can use it.
 
-By using dlt’s “notify on schema change” functionality, this can act as a data contract test to notify both the consumer and the producer of any changes.
+By using dlt’s “notify on schema change” functionality, this can act as a data contract test to notify both the consumer and the producer of any changes. Read more about [alerting schema change](./running-in-production/running#inspect-save-and-alert-on-schema-changes). You can use the schema generated from the data or you can define it, read more about [schema](..general-usage/schema)

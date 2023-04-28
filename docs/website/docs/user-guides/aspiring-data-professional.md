@@ -1,10 +1,10 @@
-
-# The capstone project that proves your pragmatic skills.
+# Aspiring data professional
 
 As senior data professionals ourselves, we have hired for many companies in the past and know what they look for.
 
 Here we suggest some use cases for dlt that will enable aspiring or junior data professionals to showcase their understanding of a “valuable project”.
 
+# The capstone project that proves your pragmatic skills.
 
 ### Giving data to decision-makers, or automating decisions
 

@@ -1,8 +1,7 @@
-# So you’re a data engineer and you are considering dlt?
+# Data piepline engineer
 
-Indeed look no further.
+Are you a data engineer considering dlt for loading pipelines? See our use cases below:
 
-If you are using one of dlt’s supported destinations, you can quickly go from extracting to loading data by just passing your unstructured data to dlt.
 
 ### First use case, remove a big chunk of tedious work and most of the ETL maintenance by automating the transition from unstructured (nested, untyped) to structured (tabular, typed) data
 
@@ -12,9 +11,10 @@ A dlt pipeline is made of a source, which contains resources, and a connection t
 
 So in the simplest use case, you could pass your unstructured data to the `pipeline` and it will automatically be migrated to structured at the destination.
 
-See how to do that here [pipeline docs](./general-usage/pipeline)
+See how to do that here [pipeline docs](../general-usage/pipeline)
 
 The big advantage of using dlt for this is that it automates what is otherwise an error prone and tedious operation for the data engineer. What’s more, dlt can migrate schemas, removing now only development work but most of the maintenance work as well.
+Read more about how to monitor schema evolution here: [alert schema change](./running-in-production/running#inspect-save-and-alert-on-schema-changes)
 
 ### Second use case, A library to empower everyone on the team.
 
@@ -30,7 +30,7 @@ Dlt is meant to cater to the entire data team, enabling you to standardize how y
 Dlt is meant to support natural workflows that occur in the data team
 
 - dlt offers native support for local development and testing - you can use a local duckdb destination, and use `dlt pipeline show` to generate a web client to display and query the data. Once you are happy, you can simply switch to your production destination and you pipeline will run on production from the first try :)
-  - docs:  [show data](./using-loaded-data/exploring-the-data)
+  - docs:  [show data](../using-loaded-data/exploring-the-data)
   - example: [colab duckdb](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing)
 - with dbt runner, you can aditionally develop and later run transformations. If you use cross-db compatibility for dbt, your code can even be developed locally such as on duckdb or reused by others if you choose to reshare your code. [run dbt from local or repository](./using-loaded-data/transforming-the-data)
 - dlt supports Airflow and other workflow managers, it’s meant to plug into your data stack without causing more overheads. [example how to set up on airflow](./running-in-production/orchestrators/airflow-gcp-cloud-composer)

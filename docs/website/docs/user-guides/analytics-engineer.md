@@ -1,3 +1,7 @@
+# Analytics engineer
+
+Are you an analytics engineer and wondering how dlt might help you?
+
 ### Use case #1: Develop dbt packages on top of existing dlt pipelines
 
 Dlt automatically transitions unstructured data to structured. This means that the loaded data structure is a consequence of the initial unstructured data, except clean, typed and normalised.
