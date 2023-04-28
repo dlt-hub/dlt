@@ -29,17 +29,22 @@ A data platform engineer has to ensure that the rest of the data professionals a
 
 * WHO: These pipelines are usually built by analysts/data scientists and since they support a single use case usually have less business impact if they fail.
 
+* Example: [colab duckdb](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing)
+
 ### 2. Core business pipelines
 
 * WHAT: These are usually very well engineered to ensure high SLA for all core business cases.
 
 * WHO: The core pipelines are built by data engineers
+* Example: [Google sheets pipeline to copy ranges, named ranges or entire documents dynamically](https://dlthub.com/docs/pipelines/google_sheets)
 
-### 3. Heavily customised pipelines
+### 3. Customised pipelines
 
 * WHAT: Heavily customised pipelines that give very fine grain control over everything about the data processing and loading. These are usually engineered to solve specific obstacles to data usage, such as performance or cost of loading, or things about the data such as anonymization or managing schemas.
 
 * WHO: Depending if the problem being solved is an engineering or business logic problem, it may be solved by either a data engineer or a business facing analytics engineer.
+
+* Example: [Zendesk pipeline with automatic field renames and optionally pivoted tables for easy analysis](../pipelines/zendesk). Additional customisation example: [pseudonymizing_columns](./customizations/customizing-pipelines/pseudonymizing_columns)
 
 ##  ## dlt massively reduces pipeline maintenance in your organisation. With dlt data pipeline maintenance stops being an issue for data engineering. Issues can be directly solved by pythonista stakeholders.
 

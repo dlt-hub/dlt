@@ -10,7 +10,7 @@ However, this data usually needs to be rearranged to bring it to a structure tha
 
 There is little benefit to separate a pipeline between tools, so dlt supports a dbt runner which allows you to create a virtual environment, install dbt on it, pass it credentials and run a dbt package from a local or online location. To learn more about how to do that, see our docs page TODO
 
-[run dbt from local or repository](./using-loaded-data/transforming-the-data)
+Here are the docs to [run dbt from local or repository](./using-loaded-data/transforming-the-data)
 
 ### Use case #2: Clean type or customise how data is produced or loaded
 
