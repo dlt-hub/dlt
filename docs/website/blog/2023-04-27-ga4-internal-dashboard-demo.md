@@ -19,7 +19,7 @@ We set out to build an internal dashboard demo based on data from Google Analyti
 
 ### Initial explorations
 
-We decided to make a dashboard that helps us better understand data attribution for our blog posts (e.g. [As DuckDB crosses 1M downloads / month, what do its users do?](./2023-03-09-duckdb-1M-downloads-users.mdx)). Once we got our [credentials](https://dlthub.com/docs/general-usage/credentials) working, we then used the GA4 `dlt` pipeline to load data into a DuckDB instance on our laptop. This allowed us to figure out what requests we needed to make to get the necessary data to show the impact of each blog post (e.g. across different channels, what was the subsequent engagement with our docs, etc). We found it helpful to use [GA4 Query Explorer](https://ga-dev-tools.google/ga4/query-explorer/) for this, following [these steps](https://github.com/dlt-hub/ga4-internal-dashboard-demo/tree/main/intial-explorations).
+We decided to make a dashboard that helps us better understand data attribution for our blog posts (e.g. [As DuckDB crosses 1M downloads / month, what do its users do?](./2023-03-09-duckdb-1M-downloads-users.mdx)). Once we got our [credentials](https://dlthub.com/docs/general-usage/credentials) working, we then used the GA4 `dlt` pipeline to load data into a DuckDB instance on our laptop. This allowed us to figure out what requests we needed to make to get the necessary data to show the impact of each blog post (e.g. across different channels, what was the subsequent engagement with our docs, etc). We founded it helpful to use [GA4 Query Explorer](https://ga-dev-tools.google/ga4/query-explorer/) for this.
 
 ### Internal dashboard
 
