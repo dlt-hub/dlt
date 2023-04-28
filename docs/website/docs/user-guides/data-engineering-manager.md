@@ -20,9 +20,7 @@ A data platform engineer has to ensure that the rest of the data professionals a
 
 # II. Why dlt is the cheapest most extensive data loading option that scales with your team and usage
 
-## From simple complex, dlt offers different levels of abstraction to enable and empower your team.
-
-your analysts/data scientists, data engineers, pipeline/analytics engineers in building:
+## From simple complex, dlt offers different levels of abstraction to enable and empower your analysts/data scientists, data engineers, pipeline/analytics engineers in building:
 
 ### 1. Single use case driven pipelines
 
