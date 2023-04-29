@@ -1,19 +1,33 @@
-![](https://github.com/dlt-hub/dlt/raw/devel/docs/DLT-Pacman-Big.gif)
-
+<h1 align="center">
+    <strong>data load tool (dlt) — the open-source Python library for data loading</strong>
+</h1>
 <p align="center">
-
-[![PyPI version](https://badge.fury.io/py/dlt.svg)](https://pypi.org/project/dlt/)
-[![LINT Badge](https://github.com/dlt-hub/dlt/actions/workflows/lint.yml/badge.svg)](https://github.com/dlt-hub/dlt/actions/workflows/lint.yml)
-[![TEST COMMON Badge](https://github.com/dlt-hub/dlt/actions/workflows/test_common.yml/badge.svg)](https://github.com/dlt-hub/dlt/actions/workflows/test_common.yml)
-[![TEST DESTINATIONS Badge](https://github.com/dlt-hub/dlt/actions/workflows/test_destinations.yml/badge.svg)](https://github.com/dlt-hub/dlt/actions/workflows/test_destinations.yml)
-[![TEST BIGQUERY Badge](https://github.com/dlt-hub/dlt/actions/workflows/test_destination_bigquery.yml/badge.svg)](https://github.com/dlt-hub/dlt/actions/workflows/test_destination_bigquery.yml)
-[![TEST DBT Badge](https://github.com/dlt-hub/dlt/actions/workflows/test_dbt_runner.yml/badge.svg)](https://github.com/dlt-hub/dlt/actions/workflows/test_dbt_runner.yml)
-
+Be it a Google Colab notebook, AWS Lambda function, an Airflow DAG, your local laptop,<br/>or a GPT-4 assisted development playground—<strong>dlt</strong> can be dropped in anywhere.
 </p>
 
-# data load tool (dlt)
+<div align="center">
+  <a target="_blank" href="https://join.slack.com/t/dlthub-community/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g" style="background:none">
+    <img src="https://img.shields.io/badge/slack-join-dlt.svg?labelColor=191937&color=6F6FF7&logo=slack" />
+  </a>
+  <a target="_blank" href="https://pypi.org/project/dlt/" style="background:none">
+    <img src="https://img.shields.io/pypi/v/dlt?labelColor=191937&color=6F6FF7">
+  </a>
+  <a target="_blank" href="https://pypi.org/project/dlt/" style="background:none">
+    <img src="https://img.shields.io/pypi/pyversions/dlt?labelColor=191937&color=6F6FF7">
+  </a>
+</div>
 
-**[Colab Demo](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing)**
+## Installation
+
+dlt supports Python 3.8+.
+
+```bash
+pip install dlt
+```
+
+## Quick Start
+
+Load chess game data from chess.com API and save it in DuckDB:
 
 ```python
 import dlt
@@ -33,96 +47,43 @@ data = chess(['magnuscarlsen', 'rpragchess'], start_month='2022/11', end_month='
 pipeline.run(data)
 ```
 
-**data load tool (dlt)** is an open source Python library that makes data loading easy
+Try it out in our **[Colab Demo](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing)**
 
-- Automatically turn the JSON returned by any API into a live dataset stored wherever you want it
-- `pip install dlt` and then include `import dlt` to use it in your Python loading script
-- The **dlt** library is licensed under the Apache License 2.0, so you can use it for free forever
+## Features
 
-Read more about it on the [dlt Docs](https://dlthub.com/docs)
+- **Automatic Schema:** Data structure inspection and schema creation for the destination.
+- **Data Normalization:** Consistent and verified data before loading.
+- **Seamless Integration:** Colab, AWS Lambda, Airflow, and local environments.
+- **Scalable:** Adapts to growing data needs in production.
+- **Easy Maintenance:** Clear data pipeline structure for updates.
+- **Rapid Exploration:** Quickly explore and gain insights from new data sources.
+- **Versatile Usage:** Suitable for ad-hoc exploration to advanced loading infrastructures.
+- **Start in Seconds with CLI:** Powerful CLI for managing, deploying and inspecting local pipelines.
+- **Incremental Loading:** Load only new or changed data and avoid loading old records again.
+- **Open Source:** Free and Apache 2.0 Licensed.
 
-# semantic versioning
+## Ready to use Pipelines and Destinations
 
-`dlt` will follow the semantic versioning with [`MAJOR.MINOR.PATCH`](https://peps.python.org/pep-0440/#semantic-versioning) pattern. Currently we do **pre-release versioning** with major version being 0.
+Explore ready to use pipelines (e.g. Google Sheets) in the [Pipelines docs](https://dlthub.com/docs/pipelines/chess) and supported destinations (e.g. DuckDB) in the [Destinations docs](https://dlthub.com/docs/destinations/bigquery).
 
-- `minor` version change means breaking changes
-- `patch` version change means new features that should be backward compatible
-- any suffix change ie. `a10` -> `a11` is a patch
+## Documentation
 
-# development
+For detailed usage and configuration, please refer to the [official documentation](https://dlthub.com/docs).
 
-`dlt` uses `poetry` to manage, build and version the package. It also uses `make` to automate tasks. To start
+## Examples
 
-```sh
-make install-poetry  # will install poetry, to be run outside virtualenv
-```
+You can find examples for various use cases in the [examples](docs/examples) folder.
 
-then
+## Get Involved
 
-```sh
-make dev  # will install all deps including dev
-```
+The dlt project is quickly growing, and we're excited to have you join our community! Here's how you can get involved:
 
-Executing `poetry shell` and working in it is very convenient at this moment.
+- **Connect with the Community**: Join other dlt users and contributors on our [Slack](https://join.slack.com/t/dlthub-community/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g)
+- **Report issues and suggest features**: Please use the [GitHub Issues](https://github.com/dlt-hub/dlt/issues) to report bugs or suggest new features. Before creating a new issue, make sure to search the tracker for possible duplicates and add a comment if you find one.
+- **Contribute Pipelines**: Pipelines are data processing steps that help move and transform data between various sources and destinations. Contribute your custom pipelines to the [dlt-hub/pipelines](https://github.com/dlt-hub/pipelines) to help other folks in handling their data tasks.
+- **Contribute code**: Check out our [contributing guidelines](CONTRIBUTING.md) for information on how to make a pull request.
+- **Improve documentation**: Help us enhance the dlt documentation.
 
-## python version
+## License
 
-Use python 3.8 for development which is the lowest supported version for `dlt`. You'll need `distutils` and `venv`:
-
-```shell
-sudo apt-get install python3.8
-sudo apt-get install python3.8-distutils
-sudo apt install python3.8-venv
-```
-
-You may also use `pyenv` as [poetry](https://python-poetry.org/docs/managing-environments/) suggests.
-
-## bumping version
-
-Please use `poetry version prerelease` to bump patch and then `make build-library` to apply changes. The source of the version is `pyproject.toml` and we use poetry to manage it.
-
-## testing and linting
-
-`dlt` uses `mypy` and `flake8` with several plugins for linting. We do not reorder imports or reformat code.
-
-`pytest` is used as test harness. `make test-common` will run tests of common components and does not require any external resources.
-
-### testing destinations
-
-To test destinations use `make test`. You will need following external resources
-
-1. `BigQuery` project
-2. `Redshift` cluster
-3. `Postgres` instance. You can find a docker compose for postgres instance [here](tests/load/postgres/docker-compose.yml). When run the instance is configured to work with the tests.
-
-```shell
-cd tests/load/postgres/
-docker-compose up --build -d
-```
-
-See `tests/.example.env` for the expected environment variables and command line example to run the tests. Then create `tests/.env` from it. You configure the tests as you would configure the dlt pipeline.
-We'll provide you with access to the resources above if you wish to test locally.
-
-To test local destinations (`duckdb` and `postgres`) run `make test-local`. You can run this tests without additional credentials (just copy `.example.env` into `.env`)
-
-## publishing
-
-1. Make sure that you are on `devel` branch and you have the newest code that passed all tests on CI.
-2. Verify the current version with `poetry version`
-3. You'll need `pypi` access token and use `poetry config pypi-token.pypi your-api-token` then
-
-```
-make publish-library
-```
-
-4. Make a release on github, use version and git tag as release name
-
-## contributing
-
-To contribute via pull request:
-
-1. Create an issue with your idea for a feature etc.
-2. Write your code and tests
-3. Lint your code with `make lint`. Test the common modules with `make test-common`
-4. If you work on a destination code then contact us to get access to test destinations
-5. Create a pull request
+DLT is released under the [Apache 2.0 License](LICENSE.txt).
