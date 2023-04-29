@@ -41,7 +41,6 @@ def test_complete_successful_package(storage: LoadStorage) -> None:
     # delete completed package
     storage.delete_completed_package(load_id)
     assert not storage.storage.has_folder(storage.get_completed_package_path(load_id))
-
     # do not delete completed jobs
     storage.config.delete_completed_jobs = False
     load_id, file_name = start_loading_file(storage, [{"content": "a"}, {"content": "b"}])
@@ -56,6 +55,14 @@ def test_complete_successful_package(storage: LoadStorage) -> None:
     assert storage.storage.has_folder(storage._get_job_folder_completed_path(load_id, "completed_jobs"))
     storage.delete_completed_package(load_id)
     assert not storage.storage.has_folder(storage.get_completed_package_path(load_id))
+
+
+def test_wipe_normalized_packages(storage: LoadStorage) -> None:
+    load_id, file_name = start_loading_file(storage, [{"content": "a"}, {"content": "b"}])
+
+    storage.wipe_normalized_packages()
+
+    assert not storage.storage.has_folder(storage.NORMALIZED_FOLDER)
 
 
 def test_complete_package_failed_jobs(storage: LoadStorage) -> None:

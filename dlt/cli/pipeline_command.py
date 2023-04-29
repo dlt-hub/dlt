@@ -1,18 +1,23 @@
 import yaml
+from typing import Any
 import dlt
 from dlt.cli.exceptions import CliCommandException
 
 from dlt.common import json
 from dlt.common.pipeline import get_dlt_pipelines_dir, TSourceState
+from dlt.common.destination.reference import TDestinationReferenceArg
 from dlt.common.runners import Venv
 from dlt.common.runners.stdout import iter_stdout
 from dlt.common.schema.utils import remove_defaults
 from dlt.common.storages.file_storage import FileStorage
+from dlt.common.typing import DictStrAny
+from dlt.pipeline.helpers import DropCommand
+from dlt.pipeline.exceptions import CannotRestorePipelineException
 
 from dlt.cli import echo as fmt
 
 
-def pipeline_command(operation: str, pipeline_name: str, pipelines_dir: str, verbosity: int, load_id: str = None) -> None:
+def pipeline_command(operation: str, pipeline_name: str, pipelines_dir: str, verbosity: int, dataset_name: str = None, destination: TDestinationReferenceArg = None, **command_kwargs: Any) -> None:
     if operation == "list":
         pipelines_dir = pipelines_dir or get_dlt_pipelines_dir()
         storage = FileStorage(pipelines_dir)
@@ -25,7 +30,21 @@ def pipeline_command(operation: str, pipeline_name: str, pipelines_dir: str, ver
             fmt.secho(_dir, fg="green")
         return
 
-    p = dlt.attach(pipeline_name=pipeline_name, pipelines_dir=pipelines_dir)
+    try:
+        p = dlt.attach(pipeline_name=pipeline_name, pipelines_dir=pipelines_dir)
+    except CannotRestorePipelineException as e:
+        if operation not in {"sync", "drop"}:
+            raise
+        fmt.echo(e)
+        if not fmt.confirm("Do you want to attempt to restore the pipeline state from destination?", default=False):
+            return
+        destination = destination or fmt.text_input(f"Enter destination name for pipeline {fmt.bold(pipeline_name)}")
+        dataset_name = dataset_name or fmt.text_input(f"Enter dataset name for pipeline {fmt.bold(pipeline_name)}")
+        p = dlt.pipeline(pipeline_name, pipelines_dir, destination=destination, dataset_name=dataset_name)
+        p.sync_destination()
+        if operation == "sync":
+            return  # No need to sync again
+
     fmt.echo("Found pipeline %s in %s" % (fmt.bold(p.pipeline_name), fmt.bold(p.pipelines_dir)))
 
     if operation == "show":
@@ -108,6 +127,7 @@ def pipeline_command(operation: str, pipeline_name: str, pipelines_dir: str, ver
             p.sync_destination()
 
     if operation == "load-package":
+        load_id = command_kwargs.get('load_id')
         if not load_id:
             packages = sorted(p.list_normalized_load_packages())
             if not packages:
@@ -134,3 +154,11 @@ def pipeline_command(operation: str, pipeline_name: str, pipelines_dir: str, ver
             fmt.echo("Found schema with name %s" % fmt.bold(p.default_schema_name))
         schema_str = p.default_schema.to_pretty_yaml(remove_defaults=True)
         fmt.echo(schema_str)
+
+    if operation == "drop":
+        drop = DropCommand(p, **command_kwargs)
+        fmt.echo("About to drop the following data for the pipeline:")
+        for k, v in drop.info.items():
+            fmt.echo("%s: %s" % (fmt.style(k, fg="green"), v))
+        if fmt.confirm("Do you want to apply these changes?", default=False):
+            drop()

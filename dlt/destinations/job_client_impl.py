@@ -6,7 +6,7 @@ import contextlib
 from copy import copy
 import datetime  # noqa: 251
 from types import TracebackType
-from typing import Any, ClassVar, List, NamedTuple, Optional, Sequence, Tuple, Type, Iterable
+from typing import Any, ClassVar, List, NamedTuple, Optional, Sequence, Tuple, Type, Iterable, Iterator
 import zlib
 
 from dlt.common import json, pendulum, logger
@@ -90,14 +90,25 @@ class SqlJobClientBase(JobClientBase):
             if schema_info is None:
                 logger.info(f"Schema with hash {self.schema.stored_version_hash} not found in the storage. upgrading")
 
-                if self.capabilities.supports_ddl_transactions:
-                    with self.sql_client.begin_transaction():
-                        applied_update = self._execute_schema_update_sql(only_tables)
-                else:
+                with self._ddl_transaction():
                     applied_update = self._execute_schema_update_sql(only_tables)
             else:
                 logger.info(f"Schema with hash {self.schema.stored_version_hash} inserted at {schema_info.inserted_at} found in storage, no upgrade required")
             return applied_update
+
+    def drop_tables(self, *tables: str, staging: bool = False) -> None:
+        with self.sql_client.with_staging_dataset(staging):
+            with self._ddl_transaction():
+                self.sql_client.drop_tables(*tables)
+                self._replace_schema_in_storage(self.schema)
+
+    @contextlib.contextmanager
+    def _ddl_transaction(self) -> Iterator[None]:
+        if self.capabilities.supports_ddl_transactions:
+            with self.sql_client.begin_transaction():
+                yield
+        else:
+            yield
 
     def create_merge_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
         return SqlMergeJob.from_table_chain(table_chain, self.sql_client)
@@ -290,6 +301,16 @@ class SqlJobClientBase(JobClientBase):
         inserted_at = pendulum.instance(row[4])
 
         return StorageSchemaInfo(row[0], row[1], row[2], row[3], inserted_at, schema_str)
+
+    def _replace_schema_in_storage(self, schema: Schema) -> None:
+        """
+        Save the given schema in storage and remove all previous versions with the same name
+        """
+        name = self.sql_client.make_qualified_table_name(VERSION_TABLE_NAME)
+        self.sql_client.execute_sql(
+            f"DELETE FROM {name} WHERE schema_name = %s;", schema.name
+        )
+        self._update_schema_in_storage(schema)
 
     def _update_schema_in_storage(self, schema: Schema) -> None:
         now_ts = str(pendulum.now())

@@ -3,7 +3,7 @@ import base64
 import hashlib
 
 from copy import deepcopy
-from typing import Dict, List, Sequence, Tuple, Type, Any, cast
+from typing import Dict, List, Sequence, Tuple, Type, Any, cast, Union, Iterable, Optional
 
 from dlt.common import json
 from dlt.common.data_types import TDataType
@@ -146,12 +146,24 @@ def column_name_validator(naming: NamingConvention) -> TCustomValidator:
     return validator
 
 
-def compile_simple_regex(r: TSimpleRegex) -> REPattern:
+def _prepare_simple_regex(r: TSimpleRegex) -> str:
     if r.startswith(SIMPLE_REGEX_PREFIX):
-        return re.compile(r[3:])
+        return r[3:]
     else:
         # exact matches
-        return re.compile("^" + re.escape(r) + "$")
+        return "^" + re.escape(r) + "$"
+
+
+def compile_simple_regex(r: TSimpleRegex) -> REPattern:
+    return re.compile(_prepare_simple_regex(r))
+
+
+def compile_simple_regexes(r: Iterable[TSimpleRegex]) -> REPattern:
+    """Compile multiple patterns as one"""
+    pattern = '|'.join(f"({_prepare_simple_regex(p)})" for p in r)
+    if not pattern:  # Don't create an empty pattern that matches everything
+        raise ValueError("Cannot create a regex pattern from empty sequence")
+    return re.compile(pattern)
 
 
 def validate_stored_schema(stored_schema: TStoredSchema) -> None:
@@ -428,6 +440,18 @@ def get_child_tables(tables: TSchemaTables, table_name: str) -> List[TTableSchem
 
     _child(tables[table_name])
     return chain
+
+
+def group_tables_by_resource(tables: TSchemaTables, pattern: Optional[REPattern] = None) -> Dict[str, List[TTableSchema]]:
+    """Create a dict of resources and their associated tables and descendant tables
+    If `pattern` is supplied, the result is filtered to only resource names matching the pattern.
+    """
+    result = {}
+    for table in tables.values():
+        resource = table.get('resource')
+        if resource and (pattern is None or pattern.match(resource)):
+            result[resource] = get_child_tables(tables, table['name'])
+    return result
 
 
 def version_table() -> TTableSchema:

@@ -295,6 +295,24 @@ def test_first_run_flag() -> None:
     assert p.first_run is True
 
 
+def test_has_pending_data_flag() -> None:
+    p = dlt.pipeline(pipeline_name="pipe_" + uniq_id(), destination="dummy")
+
+    assert p.has_pending_data is False
+
+    p.extract([1, 2, 3], table_name="dummy_table")
+
+    assert p.has_pending_data is True
+
+    p.normalize()
+
+    assert p.has_pending_data is True
+
+    p.load()
+
+    assert p.has_pending_data is False
+
+
 def test_sentry_tracing() -> None:
     import sentry_sdk
 

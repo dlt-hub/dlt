@@ -56,3 +56,6 @@ def prompt(text: str, choices: Iterable[str], default: Optional[Any] = None) -> 
         return default
     click_choices = click.Choice(choices)
     return click.prompt(text, type=click_choices, default=default)
+
+def text_input(text: str) -> str:
+    return click.prompt(text)  # type: ignore[no-any-return]

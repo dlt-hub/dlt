@@ -256,6 +256,54 @@ def test_schema_update_alter_table(client: SqlJobClientBase) -> None:
 
 
 @pytest.mark.parametrize('client', ALL_CLIENTS, indirect=True)
+def test_drop_tables(client: SqlJobClientBase) -> None:
+    schema = client.schema
+    # Add columns in all tables
+    schema.tables['event_user']['columns'] = dict(schema.tables['event_slot']['columns'])
+    schema.tables['event_bot']['columns'] = dict(schema.tables['event_slot']['columns'])
+    client.update_storage_schema()
+
+    # Create a second schema with 2 hashes
+    sd = schema.to_dict()
+    sd['name'] = 'event_2'
+    schema_2 = Schema.from_dict(sd).clone()  # type: ignore[arg-type]
+    for tbl_name in list(schema_2.tables):
+        if tbl_name.startswith('_dlt'):
+            continue
+        schema_2.tables[tbl_name + '_2'] = schema_2.tables.pop(tbl_name)
+
+    client.schema = schema_2
+    client.schema.bump_version()
+    client.update_storage_schema()
+    client.schema.tables['event_slot_2']['columns']['value']['nullable'] = False
+    client.schema.bump_version()
+    client.update_storage_schema()
+
+    # Drop tables from the first schema
+    client.schema = schema
+    tables_to_drop = ['event_slot', 'event_user']
+    for tbl in tables_to_drop:
+        del schema.tables[tbl]
+    schema.bump_version()
+    client.drop_tables(*tables_to_drop)
+
+    # Verify requested tables are dropped
+    for tbl in tables_to_drop:
+        exists, _ = client.get_storage_table(tbl)
+        assert not exists
+
+    # Verify _dlt_version schema is updated and old versions deleted
+    table_name = client.sql_client.make_qualified_table_name(VERSION_TABLE_NAME)
+    rows = client.sql_client.execute_sql(f"SELECT version_hash FROM {table_name} WHERE schema_name = %s", schema.name)
+    assert len(rows) == 1
+    assert rows[0][0] == schema.version_hash
+
+    # Other schema is not replaced
+    rows = client.sql_client.execute_sql(f"SELECT version_hash FROM {table_name} WHERE schema_name = %s", schema_2.name)
+    assert len(rows) == 2
+
+
+@pytest.mark.parametrize('client', ALL_CLIENTS, indirect=True)
 def test_get_storage_table_with_all_types(client: SqlJobClientBase) -> None:
     schema = client.schema
     table_name = "event_test_table" + uniq_id()

@@ -23,7 +23,7 @@ from dlt.common.storages.load_storage import LoadJobInfo, LoadPackageInfo, LoadS
 from dlt.common.typing import TFun, TSecretValue
 from dlt.common.runners import pool_runner as runner, initialize_runner
 from dlt.common.runners.configuration import PoolRunnerConfiguration
-from dlt.common.storages import LiveSchemaStorage, NormalizeStorage
+from dlt.common.storages import LiveSchemaStorage, NormalizeStorage, SchemaStorage
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import DestinationReference, JobClientBase, DestinationClientConfiguration, DestinationClientDwhConfiguration, TDestinationReferenceArg
 from dlt.common.pipeline import ExtractInfo, LoadInfo, NormalizeInfo, SupportsPipeline, TPipelineLocalState, TPipelineState, StateInjectableContext
@@ -58,7 +58,7 @@ def with_state_sync(may_extract_state: bool = False) -> Callable[[TFun], TFun]:
         def _wrap(self: "Pipeline", *args: Any, **kwargs: Any) -> Any:
             # backup and restore state
             should_extract_state = may_extract_state and self.config.restore_from_destination
-            with self._managed_state(extract_state=should_extract_state) as state:
+            with self.managed_state(extract_state=should_extract_state) as state:
                 # add the state to container as a context
                 with self._container.injectable_context(StateInjectableContext(state=state)):
                     return f(self, *args, **kwargs)
@@ -208,7 +208,7 @@ class Pipeline(SupportsPipeline):
         # initialize pipeline working dir
         self._init_working_dir(pipeline_name, pipelines_dir)
 
-        with self._managed_state() as state:
+        with self.managed_state() as state:
             # set the pipeline properties from state
             self._state_to_props(state)
             # we overwrite the state with the values from init
@@ -542,7 +542,12 @@ class Pipeline(SupportsPipeline):
         return not self.first_run or bool(self.schema_names) or len(self.list_extracted_resources()) > 0 or len(self.list_normalized_load_packages()) > 0
 
     @property
-    def schemas(self) -> Mapping[str, Schema]:
+    def has_pending_data(self) -> bool:
+        """Tells if the pipeline contains any extracted files or pending load packages"""
+        return bool(self.list_normalized_load_packages() or self.list_extracted_resources())
+
+    @property
+    def schemas(self) -> SchemaStorage:
         return self._schema_storage
 
     @property
@@ -1072,7 +1077,7 @@ class Pipeline(SupportsPipeline):
         return restored_schemas
 
     @contextmanager
-    def _managed_state(self, *, extract_state: bool = False) -> Iterator[TPipelineState]:
+    def managed_state(self, *, extract_state: bool = False) -> Iterator[TPipelineState]:
         # load or restore state
         state = self._get_state()
         # TODO: we should backup schemas here
