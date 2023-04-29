@@ -4,6 +4,7 @@ from typing import List
 from dlt.common.configuration.exceptions import DuplicateConfigProviderException
 from dlt.common.configuration.providers import ConfigProvider, EnvironProvider, ContextProvider, SecretsTomlProvider, ConfigTomlProvider
 from dlt.common.configuration.specs.base_configuration import ContainerInjectableContext, configspec
+from dlt.common.runtime.exec_info import is_running_in_airflow_task
 
 
 @configspec
@@ -60,16 +61,16 @@ def _airflow_providers() -> List[ConfigProvider]:
     an empty list is returned. If Airflow is installed, the function
     returns a list containing the Airflow providers.
     """
-    try:
-        import airflow  # noqa
-        from airflow.models import Variable # noqa
-        from dlt.common.configuration.providers.airflow import (
-            AirflowSecretsTomlProvider,
-            AIRFLOW_SECRETS_TOML_VARIABLE_KEY
-        )
-        from dlt.common.runtime import logger
-    except ImportError:
+    if not is_running_in_airflow_task():
         return []
+
+    from airflow.models import Variable, TaskInstance # noqa
+    from airflow.operators.python import get_current_context  # noqa
+
+    from dlt.common.configuration.providers.airflow import (
+        AirflowSecretsTomlProvider,
+        AIRFLOW_SECRETS_TOML_VARIABLE_KEY
+    )
 
     secrets_toml_var = Variable.get(
         AIRFLOW_SECRETS_TOML_VARIABLE_KEY,
@@ -79,7 +80,8 @@ def _airflow_providers() -> List[ConfigProvider]:
     if secrets_toml_var is not None:
         return [AirflowSecretsTomlProvider()]
     else:
-        logger.warning(
+        ti = get_current_context()["ti"]
+        ti.log.warning(
             f"Airflow variable '{AIRFLOW_SECRETS_TOML_VARIABLE_KEY}' "
             "not found. AirflowSecretsTomlProvider will not be used."
         )

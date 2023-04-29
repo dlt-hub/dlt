@@ -233,3 +233,8 @@ class SourceIsAClassTypeError(DltSourceException):
 class SourceSchemaNotAvailable(DltSourceException):
     def __init__(self) -> None:
         super().__init__("Current source schema is available only when called from a function decorated with dlt.source or dlt.resource")
+
+
+class IncrementalUnboundError(DltResourceException):
+    def __init__(self, cursor_path: str) -> None:
+        super().__init__("", f"The incremental definition with cursor path {cursor_path} is used without being bound to the resource. This most often happens when you create dynamic resource from a generator function that uses incremental. See https://dlthub.com/docs/general-usage/incremental-loading#incremental-loading-with-last-value for an example.")

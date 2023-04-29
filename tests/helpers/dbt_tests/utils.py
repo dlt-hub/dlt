@@ -1,6 +1,5 @@
 import os
 from typing import List, Sequence
-from prometheus_client import CollectorRegistry
 
 from dlt.common.storages import FileStorage
 from dlt.common.git import clone_repo

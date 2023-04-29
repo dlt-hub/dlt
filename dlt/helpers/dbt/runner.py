@@ -1,8 +1,7 @@
 import os
 from subprocess import CalledProcessError
 import giturlparse
-from typing import Any, ClassVar, Optional, Sequence
-from prometheus_client import REGISTRY, Gauge, CollectorRegistry, Info
+from typing import Sequence
 
 import dlt
 from dlt.common import logger
@@ -11,9 +10,8 @@ from dlt.common.configuration.specs import CredentialsConfiguration
 from dlt.common.configuration.utils import add_config_to_env
 from dlt.common.runners import Venv
 from dlt.common.runners.stdout import iter_stdout_with_result
-from dlt.common.typing import DictStrStr, StrAny, TSecretValue
+from dlt.common.typing import StrAny, TSecretValue
 from dlt.common.runtime.logger import is_json_logging
-from dlt.common.runtime.prometheus import get_logging_extras
 from dlt.common.storages import FileStorage
 from dlt.common.git import git_custom_key_command, ensure_remote_head, force_clone_repo
 from dlt.common.utils import with_custom_environ
@@ -31,16 +29,12 @@ class DBTPackageRunner:
     passed via DBTRunnerConfiguration instance
     """
 
-    model_elapsed_gauge: ClassVar[Gauge] = None
-    model_exec_info: ClassVar[Info] = None
-
     def __init__(self,
         venv: Venv,
         credentials: CredentialsConfiguration,
         working_dir: str,
         source_dataset_name: str,
-        config: DBTRunnerConfiguration,
-        collector: CollectorRegistry = REGISTRY,
+        config: DBTRunnerConfiguration
     ) -> None:
         self.venv = venv
         self.credentials = credentials
@@ -54,17 +48,6 @@ class DBTPackageRunner:
         self.cloned_package_name: str = None
 
         self._setup_location()
-        try:
-            self._create_gauges(collector)
-        except ValueError as v:
-            # ignore re-creation of gauges
-            if "Duplicated" not in str(v):
-                raise
-
-    @staticmethod
-    def _create_gauges(registry: CollectorRegistry) -> None:
-        DBTPackageRunner.model_elapsed_gauge = Gauge("dbtrunner_model_elapsed_seconds", "Last model processing time", ["model"], registry=registry)
-        DBTPackageRunner.model_exec_info = Info("dbtrunner_model_status", "Last execution status of the model", registry=registry)
 
     def _setup_location(self) -> None:
         # set the package location
@@ -93,18 +76,11 @@ class DBTPackageRunner:
         if not results:
             return
 
-        info: DictStrStr = {}
         for res in results:
             if res.status == "error":
                 logger.error(f"Model {res.model_name} error! Error: {res.message}")
             else:
                 logger.info(f"Model {res.model_name} {res.status} in {res.time} seconds with {res.message}")
-            DBTPackageRunner.model_elapsed_gauge.labels(res.model_name).set(res.time)
-            info[res.model_name] = res.message
-
-        # log execution
-        DBTPackageRunner.model_exec_info.info(info)
-        logger.metrics("stop", "dbt models", extra=get_logging_extras([DBTPackageRunner.model_elapsed_gauge, DBTPackageRunner.model_exec_info]))
 
     def ensure_newest_package(self) -> None:
         """Clones or brings the dbt package at `package_location` up to date."""
@@ -294,4 +270,4 @@ def create_runner(
     auto_full_refresh_when_out_of_sync: bool = None,
     config: DBTRunnerConfiguration = None
     ) -> DBTPackageRunner:
-    return DBTPackageRunner(venv, credentials, working_dir, dataset_name, config, REGISTRY)
+    return DBTPackageRunner(venv, credentials, working_dir, dataset_name, config)

@@ -265,8 +265,12 @@ class Pipe(SupportsPipe):
             self.replace_gen(gen)
             return gen
         except InvalidResourceDataTypeFunctionNotAGenerator:
-            # call regular function to check what is inside
-            _data = self.gen(*args, **kwargs)  # type: ignore
+            try:
+                # call regular function to check what is inside
+                _data = self.gen(*args, **kwargs)  # type: ignore
+            except Exception as ev_ex:
+                # break chaining
+                raise ev_ex from None
             # accept if pipe or object holding pipe is returned
             # TODO: use a protocol (but protocols are slow)
             if isinstance(_data, Pipe) or hasattr(_data, "_pipe"):
@@ -662,6 +666,7 @@ class PipeIterator(Iterator[PipeItem]):
 
         # get items from last added iterator, this makes the overall Pipe as close to FIFO as possible
         gen, step, pipe, meta = self._sources[-1]
+        # print(f"got {pipe.name} {pipe._pipe_id}")
         # TODO: count items coming of the generator and stop the generator if reached. that allows for sampling the beginning of a stream
         # _counts(id(gen)).setdefault(0) + 1
         try:

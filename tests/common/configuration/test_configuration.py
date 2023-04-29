@@ -371,7 +371,6 @@ def test_configuration_is_mutable_mapping(environment: Any) -> None:
         'pipeline_name': 'secret',
         'sentry_dsn': None,
         'slack_incoming_hook': None,
-        'prometheus_port': None,
         'dlthub_telemetry': True,
         'dlthub_telemetry_segment_write_key': 'TLJiyRkGVZGCi2TtjClamXpFcxAA1rSB',
         'log_format': '{asctime}|[{levelname:<21}]|{process}|{name}|{filename}|{funcName}:{lineno}|{message}',

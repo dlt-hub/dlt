@@ -43,7 +43,7 @@ class _TestRunnableWorkerMethod(Runnable):
 
     def run(self, pool: Pool) -> TRunMetrics:
         self._run(pool)
-        return TRunMetrics(False, False, 0)
+        return TRunMetrics(False, 0)
 
 
 class _TestRunnableWorker(Runnable):
@@ -65,4 +65,4 @@ class _TestRunnableWorker(Runnable):
 
     def run(self, pool: Pool) -> TRunMetrics:
         self._run(pool)
-        return TRunMetrics(False, False, 0)
+        return TRunMetrics(False, 0)

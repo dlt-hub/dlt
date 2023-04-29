@@ -25,13 +25,13 @@ class JsonLoggerConfiguration(PureBasicConfiguration):
 
 # @pytest.mark.skip
 def test_version_extract(environment: StrStr) -> None:
-    version = exec_info.dlt_version_info(PureBasicConfiguration())
+    version = exec_info.dlt_version_info("logger")
     # assert version["dlt_version"].startswith(code_version)
     lib_version = pkg_version("dlt")
     assert version == {'dlt_version': lib_version, 'pipeline_name': 'logger'}
     # mock image info available in container
     mock_image_env(environment)
-    version = exec_info.dlt_version_info(PureBasicConfiguration())
+    version = exec_info.dlt_version_info("logger")
     assert version == {'dlt_version': lib_version, 'commit_sha': '192891', 'pipeline_name': 'logger', 'image_version': 'scale/v:112'}
 
 
@@ -58,8 +58,8 @@ def test_text_logger_init(environment: StrStr) -> None:
     mock_image_env(environment)
     mock_pod_env(environment)
     init_test_logging(PureBasicConfiguration())
-    logger.metrics("progress", "test health", extra={"metrics": "props"})
-    logger.metrics("progress", "test", extra={"metrics": "props"})
+    logger.metrics("test health", extra={"metrics": "props"})
+    logger.metrics("test", extra={"metrics": "props"})
     logger.warning("Warning message here")
     try:
         1 / 0
@@ -74,8 +74,8 @@ def test_json_logger_init(environment: StrStr) -> None:
     init_test_logging(JsonLoggerConfiguration())
     # correct component was set
     json_logging.COMPONENT_NAME = "logger"
-    logger.metrics("progress", "test health", extra={"metrics": "props"})
-    logger.metrics("progress", "test", extra={"metrics": "props"})
+    logger.metrics("test health", extra={"metrics": "props"})
+    logger.metrics("test", extra={"metrics": "props"})
     logger.warning("Warning message here")
     try:
         1 / 0

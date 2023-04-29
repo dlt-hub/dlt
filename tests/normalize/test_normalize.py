@@ -1,7 +1,6 @@
 import pytest
 from fnmatch import fnmatch
 from typing import Dict, Iterator, List, Sequence, Tuple
-from prometheus_client import CollectorRegistry
 from multiprocessing import get_start_method, Pool
 from multiprocessing.dummy import Pool as ThreadPool
 
@@ -66,7 +65,7 @@ def init_normalize(default_schemas_path: str = None) -> Iterator[Normalize]:
     # pass schema config fields to schema storage via dict config provider
     with TEST_DICT_CONFIG_PROVIDER().values({"import_schema_path": default_schemas_path, "external_schema_format": "json"}):
         # inject the destination capabilities
-        n = Normalize(collector=CollectorRegistry())
+        n = Normalize()
         yield n
 
 

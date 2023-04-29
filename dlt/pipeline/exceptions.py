@@ -1,7 +1,6 @@
 from typing import Any
 from dlt.common.exceptions import PipelineException
 from dlt.common.pipeline import SupportsPipeline
-from dlt.common.runners import TRunMetrics
 from dlt.pipeline.typing import TPipelineStep
 
 
@@ -32,11 +31,10 @@ class SqlClientNotAvailable(PipelineException):
 
 
 class PipelineStepFailed(PipelineException):
-    def __init__(self, pipeline: SupportsPipeline, step: TPipelineStep, exception: BaseException, run_metrics: TRunMetrics, step_info: Any = None) -> None:
+    def __init__(self, pipeline: SupportsPipeline, step: TPipelineStep, exception: BaseException, step_info: Any = None) -> None:
         self.pipeline = pipeline
         self.step = step
         self.exception = exception
-        self.run_metrics = run_metrics
         self.step_info = step_info
         super().__init__(pipeline.pipeline_name, f"Pipeline execution failed at stage {step} with exception:\n\n{type(exception)}\n{exception}")
 
