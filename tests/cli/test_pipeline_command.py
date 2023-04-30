@@ -108,7 +108,7 @@ def test_pipeline_command_operations(repo_dir: str, project_files: FileStorage) 
             pipeline_command.pipeline_command("drop", "chess_pipeline", None, 0, resources=["players_games"])
 
         _out = buf.getvalue()
-        assert "resource_names: ['players_games']" in _out
+        assert "Selected resource(s): ['players_games']" in _out
 
         # Command was executed
         pipeline = dlt.attach(pipeline_name="chess_pipeline")
@@ -122,7 +122,7 @@ def test_pipeline_command_operations(repo_dir: str, project_files: FileStorage) 
         _out = buf.getvalue()
 
         assert "could not be restored: the pipeline was not found in " in _out
-        assert "resource_names: ['players_profiles']" in _out
+        assert "Selected resource(s): ['players_profiles']" in _out
 
         # Command was executed
         pipeline = dlt.attach(pipeline_name="chess_pipeline")

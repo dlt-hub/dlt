@@ -359,11 +359,12 @@ def _delete_source_state_keys(key: TAnyJsonPath, source_state_: Optional[DictStr
     delete_matches(key, state_)
 
 
-def _resource_state(resource_name: str) -> DictStrAny:
+def _resource_state(resource_name: str, source_state_: Optional[DictStrAny] = None, /) -> DictStrAny:
     """Alpha version of the resource state, the signature will change.
     Returns resource-scoped state.
     """
-    return source_state().setdefault('resources', {}).setdefault(resource_name, {})  # type: ignore
+    state_ = source_state() if source_state_ is None else source_state_
+    return state_.setdefault('resources', {}).setdefault(resource_name, {})  # type: ignore
 
 
 def _reset_resource_state(resource_name: str, source_state_: Optional[DictStrAny] = None, /) -> None:
