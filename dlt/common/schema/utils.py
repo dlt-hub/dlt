@@ -446,11 +446,12 @@ def group_tables_by_resource(tables: TSchemaTables, pattern: Optional[REPattern]
     """Create a dict of resources and their associated tables and descendant tables
     If `pattern` is supplied, the result is filtered to only resource names matching the pattern.
     """
-    result = {}
+    result: Dict[str, List[TTableSchema]] = {}
     for table in tables.values():
         resource = table.get('resource')
         if resource and (pattern is None or pattern.match(resource)):
-            result[resource] = get_child_tables(tables, table['name'])
+            resource_tables = result.setdefault(resource, [])
+            resource_tables.extend(get_child_tables(tables, table['name']))
     return result
 
 

@@ -14,7 +14,7 @@ import dlt.cli.echo as fmt
 from dlt.cli import utils
 from dlt.cli.init_command import init_command, list_pipelines_command, DLT_INIT_DOCS_URL, DEFAULT_PIPELINES_REPO
 from dlt.cli.deploy_command import PipelineWasNotRun, deploy_command, DLT_DEPLOY_DOCS_URL
-from dlt.cli.pipeline_command import pipeline_command
+from dlt.cli.pipeline_command import pipeline_command, DLT_PIPELINE_COMMAND_DOCS_URL
 from dlt.pipeline.exceptions import CannotRestorePipelineException
 
 
@@ -225,8 +225,13 @@ def main() -> int:
     pipe_cmd_schema.add_argument("--format", choices=["json", "yaml"], default="yaml", help="Display schema in this format")
     pipe_cmd_schema.add_argument("--remove-defaults", action="store_true", help="Does not show default hint values")
 
-    pipe_cmd_drop = pipeline_subparsers.add_parser("drop", help="Drop pipeline state and resource tables", parents=[pipe_cmd_sync_parent])
-    pipe_cmd_drop.add_argument("resources", nargs="*", help="One or more resources to drop. Can be exact resource name(s) or regex pattern(s).")
+    pipe_cmd_drop = pipeline_subparsers.add_parser(
+        "drop",
+        help="Selectively drop tables and reset state",
+        parents=[pipe_cmd_sync_parent],
+        epilog=f"See {DLT_PIPELINE_COMMAND_DOCS_URL}#selectively-drop-tables-and-reset-state for more info"
+    )
+    pipe_cmd_drop.add_argument("resources", nargs="*", help="One or more resources to drop. Can be exact resource name(s) or regex pattern(s). Regex patterns must start with re:")
     pipe_cmd_drop.add_argument("--drop-all", action="store_true", default=False, help="Drop all resources found in schema. Supersedes [resources] argument.")
     pipe_cmd_drop.add_argument("--state-paths", nargs="*", help="State keys or json paths to drop", default=())
     pipe_cmd_drop.add_argument("--schema", help="Schema name to drop from (if other than default schema).", dest="schema_name")

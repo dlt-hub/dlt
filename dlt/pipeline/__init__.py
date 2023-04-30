@@ -166,7 +166,7 @@ def run(
     columns: Sequence[TColumnSchema] = None,
     schema: Schema = None
 ) -> LoadInfo:
-    """Loads the data from `data` argument into the destination specified in `destination` and dataset specified in `dataset_name`.
+    """Loads the data in `data` argument into the destination specified in `destination` and dataset specified in `dataset_name`.
 
     ### Summary
     This method will `extract` the data from the `data` argument, infer the schema, `normalize` the data into a load package (ie. jsonl or PARQUET files representing tables) and then `load` such packages into the `destination`.
@@ -193,7 +193,6 @@ def run(
         dataset_name (str, optional):A name of the dataset to which the data will be loaded. A dataset is a logical group of tables ie. `schema` in relational databases or folder grouping many files.
         If not provided, the value passed to `dlt.pipeline` will be used. If not provided at all then defaults to the `pipeline_name`
 
-
         credentials (Any, optional): Credentials for the `destination` ie. database connection string or a dictionary with google cloud credentials.
         In most cases should be set to None, which lets `dlt` to use `secrets.toml` or environment variables to infer right credentials values.
 
@@ -203,7 +202,7 @@ def run(
         * `@dlt.resource`: resource contains the full table schema and that includes the table name. `table_name` will override this property. Use with care!
         * `@dlt.source`: source contains several resources each with a table schema. `table_name` will override all table names within the source and load the data into single table.
 
-        write_disposition (Literal["skip", "append", "replace"], optional): Controls how to write data to a table. `append` will always add new data at the end of the table. `replace` will replace existing data with new data. `skip` will prevent data from loading. . Defaults to "append".
+        write_disposition (Literal["skip", "append", "replace", "merge"], optional): Controls how to write data to a table. `append` will always add new data at the end of the table. `replace` will replace existing data with new data. `skip` will prevent data from loading. "merge" will deduplicate and merge data based on "primary_key" and "merge_key" hints. Defaults to "append".
         Please note that in case of `dlt.resource` the table schema value will be overwritten and in case of `dlt.source`, the values in all resources will be overwritten.
 
         columns (Sequence[TColumnSchema], optional): A list of column schemas. Typed dictionary describing column names, data types, write disposition and performance hints that gives you full control over the created table schema.

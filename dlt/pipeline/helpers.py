@@ -51,6 +51,7 @@ class _DropInfo(TypedDict):
     dataset_name: str
     drop_all: bool
     resource_pattern: Optional[REPattern]
+    warnings: List[str]
 
 
 class DropCommand:
@@ -104,9 +105,18 @@ class DropCommand:
             resource_names=resource_names,
             schema_name=self.schema.name, dataset_name=self.pipeline.dataset_name,
             drop_all=drop_all,
-            resource_pattern=self.resource_pattern
+            resource_pattern=self.resource_pattern,
+            warnings=[]
         )
+        if self.resource_pattern and not resource_tables:
+            self.info['warnings'].append(
+                f"Specified resource(s) {str(resources)} did not select any table(s) in schema {self.schema.name}. Possible resources are: {list(group_tables_by_resource(data_tables).keys())}"
+            )
         self._new_state = self._create_modified_state()
+
+    @property
+    def is_empty(self) -> bool:
+        return len(self.info['tables']) == 0 and len(self.info["state_paths"]) == 0 and len(self.info["resource_states"]) == 0
 
     def _drop_destination_tables(self) -> None:
         with self.pipeline._sql_job_client(self.schema) as client:
@@ -131,6 +141,8 @@ class DropCommand:
                     self.info['resource_states'].append(key)
                     _reset_resource_state(key, source_state)
             resolved_paths = resolve_paths(self.state_paths_to_drop, source_state)
+            if self.state_paths_to_drop and not resolved_paths:
+                self.info['warnings'].append(f"State paths {self.state_paths_to_drop} did not select any paths in source {source_name}")
             _delete_source_state_keys(resolved_paths, source_state)
             self.info['state_paths'].extend(f"{source_name}.{p}" for p in resolved_paths)
         return state  # type: ignore[return-value]
