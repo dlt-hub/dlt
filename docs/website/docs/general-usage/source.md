@@ -68,6 +68,18 @@ source.deals.add_filter(lambda deal: deal["created_at"] > yesterday)
 ```
 Find more on transforms [here](resource.md#filter-transform-and-pivot-data)
 
+### Load data partially
+You can limit the number of items produced by each resource by calling a `add_limit` method on a source. This is useful for testing, debugging and generating sample datasets for experimentation. You can easily get your test dataset in a few minutes, when otherwise you'd need to wait hours for the full loading to complete. Below we limit the `pipedrive` source to just get 10 pages of data from each endpoint. Mind that the transformers will be evaluated fully:
+```python
+from pipedrive import pipedrive_source
+
+pipeline = dlt.pipeline(pipeline_name='pipedrive', destination='duckdb', dataset_name='pipedrive_data')
+load_info = pipeline.run(pipedrive_source().add_limit(10))
+print(load_info)
+```
+
+Find more on sampling data [here](resource.md#sample-from-large-data)
+
 ### Add more resources to existing source
 You can add a custom resource to source after it was created. Imagine that you want to score all the deals with a keras model that will tell you if the deal is a fraud or not. In order to do that you declare a new [resource that takes the data from](resource.md#feeding-data-from-one-resource-into-another) `deals` resource and add it to the source.
 ```python
