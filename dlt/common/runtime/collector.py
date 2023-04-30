@@ -299,7 +299,6 @@ class EnlightenCollector(Collector):
 
     def __init__(self, single_bar: bool = False, **enlighten_kwargs: Any) -> None:
         """Collector that uses Enlighten to display counters as progress bars. Set `single_bar` to True to show just the main progress bar. Pass any config to Enlighten in kwargs"""
-        print("enlighten")
         try:
             global enlighten
 

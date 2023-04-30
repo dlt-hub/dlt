@@ -1,3 +1,4 @@
+import itertools
 import pytest
 
 import dlt
@@ -569,6 +570,27 @@ def test_add_transform_steps() -> None:
 def test_add_transform_steps_pipe() -> None:
     r = dlt.resource([1, 2, 3], name="all") | (lambda i: str(i) * i) | (lambda i: (yield from i))
     assert list(r) == ['1', '2', '2', '3', '3', '3']
+
+
+def test_limit_infinite_counter() -> None:
+    r = dlt.resource(itertools.count(), name="infinity").add_limit(10)
+    assert list(r) == list(range(10))
+
+
+def test_limit_source() -> None:
+
+    def mul_c(item):
+        yield from "A" * (item + 2)
+
+    @dlt.source
+    def infinite_source():
+        for idx in range(3):
+            r = dlt.resource(itertools.count(), name=f"infinity_{idx}").add_limit(10)
+            yield r
+            yield r | dlt.transformer(name=f"mul_c_{idx}")(mul_c)
+
+    # transformer is not limited to 2 elements, infinite resource is, we have 3 resources
+    assert list(infinite_source().add_limit(2)) == ['A', 'A', 0, 'A', 'A', 'A', 1] * 3
 
 
 def test_source_state() -> None:

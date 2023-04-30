@@ -224,7 +224,7 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
             "DltResource": returns self
         """
         def _gen_wrap(gen: TPipeStep) -> TPipeStep:
-            """Wrap a generator to take the first 50 records"""
+            """Wrap a generator to take the first `max_items` records"""
             nonlocal max_items
             count = 0
             if inspect.isfunction(gen):
@@ -233,7 +233,7 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
                 for i in gen:  # type: ignore # TODO: help me fix this later
                     yield i
                     count += 1
-                    if count > max_items:
+                    if count == max_items:
                         return
             finally:
                 if inspect.isgenerator(gen):
@@ -604,6 +604,22 @@ class DltSource(Iterable[TDataItem]):
     def with_resources(self, *resource_names: str) -> "DltSource":
         """A convenience method to select one of more resources to be loaded. Returns a source with the specified resources selected."""
         self._resources.select(*resource_names)
+        return self
+
+
+    def add_limit(self, max_items: int) -> "DltSource":  # noqa: A003
+        """Adds a limit `max_items` yielded from all selected resources in the source that are not transformers.
+
+        This is useful for testing, debugging and generating sample datasets for experimentation. You can easily get your test dataset in a few minutes, when otherwise
+        you'd need to wait hours for the full loading to complete.
+
+        Args:
+            max_items (int): The maximum number of items to yield
+        Returns:
+            "DltSource": returns self
+        """
+        for resource in self.resources.selected.values():
+            resource.add_limit(max_items)
         return self
 
     @property

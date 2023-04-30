@@ -37,7 +37,26 @@ The duckdb destination used duckdb:////home/rudolfix/src/dlt_tests/dlt-cmd-test-
 Load package 1679931001.985323 is COMPLETED and contains no failed jobs
 ```
 
-## 2. See your data and tables
+## 2. See the progress during loading
+Say you want to load a whole year of chess games and that it takes some time. You can enable progress bars or console logging to observe what pipeline is doing. We support most of the Python progress bar libraries, Python loggers or just a text console. To demonstrate, let's modify the script to get a year of chess games data:
+```python
+    data = chess(['magnuscarlsen', 'rpragchess'], start_month="2021/11", end_month="2022/12")
+```
+Install [enlighten](https://github.com/Rockhopper-Technologies/enlighten). Enlighten displays progress bars that can be mixed with log messages
+```sh
+pip install enlighten
+```
+Run your script setting the `PROGRESS` environment variable to the library name.
+```sh
+PROGRESS=enlighten python chess_pipeline.py
+```
+Other libraries that you can use are [tqdm](https://github.com/tqdm/tqdm), [alive_progress](https://github.com/rsalmei/alive-progress). Set the name to `log` to dump progress to console periodically:
+```sh
+PROGRESS=log python chess_pipeline.py
+```
+[You can configure the progress bars however you want in code](../general-usage/pipeline.md#display-loading-progress)
+
+## 3. See your data and tables
 
 You can quickly inspect the generated tables, the data, see how many rows were loaded to which table, do SQL queries etc. by executing the following command from the same folder as your script.
 
@@ -59,7 +78,7 @@ Collecting usage statistics. To deactivate, set browser.gatherUsageStats to Fals
   External URL: http://46.142.217.118:8501
 ```
 
-## 3. Inspect a load process
+## 4. Inspect a load process
 
 `dlt` loads data in form of **load packages**. Each package contains several jobs with data for particular tables. The packages are identified by **load_id**, that you can see in the printout above or get by running the following command:
 
@@ -87,7 +106,7 @@ $ dlt pipeline chess_pipeline trace
 
 You can access all this information in your pipeline script, save `load_info` and trace to the destination etc. Please refer to [Running in production](../running-in-production/running.md#inspect-and-save-the-load-info-and-trace) for more details.
 
-## 4. Detect and handle problems
+## 5. Detect and handle problems
 
 What happens if something goes wrong? In most cases `dlt` `run` command raises exceptions. We put a lot of effort into making the exception messages easy to understand. Reading them is the first step to solving your problem. Let us know
 if you come across one that is not clear to you [here](https://github.com/dlt-hub/dlt/issues/new).
