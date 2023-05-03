@@ -1,15 +1,18 @@
+import logging
 import os
+import random
 from typing import Any
 from tenacity import retry_if_exception, Retrying, stop_after_attempt
 
 import pytest
 
 import dlt
-from dlt.common import json
+from dlt.common import json, sleep
 from dlt.common.configuration.container import Container
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.exceptions import DestinationHasFailedJobs, DestinationTerminalException, TerminalException, UnknownDestinationModule
 from dlt.common.pipeline import PipelineContext
+from dlt.common.runtime.collector import AliveCollector, EnlightenCollector, LogCollector, TqdmCollector
 from dlt.common.schema.exceptions import InvalidDatasetName
 from dlt.common.utils import uniq_id
 from dlt.extract.exceptions import SourceExhausted
@@ -293,6 +296,24 @@ def test_first_run_flag() -> None:
     p._save_state(p._get_state())
     p = dlt.attach(pipeline_name=pipeline_name)
     assert p.first_run is True
+
+
+def test_has_pending_data_flag() -> None:
+    p = dlt.pipeline(pipeline_name="pipe_" + uniq_id(), destination="dummy")
+
+    assert p.has_pending_data is False
+
+    p.extract([1, 2, 3], table_name="dummy_table")
+
+    assert p.has_pending_data is True
+
+    p.normalize()
+
+    assert p.has_pending_data is True
+
+    p.load()
+
+    assert p.has_pending_data is False
 
 
 def test_sentry_tracing() -> None:
@@ -689,3 +710,67 @@ def test_preserve_fields_order() -> None:
 
     assert list(p.default_schema.tables["order_1"]["columns"].keys()) == ["col_1", "col_2", "col_3", '_dlt_load_id', '_dlt_id']
     assert list(p.default_schema.tables["order_2"]["columns"].keys()) == ["col_3", "col_2", "col_1", '_dlt_load_id', '_dlt_id']
+
+
+def run_deferred(iters):
+
+    @dlt.defer
+    def item(n):
+        sleep(random.random() / 2)
+        return n
+
+    for n in range(iters):
+        yield item(n)
+
+
+@dlt.source
+def many_delayed(many, iters):
+    for n in range(many):
+        yield dlt.resource(run_deferred(iters), name="resource_" + str(n))
+
+
+@pytest.mark.parametrize("progress", ["tqdm", "enlighten", "log", "alive_progress"])
+def test_pipeline_progress(progress: str) -> None:
+
+    os.environ["TIMEOUT"] = "3.0"
+
+    p = dlt.pipeline(destination="dummy", progress=progress)
+    p.extract(many_delayed(5, 10))
+    p.normalize()
+
+    collector = p.collector
+
+    # attach pipeline
+    p = dlt.attach(progress=collector)
+    p.extract(many_delayed(5, 10))
+    p.run(dataset_name="dummy")
+
+    assert collector == p.drop().collector
+
+    # make sure a valid logger was used
+    if progress == "tqdm":
+        assert isinstance(collector, TqdmCollector)
+    if progress == "enlighten":
+        assert isinstance(collector, EnlightenCollector)
+    if progress == "alive_progress":
+        assert isinstance(collector, AliveCollector)
+    if progress == "log":
+        assert isinstance(collector, LogCollector)
+
+
+def test_pipeline_log_progress() -> None:
+
+    os.environ["TIMEOUT"] = "3.0"
+
+    # will attach dlt logger
+    p = dlt.pipeline(destination="dummy", progress=dlt.progress.log(0.5, logger=None, log_level=logging.WARNING))
+    # collector was created before pipeline so logger is not attached
+    assert p.collector.logger is None
+    p.extract(many_delayed(2, 10))
+    # dlt logger attached
+    assert p.collector.logger is not None
+
+    # pass explicit root logger
+    p = dlt.attach(progress=dlt.progress.log(0.5, logger=logging.getLogger()))
+    assert p.collector.logger is not None
+    p.extract(many_delayed(2, 10))

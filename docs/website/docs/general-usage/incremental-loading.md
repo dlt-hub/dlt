@@ -109,13 +109,13 @@ Behind the scenes, `dlt` will deduplicate the results ie. in case the last issue
 
           # ---> part below is an optional optimization
 
-          # stop requesting pages if the last element was already older than initial value
-          if page and page[-1]["created_at"] < last_created_at.initial_value:
+          # stop requesting pages if the last element was already older than incremental value at the beginning of the run
+          if page and page[-1]["created_at"] < last_created_at.start_value:
               break
 
   return repo_events
 ```
-We just yield all the events and `dlt` does the filtering (using `id` column declared as `primary_key`). A small optimization will stop requesting subsequent result pages, when `created_at` of the last element in the page is smaller than `last_created_at.initial_value`. `last_created_at.initial_value` keeps the initial `last_value` from the beginning of a run.
+We just yield all the events and `dlt` does the filtering (using `id` column declared as `primary_key`). A small optimization will stop requesting more result pages, when `created_at` of the last element in the page is smaller than `last_created_at.start_value`. `last_created_at.start_value` keeps the `last_value` from the beginning of a pipeline run. `last_created_at.initial_value` keeps the initial value passed to the incremental ie. "1970-01-01T00:00:00Z" in the example above.
 
 `dlt.sources.incremental` allows to define custom `last_value` function. This lets you define `last_value` on complex types ie. dictionaries and store indexes of last values, not just simple types. The `last_value` argument is a [JSON Path](https://github.com/json-path/JsonPath#operators) and let's you select nested and complex data (including the whole data item when `$` is used). Example below creates last value which is a dictionary holding a max `created_at` value for each created table name:
 
@@ -145,13 +145,34 @@ We just yield all the events and `dlt` does the filtering (using `id` column dec
 
 ```python
 @dlt.resource(primary_key="delta")
+  # disable the unique value check by passing () as primary key to incremental
   def some_data(last_timestamp=dlt.sources.incremental("item.ts", primary_key=())):
       for i in range(-10, 10):
           yield {"delta": i, "item": {"ts": pendulum.now().timestamp()}}
 ```
 
+### Using `dlt.sources.incremental` with dynamically created resources
+When resources are [created dynamically](source.md#create-resources-dynamically) it is possible to use `dlt.sources.incremental` definition as well.
+```python
 
+@dlt.source
+def stripe():
+  # declare a generator function
+  def get_resource(endpoint: Endpoints, created: dlt.sources.incremental =dlt.sources.incremental("created")):
+    ...
+    yield data
 
+  # create resources for several endpoints on a single decorator function
+  for endpoint in Endpoints:
+          yield dlt.resource(get_resource, name=endpoint.value, write_disposition="merge", primary_key="id")(endpoint)
+```
+Please note that in the example above, `get_resource` is passed as a function to `dlt.resource` to which we bind the endpoint: **dlt.resource(...)(endpoint)**
+
+> 🛑 The typical mistake is to pass a generator (not a function) as below:
+>
+> `yield dlt.resource(get_resource(endpoint), name=endpoint.value, write_disposition="merge", primary_key="id")`.
+>
+> Here we call **get_resource(endpoint)** and that creates un-evaluated generator on which resource is created. That prevents `dlt` from controlling the **created** argument during runtime and will result in `IncrementalUnboundError` exception.
 
 ### Doing a full refresh
 

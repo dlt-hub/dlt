@@ -107,18 +107,50 @@ def test_connection_string_letter_case(environment: Any) -> None:
 
 
 def test_connection_string_resolved_from_native_representation(environment: Any) -> None:
-    # sometimes it is sometimes not try URL without password
-    destination_dsn = "postgres://loader@localhost:5432/dlt_data"
-    c = PostgresCredentials()
+    destination_dsn = "mysql+pymsql://localhost:5432/dlt_data"
+    c = ConnectionStringCredentials()
     c.parse_native_representation(destination_dsn)
     assert c.is_partial()
     assert not c.is_resolved()
+    assert c.username is None
+    assert c.password is None
 
     resolve_configuration(c, accept_partial=True)
     assert c.is_partial()
 
-    environment["CREDENTIALS__PASSWORD"] = "loader"
+    environment["CREDENTIALS__USERNAME"] = "loader"
     resolve_configuration(c, accept_partial=False)
+    assert c.username == "loader"
+    assert c.password is None
+
+    # password must resolve
+    c = ConnectionStringCredentials()
+    c.parse_native_representation("mysql+pymsql://USER@/dlt_data")
+    # not partial! password is optional
+    assert not c.is_partial()
+    assert not c.is_resolved()
+    environment["CREDENTIALS__PASSWORD"] = "pwd"
+    resolve_configuration(c)
+    # env var has precedence
+    assert c.username == "loader"
+    # password filled
+    assert c.password == "pwd"
+
+
+def test_connection_string_resolved_from_native_representation_env(environment: Any) -> None:
+    environment["CREDENTIALS"] = "mysql+pymsql://USER@/dlt_data"
+    c = resolve_configuration(ConnectionStringCredentials())
+    assert not c.is_partial()
+    assert c.is_resolved()
+    assert c.password is None
+    assert c.port is None
+    assert c.host is None
+
+    environment["CREDENTIALS__PASSWORD"] = "!pwd"
+    environment["CREDENTIALS__HOST"] = "aws.12.1"
+    c = resolve_configuration(ConnectionStringCredentials())
+    assert c.password == "!pwd"
+    assert c.host == "aws.12.1"
 
 
 def test_postgres_and_redshift_credentials_defaults() -> None:
@@ -192,7 +224,10 @@ def test_gcp_oauth_credentials_native_representation(environment) -> None:
 
     gcoauth = GcpOAuthCredentialsWithDefault()
     gcoauth.parse_native_representation(OAUTH_APP_USER_INFO % '"refresh_token": "refresh_token",')
-    assert gcoauth.is_resolved() is True
+    # is not resolved, we resolve only when default credentials are present
+    assert gcoauth.is_resolved() is False
+    # but is not partial - all required fields are present
+    assert gcoauth.is_partial() is False
     assert gcoauth.project_id == "level-dragon-333983"
     assert gcoauth.client_id == "921382012504-3mtjaj1s7vuvf53j88mgdq4te7akkjm3.apps.googleusercontent.com"
     assert gcoauth.client_secret == "gOCSPX-XdY5znbrvjSMEG3pkpA_GHuLPPth"

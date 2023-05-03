@@ -1,7 +1,8 @@
 // @ts-check
 // Note: type annotations allow type checking and IDEs autocompletion
 
-const lightCodeTheme = require('prism-react-renderer/themes/github');
+const lightCodeTheme = require('prism-react-renderer/themes/dracula');
+// const lightCodeTheme = require('prism-react-renderer/themes/github');
 const darkCodeTheme = require('prism-react-renderer/themes/dracula');
 
 /** @type {import('@docusaurus/types').Config} */
@@ -66,7 +67,7 @@ const config = {
         title: '',
         logo: {
           alt: 'dlt Docs Logo',
-          src: 'img/dlt-logo.svg',
+          src: 'img/dlthub-logo.png',
           href: 'https://dlthub.com'
         },
         items: [
@@ -87,7 +88,7 @@ const config = {
             href: 'https://join.slack.com/t/dlthub-community/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g',
             label: '.',
             position: 'right',
-            className: 'slack-navbar'
+            className: 'slack-navbar',          
           },
           {
             href: 'https://github.com/dlt-hub/dlt',
@@ -169,7 +170,11 @@ const config = {
 
         // Optional: see doc section below
         contextualSearch: true,
-
+      },
+      colorMode: {
+        defaultMode:'dark',
+        disableSwitch: false,
+        respectPrefersColorScheme: true,
       },
     }),
 };

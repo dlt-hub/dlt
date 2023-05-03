@@ -529,3 +529,42 @@ def assert_new_schema_values(schema: Schema) -> None:
     assert "version" in tables["_dlt_version"]["columns"]
     assert "_dlt_loads" in tables
     assert "load_id" in tables["_dlt_loads"]["columns"]
+
+
+def test_group_tables_by_resource(schema: Schema) -> None:
+    schema.update_schema(utils.new_table("a_events", columns=[]))
+    schema.update_schema(utils.new_table("b_events", columns=[]))
+    schema.update_schema(utils.new_table("c_products", columns=[], resource="products"))
+    schema.update_schema(utils.new_table("a_events__1", columns=[], parent_table_name="a_events"))
+    schema.update_schema(utils.new_table("a_events__1__2", columns=[], parent_table_name="a_events__1"))
+    schema.update_schema(utils.new_table("b_events__1", columns=[], parent_table_name="b_events"))
+
+    # All resources without filter
+    expected_tables = {
+        "a_events": [schema.tables["a_events"], schema.tables["a_events__1"], schema.tables["a_events__1__2"]],
+        "b_events": [schema.tables["b_events"], schema.tables["b_events__1"]],
+        "products": [schema.tables["c_products"]],
+        "_dlt_version": [schema.tables["_dlt_version"]],
+        "_dlt_loads": [schema.tables["_dlt_loads"]]
+    }
+    result = utils.group_tables_by_resource(schema.tables)
+    assert result == expected_tables
+
+    # With resource filter
+    result = utils.group_tables_by_resource(schema.tables, pattern=utils.compile_simple_regex(TSimpleRegex("re:[a-z]_events")))
+    assert result == {
+        "a_events": [schema.tables["a_events"], schema.tables["a_events__1"], schema.tables["a_events__1__2"]],
+        "b_events": [schema.tables["b_events"], schema.tables["b_events__1"]],
+    }
+
+    # With resources that has many top level tables
+    schema.update_schema(utils.new_table("mc_products", columns=[], resource="products"))
+    schema.update_schema(utils.new_table("mc_products__sub", columns=[], parent_table_name="mc_products"))
+    result = utils.group_tables_by_resource(schema.tables, pattern=utils.compile_simple_regex(TSimpleRegex("products")))
+    # both tables with resource "products" must be here
+    assert result == {'products': [
+        {'columns': {}, 'name': 'c_products', 'resource': 'products', 'write_disposition': 'append'},
+        {'columns': {}, 'name': 'mc_products', 'resource': 'products', 'write_disposition': 'append'},
+        {'columns': {}, 'name': 'mc_products__sub', 'parent': 'mc_products'}
+        ]
+    }

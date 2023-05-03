@@ -68,6 +68,13 @@ class SqlClientBase(ABC, Generic[TNativeConn]):
         sql = ";\n".join(f"TRUNCATE TABLE {self.make_qualified_table_name(t)}" for t in tables)
         self.execute_sql(sql)
 
+    def drop_tables(self, *tables: str) -> None:
+        if not tables:
+            return
+        clauses = (f"DROP TABLE IF EXISTS {self.make_qualified_table_name(table)}" for table in tables)
+        sql = ";\n".join(clauses)
+        self.execute_sql(sql)
+
     @abstractmethod
     def execute_sql(self, sql: AnyStr, *args: Any, **kwargs: Any) -> Optional[Sequence[Sequence[Any]]]:
         pass

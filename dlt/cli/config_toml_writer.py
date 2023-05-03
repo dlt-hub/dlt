@@ -70,8 +70,11 @@ def write_value(
             toml_table[name] = inner_table
     else:
         if default_value is None:
-            toml_table[name] = generate_typed_example(name, hint)
-            toml_table[name].comment("please set me up!")
+            example_value = generate_typed_example(name, hint)
+            toml_table[name] = example_value
+            # tomlkit not supporting comments on boolean
+            if not isinstance(example_value, bool):
+                toml_table[name].comment("please set me up!")
         elif is_default_of_interest:
             toml_table[name] = default_value
 

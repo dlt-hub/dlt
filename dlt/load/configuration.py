@@ -21,8 +21,6 @@ class LoaderConfiguration(PoolRunnerConfiguration):
             self,
             pool_type: TPoolType = None,
             workers: int = None,
-            exit_on_exception: bool = None,
-            is_single_run: bool = None,
             raise_on_failed_jobs: bool = False,
             _load_storage_config: LoadVolumeConfiguration = None
         ) -> None:

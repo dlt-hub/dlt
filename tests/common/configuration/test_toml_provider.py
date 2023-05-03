@@ -161,7 +161,9 @@ def test_secrets_toml_credentials_from_native_repr(environment: Any, toml_provid
     # print(cfg._toml["source"]["credentials"])
     # resolve gcp_credentials by parsing initial value which is str holding json doc
     c = resolve.resolve_configuration(GcpClientCredentials(), sections=("source",))
-    assert c.project_id.endswith("source.credentials")
+    assert c.private_key == "-----BEGIN PRIVATE KEY-----\nMIIEuwIBADANBgkqhkiG9w0BAQEFAASCBKUwggShAgEAAoIBAQCNEN0bL39HmD+S\n...\n-----END PRIVATE KEY-----\n"
+    # but project id got overridden from credentials.project_id
+    assert c.project_id.endswith("-credentials")
     # also try sql alchemy url (native repr)
     c = resolve.resolve_configuration(ConnectionStringCredentials(), sections=("databricks",))
     assert c.drivername == "databricks+connector"

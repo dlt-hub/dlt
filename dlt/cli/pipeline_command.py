@@ -1,18 +1,25 @@
 import yaml
+from typing import Any
 import dlt
 from dlt.cli.exceptions import CliCommandException
 
 from dlt.common import json
-from dlt.common.pipeline import get_dlt_pipelines_dir, TSourceState
+from dlt.common.pipeline import _resource_state, get_dlt_pipelines_dir, TSourceState
+from dlt.common.destination.reference import TDestinationReferenceArg
 from dlt.common.runners import Venv
 from dlt.common.runners.stdout import iter_stdout
-from dlt.common.schema.utils import remove_defaults
+from dlt.common.schema.utils import group_tables_by_resource, remove_defaults
 from dlt.common.storages.file_storage import FileStorage
+from dlt.common.typing import DictStrAny
+from dlt.pipeline.helpers import DropCommand
+from dlt.pipeline.exceptions import CannotRestorePipelineException
 
 from dlt.cli import echo as fmt
 
+DLT_PIPELINE_COMMAND_DOCS_URL = "https://dlthub.com/docs/reference/command-line-interface"
 
-def pipeline_command(operation: str, pipeline_name: str, pipelines_dir: str, verbosity: int, load_id: str = None) -> None:
+
+def pipeline_command(operation: str, pipeline_name: str, pipelines_dir: str, verbosity: int, dataset_name: str = None, destination: TDestinationReferenceArg = None, **command_kwargs: Any) -> None:
     if operation == "list":
         pipelines_dir = pipelines_dir or get_dlt_pipelines_dir()
         storage = FileStorage(pipelines_dir)
@@ -25,14 +32,36 @@ def pipeline_command(operation: str, pipeline_name: str, pipelines_dir: str, ver
             fmt.secho(_dir, fg="green")
         return
 
-    p = dlt.attach(pipeline_name=pipeline_name, pipelines_dir=pipelines_dir)
+    try:
+        p = dlt.attach(pipeline_name=pipeline_name, pipelines_dir=pipelines_dir)
+    except CannotRestorePipelineException as e:
+        if operation not in {"sync", "drop"}:
+            raise
+        fmt.warning(str(e))
+        if not fmt.confirm("Do you want to attempt to restore the pipeline state from destination?", default=False):
+            return
+        destination = destination or fmt.text_input(f"Enter destination name for pipeline {fmt.bold(pipeline_name)}")
+        dataset_name = dataset_name or fmt.text_input(f"Enter dataset name for pipeline {fmt.bold(pipeline_name)}")
+        p = dlt.pipeline(pipeline_name, pipelines_dir, destination=destination, dataset_name=dataset_name)
+        p.sync_destination()
+        if p.first_run:
+            # remote state was not found
+            p._wipe_working_folder()
+            fmt.error(f"Pipeline {pipeline_name} was not found in dataset {dataset_name} in {destination}")
+            return
+        if operation == "sync":
+            return  # No need to sync again
+
     fmt.echo("Found pipeline %s in %s" % (fmt.bold(p.pipeline_name), fmt.bold(p.pipelines_dir)))
 
     if operation == "show":
+        from dlt.common.runtime import signals
         from dlt.helpers import streamlit
-        venv = Venv.restore_current()
-        for line in iter_stdout(venv, "streamlit", "run", streamlit.__file__, pipeline_name):
-            fmt.echo(line)
+
+        with signals.delayed_signals():
+            venv = Venv.restore_current()
+            for line in iter_stdout(venv, "streamlit", "run", streamlit.__file__, pipeline_name):
+                fmt.echo(line)
 
     if operation == "info":
         state: TSourceState = p.state  # type: ignore
@@ -40,11 +69,12 @@ def pipeline_command(operation: str, pipeline_name: str, pipelines_dir: str, ver
         for k, v in state.items():
             if not isinstance(v, dict):
                 fmt.echo("%s: %s" % (fmt.style(k, fg="green"), v))
-        if state.get("sources"):
+        sources_state = state.get("sources")
+        if sources_state:
             fmt.echo()
             fmt.secho("sources:", fg="green")
             if verbosity > 0:
-                fmt.echo(json.dumps(state["sources"], pretty=True))
+                fmt.echo(json.dumps(sources_state, pretty=True))
             else:
                 fmt.echo("Add -v option to see sources state. Note that it could be large.")
 
@@ -53,6 +83,23 @@ def pipeline_command(operation: str, pipeline_name: str, pipelines_dir: str, ver
         for k, v in state["_local"].items():
             if not isinstance(v, dict):
                 fmt.echo("%s: %s" % (fmt.style(k, fg="green"), v))
+        fmt.echo()
+        if p.default_schema_name is None:
+            fmt.warning("This pipeline does not have a default schema")
+        else:
+            is_single_schema = len(p.schema_names)
+            for schema_name in  p.schema_names:
+                fmt.echo("Resources in schema: %s" % fmt.bold(schema_name))
+                schema = p.schemas[schema_name]
+                data_tables = {t["name"]: t for t in schema.data_tables()}
+                for resource_name, tables in group_tables_by_resource(data_tables).items():
+                    res_state_slots = 0
+                    if sources_state:
+                        source_state = next(iter(sources_state.items()))[1] if is_single_schema else sources_state.get(schema_name)
+                        if source_state:
+                            resource_state = _resource_state(resource_name, source_state)
+                            res_state_slots = len(resource_state)
+                    fmt.echo("%s with %s table(s) and %s resource state slot(s)" % (fmt.bold(resource_name), fmt.bold(str(len(tables))), fmt.bold(str(res_state_slots))))
         fmt.echo()
         fmt.echo("Working dir content:")
         extracted_files = p.list_extracted_resources()
@@ -108,6 +155,7 @@ def pipeline_command(operation: str, pipeline_name: str, pipelines_dir: str, ver
             p.sync_destination()
 
     if operation == "load-package":
+        load_id = command_kwargs.get('load_id')
         if not load_id:
             packages = sorted(p.list_normalized_load_packages())
             if not packages:
@@ -123,7 +171,7 @@ def pipeline_command(operation: str, pipeline_name: str, pipelines_dir: str, ver
             if verbosity == 0:
                 print("Add -v option to see schema update. Note that it could be large.")
             else:
-                tables = remove_defaults({"tables": package_info.schema_update})
+                tables = remove_defaults({"tables": package_info.schema_update})  # type: ignore
                 fmt.echo(fmt.bold("Schema update:"))
                 fmt.echo(yaml.dump(tables, allow_unicode=True, default_flow_style=False, sort_keys=False))
 
@@ -134,3 +182,27 @@ def pipeline_command(operation: str, pipeline_name: str, pipelines_dir: str, ver
             fmt.echo("Found schema with name %s" % fmt.bold(p.default_schema_name))
         schema_str = p.default_schema.to_pretty_yaml(remove_defaults=True)
         fmt.echo(schema_str)
+
+    if operation == "drop":
+        drop = DropCommand(p, **command_kwargs)
+        if drop.is_empty:
+            fmt.echo("Could not select any resources to drop and no resource/source state to reset. Use the command below to inspect the pipeline:")
+            fmt.echo(f"dlt pipeline -v {p.pipeline_name} info")
+            if len(drop.info["warnings"]):
+                fmt.echo("Additional warnings are available")
+                for warning in drop.info["warnings"]:
+                    fmt.warning(warning)
+            return
+
+        fmt.echo("About to drop the following data in dataset %s in destination %s:" % (fmt.bold(drop.info["dataset_name"]), fmt.bold(p.destination.__name__)))
+        fmt.echo("%s: %s" % (fmt.style("Selected schema", fg="green"), drop.info["schema_name"]))
+        fmt.echo("%s: %s" % (fmt.style("Selected resource(s)", fg="green"), drop.info["resource_names"]))
+        fmt.echo("%s: %s" % (fmt.style("Table(s) to drop", fg="green"), drop.info["tables"]))
+        fmt.echo("%s: %s" % (fmt.style("Resource(s) state to reset", fg="green"), drop.info["resource_states"]))
+        fmt.echo("%s: %s" % (fmt.style("Source state path(s) to reset", fg="green"), drop.info["state_paths"]))
+        # for k, v in drop.info.items():
+        #     fmt.echo("%s: %s" % (fmt.style(k, fg="green"), v))
+        for warning in drop.info["warnings"]:
+            fmt.warning(warning)
+        if fmt.confirm("Do you want to apply these changes?", default=False):
+            drop()

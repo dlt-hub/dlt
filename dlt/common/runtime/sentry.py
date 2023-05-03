@@ -10,7 +10,7 @@ from dlt.common.runtime.exec_info import dlt_version_info, kube_pod_info, github
 
 
 def init_sentry(config: RunConfiguration) -> None:
-    version = dlt_version_info(config)
+    version = dlt_version_info(config.pipeline_name)
     sys_ver = version["dlt_version"]
     release = sys_ver + "_" + version.get("commit_sha", "")
     _SentryHttpTransport.timeout = config.request_timeout[0]

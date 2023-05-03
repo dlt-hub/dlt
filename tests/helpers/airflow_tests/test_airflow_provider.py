@@ -9,7 +9,12 @@ from airflow.utils.state import State, DagRunState
 from airflow.utils.types import DagRunType
 from airflow.configuration import conf
 
+import dlt
 from dlt.common import pendulum
+from dlt.common.configuration.container import Container
+from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
+
+from dlt.common.configuration.providers.airflow import AIRFLOW_SECRETS_TOML_VARIABLE_KEY
 
 DEFAULT_DATE = pendulum.datetime(2023, 4, 18, tz='Europe/Berlin')
 
@@ -27,6 +32,9 @@ def initialize_airflow_db():
     args.yes = True
     args.skip_init = False
     resetdb(args)
+    yield
+    # Make sure the variable is not set
+    Variable.delete(AIRFLOW_SECRETS_TOML_VARIABLE_KEY)
 
 
 # Test data
@@ -102,11 +110,22 @@ def test_airflow_secrets_toml_provider_is_loaded():
             for provider in providers
         )
 
+        # insert provider into context, in tests this will not happen automatically
+        providers_context = Container()[ConfigProvidersContext]
+        providers_context.add_provider(providers[0])
+
+        # get secret value using accessor
+        api_key = dlt.secrets["sources.api_key"]
+
+        # remove provider for clean context
+        providers_context.providers.remove(providers[0])
+
         # There's no pytest context here in the task, so we need to return
         # the results as a dict and assert them in the test function.
         # See ti.xcom_pull() below.
         return {
             'airflow_secrets_toml_provider_is_loaded': astp_is_loaded,
+            'api_key_from_provider': api_key,
         }
 
     task = PythonOperator(
@@ -128,6 +147,7 @@ def test_airflow_secrets_toml_provider_is_loaded():
 
     assert ti.state == State.SUCCESS
     assert result['airflow_secrets_toml_provider_is_loaded']
+    assert result['api_key_from_provider'] == 'test_value'
 
 
 def test_airflow_secrets_toml_provider_missing_variable():

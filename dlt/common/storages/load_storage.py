@@ -355,6 +355,9 @@ class LoadStorage(DataItemStorage, VersionedStorage):
             raise LoadPackageNotFound(load_id)
         self.storage.delete_folder(package_path, recursively=True)
 
+    def wipe_normalized_packages(self) -> None:
+        self.storage.delete_folder(self.NORMALIZED_FOLDER, recursively=True)
+
     def get_package_path(self, load_id: str) -> str:
         return join(LoadStorage.NORMALIZED_FOLDER, load_id)
 

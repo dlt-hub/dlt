@@ -1,4 +1,4 @@
-from typing import Any, AnyStr, Sequence
+from typing import Any, AnyStr, Sequence, Optional
 
 
 class DltException(Exception):
@@ -52,16 +52,6 @@ class SignalReceivedException(KeyboardInterrupt, TerminalException):
     def __init__(self, signal_code: int) -> None:
         self.signal_code = signal_code
         super().__init__(f"Signal {signal_code} received")
-
-
-class TimeRangeExhaustedException(DltException):
-    """
-    Raised when backfilling complete and no more time ranges can be generated
-    """
-    def __init__(self, start_ts: float, end_ts: float) -> None:
-        self.start_ts = start_ts
-        self.end_ts = end_ts
-        super().__init__(f"Timerange ({start_ts} to {end_ts}> exhausted")
 
 
 class DictValidationException(DltException):
@@ -154,7 +144,7 @@ class PipelineException(DltException):
 
 
 class PipelineStateNotAvailable(PipelineException):
-    def __init__(self, source_name: str) -> None:
+    def __init__(self, source_name: Optional[str] = None) -> None:
         if source_name:
             msg = f"The source {source_name} requested the access to pipeline state but no pipeline is active right now."
         else:

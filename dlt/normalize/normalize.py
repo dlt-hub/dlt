@@ -1,8 +1,6 @@
 import os
-from itertools import chain
 from typing import Any, Callable, List, Dict, Sequence, Tuple
 from multiprocessing.pool import AsyncResult, Pool as ProcessPool
-from prometheus_client import Counter, CollectorRegistry, REGISTRY, Gauge
 
 from dlt.common import pendulum, json, logger, sleep
 from dlt.common.configuration import with_config, known_sections
@@ -13,11 +11,11 @@ from dlt.common.destination import DestinationCapabilitiesContext, TLoaderFileFo
 from dlt.common.json import custom_pua_decode
 from dlt.common.runners import TRunMetrics, Runnable
 from dlt.common.runtime import signals
+from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.common.schema.typing import TStoredSchema, TTableSchemaColumns
 from dlt.common.schema.utils import merge_schema_updates
 from dlt.common.storages.exceptions import SchemaNotFoundError
 from dlt.common.storages import NormalizeStorage, SchemaStorage, LoadStorage
-from dlt.common.runtime.prometheus import get_logging_extras
 from dlt.common.typing import TDataItem
 from dlt.common.schema import TSchemaUpdate, Schema
 from dlt.common.schema.exceptions import CannotCoerceColumnException
@@ -26,7 +24,7 @@ from dlt.common.utils import chunks
 from dlt.normalize.configuration import NormalizeConfiguration
 
 # normalize worker wrapping function (map_parallel, map_single) return type
-TMapFuncRV = Tuple[int, Sequence[TSchemaUpdate]]  # (total items processed, total schema updates)
+TMapFuncRV = Sequence[TSchemaUpdate]
 # normalize worker wrapping function signature
 TMapFuncType = Callable[[Schema, str, Sequence[str]], TMapFuncRV]  # input parameters: (schema name, load_id, list of files to process)
 # tuple returned by the worker
@@ -35,15 +33,10 @@ TWorkerRV = Tuple[List[TSchemaUpdate], int, List[str]]
 
 class Normalize(Runnable[ProcessPool]):
 
-    # make our gauges static
-    item_counter: Counter = None
-    item_gauge: Gauge = None
-    schema_version_gauge: Gauge = None
-    load_package_counter: Counter = None
-
     @with_config(spec=NormalizeConfiguration, sections=(known_sections.NORMALIZE,))
-    def __init__(self, collector: CollectorRegistry = REGISTRY, schema_storage: SchemaStorage = None, config: NormalizeConfiguration = config.value) -> None:
+    def __init__(self, collector: Collector = NULL_COLLECTOR, schema_storage: SchemaStorage = None, config: NormalizeConfiguration = config.value) -> None:
         self.config = config
+        self.collector = collector
         self.pool: ProcessPool = None
         self.normalize_storage: NormalizeStorage = None
         self.load_storage: LoadStorage = None
@@ -53,19 +46,6 @@ class Normalize(Runnable[ProcessPool]):
         self.create_storages(config.destination_capabilities.preferred_loader_file_format)
         # create schema storage with give type
         self.schema_storage = schema_storage or SchemaStorage(self.config._schema_storage_config, makedirs=True)
-        try:
-            self.create_gauges(collector)
-        except ValueError as v:
-            # ignore re-creation of gauges
-            if "Duplicated" not in str(v):
-                raise
-
-    @staticmethod
-    def create_gauges(registry: CollectorRegistry) -> None:
-        Normalize.item_counter = Counter("normalize_item_count", "Items processed in normalize", ["schema"], registry=registry)
-        Normalize.item_gauge = Gauge("normalize_last_items", "Number of items processed in last run", ["schema"], registry=registry)
-        Normalize.schema_version_gauge = Gauge("normalize_schema_version", "Current schema version", ["schema"], registry=registry)
-        Normalize.load_package_counter = Counter("normalize_load_packages_created_count", "Count of load package created", ["schema"], registry=registry)
 
     def create_storages(self, loader_file_format: TLoaderFileFormat) -> None:
         # pass initial normalize storage config embedded in normalize config
@@ -202,7 +182,6 @@ class Normalize(Runnable[ProcessPool]):
 
         # return stats
         schema_updates: List[TSchemaUpdate] = []
-        total_items_processed = 0
 
         # push all tasks to queue
         for params in param_chunk:
@@ -221,7 +200,9 @@ class Normalize(Runnable[ProcessPool]):
                             # gather schema from all manifests, validate consistency and combine
                             self.update_schema(schema, result[0])
                             schema_updates.extend(result[0])
-                            total_items_processed += result[1]
+                            # update metrics
+                            self.collector.update("Files", len(result[2]))
+                            self.collector.update("Items", result[1])
                         except CannotCoerceColumnException as exc:
                             # schema conflicts resulting from parallel executing
                             logger.warning(f"Parallel schema update conflict, retrying task ({str(exc)}")
@@ -241,7 +222,7 @@ class Normalize(Runnable[ProcessPool]):
                         pending.get()
                         raise AssertionError("unreachable code: pending.get must raise")
 
-        return total_items_processed, schema_updates
+        return schema_updates
 
     def map_single(self, schema: Schema, load_id: str, files: Sequence[str]) -> TMapFuncRV:
         result = Normalize.w_normalize_files(
@@ -252,17 +233,16 @@ class Normalize(Runnable[ProcessPool]):
             load_id,
             files
         )
-
         self.update_schema(schema, result[0])
-        return result[1], result[0]
+        self.collector.update("Files", len(result[2]))
+        self.collector.update("Items", result[1])
+        return result[0]
 
     def spool_files(self, schema_name: str, load_id: str, map_f: TMapFuncType, files: Sequence[str]) -> None:
         schema = Normalize.load_or_create_schema(self.schema_storage, schema_name)
 
         # process files in parallel or in single thread, depending on map_f
-        total_items, schema_updates = map_f(schema, load_id, files)
-        logger.info(f"In schema {schema_name} {total_items} processed with {len(schema_updates)} schema updates")
-        self.schema_version_gauge.labels(schema_name).set(schema.version)
+        schema_updates = map_f(schema, load_id, files)
         # logger.metrics("Normalize metrics", extra=get_logging_extras([self.schema_version_gauge.labels(schema_name)]))
         if len(schema_updates) > 0:
             logger.info(f"Saving schema {schema_name} with version {schema.version}, writing manifest files")
@@ -280,19 +260,12 @@ class Normalize(Runnable[ProcessPool]):
         # delete item files to complete commit
         for file in files:
                 self.normalize_storage.storage.delete(file)
-        # for item_file in chain.from_iterable(chunk_files):  # flatten chunks
-        #     self.normalize_storage.storage.delete(item_file)
         # log and update metrics
         logger.info(f"Chunk {load_id} processed")
-        self.load_package_counter.labels(schema_name).inc()
-        self.item_counter.labels(schema_name).inc(total_items)
-        self.item_gauge.labels(schema_name).set(total_items)
-        logger.metrics("stop", "schema items", extra=get_logging_extras(
-            [self.load_package_counter.labels(schema_name), self.item_counter.labels(schema_name), self.item_gauge.labels(schema_name)]))
 
-    def spool_schema_files(self, schema_name: str, files: Sequence[str]) -> str:
+    def spool_schema_files(self, load_id: str, schema_name: str, files: Sequence[str]) -> str:
         # normalized files will go here before being atomically renamed
-        load_id = str(pendulum.now().timestamp())
+
         self.load_storage.create_temp_load_package(load_id)
         logger.info(f"Created temp load folder {load_id} on loading volume")
 
@@ -318,10 +291,15 @@ class Normalize(Runnable[ProcessPool]):
         files = self.normalize_storage.list_files_to_normalize_sorted()
         logger.info(f"Found {len(files)} files")
         if len(files) == 0:
-            return TRunMetrics(True, False, 0)
+            return TRunMetrics(True, 0)
         # group files by schema
-        for schema_name, files_in_schema in self.normalize_storage.group_by_schema(files):
-            logger.info(f"Found files in schema {schema_name}")
-            self.spool_schema_files(schema_name, list(files_in_schema))
+        for schema_name, files_iter in self.normalize_storage.group_by_schema(files):
+            schema_files = list(files_iter)
+            load_id = str(pendulum.now().timestamp())
+            logger.info(f"Found {len(schema_files)} files in schema {schema_name} load_id {load_id}")
+            with self.collector(f"Normalize {schema_name} in {load_id}"):
+                self.collector.update("Files", 0, len(schema_files))
+                self.collector.update("Items", 0)
+                self.spool_schema_files(load_id, schema_name, schema_files)
         # return info on still pending files (if extractor saved something in the meantime)
-        return TRunMetrics(False, False, len(self.normalize_storage.list_files_to_normalize_sorted()))
+        return TRunMetrics(False, len(self.normalize_storage.list_files_to_normalize_sorted()))

@@ -56,7 +56,7 @@ def test_restore_state_utils(destination_name: str) -> None:
         # table is there but no state
         assert load_state_from_destination(p.pipeline_name, job_client.sql_client) is None
         # extract state
-        with p._managed_state(extract_state=True):
+        with p.managed_state(extract_state=True):
             pass
         # just run the existing extract
         p.normalize()
@@ -66,7 +66,7 @@ def test_restore_state_utils(destination_name: str) -> None:
         local_state.pop("_local")
         assert stored_state == local_state
         # extract state again
-        with p._managed_state(extract_state=True) as managed_state:
+        with p.managed_state(extract_state=True) as managed_state:
             # this will be saved
             managed_state["sources"] = {"source": dict(JSON_TYPED_DICT)}
         p.normalize()
@@ -77,7 +77,7 @@ def test_restore_state_utils(destination_name: str) -> None:
         local_state.pop("_local")
         assert stored_state == local_state
         # use the state context manager again but do not change state
-        with p._managed_state(extract_state=True):
+        with p.managed_state(extract_state=True):
             pass
         # version not changed
         new_local_state = p._get_state()
@@ -91,7 +91,7 @@ def test_restore_state_utils(destination_name: str) -> None:
         assert new_stored_state == stored_state
 
         # change the state in context manager but there's no extract
-        with p._managed_state(extract_state=False) as managed_state:
+        with p.managed_state(extract_state=False) as managed_state:
             managed_state["sources"] = {"source": "test2"}
         new_local_state = p._get_state()
         new_local_state_local = new_local_state.pop("_local")
@@ -103,7 +103,7 @@ def test_restore_state_utils(destination_name: str) -> None:
 
         # use the state context manager again but do not change state
         # because _last_extracted_at is not present, the version will not change but state will be extracted anyway
-        with p._managed_state(extract_state=True):
+        with p.managed_state(extract_state=True):
             pass
         new_local_state_2 = p._get_state()
         new_local_state_2_local = new_local_state_2.pop("_local")

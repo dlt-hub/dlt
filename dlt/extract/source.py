@@ -16,7 +16,7 @@ from dlt.common.pipeline import PipelineContext, StateInjectableContext, Support
 from dlt.common.utils import flatten_list_or_items, get_callable_name, multi_context_manager, uniq_id
 
 from dlt.extract.typing import DataItemWithMeta, ItemTransformFunc, ItemTransformFunctionWithMeta, TableNameMeta, FilterItem, MapItem, YieldMapItem
-from dlt.extract.pipe import Pipe, ManagedPipeIterator
+from dlt.extract.pipe import Pipe, ManagedPipeIterator, TPipeStep
 from dlt.extract.schema import DltResourceSchema, TTableSchemaTemplate
 from dlt.extract.incremental import Incremental, IncrementalResourceWrapper
 from dlt.extract.exceptions import (
@@ -210,6 +210,38 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
             self._pipe.append_step(FilterItem(item_filter))
         else:
             self._pipe.insert_step(FilterItem(item_filter), insert_at)
+        return self
+
+    def add_limit(self, max_items: int) -> "DltResource":  # noqa: A003
+        """Adds a limit `max_items` to the resource pipe
+
+        This mutates the encapsulated generator to stop after `max_items` items are yielded. This is useful for testing and debugging. It is
+        a no-op for transformers. Those should be limited by their input data.
+
+        Args:
+            max_items (int): The maximum number of items to yield
+        Returns:
+            "DltResource": returns self
+        """
+        def _gen_wrap(gen: TPipeStep) -> TPipeStep:
+            """Wrap a generator to take the first `max_items` records"""
+            nonlocal max_items
+            count = 0
+            if inspect.isfunction(gen):
+                gen = gen()
+            try:
+                for i in gen:  # type: ignore # TODO: help me fix this later
+                    yield i
+                    count += 1
+                    if count == max_items:
+                        return
+            finally:
+                if inspect.isgenerator(gen):
+                    gen.close()
+            return
+        # transformers should be limited by their input, so we only limit non-transformers
+        if not self.is_transformer:
+            self._pipe.replace_gen(_gen_wrap(self._pipe.gen))
         return self
 
     def add_step(self, item_transform: ItemTransformFunctionWithMeta[TDataItems], insert_at: int = None) -> "DltResource":  # noqa: A003
@@ -572,6 +604,22 @@ class DltSource(Iterable[TDataItem]):
     def with_resources(self, *resource_names: str) -> "DltSource":
         """A convenience method to select one of more resources to be loaded. Returns a source with the specified resources selected."""
         self._resources.select(*resource_names)
+        return self
+
+
+    def add_limit(self, max_items: int) -> "DltSource":  # noqa: A003
+        """Adds a limit `max_items` yielded from all selected resources in the source that are not transformers.
+
+        This is useful for testing, debugging and generating sample datasets for experimentation. You can easily get your test dataset in a few minutes, when otherwise
+        you'd need to wait hours for the full loading to complete.
+
+        Args:
+            max_items (int): The maximum number of items to yield
+        Returns:
+            "DltSource": returns self
+        """
+        for resource in self.resources.selected.values():
+            resource.add_limit(max_items)
         return self
 
     @property

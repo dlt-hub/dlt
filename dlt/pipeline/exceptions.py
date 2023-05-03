@@ -1,7 +1,6 @@
 from typing import Any
 from dlt.common.exceptions import PipelineException
 from dlt.common.pipeline import SupportsPipeline
-from dlt.common.runners import TRunMetrics
 from dlt.pipeline.typing import TPipelineStep
 
 
@@ -32,11 +31,10 @@ class SqlClientNotAvailable(PipelineException):
 
 
 class PipelineStepFailed(PipelineException):
-    def __init__(self, pipeline: SupportsPipeline, step: TPipelineStep, exception: BaseException, run_metrics: TRunMetrics, step_info: Any = None) -> None:
+    def __init__(self, pipeline: SupportsPipeline, step: TPipelineStep, exception: BaseException, step_info: Any = None) -> None:
         self.pipeline = pipeline
         self.step = step
         self.exception = exception
-        self.run_metrics = run_metrics
         self.step_info = step_info
         super().__init__(pipeline.pipeline_name, f"Pipeline execution failed at stage {step} with exception:\n\n{type(exception)}\n{exception}")
 
@@ -47,3 +45,12 @@ class PipelineStateEngineNoUpgradePathException(PipelineException):
         self.from_engine = from_engine
         self.to_engine = to_engine
         super().__init__(pipeline_name, f"No engine upgrade path for state in pipeline {pipeline_name} from {init_engine} to {to_engine}, stopped at {from_engine}")
+
+
+class PipelineHasPendingDataException(PipelineException):
+    def __init__(self, pipeline_name: str, pipelines_dir: str) -> None:
+        msg = (
+            f" Operation failed because pipeline with name {pipeline_name} in working directory {pipelines_dir} contains pending extracted files or load packages. "
+            "Use `dlt pipeline sync` to reset the local state then run this operation again."
+        )
+        super().__init__(pipeline_name, msg)

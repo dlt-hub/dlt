@@ -103,6 +103,31 @@ def test_pipeline_command_operations(repo_dir: str, project_files: FileStorage) 
         # sync was executed
         assert "Pipeline does not have last run trace." in _out
 
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        with echo.always_choose(False, True):
+            pipeline_command.pipeline_command("drop", "chess_pipeline", None, 0, resources=["players_games"])
+
+        _out = buf.getvalue()
+        assert "Selected resource(s): ['players_games']" in _out
+
+        # Command was executed
+        pipeline = dlt.attach(pipeline_name="chess_pipeline")
+        assert "players_games" not in pipeline.default_schema.tables
+
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        # Test sync destination and drop when local state is missing
+        pipeline._pipeline_storage.delete_folder('', recursively=True)
+        with echo.always_choose(False, True):
+            pipeline_command.pipeline_command("drop", "chess_pipeline", None, 0, destination=pipeline.destination, dataset_name=pipeline.dataset_name, resources=["players_profiles"])
+        _out = buf.getvalue()
+
+        assert "could not be restored: the pipeline was not found in " in _out
+        assert "Selected resource(s): ['players_profiles']" in _out
+
+        # Command was executed
+        pipeline = dlt.attach(pipeline_name="chess_pipeline")
+        assert "players_profiles" not in pipeline.default_schema.tables
+
 
 def test_pipeline_command_failed_jobs(repo_dir: str, project_files: FileStorage) -> None:
     init_command.init_command("chess", "dummy", False, repo_dir)

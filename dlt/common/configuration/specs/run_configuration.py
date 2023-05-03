@@ -14,7 +14,6 @@ class RunConfiguration(BaseConfiguration):
     pipeline_name: Optional[str] = None
     sentry_dsn: Optional[str] = None  # keep None to disable Sentry
     slack_incoming_hook: Optional[TSecretStrValue] = None
-    prometheus_port: Optional[int] = None  # keep None to disable Prometheus
     dlthub_telemetry: bool = True  # enable or disable dlthub telemetry
     dlthub_telemetry_segment_write_key: str = "a1F2gc6cNYw2plyAt02sZouZcsRjG7TD"
     log_format: str = '{asctime}|[{levelname:<21}]|{process}|{name}|{filename}|{funcName}:{lineno}|{message}'

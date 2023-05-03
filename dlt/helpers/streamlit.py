@@ -1,5 +1,5 @@
 import sys
-from typing import Dict
+from typing import Dict, List
 import humanize
 
 
@@ -226,8 +226,15 @@ def write_data_explorer_page(pipeline: Pipeline, schema_name: str = None, show_d
         st.header(table_name)
         if "description" in table:
             st.text(table["description"])
+        table_hints: List[str] = []
         if "parent" in table:
-            st.text("Parent table: " + table["parent"])
+            table_hints.append("parent: **%s**" % table["parent"])
+        if "resource" in table:
+            table_hints.append("resource: **%s**" % table["resource"])
+        if "write_disposition" in table:
+            table_hints.append("write disposition: **%s**" % table["write_disposition"])
+
+        st.markdown(" | ".join(table_hints))
 
         # table schema contains various hints (like clustering or partition options) that we do not want to show in basic view
         essentials_f = lambda c: {k:v for k, v in c.items() if k in ["name", "data_type", "nullable"]}

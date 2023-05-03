@@ -1,6 +1,7 @@
+import io
 import os
+import contextlib
 
-from dlt.common.configuration.specs import RunConfiguration
 from dlt.common.typing import StrStr, StrAny, Literal, List
 from dlt.common.utils import filter_env_vars
 from dlt.version import __version__
@@ -71,16 +72,30 @@ def is_colab() -> bool:
 
 def airflow_info() -> StrAny:
     try:
-        from airflow.operators.python import get_current_context
-        get_current_context()
-        return {"AIRFLOW_TASK": True}
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            from airflow.operators.python import get_current_context
+
+            get_current_context()
+            return {"AIRFLOW_TASK": True}
     except Exception:
         return None
 
 
-def dlt_version_info(config: RunConfiguration) -> StrStr:
+def is_running_in_airflow_task() -> bool:
+    try:
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            from airflow.operators.python import get_current_context
+
+            context = get_current_context()
+            return context is not None and 'ti' in context
+    except Exception:
+        return False
+
+
+
+def dlt_version_info(pipeline_name: str) -> StrStr:
     """Gets dlt version info including commit and image version available in docker"""
-    version_info = {"dlt_version": __version__, "pipeline_name": config.pipeline_name}
+    version_info = {"dlt_version": __version__, "pipeline_name": pipeline_name}
     # extract envs with build info
     version_info.update(filter_env_vars(["COMMIT_SHA", "IMAGE_VERSION"]))
 

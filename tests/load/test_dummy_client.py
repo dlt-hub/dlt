@@ -5,7 +5,6 @@ from time import sleep
 from typing import List, Sequence, Tuple
 import pytest
 from unittest.mock import patch
-from prometheus_client import CollectorRegistry
 
 from dlt.common.exceptions import TerminalException, TerminalValueError
 from dlt.common.schema import Schema
@@ -419,6 +418,5 @@ def setup_loader(delete_completed_jobs: bool = False, client_config: DummyClient
     with TEST_DICT_CONFIG_PROVIDER().values({"delete_completed_jobs": delete_completed_jobs}):
         return Load(
             destination,
-            CollectorRegistry(auto_describe=True),
             initial_client_config=client_config
     )

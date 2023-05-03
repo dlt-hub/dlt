@@ -12,6 +12,7 @@ from dlt.common.pipeline import LoadInfo, PipelineContext, get_dlt_pipelines_dir
 
 from dlt.pipeline.configuration import PipelineConfiguration, ensure_correct_pipeline_kwargs
 from dlt.pipeline.pipeline import Pipeline
+from dlt.pipeline.progress import _from_name as collector_from_name, TCollectorArg, _NULL_COLLECTOR
 
 
 @overload
@@ -24,7 +25,8 @@ def pipeline(
     import_schema_path: str = None,
     export_schema_path: str = None,
     full_refresh: bool = False,
-    credentials: Any = None
+    credentials: Any = None,
+    progress: TCollectorArg = _NULL_COLLECTOR
 ) -> Pipeline:
     """Creates a new instance of `dlt` pipeline, which moves the data from the source ie. a REST API to a destination ie. database or a data lake.
 
@@ -62,6 +64,10 @@ def pipeline(
         credentials (Any, optional): Credentials for the `destination` ie. database connection string or a dictionary with google cloud credentials.
         In most cases should be set to None, which lets `dlt` to use `secrets.toml` or environment variables to infer right credentials values.
 
+        progress(str, Collector): A progress monitor that shows progress bars, console or log messages with current information on sources, resources, data items etc. processed in
+        `extract`, `normalize` and `load` stage. Pass a string with a collector name or configure your own by choosing from `dlt.progress` module.
+        We support most of the progress libraries: try passing `tqdm`, `enlighten` or `alive_progress` or `log` to write to console/log.
+
     ### Returns:
         Pipeline: An instance of `Pipeline` class with. Please check the documentation of `run` method for information on what to do with it.
     """
@@ -84,6 +90,7 @@ def pipeline(
     export_schema_path: str = None,
     full_refresh: bool = False,
     credentials: Any = None,
+    progress: TCollectorArg = _NULL_COLLECTOR,
     **kwargs: Any
 ) -> Pipeline:
     ensure_correct_pipeline_kwargs(pipeline, **kwargs)
@@ -105,6 +112,7 @@ def pipeline(
         pipelines_dir = get_dlt_pipelines_dir()
 
     destination = DestinationReference.from_name(destination or kwargs["destination_name"])
+    progress = collector_from_name(progress)
     # create new pipeline instance
     p = Pipeline(
         pipeline_name,
@@ -116,6 +124,7 @@ def pipeline(
         import_schema_path,
         export_schema_path,
         full_refresh,
+        progress,
         False,
         last_config(**kwargs),
         kwargs["runtime"])
@@ -131,14 +140,16 @@ def attach(
     pipelines_dir: str = None,
     pipeline_salt: TSecretValue = None,
     full_refresh: bool = False,
+    progress: TCollectorArg = _NULL_COLLECTOR,
     **kwargs: Any
 ) -> Pipeline:
     ensure_correct_pipeline_kwargs(attach, **kwargs)
     # if working_dir not provided use temp folder
     if not pipelines_dir:
         pipelines_dir = get_dlt_pipelines_dir()
+    progress = collector_from_name(progress)
     # create new pipeline instance
-    p = Pipeline(pipeline_name, pipelines_dir, pipeline_salt, None, None, None, None, None, full_refresh, True, last_config(**kwargs), kwargs["runtime"])
+    p = Pipeline(pipeline_name, pipelines_dir, pipeline_salt, None, None, None, None, None, full_refresh, progress, True, last_config(**kwargs), kwargs["runtime"])
     # set it as current pipeline
     Container()[PipelineContext].activate(p)
     return p
@@ -155,7 +166,7 @@ def run(
     columns: Sequence[TColumnSchema] = None,
     schema: Schema = None
 ) -> LoadInfo:
-    """Loads the data from `data` argument into the destination specified in `destination` and dataset specified in `dataset_name`.
+    """Loads the data in `data` argument into the destination specified in `destination` and dataset specified in `dataset_name`.
 
     ### Summary
     This method will `extract` the data from the `data` argument, infer the schema, `normalize` the data into a load package (ie. jsonl or PARQUET files representing tables) and then `load` such packages into the `destination`.
@@ -182,7 +193,6 @@ def run(
         dataset_name (str, optional):A name of the dataset to which the data will be loaded. A dataset is a logical group of tables ie. `schema` in relational databases or folder grouping many files.
         If not provided, the value passed to `dlt.pipeline` will be used. If not provided at all then defaults to the `pipeline_name`
 
-
         credentials (Any, optional): Credentials for the `destination` ie. database connection string or a dictionary with google cloud credentials.
         In most cases should be set to None, which lets `dlt` to use `secrets.toml` or environment variables to infer right credentials values.
 
@@ -192,7 +202,7 @@ def run(
         * `@dlt.resource`: resource contains the full table schema and that includes the table name. `table_name` will override this property. Use with care!
         * `@dlt.source`: source contains several resources each with a table schema. `table_name` will override all table names within the source and load the data into single table.
 
-        write_disposition (Literal["skip", "append", "replace"], optional): Controls how to write data to a table. `append` will always add new data at the end of the table. `replace` will replace existing data with new data. `skip` will prevent data from loading. . Defaults to "append".
+        write_disposition (Literal["skip", "append", "replace", "merge"], optional): Controls how to write data to a table. `append` will always add new data at the end of the table. `replace` will replace existing data with new data. `skip` will prevent data from loading. "merge" will deduplicate and merge data based on "primary_key" and "merge_key" hints. Defaults to "append".
         Please note that in case of `dlt.resource` the table schema value will be overwritten and in case of `dlt.source`, the values in all resources will be overwritten.
 
         columns (Sequence[TColumnSchema], optional): A list of column schemas. Typed dictionary describing column names, data types, write disposition and performance hints that gives you full control over the created table schema.
