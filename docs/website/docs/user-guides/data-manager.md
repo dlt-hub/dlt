@@ -1,4 +1,4 @@
-# Data engineering manager
+# Data Manager
 
 ## Why do we have data platform engineers?
 

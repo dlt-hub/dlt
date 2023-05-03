@@ -1,52 +1,47 @@
-# Analytics engineer
+# Analytics Engineer
 
-Are you an analytics engineer and wondering how dlt might help you?
+## Use Case #1: dbt packages for existing `dlt` pipelines
 
-### Use case #1: Develop dbt packages on top of existing dlt pipelines
+### Using dbt packages with dlt pipelines
 
-Dlt automatically transitions unstructured data to structured. This means that the loaded data structure is a consequence of the initial unstructured data, except clean, typed and normalised.
+`dlt` automatically structures unstructured data by default. This means that typically the loaded data structure is a cleaned, typed, and normalized version of the initial unstructured data.
 
-However, this data usually needs to be rearranged to bring it to a structure that other analysts or business users can answer questions with. For example, consolidating this data or into tables that represent the business process and entities makes it easier for all downstream consumers.
+As a result, this data usually needs to be rearranged to get it to a structure that analysts and other business users can use to answer questions. For example, you will often want to consolidate this data into tables and entities that represent the business process makes it easier for downstream consumers.
 
-There is little benefit to separate a pipeline between tools, so dlt supports a dbt runner which allows you to create a virtual environment, install dbt on it, pass it credentials and run a dbt package from a local or online location. To learn more about how to do that, see our docs page TODO
+To make this easier, `dlt` supports a dbt runner that allows you to create a virtual environment, install dbt on it, pass it credentials, and run a dbt package from a local or online location. You can read more about this [here](./using-loaded-data/transforming-the-data).
 
-Here are the docs to [run dbt from local or repository](./using-loaded-data/transforming-the-data)
+### Contributing dbt packages
 
-### Use case #2: Clean type or customise how data is produced or loaded
+#### What to contribute?
 
-dlt allows you to customise how data is produced, enabling you to filter, modify, rename, or differently customise the data that arrives at your destination. By doing it in python, you can make changes either before dlt normalises the data, or after, enabling you to choose very granularly what to do.
+Great data models require a deep understanding of the data and are not easy to build. If you take the time to create a dbt package for a `dlt` pipeline, we encourage you to contribute it, so the community can benefit from your hard work.
 
-Read here about possible customisations in our docs, for example: [pseudonymizing_columns](./customizations/customizing-pipelines/pseudonymizing_columns)
+We are esspecially interested in dbt packges that
+- transition the pipeline data into 3rd normal form, supporting a more simple use of the data and the creation of an Inmon architecture data warehouse
+- transition the pipeline data into a dimensional model, supporting pivot-table style usage via query builders by business users
 
-### Use case #3: Develop your own pipelines in a similar declarative way, so you can use engineering that was already done for you
+#### How to contribute?
 
-dlt was designed from the start for the open source data tool users. It enables people who have never before built a pipeline to go from raw data in python to structured data in a database in minutes.
+1. Fork the [pipelines repo](https://github.com/dlt-hub/pipelines)
+2. Add the dbt package in a sub-folder of a pipeline folder
+3. Include information about it in the pipeline folder README
+4. Open a pull request (PR) on GitHub [here](https://github.com/dlt-hub/pipelines/pulls)
 
-It’s meant to be a true open source productivity tool without unnecessary complexities designed to capture your credit card.
+If you run into issues or have questions, please reach out in the `#technical-help` channel on [Slack](https://join.slack.com/t/dlthub-community/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g).
 
-It features a declarative way to configure loading modes, and handles all of the engineering for you. Dlt was made with you in mind, while the engineering behind it allows you to leverage the best loader that comes complete with support for schema migrations, data typing, performance hint declaration, schema management, etc.
+## Use Case #2: Clean, type, and customize how data is produced and loaded
 
-What’s more, you can develop a pipeline that includes a dbt package and thus use it end to end to deliver analytics. And thanks to our duckdb support, you can easily develop locally without needing a connection to your production warehouse.
+`dlt` allows you to customize how data is produced, enabling you to rename, filter, and modify the data that arrives at your destination. Before you pass the data to `dlt` for normalization, you can transform the data in Python. After `dlt` has normalized and loaded the data, you can also further transform it using SQL. You can learn more about possible customizations in the docs (e.g. [pseudonymizing_columns](./customizations/customizing-pipelines/pseudonymizing_columns)).
 
-Read more about it here
+## Use Case #3:Create your own pipelines in a declarative fashion
 
-- build a pipeline [run dbt from local or repository](./using-loaded-data/transforming-the-data)
-- incremental loading [incremental loading](./general-usage/incremental-loading)
-- Advanced: performance hints and schema [adjust a schema](./walkthroughs/adjust-a-schema)
-- dbt duckdb example [colab duckdb](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing)
+`dlt` was designed from the start for the open source data tool users. It enables people who have never before built a data pipeline to go from raw data in Python to structured data in a database in minutes. For example, using DuckDB, you can easily develop your pipeline locally without needing to set up and connect to your your production warehouse.
 
-### Use case #4: Contribute dbt packages back
+It features a declarative approach to configuring loading modes, handling all of the engineering for you by default, allowing you to leverage a great loader that comes complete with support for schema migrations, data typing, performance hint declarations, schema management, etc.
 
-We do not like reinventing the flat tyre. Data modelling is an art that takes deep understanding of the data in order to do well.
+If you combine it with a `dbt` package, then you use it end to end to deliver analytics.
 
-We encourage you to contribute back the following types of packages, so other people may also use them. Or perhaps, you will use them later in your next project or job.
-
-- Packages that transition the pipeline data to 3rd normal form. These packages support simpler usage of the data, and creation of Inmon architecture data warehouse.
-- Packages that transition the pipeline data to dimensional model. These packages support pivot-table style usage by business user via query builders.
-
-How to contribute packages?
-
-- You can fork our pipelines repo and do a PR from your fork. You can store the dbt package in the pipeline folder.
-- You can link your repo into the pipeline readme and the docs.
-- If you are unsure how to do it, give us a shout in slack in the technical help channel.
-Links: [pipelines repo](https://github.com/dlt-hub/pipelines), [join slack](https://join.slack.com/t/dlthub-community/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g)
+Read more about
+- [running dbt packages](./using-loaded-data/transforming-the-data)
+- [incremental loading](./general-usage/incremental-loading)
+- [performance hints and schemas](./walkthroughs/adjust-a-schema)

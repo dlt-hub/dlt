@@ -1,4 +1,4 @@
-# Data piepline engineer
+# Data Engineer
 
 Are you a data engineer considering dlt for loading pipelines? See our use cases below:
 

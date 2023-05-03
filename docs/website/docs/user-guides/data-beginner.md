@@ -1,4 +1,6 @@
-# Aspiring data professional
+# Data Beginner
+
+aspiring data professional
 
 As senior data professionals ourselves, we have hired for many companies in the past and know what they look for.
 
