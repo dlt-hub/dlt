@@ -33,7 +33,7 @@ If you run into issues or have questions, please reach out in the `#technical-he
 
 `dlt` allows you to customize how data is produced, enabling you to rename, filter, and modify the data that arrives at your destination. Before you pass the data to `dlt` for normalization, you can transform the data in Python. After `dlt` has normalized and loaded the data, you can also further transform it using SQL. You can learn more about possible customizations in the docs (e.g. [pseudonymizing_columns](./customizations/customizing-pipelines/pseudonymizing_columns)).
 
-## Use Case #3:Create your own pipelines in a declarative fashion
+## Use Case #3: Create your own pipelines in a declarative fashion
 
 `dlt` was designed from the start for the open source data tool users. It enables people who have never before built a data pipeline to go from raw data in Python to structured data in a database in minutes. For example, using DuckDB, you can easily develop your pipeline locally without needing to set up and connect to your your production warehouse.
 
@@ -41,7 +41,4 @@ It features a declarative approach to configuring loading modes, handling all of
 
 If you combine it with a `dbt` package, then you use it end to end to deliver analytics.
 
-Read more about
-- [running dbt packages](./using-loaded-data/transforming-the-data)
-- [incremental loading](./general-usage/incremental-loading)
-- [performance hints and schemas](./walkthroughs/adjust-a-schema)
+Read more about [running dbt packages](./using-loaded-data/transforming-the-data), [incremental loading](./general-usage/incremental-loading), and [performance hints and schemas](./walkthroughs/adjust-a-schema).
