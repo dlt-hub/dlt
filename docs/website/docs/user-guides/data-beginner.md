@@ -1,3 +1,9 @@
+---
+title: Data Beginner
+description: A guide to using dlt for aspiring data professionals
+keywords: [beginner, analytics, machine learning]
+---
+
 # Data Beginner
 
 If you are an aspiring data professional, here are some ways you can showcase your understanding and value to data teams with the help of `dlt`.
@@ -41,7 +47,7 @@ Solving specific business problems with data products that generate further insi
 
 ### Show you can solve business problems
 
-Here the challenges might seem different than the business analytics path, but they are often quite similar. Many courses focus on statistics and data science but very few focus on pragmatic approaches to solving business problems in organizations. Most of the time, the largest obstaclse to solving a problem with ML are not purely algorithmic but rather about the semantics of the business, data, and people who need to use the data products.
+Here the challenges might seem different than the business analytics path, but they are often quite similar. Many courses focus on statistics and data science but very few focus on pragmatic approaches to solving business problems in organizations. Most of the time, the largest obstacles to solving a problem with ML are not purely algorithmic but rather about the semantics of the business, data, and people who need to use the data products.
 
 Employers look for a project that showcases both technical ability and business pragmatism in a use case. In reality, data does not typically come in files but via APIs with fresh data, where you usually will have to grab it and move it somewhere to use, so show your ability to deliver end to end.
 
@@ -62,7 +68,7 @@ Good docs pages to check out:
 - [Deploy a pipeline](../walkthroughs/deploy-a-pipeline)
 - [Understand the loaded data](../using-loaded-data/understanding-the-tables)
 - [Explore the loaded data in Streamlit](../using-loaded-data/exploring-the-data)
-- [Transform the data with sql or python](../using-loaded-data/transforming-the-data)
+- [Transform the data with SQL or python](../using-loaded-data/transforming-the-data)
 - [Contribute a pipeline](https://github.com/dlt-hub/pipelines)
 
 Here are some example projects:

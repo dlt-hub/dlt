@@ -1,3 +1,9 @@
+---
+title: Analytics Engineer
+description: A guide to using dlt for Analytics Engineers
+keywords: [analytics engineer, analytics, business intelligence]
+---
+
 # Analytics Engineer
 
 ## Use Case #1: dbt packages for existing `dlt` pipelines

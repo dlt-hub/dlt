@@ -1,3 +1,9 @@
+---
+title: Data Engineer
+description: A guide to using dlt for Data Engineers
+keywords: [data engineer, de, pipeline builder]
+---
+
 # Data Engineer
 
 ## Use Case #1: Remove a big chunk of tedious work and most ETL maintenance
@@ -6,9 +12,9 @@ With `dlt`, you can automate the transition from unstructured (nested, untyped) 
 
 `dlt` is a library that you can use almost anywhere, so you are not forced to use some prescribed way of doing things. The simplest usage of dlt would be to use it as a unstructured to structured data transition tool in your existing code.
 
-A `dlt` pipeline is made of a source, which contains resources, and a connection to the destination, which we call pipeline. So in the simplest use case, you could pass your unstructured data to the `pipeline` and it will automatically be migrated to structured at the destination. See how to do that here [pipeline docs](../general-usage/pipeline)
+A `dlt` pipeline is made of a source, which contains resources, and a connection to the destination, which we call pipeline. So in the simplest use case, you could pass your unstructured data to the `pipeline` and it will automatically be migrated to structured at the destination. See how to do that here [pipeline docs](../general-usage/pipeline).
 
-The big advantage of using dlt for this is that it automates what is otherwise an error prone and tedious operation for the data engineer. What’s more, `dlt` can migrate schemas, removing not only development work but also most of the maintenance work as well. Read more about how to monitor schema evolution here: [alert schema change](./running-in-production/running#inspect-save-and-alert-on-schema-changes).
+The big advantage of using dlt for this is that it automates what is otherwise an error prone and tedious operation for the data engineer. What’s more, `dlt` can migrate schemas, removing not only development work but also most of the maintenance work as well. Read more about how to monitor schema evolution [here](./running-in-production/running#inspect-save-and-alert-on-schema-changes).
 
 ## Use Case #2: Empower everyone on the team with a library
 
@@ -39,8 +45,6 @@ No more reinventing the flat tyre in the form of yet another custom pipeline.
 Read more about our contribution process abd contribute pipelines or open issues for requests [here](https://github.com/dlt-hub/pipelines).
 
 ## Inheriting a `dlt` pipeline
-
-
 
 If you are taking over a `dlt` pipeline that someone else built or set up, you are in luck! What's important to know:
 - The pipeline is largely self-maintaining. The only thing you must ensure is that the source keeps producing data-from there dlt handles it.

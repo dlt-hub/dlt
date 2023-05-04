@@ -46,6 +46,16 @@ const sidebars = {
     },
     {
       type: 'category',
+      label: 'User guides',
+      items: [
+        'user-guides/analytics-engineer',
+        'user-guides/data-beginner',
+        'user-guides/data-engineer',
+        'user-guides/engineering-manager',
+      ],
+    },
+    {
+      type: 'category',
       label: 'Walkthroughs',
       items: [
         'walkthroughs/create-a-pipeline',
@@ -53,16 +63,6 @@ const sidebars = {
         'walkthroughs/run-a-pipeline',
         'walkthroughs/adjust-a-schema',
         'walkthroughs/deploy-a-pipeline'
-      ],
-    },
-    {
-      type: 'category',
-      label: 'User guides',
-      items: [
-        'user-guides/analytics-engineer',
-        'user-guides/data-beginner',
-        'user-guides/data-engineer',
-        'user-guides/data-manager',
       ],
     },
     {

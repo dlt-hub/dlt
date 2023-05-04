@@ -1,4 +1,10 @@
-# Data Manager
+---
+title: Engineering Manager
+description: A guide to using dlt for Engineering Managers
+keywords: [engineering manager, EM, data platform engineer]
+---
+
+# Engineering Manager
 
 ## Why are data platform engineers needed?
 
@@ -58,4 +64,4 @@ When a stakeholder has to request something from another person, the pain of ask
 
 The automation of data normalisation by `dlt` at ingestion supports shortcutting the human element-the producer can easily adjust their source schema and the data will be automatically made available downstream in the analytical system, where they or an analyst can use it.
 
-By using the “notify on schema change” functionality offered by `dlt`, this can act as a data contract test to notify both the consumer and the producer of any changes. Read more about [alerting schema change](./running-in-production/running#inspect-save-and-alert-on-schema-changes). You can use the schema generated from the data or you can define it, read more about [schema](..general-usage/schema)
+By using the “notify on schema change” functionality offered by `dlt`, this can act as a data contract test to notify both the consumer and the producer of any changes. Read more about [alerting schema change](./running-in-production/running#inspect-save-and-alert-on-schema-changes). You can use the schema generated from the data or you can define it, read more about [schema](../general-usage/schema)
