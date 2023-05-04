@@ -31,7 +31,7 @@ These are usually engineered to ensure high service service-level agreement (SLA
 
 ### 3. Customized pipelines
 
- Heavily customized pipelines that give fine grain control over everything about the data processing and loading. These are usually engineered to solve specific obstacles to data usage, such as performance, cost of loading, or things about the data, such as anonymization or managing schemas. Depending if the problem being solved is an engineering or business logic problem, it may be solved by either a data engineer or a business facing analytics engineer. For example, a pipeline like [Zendesk](../pipelines/zendesk) with automatic field renames and optionally pivoted tables for easy analysis. 
+ Heavily customized pipelines that give fine grain control over everything about the data processing and loading. These are usually engineered to solve specific obstacles to data usage, such as performance, cost of loading, or things about the data, such as anonymization or managing schemas. Depending if the problem being solved is an engineering or business logic problem, it may be solved by either a data engineer or a business facing analytics engineer. For example, a pipeline like [Zendesk](../pipelines/zendesk) with automatic field renames and optionally pivoted tables for easy analysis.
 
 ### `dlt` massively reduces pipeline maintenance in your organization
 
@@ -46,9 +46,9 @@ With dlt data pipeline maintenance stops being an issue for data engineering, ma
 - Before `dlt`: Data engineer builds a pipeline. They usually build extraction from scratch, normalization based on what is desired by the business and then finally doing typical loading. Somewhere, data typing happens, either before ingestion, or everything is ingested as string and typed after. After building, the bugs and gotchas we are weeded out, and finally after a few weeks our pipeline runs securely. All the code will need to be maintained
 - With `dlt`: We only write minimal code, extraction code. We declare how we load, the typing, normalisation is automated. We only maintain extraction code. This can now be maintained by most people- hey only need to understand extraction and not a whole bunch of glue code.
 
-### More open souce, less vendor lock-in
+### More open source, less vendor lock-in
 
-`dlt` was made to solve your problems around data loading without introducing redundancy, complexity, or vendor monetzation hooks. It is meant to play nice with the rest of the stack. It is customizable, extensible, and does not require you to pay for another SaaS product. 
+`dlt` was made to solve your problems around data loading without introducing redundancy, complexity, or vendor monetzation hooks. It is meant to play nice with the rest of the stack. It is customizable, extensible, and does not require you to pay for another SaaS product.
 
 ### Better governance with less manual work by people
 

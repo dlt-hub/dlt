@@ -1,6 +1,6 @@
 # Data Engineer
 
-## Use Case #1: Remove a big chunk of tedious work and most ETL maintenance 
+## Use Case #1: Remove a big chunk of tedious work and most ETL maintenance
 
 With `dlt`, you can automate the transition from unstructured (nested, untyped) to structured (tabular, typed) data.
 
@@ -10,7 +10,7 @@ A `dlt` pipeline is made of a source, which contains resources, and a connection
 
 The big advantage of using dlt for this is that it automates what is otherwise an error prone and tedious operation for the data engineer. What’s more, `dlt` can migrate schemas, removing not only development work but also most of the maintenance work as well. Read more about how to monitor schema evolution here: [alert schema change](./running-in-production/running#inspect-save-and-alert-on-schema-changes).
 
-## Use Case #2: Rmpower everyone on the team with a library
+## Use Case #2: Empower everyone on the team with a library
 
 `dlt` is meant to be accessible to each person on the data team, enabling you to standardize how your entire team loads data. This reduces knowledge requirements to get work done and enables collaborative working between engineers and analysts.
 
@@ -43,7 +43,7 @@ Read more about our contribution process abd contribute pipelines or open issues
 
 
 If you are taking over a `dlt` pipeline that someone else built or set up, you are in luck! What's important to know:
-- The pipeline is largely self0maintaining. The only thing you must ensure is that the source keeps producing data-from there dlt handles it.
+- The pipeline is largely self-maintaining. The only thing you must ensure is that the source keeps producing data-from there dlt handles it.
 - You can notify schema evolution events (e.g. [alert schema change](./running-in-production/running#inspect-save-and-alert-on-schema-changes))
 - You can use the data by transforming it with dbt (e.g. [run dbt from local or repository](./using-loaded-data/transforming-the-data))
 - If the sources used are public, you can update your pipelines to the latest version from the online repo with the `dlt init`command. If you are the first to fix, you can contribute the fix back so it will be included in the future versions (e.g. [init a pipeline](./reference/command-line-interface#dlt-init), [contribute a pipeline](https://github.com/dlt-hub/pipelines))
