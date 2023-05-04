@@ -46,7 +46,7 @@ const sidebars = {
     },
     {
       type: 'category',
-      label: 'User guides',
+      label: 'User Guides',
       items: [
         'user-guides/analytics-engineer',
         'user-guides/data-beginner',
