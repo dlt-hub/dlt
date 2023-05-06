@@ -64,7 +64,6 @@ def _maybe_parse_native_value(config: TConfiguration, explicit_value: Any, embed
             # provide generic exception
             raise InvalidNativeValue(type(config), type(explicit_value), embedded_sections, v_err)
         except NotImplementedError:
-
             pass
         # explicit value was consumed
         explicit_value = None

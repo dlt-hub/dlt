@@ -3,18 +3,19 @@ import yaml
 import os
 import argparse
 import click
-from dlt.cli.telemetry_command import DLT_TELEMETRY_DOCS_URL, change_telemetry_status_command, telemetry_status_command
 
 from dlt.version import __version__
 from dlt.common import json
 from dlt.common.schema import Schema
 from dlt.common.typing import DictStrAny
+from dlt.common.runners import Venv
 
 import dlt.cli.echo as fmt
 from dlt.cli import utils
 from dlt.cli.init_command import init_command, list_pipelines_command, DLT_INIT_DOCS_URL, DEFAULT_PIPELINES_REPO
 from dlt.cli.deploy_command import PipelineWasNotRun, deploy_command, DLT_DEPLOY_DOCS_URL
 from dlt.cli.pipeline_command import pipeline_command, DLT_PIPELINE_COMMAND_DOCS_URL
+from dlt.cli.telemetry_command import DLT_TELEMETRY_DOCS_URL, change_telemetry_status_command, telemetry_status_command
 from dlt.pipeline.exceptions import CannotRestorePipelineException
 
 
@@ -243,6 +244,9 @@ def main() -> int:
     subparsers.add_parser("telemetry", help="Shows telemetry status")
 
     args = parser.parse_args()
+
+    if Venv.is_virtual_env() and not Venv.is_venv_activated():
+        fmt.warning("You are running dlt installed in the global environment, however you have virtual environment activated. The dlt command will not see dependencies from virtual environment. You should uninstall the dlt from global environment and install it in the current virtual environment instead.")
 
     if args.command == "schema":
         return schema_command_wrapper(args.file, args.format, args.remove_defaults)

@@ -1,3 +1,4 @@
+import sys
 import os
 import shutil
 import venv
@@ -119,3 +120,13 @@ class Venv():
                 subprocess.check_output(cmd, stderr=subprocess.STDOUT)
             except subprocess.CalledProcessError as exc:
                 raise CannotInstallDependency(dep, context.env_exe, exc.output)
+
+    @staticmethod
+    def is_virtual_env() -> bool:
+        """Checks if we are running in virtual environment"""
+        return "VIRTUAL_ENV" in os.environ
+
+    @staticmethod
+    def is_venv_activated() -> bool:
+        """Checks if virtual environment is activated in the shell"""
+        return sys.prefix != sys.base_prefix
