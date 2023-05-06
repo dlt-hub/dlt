@@ -11,7 +11,8 @@ from dlt.common.exceptions import DictValidationException
 from dlt.common.pipeline import StateInjectableContext, TPipelineState
 from dlt.common.schema import Schema
 from dlt.common.schema.utils import new_table
-from dlt.common.utils import uniq_id
+
+from dlt.cli.source_detection import detect_source_configs
 from dlt.extract.decorators import _SOURCES
 from dlt.extract.exceptions import InvalidResourceDataTypeFunctionNotAGenerator, InvalidResourceDataTypeIsNone, ParametrizedResourceUnbound, PipeNotBoundToData, ResourceFunctionExpected, ResourceInnerCallableConfigWrapDisallowed, SourceDataIsNone, SourceIsAClassTypeError, SourceNotAFunction, SourceSchemaNotAvailable
 from dlt.extract.source import DltResource, DltSource
@@ -437,10 +438,50 @@ def test_spec_generation() -> None:
     assert {"secret", "config", "opt"} == set(fields.keys())
 
 
-@pytest.mark.skip
+@dlt.resource
+def not_args_r():
+    yield from [1, 2, 3]
+
+
+def test_sources_no_arguments() -> None:
+
+    @dlt.source
+    def no_args():
+        return dlt.resource([1, 2], name="data")
+
+    # there is no spec if no arguments
+    SPEC = _SOURCES[no_args.__qualname__].SPEC
+    assert SPEC is None
+    _, _, checked = detect_source_configs(_SOURCES, "", ())
+    assert no_args.__qualname__ in checked
+
+    SPEC = _SOURCES[no_args.__qualname__].SPEC
+    assert SPEC is None
+    _, _, checked = detect_source_configs(_SOURCES, "", ())
+    assert not_args_r.__qualname__ in checked
+
+    @dlt.resource
+    def not_args_r_i():
+        yield from [1, 2, 3]
+
+    assert not_args_r_i.__qualname__ not in _SOURCES
+
+    # you can call those
+    assert list(no_args()) == [1, 2]
+    assert list(not_args_r()) == [1, 2, 3]
+    assert list(not_args_r_i()) == [1, 2, 3]
+
+
 def test_resource_sets_invalid_write_disposition() -> None:
-    # write_disposition="xxx" # this will fail schema
-    pass
+
+    @dlt.resource(write_disposition="xxxx")
+    def invalid_disposition():
+        yield from [1, 2, 3]
+
+    r = invalid_disposition()
+    with pytest.raises(DictValidationException) as py_ex:
+        r.table_schema()
+    assert "write_disposition" in str(py_ex.value)
 
 
 def test_class_source() -> None:

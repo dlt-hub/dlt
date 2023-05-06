@@ -346,13 +346,14 @@ def resource(
             incr_f,
             spec=spec, sections=resource_sections, sections_merge_style=ConfigSectionContext.resource_merge_style, include_defaults=False
         )
-        if conf_f != incr_f and is_inner_callable(f):
+        is_inner_resource = is_inner_callable(f)
+        if conf_f != incr_f and is_inner_resource:
             raise ResourceInnerCallableConfigWrapDisallowed(resource_name, source_section)
         # get spec for wrapped function
         SPEC = get_fun_spec(conf_f)
 
         # store the standalone resource information
-        if SPEC:
+        if not is_inner_resource:
             _SOURCES[f.__qualname__] = SourceInfo(SPEC, f, func_module)
 
         return make_resource(resource_name, source_section, conf_f, incremental)
