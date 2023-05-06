@@ -2,13 +2,14 @@ import os
 import shutil
 import pytest
 from dlt.common.configuration.resolve import resolve_configuration
-from dlt.common.configuration.specs import PostgresCredentials
 from dlt.common.configuration.utils import add_config_to_env
 from dlt.common.runners.synth_pickle import decode_obj
-
 from dlt.common.storages import FileStorage
 from dlt.common.utils import uniq_id
+
+from dlt.destinations.postgres.configuration import PostgresCredentials
 from dlt.helpers.dbt.dbt_utils import DBTProcessingError, initialize_dbt_logging, run_dbt_command, is_incremental_schema_out_of_sync_error
+
 from tests.utils import test_storage, preserve_environ
 from tests.helpers.dbt_tests.utils import clone_jaffle_repo, load_test_case
 

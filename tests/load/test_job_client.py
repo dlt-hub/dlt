@@ -286,6 +286,10 @@ def test_drop_tables(client: SqlJobClientBase) -> None:
         del schema.tables[tbl]
     schema.bump_version()
     client.drop_tables(*tables_to_drop)
+    client.drop_tables(*tables_to_drop, staging=True, replace_schema=False)
+    # drop again - should not break anything
+    client.drop_tables(*tables_to_drop)
+    client.drop_tables(*tables_to_drop, staging=True, replace_schema=False)
 
     # Verify requested tables are dropped
     for tbl in tables_to_drop:

@@ -1,0 +1,1 @@
+from dlt.common.configuration.specs import GcpServiceAccountCredentials, GcpOAuthCredentials, GcpCredentials

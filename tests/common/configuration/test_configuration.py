@@ -4,7 +4,7 @@ from unittest.mock import patch
 from typing import Any, Dict, Final, List, Mapping, MutableMapping, NewType, Optional, Sequence, Type, Union
 
 from dlt.common import json, pendulum, Decimal, Wei
-from dlt.common.configuration.specs.gcp_client_credentials import GcpClientCredentials
+from dlt.common.configuration.specs.gcp_credentials import GcpServiceAccountCredentialsWithoutDefaults
 from dlt.common.utils import custom_environ
 from dlt.common.typing import AnyType, DictStrAny, StrAny, TSecretValue, extract_inner_type
 from dlt.common.configuration.exceptions import ConfigFieldMissingTypeHintException, ConfigFieldTypeHintNotSupported, FinalConfigFieldException, InvalidNativeValue, LookupTrace, ValueNotSecretException
@@ -812,7 +812,7 @@ def test_resolved_trace(environment: Any) -> None:
 
 def test_extract_inner_hint() -> None:
     # extracts base config from an union
-    assert resolve.extract_inner_hint(Union[GcpClientCredentials, StrAny, str]) is GcpClientCredentials
+    assert resolve.extract_inner_hint(Union[GcpServiceAccountCredentialsWithoutDefaults, StrAny, str]) is GcpServiceAccountCredentialsWithoutDefaults
     assert resolve.extract_inner_hint(Union[InstrumentedConfiguration, StrAny, str]) is InstrumentedConfiguration
     # keeps unions
     assert resolve.extract_inner_hint(Union[StrAny, str]) is Union
@@ -826,16 +826,16 @@ def test_extract_inner_hint() -> None:
 
 
 def test_is_secret_hint() -> None:
-    assert resolve.is_secret_hint(GcpClientCredentials) is True
-    assert resolve.is_secret_hint(Optional[GcpClientCredentials]) is True
+    assert resolve.is_secret_hint(GcpServiceAccountCredentialsWithoutDefaults) is True
+    assert resolve.is_secret_hint(Optional[GcpServiceAccountCredentialsWithoutDefaults]) is True
     assert resolve.is_secret_hint(TSecretValue) is True
     assert resolve.is_secret_hint(Optional[TSecretValue]) is True
     assert resolve.is_secret_hint(InstrumentedConfiguration) is False
     # do not recognize new types
-    TTestSecretNt = NewType("TTestSecretNt", GcpClientCredentials)
+    TTestSecretNt = NewType("TTestSecretNt", GcpServiceAccountCredentialsWithoutDefaults)
     assert resolve.is_secret_hint(TTestSecretNt) is False
     # recognize unions with credentials
-    assert resolve.is_secret_hint(Union[GcpClientCredentials, StrAny, str]) is True
+    assert resolve.is_secret_hint(Union[GcpServiceAccountCredentialsWithoutDefaults, StrAny, str]) is True
     # we do not recognize unions if they do not contain configuration types
     assert resolve.is_secret_hint(Union[TSecretValue, StrAny, str]) is False
     assert resolve.is_secret_hint(Optional[str]) is False

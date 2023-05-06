@@ -12,7 +12,7 @@ from dlt.common.configuration.inject import with_config
 from dlt.common.configuration.exceptions import LookupTrace
 from dlt.common.configuration.providers.toml import SECRETS_TOML, CONFIG_TOML, SecretsTomlProvider, ConfigTomlProvider, TomlProviderReadException
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
-from dlt.common.configuration.specs import BaseConfiguration, GcpClientCredentials, PostgresCredentials, ConnectionStringCredentials
+from dlt.common.configuration.specs import BaseConfiguration, GcpServiceAccountCredentialsWithoutDefaults, ConnectionStringCredentials
 from dlt.common.typing import TSecretValue
 
 from tests.utils import preserve_environ
@@ -21,12 +21,12 @@ from tests.common.configuration.utils import WithCredentialsConfiguration, Coerc
 
 @configspec
 class EmbeddedWithGcpStorage(BaseConfiguration):
-    gcp_storage: GcpClientCredentials
+    gcp_storage: GcpServiceAccountCredentialsWithoutDefaults
 
 
 @configspec
 class EmbeddedWithGcpCredentials(BaseConfiguration):
-    credentials: GcpClientCredentials
+    credentials: GcpServiceAccountCredentialsWithoutDefaults
 
 
 def test_secrets_from_toml_secrets() -> None:
@@ -102,23 +102,27 @@ def test_toml_sections(toml_providers: ConfigProvidersContext) -> None:
 
 def test_secrets_toml_credentials(environment: Any, toml_providers: ConfigProvidersContext) -> None:
     # there are credentials exactly under destination.bigquery.credentials
-    c = resolve.resolve_configuration(GcpClientCredentials(), sections=("destination", "bigquery"))
+    c = resolve.resolve_configuration(GcpServiceAccountCredentialsWithoutDefaults(), sections=("destination", "bigquery"))
     assert c.project_id.endswith("destination.bigquery.credentials")
     # there are no destination.gcp_storage.credentials so it will fallback to "destination"."credentials"
-    c = resolve.resolve_configuration(GcpClientCredentials(), sections=("destination", "gcp_storage"))
+    c = resolve.resolve_configuration(GcpServiceAccountCredentialsWithoutDefaults(), sections=("destination", "gcp_storage"))
     assert c.project_id.endswith("destination.credentials")
     # also explicit
-    c = resolve.resolve_configuration(GcpClientCredentials(), sections=("destination",))
+    c = resolve.resolve_configuration(GcpServiceAccountCredentialsWithoutDefaults(), sections=("destination",))
     assert c.project_id.endswith("destination.credentials")
     # there's "credentials" key but does not contain valid gcp credentials
     with pytest.raises(ConfigFieldMissingException):
-        print(dict(resolve.resolve_configuration(GcpClientCredentials())))
+        print(dict(resolve.resolve_configuration(GcpServiceAccountCredentialsWithoutDefaults())))
     # also try postgres credentials
-    c = resolve.resolve_configuration(PostgresCredentials(), sections=("destination", "redshift"))
+    c = ConnectionStringCredentials()
+    c.update({"drivername": "postgres"})
+    c = resolve.resolve_configuration(c, sections=("destination", "redshift"))
     assert c.database == "destination.redshift.credentials"
     # bigquery credentials do not match redshift credentials
+    c = ConnectionStringCredentials()
+    c.update({"drivername": "postgres"})
     with pytest.raises(ConfigFieldMissingException):
-        resolve.resolve_configuration(PostgresCredentials(), sections=("destination", "bigquery"))
+        resolve.resolve_configuration(c, sections=("destination", "bigquery"))
 
 
 def test_secrets_toml_embedded_credentials(environment: Any, toml_providers: ConfigProvidersContext) -> None:
@@ -131,7 +135,7 @@ def test_secrets_toml_embedded_credentials(environment: Any, toml_providers: Con
     # will try everything until credentials in the root where incomplete credentials are present
     c = EmbeddedWithGcpCredentials()
     # create embedded config that will be passed as initial
-    c.credentials = GcpClientCredentials()
+    c.credentials = GcpServiceAccountCredentialsWithoutDefaults()
     with pytest.raises(ConfigFieldMissingException) as py_ex:
         resolve.resolve_configuration(c, sections=("middleware", "storage"))
     # so we can read partially filled configuration here
@@ -143,11 +147,11 @@ def test_secrets_toml_embedded_credentials(environment: Any, toml_providers: Con
     assert c.gcp_storage.project_id.endswith("-gcp-storage")
 
     # also explicit
-    c = resolve.resolve_configuration(GcpClientCredentials(), sections=("destination",))
+    c = resolve.resolve_configuration(GcpServiceAccountCredentialsWithoutDefaults(), sections=("destination",))
     assert c.project_id.endswith("destination.credentials")
     # there's "credentials" key but does not contain valid gcp credentials
     with pytest.raises(ConfigFieldMissingException):
-        resolve.resolve_configuration(GcpClientCredentials())
+        resolve.resolve_configuration(GcpServiceAccountCredentialsWithoutDefaults())
 
 
 def test_dicts_are_not_enumerated() -> None:
@@ -160,7 +164,7 @@ def test_secrets_toml_credentials_from_native_repr(environment: Any, toml_provid
     # print(cfg._toml)
     # print(cfg._toml["source"]["credentials"])
     # resolve gcp_credentials by parsing initial value which is str holding json doc
-    c = resolve.resolve_configuration(GcpClientCredentials(), sections=("source",))
+    c = resolve.resolve_configuration(GcpServiceAccountCredentialsWithoutDefaults(), sections=("source",))
     assert c.private_key == "-----BEGIN PRIVATE KEY-----\nMIIEuwIBADANBgkqhkiG9w0BAQEFAASCBKUwggShAgEAAoIBAQCNEN0bL39HmD+S\n...\n-----END PRIVATE KEY-----\n"
     # but project id got overridden from credentials.project_id
     assert c.project_id.endswith("-credentials")

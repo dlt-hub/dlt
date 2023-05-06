@@ -7,7 +7,7 @@ from dlt.common.configuration.exceptions import InvalidNativeValue, ConfigFieldM
 from dlt.common.configuration.providers import EnvironProvider
 from dlt.common.configuration.specs import CredentialsConfiguration, BaseConfiguration
 from dlt.common.configuration import configspec, resolve_configuration
-from dlt.common.configuration.specs.gcp_client_credentials import GcpClientCredentialsWithDefault
+from dlt.common.configuration.specs.gcp_credentials import GcpServiceAccountCredentials
 from dlt.common.typing import TSecretValue
 
 from tests.utils import preserve_environ
@@ -190,7 +190,7 @@ class GoogleAnalyticsCredentialsOAuth(GoogleAnalyticsCredentialsBase):
 
 
 @dlt.source(max_table_nesting=2)
-def google_analytics(credentials: Union[GoogleAnalyticsCredentialsOAuth, GcpClientCredentialsWithDefault] = dlt.secrets.value):
+def google_analytics(credentials: Union[GoogleAnalyticsCredentialsOAuth, GcpServiceAccountCredentials] = dlt.secrets.value):
     yield dlt.resource([credentials], name="creds")
 
 
@@ -208,4 +208,4 @@ def test_google_auth_union() -> None:
         "client_x509_cert_url" : "https://www.googleapis.com/robot/v1/metadata/x509/105150287833-compute%40developer.gserviceaccount.com"
         }
 
-    assert isinstance(list(google_analytics(credentials=info))[0], GcpClientCredentialsWithDefault)
+    assert isinstance(list(google_analytics(credentials=info))[0], GcpServiceAccountCredentials)

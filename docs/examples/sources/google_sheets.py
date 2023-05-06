@@ -1,7 +1,7 @@
 from typing import Any, Iterator, Sequence, Union, cast
 
 import dlt
-from dlt.common.configuration.specs import GcpClientCredentialsWithDefault
+from dlt.common.configuration.specs import GcpServiceAccountCredentials
 from dlt.common.typing import DictStrAny, StrAny
 from dlt.common.exceptions import MissingDependencyException
 
@@ -16,16 +16,16 @@ except ImportError:
 # TODO: consider using https://github.com/burnash/gspread for spreadsheet discovery
 
 
-def _initialize_sheets(credentials: GcpClientCredentialsWithDefault) -> Any:
+def _initialize_sheets(credentials: GcpServiceAccountCredentials) -> Any:
     # Build the service object.
     service = build('sheets', 'v4', credentials=credentials.to_google_credentials())
     return service
 
 
 @dlt.source
-def google_spreadsheet(spreadsheet_id: str, sheet_names: Sequence[str], credentials: Union[GcpClientCredentialsWithDefault, str, StrAny] = dlt.secrets.value) -> Any:
+def google_spreadsheet(spreadsheet_id: str, sheet_names: Sequence[str], credentials: Union[GcpServiceAccountCredentials, str, StrAny] = dlt.secrets.value) -> Any:
 
-    sheets = _initialize_sheets(cast(GcpClientCredentialsWithDefault, credentials))
+    sheets = _initialize_sheets(cast(GcpServiceAccountCredentials, credentials))
 
     import pprint
     # meta = sheets.spreadsheets().get(spreadsheetId=spreadsheet_id, ranges=sheet_names, includeGridData=True).execute()

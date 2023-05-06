@@ -6,7 +6,7 @@ from google.api_core import exceptions as api_core_exceptions
 
 from dlt.common import json, logger
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
-from dlt.common.configuration.specs import GcpClientCredentials
+from dlt.common.configuration.specs import GcpServiceAccountCredentialsWithoutDefaults
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import FollowupJob, NewLoadJob, TLoadJobState, LoadJob
 from dlt.common.data_types import TDataType
@@ -50,7 +50,7 @@ BQT_TO_SCT: Dict[str, TDataType] = {
 }
 
 class BigQueryLoadJob(LoadJob, FollowupJob):
-    def __init__(self, file_name: str, bq_load_job: bigquery.LoadJob, credentials: GcpClientCredentials) -> None:
+    def __init__(self, file_name: str, bq_load_job: bigquery.LoadJob, credentials: GcpServiceAccountCredentialsWithoutDefaults) -> None:
         self.bq_load_job = bq_load_job
         self.credentials = credentials
         self.default_retry = bigquery.DEFAULT_RETRY.with_deadline(credentials.retry_deadline)

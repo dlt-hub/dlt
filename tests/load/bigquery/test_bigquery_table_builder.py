@@ -6,7 +6,7 @@ from dlt.common.utils import custom_environ, uniq_id
 from dlt.common.schema import Schema
 from dlt.common.schema.utils import new_table
 from dlt.common.configuration import resolve_configuration
-from dlt.common.configuration.specs import GcpClientCredentials
+from dlt.common.configuration.specs import GcpServiceAccountCredentialsWithoutDefaults
 
 from dlt.destinations.bigquery.bigquery import BigQueryClient
 from dlt.destinations.bigquery.configuration import BigQueryClientConfiguration
@@ -23,18 +23,18 @@ def schema() -> Schema:
 def test_configuration() -> None:
     # check names normalized
     with custom_environ({"CREDENTIALS__PRIVATE_KEY": "---NO NEWLINE---\n"}):
-        C = resolve_configuration(GcpClientCredentials())
+        C = resolve_configuration(GcpServiceAccountCredentialsWithoutDefaults())
         assert C.private_key == "---NO NEWLINE---\n"
 
     with custom_environ({"CREDENTIALS__PRIVATE_KEY": "---WITH NEWLINE---\n"}):
-        C = resolve_configuration(GcpClientCredentials())
+        C = resolve_configuration(GcpServiceAccountCredentialsWithoutDefaults())
         assert C.private_key == "---WITH NEWLINE---\n"
 
 
 @pytest.fixture
 def gcp_client(schema: Schema) -> BigQueryClient:
     # return client without opening connection
-    creds = GcpClientCredentials()
+    creds = GcpServiceAccountCredentialsWithoutDefaults()
     creds.project_id = "test_project_id"
     return BigQueryClient(schema, BigQueryClientConfiguration(dataset_name="test_" + uniq_id(), credentials=creds))
 

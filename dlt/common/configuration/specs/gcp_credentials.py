@@ -2,7 +2,7 @@ import sys
 from typing import Any, ClassVar, Final, List, Tuple, Union
 from deprecated import deprecated
 
-from dlt.common import json
+from dlt.common import json, pendulum
 from dlt.common.configuration.specs.api_credentials import OAuth2Credentials
 from dlt.common.configuration.specs.exceptions import InvalidGoogleNativeCredentialsType, InvalidGoogleOauth2Json, InvalidGoogleServicesJson, NativeValueError, OAuth2ScopesRequired
 from dlt.common.exceptions import MissingDependencyException
@@ -12,7 +12,7 @@ from dlt.common.utils import is_interactive
 
 
 @configspec
-class GcpCredentialsBase(CredentialsConfiguration):
+class GcpCredentials(CredentialsConfiguration):
     token_uri: Final[str] = "https://oauth2.googleapis.com/token"
     auth_uri: Final[str] = "https://accounts.google.com/o/oauth2/auth"
 
@@ -44,53 +44,7 @@ class GcpCredentialsBase(CredentialsConfiguration):
 
 
 @configspec
-class GcpDefaultCredentials(CredentialsWithDefault, GcpCredentialsBase):
-
-    def parse_native_representation(self, native_value: Any) -> None:
-        """Accepts google credentials as native value"""
-        try:
-            from google.auth.credentials import Credentials as GoogleCredentials
-            if isinstance(native_value, GoogleCredentials):
-                self.project_id = self.project_id or native_value.quota_project_id
-                self._set_default_credentials(native_value)
-                # is resolved
-                self.__is_resolved__ = True
-                return
-        except ImportError:
-            pass
-        raise NativeValueError(self.__class__, native_value, "Default Google Credentials not present")
-
-    def on_partial(self) -> None:
-        """Looks for default google credentials and resolves configuration if found. Otherwise continues as partial"""
-        try:
-            from google.auth import default as default_credentials
-            from google.auth.exceptions import DefaultCredentialsError
-
-            # if config is missing check if credentials can be obtained from defaults
-            try:
-                default, project_id = default_credentials()
-                # set the project id - it needs to be known by the client
-                self.project_id = self.project_id or project_id or default.quota_project_id
-                self._set_default_credentials(default)
-                # is resolved
-                self.__is_resolved__ = True
-            except DefaultCredentialsError:
-                # re-raise preventing exception
-                pass
-
-        except ImportError:
-            # raise the exception that caused partial (typically missing config fields)
-            pass
-
-    def to_google_credentials(self) -> Any:
-        if self.has_default_credentials():
-            return self.default_credentials()
-        else:
-            return super().to_google_credentials()
-
-
-@configspec
-class GcpClientCredentials(GcpCredentialsBase):
+class GcpServiceAccountCredentialsWithoutDefaults(GcpCredentials):
     private_key: TSecretValue = None
     client_email: str = None
     type: Final[str] = "service_account"  # noqa: A003
@@ -113,7 +67,7 @@ class GcpClientCredentials(GcpCredentialsBase):
 
         if service_dict is None:
             # check if type is str
-            GcpCredentialsBase.parse_native_representation(self, native_value)
+            GcpCredentials.parse_native_representation(self, native_value)
             # if not instance of service account credentials then check type and try to parse native value
             try:
                 service_dict = json.loads(native_value)
@@ -144,17 +98,7 @@ class GcpClientCredentials(GcpCredentialsBase):
 
 
 @configspec
-class GcpClientCredentialsWithDefault(GcpDefaultCredentials, GcpClientCredentials):
-    def parse_native_representation(self, native_value: Any) -> None:
-        try:
-            GcpDefaultCredentials.parse_native_representation(self, native_value)
-        except NativeValueError:
-            pass
-        GcpClientCredentials.parse_native_representation(self, native_value)
-
-
-@configspec
-class GcpOAuthCredentials(GcpCredentialsBase, OAuth2Credentials):
+class GcpOAuthCredentialsWithoutDefaults(GcpCredentials, OAuth2Credentials):
     # only desktop app supported
     refresh_token: TSecretValue
     client_type: Final[str] = "installed"
@@ -181,7 +125,7 @@ class GcpOAuthCredentials(GcpCredentialsBase, OAuth2Credentials):
 
         if oauth_dict is None:
             # check if type is str
-            GcpCredentialsBase.parse_native_representation(self, native_value)
+            GcpCredentials.parse_native_representation(self, native_value)
             # if not instance of oauth2 credentials try to parse native value
             try:
                 oauth_dict = json.loads(native_value)
@@ -272,10 +216,79 @@ class GcpOAuthCredentials(GcpCredentialsBase, OAuth2Credentials):
 
 
 @configspec
-class GcpOAuthCredentialsWithDefault(GcpDefaultCredentials, GcpOAuthCredentials):
+class GcpDefaultCredentials(CredentialsWithDefault, GcpCredentials):
+
+    _LAST_FAILED_DEFAULT: float = 0.0
+
+    def parse_native_representation(self, native_value: Any) -> None:
+        """Accepts google credentials as native value"""
+        try:
+            from google.auth.credentials import Credentials as GoogleCredentials
+            if isinstance(native_value, GoogleCredentials):
+                self.project_id = self.project_id or native_value.quota_project_id
+                self._set_default_credentials(native_value)
+                # is resolved
+                self.__is_resolved__ = True
+                return
+        except ImportError:
+            pass
+        raise NativeValueError(self.__class__, native_value, "Default Google Credentials not present")
+
+    @staticmethod
+    def _get_default_credentials(retry_timeout_s: float = 60.0) -> Tuple[Any, str]:
+
+        now = pendulum.now().timestamp()
+        if now - GcpDefaultCredentials._LAST_FAILED_DEFAULT < retry_timeout_s:
+            return None, None
+
+        from google.auth import default as default_credentials
+        from google.auth.exceptions import DefaultCredentialsError
+
+        try:
+            return default_credentials()  # type: ignore
+        except DefaultCredentialsError:
+            # prevent exception
+            GcpDefaultCredentials._LAST_FAILED_DEFAULT = now
+            return None, None
+
+    def on_partial(self) -> None:
+        """Looks for default google credentials and resolves configuration if found. Otherwise continues as partial"""
+        try:
+            # if config is missing check if credentials can be obtained from defaults
+            default, project_id = GcpDefaultCredentials._get_default_credentials()
+            if default is None:
+                return
+            # set the project id - it needs to be known by the client
+            self.project_id = self.project_id or project_id or default.quota_project_id
+            self._set_default_credentials(default)
+            # is resolved
+            self.__is_resolved__ = True
+        except ImportError:
+            # raise the exception that caused partial (typically missing config fields)
+            pass
+
+    def to_google_credentials(self) -> Any:
+        if self.has_default_credentials():
+            return self.default_credentials()
+        else:
+            return super().to_google_credentials()
+
+
+@configspec
+class GcpServiceAccountCredentials(GcpDefaultCredentials, GcpServiceAccountCredentialsWithoutDefaults):
     def parse_native_representation(self, native_value: Any) -> None:
         try:
             GcpDefaultCredentials.parse_native_representation(self, native_value)
         except NativeValueError:
             pass
-        GcpOAuthCredentials.parse_native_representation(self, native_value)
+        GcpServiceAccountCredentialsWithoutDefaults.parse_native_representation(self, native_value)
+
+
+@configspec
+class GcpOAuthCredentials(GcpDefaultCredentials, GcpOAuthCredentialsWithoutDefaults):
+    def parse_native_representation(self, native_value: Any) -> None:
+        try:
+            GcpDefaultCredentials.parse_native_representation(self, native_value)
+        except NativeValueError:
+            pass
+        GcpOAuthCredentialsWithoutDefaults.parse_native_representation(self, native_value)

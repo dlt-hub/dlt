@@ -7,7 +7,7 @@ import pytest
 from dlt.common import json
 
 from dlt.common.configuration import resolve_configuration
-from dlt.common.configuration.specs import GcpClientCredentialsWithDefault, CredentialsWithDefault
+from dlt.common.configuration.specs import GcpServiceAccountCredentials, CredentialsWithDefault
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.runners import Venv
 from dlt.common.runners.synth_pickle import decode_obj, encode_obj
@@ -62,7 +62,7 @@ def test_infer_venv_deps() -> None:
 
 
 def test_default_profile_name() -> None:
-    bigquery_config = BigQueryClientConfiguration(credentials=GcpClientCredentialsWithDefault())
+    bigquery_config = BigQueryClientConfiguration(credentials=GcpServiceAccountCredentials())
     assert isinstance(bigquery_config.credentials, CredentialsWithDefault)
     # default credentials are not present
     assert _default_profile_name(bigquery_config) == "bigquery"

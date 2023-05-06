@@ -90,20 +90,22 @@ class SqlJobClientBase(JobClientBase):
             if schema_info is None:
                 logger.info(f"Schema with hash {self.schema.stored_version_hash} not found in the storage. upgrading")
 
-                with self._ddl_transaction():
+                with self.maybe_ddl_transaction():
                     applied_update = self._execute_schema_update_sql(only_tables)
             else:
                 logger.info(f"Schema with hash {self.schema.stored_version_hash} inserted at {schema_info.inserted_at} found in storage, no upgrade required")
             return applied_update
 
-    def drop_tables(self, *tables: str, staging: bool = False) -> None:
-        with self.sql_client.with_staging_dataset(staging):
-            with self._ddl_transaction():
+    def drop_tables(self, *tables: str, staging: bool = False, replace_schema: bool = True) -> None:
+        with self.maybe_ddl_transaction():
+            with self.sql_client.with_staging_dataset(staging):
                 self.sql_client.drop_tables(*tables)
-                self._replace_schema_in_storage(self.schema)
+                if replace_schema:
+                    self._replace_schema_in_storage(self.schema)
 
     @contextlib.contextmanager
-    def _ddl_transaction(self) -> Iterator[None]:
+    def maybe_ddl_transaction(self) -> Iterator[None]:
+        """Begins a transaction if sql client supports it, otherwise works in auto commit"""
         if self.capabilities.supports_ddl_transactions:
             with self.sql_client.begin_transaction():
                 yield

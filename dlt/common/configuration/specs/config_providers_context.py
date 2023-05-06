@@ -64,7 +64,7 @@ def _airflow_providers() -> List[ConfigProvider]:
     if not is_running_in_airflow_task():
         return []
 
-    from airflow.models import Variable, TaskInstance # noqa
+    from airflow.models import Variable # noqa
     from airflow.operators.python import get_current_context  # noqa
 
     from dlt.common.configuration.providers.airflow import (

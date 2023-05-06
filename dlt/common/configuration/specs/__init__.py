@@ -3,6 +3,8 @@ from .base_configuration import BaseConfiguration, CredentialsConfiguration, Cre
 from .normalize_volume_configuration import NormalizeVolumeConfiguration  # noqa: F401
 from .load_volume_configuration import LoadVolumeConfiguration  # noqa: F401
 from .schema_volume_configuration import SchemaVolumeConfiguration, TSchemaFileFormat  # noqa: F401
-from .gcp_client_credentials import GcpClientCredentials, GcpClientCredentialsWithDefault, GcpOAuthCredentials, GcpOAuthCredentialsWithDefault  # noqa: F401
-from .postgres_credentials import PostgresCredentials, RedshiftCredentials, ConnectionStringCredentials  # noqa: F401
+from .gcp_credentials import GcpServiceAccountCredentialsWithoutDefaults, GcpServiceAccountCredentials, GcpOAuthCredentialsWithoutDefaults, GcpOAuthCredentials, GcpCredentials  # noqa: F401
+# backward compatibility for service account credentials
+# from .gcp_credentials import GcpServiceAccountCredentialsWithoutDefaults as GcpClientCredentials, GcpServiceAccountCredentials as GcpClientCredentialsWithDefault  # noqa: F401
+from .connection_string_credentials import ConnectionStringCredentials  # noqa: F401
 from .config_section_context import ConfigSectionContext  # noqa: F401
