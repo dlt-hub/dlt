@@ -11,6 +11,7 @@ from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs import BaseConfiguration, ContainerInjectableContext
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.exceptions import ArgumentsOverloadException
+from dlt.common.pipeline import PipelineContext
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import TColumnKey, TColumnName, TTableSchemaColumns, TWriteDisposition
 from dlt.common.storages.exceptions import SchemaNotFoundError
@@ -155,7 +156,9 @@ def source(
             # make schema available to the source
             with Container().injectable_context(SourceSchemaInjectableContext(schema)):
                 # configurations will be accessed in this section in the source
-                with inject_section(ConfigSectionContext(sections=source_sections)):
+                proxy = Container()[PipelineContext]
+                pipeline_name = None if not proxy.is_active() else proxy.pipeline().pipeline_name
+                with inject_section(ConfigSectionContext(pipeline_name=pipeline_name, sections=source_sections)):
                     rv = conf_f(*args, **kwargs)
 
             if rv is None:
