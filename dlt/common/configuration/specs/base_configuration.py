@@ -1,6 +1,7 @@
 import inspect
 import contextlib
 import dataclasses
+from collections.abc import Mapping as C_Mapping
 from typing import Callable, List, Optional, Union, Any, Dict, Iterator, MutableMapping, Type, TYPE_CHECKING, get_args, get_origin, overload, ClassVar
 
 if TYPE_CHECKING:
@@ -138,6 +139,8 @@ class BaseConfiguration(MutableMapping[str, Any]):
     """Holds the exception that prevented the full resolution"""
     __config_gen_annotations__: ClassVar[List[str]] = []
     """Additional annotations for config generator, currently holds a list of fields of interest that have defaults"""
+    __dataclass_fields__: ClassVar[Dict[str, TDtcField]]
+    """Typing for dataclass fields"""
 
     def parse_native_representation(self, native_value: Any) -> None:
         """Initialize the configuration fields by parsing the `native_value` which should be a native representation of the configuration
@@ -163,9 +166,10 @@ class BaseConfiguration(MutableMapping[str, Any]):
         """
         raise NotImplementedError()
 
-    def get_resolvable_fields(self) -> Dict[str, type]:
-        """Returns a mapping of fields to their type hints. Dunder should not be resolved and are not returned"""
-        return {f.name:f.type for f in self.__fields_dict().values() if not f.name.startswith("__")}
+    @classmethod
+    def get_resolvable_fields(cls) -> Dict[str, type]:
+        """Returns a mapping of fields to their type hints. Dunders should not be resolved and are not returned"""
+        return {f.name:f.type for f in cls.__dataclass_fields__.values() if not f.name.startswith("__")}
 
     def is_resolved(self) -> bool:
         return self.__is_resolved__
@@ -178,6 +182,10 @@ class BaseConfiguration(MutableMapping[str, Any]):
         return any(
             field for field, hint in self.get_resolvable_fields().items() if getattr(self, field) is None and not is_optional_type(hint)
         )
+
+    def resolve(self) -> None:
+        self.call_method_in_mro("on_resolved")
+        self.__is_resolved__ = True
 
     # implement dictionary-compatible interface on top of dataclass
 
@@ -203,7 +211,7 @@ class BaseConfiguration(MutableMapping[str, Any]):
         raise KeyError("Configuration fields cannot be deleted")
 
     def __iter__(self) -> Iterator[str]:
-        return filter(lambda k: not k.startswith("__"), self.__fields_dict().__iter__())
+        return filter(lambda k: not k.startswith("__"), self.__dataclass_fields__.__iter__())
 
     def __len__(self) -> int:
         return sum(1 for _ in self.__iter__())
@@ -218,10 +226,20 @@ class BaseConfiguration(MutableMapping[str, Any]):
     # helper functions
 
     def __has_attr(self, __key: str) -> bool:
-        return __key in self.__fields_dict() and not __key.startswith("__")
+        return __key in self.__dataclass_fields__ and not __key.startswith("__")
 
-    def __fields_dict(self) -> Dict[str, TDtcField]:
-        return self.__dataclass_fields__  # type: ignore
+    def call_method_in_mro(config, method_name: str) -> None:
+        # python multi-inheritance is cooperative and this would require that all configurations cooperatively
+        # call each other class_method_name. this is not at all possible as we do not know which configs in the end will
+        # be mixed together.
+
+        # get base classes in order of derivation
+        mro = type.mro(type(config))
+        for c in mro:
+            # check if this class implements on_resolved (skip pure inheritance to not do double work)
+            if method_name in c.__dict__ and callable(getattr(c, method_name)):
+                # pass right class instance
+                c.__dict__[method_name](config)
 
 
 _F_BaseConfiguration = BaseConfiguration
@@ -232,6 +250,31 @@ class CredentialsConfiguration(BaseConfiguration):
     """Base class for all credentials. Credentials are configurations that may be stored only by providers supporting secrets."""
 
     __section__: str = "credentials"
+
+    def __init__(self, init_value: Any = None) -> None:
+        """Initializes credentials from `init_value`
+
+        Init value may be a native representation of the credentials or a dict. In case of native representation (for example a connection string or JSON with service account credentials)
+        a `parse_native_representation` method will be used to parse it. In case of a dict, the credentials object will be updated with key: values of the dict.
+        Unexpected values in the dict will be ignored.
+
+        Credentials will be marked as resolved if all required fields are set.
+        """
+        if init_value is None:
+            return
+        elif isinstance(init_value, C_Mapping):
+            self.update(init_value)
+        else:
+            self.parse_native_representation(init_value)
+        if not self.is_partial():
+            self.resolve()
+
+    def to_native_credentials(self) -> Any:
+        """Returns native credentials object.
+
+        By default calls `to_native_representation` method.
+        """
+        return self.to_native_representation()
 
     def __str__(self) -> str:
         """Get string representation of credentials to be displayed, with all secret parts removed """
@@ -259,6 +302,10 @@ class ContainerInjectableContext(BaseConfiguration):
 
     can_create_default: ClassVar[bool] = True
     """If True, `Container` is allowed to create default context instance, if none exists"""
+
+    def add_extras(self) -> None:
+        """Called right after context was added to the container. Benefits mostly the config provider injection context which adds extra providers using the initial ones."""
+        pass
 
 
 _F_ContainerInjectableContext = ContainerInjectableContext
