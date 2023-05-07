@@ -47,7 +47,7 @@ google_sheets(dlt.config["sheet_id"], dlt.config["my_section.tabs"], dlt.secrets
 ## Injection mechanism
 Config and secret values are injected to the function arguments if the function is decorated with `@dlt.source` or `@dlt resource` (also `@with_config` which you can applu to any function - used havily in the dlt core)
 
-The signature of the function `google_sheets` is **explicitely accepting all the necessary configuration and secrets in its arguments**. During runtime, `dlt` tries to supply (`inject`) the required values via various config providers. The injection rules are:
+The signature of the function `google_sheets` is **explicitly accepting all the necessary configuration and secrets in its arguments**. During runtime, `dlt` tries to supply (`inject`) the required values via various config providers. The injection rules are:
 1. if you call the decorated function, the arguments that are passed explicitly are **never injected**
 this makes injection mechanism optional
 

@@ -67,7 +67,7 @@ class DuckDbCredentials(ConnectionStringCredentials):
                 self._conn_owner = False
                 self._conn_borrows = 0
                 self.database = ":external:"
-                self.__is_resolved__ = not self.is_partial()
+                self.__is_resolved__ = True
                 return
         except ImportError:
             pass

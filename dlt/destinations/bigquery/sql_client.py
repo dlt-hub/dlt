@@ -60,7 +60,7 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
     def open_connection(self) -> bigquery.Client:
         self._client = bigquery.Client(
             self.credentials.project_id,
-            credentials=self.credentials.to_google_credentials(),
+            credentials=self.credentials.to_native_credentials(),
             location=self.credentials.location
         )
 

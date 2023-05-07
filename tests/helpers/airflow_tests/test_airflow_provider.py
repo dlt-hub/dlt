@@ -57,7 +57,7 @@ def test_airflow_secrets_toml_provider():
 
         provider = AirflowSecretsTomlProvider()
 
-        api_key, _ = provider.get_value('api_key', str, 'sources')
+        api_key, _ = provider.get_value('api_key', str, None, 'sources')
 
         # There's no pytest context here in the task, so we need to return
         # the results as a dict and assert them in the test function.
@@ -103,22 +103,22 @@ def test_airflow_secrets_toml_provider_is_loaded():
 
         Variable.set(AIRFLOW_SECRETS_TOML_VARIABLE_KEY, SECRETS_TOML_CONTENT)
 
-        providers = config_providers_context._extra_providers()
+        providers_context = Container()[ConfigProvidersContext]
 
         astp_is_loaded = any(
             isinstance(provider, AirflowSecretsTomlProvider)
-            for provider in providers
+            for provider in providers_context.providers
         )
 
         # insert provider into context, in tests this will not happen automatically
-        providers_context = Container()[ConfigProvidersContext]
-        providers_context.add_provider(providers[0])
+        # providers_context = Container()[ConfigProvidersContext]
+        # providers_context.add_provider(providers[0])
 
         # get secret value using accessor
         api_key = dlt.secrets["sources.api_key"]
 
         # remove provider for clean context
-        providers_context.providers.remove(providers[0])
+        # providers_context.providers.remove(providers[0])
 
         # There's no pytest context here in the task, so we need to return
         # the results as a dict and assert them in the test function.

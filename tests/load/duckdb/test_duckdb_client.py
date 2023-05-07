@@ -120,6 +120,7 @@ def test_duckdb_database_path() -> None:
 def test_keeps_initial_db_path() -> None:
     db_path = "_storage/path_test_quack.duckdb"
     p = dlt.pipeline(pipeline_name="quack_pipeline", credentials=db_path, destination="duckdb")
+    print(p.pipelines_dir)
     with p.sql_client() as conn:
         # still cwd
         assert conn.credentials.database.lower() == os.path.abspath(db_path).lower()

@@ -24,7 +24,7 @@ class NormalizersConfiguration(BaseConfiguration):
             else:
                 self.naming = "snake_case"
             # is resolved
-            self.__is_resolved__ = True
+            self.resolve()
         else:
             raise self.__exception__
 

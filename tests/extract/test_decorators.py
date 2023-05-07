@@ -422,7 +422,7 @@ def test_spec_generation() -> None:
 
     # outer resource does not take default params
     SPEC = get_fun_spec(standalone_resource._pipe.gen)
-    fields = SPEC().get_resolvable_fields()
+    fields = SPEC.get_resolvable_fields()
 
     # args with defaults are ignored
     assert len(fields) == 2
@@ -434,7 +434,7 @@ def test_spec_generation() -> None:
         return standalone_resource
 
     SPEC = _SOURCES[inner_source.__qualname__].SPEC
-    fields = SPEC().get_resolvable_fields()
+    fields = SPEC.get_resolvable_fields()
     assert {"secret", "config", "opt"} == set(fields.keys())
 
 

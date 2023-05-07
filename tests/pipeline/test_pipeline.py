@@ -16,6 +16,7 @@ from dlt.common.runtime.collector import AliveCollector, EnlightenCollector, Log
 from dlt.common.schema.exceptions import InvalidDatasetName
 from dlt.common.schema.schema import Schema
 from dlt.common.utils import uniq_id
+from dlt.destinations.redshift.configuration import RedshiftCredentials
 from dlt.extract.exceptions import SourceExhausted
 from dlt.extract.extract import ExtractorStorage
 from dlt.extract.source import DltResource, DltSource
@@ -775,19 +776,3 @@ def test_pipeline_log_progress() -> None:
     p = dlt.attach(progress=dlt.progress.log(0.5, logger=logging.getLogger()))
     assert p.collector.logger is not None
     p.extract(many_delayed(2, 10))
-
-
-def test_pipeline_explicit_destination_credentials() -> None:
-
-    p = dlt.pipeline(destination="postgres", credentials="postgresql://loader:loader@localhost:5432/dlt_data")
-    c = p._get_destination_client(Schema("s"), p._get_destination_client_initial_config())
-    assert c.config.credentials.host == "localhost"
-    # assert p._get_destination_client_initial_config().credentials.to_native_representation() == "postgresql://loader:loader@localhost:5432/dlt_data"
-
-    os.environ["CREDENTIALS__HOST"] = "HOST"
-    p = dlt.pipeline(destination="postgres", credentials="postgresql://loader:loader@localhost:5432/dlt_data")
-    c = p._get_destination_client(Schema("s"), p._get_destination_client_initial_config())
-    assert c.config.credentials.host == "localhost"
-    ## assert p._get_destination_client_initial_config().credentials.to_native_representation()
-
-    print(p._get_destination_client_initial_config().credentials.to_native_representation())

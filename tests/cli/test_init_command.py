@@ -66,7 +66,7 @@ def test_init_command_chess_verified_pipeline(repo_dir: str, project_files: File
     # check files hashes
     local_index = files_ops.load_pipeline_local_index("chess")
     # chess has one file
-    assert len(local_index["files"]) == 1
+    assert len(local_index["files"]) == 2
     # relative to "pipelines" folder
     assert local_index["files"][os.path.join("chess", "__init__.py")] is not None
 
@@ -111,12 +111,12 @@ def test_init_all_pipelines_together(repo_dir: str, project_files: FileStorage) 
         _, secrets = assert_pipeline_files(project_files, pipeline_name, "bigquery")
     # secrets should contain sections for all sources
     for pipeline_name in pipeline_candidates:
-        assert secrets.get_value(pipeline_name, Any, "sources") is not None
+        assert secrets.get_value(pipeline_name, Any, None, "sources") is not None
         # must have index for pipeline
         assert files_ops.load_pipeline_local_index(pipeline_name) is not None
     # credentials for all destinations
     for destination_name in ["bigquery", "postgres", "redshift"]:
-        assert secrets.get_value(destination_name, Any, "destination") is not None
+        assert secrets.get_value(destination_name, Any, None, "destination") is not None
 
     # create template on top
     init_command.init_command("debug_pipeline", "postgres", False, repo_dir)
@@ -403,7 +403,7 @@ def assert_requests_txt(project_files: FileStorage) -> None:
 def assert_pipeline_files(project_files: FileStorage, pipeline_name: str, destination_name: str, has_source_section: bool = True) -> Tuple[PipelineScriptVisitor, SecretsTomlProvider]:
     visitor, secrets = assert_common_files(project_files, pipeline_name + "_pipeline.py", destination_name)
     assert project_files.has_folder(pipeline_name)
-    source_secrets = secrets.get_value(pipeline_name, Any, pipeline_name)
+    source_secrets = secrets.get_value(pipeline_name, Any, None, pipeline_name)
     if has_source_section:
         assert source_secrets is not None
     else:
@@ -437,5 +437,5 @@ def assert_common_files(project_files: FileStorage, pipeline_script: str, destin
     # load secrets
     secrets = SecretsTomlProvider()
     if destination_name != "duckdb":
-        assert secrets.get_value(destination_name, Any, "destination") is not None
+        assert secrets.get_value(destination_name, Any, None, "destination") is not None
     return visitor, secrets

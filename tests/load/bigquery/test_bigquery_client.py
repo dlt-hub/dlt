@@ -52,10 +52,10 @@ def test_service_credentials_with_default(environment: Any) -> None:
     gcpc.parse_native_representation(services_str)
     # check if credentials can be created
     assert gcpc.to_service_account_credentials() is not None
-    assert gcpc.to_google_credentials() is not None
+    assert gcpc.to_native_credentials() is not None
 
     # reset failed default credentials timeout so we resolve below
-    gcp_credentials._LAST_FAILED_DEFAULT = 0
+    gcp_credentials.GcpDefaultCredentials._LAST_FAILED_DEFAULT = 0
 
     # now set the env
     with custom_environ({"GOOGLE_APPLICATION_CREDENTIALS": dest_path}):
@@ -76,9 +76,8 @@ def test_service_credentials_native_credentials_object(environment: Any) -> None
     _, dest_path = prepare_service_json()
     credentials = ServiceAccountCredentials.from_service_account_file(dest_path)
 
-
     def _assert_credentials(gcp_credentials):
-        assert gcp_credentials.to_google_credentials() is credentials
+        assert gcp_credentials.to_native_credentials() is credentials
         # check props
         assert gcp_credentials.project_id == credentials.project_id == "level-dragon-333019"
         assert gcp_credentials.client_email == credentials.service_account_email
@@ -116,10 +115,10 @@ def test_oauth_credentials_with_default(environment: Any) -> None:
     gcoauth = GcpOAuthCredentials()
     gcoauth.parse_native_representation(oauth_str)
     # check if credentials can be created
-    assert isinstance(gcoauth.to_google_credentials(), GoogleOAuth2Credentials)
+    assert isinstance(gcoauth.to_native_credentials(), GoogleOAuth2Credentials)
 
     # reset failed default credentials timeout so we resolve below
-    gcp_credentials._LAST_FAILED_DEFAULT = 0
+    gcp_credentials.GcpDefaultCredentials._LAST_FAILED_DEFAULT = 0
 
     # now set the env
     _, dest_path = prepare_service_json()
@@ -129,7 +128,7 @@ def test_oauth_credentials_with_default(environment: Any) -> None:
         # project id recovered from credentials
         assert gcoauth.project_id == "level-dragon-333019"
         # check if credentials can be created
-        assert gcoauth.to_google_credentials()
+        assert gcoauth.to_native_credentials()
         # the default credentials are available
         assert gcoauth.has_default_credentials() is True
         assert gcoauth.default_credentials() is not None

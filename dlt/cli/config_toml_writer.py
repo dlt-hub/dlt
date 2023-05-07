@@ -1,6 +1,7 @@
-from typing import Any, Iterable, NamedTuple, Tuple
+from typing import Any, NamedTuple, Tuple, Iterable
 import tomlkit
 from tomlkit.items import Table as TOMLTable
+from tomlkit.container import Container as TOMLContainer
 from collections.abc import Sequence as C_Sequence
 
 from dlt.common import pendulum
@@ -87,7 +88,7 @@ def write_spec(toml_table: TOMLTable, config: BaseConfiguration, overwrite_exist
         write_value(toml_table, name, hint, overwrite_existing, default_value=default_value, is_default_of_interest=is_default_of_interest)
 
 
-def write_values(toml: tomlkit.TOMLDocument, values: Iterable[WritableConfigValue], overwrite_existing: bool) -> None:
+def write_values(toml: TOMLContainer, values: Iterable[WritableConfigValue], overwrite_existing: bool) -> None:
     for value in values:
         toml_table: TOMLTable = toml  # type: ignore
         for section in value.sections:
