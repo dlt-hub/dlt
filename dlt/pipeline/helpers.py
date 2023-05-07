@@ -1,4 +1,5 @@
 from collections import defaultdict
+import contextlib
 from typing import Callable, Tuple, Iterable, Optional, Any, cast, List, Iterator, Dict, Union, TypedDict
 from itertools import chain
 
@@ -8,6 +9,7 @@ from dlt.common.exceptions import TerminalException
 from dlt.common.schema.utils import get_child_tables, group_tables_by_resource, compile_simple_regexes, compile_simple_regex
 from dlt.common.schema.typing import TSimpleRegex
 from dlt.common.typing import REPattern
+from dlt.destinations.exceptions import DatabaseUndefinedRelation
 
 from dlt.pipeline.exceptions import PipelineStepFailed, PipelineHasPendingDataException
 from dlt.pipeline.typing import TPipelineStep
@@ -119,8 +121,12 @@ class DropCommand:
         return len(self.info['tables']) == 0 and len(self.info["state_paths"]) == 0 and len(self.info["resource_states"]) == 0
 
     def _drop_destination_tables(self) -> None:
+        table_names = [tbl['name'] for tbl in self.tables_to_drop]
         with self.pipeline._sql_job_client(self.schema) as client:
-            client.drop_tables(*[tbl['name'] for tbl in self.tables_to_drop])
+            client.drop_tables(*table_names)
+            # also delete staging but ignore if staging does not exist
+            with contextlib.suppress(DatabaseUndefinedRelation):
+                client.drop_tables(*table_names, staging=True)
 
     def _delete_pipeline_tables(self) -> None:
         for tbl in self.tables_to_drop:

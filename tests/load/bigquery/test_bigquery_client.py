@@ -7,10 +7,10 @@ from dlt.common import json, pendulum, Decimal
 from dlt.common.arithmetics import numeric_default_context
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.configuration.resolve import resolve_configuration
-from dlt.common.configuration.specs import GcpClientCredentialsWithDefault, GcpClientCredentials, GcpOAuthCredentialsWithDefault, GcpOAuthCredentials
+from dlt.common.configuration.specs import GcpServiceAccountCredentials, GcpServiceAccountCredentialsWithoutDefaults, GcpOAuthCredentials, GcpOAuthCredentialsWithoutDefaults
+from dlt.common.configuration.specs import gcp_credentials
 from dlt.common.configuration.specs.exceptions import InvalidGoogleNativeCredentialsType
 from dlt.common.storages import FileStorage
-from dlt.common.schema.schema import Schema
 from dlt.common.utils import uniq_id, custom_environ
 
 from dlt.destinations.bigquery.bigquery import BigQueryClient
@@ -38,7 +38,7 @@ def auto_delete_storage() -> None:
 
 
 def test_service_credentials_with_default(environment: Any) -> None:
-    gcpc = GcpClientCredentialsWithDefault()
+    gcpc = GcpServiceAccountCredentials()
     # resolve will miss values and try to find default credentials on the machine
     with pytest.raises(ConfigFieldMissingException) as py_ex:
         resolve_configuration(gcpc)
@@ -48,15 +48,18 @@ def test_service_credentials_with_default(environment: Any) -> None:
     services_str, dest_path = prepare_service_json()
 
     # create instance of credentials
-    gcpc = GcpClientCredentialsWithDefault()
+    gcpc = GcpServiceAccountCredentials()
     gcpc.parse_native_representation(services_str)
     # check if credentials can be created
     assert gcpc.to_service_account_credentials() is not None
-    assert gcpc.to_google_credentials() is not None
+    assert gcpc.to_native_credentials() is not None
+
+    # reset failed default credentials timeout so we resolve below
+    gcp_credentials.GcpDefaultCredentials._LAST_FAILED_DEFAULT = 0
 
     # now set the env
     with custom_environ({"GOOGLE_APPLICATION_CREDENTIALS": dest_path}):
-        gcpc = GcpClientCredentialsWithDefault()
+        gcpc = GcpServiceAccountCredentials()
         resolve_configuration(gcpc)
         # project id recovered from credentials
         assert gcpc.project_id == "level-dragon-333019"
@@ -73,34 +76,33 @@ def test_service_credentials_native_credentials_object(environment: Any) -> None
     _, dest_path = prepare_service_json()
     credentials = ServiceAccountCredentials.from_service_account_file(dest_path)
 
-
     def _assert_credentials(gcp_credentials):
-        assert gcp_credentials.to_google_credentials() is credentials
+        assert gcp_credentials.to_native_credentials() is credentials
         # check props
         assert gcp_credentials.project_id == credentials.project_id == "level-dragon-333019"
         assert gcp_credentials.client_email == credentials.service_account_email
         assert gcp_credentials.private_key is credentials
 
     # pass as native value to bare credentials
-    gcpc = GcpClientCredentials()
+    gcpc = GcpServiceAccountCredentialsWithoutDefaults()
     gcpc.parse_native_representation(credentials)
     _assert_credentials(gcpc)
 
     # pass as native value to credentials w/ default
-    gcpc = GcpClientCredentialsWithDefault()
+    gcpc = GcpServiceAccountCredentials()
     gcpc.parse_native_representation(credentials)
     _assert_credentials(gcpc)
 
     # oauth credentials should fail on invalid type
     with pytest.raises(InvalidGoogleNativeCredentialsType):
-        gcoauth = GcpOAuthCredentials()
+        gcoauth = GcpOAuthCredentialsWithoutDefaults()
         gcoauth.parse_native_representation(credentials)
 
 
 def test_oauth_credentials_with_default(environment: Any) -> None:
     from google.oauth2.credentials import Credentials as GoogleOAuth2Credentials
 
-    gcoauth = GcpOAuthCredentialsWithDefault()
+    gcoauth = GcpOAuthCredentials()
     # resolve will miss values and try to find default credentials on the machine
     with pytest.raises(ConfigFieldMissingException) as py_ex:
         resolve_configuration(gcoauth)
@@ -110,20 +112,23 @@ def test_oauth_credentials_with_default(environment: Any) -> None:
     oauth_str, _ = prepare_oauth_json()
 
     # create instance of credentials
-    gcoauth = GcpOAuthCredentialsWithDefault()
+    gcoauth = GcpOAuthCredentials()
     gcoauth.parse_native_representation(oauth_str)
     # check if credentials can be created
-    assert isinstance(gcoauth.to_google_credentials(), GoogleOAuth2Credentials)
+    assert isinstance(gcoauth.to_native_credentials(), GoogleOAuth2Credentials)
+
+    # reset failed default credentials timeout so we resolve below
+    gcp_credentials.GcpDefaultCredentials._LAST_FAILED_DEFAULT = 0
 
     # now set the env
     _, dest_path = prepare_service_json()
     with custom_environ({"GOOGLE_APPLICATION_CREDENTIALS": dest_path}):
-        gcoauth = GcpOAuthCredentialsWithDefault()
+        gcoauth = GcpOAuthCredentials()
         resolve_configuration(gcoauth)
         # project id recovered from credentials
         assert gcoauth.project_id == "level-dragon-333019"
         # check if credentials can be created
-        assert gcoauth.to_google_credentials()
+        assert gcoauth.to_native_credentials()
         # the default credentials are available
         assert gcoauth.has_default_credentials() is True
         assert gcoauth.default_credentials() is not None
@@ -145,29 +150,29 @@ def test_oauth_credentials_native_credentials_object(environment: Any) -> None:
         assert gcp_credentials.client_secret is credentials.client_secret
 
     # pass as native value to bare credentials
-    gcoauth = GcpOAuthCredentials()
+    gcoauth = GcpOAuthCredentialsWithoutDefaults()
     gcoauth.parse_native_representation(credentials)
     _assert_credentials(gcoauth)
 
     # check if quota project id is visible
     cred_with_quota = credentials.with_quota_project("the-quota-project")
-    gcoauth = GcpOAuthCredentials()
+    gcoauth = GcpOAuthCredentialsWithoutDefaults()
     gcoauth.parse_native_representation(cred_with_quota)
     assert gcoauth.project_id == "the-quota-project"
 
     # pass as native value to credentials w/ default
-    gcoauth = GcpOAuthCredentials()
+    gcoauth = GcpOAuthCredentialsWithoutDefaults()
     gcoauth.parse_native_representation(credentials)
     _assert_credentials(gcoauth)
 
     # oauth credentials should fail on invalid type
     with pytest.raises(InvalidGoogleNativeCredentialsType):
-        gcpc = GcpClientCredentialsWithDefault()
+        gcpc = GcpServiceAccountCredentials()
         gcpc.parse_native_representation(credentials)
 
 
 def test_get_oauth_access_token() -> None:
-    c = resolve_configuration(GcpOAuthCredentials())
+    c = resolve_configuration(GcpOAuthCredentialsWithoutDefaults())
     assert c.refresh_token is not None
     assert c.token is None
     c.auth()

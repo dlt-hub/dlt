@@ -14,7 +14,9 @@ from dlt.common.exceptions import DestinationHasFailedJobs, DestinationTerminalE
 from dlt.common.pipeline import PipelineContext
 from dlt.common.runtime.collector import AliveCollector, EnlightenCollector, LogCollector, TqdmCollector
 from dlt.common.schema.exceptions import InvalidDatasetName
+from dlt.common.schema.schema import Schema
 from dlt.common.utils import uniq_id
+from dlt.destinations.redshift.configuration import RedshiftCredentials
 from dlt.extract.exceptions import SourceExhausted
 from dlt.extract.extract import ExtractorStorage
 from dlt.extract.source import DltResource, DltSource

@@ -48,3 +48,14 @@ def test_import_module_capitalized_as_type() -> None:
 def test_import_wrong_pipeline_script() -> None:
     with pytest.raises(PipelineIsRunning):
         inspect_pipeline_script(MODULE_CASES, "executes_resource", ignore_missing_imports=False)
+
+
+def test_package_dummy_clash() -> None:
+    # a case where the whole `stripe_analytics` import raises MissingImport. we patched `stripe` import already
+    # so if do not recognize package names with following condition (mind the dot):
+    # if any(name == m or name.startswith(m + ".") for m in missing_modules):
+    # we would return dummy for the whole module
+    m = load_script_module(MODULE_CASES, "stripe_analytics_pipeline", ignore_missing_imports=True)
+    # and those would fails
+    assert m.VALUE == 1
+    assert m.HELPERS_VALUE == 3

@@ -1,3 +1,4 @@
+import contextlib
 from copy import deepcopy
 import io
 from time import sleep
@@ -12,7 +13,7 @@ from dlt.common.schema.utils import new_table, new_column
 from dlt.common.storages import FileStorage
 from dlt.common.schema import TTableSchemaColumns
 from dlt.common.utils import uniq_id
-from dlt.destinations.exceptions import DatabaseException, DatabaseTerminalException
+from dlt.destinations.exceptions import DatabaseException, DatabaseTerminalException, DatabaseUndefinedRelation
 
 from dlt.destinations.job_client_impl import SqlJobClientBase
 
@@ -286,6 +287,12 @@ def test_drop_tables(client: SqlJobClientBase) -> None:
         del schema.tables[tbl]
     schema.bump_version()
     client.drop_tables(*tables_to_drop)
+    with contextlib.suppress(DatabaseUndefinedRelation):
+        client.drop_tables(*tables_to_drop, staging=True, replace_schema=False)
+    # drop again - should not break anything
+    client.drop_tables(*tables_to_drop)
+    with contextlib.suppress(DatabaseUndefinedRelation):
+        client.drop_tables(*tables_to_drop, staging=True, replace_schema=False)
 
     # Verify requested tables are dropped
     for tbl in tables_to_drop:

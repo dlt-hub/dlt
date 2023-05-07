@@ -5,11 +5,10 @@ from copy import deepcopy
 from dlt.common.utils import uniq_id, custom_environ
 from dlt.common.schema import Schema
 from dlt.common.configuration import resolve_configuration
-from dlt.common.configuration.specs import PostgresCredentials
 
 from dlt.destinations.exceptions import DestinationSchemaWillNotUpdate
 from dlt.destinations.redshift.redshift import RedshiftClient
-from dlt.destinations.redshift.configuration import RedshiftClientConfiguration
+from dlt.destinations.redshift.configuration import RedshiftClientConfiguration, RedshiftCredentials
 
 from tests.load.utils import TABLE_UPDATE
 
@@ -28,7 +27,7 @@ def client(schema: Schema) -> RedshiftClient:
 def test_configuration() -> None:
     # check names normalized
     with custom_environ({"DESTINATION__REDSHIFT__CREDENTIALS__DATABASE": "UPPER_CASE_DATABASE", "DESTINATION__REDSHIFT__CREDENTIALS__PASSWORD": " pass\n"}):
-        C = resolve_configuration(PostgresCredentials(), sections=("destination", "redshift"))
+        C = resolve_configuration(RedshiftCredentials(), sections=("destination", "redshift"))
         assert C.database == "upper_case_database"
         assert C.password == "pass"
 

@@ -132,29 +132,29 @@ def test_container_injectable_context_mangled(container: Container) -> None:
 def test_container_provider(container: Container) -> None:
     provider = ContextProvider()
     # default value will be created
-    v, k = provider.get_value("n/a", InjectableTestContext)
+    v, k = provider.get_value("n/a", InjectableTestContext, None)
     assert isinstance(v, InjectableTestContext)
     assert k == "InjectableTestContext"
     assert InjectableTestContext in container
 
     # provider does not create default value in Container
-    v, k = provider.get_value("n/a", NoDefaultInjectableContext)
+    v, k = provider.get_value("n/a", NoDefaultInjectableContext, None)
     assert v is None
     assert NoDefaultInjectableContext not in container
 
     # explicitly create value
     original = NoDefaultInjectableContext()
     container[NoDefaultInjectableContext] = original
-    v, _ = provider.get_value("n/a", NoDefaultInjectableContext)
+    v, _ = provider.get_value("n/a", NoDefaultInjectableContext, None)
     assert v is original
 
     # must assert if sections are provided
     with pytest.raises(AssertionError):
-        provider.get_value("n/a", InjectableTestContext, ("ns1",))
+        provider.get_value("n/a", InjectableTestContext, None, ("ns1",))
 
     # type hints that are not classes
     literal = Literal["a"]
-    v, k = provider.get_value("n/a", literal)
+    v, k = provider.get_value("n/a", literal, None)
     assert v is None
     assert k == "typing.Literal['a']"
 

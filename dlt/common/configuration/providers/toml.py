@@ -7,28 +7,24 @@ from typing import Any, Optional, Tuple, Type, Union
 from dlt.common.configuration.paths import get_dlt_project_dir, get_dlt_home_dir
 from dlt.common.utils import update_dict_nested
 
-from .provider import ConfigProvider, ConfigProviderException
+from .provider import ConfigProvider, ConfigProviderException, get_key_name
 
 CONFIG_TOML = "config.toml"
 SECRETS_TOML = "secrets.toml"
 
 class BaseTomlProvider(ConfigProvider):
-    def __init__(self, toml_document: tomlkit.TOMLDocument) -> None:
+    def __init__(self, toml_document: TOMLContainer) -> None:
         self._toml = toml_document
 
     @staticmethod
     def get_key_name(key: str, *sections: str) -> str:
-        # env key is always upper case
-        if sections:
-            sections = filter(lambda x: bool(x), sections)  # type: ignore
-            env_key = ".".join((*sections, key))
-        else:
-            env_key = key
-        return env_key
+        return get_key_name(key, ".", *sections)
 
-    def get_value(self, key: str, hint: Type[Any], *sections: str) -> Tuple[Optional[Any], str]:
+    def get_value(self, key: str, hint: Type[Any], pipeline_name: str, *sections: str) -> Tuple[Optional[Any], str]:
         full_path = sections + (key,)
-        full_key = self.get_key_name(key, *sections)
+        if pipeline_name:
+            full_path = (pipeline_name, ) + full_path
+        full_key = self.get_key_name(key, pipeline_name, *sections)
         node: Union[TOMLContainer, TOMLItem] = self._toml
         try:
             for k in full_path:
@@ -46,11 +42,10 @@ class BaseTomlProvider(ConfigProvider):
 
     @property
     def is_empty(self) -> bool:
-        # no keys
-        return self._toml.as_string() == ""
+        return len(self._toml.body) == 0
 
 
-class TomlProvider(BaseTomlProvider):
+class TomlFileProvider(BaseTomlProvider):
     def __init__(self, file_name: str, project_dir: str = None, add_global_config: bool = False) -> None:
         """Creates config provider from a `toml` file
 
@@ -102,7 +97,7 @@ class TomlProvider(BaseTomlProvider):
             return tomlkit.document()
 
 
-class ConfigTomlProvider(TomlProvider):
+class ConfigTomlProvider(TomlFileProvider):
 
     def __init__(self, project_dir: str = None, add_global_config: bool = False) -> None:
         super().__init__(CONFIG_TOML, project_dir=project_dir, add_global_config=add_global_config)
@@ -117,7 +112,7 @@ class ConfigTomlProvider(TomlProvider):
 
 
 
-class SecretsTomlProvider(TomlProvider):
+class SecretsTomlProvider(TomlFileProvider):
 
     def __init__(self, project_dir: str = None, add_global_config: bool = False) -> None:
         super().__init__(SECRETS_TOML, project_dir=project_dir, add_global_config=add_global_config)

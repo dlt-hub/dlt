@@ -4,7 +4,7 @@ from unittest.mock import patch
 from typing import Any, Dict, Final, List, Mapping, MutableMapping, NewType, Optional, Sequence, Type, Union
 
 from dlt.common import json, pendulum, Decimal, Wei
-from dlt.common.configuration.specs.gcp_client_credentials import GcpClientCredentials
+from dlt.common.configuration.specs.gcp_credentials import GcpServiceAccountCredentialsWithoutDefaults
 from dlt.common.utils import custom_environ
 from dlt.common.typing import AnyType, DictStrAny, StrAny, TSecretValue, extract_inner_type
 from dlt.common.configuration.exceptions import ConfigFieldMissingTypeHintException, ConfigFieldTypeHintNotSupported, FinalConfigFieldException, InvalidNativeValue, LookupTrace, ValueNotSecretException
@@ -92,7 +92,8 @@ class InstrumentedConfiguration(BaseConfiguration):
         self.head = parts[0]
         self.heels = parts[-1]
         self.tube = parts[1:-1]
-        self.__is_resolved__ = not self.is_partial()
+        if not self.is_partial():
+            self.resolve()
 
     def on_resolved(self) -> None:
         if self.head > self.heels:
@@ -467,10 +468,11 @@ def test_raises_on_unresolved_field(environment: Any) -> None:
     assert "NoneConfigVar" in cf_missing_exc.value.traces
     # has only one trace
     trace = cf_missing_exc.value.traces["NoneConfigVar"]
-    assert len(trace) == 3
+    assert len(trace) == 1
     assert trace[0] == LookupTrace("Environment Variables", [], "NONECONFIGVAR", None)
-    assert trace[1] == LookupTrace("secrets.toml", [], "NoneConfigVar", None)
-    assert trace[2] == LookupTrace("config.toml", [], "NoneConfigVar", None)
+    # toml providers were empty and are not returned in trace
+    # assert trace[1] == LookupTrace("secrets.toml", [], "NoneConfigVar", None)
+    # assert trace[2] == LookupTrace("config.toml", [], "NoneConfigVar", None)
 
 
 def test_raises_on_many_unresolved_fields(environment: Any) -> None:
@@ -483,10 +485,10 @@ def test_raises_on_many_unresolved_fields(environment: Any) -> None:
     traces = cf_missing_exc.value.traces
     assert len(traces) == len(val_fields)
     for tr_field, exp_field in zip(traces, val_fields):
-        assert len(traces[tr_field]) == 3
+        assert len(traces[tr_field]) == 1
         assert traces[tr_field][0] == LookupTrace("Environment Variables", [], environ_provider.EnvironProvider.get_key_name(exp_field), None)
-        assert traces[tr_field][1] == LookupTrace("secrets.toml", [], toml.TomlProvider.get_key_name(exp_field), None)
-        assert traces[tr_field][2] == LookupTrace("config.toml", [], toml.TomlProvider.get_key_name(exp_field), None)
+        # assert traces[tr_field][1] == LookupTrace("secrets.toml", [], toml.TomlFileProvider.get_key_name(exp_field), None)
+        # assert traces[tr_field][2] == LookupTrace("config.toml", [], toml.TomlFileProvider.get_key_name(exp_field), None)
 
 
 def test_accepts_optional_missing_fields(environment: Any) -> None:
@@ -812,7 +814,7 @@ def test_resolved_trace(environment: Any) -> None:
 
 def test_extract_inner_hint() -> None:
     # extracts base config from an union
-    assert resolve.extract_inner_hint(Union[GcpClientCredentials, StrAny, str]) is GcpClientCredentials
+    assert resolve.extract_inner_hint(Union[GcpServiceAccountCredentialsWithoutDefaults, StrAny, str]) is GcpServiceAccountCredentialsWithoutDefaults
     assert resolve.extract_inner_hint(Union[InstrumentedConfiguration, StrAny, str]) is InstrumentedConfiguration
     # keeps unions
     assert resolve.extract_inner_hint(Union[StrAny, str]) is Union
@@ -826,16 +828,16 @@ def test_extract_inner_hint() -> None:
 
 
 def test_is_secret_hint() -> None:
-    assert resolve.is_secret_hint(GcpClientCredentials) is True
-    assert resolve.is_secret_hint(Optional[GcpClientCredentials]) is True
+    assert resolve.is_secret_hint(GcpServiceAccountCredentialsWithoutDefaults) is True
+    assert resolve.is_secret_hint(Optional[GcpServiceAccountCredentialsWithoutDefaults]) is True
     assert resolve.is_secret_hint(TSecretValue) is True
     assert resolve.is_secret_hint(Optional[TSecretValue]) is True
     assert resolve.is_secret_hint(InstrumentedConfiguration) is False
     # do not recognize new types
-    TTestSecretNt = NewType("TTestSecretNt", GcpClientCredentials)
+    TTestSecretNt = NewType("TTestSecretNt", GcpServiceAccountCredentialsWithoutDefaults)
     assert resolve.is_secret_hint(TTestSecretNt) is False
     # recognize unions with credentials
-    assert resolve.is_secret_hint(Union[GcpClientCredentials, StrAny, str]) is True
+    assert resolve.is_secret_hint(Union[GcpServiceAccountCredentialsWithoutDefaults, StrAny, str]) is True
     # we do not recognize unions if they do not contain configuration types
     assert resolve.is_secret_hint(Union[TSecretValue, StrAny, str]) is False
     assert resolve.is_secret_hint(Optional[str]) is False

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dlt"
-version = "0.2.6a1"
+version = "0.2.6a2"
 description = "DLT is an open-source python-native scalable data loading framework that does not require any devops efforts to run."
 authors = ["dltHub Inc. <services@dlthub.com>"]
 maintainers = [ "Marcin Rudolf <marcin@dlthub.com>", "Adrian Brudaru <adrian@dlthub.com>", "Ty Dunn <ty@dlthub.com>"]
@@ -122,6 +122,12 @@ optional = true
 
 [tool.poetry.group.airflow.dependencies]
 apache-airflow = "^2.5.3"
+
+[tool.poetry.group.providers]
+optional = true
+
+[tool.poetry.group.providers.dependencies]
+google-api-python-client = "^2.86.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.8"]

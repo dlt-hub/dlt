@@ -4,7 +4,7 @@ from typing import Any, Optional, Type, Tuple
 
 from dlt.common.typing import TSecretValue
 
-from .provider import ConfigProvider
+from .provider import ConfigProvider, get_key_name
 
 SECRET_STORAGE_PATH: str = "/run/secrets/%s"
 
@@ -12,21 +12,15 @@ class EnvironProvider(ConfigProvider):
 
     @staticmethod
     def get_key_name(key: str, *sections: str) -> str:
-        # env key is always upper case
-        if sections:
-            sections = filter(lambda x: bool(x), sections)  # type: ignore
-            env_key = "__".join((*sections, key))
-        else:
-            env_key = key
-        return env_key.upper()
+        return get_key_name(key, "__", *sections).upper()
 
     @property
     def name(self) -> str:
         return "Environment Variables"
 
-    def get_value(self, key: str, hint: Type[Any], *sections: str) -> Tuple[Optional[Any], str]:
+    def get_value(self, key: str, hint: Type[Any], pipeline_name: str, *sections: str) -> Tuple[Optional[Any], str]:
         # apply section to the key
-        key = self.get_key_name(key, *sections)
+        key = self.get_key_name(key, pipeline_name, *sections)
         if hint is TSecretValue:
             # try secret storage
             try:
@@ -56,3 +50,7 @@ class EnvironProvider(ConfigProvider):
     @property
     def supports_sections(self) -> bool:
         return True
+
+    @property
+    def is_empty(self) -> bool:
+        return len(environ) == 0

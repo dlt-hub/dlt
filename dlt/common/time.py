@@ -26,10 +26,9 @@ def timestamp_before(timestamp: float, max_inclusive: Optional[float]) -> bool:
     return timestamp <= (max_inclusive or FUTURE_TIMESTAMP)
 
 
-def parse_iso_like_datetime(value: Any) -> datetime.datetime:
-    # we use internal pendulum parse function. the generic function for example parses string "now" as now()
+def parse_iso_like_datetime(value: Any) -> pendulum.DateTime:
+    # we use internal pendulum parse function. the generic function, for example, parses string "now" as now()
     # it also tries to parse ISO intervals but the code is very low quality
-    # so it does not seem to be under control
 
     # only iso dates are allowed
     dtv = None
@@ -64,6 +63,7 @@ def ensure_datetime(value: Union[datetime.datetime, datetime.date]) -> datetime.
     return pendulum.datetime(
         value.year, value.month, value.day, tz=UTC
     )
+
 
 def ensure_date(value: Union[datetime.datetime, datetime.date]) -> datetime.date:
     if isinstance(value, datetime.datetime):

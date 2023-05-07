@@ -12,12 +12,11 @@ else:
 from contextlib import contextmanager
 from typing import Any, AnyStr, ClassVar, Iterator, Optional, Sequence
 
-from dlt.common.configuration.specs import PostgresCredentials
-
 from dlt.destinations.exceptions import DatabaseTerminalException, DatabaseTransientException, DatabaseUndefinedRelation
 from dlt.destinations.typing import DBApi, DBApiCursor, DBTransaction
 from dlt.destinations.sql_client import DBApiCursorImpl, SqlClientBase, raise_database_error, raise_open_connection_error
 
+from dlt.destinations.postgres.configuration import PostgresCredentials
 from dlt.destinations.postgres import capabilities
 
 class Psycopg2SqlClient(SqlClientBase["psycopg2.connection"], DBTransaction):

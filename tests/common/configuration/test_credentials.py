@@ -1,11 +1,10 @@
 import os
-import base64
 from typing import Any
 
 import pytest
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
-from dlt.common.configuration.specs import PostgresCredentials, RedshiftCredentials, ConnectionStringCredentials, GcpClientCredentials, GcpClientCredentialsWithDefault, GcpOAuthCredentials, GcpOAuthCredentialsWithDefault
+from dlt.common.configuration.specs import ConnectionStringCredentials, GcpServiceAccountCredentialsWithoutDefaults, GcpServiceAccountCredentials, GcpOAuthCredentialsWithoutDefaults, GcpOAuthCredentials
 from dlt.common.configuration.specs.exceptions import InvalidConnectionString, InvalidGoogleNativeCredentialsType, InvalidGoogleOauth2Json, InvalidGoogleServicesJson, OAuth2ScopesRequired
 from dlt.common.configuration.specs.run_configuration import RunConfiguration
 
@@ -71,13 +70,6 @@ def test_connection_string_credentials_native_representation(environment) -> Non
     assert csc.port == 5432
     assert csc.database == "dlt_data"
     assert csc.query == {"a": "b", "c": "d"}
-
-    # test postgres timeout
-    dsn = "postgres://loader:pass@localhost:5432/dlt_data?connect_timeout=600"
-    csc = PostgresCredentials()
-    csc.parse_native_representation(dsn)
-    assert csc.connect_timeout == 600
-    assert csc.to_native_representation() == dsn
 
     # test connection string without query, database and port
     csc = ConnectionStringCredentials()
@@ -153,33 +145,16 @@ def test_connection_string_resolved_from_native_representation_env(environment: 
     assert c.host == "aws.12.1"
 
 
-def test_postgres_and_redshift_credentials_defaults() -> None:
-    pg_cred = PostgresCredentials()
-    assert pg_cred.port == 5432
-    assert pg_cred.connect_timeout == 15
-    assert PostgresCredentials.__config_gen_annotations__ == ["port", "connect_timeout"]
-    # port should be optional
-    resolve_configuration(pg_cred, explicit_value="postgres://loader:loader@localhost/dlt_data")
-    assert pg_cred.port == 5432
-
-    red_cred = RedshiftCredentials()
-    assert red_cred.port == 5439
-    assert red_cred.connect_timeout == 15
-    assert RedshiftCredentials.__config_gen_annotations__ == ["port", "connect_timeout"]
-    resolve_configuration(red_cred, explicit_value="postgres://loader:loader@localhost/dlt_data")
-    assert red_cred.port == 5439
-
-
 def test_gcp_service_credentials_native_representation(environment) -> None:
     with pytest.raises(InvalidGoogleNativeCredentialsType):
-        GcpClientCredentialsWithDefault().parse_native_representation(1)
+        GcpServiceAccountCredentials().parse_native_representation(1)
 
     with pytest.raises(InvalidGoogleServicesJson):
-        GcpClientCredentialsWithDefault().parse_native_representation("notjson")
+        GcpServiceAccountCredentials().parse_native_representation("notjson")
 
-    assert GcpClientCredentialsWithDefault.__config_gen_annotations__ == ["location"]
+    assert GcpServiceAccountCredentials.__config_gen_annotations__ == ["location"]
 
-    gcpc = GcpClientCredentialsWithDefault()
+    gcpc = GcpServiceAccountCredentials()
     gcpc.parse_native_representation(SERVICE_JSON % '"private_key": "-----BEGIN PRIVATE KEY-----\\n\\n-----END PRIVATE KEY-----\\n",')
     assert gcpc.private_key == "-----BEGIN PRIVATE KEY-----\n\n-----END PRIVATE KEY-----\n"
     assert gcpc.project_id == "chat-analytics"
@@ -189,7 +164,7 @@ def test_gcp_service_credentials_native_representation(environment) -> None:
     assert "retry_deadline" in _repr
     assert "location" in _repr
     # parse again
-    gcpc_2 = GcpClientCredentialsWithDefault()
+    gcpc_2 = GcpServiceAccountCredentials()
     gcpc_2.parse_native_representation(_repr)
     assert dict(gcpc_2) == dict(gcpc)
     # default credentials are not available
@@ -200,7 +175,7 @@ def test_gcp_service_credentials_native_representation(environment) -> None:
 
 
 def test_gcp_service_credentials_resolved_from_native_representation(environment: Any) -> None:
-    gcpc = GcpClientCredentials()
+    gcpc = GcpServiceAccountCredentialsWithoutDefaults()
 
     # without PK
     gcpc.parse_native_representation(SERVICE_JSON % "")
@@ -217,12 +192,12 @@ def test_gcp_service_credentials_resolved_from_native_representation(environment
 def test_gcp_oauth_credentials_native_representation(environment) -> None:
 
     with pytest.raises(InvalidGoogleNativeCredentialsType):
-        GcpOAuthCredentialsWithDefault().parse_native_representation(1)
+        GcpOAuthCredentials().parse_native_representation(1)
 
     with pytest.raises(InvalidGoogleOauth2Json):
-        GcpOAuthCredentialsWithDefault().parse_native_representation("notjson")
+        GcpOAuthCredentials().parse_native_representation("notjson")
 
-    gcoauth = GcpOAuthCredentialsWithDefault()
+    gcoauth = GcpOAuthCredentials()
     gcoauth.parse_native_representation(OAUTH_APP_USER_INFO % '"refresh_token": "refresh_token",')
     # is not resolved, we resolve only when default credentials are present
     assert gcoauth.is_resolved() is False
@@ -241,7 +216,7 @@ def test_gcp_oauth_credentials_native_representation(environment) -> None:
     assert "retry_deadline" in _repr
     assert "location" in _repr
     # parse again
-    gcpc_2 = GcpOAuthCredentialsWithDefault()
+    gcpc_2 = GcpOAuthCredentials()
     gcpc_2.parse_native_representation(_repr)
     assert dict(gcpc_2) == dict(gcoauth)
     # default credentials are not available
@@ -251,13 +226,13 @@ def test_gcp_oauth_credentials_native_representation(environment) -> None:
     assert gcpc_2.default_credentials() is None
 
     # use OAUTH_USER_INFO without "installed"
-    gcpc_3 = GcpOAuthCredentialsWithDefault()
+    gcpc_3 = GcpOAuthCredentials()
     gcpc_3.parse_native_representation(OAUTH_USER_INFO % '"refresh_token": "refresh_token",')
     assert dict(gcpc_3) == dict(gcpc_2)
 
 
 def test_gcp_oauth_credentials_resolved_from_native_representation(environment: Any) -> None:
-    gcpc = GcpOAuthCredentials()
+    gcpc = GcpOAuthCredentialsWithoutDefaults()
 
     # without refresh token
     gcpc.parse_native_representation(OAUTH_USER_INFO % "")
@@ -275,7 +250,7 @@ def test_gcp_oauth_credentials_resolved_from_native_representation(environment: 
 
 
 def test_needs_scopes_for_refresh_token() -> None:
-    c = GcpOAuthCredentials()
+    c = GcpOAuthCredentialsWithoutDefaults()
     # without refresh token
     c.parse_native_representation(OAUTH_USER_INFO % "")
     assert c.refresh_token is None
@@ -286,7 +261,7 @@ def test_needs_scopes_for_refresh_token() -> None:
 
 
 def test_requires_refresh_token_no_tty():
-    c = GcpOAuthCredentials()
+    c = GcpOAuthCredentialsWithoutDefaults()
     # without refresh token
     c.parse_native_representation(OAUTH_USER_INFO % "")
     assert c.refresh_token is None

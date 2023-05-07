@@ -12,7 +12,7 @@ from dlt.common.configuration.inject import with_config
 from dlt.common.configuration.exceptions import LookupTrace
 from dlt.common.configuration.providers.toml import SECRETS_TOML, CONFIG_TOML, SecretsTomlProvider, ConfigTomlProvider, TomlProviderReadException
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
-from dlt.common.configuration.specs import BaseConfiguration, GcpClientCredentials, PostgresCredentials, ConnectionStringCredentials
+from dlt.common.configuration.specs import BaseConfiguration, GcpServiceAccountCredentialsWithoutDefaults, ConnectionStringCredentials
 from dlt.common.typing import TSecretValue
 
 from tests.utils import preserve_environ
@@ -21,15 +21,21 @@ from tests.common.configuration.utils import WithCredentialsConfiguration, Coerc
 
 @configspec
 class EmbeddedWithGcpStorage(BaseConfiguration):
-    gcp_storage: GcpClientCredentials
+    gcp_storage: GcpServiceAccountCredentialsWithoutDefaults
 
 
 @configspec
 class EmbeddedWithGcpCredentials(BaseConfiguration):
-    credentials: GcpClientCredentials
+    credentials: GcpServiceAccountCredentialsWithoutDefaults
 
 
-def test_secrets_from_toml_secrets() -> None:
+def test_secrets_from_toml_secrets(toml_providers: ConfigProvidersContext) -> None:
+
+    # remove secret_value to trigger exception
+
+    del toml_providers["secrets.toml"]._toml["secret_value"]
+    del toml_providers["secrets.toml"]._toml["credentials"]
+
     with pytest.raises(ConfigFieldMissingException) as py_ex:
         resolve.resolve_configuration(SecretConfiguration())
 
@@ -95,30 +101,34 @@ def test_toml_mixed_config_inject(toml_providers: ConfigProvidersContext) -> Non
 
 def test_toml_sections(toml_providers: ConfigProvidersContext) -> None:
     cfg = toml_providers["config.toml"]
-    assert cfg.get_value("api_type", str) == ("REST", "api_type")
-    assert cfg.get_value("port", int, "api") == (1024, "api.port")
-    assert cfg.get_value("param1", str, "api", "params") == ("a", "api.params.param1")
+    assert cfg.get_value("api_type", str, None) == ("REST", "api_type")
+    assert cfg.get_value("port", int, None, "api") == (1024, "api.port")
+    assert cfg.get_value("param1", str, None, "api", "params") == ("a", "api.params.param1")
 
 
 def test_secrets_toml_credentials(environment: Any, toml_providers: ConfigProvidersContext) -> None:
     # there are credentials exactly under destination.bigquery.credentials
-    c = resolve.resolve_configuration(GcpClientCredentials(), sections=("destination", "bigquery"))
+    c = resolve.resolve_configuration(GcpServiceAccountCredentialsWithoutDefaults(), sections=("destination", "bigquery"))
     assert c.project_id.endswith("destination.bigquery.credentials")
     # there are no destination.gcp_storage.credentials so it will fallback to "destination"."credentials"
-    c = resolve.resolve_configuration(GcpClientCredentials(), sections=("destination", "gcp_storage"))
+    c = resolve.resolve_configuration(GcpServiceAccountCredentialsWithoutDefaults(), sections=("destination", "gcp_storage"))
     assert c.project_id.endswith("destination.credentials")
     # also explicit
-    c = resolve.resolve_configuration(GcpClientCredentials(), sections=("destination",))
+    c = resolve.resolve_configuration(GcpServiceAccountCredentialsWithoutDefaults(), sections=("destination",))
     assert c.project_id.endswith("destination.credentials")
     # there's "credentials" key but does not contain valid gcp credentials
     with pytest.raises(ConfigFieldMissingException):
-        print(dict(resolve.resolve_configuration(GcpClientCredentials())))
+        print(dict(resolve.resolve_configuration(GcpServiceAccountCredentialsWithoutDefaults())))
     # also try postgres credentials
-    c = resolve.resolve_configuration(PostgresCredentials(), sections=("destination", "redshift"))
+    c = ConnectionStringCredentials()
+    c.update({"drivername": "postgres"})
+    c = resolve.resolve_configuration(c, sections=("destination", "redshift"))
     assert c.database == "destination.redshift.credentials"
     # bigquery credentials do not match redshift credentials
+    c = ConnectionStringCredentials()
+    c.update({"drivername": "postgres"})
     with pytest.raises(ConfigFieldMissingException):
-        resolve.resolve_configuration(PostgresCredentials(), sections=("destination", "bigquery"))
+        resolve.resolve_configuration(c, sections=("destination", "bigquery"))
 
 
 def test_secrets_toml_embedded_credentials(environment: Any, toml_providers: ConfigProvidersContext) -> None:
@@ -131,7 +141,7 @@ def test_secrets_toml_embedded_credentials(environment: Any, toml_providers: Con
     # will try everything until credentials in the root where incomplete credentials are present
     c = EmbeddedWithGcpCredentials()
     # create embedded config that will be passed as initial
-    c.credentials = GcpClientCredentials()
+    c.credentials = GcpServiceAccountCredentialsWithoutDefaults()
     with pytest.raises(ConfigFieldMissingException) as py_ex:
         resolve.resolve_configuration(c, sections=("middleware", "storage"))
     # so we can read partially filled configuration here
@@ -143,11 +153,11 @@ def test_secrets_toml_embedded_credentials(environment: Any, toml_providers: Con
     assert c.gcp_storage.project_id.endswith("-gcp-storage")
 
     # also explicit
-    c = resolve.resolve_configuration(GcpClientCredentials(), sections=("destination",))
+    c = resolve.resolve_configuration(GcpServiceAccountCredentialsWithoutDefaults(), sections=("destination",))
     assert c.project_id.endswith("destination.credentials")
     # there's "credentials" key but does not contain valid gcp credentials
     with pytest.raises(ConfigFieldMissingException):
-        resolve.resolve_configuration(GcpClientCredentials())
+        resolve.resolve_configuration(GcpServiceAccountCredentialsWithoutDefaults())
 
 
 def test_dicts_are_not_enumerated() -> None:
@@ -160,7 +170,7 @@ def test_secrets_toml_credentials_from_native_repr(environment: Any, toml_provid
     # print(cfg._toml)
     # print(cfg._toml["source"]["credentials"])
     # resolve gcp_credentials by parsing initial value which is str holding json doc
-    c = resolve.resolve_configuration(GcpClientCredentials(), sections=("source",))
+    c = resolve.resolve_configuration(GcpServiceAccountCredentialsWithoutDefaults(), sections=("source",))
     assert c.private_key == "-----BEGIN PRIVATE KEY-----\nMIIEuwIBADANBgkqhkiG9w0BAQEFAASCBKUwggShAgEAAoIBAQCNEN0bL39HmD+S\n...\n-----END PRIVATE KEY-----\n"
     # but project id got overridden from credentials.project_id
     assert c.project_id.endswith("-credentials")
@@ -180,7 +190,7 @@ def test_toml_get_key_as_section(toml_providers: ConfigProvidersContext) -> None
     # [credentials]
     # secret_value="2137"
     # so the line below will try to use secrets_value value as section, this must fallback to not found
-    cfg.get_value("value", str, "credentials", "secret_value")
+    cfg.get_value("value", str, None, "credentials", "secret_value")
 
 
 def test_toml_read_exception() -> None:
@@ -207,16 +217,16 @@ def test_toml_global_config() -> None:
         assert config._add_global_config is True
         assert isinstance(config._toml, tomlkit.TOMLDocument)
         # kept from global
-        v, key = config.get_value("dlthub_telemetry", bool, "runtime")
+        v, key = config.get_value("dlthub_telemetry", bool, None, "runtime")
         assert v is False
         assert key == "runtime.dlthub_telemetry"
-        v, _ = config.get_value("param_global", bool, "api", "params")
+        v, _ = config.get_value("param_global", bool, None, "api", "params")
         assert v == "G"
         # kept from project
-        v, _ = config.get_value("log_level", bool, "runtime")
+        v, _ = config.get_value("log_level", bool, None, "runtime")
         assert v == "ERROR"
         # project overwrites
-        v, _ = config.get_value("param1", bool, "api", "params")
+        v, _ = config.get_value("param1", bool, None, "api", "params")
         assert v == "a"
 
         secrets = SecretsTomlProvider(add_global_config=True)

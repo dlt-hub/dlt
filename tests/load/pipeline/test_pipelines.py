@@ -334,6 +334,36 @@ def test_dataset_name_change(destination_name: str) -> None:
             # delete_dataset(client, ds_3_name)  # will be deleted by the fixture
 
 
+@pytest.mark.parametrize('destination_name', ["postgres"])
+def test_pipeline_explicit_destination_credentials(destination_name: str) -> None:
+
+    # explicit credentials resolved
+    p = dlt.pipeline(destination="postgres", credentials="postgresql://loader:loader@localhost:5432/dlt_data")
+    c = p._get_destination_client(Schema("s"), p._get_destination_client_initial_config())
+    assert c.config.credentials.host == "localhost"
+
+    # explicit credentials resolved ignoring the config providers
+    os.environ["CREDENTIALS__HOST"] = "HOST"
+    p = dlt.pipeline(destination="postgres", credentials="postgresql://loader:loader@localhost:5432/dlt_data")
+    c = p._get_destination_client(Schema("s"), p._get_destination_client_initial_config())
+    assert c.config.credentials.host == "localhost"
+
+    # explicit partial credentials will use config providers
+    os.environ["CREDENTIALS__USERNAME"] = "UN"
+    p = dlt.pipeline(destination="postgres", credentials="postgresql://localhost:5432/dlt_data")
+    c = p._get_destination_client(Schema("s"), p._get_destination_client_initial_config())
+    assert c.config.credentials.username == "UN"
+    # host is also overridden
+    assert c.config.credentials.host == "HOST"
+
+    # instance of credentials will be simply passed
+    # c = RedshiftCredentials("postgresql://loader:loader@localhost/dlt_data")
+    # assert c.is_resolved()
+    # p = dlt.pipeline(destination="postgres", credentials=c)
+    # inner_c = p._get_destination_client(Schema("s"), p._get_destination_client_initial_config())
+    # assert inner_c is c
+
+
 def simple_nested_pipeline(destination_name: str, dataset_name: str, full_refresh: bool) -> Tuple[dlt.Pipeline, Callable[[], DltSource]]:
     data = ["a", ["a", "b", "c"], ["a", "b", "c"]]
 

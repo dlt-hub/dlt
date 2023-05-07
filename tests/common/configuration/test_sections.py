@@ -50,10 +50,10 @@ def test_sectioned_configuration(environment: Any) -> None:
     # check trace
     traces = exc_val.value.traces["password"]
     # only one provider and section was tried
-    assert len(traces) == 3
+    assert len(traces) == 1
     assert traces[0] == LookupTrace("Environment Variables", ["DLT_TEST"], "DLT_TEST__PASSWORD", None)
-    assert traces[1] == LookupTrace("secrets.toml", ["DLT_TEST"], "DLT_TEST.password", None)
-    assert traces[2] == LookupTrace("config.toml", ["DLT_TEST"], "DLT_TEST.password", None)
+    # assert traces[1] == LookupTrace("secrets.toml", ["DLT_TEST"], "DLT_TEST.password", None)
+    # assert traces[2] == LookupTrace("config.toml", ["DLT_TEST"], "DLT_TEST.password", None)
 
     # init vars work without section
     C = resolve.resolve_configuration(SectionedConfiguration(), explicit_value={"password": "PASS"})
@@ -71,11 +71,11 @@ def test_sectioned_configuration(environment: Any) -> None:
 def test_explicit_sections(mock_provider: MockProvider) -> None:
     mock_provider.value = "value"
     # mock providers separates sections with | and key with -
-    _, k = mock_provider.get_value("key", Any)
+    _, k = mock_provider.get_value("key", Any, None)
     assert k == "-key"
-    _, k = mock_provider.get_value("key", Any, "ns1")
+    _, k = mock_provider.get_value("key", Any, None, "ns1")
     assert k == "ns1-key"
-    _, k = mock_provider.get_value("key", Any, "ns1", "ns2")
+    _, k = mock_provider.get_value("key", Any, None, "ns1", "ns2")
     assert k == "ns1|ns2-key"
 
     # via make configuration

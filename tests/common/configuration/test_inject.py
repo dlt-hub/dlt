@@ -7,10 +7,9 @@ import dlt
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.configuration.inject import get_fun_spec, last_config, with_config
 from dlt.common.configuration.providers import EnvironProvider
-from dlt.common.configuration.providers.toml import CONFIG_TOML, SECRETS_TOML, TomlProvider
+from dlt.common.configuration.providers.toml import SECRETS_TOML
 from dlt.common.configuration.resolve import inject_section
-from dlt.common.configuration.specs import BaseConfiguration, GcpClientCredentials
-from dlt.common.configuration.specs import PostgresCredentials
+from dlt.common.configuration.specs import BaseConfiguration, GcpServiceAccountCredentialsWithoutDefaults, ConnectionStringCredentials
 from dlt.common.configuration.specs.base_configuration import is_secret_hint
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
@@ -86,10 +85,10 @@ def test_arguments_dlt_literal_defaults_are_required(environment: Any) -> None:
 
 def test_inject_from_argument_section(toml_providers: ConfigProvidersContext) -> None:
 
-    # `gcp_storage` is a key in `secrets.toml` and the default `credentials` section of GcpClientCredentials must be replaced with it
+    # `gcp_storage` is a key in `secrets.toml` and the default `credentials` section of GcpServiceAccountCredentialsWithoutDefaults must be replaced with it
 
     @with_config
-    def f_credentials(gcp_storage: GcpClientCredentials = dlt.secrets.value):
+    def f_credentials(gcp_storage: GcpServiceAccountCredentialsWithoutDefaults = dlt.secrets.value):
         # unique project name
         assert gcp_storage.project_id == "mock-project-id-gcp-storage"
 
@@ -260,30 +259,30 @@ def test_initial_spec_from_arg_with_spec_type() -> None:
 def test_use_most_specific_union_type(environment: Any, toml_providers: ConfigProvidersContext) -> None:
 
     @with_config
-    def postgres_union(local_credentials: Union[PostgresCredentials, str, StrAny] = dlt.secrets.value):
+    def postgres_union(local_credentials: Union[ConnectionStringCredentials, str, StrAny] = dlt.secrets.value):
         return local_credentials
 
     @with_config
-    def postgres_direct(local_credentials: PostgresCredentials = dlt.secrets.value):
+    def postgres_direct(local_credentials: ConnectionStringCredentials = dlt.secrets.value):
         return local_credentials
 
     conn_str = "postgres://loader:loader@localhost:5432/dlt_data"
-    conn_dict = {"host": "localhost", "database": "dlt_test", "username": "loader", "password": "loader"}
-    conn_cred = PostgresCredentials()
+    conn_dict = {"host": "localhost", "database": "dlt_test", "username": "loader", "password": "loader", "drivername": "postgresql"}
+    conn_cred = ConnectionStringCredentials()
     conn_cred.parse_native_representation(conn_str)
 
     # pass explicit: str, Dict and credentials object
-    assert isinstance(postgres_direct(conn_cred), PostgresCredentials)
-    assert isinstance(postgres_direct(conn_str), PostgresCredentials)
-    assert isinstance(postgres_direct(conn_dict), PostgresCredentials)
-    assert isinstance(postgres_union(conn_cred), PostgresCredentials)
-    assert isinstance(postgres_union(conn_str), PostgresCredentials)
-    assert isinstance(postgres_union(conn_dict), PostgresCredentials)
+    assert isinstance(postgres_direct(conn_cred), ConnectionStringCredentials)
+    assert isinstance(postgres_direct(conn_str), ConnectionStringCredentials)
+    assert isinstance(postgres_direct(conn_dict), ConnectionStringCredentials)
+    assert isinstance(postgres_union(conn_cred), ConnectionStringCredentials)
+    assert isinstance(postgres_union(conn_str), ConnectionStringCredentials)
+    assert isinstance(postgres_union(conn_dict), ConnectionStringCredentials)
 
     # pass via env as conn string
     environment["LOCAL_CREDENTIALS"] = conn_str
-    assert isinstance(postgres_direct(), PostgresCredentials)
-    assert isinstance(postgres_union(), PostgresCredentials)
+    assert isinstance(postgres_direct(), ConnectionStringCredentials)
+    assert isinstance(postgres_union(), ConnectionStringCredentials)
     del environment["LOCAL_CREDENTIALS"]
     # make sure config is successfully deleted
     with pytest.raises(ConfigFieldMissingException):
@@ -291,16 +290,16 @@ def test_use_most_specific_union_type(environment: Any, toml_providers: ConfigPr
     # create env with elements
     for k, v in conn_dict.items():
         environment[EnvironProvider.get_key_name(k, "local_credentials")] = v
-    assert isinstance(postgres_direct(), PostgresCredentials)
-    assert isinstance(postgres_union(), PostgresCredentials)
+    assert isinstance(postgres_direct(), ConnectionStringCredentials)
+    assert isinstance(postgres_union(), ConnectionStringCredentials)
 
     environment.clear()
 
     # pass via toml
     secrets_toml = toml_providers[SECRETS_TOML]._toml
     secrets_toml["local_credentials"] = conn_str
-    assert isinstance(postgres_direct(), PostgresCredentials)
-    assert isinstance(postgres_union(), PostgresCredentials)
+    assert isinstance(postgres_direct(), ConnectionStringCredentials)
+    assert isinstance(postgres_union(), ConnectionStringCredentials)
     secrets_toml.pop("local_credentials")
     # make sure config is successfully deleted
     with pytest.raises(ConfigFieldMissingException):
@@ -309,8 +308,8 @@ def test_use_most_specific_union_type(environment: Any, toml_providers: ConfigPr
     secrets_toml["local_credentials"] = {}
     for k, v in conn_dict.items():
         secrets_toml["local_credentials"][k] = v
-    assert isinstance(postgres_direct(), PostgresCredentials)
-    assert isinstance(postgres_union(), PostgresCredentials)
+    assert isinstance(postgres_direct(), ConnectionStringCredentials)
+    assert isinstance(postgres_union(), ConnectionStringCredentials)
 
 
 def test_auto_derived_spec_type_name() -> None:

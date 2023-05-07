@@ -1,4 +1,4 @@
-from typing import List, Union, Optional
+from typing import ClassVar, List, Union, Optional
 
 from dlt.common.typing import TSecretValue
 from dlt.common.configuration.specs.base_configuration import CredentialsConfiguration, configspec
@@ -13,6 +13,9 @@ class OAuth2Credentials(CredentialsConfiguration):
 
     token: Optional[TSecretValue] = None
     """Access token"""
+
+    # add refresh_token when generating config samples
+    __config_gen_annotations__: ClassVar[List[str]] = ["refresh_token"]
 
 
     def auth(self, scopes: Union[str, List[str]] = None, redirect_url: str = None) -> None:

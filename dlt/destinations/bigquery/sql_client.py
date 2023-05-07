@@ -9,7 +9,7 @@ from google.cloud import exceptions as gcp_exceptions
 from google.cloud.bigquery.dbapi import exceptions as dbapi_exceptions
 from google.api_core import exceptions as api_core_exceptions
 
-from dlt.common.configuration.specs import GcpClientCredentials
+from dlt.common.configuration.specs import GcpServiceAccountCredentialsWithoutDefaults
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.typing import StrAny
 
@@ -47,9 +47,9 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
     dbapi: ClassVar[DBApi] = bq_dbapi
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
-    def __init__(self, dataset_name: str, credentials: GcpClientCredentials) -> None:
+    def __init__(self, dataset_name: str, credentials: GcpServiceAccountCredentialsWithoutDefaults) -> None:
         self._client: bigquery.Client = None
-        self.credentials: GcpClientCredentials = credentials
+        self.credentials: GcpServiceAccountCredentialsWithoutDefaults = credentials
         super().__init__(dataset_name)
 
         self._default_retry = bigquery.DEFAULT_RETRY.with_deadline(credentials.retry_deadline)
@@ -60,7 +60,7 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
     def open_connection(self) -> bigquery.Client:
         self._client = bigquery.Client(
             self.credentials.project_id,
-            credentials=self.credentials.to_google_credentials(),
+            credentials=self.credentials.to_native_credentials(),
             location=self.credentials.location
         )
 
@@ -213,6 +213,8 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
                 elif isinstance(ex, dbapi_exceptions.ProgrammingError):
                     return DatabaseTransientException(ex)
             if reason == "notFound":
+                return DatabaseUndefinedRelation(ex)
+            if reason == "invalidQuery" and "was not found" in str(ex) and "Dataset" in str(ex):
                 return DatabaseUndefinedRelation(ex)
             if reason == "invalidQuery" and ("Unrecognized name" in str(ex) or "cannot be null" in str(ex)):
                 # unknown column, inserting NULL into required field

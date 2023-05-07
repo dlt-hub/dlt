@@ -1,15 +1,14 @@
 import abc
 import contextlib
+import tomlkit
 from typing import Any, ClassVar, List, Sequence, Tuple, Type, TypeVar
-from dlt.common import json
+
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import ConfigFieldMissingException, LookupTrace
-
 from dlt.common.configuration.providers.provider import ConfigProvider
 from dlt.common.configuration.specs import BaseConfiguration, is_base_configuration_inner_hint
-from dlt.common.configuration.utils import deserialize_value, log_traces
+from dlt.common.configuration.utils import deserialize_value, log_traces, auto_cast
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
-from dlt.common.data_types import coerce_value
 from dlt.common.typing import AnyType, ConfigValue, TSecretValue
 
 DLT_SECRETS_VALUE = "secrets.value"
@@ -23,10 +22,9 @@ class _Accessor(abc.ABC):
         if value is None:
             raise ConfigFieldMissingException("Any", {field: traces})
         if isinstance(value, str):
-            return self._auto_cast(value)
+            return auto_cast(value)
         else:
             return value
-
 
     def get(self, field: str, expected_type: Type[TConfigAny] = None) -> TConfigAny:
         value: TConfigAny
@@ -38,7 +36,6 @@ class _Accessor(abc.ABC):
             return deserialize_value(field, value, expected_type)
         else:
             return value
-
 
     @property
     @abc.abstractmethod
@@ -53,23 +50,6 @@ class _Accessor(abc.ABC):
     def _get_providers_from_context(self) -> Sequence[ConfigProvider]:
         return Container()[ConfigProvidersContext].providers
 
-    def _auto_cast(self, value: str) -> Any:
-        # try to cast to bool, int, float and complex (via JSON)
-        if value.lower() == "true":
-            return True
-        if value.lower() == "false":
-            return False
-        with contextlib.suppress(ValueError):
-            return coerce_value("bigint", "text", value)
-        with contextlib.suppress(ValueError):
-            return coerce_value("double", "text", value)
-        with contextlib.suppress(ValueError):
-            c_v = json.loads(value)
-            # only lists and dictionaries count
-            if isinstance(c_v, (list, dict)):
-                return c_v
-        return value
-
     def _get_value(self, field: str, type_hint: Type[Any] = None) -> Tuple[Any, List[LookupTrace]]:
         # get default hint type, in case of dlt.secrets it it TSecretValue
         type_hint = type_hint or self.default_type
@@ -79,7 +59,7 @@ class _Accessor(abc.ABC):
         value = None
         traces: List[LookupTrace] = []
         for provider in self.config_providers:
-            value, effective_field = provider.get_value(key, type_hint, *sections)
+            value, effective_field = provider.get_value(key, type_hint, None, *sections)
             trace = LookupTrace(provider.name, sections, effective_field, value)
             traces.append(trace)
             if value is not None:

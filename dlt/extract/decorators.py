@@ -11,6 +11,7 @@ from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs import BaseConfiguration, ContainerInjectableContext
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.exceptions import ArgumentsOverloadException
+from dlt.common.pipeline import PipelineContext
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import TColumnKey, TColumnName, TTableSchemaColumns, TWriteDisposition
 from dlt.common.storages.exceptions import SchemaNotFoundError
@@ -155,7 +156,9 @@ def source(
             # make schema available to the source
             with Container().injectable_context(SourceSchemaInjectableContext(schema)):
                 # configurations will be accessed in this section in the source
-                with inject_section(ConfigSectionContext(sections=source_sections)):
+                proxy = Container()[PipelineContext]
+                pipeline_name = None if not proxy.is_active() else proxy.pipeline().pipeline_name
+                with inject_section(ConfigSectionContext(pipeline_name=pipeline_name, sections=source_sections)):
                     rv = conf_f(*args, **kwargs)
 
             if rv is None:
@@ -346,13 +349,14 @@ def resource(
             incr_f,
             spec=spec, sections=resource_sections, sections_merge_style=ConfigSectionContext.resource_merge_style, include_defaults=False
         )
-        if conf_f != incr_f and is_inner_callable(f):
+        is_inner_resource = is_inner_callable(f)
+        if conf_f != incr_f and is_inner_resource:
             raise ResourceInnerCallableConfigWrapDisallowed(resource_name, source_section)
         # get spec for wrapped function
         SPEC = get_fun_spec(conf_f)
 
         # store the standalone resource information
-        if SPEC:
+        if not is_inner_resource:
             _SOURCES[f.__qualname__] = SourceInfo(SPEC, f, func_module)
 
         return make_resource(resource_name, source_section, conf_f, incremental)

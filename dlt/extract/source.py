@@ -345,8 +345,8 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
     def _get_config_section_context(self) -> ContextManager[ConfigSectionContext]:
         container = Container()
         proxy = container[PipelineContext]
-        pipeline_name = uniq_id() if not proxy.is_active() else proxy.pipeline().pipeline_name
-        return inject_section(ConfigSectionContext(sections=(known_sections.SOURCES, self.section or pipeline_name, self._name)))
+        pipeline_name = None if not proxy.is_active() else proxy.pipeline().pipeline_name
+        return inject_section(ConfigSectionContext(pipeline_name=pipeline_name, sections=(known_sections.SOURCES, self.section or pipeline_name or uniq_id(), self._name)))
 
     def __str__(self) -> str:
         info = f"DltResource {self._name}"
@@ -659,7 +659,9 @@ class DltSource(Iterable[TDataItem]):
         return flatten_list_or_items(_iter)
 
     def _get_config_section_context(self) -> ContextManager[ConfigSectionContext]:
-        return inject_section(ConfigSectionContext(sections=(known_sections.SOURCES, self.section, self.name)))
+        proxy = Container()[PipelineContext]
+        pipeline_name = None if not proxy.is_active() else proxy.pipeline().pipeline_name
+        return inject_section(ConfigSectionContext(pipeline_name=pipeline_name, sections=(known_sections.SOURCES, self.section, self.name)))
 
     def _add_resource(self, name: str, resource: DltResource) -> None:
         if self.exhausted:

@@ -4,6 +4,7 @@ from astunparse import unparse
 from typing import Dict, Tuple, Set, List
 
 from dlt.common.configuration import is_secret_hint
+from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.reflection.utils import creates_func_def_name_node
 from dlt.common.typing import is_optional_type
 
@@ -66,7 +67,7 @@ def detect_source_configs(
         # accept only sources declared in the `init` or `pipeline` modules
         if source_info.module.__name__.startswith(module_prefix):
             checked_sources[source_name] = source_info
-            source_config = source_info.SPEC()
+            source_config = source_info.SPEC() if source_info.SPEC else BaseConfiguration()
             spec_fields = source_config.get_resolvable_fields()
             for field_name, field_type in spec_fields.items():
                 val_store = None

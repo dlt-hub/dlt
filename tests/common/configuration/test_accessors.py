@@ -7,7 +7,7 @@ from dlt.common import json
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
 
 from dlt.common.configuration.providers import EnvironProvider, ConfigTomlProvider, SecretsTomlProvider
-from dlt.common.configuration.specs import GcpClientCredentials, ConnectionStringCredentials
+from dlt.common.configuration.specs import GcpServiceAccountCredentialsWithoutDefaults, ConnectionStringCredentials
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
 from dlt.common.configuration.utils import get_resolved_traces, ResolvedValueTrace
 from dlt.common.typing import AnyType, TSecretValue
@@ -117,7 +117,7 @@ def test_getter_accessor_typed(toml_providers: ConfigProvidersContext, environme
     # as before: the value in trace is the value coming from the provider (as is)
     assert RESOLVED_TRACES["databricks.credentials"] == ResolvedValueTrace("credentials", credentials_str, None, ConnectionStringCredentials, ["databricks"], SecretsTomlProvider().name, ConnectionStringCredentials)
     assert c.drivername == "databricks+connector"
-    c = dlt.secrets.get("destination.credentials", GcpClientCredentials)
+    c = dlt.secrets.get("destination.credentials", GcpServiceAccountCredentialsWithoutDefaults)
     assert c.client_email == "loader@a7513.iam.gserviceaccount.com"
 
 
@@ -134,7 +134,7 @@ def test_secrets_separation(toml_providers: ConfigProvidersContext) -> None:
 def test_access_injection(toml_providers: ConfigProvidersContext) -> None:
 
     @dlt.source
-    def the_source(api_type=dlt.config.value, credentials: GcpClientCredentials=dlt.secrets.value, databricks_creds: ConnectionStringCredentials=dlt.secrets.value):
+    def the_source(api_type=dlt.config.value, credentials: GcpServiceAccountCredentialsWithoutDefaults=dlt.secrets.value, databricks_creds: ConnectionStringCredentials=dlt.secrets.value):
         assert api_type == "REST"
         assert credentials.client_email == "loader@a7513.iam.gserviceaccount.com"
         assert databricks_creds.drivername == "databricks+connector"

@@ -3,7 +3,7 @@ from functools import partial
 
 import dlt
 
-from dlt.common.configuration.specs.postgres_credentials import ConnectionStringCredentials
+from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.typing import AnyFun, DictStrAny, StrAny, TDataItem
 from dlt.common.exceptions import MissingDependencyException
 

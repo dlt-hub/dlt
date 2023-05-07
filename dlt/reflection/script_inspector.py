@@ -35,11 +35,16 @@ def _import_module(name: str, missing_modules: Tuple[str, ...] = ()) -> ModuleTy
     """Module importer that ignores missing modules by importing a dummy module"""
 
     def _try_import(name: str, _globals: Mapping[str, Any] = None, _locals: Mapping[str, Any] = None, fromlist: Sequence[str] = (), level:int = 0) -> ModuleType:
+        """This function works as follows: on ImportError it raises. This import error is then next caught in the main function body and the name is added to exceptions.
+        Next time if the name is on exception list or name is a package on exception list we return DummyModule and do not reraise
+        This excepts only the modules that bubble up ImportError up until our code so any handled import errors are not excepted
+        """
         try:
             return real_import(name, _globals, _locals, fromlist, level)
         except ImportError:
-            # print(f"_import_module {name} {missing_modules}")
-            if any(name.startswith(m) for m in missing_modules):
+            # print(f"_import_module {name} {missing_modules} {fromlist} {level} {ex}")
+            # return a dummy when: (1) name is on exception list (2) name is package path (dot separated) that start with exception from the list
+            if any(name == m or name.startswith(m + ".") for m in missing_modules):
                 return DummyModule(name)
             else:
                 raise

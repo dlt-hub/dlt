@@ -5,15 +5,17 @@ import pytest
 from unittest.mock import patch
 
 from dlt.common import json, pendulum
+from dlt.common.configuration.resolve import resolve_configuration
 from dlt.common.schema.typing import VERSION_TABLE_NAME
 from dlt.common.storages import FileStorage
 from dlt.common.storages.schema_storage import SchemaStorage
 from dlt.common.utils import uniq_id
 
 from dlt.destinations.exceptions import DatabaseTerminalException
+from dlt.destinations.redshift.configuration import RedshiftCredentials
 from dlt.destinations.redshift.redshift import RedshiftClient, psycopg2
-from tests.common.utils import COMMON_TEST_CASES_PATH
 
+from tests.common.utils import COMMON_TEST_CASES_PATH
 from tests.utils import TEST_STORAGE_ROOT, autouse_test_storage, skipifpypy
 from tests.load.utils import expect_load_file, prepare_table, yield_client_with_storage
 
@@ -26,6 +28,15 @@ def file_storage() -> FileStorage:
 @pytest.fixture(scope="function")
 def client() -> Iterator[RedshiftClient]:
     yield from yield_client_with_storage("redshift")
+
+
+def test_postgres_and_redshift_credentials_defaults() -> None:
+    red_cred = RedshiftCredentials()
+    assert red_cred.port == 5439
+    assert red_cred.connect_timeout == 15
+    assert RedshiftCredentials.__config_gen_annotations__ == ["port", "connect_timeout"]
+    resolve_configuration(red_cred, explicit_value="postgres://loader:loader@localhost/dlt_data")
+    assert red_cred.port == 5439
 
 
 @skipifpypy

@@ -64,7 +64,6 @@ def _maybe_parse_native_value(config: TConfiguration, explicit_value: Any, embed
             # provide generic exception
             raise InvalidNativeValue(type(config), type(explicit_value), embedded_sections, v_err)
         except NotImplementedError:
-
             pass
         # explicit value was consumed
         explicit_value = None
@@ -88,20 +87,16 @@ def _resolve_configuration(
             # if native representation didn't fully resolve the config, we try to resolve field by field
             if not config.is_resolved():
                 _resolve_config_fields(config, explicit_value, explicit_sections, embedded_sections, accept_partial)
-
-            _call_method_in_mro(config, "on_resolved")
             # full configuration was resolved
-            config.__is_resolved__ = True
+            config.resolve()
         except ConfigFieldMissingException as cm_ex:
             # store the ConfigEntryMissingException to have full info on traces of missing fields
             config.__exception__ = cm_ex
-            _call_method_in_mro(config, "on_partial")
+            # may resolve in partial handler
+            config.call_method_in_mro("on_partial")
             # if resolved then do not raise
-            if config.is_resolved():
-                _call_method_in_mro(config, "on_resolved")
-            else:
-                if not accept_partial:
-                    raise
+            if not config.is_resolved() and not accept_partial:
+                raise
     except Exception as ex:
         # store the exception that happened in the resolution process
         config.__exception__ = ex
@@ -251,20 +246,6 @@ def _resolve_config_field(
     return default_value if value is None else value, traces
 
 
-def _call_method_in_mro(config: BaseConfiguration, method_name: str) -> None:
-    # python multi-inheritance is cooperative and this would require that all configurations cooperatively
-    # call each other class_method_name. this is not at all possible as we do not know which configs in the end will
-    # be mixed together.
-
-    # get base classes in order of derivation
-    mro = type.mro(type(config))
-    for c in mro:
-        # check if this class implements on_resolved (skip pure inheritance to not do double work)
-        if method_name in c.__dict__ and callable(getattr(c, method_name)):
-            # pass right class instance
-            c.__dict__[method_name](config)
-
-
 def _resolve_single_value(
         key: str,
         hint: Type[Any],
@@ -283,7 +264,7 @@ def _resolve_single_value(
     # we may be resolving context
     if is_context_inner_hint(inner_hint):
         # resolve context with context provider and do not look further
-        value, _ = providers_context.context_provider.get_value(key, inner_hint)
+        value, _ = providers_context.context_provider.get_value(key, inner_hint, None)
         return value, traces
     if is_base_configuration_inner_hint(inner_hint):
         # cannot resolve configurations directly
@@ -297,7 +278,12 @@ def _resolve_single_value(
 
     def look_sections(pipeline_name: str = None) -> Any:
         # start looking from the top provider with most specific set of sections first
+        value: Any = None
         for provider in providers:
+            if provider.is_empty:
+                # do not query empty provider so they are not added to the trace
+                continue
+
             value, provider_traces = resolve_single_provider_value(
                 provider,
                 key,
@@ -350,17 +336,17 @@ def resolve_single_provider_value(
 
     value = None
     while True:
-        if (pipeline_name or config_section) and provider.supports_sections:
+        if config_section and provider.supports_sections:
             full_ns = ns.copy()
             # pipeline, when provided, is the most outer and always present
-            if pipeline_name:
-                full_ns.insert(0, pipeline_name)
+            # if pipeline_name:
+            #     full_ns.insert(0, pipeline_name)
             # config section, is always present and innermost
             if config_section:
                 full_ns.append(config_section)
         else:
             full_ns = ns
-        value, ns_key = provider.get_value(key, hint, *full_ns)
+        value, ns_key = provider.get_value(key, hint, pipeline_name, *full_ns)
         # if secret is obtained from non secret provider, we must fail
         cant_hold_it: bool = not provider.supports_secrets and is_secret_hint(hint)
         if value is not None and cant_hold_it:

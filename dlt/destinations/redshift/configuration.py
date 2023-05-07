@@ -1,8 +1,17 @@
 from typing import Final
-from dlt.common.configuration import configspec
-from dlt.common.configuration.specs import RedshiftCredentials
 
-from dlt.destinations.postgres.configuration import PostgresClientConfiguration
+from dlt.common.typing import TSecretValue
+from dlt.common.configuration import configspec
+
+from dlt.destinations.postgres.configuration import PostgresCredentials, PostgresClientConfiguration
+
+
+@configspec
+class RedshiftCredentials(PostgresCredentials):
+    port: int = 5439
+    password: TSecretValue = None
+    username: str = None
+    host: str = None
 
 
 @configspec(init=True)

@@ -122,7 +122,8 @@ class Incremental(FilterItem, BaseConfiguration, Generic[TCursorValue]):
         else:  # TODO: Maybe check if callable(getattr(native_value, '__lt__', None))
             # Passing bare value `incremental=44` gets parsed as initial_value
             self.initial_value = native_value
-        self.__is_resolved__ = not self.is_partial()
+        if not self.is_partial():
+            self.resolve()
 
     def get_state(self) -> IncrementalColumnState:
         """Returns an Incremental state for a particular cursor column"""

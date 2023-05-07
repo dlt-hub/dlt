@@ -78,13 +78,17 @@ This section is intended for project maintainers who have the necessary permissi
 
 - `minor` version change means breaking changes
 - `patch` version change means new features that should be backward compatible
-- any suffix change, e.g., `a10` -> `a11`, is considered a patch
+- any suffix change, e.g., `post10` -> `post11`, is considered a patch
 
 Before publishing a new release, make sure to bump the project's version accordingly:
 
-1. Use `poetry version prerelease` to bump the patch version.
+1. Modify `pyproject.toml` to add a `post` label or increase post release number ie: `version = "0.2.6.post1"`
 2. Run `make build-library` to apply the changes to the project.
 3. The source of the version is `pyproject.toml`, and we use `poetry` to manage it.
+
+For pre-release please replace step (1) with:
+1. Make sure you are not bumping post-release version. There are reports of `poetry` not working in that case.
+2. Use `poetry version prerelease` to bump the pre-release version.
 
 ## Publishing to PyPI
 
