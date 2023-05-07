@@ -10,29 +10,32 @@ keywords: [introduction, who, what, how]
 
 ## What is `dlt`?
 
-`dlt` is an open-source library that enables you to create a data [pipeline](./general-usage/glossary.md#pipeline) in a Python script. To use it, `pip install dlt` and then `import dlt`. Once set up, it will automatically load any [source](./general-usage/glossary.md#source) (e.g. an API) into a live dataset stored in the [destination](./general-usage/glossary.md#destination) of your choice.
-
+`dlt` is an open-source library that enables you to create a data [pipeline](./general-usage/glossary.md#pipeline) in a Python script. To use it, `pip install dlt` and then `import dlt`. Once set up, it will automatically load any [source](./general-usage/glossary.md#source) (e.g. an API) into a live dataset stored in the [destination](./general-usage/glossary.md#destination) of your choice.  
+  
+To try it out, install `dlt` with DuckDB using `pip install dlt[duckdb]` and run the following example:
 ```python
 import dlt
-from chess import chess # a utility function
+import requests
 
-# create a dlt pipeline that will load
-# chess game data to the DuckDB destination
+# Create a dlt pipeline that will load
+# chess player data to the DuckDB destination
 pipeline = dlt.pipeline(
     pipeline_name='chess_pipeline',
     destination='duckdb',
-    dataset_name='games_data'
+    dataset_name='player_data'
 )
 
-# grab some player data from chess.com API
-data = chess(
-    ['magnuscarlsen', 'rpragchess'],
-    start_month='2022/11',
-    end_month='2022/12'
-)
 
-# extract, normalize, and load the data
-pipeline.run(data)
+# Grab some player data from Chess.com API
+data = []
+for player in ['magnuscarlsen', 'rpragchess']:
+  response = requests.get(f'https://api.chess.com/pub/player/{player}')
+  response.raise_for_status()
+  data.append(response.json())
+
+
+# Extract, normalize, and load the data
+pipeline.run(data, table_name='player') 
 ```
 
 [How it works](./how-dlt-works.md): `dlt` extracts data from a [source](general-usage/glossary.md#source), inspects its structure to create a [schema](general-usage/glossary.md#schema), normalizes and verifies the data,
