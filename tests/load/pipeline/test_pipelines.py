@@ -334,7 +334,8 @@ def test_dataset_name_change(destination_name: str) -> None:
             # delete_dataset(client, ds_3_name)  # will be deleted by the fixture
 
 
-def test_pipeline_explicit_destination_credentials() -> None:
+@pytest.mark.parametrize('destination_name', ["postgres"])
+def test_pipeline_explicit_destination_credentials(destination_name: str) -> None:
 
     # explicit credentials resolved
     p = dlt.pipeline(destination="postgres", credentials="postgresql://loader:loader@localhost:5432/dlt_data")

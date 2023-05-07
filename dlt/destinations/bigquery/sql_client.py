@@ -214,6 +214,8 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
                     return DatabaseTransientException(ex)
             if reason == "notFound":
                 return DatabaseUndefinedRelation(ex)
+            if reason == "invalidQuery" and "was not found" in str(ex) and "Dataset" in str(ex):
+                return DatabaseUndefinedRelation(ex)
             if reason == "invalidQuery" and ("Unrecognized name" in str(ex) or "cannot be null" in str(ex)):
                 # unknown column, inserting NULL into required field
                 return DatabaseTerminalException(ex)

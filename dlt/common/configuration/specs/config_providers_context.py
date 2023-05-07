@@ -66,7 +66,6 @@ class ConfigProvidersContext(ContainerInjectableContext):
 def _extra_providers() -> List[ConfigProvider]:
     from dlt.common.configuration.resolve import resolve_configuration
     providers_config = resolve_configuration(ConfigProvidersConfiguration())
-    print(dict(providers_config))
     extra_providers = []
     if providers_config.enable_airflow_secrets:
         extra_providers.extend(_airflow_providers())
