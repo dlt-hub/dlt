@@ -1,6 +1,7 @@
 import os
 import ast
 import contextlib
+import tomlkit
 from typing import Any, Dict, Mapping, NamedTuple, Optional, Type, Sequence
 
 from dlt.common import json
@@ -87,6 +88,27 @@ def serialize_value(value: Any) -> Any:
     # coerce type to text which will use json for mapping and sequences
     value_dt = py_type_to_sc_type(type(value))
     return coerce_value("text", value_dt, value)
+
+
+def auto_cast(value: str) -> Any:
+    # try to cast to bool, int, float and complex (via JSON)
+    if value.lower() == "true":
+        return True
+    if value.lower() == "false":
+        return False
+    with contextlib.suppress(ValueError):
+        return coerce_value("bigint", "text", value)
+    with contextlib.suppress(ValueError):
+        return coerce_value("double", "text", value)
+    with contextlib.suppress(ValueError):
+        c_v = json.loads(value)
+        # only lists and dictionaries count
+        if isinstance(c_v, (list, dict)):
+            return c_v
+    with contextlib.suppress(ValueError):
+        return tomlkit.parse(value)
+    return value
+
 
 
 def log_traces(config: Optional[BaseConfiguration], key: str, hint: Type[Any], value: Any, default_value: Any, traces: Sequence[LookupTrace]) -> None:

@@ -13,6 +13,9 @@ NORMALIZE = "normalize"
 EXTRACT = "extract"
 """extract stage of the pipeline"""
 
+PROVIDERS = "providers"
+"""secrets and config providers"""
+
 DATA_WRITER = "data_writer"
 """default section holding BufferedDataWriter settings"""
 

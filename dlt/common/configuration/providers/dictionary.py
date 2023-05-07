@@ -3,7 +3,7 @@ from typing import Any, ClassVar, Iterator, Optional, Type, Tuple
 
 from dlt.common.typing import StrAny
 
-from .provider import ConfigProvider
+from .provider import ConfigProvider, get_key_name
 
 
 class DictionaryProvider(ConfigProvider):
@@ -17,9 +17,11 @@ class DictionaryProvider(ConfigProvider):
     def name(self) -> str:
         return self.NAME
 
-    def get_value(self, key: str, hint: Type[Any], *sections: str) -> Tuple[Optional[Any], str]:
+    def get_value(self, key: str, hint: Type[Any], pipeline_name: str, *sections: str) -> Tuple[Optional[Any], str]:
         full_path = sections + (key,)
-        full_key = "__".join(full_path)
+        if pipeline_name:
+            full_path = (pipeline_name, ) + full_path
+        full_key = get_key_name(key, "__", pipeline_name, *sections)
         node = self._values
         try:
             for k in  full_path:
@@ -37,7 +39,6 @@ class DictionaryProvider(ConfigProvider):
     @property
     def supports_sections(self) -> bool:
         return True
-
 
     @contextmanager
     def values(self, v: StrAny) -> Iterator[None]:

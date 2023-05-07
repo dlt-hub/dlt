@@ -2,9 +2,20 @@
 
 from typing import List
 from dlt.common.configuration.exceptions import DuplicateConfigProviderException
-from dlt.common.configuration.providers import ConfigProvider, EnvironProvider, ContextProvider, SecretsTomlProvider, ConfigTomlProvider
-from dlt.common.configuration.specs.base_configuration import ContainerInjectableContext, configspec
+from dlt.common.configuration.providers import ConfigProvider, EnvironProvider, ContextProvider, SecretsTomlProvider, ConfigTomlProvider, GoogleSecretsProvider
+from dlt.common.configuration.specs.base_configuration import ContainerInjectableContext
+from dlt.common.configuration.specs import GcpServiceAccountCredentials, BaseConfiguration, configspec, known_sections
 from dlt.common.runtime.exec_info import is_running_in_airflow_task
+
+
+@configspec
+class ConfigProvidersConfiguration(BaseConfiguration):
+    enable_airflow_secrets: bool = True
+    enable_google_secrets: bool = False
+    only_toml_fragments: bool = True
+
+    # always look in providers
+    __section__ = known_sections.PROVIDERS
 
 
 @configspec
@@ -19,6 +30,10 @@ class ConfigProvidersContext(ContainerInjectableContext):
         self.providers = ConfigProvidersContext.initial_providers()
         # ContextProvider will provide contexts when embedded in configurations
         self.context_provider = ContextProvider()
+
+    def add_extras(self) -> None:
+        """Adds extra providers using the initial ones."""
+        self.providers += _extra_providers()
 
     def __getitem__(self, name: str) -> ConfigProvider:
         try:
@@ -45,12 +60,26 @@ class ConfigProvidersContext(ContainerInjectableContext):
             SecretsTomlProvider(add_global_config=True),
             ConfigTomlProvider(add_global_config=True)
         ]
-        providers += _extra_providers()
         return providers
 
 
 def _extra_providers() -> List[ConfigProvider]:
-    return _airflow_providers()
+    from dlt.common.configuration.resolve import resolve_configuration
+    providers_config = resolve_configuration(ConfigProvidersConfiguration())
+    print(dict(providers_config))
+    extra_providers = []
+    if providers_config.enable_airflow_secrets:
+        extra_providers.extend(_airflow_providers())
+    if providers_config.enable_google_secrets:
+        extra_providers.append(_google_secrets_provider(only_toml_fragments=providers_config.only_toml_fragments))
+    return extra_providers
+
+
+def _google_secrets_provider(only_secrets: bool = True, only_toml_fragments: bool = True) -> ConfigProvider:
+    from dlt.common.configuration.resolve import resolve_configuration
+
+    c = resolve_configuration(GcpServiceAccountCredentials(), sections=(known_sections.PROVIDERS, "google_secrets"))
+    return GoogleSecretsProvider(c, only_secrets=only_secrets, only_toml_fragments=only_toml_fragments)
 
 
 def _airflow_providers() -> List[ConfigProvider]:
@@ -86,10 +115,3 @@ def _airflow_providers() -> List[ConfigProvider]:
             "not found. AirflowSecretsTomlProvider will not be used."
         )
         return []
-
-
-# TODO: implement ConfigProvidersConfiguration and
-# @configspec
-# class ConfigProvidersConfiguration(BaseConfiguration):
-#     with_aws_secrets: bool = False
-#     with_google_secrets: bool = False

@@ -32,12 +32,12 @@ class GcpCredentials(CredentialsConfiguration):
     def to_native_representation(self) -> str:
         return json.dumps(dict(self))
 
-    def to_google_credentials(self) -> Any:
+    def to_native_credentials(self) -> Any:
+        """Returns respective native credentials for service account or oauth2 that can be passed to google clients"""
         pass
 
     def _from_info_dict(self, info: StrAny) -> None:
         self.update(info)
-        # self.__is_resolved__ = not self.is_partial()
 
     def __str__(self) -> str:
         return f"{self.project_id}[{self.location}]"
@@ -81,11 +81,13 @@ class GcpServiceAccountCredentialsWithoutDefaults(GcpCredentials):
             # must end with new line, otherwise won't be parsed by Crypto
             self.private_key = TSecretValue(self.private_key + "\n")
 
-    @deprecated(reason="Use 'to_google_credentials' method instead")
+    @deprecated(reason="Use 'to_native_credentials' method instead")
     def to_service_account_credentials(self) -> Any:
-        return self.to_google_credentials()
+        return self.to_native_credentials()
 
-    def to_google_credentials(self) -> Any:
+    def to_native_credentials(self) -> Any:
+        """Returns google.oauth2.service_account.Credentials"""
+
         from google.oauth2.service_account import Credentials as ServiceAccountCredentials
         if isinstance(self.private_key, ServiceAccountCredentials):
             # private key holds the native instance if it was passed to parse_native_representation
@@ -157,7 +159,7 @@ class GcpOAuthCredentialsWithoutDefaults(GcpCredentials, OAuth2Credentials):
             self.refresh_token = TSecretValue("")
             # still partial - raise
             if not self.is_partial():
-                self.__is_resolved__ = True
+                self.resolve()
             self.refresh_token = None
 
     def _get_access_token(self) -> TSecretValue:
@@ -183,11 +185,8 @@ class GcpOAuthCredentialsWithoutDefaults(GcpCredentials, OAuth2Credentials):
         credentials = flow.run_local_server(port=0)
         return TSecretValue(credentials.refresh_token), TSecretValue(credentials.token)
 
-    def to_google_credentials(self) -> Any:
-        """
-        Will convert the object to a Google oauth2 credentials object
-        :returns: Google Credentials object
-        """
+    def to_native_credentials(self) -> Any:
+        """Returns google.oauth2.credentials.Credentials"""
         try:
             from google.oauth2.credentials import Credentials as GoogleOAuth2Credentials
         except ImportError:
@@ -235,7 +234,7 @@ class GcpDefaultCredentials(CredentialsWithDefault, GcpCredentials):
         raise NativeValueError(self.__class__, native_value, "Default Google Credentials not present")
 
     @staticmethod
-    def _get_default_credentials(retry_timeout_s: float = 60.0) -> Tuple[Any, str]:
+    def _get_default_credentials(retry_timeout_s: float = 600.0) -> Tuple[Any, str]:
 
         now = pendulum.now().timestamp()
         if now - GcpDefaultCredentials._LAST_FAILED_DEFAULT < retry_timeout_s:
@@ -261,17 +260,16 @@ class GcpDefaultCredentials(CredentialsWithDefault, GcpCredentials):
             # set the project id - it needs to be known by the client
             self.project_id = self.project_id or project_id or default.quota_project_id
             self._set_default_credentials(default)
-            # is resolved
-            self.__is_resolved__ = True
+            self.resolve()
         except ImportError:
             # raise the exception that caused partial (typically missing config fields)
             pass
 
-    def to_google_credentials(self) -> Any:
+    def to_native_credentials(self) -> Any:
         if self.has_default_credentials():
             return self.default_credentials()
         else:
-            return super().to_google_credentials()
+            return super().to_native_credentials()
 
 
 @configspec

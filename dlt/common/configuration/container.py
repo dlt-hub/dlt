@@ -42,6 +42,7 @@ class Container:
             if spec.can_create_default:
                 item = spec()
                 self.contexts[spec] = item
+                item.add_extras()
             else:
                 raise ContextDefaultCannotBeCreated(spec)
 
@@ -49,7 +50,7 @@ class Container:
 
     def __setitem__(self, spec: Type[TConfiguration], value: TConfiguration) -> None:
         # value passed to container must be final
-        value.__is_resolved__ = True
+        value.resolve()
         # put it into context
         self.contexts[spec] = value
 

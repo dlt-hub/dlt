@@ -10,6 +10,7 @@ from dlt.common.configuration import configspec, resolve_configuration
 from dlt.common.configuration.specs.gcp_credentials import GcpServiceAccountCredentials
 from dlt.common.typing import TSecretValue
 
+from tests.common.configuration.utils import environment
 from tests.utils import preserve_environ
 
 
@@ -194,7 +195,7 @@ def google_analytics(credentials: Union[GoogleAnalyticsCredentialsOAuth, GcpServ
     yield dlt.resource([credentials], name="creds")
 
 
-def test_google_auth_union() -> None:
+def test_google_auth_union(environment: Any) -> None:
     info = {
         "type" : "service_account",
         "project_id" : "dlthub-analytics",
@@ -208,4 +209,6 @@ def test_google_auth_union() -> None:
         "client_x509_cert_url" : "https://www.googleapis.com/robot/v1/metadata/x509/105150287833-compute%40developer.gserviceaccount.com"
         }
 
-    assert isinstance(list(google_analytics(credentials=info))[0], GcpServiceAccountCredentials)
+    credentials = list(google_analytics(credentials=info))[0]
+    print(dict(credentials))
+    assert isinstance(credentials, GcpServiceAccountCredentials)

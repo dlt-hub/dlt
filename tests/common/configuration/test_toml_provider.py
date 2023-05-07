@@ -29,7 +29,13 @@ class EmbeddedWithGcpCredentials(BaseConfiguration):
     credentials: GcpServiceAccountCredentialsWithoutDefaults
 
 
-def test_secrets_from_toml_secrets() -> None:
+def test_secrets_from_toml_secrets(toml_providers: ConfigProvidersContext) -> None:
+
+    # remove secret_value to trigger exception
+
+    del toml_providers["secrets.toml"]._toml["secret_value"]
+    del toml_providers["secrets.toml"]._toml["credentials"]
+
     with pytest.raises(ConfigFieldMissingException) as py_ex:
         resolve.resolve_configuration(SecretConfiguration())
 
@@ -95,9 +101,9 @@ def test_toml_mixed_config_inject(toml_providers: ConfigProvidersContext) -> Non
 
 def test_toml_sections(toml_providers: ConfigProvidersContext) -> None:
     cfg = toml_providers["config.toml"]
-    assert cfg.get_value("api_type", str) == ("REST", "api_type")
-    assert cfg.get_value("port", int, "api") == (1024, "api.port")
-    assert cfg.get_value("param1", str, "api", "params") == ("a", "api.params.param1")
+    assert cfg.get_value("api_type", str, None) == ("REST", "api_type")
+    assert cfg.get_value("port", int, None, "api") == (1024, "api.port")
+    assert cfg.get_value("param1", str, None, "api", "params") == ("a", "api.params.param1")
 
 
 def test_secrets_toml_credentials(environment: Any, toml_providers: ConfigProvidersContext) -> None:
@@ -184,7 +190,7 @@ def test_toml_get_key_as_section(toml_providers: ConfigProvidersContext) -> None
     # [credentials]
     # secret_value="2137"
     # so the line below will try to use secrets_value value as section, this must fallback to not found
-    cfg.get_value("value", str, "credentials", "secret_value")
+    cfg.get_value("value", str, None, "credentials", "secret_value")
 
 
 def test_toml_read_exception() -> None:
@@ -211,16 +217,16 @@ def test_toml_global_config() -> None:
         assert config._add_global_config is True
         assert isinstance(config._toml, tomlkit.TOMLDocument)
         # kept from global
-        v, key = config.get_value("dlthub_telemetry", bool, "runtime")
+        v, key = config.get_value("dlthub_telemetry", bool, None, "runtime")
         assert v is False
         assert key == "runtime.dlthub_telemetry"
-        v, _ = config.get_value("param_global", bool, "api", "params")
+        v, _ = config.get_value("param_global", bool, None, "api", "params")
         assert v == "G"
         # kept from project
-        v, _ = config.get_value("log_level", bool, "runtime")
+        v, _ = config.get_value("log_level", bool, None, "runtime")
         assert v == "ERROR"
         # project overwrites
-        v, _ = config.get_value("param1", bool, "api", "params")
+        v, _ = config.get_value("param1", bool, None, "api", "params")
         assert v == "a"
 
         secrets = SecretsTomlProvider(add_global_config=True)
