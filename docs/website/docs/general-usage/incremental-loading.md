@@ -19,7 +19,13 @@ The challenge of incremental pipelines is that if we do not keep track of the st
 
 **Merge**: Merges new data to the destination using `merge_key` and/or deduplicates/upserts new data using `private_key`. Use `write_disposition='merge'`.
 
-### Choosing a write disposition
+### Two simple questions determine the write disposition you use
+
+<div style={{textAlign: 'center'}}>
+
+![write disposition flowchart](/img/write-dispo-choice.png)
+
+</div>
 
 The write disposition you choose depends on the data set and how you can extract it.
 
@@ -31,12 +37,6 @@ Because stateless data does not need to be updated, we can just append it.
 
 For stateful data, comes a second question - Can I extract it incrementally from the source?
 If not, then we need to replace the entire data set. If however we can request the data incrementally such as "all users added or modified since yesterday" then we can simply apply changes to our existing dataset with the merge write disposition.
-
-<div style={{textAlign: 'center'}}>
-
-![write disposition flowchart](/img/write-dispo-choice.png)
-
-</div>
 
 ## How to do incremental loading
 
