@@ -33,7 +33,7 @@ For stateful data, comes a second question - Can I extract it incrementally from
 If not, then we need to replace the entire data set. If however we can request the data incrementally such as "all users added or modified since yesterday" then we can simply apply changes to our existing dataset with the merge write disposition.
 
 
-![write disposition flowchart](/img/write_dispo-choice.png)
+![write disposition flowchart](/img/write-dispo-choice.png)
 
 ## How to do incremental loading
 
