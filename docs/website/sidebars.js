@@ -24,6 +24,7 @@ const sidebars = {
       label: 'Pipelines',
       className: 'project',
       items: [
+        'pipelines/asana',
         'pipelines/chess',
         'pipelines/github',
         'pipelines/google_analytics',
