@@ -164,7 +164,7 @@ def stripe():
 
   # create resources for several endpoints on a single decorator function
   for endpoint in Endpoints:
-          yield dlt.resource(get_resource, name=endpoint.value, write_disposition="merge", primary_key="id")(endpoint)
+    yield dlt.resource(get_resource, name=endpoint.value, write_disposition="merge", primary_key="id")(endpoint)
 ```
 Please note that in the example above, `get_resource` is passed as a function to `dlt.resource` to which we bind the endpoint: **dlt.resource(...)(endpoint)**
 
@@ -209,19 +209,19 @@ In the two examples below you see the outline of how the `dlt.sources.incrementa
 def tweets():
 	# Get a last value from loaded metadata. If not exist, get None
 	last_val = dlt.current.state().setdefault("last_updated", None)
-	# get data and yield it
-	data = get_data(start_from=last_val)
-	yield data
-	# change the state to the new value
+  # get data and yield it
+  data = get_data(start_from=last_val)
+  yield data
+  # change the state to the new value
   dlt.current.state()["last_updated"]  = data["last_timestamp"]
 ```
 if we use a list or a dictionary, we can modify the underlying values in the objects and thus we do not need to set the state back explicitly.
 ```python
 @resource()
 def tweets():
-	# Get a last value from loaded metadata. If not exist, get None
-	loaded_dates = dlt.current.state().setdefault("days_loaded", [])
-	# do stuff: get data and add new values to the list
+  # Get a last value from loaded metadata. If not exist, get None
+  loaded_dates = dlt.current.state().setdefault("days_loaded", [])
+  # do stuff: get data and add new values to the list
   # `loaded_date` is a shallow copy of the `dlt.current.state()["days_loaded"]` list
   # and thus modifying it modifies the state
   yield data
