@@ -10,13 +10,30 @@ Incremental loading is the act of loading only new or changed data and not old r
 
 The challenge of incremental pipelines is that if we do not keep track of the state of the load (i.e. which increments were loaded and which are to be loaded). Read more about state [here](../general-usage/state.md).
 
-## There are 3 types of common loading methods:
+## Choosing a write disposition
 
+### The 3 write dispositions:
 **Full load**: replaces the destination dataset with whatever the source produced on this run. To achieve this, use `write_disposition='replace'`in your resources.
 
 **Append**: appends the new data to the destination. Use `write_disposition='append'`.
 
 **Merge**: Merges new data to the destination using `merge_key` and/or deduplicates/upserts new data using `private_key`. Use `write_disposition='merge'`.
+
+### Choosing a write disposition
+
+The write disposition you choose depends on the data set and how you can extract it.
+
+To find the write disposition you should use, the first question you should ask yourself is "Is my data stateful or stateless"?
+Stateful data has a state that is subject to change - for example a user's profile
+Stateless data cannot change - for example, a recorded event, such as a page view.
+
+Because stateless data does not need to be updated, we can just append it.
+
+For stateful data, comes a second question - Can I extract it incrementally from the source?
+If not, then we need to replace the entire data set. If however we can request the data incrementally such as "all users added or modified since yesterday" then we can simply apply changes to our existing dataset with the merge write disposition.
+
+
+![write disposition flowchart](/img/write_dispo-choice.png)
 
 ## How to do incremental loading
 
