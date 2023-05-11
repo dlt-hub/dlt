@@ -1,6 +1,7 @@
 import os
 from time import sleep
 from typing import Optional, Any
+from datetime import datetime  # noqa: I251
 
 import duckdb
 import pytest
@@ -629,3 +630,17 @@ def test_last_value_func_on_dict() -> None:
         watch_events = list(r)
         assert len(watch_events) > 0
         assert [e for e in all_events if e["type"] == "WatchEvent"] == watch_events
+
+
+def test_timezone_naive_datetime() -> None:
+    """Resource has timezone naive datetime objects, but incremental stored state is
+    converted to tz aware pendulum dates. Can happen when loading e.g. from sql database"""
+    start_dt = datetime.now()
+    pendulum_start_dt = pendulum.instance(start_dt)  # With timezone
+
+    @dlt.resource
+    def some_data(updated_at: dlt.sources.incremental[pendulum.DateTime] = dlt.sources.incremental('updated_at', pendulum_start_dt)):
+        yield [{'updated_at': start_dt + timedelta(hours=1)}, {'updated_at': start_dt + timedelta(hours=2)}]
+
+    pipeline = dlt.pipeline(pipeline_name=uniq_id())
+    pipeline.extract(some_data())

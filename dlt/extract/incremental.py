@@ -1,6 +1,7 @@
 from typing import Generic, TypeVar, Any, Optional, Callable, List, TypedDict, get_origin, Sequence
 import inspect
 from functools import wraps
+from datetime import datetime  # noqa: I251
 
 import dlt
 from dlt.common.json import json
@@ -15,6 +16,7 @@ from dlt.extract.exceptions import IncrementalUnboundError, PipeException
 from dlt.extract.pipe import Pipe
 from dlt.extract.utils import resolve_column_value
 from dlt.extract.typing import FilterItem, SupportsPipe, TTableHintTemplate
+from dlt.common import pendulum
 
 
 TCursorValue = TypeVar("TCursorValue", bound=Any)
@@ -173,7 +175,13 @@ class Incremental(FilterItem, BaseConfiguration, Generic[TCursorValue]):
 
         incremental_state = self._cached_state
         last_value = incremental_state['last_value']
-        row_value = row_values[0]  # For now the value needs to match deserialized presentation from state
+        row_value = row_values[0]
+
+        # For datetime cursor, ensure the value is a timezone aware datetime.
+        # The object saved in state will always be a tz aware pendulum datetime so this ensures values are comparable
+        if isinstance(row_value, datetime):
+            row_value = pendulum.instance(row_value)
+
         check_values = (row_value,) + ((last_value, ) if last_value is not None else ())
         new_value = self.last_value_func(check_values)
         if last_value == new_value:
