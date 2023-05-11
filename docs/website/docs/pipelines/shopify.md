@@ -13,14 +13,12 @@ This `dlt` pipeline is designed to efficiently load data from multiple endpoints
 5. Choose “Create an app” and provide the necessary details, such as the name of your app and its developer.
 6. Next, click on the “Configuration” tab and select the “Configure” option for “Admin API integration,” as shown in the image below:
 
-  <img src="/workspaces/dlt/docs/website/static/img/Pipeline_Docs_Shopify_configuration_img.png" alt="Shopify configuration" width="600"/>
+![Shopify configuration](docs_images/Pipeline_Docs_Shopify_configuration_img.png)
+
 
 7. In the “Admin API access scopes” section, grant read access to the endpoints from which you want to load data.
 8. Click on the Save button at the bottom of the Configuration.
 9. Click on “Install app” at the top of the page and confirm.
-
-    <img src="/workspaces/dlt/docs/website/static/img/Pipeline_Docs_Shopify_install_app_img.png" alt="Shopify install app" width="200"/>
-
 10. Finally, click on “reveal the Admin API access token” and copy it. This token will be used in dlt `secrets.toml` for authentication and will be displayed only once, so better keep it safe.
 
 ## Initialize the pipeline[](https://dlthub.com/docs/pipelines/github#initialize-the-pipeline)
