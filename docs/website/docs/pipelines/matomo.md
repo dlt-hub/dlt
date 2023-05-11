@@ -26,9 +26,7 @@ For instance, if your company's name is "mycompany", then the URL will be someth
 2. Please make sure to note down this URL as it will be needed for configuring the **`config.toml`**.
 3. The **`site_id`** is a unique identifier assigned to each site that you monitor using your Matomo account.
 4. You can easily locate the **`site_id`** in the URL link in the address bar, for example, as "idSite=2".
-5. Alternatively, you can also find the **`site_id`** by navigating to the Administration page > Measureables > Manage, and then locating the **`ID`** number for your site, for the following image, ID = 2, i.e. site_id =2
-
- <img src="docs_images/Matomo_name_and_id.png" alt="Matomo_id" width="400"/>
+5. Alternatively, you can also find the **`site_id`** by navigating to the Administration page > Measureables > Manage, and then locating the **`ID`** number for your site.
 
 ## Initialize the pipeline[](https://dlthub.com/docs/pipelines/github#initialize-the-pipeline)
 
