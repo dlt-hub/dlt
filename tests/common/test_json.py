@@ -219,8 +219,13 @@ def test_json_typed_dumps_loads(json_impl: SupportsJson) -> None:
     s = json_impl.typed_dumps(JSON_TYPED_DICT_NESTED)
     b = json_impl.typed_dumpb(JSON_TYPED_DICT_NESTED)
 
-    assert json.typed_loads(s) == JSON_TYPED_DICT_NESTED
-    assert json.typed_loadb(b) == JSON_TYPED_DICT_NESTED
+    assert json_impl.typed_loads(s) == JSON_TYPED_DICT_NESTED
+    assert json_impl.typed_loadb(b) == JSON_TYPED_DICT_NESTED
+
+    # Test load/dump naked
+    dt = pendulum.now()
+    s = json_impl.typed_dumps(dt)
+    assert json_impl.typed_loads(s) == dt
 
 
 @pytest.mark.parametrize("json_impl", _JSON_IMPL)
