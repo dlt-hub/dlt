@@ -144,7 +144,7 @@ def custom_pua_decode(obj: Any) -> Any:
 
 def custom_pua_decode_nested(obj: Any) -> Any:
     if isinstance(obj, str):
-        return custom_pua_decode
+        return custom_pua_decode(obj)
     elif isinstance(obj, (list, dict)):
         return map_nested_in_place(custom_pua_decode, obj)
     return obj
