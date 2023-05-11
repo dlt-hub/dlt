@@ -30,6 +30,7 @@ const sidebars = {
         'pipelines/google_sheets',
         'pipelines/hubspot',
         'pipelines/pipedrive',
+        'pipelines/shopify',
         'pipelines/strapi',
         'pipelines/zendesk',
       ],
