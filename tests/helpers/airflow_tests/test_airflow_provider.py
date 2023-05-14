@@ -1,6 +1,8 @@
+import os
 import argparse
 import pytest
 from airflow import DAG
+from airflow.decorators import task, dag
 from airflow.cli.commands.db_command import resetdb
 from airflow.operators.python import PythonOperator
 from airflow.models.variable import Variable
@@ -13,17 +15,32 @@ import dlt
 from dlt.common import pendulum
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
-
 from dlt.common.configuration.providers.airflow import AIRFLOW_SECRETS_TOML_VARIABLE_KEY
+
+from tests.utils import preserve_environ
 
 DEFAULT_DATE = pendulum.datetime(2023, 4, 18, tz='Europe/Berlin')
 
 
 @pytest.fixture(scope='function', autouse=True)
 def initialize_airflow_db():
+    setup_airflow()
+    # backup context providers
+    providers = Container()[ConfigProvidersContext]
+    # allow airflow provider
+    os.environ["PROVIDERS__ENABLE_AIRFLOW_SECRETS"] = "true"
+    # re-create providers
+    del Container()[ConfigProvidersContext]
+    yield
+    # restore providers
+    Container()[ConfigProvidersContext] = providers
+    # Make sure the variable is not set
+    Variable.delete(AIRFLOW_SECRETS_TOML_VARIABLE_KEY)
+
+
+def setup_airflow() -> None:
     # Disable loading examples
     conf.set('core', 'load_examples', 'False')
-
     # Prepare the arguments for the initdb function
     args = argparse.Namespace()
     args.backend = conf.get(section='core', key='sql_alchemy_conn')
@@ -32,9 +49,6 @@ def initialize_airflow_db():
     args.yes = True
     args.skip_init = False
     resetdb(args)
-    yield
-    # Make sure the variable is not set
-    Variable.delete(AIRFLOW_SECRETS_TOML_VARIABLE_KEY)
 
 
 # Test data
@@ -45,9 +59,9 @@ api_key = "test_value"
 
 
 def test_airflow_secrets_toml_provider():
-    dag = DAG(dag_id='test_dag', start_date=DEFAULT_DATE)
 
-    def test_task():
+    @dag(start_date=DEFAULT_DATE)
+    def test_dag():
         from dlt.common.configuration.providers.airflow import (
             AirflowSecretsTomlProvider,
             AIRFLOW_SECRETS_TOML_VARIABLE_KEY,
@@ -55,39 +69,119 @@ def test_airflow_secrets_toml_provider():
 
         Variable.set(AIRFLOW_SECRETS_TOML_VARIABLE_KEY, SECRETS_TOML_CONTENT)
 
-        provider = AirflowSecretsTomlProvider()
+        @task()
+        def test_task():
 
-        api_key, _ = provider.get_value('api_key', str, None, 'sources')
+            provider = AirflowSecretsTomlProvider()
 
-        # There's no pytest context here in the task, so we need to return
-        # the results as a dict and assert them in the test function.
-        # See ti.xcom_pull() below.
-        return {
-            'name': provider.name,
-            'supports_secrets': provider.supports_secrets,
-            'api_key_from_provider': api_key,
-        }
+            api_key, _ = provider.get_value('api_key', str, None, 'sources')
 
-    task = PythonOperator(
-        task_id='test_task', python_callable=test_task, dag=dag
-    )
+            # There's no pytest context here in the task, so we need to return
+            # the results as a dict and assert them in the test function.
+            # See ti.xcom_pull() below.
+            return {
+                'name': provider.name,
+                'supports_secrets': provider.supports_secrets,
+                'api_key_from_provider': api_key,
+            }
 
-    dag.create_dagrun(
+        test_task()
+
+    dag_def: DAG = test_dag()
+    dag_def.create_dagrun(
         state=DagRunState.RUNNING,
         execution_date=DEFAULT_DATE,
         start_date=DEFAULT_DATE,
         run_type=DagRunType.MANUAL,
     )
-
-    ti = TaskInstance(task=task, execution_date=DEFAULT_DATE)
-
+    task_def = dag_def.task_dict["test_task"]
+    ti = TaskInstance(task=task_def, execution_date=DEFAULT_DATE)
     ti.run()
+    # print(task_def.run(start_date=DEFAULT_DATE, end_date=DEFAULT_DATE))
 
     result = ti.xcom_pull(task_ids='test_task')
 
     assert ti.state == State.SUCCESS
     assert result['name'] == 'Airflow Secrets TOML Provider'
     assert result['supports_secrets']
+    assert result['api_key_from_provider'] == 'test_value'
+
+
+def test_airflow_secrets_toml_provider_import_dlt_dag():
+    """Tests if the provider is functional when defining DAG"""
+
+    @dag(start_date=DEFAULT_DATE)
+    def test_dag():
+        Variable.set(AIRFLOW_SECRETS_TOML_VARIABLE_KEY, SECRETS_TOML_CONTENT)
+
+        import dlt
+        from dlt.common.configuration.accessors import secrets
+
+        # this will initialize provider context
+        api_key = secrets["sources.api_key"]
+
+        @task()
+        def test_task():
+            return {
+                'api_key_from_provider': api_key,
+            }
+
+        test_task()
+
+    dag_def: DAG = test_dag()
+    dag_def.create_dagrun(
+        state=DagRunState.RUNNING,
+        execution_date=DEFAULT_DATE,
+        start_date=DEFAULT_DATE,
+        run_type=DagRunType.MANUAL,
+    )
+    task_def = dag_def.task_dict["test_task"]
+    ti = TaskInstance(task=task_def, execution_date=DEFAULT_DATE)
+    ti.run()
+    # print(task_def.run(start_date=DEFAULT_DATE, end_date=DEFAULT_DATE))
+
+    result = ti.xcom_pull(task_ids='test_task')
+
+    assert ti.state == State.SUCCESS
+    assert result['api_key_from_provider'] == 'test_value'
+
+
+def test_airflow_secrets_toml_provider_import_dlt_task():
+    """Tests if the provider is functional when running in task"""
+
+    @dag(start_date=DEFAULT_DATE)
+    def test_dag():
+
+        @task()
+        def test_task():
+            Variable.set(AIRFLOW_SECRETS_TOML_VARIABLE_KEY, SECRETS_TOML_CONTENT)
+            import dlt
+            from dlt.common.configuration.accessors import secrets
+
+            # this will initialize provider context
+            api_key = secrets["sources.api_key"]
+
+            return {
+                'api_key_from_provider': api_key,
+            }
+
+        test_task()
+
+    dag_def: DAG = test_dag()
+    dag_def.create_dagrun(
+        state=DagRunState.RUNNING,
+        execution_date=DEFAULT_DATE,
+        start_date=DEFAULT_DATE,
+        run_type=DagRunType.MANUAL,
+    )
+    task_def = dag_def.task_dict["test_task"]
+    ti = TaskInstance(task=task_def, execution_date=DEFAULT_DATE)
+    ti.run()
+    # print(task_def.run(start_date=DEFAULT_DATE, end_date=DEFAULT_DATE))
+
+    result = ti.xcom_pull(task_ids='test_task')
+
+    assert ti.state == State.SUCCESS
     assert result['api_key_from_provider'] == 'test_value'
 
 

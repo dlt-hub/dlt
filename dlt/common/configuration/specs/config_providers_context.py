@@ -1,11 +1,13 @@
 
 
-from typing import List
+import contextlib
+import io
+from typing import Any, List
 from dlt.common.configuration.exceptions import DuplicateConfigProviderException
 from dlt.common.configuration.providers import ConfigProvider, EnvironProvider, ContextProvider, SecretsTomlProvider, ConfigTomlProvider, GoogleSecretsProvider
 from dlt.common.configuration.specs.base_configuration import ContainerInjectableContext
 from dlt.common.configuration.specs import GcpServiceAccountCredentials, BaseConfiguration, configspec, known_sections
-from dlt.common.runtime.exec_info import is_running_in_airflow_task
+from dlt.common.runtime.exec_info import is_airflow_installed
 
 
 @configspec
@@ -32,14 +34,22 @@ class ConfigProvidersContext(ContainerInjectableContext):
         self.context_provider = ContextProvider()
 
     def add_extras(self) -> None:
-        """Adds extra providers using the initial ones."""
-        self.providers += _extra_providers()
+        """Adds extra providers. Extra providers may use initial providers when setting up"""
+        for provider in _extra_providers():
+            self[provider.name] = provider
 
     def __getitem__(self, name: str) -> ConfigProvider:
         try:
             return next(p for p in self.providers if p.name == name)
         except StopIteration:
             raise KeyError(name)
+
+    def __setitem__(self, name: str, provider: ConfigProvider) -> None:
+        idx = next((i for i, p in enumerate(self.providers) if p.name == name), -1)
+        if idx == -1:
+            self.providers.append(provider)
+        else:
+            self.providers[idx] = provider
 
     def __contains__(self, name: object) -> bool:
         try:
@@ -88,29 +98,43 @@ def _airflow_providers() -> List[ConfigProvider]:
     is running in an Airflow environment. If Airflow is not installed,
     an empty list is returned. If Airflow is installed, the function
     returns a list containing the Airflow providers.
+
+    Depending on how DAG is defined this function may be called outside of task and
+    task context will be not available. Still we want the provider to function so
+    we just test if Airflow can be imported.
     """
-    if not is_running_in_airflow_task():
+    if not is_airflow_installed():
         return []
 
-    from airflow.models import Variable # noqa
-    from airflow.operators.python import get_current_context  # noqa
+    # hide stdio. airflow typically dumps tons of warnings and deprecations to stdout and stderr
+    with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+        from airflow.models import Variable # noqa
 
-    from dlt.common.configuration.providers.airflow import (
-        AirflowSecretsTomlProvider,
-        AIRFLOW_SECRETS_TOML_VARIABLE_KEY
-    )
+        from dlt.common.configuration.providers.airflow import (
+            AirflowSecretsTomlProvider,
+            AIRFLOW_SECRETS_TOML_VARIABLE_KEY
+        )
 
-    secrets_toml_var = Variable.get(
-        AIRFLOW_SECRETS_TOML_VARIABLE_KEY,
-        default_var=None
-    )
+        secrets_toml_var = Variable.get(
+            AIRFLOW_SECRETS_TOML_VARIABLE_KEY,
+            default_var=None
+        )
 
     if secrets_toml_var is not None:
         return [AirflowSecretsTomlProvider()]
     else:
-        ti = get_current_context()["ti"]
-        ti.log.warning(
-            f"Airflow variable '{AIRFLOW_SECRETS_TOML_VARIABLE_KEY}' "
-            "not found. AirflowSecretsTomlProvider will not be used."
-        )
+        message = f"Airflow variable '{AIRFLOW_SECRETS_TOML_VARIABLE_KEY}' not found. AirflowSecretsTomlProvider will not be used."
+        try:
+            # prefer logging to task logger
+            from airflow.operators.python import get_current_context  # noqa
+
+            ti = get_current_context()["ti"]
+            ti.log.warning(message)
+        except Exception:
+            # otherwise log to dlt logger
+            from dlt.common import logger
+            if logger.is_logging():
+                logger.warning(message)
+            else:
+                print(message)
         return []

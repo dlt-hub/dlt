@@ -34,13 +34,17 @@ def pytest_configure(config):
 
     # patch which providers to enable
     from dlt.common.configuration.providers import ConfigProvider, EnvironProvider, SecretsTomlProvider, ConfigTomlProvider
-    from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
+    from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext, ConfigProvidersConfiguration
 
     def initial_providers() -> List[ConfigProvider]:
         # do not read the global config
         return [EnvironProvider(), SecretsTomlProvider(add_global_config=False), ConfigTomlProvider(add_global_config=False)]
 
     ConfigProvidersContext.initial_providers = initial_providers
+    # also disable extras
+    ConfigProvidersConfiguration.enable_airflow_secrets = False
+    ConfigProvidersConfiguration.enable_google_secrets = False
+
 
     # path pipeline instance id up to millisecond
     from dlt.common import pendulum

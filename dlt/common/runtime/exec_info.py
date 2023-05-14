@@ -81,6 +81,15 @@ def airflow_info() -> StrAny:
         return None
 
 
+def is_airflow_installed() -> bool:
+    try:
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            import airflow
+        return True
+    except ImportError:
+        return False
+
+
 def is_running_in_airflow_task() -> bool:
     try:
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
@@ -90,7 +99,6 @@ def is_running_in_airflow_task() -> bool:
             return context is not None and 'ti' in context
     except Exception:
         return False
-
 
 
 def dlt_version_info(pipeline_name: str) -> StrStr:
