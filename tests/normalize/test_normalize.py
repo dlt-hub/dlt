@@ -5,7 +5,6 @@ from multiprocessing import get_start_method, Pool
 from multiprocessing.dummy import Pool as ThreadPool
 
 from dlt.common import json
-from dlt.common.destination import TLoaderFileFormat
 from dlt.common.schema.schema import Schema
 from dlt.common.utils import uniq_id
 from dlt.common.typing import StrAny

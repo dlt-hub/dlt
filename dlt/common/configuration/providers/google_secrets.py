@@ -35,7 +35,6 @@ class GoogleSecretsProvider(BaseTomlProvider):
         - add roles/secretmanager.secretAccessor to allow access to all secrets or enable access per secret
 
         """
-        print("GoogleSecretsProvider INSTANCE CREATED!")
         self.only_secrets = only_secrets
         self.only_toml_fragments = only_toml_fragments
         self.credentials = credentials

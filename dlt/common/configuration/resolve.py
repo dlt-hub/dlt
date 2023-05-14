@@ -338,9 +338,6 @@ def resolve_single_provider_value(
     while True:
         if config_section and provider.supports_sections:
             full_ns = ns.copy()
-            # pipeline, when provided, is the most outer and always present
-            # if pipeline_name:
-            #     full_ns.insert(0, pipeline_name)
             # config section, is always present and innermost
             if config_section:
                 full_ns.append(config_section)
