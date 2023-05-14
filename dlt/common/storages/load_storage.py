@@ -210,7 +210,7 @@ class LoadStorage(DataItemStorage, VersionedStorage):
             json.dump(schema_update, f)
 
     def commit_temp_load_package(self, load_id: str) -> None:
-        self.storage.atomic_rename(load_id, self.get_package_path(load_id))
+        self.storage.rename_tree(load_id, self.get_package_path(load_id))
 
     def list_packages(self) -> Sequence[str]:
         loads = self.storage.list_folder_dirs(LoadStorage.NORMALIZED_FOLDER, to_root=False)
@@ -347,7 +347,7 @@ class LoadStorage(DataItemStorage, VersionedStorage):
         self.storage.save(join(load_path, LoadStorage.PACKAGE_COMPLETED_FILE_NAME), completed_state)
         # move to completed
         completed_path = self.get_completed_package_path(load_id)
-        self.storage.atomic_rename(load_path, completed_path)
+        self.storage.rename_tree(load_path, completed_path)
 
     def delete_completed_package(self, load_id: str) -> None:
         package_path = self.get_completed_package_path(load_id)

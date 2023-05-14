@@ -59,6 +59,8 @@ class _Accessor(abc.ABC):
         value = None
         traces: List[LookupTrace] = []
         for provider in self.config_providers:
+            if provider.is_empty:
+                continue
             value, effective_field = provider.get_value(key, type_hint, None, *sections)
             trace = LookupTrace(provider.name, sections, effective_field, value)
             traces.append(trace)
