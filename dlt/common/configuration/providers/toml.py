@@ -4,7 +4,7 @@ from tomlkit.items import Item as TOMLItem
 from tomlkit.container import Container as TOMLContainer
 from typing import Any, Optional, Tuple, Type, Union
 
-from dlt.common.configuration.paths import get_dlt_project_dir, get_dlt_home_dir
+from dlt.common.configuration.paths import get_dlt_settings_dir, get_dlt_data_dir
 from dlt.common.utils import update_dict_nested
 
 from .provider import ConfigProvider, ConfigProviderException, get_key_name
@@ -67,7 +67,7 @@ class TomlFileProvider(BaseTomlProvider):
 
     def _read_toml_file(self, file_name: str, project_dir: str = None, add_global_config: bool = False) -> tomlkit.TOMLDocument:
         self._file_name = file_name
-        self._toml_path = os.path.join(project_dir or get_dlt_project_dir(), file_name)
+        self._toml_path = os.path.join(project_dir or get_dlt_settings_dir(), file_name)
         self._add_global_config = add_global_config
         try:
             project_toml = self._read_toml(self._toml_path)
@@ -80,7 +80,7 @@ class TomlFileProvider(BaseTomlProvider):
 
     @staticmethod
     def global_config_path() -> str:
-        return get_dlt_home_dir()
+        return get_dlt_data_dir()
 
     def write_toml(self) -> None:
         assert not self._add_global_config, "Will not write configs when `add_global_config` flag was set"

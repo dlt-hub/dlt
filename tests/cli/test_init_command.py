@@ -11,7 +11,7 @@ import pytest
 import dlt
 
 from dlt.common import git
-from dlt.common.configuration.paths import make_dlt_project_path
+from dlt.common.configuration.paths import make_dlt_settings_path
 from dlt.common.configuration.providers import CONFIG_TOML, SECRETS_TOML, SecretsTomlProvider
 from dlt.common.runners import Venv
 from dlt.common.storages.file_storage import FileStorage
@@ -425,8 +425,8 @@ def assert_pipeline_files(project_files: FileStorage, pipeline_name: str, destin
 def assert_common_files(project_files: FileStorage, pipeline_script: str, destination_name: str) -> Tuple[PipelineScriptVisitor, SecretsTomlProvider]:
     # cwd must be project files - otherwise assert won't work
     assert os.getcwd() == project_files.storage_path
-    assert project_files.has_file(make_dlt_project_path(SECRETS_TOML))
-    assert project_files.has_file(make_dlt_project_path(CONFIG_TOML))
+    assert project_files.has_file(make_dlt_settings_path(SECRETS_TOML))
+    assert project_files.has_file(make_dlt_settings_path(CONFIG_TOML))
     assert project_files.has_file(".gitignore")
     assert project_files.has_file(pipeline_script)
     # inspect script

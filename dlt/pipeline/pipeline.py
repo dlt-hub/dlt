@@ -310,7 +310,7 @@ class Pipeline(SupportsPipeline):
                     runner.run_pool(normalize.config, normalize)
                 return NormalizeInfo()
             except Exception as n_ex:
-                raise PipelineStepFailed(self, "normalize", n_ex, Normalize()) from n_ex
+                raise PipelineStepFailed(self, "normalize", n_ex, NormalizeInfo()) from n_ex
 
     @with_runtime_trace
     @with_schemas_sync

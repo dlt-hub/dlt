@@ -195,8 +195,8 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
             if isinstance(v, dict):
                 yield from self._normalize_row(v, extend, ident_path, parent_path, parent_row_id, idx, _r_lvl)
             elif isinstance(v, list):
-                # normalize lists of lists, we assume all lists in the list have the same type so they should go to the same table
-                yield from self._normalize_list(v, extend, ("list", ), parent_path + ident_path, parent_row_id, _r_lvl + 1)
+                # to normalize lists of lists, we must create a tracking intermediary table by creating a mock row
+                yield from  self._normalize_row({"list": v}, extend, ident_path, parent_path, parent_row_id, idx, _r_lvl + 1)
             else:
                 # list of simple types
                 child_row_hash = DataItemNormalizer._get_child_row_hash(parent_row_id, table, idx)

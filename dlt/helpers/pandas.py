@@ -1,5 +1,7 @@
 from typing import Any
 
+from deprecated import deprecated
+
 from dlt.common.exceptions import MissingDependencyException
 from dlt.destinations.sql_client import SqlClientBase
 
@@ -10,7 +12,7 @@ except ImportError:
     raise MissingDependencyException("DLT Pandas Helpers", ["pandas"])
 
 
-
+@deprecated(reason="Use `df` method on cursor returned from client.execute_query")
 def query_results_to_df(
     client: SqlClientBase[Any], query: str, index_col: Any = None, coerce_float: bool = True, parse_dates: Any = None, dtype: Any = None
 ) -> pd.DataFrame:

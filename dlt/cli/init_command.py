@@ -4,10 +4,9 @@ import shutil
 from types import ModuleType
 from typing import Dict, List, Sequence, Tuple
 from importlib.metadata import version as pkg_version
-from dlt.cli.telemetry_command import telemetry_status_command
 
 from dlt.common import git
-from dlt.common.configuration.paths import get_dlt_project_dir, make_dlt_project_path
+from dlt.common.configuration.paths import get_dlt_settings_dir, make_dlt_settings_path
 from dlt.common.configuration.specs import known_sections
 from dlt.common.configuration.providers import CONFIG_TOML, SECRETS_TOML, ConfigTomlProvider, SecretsTomlProvider
 from dlt.common.normalizers import default_normalizers, import_normalizers
@@ -123,7 +122,7 @@ def _welcome_message(pipeline_name: str, destination_name: str, pipeline_files: 
             fmt.echo("Pipeline %s was updated to the newest version!" % fmt.bold(pipeline_name))
 
     if is_new_pipeline:
-        fmt.echo("* Add credentials for %s and other secrets in %s" % (fmt.bold(destination_name), fmt.bold(make_dlt_project_path(SECRETS_TOML))))
+        fmt.echo("* Add credentials for %s and other secrets in %s" % (fmt.bold(destination_name), fmt.bold(make_dlt_settings_path(SECRETS_TOML))))
 
     if dependency_system:
         fmt.echo("* Add the required dependencies to %s:" % fmt.bold(dependency_system))
@@ -168,8 +167,8 @@ def init_command(pipeline_name: str, destination_name: str, use_generic_template
     pipeline_script, template_files = _get_template_files(init_module, use_generic_template)
     # prepare destination storage
     dest_storage = FileStorage(os.path.abspath("."))
-    if not dest_storage.has_folder(get_dlt_project_dir()):
-        dest_storage.create_folder(get_dlt_project_dir())
+    if not dest_storage.has_folder(get_dlt_settings_dir()):
+        dest_storage.create_folder(get_dlt_settings_dir())
     # get local index of pipeline files
     local_index = files_ops.load_pipeline_local_index(pipeline_name)
     # folder deleted at dest - full refresh
@@ -223,7 +222,7 @@ def init_command(pipeline_name: str, destination_name: str, use_generic_template
             return
 
     # add .dlt/*.toml files to be copied
-    pipeline_files.files.extend([make_dlt_project_path(CONFIG_TOML), make_dlt_project_path(SECRETS_TOML)])
+    pipeline_files.files.extend([make_dlt_settings_path(CONFIG_TOML), make_dlt_settings_path(SECRETS_TOML)])
 
     # add dlt extras line to requirements
     req_dep = f"{DLT_PKG_NAME}[{destination_name}]"

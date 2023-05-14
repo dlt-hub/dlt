@@ -1,3 +1,4 @@
+import os
 import pytest
 import tomlkit
 from typing import Any
@@ -209,29 +210,29 @@ def test_toml_global_config() -> None:
     assert secrets._add_global_config is False
     assert config._add_global_config is False
 
-    # get globals from patched home dir
-    with patch("dlt.common.configuration.providers.toml.get_dlt_home_dir") as _get_home_dir:
-        _get_home_dir.return_value = "./tests/common/cases/configuration/dlt_home"
-        # create instance with global toml enabled
-        config = ConfigTomlProvider("./tests/common/cases/configuration/.dlt", add_global_config=True)
-        assert config._add_global_config is True
-        assert isinstance(config._toml, tomlkit.TOMLDocument)
-        # kept from global
-        v, key = config.get_value("dlthub_telemetry", bool, None, "runtime")
-        assert v is False
-        assert key == "runtime.dlthub_telemetry"
-        v, _ = config.get_value("param_global", bool, None, "api", "params")
-        assert v == "G"
-        # kept from project
-        v, _ = config.get_value("log_level", bool, None, "runtime")
-        assert v == "ERROR"
-        # project overwrites
-        v, _ = config.get_value("param1", bool, None, "api", "params")
-        assert v == "a"
+    # set dlt data and settings dir
+    os.environ["DLT_DATA_DIR"] = "./tests/common/cases/configuration/dlt_home"
+    os.environ["DLT_PROJECT_DIR"] = "./tests/common/cases/configuration/"
+    # create instance with global toml enabled
+    config = ConfigTomlProvider(add_global_config=True)
+    assert config._add_global_config is True
+    assert isinstance(config._toml, tomlkit.TOMLDocument)
+    # kept from global
+    v, key = config.get_value("dlthub_telemetry", bool, None, "runtime")
+    assert v is False
+    assert key == "runtime.dlthub_telemetry"
+    v, _ = config.get_value("param_global", bool, None, "api", "params")
+    assert v == "G"
+    # kept from project
+    v, _ = config.get_value("log_level", bool, None, "runtime")
+    assert v == "ERROR"
+    # project overwrites
+    v, _ = config.get_value("param1", bool, None, "api", "params")
+    assert v == "a"
 
-        secrets = SecretsTomlProvider(add_global_config=True)
-        assert isinstance(secrets._toml, tomlkit.TOMLDocument)
-        assert secrets._add_global_config is True
-        # check if values from project exist
-        secrets_project = SecretsTomlProvider(add_global_config=False)
-        assert tomlkit.dumps(secrets._toml) == tomlkit.dumps(secrets_project._toml)
+    secrets = SecretsTomlProvider(add_global_config=True)
+    assert isinstance(secrets._toml, tomlkit.TOMLDocument)
+    assert secrets._add_global_config is True
+    # check if values from project exist
+    secrets_project = SecretsTomlProvider(add_global_config=False)
+    assert secrets._toml == secrets_project._toml

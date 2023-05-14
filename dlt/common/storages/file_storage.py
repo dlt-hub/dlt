@@ -1,6 +1,7 @@
 import os
 import re
 import stat
+import errno
 import tempfile
 import shutil
 import pathvalidate
@@ -141,10 +142,55 @@ class FileStorage:
         )
 
     def atomic_rename(self, from_relative_path: str, to_relative_path: str) -> None:
+        """Renames a path using os.rename which is atomic on POSIX, Windows and NFS v4.
+
+        Method falls back to non-atomic method in following cases:
+        1. On Windows when destination file exists
+        2. If underlying file system does not support atomic rename
+        3. All buckets mapped with FUSE are not atomic
+        """
+
         os.rename(
             self.make_full_path(from_relative_path),
             self.make_full_path(to_relative_path)
         )
+
+    def rename_tree(self, from_relative_path: str, to_relative_path: str) -> None:
+        """Renames a tree using os.rename if possible making it atomic
+
+        If we get 'too many open files': in that case `rename_tree_files is used
+        """
+
+        try:
+            self.atomic_rename(from_relative_path, to_relative_path)
+            return
+        except OSError as ex:
+            if ex.errno != errno.EMFILE:
+                raise
+        self.rename_tree_files(from_relative_path, to_relative_path)
+
+    def rename_tree_files(self, from_relative_path: str, to_relative_path: str) -> None:
+        """Renames files in a tree recursively using os.rename."""
+        from_path = self.make_full_path(from_relative_path)
+        to_path = self.make_full_path(to_relative_path)
+
+        if not os.path.isdir(from_path):
+            raise ValueError(f"{from_path} is not a directory")
+
+        # make sure the destination directory exists
+        os.makedirs(to_path, exist_ok=True)
+
+        # move files and directories from source to destination starting from leafs
+        for root, _, files in os.walk(from_path, topdown=False):
+            to_root = root.replace(from_path, to_path, 1)
+            os.makedirs(to_root, exist_ok=True)
+
+            for name in files:
+                file_from_path = os.path.join(root, name)
+                os.rename(file_from_path, os.path.join(to_root, name))
+
+            if not os.listdir(root):
+                os.rmdir(root)
 
     def atomic_import(self, external_file_path: str, to_folder: str) -> str:
         """Moves a file at `external_file_path` into the `to_folder` effectively importing file into storage"""

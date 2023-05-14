@@ -221,7 +221,7 @@ def resource(
     merge_key: TTableHintTemplate[TColumnKey] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None
-) -> Callable[[Callable[TResourceFunParams, Any]], Callable[TResourceFunParams, DltResource]]:
+) -> Callable[[Callable[TResourceFunParams, Any]], DltResource]:
     ...
 
 

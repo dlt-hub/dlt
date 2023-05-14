@@ -306,18 +306,80 @@ def test_list_position(norm: RelationalNormalizer) -> None:
         assert row["_dlt_list_idx"] == pos
 
 
-def test_list_of_lists(norm: RelationalNormalizer) -> None:
-    row = {
-        "l":[
-            ["a", "b", "c"],
-            [
-                ["a", "b", "b"]
+# def test_list_of_lists(norm: RelationalNormalizer) -> None:
+#     row = {
+#         "l":[
+#             ["a", "b", "c"],
+#             [
+#                 ["a", "b", "b"]
+#             ],
+#             "a", 1, 1.1
+#         ]
+#     }
+#     rows = list(norm._normalize_row(row, {}, ("table", )))
+#     print(rows)
+
+
+def test_list_in_list() -> None:
+    chats = {
+        "_dlt_id": "123456",
+        "created_at": "2023-05-12T12:34:56Z",
+        "ended_at": "2023-05-12T13:14:32Z",
+        "webpath": [[
+                {
+                    "url": "https://www.website.com/",
+                    "timestamp": "2023-05-12T12:35:01Z"
+                },
+                {
+                    "url": "https://www.website.com/products",
+                    "timestamp": "2023-05-12T12:38:45Z"
+                },
+                {
+                    "url": "https://www.website.com/products/item123",
+                    "timestamp": "2023-05-12T12:42:22Z"
+                },
+                [{
+                    "url": "https://www.website.com/products/item1234",
+                    "timestamp": "2023-05-12T12:42:22Z"
+                }]
             ],
-            "a", 1, 1.1
+            [1, 2, 3]
         ]
     }
-    rows = list(norm._normalize_row(row, {}, ("table", )))
-    print(rows)
+    schema = create_schema_with_name("other")
+    # root
+    rows = list(schema.normalize_data_item(chats, "1762162.1212", "zen"))
+    assert len(rows) == 11
+    # check if intermediary table was created
+    zen__webpath = [row for row in rows if row[0][0] == "zen__webpath"]
+    # two rows in web__zenpath for two lists
+    assert len(zen__webpath) == 2
+    assert zen__webpath[0][0] == ('zen__webpath', 'zen')
+    # _dlt_id was hardcoded in the original row
+    assert zen__webpath[0][1]["_dlt_parent_id"] == "123456"
+    assert zen__webpath[0][1]['_dlt_list_idx'] == 0
+    assert zen__webpath[1][1]['_dlt_list_idx'] == 1
+    assert zen__webpath[1][0] == ('zen__webpath', 'zen')
+    # inner lists
+    zen__webpath__list = [row for row in rows if row[0][0] == "zen__webpath__list"]
+    # actually both list of objects and list of number will be in the same table
+    assert len(zen__webpath__list) == 7
+    assert zen__webpath__list[0][1]["_dlt_parent_id"] == zen__webpath[0][1]["_dlt_id"]
+    # 4th list is itself a list
+    zen__webpath__list__list = [row for row in rows if row[0][0] == "zen__webpath__list__list"]
+    assert zen__webpath__list__list[0][1]["_dlt_parent_id"] == zen__webpath__list[3][1]["_dlt_id"]
+
+    # test the same setting webpath__list to complex
+    zen_table = new_table("zen")
+    schema.update_schema(zen_table)
+
+    path_table = new_table("zen__webpath", parent_table_name="zen", columns=[{"name": "list", "data_type": "complex"}])
+    schema.update_schema(path_table)
+    rows = list(schema.normalize_data_item(chats, "1762162.1212", "zen"))
+    # both lists are complex types now
+    assert len(rows) == 3
+    zen__webpath = [row for row in rows if row[0][0] == "zen__webpath"]
+    assert all("list" in row[1] for row in zen__webpath)
 
 
 def test_child_row_deterministic_hash(norm: RelationalNormalizer) -> None:
@@ -463,7 +525,7 @@ def test_propagates_table_context_to_lists(norm: RelationalNormalizer) -> None:
     assert all(r[1]["_partition_ts"] == 12918291.1212 for r in non_root)
     # just make sure that list of lists are present
     assert len([r for r in non_root if r[0][0] == "table__lvl1__list"]) == 3
-    assert len(non_root) == 6
+    assert len(non_root) == 7
 
 
 def test_removes_normalized_list(norm: RelationalNormalizer) -> None:

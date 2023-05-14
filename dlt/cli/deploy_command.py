@@ -13,7 +13,7 @@ import dlt
 
 from dlt.common.configuration.exceptions import LookupTrace
 from dlt.common.configuration.providers import ConfigTomlProvider, EnvironProvider, SECRETS_TOML
-from dlt.common.configuration.paths import make_dlt_project_path
+from dlt.common.configuration.paths import make_dlt_settings_path
 from dlt.common.configuration.utils import serialize_value
 from dlt.common.git import get_origin, get_repo, is_dirty
 from dlt.common.configuration.specs.run_configuration import get_default_pipeline_name
@@ -183,7 +183,7 @@ def deploy_command(pipeline_script_path: str, deployment_method: str, schedule: 
         fmt.echo()
         fmt.echo("You should now add the secrets to github repository secrets, commit and push the pipeline files to github.")
         fmt.echo("1. Add the following secret values (typically stored in %s): \n%s\nin %s" % (
-            fmt.bold(make_dlt_project_path(SECRETS_TOML)),
+            fmt.bold(make_dlt_settings_path(SECRETS_TOML)),
             fmt.bold("\n".join(env_prov.get_key_name(s_v.key, *s_v.sections) for s_v in secret_envs)),
             fmt.bold(github_origin_to_url(origin, "/settings/secrets/actions"))
         ))

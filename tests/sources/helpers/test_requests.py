@@ -88,8 +88,8 @@ def test_retry_on_status_without_raise_for_status(mock_sleep: mock.MagicMock) ->
 
     with requests_mock.mock(session=session) as m:
         m.get(url, status_code=503)
-        with pytest.raises(RetryError):
-            session.get(url)
+        response = session.get(url)
+        assert response.status_code == 503
 
     assert m.call_count == DEFAULT_RETRY_ATTEMPTS
 
@@ -113,8 +113,8 @@ def test_retry_on_custom_condition(mock_sleep: mock.MagicMock) -> None:
 
     with requests_mock.mock(session=session) as m:
         m.get(url, text='error')
-        with pytest.raises(RetryError):
-            session.get(url)
+        response = session.get(url)
+        assert response.content == b"error"
 
     assert m.call_count == DEFAULT_RETRY_ATTEMPTS
 

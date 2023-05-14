@@ -10,7 +10,7 @@ import requests
 import platform
 from concurrent.futures import ThreadPoolExecutor
 from typing import Literal, Optional
-from dlt.common.configuration.paths import get_dlt_home_dir
+from dlt.common.configuration.paths import get_dlt_data_dir
 
 from dlt.common.runtime import logger
 from dlt.common.configuration.specs import RunConfiguration
@@ -112,7 +112,7 @@ def _segment_request_header(write_key: str) -> StrAny:
 
 def get_anonymous_id() -> str:
     """Creates or reads a anonymous user id"""
-    home_dir = get_dlt_home_dir()
+    home_dir = get_dlt_data_dir()
     if not os.path.isdir(home_dir):
         os.makedirs(home_dir, exist_ok=True)
     anonymous_id_file = os.path.join(home_dir, ".anonymous_id")
