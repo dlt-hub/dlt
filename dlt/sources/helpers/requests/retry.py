@@ -1,6 +1,4 @@
 from email.utils import parsedate_tz, mktime_tz
-from functools import partial, wraps
-import inspect
 import re
 import time
 from typing import Optional, cast, Callable, Type, Union, Sequence, Tuple, List, TYPE_CHECKING, Any
@@ -103,12 +101,12 @@ def _make_retry(
         retry_conds.extend([retry_if_predicate(c) for c in retry_condition])
 
     wait_cls = wait_exponential_retry_after if respect_retry_after_header else wait_exponential
-
     return Retrying(
         wait=wait_cls(multiplier=backoff_factor),
         retry=(retry_any(*retry_conds)),
         stop=stop_after_attempt(max_attempts),
-        reraise=True
+        reraise=True,
+        retry_error_callback=lambda state: state.outcome.result()
     )
 
 
