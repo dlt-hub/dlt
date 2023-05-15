@@ -29,6 +29,7 @@ const sidebars = {
         'pipelines/google_analytics',
         'pipelines/google_sheets',
         'pipelines/hubspot',
+        'pipelines/matomo',
         'pipelines/pipedrive',
         'pipelines/strapi',
         'pipelines/zendesk',
