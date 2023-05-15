@@ -1,4 +1,4 @@
-# Shopify pipeline setup guide
+# Shopify
 
 Shopify is a user-friendly e-commerce solution that enables anyone to easily create and manage their own online store.
 
