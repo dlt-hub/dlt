@@ -1,4 +1,13 @@
-# Understanding how developers view ELT tools using the Hacker News API and GPT-4
+---
+slug: hacker-news-gpt-4-dashboard-demo
+title: Understanding how developers view ELT tools using the Hacker News API and GPT-4
+authors:
+  name: Rahul Joshi
+  title: Data Science Intern at dltHub
+  url: https://github.com/rahuljo
+  image_url: https://avatars.githubusercontent.com/u/28861929?v=4
+tags: [hacker news, gpt-4, streamlit]
+---
 
 ## Motivation
 
@@ -8,7 +17,7 @@ So we decided to set up a `dlt` pipeline to extract and load comments using keyw
 
 ## Creating a `dlt` pipeline for Hacker News
 
-For the dashboard to have access to the comments, we needed a data pipeline. So we built a `dlt` pipeline that could load the comments from the [Algolia Hacker News Search API](https://hn.algolia.com/api) into BigQuery. We did this by first writing the logic in Python to request the data from the API and then following [this walkthrough](https://github.com/dlt-hub/pipelines/blob/master/SHARE_PIPELINE.md) to turn it into a `dlt` pipeline.
+For the dashboard to have access to the comments, we needed a data pipeline. So we built a `dlt` pipeline that could load the comments from the [Algolia Hacker News Search API](https://hn.algolia.com/api) into BigQuery. We did this by first writing the logic in Python to request the data from the API and then following [this walkthrough](https://dlthub.com/docs/walkthroughs/create-a-pipeline) to turn it into a `dlt` pipeline.
 
 With our `dlt` pipeline ready, we loaded all of the HN comments corresponding to the keywords from January 1st, 2022 onward.
 
@@ -28,4 +37,6 @@ We decided to deploy our streamlit app on a GCP VM. To have our app update daily
 1. We first deployed our `dlt` pipeline using GitHub Actions to allow new comments to be loaded to BigQuery daily
 2. We then wrote a Python script that could pull new comments from BigQuery into the VM and we scheduled to run it daily using crontab
 3. This Python script also calls the `gpt-4` API to generate summaries only for the new comments
-4. Finally, this Python script updates the CSV file that is being read by the streamlit app to create the dashboard
+4. Finally, this Python script updates the CSV file that is being read by the streamlit app to create the dashboard. Check it out [here](http://34.28.70.28:8502/)! 
+  
+Follow the accompanying [GitHub repo](https://github.com/dlt-hub/hacker-news-gpt-4-dashboard-demo) to create your own Hacker News/GPT-4 dashboard.  
