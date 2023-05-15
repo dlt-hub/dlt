@@ -8,7 +8,9 @@ authors:
   image_url: https://avatars.githubusercontent.com/u/28861929?v=4
 tags: [hacker news, gpt-4, streamlit]
 ---
-
+:::info
+**TL;DR: We created a Hacker News -> BigQuery `dlt` pipeline to load all comments related to popular ELT keywords and then used GPT-4 to summarize the comments. We now have a live [dashboard](http://34.28.70.28:8502/) that tracks these keywords and an accompanying [GitHub repo](https://github.com/dlt-hub/hacker-news-gpt-4-dashboard-demo) detailing our process.**
+:::
 ## Motivation
 
 To figure out how to improve `dlt`, we are constantly learning about how people approach extracting, loading, and transforming data (i.e. [ELT](https://docs.getdbt.com/terms/elt)). This means we are often reading posts on [Hacker News (HN)](https://news.ycombinator.com/), a forum where many developers like ourselves hang out and share their perspectives. But finding and reading the latest comments about ELT from their website has proved to be time consuming and difficult, even when using [Algolia Hacker News Search](https://hn.algolia.com/) to search.
