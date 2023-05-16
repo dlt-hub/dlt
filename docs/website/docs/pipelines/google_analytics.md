@@ -76,9 +76,9 @@ directory
 ## Pass property_id and request parameters
 
 1. `property_id` is a unique number that identifies a particular property. You will need to explicity pass it to get data from the property that you're interested in. For example, if the property that you want to get data from is “GA4- Google Merch Shop” then you will need to pass its propery id 213025502.
-    
-    <img src="docs_images/GA4_Property_ID.png" alt="Admin Centre" width = "50%" />
-    
+
+    <img src="https://raw.githubusercontent.com/dlt-hub/dlt/devel/docs/website/docs/pipelines/docs_images/GA4_Property_ID.png" alt="Admin Centre" width = "50%" />
+
 2. You can also specify the parameters of the API requests such as dimensions and metrics to get your desired data.
 3. An example of how you can pass all of this in `dlt` is to simply insert it in the `.dlt/config.toml` file as below:
 
