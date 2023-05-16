@@ -117,6 +117,9 @@ def _resolve_config_fields(
     unresolved_fields: Dict[str, Sequence[LookupTrace]] = {}
 
     for key, hint in fields.items():
+        if key in config.__hint_resolvers__:
+            # Type hint for this field is created dynamically
+            hint = config.__hint_resolvers__[key](config)
         # get default and explicit values
         default_value = getattr(config, key, None)
         traces: List[LookupTrace] = []
