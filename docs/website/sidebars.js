@@ -32,6 +32,7 @@ const sidebars = {
         'pipelines/hubspot',
         'pipelines/matomo',
         'pipelines/pipedrive',
+        'pipelines/shopify',
         'pipelines/strapi',
         'pipelines/zendesk',
       ],
