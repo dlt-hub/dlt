@@ -87,8 +87,8 @@ class InsertValuesJobClient(SqlJobClientBase):
             job = EmptyLoadJob.from_file_path(file_path, "completed")
         return job
 
-    def start_file_load(self, table: TTableSchema, file_path: str) -> LoadJob:
-        job = super().start_file_load(table, file_path)
+    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
+        job = super().start_file_load(table, file_path, load_id)
         if not job:
             # this is using sql_client internally and will raise a right exception
             job = InsertValuesLoadJob(table["name"], table["write_disposition"], file_path, self.sql_client)

@@ -153,8 +153,8 @@ class BigQueryClient(SqlJobClientBase):
                     raise DestinationTransientException(gace)
         return job
 
-    def start_file_load(self, table: TTableSchema, file_path: str) -> LoadJob:
-        job = super().start_file_load(table, file_path)
+    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
+        job = super().start_file_load(table, file_path, load_id)
         if not job:
             try:
                 job = BigQueryLoadJob(
