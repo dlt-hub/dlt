@@ -2,6 +2,7 @@ import contextlib
 from copy import deepcopy
 import io
 from time import sleep
+from unittest.mock import patch
 import pytest
 import datetime  # noqa: I251
 from typing import Iterator
@@ -167,7 +168,7 @@ def test_complete_load(client: SqlJobClientBase) -> None:
     assert len(load_rows) == 2
 
 
-@pytest.mark.parametrize('client', ALL_CLIENTS_SUBSET(["redshift_client", "postgres_client"]), indirect=True)
+@pytest.mark.parametrize('client', ALL_CLIENTS_SUBSET(["redshift_client", "postgres_client", "duckdb_client"]), indirect=True)
 def test_schema_update_create_table_redshift(client: SqlJobClientBase) -> None:
     # infer typical rasa event schema
     schema = client.schema
@@ -222,38 +223,40 @@ def test_schema_update_create_table_bigquery(client: SqlJobClientBase) -> None:
 
 @pytest.mark.parametrize('client', ALL_CLIENTS, indirect=True)
 def test_schema_update_alter_table(client: SqlJobClientBase) -> None:
-    schema = client.schema
-    col1 = schema._infer_column("col1", "string")
-    table_name = "event_test_table" + uniq_id()
-    schema.update_schema(new_table(table_name, columns=[col1]))
-    schema.bump_version()
-    schema_update = client.update_storage_schema()
-    assert table_name in schema_update
-    assert len(schema_update[table_name]["columns"]) == 1
-    assert schema_update[table_name]["columns"]["col1"]["data_type"] == "text"
-    # with single alter table
-    col2 = schema._infer_column("col2", 1)
-    schema.update_schema(new_table(table_name, columns=[col2]))
-    schema.bump_version()
-    schema_update = client.update_storage_schema()
-    assert len(schema_update) == 1
-    assert len(schema_update[table_name]["columns"]) == 1
-    assert schema_update[table_name]["columns"]["col2"]["data_type"] == "bigint"
+    # force to update schema in chunks by setting the max query size to 10 bytes/chars
+    with patch.object(client.capabilities, "max_query_length", new=10):
+        schema = client.schema
+        col1 = schema._infer_column("col1", "string")
+        table_name = "event_test_table" + uniq_id()
+        schema.update_schema(new_table(table_name, columns=[col1]))
+        schema.bump_version()
+        schema_update = client.update_storage_schema()
+        assert table_name in schema_update
+        assert len(schema_update[table_name]["columns"]) == 1
+        assert schema_update[table_name]["columns"]["col1"]["data_type"] == "text"
+        # with single alter table
+        col2 = schema._infer_column("col2", 1)
+        schema.update_schema(new_table(table_name, columns=[col2]))
+        schema.bump_version()
+        schema_update = client.update_storage_schema()
+        assert len(schema_update) == 1
+        assert len(schema_update[table_name]["columns"]) == 1
+        assert schema_update[table_name]["columns"]["col2"]["data_type"] == "bigint"
 
-    # with 2 alter tables
-    col3 = schema._infer_column("col3", 1.2)
-    col4 = schema._infer_column("col4", 182879721.182912)
-    col4["data_type"] = "timestamp"
-    schema.update_schema(new_table(table_name, columns=[col3, col4]))
-    schema.bump_version()
-    schema_update = client.update_storage_schema()
-    assert len(schema_update[table_name]["columns"]) == 2
-    assert schema_update[table_name]["columns"]["col3"]["data_type"] == "double"
-    assert schema_update[table_name]["columns"]["col4"]["data_type"] == "timestamp"
-    _, storage_table = client.get_storage_table(table_name)
-    # 4 columns
-    assert len(storage_table) == 4
-    assert storage_table["col4"]["data_type"] == "timestamp"
+        # with 2 alter tables
+        col3 = schema._infer_column("col3", 1.2)
+        col4 = schema._infer_column("col4", 182879721.182912)
+        col4["data_type"] = "timestamp"
+        schema.update_schema(new_table(table_name, columns=[col3, col4]))
+        schema.bump_version()
+        schema_update = client.update_storage_schema()
+        assert len(schema_update[table_name]["columns"]) == 2
+        assert schema_update[table_name]["columns"]["col3"]["data_type"] == "double"
+        assert schema_update[table_name]["columns"]["col4"]["data_type"] == "timestamp"
+        _, storage_table = client.get_storage_table(table_name)
+        # 4 columns
+        assert len(storage_table) == 4
+        assert storage_table["col4"]["data_type"] == "timestamp"
 
 
 @pytest.mark.parametrize('client', ALL_CLIENTS, indirect=True)

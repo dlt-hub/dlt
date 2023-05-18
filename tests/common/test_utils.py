@@ -3,7 +3,7 @@ import binascii
 import pytest
 
 from dlt.common.runners import Venv
-from dlt.common.utils import flatten_list_of_str_or_dicts, digest128, map_nested_in_place, reveal_pseudo_secret, obfuscate_pseudo_secret, get_module_name
+from dlt.common.utils import flatten_list_of_str_or_dicts, digest128, map_nested_in_place, reveal_pseudo_secret, obfuscate_pseudo_secret, get_module_name, concat_strings_with_limit
 
 
 def test_flatten_list_of_str_or_dicts() -> None:
@@ -66,3 +66,24 @@ def test_get_module_name() -> None:
     # use exec to get __main__ exception
     mod_name = Venv.restore_current().run_script("tests/common/cases/modules/uniq_mod_121.py")
     assert mod_name.strip() == "uniq_mod_121"
+
+
+def test_concat_strings_with_limit() -> None:
+    assert list(concat_strings_with_limit([], " ", 15)) == []
+
+    philosopher = ["Bertrand Russell"]
+    assert list(concat_strings_with_limit(philosopher, ";\n", 15)) == ["Bertrand Russell"]
+
+    # only two strings will be merged (22 chars total)
+    philosophers = ["Bertrand Russell", "Ludwig Wittgenstein", "G.E. Moore", "J.L. Mackie", "Alfred Tarski"]
+    moore_merged = ['Bertrand Russell', 'Ludwig Wittgenstein', 'G.E. Moore J.L. Mackie', 'Alfred Tarski']
+    moore_merged_2 = ['Bertrand Russell', 'Ludwig Wittgenstein', 'G.E. Moore;\nJ.L. Mackie', 'Alfred Tarski']
+    assert list(concat_strings_with_limit(philosophers, " ", 22)) == moore_merged
+    # none will be merged
+    assert list(concat_strings_with_limit(philosophers, ";\n", 22)) == philosophers
+    # again 1
+    assert list(concat_strings_with_limit(philosophers, ";\n", 23)) == moore_merged_2
+    # all merged
+    assert list(concat_strings_with_limit(philosophers, ";\n", 1024)) == [";\n".join(philosophers)]
+    # none will be merged, all below limit
+    assert list(concat_strings_with_limit(philosophers, ";\n", 1)) == philosophers

@@ -188,7 +188,6 @@ def yield_client_with_storage(
         # print(dataset_name)
         client.sql_client.drop_dataset()
         if client.is_storage_initialized(staging=True):
-            print("DELETE STAGING")
             with client.sql_client.with_staging_dataset(staging=True):
                 client.sql_client.drop_dataset()
 

@@ -16,6 +16,7 @@ from dlt.common.schema.utils import add_missing_hints
 from dlt.common.storages import FileStorage
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns, TSchemaTables
 from dlt.common.destination.reference import DestinationClientConfiguration, DestinationClientDwhConfiguration, NewLoadJob, TLoadJobState, LoadJob, JobClientBase
+from dlt.common.utils import concat_strings_with_limit
 from dlt.destinations.exceptions import DatabaseUndefinedRelation, DestinationSchemaWillNotUpdate
 from dlt.destinations.job_impl import EmptyLoadJobWithoutFollowup
 from dlt.destinations.sql_merge_job import SqlMergeJob
@@ -204,15 +205,15 @@ class SqlJobClientBase(JobClientBase):
 
     def _execute_schema_update_sql(self, only_tables: Iterable[str]) -> TSchemaTables:
         sql_scripts, schema_update = self._build_schema_update_sql(only_tables)
-        if len(schema_update) > 0:
-            # execute updates in a single batch
-            sql = "\n".join(sql_scripts)
-            self.sql_client.execute_sql(sql)
+        # stay within max query size when doing DDL. some db backends use bytes not characters so decrease limit by half
+        # assuming that most of the characters in DDL encode into single bytes
+        for sql_fragment in concat_strings_with_limit(sql_scripts, "\n", self.capabilities.max_query_length // 2):
+            self.sql_client.execute_sql(sql_fragment)
         self._update_schema_in_storage(self.schema)
         return schema_update
 
     def _build_schema_update_sql(self, only_tables: Iterable[str]) -> Tuple[List[str], TSchemaTables]:
-        """Generates CREATE/ALTER sql for tables that differ int the destination and in Schema.
+        """Generates CREATE/ALTER sql for tables that differ between the destination and in client's Schema.
 
         This method compares all or `only_tables` defined in self.schema to the respective tables in the destination. It detects only new tables and new columns.
         Any other changes like data types, hints etc. are ignored.

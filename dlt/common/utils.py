@@ -62,17 +62,17 @@ def str2bool(v: str) -> bool:
         raise ValueError('Boolean value expected.')
 
 
-def flatten_list_of_dicts(dicts: Sequence[StrAny]) -> StrAny:
-    """
-    Transforms a list of objects [{K: {...}}, {L: {....}}, ...] -> {K: {...}, L: {...}...}
-    """
-    o: DictStrAny = {}
-    for d in dicts:
-        for k,v in d.items():
-            if k in o:
-                raise KeyError(f"Cannot flatten with duplicate key {k}")
-            o[k] = v
-    return o
+# def flatten_list_of_dicts(dicts: Sequence[StrAny]) -> StrAny:
+#     """
+#     Transforms a list of objects [{K: {...}}, {L: {....}}, ...] -> {K: {...}, L: {...}...}
+#     """
+#     o: DictStrAny = {}
+#     for d in dicts:
+#         for k,v in d.items():
+#             if k in o:
+#                 raise KeyError(f"Cannot flatten with duplicate key {k}")
+#             o[k] = v
+#     return o
 
 
 def flatten_list_of_str_or_dicts(seq: Sequence[Union[StrAny, str]]) -> StrAny:
@@ -94,40 +94,40 @@ def flatten_list_of_str_or_dicts(seq: Sequence[Union[StrAny, str]]) -> StrAny:
     return o
 
 
-def flatten_dicts_of_dicts(dicts: Mapping[str, Any]) -> Sequence[Any]:
-    """
-    Transform and object {K: {...}, L: {...}...} -> [{key:K, ....}, {key: L, ...}, ...]
-    """
-    o: List[Any] = []
-    for k, v in dicts.items():
-        if isinstance(v, list):
-            # if v is a list then add "key" to each list element
-            for lv in v:
-                lv["key"] = k
-        else:
-            # add as "key" to dict
-            v["key"] = k
+# def flatten_dicts_of_dicts(dicts: Mapping[str, Any]) -> Sequence[Any]:
+#     """
+#     Transform and object {K: {...}, L: {...}...} -> [{key:K, ....}, {key: L, ...}, ...]
+#     """
+#     o: List[Any] = []
+#     for k, v in dicts.items():
+#         if isinstance(v, list):
+#             # if v is a list then add "key" to each list element
+#             for lv in v:
+#                 lv["key"] = k
+#         else:
+#             # add as "key" to dict
+#             v["key"] = k
 
-        o.append(v)
-    return o
+#         o.append(v)
+#     return o
 
 
-def tuplify_list_of_dicts(dicts: Sequence[DictStrAny]) -> Sequence[DictStrAny]:
-    """
-    Transform list of dictionaries with single key into single dictionary of {"key": orig_key, "value": orig_value}
-    """
-    for d in dicts:
-        if len(d) > 1:
-            raise ValueError(f"Tuplify requires one key dicts {d}")
-        if len(d) == 1:
-            key = next(iter(d))
-            # delete key first to avoid name clashes
-            value = d[key]
-            del d[key]
-            d["key"] = key
-            d["value"] = value
+# def tuplify_list_of_dicts(dicts: Sequence[DictStrAny]) -> Sequence[DictStrAny]:
+#     """
+#     Transform list of dictionaries with single key into single dictionary of {"key": orig_key, "value": orig_value}
+#     """
+#     for d in dicts:
+#         if len(d) > 1:
+#             raise ValueError(f"Tuplify requires one key dicts {d}")
+#         if len(d) == 1:
+#             key = next(iter(d))
+#             # delete key first to avoid name clashes
+#             value = d[key]
+#             del d[key]
+#             d["key"] = key
+#             d["value"] = value
 
-    return dicts
+#     return dicts
 
 
 def flatten_list_or_items(_iter: Union[Iterator[TAny], Iterator[List[TAny]]]) -> Iterator[TAny]:
@@ -136,6 +136,41 @@ def flatten_list_or_items(_iter: Union[Iterator[TAny], Iterator[List[TAny]]]) ->
             yield from items
         else:
             yield items
+
+
+def concat_strings_with_limit(strings: List[str], separator: str, limit: int) -> Iterator[str]:
+    """
+    Generator function to concatenate strings.
+
+    The function takes a list of strings and concatenates them into a single string such that the length of each
+    concatenated string does not exceed a specified limit. It yields each concatenated string as it is created.
+    The strings are separated by a specified separator.
+
+    Args:
+        strings (List[str]): The list of strings to be concatenated.
+        separator (str): The separator to use between strings. Defaults to a single space.
+        limit (int): The maximum length for each concatenated string.
+
+    Yields:
+        Generator[str, None, None]: A generator that yields each concatenated string.
+    """
+
+    if not strings:
+        return
+
+    current_length = len(strings[0])
+    start = 0
+    sep_len = len(separator)
+
+    for i in range(1, len(strings)):
+        if current_length + len(strings[i]) + sep_len > limit:  # accounts for the length of separator
+            yield separator.join(strings[start:i])
+            start = i
+            current_length = len(strings[i])
+        else:
+            current_length += len(strings[i]) + sep_len  # accounts for the length of separator
+
+    yield separator.join(strings[start:])
 
 
 def filter_env_vars(envs: List[str]) -> StrStr:
