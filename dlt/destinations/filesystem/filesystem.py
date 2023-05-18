@@ -20,6 +20,7 @@ from dlt.destinations.exceptions import (LoadJobNotExistsException, LoadJobInval
 
 from dlt.destinations.filesystem import capabilities
 from dlt.destinations.filesystem.configuration import FilesystemClientConfiguration
+from dlt.destinations.filesystem.filesystem_client import client_from_config
 from dlt.common.storages import LoadStorage
 from fsspec import AbstractFileSystem
 
@@ -59,11 +60,11 @@ class FilesystemClient(JobClientBase):
 
     def __init__(self, schema: Schema, config: FilesystemClientConfiguration) -> None:
         super().__init__(schema, config)
-        self.fs_client, self.fs_path = url_to_fs(config.bucket_url)
+        self.fs_client, self.fs_path = client_from_config(config)
         self.config: FilesystemClientConfiguration = config
 
     def initialize_storage(self, staging: bool = False, truncate_tables: Iterable[str] = None) -> None:
-        self.fs_client.makedirs(self.config.dataset_name, exist_ok=True)
+        self.fs_client.makedirs(Path(self.fs_path).joinpath(self.config.dataset_name), exist_ok=True)
 
     def is_storage_initialized(self, staging: bool = False) -> bool:
         return self.fs_client.isdir(self.config.dataset_name)  # type: ignore[no-any-return]
