@@ -101,8 +101,33 @@ source.resources["deal_scores"] = deal_scores  # this also works
 pipeline.run(source)
 ```
 
+### Reduce the nesting level of generated tables
+You can limit how deep `dlt` goes when generating child tables. By default the library will descend and generate child tables for all nested lists, without limit.
+```python
+@dlt.source(max_table_nesting=1)
+def mongo_db():
+    ...
+```
+In the example above we want only 1 level of child tables to be generates (so there are no child tables of child tables). Typical settings:
+- `max_table_nesting=0` will not generate child tables at all and all nested data will be represented as json.
+- `max_table_nesting=1` will generate child tables of top level tables and nothing more. All nested data in child tables will be represented as json.
+
+You can achieve the same effect after the source instance is created:
+```python
+from mongo_db import mongo_db
+
+source = mongo_db()
+source.max_table_nesting = 0
+
+```
+Several data sources are prone to contain semi-structured documents with very deep nesting ie. MongoDb databases. Our practical experience is that setting the `max_nesting_level` to 2 or 3 produces the clearest and human readable schemas.
+
+
+
 ### Modify schema
-The schema is available via `schema` property of the source. You can manipulate this schema ie. add tables, change column definitions etc. before the data is loaded. Source provides two other convenience properties:
+The schema is available via `schema` property of the source. [You can manipulate this schema ie. add tables, change column definitions etc. before the data is loaded.](schema.md#schema-is-modified-in-the-source-function-body)
+
+Source provides two other convenience properties:
 1. `max_table_nesting` to set the maximum nesting level of child tables
 2. `root_key` to propagate the `_dlt_id` of from a root table to all child tables.
 

@@ -38,9 +38,7 @@ Because stateless data does not need to be updated, we can just append it.
 For stateful data, comes a second question - Can I extract it incrementally from the source?
 If not, then we need to replace the entire data set. If however we can request the data incrementally such as "all users added or modified since yesterday" then we can simply apply changes to our existing dataset with the merge write disposition.
 
-## How to do incremental loading
-
-### Merge incremental loading
+## Merge incremental loading
 The `merge` write disposition is used in two scenarios:
 
 1. You want to keep only one instance of certain record ie. you receive updates of the `user` state from an API and want to keep just one record per `user_id`.
@@ -93,8 +91,25 @@ def github_repo_events(last_created_at = dlt.sources.incremental("created_at", "
     yield from _get_rest_pages("events")
 ```
 
+### Forcing root key propagation
+Merge write disposition requires that the `_dlt_id` of top level table is propagated to child tables. This concept is similar to foreign key which references a parent table and we call it a `root key`. Root key is automatically propagated for all tables that have `merge` write disposition set. We do not enable it everywhere because it takes storage space. Nevertheless is some cases you may want to permanently enable root key propagation.
+```python
+pipeline = dlt.pipeline(pipeline_name='facebook_insights', destination='duckdb', dataset_name='facebook_insights_data', full_refresh=True)
+fb_ads = facebook_ads_source()
+# enable root key propagation on a source that is not a merge one by default. this is not required if you always use merge but below we start
+# with replace
+fb_ads.root_key = True
+# load only disapproved ads
+fb_ads.ads.bind(states=("DISAPPROVED", ))
+info = pipeline.run(fb_ads.with_resources("ads"), write_disposition="replace")
+# merge the paused ads. the disapproved ads stay there!
+fb_ads = facebook_ads_source()
+fb_ads.ads.bind(states=("PAUSED", ))
+info = pipeline.run(fb_ads.with_resources("ads"), write_disposition="merge")
+```
+In example above we enforce the root key propagation with `fb_ads.root_key = True`. This ensures that correct data is propagated on initial `replace` load so the future `merge` load can be executed. You can achieve the same in the decorator `@dlt.source(root_key=True)`.
 
-### Incremental loading with last value
+## Incremental loading with last value
 
 In most of the APIs (and other data sources ie. database tables) you can request only new or updated data by passing a timestamp or id of the last record to a query. The API/database returns just the new/updated records from which you take "last value" timestamp/id for the next load.
 
@@ -194,7 +209,7 @@ Please note that in the example above, `get_resource` is passed as a function to
 >
 > Here we call **get_resource(endpoint)** and that creates un-evaluated generator on which resource is created. That prevents `dlt` from controlling the **created** argument during runtime and will result in `IncrementalUnboundError` exception.
 
-### Doing a full refresh
+## Doing a full refresh
 
 You may force a full refresh of a `merge` and `append` pipelines.
 1. In case of a `merge` the data in the destination is deleted and loaded fresh. Currently we do not deduplicate data during the full refresh.
@@ -214,7 +229,7 @@ p.run(merge_source())
 
 Passing write disposition to `replace` will change write disposition on all the resources in `repo_events` during the run of the pipeline.
 
-### Custom incremental loading with `dlt.state`
+## Custom incremental loading with `dlt.state`
 
 Preserving the last value in state.
 
