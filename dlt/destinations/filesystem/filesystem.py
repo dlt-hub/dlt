@@ -26,14 +26,27 @@ from fsspec import AbstractFileSystem
 
 
 class LoadFilesystemJob(LoadJob, FollowupJob):
-    def __init__(self, file_path: str, write_disposition: TWriteDisposition, schema_name: str, load_id: str, fs_client: AbstractFileSystem, fs_path: str, dataset_name: str) -> None:
+    def __init__(
+            self,
+            *,
+            file_path: str,
+            write_disposition: TWriteDisposition,
+            has_merge_keys: bool,
+            schema_name: str,
+            dataset_name: str,
+            load_id: str,
+            fs_client: AbstractFileSystem,
+            fs_path: str,
+    ) -> None:
         file_name = FileStorage.get_file_name_from_file_path(file_path)
         super().__init__(file_name)
 
         job_info = LoadStorage.parse_job_file_name(file_name)
 
         root_path = Path(fs_path).joinpath(dataset_name)
-        fs_client.makedirs(root_path, exist_ok=True)
+
+        if write_disposition == 'merge':
+            write_disposition = 'append' if has_merge_keys else 'replace'
 
         if write_disposition == 'replace':
             glob_path = str(root_path.joinpath(f"{schema_name}.{job_info.table_name}.*"))
@@ -70,8 +83,16 @@ class FilesystemClient(JobClientBase):
         return self.fs_client.isdir(self.config.dataset_name)  # type: ignore[no-any-return]
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
+        has_merge_keys = any(col['merge_key'] or col['primary_key'] for col in table['columns'].values())
         return LoadFilesystemJob(
-            file_path, table['write_disposition'], self.schema.name, load_id, self.fs_client, self.fs_path, self.config.dataset_name
+            file_path=file_path,
+            write_disposition=table['write_disposition'],
+            has_merge_keys=has_merge_keys,
+            schema_name=self.schema.name,
+            dataset_name=self.config.dataset_name,
+            load_id=load_id,
+            fs_client=self.fs_client,
+            fs_path=self.fs_path
         )
 
     def restore_file_load(self, file_path: str) -> LoadJob:
