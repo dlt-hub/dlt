@@ -5,9 +5,9 @@ keywords: [zendesk api, zendesk pipeline, zendesk]
 ---
 # Zendesk
 
-Zendesk is a cloud-based customer service and support platform. It offers a range of features, including ticket management, self-service options, knowledge base management, live chat, customer analytics, and talks. 
+Zendesk is a cloud-based customer service and support platform. It offers a range of features, including ticket management, self-service options, knowledge base management, live chat, customer analytics, and talks.
 
-Using this guide, you can set up a pipeline that can automatically load data from three possible Zendesk API Clients ([Zendesk support](https://developer.zendesk.com/api-reference/ticketing/introduction/), [Zendesk chat](https://developer.zendesk.com/api-reference/live-chat/introduction/), [Zendesk talk](https://developer.zendesk.com/api-reference/voice/talk-api/introduction/)) onto a [destination](https://dlthub.com/docs/destinations) of your choice. 
+Using this guide, you can set up a pipeline that can automatically load data from three possible Zendesk API Clients ([Zendesk support](https://developer.zendesk.com/api-reference/ticketing/introduction/), [Zendesk chat](https://developer.zendesk.com/api-reference/live-chat/introduction/), [Zendesk talk](https://developer.zendesk.com/api-reference/voice/talk-api/introduction/)) onto a [destination](https://dlthub.com/docs/destinations) of your choice.
 
 ## Get API credentials
 
@@ -16,13 +16,13 @@ Before running the pipeline, you will need to get API credentials. You do not ne
 <details>
 <summary>Credentials for Zendesk support API</summary>
 
-Zendesk support can be authenticated using any one of the following: 
+Zendesk support can be authenticated using any one of the following:
 
 1. [subdomain](#subdomain) + email address + password
 2. [subdomain](#subdomain) + email address + [API token](#zendesk-support-api-token)
 3. [subdomain](#subdomain) + [OAuth token](#zendesk-support-oauth-token)
 
-The simplest way to authenticate is via subdomain + email address + password, since these details are already available and you don't have to generate any tokens. Alternatively, you can also use API tokens or OAuth tokens. 
+The simplest way to authenticate is via subdomain + email address + password, since these details are already available and you don't have to generate any tokens. Alternatively, you can also use API tokens or OAuth tokens.
 
 ### Subdomain
 1. To get the subdomain, simply login to your Zendesk account and grab it from the url.
@@ -30,54 +30,55 @@ The simplest way to authenticate is via subdomain + email address + password, si
 
 
 ### Zendesk support API token
-    
-1.  Go to Zendesk products in the top right corner and select Admin Center. 
 
-  <img src="docs_images/Zendesk_admin_centre.png" alt="Admin Centre" width="400"/>
-        
-        
-2. Select Apps and Integrations. 
-    
+1.  Go to Zendesk products in the top right corner and select Admin Center.
+
+  <img src="https://raw.githubusercontent.com/dlt-hub/dlt/devel/docs/website/docs/pipelines/docs_images/Zendesk_admin_centre.png" alt="Admin Centre" width="400"/>
+
+
+2. Select Apps and Integrations.
+
 3. In the left pane, under APIs, choose Zendesk API from the menu on the left, and enable the “**Password access**” and “**Token access**” as shown below.
-    
 
-<img src="docs_images/Zendesk_token_access.png" alt="Admin Centre" width = "70%" />
+
+<img src="https://raw.githubusercontent.com/dlt-hub/dlt/devel/docs/website/docs/pipelines/docs_images/Zendesk_token_access.png" alt="Token Access" width = "70%" />
 
 4. Click on “**Add API token**”, enter a description, and note the `API token`.
-    
+
     ***********This token will be displayed only once and should be noted***********
 ### Zendesk support OAuth token
 To get an `OAuth token` follow these steps:
-1.  Go to Zendesk products in the top right corner and select Admin Center. 
+1.  Go to Zendesk products in the top right corner and select Admin Center.
 
-  <img src="docs_images/Zendesk_admin_centre.png" alt="Admin Centre" width="400"/>
-2. Select Apps and Integrations. 
+  <img src="https://raw.githubusercontent.com/dlt-hub/dlt/devel/docs/website/docs/pipelines/docs_images/Zendesk_admin_centre.png" alt="Admin Centre" width="400"/>
+
+2. Select Apps and Integrations.
 3. In the left pane, under APIs, choose Zendesk API from the menu on the left and go to “OAuth Clients” tab.
 4. Click on “Add OAuth Client” and add the details like “Client Name”, “Description”, “Company” , “Redirect URL (if any)”.
 5. Click on save, and a secret token will be displayed, copy it.
-6. Now you need to make a curl request using the following command          
-        
+6. Now you need to make a curl request using the following command
+
 ```bash
     curl https://{subdomain}.zendesk.com/oauth/tokens \
       -H "Content-Type: application/json" \
-      -d '{"grant_type": "password", "client_id": "{client_name}", 
+      -d '{"grant_type": "password", "client_id": "{client_name}",
         "client_secret": "{your_client_secret}", "scope": "read",
         "username": "{zendesk_username}", "password": "{zendesk_password}"}' \
       -X POST
 ```
-        
+
   Alternatively, you can use the following Python script:
-        
+
   ```python
     import requests
     import json
-    
+
     subdomain = "set_me_up"
     client_name = "set_me_up" # generated in the steps above
     client_secret = "set_me_up" # generated in the steps above
     zendesk_username = "set_me_up" # zendesk email address
     zendesk_password = "set_me_up" # zendesk password
-    
+
     url = f'https://{subdomain}.zendesk.com/oauth/tokens'
     headers = {'Content-Type': 'application/json'}
     data = {
@@ -89,12 +90,12 @@ To get an `OAuth token` follow these steps:
         'password': zendesk_password
     }
     response = requests.post(url, headers=headers, data=json.dumps(data))
-    
+
     print(response.json()['access_token'])
   ```
-        
+
 7. Include the following in the code above:
-      
+
 | Credentials | Description |
 | --- | --- |
 | subdomain | Your Zendesk subdomain |
@@ -102,16 +103,16 @@ To get an `OAuth token` follow these steps:
 | client_secret | secret token generated for the OAuth client |
 | zendesk_username  | Your Zendesk email address |
 | zendesk password | Your Zendesk password |
-      
-8. After running the above curl command in terminal (or the Python script), you will get an access token in the response. 
-      
+
+8. After running the above curl command in terminal (or the Python script), you will get an access token in the response.
+
 9. This is the OAuth token. Save it, as this will need to be added to the pipeline.
-        
+
 </details>
 <details>
 <summary>Credentials for Zendesk chat API</summary>
 
-To authenticate Zendesk chat, you will need the following credentials: 
+To authenticate Zendesk chat, you will need the following credentials:
 
 [subdomain](#subdomain-1) + [OAuth token](#zendesk-chat-oauth-token)
 
@@ -125,21 +126,21 @@ To authenticate Zendesk chat, you will need the following credentials:
 ### Zendesk chat OAuth token
 
 1. Login to Zendesk chat. Or go to “Chat” using Zendesk products in the top right corner.
-    
-  <img src="docs_images/Zendesk_admin_centre.png" alt="Admin Centre" width="400"/>
-    
+
+  <img src="https://raw.githubusercontent.com/dlt-hub/dlt/devel/docs/website/docs/pipelines/docs_images/Zendesk_admin_centre.png" alt="Admin Centre" width="400"/>
+
 2. In Zendesk chat, go to **Settings**(on the left) **> Account > API > Add API client.**
 3. Enter the details like client name, company, and redirect URLs (if you don’t have redirect URLs; use: [http://localhost:8080](http://localhost:8080/)).
 4. Note down the displayed `client ID` and `secret`.
-5. The simplest way to get Zendesk chat `OAuth token` is to use the URL given below. 
+5. The simplest way to get Zendesk chat `OAuth token` is to use the URL given below.
 ```bash
 https://www.zopim.com/oauth2/authorizations/new?response_type=token&redirect_uri=http%3A%2F%2Flocalhost%3A8080&client_id={client_id}&scope=read&subdomain={subdomain_name}
 ```
 For more information or an alternative method, see the [documentation](https://developer.zendesk.com/documentation/live-chat/getting-started/auth/#authorization-code-grant-flow).
 6. In the URL, replace `client_id` and `subdomain_name` with your client ID and subdomain. (***also remove the curly brackets***)
 7. Paste it in a browser and hit enter.
-8. Click on Allow. 
-9. After the redirect, the secret token will be displayed in the address bar of the browser as below: 
+8. Click on Allow.
+9. After the redirect, the secret token will be displayed in the address bar of the browser as below:
 ```bash
 http://localhost:8080/#**access_token=cSWY9agzy9hsgsEdX5F2PCsBlvSu3tDk3lh4xmISIHFhR4lKtpVqqDRVvkiZPqbI**&token_type=Bearer&scope=read
 
@@ -186,7 +187,7 @@ zendesk_pipeline
 
 ## Add credentials
 
-1. Add credentials for the Zendesk API and your chosen destination in `.dlt/secrets.toml`. 
+1. Add credentials for the Zendesk API and your chosen destination in `.dlt/secrets.toml`.
 
 ```python
 #Zendesk support credentials
@@ -265,11 +266,11 @@ def incremental_load_all_default():
 
 The Zendesk pipeline has some default customizations that make it more useful:
 
-1. **Pivoting ticket fields:** By default, the pipeline pivots the custom fields in tickets when loading the data, which allows the custom fields to be used as columns after loading. This behavior is due to the fact that the boolean parameter `pivot_ticket_fields` in the source method `zendesk_support()` is set to `True` by default. To change this, set `pivot_ticket_fields=False` when calling the source method from inside the data loading function.  
+1. **Pivoting ticket fields:** By default, the pipeline pivots the custom fields in tickets when loading the data, which allows the custom fields to be used as columns after loading. This behavior is due to the fact that the boolean parameter `pivot_ticket_fields` in the source method `zendesk_support()` is set to `True` by default. To change this, set `pivot_ticket_fields=False` when calling the source method from inside the data loading function.
 ```python
 data_support = zendesk_support(pivot_ticket_fields=False)
 ```
-  
+
   Alternatively, this can be explicitly done by using the function `load_support_with_pivoting` in the script `zendesk_pipeline.py`.
   ```python
   def load_support_with_pivoting():
