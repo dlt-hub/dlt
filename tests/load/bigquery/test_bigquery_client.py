@@ -192,12 +192,12 @@ def test_bigquery_job_errors(client: BigQueryClient, file_storage: FileStorage) 
 
     # start job with non existing file
     with pytest.raises(FileNotFoundError):
-        client.start_file_load(client.schema.get_table(user_table_name), uniq_id() + ".")
+        client.start_file_load(client.schema.get_table(user_table_name), uniq_id() + ".", uniq_id())
 
     # start job with invalid name
     dest_path = file_storage.save("!!aaaa", b"data")
     with pytest.raises(LoadJobTerminalException):
-        client.start_file_load(client.schema.get_table(user_table_name), dest_path)
+        client.start_file_load(client.schema.get_table(user_table_name), dest_path, uniq_id())
 
     user_table_name = prepare_table(client)
     load_json = {
@@ -209,7 +209,7 @@ def test_bigquery_job_errors(client: BigQueryClient, file_storage: FileStorage) 
     job = expect_load_file(client, file_storage, json.dumps(load_json), user_table_name)
 
     # start a job from the same file. it should fallback to retrieve job silently
-    r_job = client.start_file_load(client.schema.get_table(user_table_name), file_storage.make_full_path(job.file_name()))
+    r_job = client.start_file_load(client.schema.get_table(user_table_name), file_storage.make_full_path(job.file_name()), uniq_id())
     assert r_job.state() == "completed"
 
 
@@ -226,7 +226,7 @@ def test_bigquery_location(location: str, file_storage: FileStorage) -> None:
         job = expect_load_file(client, file_storage, json.dumps(load_json), user_table_name)
 
         # start a job from the same file. it should fallback to retrieve job silently
-        client.start_file_load(client.schema.get_table(user_table_name), file_storage.make_full_path(job.file_name()))
+        client.start_file_load(client.schema.get_table(user_table_name), file_storage.make_full_path(job.file_name()), uniq_id())
         canonical_name = client.sql_client.make_qualified_table_name(user_table_name, escape=False)
         t = client.sql_client.native_connection.get_table(canonical_name)
         assert t.location == location
