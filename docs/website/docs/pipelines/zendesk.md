@@ -127,7 +127,7 @@ To authenticate Zendesk chat, you will need the following credentials:
 
 1. Login to Zendesk chat. Or go to “Chat” using Zendesk products in the top right corner.
 
-  <img src="docs_images/Zendesk_admin_centre.png" alt="Admin Centre" width="400"/>
+  <img src="https://raw.githubusercontent.com/dlt-hub/dlt/devel/docs/website/docs/pipelines/docs_images/Zendesk_admin_centre.png" alt="Admin Centre" width="400"/>
 
 2. In Zendesk chat, go to **Settings**(on the left) **> Account > API > Add API client.**
 3. Enter the details like client name, company, and redirect URLs (if you don’t have redirect URLs; use: [http://localhost:8080](http://localhost:8080/)).
