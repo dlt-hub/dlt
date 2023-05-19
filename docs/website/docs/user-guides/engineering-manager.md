@@ -33,7 +33,7 @@ Some use cases require specific bits of external data (e.g. attribution might us
 
 ### 2. Core business pipelines
 
-These are usually engineered to ensure high service service-level agreement (SLA) for all core business cases. The core pipelines are generally built by data engineers. For example, a pipeline like [Google sheets](https://dlthub.com/docs/pipelines/google_sheets) that copies ranges, named ranges or entire documents dynamically.
+These are usually engineered to ensure high service service-level agreement (SLA) for all core business cases. The core pipelines are generally built by data engineers. For example, a pipeline like [Google Sheets](https://dlthub.com/docs/pipelines/google_sheets) that copies ranges, named ranges or entire documents dynamically.
 
 ### 3. Customized pipelines
 
