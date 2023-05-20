@@ -12,7 +12,7 @@ from dlt.common.schema import Schema
 from dlt.common.schema.typing import TColumnName
 from dlt.common.typing import AnyFun, StrAny, TDataItem, TDataItems, NoneType
 from dlt.common.configuration.container import Container
-from dlt.common.pipeline import PipelineContext, StateInjectableContext, SupportsPipelineRun, _resource_state, source_state, pipeline_state
+from dlt.common.pipeline import PipelineContext, StateInjectableContext, SupportsPipelineRun, resource_state, source_state, pipeline_state
 from dlt.common.utils import flatten_list_or_items, get_callable_name, multi_context_manager, uniq_id
 
 from dlt.extract.typing import DataItemWithMeta, ItemTransformFunc, ItemTransformFunctionWithMeta, TableNameMeta, FilterItem, MapItem, YieldMapItem
@@ -296,7 +296,7 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
     def state(self) -> StrAny:
         """Gets resource-scoped state from the existing pipeline context. If pipeline context is not available, PipelineStateNotAvailable is raised"""
         with self._get_config_section_context():
-            return _resource_state(self.name)
+            return resource_state(self.name)
 
     def __call__(self, *args: Any, **kwargs: Any) -> "DltResource":
         """Binds the parametrized resources to passed arguments. Creates and returns a bound resource. Generators and iterators are not evaluated."""
@@ -336,7 +336,7 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
 
         # managed pipe iterator will remove injected contexts when closing
         with multi_context_manager(_get_context()):
-            pipe_iterator: ManagedPipeIterator = ManagedPipeIterator.from_pipe(self._pipe)  # type: ignore
+            pipe_iterator: ManagedPipeIterator = ManagedPipeIterator.from_pipes([self._pipe])  # type: ignore
 
         pipe_iterator.set_context_manager(multi_context_manager(_get_context()))
         _iter = map(lambda item: item.item, pipe_iterator)
@@ -346,7 +346,9 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
         container = Container()
         proxy = container[PipelineContext]
         pipeline_name = None if not proxy.is_active() else proxy.pipeline().pipeline_name
-        return inject_section(ConfigSectionContext(pipeline_name=pipeline_name, sections=(known_sections.SOURCES, self.section or pipeline_name or uniq_id(), self._name)))
+        return inject_section(
+            ConfigSectionContext(pipeline_name=pipeline_name, sections=(known_sections.SOURCES, self.section or pipeline_name or uniq_id(), self._name))
+        )
 
     def __str__(self) -> str:
         info = f"DltResource {self._name}"
@@ -511,6 +513,7 @@ class DltSource(Iterable[TDataItem]):
     * It implements `Iterable` interface so you can get all the data from the resources yourself and without dlt pipeline present.
     * You can get the `schema` for the source and all the resources within it.
     * You can use a `run` method to load the data with a default instance of dlt pipeline.
+    * You can get source read only state for the currently active Pipeline instance
     """
     def __init__(self, name: str, section: str, schema: Schema, resources: Sequence[DltResource] = None) -> None:
         self.name = name
@@ -602,9 +605,10 @@ class DltSource(Iterable[TDataItem]):
         return schema
 
     def with_resources(self, *resource_names: str) -> "DltSource":
-        """A convenience method to select one of more resources to be loaded. Returns a source with the specified resources selected."""
-        self._resources.select(*resource_names)
-        return self
+        """A convenience method to select one of more resources to be loaded. Returns a clone of the original source with the specified resources selected."""
+        source = self.clone()
+        source._resources.select(*resource_names)
+        return source
 
 
     def add_limit(self, max_items: int) -> "DltSource":  # noqa: A003
@@ -633,6 +637,11 @@ class DltSource(Iterable[TDataItem]):
         """Gets source-scoped state from the existing pipeline context. If pipeline context is not available, PipelineStateNotAvailable is raised"""
         with self._get_config_section_context():
             return source_state()
+
+    def clone(self) -> "DltSource":
+        """Creates a deep copy of the source where copies of schema, resources and pipes are created"""
+        # mind that resources and pipes are cloned when added to the DltResourcesDict in the source constructor
+        return DltSource(self.name, self.section, self.schema.clone(), list(self._resources.values()))
 
     def __iter__(self) -> Iterator[TDataItem]:
         """Opens iterator that yields the data items from all the resources within the source in the same order as in Pipeline class.

@@ -89,49 +89,49 @@ def test_parametrized_transformer() -> None:
 
     # transformer must be created on a callable with at least one argument
     with pytest.raises(InvalidTransformerDataTypeGeneratorFunctionRequired):
-        dlt.transformer(r)("a")
+        dlt.transformer(data_from=r)("a")
     with pytest.raises(InvalidTransformerDataTypeGeneratorFunctionRequired):
-        dlt.transformer(r)(bad_transformer())
+        dlt.transformer(data_from=r)(bad_transformer())
 
     # transformer must take at least one arg
     with pytest.raises(InvalidTransformerGeneratorFunction) as py_ex:
-        dlt.transformer(r)(bad_transformer)
+        dlt.transformer(data_from=r)(bad_transformer)
     assert py_ex.value.code == 1
     # transformer may have only one positional argument and it must be first
     with pytest.raises(InvalidTransformerGeneratorFunction) as py_ex:
-        dlt.transformer(r)(bad_transformer_2)
+        dlt.transformer(data_from=r)(bad_transformer_2)
     assert py_ex.value.code == 2
     # first argument cannot be kw only
     with pytest.raises(InvalidTransformerGeneratorFunction) as py_ex:
-        dlt.transformer(r)(bad_transformer_3)
+        dlt.transformer(data_from=r)(bad_transformer_3)
     assert py_ex.value.code == 3
 
     # transformer must take data from a resource
-    with pytest.raises(InvalidTransformerGeneratorFunction):
-        dlt.transformer(bad_transformer)(good_transformer)
+    with pytest.raises(InvalidParentResourceIsAFunction):
+        dlt.transformer(data_from=bad_transformer)(good_transformer)
     with pytest.raises(InvalidParentResourceDataType):
-        dlt.transformer(bad_transformer())(good_transformer)
+        dlt.transformer(data_from=bad_transformer())(good_transformer)
 
     # transformer is unbound
     r = dlt.resource(["itemX", "itemY"], name="items")
-    t = dlt.transformer(r)(good_transformer)
+    t = dlt.transformer(data_from=r)(good_transformer)
     with pytest.raises(ParametrizedResourceUnbound):
         list(t)
 
     # pass wrong arguments
     r = dlt.resource(["itemX", "itemY"], name="items")
-    t = dlt.transformer(r)(good_transformer)
+    t = dlt.transformer(data_from=r)(good_transformer)
     with pytest.raises(TypeError):
         list(t("p1", 1, 2, 3, 4))
 
     # pass arguments that fully bind the item
     r = dlt.resource(["itemX", "itemY"], name="items")
-    t = dlt.transformer(r)(good_transformer)
+    t = dlt.transformer(data_from=r)(good_transformer)
     with pytest.raises(TypeError):
         t(item={}, p1="p2", p2=1)
 
     r = dlt.resource(["itemX", "itemY"], name="items")
-    t = dlt.transformer(r)(good_transformer)
+    t = dlt.transformer(data_from=r)(good_transformer)
     items = list(t(p1="p1", p2=2))
 
     def assert_items(_items: TDataItems) -> None:
@@ -144,7 +144,7 @@ def test_parametrized_transformer() -> None:
 
     # parameters passed as args
     r = dlt.resource(["itemX", "itemY"], name="items")
-    t = dlt.transformer(r)(good_transformer)
+    t = dlt.transformer(data_from=r)(good_transformer)
     items = list(t("p1", 2))
     assert_items(items)
 
@@ -296,15 +296,15 @@ def test_resource_bind_lazy_eval() -> None:
     def needs_param(param):
         yield from range(param)
 
-    @dlt.transformer(needs_param(3))
+    @dlt.transformer(data_from=needs_param(3))
     def tx_form(item, multi):
         yield item*multi
 
-    @dlt.transformer(tx_form(2))
+    @dlt.transformer(data_from=tx_form(2))
     def tx_form_fin(item, div):
         yield item / div
 
-    @dlt.transformer(needs_param)
+    @dlt.transformer(data_from=needs_param)
     def tx_form_dir(item, multi):
         yield item*multi
 
@@ -372,19 +372,70 @@ def test_select_resources() -> None:
 
     # successful select
     s_sel = s.with_resources("resource_1", "resource_7")
-    # returns self
-    assert s is s_sel
-    assert list(s.selected_resources) == ["resource_1", "resource_7"] == list(s.resources.selected)
-    assert list(s.resources) == all_resource_names
-    info = str(s)
+    # returns a clone
+    assert s is not s_sel
+    assert list(s_sel.selected_resources) == ["resource_1", "resource_7"] == list(s_sel.resources.selected)
+    assert list(s_sel.resources) == all_resource_names
+    info = str(s_sel)
     assert "resource resource_0 is not selected" in info
+    # original is not affected
+    assert list(s.selected_resources) == all_resource_names
 
     # reselect
     assert list(s.with_resources("resource_8").selected_resources) == ["resource_8"]
     # nothing selected
     assert list(s.with_resources().selected_resources) == []
     # nothing is selected so nothing yielded
-    assert list(s) == []
+    assert list(s.with_resources()) == []
+
+
+def test_clone_source() -> None:
+    @dlt.source
+    def test_source(no_resources):
+
+        def _gen(i):
+            yield "A" * i
+
+        for i in range(no_resources):
+            yield dlt.resource(_gen(i), name="resource_" + str(i))
+
+    s = test_source(4)
+    all_resource_names = ["resource_" + str(i) for i in range(4)]
+    clone_s = s.clone()
+    assert len(s.resources) == len(clone_s.resources) == len(all_resource_names)
+    assert s.schema is not clone_s.schema
+    for name in all_resource_names:
+        # resource is a clone
+        assert s.resources[name] is not clone_s.resources[name]
+        assert s.resources[name]._pipe is not clone_s.resources[name]._pipe
+        # but we keep pipe ids
+        assert s.resources[name]._pipe._pipe_id == clone_s.resources[name]._pipe._pipe_id
+
+    assert list(s) == ['', 'A', 'AA', 'AAA']
+    # we expired generators
+    assert list(clone_s) == []
+
+    # clone parametrized generators
+
+    @dlt.source
+    def test_source(no_resources):
+
+        def _gen(i):
+            yield "A" * i
+
+        for i in range(no_resources):
+            yield dlt.resource(_gen, name="resource_" + str(i))
+
+    s = test_source(4)
+    clone_s = s.clone()
+    # bind resources
+    for idx, name in enumerate(all_resource_names):
+        s.resources[name].bind(idx)
+        clone_s.resources[name].bind(idx)
+
+    # now thanks to late eval both sources evaluate separately
+    assert list(s) == ['', 'A', 'AA', 'AAA']
+    assert list(clone_s) == ['', 'A', 'AA', 'AAA']
 
 
 def test_multiple_parametrized_transformers() -> None:
