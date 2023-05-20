@@ -154,6 +154,12 @@ class PipelineStateNotAvailable(PipelineException):
         super().__init__(None, msg)
 
 
+class ResourceNameNotAvailable(PipelineException):
+    def __init__(self) -> None:
+        super().__init__(None,
+            "A resource state was requested but no resource marked callable was found in the call stack. Resource state may be only requested from @dlt.resource decorated function or with explicit resource name.")
+
+
 class SourceSectionNotAvailable(PipelineException):
     def __init__(self) -> None:
         msg = "Access to state was requested without source section active. State should be requested from within the @dlt.source and @dlt.resource decorated function."

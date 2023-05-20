@@ -7,10 +7,10 @@ from dlt.common.configuration import is_secret_hint
 from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.reflection.utils import creates_func_def_name_node
 from dlt.common.typing import is_optional_type
+from dlt.common.source import SourceInfo
 
 from dlt.cli.config_toml_writer import WritableConfigValue
 from dlt.cli.exceptions import CliCommandException
-from dlt.extract.decorators import SourceInfo
 from dlt.reflection.script_visitor import PipelineScriptVisitor
 
 

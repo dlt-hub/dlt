@@ -5,12 +5,11 @@ import shutil
 from dlt.common import git
 from dlt.common.pipeline import get_dlt_repos_dir
 from dlt.common.storages.file_storage import FileStorage
-
+from dlt.common.source import _SOURCES
 from dlt.common.utils import set_working_dir, uniq_id
 
 from dlt.cli import echo
 from dlt.cli.init_command import DEFAULT_PIPELINES_REPO
-from dlt.extract.decorators import _SOURCES
 
 from tests.utils import TEST_STORAGE_ROOT
 
