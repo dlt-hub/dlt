@@ -7,7 +7,7 @@ from dlt.common import sleep, json, pendulum
 from dlt.common.schema import Schema, TSchemaTables
 from dlt.common.storages.load_storage import LoadPackageInfo, LoadStorage, ParsedLoadJobFileName, TJobState
 from dlt.common.configuration import resolve_configuration
-from dlt.common.configuration.specs import LoadVolumeConfiguration
+from dlt.common.storages import LoadStorageConfiguration
 from dlt.common.storages.exceptions import LoadPackageNotFound, NoMigrationPathException
 from dlt.common.typing import StrAny
 from dlt.common.utils import uniq_id
@@ -17,7 +17,7 @@ from tests.utils import TEST_STORAGE_ROOT, write_version, autouse_test_storage
 
 @pytest.fixture
 def storage() -> LoadStorage:
-    C = resolve_configuration(LoadVolumeConfiguration())
+    C = resolve_configuration(LoadStorageConfiguration())
     s = LoadStorage(True, "jsonl", LoadStorage.ALL_SUPPORTED_FILE_FORMATS, C)
     return s
 

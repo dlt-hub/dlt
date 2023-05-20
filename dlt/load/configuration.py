@@ -1,7 +1,7 @@
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from dlt.common.configuration import configspec
-from dlt.common.configuration.specs import LoadVolumeConfiguration
+from dlt.common.storages import LoadStorageConfiguration
 from dlt.common.runners.configuration import PoolRunnerConfiguration, TPoolType
 
 
@@ -14,7 +14,7 @@ class LoaderConfiguration(PoolRunnerConfiguration):
     """when True, raises on terminally failed jobs immediately"""
     raise_on_max_retries: int = 5
     """When gt 0 will raise when job reaches raise_on_max_retries"""
-    _load_storage_config: LoadVolumeConfiguration = None
+    _load_storage_config: LoadStorageConfiguration = None
 
     if TYPE_CHECKING:
         def __init__(
@@ -22,6 +22,6 @@ class LoaderConfiguration(PoolRunnerConfiguration):
             pool_type: TPoolType = None,
             workers: int = None,
             raise_on_failed_jobs: bool = False,
-            _load_storage_config: LoadVolumeConfiguration = None
+            _load_storage_config: LoadStorageConfiguration = None
         ) -> None:
             ...

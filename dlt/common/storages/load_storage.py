@@ -14,10 +14,10 @@ from dlt.common.configuration.inject import with_config
 from dlt.common.typing import DictStrAny, StrAny
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.data_writers import TLoaderFileFormat, DataWriter
-from dlt.common.configuration.specs import LoadVolumeConfiguration
 from dlt.common.configuration.accessors import config
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema import Schema, TSchemaTables, TTableSchemaColumns
+from dlt.common.storages.configuration import LoadStorageConfiguration
 from dlt.common.storages.versioned_storage import VersionedStorage
 from dlt.common.storages.data_item_storage import DataItemStorage
 from dlt.common.storages.exceptions import JobWithUnsupportedWriterException, LoadPackageNotFound
@@ -140,13 +140,13 @@ class LoadStorage(DataItemStorage, VersionedStorage):
 
     ALL_SUPPORTED_FILE_FORMATS: Set[TLoaderFileFormat] = set(get_args(TLoaderFileFormat))
 
-    @with_config(spec=LoadVolumeConfiguration, sections=(known_sections.LOAD,))
+    @with_config(spec=LoadStorageConfiguration, sections=(known_sections.LOAD,))
     def __init__(
         self,
         is_owner: bool,
         preferred_file_format: TLoaderFileFormat,
         supported_file_formats: Iterable[TLoaderFileFormat],
-        config: LoadVolumeConfiguration = config.value
+        config: LoadStorageConfiguration = config.value
     ) -> None:
         if not LoadStorage.ALL_SUPPORTED_FILE_FORMATS.issuperset(supported_file_formats):
             raise TerminalValueError(supported_file_formats)

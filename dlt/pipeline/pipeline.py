@@ -9,7 +9,7 @@ from typing import Any, Callable, ClassVar, List, Iterator, Optional, Sequence, 
 from dlt import version
 from dlt.common import json, logger, pendulum
 from dlt.common.configuration import inject_section, known_sections
-from dlt.common.configuration.specs import RunConfiguration, NormalizeVolumeConfiguration, SchemaVolumeConfiguration, LoadVolumeConfiguration, CredentialsConfiguration
+from dlt.common.configuration.specs import RunConfiguration, CredentialsConfiguration
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import ConfigFieldMissingException, ContextDefaultCannotBeCreated
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
@@ -18,15 +18,14 @@ from dlt.common.normalizers import default_normalizers, import_normalizers
 from dlt.common.runtime import signals, initialize_runtime
 from dlt.common.schema.exceptions import InvalidDatasetName
 from dlt.common.schema.typing import TColumnSchema, TSchemaTables, TWriteDisposition
-from dlt.common.storages.load_storage import LoadJobInfo, LoadPackageInfo, LoadStorage
+from dlt.common.storages.load_storage import LoadJobInfo, LoadPackageInfo
 from dlt.common.typing import TFun, TSecretValue
 from dlt.common.runners import pool_runner as runner
-from dlt.common.storages import LiveSchemaStorage, NormalizeStorage, SchemaStorage
+from dlt.common.storages import LiveSchemaStorage, NormalizeStorage, LoadStorage, SchemaStorage, FileStorage, NormalizeStorageConfiguration, SchemaStorageConfiguration, LoadStorageConfiguration
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import DestinationReference, JobClientBase, DestinationClientConfiguration, DestinationClientDwhConfiguration, TDestinationReferenceArg
 from dlt.common.pipeline import ExtractInfo, LoadInfo, NormalizeInfo, SupportsPipeline, TPipelineLocalState, TPipelineState, StateInjectableContext
 from dlt.common.schema import Schema
-from dlt.common.storages.file_storage import FileStorage
 from dlt.common.utils import is_interactive
 
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
@@ -199,9 +198,9 @@ class Pipeline(SupportsPipeline):
         self._pipeline_instance_id = self._create_pipeline_instance_id()
         self._pipeline_storage: FileStorage = None
         self._schema_storage: LiveSchemaStorage = None
-        self._schema_storage_config: SchemaVolumeConfiguration = None
-        self._normalize_storage_config: NormalizeVolumeConfiguration = None
-        self._load_storage_config: LoadVolumeConfiguration = None
+        self._schema_storage_config: SchemaStorageConfiguration = None
+        self._normalize_storage_config: NormalizeStorageConfiguration = None
+        self._load_storage_config: LoadStorageConfiguration = None
         self._trace: PipelineTrace = None
         self._last_trace: PipelineTrace = None
         self._state_restored: bool = False
@@ -660,14 +659,14 @@ class Pipeline(SupportsPipeline):
 
     def _configure(self, import_schema_path: str, export_schema_path: str, must_attach_to_local_pipeline: bool) -> None:
         # create schema storage and folders
-        self._schema_storage_config = SchemaVolumeConfiguration(
+        self._schema_storage_config = SchemaStorageConfiguration(
             schema_volume_path=os.path.join(self.working_dir, "schemas"),
             import_schema_path=import_schema_path,
             export_schema_path=export_schema_path
         )
         # create default configs
-        self._normalize_storage_config = NormalizeVolumeConfiguration(normalize_volume_path=os.path.join(self.working_dir, "normalize"))
-        self._load_storage_config = LoadVolumeConfiguration(load_volume_path=os.path.join(self.working_dir, "load"),)
+        self._normalize_storage_config = NormalizeStorageConfiguration(normalize_volume_path=os.path.join(self.working_dir, "normalize"))
+        self._load_storage_config = LoadStorageConfiguration(load_volume_path=os.path.join(self.working_dir, "load"),)
 
         # are we running again?
         has_state = self._pipeline_storage.has_file(Pipeline.STATE_FILE)

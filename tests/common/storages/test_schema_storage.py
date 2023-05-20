@@ -7,9 +7,8 @@ from dlt.common import json
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import TStoredSchema
 from dlt.common.schema.utils import default_normalizers
-from dlt.common.configuration.specs import SchemaVolumeConfiguration
 from dlt.common.storages.exceptions import InStorageSchemaModified, SchemaNotFoundError
-from dlt.common.storages import SchemaStorage, LiveSchemaStorage, FileStorage
+from dlt.common.storages import SchemaStorageConfiguration, SchemaStorage, LiveSchemaStorage, FileStorage
 
 from tests.utils import autouse_test_storage, TEST_STORAGE_ROOT
 from tests.common.utils import load_yml_case, yml_case_path, COMMON_TEST_CASES_PATH, IMPORTED_VERSION_HASH_ETH_V5
@@ -17,22 +16,22 @@ from tests.common.utils import load_yml_case, yml_case_path, COMMON_TEST_CASES_P
 
 @pytest.fixture
 def storage() -> SchemaStorage:
-    return init_storage(SchemaVolumeConfiguration())
+    return init_storage(SchemaStorageConfiguration())
 
 
 @pytest.fixture
 def synced_storage() -> SchemaStorage:
     # will be created in /schemas
-    return init_storage(SchemaVolumeConfiguration(import_schema_path=TEST_STORAGE_ROOT + "/import", export_schema_path=TEST_STORAGE_ROOT + "/import"))
+    return init_storage(SchemaStorageConfiguration(import_schema_path=TEST_STORAGE_ROOT + "/import", export_schema_path=TEST_STORAGE_ROOT + "/import"))
 
 
 @pytest.fixture
 def ie_storage() -> SchemaStorage:
     # will be created in /schemas
-    return init_storage(SchemaVolumeConfiguration(import_schema_path=TEST_STORAGE_ROOT + "/import", export_schema_path=TEST_STORAGE_ROOT + "/export"))
+    return init_storage(SchemaStorageConfiguration(import_schema_path=TEST_STORAGE_ROOT + "/import", export_schema_path=TEST_STORAGE_ROOT + "/export"))
 
 
-def init_storage(C: SchemaVolumeConfiguration) -> SchemaStorage:
+def init_storage(C: SchemaStorageConfiguration) -> SchemaStorage:
     # use live schema storage for test which must be backward compatible with schema storage
     s = LiveSchemaStorage(C, makedirs=True)
     assert C is s.config
@@ -50,7 +49,7 @@ def test_load_non_existing(storage: SchemaStorage) -> None:
 
 def test_load_schema_with_upgrade() -> None:
     # point the storage root to v4 schema google_spreadsheet_v3.schema
-    storage = LiveSchemaStorage(SchemaVolumeConfiguration(COMMON_TEST_CASES_PATH + "schemas/sheets"))
+    storage = LiveSchemaStorage(SchemaStorageConfiguration(COMMON_TEST_CASES_PATH + "schemas/sheets"))
     # the hash when computed on the schema does not match the version_hash in the file so it should raise InStorageSchemaModified
     # but because the version upgrade is required, the check is skipped and the load succeeds
     storage.load_schema("google_spreadsheet_v4")

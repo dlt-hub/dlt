@@ -6,7 +6,7 @@ import pytest
 from dlt.common import pendulum
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.container import Container
-from dlt.common.configuration.specs import SchemaVolumeConfiguration
+from dlt.common.storages import SchemaStorageConfiguration
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.exceptions import DictValidationException
 from dlt.common.normalizers.naming import snake_case, direct
@@ -27,7 +27,7 @@ EXPECTED_FILE_NAME = f"{SCHEMA_NAME}.schema.json"
 @pytest.fixture
 def schema_storage() -> SchemaStorage:
     C = resolve_configuration(
-        SchemaVolumeConfiguration(),
+        SchemaStorageConfiguration(),
         explicit_value={
             "import_schema_path": "tests/common/cases/schemas/rasa",
             "external_schema_format": "json"

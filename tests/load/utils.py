@@ -7,14 +7,13 @@ from typing import Any, Iterator, List, Sequence, cast, IO
 from dlt.common import json, Decimal, sleep
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.container import Container
-from dlt.common.configuration.specs import SchemaVolumeConfiguration
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.destination.reference import DestinationClientDwhConfiguration, DestinationReference, JobClientBase, LoadJob
 from dlt.common.data_writers import DataWriter
 from dlt.common.schema import TColumnSchema, TTableSchemaColumns
-from dlt.common.storages import SchemaStorage, FileStorage
-from dlt.common.schema.utils import new_table
+from dlt.common.storages import SchemaStorage, FileStorage, SchemaStorageConfiguration
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
+from dlt.common.schema.utils import new_table
 from dlt.common.typing import StrAny
 from dlt.common.utils import uniq_id
 
@@ -149,7 +148,7 @@ def yield_client(
         # also apply to config
         config.update(default_config_values)
     # get event default schema
-    C = resolve_configuration(SchemaVolumeConfiguration(), explicit_value={
+    C = resolve_configuration(SchemaStorageConfiguration(), explicit_value={
         "schema_volume_path": "tests/common/cases/schemas/rasa"
     })
     schema_storage = SchemaStorage(C)

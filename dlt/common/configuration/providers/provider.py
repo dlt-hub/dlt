@@ -10,6 +10,9 @@ class ConfigProvider(abc.ABC):
     def get_value(self, key: str, hint: Type[Any], pipeline_name: str, *sections: str) -> Tuple[Optional[Any], str]:
         pass
 
+    def set_value(self, key: str, value: Any, pipeline_name: str, *sections: str) -> None:
+        raise NotImplementedError()
+
     @property
     @abc.abstractmethod
     def supports_secrets(self) -> bool:
@@ -29,6 +32,9 @@ class ConfigProvider(abc.ABC):
     def is_empty(self) -> bool:
         return False
 
+    @property
+    def is_writable(self) -> bool:
+        return False
 
 
 def get_key_name(key: str, separator: str, /, *sections: str) -> str:
