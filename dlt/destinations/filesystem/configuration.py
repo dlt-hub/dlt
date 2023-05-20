@@ -23,7 +23,7 @@ class FilesystemClientConfiguration(DestinationClientDwhConfiguration):
 
     destination_name: Final[str] = "filesystem"  # type: ignore
     loader_file_format: TLoaderFileFormat = "jsonl"
-    bucket_url: str = 'file://tmp'
+    bucket_url: str
 
     @property
     def protocol(self) -> str:

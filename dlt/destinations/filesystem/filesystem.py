@@ -41,21 +41,25 @@ class LoadFilesystemJob(LoadJob, FollowupJob):
         file_name = FileStorage.get_file_name_from_file_path(file_path)
         super().__init__(file_name)
 
-        job_info = LoadStorage.parse_job_file_name(file_name)
-
         root_path = Path(fs_path).joinpath(dataset_name)
 
         if write_disposition == 'merge':
             write_disposition = 'append' if has_merge_keys else 'replace'
 
         if write_disposition == 'replace':
+            job_info = LoadStorage.parse_job_file_name(file_name)
             glob_path = str(root_path.joinpath(f"{schema_name}.{job_info.table_name}.*"))
             items = fs_client.glob(glob_path)
             if items:
                 fs_client.rm(items)
 
-        destination_file_name = f"{schema_name}.{job_info.table_name}.{load_id}.{job_info.file_id}.{job_info.file_format}"
+        destination_file_name = LoadFilesystemJob.make_destination_filename(file_name, schema_name, load_id)
         fs_client.put_file(file_path, root_path.joinpath(destination_file_name))
+
+    @staticmethod
+    def make_destination_filename(file_name: str, schema_name: str, load_id: str) -> str:
+        job_info = LoadStorage.parse_job_file_name(file_name)
+        return f"{schema_name}.{job_info.table_name}.{load_id}.{job_info.file_id}.{job_info.file_format}"
 
     def state(self) -> TLoadJobState:
         return "completed"
