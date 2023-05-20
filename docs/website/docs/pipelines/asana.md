@@ -79,7 +79,7 @@ client_email = "client_email" # Service account email
 location = "US" # Project location (e.g. “US”)
 ```
 
-2. Replace the va   lue of **`access_token`** with the one that [you copied above](asana.md#grab-asana-credentials). This will ensure that your data pipeline can access your Asana resources securely.
+2. Replace the value of **`access_token`** with the one that [you copied above](asana.md#grab-asana-credentials). This will ensure that your data pipeline can access your Asana resources securely.
 3. Finally, follow the instructions in **[Destinations](https://dlthub.com/docs/destinations/duckdb)** to add credentials for your chosen destination. This will ensure that your data is properly routed to its final destination.
 
 ## Customize the pipeline
