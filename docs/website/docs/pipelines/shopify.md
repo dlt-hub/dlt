@@ -118,7 +118,7 @@ if __name__ == "__main__":
     **`dlt pipeline <pipeline_name> show`**
     
 
-Note that in the above command, replace **`<pipeline_name>`** with the name of your pipeline. For example, if you named your pipeline "shopify," you would run:
+Note that in the above command, replace **`<pipeline_name>`** with the name of your pipeline. For example, if you named your pipeline "shopify", you would run:
 
 **`dlt pipeline shopify show`**
 
