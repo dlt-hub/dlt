@@ -6,18 +6,19 @@ import datetime  # noqa: I251
 from unittest.mock import patch
 
 import dlt
-from dlt.common import pendulum
+from dlt.common import pendulum, Decimal
 from dlt.common.configuration import configspec, ConfigFieldMissingException, resolve
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.inject import with_config
 from dlt.common.configuration.exceptions import LookupTrace
-from dlt.common.configuration.providers.toml import SECRETS_TOML, CONFIG_TOML, SecretsTomlProvider, ConfigTomlProvider, TomlProviderReadException
+from dlt.common.configuration.providers.toml import SECRETS_TOML, CONFIG_TOML, BaseTomlProvider, SecretsTomlProvider, ConfigTomlProvider, TomlProviderReadException
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
 from dlt.common.configuration.specs import BaseConfiguration, GcpServiceAccountCredentialsWithoutDefaults, ConnectionStringCredentials
+from dlt.common.runners.configuration import PoolRunnerConfiguration
 from dlt.common.typing import TSecretValue
 
 from tests.utils import preserve_environ
-from tests.common.configuration.utils import WithCredentialsConfiguration, CoercionTestConfiguration, COERCIONS, SecretConfiguration, environment, toml_providers
+from tests.common.configuration.utils import SecretCredentials, WithCredentialsConfiguration, CoercionTestConfiguration, COERCIONS, SecretConfiguration, environment, toml_providers
 
 
 @configspec
@@ -236,3 +237,118 @@ def test_toml_global_config() -> None:
     # check if values from project exist
     secrets_project = SecretsTomlProvider(add_global_config=False)
     assert secrets._toml == secrets_project._toml
+
+
+def test_write_value(toml_providers: ConfigProvidersContext) -> None:
+    provider: BaseTomlProvider
+    for provider in toml_providers.providers:
+        if not provider.is_writable:
+            continue
+        # set single key
+        provider.set_value("_new_key_bool", True, None)
+        assert provider.get_value("_new_key_bool", Any, None) == (True, "_new_key_bool")
+        provider.set_value("_new_key_literal", TSecretValue("literal"), None)
+        assert provider.get_value("_new_key_literal", Any, None) == ("literal", "_new_key_literal")
+        # this will create path of tables
+        provider.set_value("deep_int", 2137, "deep_pipeline", "deep", "deep", "deep", "deep")
+        assert provider._toml["deep_pipeline"]["deep"]["deep"]["deep"]["deep"]["deep_int"] == 2137
+        assert provider.get_value("deep_int", Any, "deep_pipeline", "deep", "deep", "deep", "deep") == (2137, "deep_pipeline.deep.deep.deep.deep.deep_int")
+        # same without the pipeline
+        now = pendulum.now()
+        provider.set_value("deep_date", now, None, "deep", "deep", "deep", "deep")
+        assert provider.get_value("deep_date", Any, None, "deep", "deep", "deep", "deep") == (now, "deep.deep.deep.deep.deep_date")
+        # in existing path
+        provider.set_value("deep_list", [1, 2, 3], None, "deep", "deep", "deep")
+        assert provider.get_value("deep_list", Any, None, "deep", "deep", "deep") == ([1, 2, 3], "deep.deep.deep.deep_list")
+        # still there
+        assert provider.get_value("deep_date", Any, None, "deep", "deep", "deep", "deep") == (now, "deep.deep.deep.deep.deep_date")
+        # overwrite value
+        provider.set_value("deep_list", [1, 2, 3, 4], None, "deep", "deep", "deep")
+        assert provider.get_value("deep_list", Any, None, "deep", "deep", "deep") == ([1, 2, 3, 4], "deep.deep.deep.deep_list")
+        # invalid type
+        with pytest.raises(ValueError):
+            provider.set_value("deep_decimal", Decimal("1.2"), None, "deep", "deep", "deep", "deep")
+
+        # write new dict to a new key
+        test_d1 = {"key": "top", "embed": {"inner": "bottom", "inner_2": True}}
+        provider.set_value("deep_dict", test_d1, None, "dict_test")
+        assert provider.get_value("deep_dict", Any, None, "dict_test") == (test_d1, "dict_test.deep_dict")
+        # write same dict over dict
+        provider.set_value("deep_dict", test_d1, None, "dict_test")
+        assert provider.get_value("deep_dict", Any, None, "dict_test") == (test_d1, "dict_test.deep_dict")
+        # get a fragment
+        assert provider.get_value("inner_2", Any, None, "dict_test", "deep_dict", "embed") == (True, "dict_test.deep_dict.embed.inner_2")
+        # write a dict over non dict
+        provider.set_value("deep_list", test_d1, None, "deep", "deep", "deep")
+        assert provider.get_value("deep_list", Any, None, "deep", "deep", "deep") == (test_d1, "deep.deep.deep.deep_list")
+        # merge dicts
+        test_d2 = {"key": "_top", "key2": "new2", "embed": {"inner": "_bottom", "inner_3": 2121}}
+        provider.set_value("deep_dict", test_d2, None, "dict_test")
+        test_m_d1_d2 = {
+            "key": "_top",
+            "embed": {"inner": "_bottom", "inner_2": True, "inner_3": 2121},
+            "key2": "new2"
+        }
+        assert provider.get_value("deep_dict", Any, None, "dict_test") == (test_m_d1_d2, "dict_test.deep_dict")
+        # print(provider.get_value("deep_dict", Any, None, "dict_test"))
+
+        # write configuration
+        pool = PoolRunnerConfiguration(pool_type="none", workers=10)
+        provider.set_value("runner_config", dict(pool), "new_pipeline")
+        # print(provider._toml["new_pipeline"]["runner_config"].as_string())
+        assert provider._toml["new_pipeline"]["runner_config"] == dict(pool)
+
+        # dict creates only shallow dict so embedded credentials will fail
+        creds = WithCredentialsConfiguration()
+        creds.credentials = SecretCredentials({"secret_value": "***** ***"})
+        with pytest.raises(ValueError):
+            provider.set_value("written_creds", dict(creds), None)
+
+
+def test_write_toml_value(toml_providers: ConfigProvidersContext) -> None:
+    provider: BaseTomlProvider
+    for provider in toml_providers.providers:
+        if not provider.is_writable:
+            continue
+
+        new_doc = tomlkit.parse("""
+int_val=2232
+
+[table]
+inner_int_val=2121
+        """)
+
+        # key == None replaces the whole document
+        provider.set_value(None, new_doc, None)
+        assert provider._toml == new_doc
+
+        # key != None merges documents
+        to_merge_doc = tomlkit.parse("""
+int_val=2137
+
+[babble]
+word1="do"
+word2="you"
+
+        """)
+        provider.set_value("", to_merge_doc, None)
+        merged_doc = tomlkit.parse("""
+int_val=2137
+
+[babble]
+word1="do"
+word2="you"
+
+[table]
+inner_int_val=2121
+
+        """)
+    assert provider._toml == merged_doc
+
+    # currently we ignore the key when merging tomlkit
+    provider.set_value("level", to_merge_doc, None)
+    assert provider._toml == merged_doc
+
+    # only toml accepted with empty key
+    with pytest.raises(ValueError):
+        provider.set_value(None, {}, None)

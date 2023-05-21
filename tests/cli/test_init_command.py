@@ -15,13 +15,13 @@ from dlt.common.configuration.paths import make_dlt_settings_path
 from dlt.common.configuration.providers import CONFIG_TOML, SECRETS_TOML, SecretsTomlProvider
 from dlt.common.runners import Venv
 from dlt.common.storages.file_storage import FileStorage
+from dlt.common.source import _SOURCES
 from dlt.common.utils import set_working_dir
 
 
 from dlt.cli import init_command, echo
 from dlt.cli.init_command import PIPELINES_MODULE_NAME, utils as cli_utils, files_ops, _select_pipeline_files
 from dlt.cli.exceptions import CliCommandException
-from dlt.extract.decorators import _SOURCES
 from dlt.reflection.script_visitor import PipelineScriptVisitor
 from dlt.reflection import names as n
 

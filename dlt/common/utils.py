@@ -355,7 +355,7 @@ def reveal_pseudo_secret(obfuscated_secret: str, pseudo_key: bytes) -> str:
 
 def get_module_name(m: ModuleType) -> str:
     """Gets module name from module with a fallback for executing module __main__"""
-    if m.__name__ == "__main__":
+    if m.__name__ == "__main__" and hasattr(m, "__file__"):
         module_file = os.path.basename(m.__file__)
         module_name, _ = os.path.splitext(module_file)
         return module_name

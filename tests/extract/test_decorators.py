@@ -9,11 +9,11 @@ from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.exceptions import DictValidationException
 from dlt.common.pipeline import StateInjectableContext, TPipelineState
+from dlt.common.source import _SOURCES
 from dlt.common.schema import Schema
 from dlt.common.schema.utils import new_table
 
 from dlt.cli.source_detection import detect_source_configs
-from dlt.extract.decorators import _SOURCES
 from dlt.extract.exceptions import InvalidResourceDataTypeFunctionNotAGenerator, InvalidResourceDataTypeIsNone, ParametrizedResourceUnbound, PipeNotBoundToData, ResourceFunctionExpected, ResourceInnerCallableConfigWrapDisallowed, SourceDataIsNone, SourceIsAClassTypeError, SourceNotAFunction, SourceSchemaNotAvailable
 from dlt.extract.source import DltResource, DltSource
 
@@ -109,6 +109,23 @@ def test_unbound_parametrized_transformer() -> None:
         list(empty_t_1)
 
 
+def test_transformer_no_parens() -> None:
+    bound_r = dlt.resource([1, 2, 3], name="data")
+
+    @dlt.transformer
+    def empty_t_1(item, meta = None):
+        yield "a" * item
+
+    assert list(bound_r | empty_t_1) == ["a", "aa", "aaa"]
+
+    def empty_t_2(item, _meta):
+        yield _meta * item
+
+    # create dynamic transformer with explicit func
+    t = dlt.transformer(empty_t_2, data_from=bound_r)
+    assert list(t("m")) == ["m", "mm", "mmm"]
+
+
 def test_source_name_is_invalid_schema_name() -> None:
 
     # inferred from function name, names must be small caps etc.
@@ -171,7 +188,7 @@ def test_resource_name_from_generator() -> None:
 
     r = dlt.resource(some_data())
     assert r.name == "some_data"
-    assert r.section is None
+    assert r.section == "test_decorators"
 
 
 def test_source_sections() -> None:

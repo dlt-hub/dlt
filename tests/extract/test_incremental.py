@@ -10,7 +10,7 @@ import dlt
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.base_configuration import configspec, BaseConfiguration
 from dlt.common.pendulum import pendulum, timedelta
-from dlt.common.pipeline import StateInjectableContext, _resource_state
+from dlt.common.pipeline import StateInjectableContext, resource_state
 from dlt.common.schema.schema import Schema
 from dlt.common.utils import uniq_id, digest128
 from dlt.common.json import json
@@ -471,7 +471,7 @@ def test_replace_resets_state() -> None:
     parent_r = standalone_some_data(now)
     @dlt.transformer(data_from=parent_r, write_disposition="append")
     def child(item):
-        state = _resource_state("child")
+        state = resource_state("child")
         print(f"CHILD: {state}")
         state["mark"] = f"mark:{item['delta']}"
         yield item

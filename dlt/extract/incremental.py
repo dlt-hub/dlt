@@ -10,7 +10,7 @@ from dlt.common.typing import TDataItem, TDataItems, TFun, extract_inner_type, i
 from dlt.common.schema.typing import TColumnKey
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import BaseConfiguration
-from dlt.common.pipeline import _resource_state
+from dlt.common.pipeline import resource_state
 from dlt.common.utils import digest128
 from dlt.extract.exceptions import IncrementalUnboundError, PipeException
 from dlt.extract.pipe import Pipe
@@ -145,7 +145,7 @@ class Incremental(FilterItem, BaseConfiguration, Generic[TCursorValue]):
 
     @staticmethod
     def _get_state(resource_name: str, cursor_path: str) -> IncrementalColumnState:
-        state: IncrementalColumnState = _resource_state(resource_name).setdefault('incremental', {}).setdefault(cursor_path, {})
+        state: IncrementalColumnState = resource_state(resource_name).setdefault('incremental', {}).setdefault(cursor_path, {})
         # if state params is empty
         return state
 
