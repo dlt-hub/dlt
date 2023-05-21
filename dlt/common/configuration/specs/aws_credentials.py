@@ -1,7 +1,9 @@
 from typing import Optional, TYPE_CHECKING, Dict
 
+from dlt.common.exceptions import MissingDependencyException
 from dlt.common.typing import TSecretStrValue
 from dlt.common.configuration.specs import CredentialsConfiguration, CredentialsWithDefault, configspec
+from dlt import version
 
 if TYPE_CHECKING:
     from botocore.credentials import Credentials
@@ -29,7 +31,10 @@ class AwsCredentials(CredentialsConfiguration, CredentialsWithDefault):
             self.resolve()
 
     def _to_session(self) -> "Session":
-        import boto3
+        try:
+            import boto3
+        except ImportError:
+            raise MissingDependencyException(self.__class__.__name__, [f"{version.DLT_PKG_NAME}[s3]"])
         return boto3.Session(**self.to_native_representation())
 
     def to_native_credentials(self) -> Optional["Credentials"]:

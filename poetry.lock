@@ -6138,7 +6138,7 @@ testing = ["big-O", "flake8 (<5)", "jaraco.functools", "jaraco.itertools", "more
 bigquery = ["grpcio", "google-cloud-bigquery", "pyarrow"]
 dbt = ["dbt-core", "dbt-redshift", "dbt-bigquery", "dbt-duckdb"]
 duckdb = ["duckdb"]
-fsspec = ["fsspec"]
+filesystem = ["fsspec"]
 gcp = ["grpcio", "google-cloud-bigquery", "pyarrow"]
 gcs = ["fsspec", "gcsfs"]
 postgres = ["psycopg2-binary", "psycopg2cffi"]
@@ -6148,4 +6148,4 @@ s3 = ["fsspec", "s3fs"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8,<4.0"
-content-hash = "2d5926c5e4cbf30d194a3b8cf470f048abf983f172bbf86c5ac21ecb3ff4dcf0"
+content-hash = "4122cb93a87263f10cbf92530b3ff42ea68a7fdd997badb02eeaa45944a752c9"

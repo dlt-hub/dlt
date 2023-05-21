@@ -107,7 +107,7 @@ redshift = ["psycopg2-binary", "psycopg2cffi"]
 duckdb = ["duckdb"]
 s3 = ["fsspec", "s3fs"]
 gcs = ["fsspec", "gcsfs"]
-fsspec = ["fsspec"]
+filesystem = ["fsspec"]
 
 [tool.poetry.scripts]
 dlt = "dlt.cli._dlt:_main"
