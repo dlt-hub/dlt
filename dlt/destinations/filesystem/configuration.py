@@ -31,4 +31,4 @@ class FilesystemClientConfiguration(DestinationClientDwhConfiguration):
 
     @resolve_type('credentials')
     def resolve_credentials_type(self) -> Type[CredentialsConfiguration]:
-        return PROTOCOL_CREDENTIALS[self.protocol]
+        return PROTOCOL_CREDENTIALS[self.protocol]  # type: ignore[return-value]

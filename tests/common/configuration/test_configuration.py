@@ -1,14 +1,14 @@
 import pytest
 import datetime  # noqa: I251
 from unittest.mock import patch
-from typing import Any, Dict, Final, List, Mapping, MutableMapping, NewType, Optional, Sequence, Type, Union
+from typing import Any, Dict, Final, List, Mapping, MutableMapping, NewType, Optional, Sequence, Type, Union, Literal
 
 from dlt.common import json, pendulum, Decimal, Wei
 from dlt.common.configuration.specs.gcp_credentials import GcpServiceAccountCredentialsWithoutDefaults
 from dlt.common.utils import custom_environ
 from dlt.common.typing import AnyType, DictStrAny, StrAny, TSecretValue, extract_inner_type
 from dlt.common.configuration.exceptions import ConfigFieldMissingTypeHintException, ConfigFieldTypeHintNotSupported, FinalConfigFieldException, InvalidNativeValue, LookupTrace, ValueNotSecretException
-from dlt.common.configuration import configspec, ConfigFieldMissingException, ConfigValueCannotBeCoercedException, resolve, is_valid_hint
+from dlt.common.configuration import configspec, ConfigFieldMissingException, ConfigValueCannotBeCoercedException, resolve, is_valid_hint, resolve_type
 from dlt.common.configuration.specs import BaseConfiguration, RunConfiguration, ConnectionStringCredentials
 from dlt.common.configuration.providers import environ as environ_provider, toml
 from dlt.common.configuration.utils import get_resolved_traces, ResolvedValueTrace, serialize_value, deserialize_value, add_config_dict_to_env
@@ -122,6 +122,53 @@ class NonTemplatedComplexTypesConfiguration(BaseConfiguration):
     list_val: list
     tuple_val: tuple
     dict_val: dict
+
+
+@configspec(init=True)
+class DynamicConfigA(BaseConfiguration):
+    field_for_a: str
+
+
+@configspec(init=True)
+class DynamicConfigB(BaseConfiguration):
+    field_for_b: str
+
+
+@configspec(init=True)
+class DynamicConfigC(BaseConfiguration):
+    field_for_c: str
+
+
+@configspec(init=True)
+class ConfigWithDynamicType(BaseConfiguration):
+    discriminator: str
+    embedded_config: BaseConfiguration
+
+    @resolve_type('embedded_config')
+    def resolve_embedded_type(self) -> Type[BaseConfiguration]:
+        if self.discriminator == 'a':
+            return DynamicConfigA
+        elif self.discriminator == 'b':
+            return DynamicConfigB
+        return BaseConfiguration
+
+
+@configspec(init=True)
+class SubclassConfigWithDynamicType(ConfigWithDynamicType):
+    is_number: bool
+    dynamic_type_field: Any
+
+    @resolve_type('embedded_config')
+    def resolve_embedded_type(self) -> Type[BaseConfiguration]:
+        if self.discriminator == 'c':
+            return DynamicConfigC
+        return super().resolve_embedded_type()
+
+    @resolve_type('dynamic_type_field')
+    def resolve_dynamic_type_field(self) -> Type[Union[int, str]]:
+        if self.is_number:
+            return int
+        return str
 
 
 LongInteger = NewType("LongInteger", int)
@@ -854,3 +901,50 @@ def test_is_secret_hint_custom_type() -> None:
 def coerce_single_value(key: str, value: str, hint: Type[Any]) -> Any:
     hint = extract_inner_type(hint)
     return resolve.deserialize_value(key, value, hint)
+
+
+def test_dynamic_type_hint(environment: Dict[str, str]) -> None:
+    """Test dynamic type hint using @resolve_type decorator
+    """
+    environment['DUMMY__DISCRIMINATOR'] = 'b'
+    environment['DUMMY__EMBEDDED_CONFIG__FIELD_FOR_B'] = 'some_value'
+
+    config = resolve.resolve_configuration(ConfigWithDynamicType(), sections=('dummy', ))
+
+    assert isinstance(config.embedded_config, DynamicConfigB)
+    assert config.embedded_config.field_for_b == 'some_value'
+
+
+def test_dynamic_type_hint_subclass(environment: Dict[str, str]) -> None:
+    """Test overriding @resolve_type method in subclass
+    """
+    environment['DUMMY__IS_NUMBER'] = 'true'
+    environment['DUMMY__DYNAMIC_TYPE_FIELD'] = '22'
+
+    # Test extended resolver method is applied
+    environment['DUMMY__DISCRIMINATOR'] = 'c'
+    environment['DUMMY__EMBEDDED_CONFIG__FIELD_FOR_C'] = 'some_value'
+
+    config = resolve.resolve_configuration(SubclassConfigWithDynamicType(), sections=('dummy', ))
+
+    assert isinstance(config.embedded_config, DynamicConfigC)
+    assert config.embedded_config.field_for_c == 'some_value'
+
+    # Test super() call is applied correctly
+    environment['DUMMY__DISCRIMINATOR'] = 'b'
+    environment['DUMMY__EMBEDDED_CONFIG__FIELD_FOR_B'] = 'some_value'
+
+    config = resolve.resolve_configuration(SubclassConfigWithDynamicType(), sections=('dummy', ))
+
+    assert isinstance(config.embedded_config, DynamicConfigB)
+    assert config.embedded_config.field_for_b == 'some_value'
+
+    # Test second dynamic field added in subclass
+    environment['DUMMY__IS_NUMBER'] = 'true'
+    environment['DUMMY__DYNAMIC_TYPE_FIELD'] = 'some'
+
+    with pytest.raises(ConfigValueCannotBeCoercedException) as e:
+        config = resolve.resolve_configuration(SubclassConfigWithDynamicType(), sections=('dummy', ))
+
+    assert e.value.field_name == 'dynamic_type_field'
+    assert e.value.hint == int

@@ -1,10 +1,10 @@
 import os
-from typing import Any
+from typing import Any, Dict
 
 import pytest
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
-from dlt.common.configuration.specs import ConnectionStringCredentials, GcpServiceAccountCredentialsWithoutDefaults, GcpServiceAccountCredentials, GcpOAuthCredentialsWithoutDefaults, GcpOAuthCredentials
+from dlt.common.configuration.specs import ConnectionStringCredentials, GcpServiceAccountCredentialsWithoutDefaults, GcpServiceAccountCredentials, GcpOAuthCredentialsWithoutDefaults, GcpOAuthCredentials, AwsCredentials
 from dlt.common.configuration.specs.exceptions import InvalidConnectionString, InvalidGoogleNativeCredentialsType, InvalidGoogleOauth2Json, InvalidGoogleServicesJson, OAuth2ScopesRequired
 from dlt.common.configuration.specs.run_configuration import RunConfiguration
 
@@ -286,3 +286,20 @@ def test_run_configuration_slack_credentials(environment: Any) -> None:
     environment["RUNTIME__SLACK_INCOMING_HOOK"] = "DBgAXQFPQVsAAEteXlFRWUoPG0BdHQ-EbAg=="
     c = resolve_configuration(RunConfiguration())
     assert c.slack_incoming_hook == "DBgAXQFPQVsAAEteXlFRWUoPG0BdHQ-EbAg=="
+
+
+def test_aws_credentials_resolved_from_default(environment: Dict[str, str]) -> None:
+    environment['AWS_ACCESS_KEY_ID'] = 'fake_access_key'
+    environment['AWS_SECRET_ACCESS_KEY'] = 'fake_secret_key'
+    environment['AWS_SESSION_TOKEN'] = 'fake_session_token'
+
+    config = resolve_configuration(AwsCredentials())
+
+    assert config.aws_access_key_id == 'fake_access_key'
+    assert config.aws_secret_access_key == 'fake_secret_key'
+    assert config.aws_session_token == 'fake_session_token'
+    assert config.aws_profile == 'default'
+
+
+if __name__ == '__main__':
+    pytest.main(['tests/common/configuration/test_credentials.py', '-k', 'aws', '--pdb'])

@@ -98,7 +98,7 @@ def configspec(cls: Optional[Type[Any]] = None, /, *, init: bool = False) -> Uni
 
     """
     def wrap(cls: Type[TAnyClass]) -> Type[TAnyClass]:
-        cls.__hint_resolvers__ = {}
+        cls.__hint_resolvers__ = {}  # type: ignore[attr-defined]
         is_context = issubclass(cls, _F_ContainerInjectableContext)
         # if type does not derive from BaseConfiguration then derive it
         with contextlib.suppress(NameError):
@@ -115,7 +115,7 @@ def configspec(cls: Optional[Type[Any]] = None, /, *, init: bool = False) -> Uni
             # skip callables, dunder names, class variables and some special names
             if callable(att_value):
                 if hint_field_name := getattr(att_value, "__hint_for_field__", None):
-                    cls.__hint_resolvers__[hint_field_name] = att_value
+                    cls.__hint_resolvers__[hint_field_name] = att_value  # type: ignore[attr-defined]
                 continue
             if not att_name.startswith(("__", "_abc_impl")) and not isinstance(att_value, (staticmethod, classmethod, property)):
                 if att_name not in cls.__annotations__:
@@ -148,7 +148,7 @@ class BaseConfiguration(MutableMapping[str, Any]):
     """Additional annotations for config generator, currently holds a list of fields of interest that have defaults"""
     __dataclass_fields__: ClassVar[Dict[str, TDtcField]]
     """Typing for dataclass fields"""
-    __hint_resolvers__: ClassVar[Dict[str, Callable["BaseConfiguration", Type[Any]]]] = {}
+    __hint_resolvers__: ClassVar[Dict[str, Callable[["BaseConfiguration"], Type[Any]]]] = {}
 
     def parse_native_representation(self, native_value: Any) -> None:
         """Initialize the configuration fields by parsing the `native_value` which should be a native representation of the configuration

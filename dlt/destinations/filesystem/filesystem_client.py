@@ -11,10 +11,7 @@ def client_from_config(config: FilesystemClientConfiguration) -> Tuple[AbstractF
     fs_kwargs = {}
     if proto == "s3":
         credentials = cast(AwsCredentials, config.credentials)
-        fs_kwargs['key'] = credentials.access_key_id
-        fs_kwargs['secret'] = credentials.access_key_secret
-        fs_kwargs['token'] = credentials.session_token
-        fs_kwargs['profile'] = credentials.profile_name
+        fs_kwargs.update(credentials.to_s3fs_credentials())
     elif proto == 'gcs':
         fs_kwargs['token'] = config.credentials.to_native_credentials()
     return url_to_fs(config.bucket_url, **fs_kwargs)  # type: ignore[no-any-return]
