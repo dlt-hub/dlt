@@ -105,7 +105,9 @@ bigquery = ["grpcio", "google-cloud-bigquery", "pyarrow", "db-dtypes"]
 postgres = ["psycopg2-binary", "psycopg2cffi"]
 redshift = ["psycopg2-binary", "psycopg2cffi"]
 duckdb = ["duckdb"]
-fsspec = ["fsspec", "s3fs", "gcsfs"]
+s3 = ["fsspec", "s3fs"]
+gcs = ["fsspec", "gcsfs"]
+fsspec = ["fsspec"]
 
 [tool.poetry.scripts]
 dlt = "dlt.cli._dlt:_main"
