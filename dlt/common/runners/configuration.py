@@ -15,7 +15,7 @@ class PoolRunnerConfiguration(BaseConfiguration):
     if TYPE_CHECKING:
         def __init__(
             self,
-            pool_type: TPoolType = "process",
+            pool_type: TPoolType = None,
             workers: int = None
         ) -> None:
             ...
