@@ -6,7 +6,7 @@ import json
 import pytest
 
 from dlt.common.utils import uniq_id
-from dlt.common.storages import LoadStorage
+from dlt.common.storages import LoadStorage, FileStorage
 from dlt.common.schema import Schema
 from dlt.common.destination.reference import DestinationReference, LoadJob
 from dlt.destinations.filesystem.configuration import FilesystemClientConfiguration
@@ -16,6 +16,16 @@ from dlt.load import Load
 
 from tests.utils import clean_test_storage, init_test_logging, TEST_DICT_CONFIG_PROVIDER, preserve_environ
 from tests.load.filesystem.utils import get_client, setup_loader
+
+
+@pytest.fixture(autouse=True)
+def storage() -> FileStorage:
+    return clean_test_storage(init_normalize=True, init_loader=True)
+
+
+@pytest.fixture(scope="module", autouse=True)
+def logger_autouse() -> None:
+    init_test_logging()
 
 
 NORMALIZED_FILES = [
@@ -55,6 +65,7 @@ def test_replace_write_disposition(all_buckets_env: str) -> None:
     assert ls == {str(job_1_paths[0]), str(job_2_path)}
 
 
+
 def perform_load(
     bucket_url: str, dataset_name: str, cases: Sequence[str], write_disposition: str='append'
 ) -> Tuple[FilesystemClient, List[LoadJob], Path, str]:
@@ -72,7 +83,6 @@ def perform_load(
         jobs.append(job)
 
     return client, jobs, root_path, load_id
-
 
 
 def prepare_load_package(load_storage: LoadStorage, cases: Sequence[str], write_disposition: str='append') -> Tuple[str, Schema]:
