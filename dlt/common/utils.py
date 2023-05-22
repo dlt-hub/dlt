@@ -10,7 +10,7 @@ from os import environ
 from types import ModuleType
 import zlib
 
-from typing import Any, ContextManager, Dict, Iterator, Optional, Sequence, TypeVar, Mapping, List, Union, Counter
+from typing import Any, ContextManager, Dict, Iterator, Optional, Sequence, Set, Tuple, TypeVar, Mapping, List, Union, Counter
 from collections.abc import Mapping as C_Mapping
 
 from dlt.common.typing import AnyFun, StrAny, DictStrAny, StrStr, TAny, TFun
@@ -171,6 +171,50 @@ def concat_strings_with_limit(strings: List[str], separator: str, limit: int) ->
             current_length += len(strings[i]) + sep_len  # accounts for the length of separator
 
     yield separator.join(strings[start:])
+
+
+def graph_edges_to_nodes(edges: Sequence[Tuple[TAny, TAny]], directed: bool = True) -> Dict[TAny, Set[TAny]]:
+    """Converts a directed graph represented as a sequence of edges to a graph represented as a mapping from nodes a set of connected nodes.
+
+    Isolated nodes are represented as edges to itself. If `directed` is `False`, each edge is duplicated but going in opposite direction.
+    """
+    graph: Dict[TAny, Set[TAny]] = {}
+    for u, v in edges:
+        if u not in graph:
+            graph[u] = set()
+        if v not in graph:
+            graph[v] = set()
+        if v != u:
+            graph[u].add(v)
+            if not directed:
+                graph[v].add(u)
+
+    return graph
+
+
+def graph_find_scc_nodes(undag: Dict[TAny, Set[TAny]]) -> List[Set[TAny]]:
+    """Finds and returns a list of sets of nodes in strongly connected components of a `undag` which is undirected
+
+    To obtain undirected graph from edges use `graph_edges_to_nodes` function with `directed` argument `False`.
+    """
+    visited: Set[TAny] = set()
+    components: List[Set[TAny]] = []
+
+    def dfs(node: TAny, current_component: Set[TAny]) -> None:
+        if node not in visited:
+            visited.add(node)
+            current_component.add(node)
+            for neighbor in undag[node]:
+                dfs(neighbor, current_component)
+
+
+    for node in undag:
+        if node not in visited:
+            component: Set[TAny] = set()
+            dfs(node, component)
+            components.append(component)
+
+    return components
 
 
 def filter_env_vars(envs: List[str]) -> StrStr:
