@@ -3,6 +3,19 @@ import dataclasses
 import logging
 from typing import List
 
+# patch which providers to enable
+from dlt.common.configuration.providers import ConfigProvider, EnvironProvider, SecretsTomlProvider, ConfigTomlProvider
+from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext, ConfigProvidersConfiguration
+
+def initial_providers() -> List[ConfigProvider]:
+    # do not read the global config
+    return [EnvironProvider(), SecretsTomlProvider(project_dir="tests/.dlt", add_global_config=False), ConfigTomlProvider(project_dir="tests/.dlt", add_global_config=False)]
+
+ConfigProvidersContext.initial_providers = initial_providers
+# also disable extras
+ConfigProvidersConfiguration.enable_airflow_secrets = False
+ConfigProvidersConfiguration.enable_google_secrets = False
+
 
 def pytest_configure(config):
     # patch the configurations to use test storage by default, we modify the types (classes) fields
@@ -31,19 +44,6 @@ def pytest_configure(config):
 
     assert run_configuration.RunConfiguration.config_files_storage_path == os.path.join(test_storage_root, "config/")
     assert run_configuration.RunConfiguration().config_files_storage_path == os.path.join(test_storage_root, "config/")
-
-    # patch which providers to enable
-    from dlt.common.configuration.providers import ConfigProvider, EnvironProvider, SecretsTomlProvider, ConfigTomlProvider
-    from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext, ConfigProvidersConfiguration
-
-    def initial_providers() -> List[ConfigProvider]:
-        # do not read the global config
-        return [EnvironProvider(), SecretsTomlProvider(add_global_config=False), ConfigTomlProvider(add_global_config=False)]
-
-    ConfigProvidersContext.initial_providers = initial_providers
-    # also disable extras
-    ConfigProvidersConfiguration.enable_airflow_secrets = False
-    ConfigProvidersConfiguration.enable_google_secrets = False
 
 
     # path pipeline instance id up to millisecond
