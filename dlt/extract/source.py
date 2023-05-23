@@ -2,7 +2,7 @@ import contextlib
 from copy import copy
 import makefun
 import inspect
-from typing import AsyncIterable, AsyncIterator, ClassVar, Callable, ContextManager, Dict, Iterable, Iterator, List, Sequence, Union, Any
+from typing import AsyncIterable, AsyncIterator, ClassVar, Callable, ContextManager, Dict, Iterable, Iterator, List, Sequence, Tuple, Union, Any
 
 from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs import known_sections
@@ -13,9 +13,9 @@ from dlt.common.schema.typing import TColumnName
 from dlt.common.typing import AnyFun, StrAny, TDataItem, TDataItems, NoneType
 from dlt.common.configuration.container import Container
 from dlt.common.pipeline import PipelineContext, StateInjectableContext, SupportsPipelineRun, resource_state, source_state, pipeline_state
-from dlt.common.utils import flatten_list_or_items, get_callable_name, multi_context_manager, uniq_id
+from dlt.common.utils import graph_find_scc_nodes, flatten_list_or_items, get_callable_name, graph_edges_to_nodes, multi_context_manager, uniq_id
 
-from dlt.extract.typing import DataItemWithMeta, ItemTransformFunc, ItemTransformFunctionWithMeta, TableNameMeta, FilterItem, MapItem, YieldMapItem
+from dlt.extract.typing import DataItemWithMeta, ItemTransformFunc, ItemTransformFunctionWithMeta, TDecompositionStrategy, TableNameMeta, FilterItem, MapItem, YieldMapItem
 from dlt.extract.pipe import Pipe, ManagedPipeIterator, TPipeStep
 from dlt.extract.schema import DltResourceSchema, TTableSchemaTemplate
 from dlt.extract.incremental import Incremental, IncrementalResourceWrapper
@@ -453,6 +453,25 @@ class DltResourceDict(Dict[str, DltResource]):
         return extracted
 
     @property
+    def selected_dag(self) -> List[Tuple[str, str]]:
+        """Returns a list of edges of directed acyclic graph of pipes and their parents in selected resources"""
+        dag: List[Tuple[str, str]] = []
+        for pipe in self.selected_pipes:
+            selected = pipe
+            parent: Pipe = None
+            while (parent := pipe.parent) is not None:
+                if not parent.is_empty:
+                    dag.append((pipe.parent.name, pipe.name))
+                    pipe = parent
+                else:
+                    # do not descend into disconnected pipes
+                    break
+            if selected is pipe:
+                # add isolated element
+                dag.append((pipe.name, pipe.name))
+        return dag
+
+    @property
     def pipes(self) -> List[Pipe]:
         # TODO: many resources may share the same pipe so return ordered set
         return [r._pipe for r in self.values()]
@@ -610,6 +629,22 @@ class DltSource(Iterable[TDataItem]):
         source._resources.select(*resource_names)
         return source
 
+    def decompose(self, strategy: TDecompositionStrategy) -> List["DltSource"]:
+        """Decomposes source into a list of sources with a given strategy.
+
+            "none" will return source as is
+            "scc" will decompose the dag of selected pipes and their parent into strongly connected components
+        """
+        if strategy == "none":
+            return [self]
+        elif strategy == "scc":
+            dag = self.resources.selected_dag
+            scc = graph_find_scc_nodes(graph_edges_to_nodes(dag, directed=False))
+            # components contain elements that are not currently selected
+            selected_set = set(self.resources.selected.keys())
+            return [self.with_resources(*component.intersection(selected_set)) for component in scc]
+        else:
+            raise ValueError(strategy)
 
     def add_limit(self, max_items: int) -> "DltSource":  # noqa: A003
         """Adds a limit `max_items` yielded from all selected resources in the source that are not transformers.

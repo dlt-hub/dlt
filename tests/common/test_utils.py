@@ -1,9 +1,11 @@
+import itertools
 import inspect
 import binascii
 import pytest
 
 from dlt.common.runners import Venv
-from dlt.common.utils import flatten_list_of_str_or_dicts, digest128, map_nested_in_place, reveal_pseudo_secret, obfuscate_pseudo_secret, get_module_name, concat_strings_with_limit
+from dlt.common.utils import (graph_find_scc_nodes, flatten_list_of_str_or_dicts, digest128, graph_edges_to_nodes, map_nested_in_place,
+                              reveal_pseudo_secret, obfuscate_pseudo_secret, get_module_name, concat_strings_with_limit)
 
 
 def test_flatten_list_of_str_or_dicts() -> None:
@@ -87,3 +89,39 @@ def test_concat_strings_with_limit() -> None:
     assert list(concat_strings_with_limit(philosophers, ";\n", 1024)) == [";\n".join(philosophers)]
     # none will be merged, all below limit
     assert list(concat_strings_with_limit(philosophers, ";\n", 1)) == philosophers
+
+
+def test_find_scc_nodes() -> None:
+    edges = [('A', 'B'), ('B', 'C'), ('D', 'E'), ('F', 'G'), ('G', 'H'), ('I', 'I'), ('J', 'J')]
+
+    def _comp(s):
+        return sorted([tuple(sorted(c)) for c in s])
+
+    components = _comp([{"A", "B", "C"}, {"D", "E"}, {"F", "G", "H"}, {"I"}, {"J"}])
+    scc1 = graph_find_scc_nodes(graph_edges_to_nodes(edges, directed=False))
+    for perm_edges in itertools.permutations(edges):
+        scc2 = graph_find_scc_nodes(graph_edges_to_nodes(perm_edges, directed=False))
+        assert _comp(scc1) == _comp(scc2) == components
+        scc1 = scc2
+
+    # add edge that should not change the component
+    edges.append(("A", "C"))
+    scc2 = graph_find_scc_nodes(graph_edges_to_nodes(edges, directed=False))
+    assert _comp(scc2) == components
+
+
+def test_graph_edges_to_nodes() -> None:
+    edges = [('A', 'B'), ('A', 'C'), ('B', 'C'), ('D', 'E'), ('F', 'G'), ('G', 'H'), ('I', 'I'), ('J', 'J')]
+    graph = {"A": {"B", "C"}, "B": {"C"}, "C": set(), "D": {"E"}, "E": set(), "F": {"G"}, "G": {"H"}, "H": set(), "I": set(), "J": set()}
+    g1 = graph_edges_to_nodes(edges)
+
+    for perm_edges in itertools.permutations(edges):
+        g2 = graph_edges_to_nodes(perm_edges)
+        # same graph no matter the order of edges
+        assert g1 == g2 == graph
+        g1 = g2
+
+    # test a few edge cases
+    assert graph_edges_to_nodes([]) == {}
+    # ignores double edge
+    assert graph_edges_to_nodes([('A', 'B'), ('A', 'B')]) == {'A': {'B'}, 'B': set()}
