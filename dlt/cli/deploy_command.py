@@ -1,13 +1,14 @@
 from itertools import chain
 import os
 import re
-from typing import List
+from typing import List, Optional
 from astunparse import unparse
 import yaml
 from yaml import Dumper
 import cron_descriptor
 # import pkg_resources
 import pipdeptree
+from enum import Enum
 
 import dlt
 
@@ -33,9 +34,25 @@ from dlt.cli.exceptions import CliCommandException
 REQUIREMENTS_GITHUB_ACTION = "requirements_github_action.txt"
 GITHUB_URL = "https://github.com/"
 DLT_DEPLOY_DOCS_URL = "https://dlthub.com/docs/walkthroughs/deploy-a-pipeline"
+DLT_AIRFLOW_GCP_DOCS_URL = "https://dlthub.com/docs/running-in-production/orchestrators/airflow-gcp-cloud-composer"
+AIRFLOW_GETTING_STARTED = "https://airflow.apache.org/docs/apache-airflow/stable/start.html"
+AIRFLOW_DAG_TEMPLATE_SCRIPT = "dag_template.py"
+AIRFLOW_CLOUDBUILD_YAML = "cloudbuild.yaml"
 
 
-def deploy_command(pipeline_script_path: str, deployment_method: str, schedule: str, run_on_push: bool, run_on_dispatch: bool, branch: str = None) -> None:
+class DeploymentMethods(Enum):
+    github_actions = "github-action"
+    airflow = "airflow"
+
+
+def deploy_command(
+    pipeline_script_path: str,
+    deployment_method: str,
+    schedule: Optional[str],
+    run_on_push: bool,
+    run_on_dispatch: bool,
+    branch: Optional[str] = None
+) -> None:
     # get current repo local folder
     with get_repo(pipeline_script_path) as repo:
         repo_storage = FileStorage(str(repo.working_dir))
@@ -123,98 +140,165 @@ def deploy_command(pipeline_script_path: str, deployment_method: str, schedule: 
                         # fmt.echo(f"{resolved_value.key} in {resolved_value.sections} moved to CONFIG")
 
         # validate schedule
-        schedule_description = cron_descriptor.get_description(schedule)
+        schedule_description = None if schedule is None else cron_descriptor.get_description(schedule)
 
-        template_storage = utils.clone_command_repo("deploy", branch)
-        # template_storage = FileStorage("/home/rudolfix/src/python-dlt-deploy-template")
+        # template_storage = utils.clone_command_repo("deploy", branch)
+        template_storage = FileStorage("/home/alenaastrakhantseva/dlthub/python-dlt-deploy-template")
 
-        # load workload yaml
-        with template_storage.open_file(os.path.join(deployment_method, "run_pipeline_workflow.yml")) as f:
-            workflow = yaml.safe_load(f)
-        # customize the workflow
-        workflow["name"] = f"Run {state['pipeline_name']} pipeline from {pipeline_script_path}"
-        if run_on_push is False:
-            del workflow["on"]["push"]
-        if run_on_dispatch is False:
-            del workflow["on"]["workflow_dispatch"]
-        workflow["on"]["schedule"] = [{"cron": schedule}]
-        workflow["env"] = {}
-        for env_var in envs:
-            env_key = env_prov.get_key_name(env_var.key, *env_var.sections)
-            # print(serialize_value(env_var.value))
-            workflow["env"][env_key] = str(serialize_value(env_var.value))
-        for secret_var in secret_envs:
-            env_key = env_prov.get_key_name(secret_var.key, *secret_var.sections)
-            workflow["env"][env_key] = wrap_template_str("secrets.%s") % env_key
+        if deployment_method == DeploymentMethods.github_actions.value:
+            # load workload yaml
+            with template_storage.open_file(os.path.join(deployment_method, "run_pipeline_workflow.yml")) as f:
+                workflow = yaml.safe_load(f)
+            # customize the workflow
+            workflow["name"] = f"Run {state['pipeline_name']} pipeline from {pipeline_script_path}"
+            if run_on_push is False:
+                del workflow["on"]["push"]
+            if run_on_dispatch is False:
+                del workflow["on"]["workflow_dispatch"]
+            workflow["on"]["schedule"] = [{"cron": schedule}]
+            workflow["env"] = {}
+            for env_var in envs:
+                env_key = env_prov.get_key_name(env_var.key, *env_var.sections)
+                # print(serialize_value(env_var.value))
+                workflow["env"][env_key] = str(serialize_value(env_var.value))
+            for secret_var in secret_envs:
+                env_key = env_prov.get_key_name(secret_var.key, *secret_var.sections)
+                workflow["env"][env_key] = wrap_template_str("secrets.%s") % env_key
 
-        # run the correct script at the end
-        last_workflow_step = workflow["jobs"]["run_pipeline"]["steps"][-1]
-        assert last_workflow_step["run"] == "python pipeline.py"
-        # must run in the directory of the script
-        wf_run_path, wf_run_name = os.path.split(repo_pipeline_script_path)
-        if wf_run_path:
-            run_cd_cmd = f"cd '{wf_run_path}' && "
-        else:
-            run_cd_cmd = ""
-        last_workflow_step["run"] = f"{run_cd_cmd}python '{wf_run_name}'"
-        serialized_workflow = serialize_templated_yaml(workflow)
-        serialized_workflow_name = f"run_{state['pipeline_name']}_workflow.yml"
+            # run the correct script at the end
+            last_workflow_step = workflow["jobs"]["run_pipeline"]["steps"][-1]
+            assert last_workflow_step["run"] == "python pipeline.py"
+            # must run in the directory of the script
+            wf_run_path, wf_run_name = os.path.split(repo_pipeline_script_path)
+            if wf_run_path:
+                run_cd_cmd = f"cd '{wf_run_path}' && "
+            else:
+                run_cd_cmd = ""
+            last_workflow_step["run"] = f"{run_cd_cmd}python '{wf_run_name}'"
+            serialized_workflow = serialize_templated_yaml(workflow)
+            serialized_workflow_name = f"run_{state['pipeline_name']}_workflow.yml"
 
-        # pip freeze special requirements file
-        with template_storage.open_file(os.path.join(deployment_method, "requirements_blacklist.txt")) as f:
-            requirements_blacklist = f.readlines()
-        requirements_txt = generate_pip_freeze(requirements_blacklist)
-        requirements_txt_name = REQUIREMENTS_GITHUB_ACTION
+            # pip freeze special requirements file
+            with template_storage.open_file(os.path.join(deployment_method, "requirements_blacklist.txt")) as f:
+                requirements_blacklist = f.readlines()
+            requirements_txt = generate_pip_freeze(requirements_blacklist)
+            requirements_txt_name = REQUIREMENTS_GITHUB_ACTION
 
-        # if repo_storage.has_file(utils.REQUIREMENTS_TXT):
-        fmt.echo("Your %s deployment for pipeline %s in script %s is ready!" % (
-            fmt.bold(deployment_method), fmt.bold(state["pipeline_name"]), fmt.bold(pipeline_script_path)
-        ))
-        #  It contains all relevant configurations and references to credentials that are needed to run the pipeline
-        fmt.echo("* A github workflow file %s was created in %s." % (
-            fmt.bold(serialized_workflow_name), fmt.bold(utils.GITHUB_WORKFLOWS_DIR)
-        ))
-        fmt.echo("* The schedule with which the pipeline is run is: %s.%s%s" % (
-            fmt.bold(schedule_description),
-            " You can also run the pipeline manually." if run_on_dispatch else "",
-            " Pipeline will also run on each push to the repository." if run_on_push else "",
-        ))
-        fmt.echo("* The dependencies that will be used to run the pipeline are stored in %s. If you change add more dependencies, remember to refresh your deployment by running the same 'deploy' command again." % fmt.bold(requirements_txt_name))
-        fmt.echo()
-        fmt.echo("You should now add the secrets to github repository secrets, commit and push the pipeline files to github.")
-        fmt.echo("1. Add the following secret values (typically stored in %s): \n%s\nin %s" % (
-            fmt.bold(make_dlt_settings_path(SECRETS_TOML)),
-            fmt.bold("\n".join(env_prov.get_key_name(s_v.key, *s_v.sections) for s_v in secret_envs)),
-            fmt.bold(github_origin_to_url(origin, "/settings/secrets/actions"))
-        ))
-        fmt.echo()
-        # if fmt.confirm("Do you want to list the values of the secrets in the format suitable for github?", default=True):
-        for s_v in secret_envs:
-            fmt.secho("Name:", fg="green")
-            fmt.echo(fmt.bold(env_prov.get_key_name(s_v.key, *s_v.sections)))
-            fmt.secho("Secret:", fg="green")
-            fmt.echo(s_v.value)
+            # if repo_storage.has_file(utils.REQUIREMENTS_TXT):
+            fmt.echo("Your %s deployment for pipeline %s in script %s is ready!" % (
+                fmt.bold(deployment_method), fmt.bold(state["pipeline_name"]), fmt.bold(pipeline_script_path)
+            ))
+            #  It contains all relevant configurations and references to credentials that are needed to run the pipeline
+            fmt.echo("* A github workflow file %s was created in %s." % (
+                fmt.bold(serialized_workflow_name), fmt.bold(utils.GITHUB_WORKFLOWS_DIR)
+            ))
+            fmt.echo("* The schedule with which the pipeline is run is: %s.%s%s" % (
+                fmt.bold(schedule_description),
+                " You can also run the pipeline manually." if run_on_dispatch else "",
+                " Pipeline will also run on each push to the repository." if run_on_push else "",
+            ))
+            fmt.echo("* The dependencies that will be used to run the pipeline are stored in %s. If you change add more dependencies, remember to refresh your deployment by running the same 'deploy' command again." % fmt.bold(requirements_txt_name))
+            fmt.echo()
+            fmt.echo("You should now add the secrets to github repository secrets, commit and push the pipeline files to github.")
+            fmt.echo("1. Add the following secret values (typically stored in %s): \n%s\nin %s" % (
+                fmt.bold(make_dlt_settings_path(SECRETS_TOML)),
+                fmt.bold("\n".join(env_prov.get_key_name(s_v.key, *s_v.sections) for s_v in secret_envs)),
+                fmt.bold(github_origin_to_url(origin, "/settings/secrets/actions"))
+            ))
+            fmt.echo()
+            # if fmt.confirm("Do you want to list the values of the secrets in the format suitable for github?", default=True):
+            for s_v in secret_envs:
+                fmt.secho("Name:", fg="green")
+                fmt.echo(fmt.bold(env_prov.get_key_name(s_v.key, *s_v.sections)))
+                fmt.secho("Secret:", fg="green")
+                fmt.echo(s_v.value)
+                fmt.echo()
+
+            fmt.echo("2. Add stage deployment files to commit. Use your Git UI or the following command")
+            fmt.echo(fmt.bold(f"git add {repo_storage.from_relative_path_to_wd(requirements_txt_name)} {repo_storage.from_relative_path_to_wd(os.path.join(utils.GITHUB_WORKFLOWS_DIR, serialized_workflow_name))}"))
+            fmt.echo()
+            fmt.echo("3. Commit the files above. Use your Git UI or the following command")
+            fmt.echo(fmt.bold(f"git commit -m 'run {state['pipeline_name']} pipeline with github action'"))
+            if is_dirty(repo):
+                fmt.warning("You have modified files in your repository. Do not forget to push changes to your pipeline script as well!")
+            fmt.echo()
+            fmt.echo("4. Push changes to github. Use your Git UI or the following command")
+            fmt.echo(fmt.bold("git push origin"))
+            fmt.echo()
+            fmt.echo("5. Your pipeline should be running! You can monitor it here:")
+            fmt.echo(fmt.bold(github_origin_to_url(origin, f"/actions/workflows/{serialized_workflow_name}")))
+
+            if not repo_storage.has_folder(utils.GITHUB_WORKFLOWS_DIR):
+                repo_storage.create_folder(utils.GITHUB_WORKFLOWS_DIR)
+
+            repo_storage.save(os.path.join(utils.GITHUB_WORKFLOWS_DIR, serialized_workflow_name), serialized_workflow)
+            repo_storage.save(requirements_txt_name, requirements_txt)
+
+        elif deployment_method == DeploymentMethods.airflow.value:
+            cloudbuild_file = template_storage.load(os.path.join(deployment_method, AIRFLOW_CLOUDBUILD_YAML))
+            dag_file = template_storage.load(os.path.join(deployment_method, AIRFLOW_DAG_TEMPLATE_SCRIPT))
+
+            fmt.echo("Your %s deployment for pipeline %s is ready!" % (
+                fmt.bold(deployment_method), fmt.bold(state["pipeline_name"]),
+            ))
+            fmt.echo("* The airflow %s file was created in %s." % (
+                fmt.bold(AIRFLOW_CLOUDBUILD_YAML), fmt.bold(utils.AIRFLOW_BUILD_FOLDER)
+            ))
+            fmt.echo("* The %s script was created in %s." % (
+                fmt.bold(AIRFLOW_DAG_TEMPLATE_SCRIPT), fmt.bold(utils.AIRFLOW_DAGS_FOLDER)
+            ))
             fmt.echo()
 
-        fmt.echo("2. Add stage deployment files to commit. Use your Git UI or the following command")
-        fmt.echo(fmt.bold(f"git add {repo_storage.from_relative_path_to_wd(requirements_txt_name)} {repo_storage.from_relative_path_to_wd(os.path.join(utils.GITHUB_WORKFLOWS_DIR, serialized_workflow_name))}"))
-        fmt.echo()
-        fmt.echo("3. Commit the files above. Use your Git UI or the following command")
-        fmt.echo(fmt.bold(f"git commit -m 'run {state['pipeline_name']} pipeline with github action'"))
-        if is_dirty(repo):
-            fmt.warning("You have modified files in your repository. Do not forget to push changes to your pipeline script as well!")
-        fmt.echo()
-        fmt.echo("4. Push changes to github. Use your Git UI or the following command")
-        fmt.echo(fmt.bold("git push origin"))
-        fmt.echo()
-        fmt.echo("5. Your pipeline should be running! You can monitor it here:")
-        fmt.echo(fmt.bold(github_origin_to_url(origin, f"/actions/workflows/{serialized_workflow_name}")))
+            fmt.echo("You must prepare your repository first:")
 
-        if not repo_storage.has_folder(utils.GITHUB_WORKFLOWS_DIR):
-            repo_storage.create_folder(utils.GITHUB_WORKFLOWS_DIR)
+            fmt.echo("1. Import you sources in %s, change default_args if necessary." % (fmt.bold(AIRFLOW_DAG_TEMPLATE_SCRIPT)))
+            fmt.echo("2. Run airflow pipeline locally.\nSee Airflow getting started: %s" % (fmt.bold(AIRFLOW_GETTING_STARTED)))
+            fmt.echo()
 
-        repo_storage.save(os.path.join(utils.GITHUB_WORKFLOWS_DIR, serialized_workflow_name), serialized_workflow)
-        repo_storage.save(requirements_txt_name, requirements_txt)
+            fmt.echo("If you are planning run pipeline with Google Cloud Composer, follow the next instructions:\n")
+            fmt.echo("1. Read this doc and set up the Environment: %s" % (
+                fmt.bold(DLT_AIRFLOW_GCP_DOCS_URL)
+            ))
+            fmt.echo("2. Set _BUCKET_NAME up in %s/%s file. " % (
+                fmt.bold(utils.AIRFLOW_BUILD_FOLDER), fmt.bold(AIRFLOW_CLOUDBUILD_YAML),
+            ))
+
+            fmt.echo("3. Add the following secret values (typically stored in %s): \n%s\nin ENVIRONMENT VARIABLES using Google Composer UI" % (
+                fmt.bold(make_dlt_settings_path(SECRETS_TOML)),
+                fmt.bold("\n".join(env_prov.get_key_name(s_v.key, *s_v.sections) for s_v in secret_envs)),
+             ))
+            fmt.echo()
+            for s_v in secret_envs:
+                fmt.secho("Name:", fg="green")
+                fmt.echo(fmt.bold(env_prov.get_key_name(s_v.key, *s_v.sections)))
+                fmt.secho("Secret:", fg="green")
+                fmt.echo(s_v.value)
+                fmt.echo()
+
+            fmt.echo("4. Add requirements to PIPY PACKAGES using Google Composer UI.")
+            fmt.echo("5. Commit and push the pipeline files to github:")
+            fmt.echo("a. Add stage deployment files to commit. Use your Git UI or the following command")
+            fmt.echo(fmt.bold(
+                f"git add {repo_storage.from_relative_path_to_wd(os.path.join(utils.AIRFLOW_DAGS_FOLDER, AIRFLOW_DAG_TEMPLATE_SCRIPT))} {repo_storage.from_relative_path_to_wd(os.path.join(utils.AIRFLOW_BUILD_FOLDER, AIRFLOW_CLOUDBUILD_YAML))}"))
+            fmt.echo("b. Commit the files above. Use your Git UI or the following command")
+            fmt.echo(fmt.bold(f"git commit -m 'initiate {state['pipeline_name']} pipeline with Airflow'"))
+            if is_dirty(repo):
+                fmt.warning("You have modified files in your repository. Do not forget to push changes to your pipeline script as well!")
+            fmt.echo("c. Push changes to github. Use your Git UI or the following command")
+            fmt.echo(fmt.bold("git push origin"))
+            fmt.echo("6. You should see your pipeline in Airflow.")
+
+            if not repo_storage.has_folder(utils.AIRFLOW_DAGS_FOLDER):
+                repo_storage.create_folder(utils.AIRFLOW_DAGS_FOLDER)
+
+            if not repo_storage.has_folder(utils.AIRFLOW_BUILD_FOLDER):
+                repo_storage.create_folder(utils.AIRFLOW_BUILD_FOLDER)
+
+            repo_storage.save(os.path.join(utils.AIRFLOW_BUILD_FOLDER, AIRFLOW_CLOUDBUILD_YAML), cloudbuild_file)
+            repo_storage.save(os.path.join(utils.AIRFLOW_DAGS_FOLDER, AIRFLOW_DAG_TEMPLATE_SCRIPT), dag_file)
+
+        else:
+            raise ValueError(f"Deployment method '{deployment_method}' is not supported. Only {', '.join([m.value for m in DeploymentMethods])} are available.'")
 
 
 class PipelineWasNotRun(CliCommandException):
