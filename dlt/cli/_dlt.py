@@ -1,4 +1,4 @@
-from typing import Any, Sequence
+from typing import Any, Sequence, Optional
 import yaml
 import os
 import argparse
@@ -13,7 +13,7 @@ from dlt.common.runners import Venv
 import dlt.cli.echo as fmt
 from dlt.cli import utils
 from dlt.cli.init_command import init_command, list_pipelines_command, DLT_INIT_DOCS_URL, DEFAULT_PIPELINES_REPO
-from dlt.cli.deploy_command import PipelineWasNotRun, deploy_command, DLT_DEPLOY_DOCS_URL
+from dlt.cli.deploy_command import PipelineWasNotRun, deploy_command, DLT_DEPLOY_DOCS_URL, DeploymentMethods
 from dlt.cli.pipeline_command import pipeline_command, DLT_PIPELINE_COMMAND_DOCS_URL
 from dlt.cli.telemetry_command import DLT_TELEMETRY_DOCS_URL, change_telemetry_status_command, telemetry_status_command
 from dlt.pipeline.exceptions import CannotRestorePipelineException
@@ -42,7 +42,13 @@ def list_pipelines_command_wrapper(repo_location: str, branch: str) -> int:
 
 
 @utils.track_command("deploy", False, "deployment_method")
-def deploy_command_wrapper(pipeline_script_path: str, deployment_method: str, schedule: str, run_on_push: bool, run_on_dispatch: bool, branch: str) -> int:
+def deploy_command_wrapper(
+    pipeline_script_path: str,
+    deployment_method: str,
+    schedule: Optional[str] = None,
+    run_on_push: bool = False,
+    run_on_dispatch: bool = False,
+    branch: Optional[str] = None) -> int:
     try:
         utils.ensure_git_command("deploy")
     except Exception as ex:
@@ -188,8 +194,8 @@ def main() -> int:
 
     deploy_cmd = subparsers.add_parser("deploy", help="Creates a deployment package for a selected pipeline script")
     deploy_cmd.add_argument("pipeline_script_path", metavar="pipeline-script-path", help="Path to a pipeline script")
-    deploy_cmd.add_argument("deployment_method", metavar="deployment-method", choices=["github-action"], default="github-action", help="Deployment method")
-    deploy_cmd.add_argument("--schedule", required=True, help="A schedule with which to run the pipeline, in cron format. Example: '*/30 * * * *' will run the pipeline every 30 minutes.")
+    deploy_cmd.add_argument("deployment_method", metavar="deployment-method", choices=[DeploymentMethods.github_actions.value, DeploymentMethods.airflow.value], default=DeploymentMethods.github_actions.value, help="Deployment method")
+    deploy_cmd.add_argument("--schedule", required=False, help="A schedule with which to run the pipeline, in cron format. Example: '*/30 * * * *' will run the pipeline every 30 minutes.")
     deploy_cmd.add_argument("--run-manually", default=True, action="store_true", help="Allows the pipeline to be run manually form Github Actions UI.")
     deploy_cmd.add_argument("--run-on-push", default=False, action="store_true", help="Runs the pipeline with every push to the repository.")
     deploy_cmd.add_argument("--branch", default=None, help="Advanced. Uses specific branch of the deploy repository to fetch the template.")
