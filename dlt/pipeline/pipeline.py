@@ -218,7 +218,7 @@ class Pipeline(SupportsPipeline):
             self._configure(import_schema_path, export_schema_path, must_attach_to_local_pipeline)
 
     def drop(self) -> "Pipeline":
-        """Deletes existing pipeline state, schemas and drops datasets at the destination if present"""
+        """Deletes local pipeline state, schemas and any working files"""
         # reset the pipeline working dir
         self._create_pipeline()
         # clone the pipeline
