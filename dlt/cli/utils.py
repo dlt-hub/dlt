@@ -24,6 +24,8 @@ COMMAND_REPO_LOCATION = "https://github.com/dlt-hub/python-dlt-%s-template.git"
 REQUIREMENTS_TXT = "requirements.txt"
 PYPROJECT_TOML = "pyproject.toml"
 GITHUB_WORKFLOWS_DIR = os.path.join(".github", "workflows")
+AIRFLOW_DAGS_FOLDER = os.path.join("dags")
+AIRFLOW_BUILD_FOLDER = os.path.join("build")
 LOCAL_COMMAND_REPO_FOLDER = "repos"
 MODULE_INIT = "__init__.py"
 
