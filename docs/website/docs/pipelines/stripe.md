@@ -117,7 +117,7 @@ INCREMENTAL_ENDPOINTS = ("Event", "Invoice", "BalanceTransaction")
 
 `dlt` works on the principle of [sources](https://dlthub.com/docs/general-usage/source) and [resources](https://dlthub.com/docs/general-usage/resource) that for this pipeline are found in the `__init__.py` file within the *stripe_analytics* directory. This pipeline `stripe_analytics_pipeline.py` has three default methods that form the basis of loading the pipeline. The methods are :
 
-**Source** **stripe_source:**
+**Source** **<u>stripe_source:</u>**
 
 ```python
 @dlt.source
@@ -129,13 +129,13 @@ def stripe_source(
 ) -> DltResource:
 ```
 
-- **endpoints**: A tuple of endpoint names used to retrieve data from.
-- **start_date**: An optional start date to limit the data retrieved. The default value is None.
-- **end_date**: An optional end date that limits the data retrieved. The default value is None.
+- **`endpoints`**: A tuple of endpoint names used to retrieve data from.
+- **`start_date`**: An optional start date to limit the data retrieved. The default value is None.
+- **`end_date`**: An optional end date that limits the data retrieved. The default value is None.
 
 By default, this method utilizes the *replace* mode, which means that all the data will be loaded fresh into the table. In other words, the existing data in the destination is completely replaced with the new data being loaded on every run.
 
-**Source incremental_stripe_source** 
+**Source <u>incremental_stripe_source</u>** 
 
 ```python
 @dlt.source
@@ -147,13 +147,13 @@ def incremental_stripe_source(
 ) -> DltResource:
 ```
 
-- **endpoints**: A tuple of incremental endpoint names used to retrieve data.
-- **initial_start_date**: An optional parameter that specifies the initial value for *dlt.sources.incremental*. If the parameter is not set to “None”, only data created after *initial_start_date* will be loaded during the first run. The default value is None.
-- **end_date**: An optional end date that limits the data retrieved. The default value is None.
+- **`endpoints`**: A tuple of incremental endpoint names used to retrieve data.
+- **`initial_start_date`**: An optional parameter that specifies the initial value for *dlt.sources.incremental*. If the parameter is not set to “None”, only data created after *initial_start_date* will be loaded during the first run. The default value is None.
+- **`end_date`**: An optional end date that limits the data retrieved. The default value is None.
 
 After each run, the value of *initial_start_date* will be automatically updated to the date for which the pipeline last loaded data in the previous run. This ensures that in subsequent runs, only new data created after the last loaded date will be retrieved by the pipeline by using *append* mode. With this method, a massive amount of data is not downloaded each time, making the loading process more efficient and less time-consuming.
 
-**Resource metrics_resource**
+**Resource <u>metrics_resource</u>**
 
 ```python
 @dlt.resource(name="Metrics", write_disposition="append", primary_key="created")
