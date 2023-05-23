@@ -37,12 +37,22 @@ NORMALIZED_FILES = [
 def test_succesful_load(all_buckets_env: str) -> None:
     dataset_name = 'test_' + uniq_id()
     dataset_name = 'test_' + uniq_id()
-    client, jobs, root_path, load_id = perform_load(all_buckets_env, dataset_name, NORMALIZED_FILES, write_disposition='replace')
+    client, jobs, _, load_id = perform_load(all_buckets_env, dataset_name, NORMALIZED_FILES, write_disposition='replace')
 
+    dataset_path = Path(client.fs_path).joinpath(client.config.dataset_name)
+
+    # Assert dataset dir exists
+    assert client.fs_client.isdir(str(dataset_path))
+
+    # Sanity check, there are jobs
+    assert jobs
     for job in jobs:
         assert job.state() == 'completed'
-        dest_fn = LoadFilesystemJob.make_destination_filename(job.file_name(), client.schema.name, load_id)
-        assert client.fs_client.exists(root_path.joinpath(dest_fn))
+        job_info = LoadStorage.parse_job_file_name(job.file_name())
+        destination_path = dataset_path.joinpath(f"{client.schema.name}.{job_info.table_name}.{load_id}.{job_info.file_id}.{job_info.file_format}")
+
+        # File is created with correct filename and path
+        assert client.fs_client.isfile(destination_path)
 
 
 def test_replace_write_disposition(all_buckets_env: str) -> None:
@@ -64,6 +74,22 @@ def test_replace_write_disposition(all_buckets_env: str) -> None:
     ls = set(client.fs_client.ls(root_path))
     assert ls == {str(job_1_paths[0]), str(job_2_path)}
 
+
+def test_append_write_disposition(all_buckets_env: str) -> None:
+    """Run load twice with append write_disposition and assert that there are two copies of each file in destination"""
+    dataset_name = 'test_' + uniq_id()
+    client, jobs1, root_path, load_id1 = perform_load(all_buckets_env, dataset_name, NORMALIZED_FILES, write_disposition='append')
+
+    client, jobs2, root_path, load_id2 = perform_load(all_buckets_env, dataset_name, NORMALIZED_FILES, write_disposition='append')
+
+    expected_files = [
+        LoadFilesystemJob.make_destination_filename(job.file_name(), client.schema.name, load_id1) for job in jobs1
+    ] + [
+        LoadFilesystemJob.make_destination_filename(job.file_name(), client.schema.name, load_id2) for job in jobs2
+    ]
+    expected_files = sorted([str(root_path.joinpath(fn)) for fn in expected_files])
+
+    assert list(sorted(client.fs_client.ls(root_path))) == expected_files
 
 
 def perform_load(
