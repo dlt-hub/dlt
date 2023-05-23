@@ -113,7 +113,7 @@ ENDPOINTS = ("Subscription", "Account", "Coupon","Customer","Product","Price")
 INCREMENTAL_ENDPOINTS = ("Event", "Invoice", "BalanceTransaction")
 ```
 
-## **Source and resource methods**
+### **Source and resource methods**
 
 `dlt` works on the principle of [sources](https://dlthub.com/docs/general-usage/source) and [resources](https://dlthub.com/docs/general-usage/resource) that for this pipeline are found in the `__init__.py` file within the *stripe_analytics* directory. This pipeline `stripe_analytics_pipeline.py` has three default methods that form the basis of loading the pipeline. The methods are :
 
