@@ -1,6 +1,5 @@
-from collections import defaultdict
 import contextlib
-from typing import Callable, Tuple, Iterable, Optional, Any, cast, List, Iterator, Dict, Union, TypedDict
+from typing import Callable, Sequence, Iterable, Optional, Any, List, Iterator, Dict, Union, TypedDict
 from itertools import chain
 
 from dlt.common.jsonpath import resolve_paths, TAnyJsonPath, compile_paths
@@ -17,7 +16,7 @@ from dlt.pipeline import Pipeline
 from dlt.common.pipeline import TSourceState, _reset_resource_state, sources_state, _delete_source_state_keys, _get_matching_resources
 
 
-def retry_load(retry_on_pipeline_steps: Tuple[TPipelineStep, ...] = ("load",)) -> Callable[[Exception], bool]:
+def retry_load(retry_on_pipeline_steps: Sequence[TPipelineStep] = ("load",)) -> Callable[[BaseException], bool]:
     """A retry strategy for Tenacity that, with default setting, will repeat `load` step for all exceptions that are not terminal
 
     Use this condition with tenacity `retry_if_exception`. Terminal exceptions are exceptions that will not go away when operations is repeated.
@@ -32,7 +31,7 @@ def retry_load(retry_on_pipeline_steps: Tuple[TPipelineStep, ...] = ("load",)) -
         retry_on_pipeline_steps (Tuple[TPipelineStep, ...], optional): which pipeline steps are allowed to be repeated. Default: "load"
 
     """
-    def _retry_load(ex: Exception) -> bool:
+    def _retry_load(ex: BaseException) -> bool:
         # do not retry in normalize or extract stages
         if isinstance(ex, PipelineStepFailed) and ex.step not in retry_on_pipeline_steps:
             return False

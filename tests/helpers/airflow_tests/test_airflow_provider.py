@@ -1,15 +1,10 @@
-import os
-import argparse
-import pytest
 from airflow import DAG
 from airflow.decorators import task, dag
-from airflow.cli.commands.db_command import resetdb
 from airflow.operators.python import PythonOperator
 from airflow.models.variable import Variable
 from airflow.models.taskinstance import TaskInstance
 from airflow.utils.state import State, DagRunState
 from airflow.utils.types import DagRunType
-from airflow.configuration import conf
 
 import dlt
 from dlt.common import pendulum
@@ -18,39 +13,9 @@ from dlt.common.configuration.specs.config_providers_context import ConfigProvid
 from dlt.common.configuration.providers.airflow import AIRFLOW_SECRETS_TOML_VARIABLE_KEY
 
 from tests.utils import preserve_environ
+from tests.helpers.airflow_tests.utils import initialize_airflow_db
 
 DEFAULT_DATE = pendulum.datetime(2023, 4, 18, tz='Europe/Berlin')
-
-
-@pytest.fixture(scope='function', autouse=True)
-def initialize_airflow_db():
-    setup_airflow()
-    # backup context providers
-    providers = Container()[ConfigProvidersContext]
-    # allow airflow provider
-    os.environ["PROVIDERS__ENABLE_AIRFLOW_SECRETS"] = "true"
-    # re-create providers
-    del Container()[ConfigProvidersContext]
-    yield
-    # restore providers
-    Container()[ConfigProvidersContext] = providers
-    # Make sure the variable is not set
-    Variable.delete(AIRFLOW_SECRETS_TOML_VARIABLE_KEY)
-
-
-def setup_airflow() -> None:
-    # Disable loading examples
-    conf.set('core', 'load_examples', 'False')
-    # Prepare the arguments for the initdb function
-    args = argparse.Namespace()
-    args.backend = conf.get(section='core', key='sql_alchemy_conn')
-
-    # Run Airflow resetdb before running any tests
-    args.yes = True
-    args.skip_init = False
-    resetdb(args)
-
-
 # Test data
 SECRETS_TOML_CONTENT = """
 [sources]
@@ -58,7 +23,7 @@ api_key = "test_value"
 """
 
 
-def test_airflow_secrets_toml_provider():
+def test_airflow_secrets_toml_provider() -> None:
 
     @dag(start_date=DEFAULT_DATE)
     def test_dag():
@@ -107,7 +72,7 @@ def test_airflow_secrets_toml_provider():
     assert result['api_key_from_provider'] == 'test_value'
 
 
-def test_airflow_secrets_toml_provider_import_dlt_dag():
+def test_airflow_secrets_toml_provider_import_dlt_dag() -> None:
     """Tests if the provider is functional when defining DAG"""
 
     @dag(start_date=DEFAULT_DATE)
@@ -146,7 +111,7 @@ def test_airflow_secrets_toml_provider_import_dlt_dag():
     assert result['api_key_from_provider'] == 'test_value'
 
 
-def test_airflow_secrets_toml_provider_import_dlt_task():
+def test_airflow_secrets_toml_provider_import_dlt_task() -> None:
     """Tests if the provider is functional when running in task"""
 
     @dag(start_date=DEFAULT_DATE)
