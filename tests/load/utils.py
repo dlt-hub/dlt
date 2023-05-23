@@ -2,7 +2,9 @@ import contextlib
 from importlib import import_module
 import codecs
 import os
-from typing import Any, Iterator, List, Sequence, cast, IO
+from typing import Any, Iterator, List, Sequence, cast, IO, Tuple
+import shutil
+from pathlib import Path
 
 from dlt.common import json, Decimal, sleep
 from dlt.common.configuration import resolve_configuration
@@ -11,10 +13,10 @@ from dlt.common.configuration.specs import SchemaVolumeConfiguration
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.destination.reference import DestinationClientDwhConfiguration, DestinationReference, JobClientBase, LoadJob
 from dlt.common.data_writers import DataWriter
-from dlt.common.schema import TColumnSchema, TTableSchemaColumns
+from dlt.common.schema import TColumnSchema, TTableSchemaColumns, Schema
 from dlt.common.storages import SchemaStorage, FileStorage
 from dlt.common.schema.utils import new_table
-from dlt.common.storages.load_storage import ParsedLoadJobFileName
+from dlt.common.storages.load_storage import ParsedLoadJobFileName, LoadStorage
 from dlt.common.typing import StrAny
 from dlt.common.utils import uniq_id
 
@@ -216,3 +218,27 @@ def write_dataset(client: JobClientBase, f: IO[bytes], rows: Sequence[StrAny], c
         f = codecs.getwriter("utf-8")(f)
     writer = DataWriter.from_destination_capabilities(client.capabilities, f)
     writer.write_all(columns_schema, rows)
+
+
+def prepare_load_package(load_storage: LoadStorage, cases: Sequence[str], write_disposition: str='append') -> Tuple[str, Schema]:
+    load_id = uniq_id()
+    load_storage.create_temp_load_package(load_id)
+    for case in cases:
+        path = f"./tests/load/cases/loading/{case}"
+        shutil.copy(path, load_storage.storage.make_full_path(f"{load_id}/{LoadStorage.NEW_JOBS_FOLDER}"))
+    schema_path = Path("./tests/load/cases/loading/schema.json")
+    data = json.loads(schema_path.read_text(encoding='utf8'))
+    for name, table in data['tables'].items():
+        if name.startswith('_dlt'):
+            continue
+        table['write_disposition'] = write_disposition
+    Path(
+        load_storage.storage.make_full_path(load_id)
+    ).joinpath(schema_path.name).write_text(json.dumps(data), encoding='utf8')
+
+    schema_update_path = "./tests/load/cases/loading/schema_updates.json"
+    shutil.copy(schema_update_path, load_storage.storage.make_full_path(load_id))
+
+    load_storage.commit_temp_load_package(load_id)
+    schema = load_storage.load_package_schema(load_id)
+    return load_id, schema

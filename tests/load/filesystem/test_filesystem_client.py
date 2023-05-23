@@ -16,6 +16,7 @@ from dlt.load import Load
 
 from tests.utils import clean_test_storage, init_test_logging, TEST_DICT_CONFIG_PROVIDER, preserve_environ
 from tests.load.filesystem.utils import get_client, setup_loader
+from tests.load.utils import prepare_load_package
 
 
 @pytest.fixture(autouse=True)
@@ -111,24 +112,3 @@ def perform_load(
         jobs.append(job)
 
     return jobs, root_path, load_id
-
-
-def prepare_load_package(load_storage: LoadStorage, cases: Sequence[str], write_disposition: str='append') -> Tuple[str, Schema]:
-    load_id = uniq_id()
-    load_storage.create_temp_load_package(load_id)
-    for case in cases:
-        path = f"./tests/load/cases/loading/{case}"
-        shutil.copy(path, load_storage.storage.make_full_path(f"{load_id}/{LoadStorage.NEW_JOBS_FOLDER}"))
-    schema_path = Path("./tests/load/cases/loading/schema.json")
-    data = json.loads(schema_path.read_text(encoding='utf8'))
-    for name, table in data['tables'].items():
-        if name.startswith('_dlt'):
-            continue
-        table['write_disposition'] = write_disposition
-    Path(
-        load_storage.storage.make_full_path(load_id)
-    ).joinpath(schema_path.name).write_text(json.dumps(data), encoding='utf8')
-
-    load_storage.commit_temp_load_package(load_id)
-    schema = load_storage.load_package_schema(load_id)
-    return load_id, schema
