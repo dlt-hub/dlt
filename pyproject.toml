@@ -99,14 +99,14 @@ types-SQLAlchemy = ">=1.4.53"
 
 [tool.poetry.extras]
 dbt = ["dbt-core", "dbt-redshift", "dbt-bigquery", "dbt-duckdb"]
-gcp = ["grpcio", "google-cloud-bigquery", "pyarrow", "db-dtypes"]
+gcp = ["grpcio", "google-cloud-bigquery", "pyarrow", "db-dtypes", "fsspec", "gcsfs"]
 # bigquery is alias on gcp extras
-bigquery = ["grpcio", "google-cloud-bigquery", "pyarrow", "db-dtypes"]
+bigquery = ["grpcio", "google-cloud-bigquery", "pyarrow", "db-dtypes", "fsspec", "gcsfs"]
 postgres = ["psycopg2-binary", "psycopg2cffi"]
 redshift = ["psycopg2-binary", "psycopg2cffi"]
 duckdb = ["duckdb"]
 s3 = ["fsspec", "s3fs"]
-gcs = ["fsspec", "gcsfs"]
+gs = ["fsspec", "gcsfs"]
 filesystem = ["fsspec"]
 
 [tool.poetry.scripts]
