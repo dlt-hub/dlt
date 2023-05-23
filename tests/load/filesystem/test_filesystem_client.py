@@ -33,11 +33,12 @@ NORMALIZED_FILES = [
     "event_loop_interrupted.839c6e6b514e427687586ccc65bf133f.0.jsonl"
 ]
 
-
-def test_succesful_load(all_buckets_env: str) -> None:
-    dataset_name = 'test_' + uniq_id()
-    dataset_name = 'test_' + uniq_id()
-    client, jobs, _, load_id = perform_load(all_buckets_env, dataset_name, NORMALIZED_FILES, write_disposition='replace')
+@pytest.mark.parametrize('write_disposition', ('replace', 'append', 'merge'))
+def test_succesful_load(write_disposition: str, all_buckets_env: str, filesystem_client: FilesystemClient) -> None:
+    """Test load is successful with an empty destination dataset"""
+    client = filesystem_client
+    dataset_name = client.config.dataset_name
+    jobs, _, load_id = perform_load(client, NORMALIZED_FILES, write_disposition=write_disposition)
 
     dataset_path = Path(client.fs_path).joinpath(client.config.dataset_name)
 
@@ -55,9 +56,9 @@ def test_succesful_load(all_buckets_env: str) -> None:
         assert client.fs_client.isfile(destination_path)
 
 
-def test_replace_write_disposition(all_buckets_env: str) -> None:
-    dataset_name = 'test_' + uniq_id()
-    client, jobs1, root_path, load_id1 = perform_load(all_buckets_env, dataset_name, NORMALIZED_FILES, write_disposition='replace')
+def test_replace_write_disposition(all_buckets_env: str, filesystem_client: FilesystemClient) -> None:
+    client = filesystem_client
+    jobs1, root_path, load_id1 = perform_load(client, NORMALIZED_FILES, write_disposition='replace')
 
     job_1_paths = []
 
@@ -65,7 +66,7 @@ def test_replace_write_disposition(all_buckets_env: str) -> None:
         dest_fn = LoadFilesystemJob.make_destination_filename(job.file_name(), client.schema.name, load_id1)
         job_1_paths.append(root_path.joinpath(dest_fn))
 
-    client, jobs2, root_path, load_id2 = perform_load(all_buckets_env, dataset_name, [NORMALIZED_FILES[0]], write_disposition='replace')
+    jobs2, root_path, load_id2 = perform_load(client, [NORMALIZED_FILES[0]], write_disposition='replace')
 
     job_2_path = root_path.joinpath(LoadFilesystemJob.make_destination_filename(jobs2[0].file_name(), client.schema.name, load_id2))
 
@@ -75,12 +76,12 @@ def test_replace_write_disposition(all_buckets_env: str) -> None:
     assert ls == {str(job_1_paths[0]), str(job_2_path)}
 
 
-def test_append_write_disposition(all_buckets_env: str) -> None:
+def test_append_write_disposition(all_buckets_env: str, filesystem_client: FilesystemClient) -> None:
     """Run load twice with append write_disposition and assert that there are two copies of each file in destination"""
-    dataset_name = 'test_' + uniq_id()
-    client, jobs1, root_path, load_id1 = perform_load(all_buckets_env, dataset_name, NORMALIZED_FILES, write_disposition='append')
+    client = filesystem_client
+    jobs1, root_path, load_id1 = perform_load(client, NORMALIZED_FILES, write_disposition='append')
 
-    client, jobs2, root_path, load_id2 = perform_load(all_buckets_env, dataset_name, NORMALIZED_FILES, write_disposition='append')
+    jobs2, root_path, load_id2 = perform_load(client, NORMALIZED_FILES, write_disposition='append')
 
     expected_files = [
         LoadFilesystemJob.make_destination_filename(job.file_name(), client.schema.name, load_id1) for job in jobs1
@@ -93,12 +94,13 @@ def test_append_write_disposition(all_buckets_env: str) -> None:
 
 
 def perform_load(
-    bucket_url: str, dataset_name: str, cases: Sequence[str], write_disposition: str='append'
-) -> Tuple[FilesystemClient, List[LoadJob], Path, str]:
+    client: FilesystemClient, cases: Sequence[str], write_disposition: str='append'
+) -> Tuple[List[LoadJob], Path, str]:
+    dataset_name = client.config.dataset_name
     load = setup_loader(dataset_name)
     load_id, schema = prepare_load_package(load.load_storage, cases, write_disposition)
 
-    client = get_client(schema, dataset_name)
+    client.schema = schema
     client.initialize_storage()
     root_path = Path(client.fs_path).joinpath(client.config.dataset_name)
 
@@ -108,7 +110,7 @@ def perform_load(
         job = Load.w_spool_job(load, f, load_id, schema)
         jobs.append(job)
 
-    return client, jobs, root_path, load_id
+    return jobs, root_path, load_id
 
 
 def prepare_load_package(load_storage: LoadStorage, cases: Sequence[str], write_disposition: str='append') -> Tuple[str, Schema]:
