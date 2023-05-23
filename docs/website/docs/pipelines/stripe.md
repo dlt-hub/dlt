@@ -18,7 +18,7 @@ This pipeline loads data from the following default endpoints:
 | Invoice | a document that represents a request for payment from a customer |
 | BalanceTransaction | represents a record of funds movement within a Stripe account |
 
-> **Please note** that the endpoints within the pipeline can be tailored to meet your specific requirements, as outlined in the [Stripe API reference documentation.](https://stripe.com/docs/api) Detailed instructions on customizing these endpoints can be found in the customization section [here](stripe.md#create your-incremental-data-loading-pipeline).
+> **Please note** that the endpoints within the pipeline can be tailored to meet your specific requirements, as outlined in the [**Stripe API reference documentation**](https://stripe.com/docs/api) Detailed instructions on customizing these endpoints can be found in the customization section [**here**](stripe.md#create-your-data-loading-pipeline).
 > 
 
 ## Grab API credentials
@@ -129,9 +129,9 @@ def stripe_source(
 ) -> DltResource:
 ```
 
-- `**endpoints**`: A tuple of endpoint names used to retrieve data from.
-- `**start_date**`: An optional start date to limit the data retrieved. The default value is None.
-- `**end_date**`: An optional end date that limits the data retrieved. The default value is None.
+- **endpoints**: A tuple of endpoint names used to retrieve data from.
+- **start_date**: An optional start date to limit the data retrieved. The default value is None.
+- **end_date**: An optional end date that limits the data retrieved. The default value is None.
 
 By default, this method utilizes the *replace* mode, which means that all the data will be loaded fresh into the table. In other words, the existing data in the destination is completely replaced with the new data being loaded on every run.
 
@@ -147,9 +147,9 @@ def incremental_stripe_source(
 ) -> DltResource:
 ```
 
-- `**endpoints**`: A tuple of incremental endpoint names used to retrieve data.
-- `**initial_start_date**`: An optional parameter that specifies the initial value for *dlt.sources.incremental*. If the parameter is not set to “None”, only data created after *initial_start_date* will be loaded during the first run. The default value is None.
-- `**end_date**`: An optional end date that limits the data retrieved. The default value is None.
+- **endpoints**: A tuple of incremental endpoint names used to retrieve data.
+- **initial_start_date**: An optional parameter that specifies the initial value for *dlt.sources.incremental*. If the parameter is not set to “None”, only data created after *initial_start_date* will be loaded during the first run. The default value is None.
+- **end_date**: An optional end date that limits the data retrieved. The default value is None.
 
 After each run, the value of *initial_start_date* will be automatically updated to the date for which the pipeline last loaded data in the previous run. This ensures that in subsequent runs, only new data created after the last loaded date will be retrieved by the pipeline by using *append* mode. With this method, a massive amount of data is not downloaded each time, making the loading process more efficient and less time-consuming.
 
@@ -162,9 +162,9 @@ def metrics_resource() -> Dict[str, Any]:
 
 This method is used to calculate and get metrics such as monthly recurring revenue (MRR) and churn rate from endpoints `Subscriptions` and `Events`.
 
-- Monthly Recurring Revenue (MRR):
+- **Monthly Recurring Revenue (MRR)**:
     - is a valuable metric used to estimate the total amount of monthly revenue that a business can expect to receive on a recurring basis. It's calculated by adding up the monthly-normalized amounts of all subscriptions from which payment is being collected at the current time.
-- Churn rate:
+- **Churn rate**:
     - is a metric used to measure the rate at which subscribers are leaving a service or product over a given period of time. It's calculated by adding up the number of subscribers who have canceled or ended their subscription in the past 30 days and dividing that number by the total number of active subscribers 30 days ago, plus any new subscribers that have joined during that same 30-day period.
 
 ### **Create Your Data Loading Pipeline**
