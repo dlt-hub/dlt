@@ -4,6 +4,7 @@ from unittest.mock import patch
 from typing import Any, Dict, Final, List, Mapping, MutableMapping, NewType, Optional, Sequence, Type, Union, Literal
 
 from dlt.common import json, pendulum, Decimal, Wei
+from dlt.common.configuration.providers.provider import ConfigProvider
 from dlt.common.configuration.specs.gcp_credentials import GcpServiceAccountCredentialsWithoutDefaults
 from dlt.common.utils import custom_environ
 from dlt.common.typing import AnyType, DictStrAny, StrAny, TSecretValue, extract_inner_type
@@ -14,7 +15,9 @@ from dlt.common.configuration.providers import environ as environ_provider, toml
 from dlt.common.configuration.utils import get_resolved_traces, ResolvedValueTrace, serialize_value, deserialize_value, add_config_dict_to_env
 
 from tests.utils import preserve_environ
-from tests.common.configuration.utils import MockProvider, CoercionTestConfiguration, COERCIONS, SecretCredentials, WithCredentialsConfiguration, WrongConfiguration, SecretConfiguration, SectionedConfiguration, environment, mock_provider, reset_resolved_traces
+from tests.common.configuration.utils import (
+    MockProvider, CoercionTestConfiguration, COERCIONS, SecretCredentials, WithCredentialsConfiguration, WrongConfiguration, SecretConfiguration,
+    SectionedConfiguration, environment, mock_provider, env_provider, reset_resolved_traces)
 
 INVALID_COERCIONS = {
     # 'STR_VAL': 'test string',  # string always OK
@@ -404,7 +407,7 @@ def test_run_configuration_gen_name(environment: Any) -> None:
     assert C.pipeline_name.startswith("dlt_")
 
 
-def test_configuration_is_mutable_mapping(environment: Any) -> None:
+def test_configuration_is_mutable_mapping(environment: Any, env_provider: ConfigProvider) -> None:
 
     @configspec
     class _SecretCredentials(RunConfiguration):
@@ -507,7 +510,7 @@ def test_multi_derivation_defaults(environment: Any) -> None:
     assert C.__section__ == "DLT_TEST"
 
 
-def test_raises_on_unresolved_field(environment: Any) -> None:
+def test_raises_on_unresolved_field(environment: Any, env_provider: ConfigProvider) -> None:
     # via make configuration
     with pytest.raises(ConfigFieldMissingException) as cf_missing_exc:
         resolve.resolve_configuration(WrongConfiguration())
@@ -522,7 +525,7 @@ def test_raises_on_unresolved_field(environment: Any) -> None:
     # assert trace[2] == LookupTrace("config.toml", [], "NoneConfigVar", None)
 
 
-def test_raises_on_many_unresolved_fields(environment: Any) -> None:
+def test_raises_on_many_unresolved_fields(environment: Any, env_provider: ConfigProvider) -> None:
     # via make configuration
     with pytest.raises(ConfigFieldMissingException) as cf_missing_exc:
         resolve.resolve_configuration(CoercionTestConfiguration())
