@@ -36,6 +36,35 @@ class BaseTomlProvider(ConfigProvider):
         except KeyError:
             return None, full_key
 
+    def set_value(self, key: str, value: Any, pipeline_name: str, *sections: str) -> None:
+        if pipeline_name:
+            sections = (pipeline_name, ) + sections
+
+        if isinstance(value, TOMLContainer):
+            if key is None:
+                self._toml = value
+            else:
+                # always update the top document
+                # TODO: verify that value contains only the elements under key
+                update_dict_nested(self._toml, value)
+        else:
+            if key is None:
+                raise ValueError("dlt_secrets_toml must contain toml document")
+
+            master: TOMLContainer
+            # descend from root, create tables if necessary
+            master = self._toml
+            for k in sections:
+                if not isinstance(master, dict):
+                    raise KeyError(k)
+                if k not in master:
+                    master[k] = tomlkit.table()
+                master = master[k]  # type: ignore
+            if isinstance(value, dict) and isinstance(master.get(key), dict):
+                update_dict_nested(master[key], value)  # type: ignore
+            else:
+                master[key] = value
+
     @property
     def supports_sections(self) -> bool:
         return True
@@ -110,6 +139,9 @@ class ConfigTomlProvider(TomlFileProvider):
     def supports_secrets(self) -> bool:
         return False
 
+    @property
+    def is_writable(self) -> bool:
+        return True
 
 
 class SecretsTomlProvider(TomlFileProvider):
@@ -123,6 +155,10 @@ class SecretsTomlProvider(TomlFileProvider):
 
     @property
     def supports_secrets(self) -> bool:
+        return True
+
+    @property
+    def is_writable(self) -> bool:
         return True
 
 

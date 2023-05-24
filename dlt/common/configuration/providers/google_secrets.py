@@ -138,36 +138,7 @@ class GoogleSecretsProvider(BaseTomlProvider):
         secret = self._look_vault(full_key, hint)
         self._vault_lookups[full_key] = pendulum.now()
         if secret is not None:
-            self._add_node(secret, key, pipeline_name, sections)
-
-    def _add_node(self, secret: str, key: str, pipeline_name: str, sections: Tuple[str, ...]) -> None:
-        if pipeline_name:
-            sections = (pipeline_name, ) + sections
-
-        doc: Any = auto_cast(secret)
-        if isinstance(doc, TOMLContainer):
-            if key is None:
-                self._toml = doc
-            else:
-                # always update the top document
-                update_dict_nested(self._toml, doc)
-        else:
-            if key is None:
-                raise ValueError("dlt_secrets_toml must contain toml document")
-
-            master: TOMLContainer
-            # descend from root, create tables if necessary
-            master = self._toml
-            for k in sections:
-                if not isinstance(master, dict):
-                    raise KeyError(k)
-                if k not in master:
-                    master[k] = tomlkit.table()
-                master = master[k]  # type: ignore
-            if isinstance(doc, dict):
-                update_dict_nested(master[key], doc)  # type: ignore
-            else:
-                master[key] = doc
+            self.set_value(key, auto_cast(secret), pipeline_name, *sections)
 
     @property
     def is_empty(self) -> bool:

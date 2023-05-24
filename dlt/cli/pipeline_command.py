@@ -4,7 +4,7 @@ import dlt
 from dlt.cli.exceptions import CliCommandException
 
 from dlt.common import json
-from dlt.common.pipeline import _resource_state, get_dlt_pipelines_dir, TSourceState
+from dlt.common.pipeline import resource_state, get_dlt_pipelines_dir, TSourceState
 from dlt.common.destination.reference import TDestinationReferenceArg
 from dlt.common.runners import Venv
 from dlt.common.runners.stdout import iter_stdout
@@ -97,8 +97,8 @@ def pipeline_command(operation: str, pipeline_name: str, pipelines_dir: str, ver
                     if sources_state:
                         source_state = next(iter(sources_state.items()))[1] if is_single_schema else sources_state.get(schema_name)
                         if source_state:
-                            resource_state = _resource_state(resource_name, source_state)
-                            res_state_slots = len(resource_state)
+                            resource_state_ = resource_state(resource_name, source_state)
+                            res_state_slots = len(resource_state_)
                     fmt.echo("%s with %s table(s) and %s resource state slot(s)" % (fmt.bold(resource_name), fmt.bold(str(len(tables))), fmt.bold(str(res_state_slots))))
         fmt.echo()
         fmt.echo("Working dir content:")

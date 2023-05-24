@@ -4,13 +4,14 @@ import pytest
 
 import dlt
 
-from dlt.common.exceptions import PipelineStateNotAvailable
+from dlt.common.exceptions import PipelineStateNotAvailable, ResourceNameNotAvailable
 from dlt.common.schema import Schema
+from dlt.common.source import get_current_pipe_name
 from dlt.common.storages import FileStorage
 from dlt.common import pipeline as state_module
 from dlt.common.utils import uniq_id
 
-from dlt.pipeline.exceptions import PipelineStateEngineNoUpgradePathException
+from dlt.pipeline.exceptions import PipelineStateEngineNoUpgradePathException, PipelineStepFailed
 from dlt.pipeline.pipeline import Pipeline
 from dlt.pipeline.state_sync import migrate_state, STATE_ENGINE_VERSION
 
@@ -23,6 +24,13 @@ def some_data():
     last_value = dlt.current.source_state().get("last_value", 0)
     yield [1,2,3]
     dlt.current.source_state()["last_value"] = last_value + 1
+
+
+@dlt.resource()
+def some_data_resource_state():
+    last_value = dlt.current.resource_state().get("last_value", 0)
+    yield [1,2,3]
+    dlt.current.resource_state()["last_value"] = last_value + 1
 
 
 def test_managed_state() -> None:
@@ -149,9 +157,9 @@ def test_unmanaged_state() -> None:
     def _gen_inner():
         dlt.state()["gen"] = True
         yield 1
-
+    list(dlt.resource(_gen_inner))
     list(dlt.resource(_gen_inner()))
-    assert state_module._last_full_state["sources"]["unmanaged"]["gen"] is True
+    assert state_module._last_full_state["sources"]["test_pipeline_state"]["gen"] is True
 
     @dlt.source
     def some_source():
@@ -185,12 +193,186 @@ def test_unmanaged_state_no_pipeline() -> None:
     assert state_module._last_full_state["sources"]["test_pipeline_state"]["last_value"] == 1
 
     def _gen_inner():
-        dlt.state()["gen"] = True
+        dlt.current.state()["gen"] = True
         yield 1
 
     list(dlt.resource(_gen_inner()))
     fk = next(iter(state_module._last_full_state["sources"]))
     assert state_module._last_full_state["sources"][fk]["gen"] is True
+
+
+def test_resource_state_write() -> None:
+    r = some_data_resource_state()
+    assert list(r) == [1, 2, 3]
+    assert state_module._last_full_state["sources"]["test_pipeline_state"]["resources"]["some_data_resource_state"]["last_value"] == 1
+    with pytest.raises(ResourceNameNotAvailable):
+        get_current_pipe_name()
+
+    def _gen_inner():
+        dlt.current.resource_state()["gen"] = True
+        yield 1
+
+    dlt.pipeline()
+    r = dlt.resource(_gen_inner(), name="name_ovrd")
+    assert list(r) == [1]
+    assert state_module._last_full_state["sources"]["test_pipeline_state"]["resources"]["name_ovrd"]["gen"] is True
+    with pytest.raises(ResourceNameNotAvailable):
+        get_current_pipe_name()
+
+
+def test_resource_state_in_pipeline() -> None:
+    p = dlt.pipeline()
+    r = some_data_resource_state()
+    p.extract(r)
+    assert r.state["last_value"] == 1
+    with pytest.raises(ResourceNameNotAvailable):
+        get_current_pipe_name()
+
+    def _gen_inner(tv="df"):
+        dlt.current.resource_state()["gen"] = tv
+        yield 1
+
+    r = dlt.resource(_gen_inner("gen_tf"), name="name_ovrd")
+    p.extract(r)
+    assert r.state["gen"] == "gen_tf"
+    assert state_module._last_full_state["sources"]["test_pipeline_state"]["resources"]["name_ovrd"]["gen"] == "gen_tf"
+    with pytest.raises(ResourceNameNotAvailable):
+        get_current_pipe_name()
+
+    r = dlt.resource(_gen_inner, name="pure_function")
+    p.extract(r)
+    assert r.state["gen"] == "df"
+    assert state_module._last_full_state["sources"]["test_pipeline_state"]["resources"]["pure_function"]["gen"] == "df"
+    with pytest.raises(ResourceNameNotAvailable):
+        get_current_pipe_name()
+
+    # get resource state in defer function
+    def _gen_inner_defer(tv="df"):
+
+        @dlt.defer
+        def _run():
+            dlt.current.resource_state()["gen"] = tv
+            return 1
+
+        yield _run()
+
+    r = dlt.resource(_gen_inner_defer, name="defer_function")
+    # you cannot get resource name in `defer` function
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        p.extract(r)
+    assert isinstance(pip_ex.value.__context__, ResourceNameNotAvailable)
+
+    # get resource state in defer explicitly
+    def _gen_inner_defer_explicit_name(resource_name, tv="df"):
+
+        @dlt.defer
+        def _run():
+            dlt.current.resource_state(resource_name)["gen"] = tv
+            return 1
+
+        yield _run()
+
+    r = dlt.resource(_gen_inner_defer_explicit_name, name="defer_function_explicit")
+    p.extract(r("defer_function_explicit", "expl"))
+    assert r.state["gen"] == "expl"
+    assert state_module._last_full_state["sources"]["test_pipeline_state"]["resources"]["defer_function_explicit"]["gen"] == "expl"
+
+    # get resource state in yielding defer (which btw is invalid and will be resolved in main thread)
+    def _gen_inner_defer_yielding(tv="yielding"):
+
+        @dlt.defer
+        def _run():
+            dlt.current.resource_state()["gen"] = tv
+            yield from [1, 2, 3]
+
+        yield _run()
+
+    r = dlt.resource(_gen_inner_defer_yielding, name="defer_function_yielding")
+    p.extract(r)
+    assert r.state["gen"] == "yielding"
+    assert state_module._last_full_state["sources"]["test_pipeline_state"]["resources"]["defer_function_yielding"]["gen"] == "yielding"
+
+    # get resource state in async function
+    def _gen_inner_async(tv="async"):
+
+        async def _run():
+            dlt.current.resource_state()["gen"] = tv
+            return 1
+
+        yield _run()
+
+    r = dlt.resource(_gen_inner_async, name="async_function")
+    # you cannot get resource name in `defer` function
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        p.extract(r)
+    assert isinstance(pip_ex.value.__context__, ResourceNameNotAvailable)
+
+
+def test_transformer_state_write() -> None:
+    r = some_data_resource_state()
+
+    # yielding transformer
+    def _gen_inner(item):
+        dlt.current.resource_state()["gen"] = True
+        yield map(lambda i: i * 2, item)
+
+    # p = dlt.pipeline()
+    # p.extract(dlt.transformer(_gen_inner, data_from=r, name="tx_other_name"))
+    assert list(dlt.transformer(_gen_inner, data_from=r, name="tx_other_name")) == [2, 4, 6]
+    assert state_module._last_full_state["sources"]["test_pipeline_state"]["resources"]["some_data_resource_state"]["last_value"] == 1
+    assert state_module._last_full_state["sources"]["test_pipeline_state"]["resources"]["tx_other_name"]["gen"] is True
+
+    # returning transformer
+    def _gen_inner_rv(item):
+        dlt.current.resource_state()["gen"] = True
+        return item * 2
+
+    r = some_data_resource_state()
+    assert list(dlt.transformer(_gen_inner_rv, data_from=r, name="tx_other_name_rv")) == [1, 2, 3, 1, 2, 3]
+    assert state_module._last_full_state["sources"]["test_pipeline_state"]["resources"]["tx_other_name_rv"]["gen"] is True
+
+    # deferred transformer
+    @dlt.defer
+    def _gen_inner_rv_defer(item):
+        dlt.current.resource_state()["gen"] = True
+        return item
+
+    r = some_data_resource_state()
+    # not available because executed in a pool
+    with pytest.raises(ResourceNameNotAvailable):
+        print(list(dlt.transformer(_gen_inner_rv_defer, data_from=r, name="tx_other_name_defer")))
+
+    # async transformer
+    async def _gen_inner_rv_async(item):
+        dlt.current.resource_state()["gen"] = True
+        return item
+
+    r = some_data_resource_state()
+    # not available because executed in a pool
+    with pytest.raises(ResourceNameNotAvailable):
+        print(list(dlt.transformer(_gen_inner_rv_async, data_from=r, name="tx_other_name_async")))
+
+    # async transformer with explicit resource name
+    async def _gen_inner_rv_async_name(item, r_name):
+        dlt.current.resource_state(r_name)["gen"] = True
+        return item
+
+    r = some_data_resource_state()
+    assert list(dlt.transformer(_gen_inner_rv_async_name, data_from=r, name="tx_other_name_async")("tx_other_name_async")) == [1, 2, 3]
+    assert state_module._last_full_state["sources"]["test_pipeline_state"]["resources"]["tx_other_name_async"]["gen"] is True
+
+
+def test_transform_function_state_write() -> None:
+    r = some_data_resource_state()
+
+    # transform executed within the same thread
+    def transform(item):
+        dlt.current.resource_state()["form"] = item
+        return item*2
+
+    r.add_map(transform)
+    assert list(r) == [2, 4, 6]
+    assert state_module._last_full_state["sources"]["test_pipeline_state"]["resources"]["some_data_resource_state"]["form"] == 3
 
 
 def test_migrate_state(test_storage: FileStorage) -> None:

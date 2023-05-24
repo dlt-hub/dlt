@@ -7,9 +7,11 @@ from dlt.common import json
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
 
 from dlt.common.configuration.providers import EnvironProvider, ConfigTomlProvider, SecretsTomlProvider
+from dlt.common.configuration.resolve import resolve_configuration
 from dlt.common.configuration.specs import GcpServiceAccountCredentialsWithoutDefaults, ConnectionStringCredentials
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
 from dlt.common.configuration.utils import get_resolved_traces, ResolvedValueTrace
+from dlt.common.runners.configuration import PoolRunnerConfiguration
 from dlt.common.typing import AnyType, TSecretValue
 
 
@@ -119,6 +121,33 @@ def test_getter_accessor_typed(toml_providers: ConfigProvidersContext, environme
     assert c.drivername == "databricks+connector"
     c = dlt.secrets.get("destination.credentials", GcpServiceAccountCredentialsWithoutDefaults)
     assert c.client_email == "loader@a7513.iam.gserviceaccount.com"
+
+
+def test_setter(toml_providers: ConfigProvidersContext, environment: Any) -> None:
+    assert dlt.secrets.writable_provider.name == "secrets.toml"
+    assert dlt.config.writable_provider.name == "config.toml"
+
+    dlt.config["new_key"] = "new_value"
+    assert dlt.config["new_key"] == "new_value"
+    # not visible through secrets now (config.toml not included)
+    with pytest.raises(KeyError):
+        assert dlt.secrets["new_key"] == "new_value"
+
+    dlt.secrets["new_secret"] = TSecretValue("a_secret")
+    assert dlt.secrets["new_secret"] == "a_secret"
+    # now visible (config is in secrets)
+    assert dlt.config["new_secret"] == "a_secret"
+
+    # add sections
+    dlt.secrets["pipeline.new.credentials"] = {"api_key": "skjo87a7nnAAaa"}
+    assert dlt.secrets["pipeline.new.credentials"] == {"api_key": "skjo87a7nnAAaa"}
+    # check the toml directly
+    assert dlt.secrets.writable_provider._toml["pipeline"]["new"]["credentials"] == {"api_key": "skjo87a7nnAAaa"}
+
+    # mod the config and use it to resolve the configuration
+    dlt.config["pool"] = {"pool_type": "process", "workers": 21}
+    c = resolve_configuration(PoolRunnerConfiguration(), sections=("pool", ))
+    assert dict(c) == {"pool_type": "process", "workers": 21, 'run_sleep': 0.1}
 
 
 def test_secrets_separation(toml_providers: ConfigProvidersContext) -> None:

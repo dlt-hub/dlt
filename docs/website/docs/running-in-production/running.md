@@ -155,7 +155,7 @@ print(load_info.has_failed_jobs)
 load_info.raise_on_failed_jobs()
 ```
 
-You may also immediately abort the load package with `LoadClientJobFailed` (terminal exception) on a first failed job. Such package is immediately moved to completed but its load id is not added to the `_dlt_loads` table. The other jobs that are executed in parallel may or may not complete. The dlt state, if present, will not be visible to `dlt`. In other words: **you should know what you are doing**. Here's example `config.toml` to enable this option:
+You may also abort the load package with `LoadClientJobFailed` (terminal exception) on a first failed job. Such package is immediately moved to completed but its load id is not added to the `_dlt_loads` table. All the jobs that were running in parallel are completed before raising. The dlt state, if present, will not be visible to `dlt`. Here's example `config.toml` to enable this option:
 
 ```toml
 # you should really load just one job at a time to get the deterministic behavior
@@ -176,7 +176,7 @@ Before adding retry to pipeline steps, note how `run` method actually works:
 By default `dlt` does not retry any of the pipeline steps. This is left to the included helpers and the [tenacity](https://tenacity.readthedocs.io/en/latest/) library. Snippet below will retry the `load` stage with the `retry_load` strategy and defined back-off or re-raise exception for any other steps (`extract`, `normalize`) and for terminal exceptions.
 
 ```python
-from tenacity import retry_if_exception, Retrying, retry
+from tenacity import stop_after_attempt, retry_if_exception, Retrying, retry
 from dlt.common.runtime.slack import send_slack_message
 from dlt.pipeline.helpers import retry_load
 
@@ -186,7 +186,7 @@ if __name__ == "__main__" :
     data = chess(['magnuscarlsen', 'rpragchess'], start_month="2022/11", end_month="2022/12")
     try:
 
-        for attempt in Retrying(wait=wait_exponential(multiplier=1, min=4, max=10), retry=retry_if_exception(retry_load(())), reraise=True):
+        for attempt in Retrying(stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1.5, min=4, max=10), retry=retry_if_exception(retry_load(())), reraise=True):
             with attempt:
                 load_info = p.run(data)
         send_slack_message(pipeline.runtime_config.slack_incoming_hook, "HOORAY 😄")
@@ -202,7 +202,7 @@ You can also use `tenacity` to decorate functions. This example additionally ret
 if __name__ == "__main__" :
     pipeline = dlt.pipeline(pipeline_name="chess_pipeline", destination='duckdb', dataset_name="games_data")
 
-    @retry(wait=wait_exponential(multiplier=1, min=4, max=10), retry=retry_if_exception(retry_load(("extract", "load"))), reraise=True)
+    @retry(stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1.5, min=4, max=10), retry=retry_if_exception(retry_load(("extract", "load"))), reraise=True)
     def load():
         data = chess(['magnuscarlsen','vincentkeymer', 'dommarajugukesh', 'rpragchess'], start_month="2022/11", end_month="2022/12")
         return pipeline.run(data)
