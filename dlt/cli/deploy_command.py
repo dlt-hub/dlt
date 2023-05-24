@@ -82,8 +82,7 @@ class DeploymentState:
         self.repo_pipeline_script_path = self.repo_storage.from_wd_to_relative_path(self.pipeline_script_path)
         # load a pipeline script and extract full_refresh and pipelines_dir args
         self.pipeline_script = self.repo_storage.load(self.repo_pipeline_script_path)
-        # go through all once launched pipelines
-        self.visitor = self._get_visitor()
+
         # validate schedule
         self.schedule_description = self._get_schedule_description()
         # self.template_storage = utils.clone_command_repo("deploy", branch)
@@ -103,12 +102,6 @@ class DeploymentState:
     def _get_schedule_description(self):
         return None if self.schedule is None else cron_descriptor.get_description(self.schedule)
 
-    def _get_visitor(self):
-        visitor = utils.parse_init_script("deploy", self.pipeline_script, self.pipeline_script_path)
-        if n.RUN not in visitor.known_calls:
-            raise CliCommandException("deploy", f"The pipeline script {self.pipeline_script_path} does not seem to run the pipeline.")
-        return visitor
-
     def _get_origin(self):
         try:
             origin = get_origin(self.repo)
@@ -119,46 +112,38 @@ class DeploymentState:
 
         return origin
 
-    def _parse_pipeline_info(self):
-        pipeline_name, pipelines_dir = None, None
-        if n.PIPELINE in self.visitor.known_calls:
-            for call_args in self.visitor.known_calls[n.PIPELINE]:
-                f_r_node = call_args.arguments.get("full_refresh")
-                if f_r_node:
-                    f_r_value = evaluate_node_literal(f_r_node)
-                    if f_r_value is None:
-                        fmt.warning(f"The value of `full_refresh` in call to `dlt.pipeline` cannot be determined from {unparse(f_r_node).strip()}. We assume that you know what you are doing :)")
-                    if f_r_value is True:
-                        if fmt.confirm("The value of 'full_refresh' is set to True. Do you want to abort to set it to False?", default=True):
-                            return
+    def run_deploy(self, deployment_method: str):
+        # go through all once launched pipelines
+        visitors = get_visitors(self.pipeline_script, self.pipeline_script_path)
+        pipeline_name, pipelines_dir = parse_pipeline_info(visitors)
 
-                p_d_node = call_args.arguments.get("pipelines_dir")
-                if p_d_node:
-                    pipelines_dir = evaluate_node_literal(p_d_node)
-                    if pipelines_dir is None:
-                        raise CliCommandException("deploy", f"The value of 'pipelines_dir' argument in call to `dlt_pipeline` cannot be determined from {unparse(p_d_node).strip()}. Pipeline working dir will be found. Pass it directly with --pipelines-dir option.")
+        if pipelines_dir:
+            self.pipelines_dir = os.path.abspath(self.pipelines_dir)
+        if pipeline_name:
+            self.pipeline_name = pipeline_name
 
-                p_n_node = call_args.arguments.get("pipeline_name")
-                if p_n_node:
-                    pipeline_name = evaluate_node_literal(p_n_node)
-                    if pipeline_name is None:
-                        raise CliCommandException("deploy", f"The value of 'pipeline_name' argument in call to `dlt_pipeline` cannot be determined from {unparse(p_d_node).strip()}. Pipeline working dir will be found. Pass it directly with --pipeline-name option.")
+        # change the working dir to the script working dir
+        with set_working_dir(self.working_directory):
+            # use script name to derive pipeline name
+            if not self.pipeline_name:
+                self.pipeline_name = dlt.config.get("pipeline_name")
+                if not self.pipeline_name:
+                    self.pipeline_name = get_default_pipeline_name(self.pipeline_script_path)
+                    fmt.warning(f"Using default pipeline name {self.pipeline_name}. The pipeline name is not passed as argument to dlt.pipeline nor configured via config provides ie. config.toml")
 
-        return pipeline_name, pipelines_dir
+            # attach to pipeline name, get state and trace
+            pipeline = dlt.attach(pipeline_name=self.pipeline_name, pipelines_dir=self.pipelines_dir)
+            self.state, trace = get_state_and_trace(pipeline)
+            self._update_envs(trace)
 
-    @staticmethod
-    def _get_state_and_trace(pipeline):
-        # trace must exist and end with a successful loading step
-        trace = pipeline.last_trace
-        if trace is None or len(trace.steps) == 0:
-            raise PipelineWasNotRun("Pipeline run trace could not be found. Please run the pipeline at least once locally.")
-        last_step = trace.steps[-1]
-        if last_step.step_exception is not None:
-            raise PipelineWasNotRun(f"The last pipeline run ended with error. Please make sure that pipeline runs correctly before deployment.\n{last_step.step_exception}")
-        if not isinstance(last_step.step_info, LoadInfo):
-            raise PipelineWasNotRun("The last pipeline run did not reach the load step. Please run the pipeline locally until it loads data into destination.")
+        if deployment_method == DeploymentMethods.github_actions.value:
+            self.run_github_actions_deploy(deployment_method)
 
-        return pipeline.state, trace
+        elif deployment_method == DeploymentMethods.airflow.value:
+            self.run_airflow_deploy(deployment_method)
+
+        else:
+            raise ValueError(f"Deployment method '{deployment_method}' is not supported. Only {', '.join([m.value for m in DeploymentMethods])} are available.'")
 
     def _update_envs(self, trace):
         # add destination name and dataset name to env
@@ -177,6 +162,48 @@ class DeploymentState:
                 if resolved_value.provider_name != self.config_prov.name:
                     self.envs.append(LookupTrace(self.env_prov.name, tuple(resolved_value.sections), resolved_value.key, resolved_value.value))
                     # fmt.echo(f"{resolved_value.key} in {resolved_value.sections} moved to CONFIG")
+
+    def run_github_actions_deploy(self, deployment_method: str):
+        if self.schedule_description is None:
+            raise ValueError(
+                f"Setting 'schedule' for 'github-actions' is required! Use deploy command as 'dlt deploy chess.py github-action --schedule \"*/30 * * * *\"'."
+            )
+
+        workflow = self._create_new_workflow(deployment_method)
+        serialized_workflow = serialize_templated_yaml(workflow)
+        serialized_workflow_name = f"run_{self.state['pipeline_name']}_workflow.yml"
+        self.state['serialized_workflow_name'] = serialized_workflow_name
+
+        # pip freeze special requirements file
+        with self.template_storage.open_file(os.path.join(deployment_method, "requirements_blacklist.txt")) as f:
+            requirements_blacklist = f.readlines()
+        requirements_txt = generate_pip_freeze(requirements_blacklist)
+        requirements_txt_name = REQUIREMENTS_GITHUB_ACTION
+        # if repo_storage.has_file(utils.REQUIREMENTS_TXT):
+
+        self._echo_github_action_instructions(deployment_method, self.state['pipeline_name'], serialized_workflow_name, requirements_txt_name)
+
+        if not self.repo_storage.has_folder(utils.GITHUB_WORKFLOWS_DIR):
+            self.repo_storage.create_folder(utils.GITHUB_WORKFLOWS_DIR)
+
+        self.repo_storage.save(os.path.join(utils.GITHUB_WORKFLOWS_DIR, serialized_workflow_name), serialized_workflow)
+        self.repo_storage.save(requirements_txt_name, requirements_txt)
+
+    def run_airflow_deploy(self, deployment_method):
+        dag_script_name = f"dag_{self.state['pipeline_name']}.py"
+        cloudbuild_file = self.template_storage.load(os.path.join(deployment_method, AIRFLOW_CLOUDBUILD_YAML))
+        dag_file = self.template_storage.load(os.path.join(deployment_method, AIRFLOW_DAG_TEMPLATE_SCRIPT))
+
+        self._echo_airflow_instructions(deployment_method, self.state["pipeline_name"], dag_script_name)
+
+        if not self.repo_storage.has_folder(utils.AIRFLOW_DAGS_FOLDER):
+            self.repo_storage.create_folder(utils.AIRFLOW_DAGS_FOLDER)
+
+        if not self.repo_storage.has_folder(utils.AIRFLOW_BUILD_FOLDER):
+            self.repo_storage.create_folder(utils.AIRFLOW_BUILD_FOLDER)
+
+        self.repo_storage.save(os.path.join(utils.AIRFLOW_BUILD_FOLDER, AIRFLOW_CLOUDBUILD_YAML), cloudbuild_file)
+        self.repo_storage.save(os.path.join(utils.AIRFLOW_DAGS_FOLDER, dag_script_name), dag_file)
 
     def _create_new_workflow(self, deployment_method):
         with self.template_storage.open_file(os.path.join(deployment_method, "run_pipeline_workflow.yml")) as f:
@@ -210,14 +237,6 @@ class DeploymentState:
 
         return workflow
 
-    def _echo_secrets(self):
-        for s_v in self.secret_envs:
-            fmt.secho("Name:", fg="green")
-            fmt.echo(fmt.bold(self.env_prov.get_key_name(s_v.key, *s_v.sections)))
-            fmt.secho("Secret:", fg="green")
-            fmt.echo(s_v.value)
-            fmt.echo()
-
     def _echo_github_action_instructions(self, deployment_method, pipeline_name, serialized_workflow_name, requirements_txt_name):
         fmt.echo("Your %s deployment for pipeline %s in script %s is ready!" % (
             fmt.bold(deployment_method), fmt.bold(pipeline_name), fmt.bold(self.pipeline_script_path)
@@ -243,8 +262,8 @@ class DeploymentState:
             fmt.bold(github_origin_to_url(self.origin, "/settings/secrets/actions"))
         ))
         fmt.echo()
-        # if fmt.confirm("Do you want to list the values of the secrets in the format suitable for github?", default=True):
-        self._echo_secrets()
+        if fmt.confirm("Do you want to list the values of the secrets in the format suitable for github?", default=True):
+            self._echo_secrets()
 
         fmt.echo("2. Add stage deployment files to commit. Use your Git UI or the following command")
         fmt.echo(fmt.bold(
@@ -260,32 +279,6 @@ class DeploymentState:
         fmt.echo()
         fmt.echo("5. Your pipeline should be running! You can monitor it here:")
         fmt.echo(fmt.bold(github_origin_to_url(self.origin, f"/actions/workflows/{serialized_workflow_name}")))
-
-    def run_github_actions_deploy(self, deployment_method: str):
-        if self.schedule_description is None:
-            raise ValueError(
-                f"Setting 'schedule' for 'github-actions' is required! Use deploy command as 'dlt deploy chess.py github-action --schedule \"*/30 * * * *\"'."
-            )
-
-        workflow = self._create_new_workflow(deployment_method)
-        serialized_workflow = serialize_templated_yaml(workflow)
-        serialized_workflow_name = f"run_{self.state['pipeline_name']}_workflow.yml"
-        self.state['serialized_workflow_name'] = serialized_workflow_name
-
-        # pip freeze special requirements file
-        with self.template_storage.open_file(os.path.join(deployment_method, "requirements_blacklist.txt")) as f:
-            requirements_blacklist = f.readlines()
-        requirements_txt = generate_pip_freeze(requirements_blacklist)
-        requirements_txt_name = REQUIREMENTS_GITHUB_ACTION
-        # if repo_storage.has_file(utils.REQUIREMENTS_TXT):
-
-        self._echo_github_action_instructions(deployment_method, self.state['pipeline_name'], serialized_workflow_name, requirements_txt_name)
-
-        if not self.repo_storage.has_folder(utils.GITHUB_WORKFLOWS_DIR):
-            self.repo_storage.create_folder(utils.GITHUB_WORKFLOWS_DIR)
-
-        self.repo_storage.save(os.path.join(utils.GITHUB_WORKFLOWS_DIR, serialized_workflow_name), serialized_workflow)
-        self.repo_storage.save(requirements_txt_name, requirements_txt)
 
     def _echo_airflow_instructions(self, deployment_method, pipeline_name, dag_script_name):
         fmt.echo("Your %s deployment for pipeline %s is ready!" % (
@@ -312,12 +305,15 @@ class DeploymentState:
         fmt.echo("2. Set _BUCKET_NAME up in %s/%s file. " % (
             fmt.bold(utils.AIRFLOW_BUILD_FOLDER), fmt.bold(AIRFLOW_CLOUDBUILD_YAML),
         ))
-        fmt.echo("3. Add the following secret values (typically stored in %s): \n%s\nin ENVIRONMENT VARIABLES using Google Composer UI" % (
+        fmt.echo("3. Add the following secret values (typically stored in %s): \n%s\n%s\nin ENVIRONMENT VARIABLES using Google Composer UI" % (
             fmt.bold(make_dlt_settings_path(SECRETS_TOML)),
             fmt.bold("\n".join(self.env_prov.get_key_name(s_v.key, *s_v.sections) for s_v in self.secret_envs)),
+            fmt.bold("\n".join(self.env_prov.get_key_name(v.key, *v.sections) for v in self.envs)),
         ))
         fmt.echo()
-        self._echo_secrets()
+        if fmt.confirm("Do you want to list the environment variables in the format suitable for Airflow?", default=True):
+            self._echo_secrets()
+            self._echo_envs()
 
         fmt.echo("4. Add requirements to PIPY PACKAGES using Google Composer UI.")
         fmt.echo("5. Commit and push the pipeline files to github:")
@@ -335,51 +331,70 @@ class DeploymentState:
         fmt.echo(fmt.bold("git push origin"))
         fmt.echo("6. You should see your pipeline in Airflow.")
 
-    def run_airflow_deploy(self, deployment_method):
-        dag_script_name = f"dag_{self.state['pipeline_name']}.py"
-        cloudbuild_file = self.template_storage.load(os.path.join(deployment_method, AIRFLOW_CLOUDBUILD_YAML))
-        dag_file = self.template_storage.load(os.path.join(deployment_method, AIRFLOW_DAG_TEMPLATE_SCRIPT))
+    def _echo_secrets(self):
+        for s_v in self.secret_envs:
+            fmt.secho("Name:", fg="green")
+            fmt.echo(fmt.bold(self.env_prov.get_key_name(s_v.key, *s_v.sections)))
+            fmt.secho("Secret:", fg="green")
+            fmt.echo(s_v.value)
+            fmt.echo()
 
-        self._echo_airflow_instructions(deployment_method, self.state["pipeline_name"], dag_script_name)
+    def _echo_envs(self):
+        for v in self.envs:
+            fmt.secho("Name:", fg="green")
+            fmt.echo(fmt.bold(self.env_prov.get_key_name(v.key, *v.sections)))
+            fmt.secho("Value:", fg="green")
+            fmt.echo(v.value)
+            fmt.echo()
 
-        if not self.repo_storage.has_folder(utils.AIRFLOW_DAGS_FOLDER):
-            self.repo_storage.create_folder(utils.AIRFLOW_DAGS_FOLDER)
 
-        if not self.repo_storage.has_folder(utils.AIRFLOW_BUILD_FOLDER):
-            self.repo_storage.create_folder(utils.AIRFLOW_BUILD_FOLDER)
+def get_state_and_trace(pipeline):
+    # trace must exist and end with a successful loading step
+    trace = pipeline.last_trace
+    if trace is None or len(trace.steps) == 0:
+        raise PipelineWasNotRun("Pipeline run trace could not be found. Please run the pipeline at least once locally.")
+    last_step = trace.steps[-1]
+    if last_step.step_exception is not None:
+        raise PipelineWasNotRun(f"The last pipeline run ended with error. Please make sure that pipeline runs correctly before deployment.\n{last_step.step_exception}")
+    if not isinstance(last_step.step_info, LoadInfo):
+        raise PipelineWasNotRun("The last pipeline run did not reach the load step. Please run the pipeline locally until it loads data into destination.")
 
-        self.repo_storage.save(os.path.join(utils.AIRFLOW_BUILD_FOLDER, AIRFLOW_CLOUDBUILD_YAML), cloudbuild_file)
-        self.repo_storage.save(os.path.join(utils.AIRFLOW_DAGS_FOLDER, dag_script_name), dag_file)
+    return pipeline.state, trace
 
-    def run_deploy(self, deployment_method: str):
-        pipeline_name, pipelines_dir = self._parse_pipeline_info()
-        if pipelines_dir:
-            self.pipelines_dir = os.path.abspath(self.pipelines_dir)
-        if pipeline_name:
-            self.pipeline_name = pipeline_name
 
-        # change the working dir to the script working dir
-        with set_working_dir(self.working_directory):
-            # use script name to derive pipeline name
-            if not self.pipeline_name:
-                self.pipeline_name = dlt.config.get("pipeline_name")
-                if not self.pipeline_name:
-                    self.pipeline_name = get_default_pipeline_name(self.pipeline_script_path)
-                    fmt.warning(f"Using default pipeline name {self.pipeline_name}. The pipeline name is not passed as argument to dlt.pipeline nor configured via config provides ie. config.toml")
+def get_visitors(pipeline_script, pipeline_script_path):
+    visitor = utils.parse_init_script("deploy", pipeline_script, pipeline_script_path)
+    if n.RUN not in visitor.known_calls:
+        raise CliCommandException("deploy", f"The pipeline script {pipeline_script_path} does not seem to run the pipeline.")
+    return visitor
 
-            # attach to pipeline name, get state and trace
-            pipeline = dlt.attach(pipeline_name=self.pipeline_name, pipelines_dir=self.pipelines_dir)
-            self.state, trace = self._get_state_and_trace(pipeline)
-            self._update_envs(trace)
 
-        if deployment_method == DeploymentMethods.github_actions.value:
-            self.run_github_actions_deploy(deployment_method)
+def parse_pipeline_info(visitor):
+    pipeline_name, pipelines_dir = None, None
+    if n.PIPELINE in visitor.known_calls:
+        for call_args in visitor.known_calls[n.PIPELINE]:
+            f_r_node = call_args.arguments.get("full_refresh")
+            if f_r_node:
+                f_r_value = evaluate_node_literal(f_r_node)
+                if f_r_value is None:
+                    fmt.warning(f"The value of `full_refresh` in call to `dlt.pipeline` cannot be determined from {unparse(f_r_node).strip()}. We assume that you know what you are doing :)")
+                if f_r_value is True:
+                    if fmt.confirm("The value of 'full_refresh' is set to True. Do you want to abort to set it to False?", default=True):
+                        return
 
-        elif deployment_method == DeploymentMethods.airflow.value:
-            self.run_airflow_deploy(deployment_method)
+            p_d_node = call_args.arguments.get("pipelines_dir")
+            if p_d_node:
+                pipelines_dir = evaluate_node_literal(p_d_node)
+                if pipelines_dir is None:
+                    raise CliCommandException("deploy", f"The value of 'pipelines_dir' argument in call to `dlt_pipeline` cannot be determined from {unparse(p_d_node).strip()}. Pipeline working dir will be found. Pass it directly with --pipelines-dir option.")
 
-        else:
-            raise ValueError(f"Deployment method '{deployment_method}' is not supported. Only {', '.join([m.value for m in DeploymentMethods])} are available.'")
+            p_n_node = call_args.arguments.get("pipeline_name")
+            if p_n_node:
+                pipeline_name = evaluate_node_literal(p_n_node)
+                if pipeline_name is None:
+                    raise CliCommandException("deploy", f"The value of 'pipeline_name' argument in call to `dlt_pipeline` cannot be determined from {unparse(p_d_node).strip()}. Pipeline working dir will be found. Pass it directly with --pipeline-name option.")
+
+    return pipeline_name, pipelines_dir
 
 
 class PipelineWasNotRun(CliCommandException):
