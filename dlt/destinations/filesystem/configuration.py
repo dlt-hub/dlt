@@ -20,7 +20,6 @@ class FilesystemClientConfiguration(DestinationClientDwhConfiguration):
     credentials: Optional[Union[GcpCredentials, AwsCredentials]]
 
     destination_name: Final[str] = "filesystem"  # type: ignore
-    loader_file_format: TLoaderFileFormat = "jsonl"
     bucket_url: str
 
     @property
