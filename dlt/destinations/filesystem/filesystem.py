@@ -80,6 +80,10 @@ class FilesystemClient(JobClientBase):
         self.fs_client, self.fs_path = client_from_config(config)
         self.config: FilesystemClientConfiguration = config
 
+    @property
+    def dataset_path(self) -> Path:
+        return Path(self.fs_path).joinpath(self.config.dataset_name)
+
     def initialize_storage(self, staging: bool = False, truncate_tables: Iterable[str] = None) -> None:
         self.fs_client.makedirs(Path(self.fs_path).joinpath(self.config.dataset_name), exist_ok=True)
 

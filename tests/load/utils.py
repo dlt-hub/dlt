@@ -6,6 +6,7 @@ from typing import Any, Iterator, List, Sequence, cast, IO, Tuple
 import shutil
 from pathlib import Path
 
+import dlt
 from dlt.common import json, Decimal, sleep
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.container import Container
@@ -25,6 +26,15 @@ from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
 
 from tests.utils import ALL_DESTINATIONS
+
+
+# env variables for URLs for all test buckets, e.g. "gcs://bucket_name", "s3://bucket_name", "file://bucket_name"
+bucket_env_vars = [
+    "tests.bucket_url_gcs", "tests.bucket_url_aws", "tests.bucket_url_file"
+]
+
+ALL_BUCKETS = [b for b in (dlt.config.get(var, str) for var in bucket_env_vars) if b]
+
 
 ALL_CLIENTS = [f"{name}_client" for name in ALL_DESTINATIONS]
 

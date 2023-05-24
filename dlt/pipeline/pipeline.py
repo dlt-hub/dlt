@@ -631,6 +631,16 @@ class Pipeline(SupportsPipeline):
             schema = self.default_schema if self.default_schema_name else Schema(self.dataset_name)
         return self._sql_job_client(schema, credentials).sql_client
 
+    def destination_client(self, schema_name: str = None, credentials: Any = None) -> JobClientBase:
+        """Get the destination job client for the configured destination"""
+        # TODO: duplicated code from self.sql_client()  ...
+        if schema_name:
+            schema = self.schemas[schema_name]
+        else:
+            schema = self.default_schema if self.default_schema_name else Schema(self.dataset_name)
+        client_config = self._get_destination_client_initial_config(credentials)
+        return self._get_destination_client(schema, client_config)
+
     def _sql_job_client(self, schema: Schema, credentials: Any = None) -> SqlJobClientBase:
         client_config = self._get_destination_client_initial_config(credentials)
         client = self._get_destination_client(schema , client_config)

@@ -7,6 +7,7 @@ from dlt.common.configuration.container import Container
 from dlt.common.pipeline import LoadInfo, PipelineContext
 from dlt.common.typing import DictStrAny
 from dlt.pipeline.exceptions import SqlClientNotAvailable
+from dlt.destinations.filesystem.filesystem import FilesystemClient
 
 
 @pytest.fixture(autouse=True)
@@ -16,7 +17,14 @@ def drop_pipeline() -> Iterator[None]:
         # take existing pipeline
         p = dlt.pipeline()
 
-        def _drop_dataset(schema_name: str) -> None:
+        def _drop_dataset_fs(_: str) -> None:
+            try:
+                client: FilesystemClient = p.destination_client()  # type: ignore[assigment]
+                client.fs_client.rm(str(client.dataset_path), recursive=True)
+            except Exception as exc:
+                print(exc)
+
+        def _drop_dataset_sql(schema_name: str) -> None:
             try:
                 with p.sql_client(schema_name) as c:
                     try:
@@ -33,24 +41,44 @@ def drop_pipeline() -> Iterator[None]:
             except SqlClientNotAvailable:
                 pass
 
+        drop_func = _drop_dataset_fs if _is_filesystem(p) else _drop_dataset_sql
         # take all schemas and if destination was set
         if p.destination:
             if p.config.use_single_dataset:
                 # drop just the dataset for default schema
                 if p.default_schema_name:
-                    _drop_dataset(p.default_schema_name)
+                    drop_func(p.default_schema_name)
             else:
                 # for each schema, drop the dataset
                 for schema_name in p.schema_names:
-                    _drop_dataset(schema_name)
+                    drop_func(schema_name)
 
         p._wipe_working_folder()
         # deactivate context
         Container()[PipelineContext].deactivate()
 
 
+def _is_filesystem(p: dlt.Pipeline) -> bool:
+    return p.destination.__name__.rsplit('.', 1)[-1] == 'filesystem'
+
+
 def assert_table(p: dlt.Pipeline, table_name: str, table_data: List[Any], schema_name: str = None, info: LoadInfo = None) -> None:
+    func = _assert_table_fs if _is_filesystem(p) else _assert_table_sql
+    func(p, table_name, table_data, schema_name, info)
+
+
+def _assert_table_sql(p: dlt.Pipeline, table_name: str, table_data: List[Any], schema_name: str = None, info: LoadInfo = None) -> None:
     assert_query_data(p, f"SELECT * FROM {table_name} ORDER BY 1 NULLS FIRST", table_data, schema_name, info)
+
+
+def _assert_table_fs(p: dlt.Pipeline, table_name: str, table_data: List[Any], schema_name: str = None, info: LoadInfo = None) -> None:
+    """Assert table is loaded to filesystem destination"""
+    client: FilesystemClient = p.destination_client(schema_name)  # type: ignore[assignment]
+    glob =  client.fs_client.glob(str(client.dataset_path.joinpath(f'{client.schema.name}.{table_name}.*')))
+    assert len(glob) == 1
+    assert client.fs_client.isfile(glob[0])
+    # TODO: may verify that filesize matches load package size
+    assert client.fs_client.size(glob[0]) > 0
 
 
 def select_data(p: dlt.Pipeline, sql: str, schema_name: str = None) -> List[Sequence[Any]]:
