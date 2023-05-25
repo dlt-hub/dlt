@@ -150,13 +150,11 @@ def source(
                 pipeline_name = None if not proxy.is_active() else proxy.pipeline().pipeline_name
                 with inject_section(ConfigSectionContext(pipeline_name=pipeline_name, sections=source_sections)):
                     rv = conf_f(*args, **kwargs)
-
-            if rv is None:
-                raise SourceDataIsNone(name)
-
-            # if generator, consume it immediately
-            if inspect.isgenerator(rv):
-                rv = list(rv)
+                    if rv is None:
+                        raise SourceDataIsNone(name)
+                    # if generator, consume it immediately
+                    if inspect.isgenerator(rv):
+                        rv = list(rv)
 
             # convert to source
             s = DltSource.from_data(name, source_section, schema.clone(), rv)
