@@ -20,4 +20,4 @@ def filesystem_client() -> Iterator[FilesystemClient]:
     try:
         yield _client
     finally:
-        _client.fs_client.rm(str(_client.dataset_path), recursive=True)
+        _client.fs_client.rm(_client.dataset_path.as_posix(), recursive=True)

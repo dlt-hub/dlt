@@ -44,7 +44,7 @@ def test_succesful_load(write_disposition: str, all_buckets_env: str, filesystem
     dataset_path = Path(client.fs_path).joinpath(client.config.dataset_name)
 
     # Assert dataset dir exists
-    assert client.fs_client.isdir(str(dataset_path))
+    assert client.fs_client.isdir(dataset_path.as_posix())
 
     # Sanity check, there are jobs
     assert jobs
@@ -54,7 +54,7 @@ def test_succesful_load(write_disposition: str, all_buckets_env: str, filesystem
         destination_path = dataset_path.joinpath(f"{client.schema.name}.{job_info.table_name}.{load_id}.{job_info.file_id}.{job_info.file_format}")
 
         # File is created with correct filename and path
-        assert client.fs_client.isfile(destination_path)
+        assert client.fs_client.isfile(destination_path.as_posix())
 
 
 def test_replace_write_disposition(all_buckets_env: str, filesystem_client: FilesystemClient) -> None:
@@ -75,8 +75,8 @@ def test_replace_write_disposition(all_buckets_env: str, filesystem_client: File
 
     # First file from load1 remains, second file is replaced by load2
     # assert that only these two files are in the destination folder
-    ls = set(client.fs_client.ls(root_path))
-    assert ls == {str(job_2_load_1_path), str(job_1_load_2_path)}
+    ls = set(client.fs_client.ls(root_path.as_posix()))
+    assert ls == {job_2_load_1_path.as_posix(), job_1_load_2_path.as_posix()}
 
 
 def test_append_write_disposition(all_buckets_env: str, filesystem_client: FilesystemClient) -> None:
@@ -91,9 +91,9 @@ def test_append_write_disposition(all_buckets_env: str, filesystem_client: Files
     ] + [
         LoadFilesystemJob.make_destination_filename(job.file_name(), client.schema.name, load_id2) for job in jobs2
     ]
-    expected_files = sorted([str(root_path.joinpath(fn)) for fn in expected_files])
+    expected_files = sorted([root_path.joinpath(fn).as_posix() for fn in expected_files])
 
-    assert list(sorted(client.fs_client.ls(root_path))) == expected_files
+    assert list(sorted(client.fs_client.ls(root_path.as_posix()))) == expected_files
 
 
 def perform_load(

@@ -21,7 +21,7 @@ def drop_pipeline() -> Iterator[None]:
         def _drop_dataset_fs(_: str) -> None:
             try:
                 client: "FilesystemClient" = p._destination_client()  # type: ignore[assignment]
-                client.fs_client.rm(str(client.dataset_path), recursive=True)
+                client.fs_client.rm(client.dataset_path.as_posix(), recursive=True)
             except Exception as exc:
                 print(exc)
 

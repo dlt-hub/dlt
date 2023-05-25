@@ -48,13 +48,13 @@ class LoadFilesystemJob(LoadJob, FollowupJob):
 
         if write_disposition == 'replace':
             job_info = LoadStorage.parse_job_file_name(file_name)
-            glob_path = str(root_path.joinpath(f"{schema_name}.{job_info.table_name}.*"))
+            glob_path = root_path.joinpath(f"{schema_name}.{job_info.table_name}.*").as_posix()
             items = fs_client.glob(glob_path)
             if items:
                 fs_client.rm(items)
 
         destination_file_name = LoadFilesystemJob.make_destination_filename(file_name, schema_name, load_id)
-        fs_client.put_file(file_path, root_path.joinpath(destination_file_name))
+        fs_client.put_file(file_path, root_path.joinpath(destination_file_name).as_posix())
 
     @staticmethod
     def make_destination_filename(file_name: str, schema_name: str, load_id: str) -> str:
@@ -85,10 +85,10 @@ class FilesystemClient(JobClientBase):
         return Path(self.fs_path).joinpath(self.config.dataset_name)
 
     def initialize_storage(self, staging: bool = False, truncate_tables: Iterable[str] = None) -> None:
-        self.fs_client.makedirs(Path(self.fs_path).joinpath(self.config.dataset_name), exist_ok=True)
+        self.fs_client.makedirs(self.dataset_path.as_posix(), exist_ok=True)
 
     def is_storage_initialized(self, staging: bool = False) -> bool:
-        return self.fs_client.isdir(self.config.dataset_name)  # type: ignore[no-any-return]
+        return self.fs_client.isdir(self.dataset_path.as_posix())  # type: ignore[no-any-return]
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         has_merge_keys = any(col['merge_key'] or col['primary_key'] for col in table['columns'].values())
