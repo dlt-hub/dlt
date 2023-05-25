@@ -59,22 +59,24 @@ def test_succesful_load(write_disposition: str, all_buckets_env: str, filesystem
 
 def test_replace_write_disposition(all_buckets_env: str, filesystem_client: FilesystemClient) -> None:
     client = filesystem_client
-    jobs1, root_path, load_id1 = perform_load(client, NORMALIZED_FILES, write_disposition='replace')
+    _, root_path, load_id1 = perform_load(client, NORMALIZED_FILES, write_disposition='replace')
 
-    job_1_paths = []
+    # this path will be kept after replace
+    job_2_load_1_path = root_path.joinpath(
+        LoadFilesystemJob.make_destination_filename(NORMALIZED_FILES[1], client.schema.name, load_id1)
+    )
 
-    for job in jobs1:
-        dest_fn = LoadFilesystemJob.make_destination_filename(job.file_name(), client.schema.name, load_id1)
-        job_1_paths.append(root_path.joinpath(dest_fn))
+    _, root_path, load_id2 = perform_load(client, [NORMALIZED_FILES[0]], write_disposition='replace')
 
-    jobs2, root_path, load_id2 = perform_load(client, [NORMALIZED_FILES[0]], write_disposition='replace')
-
-    job_2_path = root_path.joinpath(LoadFilesystemJob.make_destination_filename(jobs2[0].file_name(), client.schema.name, load_id2))
+    # this one we expect to be replaced with
+    job_1_load_2_path = root_path.joinpath(
+        LoadFilesystemJob.make_destination_filename(NORMALIZED_FILES[0], client.schema.name, load_id2)
+    )
 
     # First file from load1 remains, second file is replaced by load2
     # assert that only these two files are in the destination folder
     ls = set(client.fs_client.ls(root_path))
-    assert ls == {str(job_1_paths[0]), str(job_2_path)}
+    assert ls == {str(job_2_load_1_path), str(job_1_load_2_path)}
 
 
 def test_append_write_disposition(all_buckets_env: str, filesystem_client: FilesystemClient) -> None:
