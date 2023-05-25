@@ -1,6 +1,7 @@
 ---
 slug: postgresql-bigquery-metabase-demo
 title: Using Google BigQuery and Metabase to understand product usage
+image: https://dlthub.com/docs/img/dlthub-logo.png
 authors:
   name: Rahul Joshi
   title: Data Science Intern at dltHub
@@ -8,13 +9,6 @@ authors:
   image_url: https://avatars.githubusercontent.com/u/28861929?v=4
 tags: [BigQuery, Incremental Load, Metabase, OLAP, OLTP, PostgreSQL, SQL source pipeline]
 ---  
-<head>
-  <meta property="og:image" content="https://dlthub.com/docs/img/dlthub-logo.png"/>
-  <meta property="og:image:type" content="image/png"/>
-  <meta property="og:image:width" content="1024"/>
-  <meta property="og:image:height" content="1024"/>
-</head>  
-
 :::info
 TL;DR: Trying to become more user-centric and make data driven decisions? Get started with the SQL source pipeline + BigQuery + Metabase
 :::
