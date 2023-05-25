@@ -96,6 +96,6 @@ By adopting a 'structure first' approach with DLT, organizations can effectively
 
 ### Want more?
 
-- Join our slack: https://join.slack.com/t/dlthub-community/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g
-- Read our docs:  https://dlthub.com/docs/intro
+- Join our [Slack](https://join.slack.com/t/dlthub-community/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g)
+- Read our [docs](https://dlthub.com/docs/intro)
 - Stay tuned for the next article in the series: How to do schema evolution with dlt in the most effective way.
