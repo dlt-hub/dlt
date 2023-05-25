@@ -35,7 +35,7 @@ class SqlMergeJob(NewLoadJobImpl):
         except Exception:
             # return failed job
             failed_text = "Tried to generate a merge sql job for the following tables:"
-            tables_str = cast(str, yaml.dump(table_chain, allow_unicode=True, default_flow_style=False, sort_keys=False))
+            tables_str = yaml.dump(table_chain, allow_unicode=True, default_flow_style=False, sort_keys=False)
             job = cls(file_info.job_id(), "failed", pretty_format_exception())
             job._save_text_file("\n".join([failed_text, tables_str]))
         return job
