@@ -8,13 +8,19 @@ authors:
   image_url: https://avatars.githubusercontent.com/u/28861929?v=4
 tags: [BigQuery, Incremental Load, Metabase, OLAP, OLTP, PostgreSQL, SQL source pipeline]
 ---  
-# Using Google BigQuery and Metabase to understand product usage
+<head>
+  <meta property="og:image" content="https://dlthub.com/docs/img/dlthub-logo.png"/>
+  <meta property="og:image:type" content="image/png"/>
+  <meta property="og:image:width" content="1024"/>
+  <meta property="og:image:height" content="1024"/>
+</head>  
+
 :::info
 TL;DR: Trying to become more user-centric and make data driven decisions? Get started with the SQL source pipeline + BigQuery + Metabase
 :::
 ## When you have a web and / or mobile app but no data yet
 
-If you're a startup without a dedicated data team but a sizeable number of users on your website or mobile app, then chances are that you are collecting and storing all your product data in OLTP databases like MySQL, Postgres, etc. As you have grown, you have likely been aiming to become more user-centric, yet you find that no one at your company has information on what the users do or what their experience is like. Stakeholders should be making data-driven decisions, but they are not yet because they are unable to use the existing data to understand user behavior and experience. This is usually the point when folks realize they need a data warehouse.
+If you're a startup without a dedicated data team but a sizeable number of users on your website or mobile app, then chances are that you are collecting and storing all your product data in OLTP databases like MySQL, Postgres, etc. As you have grown, you have likely been aiming to become more user-centric, yet you find that no one at your company has information on what your users do or what their experience is like. Stakeholders should be making data-driven decisions, but they are not yet because they are unable to use the existing data to understand user behavior and experience. This is usually the point when folks realize they need a data warehouse.
 
 ## Why a data warehouse is necessary
 
@@ -43,7 +49,7 @@ The DVD store database contains data on the products (film DVDs), product catego
 ![orders_chart.png](/img/experiment3_dashboard_orders_chart.png)   ![top_selling_tables.png](/img/experiment3_dashboard_top_selling_tables.png)
 In addition to this, we were also able to set up email alerts to get notified whenever the stock of a DVD was either empty or close to emptying.
 
-![low_stock_email_alert.png](/img/experiment3_low_stock_email_alert.png) ![low_stock_file_csv.png](/img/experiment3_low_stock_file_csv.png)
+![low_stock_email_alert.png](/img/experiment3_low_stock_email_alert.png) 
 
 ### 3. Deploying the pipeline
 
