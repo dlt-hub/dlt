@@ -148,7 +148,7 @@ def test_regular_run() -> None:
     dag_def: DAG = dag_regular()
     assert len(tasks_list) == 1
     # composite task name
-    assert tasks_list[0].task_id == "pipeline_dag_regular._r_init-_t_init_post-_t1-_t2-2-more"
+    assert tasks_list[0].task_id == "pipeline_dag_regular.mock_data_source__r_init-_t_init_post-_t1-_t2-2-more"
 
     dag_def.test()
     # we should be able to attach to pipeline state created within Airflow
@@ -177,9 +177,9 @@ def test_regular_run() -> None:
     dag_def: DAG = dag_decomposed()
     assert len(tasks_list) == 3
     # task one by one
-    assert tasks_list[0].task_id == "pipeline_dag_decomposed._r_init-_t_init_post"
-    assert tasks_list[1].task_id == "pipeline_dag_decomposed._t1-_t2-_t3"
-    assert tasks_list[2].task_id == "pipeline_dag_decomposed._r_isolee"
+    assert tasks_list[0].task_id == "pipeline_dag_decomposed.mock_data_source__r_init-_t_init_post"
+    assert tasks_list[1].task_id == "pipeline_dag_decomposed.mock_data_source__t1-_t2-_t3"
+    assert tasks_list[2].task_id == "pipeline_dag_decomposed.mock_data_source__r_isolee"
     dag_def.test()
     pipeline_dag_decomposed = dlt.attach(pipeline_name="pipeline_dag_decomposed")
     pipeline_dag_decomposed_counts = load_table_counts(pipeline_dag_decomposed, *[t["name"] for t in pipeline_dag_decomposed.default_schema.data_tables()])

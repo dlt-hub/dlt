@@ -56,11 +56,11 @@ def pipeline_command(operation: str, pipeline_name: str, pipelines_dir: str, ver
 
     if operation == "show":
         from dlt.common.runtime import signals
-        from dlt.helpers import streamlit
+        from dlt.helpers import streamlit_helper
 
         with signals.delayed_signals():
             venv = Venv.restore_current()
-            for line in iter_stdout(venv, "streamlit", "run", streamlit.__file__, pipeline_name):
+            for line in iter_stdout(venv, "streamlit", "run", streamlit_helper.__file__, pipeline_name):
                 fmt.echo(line)
 
     if operation == "info":

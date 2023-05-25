@@ -294,7 +294,7 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
 
     @property
     def state(self) -> StrAny:
-        """Gets resource-scoped state from the existing pipeline context. If pipeline context is not available, PipelineStateNotAvailable is raised"""
+        """Gets resource-scoped state from the active pipeline. PipelineStateNotAvailable is raised if pipeline context is not available"""
         with self._get_config_section_context():
             return resource_state(self.name)
 
@@ -669,7 +669,7 @@ class DltSource(Iterable[TDataItem]):
 
     @property
     def state(self) -> StrAny:
-        """Gets source-scoped state from the existing pipeline context. If pipeline context is not available, PipelineStateNotAvailable is raised"""
+        """Gets source-scoped state from the active pipeline. PipelineStateNotAvailable is raised if no pipeline is active"""
         with self._get_config_section_context():
             return source_state()
 

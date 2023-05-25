@@ -150,7 +150,7 @@ class DBApiCursorImpl(DBApiCursor):
         return getattr(self.native_cursor, name)
 
     def df(self, chunk_size: int = None, **kwargs: Any) -> Optional[DataFrame]:
-        from dlt.helpers.pandas import _wrap_result
+        from dlt.helpers.pandas_helper import _wrap_result
 
         columns = [c[0] for c in self.native_cursor.description]
         if chunk_size is None:

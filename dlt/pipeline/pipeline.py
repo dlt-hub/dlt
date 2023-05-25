@@ -24,7 +24,7 @@ from dlt.common.runners import pool_runner as runner
 from dlt.common.storages import LiveSchemaStorage, NormalizeStorage, LoadStorage, SchemaStorage, FileStorage, NormalizeStorageConfiguration, SchemaStorageConfiguration, LoadStorageConfiguration
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import DestinationReference, JobClientBase, DestinationClientConfiguration, DestinationClientDwhConfiguration, TDestinationReferenceArg
-from dlt.common.pipeline import ExtractInfo, LoadInfo, NormalizeInfo, SupportsPipeline, TPipelineLocalState, TPipelineState, StateInjectableContext
+from dlt.common.pipeline import ExtractInfo, LoadInfo, NormalizeInfo, PipelineContext, SupportsPipeline, TPipelineLocalState, TPipelineState, StateInjectableContext
 from dlt.common.schema import Schema
 from dlt.common.utils import is_interactive
 
@@ -42,7 +42,7 @@ from dlt.load import Load
 
 from dlt.pipeline.configuration import PipelineConfiguration
 from dlt.pipeline.progress import _Collector, _NULL_COLLECTOR
-from dlt.pipeline.exceptions import CannotRestorePipelineException, InvalidPipelineName, PipelineConfigMissing, PipelineStepFailed, SqlClientNotAvailable
+from dlt.pipeline.exceptions import CannotRestorePipelineException, InvalidPipelineName, PipelineConfigMissing, PipelineNotActive, PipelineStepFailed, SqlClientNotAvailable
 from dlt.pipeline.trace import PipelineTrace, PipelineStepTrace, load_trace, merge_traces, start_trace, start_trace_step, end_trace_step, end_trace
 from dlt.pipeline.typing import TPipelineStep
 from dlt.pipeline.state_sync import STATE_ENGINE_VERSION, load_state_from_destination, merge_state_if_changed, migrate_state, state_resource, json_encode_state, json_decode_state
@@ -53,6 +53,8 @@ def with_state_sync(may_extract_state: bool = False) -> Callable[[TFun], TFun]:
     def decorator(f: TFun) -> TFun:
         @wraps(f)
         def _wrap(self: "Pipeline", *args: Any, **kwargs: Any) -> Any:
+            # activate pipeline so right state is always provided
+            self.activate()
             # backup and restore state
             should_extract_state = may_extract_state and self.config.restore_from_destination
             with self.managed_state(extract_state=should_extract_state) as state:
@@ -532,6 +534,34 @@ class Pipeline(SupportsPipeline):
         except Exception as ex:
             raise PipelineStepFailed(self, "run", ex, None) from ex
 
+    def activate(self) -> None:
+        """Activates the pipeline
+
+        The active pipeline is used as a context for several `dlt` components. It provides state to sources and resources evaluated outside of
+        `pipeline.run` and `pipeline.extract` method. For example, if the source you use is accessing state in `dlt.source` decorated function, the state is provided
+        by active pipeline.
+
+        The name of active pipeline is used when resolving secrets and config values as the optional most outer section during value lookup. For example if pipeline
+        with name `chess_pipeline` is active and `dlt` looks for `BigQuery` configuration, it will look in `chess_pipeline.destination.bigquery.credentials` first and then in
+        `destination.bigquery.credentials`.
+
+        Active pipeline also provides the current DestinationCapabilitiesContext to other components ie. Schema instances. Among others, it sets the naming convention
+        and maximum identifier length.
+
+        Only one pipeline is active at a given time.
+
+        Pipeline created or attached with `dlt.pipeline`/'dlt.attach` is automatically activated. `run`, `load` and `extract` methods also activate pipeline.
+        """
+        Container()[PipelineContext].activate(self)
+
+    def deactivate(self) -> None:
+        """Deactivates the pipeline
+
+        Pipeline must be active in order to use this method. Please refer to `activate()` method for the explanation of active pipeline concept.
+        """
+        if not self.is_active:
+            raise PipelineNotActive(self.pipeline_name)
+        Container()[PipelineContext].deactivate()
 
     @property
     def has_data(self) -> bool:
