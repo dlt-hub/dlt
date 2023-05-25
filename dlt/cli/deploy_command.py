@@ -85,8 +85,8 @@ class DeploymentState:
 
         # validate schedule
         self.schedule_description = self._get_schedule_description()
-        # self.template_storage = utils.clone_command_repo("deploy", branch)
-        self.template_storage = FileStorage("/home/alenaastrakhantseva/dlthub/python-dlt-deploy-template")
+        self.template_storage = utils.clone_command_repo("deploy", branch)
+        # self.template_storage = FileStorage("/home/alenaastrakhantseva/dlthub/python-dlt-deploy-template")
         self.working_directory = os.path.split(self.pipeline_script_path)[0]
 
         self.config_prov = ConfigTomlProvider()
