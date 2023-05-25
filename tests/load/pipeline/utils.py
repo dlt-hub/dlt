@@ -1,4 +1,4 @@
-from typing import Any, Iterator, List, Sequence
+from typing import Any, Iterator, List, Sequence, TYPE_CHECKING
 import pytest
 
 import dlt
@@ -7,7 +7,8 @@ from dlt.common.configuration.container import Container
 from dlt.common.pipeline import LoadInfo, PipelineContext
 from dlt.common.typing import DictStrAny
 from dlt.pipeline.exceptions import SqlClientNotAvailable
-from dlt.destinations.filesystem.filesystem import FilesystemClient
+if TYPE_CHECKING:
+    from dlt.destinations.filesystem.filesystem import FilesystemClient
 
 
 @pytest.fixture(autouse=True)
@@ -19,7 +20,7 @@ def drop_pipeline() -> Iterator[None]:
 
         def _drop_dataset_fs(_: str) -> None:
             try:
-                client: FilesystemClient = p._destination_client()  # type: ignore[assigment]
+                client: "FilesystemClient" = p._destination_client()  # type: ignore[assignment]
                 client.fs_client.rm(str(client.dataset_path), recursive=True)
             except Exception as exc:
                 print(exc)
@@ -73,7 +74,7 @@ def _assert_table_sql(p: dlt.Pipeline, table_name: str, table_data: List[Any], s
 
 def _assert_table_fs(p: dlt.Pipeline, table_name: str, table_data: List[Any], schema_name: str = None, info: LoadInfo = None) -> None:
     """Assert table is loaded to filesystem destination"""
-    client: FilesystemClient = p._destination_client(schema_name)  # type: ignore[assignment]
+    client: "FilesystemClient" = p._destination_client(schema_name)  # type: ignore[assignment]
     glob =  client.fs_client.glob(str(client.dataset_path.joinpath(f'{client.schema.name}.{table_name}.*')))
     assert len(glob) == 1
     assert client.fs_client.isfile(glob[0])
