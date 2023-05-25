@@ -45,7 +45,7 @@ class InsertValuesLoadJob(LoadJob, FollowupJob):
                 insert_sql.extend([header.format(qualified_table_name), values_mark, content])
                 # read one more line in order to
                 # 1. complete the content which ends at "random" position, not an end line
-                # 2. to modify it's ending without a need to re-allocating the 8MB of "content"
+                # 2. to modify its ending without a need to re-allocating the 8MB of "content"
                 until_nl = f.readline()
                 # if until next line contains just '\n' try to take another line so we can finish content properly
                 # TODO: write test for this case (content ends with ",")
