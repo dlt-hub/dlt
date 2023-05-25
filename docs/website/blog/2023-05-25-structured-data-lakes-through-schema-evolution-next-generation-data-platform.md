@@ -1,6 +1,6 @@
 ---
 slug: next-generation-data-platform
-title: The structured data lake: How schema evolution enables the next generation of data platforms
+title: "The structured data lake: How schema evolution enables the next generation of data platforms"
 authors:
   name: Adrian Brudaru
   title: Open source data engineer
