@@ -7,10 +7,11 @@ authors:
 tags: [data platform, structured data lake, schema evolution]
 ---
 
+:::info
+[Google Colaboratory demo](https://colab.research.google.com/drive/1H6HKFi-U1V4p0afVucw_Jzv1oiFbH2bu#scrollTo=e4y4sQ78P_OM)
 
 This colab demo was built and shown by our working student Rahul Joshi, for the Berlin Data meetup, where he talked about the state of schema evolution in the open source.
-[Google Colaboratory](https://colab.research.google.com/drive/1H6HKFi-U1V4p0afVucw_Jzv1oiFbH2bu#scrollTo=e4y4sQ78P_OM)
-
+:::
 # What is schema evolution?
 
 In the fast paced world of data, the only constant is change, and it usually comes unannounced.
