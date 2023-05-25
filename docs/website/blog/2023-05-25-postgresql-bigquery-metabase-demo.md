@@ -9,9 +9,9 @@ authors:
 tags: [BigQuery, Incremental Load, Metabase, OLAP, OLTP, PostgreSQL, SQL source pipeline]
 ---  
 # Using Google BigQuery and Metabase to understand product usage
-
+:::info
 TL;DR: Trying to become more user-centric and make data driven decisions? Get started with the SQL source pipeline + BigQuery + Metabase
-
+:::
 ## When you have a web and / or mobile app but no data yet
 
 If you're a startup without a dedicated data team but a sizeable number of users on your website or mobile app, then chances are that you are collecting and storing all your product data in OLTP databases like MySQL, Postgres, etc. As you have grown, you have likely been aiming to become more user-centric, yet you find that no one at your company has information on what the users do or what their experience is like. Stakeholders should be making data-driven decisions, but they are not yet because they are unable to use the existing data to understand user behavior and experience. This is usually the point when folks realize they need a data warehouse.
