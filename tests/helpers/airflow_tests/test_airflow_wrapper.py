@@ -15,7 +15,7 @@ from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
 from dlt.common.configuration.providers.airflow import AIRFLOW_SECRETS_TOML_VARIABLE_KEY
 from dlt.common.utils import uniq_id
-from dlt.helpers.airflow import PipelineTasksGroup, DEFAULT_RETRY_BACKOFF
+from dlt.helpers.airflow_helper import PipelineTasksGroup, DEFAULT_RETRY_BACKOFF
 from dlt.pipeline.exceptions import CannotRestorePipelineException, PipelineStepFailed
 
 from tests.utils import preserve_environ, autouse_test_storage, TEST_STORAGE_ROOT
@@ -67,6 +67,57 @@ def mock_data_source():
 
     @dlt.resource
     def _r_isolee():
+        yield from ["AX", "CV", "ED"]
+
+    return _r_init, _t_init_post, _r1, _t1("POST"), _t2(3), _t3(2), _r_isolee
+
+
+@dlt.source(section="mock_data_source_state")
+def mock_data_source_state():
+
+    @dlt.resource(selected=True)
+    def _r_init():
+        dlt.current.source_state()["counter"] = 1
+        dlt.current.source_state()["end_counter"] = 1
+        yield ["-", "x", "!"]
+
+    @dlt.resource(selected=False)
+    def _r1():
+        dlt.current.source_state()["counter"] += 1
+        dlt.current.resource_state()["counter"] = 1
+        yield from ["a", "b", "c"]
+
+    @dlt.transformer(data_from=_r1, selected=True)
+    def _t1(items, suffix):
+        dlt.current.source_state()["counter"] += 1
+        dlt.current.resource_state("_r1")["counter"] += 1
+        dlt.current.resource_state()["counter"] = 1
+        yield list(map(lambda i: i + "_" + suffix, items))
+
+    @dlt.transformer(data_from=_r1)
+    def _t2(items, mul):
+        dlt.current.source_state()["counter"] += 1
+        dlt.current.resource_state("_r1")["counter"] += 1
+        dlt.current.resource_state()["counter"] = 1
+        yield items*mul
+
+    @dlt.transformer(data_from=_r1)
+    def _t3(items, mul):
+        dlt.current.source_state()["counter"] += 1
+        dlt.current.resource_state("_r1")["counter"] += 1
+        dlt.current.resource_state()["counter"] = 1
+        for item in items:
+            yield item.upper()*mul
+
+    # add something to init
+    @dlt.transformer(data_from=_r_init)
+    def _t_init_post(items):
+        for item in items:
+            yield item*2
+
+    @dlt.resource
+    def _r_isolee():
+        dlt.current.source_state()["end_counter"] += 1
         yield from ["AX", "CV", "ED"]
 
     return _r_init, _t_init_post, _r1, _t1("POST"), _t2(3), _t3(2), _r_isolee
@@ -225,56 +276,6 @@ def test_run_with_retry() -> None:
 
 def test_run_decomposed_with_state_wipe() -> None:
 
-    @dlt.source
-    def mock_data_source():
-
-        @dlt.resource(selected=True)
-        def _r_init():
-            dlt.current.source_state()["counter"] = 1
-            dlt.current.source_state()["end_counter"] = 1
-            yield ["-", "x", "!"]
-
-        @dlt.resource(selected=False)
-        def _r1():
-            dlt.current.source_state()["counter"] += 1
-            dlt.current.resource_state()["counter"] = 1
-            yield from ["a", "b", "c"]
-
-        @dlt.transformer(data_from=_r1, selected=True)
-        def _t1(items, suffix):
-            dlt.current.source_state()["counter"] += 1
-            dlt.current.resource_state("_r1")["counter"] += 1
-            dlt.current.resource_state()["counter"] = 1
-            yield list(map(lambda i: i + "_" + suffix, items))
-
-        @dlt.transformer(data_from=_r1)
-        def _t2(items, mul):
-            dlt.current.source_state()["counter"] += 1
-            dlt.current.resource_state("_r1")["counter"] += 1
-            dlt.current.resource_state()["counter"] = 1
-            yield items*mul
-
-        @dlt.transformer(data_from=_r1)
-        def _t3(items, mul):
-            dlt.current.source_state()["counter"] += 1
-            dlt.current.resource_state("_r1")["counter"] += 1
-            dlt.current.resource_state()["counter"] = 1
-            for item in items:
-                yield item.upper()*mul
-
-        # add something to init
-        @dlt.transformer(data_from=_r_init)
-        def _t_init_post(items):
-            for item in items:
-                yield item*2
-
-        @dlt.resource
-        def _r_isolee():
-            dlt.current.source_state()["end_counter"] += 1
-            yield from ["AX", "CV", "ED"]
-
-        return _r_init, _t_init_post, _r1, _t1("POST"), _t2(3), _t3(2), _r_isolee
-
     dataset_name = "mock_data_" + uniq_id()
     pipeline_name = "pipeline_dag_regular_" + uniq_id()
 
@@ -289,7 +290,7 @@ def test_run_decomposed_with_state_wipe() -> None:
 
         pipeline_dag_regular = dlt.pipeline(
             pipeline_name=pipeline_name, dataset_name=dataset_name, destination="duckdb")
-        tasks.add_run(pipeline_dag_regular, mock_data_source(), decompose="serialize", trigger_rule="all_done", retries=0, provide_context=True)
+        tasks.add_run(pipeline_dag_regular, mock_data_source_state(), decompose="serialize", trigger_rule="all_done", retries=0, provide_context=True)
 
     dag_def: DAG = dag_regular()
     dag_def.test()
@@ -303,7 +304,7 @@ def test_run_decomposed_with_state_wipe() -> None:
     pipeline_dag_regular.sync_destination()
     # print(pipeline_dag_regular.state)
     # now source can attach to state in the pipeline
-    post_source = mock_data_source()
+    post_source = mock_data_source_state()
     # print(post_source.state)
     # end state was increased twice (in init and in isolee at the end)
     assert post_source.state["end_counter"] == 2
@@ -315,3 +316,112 @@ def test_run_decomposed_with_state_wipe() -> None:
     assert post_source._t1.state["counter"] == 1
     assert post_source._t2.state["counter"] == 1
     assert post_source._t2.state["counter"] == 1
+
+
+def test_run_multiple_sources() -> None:
+    dataset_name = "mock_data_" + uniq_id()
+    pipeline_name = "pipeline_dag_regular_" + uniq_id()
+
+    @dag(
+        schedule=None,
+        start_date=DEFAULT_DATE,
+        catchup=False,
+        default_args=default_args
+    )
+    def dag_serialize():
+        tasks = PipelineTasksGroup(pipeline_name, local_data_folder=TEST_STORAGE_ROOT, wipe_local_data=True)
+
+        pipeline_dag_regular = dlt.pipeline(
+            pipeline_name=pipeline_name, dataset_name=dataset_name, destination="duckdb")
+        st_tasks = tasks.add_run(pipeline_dag_regular, mock_data_source_state(), decompose="serialize", trigger_rule="all_done", retries=0, provide_context=True)
+        nst_tasks = tasks.add_run(pipeline_dag_regular, mock_data_source(), decompose="serialize", trigger_rule="all_done", retries=0, provide_context=True)
+        # connect end of first run to a head of a second
+        st_tasks[-1] >> nst_tasks[0]
+
+
+    dag_def: DAG = dag_serialize()
+    dag_def.test()
+
+    pipeline_dag_serial = dlt.pipeline(
+            pipeline_name=pipeline_name, dataset_name=dataset_name, destination="duckdb")
+    pipeline_dag_serial.sync_destination()
+    # we should have two schemas
+    assert pipeline_dag_serial.schema_names == ['mock_data_source_state', 'mock_data_source']
+    counters_st_tasks = load_table_counts(pipeline_dag_serial, *[t["name"] for t in pipeline_dag_serial.schemas['mock_data_source_state'].data_tables()])
+    counters_nst_tasks = load_table_counts(pipeline_dag_serial, *[t["name"] for t in pipeline_dag_serial.schemas['mock_data_source'].data_tables()])
+    # print(counters_st_tasks)
+    # print(counters_nst_tasks)
+    # this state is confirmed in other test
+    assert pipeline_dag_serial.state["sources"]["mock_data_source_state"] == {'counter': 11, 'end_counter': 2, 'resources': {'_r1': {'counter': 10}, '_t3': {'counter': 1}, '_t2': {'counter': 1}, '_t1': {'counter': 1}}}
+
+    # next DAG does not connect subgraphs
+
+    dataset_name = "mock_data_" + uniq_id()
+    pipeline_name = "pipeline_dag_regular_" + uniq_id()
+
+    @dag(
+        schedule=None,
+        start_date=DEFAULT_DATE,
+        catchup=False,
+        default_args=default_args
+    )
+    def dag_parallel():
+        tasks = PipelineTasksGroup(pipeline_name, local_data_folder=TEST_STORAGE_ROOT, wipe_local_data=True)
+
+        pipeline_dag_regular = dlt.pipeline(
+            pipeline_name=pipeline_name, dataset_name=dataset_name, destination="duckdb")
+        tasks.add_run(pipeline_dag_regular, mock_data_source_state(), decompose="serialize", trigger_rule="all_done", retries=0, provide_context=True)
+        tasks.add_run(pipeline_dag_regular, mock_data_source(), decompose="serialize", trigger_rule="all_done", retries=0, provide_context=True)
+        # do not connect graph
+
+    dag_def: DAG = dag_parallel()
+    dag_def.test()
+
+    pipeline_dag_parallel = dlt.pipeline(
+            pipeline_name=pipeline_name, dataset_name=dataset_name, destination="duckdb")
+    pipeline_dag_parallel.sync_destination()
+    # we should have two schemas
+    assert pipeline_dag_parallel.schema_names == ['mock_data_source_state', 'mock_data_source']
+    counters_st_tasks_par = load_table_counts(pipeline_dag_parallel, *[t["name"] for t in pipeline_dag_parallel.schemas['mock_data_source_state'].data_tables()])
+    counters_nst_tasks_par = load_table_counts(pipeline_dag_parallel, *[t["name"] for t in pipeline_dag_parallel.schemas['mock_data_source'].data_tables()])
+    assert counters_st_tasks == counters_st_tasks_par
+    assert counters_nst_tasks == counters_nst_tasks_par
+    assert pipeline_dag_serial.state["sources"] == pipeline_dag_parallel.state["sources"]
+
+    # here two runs are mixed together
+
+    dataset_name = "mock_data_" + uniq_id()
+    pipeline_name = "pipeline_dag_regular_" + uniq_id()
+
+    @dag(
+        schedule=None,
+        start_date=DEFAULT_DATE,
+        catchup=False,
+        default_args=default_args
+    )
+    def dag_mixed():
+        tasks = PipelineTasksGroup(pipeline_name, local_data_folder=TEST_STORAGE_ROOT, wipe_local_data=True)
+
+        pipeline_dag_regular = dlt.pipeline(
+            pipeline_name=pipeline_name, dataset_name=dataset_name, destination="duckdb")
+        pd_tasks = tasks.add_run(pipeline_dag_regular, mock_data_source_state(), decompose="serialize", trigger_rule="all_done", retries=0, provide_context=True)
+        hb_tasks = tasks.add_run(pipeline_dag_regular, mock_data_source(), decompose="serialize", trigger_rule="all_done", retries=0, provide_context=True)
+        # create almost randomly connected tasks across two runs
+        for pd_t, hb_t in zip(pd_tasks, hb_tasks):
+            pd_t >> hb_t
+
+    dag_def: DAG = dag_mixed()
+    dag_def.test()
+
+    pipeline_dag_mixed = dlt.pipeline(
+            pipeline_name=pipeline_name, dataset_name=dataset_name, destination="duckdb")
+    pipeline_dag_mixed.sync_destination()
+    # we should have two schemas
+    assert pipeline_dag_mixed.schema_names == ['mock_data_source_state', 'mock_data_source']
+    counters_st_tasks_par = load_table_counts(pipeline_dag_mixed, *[t["name"] for t in pipeline_dag_mixed.schemas['mock_data_source_state'].data_tables()])
+    counters_nst_tasks_par = load_table_counts(pipeline_dag_mixed, *[t["name"] for t in pipeline_dag_mixed.schemas['mock_data_source'].data_tables()])
+    assert counters_st_tasks == counters_st_tasks_par
+    assert counters_nst_tasks == counters_nst_tasks_par
+    assert pipeline_dag_serial.state["sources"] == pipeline_dag_mixed.state["sources"]
+
+    # TODO: here we create two pipelines in two separate task groups
