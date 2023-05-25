@@ -9,7 +9,7 @@ from dlt.common.schema.typing import LOADS_TABLE_NAME, VERSION_TABLE_NAME
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.exceptions import MissingDependencyException
 
-from dlt.helpers.pandas import pd
+from dlt.helpers.pandas_helper import pd
 from dlt.pipeline import Pipeline
 from dlt.pipeline.exceptions import CannotRestorePipelineException
 from dlt.pipeline.state_sync import load_state_from_destination

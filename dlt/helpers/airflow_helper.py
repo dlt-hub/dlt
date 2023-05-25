@@ -156,7 +156,7 @@ class PipelineTasksGroup(TaskGroup):
             task_name = pipeline.pipeline_name
             if isinstance(data, DltSource):
                 resource_names = list(data.selected_resources.keys())
-                task_name = "-".join(resource_names[:4])
+                task_name = data.name + "_" + "-".join(resource_names[:4])
                 if len(resource_names) > 4:
                     task_name += f"-{len(resource_names)-4}-more"
             return task_name
@@ -168,6 +168,8 @@ class PipelineTasksGroup(TaskGroup):
             def make_task(pipeline: Pipeline, data: Any) -> PythonOperator:
 
                 def _run() -> None:
+                    # activate pipeline
+                    pipeline.activate()
                     # drop local data
                     task_pipeline = pipeline.drop()
 
