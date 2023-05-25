@@ -1,12 +1,13 @@
 from typing import Sequence, Tuple, cast, List
 import shutil
 from pathlib import Path
-import json
 
 import pytest
 
+import dlt
 from dlt.common.utils import uniq_id
 from dlt.common.storages import LoadStorage, FileStorage
+from dlt.common.storages.load_storage import LoadJobInfo
 from dlt.common.schema import Schema
 from dlt.common.destination.reference import DestinationReference, LoadJob
 from dlt.destinations.filesystem.configuration import FilesystemClientConfiguration
@@ -38,7 +39,6 @@ NORMALIZED_FILES = [
 def test_succesful_load(write_disposition: str, all_buckets_env: str, filesystem_client: FilesystemClient) -> None:
     """Test load is successful with an empty destination dataset"""
     client = filesystem_client
-    dataset_name = client.config.dataset_name
     jobs, _, load_id = perform_load(client, NORMALIZED_FILES, write_disposition=write_disposition)
 
     dataset_path = Path(client.fs_path).joinpath(client.config.dataset_name)
