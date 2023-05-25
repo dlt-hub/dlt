@@ -19,7 +19,7 @@ def drop_pipeline() -> Iterator[None]:
 
         def _drop_dataset_fs(_: str) -> None:
             try:
-                client: FilesystemClient = p.destination_client()  # type: ignore[assigment]
+                client: FilesystemClient = p._destination_client()  # type: ignore[assigment]
                 client.fs_client.rm(str(client.dataset_path), recursive=True)
             except Exception as exc:
                 print(exc)
@@ -73,7 +73,7 @@ def _assert_table_sql(p: dlt.Pipeline, table_name: str, table_data: List[Any], s
 
 def _assert_table_fs(p: dlt.Pipeline, table_name: str, table_data: List[Any], schema_name: str = None, info: LoadInfo = None) -> None:
     """Assert table is loaded to filesystem destination"""
-    client: FilesystemClient = p.destination_client(schema_name)  # type: ignore[assignment]
+    client: FilesystemClient = p._destination_client(schema_name)  # type: ignore[assignment]
     glob =  client.fs_client.glob(str(client.dataset_path.joinpath(f'{client.schema.name}.{table_name}.*')))
     assert len(glob) == 1
     assert client.fs_client.isfile(glob[0])

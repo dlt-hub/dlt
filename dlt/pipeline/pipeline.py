@@ -629,7 +629,7 @@ class Pipeline(SupportsPipeline):
             schema = self.default_schema if self.default_schema_name else Schema(self.dataset_name)
         return self._sql_job_client(schema, credentials).sql_client
 
-    def destination_client(self, schema_name: str = None, credentials: Any = None) -> JobClientBase:
+    def _destination_client(self, schema_name: str = None, credentials: Any = None) -> JobClientBase:
         """Get the destination job client for the configured destination"""
         # TODO: duplicated code from self.sql_client()  ...
         if schema_name:
