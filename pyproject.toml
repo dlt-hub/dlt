@@ -73,6 +73,7 @@ psutil = "^5.9.5"
 fsspec = {version = "^2023.5.0", optional = true}
 s3fs = {version = "^2023.5.0", optional = true}
 gcsfs = {version = "^2023.5.0", optional = true}
+boto3 = {version = ">=1.26", optional = true}
 
 
 
@@ -105,7 +106,7 @@ bigquery = ["grpcio", "google-cloud-bigquery", "pyarrow", "db-dtypes", "fsspec",
 postgres = ["psycopg2-binary", "psycopg2cffi"]
 redshift = ["psycopg2-binary", "psycopg2cffi"]
 duckdb = ["duckdb"]
-s3 = ["fsspec", "s3fs"]
+s3 = ["fsspec", "s3fs", "boto3"]
 gs = ["fsspec", "gcsfs"]
 filesystem = ["fsspec"]
 
