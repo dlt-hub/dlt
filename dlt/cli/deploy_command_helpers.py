@@ -1,6 +1,6 @@
 import abc
 import os
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Any, Dict
 from astunparse import unparse
 import cron_descriptor
 
@@ -8,7 +8,7 @@ import dlt
 
 from dlt.common.configuration.exceptions import LookupTrace
 from dlt.common.configuration.providers import ConfigTomlProvider, EnvironProvider
-from dlt.common.git import get_origin, get_repo
+from dlt.common.git import get_origin, get_repo, Repo
 from dlt.common.configuration.specs.run_configuration import get_default_pipeline_name
 from dlt.common.reflection.utils import evaluate_node_literal
 from dlt.common.pipeline import LoadInfo, TPipelineState
@@ -42,28 +42,27 @@ class BaseDeployment(abc.ABC):
         self.repo_location = repo_location
         self.branch = branch
 
-        self.deployment_method: Optional[str] = None
-        self.repo = None
-        self.repo_storage = None
-        self.origin = None
-        self.repo_pipeline_script_path = None
-        self.pipeline_script = None
+        self.pipelines_dir: Optional[str] = None
+        self.pipeline_name: Optional[str] = None
 
-        self.schedule_description = None
-        self.template_storage = None
-        self.working_directory = None
+        self.deployment_method: str
+        self.repo: Repo
+        self.repo_storage: FileStorage
+        self.origin: str
+        self.repo_pipeline_script_path: str
+        self.pipeline_script: Any
+        self.schedule_description: Optional[str]
+        self.template_storage: FileStorage
+        self.working_directory: str
+        self.state: TPipelineState
 
         self.config_prov = ConfigTomlProvider()
         self.env_prov = EnvironProvider()
-
-        # full_refresh = False
-        self.pipelines_dir: Optional[str] = None
-        self.pipeline_name: Optional[str] = None
-        self.state = None
         self.envs: List[LookupTrace] = []
         self.secret_envs: List[LookupTrace] = []
+        self.artifacts: Dict[str, Any] = {}
 
-    def _prepare_deployment(self):
+    def _prepare_deployment(self) -> None:
         self.repo_storage = FileStorage(str(self.repo.working_dir))
         self.origin = self._get_origin()
         # convert to path relative to repo
@@ -76,7 +75,7 @@ class BaseDeployment(abc.ABC):
         self.template_storage = utils.clone_command_repo(self.repo_location, self.branch)
         self.working_directory = os.path.split(self.pipeline_script_path)[0]
 
-    def _get_schedule_description(self) -> Optional[str]:
+    def _get_schedule_description(self) -> Optional[Any]:
         return None if self.schedule is None else cron_descriptor.get_description(self.schedule)
 
     def _get_origin(self) -> str:
@@ -89,7 +88,7 @@ class BaseDeployment(abc.ABC):
 
         return origin
 
-    def run_deployment(self):
+    def run_deployment(self) -> None:
         with get_repo(self.pipeline_script_path) as repo:
             self.repo = repo
             self._prepare_deployment()
@@ -98,7 +97,7 @@ class BaseDeployment(abc.ABC):
             pipeline_name, pipelines_dir = parse_pipeline_info(visitors)
 
             if pipelines_dir:
-                self.pipelines_dir = os.path.abspath(self.pipelines_dir)
+                self.pipelines_dir = os.path.abspath(pipelines_dir)
             if pipeline_name:
                 self.pipeline_name = pipeline_name
 
@@ -119,7 +118,7 @@ class BaseDeployment(abc.ABC):
             self._generate_workflow()
             self._echo_instructions()
 
-    def _update_envs(self, trace: PipelineTrace):
+    def _update_envs(self, trace: PipelineTrace) -> None:
         # add destination name and dataset name to env
         self.envs = [
             # LookupTrace(self.env_prov.name, (), "destination_name", self.state["destination"]),
@@ -137,7 +136,7 @@ class BaseDeployment(abc.ABC):
                     self.envs.append(LookupTrace(self.env_prov.name, tuple(resolved_value.sections), resolved_value.key, resolved_value.value))
                     # fmt.echo(f"{resolved_value.key} in {resolved_value.sections} moved to CONFIG")
 
-    def _echo_secrets(self):
+    def _echo_secrets(self) -> None:
         for s_v in self.secret_envs:
             fmt.secho("Name:", fg="green")
             fmt.echo(fmt.bold(self.env_prov.get_key_name(s_v.key, *s_v.sections)))
@@ -145,7 +144,7 @@ class BaseDeployment(abc.ABC):
             fmt.echo(s_v.value)
             fmt.echo()
 
-    def _echo_envs(self):
+    def _echo_envs(self) -> None:
         for v in self.envs:
             fmt.secho("Name:", fg="green")
             fmt.echo(fmt.bold(self.env_prov.get_key_name(v.key, *v.sections)))
@@ -154,12 +153,12 @@ class BaseDeployment(abc.ABC):
             fmt.echo()
 
     @abc.abstractmethod
-    def _echo_instructions(self, *args):
+    def _echo_instructions(self, *args: Optional[Any]) -> Optional[Any]:
         pass
 
     @abc.abstractmethod
-    def _generate_workflow(self, *args):
-        pass
+    def _generate_workflow(self, *args: Optional[Any]) -> Optional[Any]:
+        raise NotImplementedError()
 
 
 def get_state_and_trace(pipeline: Pipeline) -> Tuple[TPipelineState, PipelineTrace]:

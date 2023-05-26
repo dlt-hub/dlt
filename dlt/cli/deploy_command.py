@@ -1,7 +1,7 @@
 from itertools import chain
 import os
 import re
-from typing import List, Optional
+from typing import List, Optional, Any
 import yaml
 from yaml import Dumper
 import pipdeptree
@@ -16,7 +16,6 @@ from dlt.common.typing import StrAny
 from dlt.cli import utils
 from dlt.cli import echo as fmt
 from dlt.cli.deploy_command_helpers import BaseDeployment, PipelineWasNotRun
-
 
 REQUIREMENTS_GITHUB_ACTION = "requirements_github_action.txt"
 GITHUB_URL = "https://github.com/"
@@ -53,7 +52,7 @@ def deploy_command(
             branch=branch
         )
     elif deployment_method == DeploymentMethods.airflow.value:
-        deployment_obj = AirflowDeployment(
+        deployment_obj = AirflowDeployment(  # type: ignore
             pipeline_script_path=pipeline_script_path,
             schedule=schedule,
             run_on_push=run_on_push,
@@ -68,7 +67,7 @@ def deploy_command(
 
 
 class GithubActionDeployment(BaseDeployment):
-    def _generate_workflow(self):
+    def _generate_workflow(self, *args: Optional[Any]) -> None:
         self.deployment_method = DeploymentMethods.github_actions.value
         if self.schedule_description is None:
             raise ValueError(
@@ -77,7 +76,7 @@ class GithubActionDeployment(BaseDeployment):
         workflow = self._create_new_workflow()
         serialized_workflow = serialize_templated_yaml(workflow)
         serialized_workflow_name = f"run_{self.state['pipeline_name']}_workflow.yml"
-        self.state['serialized_workflow_name'] = serialized_workflow_name
+        self.artifacts['serialized_workflow_name'] = serialized_workflow_name
 
         # pip freeze special requirements file
         with self.template_storage.open_file(os.path.join(self.deployment_method, "requirements_blacklist.txt")) as f:
@@ -85,7 +84,7 @@ class GithubActionDeployment(BaseDeployment):
         requirements_txt = generate_pip_freeze(requirements_blacklist)
         requirements_txt_name = REQUIREMENTS_GITHUB_ACTION
         # if repo_storage.has_file(utils.REQUIREMENTS_TXT):
-        self.state['requirements_txt_name'] = requirements_txt_name
+        self.artifacts['requirements_txt_name'] = requirements_txt_name
 
         if not self.repo_storage.has_folder(utils.GITHUB_WORKFLOWS_DIR):
             self.repo_storage.create_folder(utils.GITHUB_WORKFLOWS_DIR)
@@ -93,7 +92,7 @@ class GithubActionDeployment(BaseDeployment):
         self.repo_storage.save(os.path.join(utils.GITHUB_WORKFLOWS_DIR, serialized_workflow_name), serialized_workflow)
         self.repo_storage.save(requirements_txt_name, requirements_txt)
 
-    def _create_new_workflow(self):
+    def _create_new_workflow(self) -> Any:
         with self.template_storage.open_file(os.path.join(self.deployment_method, "run_pipeline_workflow.yml")) as f:
             workflow = yaml.safe_load(f)
         # customize the workflow
@@ -125,13 +124,13 @@ class GithubActionDeployment(BaseDeployment):
 
         return workflow
 
-    def _echo_instructions(self):
+    def _echo_instructions(self, *args: Optional[Any]) -> None:
         fmt.echo("Your %s deployment for pipeline %s in script %s is ready!" % (
             fmt.bold(self.deployment_method), fmt.bold(self.state["pipeline_name"]), fmt.bold(self.pipeline_script_path)
         ))
         #  It contains all relevant configurations and references to credentials that are needed to run the pipeline
         fmt.echo("* A github workflow file %s was created in %s." % (
-            fmt.bold(self.state["serialized_workflow_name"]), fmt.bold(utils.GITHUB_WORKFLOWS_DIR)
+            fmt.bold(self.artifacts["serialized_workflow_name"]), fmt.bold(utils.GITHUB_WORKFLOWS_DIR)
         ))
         fmt.echo("* The schedule with which the pipeline is run is: %s.%s%s" % (
             fmt.bold(self.schedule_description),
@@ -140,7 +139,7 @@ class GithubActionDeployment(BaseDeployment):
         ))
         fmt.echo(
             "* The dependencies that will be used to run the pipeline are stored in %s. If you change add more dependencies, remember to refresh your deployment by running the same 'deploy' command again." % fmt.bold(
-                self.state['requirements_txt_name'])
+                self.artifacts['requirements_txt_name'])
         )
         fmt.echo()
         fmt.echo("You should now add the secrets to github repository secrets, commit and push the pipeline files to github.")
@@ -154,8 +153,10 @@ class GithubActionDeployment(BaseDeployment):
             self._echo_secrets()
 
         fmt.echo("2. Add stage deployment files to commit. Use your Git UI or the following command")
+        new_req_path = self.repo_storage.from_relative_path_to_wd(self.artifacts['requirements_txt_name'])
+        new_workflow_path = self.repo_storage.from_relative_path_to_wd(os.path.join(utils.GITHUB_WORKFLOWS_DIR, self.artifacts['serialized_workflow_name']))
         fmt.echo(fmt.bold(
-            f"git add {self.repo_storage.from_relative_path_to_wd(self.state['requirements_txt_name'])} {self.repo_storage.from_relative_path_to_wd(os.path.join(utils.GITHUB_WORKFLOWS_DIR, self.state['serialized_workflow_name']))}"))
+            f"git add {new_req_path} {new_workflow_path}"))
         fmt.echo()
         fmt.echo("3. Commit the files above. Use your Git UI or the following command")
         fmt.echo(fmt.bold(f"git commit -m 'run {self.state['pipeline_name']} pipeline with github action'"))
@@ -166,15 +167,15 @@ class GithubActionDeployment(BaseDeployment):
         fmt.echo(fmt.bold("git push origin"))
         fmt.echo()
         fmt.echo("5. Your pipeline should be running! You can monitor it here:")
-        fmt.echo(fmt.bold(github_origin_to_url(self.origin, f"/actions/workflows/{self.state['serialized_workflow_name']}")))
+        fmt.echo(fmt.bold(github_origin_to_url(self.origin, f"/actions/workflows/{self.artifacts['serialized_workflow_name']}")))
 
 
 class AirflowDeployment(BaseDeployment):
-    def _generate_workflow(self):
+    def _generate_workflow(self, *args: Optional[Any]) -> None:
         self.deployment_method = DeploymentMethods.airflow.value
 
         dag_script_name = f"dag_{self.state['pipeline_name']}.py"
-        self.state["dag_script_name"] = dag_script_name
+        self.artifacts["dag_script_name"] = dag_script_name
 
         cloudbuild_file = self.template_storage.load(os.path.join(self.deployment_method, AIRFLOW_CLOUDBUILD_YAML))
         dag_file = self.template_storage.load(os.path.join(self.deployment_method, AIRFLOW_DAG_TEMPLATE_SCRIPT))
@@ -188,7 +189,7 @@ class AirflowDeployment(BaseDeployment):
         self.repo_storage.save(os.path.join(utils.AIRFLOW_BUILD_FOLDER, AIRFLOW_CLOUDBUILD_YAML), cloudbuild_file)
         self.repo_storage.save(os.path.join(utils.AIRFLOW_DAGS_FOLDER, dag_script_name), dag_file)
 
-    def _echo_instructions(self):
+    def _echo_instructions(self, *args: Optional[Any]) -> None:
         fmt.echo("Your %s deployment for pipeline %s is ready!" % (
             fmt.bold(self.deployment_method), fmt.bold(self.state["pipeline_name"]),
         ))
@@ -196,13 +197,13 @@ class AirflowDeployment(BaseDeployment):
             fmt.bold(AIRFLOW_CLOUDBUILD_YAML), fmt.bold(utils.AIRFLOW_BUILD_FOLDER)
         ))
         fmt.echo("* The %s script was created in %s." % (
-            fmt.bold(self.state["dag_script_name"]), fmt.bold(utils.AIRFLOW_DAGS_FOLDER)
+            fmt.bold(self.artifacts["dag_script_name"]), fmt.bold(utils.AIRFLOW_DAGS_FOLDER)
         ))
         fmt.echo()
 
         fmt.echo("You must prepare your repository first:")
 
-        fmt.echo("1. Import you sources in %s, change default_args if necessary." % (fmt.bold(self.state["dag_script_name"])))
+        fmt.echo("1. Import you sources in %s, change default_args if necessary." % (fmt.bold(self.artifacts["dag_script_name"])))
         fmt.echo("2. Run airflow pipeline locally.\nSee Airflow getting started: %s" % (fmt.bold(AIRFLOW_GETTING_STARTED)))
         fmt.echo()
 
@@ -227,7 +228,7 @@ class AirflowDeployment(BaseDeployment):
         fmt.echo("5. Commit and push the pipeline files to github:")
         fmt.echo("a. Add stage deployment files to commit. Use your Git UI or the following command")
 
-        dag_script_path = self.repo_storage.from_relative_path_to_wd(os.path.join(utils.AIRFLOW_DAGS_FOLDER, self.state["dag_script_name"]))
+        dag_script_path = self.repo_storage.from_relative_path_to_wd(os.path.join(utils.AIRFLOW_DAGS_FOLDER, self.artifacts["dag_script_name"]))
         cloudbuild_path = self.repo_storage.from_relative_path_to_wd(os.path.join(utils.AIRFLOW_BUILD_FOLDER, AIRFLOW_CLOUDBUILD_YAML))
         fmt.echo(fmt.bold(f"git add {dag_script_path} {cloudbuild_path}"))
 
@@ -274,7 +275,6 @@ def serialize_templated_yaml(tree: StrAny) -> str:
 
 
 def generate_pip_freeze(requirements_blacklist: List[str]) -> str:
-
     pkgs = pipdeptree.get_installed_distributions(local_only=True, user_only=False)
 
     # construct graph with all packages
@@ -319,8 +319,8 @@ def github_origin_to_url(origin: str, path: str) -> str:
 
     if not origin.startswith(GITHUB_URL):
         origin = GITHUB_URL + origin
-    #https://github.com/dlt-hub/data-loading-zoomcamp.git
-    #git@github.com:dlt-hub/data-loading-zoomcamp.git
+    # https://github.com/dlt-hub/data-loading-zoomcamp.git
+    # git@github.com:dlt-hub/data-loading-zoomcamp.git
 
     # https://github.com/dlt-hub/data-loading-zoomcamp/settings/secrets/actions
     return origin + path
