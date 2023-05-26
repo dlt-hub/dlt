@@ -4,6 +4,7 @@ import dlt
 from dlt.common.utils import uniq_id
 from dlt.common.storages.load_storage import LoadJobInfo
 from dlt.destinations.filesystem.filesystem import FilesystemClient, LoadFilesystemJob
+from dlt.common.schema.typing import LOADS_TABLE_NAME
 
 from tests.utils import clean_test_storage, init_test_logging, preserve_environ
 from tests.load.pipeline.utils import drop_pipeline
@@ -67,3 +68,10 @@ def test_pipeline_merge_write_disposition(all_buckets_env: str) -> None:
         assert pkg.jobs['completed_jobs']
         for job in pkg.jobs['completed_jobs']:
             assert_file_matches(job, pkg.load_id,  client)
+
+
+    complete_fn = f"{client.schema.name}.{LOADS_TABLE_NAME}.%s"
+
+    # Test complete_load markers are saved
+    assert client.fs_client.isfile(client.dataset_path.joinpath(complete_fn % load_id1).as_posix())
+    assert client.fs_client.isfile(client.dataset_path.joinpath(complete_fn % load_id2).as_posix())

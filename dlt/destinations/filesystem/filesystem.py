@@ -3,26 +3,20 @@ from pathlib import Path
 from copy import copy
 from types import TracebackType
 from typing import ClassVar, Dict, Optional, Sequence, Type, Iterable
-from fsspec.core import url_to_fs
+
 from fsspec import AbstractFileSystem
-import fsspec
 
 from dlt.common import pendulum
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
-from dlt.common.schema.typing import TWriteDisposition
+from dlt.common.schema.typing import TWriteDisposition, LOADS_TABLE_NAME
 from dlt.common.storages import FileStorage
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import FollowupJob, NewLoadJob, TLoadJobState, LoadJob, JobClientBase
 from dlt.destinations.job_impl import EmptyLoadJob
-
-from dlt.destinations.exceptions import (LoadJobNotExistsException, LoadJobInvalidStateTransitionException,
-                                            DestinationTerminalException, DestinationTransientException)
-
 from dlt.destinations.filesystem import capabilities
 from dlt.destinations.filesystem.configuration import FilesystemClientConfiguration
 from dlt.destinations.filesystem.filesystem_client import client_from_config
 from dlt.common.storages import LoadStorage
-from fsspec import AbstractFileSystem
 
 
 class LoadFilesystemJob(LoadJob, FollowupJob):
@@ -110,7 +104,10 @@ class FilesystemClient(JobClientBase):
         return None
 
     def complete_load(self, load_id: str) -> None:
-        pass
+        schema_name = self.schema.name
+        table_name = LOADS_TABLE_NAME
+        file_name = f"{schema_name}.{table_name}.{load_id}"
+        self.fs_client.touch(self.dataset_path.joinpath(file_name).as_posix())
 
     def __enter__(self) -> "FilesystemClient":
         return self
