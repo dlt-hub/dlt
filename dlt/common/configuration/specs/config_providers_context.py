@@ -65,12 +65,16 @@ class ConfigProvidersContext(ContainerInjectableContext):
 
     @staticmethod
     def initial_providers() -> List[ConfigProvider]:
-        providers = [
-            EnvironProvider(),
-            SecretsTomlProvider(add_global_config=True),
-            ConfigTomlProvider(add_global_config=True)
-        ]
-        return providers
+        return _initial_providers()
+
+
+def _initial_providers() -> List[ConfigProvider]:
+    providers = [
+        EnvironProvider(),
+        SecretsTomlProvider(add_global_config=True),
+        ConfigTomlProvider(add_global_config=True)
+    ]
+    return providers
 
 
 def _extra_providers() -> List[ConfigProvider]:

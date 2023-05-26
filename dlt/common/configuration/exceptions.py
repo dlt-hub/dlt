@@ -48,6 +48,22 @@ class ConfigFieldMissingException(KeyError, ConfigurationException):
         return msg
 
 
+class UnmatchedConfigHintResolversException(ConfigurationException):
+    """Raised when using `@resolve_type` on a field that doesn't exist in the spec"""
+    def __init__(self, spec_name: str, field_names: Sequence[str]) -> None:
+        self.field_names = field_names
+        self.spec_name = spec_name
+        example = f">>> class {spec_name}(BaseConfiguration)\n" + "\n".join(f">>>    {name}: Any" for name in field_names)
+        msg = (
+            f"The config spec {spec_name} has dynamic type resolvers for fields: {field_names} "
+            "but these fields are not defined in the spec.\n"
+            "When using @resolve_type() decorator, Add the fields with 'Any' or another common type hint, example:\n"
+            f"\n{example}"
+        )
+        super().__init__(msg)
+
+
+
 class FinalConfigFieldException(ConfigurationException):
     """rises when field was annotated as final ie Final[str] and the value is modified by config provider"""
     def __init__(self, spec_name: str, field: str) -> None:

@@ -322,7 +322,7 @@ class Schema:
 
     def to_pretty_yaml(self, remove_defaults: bool = True) -> str:
         d = self.to_dict(remove_defaults=remove_defaults)
-        return cast(str, yaml.dump(d, allow_unicode=True, default_flow_style=False, sort_keys=False))
+        return yaml.dump(d, allow_unicode=True, default_flow_style=False, sort_keys=False)
 
     def clone(self) -> "Schema":
         d = deepcopy(self.to_dict())

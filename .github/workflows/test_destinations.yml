@@ -1,5 +1,5 @@
 
-name: test redshift, postgres and duckdb
+name: test redshift, postgres, duckdb and filesystem
 
 on:
   pull_request:
@@ -12,7 +12,12 @@ env:
   DESTINATION__POSTGRES__CREDENTIALS: postgresql://loader@dlttests.cwz0jfxu0m7m.eu-central-1.rds.amazonaws.com:5432/dlt_data
   DESTINATION__REDSHIFT__CREDENTIALS: postgresql://loader@3.73.90.3:5439/dlt_ci
   DESTINATION__DUCKDB__CREDENTIALS: duckdb:///_storage/test_quack.duckdb
+  DESTINATION__FILESYSTEM__CREDENTIALS__AWS_ACCESS_KEY_ID: AKIAT4QMVMC4J46G55G4
+  DESTINATION__FILESYSTEM__CREDENTIALS__AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
   # password is the same so it will be shared
+  CREDENTIALS__PROJECT_ID: chat-analytics-rasa-ci
+  CREDENTIALS__CLIENT_EMAIL: chat-analytics-loader@chat-analytics-rasa-ci.iam.gserviceaccount.com
+  CREDENTIALS__PRIVATE_KEY: ${{ secrets.BQ_CRED_PRIVATE_KEY }}
   CREDENTIALS__PASSWORD: ${{ secrets.PG_PASSWORD }}
 
   RUNTIME__SENTRY_DSN: https://6f6f7b6f8e0f458a89be4187603b55fe@o1061158.ingest.sentry.io/4504819859914752
@@ -24,7 +29,7 @@ jobs:
     uses: ./.github/workflows/get_docs_changes.yml
 
   run_loader:
-    name: test destinations redshift, postgres and duckdb
+    name: test destinations redshift, postgres, duckdb and filesystem
     needs: get_docs_changes
     if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
     strategy:
@@ -69,7 +74,7 @@ jobs:
 
       - name: Install dependencies
         # if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction -E redshift -E duckdb
+        run: poetry install --no-interaction -E redshift -E duckdb -E gs -E s3
 
       # - name: Install self
       #   run: poetry install --no-interaction

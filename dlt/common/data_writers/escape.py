@@ -3,7 +3,7 @@ import base64
 from typing import Any
 from datetime import date, datetime  # noqa: I251
 
-from dlt.common import json
+from dlt.common.json import json
 
 # use regex to escape characters in single pass
 SQL_ESCAPE_DICT = {"'": "''", "\\": "\\\\", "\n": "\\n", "\r": "\\r"}
