@@ -8,7 +8,10 @@ from dlt.common.configuration.providers.provider import ConfigProvider
 from dlt.common.configuration.specs.gcp_credentials import GcpServiceAccountCredentialsWithoutDefaults
 from dlt.common.utils import custom_environ
 from dlt.common.typing import AnyType, DictStrAny, StrAny, TSecretValue, extract_inner_type
-from dlt.common.configuration.exceptions import ConfigFieldMissingTypeHintException, ConfigFieldTypeHintNotSupported, FinalConfigFieldException, InvalidNativeValue, LookupTrace, ValueNotSecretException
+from dlt.common.configuration.exceptions import (
+    ConfigFieldMissingTypeHintException, ConfigFieldTypeHintNotSupported, FinalConfigFieldException,
+    InvalidNativeValue, LookupTrace, ValueNotSecretException, UnmatchedConfigHintResolversException
+)
 from dlt.common.configuration import configspec, ConfigFieldMissingException, ConfigValueCannotBeCoercedException, resolve, is_valid_hint, resolve_type
 from dlt.common.configuration.specs import BaseConfiguration, RunConfiguration, ConnectionStringCredentials
 from dlt.common.configuration.providers import environ as environ_provider, toml
@@ -154,6 +157,21 @@ class ConfigWithDynamicType(BaseConfiguration):
         elif self.discriminator == 'b':
             return DynamicConfigB
         return BaseConfiguration
+
+
+@configspec(init=True)
+class ConfigWithInvalidDynamicType(BaseConfiguration):
+    @resolve_type('a')
+    def resolve_a_type(self) -> Type[BaseConfiguration]:
+        return DynamicConfigA
+
+    @resolve_type('b')
+    def resolve_b_type(self) -> Type[BaseConfiguration]:
+        return DynamicConfigB
+
+    @resolve_type('c')
+    def resolve_c_type(self) -> Type[BaseConfiguration]:
+        return DynamicConfigC
 
 
 @configspec(init=True)
@@ -951,3 +969,13 @@ def test_dynamic_type_hint_subclass(environment: Dict[str, str]) -> None:
 
     assert e.value.field_name == 'dynamic_type_field'
     assert e.value.hint == int
+
+
+def test_unmatched_dynamic_hint_resolvers(environment: Dict[str, str]) -> None:
+    with pytest.raises(UnmatchedConfigHintResolversException) as e:
+        resolve.resolve_configuration(ConfigWithInvalidDynamicType())
+
+    print(e.value)
+
+    assert set(e.value.field_names) == {"a", "b", "c"}
+    assert e.value.spec_name == ConfigWithInvalidDynamicType.__name__
