@@ -1,4 +1,4 @@
-from pathlib import Path
+import posixpath
 from types import TracebackType
 from typing import ClassVar, Sequence, Type, Iterable
 from fsspec import AbstractFileSystem
@@ -31,20 +31,20 @@ class LoadFilesystemJob(LoadJob, FollowupJob):
         file_name = FileStorage.get_file_name_from_file_path(file_path)
         super().__init__(file_name)
 
-        root_path = Path(fs_path).joinpath(dataset_name)
+        root_path = posixpath.join(fs_path, dataset_name)
 
         if write_disposition == 'merge':
             write_disposition = 'append' if has_merge_keys else 'replace'
 
         if write_disposition == 'replace':
             job_info = LoadStorage.parse_job_file_name(file_name)
-            glob_path = root_path.joinpath(f"{schema_name}.{job_info.table_name}.*").as_posix()
+            glob_path = posixpath.join(root_path, f"{schema_name}.{job_info.table_name}.*")
             items = fs_client.glob(glob_path)
             if items:
                 fs_client.rm(items)
 
         destination_file_name = LoadFilesystemJob.make_destination_filename(file_name, schema_name, load_id)
-        fs_client.put_file(file_path, root_path.joinpath(destination_file_name).as_posix())
+        fs_client.put_file(file_path, posixpath.join(root_path, destination_file_name))
 
     @staticmethod
     def make_destination_filename(file_name: str, schema_name: str, load_id: str) -> str:
@@ -71,14 +71,14 @@ class FilesystemClient(JobClientBase):
         self.config: FilesystemClientConfiguration = config
 
     @property
-    def dataset_path(self) -> Path:
-        return Path(self.fs_path).joinpath(self.config.dataset_name)
+    def dataset_path(self) -> str:
+        return posixpath.join(self.fs_path, self.config.dataset_name)
 
     def initialize_storage(self, staging: bool = False, truncate_tables: Iterable[str] = None) -> None:
-        self.fs_client.makedirs(self.dataset_path.as_posix(), exist_ok=True)
+        self.fs_client.makedirs(self.dataset_path, exist_ok=True)
 
     def is_storage_initialized(self, staging: bool = False) -> bool:
-        return self.fs_client.isdir(self.dataset_path.as_posix())  # type: ignore[no-any-return]
+        return self.fs_client.isdir(self.dataset_path)  # type: ignore[no-any-return]
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         has_merge_keys = any(col['merge_key'] or col['primary_key'] for col in table['columns'].values())
@@ -103,7 +103,7 @@ class FilesystemClient(JobClientBase):
         schema_name = self.schema.name
         table_name = LOADS_TABLE_NAME
         file_name = f"{schema_name}.{table_name}.{load_id}"
-        self.fs_client.touch(self.dataset_path.joinpath(file_name).as_posix())
+        self.fs_client.touch(posixpath.join(self.dataset_path, file_name))
 
     def __enter__(self) -> "FilesystemClient":
         return self

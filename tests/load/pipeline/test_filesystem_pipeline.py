@@ -1,3 +1,4 @@
+import posixpath
 from pathlib import Path
 
 import dlt
@@ -16,7 +17,7 @@ def assert_file_matches(job: LoadJobInfo, load_id: str, client: FilesystemClient
     filename = local_path.name
 
     destination_fn = LoadFilesystemJob.make_destination_filename(filename, client.schema.name, load_id)
-    destination_path = str(client.dataset_path.joinpath(destination_fn))
+    destination_path = posixpath.join(client.dataset_path, destination_fn)
 
     assert local_path.read_bytes() == client.fs_client.read_bytes(destination_path)
 
@@ -44,8 +45,8 @@ def test_pipeline_merge_write_disposition(all_buckets_env: str) -> None:
 
     client: FilesystemClient = pipeline._destination_client()  # type: ignore[assignment]
 
-    append_glob = str(client.dataset_path.joinpath('some_source.some_data.*'))
-    replace_glob = str(client.dataset_path.joinpath('some_source.other_data.*'))
+    append_glob = posixpath.join(client.dataset_path, 'some_source.some_data.*')
+    replace_glob = posixpath.join(client.dataset_path, 'some_source.other_data.*')
 
     append_files = client.fs_client.glob(append_glob)
     replace_files = client.fs_client.glob(replace_glob)
@@ -73,5 +74,5 @@ def test_pipeline_merge_write_disposition(all_buckets_env: str) -> None:
     complete_fn = f"{client.schema.name}.{LOADS_TABLE_NAME}.%s"
 
     # Test complete_load markers are saved
-    assert client.fs_client.isfile(client.dataset_path.joinpath(complete_fn % load_id1).as_posix())
-    assert client.fs_client.isfile(client.dataset_path.joinpath(complete_fn % load_id2).as_posix())
+    assert client.fs_client.isfile(posixpath.join(client.dataset_path, complete_fn % load_id1))
+    assert client.fs_client.isfile(posixpath.join(client.dataset_path, complete_fn % load_id2))

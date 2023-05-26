@@ -1,6 +1,5 @@
-import os
+import posixpath
 from typing import Sequence, Tuple, List
-from pathlib import Path
 
 import pytest
 from dlt.common.schema.schema import Schema
@@ -36,20 +35,23 @@ def test_successful_load(write_disposition: str, all_buckets_env: str, filesyste
     client = filesystem_client
     jobs, _, load_id = perform_load(client, NORMALIZED_FILES, write_disposition=write_disposition)
 
-    dataset_path = Path(client.fs_path).joinpath(client.config.dataset_name)
+    dataset_path = posixpath.join(client.fs_path, client.config.dataset_name)
 
     # Assert dataset dir exists
-    assert client.fs_client.isdir(dataset_path.as_posix())
+    assert client.fs_client.isdir(dataset_path)
 
     # Sanity check, there are jobs
     assert jobs
     for job in jobs:
         assert job.state() == 'completed'
         job_info = LoadStorage.parse_job_file_name(job.file_name())
-        destination_path = dataset_path.joinpath(f"{client.schema.name}.{job_info.table_name}.{load_id}.{job_info.file_id}.{job_info.file_format}")
+        destination_path = posixpath.join(
+            dataset_path,
+            f"{client.schema.name}.{job_info.table_name}.{load_id}.{job_info.file_id}.{job_info.file_format}"
+        )
 
         # File is created with correct filename and path
-        assert client.fs_client.isfile(destination_path.as_posix())
+        assert client.fs_client.isfile(destination_path)
 
 
 def test_replace_write_disposition(all_buckets_env: str, filesystem_client: FilesystemClient) -> None:
@@ -57,21 +59,23 @@ def test_replace_write_disposition(all_buckets_env: str, filesystem_client: File
     _, root_path, load_id1 = perform_load(client, NORMALIZED_FILES, write_disposition='replace')
 
     # this path will be kept after replace
-    job_2_load_1_path = root_path.joinpath(
+    job_2_load_1_path = posixpath.join(
+        root_path,
         LoadFilesystemJob.make_destination_filename(NORMALIZED_FILES[1], client.schema.name, load_id1)
     )
 
     _, root_path, load_id2 = perform_load(client, [NORMALIZED_FILES[0]], write_disposition='replace')
 
     # this one we expect to be replaced with
-    job_1_load_2_path = root_path.joinpath(
+    job_1_load_2_path = posixpath.join(
+        root_path,
         LoadFilesystemJob.make_destination_filename(NORMALIZED_FILES[0], client.schema.name, load_id2)
     )
 
     # First file from load1 remains, second file is replaced by load2
     # assert that only these two files are in the destination folder
-    ls = set(client.fs_client.ls(root_path.as_posix()))
-    assert ls == {job_2_load_1_path.as_posix(), job_1_load_2_path.as_posix()}
+    ls = set(client.fs_client.ls(root_path))
+    assert ls == {job_2_load_1_path, job_1_load_2_path}
 
 
 def test_append_write_disposition(all_buckets_env: str, filesystem_client: FilesystemClient) -> None:
@@ -86,21 +90,21 @@ def test_append_write_disposition(all_buckets_env: str, filesystem_client: Files
     ] + [
         LoadFilesystemJob.make_destination_filename(job.file_name(), client.schema.name, load_id2) for job in jobs2
     ]
-    expected_files = sorted([root_path.joinpath(fn).as_posix() for fn in expected_files])
+    expected_files = sorted([posixpath.join(root_path, fn) for fn in expected_files])
 
-    assert list(sorted(client.fs_client.ls(root_path.as_posix()))) == expected_files
+    assert list(sorted(client.fs_client.ls(root_path))) == expected_files
 
 
 def perform_load(
     client: FilesystemClient, cases: Sequence[str], write_disposition: str='append'
-) -> Tuple[List[LoadJob], Path, str]:
+) -> Tuple[List[LoadJob], str, str]:
     dataset_name = client.config.dataset_name
     load = setup_loader(dataset_name)
     load_id, schema = prepare_load_package(load.load_storage, cases, write_disposition)
 
     client.schema = schema
     client.initialize_storage()
-    root_path = Path(client.fs_path).joinpath(client.config.dataset_name)
+    root_path = posixpath.join(client.fs_path, client.config.dataset_name)
 
     files = load.load_storage.list_new_jobs(load_id)
     jobs = []

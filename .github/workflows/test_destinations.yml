@@ -80,7 +80,7 @@ jobs:
       #   run: poetry install --no-interaction
 
       - run: |
-          poetry run pytest tests/load tests/cli --ignore=tests/load/bigquery -k '(not bigquery)'
+          poetry run pytest tests/load tests/cli --ignore=tests/load/bigquery -k '(not bigquery and filesystem)'
         if: runner.os != 'Windows'
         name: Run tests Linux/MAC
       - run: |

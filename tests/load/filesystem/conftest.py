@@ -1,4 +1,3 @@
-from pathlib import Path
 from typing import Iterator
 
 import pytest
@@ -20,4 +19,4 @@ def filesystem_client() -> Iterator[FilesystemClient]:
         yield _client
     finally:
         pass
-        _client.fs_client.rm(_client.dataset_path.as_posix(), recursive=True)
+        _client.fs_client.rm(_client.dataset_path, recursive=True)
