@@ -32,12 +32,12 @@ def test_deploy_command(test_storage: FileStorage) -> None:
         with Repo.init(".") as repo:
             # test_storage.atomic_rename("empty_git", ".git")
             with pytest.raises(CliCommandException) as py_ex:
-                deploy_command.deploy_command("debug_pipeline.py", "github-action", "*/30 * * * *", True, True)
+                deploy_command.deploy_command("debug_pipeline.py", "github-action", "*/30 * * * *", True, True, deploy_command.COMMAND_DEPLOY_REPO_LOCATION)
             assert "Your current repository has no origin set" in py_ex.value.args[0]
             # we have a repo that was never run
             Remote.create(repo, "origin", "git@github.com:rudolfix/dlt-cmd-test-2.git")
             with pytest.raises(CannotRestorePipelineException):
-                deploy_command.deploy_command("debug_pipeline.py", "github-action", "*/30 * * * *", True, True)
+                deploy_command.deploy_command("debug_pipeline.py", "github-action", "*/30 * * * *", True, True, deploy_command.COMMAND_DEPLOY_REPO_LOCATION)
             # run the script with wrong credentials (it is postgres there)
             venv = Venv.restore_current()
             # mod environ so wrong password is passed to override secrets.toml
@@ -47,7 +47,7 @@ def test_deploy_command(test_storage: FileStorage) -> None:
                 venv.run_script("debug_pipeline.py")
             print(py_ex.value.output)
             with pytest.raises(deploy_command.PipelineWasNotRun) as py_ex:
-                deploy_command.deploy_command("debug_pipeline.py", "github-action", "*/30 * * * *", True, True)
+                deploy_command.deploy_command("debug_pipeline.py", "github-action", "*/30 * * * *", True, True, deploy_command.COMMAND_DEPLOY_REPO_LOCATION)
             assert "The last pipeline run ended with error" in py_ex.value.args[0]
             os.environ["DESTINATION__POSTGRES__CREDENTIALS"] = pg_credentials
             # also delete secrets so credentials are not mixed up on CI
@@ -55,4 +55,4 @@ def test_deploy_command(test_storage: FileStorage) -> None:
             test_storage.atomic_rename(".dlt/secrets.toml.ci", ".dlt/secrets.toml")
             # this time script will run
             venv.run_script("debug_pipeline.py")
-            deploy_command.deploy_command("debug_pipeline.py", "github-action", "*/30 * * * *", True, True)
+            deploy_command.deploy_command("debug_pipeline.py", "github-action", "*/30 * * * *", True, True, deploy_command.COMMAND_DEPLOY_REPO_LOCATION)
