@@ -15,9 +15,6 @@ from threading import Timer
 
 import fsspec
 
-POLLING_INTERVAL = 0.5
-LOCK_TTL_SECONDS = 30.0
-
 
 def lock_id(k: int = 4) -> str:
     """Generate a time based random id.
@@ -35,12 +32,12 @@ def lock_id(k: int = 4) -> str:
 
 class Heartbeat(Timer):
     """A thread designed to periodically execute a fn."""
+    daemon = True
 
     def run(self) -> None:
         while not self.finished.wait(self.interval):
             self.function(*self.args, **self.kwargs)
         self.finished.set()
-
 
 
 class TransactionalFile:
@@ -59,6 +56,9 @@ class TransactionalFile:
     mtime_dispatch["s3a"] = mtime_dispatch["s3"]
     mtime_dispatch["azure"] = mtime_dispatch["adl"]
 
+    POLLING_INTERVAL = 0.5
+    LOCK_TTL_SECONDS = 30.0
+
     def __init__(self, path: str, fs: fsspec.AbstractFileSystem) -> None:
         """Creates a new FileTransactionHandler.
 
@@ -76,13 +76,22 @@ class TransactionalFile:
         self._is_locked = False
         self._heartbeat: t.Optional[Heartbeat] = None
 
-    def _make_heartbeat_thread(self) -> Heartbeat:
+    def _start_heartbeat(self) -> Heartbeat:
         """Create a thread that will periodically update the mtime."""
-        return Heartbeat(
-            LOCK_TTL_SECONDS / 2,
+        self._stop_hearbeat()
+        heartbeat = Heartbeat(
+            TransactionalFile.LOCK_TTL_SECONDS / 2,
             self._fs.touch,
             args=(self.lock_path,),
         )
+        heartbeat.start()
+        return heartbeat
+
+    def _stop_hearbeat(self) -> None:
+        """Stop the heartbeat thread if it exists."""
+        if self._heartbeat is not None:
+            self._heartbeat.cancel()
+            self._heartbeat = None
 
     def _sync_locks(self) -> t.Dict[str, t.Tuple[float, str]]:
         """Gets a map of lock paths to their last modified times and removes stale locks."""
@@ -92,7 +101,7 @@ class TransactionalFile:
         for lock in self._fs.glob(self.lock_prefix + ".*", refresh=True, detail=True).values():
             mtime = self.get_mtime(lock)
             name = lock["name"]
-            if now - mtime > timedelta(seconds=LOCK_TTL_SECONDS):
+            if now - mtime > timedelta(seconds=TransactionalFile.LOCK_TTL_SECONDS):
                 # Manage stale locks
                 self._fs.rm(name)
                 continue
@@ -102,7 +111,7 @@ class TransactionalFile:
         return output
 
     def read(self) -> t.Optional[bytes]:
-        """Reads data from the file."""
+        """Reads data from the file if it exists."""
         if self._fs.exists(self.path):
             return self._fs.cat(self.path)
         return None
@@ -153,7 +162,7 @@ class TransactionalFile:
                 self._fs.rm(self.lock_path)
                 return False
 
-            time.sleep(random.random() + POLLING_INTERVAL)
+            time.sleep(random.random() + TransactionalFile.POLLING_INTERVAL)
             locks = self._sync_locks()
             if self.lock_path not in locks:
                 self._fs.touch(self.lock_path)
@@ -163,10 +172,7 @@ class TransactionalFile:
 
         self._original_contents = self.read()
         self._is_locked = True
-        if self._heartbeat is not None:
-            self._heartbeat.cancel()
-        self._heartbeat = self._make_heartbeat_thread()
-        self._heartbeat.start()
+        self._heartbeat = self._start_heartbeat()
         return True
 
     def release_lock(self) -> None:
@@ -175,14 +181,13 @@ class TransactionalFile:
         This is idempotent and safe to call multiple times.
         """
         if self._is_locked:
-            self._heartbeat.cancel()
-            self._heartbeat = None
+            self._stop_hearbeat()
             self._fs.rm(self.lock_path)
             self._is_locked = False
             self._original_contents = None
 
     @contextmanager
-    def lock(self, timeout: float = LOCK_TTL_SECONDS + 1) -> t.Iterator[None]:
+    def lock(self, timeout: t.Optional[float] = None) -> t.Iterator[None]:
         """A context manager that acquires and releases a lock on a path.
 
         This is a convenience method for acquiring a lock and reading the contents of
@@ -194,11 +199,14 @@ class TransactionalFile:
         manager, the transaction will be rolled back.
 
         Args:
-            timeout: The timeout for acquiring the lock.
+            timeout: The timeout for acquiring the lock. If None, this will use the
+                default timeout. A timeout of -1 will wait indefinitely.
 
         Raises:
             RuntimeError: If the lock cannot be acquired.
         """
+        if timeout is None:
+            timeout = TransactionalFile.LOCK_TTL_SECONDS + 1
         if not self.acquire_lock(timeout=timeout):
             raise RuntimeError("Could not acquire lock.")
         try:
