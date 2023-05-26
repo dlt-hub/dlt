@@ -25,6 +25,7 @@ AIRFLOW_GETTING_STARTED = "https://airflow.apache.org/docs/apache-airflow/stable
 AIRFLOW_DAG_TEMPLATE_SCRIPT = "dag_template.py"
 AIRFLOW_CLOUDBUILD_YAML = "cloudbuild.yaml"
 COMMAND_REPO_LOCATION = "https://github.com/dlt-hub/python-dlt-%s-template.git"
+COMMAND_DEPLOY_REPO_LOCATION = COMMAND_REPO_LOCATION % "deploy"
 
 
 class DeploymentMethods(Enum):
