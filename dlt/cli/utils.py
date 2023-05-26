@@ -29,7 +29,7 @@ LOCAL_COMMAND_REPO_FOLDER = "repos"
 MODULE_INIT = "__init__.py"
 
 
-def clone_command_repo(repo_location, branch: str) -> FileStorage:
+def clone_command_repo(repo_location: str, branch: str) -> FileStorage:
     template_dir = tempfile.mkdtemp()
     # TODO: handle ImportError (no git command available) gracefully
     with git.clone_repo(repo_location, template_dir, branch=branch):

@@ -125,7 +125,7 @@ class GithubActionDeployment(BaseDeployment):
 
         return workflow
 
-    def _echo_instructions(self,):
+    def _echo_instructions(self):
         fmt.echo("Your %s deployment for pipeline %s in script %s is ready!" % (
             fmt.bold(self.deployment_method), fmt.bold(self.state["pipeline_name"]), fmt.bold(self.pipeline_script_path)
         ))
@@ -238,22 +238,6 @@ class AirflowDeployment(BaseDeployment):
         fmt.echo("c. Push changes to github. Use your Git UI or the following command")
         fmt.echo(fmt.bold("git push origin"))
         fmt.echo("6. You should see your pipeline in Airflow.")
-
-    def _echo_secrets(self):
-        for s_v in self.secret_envs:
-            fmt.secho("Name:", fg="green")
-            fmt.echo(fmt.bold(self.env_prov.get_key_name(s_v.key, *s_v.sections)))
-            fmt.secho("Secret:", fg="green")
-            fmt.echo(s_v.value)
-            fmt.echo()
-
-    def _echo_envs(self):
-        for v in self.envs:
-            fmt.secho("Name:", fg="green")
-            fmt.echo(fmt.bold(self.env_prov.get_key_name(v.key, *v.sections)))
-            fmt.secho("Value:", fg="green")
-            fmt.echo(v.value)
-            fmt.echo()
 
 
 def str_representer(dumper: yaml.Dumper, data: str) -> yaml.ScalarNode:

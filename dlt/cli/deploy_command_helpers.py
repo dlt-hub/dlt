@@ -1,6 +1,6 @@
 import abc
 import os
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from astunparse import unparse
 import cron_descriptor
 
@@ -11,11 +11,14 @@ from dlt.common.configuration.providers import ConfigTomlProvider, EnvironProvid
 from dlt.common.git import get_origin, get_repo
 from dlt.common.configuration.specs.run_configuration import get_default_pipeline_name
 from dlt.common.reflection.utils import evaluate_node_literal
-from dlt.common.pipeline import LoadInfo
+from dlt.common.pipeline import LoadInfo, TPipelineState
 from dlt.common.storages import FileStorage
 from dlt.common.utils import set_working_dir
 
+from dlt.pipeline.pipeline import Pipeline
+from dlt.pipeline.trace import PipelineTrace
 from dlt.reflection import names as n
+from dlt.reflection.script_visitor import PipelineScriptVisitor
 
 from dlt.cli import utils
 from dlt.cli import echo as fmt
@@ -73,10 +76,10 @@ class BaseDeployment(abc.ABC):
         self.template_storage = utils.clone_command_repo(self.repo_location, self.branch)
         self.working_directory = os.path.split(self.pipeline_script_path)[0]
 
-    def _get_schedule_description(self):
+    def _get_schedule_description(self) -> Optional[str]:
         return None if self.schedule is None else cron_descriptor.get_description(self.schedule)
 
-    def _get_origin(self):
+    def _get_origin(self) -> str:
         try:
             origin = get_origin(self.repo)
             if "github.com" not in origin:
@@ -116,7 +119,7 @@ class BaseDeployment(abc.ABC):
             self._generate_workflow()
             self._echo_instructions()
 
-    def _update_envs(self, trace):
+    def _update_envs(self, trace: PipelineTrace):
         # add destination name and dataset name to env
         self.envs = [
             # LookupTrace(self.env_prov.name, (), "destination_name", self.state["destination"]),
@@ -159,7 +162,7 @@ class BaseDeployment(abc.ABC):
         pass
 
 
-def get_state_and_trace(pipeline):
+def get_state_and_trace(pipeline: Pipeline) -> Tuple[TPipelineState, PipelineTrace]:
     # trace must exist and end with a successful loading step
     trace = pipeline.last_trace
     if trace is None or len(trace.steps) == 0:
@@ -173,14 +176,14 @@ def get_state_and_trace(pipeline):
     return pipeline.state, trace
 
 
-def get_visitors(pipeline_script, pipeline_script_path):
+def get_visitors(pipeline_script: str, pipeline_script_path: str) -> PipelineScriptVisitor:
     visitor = utils.parse_init_script("deploy", pipeline_script, pipeline_script_path)
     if n.RUN not in visitor.known_calls:
         raise CliCommandException("deploy", f"The pipeline script {pipeline_script_path} does not seem to run the pipeline.")
     return visitor
 
 
-def parse_pipeline_info(visitor):
+def parse_pipeline_info(visitor: PipelineScriptVisitor) -> Tuple[Optional[str], Optional[str]]:
     pipeline_name, pipelines_dir = None, None
     if n.PIPELINE in visitor.known_calls:
         for call_args in visitor.known_calls[n.PIPELINE]:
@@ -191,7 +194,7 @@ def parse_pipeline_info(visitor):
                     fmt.warning(f"The value of `full_refresh` in call to `dlt.pipeline` cannot be determined from {unparse(f_r_node).strip()}. We assume that you know what you are doing :)")
                 if f_r_value is True:
                     if fmt.confirm("The value of 'full_refresh' is set to True. Do you want to abort to set it to False?", default=True):
-                        return
+                        return None, None
 
             p_d_node = call_args.arguments.get("pipelines_dir")
             if p_d_node:
