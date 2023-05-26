@@ -60,6 +60,8 @@ def drop_pipeline() -> Iterator[None]:
 
 
 def _is_filesystem(p: dlt.Pipeline) -> bool:
+    if not p.destination:
+        return False
     return p.destination.__name__.rsplit('.', 1)[-1] == 'filesystem'
 
 
