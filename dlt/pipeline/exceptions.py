@@ -54,3 +54,8 @@ class PipelineHasPendingDataException(PipelineException):
             "Use `dlt pipeline sync` to reset the local state then run this operation again."
         )
         super().__init__(pipeline_name, msg)
+
+
+class PipelineNotActive(PipelineException):
+    def __init__(self, pipeline_name: str) -> None:
+        super().__init__(pipeline_name, f"Pipeline {pipeline_name} is not active so it cannot be deactivated")

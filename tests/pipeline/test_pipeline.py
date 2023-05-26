@@ -10,7 +10,7 @@ import dlt
 from dlt.common import json, sleep
 from dlt.common.configuration.container import Container
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.exceptions import DestinationHasFailedJobs, DestinationTerminalException, TerminalException, UnknownDestinationModule
+from dlt.common.exceptions import DestinationHasFailedJobs, DestinationTerminalException, PipelineStateNotAvailable, TerminalException, UnknownDestinationModule
 from dlt.common.pipeline import PipelineContext
 from dlt.common.runtime.collector import AliveCollector, EnlightenCollector, LogCollector, TqdmCollector
 from dlt.common.schema.exceptions import InvalidDatasetName
@@ -21,7 +21,7 @@ from dlt.extract.exceptions import SourceExhausted
 from dlt.extract.extract import ExtractorStorage
 from dlt.extract.source import DltResource, DltSource
 from dlt.load.exceptions import LoadClientJobFailed
-from dlt.pipeline.exceptions import InvalidPipelineName, PipelineStepFailed
+from dlt.pipeline.exceptions import InvalidPipelineName, PipelineNotActive, PipelineStepFailed
 from dlt.pipeline.helpers import retry_load
 from dlt.pipeline.state_sync import STATE_TABLE_NAME
 from tests.common.utils import TEST_SENTRY_DSN
@@ -302,19 +302,12 @@ def test_first_run_flag() -> None:
 
 def test_has_pending_data_flag() -> None:
     p = dlt.pipeline(pipeline_name="pipe_" + uniq_id(), destination="dummy")
-
     assert p.has_pending_data is False
-
     p.extract([1, 2, 3], table_name="dummy_table")
-
     assert p.has_pending_data is True
-
     p.normalize()
-
     assert p.has_pending_data is True
-
     p.load()
-
     assert p.has_pending_data is False
 
 
@@ -596,6 +589,7 @@ def test_set_get_local_value() -> None:
     p.extract(_w_local_state)
     assert p.state["_local"][new_val] == new_val
 
+
 def test_changed_write_disposition() -> None:
     os.environ["COMPLETED_PROB"] = "1.0"
     pipeline_name = "pipe_" + uniq_id()
@@ -776,3 +770,66 @@ def test_pipeline_log_progress() -> None:
     p = dlt.attach(progress=dlt.progress.log(0.5, logger=logging.getLogger()))
     assert p.collector.logger is not None
     p.extract(many_delayed(2, 10))
+
+
+def test_pipeline_source_state_activation() -> None:
+
+    appendix_yielded = None
+
+    @dlt.source
+    def reads_state(source_st, resource_st):
+        if dlt.current.source_state().get("appendix"):
+
+            @dlt.resource
+            def appendix():
+                nonlocal appendix_yielded
+                appendix_yielded = dlt.current.source_state().get("appendix") or ["NO"]
+                yield appendix_yielded
+
+            yield appendix
+
+        @dlt.resource
+        def writes_state():
+            dlt.current.source_state()["appendix"] = source_st
+            dlt.current.resource_state()["RX"] = resource_st
+            yield from [1,2,3]
+
+        yield writes_state
+
+    # activate first pipeline
+    p_appendix = dlt.pipeline(pipeline_name="appendix_p")
+    assert p_appendix.is_active
+    s_appendix = reads_state("appendix", "r_appendix")
+    assert s_appendix.state == {}
+    # create state by running extract
+    p_appendix.extract(s_appendix)
+    assert s_appendix.state == {'appendix': 'appendix', 'resources': {'writes_state': {'RX': 'r_appendix'}}}
+    assert s_appendix.writes_state.state == {'RX': 'r_appendix'}
+
+    # change the active pipeline
+    p_postfix = dlt.pipeline(pipeline_name="postfix_p")
+    # now state comes from active pipeline which has an empty state
+    assert s_appendix.state == {}
+    # and back
+    p_appendix.activate()
+    assert s_appendix.writes_state.state == {'RX': 'r_appendix'}
+
+    # create another source
+    s_w_appendix = reads_state("appendix", "r_appendix")
+    # has appendix because state is present
+    assert hasattr(s_w_appendix, "appendix")
+
+    # now extract the source in p_postfix that does not have a state
+    p_postfix.activate()
+    p_postfix.extract(s_w_appendix)
+    # so appendix yielded NO
+    # NOTE: this behavior is not intuitive, s_w_appendix was created with p_appendix active so appendix resource was created because state was set
+    # but we evaluated it in p_postfix pipeline without the state
+    assert appendix_yielded == ["NO"]
+
+    with pytest.raises(PipelineNotActive):
+        p_appendix.deactivate()
+
+    p_postfix.deactivate()
+    with pytest.raises(PipelineStateNotAvailable):
+        assert s_appendix.state == {}

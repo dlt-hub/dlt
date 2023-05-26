@@ -216,6 +216,9 @@ class PipelineContext(ContainerInjectableContext):
         return self._pipeline
 
     def activate(self, pipeline: SupportsPipeline) -> None:
+        # do not activate currently active pipeline
+        if pipeline == self._pipeline:
+            return
         self.deactivate()
         pipeline._set_context(True)
         self._pipeline = pipeline
