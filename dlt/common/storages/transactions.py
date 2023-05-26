@@ -79,13 +79,13 @@ class TransactionalFile:
     def _start_heartbeat(self) -> Heartbeat:
         """Create a thread that will periodically update the mtime."""
         self._stop_hearbeat()
-        heartbeat = Heartbeat(
+        self._heartbeat = Heartbeat(
             TransactionalFile.LOCK_TTL_SECONDS / 2,
             self._fs.touch,
             args=(self.lock_path,),
         )
-        heartbeat.start()
-        return heartbeat
+        self._heartbeat.start()
+        return self._heartbeat
 
     def _stop_hearbeat(self) -> None:
         """Stop the heartbeat thread if it exists."""
@@ -93,9 +93,9 @@ class TransactionalFile:
             self._heartbeat.cancel()
             self._heartbeat = None
 
-    def _sync_locks(self) -> t.Dict[str, t.Tuple[float, str]]:
+    def _sync_locks(self) -> t.List[str]:
         """Gets a map of lock paths to their last modified times and removes stale locks."""
-        output = {}
+        output = []
         now = datetime.now()
 
         for lock in self._fs.glob(self.lock_prefix + ".*", refresh=True, detail=True).values():
@@ -105,14 +105,13 @@ class TransactionalFile:
                 # Manage stale locks
                 self._fs.rm(name)
                 continue
-            # this creates a sortable key
-            # the mtime of the file, followed by the name, which is also time sortable
-            output[name] = (mtime.timestamp(), name)
+            # name is timestamp + random suffix and is time sortable
+            output.append(name)
         return output
 
     def read(self) -> t.Optional[bytes]:
         """Reads data from the file if it exists."""
-        if self._fs.exists(self.path):
+        if self._fs.isfile(self.path):
             return self._fs.cat(self.path)
         return None
 
@@ -120,6 +119,8 @@ class TransactionalFile:
         """Writes data within the transaction."""
         if not self._is_locked:
             raise RuntimeError("Cannot write to a file without a lock.")
+        if self._fs.isdir(self.path):
+            raise RuntimeError("Cannot write to a directory.")
         self._fs.pipe(self.path, content)
 
     def rollback(self) -> None:
@@ -154,7 +155,7 @@ class TransactionalFile:
 
         self._fs.touch(self.lock_path)
         locks = self._sync_locks()
-        _, active_lock = min(locks.values())
+        active_lock = min(locks)
         start = time.time()
 
         while active_lock != self.lock_path:
@@ -168,11 +169,11 @@ class TransactionalFile:
                 self._fs.touch(self.lock_path)
                 locks = self._sync_locks()
 
-            _, active_lock = min(locks.values())  # type: ignore
+            active_lock = min(locks)
 
         self._original_contents = self.read()
         self._is_locked = True
-        self._heartbeat = self._start_heartbeat()
+        self._start_heartbeat()
         return True
 
     def release_lock(self) -> None:
@@ -216,3 +217,7 @@ class TransactionalFile:
             raise
         finally:
             self.release_lock()
+
+    def __del__(self) -> None:
+        """Stop the heartbeat thread on gc. Locks should be released explicitly."""
+        self._stop_hearbeat()
