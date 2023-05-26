@@ -1,5 +1,5 @@
 
-name: test redshift, postgres and duckdb
+name: test redshift, postgres, duckdb and filesystem
 
 on:
   pull_request:
@@ -29,7 +29,7 @@ jobs:
     uses: ./.github/workflows/get_docs_changes.yml
 
   run_loader:
-    name: test destinations redshift, postgres and duckdb
+    name: test destinations redshift, postgres, duckdb and filesystem
     needs: get_docs_changes
     if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
     strategy:
@@ -80,11 +80,11 @@ jobs:
       #   run: poetry install --no-interaction
 
       - run: |
-          poetry run pytest tests/load/filesystem tests/cli --ignore=tests/load/bigquery -k '(not bigquery)'
+          poetry run pytest tests/load tests/cli --ignore=tests/load/bigquery -k '(not bigquery)'
         if: runner.os != 'Windows'
         name: Run tests Linux/MAC
       - run: |
-          poetry run pytest tests/load/filesystem tests/cli --ignore=tests/load/bigquery -k "(not bigquery)"
+          poetry run pytest tests/load tests/cli --ignore=tests/load/bigquery -k "(not bigquery)"
         if: runner.os == 'Windows'
         name: Run tests Windows
         shell: cmd
