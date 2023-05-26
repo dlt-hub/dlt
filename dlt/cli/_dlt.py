@@ -13,7 +13,7 @@ from dlt.common.runners import Venv
 import dlt.cli.echo as fmt
 from dlt.cli import utils
 from dlt.cli.init_command import init_command, list_pipelines_command, DLT_INIT_DOCS_URL, DEFAULT_PIPELINES_REPO
-from dlt.cli.deploy_command import PipelineWasNotRun, deploy_command, DLT_DEPLOY_DOCS_URL, DeploymentMethods
+from dlt.cli.deploy_command import PipelineWasNotRun, deploy_command, DLT_DEPLOY_DOCS_URL, DeploymentMethods, COMMAND_REPO_LOCATION
 from dlt.cli.pipeline_command import pipeline_command, DLT_PIPELINE_COMMAND_DOCS_URL
 from dlt.cli.telemetry_command import DLT_TELEMETRY_DOCS_URL, change_telemetry_status_command, telemetry_status_command
 from dlt.pipeline.exceptions import CannotRestorePipelineException
@@ -45,10 +45,11 @@ def list_pipelines_command_wrapper(repo_location: str, branch: str) -> int:
 def deploy_command_wrapper(
     pipeline_script_path: str,
     deployment_method: str,
-    schedule: Optional[str] = None,
-    run_on_push: bool = False,
-    run_on_dispatch: bool = False,
-    branch: Optional[str] = None) -> int:
+    schedule: Optional[str],
+    run_on_push: bool,
+    run_on_dispatch: bool,
+    repo_location: str,
+    branch: Optional[str]) -> int:
     try:
         utils.ensure_git_command("deploy")
     except Exception as ex:
@@ -57,7 +58,7 @@ def deploy_command_wrapper(
 
     from git import InvalidGitRepositoryError, NoSuchPathError
     try:
-        deploy_command(pipeline_script_path, deployment_method, schedule, run_on_push, run_on_dispatch, branch)
+        deploy_command(pipeline_script_path, deployment_method, schedule, run_on_push, run_on_dispatch, repo_location, branch)
     except (CannotRestorePipelineException, PipelineWasNotRun) as ex:
         click.secho(str(ex), err=True, fg="red")
         fmt.note("You must run the pipeline locally successfully at least once in order to deploy it.")
@@ -198,6 +199,7 @@ def main() -> int:
     deploy_cmd.add_argument("--schedule", required=False, help="A schedule with which to run the pipeline, in cron format. Example: '*/30 * * * *' will run the pipeline every 30 minutes.")
     deploy_cmd.add_argument("--run-manually", default=True, action="store_true", help="Allows the pipeline to be run manually form Github Actions UI.")
     deploy_cmd.add_argument("--run-on-push", default=False, action="store_true", help="Runs the pipeline with every push to the repository.")
+    deploy_cmd.add_argument("--location", default=COMMAND_REPO_LOCATION % "deploy", help="Advanced. Uses a specific url or local path to pipelines repository.")
     deploy_cmd.add_argument("--branch", default=None, help="Advanced. Uses specific branch of the deploy repository to fetch the template.")
 
     schema = subparsers.add_parser("schema", help="Shows, converts and upgrades schemas")
@@ -211,7 +213,7 @@ def main() -> int:
     pipe_cmd.add_argument("--pipelines-dir", help="Pipelines working directory", default=None)
     pipe_cmd.add_argument("--verbose", "-v", action='count', default=0, help="Provides more information for certain commands.", dest="verbosity")
     # pipe_cmd.add_argument("--dataset-name", help="Dataset name used to sync destination when local pipeline state is missing.")
-    # pipe_cmd.add_argument("--destination", help="Destination name used to to sync when local pipeline state is missing.")
+    # pipe_cmd.add_argument("--destination", help="Destination name used to sync when local pipeline state is missing.")
 
     pipeline_subparsers = pipe_cmd.add_subparsers(dest="operation", required=False)
 
@@ -275,7 +277,7 @@ def main() -> int:
             else:
                 return init_command_wrapper(args.pipeline, args.destination, args.generic, args.location, args.branch)
     elif args.command == "deploy":
-        return deploy_command_wrapper(args.pipeline_script_path, args.deployment_method, args.schedule, args.run_on_push, args.run_manually, args.branch)
+        return deploy_command_wrapper(args.pipeline_script_path, args.deployment_method, args.schedule, args.run_on_push, args.run_manually, args.location, args.branch)
     elif args.command == "telemetry":
         return telemetry_status_command_wrapper()
     else:

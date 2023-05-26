@@ -25,6 +25,7 @@ DLT_AIRFLOW_GCP_DOCS_URL = "https://dlthub.com/docs/running-in-production/orches
 AIRFLOW_GETTING_STARTED = "https://airflow.apache.org/docs/apache-airflow/stable/start.html"
 AIRFLOW_DAG_TEMPLATE_SCRIPT = "dag_template.py"
 AIRFLOW_CLOUDBUILD_YAML = "cloudbuild.yaml"
+COMMAND_REPO_LOCATION = "https://github.com/dlt-hub/python-dlt-%s-template.git"
 
 
 class DeploymentMethods(Enum):
@@ -38,13 +39,28 @@ def deploy_command(
     schedule: Optional[str],
     run_on_push: bool,
     run_on_dispatch: bool,
-    branch: Optional[str] = None
+    repo_location: str,
+    branch: Optional[str],
 ) -> None:
     # get current repo local folder
     if deployment_method == DeploymentMethods.github_actions.value:
-        deployment_obj = GithubActionDeployment(pipeline_script_path, schedule, run_on_push, run_on_dispatch, branch)
+        deployment_obj = GithubActionDeployment(
+            pipeline_script_path=pipeline_script_path,
+            schedule=schedule,
+            run_on_push=run_on_push,
+            run_on_dispatch=run_on_dispatch,
+            repo_location=repo_location,
+            branch=branch
+        )
     elif deployment_method == DeploymentMethods.airflow.value:
-        deployment_obj = AirflowDeployment(pipeline_script_path, schedule, run_on_push, run_on_dispatch, branch)
+        deployment_obj = AirflowDeployment(
+            pipeline_script_path=pipeline_script_path,
+            schedule=schedule,
+            run_on_push=run_on_push,
+            run_on_dispatch=run_on_dispatch,
+            repo_location=repo_location,
+            branch=branch
+        )
     else:
         raise ValueError(f"Deployment method '{deployment_method}' is not supported. Only {', '.join([m.value for m in DeploymentMethods])} are available.'")
 

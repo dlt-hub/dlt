@@ -29,12 +29,14 @@ class BaseDeployment(abc.ABC):
         schedule: Optional[str],
         run_on_push: bool,
         run_on_dispatch: bool,
+        repo_location: str,
         branch: Optional[str] = None
     ):
         self.pipeline_script_path = pipeline_script_path
         self.schedule = schedule
         self.run_on_push = run_on_push
         self.run_on_dispatch = run_on_dispatch
+        self.repo_location = repo_location
         self.branch = branch
 
         self.deployment_method: Optional[str] = None
@@ -65,11 +67,10 @@ class BaseDeployment(abc.ABC):
         self.repo_pipeline_script_path = self.repo_storage.from_wd_to_relative_path(self.pipeline_script_path)
         # load a pipeline script and extract full_refresh and pipelines_dir args
         self.pipeline_script = self.repo_storage.load(self.repo_pipeline_script_path)
-
         # validate schedule
         self.schedule_description = self._get_schedule_description()
-        self.template_storage = utils.clone_command_repo("deploy", self.branch)
-        # self.template_storage = FileStorage("/home/alenaastrakhantseva/dlthub/python-dlt-deploy-template")
+        fmt.echo("Looking up the deployment template scripts in %s...\n" % fmt.bold(self.repo_location))
+        self.template_storage = utils.clone_command_repo(self.repo_location, self.branch)
         self.working_directory = os.path.split(self.pipeline_script_path)[0]
 
     def _get_schedule_description(self):
