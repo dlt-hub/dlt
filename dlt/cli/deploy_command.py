@@ -40,7 +40,7 @@ def deploy_command(
     run_on_push: bool,
     run_on_dispatch: bool,
     repo_location: str,
-    branch: Optional[str],
+    branch: Optional[str] = None,
 ) -> None:
     # get current repo local folder
     if deployment_method == DeploymentMethods.github_actions.value:
