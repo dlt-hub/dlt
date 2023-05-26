@@ -77,7 +77,7 @@ def _assert_table_sql(p: dlt.Pipeline, table_name: str, table_data: List[Any], s
 def _assert_table_fs(p: dlt.Pipeline, table_name: str, table_data: List[Any], schema_name: str = None, info: LoadInfo = None) -> None:
     """Assert table is loaded to filesystem destination"""
     client: "FilesystemClient" = p._destination_client(schema_name)  # type: ignore[assignment]
-    glob =  client.fs_client.glob(str(client.dataset_path.joinpath(f'{client.schema.name}.{table_name}.*')))
+    glob =  client.fs_client.glob(str(client.dataset_path.joinpath(f'{client.schema.name}.{table_name}.*').as_posix()))
     assert len(glob) == 1
     assert client.fs_client.isfile(glob[0])
     # TODO: may verify that filesize matches load package size

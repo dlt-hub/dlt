@@ -1,13 +1,9 @@
-import random
 from pathlib import Path
-from copy import copy
 from types import TracebackType
-from typing import ClassVar, Dict, Optional, Sequence, Type, Iterable
-
+from typing import ClassVar, Sequence, Type, Iterable
 from fsspec import AbstractFileSystem
 
-from dlt.common import pendulum
-from dlt.common.schema import Schema, TTableSchema, TSchemaTables
+from dlt.common.schema import Schema, TTableSchema
 from dlt.common.schema.typing import TWriteDisposition, LOADS_TABLE_NAME
 from dlt.common.storages import FileStorage
 from dlt.common.destination import DestinationCapabilitiesContext

@@ -13,7 +13,7 @@ from dlt.destinations.filesystem.filesystem import FilesystemClient
 from tests.utils import clean_test_storage, init_test_logging, TEST_DICT_CONFIG_PROVIDER
 
 
-def get_client(schema: Schema, dataset_name: str) -> FilesystemClient:
+def get_client_instance(schema: Schema, dataset_name: str) -> FilesystemClient:
     config = filesystem.spec()(dataset_name=dataset_name)
     with Container().injectable_context(ConfigSectionContext(sections=('filesystem',))):
         return filesystem.client(schema, config)  # type: ignore[return-value]

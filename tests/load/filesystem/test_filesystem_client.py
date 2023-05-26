@@ -1,22 +1,17 @@
-from typing import Sequence, Tuple, cast, List
-import shutil
+import os
+from typing import Sequence, Tuple, List
 from pathlib import Path
 
 import pytest
+from dlt.common.schema.schema import Schema
 
-import dlt
-from dlt.common.utils import uniq_id
 from dlt.common.storages import LoadStorage, FileStorage
-from dlt.common.storages.load_storage import LoadJobInfo
-from dlt.common.schema import Schema
-from dlt.common.destination.reference import DestinationReference, LoadJob
-from dlt.destinations.filesystem.configuration import FilesystemClientConfiguration
+from dlt.common.destination.reference import LoadJob
 from dlt.destinations.filesystem.filesystem import FilesystemClient, LoadFilesystemJob
-from dlt.destinations import filesystem
 from dlt.load import Load
 
-from tests.utils import clean_test_storage, init_test_logging, TEST_DICT_CONFIG_PROVIDER, preserve_environ
-from tests.load.filesystem.utils import get_client, setup_loader
+from tests.utils import clean_test_storage, init_test_logging, preserve_environ
+from tests.load.filesystem.utils import get_client_instance, setup_loader
 from tests.load.utils import prepare_load_package
 
 
@@ -36,7 +31,7 @@ NORMALIZED_FILES = [
 ]
 
 @pytest.mark.parametrize('write_disposition', ('replace', 'append', 'merge'))
-def test_succesful_load(write_disposition: str, all_buckets_env: str, filesystem_client: FilesystemClient) -> None:
+def test_successful_load(write_disposition: str, all_buckets_env: str, filesystem_client: FilesystemClient) -> None:
     """Test load is successful with an empty destination dataset"""
     client = filesystem_client
     jobs, _, load_id = perform_load(client, NORMALIZED_FILES, write_disposition=write_disposition)

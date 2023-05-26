@@ -10,7 +10,8 @@ from dlt.common.configuration.specs import GcpCredentials, GcpServiceAccountCred
 
 PROTOCOL_CREDENTIALS = {
     "gs": Union[GcpServiceAccountCredentials, GcpOAuthCredentials],
-    "file": Optional[CredentialsConfiguration],  # Dummy hint
+    "gcs": Union[GcpServiceAccountCredentials, GcpOAuthCredentials],
+    "gdrive": GcpOAuthCredentials,
     "s3": AwsCredentials
 }
 
@@ -28,4 +29,5 @@ class FilesystemClientConfiguration(DestinationClientDwhConfiguration):
 
     @resolve_type('credentials')
     def resolve_credentials_type(self) -> Type[CredentialsConfiguration]:
-        return PROTOCOL_CREDENTIALS[self.protocol]  # type: ignore[return-value]
+        # use known credentials or empty credentials for unknown protocol
+        return PROTOCOL_CREDENTIALS.get(self.protocol) or Optional[CredentialsConfiguration]  # type: ignore[return-value]
