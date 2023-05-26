@@ -1,5 +1,5 @@
 import time
-from tempfile import NamedTemporaryFile
+from tempfile import NamedTemporaryFile, TemporaryDirectory
 from threading import Thread
 
 import fsspec
@@ -121,3 +121,17 @@ def test_file_transaction_maintain_lock(fs: fsspec.AbstractFileSystem, monkeypat
         # the first process is maintaining the lock and heartbeat
         with pytest.raises(RuntimeError):
             writer_2.write(b"test 2")
+
+
+def test_file_transaction_directory(fs: fsspec.AbstractFileSystem, monkeypatch):
+    with TemporaryDirectory() as tmpdir:
+        writer = TransactionalFile(tmpdir, fs)
+        
+        # Ensure we can lock on a directory
+        writer.acquire_lock()
+
+        # Ensure we cannot write to a directory scoped lock
+        with pytest.raises(RuntimeError):
+            writer.write(b"test 1")
+        
+        writer.release_lock()
