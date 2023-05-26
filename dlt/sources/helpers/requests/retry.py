@@ -133,6 +133,7 @@ class Client:
 
     ### Args:
         timeout: Timeout for requests in seconds. May be passed as `timedelta` or `float/int` number of seconds.
+        max_connections: Max connections per host in the HTTPAdapter pool
         raise_for_status: Whether to raise exception on error status codes (using `response.raise_for_status()`)
         session: Optional `requests.Session` instance to add the retry handler to. A new session is created by default.
         status_codes: Retry when response has any of these status codes. Default `429` and all `5xx` codes. Pass an empty list to disable retry based on status.
@@ -146,6 +147,7 @@ class Client:
     def __init__(
         self,
         timeout: Optional[TimedeltaSeconds] = DEFAULT_TIMEOUT,
+        max_connections: int = 50,
         raise_for_status: bool = True,
         status_codes: Sequence[int] = DEFAULT_RETRY_STATUS,
         exceptions: Sequence[Type[Exception]] = DEFAULT_RETRY_EXCEPTIONS,
@@ -155,7 +157,7 @@ class Client:
         respect_retry_after_header: bool = True,
         **session_attrs: Any
     ) -> None:
-        self._adapter = HTTPAdapter()
+        self._adapter = HTTPAdapter(pool_maxsize=max_connections)
         self._local = local()
         self._session_kwargs = dict(timeout=timeout, raise_for_status=raise_for_status)
         self._retry_kwargs = dict(
