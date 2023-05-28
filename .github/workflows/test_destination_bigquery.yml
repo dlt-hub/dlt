@@ -76,11 +76,11 @@ jobs:
       #   run: poetry install --no-interaction
 
       - run: |
-          poetry run pytest tests/load --ignore=tests/load/redshift --ignore=tests/load/postgres --ignore=tests/load/duckdb --ignore=tests/load/filesystem -k '(not redshift and not postgres and not duckdb and not filesystem)'
+          poetry run pytest tests/load tests/helpers/providers --ignore=tests/load/redshift --ignore=tests/load/postgres --ignore=tests/load/duckdb --ignore=tests/load/filesystem -k '(not redshift and not postgres and not duckdb and not filesystem)'
         if: runner.os != 'Windows'
         name: Run tests Linux/MAC
       - run: |
-          poetry run pytest tests/load --ignore=tests/load/redshift --ignore=tests/load/postgres --ignore=tests/load/duckdb --ignore=tests/load/filesystem -m "not forked" -k "(not redshift and not postgres and not duckdb and not filesystem)"
+          poetry run pytest tests/load tests/helpers/providers --ignore=tests/load/redshift --ignore=tests/load/postgres --ignore=tests/load/duckdb --ignore=tests/load/filesystem -m "not forked" -k "(not redshift and not postgres and not duckdb and not filesystem)"
         if: runner.os == 'Windows'
         name: Run tests Windows
         shell: cmd
