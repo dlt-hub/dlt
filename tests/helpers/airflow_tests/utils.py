@@ -7,8 +7,7 @@ from airflow.models.variable import Variable
 
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
-
-from dlt.common.configuration.providers.airflow import AIRFLOW_SECRETS_TOML_VARIABLE_KEY
+from dlt.common.configuration.providers.toml import SECRETS_TOML_KEY
 
 
 @pytest.fixture(scope='function', autouse=True)
@@ -24,7 +23,7 @@ def initialize_airflow_db():
     # restore providers
     Container()[ConfigProvidersContext] = providers
     # Make sure the variable is not set
-    Variable.delete(AIRFLOW_SECRETS_TOML_VARIABLE_KEY)
+    Variable.delete(SECRETS_TOML_KEY)
 
 
 def setup_airflow() -> None:

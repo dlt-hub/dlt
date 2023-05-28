@@ -14,6 +14,10 @@ class ConfigurationException(DltException, TerminalException):
     pass
 
 
+class ConfigurationValueError(ConfigurationException, ValueError):
+    pass
+
+
 class ContainerException(DltException):
     """base exception for all exceptions related to injectable container"""
     pass
@@ -63,14 +67,13 @@ class UnmatchedConfigHintResolversException(ConfigurationException):
         super().__init__(msg)
 
 
-
 class FinalConfigFieldException(ConfigurationException):
     """rises when field was annotated as final ie Final[str] and the value is modified by config provider"""
     def __init__(self, spec_name: str, field: str) -> None:
         super().__init__(f"Field {field} in spec {spec_name} is final but is being changed by a config provider")
 
 
-class ConfigValueCannotBeCoercedException(ConfigurationException, ValueError):
+class ConfigValueCannotBeCoercedException(ConfigurationValueError):
     """raises when value returned by config provider cannot be coerced to hinted type"""
 
     def __init__(self, field_name: str, field_value: Any, hint: type) -> None:
