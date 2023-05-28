@@ -76,3 +76,10 @@ def test_pipeline_merge_write_disposition(all_buckets_env: str) -> None:
     # Test complete_load markers are saved
     assert client.fs_client.isfile(posixpath.join(client.dataset_path, complete_fn % load_id1))
     assert client.fs_client.isfile(posixpath.join(client.dataset_path, complete_fn % load_id2))
+
+    # Force replace
+    pipeline.run(some_source(), write_disposition='replace')
+    append_files = client.fs_client.glob(append_glob)
+    replace_files = client.fs_client.glob(replace_glob)
+    assert len(append_files) == 1
+    assert len(replace_files) == 1

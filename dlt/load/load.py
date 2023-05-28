@@ -339,7 +339,7 @@ class Load(Runnable[ThreadPool]):
         return LoadInfo(
             pipeline,
             self.initial_client_config.destination_name,
-            str(self.initial_client_config.credentials),
+            str(self.initial_client_config),
             dataset_name,
             list(load_ids),
             load_packages,
