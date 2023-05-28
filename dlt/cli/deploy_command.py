@@ -150,8 +150,8 @@ class GithubActionDeployment(BaseDeployment):
             fmt.bold(github_origin_to_url(self.origin, "/settings/secrets/actions"))
         ))
         fmt.echo()
-        if fmt.confirm("Do you want to list the values of the secrets in the format suitable for github?", default=True):
-            self._echo_secrets()
+        # if fmt.confirm("Do you want to list the values of the secrets in the format suitable for github?", default=True):
+        #     self._echo_secrets()
 
         fmt.echo("2. Add stage deployment files to commit. Use your Git UI or the following command")
         new_req_path = self.repo_storage.from_relative_path_to_wd(self.artifacts['requirements_txt_name'])
@@ -221,9 +221,9 @@ class AirflowDeployment(BaseDeployment):
             fmt.bold("\n".join(self.env_prov.get_key_name(v.key, *v.sections) for v in self.envs)),
         ))
         fmt.echo()
-        if fmt.confirm("Do you want to list the environment variables in the format suitable for Airflow?", default=True):
-            self._echo_secrets()
-            self._echo_envs()
+        # if fmt.confirm("Do you want to list the environment variables in the format suitable for Airflow?", default=True):
+        #     self._echo_secrets()
+        #     self._echo_envs()
 
         fmt.echo("4. Add requirements to PIPY PACKAGES using Google Composer UI.")
         fmt.echo("5. Commit and push the pipeline files to github:")
