@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dlt"
-version = "0.2.9a0"
+version = "0.2.9"
 description = "DLT is an open-source python-native scalable data loading framework that does not require any devops efforts to run."
 authors = ["dltHub Inc. <services@dlthub.com>"]
 maintainers = [ "Marcin Rudolf <marcin@dlthub.com>", "Adrian Brudaru <adrian@dlthub.com>", "Ty Dunn <ty@dlthub.com>"]
@@ -106,6 +106,7 @@ bigquery = ["grpcio", "google-cloud-bigquery", "pyarrow", "db-dtypes", "gcsfs"]
 postgres = ["psycopg2-binary", "psycopg2cffi"]
 redshift = ["psycopg2-binary", "psycopg2cffi"]
 duckdb = ["duckdb"]
+filesystem = ["s3fs", "boto3"]
 s3 = ["s3fs", "boto3"]
 gs = ["gcsfs"]
 
