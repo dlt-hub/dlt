@@ -63,9 +63,8 @@ def write_value(
         return
     # get the inner hint to generate cool examples
     hint = extract_inner_hint(hint)
-
     if is_base_configuration_inner_hint(hint):
-        inner_table = tomlkit.table(False)
+        inner_table = tomlkit.table(is_super_table=True)
         write_spec(inner_table, hint(), overwrite_existing)
         if len(inner_table) > 0:
             toml_table[name] = inner_table
@@ -93,7 +92,7 @@ def write_values(toml: TOMLContainer, values: Iterable[WritableConfigValue], ove
         toml_table: TOMLTable = toml  # type: ignore
         for section in value.sections:
             if section not in toml_table:
-                inner_table = tomlkit.table(True)
+                inner_table = tomlkit.table(is_super_table=True)
                 toml_table[section] = inner_table
                 toml_table = inner_table
             else:
