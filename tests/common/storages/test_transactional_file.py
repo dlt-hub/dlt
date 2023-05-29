@@ -102,21 +102,21 @@ def test_file_transaction_ttl_expiry(fs: fsspec.AbstractFileSystem, monkeypatch)
         writer_1.acquire_lock()
         writer_1._stop_hearbeat()
         time.sleep(2.0)
-        
+
         # Ensure a lock can be acquired after the TTL has expired
         assert writer_2.acquire_lock(blocking=False)
         writer_2.release_lock()
 
 
 def test_file_transaction_maintain_lock(fs: fsspec.AbstractFileSystem, monkeypatch):
-    monkeypatch.setattr(TransactionalFile, "LOCK_TTL_SECONDS", 1)    
+    monkeypatch.setattr(TransactionalFile, "LOCK_TTL_SECONDS", 1)
     with NamedTemporaryFile() as f:
         writer_1 = TransactionalFile(f.name, fs)
         writer_2 = TransactionalFile(f.name, fs)
         writer_1.acquire_lock()
         Thread(target=writer_2.acquire_lock, daemon=True).start()
         time.sleep(2.5)
-        
+
         # Ensure another process cannot acquire the lock or write as long as
         # the first process is maintaining the lock and heartbeat
         with pytest.raises(RuntimeError):
@@ -126,12 +126,12 @@ def test_file_transaction_maintain_lock(fs: fsspec.AbstractFileSystem, monkeypat
 def test_file_transaction_directory(fs: fsspec.AbstractFileSystem, monkeypatch):
     with TemporaryDirectory() as tmpdir:
         writer = TransactionalFile(tmpdir, fs)
-        
+
         # Ensure we can lock on a directory
         writer.acquire_lock()
 
         # Ensure we cannot write to a directory scoped lock
         with pytest.raises(RuntimeError):
             writer.write(b"test 1")
-        
+
         writer.release_lock()
