@@ -1,50 +1,54 @@
 import posixpath
+import threading
 from types import TracebackType
-from typing import ClassVar, Sequence, Type, Iterable
+from typing import ClassVar, List, Sequence, Type, Iterable
 from fsspec import AbstractFileSystem
 
 from dlt.common.schema import Schema, TTableSchema
 from dlt.common.schema.typing import TWriteDisposition, LOADS_TABLE_NAME
 from dlt.common.storages import FileStorage
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import FollowupJob, NewLoadJob, TLoadJobState, LoadJob, JobClientBase
+from dlt.common.destination.reference import NewLoadJob, TLoadJobState, LoadJob, JobClientBase
 from dlt.destinations.job_impl import EmptyLoadJob
 from dlt.destinations.filesystem import capabilities
 from dlt.destinations.filesystem.configuration import FilesystemClientConfiguration
 from dlt.destinations.filesystem.filesystem_client import client_from_config
 from dlt.common.storages import LoadStorage
 
+lock = threading.Lock()
 
-class LoadFilesystemJob(LoadJob, FollowupJob):
+class LoadFilesystemJob(LoadJob):
     def __init__(
             self,
+            local_path: str,
+            dataset_path: str,
             *,
-            file_path: str,
+            config: FilesystemClientConfiguration,
             write_disposition: TWriteDisposition,
             has_merge_keys: bool,
             schema_name: str,
-            dataset_name: str,
-            load_id: str,
-            fs_client: AbstractFileSystem,
-            fs_path: str,
+            load_id: str
     ) -> None:
-        file_name = FileStorage.get_file_name_from_file_path(file_path)
+        file_name = FileStorage.get_file_name_from_file_path(local_path)
         super().__init__(file_name)
+        fs_client, _ = client_from_config(config)
 
-        root_path = posixpath.join(fs_path, dataset_name)
-
+        # fallback to replace for merge without any merge keys
         if write_disposition == 'merge':
             write_disposition = 'append' if has_merge_keys else 'replace'
 
-        if write_disposition == 'replace':
+        # replace existing files. also check if dir exists for bucket storages that cannot create dirs
+        if write_disposition == 'replace' and fs_client.isdir(dataset_path):
             job_info = LoadStorage.parse_job_file_name(file_name)
-            glob_path = posixpath.join(root_path, f"{schema_name}.{job_info.table_name}.*")
-            items = fs_client.glob(glob_path)
+            search_prefix = posixpath.join(dataset_path, f"{schema_name}.{job_info.table_name}.")
+            # NOTE: glob implementation in fsspec does not look thread safe, way better is to use ls and then filter
+            all_files: List[str] = fs_client.ls(dataset_path, detail=False, refresh=True)
+            items = [item for item in all_files if item.startswith(search_prefix)]
             if items:
                 fs_client.rm(items)
 
         destination_file_name = LoadFilesystemJob.make_destination_filename(file_name, schema_name, load_id)
-        fs_client.put_file(file_path, posixpath.join(root_path, destination_file_name))
+        fs_client.put_file(local_path, posixpath.join(dataset_path, destination_file_name))
 
     @staticmethod
     def make_destination_filename(file_name: str, schema_name: str, load_id: str) -> str:
@@ -83,14 +87,13 @@ class FilesystemClient(JobClientBase):
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         has_merge_keys = any(col['merge_key'] or col['primary_key'] for col in table['columns'].values())
         return LoadFilesystemJob(
-            file_path=file_path,
+            file_path,
+            self.dataset_path,
+            config=self.config,
             write_disposition=table['write_disposition'],
             has_merge_keys=has_merge_keys,
             schema_name=self.schema.name,
-            dataset_name=self.config.dataset_name,
-            load_id=load_id,
-            fs_client=self.fs_client,
-            fs_path=self.fs_path
+            load_id=load_id
         )
 
     def restore_file_load(self, file_path: str) -> LoadJob:

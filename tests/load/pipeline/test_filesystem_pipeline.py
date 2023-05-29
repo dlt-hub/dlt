@@ -7,7 +7,7 @@ from dlt.common.storages.load_storage import LoadJobInfo
 from dlt.destinations.filesystem.filesystem import FilesystemClient, LoadFilesystemJob
 from dlt.common.schema.typing import LOADS_TABLE_NAME
 
-from tests.utils import clean_test_storage, init_test_logging, preserve_environ
+from tests.utils import autouse_test_storage, init_test_logging, preserve_environ, patch_home_dir
 from tests.load.pipeline.utils import drop_pipeline
 
 
