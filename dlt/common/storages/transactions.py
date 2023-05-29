@@ -5,12 +5,13 @@ It can be used to operate on a single file atomically both locally and on
 cloud storage. The lock can be used to operate on entire directories by
 creating a lock file that resolves to an agreed upon path across processes.
 """
+import os
 import random
 import string
 import time
 import typing as t
 from contextlib import contextmanager
-from datetime import datetime, timedelta
+from dlt.common.pendulum import pendulum, timedelta
 from threading import Timer
 
 import fsspec
@@ -45,16 +46,16 @@ class TransactionalFile:
 
     # Map of protocol to mtime resolver
     # we only need to support a small finite set of protocols
-    mtime_dispatch = {
-        "s3": lambda f: datetime.strptime(f["LastModified"], "%Y-%m-%d %H:%M:%S%z"),
-        "gcs": lambda f: datetime.strptime(f["updated"], "%Y-%m-%dT%H:%M:%S.%fZ"),
-        "adl": lambda f: datetime.strptime(f["LastModified"], "%Y-%m-%d %H:%M:%S%z"),
-        "file": lambda f: datetime.fromtimestamp(f["mtime"]),
+    _mtime_dispatch = {
+        "s3": lambda f: pendulum.from_format(f["LastModified"], "%Y-%m-%d %H:%M:%S%z"),
+        "adl": lambda f: pendulum.from_format(f["LastModified"], "%Y-%m-%d %H:%M:%S%z"),
+        "gcs": lambda f: pendulum.from_format(f["updated"], "%Y-%m-%dT%H:%M:%S.%fZ"),
+        "file": lambda f: pendulum.from_timestamp(f["mtime"]),
     }
     # Support aliases
-    mtime_dispatch["gs"] = mtime_dispatch["gcs"]
-    mtime_dispatch["s3a"] = mtime_dispatch["s3"]
-    mtime_dispatch["azure"] = mtime_dispatch["adl"]
+    _mtime_dispatch["gs"] = _mtime_dispatch["gcs"]
+    _mtime_dispatch["s3a"] = _mtime_dispatch["s3"]
+    _mtime_dispatch["azure"] = _mtime_dispatch["adl"]
 
     POLLING_INTERVAL = 0.5
     LOCK_TTL_SECONDS = 30.0
@@ -66,11 +67,13 @@ class TransactionalFile:
             path: The path to lock.
             fs: The fsspec file system.
         """
-        self.path = path
+        self.path = os.path.normpath(path)
         self.lock_prefix = f"{self.path}.lock"
         self.lock_path = f"{self.lock_prefix}.{lock_id()}"
+
         proto = fs.protocol[0] if isinstance(fs.protocol, (list, tuple)) else fs.protocol
-        self.get_mtime = self.mtime_dispatch.get(proto, self.mtime_dispatch["file"])
+        self.extract_mtime = self._mtime_dispatch.get(proto, self._mtime_dispatch["file"])
+
         self._fs = fs
         self._original_contents: t.Optional[bytes] = None
         self._is_locked = False
@@ -96,23 +99,23 @@ class TransactionalFile:
     def _sync_locks(self) -> t.List[str]:
         """Gets a map of lock paths to their last modified times and removes stale locks."""
         output = []
-        now = datetime.now()
+        now = pendulum.now()
 
-        for lock in self._fs.glob(self.lock_prefix + ".*", refresh=True, detail=True).values():
-            mtime = self.get_mtime(lock)
-            name = lock["name"]
+        locks = self._fs.ls(os.path.dirname(self.lock_path), refresh=True, detail=True)
+        for lock in filter(lambda lock: lock["name"].startswith(self.lock_prefix), locks):
+            # Purge stale locks
+            mtime = self.extract_mtime(lock)
             if now - mtime > timedelta(seconds=TransactionalFile.LOCK_TTL_SECONDS):
-                # Manage stale locks
-                self._fs.rm(name)
+                self._fs.rm(lock["name"])
                 continue
-            # name is timestamp + random suffix and is time sortable
-            output.append(name)
+            # The name is timestamp + random suffix and is time sortable
+            output.append(lock["name"])
         return output
 
     def read(self) -> t.Optional[bytes]:
         """Reads data from the file if it exists."""
         if self._fs.isfile(self.path):
-            return self._fs.cat(self.path)
+            return t.cast(bytes, self._fs.cat(self.path))
         return None
 
     def write(self, content: bytes) -> None:
@@ -126,12 +129,12 @@ class TransactionalFile:
     def rollback(self) -> None:
         """Rolls back the transaction."""
         if not self._is_locked:
-            raise RuntimeError("Cannot rollback a file without a lock.")
+            raise RuntimeError("Cannot rollback without a lock.")
         if self._original_contents is not None:
             self._fs.pipe(self.path, self._original_contents)
 
     def acquire_lock(self, blocking: bool = True, timeout: float = -1) -> bool:
-        """Acquires a lock on a path.
+        """Acquires a lock on a path. Mimics the stdlib's `threading.Lock` interface.
 
         Acquire a lock, blocking or non-blocking.
 
