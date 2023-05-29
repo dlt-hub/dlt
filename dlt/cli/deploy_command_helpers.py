@@ -1,6 +1,11 @@
+import re
 import abc
 import os
-from typing import List, Optional, Tuple, Any, Dict
+import yaml
+from yaml import Dumper
+import pipdeptree
+from itertools import chain
+from typing import List, Optional, Sequence, Tuple, Any, Dict
 from astunparse import unparse
 import cron_descriptor
 
@@ -10,6 +15,7 @@ from dlt.common.configuration.exceptions import LookupTrace
 from dlt.common.configuration.providers import ConfigTomlProvider, EnvironProvider
 from dlt.common.git import get_origin, get_repo, Repo
 from dlt.common.configuration.specs.run_configuration import get_default_pipeline_name
+from dlt.common.typing import StrAny
 from dlt.common.reflection.utils import evaluate_node_literal
 from dlt.common.pipeline import LoadInfo, TPipelineState
 from dlt.common.storages import FileStorage
@@ -23,6 +29,8 @@ from dlt.reflection.script_visitor import PipelineScriptVisitor
 from dlt.cli import utils
 from dlt.cli import echo as fmt
 from dlt.cli.exceptions import CliCommandException
+
+GITHUB_URL = "https://github.com/"
 
 
 class BaseDeployment(abc.ABC):
@@ -64,6 +72,7 @@ class BaseDeployment(abc.ABC):
 
     def _prepare_deployment(self) -> None:
         self.repo_storage = FileStorage(str(self.repo.working_dir))
+        # make sure the repo has origin
         self.origin = self._get_origin()
         # convert to path relative to repo
         self.repo_pipeline_script_path = self.repo_storage.from_wd_to_relative_path(self.pipeline_script_path)
@@ -117,12 +126,13 @@ class BaseDeployment(abc.ABC):
 
             self._generate_workflow()
             self._echo_instructions()
+            self._make_modification()
 
     def _update_envs(self, trace: PipelineTrace) -> None:
         # add destination name and dataset name to env
         self.envs = [
             # LookupTrace(self.env_prov.name, (), "destination_name", self.state["destination"]),
-            LookupTrace(self.env_prov.name, (), "dataset_name", self.state["dataset_name"])
+            # LookupTrace(self.env_prov.name, (), "dataset_name", self.state["dataset_name"])
         ]
 
         for resolved_value in trace.resolved_config_values:
@@ -158,7 +168,11 @@ class BaseDeployment(abc.ABC):
 
     @abc.abstractmethod
     def _generate_workflow(self, *args: Optional[Any]) -> Optional[Any]:
-        raise NotImplementedError()
+        pass
+
+    @abc.abstractmethod
+    def _make_modification(self) -> None:
+        pass
 
 
 def get_state_and_trace(pipeline: Pipeline) -> Tuple[TPipelineState, PipelineTrace]:
@@ -208,6 +222,99 @@ def parse_pipeline_info(visitor: PipelineScriptVisitor) -> Tuple[Optional[str], 
                     raise CliCommandException("deploy", f"The value of 'pipeline_name' argument in call to `dlt_pipeline` cannot be determined from {unparse(p_d_node).strip()}. Pipeline working dir will be found. Pass it directly with --pipeline-name option.")
 
     return pipeline_name, pipelines_dir
+
+
+def str_representer(dumper: yaml.Dumper, data: str) -> yaml.ScalarNode:
+    # format multiline strings as blocks with the exception of placeholders
+    # that will be expanded as yaml
+    if len(data.splitlines()) > 1 and "{{ toYaml" not in data:  # check for multiline string
+        return dumper.represent_scalar('tag:yaml.org,2002:str', data, style='|')
+    return dumper.represent_scalar('tag:yaml.org,2002:str', data)
+
+
+def wrap_template_str(s: str) -> str:
+    return "${{ %s }}" % s
+
+
+def serialize_templated_yaml(tree: StrAny) -> str:
+    old_representer = Dumper.yaml_representers[str]
+    try:
+        yaml.add_representer(str, str_representer)
+        # pretty serialize yaml
+        serialized: str = yaml.dump(tree, allow_unicode=True, default_flow_style=False, sort_keys=False)
+        # removes apostrophes around the template
+        serialized = re.sub(r"'([\s\n]*?\${{.+?}})'",
+                            r"\1",
+                            serialized,
+                            flags=re.DOTALL)
+        # print(serialized)
+        # fix the new lines in templates ending }}
+        serialized = re.sub(r"(\${{.+)\n.+(}})",
+                            r"\1 \2",
+                            serialized)
+        return serialized
+    finally:
+        yaml.add_representer(str, old_representer)
+
+
+def generate_pip_freeze(requirements_blacklist: List[str], requirements_file_name: str) -> str:
+    pkgs = pipdeptree.get_installed_distributions(local_only=True, user_only=False)
+
+    # construct graph with all packages
+    tree = pipdeptree.PackageDAG.from_pkgs(pkgs)
+    nodes = tree.keys()
+    branch_keys = {r.key for r in chain.from_iterable(tree.values())}
+    # all the top level packages
+    nodes = [p for p in nodes if p.key not in branch_keys]
+
+    # compute excludes to compute includes as set difference
+    excludes = set(req.strip() for req in requirements_blacklist if not req.strip().startswith("#"))
+    includes = [node.project_name for node in nodes if node.project_name not in excludes]
+
+    # prepare new filtered DAG
+    tree = tree.sort()
+    tree = tree.filter(includes, None)
+    nodes = tree.keys()
+    branch_keys = {r.key for r in chain.from_iterable(tree.values())}
+    nodes = [p for p in nodes if p.key not in branch_keys]
+
+    # detect and warn on conflict
+    conflicts = pipdeptree.conflicting_deps(tree)
+    cycles = pipdeptree.cyclic_deps(tree)
+    if conflicts:
+        fmt.warning(f"Unable to create dependencies for the github action. Please edit {requirements_file_name} yourself")
+        pipdeptree.render_conflicts_text(conflicts)
+        pipdeptree.render_cycles_text(cycles)
+        fmt.echo()
+        # do not create package because it will most probably fail
+        return "# please provide valid dependencies including dlt package"
+
+    lines = [node.render(None, False) for node in nodes]
+    return "\n".join(lines)
+
+
+def github_origin_to_url(origin: str, path: str) -> str:
+    # repository origin must end with .git
+    if origin.endswith(".git"):
+        origin = origin[:-4]
+    if origin.startswith("git@github.com:"):
+        origin = origin[15:]
+
+    if not origin.startswith(GITHUB_URL):
+        origin = GITHUB_URL + origin
+    # https://github.com/dlt-hub/data-loading-zoomcamp.git
+    # git@github.com:dlt-hub/data-loading-zoomcamp.git
+
+    # https://github.com/dlt-hub/data-loading-zoomcamp/settings/secrets/actions
+    return origin + path
+
+
+def ask_files_overwrite(files: Sequence[str]) -> None:
+    existing = [file for file in files if os.path.exists(file)]
+    if existing:
+        fmt.echo("Following files will be overwritten: %s" % fmt.bold(str(existing)))
+        if not fmt.confirm("Do you want to continue?", default=False):
+            raise CliCommandException("init", "Aborted")
 
 
 class PipelineWasNotRun(CliCommandException):

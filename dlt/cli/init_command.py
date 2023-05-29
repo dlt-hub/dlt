@@ -13,7 +13,7 @@ from dlt.common.normalizers import default_normalizers, import_normalizers
 from dlt.common.pipeline import get_dlt_repos_dir
 from dlt.common.source import _SOURCES
 from dlt.version import DLT_PKG_NAME, __version__
-from dlt.common.destination.reference import DestinationReference
+from dlt.common.destination import DestinationReference
 from dlt.common.reflection.utils import rewrite_python_script
 from dlt.common.schema.exceptions import InvalidSchemaName
 from dlt.common.storages.file_storage import FileStorage

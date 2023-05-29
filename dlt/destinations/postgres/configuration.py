@@ -4,11 +4,14 @@ from sqlalchemy.engine import URL
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.destination.reference import DestinationClientDwhConfiguration
+from dlt.common.typing import TSecretValue
 
 
 @configspec
 class PostgresCredentials(ConnectionStringCredentials):
     drivername: Final[str] = "postgresql"  # type: ignore
+    password: TSecretValue
+    host: str
     port: int = 5432
     connect_timeout: int = 15
 

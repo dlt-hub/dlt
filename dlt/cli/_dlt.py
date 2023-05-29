@@ -66,11 +66,13 @@ def deploy_command_wrapper(
         return -1
     except InvalidGitRepositoryError:
         click.secho(
-            "No git repository found for pipeline script %s.\nAdd your local code to Github as described here: %s" % (fmt.bold(pipeline_script_path), fmt.bold("https://docs.github.com/en/get-started/importing-your-projects-to-github/importing-source-code-to-github/adding-locally-hosted-code-to-github")),
+            "No git repository found for pipeline script %s." % fmt.bold(pipeline_script_path),
             err=True,
             fg="red"
         )
-        fmt.note("If you do not have a repository yet, the easiest way to proceed is to create one on Github and then clone it here.")
+        fmt.note("If you do not have a repository yet, you can do either of:")
+        fmt.note("- Run the following command to initialize new repository: %s" % fmt.bold("git init"))
+        fmt.note("- Add your local code to Github as described here: %s" % fmt.bold("https://docs.github.com/en/get-started/importing-your-projects-to-github/importing-source-code-to-github/adding-locally-hosted-code-to-github"))
         fmt.note("Please refer to %s for further assistance" % fmt.bold(DLT_DEPLOY_DOCS_URL))
         return -1
     except NoSuchPathError as path_ex:
@@ -83,6 +85,7 @@ def deploy_command_wrapper(
     except Exception as ex:
         click.secho(str(ex), err=True, fg="red")
         fmt.note("Please refer to %s for further assistance" % fmt.bold(DLT_DEPLOY_DOCS_URL))
+        return -1
         # TODO: display stack trace if with debug flag
     return 0
 
@@ -195,7 +198,12 @@ def main() -> int:
 
     deploy_cmd = subparsers.add_parser("deploy", help="Creates a deployment package for a selected pipeline script")
     deploy_cmd.add_argument("pipeline_script_path", metavar="pipeline-script-path", help="Path to a pipeline script")
-    deploy_cmd.add_argument("deployment_method", metavar="deployment-method", choices=[DeploymentMethods.github_actions.value, DeploymentMethods.airflow.value], default=DeploymentMethods.github_actions.value, help="Deployment method")
+    deploy_cmd.add_argument(
+        "deployment_method",
+        metavar="deployment-method",
+        choices=list(map(lambda value: value.value, DeploymentMethods.__members__.values())),
+        default=DeploymentMethods.github_actions.value,
+        help="Deployment method: %s" % ", ".join(map(lambda value: value.value, DeploymentMethods.__members__.values())))
     deploy_cmd.add_argument("--schedule", required=False, help="A schedule with which to run the pipeline, in cron format. Example: '*/30 * * * *' will run the pipeline every 30 minutes.")
     deploy_cmd.add_argument("--run-manually", default=True, action="store_true", help="Allows the pipeline to be run manually form Github Actions UI.")
     deploy_cmd.add_argument("--run-on-push", default=False, action="store_true", help="Runs the pipeline with every push to the repository.")
