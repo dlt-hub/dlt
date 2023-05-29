@@ -75,4 +75,4 @@ Here are some example projects:
 - [Is DuckDB a database for ducks? Using DuckDB to explore the DuckDB open source community](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing)
 - [Using DuckDB to explore the Rasa open source community](https://colab.research.google.com/drive/1c9HrNwRi8H36ScSn47m3rDqwj5O0obMk?usp=sharing)
 - MRR and churn calculations on Stripe data
-- Please open a PR to add projects that use `dlt`here!
+- Please open a PR to add projects that use `dlt` here!
