@@ -1,0 +1,9 @@
+[runtime]
+sentry_dsn="https://6f6f7b6f8e0f458a89be4187603b55fe@o1061158.ingest.sentry.io/4504819859914752"
+
+[tests]
+bucket_url_gcs="gs://ci-test-bucket"
+bucket_url_aws="s3://dlt-ci-test-bucket"
+bucket_url_file="file://_storage"
+memory="memory://m"
+# gdrive_url="gdrive://dlt-ci-tests"

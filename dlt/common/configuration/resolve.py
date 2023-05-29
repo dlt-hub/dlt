@@ -10,7 +10,9 @@ from dlt.common.configuration.specs.config_section_context import ConfigSectionC
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
 from dlt.common.configuration.utils import log_traces, deserialize_value
-from dlt.common.configuration.exceptions import (FinalConfigFieldException, LookupTrace, ConfigFieldMissingException, ConfigurationWrongTypeException, ValueNotSecretException, InvalidNativeValue)
+from dlt.common.configuration.exceptions import (
+    FinalConfigFieldException, LookupTrace, ConfigFieldMissingException, ConfigurationWrongTypeException,
+    ValueNotSecretException, InvalidNativeValue, UnmatchedConfigHintResolversException)
 
 TConfiguration = TypeVar("TConfiguration", bound=BaseConfiguration)
 
@@ -117,6 +119,9 @@ def _resolve_config_fields(
     unresolved_fields: Dict[str, Sequence[LookupTrace]] = {}
 
     for key, hint in fields.items():
+        if key in config.__hint_resolvers__:
+            # Type hint for this field is created dynamically
+            hint = config.__hint_resolvers__[key](config)
         # get default and explicit values
         default_value = getattr(config, key, None)
         traces: List[LookupTrace] = []
@@ -163,6 +168,15 @@ def _resolve_config_fields(
             if is_final_type(hint):
                 raise FinalConfigFieldException(type(config).__name__, key)
             setattr(config, key, current_value)
+
+    # Check for dynamic hint resolvers which have no corresponding fields
+    unmatched_hint_resolvers: List[str] = []
+    for field_name in config.__hint_resolvers__:
+        if field_name not in fields:
+            unmatched_hint_resolvers.append(field_name)
+
+    if unmatched_hint_resolvers:
+        raise UnmatchedConfigHintResolversException(type(config).__name__, unmatched_hint_resolvers)
 
     if unresolved_fields:
         raise ConfigFieldMissingException(type(config).__name__, unresolved_fields)

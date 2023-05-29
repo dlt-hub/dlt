@@ -22,10 +22,15 @@ from tests.utils import patch_random_home_dir, start_test_telemetry, test_storag
 def test_main_telemetry_command(test_storage: FileStorage) -> None:
     # home dir is patched to TEST_STORAGE, create project dir
     test_storage.create_folder("project")
+
     # inject provider context so the original providers are restored at the end
+    def _initial_providers():
+        return [ConfigTomlProvider(add_global_config=True)]
+
     glob_ctx = ConfigProvidersContext()
-    glob_ctx.providers = [ConfigTomlProvider(add_global_config=True)]
-    with set_working_dir(test_storage.make_full_path("project")), Container().injectable_context(glob_ctx):
+    glob_ctx.providers = _initial_providers()
+
+    with set_working_dir(test_storage.make_full_path("project")), Container().injectable_context(glob_ctx), patch("dlt.common.configuration.specs.config_providers_context.ConfigProvidersContext.initial_providers", _initial_providers):
         # no config files: status is ON
         with io.StringIO() as buf, contextlib.redirect_stdout(buf):
             telemetry_status_command()

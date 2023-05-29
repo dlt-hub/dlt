@@ -2,18 +2,11 @@ import os
 import pytest
 from typing import List
 from airflow import DAG
-from airflow.decorators import task, dag
+from airflow.decorators import dag
 from airflow.operators.python import PythonOperator
-from airflow.models.variable import Variable
-from airflow.models.taskinstance import TaskInstance
-from airflow.utils.state import State, DagRunState
-from airflow.utils.types import DagRunType
 
 import dlt
 from dlt.common import pendulum
-from dlt.common.configuration.container import Container
-from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
-from dlt.common.configuration.providers.airflow import AIRFLOW_SECRETS_TOML_VARIABLE_KEY
 from dlt.common.utils import uniq_id
 from dlt.helpers.airflow_helper import PipelineTasksGroup, DEFAULT_RETRY_BACKOFF
 from dlt.pipeline.exceptions import CannotRestorePipelineException, PipelineStepFailed

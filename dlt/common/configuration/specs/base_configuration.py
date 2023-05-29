@@ -2,7 +2,8 @@ import inspect
 import contextlib
 import dataclasses
 from collections.abc import Mapping as C_Mapping
-from typing import Callable, List, Optional, Union, Any, Dict, Iterator, MutableMapping, Type, TYPE_CHECKING, get_args, get_origin, overload, ClassVar
+from typing import Callable, List, Optional, Union, Any, Dict, Iterator, MutableMapping, Type, TYPE_CHECKING, get_args, get_origin, overload, ClassVar, TypeVar
+from functools import wraps
 
 if TYPE_CHECKING:
     TDtcField = dataclasses.Field[Any]
@@ -97,6 +98,7 @@ def configspec(cls: Optional[Type[Any]] = None, /, *, init: bool = False) -> Uni
 
     """
     def wrap(cls: Type[TAnyClass]) -> Type[TAnyClass]:
+        cls.__hint_resolvers__ = {}  # type: ignore[attr-defined]
         is_context = issubclass(cls, _F_ContainerInjectableContext)
         # if type does not derive from BaseConfiguration then derive it
         with contextlib.suppress(NameError):
@@ -111,7 +113,11 @@ def configspec(cls: Optional[Type[Any]] = None, /, *, init: bool = False) -> Uni
         # get all attributes without corresponding annotations
         for att_name, att_value in cls.__dict__.items():
             # skip callables, dunder names, class variables and some special names
-            if not callable(att_value) and not att_name.startswith(("__", "_abc_impl")) and not isinstance(att_value, (staticmethod, classmethod, property)):
+            if callable(att_value):
+                if hint_field_name := getattr(att_value, "__hint_for_field__", None):
+                    cls.__hint_resolvers__[hint_field_name] = att_value  # type: ignore[attr-defined]
+                continue
+            if not att_name.startswith(("__", "_abc_impl")) and not isinstance(att_value, (staticmethod, classmethod, property)):
                 if att_name not in cls.__annotations__:
                     raise ConfigFieldMissingTypeHintException(att_name, cls)
                 hint = cls.__annotations__[att_name]
@@ -128,6 +134,7 @@ def configspec(cls: Optional[Type[Any]] = None, /, *, init: bool = False) -> Uni
     return wrap(cls)
 
 
+
 @configspec
 class BaseConfiguration(MutableMapping[str, Any]):
 
@@ -141,6 +148,7 @@ class BaseConfiguration(MutableMapping[str, Any]):
     """Additional annotations for config generator, currently holds a list of fields of interest that have defaults"""
     __dataclass_fields__: ClassVar[Dict[str, TDtcField]]
     """Typing for dataclass fields"""
+    __hint_resolvers__: ClassVar[Dict[str, Callable[["BaseConfiguration"], Type[Any]]]] = {}
 
     def parse_native_representation(self, native_value: Any) -> None:
         """Initialize the configuration fields by parsing the `native_value` which should be a native representation of the configuration
@@ -169,7 +177,12 @@ class BaseConfiguration(MutableMapping[str, Any]):
     @classmethod
     def get_resolvable_fields(cls) -> Dict[str, type]:
         """Returns a mapping of fields to their type hints. Dunders should not be resolved and are not returned"""
-        return {f.name:f.type for f in cls.__dataclass_fields__.values() if not f.name.startswith("__")}
+        # Sort dynamic type hint fields last because they depend on other values
+        fields = sorted(
+            (f for f in cls.__dataclass_fields__.values() if not f.name.startswith("__")),
+            key=lambda f: f.name in cls.__hint_resolvers__
+        )
+        return {f.name: f.type for f in fields}
 
     def is_resolved(self) -> bool:
         return self.__is_resolved__
@@ -309,3 +322,16 @@ class ContainerInjectableContext(BaseConfiguration):
 
 
 _F_ContainerInjectableContext = ContainerInjectableContext
+
+
+TSpec = TypeVar("TSpec", bound=BaseConfiguration)
+THintResolver = Callable[[TSpec], Type[Any]]
+
+def resolve_type(field_name: str) -> Callable[[THintResolver[TSpec]], THintResolver[TSpec]]:
+    def decorator(func: THintResolver[TSpec]) -> THintResolver[TSpec]:
+        func.__hint_for_field__ = field_name  # type: ignore[attr-defined]
+        @wraps(func)
+        def wrapper(self: TSpec) -> Type[Any]:
+            return func(self)
+        return wrapper
+    return decorator

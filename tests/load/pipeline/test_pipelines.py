@@ -1,6 +1,6 @@
 from copy import deepcopy
 import os
-from typing import Any, Callable, Iterator, Tuple
+from typing import Any, Callable, Iterator, Tuple, Optional
 import pytest
 import itertools
 
@@ -23,8 +23,8 @@ from tests.load.utils import delete_dataset
 from tests.load.pipeline.utils import drop_pipeline, assert_query_data, assert_table, load_table_counts, select_data
 
 
-@pytest.mark.parametrize('destination_name,use_single_dataset', itertools.product(ALL_DESTINATIONS, [True, False]))
-def test_default_pipeline_names(destination_name: str, use_single_dataset: bool) -> None:
+@pytest.mark.parametrize('use_single_dataset', [True, False])
+def test_default_pipeline_names(use_single_dataset: bool, any_destination: str) -> None:
     p = dlt.pipeline()
     p.config.use_single_dataset = use_single_dataset
     # this is a name of executing test harness or blank pipeline on windows
@@ -59,7 +59,7 @@ def test_default_pipeline_names(destination_name: str, use_single_dataset: bool)
 
     # mock the correct destinations (never do that in normal code)
     with p.managed_state():
-        p.destination = DestinationReference.from_name(destination_name)
+        p.destination = DestinationReference.from_name(any_destination)
     p.normalize()
     info = p.load(dataset_name="d" + uniq_id())
     assert info.pipeline is p
@@ -82,12 +82,11 @@ def test_default_duckdb_dataset_name() -> None:
     assert_table(info.pipeline, "data", data, info=info)
 
 
-@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
-def test_default_schema_name(destination_name: str) -> None:
+def test_default_schema_name(any_destination: str) -> None:
     dataset_name = "dataset_" + uniq_id()
     data = ["a", "b", "c"]
 
-    p = dlt.pipeline("test_default_schema_name", TEST_STORAGE_ROOT, destination=destination_name, dataset_name=dataset_name)
+    p = dlt.pipeline("test_default_schema_name", TEST_STORAGE_ROOT, destination=any_destination, dataset_name=dataset_name)
     p.extract(data, table_name="test", schema=Schema("default"))
     p.normalize()
     info = p.load()
@@ -100,8 +99,7 @@ def test_default_schema_name(destination_name: str) -> None:
     assert_table(p, "test", data, info=info)
 
 
-@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
-def test_attach_pipeline(destination_name: str) -> None:
+def test_attach_pipeline(any_destination: str) -> None:
     # load data and then restore the pipeline and see if data is still there
     data = ["a", "b", "c"]
 
@@ -110,7 +108,7 @@ def test_attach_pipeline(destination_name: str) -> None:
         for d in data:
             yield d
 
-    info = dlt.run(_data(), destination=destination_name, dataset_name="specific" + uniq_id())
+    info = dlt.run(_data(), destination=any_destination, dataset_name="specific" + uniq_id())
 
     with pytest.raises(CannotRestorePipelineException):
         dlt.attach("unknown")
@@ -160,9 +158,7 @@ def test_skip_sync_schema_for_tables_without_columns(destination_name: str) -> N
         assert not exists
 
 
-@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
-def test_run_full_refresh(destination_name: str) -> None:
-
+def test_run_full_refresh(any_destination: str) -> None:
     data = ["a", ["a", "b", "c"], ["a", "b", "c"]]
 
     def d():
@@ -173,7 +169,7 @@ def test_run_full_refresh(destination_name: str) -> None:
         return dlt.resource(d(), name="lists", write_disposition="replace")
 
     p = dlt.pipeline(full_refresh=True)
-    info = p.run(_data(), destination=destination_name, dataset_name="iteration" + uniq_id())
+    info = p.run(_data(), destination=any_destination, dataset_name="iteration" + uniq_id())
     assert info.dataset_name == p.dataset_name
     assert info.dataset_name.endswith(p._pipeline_instance_id)
     # print(p.default_schema.to_pretty_yaml())

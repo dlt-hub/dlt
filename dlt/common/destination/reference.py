@@ -21,6 +21,10 @@ class DestinationClientConfiguration(BaseConfiguration):
     destination_name: str = None  # which destination to load data to
     credentials: Optional[CredentialsConfiguration]
 
+    def __str__(self) -> str:
+        """Return displayable destination location"""
+        return str(self.credentials)
+
     if TYPE_CHECKING:
         def __init__(self, destination_name: str = None, credentials: Optional[CredentialsConfiguration] = None) -> None:
             ...
@@ -140,7 +144,7 @@ class JobClientBase(ABC):
         return expected_update
 
     @abstractmethod
-    def start_file_load(self, table: TTableSchema, file_path: str) -> LoadJob:
+    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         """Creates a job for a particular `table` with content in `file_path`"""
         pass
 

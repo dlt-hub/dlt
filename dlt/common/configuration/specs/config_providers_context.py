@@ -65,12 +65,16 @@ class ConfigProvidersContext(ContainerInjectableContext):
 
     @staticmethod
     def initial_providers() -> List[ConfigProvider]:
-        providers = [
-            EnvironProvider(),
-            SecretsTomlProvider(add_global_config=True),
-            ConfigTomlProvider(add_global_config=True)
-        ]
-        return providers
+        return _initial_providers()
+
+
+def _initial_providers() -> List[ConfigProvider]:
+    providers = [
+        EnvironProvider(),
+        SecretsTomlProvider(add_global_config=True),
+        ConfigTomlProvider(add_global_config=True)
+    ]
+    return providers
 
 
 def _extra_providers() -> List[ConfigProvider]:
@@ -105,25 +109,17 @@ def _airflow_providers() -> List[ConfigProvider]:
     """
     if not is_airflow_installed():
         return []
+    from dlt.common.configuration.providers.toml import SECRETS_TOML_KEY
 
     # hide stdio. airflow typically dumps tons of warnings and deprecations to stdout and stderr
     with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
         from airflow.models import Variable # noqa
+        from dlt.common.configuration.providers.airflow import AirflowSecretsTomlProvider
 
-        from dlt.common.configuration.providers.airflow import (
-            AirflowSecretsTomlProvider,
-            AIRFLOW_SECRETS_TOML_VARIABLE_KEY
-        )
+        secrets_toml_var = Variable.get(SECRETS_TOML_KEY, default_var=None)
 
-        secrets_toml_var = Variable.get(
-            AIRFLOW_SECRETS_TOML_VARIABLE_KEY,
-            default_var=None
-        )
-
-    if secrets_toml_var is not None:
-        return [AirflowSecretsTomlProvider()]
-    else:
-        message = f"Airflow variable '{AIRFLOW_SECRETS_TOML_VARIABLE_KEY}' not found. AirflowSecretsTomlProvider will not be used."
+    if secrets_toml_var is None:
+        message = f"Airflow variable '{SECRETS_TOML_KEY}' not found. AirflowSecretsTomlProvider will not be used."
         try:
             # prefer logging to task logger
             from airflow.operators.python import get_current_context  # noqa
@@ -137,4 +133,5 @@ def _airflow_providers() -> List[ConfigProvider]:
                 logger.warning(message)
             else:
                 print(message)
-        return []
+
+    return [AirflowSecretsTomlProvider()]

@@ -1,20 +1,26 @@
 import pytest
 import datetime  # noqa: I251
 from unittest.mock import patch
-from typing import Any, Dict, Final, List, Mapping, MutableMapping, NewType, Optional, Sequence, Type, Union
+from typing import Any, Dict, Final, List, Mapping, MutableMapping, NewType, Optional, Sequence, Type, Union, Literal
 
 from dlt.common import json, pendulum, Decimal, Wei
+from dlt.common.configuration.providers.provider import ConfigProvider
 from dlt.common.configuration.specs.gcp_credentials import GcpServiceAccountCredentialsWithoutDefaults
 from dlt.common.utils import custom_environ
 from dlt.common.typing import AnyType, DictStrAny, StrAny, TSecretValue, extract_inner_type
-from dlt.common.configuration.exceptions import ConfigFieldMissingTypeHintException, ConfigFieldTypeHintNotSupported, FinalConfigFieldException, InvalidNativeValue, LookupTrace, ValueNotSecretException
-from dlt.common.configuration import configspec, ConfigFieldMissingException, ConfigValueCannotBeCoercedException, resolve, is_valid_hint
+from dlt.common.configuration.exceptions import (
+    ConfigFieldMissingTypeHintException, ConfigFieldTypeHintNotSupported, FinalConfigFieldException,
+    InvalidNativeValue, LookupTrace, ValueNotSecretException, UnmatchedConfigHintResolversException
+)
+from dlt.common.configuration import configspec, ConfigFieldMissingException, ConfigValueCannotBeCoercedException, resolve, is_valid_hint, resolve_type
 from dlt.common.configuration.specs import BaseConfiguration, RunConfiguration, ConnectionStringCredentials
 from dlt.common.configuration.providers import environ as environ_provider, toml
 from dlt.common.configuration.utils import get_resolved_traces, ResolvedValueTrace, serialize_value, deserialize_value, add_config_dict_to_env
 
 from tests.utils import preserve_environ
-from tests.common.configuration.utils import MockProvider, CoercionTestConfiguration, COERCIONS, SecretCredentials, WithCredentialsConfiguration, WrongConfiguration, SecretConfiguration, SectionedConfiguration, environment, mock_provider, reset_resolved_traces
+from tests.common.configuration.utils import (
+    MockProvider, CoercionTestConfiguration, COERCIONS, SecretCredentials, WithCredentialsConfiguration, WrongConfiguration, SecretConfiguration,
+    SectionedConfiguration, environment, mock_provider, env_provider, reset_resolved_traces)
 
 INVALID_COERCIONS = {
     # 'STR_VAL': 'test string',  # string always OK
@@ -122,6 +128,68 @@ class NonTemplatedComplexTypesConfiguration(BaseConfiguration):
     list_val: list
     tuple_val: tuple
     dict_val: dict
+
+
+@configspec(init=True)
+class DynamicConfigA(BaseConfiguration):
+    field_for_a: str
+
+
+@configspec(init=True)
+class DynamicConfigB(BaseConfiguration):
+    field_for_b: str
+
+
+@configspec(init=True)
+class DynamicConfigC(BaseConfiguration):
+    field_for_c: str
+
+
+@configspec(init=True)
+class ConfigWithDynamicType(BaseConfiguration):
+    discriminator: str
+    embedded_config: BaseConfiguration
+
+    @resolve_type('embedded_config')
+    def resolve_embedded_type(self) -> Type[BaseConfiguration]:
+        if self.discriminator == 'a':
+            return DynamicConfigA
+        elif self.discriminator == 'b':
+            return DynamicConfigB
+        return BaseConfiguration
+
+
+@configspec(init=True)
+class ConfigWithInvalidDynamicType(BaseConfiguration):
+    @resolve_type('a')
+    def resolve_a_type(self) -> Type[BaseConfiguration]:
+        return DynamicConfigA
+
+    @resolve_type('b')
+    def resolve_b_type(self) -> Type[BaseConfiguration]:
+        return DynamicConfigB
+
+    @resolve_type('c')
+    def resolve_c_type(self) -> Type[BaseConfiguration]:
+        return DynamicConfigC
+
+
+@configspec(init=True)
+class SubclassConfigWithDynamicType(ConfigWithDynamicType):
+    is_number: bool
+    dynamic_type_field: Any
+
+    @resolve_type('embedded_config')
+    def resolve_embedded_type(self) -> Type[BaseConfiguration]:
+        if self.discriminator == 'c':
+            return DynamicConfigC
+        return super().resolve_embedded_type()
+
+    @resolve_type('dynamic_type_field')
+    def resolve_dynamic_type_field(self) -> Type[Union[int, str]]:
+        if self.is_number:
+            return int
+        return str
 
 
 LongInteger = NewType("LongInteger", int)
@@ -357,7 +425,7 @@ def test_run_configuration_gen_name(environment: Any) -> None:
     assert C.pipeline_name.startswith("dlt_")
 
 
-def test_configuration_is_mutable_mapping(environment: Any) -> None:
+def test_configuration_is_mutable_mapping(environment: Any, env_provider: ConfigProvider) -> None:
 
     @configspec
     class _SecretCredentials(RunConfiguration):
@@ -460,7 +528,7 @@ def test_multi_derivation_defaults(environment: Any) -> None:
     assert C.__section__ == "DLT_TEST"
 
 
-def test_raises_on_unresolved_field(environment: Any) -> None:
+def test_raises_on_unresolved_field(environment: Any, env_provider: ConfigProvider) -> None:
     # via make configuration
     with pytest.raises(ConfigFieldMissingException) as cf_missing_exc:
         resolve.resolve_configuration(WrongConfiguration())
@@ -475,7 +543,7 @@ def test_raises_on_unresolved_field(environment: Any) -> None:
     # assert trace[2] == LookupTrace("config.toml", [], "NoneConfigVar", None)
 
 
-def test_raises_on_many_unresolved_fields(environment: Any) -> None:
+def test_raises_on_many_unresolved_fields(environment: Any, env_provider: ConfigProvider) -> None:
     # via make configuration
     with pytest.raises(ConfigFieldMissingException) as cf_missing_exc:
         resolve.resolve_configuration(CoercionTestConfiguration())
@@ -854,3 +922,60 @@ def test_is_secret_hint_custom_type() -> None:
 def coerce_single_value(key: str, value: str, hint: Type[Any]) -> Any:
     hint = extract_inner_type(hint)
     return resolve.deserialize_value(key, value, hint)
+
+
+def test_dynamic_type_hint(environment: Dict[str, str]) -> None:
+    """Test dynamic type hint using @resolve_type decorator
+    """
+    environment['DUMMY__DISCRIMINATOR'] = 'b'
+    environment['DUMMY__EMBEDDED_CONFIG__FIELD_FOR_B'] = 'some_value'
+
+    config = resolve.resolve_configuration(ConfigWithDynamicType(), sections=('dummy', ))
+
+    assert isinstance(config.embedded_config, DynamicConfigB)
+    assert config.embedded_config.field_for_b == 'some_value'
+
+
+def test_dynamic_type_hint_subclass(environment: Dict[str, str]) -> None:
+    """Test overriding @resolve_type method in subclass
+    """
+    environment['DUMMY__IS_NUMBER'] = 'true'
+    environment['DUMMY__DYNAMIC_TYPE_FIELD'] = '22'
+
+    # Test extended resolver method is applied
+    environment['DUMMY__DISCRIMINATOR'] = 'c'
+    environment['DUMMY__EMBEDDED_CONFIG__FIELD_FOR_C'] = 'some_value'
+
+    config = resolve.resolve_configuration(SubclassConfigWithDynamicType(), sections=('dummy', ))
+
+    assert isinstance(config.embedded_config, DynamicConfigC)
+    assert config.embedded_config.field_for_c == 'some_value'
+
+    # Test super() call is applied correctly
+    environment['DUMMY__DISCRIMINATOR'] = 'b'
+    environment['DUMMY__EMBEDDED_CONFIG__FIELD_FOR_B'] = 'some_value'
+
+    config = resolve.resolve_configuration(SubclassConfigWithDynamicType(), sections=('dummy', ))
+
+    assert isinstance(config.embedded_config, DynamicConfigB)
+    assert config.embedded_config.field_for_b == 'some_value'
+
+    # Test second dynamic field added in subclass
+    environment['DUMMY__IS_NUMBER'] = 'true'
+    environment['DUMMY__DYNAMIC_TYPE_FIELD'] = 'some'
+
+    with pytest.raises(ConfigValueCannotBeCoercedException) as e:
+        config = resolve.resolve_configuration(SubclassConfigWithDynamicType(), sections=('dummy', ))
+
+    assert e.value.field_name == 'dynamic_type_field'
+    assert e.value.hint == int
+
+
+def test_unmatched_dynamic_hint_resolvers(environment: Dict[str, str]) -> None:
+    with pytest.raises(UnmatchedConfigHintResolversException) as e:
+        resolve.resolve_configuration(ConfigWithInvalidDynamicType())
+
+    print(e.value)
+
+    assert set(e.value.field_names) == {"a", "b", "c"}
+    assert e.value.spec_name == ConfigWithInvalidDynamicType.__name__
