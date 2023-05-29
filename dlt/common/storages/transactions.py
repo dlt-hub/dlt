@@ -67,17 +67,39 @@ class TransactionalFile:
             path: The path to lock.
             fs: The fsspec file system.
         """
-        self.path = os.path.normpath(path)
-        self.lock_prefix = f"{self.path}.lock"
-        self.lock_path = f"{self.lock_prefix}.{lock_id()}"
-
         proto = fs.protocol[0] if isinstance(fs.protocol, (list, tuple)) else fs.protocol
         self.extract_mtime = self._mtime_dispatch.get(proto, self._mtime_dispatch["file"])
+
+        if proto == "file":
+            self.path = self._ospath(path)
+        else:
+            self.path = self._normpath(path)
+
+        self.lock_prefix = f"{self.path}.lock"
+        self.lock_path = f"{self.lock_prefix}.{lock_id()}"
 
         self._fs = fs
         self._original_contents: t.Optional[bytes] = None
         self._is_locked = False
         self._heartbeat: t.Optional[Heartbeat] = None
+
+    @staticmethod
+    def _normpath(path: str) -> str:
+        """Normalize a path to use forward slashes.
+
+        Args:
+            path: The path to normalize.
+        """
+        return os.path.normpath(path).replace("\\", "/")
+
+    @staticmethod
+    def _ospath(path: str) -> str:
+        """Normalize a path to use the OS separator.
+
+        Args:
+            path: The path to normalize.
+        """
+        return os.path.normpath(path).replace("/", os.sep)
 
     def _start_heartbeat(self) -> Heartbeat:
         """Create a thread that will periodically update the mtime."""
