@@ -20,18 +20,19 @@ from dlt.reflection.script_visitor import PipelineScriptVisitor
 from dlt.cli.exceptions import CliCommandException
 
 
-COMMAND_REPO_LOCATION = "https://github.com/dlt-hub/python-dlt-%s-template.git"
 REQUIREMENTS_TXT = "requirements.txt"
 PYPROJECT_TOML = "pyproject.toml"
 GITHUB_WORKFLOWS_DIR = os.path.join(".github", "workflows")
+AIRFLOW_DAGS_FOLDER = os.path.join("dags")
+AIRFLOW_BUILD_FOLDER = os.path.join("build")
 LOCAL_COMMAND_REPO_FOLDER = "repos"
 MODULE_INIT = "__init__.py"
 
 
-def clone_command_repo(command: str, branch: str) -> FileStorage:
+def clone_command_repo(repo_location: str, branch: str) -> FileStorage:
     template_dir = tempfile.mkdtemp()
     # TODO: handle ImportError (no git command available) gracefully
-    with git.clone_repo(COMMAND_REPO_LOCATION % command, template_dir, branch=branch):
+    with git.clone_repo(repo_location, template_dir, branch=branch):
         return FileStorage(template_dir)
 
 

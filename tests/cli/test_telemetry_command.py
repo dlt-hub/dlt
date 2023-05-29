@@ -126,7 +126,7 @@ def test_command_instrumentation() -> None:
 
 
 def test_instrumentation_wrappers() -> None:
-    from dlt.cli._dlt import init_command_wrapper, list_pipelines_command_wrapper, DEFAULT_PIPELINES_REPO, pipeline_command_wrapper, deploy_command_wrapper
+    from dlt.cli._dlt import init_command_wrapper, list_pipelines_command_wrapper, DEFAULT_PIPELINES_REPO, pipeline_command_wrapper, deploy_command_wrapper, COMMAND_DEPLOY_REPO_LOCATION, DeploymentMethods
     from dlt.common.exceptions import UnknownDestinationModule
 
     with patch("dlt.common.runtime.segment.before_send", _mock_before_send):
@@ -153,10 +153,10 @@ def test_instrumentation_wrappers() -> None:
         # assert msg["properties"]["operation"] == "list"
 
         SENT_ITEMS.clear()
-        deploy_command_wrapper("list.py", "github-actions", "* * * * *", False, False, None)
+        deploy_command_wrapper("list.py", DeploymentMethods.github_actions.value, "* * * * *", False, False, COMMAND_DEPLOY_REPO_LOCATION, None)
         msg = SENT_ITEMS[0]
         assert msg["event"] == "command_deploy"
-        assert msg["properties"]["deployment_method"] == "github-actions"
+        assert msg["properties"]["deployment_method"] == DeploymentMethods.github_actions.value
         assert msg["properties"]["success"] is False
 
 

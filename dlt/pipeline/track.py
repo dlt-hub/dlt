@@ -11,6 +11,7 @@ from dlt.common.runtime.exec_info import github_info
 from dlt.common.runtime.segment import track as dlthub_telemetry_track
 from dlt.common.runtime.slack import send_slack_message
 from dlt.common.pipeline import LoadInfo, SupportsPipeline
+from dlt.common.destination import DestinationReference
 
 from dlt.pipeline.typing import TPipelineStep
 from dlt.pipeline.trace import PipelineTrace, PipelineStepTrace
@@ -82,7 +83,7 @@ def on_end_trace_step(trace: PipelineTrace, step: PipelineStepTrace, pipeline: S
     dlthub_telemetry_track("pipeline", step.step, {
         "elapsed": (step.finished_at - trace.started_at).total_seconds(),
         "success": step.step_exception is None,
-        "destination_name": pipeline.destination.__name__.split(".")[-1] if pipeline.destination else None,
+        "destination_name": DestinationReference.to_name(pipeline.destination) if pipeline.destination else None,
         "transaction_id": trace.transaction_id
     })
 

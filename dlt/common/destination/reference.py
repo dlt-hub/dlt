@@ -14,6 +14,7 @@ from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.schema.utils import is_complete_column
 from dlt.common.storages import FileStorage
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
+from dlt.common.utils import get_module_name
 
 
 @configspec(init=True)
@@ -253,3 +254,9 @@ class DestinationReference(Protocol):
             raise InvalidDestinationReference(destination)
 
         return destination_ref
+
+    @staticmethod
+    def to_name(destination: TDestinationReferenceArg) -> str:
+        if isinstance(destination, ModuleType):
+            return get_module_name(destination)
+        return destination.split(".")[-1]  # type: ignore
