@@ -75,6 +75,7 @@ def test_duckdb_database_path() -> None:
     c.credentials.return_conn(conn)
     assert os.path.isfile(db_path)
     assert p.get_local_state_val("duckdb_database").lower() == db_path.lower()
+    p = p.drop()
 
     # provide relative path
     db_path = "_storage/test_quack.duckdb"
@@ -83,6 +84,7 @@ def test_duckdb_database_path() -> None:
     conn = c.credentials.borrow_conn(read_only=False)
     c.credentials.return_conn(conn)
     assert os.path.isfile(db_path)
+    p = p.drop()
 
     # provide absolute path
     db_path = os.path.abspath("_storage/abs_test_quack.duckdb")
@@ -92,6 +94,7 @@ def test_duckdb_database_path() -> None:
     conn = c.credentials.borrow_conn(read_only=False)
     c.credentials.return_conn(conn)
     assert os.path.isfile(db_path)
+    p = p.drop()
 
     # set just path as credentials
     db_path = "_storage/path_test_quack.duckdb"
@@ -100,6 +103,7 @@ def test_duckdb_database_path() -> None:
     conn = c.credentials.borrow_conn(read_only=False)
     c.credentials.return_conn(conn)
     assert os.path.isfile(db_path)
+    p = p.drop()
 
     db_path = os.path.abspath("_storage/abs_path_test_quack.duckdb")
     c = resolve_configuration(DuckDbClientConfiguration(dataset_name="test_dataset", credentials=db_path))
@@ -108,6 +112,7 @@ def test_duckdb_database_path() -> None:
     conn = c.credentials.borrow_conn(read_only=False)
     c.credentials.return_conn(conn)
     assert os.path.isfile(db_path)
+    p = p.drop()
 
     # invalid path
     import duckdb

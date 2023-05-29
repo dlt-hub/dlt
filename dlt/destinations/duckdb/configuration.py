@@ -87,10 +87,15 @@ class DuckDbCredentials(ConnectionStringCredentials):
         is_default_path = False
         if self.database == ":pipeline:":
             self.database = self._path_in_pipeline(DEFAULT_DUCK_DB_NAME)
-        # if pipeline context was not present or database was not set
-        if not self.database:
-            # create database locally
-            self.database, is_default_path = self._path_from_pipeline(DEFAULT_DUCK_DB_NAME)
+        else:
+            # maybe get database
+            maybe_database, maybe_is_default_path = self._path_from_pipeline(DEFAULT_DUCK_DB_NAME)
+            # if pipeline context was not present or database was not set
+            if not self.database or not maybe_is_default_path:
+                # create database locally
+                is_default_path = maybe_is_default_path
+                self.database = maybe_database
+
         # always make database an abs path
         self.database = os.path.abspath(self.database)
         # do not save the default path into pipeline's local state

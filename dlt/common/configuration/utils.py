@@ -114,12 +114,12 @@ def auto_cast(value: str) -> Any:
 def log_traces(config: Optional[BaseConfiguration], key: str, hint: Type[Any], value: Any, default_value: Any, traces: Sequence[LookupTrace]) -> None:
     from dlt.common import logger
 
-    if logger.is_logging() and logger.log_level() == "DEBUG" and config:
-        logger.debug(f"Field {key} with type {hint} in {type(config).__name__} {'NOT RESOLVED' if value is None else 'RESOLVED'}")
+    # if logger.is_logging() and logger.log_level() == "DEBUG" and config:
+    #     logger.debug(f"Field {key} with type {hint} in {type(config).__name__} {'NOT RESOLVED' if value is None else 'RESOLVED'}")
         # print(f"Field {key} with type {hint} in {type(config).__name__} {'NOT RESOLVED' if value is None else 'RESOLVED'}")
-        for tr in traces:
-            # print(str(tr))
-            logger.debug(str(tr))
+        # for tr in traces:
+        #     # print(str(tr))
+        #     logger.debug(str(tr))
     # store all traces with resolved values
     resolved_trace = next((trace for trace in traces if trace.value is not None), None)
     if resolved_trace is not None:

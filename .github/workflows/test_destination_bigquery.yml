@@ -70,17 +70,17 @@ jobs:
 
       - name: Install dependencies
         # if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction -E bigquery
+        run: poetry install --no-interaction -E bigquery --with providers
 
       # - name: Install self
       #   run: poetry install --no-interaction
 
       - run: |
-          poetry run pytest tests/load --ignore=tests/load/redshift --ignore=tests/load/postgres --ignore=tests/load/duckdb --ignore=tests/load/filesystem -k '(not redshift and not postgres and not duckdb and not filesystem)'
+          poetry run pytest tests/helpers/providers tests/load --ignore=tests/load/redshift --ignore=tests/load/postgres --ignore=tests/load/duckdb --ignore=tests/load/filesystem -k '(not redshift and not postgres and not duckdb and not filesystem)'
         if: runner.os != 'Windows'
         name: Run tests Linux/MAC
       - run: |
-          poetry run pytest tests/load --ignore=tests/load/redshift --ignore=tests/load/postgres --ignore=tests/load/duckdb --ignore=tests/load/filesystem -m "not forked" -k "(not redshift and not postgres and not duckdb and not filesystem)"
+          poetry run pytest tests/helpers/providers tests/load --ignore=tests/load/redshift --ignore=tests/load/postgres --ignore=tests/load/duckdb --ignore=tests/load/filesystem -m "not forked" -k "(not redshift and not postgres and not duckdb and not filesystem)"
         if: runner.os == 'Windows'
         name: Run tests Windows
         shell: cmd

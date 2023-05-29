@@ -7,7 +7,7 @@ from dlt.common.storages.load_storage import LoadJobInfo
 from dlt.destinations.filesystem.filesystem import FilesystemClient, LoadFilesystemJob
 from dlt.common.schema.typing import LOADS_TABLE_NAME
 
-from tests.utils import clean_test_storage, init_test_logging, preserve_environ
+from tests.utils import autouse_test_storage, init_test_logging, preserve_environ, patch_home_dir
 from tests.load.pipeline.utils import drop_pipeline
 
 
@@ -76,3 +76,10 @@ def test_pipeline_merge_write_disposition(all_buckets_env: str) -> None:
     # Test complete_load markers are saved
     assert client.fs_client.isfile(posixpath.join(client.dataset_path, complete_fn % load_id1))
     assert client.fs_client.isfile(posixpath.join(client.dataset_path, complete_fn % load_id2))
+
+    # Force replace
+    pipeline.run(some_source(), write_disposition='replace')
+    append_files = client.fs_client.glob(append_glob)
+    replace_files = client.fs_client.glob(replace_glob)
+    assert len(append_files) == 1
+    assert len(replace_files) == 1

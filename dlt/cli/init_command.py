@@ -278,8 +278,7 @@ def init_command(pipeline_name: str, destination_name: str, use_generic_template
         raise CliCommandException("init", f"The pipeline script {pipeline_files.pipeline_script} is not creating or importing any sources or resources")
 
     # add destination spec to required secrets
-    credentials_type = destination_spec().get_resolvable_fields()["credentials"]
-    required_secrets["destinations:" + destination_name] = WritableConfigValue("credentials", credentials_type, None, ("destination", destination_name))
+    required_secrets["destinations:" + destination_name] = WritableConfigValue(destination_name, destination_spec, None, ("destination",))
     # add the global telemetry to required config
     required_config["runtime.dlthub_telemetry"] = WritableConfigValue("dlthub_telemetry", bool, utils.get_telemetry_status(), ("runtime", ))
 
