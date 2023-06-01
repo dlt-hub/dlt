@@ -28,7 +28,7 @@ So no, one way or another we are using schemas.
 - Make data easier to discover, analyse, expore. Structuring upfront would do that.
 - Simplify the human process by decentralising data ownership and curation - the analyst can work directly with the producer to define the dataset produced.
 
-## Schema evolution is made of 2 problems. Together they are more than the sum of the parts.
+## Structuring data is made of 2 problems. Together they are more than the sum of the parts.
 
 The problem is that curating data is hard
   - typing and normalising data are technical processes
