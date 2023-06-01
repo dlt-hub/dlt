@@ -50,7 +50,7 @@ class BufferedDataWriter:
         self._current_columns: TTableSchemaColumns = None
         self._file_name: str = None
         self._buffered_items: List[TDataItem] = []
-        self._writer: DataWriter = None
+        self._writer: Optional[DataWriter] = None
         self._file: IO[Any] = None
         self._closed = False
         try:
@@ -82,7 +82,7 @@ class BufferedDataWriter:
             if self.file_max_bytes and self._file.tell() >= self.file_max_bytes:
                 self._rotate_file()
             # rotate on max items
-            if self.file_max_items and self._writer.items_count >= self.file_max_items:
+            if self.file_max_items and self._writer and self._writer.items_count >= self.file_max_items:
                 self._rotate_file()
 
     def close(self) -> None:
