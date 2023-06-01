@@ -81,6 +81,7 @@ const sidebars = {
         'general-usage/incremental-loading',
         'general-usage/credentials',
         'general-usage/schema',
+        'general-usage/schema-evolution',
         'general-usage/configuration',
       ],
     },
