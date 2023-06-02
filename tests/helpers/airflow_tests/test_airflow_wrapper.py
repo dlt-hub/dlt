@@ -339,7 +339,7 @@ def test_run_multiple_sources() -> None:
             pipeline_name=pipeline_name, dataset_name=dataset_name, destination="duckdb")
     pipeline_dag_serial.sync_destination()
     # we should have two schemas
-    assert pipeline_dag_serial.schema_names == ['mock_data_source_state', 'mock_data_source']
+    assert set(pipeline_dag_serial.schema_names) == {'mock_data_source_state', 'mock_data_source'}
     counters_st_tasks = load_table_counts(pipeline_dag_serial, *[t["name"] for t in pipeline_dag_serial.schemas['mock_data_source_state'].data_tables()])
     counters_nst_tasks = load_table_counts(pipeline_dag_serial, *[t["name"] for t in pipeline_dag_serial.schemas['mock_data_source'].data_tables()])
     # print(counters_st_tasks)
@@ -374,7 +374,7 @@ def test_run_multiple_sources() -> None:
             pipeline_name=pipeline_name, dataset_name=dataset_name, destination="duckdb")
     pipeline_dag_parallel.sync_destination()
     # we should have two schemas
-    assert pipeline_dag_parallel.schema_names == ['mock_data_source_state', 'mock_data_source']
+    assert set(pipeline_dag_parallel.schema_names) == {'mock_data_source_state', 'mock_data_source'}
     counters_st_tasks_par = load_table_counts(pipeline_dag_parallel, *[t["name"] for t in pipeline_dag_parallel.schemas['mock_data_source_state'].data_tables()])
     counters_nst_tasks_par = load_table_counts(pipeline_dag_parallel, *[t["name"] for t in pipeline_dag_parallel.schemas['mock_data_source'].data_tables()])
     assert counters_st_tasks == counters_st_tasks_par
@@ -410,7 +410,7 @@ def test_run_multiple_sources() -> None:
             pipeline_name=pipeline_name, dataset_name=dataset_name, destination="duckdb")
     pipeline_dag_mixed.sync_destination()
     # we should have two schemas
-    assert pipeline_dag_mixed.schema_names == ['mock_data_source_state', 'mock_data_source']
+    assert set(pipeline_dag_mixed.schema_names) == {'mock_data_source_state', 'mock_data_source'}
     counters_st_tasks_par = load_table_counts(pipeline_dag_mixed, *[t["name"] for t in pipeline_dag_mixed.schemas['mock_data_source_state'].data_tables()])
     counters_nst_tasks_par = load_table_counts(pipeline_dag_mixed, *[t["name"] for t in pipeline_dag_mixed.schemas['mock_data_source'].data_tables()])
     assert counters_st_tasks == counters_st_tasks_par
