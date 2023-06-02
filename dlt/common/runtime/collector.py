@@ -2,7 +2,6 @@ import os
 import sys
 import logging
 import time
-import psutil
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from typing import Any, ContextManager, Dict, Type, TYPE_CHECKING, DefaultDict, NamedTuple, Optional, Union, TextIO, TypeVar
@@ -120,6 +119,12 @@ class LogCollector(Collector):
         self.counters: DefaultDict[str, int] = None
         self.counter_info: Dict[str, LogCollector.CounterInfo] = None
         self.messages: Dict[str, Optional[str]] = None
+        if dump_system_stats:
+            try:
+                import psutil
+            except ImportError:
+                self._log(logging.WARNING, "psutil dependency is not installed and mem stats will not be available. add psutil to your environment or pass dump_system_stats argument as False to disable warning.")
+                dump_system_stats = False
         self.dump_system_stats = dump_system_stats
         self.last_log_time: float = None
 
@@ -168,20 +173,25 @@ class LogCollector(Collector):
             log_lines.append(counter_line.strip())
 
         if self.dump_system_stats:
+            import psutil
+
             process = psutil.Process(os.getpid())
             mem_info = process.memory_info()
             current_mem = mem_info.rss / (1024 ** 2)  # Convert to MB
             mem_percent = psutil.virtual_memory().percent
             cpu_percent = process.cpu_percent()
-
             log_lines.append(f"Memory usage: {current_mem:.2f} MB ({mem_percent:.2f}%) | CPU usage: {cpu_percent:.2f}%")
+
         log_lines.append("")
         log_message = "\n".join(log_lines)
         if not self.logger:
             # try to attach dlt logger
             self.logger = dlt_logger.LOGGER
+        self._log(self.log_level, log_message)
+
+    def _log(self, log_level: int, log_message: str) -> None:
         if isinstance(self.logger, logging.Logger):
-            self.logger.log(self.log_level, log_message)
+            self.logger.log(log_level, log_message)
         else:
             print(log_message, file=self.logger or sys.stdout)
 

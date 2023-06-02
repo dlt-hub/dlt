@@ -38,7 +38,7 @@ ENV IMAGE_VERSION=${IMAGE_VERSION}
 
 # install exactly the same version of the library we used to build
 COPY dist/dlt-${IMAGE_VERSION}.tar.gz .
-RUN pip3 install /tmp/pydlt/dlt-${IMAGE_VERSION}.tar.gz[gcp,redshift]
+RUN pip3 install /tmp/pydlt/dlt-${IMAGE_VERSION}.tar.gz[gcp,redshift,duckdb]
 
 WORKDIR /
 RUN rm -r /tmp/pydlt
