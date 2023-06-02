@@ -106,7 +106,7 @@ class BufferedDataWriter:
 
     def _flush_items(self) -> None:
         if len(self._buffered_items) > 0:
-            # we only open a writer when there are any files in the buffer and first flush is requested
+            # we only open a writer when there are any items in the buffer and first flush is requested
             if not self._writer:
                 # create new writer and write header
                 if self._file_format_spec.is_binary_format:

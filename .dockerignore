@@ -9,5 +9,11 @@ __pycache__
 .egg-info
 _storage
 _test_storage
+.vscode
 Dockerfile
 .md
+_secrets
+docs
+tests
+logs
+experiments
