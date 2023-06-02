@@ -17,7 +17,7 @@ Structuring it implicitly during reading is called "schema on read", while struc
 To fit unstructured data into a structured database, developers were forced to tackle this transition before loading.
 For data lake users who read unstructured data, their pipelines apply a schema during read - if this schema is violated, the downstream software will produce bad outcomes.
 
-## We tried running away from our problems, but it didn't work.
+### We tried running away from our problems, but it didn't work.
 
 Because structuring data is difficult to deal with, people have tried to not do it. But this created its own issues.
 - Loading json into db without typing or structuring - This antipattern was created to shift the structuring of data to the analyst. While this is a good move for curation, the db support for structuring data is minimal and unsafe. In practice, this translates to the analyst spending their time writing lots of untested parsing code and pushing silent bugs to production.
@@ -108,9 +108,9 @@ If you had additional business-logic tests, you would still need to implement th
 
 
 ## The implementation recipe
-1. Use dlt. It will automatically infer and version schemas, so you can simply check if there are changes. You can use just the (normaliser + loader)[../general-usage/pipeline] or (build extraction with dlt)[../general-usage/resource]. If you want to define additional constraints, you can do so in the (schema)[../general-usage/schema]
-2. (Define your slack hook)[https://dlthub.com/docs/running-in-production/running#using-slack-to-send-messages] or create your own notification function
-3. (Capture the load job info and send it to the hook)[../running-in-production/running#inspect-save-and-alert-on-schema-changes]
+1. Use dlt. It will automatically infer and version schemas, so you can simply check if there are changes. You can use just the [normaliser + loader](../general-usage/pipeline) or [build extraction with dlt](../general-usage/resource). If you want to define additional constraints, you can do so in the (schema)[../general-usage/schema]
+2. [Define your slack hook](https://dlthub.com/docs/running-in-production/running#using-slack-to-send-messages) or create your own notification function
+3. [Capture the load job info and send it to the hook](../running-in-production/running#inspect-save-and-alert-on-schema-changes)
 
 
 
