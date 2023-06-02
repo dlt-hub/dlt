@@ -6,6 +6,8 @@ keywords: [schema evolution, schema versioning, data contracts]
 
 # Schema evolution
 
+Schema evolution combines a technical process with a curation process, so let's understand the process, and where the technical automation needs to be cmpleted with human curation.
+
 ## Whether you are aware or not, you are always using structured data before usage
 
 Data used is always structured, but usually produced unstructured.
@@ -17,18 +19,18 @@ For data lake users who read unstructured data, their pipelines apply a schema d
 
 ## We tried running away from our problems, but it didn't work.
 
-Because schemas are difficult to deal with, people have tried to not do it. But this created its own issues.
+Because structuring data is difficult to deal with, people have tried to not do it. But this created its own issues.
 - Loading json into db without typing or structuring - This antipattern was created to shift the structuring of data to the analyst. While this is a good move for curation, the db support for structuring data is minimal and unsafe. In practice, this translates to the analyst spending their time writing lots of untested parsing code and pushing silent bugs to production.
-- Loading unstructured data to lakes - This pattern pushes the curation of data to the analyst. The problem here is similar to the one above. Unstructured data is hard to analyse and curate, and the farther it is from the producer, the harder it is to undetstand.
+- Loading unstructured data to lakes - This pattern pushes the curation of data to the analyst. The problem here is similar to the one above. Unstructured data is hard to analyse and curate, and the farther it is from the producer, the harder it is to understand.
 
 So no, one way or another we are using schemas.
 
-## If curation is hard, how can we make it easier?
+### If curation is hard, how can we make it easier?
 
-- Make data easier to discover, analyse, expore. Structuring upfront would do that.
+- Make data easier to discover, analyse, explore. Structuring upfront would do that.
 - Simplify the human process by decentralising data ownership and curation - the analyst can work directly with the producer to define the dataset produced.
 
-## Structuring data is made of 2 problems. Together they are more than the sum of the parts.
+## Structuring & curating data are separate 2 problems. Together they are more than the sum of the parts.
 
 The problem is that curating data is hard
   - typing and normalising data are technical processes
@@ -59,7 +61,7 @@ And when something changes,
 
 
 
-## Divide et impera! The 2 problems are technical and communicational
+## Divide et impera! The 2 problems are technical and communicational, so let's let computers solve tech and let humans solve communication.
 
 Before we start solving, let's understand the problem
 1. For usage, data needs to be structured.
