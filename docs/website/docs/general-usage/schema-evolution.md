@@ -14,7 +14,7 @@ Data used is always structured, but usually produced unstructured.
 
 Structuring it implicitly during reading is called "schema on read", while structuring it upfront is called "schema on write".
 
-To fit unstructured data into a structured database, developers have to perform this structuring loading.
+To fit unstructured data into a structured database, developers have to perform this transition before loading.
 For data lake users who read unstructured data, their pipelines apply a schema during read - if this schema is violated, the downstream software will produce bad outcomes.
 
 ### We tried running away from our problems, but it didn't work.
@@ -44,7 +44,7 @@ Here's what a pipeline building process looks like:
 4. Type the data (for example, convert strings to datetime).
 5. Load the data to warehouse. Analyst can now validate if this was the desired data with the correct assumptions.
 6. Analyst validates with stakeholder that this is the data they wanted. Stakeholder usually wants more.
-7. Possibly adjust the data (filtering, normalization).
+7. Possibly adjust the data filtering, normalization.
 8. Repeat entire process for each adjustment.
 
 And when something changes,
