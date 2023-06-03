@@ -1,3 +1,4 @@
+import warnings
 import contextlib
 from copy import copy
 import makefun
@@ -33,6 +34,8 @@ def with_table_name(item: TDataItems, table_name: str) -> DataItemWithMeta:
 class DltResource(Iterable[TDataItem], DltResourceSchema):
 
     Empty: ClassVar["DltResource"] = None
+    source_name: str
+    """Name of the source that contains this instance of the source, set when added to DltResourcesDict"""
 
     def __init__(
         self,
@@ -49,6 +52,7 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
         self._bound = False
         if incremental and not self.incremental:
             self.add_step(incremental)
+        self.source_name = None
         super().__init__(self._name, table_schema_template)
 
     @classmethod
@@ -274,7 +278,7 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
             raise TypeError("Bound DltResource object is not callable")
         gen = self._pipe.bind_gen(*args, **kwargs)
         if isinstance(gen, DltResource):
-            # replace resource in place
+            # the resource returned resource: update in place
             old_pipe = self._pipe
             self.__dict__.clear()
             self.__dict__.update(gen.__dict__)
@@ -284,7 +288,7 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
             # write props from new pipe instance
             self._pipe.__dict__.update(gen._pipe.__dict__)
         elif isinstance(gen, Pipe):
-            # just replace pipe
+            # the resource returned pipe: just replace pipe
             self._pipe.__dict__.clear()
             # write props from new pipe instance
             self._pipe.__dict__.update(gen.__dict__)
@@ -298,11 +302,19 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
         with self._get_config_section_context():
             return resource_state(self.name)
 
+    def clone(self, clone_pipe: bool = True, keep_pipe_id: bool = True) -> "DltResource":
+        """Creates a deep copy of a current resource, optionally cloning also pipe. Note that name of a containing source will not be cloned."""
+        pipe = self._pipe
+        if self._pipe and not self._pipe.is_empty and clone_pipe:
+            pipe = pipe._clone(keep_pipe_id=keep_pipe_id)
+        # incremental and parent are already in the pipe (if any)
+        return DltResource(pipe, self._table_schema_template, selected=self.selected, section=self.section)
+
     def __call__(self, *args: Any, **kwargs: Any) -> "DltResource":
         """Binds the parametrized resources to passed arguments. Creates and returns a bound resource. Generators and iterators are not evaluated."""
         if self._bound:
             raise TypeError("Bound DltResource object is not callable")
-        r = DltResource.from_data(self._pipe._clone(keep_pipe_id=False), self._name, self.section, self._table_schema_template, self.selected, self._pipe.parent)
+        r = self.clone(clone_pipe=True, keep_pipe_id=False)
         return r.bind(*args, **kwargs)
 
     def __or__(self, transform: Union["DltResource", AnyFun]) -> "DltResource":
@@ -345,17 +357,34 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
     def _get_config_section_context(self) -> ContextManager[ConfigSectionContext]:
         container = Container()
         proxy = container[PipelineContext]
-        pipeline_name = None if not proxy.is_active() else proxy.pipeline().pipeline_name
+        pipeline = None if not proxy.is_active() else proxy.pipeline()
+        if pipeline:
+            pipeline_name = pipeline.pipeline_name
+        else:
+            pipeline_name = None
+        if pipeline:
+            default_schema_name = pipeline.default_schema_name
+        else:
+            default_schema_name = None
+        if not default_schema_name and pipeline_name:
+            default_schema_name = pipeline._make_schema_with_default_name().name
         return inject_section(
-            ConfigSectionContext(pipeline_name=pipeline_name, sections=(known_sections.SOURCES, self.section or pipeline_name or uniq_id(), self._name))
+            ConfigSectionContext(
+                pipeline_name=pipeline_name,
+                sections=(known_sections.SOURCES, self.section or default_schema_name or uniq_id(), self.source_name or default_schema_name or self._name),
+                source_state_key=self.source_name or default_schema_name or self.section or uniq_id()
+            )
         )
 
     def __str__(self) -> str:
-        info = f"DltResource {self._name}"
+        info = f"DltResource [{self._name}]"
         if self.section:
-            info += f" in section {self.section}:"
+            info += f" in section [{self.section}]"
+        if self.source_name:
+            info += f" added to source [{self.source_name}]:"
         else:
             info += ":"
+
         if self.is_transformer:
             info += f"\nThis resource is a transformer and takes data items from {self._pipe.parent.name}"
         else:
@@ -433,8 +462,8 @@ class DltResourceDict(Dict[str, DltResource]):
 
     @property
     def extracted(self) -> Dict[str, DltResource]:
-        """Returns a dictionary of all resources that will be extracted. That includes selected resources and all their dependencies.
-        For dependencies that are not added explicitly to the source, a mock resource object is created that holds the parent pipe and derives the table
+        """Returns a dictionary of all resources that will be extracted. That includes selected resources and all their parents.
+        For parents that are not added explicitly to the source, a mock resource object is created that holds the parent pipe and derives the table
         schema from the child resource
         """
         extracted = self.selected
@@ -447,6 +476,7 @@ class DltResourceDict(Dict[str, DltResource]):
                         # resource for pipe not found: return mock resource
                         mock_template = DltResourceSchema.new_table_template(pipe.name, write_disposition=resource._table_schema_template.get("write_disposition"))
                         resource = DltResource(pipe, mock_template, False, section=resource.section)
+                        resource.source_name = resource.source_name
                     extracted[resource._name] = resource
                 else:
                     break
@@ -513,6 +543,7 @@ class DltResourceDict(Dict[str, DltResource]):
         # make shallow copy of the resource
         resource = copy(resource)
         resource.section = self.source_section
+        resource.source_name = self.source_name
         # now set it in dict
         self._recently_added.append(resource)
         return super().__setitem__(resource_name, resource)
@@ -541,6 +572,11 @@ class DltSource(Iterable[TDataItem]):
         """Tells if iterator associated with a source is exhausted"""
         self._schema = schema
         self._resources: DltResourceDict = DltResourceDict(self.name, self.section)
+
+        if self.name != schema.name:
+            # raise ValueError(f"Schema name {schema.name} differs from source name {name}! The explicit source name argument is deprecated and will be soon removed.")
+            warnings.warn(f"Schema name {schema.name} differs from source name {name}! The explicit source name argument is deprecated and will be soon removed.")
+
         if resources:
             for resource in resources:
                 self._add_resource(resource._name, resource)
@@ -705,7 +741,13 @@ class DltSource(Iterable[TDataItem]):
     def _get_config_section_context(self) -> ContextManager[ConfigSectionContext]:
         proxy = Container()[PipelineContext]
         pipeline_name = None if not proxy.is_active() else proxy.pipeline().pipeline_name
-        return inject_section(ConfigSectionContext(pipeline_name=pipeline_name, sections=(known_sections.SOURCES, self.section, self.name)))
+        return inject_section(
+            ConfigSectionContext(
+                pipeline_name=pipeline_name,
+                sections=(known_sections.SOURCES, self.section, self.name),
+                source_state_key=self.name
+            )
+        )
 
     def _add_resource(self, name: str, resource: DltResource) -> None:
         if self.exhausted:

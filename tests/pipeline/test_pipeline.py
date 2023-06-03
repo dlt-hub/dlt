@@ -182,7 +182,7 @@ def test_extract_source_twice() -> None:
         yield [1, 2, 3]
         yield [1, 2, 3]
 
-    s = DltSource("source", "module", dlt.Schema("default"), [dlt.resource(some_data())])
+    s = DltSource("source", "module", dlt.Schema("source"), [dlt.resource(some_data())])
     dlt.pipeline().extract(s)
     with pytest.raises(PipelineStepFailed) as py_ex:
         dlt.pipeline().extract(s)
@@ -197,7 +197,7 @@ def test_disable_enable_state_sync(environment: Any) -> None:
     def some_data():
         yield [1, 2, 3]
 
-    s = DltSource("source", "module", dlt.Schema("default"), [dlt.resource(some_data())])
+    s = DltSource("default", "module", dlt.Schema("default"), [dlt.resource(some_data())])
     dlt.pipeline().extract(s)
     storage = ExtractorStorage(p._normalize_storage_config)
     assert len(storage.list_files_to_normalize_sorted()) == 1
@@ -207,14 +207,14 @@ def test_disable_enable_state_sync(environment: Any) -> None:
 
     p.config.restore_from_destination = True
     # extract to different schema, state must go to default schema
-    s = DltSource("source", "module", dlt.Schema("default_2"), [dlt.resource(some_data())])
+    s = DltSource("default_2", "module", dlt.Schema("default_2"), [dlt.resource(some_data())])
     dlt.pipeline().extract(s)
     expect_extracted_file(storage, "default", STATE_TABLE_NAME, "***")
 
 
 def test_extract_multiple_sources() -> None:
-    s1 = DltSource("source", "module", dlt.Schema("default"), [dlt.resource([1, 2, 3], name="resource_1"), dlt.resource([3, 4, 5], name="resource_2")])
-    s2 = DltSource("source_2", "module", dlt.Schema("default_2"), [dlt.resource([6, 7, 8], name="resource_3"), dlt.resource([9, 10, 0], name="resource_4")])
+    s1 = DltSource("default", "module", dlt.Schema("default"), [dlt.resource([1, 2, 3], name="resource_1"), dlt.resource([3, 4, 5], name="resource_2")])
+    s2 = DltSource("default_2", "module", dlt.Schema("default_2"), [dlt.resource([6, 7, 8], name="resource_3"), dlt.resource([9, 10, 0], name="resource_4")])
 
     p = dlt.pipeline(destination="dummy")
     p.config.restore_from_destination = False
@@ -233,8 +233,8 @@ def test_extract_multiple_sources() -> None:
     def i_fail():
         raise NotImplementedError()
 
-    s3 = DltSource("source", "module", dlt.Schema("default_3"), [dlt.resource([1, 2, 3], name="resource_1"), dlt.resource([3, 4, 5], name="resource_2")])
-    s4 = DltSource("source_2", "module", dlt.Schema("default_4"), [dlt.resource([6, 7, 8], name="resource_3"), i_fail])
+    s3 = DltSource("default_3", "module", dlt.Schema("default_3"), [dlt.resource([1, 2, 3], name="resource_1"), dlt.resource([3, 4, 5], name="resource_2")])
+    s4 = DltSource("default_4", "module", dlt.Schema("default_4"), [dlt.resource([6, 7, 8], name="resource_3"), i_fail])
 
     with pytest.raises(PipelineStepFailed):
        p.extract([s3, s4])
@@ -833,3 +833,4 @@ def test_pipeline_source_state_activation() -> None:
     p_postfix.deactivate()
     with pytest.raises(PipelineStateNotAvailable):
         assert s_appendix.state == {}
+

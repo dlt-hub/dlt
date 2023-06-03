@@ -34,19 +34,22 @@ def some_data_resource_state():
 
 
 def test_managed_state() -> None:
-    p = dlt.pipeline(pipeline_name="managed_state")
-    p.extract(some_data)
+    p = dlt.pipeline(pipeline_name="managed_state_pipeline")
+    p.extract(some_data())
     sources_state = p.state["sources"]
-    # standalone resources get state in the section named same as pipeline
-    assert "test_pipeline_state" in sources_state
-    assert sources_state["test_pipeline_state"]["last_value"] == 1
+    # standalone resources get state in the section named same as the default schema
+    assert "managed_state" in sources_state
+    assert sources_state["managed_state"]["last_value"] == 1
+    assert p.default_schema_name == "managed_state"
+
     # run again - increases the last_value
     p.extract(some_data())
     sources_state = p.state["sources"]
-    assert sources_state["test_pipeline_state"]["last_value"] == 2
+    assert sources_state["managed_state"]["last_value"] == 2
+
     # attach to different source that will get separate state
 
-    @dlt.source(section="separate_section")
+    @dlt.source(name="separate_state", section="different_section")
     def some_source():
         assert "last_value" not in dlt.current.source_state()
         return some_data
@@ -54,57 +57,64 @@ def test_managed_state() -> None:
     s = some_source()
     p.extract(s)
     sources_state = p.state["sources"]
-    # source and all the resources within get the same state (section named after source section)
-    assert sources_state[s.section]["last_value"] == 1
-    assert sources_state["test_pipeline_state"]["last_value"] == 2  # the state for standalone resource not affected
+    # the source name is the source state key
+    assert sources_state[s.name]["last_value"] == 1
+    assert sources_state["managed_state"]["last_value"] == 2  # the state for standalone resource not affected
 
     @dlt.source
     def source_same_section():
-        # default section of the source and standalone resource are the same if defined in the same module, so they share the state
-        assert dlt.current.source_state()["last_value"] == 2
+        # source has separate state key
+        assert "last_value" not in dlt.current.source_state()
         return some_data
 
     s = source_same_section()
     p.extract(s)
     sources_state = p.state["sources"]
     # share the state
-    assert sources_state["test_pipeline_state"]["last_value"] == 3
+    assert sources_state["source_same_section"]["last_value"] == 1
 
-    # the state of the standalone resource does not depend on the schema
+    # the state of standalone resource will be attached to default source which derives from the passed schema
     p.extract(some_data(), schema=Schema("default"))
     sources_state = p.state["sources"]
-    assert sources_state["separate_section"]["last_value"] == 1
-    assert sources_state["test_pipeline_state"]["last_value"] == 4  # increased
-    assert "default" not in sources_state
+    assert sources_state["separate_state"]["last_value"] == 1
+    assert sources_state["default"]["last_value"] == 1
 
-    # resource without section gets the pipeline name as section
+    # resource without section gets the default schema name as state key
     def _gen_inner():
-        dlt.state()["gen"] = True
+        dlt.current.source_state()["gen"] = True
         yield 1
 
-    assert p.pipeline_name not in sources_state
     p.extract(_gen_inner())
     sources_state = p.state["sources"]
-    assert p.pipeline_name in sources_state
+    assert sources_state[p.default_schema_name]["gen"] is True
 
 
 def test_no_active_pipeline_required_for_resource() -> None:
-    # iterate resource
+    # resource can be iterated without pipeline context
     for _ in some_data():
         pass
 
 
 def test_active_pipeline_required_for_source() -> None:
-    # call source that reads state
+
     @dlt.source
     def some_source():
         dlt.current.source_state().get("last_value", 0)
         return some_data
 
+    # source cannot be instantiated without pipeline context
+    # this is to prevent users to instantiate sources before pipeline is created
+    # such source would get mock state (empty) which would fail initialization
     with pytest.raises(PipelineStateNotAvailable) as py_ex:
-        list(some_source())
-    assert py_ex.value.source_name == "test_pipeline_state"
+        some_source()
+    assert py_ex.value.source_state_key == "some_source"
 
+    p = dlt.pipeline(pipeline_name="managed_state_pipeline")
+    s = some_source()
+
+    # but can be iterated without pipeline context after it is created
+    p.deactivate()
+    list(s)
 
 def test_source_state_iterator():
     os.environ["COMPLETED_PROB"] = "1.0"
@@ -113,6 +123,7 @@ def test_source_state_iterator():
     @dlt.resource(selected=False)
     def main():
         state = dlt.current.source_state()
+        print(f"main state: {state}")
         mark = state.setdefault("mark", 1)
         # increase the multiplier each time state is obtained
         state["mark"] *= 2
@@ -123,10 +134,11 @@ def test_source_state_iterator():
     def feeding(item):
         # we must have state
         assert dlt.current.source_state()["mark"] > 1
+        print(f"feeding state {dlt.current.source_state()}")
         mark = dlt.current.source_state()["mark"]
         yield from map(lambda i: i*mark, item)
 
-    @dlt.source(section="pass_the_state")
+    @dlt.source
     def pass_the_state():
         return main, feeding
 
@@ -136,30 +148,31 @@ def test_source_state_iterator():
     assert p.state["sources"]["pass_the_state"]["mark"] == 4
 
     # evaluate source: pipeline stored value should be used
+    print(pass_the_state().state)
     assert list(pass_the_state()) == [8, 16, 24]
 
 
 def test_unmanaged_state() -> None:
-    p = dlt.pipeline(pipeline_name="unmanaged")
+    p = dlt.pipeline(pipeline_name="unmanaged_pipeline")
     # evaluate generator that reads and writes state
     list(some_data())
     # state is not in pipeline
     assert "sources" not in p.state
-    # state must be available in resource section if available - exactly like in pipeline
-    assert state_module._last_full_state["sources"]["test_pipeline_state"]["last_value"] == 1
+    # state must be available in default schema name if available - exactly like in pipeline
+    assert state_module._last_full_state["sources"]["unmanaged"]["last_value"] == 1
     # this state is discarded
     list(some_data())
     # state is not in pipeline
     assert "sources" not in p.state
-    assert state_module._last_full_state["sources"]["test_pipeline_state"]["last_value"] == 1
+    assert state_module._last_full_state["sources"]["unmanaged"]["last_value"] == 1
 
-    # resource without section gets pipeline name as section
+    # resource without section gets default schema name as source state key
     def _gen_inner():
         dlt.state()["gen"] = True
         yield 1
     list(dlt.resource(_gen_inner))
     list(dlt.resource(_gen_inner()))
-    assert state_module._last_full_state["sources"]["test_pipeline_state"]["gen"] is True
+    assert state_module._last_full_state["sources"]["unmanaged"]["gen"] is True
 
     @dlt.source
     def some_source():
@@ -170,26 +183,27 @@ def test_unmanaged_state() -> None:
 
     s = some_source()
     # this time the source is there
-    assert state_module._last_full_state["sources"][s.section]["last_value"] == 1
+    assert state_module._last_full_state["sources"][s.name]["last_value"] == 1
     # but the state is discarded
     some_source()
-    assert state_module._last_full_state["sources"][s.section]["last_value"] == 1
+    assert state_module._last_full_state["sources"][s.name]["last_value"] == 1
 
     # but when you run it inside pipeline
     p.extract(some_source())
     sources_state = p.state["sources"]
-    assert sources_state[s.section]["last_value"] == 1
+    assert sources_state[s.name]["last_value"] == 1
 
     # the unmanaged call later gets the correct pipeline state
     some_source()
-    assert state_module._last_full_state["sources"][s.section]["last_value"] == 2
+    assert state_module._last_full_state["sources"][s.name]["last_value"] == 2
     # again - discarded
     sources_state = p.state["sources"]
-    assert sources_state[s.section]["last_value"] == 1
+    assert sources_state[s.name]["last_value"] == 1
 
 
 def test_unmanaged_state_no_pipeline() -> None:
     list(some_data())
+    print(state_module._last_full_state)
     assert state_module._last_full_state["sources"]["test_pipeline_state"]["last_value"] == 1
 
     def _gen_inner():
@@ -212,10 +226,10 @@ def test_resource_state_write() -> None:
         dlt.current.resource_state()["gen"] = True
         yield 1
 
-    dlt.pipeline()
+    p = dlt.pipeline()
     r = dlt.resource(_gen_inner(), name="name_ovrd")
     assert list(r) == [1]
-    assert state_module._last_full_state["sources"]["test_pipeline_state"]["resources"]["name_ovrd"]["gen"] is True
+    assert state_module._last_full_state["sources"][p._make_schema_with_default_name().name]["resources"]["name_ovrd"]["gen"] is True
     with pytest.raises(ResourceNameNotAvailable):
         get_current_pipe_name()
 
@@ -235,14 +249,14 @@ def test_resource_state_in_pipeline() -> None:
     r = dlt.resource(_gen_inner("gen_tf"), name="name_ovrd")
     p.extract(r)
     assert r.state["gen"] == "gen_tf"
-    assert state_module._last_full_state["sources"]["test_pipeline_state"]["resources"]["name_ovrd"]["gen"] == "gen_tf"
+    assert state_module._last_full_state["sources"][p.default_schema_name]["resources"]["name_ovrd"]["gen"] == "gen_tf"
     with pytest.raises(ResourceNameNotAvailable):
         get_current_pipe_name()
 
     r = dlt.resource(_gen_inner, name="pure_function")
     p.extract(r)
     assert r.state["gen"] == "df"
-    assert state_module._last_full_state["sources"]["test_pipeline_state"]["resources"]["pure_function"]["gen"] == "df"
+    assert state_module._last_full_state["sources"][p.default_schema_name]["resources"]["pure_function"]["gen"] == "df"
     with pytest.raises(ResourceNameNotAvailable):
         get_current_pipe_name()
 
@@ -275,7 +289,7 @@ def test_resource_state_in_pipeline() -> None:
     r = dlt.resource(_gen_inner_defer_explicit_name, name="defer_function_explicit")
     p.extract(r("defer_function_explicit", "expl"))
     assert r.state["gen"] == "expl"
-    assert state_module._last_full_state["sources"]["test_pipeline_state"]["resources"]["defer_function_explicit"]["gen"] == "expl"
+    assert state_module._last_full_state["sources"][p.default_schema_name]["resources"]["defer_function_explicit"]["gen"] == "expl"
 
     # get resource state in yielding defer (which btw is invalid and will be resolved in main thread)
     def _gen_inner_defer_yielding(tv="yielding"):
@@ -290,7 +304,7 @@ def test_resource_state_in_pipeline() -> None:
     r = dlt.resource(_gen_inner_defer_yielding, name="defer_function_yielding")
     p.extract(r)
     assert r.state["gen"] == "yielding"
-    assert state_module._last_full_state["sources"]["test_pipeline_state"]["resources"]["defer_function_yielding"]["gen"] == "yielding"
+    assert state_module._last_full_state["sources"][p.default_schema_name]["resources"]["defer_function_yielding"]["gen"] == "yielding"
 
     # get resource state in async function
     def _gen_inner_async(tv="async"):

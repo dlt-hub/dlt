@@ -331,7 +331,6 @@ class Pipeline(SupportsPipeline):
         self._set_dataset_name(dataset_name)
         self.credentials = credentials or self.credentials
 
-
         # check if any schema is present, if not then no data was extracted
         if not self.default_schema_name:
             return None
@@ -786,7 +785,9 @@ class Pipeline(SupportsPipeline):
             elif isinstance(data_item, DltResource):
                 # apply hints
                 apply_hint_args(data_item)
-                sources.append(DltSource(data_item.name, data_item.section or self.pipeline_name, effective_schema, [data_item]))
+                sources.append(
+                    DltSource(effective_schema.name, data_item.section or self.pipeline_name, effective_schema, [data_item])
+                    )
             else:
                 # iterator/iterable/generator
                 # create resource first without table template
@@ -893,8 +894,12 @@ class Pipeline(SupportsPipeline):
             raise InvalidPipelineName(self.pipeline_name, str(ve_ex))
 
     def _make_schema_with_default_name(self) -> Schema:
-        # make a schema from the pipeline name using the name normalizer
-        return Schema(self.pipeline_name, normalize_name=True)
+        """Make a schema from the pipeline name using the name normalizer. "_pipeline" suffix is removed if present"""
+        if self.pipeline_name.endswith("_pipeline"):
+            schema_name = self.pipeline_name[:-9]
+        else:
+            schema_name = self.pipeline_name
+        return Schema(schema_name, normalize_name=True)
 
     def _validate_dataset_name(self, dataset_name: str) -> None:
         normalized_name = self._default_naming.normalize_identifier(dataset_name)
@@ -1090,7 +1095,6 @@ class Pipeline(SupportsPipeline):
 
             # check if any state element was changed
             merged_state = merge_state_if_changed(backup_state, state)
-
             # extract state only when there's change in the state or state was not yet extracted AND we actually want to do it
             if (merged_state or "_last_extracted_at" not in local_state) and extract_state:
                 # print(f'EXTRACT STATE merged: {bool(merged_state)} extracted timestamp in {"_last_extracted_at" not in local_state}')
@@ -1135,7 +1139,7 @@ class Pipeline(SupportsPipeline):
     def _extract_state(self, state: TPipelineState) -> TPipelineState:
         # this will extract the state into current load package and update the schema with the _dlt_pipeline_state table
         # note: the schema will be persisted because the schema saving decorator is over the state manager decorator for extract
-        state_source = DltSource("pipeline_state", self.pipeline_name, self.default_schema, [state_resource(state)])
+        state_source = DltSource(self.default_schema.name, self.pipeline_name, self.default_schema, [state_resource(state)])
         storage = ExtractorStorage(self._normalize_storage_config)
         extract_id = extract_with_schema(storage, state_source, self.default_schema, _NULL_COLLECTOR, 1, 1)
         storage.commit_extract_files(extract_id)
