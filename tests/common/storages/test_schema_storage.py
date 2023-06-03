@@ -7,7 +7,7 @@ from dlt.common import json
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import TStoredSchema
 from dlt.common.schema.utils import default_normalizers
-from dlt.common.storages.exceptions import InStorageSchemaModified, SchemaNotFoundError
+from dlt.common.storages.exceptions import InStorageSchemaModified, SchemaNotFoundError, UnexpectedSchemaName
 from dlt.common.storages import SchemaStorageConfiguration, SchemaStorage, LiveSchemaStorage, FileStorage
 
 from tests.utils import autouse_test_storage, TEST_STORAGE_ROOT
@@ -246,10 +246,15 @@ def test_schema_from_file() -> None:
     assert schema.name == "event"
 
     schema = SchemaStorage.load_schema_file(os.path.join(COMMON_TEST_CASES_PATH, "schemas/local"), "event", extensions=("yaml",))
-    assert schema.name == "ethereum"
+    assert schema.name == "event"
+    assert "blocks" in schema.tables
 
     with pytest.raises(SchemaNotFoundError):
         SchemaStorage.load_schema_file(os.path.join(COMMON_TEST_CASES_PATH, "schemas/local"), "eth", extensions=("yaml",))
+
+    # file name and schema content mismatch
+    with pytest.raises(UnexpectedSchemaName):
+        SchemaStorage.load_schema_file(os.path.join(COMMON_TEST_CASES_PATH, "schemas/local"), "name_mismatch", extensions=("yaml",))
 
 
 # def test_save_empty_schema_name(storage: SchemaStorage) -> None:
