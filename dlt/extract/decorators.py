@@ -19,7 +19,7 @@ from dlt.common.storages.exceptions import SchemaNotFoundError
 from dlt.common.storages.schema_storage import SchemaStorage
 from dlt.common.typing import AnyFun, ParamSpec, Concatenate, TDataItem, TDataItems
 from dlt.common.utils import get_callable_name, get_module_name, is_inner_callable
-from dlt.extract.exceptions import InvalidTransformerDataTypeGeneratorFunctionRequired, ResourceFunctionExpected, ResourceInnerCallableConfigWrapDisallowed, SourceDataIsNone, SourceIsAClassTypeError, SourceNotAFunction, SourceSchemaNotAvailable
+from dlt.extract.exceptions import InvalidTransformerDataTypeGeneratorFunctionRequired, ResourceFunctionExpected, ResourceInnerCallableConfigWrapDisallowed, SourceDataIsNone, SourceIsAClassTypeError, ExplicitSourceNameInvalid, SourceNotAFunction, SourceSchemaNotAvailable
 from dlt.extract.incremental import IncrementalResourceWrapper
 
 from dlt.extract.typing import TTableHintTemplate
@@ -102,7 +102,7 @@ def source(
 
         name (str, optional): A name of the source which is also the name of the associated schema. If not present, the function name will be used.
 
-        section (str, optional): A name of configuration and state sections. If not present, the current python module name will be used.
+        section (str, optional): A name of configuration. If not present, the current python module name will be used.
 
         max_table_nesting (int, optional): A schema hint that sets the maximum depth of nested table above which the remaining nodes are loaded as structs or JSON.
 
@@ -128,12 +128,17 @@ def source(
         if inspect.isclass(f):
             raise SourceIsAClassTypeError(name or "<no name>", f)
 
-        # source name is passed directly or taken from decorated function name
-        name = name or get_callable_name(f)
-
         if not schema:
+            # source name is passed directly or taken from decorated function name
+            effective_name = name or get_callable_name(f)
             # load the schema from file with name_schema.yaml/json from the same directory, the callable resides OR create new default schema
-            schema = _maybe_load_schema_for_callable(f, name) or Schema(name, normalize_name=True)
+            schema = _maybe_load_schema_for_callable(f, effective_name) or Schema(effective_name, normalize_name=True)
+
+        if name and name != schema.name:
+            raise ExplicitSourceNameInvalid(name, schema.name)
+
+        # the name of the source must be identical to the name of the schema
+        name = schema.name
 
         # wrap source extraction function in configuration with section
         func_module = inspect.getmodule(f)
@@ -148,7 +153,7 @@ def source(
                 # configurations will be accessed in this section in the source
                 proxy = Container()[PipelineContext]
                 pipeline_name = None if not proxy.is_active() else proxy.pipeline().pipeline_name
-                with inject_section(ConfigSectionContext(pipeline_name=pipeline_name, sections=source_sections)):
+                with inject_section(ConfigSectionContext(pipeline_name=pipeline_name, sections=source_sections, source_state_key=name)):
                     rv = conf_f(*args, **kwargs)
                     if rv is None:
                         raise SourceDataIsNone(name)
@@ -486,6 +491,7 @@ def _maybe_load_schema_for_callable(f: AnyFun, name: str) -> Optional[Schema]:
         file = inspect.getsourcefile(f)
         if file:
             return SchemaStorage.load_schema_file(os.path.dirname(file), name)
+
     except SchemaNotFoundError:
         pass
     return None
