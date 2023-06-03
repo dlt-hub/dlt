@@ -66,7 +66,7 @@ def test_init_command_chess_verified_pipeline(repo_dir: str, project_files: File
     # check files hashes
     local_index = files_ops.load_pipeline_local_index("chess")
     # chess has one file
-    assert len(local_index["files"]) == 2
+    assert len(local_index["files"]) == 4
     # relative to "pipelines" folder
     assert local_index["files"][os.path.join("chess", "__init__.py")] is not None
 
