@@ -790,7 +790,7 @@ def test_resource_state() -> None:
         assert state.state["sources"]["schema_section"] == {'resources': {'test_resource': {'in-source': True}}}
         assert s.state == {'resources': {'test_resource': {'in-source': True}}}
         # the standalone resource will create key which is default schema name
-        assert state.state["sources"][p.pipeline_name] == {'resources': {'test_resource': {'direct': True}}}
+        assert state.state["sources"][p._make_schema_with_default_name().name] == {'resources': {'test_resource': {'direct': True}}}
 
 
 # def test_add_resources_to_source_simple() -> None:

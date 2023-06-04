@@ -51,7 +51,8 @@ def test_default_pipeline() -> None:
 
     # this will create default schema
     p.extract(["a", "b", "c"], table_name="data")
-    assert p.default_schema_name in possible_names
+    # `_pipeline` is removed from default schema name
+    assert p.default_schema_name in ["dlt_pytest", "dlt"]
 
 
 def test_run_full_refresh_default_dataset() -> None:

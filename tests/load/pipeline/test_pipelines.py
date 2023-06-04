@@ -48,11 +48,12 @@ def test_default_pipeline_names(use_single_dataset: bool, any_destination: str) 
 
     # this will create default schema
     p.extract(data_fun)
-    assert p.default_schema_name in possible_names
+    # _pipeline suffix removed when creating default schema name
+    assert p.default_schema_name in ["dlt_pytest", "dlt"]
 
     # this will create additional schema
     p.extract(data_fun(), schema=dlt.Schema("names"))
-    assert p.default_schema_name in possible_names
+    assert p.default_schema_name in ["dlt_pytest", "dlt"]
     assert "names" in p.schemas.keys()
 
     with pytest.raises(PipelineConfigMissing):
@@ -331,6 +332,7 @@ def test_dataset_name_change(destination_name: str) -> None:
             # delete_dataset(client, ds_3_name)  # will be deleted by the fixture
 
 
+# do not remove - it allows us to filter tests by destination
 @pytest.mark.parametrize('destination_name', ["postgres"])
 def test_pipeline_explicit_destination_credentials(destination_name: str) -> None:
 
@@ -361,7 +363,9 @@ def test_pipeline_explicit_destination_credentials(destination_name: str) -> Non
     # assert inner_c is c
 
 
-def test_pipeline_with_sources_sharing_schema() -> None:
+# do not remove - it allows us to filter tests by destination
+@pytest.mark.parametrize('destination_name', ["postgres"])
+def test_pipeline_with_sources_sharing_schema(destination_name: str) -> None:
 
     schema = Schema("shared")
 
@@ -445,7 +449,9 @@ def test_pipeline_with_sources_sharing_schema() -> None:
     assert isinstance(py_ex.value.__context__, CannotCoerceColumnException)
 
 
-def test_many_pipelines_single_dataset() -> None:
+# do not remove - it allows us to filter tests by destination
+@pytest.mark.parametrize('destination_name', ["postgres"])
+def test_many_pipelines_single_dataset(destination_name: str) -> None:
     schema = Schema("shared")
 
     @dlt.source(schema=schema, max_table_nesting=1)
