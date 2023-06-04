@@ -8,13 +8,13 @@ keywords: [orchestrator, airflow, github actions]
 
 Orchestrators enable developers to quickly and easily deploy and manage applications in the cloud.
 
-### What is an orchestrator?
+## What is an orchestrator?
 
 An orchestrator is a software system that automates the deployment, scaling, and management of applications and services.
 
 It provides a single platform for managing and coordinating the components of distributed applications, including containers, microservices, and other cloud-native resources.
 
-### Do I need an orchestrator?
+## Do I need an orchestrator?
 
 No, but if you do not use one, you will need to consider how to solve the problems one would
 
@@ -27,7 +27,7 @@ No, but if you do not use one, you will need to consider how to solve the proble
 
 So in short, unless you need something very lightweight, you can benefit from an orchestrator
 
-### So which one?
+## So which one?
 
 ### **Airflow**
 
@@ -54,21 +54,31 @@ GitHub Actions is not a full blown orchestrator, but it works. It supports simpl
 
 To deploy a pipeline on GitHub Actions, read [here](./walkthroughs/deploy-a-pipeline) about using the `dlt deploy` command and [here](https://docs.github.com/en/actions/learn-github-actions/usage-limits-billing-and-administration) about the limitations of GitHub Actions and how their billing works.
 
-### Other orchestrators
+### **Other orchestrators**
 
 Other orchestrators can also do the job, so if you are limited in choice or prefer something else, choose differently.
 If your team prefers a different tool which affects their work positively, consider that as well.
 
 What do you need to consider when using other orchestrators?
 
-**Source - Resource decomposition:**
-* you can decompose a pipeline into tasks by using the `source().with_resource(resource1, resource2)`selector to pass resource names you want to run.
-* you can find the resources and run them by themselves. `source().resources` produces a dict of resources with the names as keys and generators as values.
+## Source - Resource decomposition:
+You can decompose a pipeline into strongly connected components with `source().decompose(strategy="scc")`. The method returns a list of dlt sources each containing a single component. Method makes sure that no resource is executed twice.
+
+**Serial decomposition**
+You can load such sources as tasks serially in order present of the list. Such DAG is safe for pipelines that use the state internally. [It is used internally by our Airflow mapper to construct DAGs.](https://github.com/dlt-hub/dlt/blob/devel/dlt/helpers/airflow_helper.py)
+
+**Custom decomposition**
 * when decomposing pipelines into tasks, be mindful of shared state
   * dependent resources pass data to each other via hard disk - so they need to run on the same worker. Group them in a task that runs them together.
   * state is per-pipeline. The pipeline identifier is the pipeline name. A single pipeline state should be accesed serially to avoid losing details on parallel runs.
 
+**Parallel decomposition**
+If you are using only the resource state (which most of the pipelines really should!) you can run your tasks in parallel.
+* Perform the `scc` decomposition.
+* Run each component in a pipeline with different but deterministic `pipeline_name` (same component - same pipeline, you can use names of selected resources in source to construct unique id)
 
-**Credentials:**
+Each pipeline will have its private state in the destination and there won't be any clashes. As all the components write to the same schema you may observe a that loader stage is attempting to migrate the schema, that should be a problem though as long as your data does not create variant columns.
+
+## Credentials
 
 [See credentials section for passing credentials to or from dlt](../../general-usage/credentials.md)

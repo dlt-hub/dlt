@@ -229,55 +229,51 @@ p.run(merge_source())
 
 Passing write disposition to `replace` will change write disposition on all the resources in `repo_events` during the run of the pipeline.
 
-## Custom incremental loading with `dlt.state`
+## Custom incremental loading with pipeline state
 
-Preserving the last value in state.
+The pipeline state is a Python dictionary which gets committed atomically with the data; you can set values in it in your resources and on next pipeline run, request them back.
 
-The state is a python dictionary which gets committed atomically with the data; it is in essence metadata that you can keep in sync with your data.
+The pipeline state is in principle scoped to the resource - all values of the state set by resource are private and isolated from any other resource. You can also access the source-scoped state which can be shared across resources. [You can find more information on pipeline state here](state.md#pipeline-state).
+
+### Preserving the last value in resource state.
 
 For the purpose of preserving the “last value” or similar loading checkpoints, we can open a dlt state dictionary with a key and a default value as below. When the resource is executed and the data is loaded, the yielded resource data will be loaded at the same time with the update to the state.
 
-In the two examples below you see the outline of how the `dlt.sources.incremental` is managing the state.
+In the two examples below you see how the `dlt.sources.incremental` is working under the hood.
 
 ```python
 @resource()
 def tweets():
 	# Get a last value from loaded metadata. If not exist, get None
-	last_val = dlt.current.state().setdefault("last_updated", None)
+	last_val = dlt.current.resource_state().setdefault("last_updated", None)
   # get data and yield it
   data = get_data(start_from=last_val)
   yield data
   # change the state to the new value
   dlt.current.state()["last_updated"]  = data["last_timestamp"]
 ```
-if we use a list or a dictionary, we can modify the underlying values in the objects and thus we do not need to set the state back explicitly.
+if we keep a list or a dictionary in the state, we can modify the underlying values in the objects and thus we do not need to set the state back explicitly.
 ```python
 @resource()
 def tweets():
   # Get a last value from loaded metadata. If not exist, get None
-  loaded_dates = dlt.current.state().setdefault("days_loaded", [])
+  loaded_dates = dlt.current.resource_state().setdefault("days_loaded", [])
   # do stuff: get data and add new values to the list
-  # `loaded_date` is a shallow copy of the `dlt.current.state()["days_loaded"]` list
+  # `loaded_date` is a reference to the `dlt.current.resource_state()["days_loaded"]` list
   # and thus modifying it modifies the state
   yield data
   loaded_dates.append('2023-01-01')
 ```
 
-### Using the dlt state
-
 Step by step explanation of how to get or set the state:
-1. We can use the function `var = dlt.current.state().setdefault("key", [])`. This allows us to retrieve the values of `key`. If `key` was not set yet, we will get the default value `[]` instead
+1. We can use the function `var = dlt.current.resource_state().setdefault("key", [])`. This allows us to retrieve the values of `key`. If `key` was not set yet, we will get the default value `[]` instead
 2. We now can treat `var` as a python list - We can append new values to it, or if applicable we can read the values from previous loads.
 3. On pipeline run, the data will load, and the new `var`'s value will get saved in the state. The state is stored at the destination, so it will be available on subsequent runs.
 
 
-### Examining an incremental pipeline
+### Advanced state usage: storing a list of processed entities
 
-Let’s look at the `player_games` resource from the chess pipeline:
-- dlt state is like a python dictionary that is preserved in the destination
-- Even if our run environment is not persistent, the state is persisted anyway
-- It’s accessible in Python like any global variable dictionary (i.e. usable in any function)
-- You can set a default for the case where there is no previous run history (i.e. first run)
+Let’s look at the `player_games` resource from the chess pipeline. The chess API has a method to request games archives for a given month. The task is to prevent the user to load the same month data twice - even if the user makes a mistake and requests the same months range again:
 - Our data is requested in 2 steps
     - get all available archives URLs
     - get the data from each URL
@@ -292,17 +288,17 @@ In the following example, we initialize a variable with an empty list as a defau
 @dlt.resource(write_disposition="append")
 def players_games(chess_url, players, start_month=None, end_month=None):
 
-    loaded_archives_cache = dlt.current.state().setdefault("archives", [])
+    loaded_archives_cache = dlt.current.resource_state().setdefault("archives", [])
 
 		# as far as python is concerned, this variable behaves like
     # loaded_archives_cache = state['archives'] or []
     # afterwards we can modify list, and finally
     # when the data is loaded, the cache is updated with our loaded_archives_cache
 
-		# get archives
-		# if not in cache, yield the data and cache the URL
-    archives = players_archives(chess_url, players)
+		# get archives for a given player
+    archives = get_players_archives(chess_url, players)
     for url in archives:
+        # if not in cache, yield the data and cache the URL
         if url not in loaded_archives_cache:
 						# add URL to cache and yield the associated data
 						loaded_archives_cache.append(url)
@@ -313,7 +309,7 @@ def players_games(chess_url, players, start_month=None, end_month=None):
             print(f"skipping archive {url}")
 ```
 
-In the twitter search case, we can do it for every search term:
+### Advanced state usage: tracking the last value for all search terms in twitter API
 
 ```python
 @dlt.resource(write_disposition="append")
@@ -336,31 +332,4 @@ def search_tweets(twitter_bearer_token=dlt.secrets.value, search_terms=None, sta
             print(f'new_last_value_cache for term {search_term}: {last_value_cache}')
 
             yield page
-```
-
-- To reset the dlt state, you need to delete it from the destination
-- Dropping the dataset or the state table would do it
-- If you drop only the state table, be careful about not duplicating data on the next load
-- Alternatively, we could get the state from the data itself via a SQL query
-- The dlt pipeline exposes the destination’s SQL client:
-
-```python
-if __name__ == "__main__" :
-
-    dataset_name ='tweets'
-    last_value_query = f'select max(id) from {dataset_name}.search_tweets'
-		# init pipeline with credentials, so we can use its client
-    pipeline = dlt.pipeline(destination="bigquery", dataset_name="tweets")
-		# try to get data.
-    # Might fail for multiple reasons so we should do some error handling
-
-    try:
-        with pipeline.sql_client() as client:
-            res = client.execute_sql(last_value_query)
-            last_value = res[0][0]
-    except:
-		# todo: error handling - we would need to make sure this only happens for a "table not found" error.
-        last_value = None
-
-    info = pipeline.run(twitter_search(search_terms=search_terms, last_value = last_value))
 ```

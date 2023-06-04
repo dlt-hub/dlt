@@ -159,7 +159,7 @@ This should make easier to bundle a fully specified (or pre-configured) schema w
 ### Schema is modified in the source function body
 What if you can configure your schema or add some tables only inside your schema function, when ie. you have the source credentials and user settings available? You could for example add detailed schemas of all the database tables when someone requests a table data to be loaded. This information is available only at the moment source function is called.
 
-Similarly to the `state`, source and resource function has current schema available via `dlt.current.source_schema`
+Similarly to the `source_state()` and `resource_state()` , source and resource function has current schema available via `dlt.current.source_schema`
 
 Example:
 

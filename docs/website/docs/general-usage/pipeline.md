@@ -47,6 +47,16 @@ info = pipeline.run(gen(10))
 print(info)
 ```
 
+## Pipeline working directory
+Each pipeline that you create with `dlt` stores extracted files, load packages, inferred schemas, execution traces and the [pipeline state](state.md) in a folder in the local filesystem. The default location for such folders is in user home directory: `~/.dlt/pipelines/<pipeline_name>`.
+
+You can inspect stored artifacts using the command [dlt pipeline info](../reference/command-line-interface.md#dlt-pipeline) and [programmatically](../walkthroughs/run-a-pipeline.md#4-inspect-a-load-process)
+
+> 💡 A pipeline with given name looks for for its working in location above - so if you have two pipeline scripts that create a pipeline with the same name, they will see the same working folder and share all the possible state. You may override the default location using `pipelines_dir` argument when creating the pipeline.
+
+> 💡 You can attach `Pipeline` instance to an existing working folder, without creating a new pipeline with `dlt.attach`.
+
+
 ## Do experiments with full refresh
 If you [create a new pipeline script](../walkthroughs/create-a-pipeline.md) you will be experimenting a lot. If you want that each time the pipeline resets its state and loads data to a new dataset, set the `full_refresh` argument of the `dlt.pipeline` method to True. Each time the pipeline is created, `dlt` adds datetime-based suffix to the dataset name.
 
