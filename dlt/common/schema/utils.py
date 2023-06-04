@@ -3,7 +3,7 @@ import base64
 import hashlib
 
 from copy import deepcopy
-from typing import Dict, List, Sequence, Tuple, Type, Any, cast, Union, Iterable, Optional
+from typing import Dict, List, Sequence, Tuple, Type, Any, cast, Iterable, Optional
 
 from dlt.common import json
 from dlt.common.data_types import TDataType

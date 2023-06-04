@@ -58,7 +58,7 @@ def test_batch_items_last_value_state_is_updated() -> None:
     p = dlt.pipeline(pipeline_name=uniq_id())
     p.extract(some_data())
 
-    s = p.state["sources"]["test_incremental"]['resources']['some_data']['incremental']['created_at']
+    s = p.state["sources"][p.default_schema_name]['resources']['some_data']['incremental']['created_at']
     assert s['last_value'] == 9
 
 
@@ -140,7 +140,7 @@ def test_nested_cursor_path() -> None:
     p = dlt.pipeline(pipeline_name=uniq_id())
     p.extract(some_data())
 
-    s = p.state["sources"]["test_incremental"]['resources']['some_data']['incremental']['data.items[0].created_at']
+    s = p.state["sources"][p.default_schema_name]['resources']['some_data']['incremental']['data.items[0].created_at']
     assert s['last_value'] == 2
 
 
@@ -152,7 +152,7 @@ def test_explicit_initial_value() -> None:
     p = dlt.pipeline(pipeline_name=uniq_id())
     p.extract(some_data(created_at=4242))
 
-    s = p.state["sources"]["test_incremental"]['resources']['some_data']['incremental']['created_at']
+    s = p.state["sources"][p.default_schema_name]['resources']['some_data']['incremental']['created_at']
     assert s['last_value'] == 4242
 
 
@@ -288,7 +288,7 @@ def test_last_value_func_min() -> None:
     p = dlt.pipeline(pipeline_name=uniq_id())
     p.extract(some_data())
 
-    s = p.state["sources"]["test_incremental"]['resources']['some_data']['incremental']['created_at']
+    s = p.state["sources"][p.default_schema_name]['resources']['some_data']['incremental']['created_at']
 
     assert s['last_value'] == 8
 
@@ -305,7 +305,7 @@ def test_last_value_func_custom() -> None:
     p = dlt.pipeline(pipeline_name=uniq_id())
     p.extract(some_data())
 
-    s = p.state["sources"]["test_incremental"]['resources']['some_data']['incremental']['created_at']
+    s = p.state["sources"][p.default_schema_name]['resources']['some_data']['incremental']['created_at']
     assert s['last_value'] == 11
 
 
@@ -323,7 +323,7 @@ def test_cursor_datetime_type() -> None:
     p = dlt.pipeline(pipeline_name=uniq_id())
     p.extract(some_data())
 
-    s = p.state["sources"]["test_incremental"]['resources']['some_data']['incremental']['created_at']
+    s = p.state["sources"][p.default_schema_name]['resources']['some_data']['incremental']['created_at']
     assert s['last_value'] == initial_value + timedelta(minutes=4)
 
 
@@ -339,7 +339,7 @@ def test_descending_order_unique_hashes() -> None:
     p = dlt.pipeline(pipeline_name=uniq_id())
     p.extract(some_data())
 
-    s = p.state["sources"]["test_incremental"]['resources']['some_data']['incremental']['created_at']
+    s = p.state["sources"][p.default_schema_name]['resources']['some_data']['incremental']['created_at']
 
     last_hash = digest128(json.dumps({'created_at': 24}))
 
@@ -472,7 +472,7 @@ def test_replace_resets_state() -> None:
     @dlt.transformer(data_from=parent_r, write_disposition="append")
     def child(item):
         state = resource_state("child")
-        print(f"CHILD: {state}")
+        # print(f"CHILD: {state}")
         state["mark"] = f"mark:{item['delta']}"
         yield item
 
@@ -484,7 +484,7 @@ def test_replace_resets_state() -> None:
     print(info.load_packages[0])
     assert len(info.loads_ids) == 1
 
-    s = DltSource("comp", "section", Schema("schema"), [parent_r, child])
+    s = DltSource("comp", "section", Schema("comp"), [parent_r, child])
 
     p = dlt.pipeline(pipeline_name=uniq_id(), destination="duckdb")
     info = p.run(s)

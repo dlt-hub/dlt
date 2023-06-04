@@ -266,7 +266,7 @@ def test_restore_state_pipeline(destination_name: str) -> None:
     assert p.default_schema_name == "default"
     assert set(p.schema_names) == set(["default", "two", "three", "four"])
     assert p.state["sources"] == {
-        "test_restore_state": {'state1': 'state1', 'state2': 'state2'}, "two": {'state3': 'state3'}, "three": {'state4': 'state4'}, "four": {"state5": JSON_TYPED_DICT}
+        "default": {'state1': 'state1', 'state2': 'state2'}, "two": {'state3': 'state3'}, "three": {'state4': 'state4'}, "four": {"state5": JSON_TYPED_DICT}
     }
     for schema in p.schemas.values():
         assert "some_data" in schema.tables
@@ -414,7 +414,7 @@ def test_restore_state_parallel_changes(destination_name: str) -> None:
     production_p.sync_destination(destination=destination_name, dataset_name=dataset_name)
     assert production_p.default_schema_name == "default"
     prod_state = production_p.state
-    assert prod_state["sources"] == {"test_restore_state": {'state1': 'state1', 'state2': 'state2'}}
+    assert prod_state["sources"] == {"default": {'state1': 'state1', 'state2': 'state2'}}
     assert prod_state["_state_version"] == orig_state["_state_version"]
     # generate data on production that modifies the schema but not state
     data2 = some_data("state1")

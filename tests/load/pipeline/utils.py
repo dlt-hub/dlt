@@ -15,6 +15,11 @@ if TYPE_CHECKING:
 @pytest.fixture(autouse=True)
 def drop_pipeline() -> Iterator[None]:
     yield
+    drop_active_pipeline_data()
+
+
+def drop_active_pipeline_data() -> None:
+    """Drops all the datasets for currently active pipeline and then deactivated it. Does not drop the working dir - see new_test_storage"""
     if Container()[PipelineContext].is_active():
         # take existing pipeline
         p = dlt.pipeline()

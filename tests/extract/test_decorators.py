@@ -14,7 +14,7 @@ from dlt.common.schema import Schema
 from dlt.common.schema.utils import new_table
 
 from dlt.cli.source_detection import detect_source_configs
-from dlt.extract.exceptions import InvalidResourceDataTypeFunctionNotAGenerator, InvalidResourceDataTypeIsNone, ParametrizedResourceUnbound, PipeNotBoundToData, ResourceFunctionExpected, ResourceInnerCallableConfigWrapDisallowed, SourceDataIsNone, SourceIsAClassTypeError, SourceNotAFunction, SourceSchemaNotAvailable
+from dlt.extract.exceptions import ExplicitSourceNameInvalid, InvalidResourceDataTypeFunctionNotAGenerator, InvalidResourceDataTypeIsNone, ParametrizedResourceUnbound, PipeNotBoundToData, ResourceFunctionExpected, ResourceInnerCallableConfigWrapDisallowed, SourceDataIsNone, SourceIsAClassTypeError, SourceNotAFunction, SourceSchemaNotAvailable
 from dlt.extract.source import DltResource, DltSource
 
 from tests.utils import preserve_environ
@@ -63,7 +63,7 @@ def test_load_schema_for_callable() -> None:
 
     s = ethereum()
     schema = s.schema
-    assert schema.name == "ethereum"
+    assert schema.name == "ethereum" == s.name
     # the schema in the associated file has this hash
     assert schema.stored_version_hash == IMPORTED_VERSION_HASH_ETH_V5
 
@@ -134,17 +134,18 @@ def test_source_name_is_invalid_schema_name() -> None:
         return dlt.resource([1, 2, 3], name="resource")
 
     s = dlt.source(camelCase)()
-    assert s.name == "camelCase"
+    # source name will be normalized
+    assert s.name == "camel_case"
+    assert s.schema.name == "camel_case"
     schema = s.discover_schema()
     assert schema.name == "camel_case"
     assert list(s) == [1, 2, 3]
 
     # explicit name
-    s = dlt.source(camelCase, name="source!")()
-    assert s.name == "source!"
-    schema = s.discover_schema()
-    assert schema.name == "sourcex"
-    assert list(s) == [1, 2, 3]
+    with pytest.raises(ExplicitSourceNameInvalid) as py_ex:
+        s = dlt.source(camelCase, name="source!")()
+    assert py_ex.value.source_name == "source!"
+    assert py_ex.value.schema_name == "sourcex"
 
 
 def test_resource_name_is_invalid_table_name_and_columns() -> None:
@@ -235,7 +236,7 @@ def test_source_sections() -> None:
 
 def test_source_explicit_section() -> None:
 
-    @dlt.source(section="custom_section")
+    @dlt.source(section="custom_section", schema=Schema("custom_section"))
     def with_section(secret=dlt.secrets.value):
 
         @dlt.resource
@@ -249,7 +250,7 @@ def test_source_explicit_section() -> None:
     state: TPipelineState = {}
     with Container().injectable_context(StateInjectableContext(state=state)):
         assert list(with_section()) == [1]
-        # state should be modified: in the custom section we put the value from custom config
+        # source state key is still source name
         assert state["sources"]["custom_section"]["val"] == "CUSTOM"
 
 
@@ -512,7 +513,7 @@ def test_class_source() -> None:
 
     # CAN decorate callable classes
     s = dlt.source(_Source(4))(more=1)
-    assert s.name == "_Source"
+    assert s.name == "_source"
     schema = s.discover_schema()
     assert schema.name == "_source"
     assert "_list" in schema.tables

@@ -235,6 +235,13 @@ class SourceSchemaNotAvailable(DltSourceException):
         super().__init__("Current source schema is available only when called from a function decorated with dlt.source or dlt.resource")
 
 
+class ExplicitSourceNameInvalid(DltSourceException):
+    def __init__(self, source_name: str, schema_name: str) -> None:
+        self.source_name = source_name
+        self.schema_name = schema_name
+        super().__init__(f"Your explicit source name {source_name} is not a valid schema name. Please use a valid schema name ie. '{schema_name}'.")
+
+
 class IncrementalUnboundError(DltResourceException):
     def __init__(self, cursor_path: str) -> None:
         super().__init__("", f"The incremental definition with cursor path {cursor_path} is used without being bound to the resource. This most often happens when you create dynamic resource from a generator function that uses incremental. See https://dlthub.com/docs/general-usage/incremental-loading#incremental-loading-with-last-value for an example.")

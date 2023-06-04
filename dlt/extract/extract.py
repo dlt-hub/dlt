@@ -161,7 +161,7 @@ def extract_with_schema(
     extract_id = storage.create_extract_id()
     with Container().injectable_context(SourceSchemaInjectableContext(schema)):
         # inject the config section with the current source name
-        with inject_section(ConfigSectionContext(sections=(known_sections.SOURCES, source.section, source.name))):
+        with inject_section(ConfigSectionContext(sections=(known_sections.SOURCES, source.section, source.name), source_state_key=source.name)):
             # reset resource states
             for resource in source.resources.extracted.values():
                 with contextlib.suppress(DataItemRequiredForDynamicTableHints):

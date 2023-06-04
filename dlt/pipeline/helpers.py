@@ -13,7 +13,7 @@ from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.pipeline.exceptions import PipelineStepFailed, PipelineHasPendingDataException
 from dlt.pipeline.typing import TPipelineStep
 from dlt.pipeline import Pipeline
-from dlt.common.pipeline import TSourceState, _reset_resource_state, sources_state, _delete_source_state_keys, _get_matching_resources
+from dlt.common.pipeline import TSourceState, _reset_resource_state, _sources_state, _delete_source_state_keys, _get_matching_resources
 
 
 def retry_load(retry_on_pipeline_steps: Sequence[TPipelineStep] = ("load",)) -> Callable[[BaseException], bool]:
@@ -139,7 +139,7 @@ class DropCommand:
         state: TSourceState = self.pipeline.state  # type: ignore[assignment]
         if not self.drop_state:
             return state  # type: ignore[return-value]
-        source_states = sources_state(state).items()
+        source_states = _sources_state(state).items()
         for source_name, source_state in source_states:
             if self.drop_state:
                 for key in _get_matching_resources(self.resource_pattern, source_state):

@@ -159,6 +159,7 @@ def test_resource_bind_when_in_source() -> None:
     r1 = parametrized(6)
     r2 = parametrized(7)
     assert r1 is not r2 is not parametrized
+    assert r1.source_name is r2.source_name is None
 
     # add parametrized to source
     @dlt.source
@@ -168,9 +169,12 @@ def test_resource_bind_when_in_source() -> None:
     s = test_source()
     # we cloned the instance
     assert s.resources["parametrized"] is not parametrized
+    assert s.resources["parametrized"].source_name == "test_source"
     cloned_r = s.resources["parametrized"]
     # calling resources always create a copy
     cr_1 = cloned_r(10)
+    # does not have source_name set
+    assert cr_1.source_name is None
     # different instance
     assert cloned_r is not cr_1
     # call bind directly to replace resource in place
@@ -748,7 +752,7 @@ def test_source_state() -> None:
     with Container().injectable_context(StateInjectableContext(state={})) as state:
         test_source({}).state["value"] = 1
         test_source({"value": 1})
-        assert state.state == {'sources': {'test_sources': {'value': 1}}}
+        assert state.state == {'sources': {'test_source': {'value': 1}}}
 
 
 def test_resource_state() -> None:
@@ -757,12 +761,13 @@ def test_resource_state() -> None:
     def test_resource():
         yield [1, 2, 3]
 
-    @dlt.source(section="source_section")
+    @dlt.source(schema=Schema("schema_section"))
     def test_source():
         return test_resource
 
     r = test_resource()
     s = test_source()
+    assert s.name == "schema_section"
 
     with pytest.raises(PipelineStateNotAvailable):
         r.state
@@ -771,7 +776,7 @@ def test_resource_state() -> None:
     with pytest.raises(PipelineStateNotAvailable):
         s.test_resource.state
 
-    dlt.pipeline(full_refresh=True)
+    p = dlt.pipeline(full_refresh=True)
     assert r.state == {}
     assert s.state == {}
     assert s.test_resource.state == {}
@@ -780,9 +785,12 @@ def test_resource_state() -> None:
         r.state["direct"] = True
         s.test_resource.state["in-source"] = True
         # resource section is current module
-        assert state.state["sources"]["test_sources"] == {'resources': {'test_resource': {'direct': True}}}
-        # in source resource is part of the source state
+        print(state.state)
+        # the resource that is a part of the source will create a resource state key in the source state key
+        assert state.state["sources"]["schema_section"] == {'resources': {'test_resource': {'in-source': True}}}
         assert s.state == {'resources': {'test_resource': {'in-source': True}}}
+        # the standalone resource will create key which is default schema name
+        assert state.state["sources"][p._make_schema_with_default_name().name] == {'resources': {'test_resource': {'direct': True}}}
 
 
 # def test_add_resources_to_source_simple() -> None:
@@ -804,7 +812,7 @@ def test_source_multiple_iterations() -> None:
         yield [1, 2, 3]
         yield [1, 2, 3]
 
-    s = DltSource("source", "module", Schema("default"), [dlt.resource(some_data())])
+    s = DltSource("source", "module", Schema("source"), [dlt.resource(some_data())])
     assert s.exhausted is False
     assert list(s) == [1, 2, 3, 1, 2, 3]
     assert s.exhausted is True

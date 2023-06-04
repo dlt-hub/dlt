@@ -61,3 +61,8 @@ class SchemaNotFoundError(SchemaStorageException, FileNotFoundError, KeyError):
         if import_path:
             msg += f"Import from {import_path} and format {import_format} failed."
         super().__init__(msg)
+
+
+class UnexpectedSchemaName(SchemaStorageException, ValueError):
+    def __init__(self, schema_name: str, storage_path: str, stored_name: str) -> None:
+        super().__init__(f"A schema file name '{schema_name}' in {storage_path} does not correspond to the name of schema in the file {stored_name}")

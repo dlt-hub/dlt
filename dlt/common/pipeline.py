@@ -143,6 +143,8 @@ class SupportsPipeline(Protocol):
     """A protocol with core pipeline operations that lets high level abstractions ie. sources to access pipeline methods and properties"""
     pipeline_name: str
     """Name of the pipeline"""
+    default_schema_name: str
+    """Name of the default schema"""
     destination: DestinationReference
     """The destination reference which is ModuleType. `destination.__name__` returns the name string"""
     dataset_name: str
@@ -183,7 +185,9 @@ class SupportsPipeline(Protocol):
 
     def _set_context(self, is_active: bool) -> None:
         """Called when pipeline context activated or deactivate"""
-        ...
+
+    def _make_schema_with_default_name(self) -> Schema:
+        """Make a schema from the pipeline name using the name normalizer. "_pipeline" suffix is removed if present"""
 
 
 class SupportsPipelineRun(Protocol):
@@ -269,18 +273,8 @@ def pipeline_state(container: Container, initial_default: TPipelineState = None)
             return proxy.pipeline().state, False
 
 
-def sources_state(pipeline_state_: Optional[TPipelineState] = None, /) -> DictStrAny:
+def _sources_state(pipeline_state_: Optional[TPipelineState] = None, /) -> DictStrAny:
     global _last_full_state
-
-    # # get the source name from the section context
-    # source_section: str = None
-    # with contextlib.suppress(ContextDefaultCannotBeCreated):
-    #     sections_context = container[ConfigSectionContext]
-    #     with contextlib.suppress(ValueError):
-    #         source_section = sections_context.source_section()
-
-    # if not source_section:
-    #     raise SourceSectionNotAvailable()
 
     if pipeline_state_ is None:
         state, _ = pipeline_state(Container())
@@ -304,8 +298,8 @@ def source_state() -> DictStrAny:
     The source state is a python dictionary-like object that is available within the `@dlt.source` and `@dlt.resource` decorated functions and may be read and written to.
     The data within the state is loaded into destination together with any other extracted data and made automatically available to the source/resource extractor functions when they are run next time.
     When using the state:
-    * The source state is scoped to a section of the source. The source section is set by default to the module name in which source function is defined.
-    * If the `section` argument when decorating source function is not specified, all sources in the module will share the state
+    * The source state is scoped to a particular source and will be stored under the source name in the pipeline state
+    * It is possible to share state across many sources if they share a schema with the same name
     * Any JSON-serializable values can be written and the read from the state. `dlt` dumps and restores instances of Python bytes, DateTime, Date and Decimal types.
     * The state available in the source decorated function is read only and any changes will be discarded.
     * The state available in the resource decorated function is writable and written values will be available on the next pipeline run
@@ -315,22 +309,21 @@ def source_state() -> DictStrAny:
     container = Container()
 
     # get the source name from the section context
-    source_section: str = None
+    source_state_key: str = None
     with contextlib.suppress(ContextDefaultCannotBeCreated):
         sections_context = container[ConfigSectionContext]
-        with contextlib.suppress(ValueError):
-            source_section = sections_context.source_section()
+        source_state_key = sections_context.source_state_key
 
-    if not source_section:
+    if not source_state_key:
         raise SourceSectionNotAvailable()
 
     try:
-        state = sources_state()
+        state = _sources_state()
     except PipelineStateNotAvailable as e:
         # Reraise with source section
-        raise PipelineStateNotAvailable(source_section) from e
+        raise PipelineStateNotAvailable(source_state_key) from e
 
-    return state.setdefault(source_section, {})  # type: ignore[no-any-return]
+    return state.setdefault(source_state_key, {})  # type: ignore[no-any-return]
 
 
 _last_full_state: TPipelineState = None
