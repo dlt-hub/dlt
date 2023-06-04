@@ -5,7 +5,7 @@ from typing import Any, Dict, ContextManager, List, Optional, Sequence, Tuple, T
 from dlt.common.configuration.providers.provider import ConfigProvider
 from dlt.common.typing import AnyType, StrAny, TSecretValue, get_all_types_of_class_in_union, is_final_type, is_optional_type, is_union
 
-from dlt.common.configuration.specs.base_configuration import BaseConfiguration, CredentialsConfiguration, is_secret_hint, extract_inner_hint, is_context_inner_hint, is_base_configuration_inner_hint
+from dlt.common.configuration.specs.base_configuration import BaseConfiguration, CredentialsConfiguration, is_secret_hint, extract_inner_hint, is_context_inner_hint, is_base_configuration_inner_hint, is_valid_hint
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
@@ -140,23 +140,48 @@ def _resolve_config_fields(
         current_value = None
         if is_union(hint):
             # print(f"HINT UNION?: {key}:{hint}")
-            specs_in_union = get_all_types_of_class_in_union(hint, BaseConfiguration)
-        if len(specs_in_union) > 1:
-            for idx, alt_spec in enumerate(specs_in_union):
-                # return first resolved config from an union
-                try:
-                    current_value, traces = _resolve_config_field(key, alt_spec, default_value, explicit_value, config, config.__section__, explicit_sections, embedded_sections, accept_partial)
-                    break
-                except ConfigFieldMissingException as cfm_ex:
-                    # add traces from unresolved union spec
-                    # TODO: we should group traces per hint - currently user will see all options tried without the key info
-                    traces.extend(list(itertools.chain(*cfm_ex.traces.values())))
-                except InvalidNativeValue:
-                    # if none of specs in union parsed
-                    if idx == len(specs_in_union) - 1:
-                        raise
-        else:
-            current_value, traces = _resolve_config_field(key, hint, default_value, explicit_value, config, config.__section__, explicit_sections, embedded_sections, accept_partial)
+            # if union contains a type of explicit value which is not a valid hint, return it as current value
+            if explicit_value and not is_valid_hint(type(explicit_value)) and get_all_types_of_class_in_union(hint, type(explicit_value)):
+                current_value, traces = explicit_value, []
+            else:
+                specs_in_union = get_all_types_of_class_in_union(hint, BaseConfiguration)
+        if not current_value:
+            if len(specs_in_union) > 1:
+                for idx, alt_spec in enumerate(specs_in_union):
+                    # return first resolved config from an union
+                    try:
+                        current_value, traces = _resolve_config_field(
+                            key,
+                            alt_spec,
+                            default_value,
+                            explicit_value,
+                            config,
+                            config.__section__,
+                            explicit_sections,
+                            embedded_sections,
+                            accept_partial
+                        )
+                        break
+                    except ConfigFieldMissingException as cfm_ex:
+                        # add traces from unresolved union spec
+                        # TODO: we should group traces per hint - currently user will see all options tried without the key info
+                        traces.extend(list(itertools.chain(*cfm_ex.traces.values())))
+                    except InvalidNativeValue:
+                        # if none of specs in union parsed
+                        if idx == len(specs_in_union) - 1:
+                            raise
+            else:
+                current_value, traces = _resolve_config_field(
+                    key,
+                    hint,
+                    default_value,
+                    explicit_value,
+                    config,
+                    config.__section__,
+                    explicit_sections,
+                    embedded_sections,
+                    accept_partial
+                )
 
         # check if hint optional
         is_optional = is_optional_type(hint)
