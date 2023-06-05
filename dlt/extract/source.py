@@ -4,6 +4,7 @@ from copy import copy
 import makefun
 import inspect
 from typing import AsyncIterable, AsyncIterator, ClassVar, Callable, ContextManager, Dict, Iterable, Iterator, List, Sequence, Tuple, Union, Any
+import types
 
 from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs import known_sections
@@ -568,7 +569,6 @@ class DltSource(Iterable[TDataItem]):
     def __init__(self, name: str, section: str, schema: Schema, resources: Sequence[DltResource] = None) -> None:
         self.name = name
         self.section = section
-        self.exhausted = False
         """Tells if iterator associated with a source is exhausted"""
         self._schema = schema
         self._resources: DltResourceDict = DltResourceDict(self.name, self.section)
@@ -614,6 +614,15 @@ class DltSource(Iterable[TDataItem]):
         config = RelationalNormalizer.get_normalizer_config(self._schema).get("propagation")
         return config is not None and "root" in config and "_dlt_id" in config["root"] and config["root"]["_dlt_id"] == "_dlt_root_id"
 
+    @property
+    def exhausted(self) -> bool:
+        # check all selected pipes wether one of them is exhausted
+        for resource in self._resources.extracted.values():
+            for item in resource._pipe:
+                if isinstance(item, types.GeneratorType):
+                    if inspect.getgeneratorstate(item) != "GEN_CREATED":
+                        return True                
+        return False
 
     @root_key.setter
     def root_key(self, value: bool) -> None:
@@ -735,7 +744,6 @@ class DltSource(Iterable[TDataItem]):
             pipe_iterator: ManagedPipeIterator = ManagedPipeIterator.from_pipes(self._resources.selected_pipes)  # type: ignore
         pipe_iterator.set_context_manager(multi_context_manager(_get_context()))
         _iter = map(lambda item: item.item, pipe_iterator)
-        self.exhausted = True
         return flatten_list_or_items(_iter)
 
     def _get_config_section_context(self) -> ContextManager[ConfigSectionContext]:
