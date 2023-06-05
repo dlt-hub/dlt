@@ -9,7 +9,7 @@ from dlt.common.storages.file_storage import FileStorage
 
 from dlt.cli import echo, init_command, pipeline_command
 
-from tests.cli.utils import echo_default_choice, repo_dir, project_files, cloned_pipeline, get_repo_dir, get_project_files
+from tests.cli.utils import echo_default_choice, repo_dir, project_files, cloned_init_repo, get_repo_dir, get_project_files
 from tests.pipeline.utils import drop_pipeline
 from tests.utils import preserve_environ, autouse_test_storage, clean_test_storage, unload_modules
 

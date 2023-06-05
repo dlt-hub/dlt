@@ -126,7 +126,7 @@ def test_command_instrumentation() -> None:
 
 
 def test_instrumentation_wrappers() -> None:
-    from dlt.cli._dlt import init_command_wrapper, list_pipelines_command_wrapper, DEFAULT_PIPELINES_REPO, pipeline_command_wrapper, deploy_command_wrapper, COMMAND_DEPLOY_REPO_LOCATION, DeploymentMethods
+    from dlt.cli._dlt import init_command_wrapper, list_verified_sources_command_wrapper, DEFAULT_VERIFIED_SOURCES_REPO, pipeline_command_wrapper, deploy_command_wrapper, COMMAND_DEPLOY_REPO_LOCATION, DeploymentMethods
     from dlt.common.exceptions import UnknownDestinationModule
 
     with patch("dlt.common.runtime.segment.before_send", _mock_before_send):
@@ -134,17 +134,17 @@ def test_instrumentation_wrappers() -> None:
 
         SENT_ITEMS.clear()
         with pytest.raises(UnknownDestinationModule):
-            init_command_wrapper("instrumented_pipeline", "<UNK>", False, None, None)
+            init_command_wrapper("instrumented_source", "<UNK>", False, None, None)
         msg = SENT_ITEMS[0]
         assert msg["event"] == "command_init"
-        assert msg["properties"]["pipeline_name"] == "instrumented_pipeline"
+        assert msg["properties"]["source_name"] == "instrumented_source"
         assert msg["properties"]["destination_name"] == "<UNK>"
         assert msg["properties"]["success"] is False
 
         SENT_ITEMS.clear()
-        list_pipelines_command_wrapper(DEFAULT_PIPELINES_REPO, None)
+        list_verified_sources_command_wrapper(DEFAULT_VERIFIED_SOURCES_REPO, None)
         msg = SENT_ITEMS[0]
-        assert msg["event"] == "command_list_pipelines"
+        assert msg["event"] == "command_list_sources"
 
         # SENT_ITEMS.clear()
         # pipeline_command_wrapper("list", "-", None, 1)
