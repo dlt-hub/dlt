@@ -242,7 +242,7 @@ class BigQueryClient(SqlJobClientBase):
                 max_bad_records=0)
             with open(file_path, "rb") as f:
                 return self.sql_client.native_connection.load_table_from_file(
-                        io.BytesIO(gzip.compress(f)),  # network latency is the bottleneck so compress the data here
+                        io.BytesIO(gzip.compress(f.read())),  # network latency is the bottleneck so compress the data here
                         self.sql_client.make_qualified_table_name(table_name, escape=False),
                         job_id=job_id,
                         job_config=job_config,
