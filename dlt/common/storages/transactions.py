@@ -5,11 +5,12 @@ It can be used to operate on a single file atomically both locally and on
 cloud storage. The lock can be used to operate on entire directories by
 creating a lock file that resolves to an agreed upon path across processes.
 """
-import os
 import random
 import string
 import time
 import typing as t
+from pathlib import Path
+import posixpath
 from contextlib import contextmanager
 from dlt.common.pendulum import pendulum, timedelta
 from threading import Timer
@@ -70,36 +71,37 @@ class TransactionalFile:
         proto = fs.protocol[0] if isinstance(fs.protocol, (list, tuple)) else fs.protocol
         self.extract_mtime = self._mtime_dispatch.get(proto, self._mtime_dispatch["file"])
 
+        self.path = path
         if proto == "file":
-            self.path = self._ospath(path)
-        else:
-            self.path = self._normpath(path)
+            # standardize path separator to POSIX. fsspec always uses POSIX. Windows may use either.
+            self.path = Path(path).as_posix()
+        # else:
+        #     self.path = self._normpath(path)
 
         self.lock_prefix = f"{self.path}.lock"
-        self.lock_path = f"{self.lock_prefix}.{lock_id()}"
 
         self._fs = fs
         self._original_contents: t.Optional[bytes] = None
         self._is_locked = False
         self._heartbeat: t.Optional[Heartbeat] = None
 
-    @staticmethod
-    def _normpath(path: str) -> str:
-        """Normalize a path to use forward slashes.
+    # @staticmethod
+    # def _normpath(path: str) -> str:
+    #     """Normalize a path to use forward slashes.
 
-        Args:
-            path: The path to normalize.
-        """
-        return os.path.normpath(path).replace("\\", "/")
+    #     Args:
+    #         path: The path to normalize.
+    #     """
+    #     return os.path.normpath(path).replace("\\", "/")
 
-    @staticmethod
-    def _ospath(path: str) -> str:
-        """Normalize a path to use the OS separator.
+    # @staticmethod
+    # def _ospath(path: str) -> str:
+    #     """Normalize a path to use the OS separator.
 
-        Args:
-            path: The path to normalize.
-        """
-        return os.path.normpath(path).replace("/", os.sep)
+    #     Args:
+    #         path: The path to normalize.
+    #     """
+    #     return os.path.normpath(path).replace("/", os.sep)
 
     def _start_heartbeat(self) -> Heartbeat:
         """Create a thread that will periodically update the mtime."""
@@ -119,11 +121,11 @@ class TransactionalFile:
             self._heartbeat = None
 
     def _sync_locks(self) -> t.List[str]:
-        """Gets a map of lock paths to their last modified times and removes stale locks."""
+        """Gets a list of lock names after removing stale locks. The list is time-sortable with earliest created lock coming first."""
         output = []
         now = pendulum.now()
 
-        locks = self._fs.ls(os.path.dirname(self.lock_path), refresh=True, detail=True)
+        locks = self._fs.ls(posixpath.dirname(self.lock_path), refresh=True, detail=True)
         for lock in filter(lambda lock: lock["name"].startswith(self.lock_prefix), locks):
             # Purge stale locks
             mtime = self.extract_mtime(lock)
@@ -132,6 +134,8 @@ class TransactionalFile:
                 continue
             # The name is timestamp + random suffix and is time sortable
             output.append(lock["name"])
+        if not output:
+            raise RuntimeError(f"When syncing locks for path {self.path} and lock {self.lock_path} no lock file was found")
         return output
 
     def read(self) -> t.Optional[bytes]:
@@ -153,7 +157,9 @@ class TransactionalFile:
         if not self._is_locked:
             raise RuntimeError("Cannot rollback without a lock.")
         if self._original_contents is not None:
-            self._fs.pipe(self.path, self._original_contents)
+            self.write(self._original_contents)
+        elif self._fs.isfile(self.path):
+            self._fs.rm(self.path)
 
     def acquire_lock(self, blocking: bool = True, timeout: float = -1) -> bool:
         """Acquires a lock on a path. Mimics the stdlib's `threading.Lock` interface.
@@ -178,6 +184,7 @@ class TransactionalFile:
         if self._is_locked:
             return True
 
+        self.lock_path = f"{self.lock_prefix}.{lock_id()}"
         self._fs.touch(self.lock_path)
         locks = self._sync_locks()
         active_lock = min(locks)
