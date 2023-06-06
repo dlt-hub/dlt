@@ -54,6 +54,18 @@ def test_file_transaction_no_content(fs: fsspec.AbstractFileSystem):
         file.release_lock()
 
 
+@pytest.mark.skip(reason="This is more interesting on a remote filesystem")
+def test_file_transaction_simulataneous(fs: fsspec.AbstractFileSystem):
+    from concurrent.futures import ThreadPoolExecutor
+
+    pool = ThreadPoolExecutor(max_workers=40)
+    results = pool.map(
+        lambda _: TransactionalFile(
+        "/bucket/test_123", fs).acquire_lock(blocking=False), range(200)
+    )
+    assert sum(results) == 1
+
+
 def test_file_transaction_multiple_writers(fs: fsspec.AbstractFileSystem):
     with NamedTemporaryFile() as f:
         writer_1 = TransactionalFile(f.name, fs)

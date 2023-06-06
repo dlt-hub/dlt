@@ -47,9 +47,9 @@ class TransactionalFile:
     # Map of protocol to mtime resolver
     # we only need to support a small finite set of protocols
     _mtime_dispatch = {
-        "s3": lambda f: pendulum.from_format(f["LastModified"], "%Y-%m-%d %H:%M:%S%z"),
-        "adl": lambda f: pendulum.from_format(f["LastModified"], "%Y-%m-%d %H:%M:%S%z"),
-        "gcs": lambda f: pendulum.from_format(f["updated"], "%Y-%m-%dT%H:%M:%S.%fZ"),
+        "s3": lambda f: pendulum.parser.parse(f["LastModified"]),
+        "adl": lambda f: pendulum.parser.parse(f["LastModified"]),
+        "gcs": lambda f: pendulum.parser.parse(f["updated"]),
         "file": lambda f: pendulum.from_timestamp(f["mtime"]),
     }
     # Support aliases
@@ -76,7 +76,6 @@ class TransactionalFile:
             self.path = self._normpath(path)
 
         self.lock_prefix = f"{self.path}.lock"
-        self.lock_path = f"{self.lock_prefix}.{lock_id()}"
 
         self._fs = fs
         self._original_contents: t.Optional[bytes] = None
@@ -123,15 +122,20 @@ class TransactionalFile:
         output = []
         now = pendulum.now()
 
-        locks = self._fs.ls(os.path.dirname(self.lock_path), refresh=True, detail=True)
-        for lock in filter(lambda lock: lock["name"].startswith(self.lock_prefix), locks):
+        for lock in self._fs.ls(os.path.dirname(self.lock_path), refresh=True, detail=True):
+            name = f"/{lock['name']}" if not lock["name"].startswith("/") else lock["name"]
+            if not name.startswith(self.lock_prefix):
+                continue
             # Purge stale locks
             mtime = self.extract_mtime(lock)
             if now - mtime > timedelta(seconds=TransactionalFile.LOCK_TTL_SECONDS):
-                self._fs.rm(lock["name"])
+                try: # Janitors can race, so we ignore errors
+                    self._fs.rm(name)
+                except OSError:
+                    pass
                 continue
             # The name is timestamp + random suffix and is time sortable
-            output.append(lock["name"])
+            output.append(name)
         return output
 
     def read(self) -> t.Optional[bytes]:
@@ -178,6 +182,8 @@ class TransactionalFile:
         if self._is_locked:
             return True
 
+        time.sleep(random.random())  # Add jitter to avoid thundering herd
+        self.lock_path = f"{self.lock_prefix}.{lock_id()}"
         self._fs.touch(self.lock_path)
         locks = self._sync_locks()
         active_lock = min(locks)
