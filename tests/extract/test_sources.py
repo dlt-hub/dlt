@@ -819,3 +819,4 @@ def test_source_multiple_iterations() -> None:
     assert list(s) == []
     info = str(s)
     assert "Source is already iterated" in info
+

@@ -616,12 +616,12 @@ class DltSource(Iterable[TDataItem]):
 
     @property
     def exhausted(self) -> bool:
-        # check all selected pipes wether one of them is exhausted
+        """check all selected pipes wether one of them is exhausted"""
         for resource in self._resources.extracted.values():
-            for item in resource._pipe:
-                if isinstance(item, types.GeneratorType):
-                    if inspect.getgeneratorstate(item) != "GEN_CREATED":
-                        return True                
+            item = resource._pipe.gen
+            if inspect.isgenerator(item):
+                if inspect.getgeneratorstate(item) != "GEN_CREATED":
+                    return True                
         return False
 
     @root_key.setter
