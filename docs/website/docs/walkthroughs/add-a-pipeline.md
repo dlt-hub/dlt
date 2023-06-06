@@ -6,7 +6,7 @@ keywords: [how to, add a pipeline]
 
 # Add a pipeline
 
-Follow the steps below to add a [pipeline](../general-usage/glossary.md#pipeline) pipeline contributed by the other `dlt` users.
+Follow the steps below to add a [pipeline](../general-usage/glossary.md#pipeline) contributed by the other `dlt` users.
 
 Please make sure you have [installed `dlt`](../installation.mdx) before following the steps below.
 
