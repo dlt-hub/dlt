@@ -2,7 +2,7 @@
 
 Shopify is a user-friendly e-commerce solution that enables anyone to easily create and manage their own online store.
 
-This `dlt` pipeline is designed to efficiently load data from multiple endpoints, including customers, orders, and products, into a destination of your choice.
+This `dlt` verified source is designed to efficiently load data from multiple endpoints, including customers, orders, and products, into a destination of your choice.
 
 ## Grab API token
 
@@ -17,7 +17,7 @@ This `dlt` pipeline is designed to efficiently load data from multiple endpoints
 9. Click on “Install app” at the top of the page and confirm.
 10. Finally, click on “reveal the Admin API access token” and copy it. This token will be used in dlt `secrets.toml` for authentication and will be displayed only once, so better keep it safe.
 
-## Initialize the pipeline
+## Initialize the pipeline from Shopify verified source
 
 To get started with your data pipeline, follow these steps:
 
@@ -32,21 +32,6 @@ dlt init shopify_dlt bigquery
 This command will initialize your pipeline with Shopify as the source and BigQuery as the destination. If you'd like to use a different destination, simply replace **`bigquery`** with the name of your preferred destination. You can find supported destinations and their configuration options in our [documentation](https://dlthub.com/docs/destinations/duckdb)
 
 3. After running this command, a new directory will be created with the necessary files and configuration settings to get started. From here, you can begin configuring your pipeline to suit your specific needs.
-
-```bash
-shopify_pipeline
-├── .dlt
-│   ├── .pipelines
-│   ├── config.toml
-│   └── secrets.toml
-├── shopify_dlt
-│   └── __pycache__
-│   └── __init__.py
-│   └── queries.py
-├── .gitignore
-├── shopify_dlt_pipeline.py
-└── requirements.txt
-```
 
 ## Add credentials
 
@@ -103,7 +88,7 @@ if __name__ == "__main__":
 
 4. Changing these parameters allows you to control what data is fetched from Shopify and when it is fetched.
 
-## Run the pipeline[](https://dlthub.com/docs/pipelines/strapi#run-the-pipeline)
+## Run the pipeline
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by running the command:
 

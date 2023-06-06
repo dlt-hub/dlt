@@ -47,20 +47,6 @@ This command will initialize your pipeline with Asana as the source and BigQuery
 
 3. After running this command, a new directory will be created with the necessary files and configuration settings to get started. From here, you can begin configuring your pipeline to suit your specific needs.
 
-```python
-asana_pipeline
-├── .dlt
-│   ├── .sources
-│   ├── config.toml
-│   └── secrets.toml
-├── asana_dlt
-│   └── __pycache__
-│   └── __init__.py
-├── .gitignore
-├── dlt_asana_pipeline.py
-└── requirements.txt
-```
-
 ## **Add credential**
 
 1. Inside the **`.dlt`** folder, you'll find a file called **`secrets.toml`**, which is where you can securely store your access tokens and other sensitive information. It's important to handle this file with care and keep it safe.

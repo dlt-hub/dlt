@@ -1,14 +1,14 @@
 ---
 title: GitHub
-description: dlt pipeline for GitHub API
-keywords: [github api, github pipeline, github]
+description: dlt verified source for GitHub API
+keywords: [github api, github verified source, github]
 ---
 
 # GitHub
 
-This pipeline can be used to load data on issues or pull requests from any GitHub repository onto a [destination](../general-usage/glossary.md#destination) of your choice.
+This verified source can be used to load data on issues or pull requests from any GitHub repository onto a [destination](../general-usage/glossary.md#destination) of your choice.
 
-This pipeline can access the GitHub API from two `dlt` sources:
+It accesses the GitHub API from two `dlt` sources:
 1. `github_reactions` with the resource end-points `issues` and `pullRequests`.
 2. `github_repo_events` with the resource end-point `repo_events`.
 
@@ -43,23 +43,7 @@ Initialize the pipeline with the following command:
 ```
 dlt init github bigquery
 ```
-Here, we chose BigQuery as the destination. To choose a different destination, replace `bigquery` with your choice of destination. 
-
-Running this command will create a directory with the following structure:
-```bash
-github_pipeline
-├── .dlt
-│   ├── .pipelines
-│   ├── config.toml
-│   └── secrets.toml
-├── github
-│   └── __pycache__
-│   └── __init__.py
-│   └── queries.py
-├── .gitignore
-├── github_pipeline.py
-└── requirements.txt
-```
+Here, we chose BigQuery as the destination. To choose a different destination, replace `bigquery` with your choice of destination.
 
 ## Add credentials
 
@@ -71,6 +55,7 @@ github_pipeline
 # Github access token (must be classic for reactions source)
 [sources.github]
 access_token="GITHUB_API_TOKEN"
+
 [destination.bigquery.credentials] # the credentials required will change based on the destination
 project_id = "set me up" # GCP project ID
 private_key = "set me up" # Unique private key (including `BEGINand END PRIVATE KEY`)
@@ -79,11 +64,11 @@ location = "set me up" # Project location (e.g. “US”)
 ```
 
 2. Replace `"GITHUB_API_TOKEN"` with the API token you [copied above](#grab-the-api-auth-token) or leave it blank if not specified.
-3. Follow the instructions in the [Destinations](https://dlthub.com/docs/destinations) document to add credentials for your chosen destination. 
+3. Follow the instructions in the [Destinations](https://dlthub.com/docs/destinations) document to add credentials for your chosen destination.
 
 ## Modify the script `github_pipeline.py`
 
-To load the data from the desired repository onto the desired destination, a source method needs to be specified in `github_pipeline.py`. For this, you can either write your own method, or modify one of the three example templates:  
+To load the data from the desired repository onto the desired destination, a source method needs to be specified in `github_pipeline.py`. For this, you can either write your own method, or modify one of the three example templates:
 
 |Function name| Description |
 | --- | --- |
@@ -114,7 +99,7 @@ python3 github_pipeline.py
 ```
 dlt pipeline github_pipeline show
 ```
-## Customize source methods
+## Change the Github repo to load from
 
 You can customize the existing templates in `github_pipeline.py` to load from any repository of your choice.
 
@@ -124,7 +109,7 @@ For this, you can modify the method `load_airflow_events`. By default, this meth
 
 The general template for this method is as follows:
 ```python
-def load_<repo_name>_events() -> None: 
+def load_<repo_name>_events() -> None:
     """Loads <repo_name> events. Shows incremental loading. Forces anonymous access token"""
     pipeline = dlt.pipeline("github_events", destination=<destination_name> dataset_name="<repo_name>_events")
     data = github_repo_events(<owner_name>, <repo_name>, access_token="")
@@ -142,12 +127,12 @@ def load_<repo_name>_events() -> None:
 ```python
 if __name__ == "__main__" :
     load_<repo_name>_events()
-   
+
 ```
 
 ### b. Load GitHub reactions from any repository
 
-The template source method for loading user reactions and comments on issues is `load_duckdb_repo_reactions_issues_only`. By default, this method loads data from the duckdb repository(https://github.com/duckdb/duckdb). The owner name and the repository name for this repository is `duckdb`. To load data from a different respository, change the owner name and the repository name in the function to that of your chosen repository. 
+The template source method for loading user reactions and comments on issues is `load_duckdb_repo_reactions_issues_only`. By default, this method loads data from the duckdb repository(https://github.com/duckdb/duckdb). The owner name and the repository name for this repository is `duckdb`. To load data from a different respository, change the owner name and the repository name in the function to that of your chosen repository.
 
 The general template for this method is as follows:
 
@@ -161,7 +146,7 @@ def load_<owner_name>_<repo_name>_reactions() -> None:
 ```
 1. By default, <repo_name> is `duckdb` and <owner_name> is `duckdb`. <destination_name> is the destination specified when initiating the `dlt` project.
 2. To load events from any other repository, change <repo_name> and <owner_name> in the method to that of the desired repository.
-3. Use arguments `items_per_page` and `max_items` in `github_reactions` to set limits on the number of items per page and the total number of items. 
+3. Use arguments `items_per_page` and `max_items` in `github_reactions` to set limits on the number of items per page and the total number of items.
 
 ```python
 data = github_reactions(<owner_name>, <repo_name>, items_per_page=100, max_items=300)
@@ -177,5 +162,5 @@ data = github_reactions(<owner_name>, <repo_name>).with_resources("issues")
 ```python
 if __name__ == "__main__" :
     load_<owner_name>_<repo_name>_reactions()
-   
+
 ```

@@ -13,8 +13,7 @@ Using this guide, you can set up a pipeline that can automatically load data fro
 
 Before running the pipeline, you will need to get API credentials. You do not need to get credentials for all of the APIs, but only for those from which you wish to request data. The steps for this are detailed below:
 
-<details>
-<summary>Credentials for Zendesk support API</summary>
+Credentials for Zendesk support API
 
 Zendesk support can be authenticated using any one of the following:
 
@@ -108,9 +107,7 @@ To get an `OAuth token` follow these steps:
 
 9. This is the OAuth token. Save it, as this will need to be added to the pipeline.
 
-</details>
-<details>
-<summary>Credentials for Zendesk chat API</summary>
+Credentials for Zendesk chat API
 
 To authenticate Zendesk chat, you will need the following credentials:
 
@@ -149,13 +146,10 @@ http://localhost:8080/#**access_token=cSWY9agzy9hsgsEdX5F2PCsBlvSu3tDk3lh4xmISIH
 10. Save the access token. This will need to be added to the pipeline later.
 
 
-</details>
-<details><summary>Credentials for Zendesk talk API</summary>
+Credentials for Zendesk talk API
 
 1. The method for getting the credentials for Zendesk talk is the same as that for [Zendesk support](#grab-zendesk-support-credentials).
 2. You can reuse the same credentials from Zendesk support or generate new ones.
-
-</details>
 
 ## Initialize the pipeline
 
@@ -166,23 +160,6 @@ dlt init zendesk bigquery
 ```
 
 Here, we chose BigQuery as the destination. To choose a different destination, replace `bigquery` with your choice of destination.
-
-Running this command will create a directory with the following structure:
-
-```bash
-zendesk_pipeline
-├── .dlt
-│   ├── .pipelines
-│   ├── config.toml
-│   └── secrets.toml
-├── zendesk
-│   └── helpers
-│   └── __init__.py
-│   └── running_guide
-├── .gitignore
-├── zendesk_pipeline.py
-└── requirements.txt`
-```
 
 
 ## Add credentials

@@ -1,12 +1,12 @@
 ---
 title: Pipedrive
-description: dlt pipeline for Pipedrive API
-keywords: [pipedrive api, pipedrive pipeline, pipedrive]
+description: dlt verified source for Pipedrive API
+keywords: [pipedrive api, pipedrive verified source, pipedrive]
 ---
 
 # Pipedrive
 
-Here you will find a setup guide for the [Pipedrive](https://developers.pipedrive.com/docs/api/v1) pipeline.
+Here you will find a setup guide for the [Pipedrive](https://developers.pipedrive.com/docs/api/v1) verified source.
 
 ## Set up account
 
@@ -16,7 +16,7 @@ Here you will find a setup guide for the [Pipedrive](https://developers.pipedriv
 
 Pipedrive provides a unique domain name that is generally `[company].pipedrive.com`. For example, if your company name is `dltHub`, then the subdomain name is `dlthub.pipedrive.com`.
 
-## Initialize the pipeline
+## Initialize the pipeline from Pipedrive verified source
 
 **Initialize the pipeline by using the following command with your [destination](../general-usage/glossary.md#destination) of choice:**
 ```bash

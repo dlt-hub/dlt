@@ -16,23 +16,11 @@ dlt init chess bigquery
 ```
 Here, we chose BigQuery as the destination. To choose a different destination, replace `bigquery` with your choice of destination.
 
-Running this command will create a directory with the following structure:
-```bash
-├── .dlt
-│   ├── .sources
-│   ├── config.toml
-│   └── secrets.toml
-├── chess
-│   └── __pycache__
-│   └── __init__.py
-├── .gitignore
-├── chess_pipeline.py
-└── requirements.txt
-```
-
 ## Add credentials
 
 Before running the pipeline you may need to add credentials in the `.dlt/secrets.toml` file for your chosen destination. For instructions on how to do this, follow the steps detailed under the desired destination in the [destinations](https://dlthub.com/docs/destinations) page.
+
+Chess source does not require credentials to run.
 
 ## Run the pipeline
 

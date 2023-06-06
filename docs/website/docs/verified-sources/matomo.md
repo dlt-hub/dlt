@@ -1,7 +1,7 @@
 # Matomo
 Matomo is a free and open-source web analytics platform that allows website owners and businesses to get detailed insights into their website and application performance.Matomo provides a comprehensive range of features including visitor maps, site search analytics, real-time visitor tracking, and custom reports, among others.
 
-With the DLT pipeline, you can effortlessly extract and seamlessly load data from Matomo to your preferred destination. This incredible process covers a wide range of options, including loading visitor data, live events, and reports, which can yield you with insights into your website's performance.
+With this verified source, you can effortlessly extract and seamlessly load data from Matomo to your preferred destination. This incredible process covers a wide range of options, including loading visitor data, live events, and reports, which can yield you with insights into your website's performance.
 
 ## Grab Matomo credentials
 
@@ -28,7 +28,7 @@ For instance, if your company's name is "mycompany", then the URL will be someth
 4. You can easily locate the **`site_id`** in the URL link in the address bar, for example, as "idSite=2".
 5. Alternatively, you can also find the **`site_id`** by navigating to the Administration page > Measureables > Manage, and then locating the **`ID`** number for your site.
 
-## Initialize the pipeline
+## Initialize the pipeline with Matomo verified source
 
 To get started with your data pipeline, follow these steps:
 
@@ -43,21 +43,6 @@ dlt init matomo bigquery
 This command will initialize your pipeline with Matomo as the source and BigQuery as the destination. If you'd like to use a different destination, simply replace **`bigquery`** with the name of your preferred destination. You can find supported destinations and their configuration options in our [documentation](https://dlthub.com/docs/destinations/duckdb)
 
 3. After running this command, a new directory will be created with the necessary files and configuration settings to get started. From here, you can begin configuring your pipeline to suit your specific needs.
-
-```bash
-matomo_pipeline
-├── .dlt
-│   ├── .pipelines
-│   ├── config.toml
-│   └── secrets.toml
-├── matomo
-│   └── __pycache__
-│   └── helpers
-│   └── __init__.py
-├── .gitignore
-├── matomo_pipeline.py
-└── requirements.txt
-```
 
 ## **Add credential**
 

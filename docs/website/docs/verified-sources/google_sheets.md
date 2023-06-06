@@ -1,12 +1,12 @@
 ---
 title: Google Sheets
-description: dlt pipeline for Google Sheets API
-keywords: [google sheets api, google sheets pipeline, google sheets]
+description: dlt verified source for Google Sheets API
+keywords: [google sheets api, google sheets verified source, google sheets]
 ---
 
 # Google Sheets
 
-This pipeline can be used to load data from a [Google sheets](https://www.google.com/sheets/about/) workspace onto a [destination](../general-usage/glossary.md#destination) of your choice.
+This verified source can be used to load data from a [Google sheets](https://www.google.com/sheets/about/) workspace onto a [destination](../general-usage/glossary.md#destination) of your choice.
 
 1. `dlt` loads each sheet in the workspace as a separate table in the destination.
 2. The tables in destination have same name as individual sheets.
@@ -36,7 +36,7 @@ Before creating the pipeline, we need to first get the necessary API credentials
 
 To allow the API to access the Google Sheet, open the sheet that you wish to use and do the following:
 
-1. Select the share button on the top left corner. 
+1. Select the share button on the top left corner.
 
 ![Share_Button](docs_images/Share_button.png)
 
@@ -48,7 +48,7 @@ To allow the API to access the Google Sheet, open the sheet that you wish to use
 
 Here you will find a setup guide for the [Google sheets](https://www.google.com/sheets/about/) pipeline.
 
-## Initialize the pipeline
+## Initialize the pipeline with Google Sheets verified source
 
 We can now create the pipeline.
 
@@ -57,24 +57,7 @@ Initialize a `dlt` project with the following command:
 ```bash
 dlt init google_sheets bigquery
 ```
-Here, we chose BigQuery as the destination. To choose a different destination, replace `bigquery` with your choice of destination. 
-
-Running this command will create a directory with the following structure:
-```shell
-directory
-├── .dlt
-│   ├── .pipelines
-│   ├── config.toml
-│   └── secrets.toml
-└── google_sheets
-    ├── helpers
-    │   ├── __.init.py__
-    │   ├── api_calls.py
-    │   └── data_processing.py
-    ├── .gitignore
-    ├── google_sheets_pipelines.py
-    └── requirements.txt
-```
+Here, we chose BigQuery as the destination. To choose a different destination, replace `bigquery` with your choice of destination.
 
 ## Add credentials
 
@@ -99,9 +82,9 @@ SPREADSHEET_ID = "Set_me_up" # Spread Sheet ID (as per Step Two)
 SPREADSHEET_URL = "Set_me_up"  #URL from Google Sheets > Share > Copy Link
 ```
 
-2. The spreadsheet URL can be found in Google Sheets > Share Button ( at top right) > Copy the link. 
+2. The spreadsheet URL can be found in Google Sheets > Share Button ( at top right) > Copy the link.
 3. Assign the copied link to `SPREADSHEET_URL`.
-4. The `SPREADSHEET_ID` can be found in `SPREADSHEET_URL`, for example. if the SPREADSHEET_URL is as below: 
+4. The `SPREADSHEET_ID` can be found in `SPREADSHEET_URL`, for example. if the SPREADSHEET_URL is as below:
 
 ```python
 https://docs.google.com/spreadsheets/d/1VTtCiYgxjAwcIw7UM1_BSaxC3rzIpr0HwXZwd2OlPD4/edit?usp=sharing
