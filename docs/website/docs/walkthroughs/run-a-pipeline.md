@@ -10,7 +10,7 @@ Follow the steps below to run your pipeline script, see your loaded data and tab
 
 ## 1. Write and execute pipeline script
 
-Once you [created a new pipeline](create-a-pipeline) or [added an existing one](add-a-pipeline) you want to use it to load data. You need to write (or [customize](add-a-pipeline#3-customize-or-write-a-pipeline-script)) a pipeline script, like the one below that loads the data from chess.com API.
+Once you [created a new pipeline](create-a-pipeline) or [added an verified source](add-a-verified-source) you want to use it to load data. You need to write (or [customize](add-a-verified-source#3-customize-or-write-a-pipeline-script)) a pipeline script, like the one below that loads the data from chess.com API.
 
 ```python
 import dlt

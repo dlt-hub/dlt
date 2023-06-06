@@ -2,7 +2,7 @@
 
 Shopify is a user-friendly e-commerce solution that enables anyone to easily create and manage their own online store.
 
-This `dlt` pipeline is designed to efficiently load data from multiple endpoints, including customers, orders, and products, into a destination of your choice. 
+This `dlt` pipeline is designed to efficiently load data from multiple endpoints, including customers, orders, and products, into a destination of your choice.
 
 ## Grab API token
 
@@ -17,7 +17,7 @@ This `dlt` pipeline is designed to efficiently load data from multiple endpoints
 9. Click on “Install app” at the top of the page and confirm.
 10. Finally, click on “reveal the Admin API access token” and copy it. This token will be used in dlt `secrets.toml` for authentication and will be displayed only once, so better keep it safe.
 
-## Initialize the pipeline[](https://dlthub.com/docs/pipelines/github#initialize-the-pipeline)
+## Initialize the pipeline
 
 To get started with your data pipeline, follow these steps:
 
@@ -29,7 +29,7 @@ To get started with your data pipeline, follow these steps:
 dlt init shopify_dlt bigquery
 ```
 
-This command will initialize your pipeline with Shopify as the source and BigQuery as the destination. If you'd like to use a different destination, simply replace **`bigquery`** with the name of your preferred destination. You can find supported destinations and their configuration options in our [documentation](https://dlthub.com/docs/destinations/duckdb) 
+This command will initialize your pipeline with Shopify as the source and BigQuery as the destination. If you'd like to use a different destination, simply replace **`bigquery`** with the name of your preferred destination. You can find supported destinations and their configuration options in our [documentation](https://dlthub.com/docs/destinations/duckdb)
 
 3. After running this command, a new directory will be created with the necessary files and configuration settings to get started. From here, you can begin configuring your pipeline to suit your specific needs.
 
@@ -66,7 +66,7 @@ location = "Please set me up !" # Project location (e.g. “US”)
 ```
 
 2. Replace the value of `private_app_password` with the `API access token` that [you copied above](shopify.md#grab-api-token). This will ensure that your data pipeline can access your Shopify resources securely.
-3. Inside the **`.dlt`** folder, you'll find another file called **`config.toml`**,  where you can store your shopify url. The `config.toml` looks like this: 
+3. Inside the **`.dlt`** folder, you'll find another file called **`config.toml`**,  where you can store your shopify url. The `config.toml` looks like this:
 
 ```python
 [sources.shopify_dlt]
@@ -106,17 +106,17 @@ if __name__ == "__main__":
 ## Run the pipeline[](https://dlthub.com/docs/pipelines/strapi#run-the-pipeline)
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by running the command:
-    
+
     **`pip install -r requirements.txt`**
-    
+
 2. You're now ready to run the pipeline! To get started, run the following command:
-    
+
     **`python3 shopidy_dlt_pipeline.py`**
-    
+
 3. Once the pipeline has finished running, you can verify that everything loaded correctly by using the following command:
-    
+
     **`dlt pipeline <pipeline_name> show`**
-    
+
 
 Note that in the above command, replace **`<pipeline_name>`** with the name of your pipeline. For example, if you named your pipeline "shopify", you would run:
 

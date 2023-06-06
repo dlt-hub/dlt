@@ -28,12 +28,7 @@ We are especially interested in dbt packages that
 
 #### How to contribute?
 
-1. Fork the [pipelines repo](https://github.com/dlt-hub/pipelines)
-2. Add the dbt package in a sub-folder of a pipeline folder
-3. Include information about it in the pipeline folder README
-4. Open a pull request (PR) on GitHub [here](https://github.com/dlt-hub/pipelines/pulls)
-
-If you run into issues or have questions, please reach out in the `#technical-help` channel on [Slack](https://join.slack.com/t/dlthub-community/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g).
+Follow the [CONTRIBUTING](https://github.com/dlt-hub/verified-sources/blob/master/CONTRIBUTING.md) guide in `verified-pipelines` repo.
 
 ## Use Case #2: Clean, type, and customize how data is produced and loaded
 

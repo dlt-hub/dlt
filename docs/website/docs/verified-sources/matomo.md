@@ -1,5 +1,5 @@
 # Matomo
-Matomo is a free and open-source web analytics platform that allows website owners and businesses to get detailed insights into their website and application performance.Matomo provides a comprehensive range of features including visitor maps, site search analytics, real-time visitor tracking, and custom reports, among others. 
+Matomo is a free and open-source web analytics platform that allows website owners and businesses to get detailed insights into their website and application performance.Matomo provides a comprehensive range of features including visitor maps, site search analytics, real-time visitor tracking, and custom reports, among others.
 
 With the DLT pipeline, you can effortlessly extract and seamlessly load data from Matomo to your preferred destination. This incredible process covers a wide range of options, including loading visitor data, live events, and reports, which can yield you with insights into your website's performance.
 
@@ -19,7 +19,7 @@ With the DLT pipeline, you can effortlessly extract and seamlessly load data fro
 
 ### Grab `URL` and `site_id`
 
-1. The URL refers to the web address you see in the browser's address bar when you open your Matomo account. 
+1. The URL refers to the web address you see in the browser's address bar when you open your Matomo account.
 
 For instance, if your company's name is "mycompany", then the URL will be something like "**[https://mycompany.matomo.cloud/](https://mycompany.matomo.cloud/)**".
 
@@ -28,7 +28,7 @@ For instance, if your company's name is "mycompany", then the URL will be someth
 4. You can easily locate the **`site_id`** in the URL link in the address bar, for example, as "idSite=2".
 5. Alternatively, you can also find the **`site_id`** by navigating to the Administration page > Measureables > Manage, and then locating the **`ID`** number for your site.
 
-## Initialize the pipeline[](https://dlthub.com/docs/pipelines/github#initialize-the-pipeline)
+## Initialize the pipeline
 
 To get started with your data pipeline, follow these steps:
 
@@ -40,7 +40,7 @@ To get started with your data pipeline, follow these steps:
 dlt init matomo bigquery
 ```
 
-This command will initialize your pipeline with Matomo as the source and BigQuery as the destination. If you'd like to use a different destination, simply replace **`bigquery`** with the name of your preferred destination. You can find supported destinations and their configuration options in our [documentation](https://dlthub.com/docs/destinations/duckdb) 
+This command will initialize your pipeline with Matomo as the source and BigQuery as the destination. If you'd like to use a different destination, simply replace **`bigquery`** with the name of your preferred destination. You can find supported destinations and their configuration options in our [documentation](https://dlthub.com/docs/destinations/duckdb)
 
 3. After running this command, a new directory will be created with the necessary files and configuration settings to get started. From here, you can begin configuring your pipeline to suit your specific needs.
 
@@ -79,7 +79,7 @@ location = "US" # Project location (e.g. “US”)
 
 2. Replace the value of **`api_token`** with the one that [you copied above](matomo.md#grab-api-access-token). This will ensure that your data pipeline can access your Matomo resources securely.
 3. Next, follow the instructions in **[Destinations](https://dlthub.com/docs/destinations/duckdb)** to add credentials for your chosen destination. This will ensure that your data is properly routed to its final destination.
-4. Inside the **`.dlt`** folder, you'll find a file called **`config.toml`**, where you can securely store your pipeline configuration details. 
+4. Inside the **`.dlt`** folder, you'll find a file called **`config.toml`**, where you can securely store your pipeline configuration details.
 
 Here's what the config.toml looks like:
 
@@ -96,10 +96,10 @@ live_events_site_id = 0 # please set me up!
 
 ## **Specify source methods**
 
-1. You can select which data you would load, be it from reports, live events or custom reports. 
+1. You can select which data you would load, be it from reports, live events or custom reports.
 2. The `matomo_pipeline.py` has four source methods, which are all preconfigured for your use:
-    
-    
+
+
     | S.No | Method | Description |
     | --- | --- | --- |
     | a | run_reports() | Loads all the reports available in Matomo. |
@@ -183,6 +183,6 @@ queries = [
     ]
 ```
 
-You can modify the custom reports and queries as per your preferences. Finally, when you're ready to run the pipeline, make sure to use the **`run_custom_reports()`** method in the main function. 
+You can modify the custom reports and queries as per your preferences. Finally, when you're ready to run the pipeline, make sure to use the **`run_custom_reports()`** method in the main function.
 
 That's it! Enjoy running your Matomo DLT pipeline!

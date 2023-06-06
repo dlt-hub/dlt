@@ -1,16 +1,16 @@
 ---
 title: Asana
-description: dlt pipeline for Asana API
-keywords: [asana api, asana pipeline, asana]
+description: dlt verified source for Asana API
+keywords: [asana api, asana verified source, asana]
 ---
 
-# Asana 
+# Asana
 
-Asana is a widely used web-based project management and collaboration tool that helps teams stay organized, focused, and productive. With Asana, team members can easily create, assign, and track tasks, set deadlines, and communicate with each other in real time. 
+Asana is a widely used web-based project management and collaboration tool that helps teams stay organized, focused, and productive. With Asana, team members can easily create, assign, and track tasks, set deadlines, and communicate with each other in real time.
 
-When you use Asana, you can create various resources like "projects", "tasks", "users", "workspaces" and others mentioned below to help you manage your work effectively. You'll be happy to know that you can easily load these resources via the dlt pipeline. 
+When you use Asana, you can create various resources like "projects", "tasks", "users", "workspaces" and others mentioned below to help you manage your work effectively. You'll be happy to know that you can easily load these resources via the dlt pipeline.
 
-Resources that can be loaded using this pipeline are: 
+Resources that can be loaded using this verified source are:
 
 | S.No. | Name | Description |
 | --- | --- | --- |
@@ -31,7 +31,7 @@ Resources that can be loaded using this pipeline are:
 5. Now, be sure to copy your Access token safely as it is only displayed once.
 6. This token will be used to configure secrets.toml, so keep it secure and don't share it with anyone.
 
-## Initialize the pipeline[](https://dlthub.com/docs/pipelines/github#initialize-the-pipeline)
+## Initialize the pipeline with Asana source
 
 To get started with your data pipeline, follow these steps:
 
@@ -43,14 +43,14 @@ To get started with your data pipeline, follow these steps:
 dlt init asana_dlt bigquery
 ```
 
-This command will initialize your pipeline with Asana as the source and BigQuery as the destination. If you'd like to use a different destination, simply replace **`bigquery`** with the name of your preferred destination. You can find supported destinations and their configuration options in our [documentation](https://dlthub.com/docs/destinations/duckdb) 
+This command will initialize your pipeline with Asana as the source and BigQuery as the destination. If you'd like to use a different destination, simply replace **`bigquery`** with the name of your preferred destination. You can find supported destinations and their configuration options in our [documentation](https://dlthub.com/docs/destinations/duckdb)
 
 3. After running this command, a new directory will be created with the necessary files and configuration settings to get started. From here, you can begin configuring your pipeline to suit your specific needs.
 
 ```python
 asana_pipeline
 ├── .dlt
-│   ├── .pipelines
+│   ├── .sources
 │   ├── config.toml
 │   └── secrets.toml
 ├── asana_dlt
@@ -110,17 +110,17 @@ Please remember to save the file once you have made the necessary changes.
 ## Run the pipeline[](https://dlthub.com/docs/pipelines/strapi#run-the-pipeline)
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by running the command:
-    
+
     **`pip install -r requirements.txt`**
-    
+
 2. You're now ready to run the pipeline! To get started, run the following command:
-    
+
     **`python3 asana_dlt_pipeline.py`**
-    
+
 3. Once the pipeline has finished running, you can verify that everything loaded correctly by using the following command:
-    
+
     **`dlt pipeline <pipeline_name> show`**
-    
+
 
 Note that in the above command, replace **`<pipeline_name>`** with the name of your pipeline. For example, if you named your pipeline "asana," you would run:
 
