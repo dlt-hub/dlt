@@ -85,24 +85,6 @@ class TransactionalFile:
         self._is_locked = False
         self._heartbeat: t.Optional[Heartbeat] = None
 
-    # @staticmethod
-    # def _normpath(path: str) -> str:
-    #     """Normalize a path to use forward slashes.
-
-    #     Args:
-    #         path: The path to normalize.
-    #     """
-    #     return os.path.normpath(path).replace("\\", "/")
-
-    # @staticmethod
-    # def _ospath(path: str) -> str:
-    #     """Normalize a path to use the OS separator.
-
-    #     Args:
-    #         path: The path to normalize.
-    #     """
-    #     return os.path.normpath(path).replace("/", os.sep)
-
     def _start_heartbeat(self) -> Heartbeat:
         """Create a thread that will periodically update the mtime."""
         self._stop_hearbeat()

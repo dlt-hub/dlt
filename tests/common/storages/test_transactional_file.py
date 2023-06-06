@@ -1,12 +1,11 @@
 import time
-import os
-from tempfile import NamedTemporaryFile, TemporaryDirectory, mktemp
+from tempfile import TemporaryDirectory, mktemp
 from threading import Thread
 
 import fsspec
 import pytest
 
-from dlt.common.storages.transactions import TransactionalFile
+from dlt.common.storages.transactional_file import TransactionalFile
 
 
 @pytest.fixture(scope="session")
