@@ -30,7 +30,7 @@ from dlt.cli.exceptions import CliCommandException
 DLT_INIT_DOCS_URL = "https://dlthub.com/docs/reference/command-line-interface#dlt-init"
 DEFAULT_VERIFIED_SOURCES_REPO = "https://github.com/dlt-hub/verified-sources.git"
 INIT_MODULE_NAME = "init"
-SOURCES_MODULE_NAME = "pipelines"
+SOURCES_MODULE_NAME = "sources"
 
 
 def _get_template_files(command_module: ModuleType, use_generic_template: bool) -> Tuple[str, List[str]]:
@@ -291,7 +291,7 @@ def init_command(source_name: str, destination_name: str, use_generic_template: 
     # ask for confirmation
     if is_new_source:
         if source_files.is_template:
-            fmt.echo("A verified source %s was not found. Creating a new source with name %s." % (fmt.bold(source_name), fmt.bold(source_name)))
+            fmt.echo("A verified source %s was not found. Using a template to create a new source and pipeline with name %s." % (fmt.bold(source_name), fmt.bold(source_name)))
         else:
             fmt.echo("Cloning and configuring a verified source %s (%s)" % (fmt.bold(source_name), source_files.doc))
             if use_generic_template:
