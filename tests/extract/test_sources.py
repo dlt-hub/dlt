@@ -820,3 +820,14 @@ def test_source_multiple_iterations() -> None:
     info = str(s)
     assert "Source is already iterated" in info
 
+
+def test_exhausted_after_first_iter_fetch() -> None:
+
+    def some_data():
+        yield from [1, 2, 3, 4]
+
+    s = DltSource("source", "module", Schema("source"), [dlt.resource(some_data())])
+    assert s.exhausted is False
+    assert next(iter(s)) == 1
+    assert s.exhausted is True
+
