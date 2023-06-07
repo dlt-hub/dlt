@@ -23,6 +23,13 @@ const sidebars = {
       type: 'category',
       label: 'Verified Sources',
       className: 'project',
+      link: {
+        type: 'generated-index',
+        title: 'Verified Sources',
+        description: 'Overview over our verified sources. A source is a location that holds data with certain structure. Organized into one or more resources. We have verified reference implementations for the sources listed below.',
+        slug: 'verified-sources',
+        keywords: ['verified source'],
+      },
       items: [
         'verified-sources/asana',
         'verified-sources/chess',
@@ -40,6 +47,13 @@ const sidebars = {
     {
       type: 'category',
       label: 'Destinations',
+      link: {
+        type: 'generated-index',
+        title: 'Destinations',
+        description: 'Overview over our destinations. A destiantion is the data store where data from the source is loaded. Learn how to use them in your pipelines.',
+        slug: 'destinations',
+        keywords: ['destination'],
+      },
       items: [
         'destinations/bigquery',
         'destinations/duckdb',
@@ -50,6 +64,12 @@ const sidebars = {
     {
       type: 'category',
       label: 'User Guides',
+      link: {
+        type: 'generated-index',
+        title: 'User Guides',
+        slug: 'user-guides',
+        keywords: ['user guide'],
+      },
       items: [
         'user-guides/analytics-engineer',
         'user-guides/data-beginner',
@@ -60,6 +80,13 @@ const sidebars = {
     {
       type: 'category',
       label: 'Walkthroughs',
+      link: {
+        type: 'generated-index',
+        title: 'Walktroughs',
+        description: 'Overview over our walkthroughs. Learn how to use and deploy dlt.',
+        slug: 'walkthroughs',
+        keywords: ['walkthrough'],
+      },
       items: [
         'walkthroughs/create-a-pipeline',
         'walkthroughs/add-a-verified-source',
@@ -71,6 +98,12 @@ const sidebars = {
     {
       type: 'category',
       label: 'General Usage',
+      link: {
+        type: 'generated-index',
+        title: 'General usage',
+        slug: 'general-usage',
+        keywords: ['general usage'],
+      },
       items: [
         'general-usage/glossary',
         'general-usage/import-dlt',
@@ -88,6 +121,13 @@ const sidebars = {
     {
       type: 'category',
       label: 'Customizations',
+      link: {
+        type: 'generated-index',
+        title: 'Customizations',
+        description: 'Learn how to customize the default behaviour of dlt to your needs.',
+        slug: 'customizations',
+        keywords: ['customization'],
+      },
       items: [
         {
           type: 'category',
@@ -102,6 +142,13 @@ const sidebars = {
     {
       type: 'category',
       label: 'Running in production',
+      link: {
+        type: 'generated-index',
+        title: 'Running in production',
+        description: 'Learn how to run dlt in production.',
+        slug: 'running-in-production',
+        keywords: ['production'],
+      },
       items: [
         {
           type: 'category',
@@ -121,6 +168,13 @@ const sidebars = {
     {
       type: 'category',
       label: 'Using loaded data',
+      link: {
+        type: 'generated-index',
+        title: 'Using loaded data',
+        description: 'Learn how to make use of the data loaded by dlt.',
+        slug: 'using-loaded-data',
+        keywords: ['loaded data'],
+      },
       items: [
         'using-loaded-data/understanding-the-tables',
         'using-loaded-data/exploring-the-data',
@@ -130,6 +184,13 @@ const sidebars = {
     {
       type: 'category',
       label: 'Reference',
+      link: {
+        type: 'generated-index',
+        title: 'Reference',
+        description: 'The dlthub reference. Learn about the CLI and the telemetry.',
+        slug: 'reference',
+        keywords: ['reference'],
+      },
       items: [
         'reference/command-line-interface',
         'reference/telemetry',
