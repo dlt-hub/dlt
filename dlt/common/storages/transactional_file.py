@@ -31,7 +31,6 @@ def lock_id(k: int = 4) -> str:
     return f"{time.time_ns()}{suffix}"
 
 
-
 class Heartbeat(Timer):
     """A thread designed to periodically execute a fn."""
     daemon = True
@@ -90,7 +89,7 @@ class TransactionalFile:
 
     def _start_heartbeat(self) -> Heartbeat:
         """Create a thread that will periodically update the mtime."""
-        self._stop_hearbeat()
+        self._stop_heartbeat()
         self._heartbeat = Heartbeat(
             TransactionalFile.LOCK_TTL_SECONDS / 2,
             self._fs.touch,
@@ -99,7 +98,7 @@ class TransactionalFile:
         self._heartbeat.start()
         return self._heartbeat
 
-    def _stop_hearbeat(self) -> None:
+    def _stop_heartbeat(self) -> None:
         """Stop the heartbeat thread if it exists."""
         if self._heartbeat is not None:
             self._heartbeat.cancel()
@@ -210,7 +209,7 @@ class TransactionalFile:
         This is idempotent and safe to call multiple times.
         """
         if self._is_locked:
-            self._stop_hearbeat()
+            self._stop_heartbeat()
             self._fs.rm(self.lock_path)
             self._is_locked = False
             self._original_contents = None
@@ -248,4 +247,4 @@ class TransactionalFile:
 
     def __del__(self) -> None:
         """Stop the heartbeat thread on gc. Locks should be released explicitly."""
-        self._stop_hearbeat()
+        self._stop_heartbeat()

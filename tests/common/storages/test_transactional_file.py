@@ -1,3 +1,4 @@
+import functools
 import time
 from tempfile import TemporaryDirectory, mktemp
 from threading import Thread
@@ -114,6 +115,7 @@ def test_file_transaction_multiple_writers_with_races(fs: fsspec.AbstractFileSys
 
     # Test that we cannot acquire a lock if it is already held
     assert not writer_1.acquire_lock(blocking=False)
+    writer_2.release_lock()
 
 
 @pytest.mark.skip(reason="This is more interesting on a remote filesystem")
@@ -133,7 +135,7 @@ def test_file_transaction_ttl_expiry(fs: fsspec.AbstractFileSystem, monkeypatch,
     writer_1 = TransactionalFile(file_name, fs)
     writer_2 = TransactionalFile(file_name, fs)
     writer_1.acquire_lock()
-    writer_1._stop_hearbeat()
+    writer_1._stop_heartbeat()
     time.sleep(2.0)
 
     # Ensure a lock can be acquired after the TTL has expired
@@ -146,13 +148,19 @@ def test_file_transaction_maintain_lock(fs: fsspec.AbstractFileSystem, monkeypat
     writer_1 = TransactionalFile(file_name, fs)
     writer_2 = TransactionalFile(file_name, fs)
     writer_1.acquire_lock()
-    Thread(target=writer_2.acquire_lock, daemon=True).start()
-    time.sleep(2.5)
 
-    # Ensure another process cannot acquire the lock or write as long as
-    # the first process is maintaining the lock and heartbeat
-    with pytest.raises(RuntimeError):
-        writer_2.write(b"test 2")
+    thread = Thread(target=functools.partial(writer_2.acquire_lock, timeout=5), daemon=True)
+    try:
+        thread.start()
+        time.sleep(2.5)
+
+        # Ensure another process cannot acquire the lock or write as long as
+        # the first process is maintaining the lock and heartbeat
+        with pytest.raises(RuntimeError):
+            writer_2.write(b"test 2")
+    finally:
+        # wait for timeout that kills thread
+        thread.join()
 
 
 def test_file_transaction_directory(fs: fsspec.AbstractFileSystem):
