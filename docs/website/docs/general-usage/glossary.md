@@ -6,26 +6,34 @@ keywords: [glossary, resource, source, pipeline]
 
 # Glossary
 
-## [Resource](../general-usage/resource.md)
-
-  If the source is an API, then a resource is an endpoint in that API. If the source is a
-  spreadsheet, then a resource is a tab in that spreadsheet. If the source is a database,
-  then a resource is a table in that database. A source is organized into one or more resources.
-
 ## [Source](../general-usage/source.md)
+Location that holds data with certain structure. Organized into one or more resources.
+- If endpoints in an API are the resources, then the API is the source.
+- If tabs in a spreadsheet are the resources, then the source is the spreadsheet.
+- If tables in a database are the resources, then the source is the database.
 
-  If endpoints in an API are the resources, then the API is the source. If tabs in a spreadsheet
-  are the resources, then the source is the spreadsheet. If tables in a database are the resources,
-  then the source is the database. A source is organized into one or more resources.
+Within this documentation, **source** refers also to the software component (ie. Python function) that **extracts** data from the source location using one or more resource components.
+
+## [Resource](../general-usage/resource.md)
+A logical grouping of data within a data source, typically holding data of similar structure and origin.
+- If the source is an API, then a resource is an endpoint in that API.
+- If the source is a spreadsheet, then a resource is a tab in that spreadsheet.
+- If the source is a database, then a resource is a table in that database.
+
+Within this documentation, **resource** refers also to the software component (ie. Python function) that **extracts** the data from source location.
 
 ## [Destination](../walkthroughs/create-a-pipeline.md)
-
-  The data store where data from the source is loaded (e.g. Google BigQuery).
+The data store where data from the source is loaded (e.g. Google BigQuery).
 
 ## [Pipeline](../general-usage/pipeline.md)
 
   Moves the data from the source to the destination, according to instructions provided
   in the schema (i.e. extracting, normalizing, and loading the data).
+
+## [Verified Source](../walkthroughs/add-a-verified-source.md)
+A Python module distributed with `dlt init` that allows creating pipelines that extract data from a particular **Source**. Such module is intended to be published in order for others to use it to build pipelines.
+
+A source must be published to become "verified": which means that it has tests, test data, demonstration scripts, documentation and the dataset produces was reviewed by a data engineer.
 
 ## [Schema](../general-usage/schema.md)
 

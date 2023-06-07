@@ -20,7 +20,7 @@ The big advantage of using dlt for this is that it automates what is otherwise a
 
 `dlt` is meant to be accessible to each person on the data team, enabling you to standardize how your entire team loads data. This reduces knowledge requirements to get work done and enables collaborative working between engineers and analysts.
 
-- Analysts can use ready-built sources or pass their unstructured data to `dlt`, which will create a sturdy pipeline (e.g. [get an existing pipeline](./walkthroughs/add-a-pipeline), [build a pipeline](./walkthroughs/create-a-pipeline))
+- Analysts can use ready-built sources or pass their unstructured data to `dlt`, which will create a sturdy pipeline (e.g. [get an existing source](./walkthroughs/add-a-verified-source), [build a pipeline](./walkthroughs/create-a-pipeline))
 - Python-first users can heavily customize how dlt sources produce data, as dlt supports selecting, filtering, renaming, anonymizing, and just about any custom operation (e.g. [rename columns example](./customizations/customizing-pipelines/renaming_columns))
 - Junior data engineers can configure dlt to do what they want-change the loading modes, add performance hints, etc. (e.g. [adjust a schema](./walkthroughs/adjust-a-schema))
 - Senior data engineers can dig even deeper into customization options and change schemas, normalizers, the way pipelines run such as parallelism, etc.
@@ -33,21 +33,21 @@ With dbt runner, you can aditionally develop and later run transformations. If y
 
 `dlt` supports Airflow and other workflow managers. It’s meant to plug into your data stack without causing more overheads (e.g. [how to set up on airflow](./running-in-production/orchestrators/airflow-gcp-cloud-composer))
 
-`dlt` also allows easy customization and maintenance of the code-`dlt` sources are pythonic and simple, so no object oriented programming required. Your junior data scientist can fix and customize the pipelines too (e.g [strapi example](https://github.com/dlt-hub/pipelines/blob/master/pipelines/strapi/strapi.py)).
+`dlt` also allows easy customization and maintenance of the code-`dlt` sources are pythonic and simple, so no object oriented programming required. Your junior data scientist can fix and customize the pipelines too (e.g [strapi example](https://github.com/dlt-hub/verified-pipelines/blob/master/sources/strapi/strapi.py)).
 
 ## Use Case #4: Solve problems with a community
 
 No more reinventing the flat tyre in the form of yet another custom pipeline.
 
 - Community support. If you choose to publish your pipelines to the community, they will be reused, improved, upgraded, tests added, etc.
-- Community distribution support. A pipeline hosted in the public `pipelines` repo can be distributed via our command line interface. The command also handles versioning, merging, upgrading, etc.
+- Community distribution support. A verified source hosted in the public `verified-sources` repo can be distributed via our command line interface. The command also handles versioning, merging, upgrading, etc.
 
-Read more about our contribution process abd contribute pipelines or open issues for requests [here](https://github.com/dlt-hub/pipelines).
+Read more about our contribution process and contribute sources or request them [here](https://github.com/dlt-hub/verified-pipelines).
 
-## Inheriting a `dlt` pipeline
+## Inheriting a running `dlt` pipeline
 
 If you are taking over a `dlt` pipeline that someone else built or set up, you are in luck! What's important to know:
 - The pipeline is largely self-maintaining. The only thing you must ensure is that the source keeps producing data-from there dlt handles it.
 - You can notify schema evolution events (e.g. [alert schema change](./running-in-production/running#inspect-save-and-alert-on-schema-changes))
 - You can use the data by transforming it with dbt (e.g. [run dbt from local or repository](./using-loaded-data/transforming-the-data))
-- If the sources used are public, you can update your pipelines to the latest version from the online repo with the `dlt init`command. If you are the first to fix, you can contribute the fix back so it will be included in the future versions (e.g. [init a pipeline](./reference/command-line-interface#dlt-init), [contribute a pipeline](https://github.com/dlt-hub/pipelines))
+- If the sources used are public, you can update your pipelines to the latest version from the online repo with the `dlt init`command. If you are the first to fix, you can contribute the fix back so it will be included in the future versions (e.g. [init a pipeline](./reference/command-line-interface#dlt-init), [contribute a source](https://github.com/dlt-hub/verified-source))

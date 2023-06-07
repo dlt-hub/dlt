@@ -37,7 +37,7 @@ These are usually engineered to ensure high service service-level agreement (SLA
 
 ### 3. Customized pipelines
 
- Heavily customized pipelines that give fine grain control over everything about the data processing and loading. These are usually engineered to solve specific obstacles to data usage, such as performance, cost of loading, or things about the data, such as anonymization or managing schemas. Depending if the problem being solved is an engineering or business logic problem, it may be solved by either a data engineer or a business facing analytics engineer. For example, a pipeline like [Zendesk](../pipelines/zendesk) with automatic field renames and optionally pivoted tables for easy analysis.
+ Heavily customized pipelines that give fine grain control over everything about the data processing and loading. These are usually engineered to solve specific obstacles to data usage, such as performance, cost of loading, or things about the data, such as anonymization or managing schemas. Depending if the problem being solved is an engineering or business logic problem, it may be solved by either a data engineer or a business facing analytics engineer. For example, a pipeline like [Zendesk](../verified-sources/zendesk) with automatic field renames and optionally pivoted tables for easy analysis.
 
 ### `dlt` massively reduces pipeline maintenance in your organization
 

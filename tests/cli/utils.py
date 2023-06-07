@@ -9,12 +9,12 @@ from dlt.common.source import _SOURCES
 from dlt.common.utils import set_working_dir, uniq_id
 
 from dlt.cli import echo
-from dlt.cli.init_command import DEFAULT_PIPELINES_REPO
+from dlt.cli.init_command import DEFAULT_VERIFIED_SOURCES_REPO
 
 from tests.utils import TEST_STORAGE_ROOT
 
 
-INIT_REPO_LOCATION = DEFAULT_PIPELINES_REPO
+INIT_REPO_LOCATION = DEFAULT_VERIFIED_SOURCES_REPO
 INIT_REPO_BRANCH = "master"
 PROJECT_DIR = os.path.join(TEST_STORAGE_ROOT, "project")
 
@@ -28,13 +28,13 @@ def echo_default_choice() -> None:
 
 
 @pytest.fixture(scope="module")
-def cloned_pipeline() -> FileStorage:
+def cloned_init_repo() -> FileStorage:
     return git.get_fresh_repo_files(INIT_REPO_LOCATION, get_dlt_repos_dir(), branch=INIT_REPO_BRANCH)
 
 
 @pytest.fixture
-def repo_dir(cloned_pipeline: FileStorage) -> str:
-    return get_repo_dir(cloned_pipeline)
+def repo_dir(cloned_init_repo: FileStorage) -> str:
+    return get_repo_dir(cloned_init_repo)
 
 
 @pytest.fixture
@@ -44,10 +44,10 @@ def project_files() -> FileStorage:
         yield project_files
 
 
-def get_repo_dir(cloned_pipeline: FileStorage) -> str:
-    repo_dir = os.path.abspath(os.path.join(TEST_STORAGE_ROOT, f"pipelines_repo_{uniq_id()}"))
+def get_repo_dir(cloned_init_repo: FileStorage) -> str:
+    repo_dir = os.path.abspath(os.path.join(TEST_STORAGE_ROOT, f"verified_sources_repo_{uniq_id()}"))
     # copy the whole repo into TEST_STORAGE_ROOT
-    shutil.copytree(cloned_pipeline.storage_path, repo_dir)
+    shutil.copytree(cloned_init_repo.storage_path, repo_dir)
     return repo_dir
 
 

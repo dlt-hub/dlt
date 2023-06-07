@@ -1,14 +1,14 @@
 ---
 title: Hubspot
-description: dlt pipeline for Hubspot API
-keywords: [hubspot api, hubspot pipeline, hubspot]
+description: dlt verified source for Hubspot API
+keywords: [hubspot api, hubspot verified source, hubspot]
 ---
 
 # HubSpot
 
-HubSpot is a customer relationship management (CRM) software and inbound marketing platform that helps businesses to attract visitors, engage customers, and close leads. 
+HubSpot is a customer relationship management (CRM) software and inbound marketing platform that helps businesses to attract visitors, engage customers, and close leads.
 
-The `dlt` HubSpot pipeline allows you to automatically load data from HubSpot into a [destination](https://dlthub.com/docs/destinations) of your choice. It loads data from the following endpoints:
+The `dlt` HubSpot verified source allows you to automatically load data from HubSpot into a [destination](https://dlthub.com/docs/destinations) of your choice. It loads data from the following endpoints:
 
 |API|Data|
 | --- | --- |
@@ -35,16 +35,16 @@ Before running the pipeline, you will need to get API credentials. HubSpot no lo
 6. Next go to the “Scopes” tab and select the following permissions:
     1. All the read scopes under the CMS, CRM, and Settings options.
     2. The following under the Standard options:
-    
+
     ```
     business-intelligence, actions, crm.export, e-commerce, oauth, tickets
     ```
-    
+
 7. Click on Create app and choose Continue creating.
 8. Click on Show token, and copy the displayed token. This will need to be added to the pipeline.
-        
 
-## Initialize the pipeline
+
+## Initialize the pipeline with Hubspot verified source
 
 Initialize the pipeline with the following command:
 
@@ -52,22 +52,6 @@ Initialize the pipeline with the following command:
 
 Here, we chose BigQuery as the destination. Alternatively, you can also choose redshift, duckdb, or any of the other [destinations](https://dlthub.com/docs/destinations/duckdb).
 
-Running this command will create a directory with the following structure:
-
-```bash
-hubspot_pipeline
-├── .dlt
-│   ├── .pipelines
-│   ├── config.toml
-│   └── secrets.toml
-├── hubspot
-│   └── __init__.py
-│   └── client.py
-│   └── endpoints.py
-├── .gitignore
-├── hubspot_pipeline.py
-└── requirements.txt
-```
 ## Add credentials
 
 1. Open `.dlt/secrets.toml`
@@ -83,7 +67,7 @@ api_key = "api_key" # please set me up!
 1. There are two data loading functions inside the script `hubspot_pipeline.py`:
     1. `load_without_events()`: This function loads data from HubSpot to the destination without enabling company events.
     2. `load_with_company_events()`: This function loads data from HubSpot to the destination with company and contacts events selected.
-    
+
 2. To define a loading function, simply include it in the `__main__` block as follows:
 ```python
 if __name__ == "__main__":
@@ -92,7 +76,7 @@ if __name__ == "__main__":
     load_with_company_events()
 ```
 
-## Run the pipeline[](https://dlthub.com/docs/pipelines/pipedrive#run-the-pipeline)
+## Run the pipeline
 
 1. Install requirements for the pipeline by running the following command:
 
@@ -110,5 +94,5 @@ python3 hubspot_pipeline.py
 
 3. To make sure that everything is loaded as expected, use the command:
 ```
-dlt pipeline hubspot_pipeline show 
+dlt pipeline hubspot_pipeline show
 ```

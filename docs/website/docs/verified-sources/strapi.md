@@ -1,7 +1,7 @@
 ---
 title: Strapi
-description: dlt pipeline for Strapi API
-keywords: [strapi api, strapi pipeline, strapi]
+description: dlt verified source for Strapi API
+keywords: [strapi api, strapi verified source, strapi]
 ---
 
 # Strapi
@@ -21,30 +21,13 @@ Since the endpoints that will be available in Strapi depend on your setup, in or
 7. API token will be displayed on clicking the “save” button
 8. Copy the token displayed (i.e. the token will be used in configuring `dlt` secrets)
 
-## Initialize the pipeline
+## Initialize the pipeline with Strapi verified source
 
 Initialize the pipeline with the following command:
 
 `dlt init strapi <destination>`
 
 For destination, you can use `bigquery`, `duckdb`, or one of the other [destinations](../general-usage/glossary.md#destination).
-
-Running this command will create a directory with the following structure:
-
-```python
-strapi_pipeline
-├── .dlt
-│   ├── .pipelines
-│   ├── config.toml
-│   └── secrets.toml
-├── strapi
-│   └── __init__.py
-│   └── readme.md
-│   └── strapi.py
-├── .gitignore
-├── strapi_pipeline.py
-└── requirements.txt
-```
 
 ## **Add credentials**
 

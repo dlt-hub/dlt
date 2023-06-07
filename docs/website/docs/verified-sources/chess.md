@@ -1,38 +1,26 @@
 ---
 title: Chess.com
-description: dlt pipeline for Chess.com API
-keywords: [chess.com api, chess.com pipeline, chess.com]
+description: dlt verified source for Chess.com API
+keywords: [chess.com api, chess.com verified source, chess.com]
 ---
 
 # Chess.com
 
-This pipeline can be used to load player data from the [Chess.com API](https://www.chess.com/news/view/published-data-api) into a [destination](../general-usage/glossary.md#destination) of your choice.
+This verified source can be used to load player data from the [Chess.com API](https://www.chess.com/news/view/published-data-api) into a [destination](../general-usage/glossary.md#destination) of your choice.
 
-## Initialize the pipeline
+## Initialize the pipeline with Chess.com source
 
 Initialize the pipeline with the following command:
 ```
 dlt init chess bigquery
 ```
-Here, we chose BigQuery as the destination. To choose a different destination, replace `bigquery` with your choice of destination. 
-
-Running this command will create a directory with the following structure:
-```bash
-├── .dlt
-│   ├── .pipelines
-│   ├── config.toml
-│   └── secrets.toml
-├── chess
-│   └── __pycache__
-│   └── __init__.py
-├── .gitignore
-├── chess_pipeline.py
-└── requirements.txt
-```
+Here, we chose BigQuery as the destination. To choose a different destination, replace `bigquery` with your choice of destination.
 
 ## Add credentials
 
 Before running the pipeline you may need to add credentials in the `.dlt/secrets.toml` file for your chosen destination. For instructions on how to do this, follow the steps detailed under the desired destination in the [destinations](https://dlthub.com/docs/destinations) page.
+
+Chess source does not require credentials to run.
 
 ## Run the pipeline
 
