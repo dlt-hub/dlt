@@ -48,9 +48,9 @@ class TransactionalFile:
     # Map of protocol to mtime resolver
     # we only need to support a small finite set of protocols
     _mtime_dispatch = {
-        "s3": lambda f: pendulum.from_format(f["LastModified"], "%Y-%m-%d %H:%M:%S%z"),
-        "adl": lambda f: pendulum.from_format(f["LastModified"], "%Y-%m-%d %H:%M:%S%z"),
-        "gcs": lambda f: pendulum.from_format(f["updated"], "%Y-%m-%dT%H:%M:%S.%fZ"),
+        "s3": lambda f: pendulum.parser.parse(f["LastModified"]),
+        "adl": lambda f: pendulum.parser.parse(f["LastModified"]),
+        "gcs": lambda f: pendulum.parser.parse(f["updated"]),
         "file": lambda f: pendulum.from_timestamp(f["mtime"]),
     }
     # Support aliases
@@ -71,10 +71,13 @@ class TransactionalFile:
         proto = fs.protocol[0] if isinstance(fs.protocol, (list, tuple)) else fs.protocol
         self.extract_mtime = self._mtime_dispatch.get(proto, self._mtime_dispatch["file"])
 
+        parsed_path = Path(path)
+        if not parsed_path.is_absolute():
+            raise ValueError(f"{path} is not absolute. Please pass only absolute paths to TransactionalFile")
         self.path = path
         if proto == "file":
             # standardize path separator to POSIX. fsspec always uses POSIX. Windows may use either.
-            self.path = Path(path).as_posix()
+            self.path = parsed_path.as_posix()
         # else:
         #     self.path = self._normpath(path)
 
@@ -107,15 +110,20 @@ class TransactionalFile:
         output = []
         now = pendulum.now()
 
-        locks = self._fs.ls(posixpath.dirname(self.lock_path), refresh=True, detail=True)
-        for lock in filter(lambda lock: lock["name"].startswith(self.lock_prefix), locks):
+        for lock in self._fs.ls(posixpath.dirname(self.lock_path), refresh=True, detail=True):
+            name = lock["name"]
+            if not name.startswith(self.lock_prefix):
+                continue
             # Purge stale locks
             mtime = self.extract_mtime(lock)
             if now - mtime > timedelta(seconds=TransactionalFile.LOCK_TTL_SECONDS):
-                self._fs.rm(lock["name"])
+                try: # Janitors can race, so we ignore errors
+                    self._fs.rm(name)
+                except OSError:
+                    pass
                 continue
             # The name is timestamp + random suffix and is time sortable
-            output.append(lock["name"])
+            output.append(name)
         if not output:
             raise RuntimeError(f"When syncing locks for path {self.path} and lock {self.lock_path} no lock file was found")
         return output
@@ -143,7 +151,7 @@ class TransactionalFile:
         elif self._fs.isfile(self.path):
             self._fs.rm(self.path)
 
-    def acquire_lock(self, blocking: bool = True, timeout: float = -1) -> bool:
+    def acquire_lock(self, blocking: bool = True, timeout: float = -1, jitter_mean: float = 0) -> bool:
         """Acquires a lock on a path. Mimics the stdlib's `threading.Lock` interface.
 
         Acquire a lock, blocking or non-blocking.
@@ -160,12 +168,18 @@ class TransactionalFile:
         lock cannot be acquired. A timeout argument of -1 specifies an unbounded wait.
         If blocking is False, timeout is ignored. The stdlib would raise a ValueError.
 
+        If you expect a large concurrency on the lock, you can set the jitter_mean to a
+        value > 0. This will introduce a short random gap before locking procedure
+        starts.
+
         The return value is True if the lock is acquired successfully, False if
         not (for example if the timeout expired).
         """
         if self._is_locked:
             return True
 
+        if jitter_mean > 0:
+            time.sleep(random.random() * jitter_mean)  # Add jitter to avoid thundering herd
         self.lock_path = f"{self.lock_prefix}.{lock_id()}"
         self._fs.touch(self.lock_path)
         locks = self._sync_locks()

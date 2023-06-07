@@ -116,6 +116,18 @@ def test_file_transaction_multiple_writers_with_races(fs: fsspec.AbstractFileSys
     assert not writer_1.acquire_lock(blocking=False)
 
 
+@pytest.mark.skip(reason="This is more interesting on a remote filesystem")
+def test_file_transaction_simultaneous(fs: fsspec.AbstractFileSystem):
+    from concurrent.futures import ThreadPoolExecutor
+
+    pool = ThreadPoolExecutor(max_workers=40)
+    results = pool.map(
+        lambda _: TransactionalFile(
+        "/bucket/test_123", fs).acquire_lock(blocking=False, jitter_mean=0.3), range(200)
+    )
+    assert sum(results) == 1
+
+
 def test_file_transaction_ttl_expiry(fs: fsspec.AbstractFileSystem, monkeypatch, file_name: str):
     monkeypatch.setattr(TransactionalFile, "LOCK_TTL_SECONDS", 1)
     writer_1 = TransactionalFile(file_name, fs)
