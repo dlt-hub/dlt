@@ -2,9 +2,9 @@
 
 Stripe is an online payment company that offers a platform for businesses to process payments from customers over the Internet. It's a convenient way for businesses to accept payments and manage their financial transactions securely.
 
-This pipeline utilizes Stripe's API and `dlt` to extract key data such as customer information, subscription details, event records, etc, and then load them into a database. Additionally, this pipeline also calculates important metrics such as MRR (monthly recurring revenue) and churn rate.
+This verified source utilizes Stripe's API and `dlt` to extract key data such as customer information, subscription details, event records, etc, and then load them into a database. Additionally, this verified source also calculates important metrics such as MRR (monthly recurring revenue) and churn rate.
 
-This pipeline loads data from the following default endpoints:
+This verified source loads data from the following default endpoints:
 
 | Endpoint | Description |
 | --- | --- |
@@ -18,7 +18,7 @@ This pipeline loads data from the following default endpoints:
 | Invoice | a document that represents a request for payment from a customer |
 | BalanceTransaction | represents a record of funds movement within a Stripe account |
 
-> **Please note** that the endpoints within the pipeline can be tailored to meet your specific requirements, as outlined in the [**Stripe API reference documentation**](https://stripe.com/docs/api) Detailed instructions on customizing these endpoints can be found in the customization section [**here**](stripe.md#create-your-data-loading-pipeline).
+> **Please note** that the endpoints within the verified source can be tailored to meet your specific requirements, as outlined in the [**Stripe API reference documentation**](https://stripe.com/docs/api) Detailed instructions on customizing these endpoints can be found in the customization section [**here**](stripe.md#create-your-data-loading-pipeline).
 > 
 
 ## Grab API credentials
@@ -30,9 +30,9 @@ This pipeline loads data from the following default endpoints:
 5. Locate the "Standard Keys" section and click on the "Reveal test key" button next to the Secret Key.
 6. Make a note of the API_secret_key that you will use to configure `secrets.toml` further.
 
-## Initialize the pipeline
+## Initialize the verified source
 
-To get started with your data pipeline, follow these steps:
+To get started with this verified source, follow these steps:
 
 1. Open up your terminal or command prompt and navigate to the directory where you'd like to create your project.
 2. Enter the following command:
@@ -42,20 +42,21 @@ To get started with your data pipeline, follow these steps:
 dlt init stripe_analytics bigquery
 ```
 
-This command will initialize your pipeline with Stripe as the source and BigQuery as the destination. If you'd like to use a different destination, simply replace **`bigquery`** with the name of your preferred destination. You can find supported destinations and their configuration options in our [documentation](https://dlthub.com/docs/destinations/duckdb)
+This command will initialize your verified source with Stripe as the source and BigQuery as the destination. If you'd like to use a different destination, simply replace **`bigquery`** with the name of your preferred destination. You can find supported destinations and their configuration options in our [documentation](https://dlthub.com/docs/destinations/duckdb)
 
-3. After running this command, a new directory will be created with the necessary files and configuration settings to get started. From here, you can begin configuring your pipeline to suit your specific needs.
+3. After running this command, a new directory will be created with the necessary files and configuration settings to get started. From here, you can begin configuring your source to suit your specific needs.
 
 ```
-stripe_pipeline
+stripe_source
 ├── .dlt
-│   ├── .pipelines
+│   ├── .sources
 │   ├── config.toml
 │   └── secrets.toml
 ├── stripe_analytics
 │   └── __init__.py
 │   └── helpers.py
 │   └── metrics.py
+│   └── settings.py
 ├── .gitignore
 ├── requirements.txt
 └── stripe_analytics_pipeline.py
@@ -115,7 +116,7 @@ INCREMENTAL_ENDPOINTS = ("Event", "Invoice", "BalanceTransaction")
 
 ### **Source and resource methods**
 
-`dlt` works on the principle of [sources](https://dlthub.com/docs/general-usage/source) and [resources](https://dlthub.com/docs/general-usage/resource) that for this pipeline are found in the `__init__.py` file within the *stripe_analytics* directory. This pipeline `stripe_analytics_pipeline.py` has three default methods that form the basis of loading the pipeline. The methods are :
+`dlt` works on the principle of [sources](https://dlthub.com/docs/general-usage/source) and [resources](https://dlthub.com/docs/general-usage/resource) that for this verfied source are found in the `__init__.py` file within the *stripe_analytics* directory. This verfied source `stripe_analytics_pipeline.py` has three default methods that form the basis of loading the pipeline. The methods are :
 
 **Source** **<u>stripe_source:</u>**
 
