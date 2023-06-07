@@ -8,6 +8,8 @@ import pytest
 
 from dlt.common.storages.transactional_file import TransactionalFile
 
+from tests.utils import skipifwindows
+
 
 @pytest.fixture(scope="session")
 def fs() -> fsspec.AbstractFileSystem:
@@ -143,6 +145,7 @@ def test_file_transaction_ttl_expiry(fs: fsspec.AbstractFileSystem, monkeypatch,
     writer_2.release_lock()
 
 
+@skipifwindows
 def test_file_transaction_maintain_lock(fs: fsspec.AbstractFileSystem, monkeypatch, file_name: str):
     monkeypatch.setattr(TransactionalFile, "LOCK_TTL_SECONDS", 1)
     writer_1 = TransactionalFile(file_name, fs)

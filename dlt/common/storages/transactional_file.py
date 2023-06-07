@@ -77,8 +77,6 @@ class TransactionalFile:
         if proto == "file":
             # standardize path separator to POSIX. fsspec always uses POSIX. Windows may use either.
             self.path = parsed_path.as_posix()
-        # else:
-        #     self.path = self._normpath(path)
 
         self.lock_prefix = f"{self.path}.lock"
 
