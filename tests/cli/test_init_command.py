@@ -20,31 +20,31 @@ from dlt.common.utils import set_working_dir
 
 
 from dlt.cli import init_command, echo
-from dlt.cli.init_command import PIPELINES_MODULE_NAME, utils as cli_utils, files_ops, _select_pipeline_files
+from dlt.cli.init_command import SOURCES_MODULE_NAME, utils as cli_utils, files_ops, _select_source_files
 from dlt.cli.exceptions import CliCommandException
 from dlt.reflection.script_visitor import PipelineScriptVisitor
 from dlt.reflection import names as n
 
-from tests.cli.utils import echo_default_choice, repo_dir, project_files, cloned_pipeline, get_repo_dir, get_project_files
+from tests.cli.utils import echo_default_choice, repo_dir, project_files, cloned_init_repo, get_repo_dir, get_project_files
 from tests.common.utils import modify_and_commit_file
 from tests.pipeline.utils import drop_pipeline
 from tests.utils import ALL_DESTINATIONS, preserve_environ, autouse_test_storage, clean_test_storage, unload_modules
 
 
-def get_pipeline_candidates(repo_dir: str) -> List[str]:
-    pipelines_storage = FileStorage(os.path.join(repo_dir, PIPELINES_MODULE_NAME))
-    # enumerate all candidate pipelines
-    return files_ops.get_pipeline_names(pipelines_storage)
+def get_verified_source_candidates(repo_dir: str) -> List[str]:
+    sources_storage = FileStorage(os.path.join(repo_dir, SOURCES_MODULE_NAME))
+    # enumerate all candidate verified sources
+    return files_ops.get_verified_source_names(sources_storage)
 
 
-def test_init_command_template(repo_dir: str, project_files: FileStorage) -> None:
+def test_init_command_pipeline_template(repo_dir: str, project_files: FileStorage) -> None:
     init_command.init_command("debug_pipeline", "bigquery", False, repo_dir)
     visitor = assert_init_files(project_files, "debug_pipeline", "bigquery")
     # single resource
     assert len(visitor.known_resource_calls) == 1
 
 
-def test_init_command_generic(repo_dir: str, project_files: FileStorage) -> None:
+def test_init_command_pipeline_generic(repo_dir: str, project_files: FileStorage) -> None:
     init_command.init_command("generic_pipeline", "redshift", True, repo_dir)
     visitor = assert_init_files(project_files, "generic_pipeline", "redshift")
     # multiple resources
@@ -59,15 +59,15 @@ def test_init_command_new_pipeline_same_name(repo_dir: str, project_files: FileS
     assert "already exist, exiting" in _out
 
 
-def test_init_command_chess_verified_pipeline(repo_dir: str, project_files: FileStorage) -> None:
+def test_init_command_chess_verified_source(repo_dir: str, project_files: FileStorage) -> None:
     init_command.init_command("chess", "duckdb", False, repo_dir)
-    assert_pipeline_files(project_files, "chess", "duckdb", has_source_section=True)
+    assert_source_files(project_files, "chess", "duckdb", has_source_section=True)
     assert_requests_txt(project_files)
     # check files hashes
-    local_index = files_ops.load_pipeline_local_index("chess")
+    local_index = files_ops.load_verified_sources_local_index("chess")
     # chess has one file
     assert len(local_index["files"]) == 4
-    # relative to "pipelines" folder
+    # relative to "sources" folder
     assert local_index["files"][os.path.join("chess", "__init__.py")] is not None
 
     # delete existing pipeline if exist
@@ -89,36 +89,35 @@ def test_init_command_chess_verified_pipeline(repo_dir: str, project_files: File
         raise
 
 
-def test_init_list_pipelines(repo_dir: str, project_files: FileStorage) -> None:
-    pipelines = init_command._list_pipelines(repo_dir)
-    # a few known pipelines must be there
-    known_pipelines = ["chess", "sql_database", "google_sheets", "pipedrive"]
-    assert set(known_pipelines).issubset(set(pipelines.keys()))
+def test_init_list_verified_pipelines(repo_dir: str, project_files: FileStorage) -> None:
+    sources = init_command._list_verified_sources(repo_dir)
+    # a few known sources must be there
+    known_sources = ["chess", "sql_database", "google_sheets", "pipedrive"]
+    assert set(known_sources).issubset(set(sources.keys()))
     # check docstrings
-    for k_p in known_pipelines:
-        assert pipelines[k_p].doc
+    for k_p in known_sources:
+        assert sources[k_p].doc
     # run the command
-    init_command.list_pipelines_command(repo_dir)
+    init_command.list_verified_sources_command(repo_dir)
 
 
-def test_init_all_pipelines_together(repo_dir: str, project_files: FileStorage) -> None:
-    pipeline_candidates = get_pipeline_candidates(repo_dir)
-    # pipeline_candidates = ["dlt_asana"]
-    for pipeline_name in pipeline_candidates:
+def test_init_all_verified_sources_together(repo_dir: str, project_files: FileStorage) -> None:
+    source_candidates = get_verified_source_candidates(repo_dir)
+    for source_name in source_candidates:
         # all must install correctly
-        init_command.init_command(pipeline_name, "bigquery", False, repo_dir)
-        # verify pipeline files
-        _, secrets = assert_pipeline_files(project_files, pipeline_name, "bigquery")
+        init_command.init_command(source_name, "bigquery", False, repo_dir)
+        # verify files
+        _, secrets = assert_source_files(project_files, source_name, "bigquery")
     # secrets should contain sections for all sources
-    for pipeline_name in pipeline_candidates:
-        assert secrets.get_value(pipeline_name, Any, None, "sources") is not None
-        # must have index for pipeline
-        assert files_ops.load_pipeline_local_index(pipeline_name) is not None
+    for source_name in source_candidates:
+        assert secrets.get_value(source_name, Any, None, "sources") is not None
+        # must have index for this source
+        assert files_ops.load_verified_sources_local_index(source_name) is not None
     # credentials for all destinations
     for destination_name in ["bigquery", "postgres", "redshift"]:
         assert secrets.get_value(destination_name, Any, None, "destination") is not None
 
-    # create template on top
+    # create pipeline template on top
     init_command.init_command("debug_pipeline", "postgres", False, repo_dir)
     assert_init_files(project_files, "debug_pipeline", "postgres")
     # clear the resources otherwise sources not belonging to generic_pipeline will be found
@@ -127,15 +126,15 @@ def test_init_all_pipelines_together(repo_dir: str, project_files: FileStorage) 
     assert_init_files(project_files, "generic_pipeline", "redshift")
 
 
-def test_init_all_pipelines_isolated(cloned_pipeline: FileStorage) -> None:
-    repo_dir = get_repo_dir(cloned_pipeline)
-    for candidate in get_pipeline_candidates(repo_dir):
+def test_init_all_verified_sources_isolated(cloned_init_repo: FileStorage) -> None:
+    repo_dir = get_repo_dir(cloned_init_repo)
+    for candidate in get_verified_source_candidates(repo_dir):
         clean_test_storage()
-        repo_dir = get_repo_dir(cloned_pipeline)
+        repo_dir = get_repo_dir(cloned_init_repo)
         files = get_project_files()
         with set_working_dir(files.storage_path):
             init_command.init_command(candidate, "bigquery", False, repo_dir)
-            assert_pipeline_files(files, candidate, "bigquery")
+            assert_source_files(files, candidate, "bigquery")
             assert_requests_txt(files)
 
 
@@ -147,7 +146,7 @@ def test_init_all_destinations(destination_name: str, project_files: FileStorage
 
 
 def test_init_code_update_index_diff(repo_dir: str, project_files: FileStorage) -> None:
-    pipelines_storage = FileStorage(os.path.join(repo_dir, PIPELINES_MODULE_NAME))
+    sources_storage = FileStorage(os.path.join(repo_dir, SOURCES_MODULE_NAME))
     new_content = '"""New docstrings"""'
     new_content_hash = hashlib.sha3_256(bytes(new_content, encoding="ascii")).hexdigest()
     init_command.init_command("pipedrive", "duckdb", False, repo_dir)
@@ -156,20 +155,20 @@ def test_init_code_update_index_diff(repo_dir: str, project_files: FileStorage) 
     mod_file_path = os.path.join("pipedrive", "__init__.py")
     new_file_path = os.path.join("pipedrive", "new_pipedrive_X.py")
     del_file_path = os.path.join("pipedrive", "README.md")
-    # remote_path = os.path.join(PIPELINES_MODULE_NAME, local_path)
-    pipelines_storage.save(mod_file_path, new_content)
-    pipelines_storage.save(new_file_path, new_content)
-    pipelines_storage.delete(del_file_path)
 
-    pipeline_files = files_ops.get_pipeline_files(pipelines_storage, "pipedrive")
-    remote_index = files_ops.get_remote_pipeline_index(pipelines_storage.storage_path, pipeline_files.files)
+    sources_storage.save(mod_file_path, new_content)
+    sources_storage.save(new_file_path, new_content)
+    sources_storage.delete(del_file_path)
+
+    source_files = files_ops.get_verified_source_files(sources_storage, "pipedrive")
+    remote_index = files_ops.get_remote_source_index(sources_storage.storage_path, source_files.files)
     assert mod_file_path in remote_index["files"]
     assert remote_index["is_dirty"] is True
     assert remote_index["files"][mod_file_path]["sha3_256"] == new_content_hash
     assert remote_index["files"][new_file_path]["sha3_256"] == new_content_hash
 
     # get diff
-    local_index = files_ops.load_pipeline_local_index("pipedrive")
+    local_index = files_ops.load_verified_sources_local_index("pipedrive")
     new, modified, deleted = files_ops.gen_index_diff(local_index, remote_index)
     # remote file entry in new
     assert new[new_file_path] == remote_index["files"][new_file_path]
@@ -201,10 +200,10 @@ def test_init_code_update_index_diff(repo_dir: str, project_files: FileStorage) 
     project_files.save(del_file_path, local_content)
     # add one more modified REMOTE file without conflict to test Merge option
     mod_file_path_2 = os.path.join("pipedrive", "new_munger_X.py")
-    pipelines_storage.save(mod_file_path_2, local_content)
-    local_index = files_ops.load_pipeline_local_index("pipedrive")
-    pipeline_files = files_ops.get_pipeline_files(pipelines_storage, "pipedrive")
-    remote_index = files_ops.get_remote_pipeline_index(pipelines_storage.storage_path, pipeline_files.files)
+    sources_storage.save(mod_file_path_2, local_content)
+    local_index = files_ops.load_verified_sources_local_index("pipedrive")
+    source_files = files_ops.get_verified_source_files(sources_storage, "pipedrive")
+    remote_index = files_ops.get_remote_source_index(sources_storage.storage_path, source_files.files)
     new, modified, deleted = files_ops.gen_index_diff(local_index, remote_index)
     assert mod_file_path_2 in new
     conflict_modified, conflict_deleted = files_ops.find_conflict_files(local_index, new, modified, deleted, project_files)
@@ -214,30 +213,30 @@ def test_init_code_update_index_diff(repo_dir: str, project_files: FileStorage) 
     modified.update(new)
     # resolve conflicts in three different ways
     # skip option (the default)
-    res, sel_modified, sel_deleted = _select_pipeline_files("pipedrive", deepcopy(modified), deepcopy(deleted), conflict_modified, conflict_deleted)
+    res, sel_modified, sel_deleted = _select_source_files("pipedrive", deepcopy(modified), deepcopy(deleted), conflict_modified, conflict_deleted)
     # noting is written, including non-conflicting file
     assert res == "s"
     assert sel_modified == {}
     assert sel_deleted == {}
     # Apply option - local changes will be lost
     with echo.always_choose(False, "a"):
-        res, sel_modified, sel_deleted = _select_pipeline_files("pipedrive", deepcopy(modified), deepcopy(deleted), conflict_modified, conflict_deleted)
+        res, sel_modified, sel_deleted = _select_source_files("pipedrive", deepcopy(modified), deepcopy(deleted), conflict_modified, conflict_deleted)
         assert res == "a"
         assert sel_modified == modified
         assert sel_deleted == deleted
     # merge only non conflicting changes are applied
     with echo.always_choose(False, "m"):
-        res, sel_modified, sel_deleted = _select_pipeline_files("pipedrive", deepcopy(modified), deepcopy(deleted), conflict_modified, conflict_deleted)
+        res, sel_modified, sel_deleted = _select_source_files("pipedrive", deepcopy(modified), deepcopy(deleted), conflict_modified, conflict_deleted)
         assert res == "m"
         assert len(sel_modified) == 1 and mod_file_path_2 in sel_modified
         assert sel_deleted == {}
 
     # get rid of all the conflicts by making the local changes identical to the remote changes so they can be fast forwarded
-    pipelines_storage.save(new_file_path, local_content)
-    pipelines_storage.save(mod_file_path, local_content)
+    sources_storage.save(new_file_path, local_content)
+    sources_storage.save(mod_file_path, local_content)
     project_files.delete(del_file_path)
-    pipeline_files = files_ops.get_pipeline_files(pipelines_storage, "pipedrive")
-    remote_index = files_ops.get_remote_pipeline_index(pipelines_storage.storage_path, pipeline_files.files)
+    source_files = files_ops.get_verified_source_files(sources_storage, "pipedrive")
+    remote_index = files_ops.get_remote_source_index(sources_storage.storage_path, source_files.files)
     new, modified, deleted = files_ops.gen_index_diff(local_index, remote_index)
     conflict_modified, conflict_deleted = files_ops.find_conflict_files(local_index, new, modified, deleted, project_files)
     assert conflict_modified == []
@@ -245,8 +244,8 @@ def test_init_code_update_index_diff(repo_dir: str, project_files: FileStorage) 
 
     # generate a conflict by deleting file locally that is modified on remote
     project_files.delete(mod_file_path)
-    pipeline_files = files_ops.get_pipeline_files(pipelines_storage, "pipedrive")
-    remote_index = files_ops.get_remote_pipeline_index(pipelines_storage.storage_path, pipeline_files.files)
+    source_files = files_ops.get_verified_source_files(sources_storage, "pipedrive")
+    remote_index = files_ops.get_remote_source_index(sources_storage.storage_path, source_files.files)
     new, modified, deleted = files_ops.gen_index_diff(local_index, remote_index)
     conflict_modified, conflict_deleted = files_ops.find_conflict_files(local_index, new, modified, deleted, project_files)
     assert conflict_modified == [mod_file_path]
@@ -260,12 +259,12 @@ def test_init_code_update_no_conflict(repo_dir: str, project_files: FileStorage)
     # a case of a new commit to existing file
 
     # get local index
-    local_index = files_ops.load_pipeline_local_index("pipedrive")
+    local_index = files_ops.load_verified_sources_local_index("pipedrive")
     # modify file in original dir
     assert "_storage" in repo_dir
     new_content = '"""New docstrings"""'
     mod_local_path = os.path.join("pipedrive", "__init__.py")
-    mod_remote_path = os.path.join(PIPELINES_MODULE_NAME, mod_local_path)
+    mod_remote_path = os.path.join(SOURCES_MODULE_NAME, mod_local_path)
     assert project_files.has_file(mod_local_path)
     _, commit = modify_and_commit_file(repo_dir, mod_remote_path, content=new_content)
     # update without conflict
@@ -275,7 +274,7 @@ def test_init_code_update_no_conflict(repo_dir: str, project_files: FileStorage)
     with git.get_repo(repo_dir) as repo:
         assert git.is_clean_and_synced(repo) is False
         assert git.is_dirty(repo) is False
-    new_local_index = files_ops.load_pipeline_local_index("pipedrive")
+    new_local_index = files_ops.load_verified_sources_local_index("pipedrive")
     assert new_local_index["is_dirty"] is False
     assert new_local_index["last_commit_sha"] == commit.hexsha
     assert new_local_index["files"][mod_local_path]["commit_sha"] == commit.hexsha
@@ -303,18 +302,18 @@ def test_init_code_update_no_conflict(repo_dir: str, project_files: FileStorage)
 
     # new file
     new_local_path = os.path.join("pipedrive", "__init__X.py")
-    new_remote_path = os.path.join(PIPELINES_MODULE_NAME, new_local_path)
+    new_remote_path = os.path.join(SOURCES_MODULE_NAME, new_local_path)
     repo_storage.save(new_remote_path, new_content)
     init_command.init_command("pipedrive", "duckdb", False, repo_dir)
     # was file copied
     assert project_files.load(new_local_path) == new_content
 
-    # deleting the pipeline folder will fully reload
+    # deleting the source folder will fully reload
     project_files.delete_folder("pipedrive", recursively=True)
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
         init_command.init_command("pipedrive", "duckdb", False, repo_dir)
         _out = buf.getvalue()
-    # pipeline was added anew
+    # source was added anew
     assert "was added to your project!" in _out
     assert project_files.has_folder("pipedrive")
     # files are there
@@ -326,9 +325,9 @@ def test_init_code_update_conflict(repo_dir: str, project_files: FileStorage, re
     init_command.init_command("pipedrive", "duckdb", False, repo_dir)
     repo_storage = FileStorage(repo_dir)
     mod_local_path = os.path.join("pipedrive", "__init__.py")
-    mod_remote_path = os.path.join(PIPELINES_MODULE_NAME, mod_local_path)
+    mod_remote_path = os.path.join(SOURCES_MODULE_NAME, mod_local_path)
     mod_local_path_2 = os.path.join("pipedrive", "__init__X.py")
-    mod_remote_path_2 = os.path.join(PIPELINES_MODULE_NAME, "pipedrive", "__init__X.py")
+    mod_remote_path_2 = os.path.join(SOURCES_MODULE_NAME, "pipedrive", "__init__X.py")
     # change remote
     repo_storage.save(mod_remote_path, "'''VERSION 1'''")
     repo_storage.save(mod_remote_path_2, "'''VERSION 3'''")
@@ -400,15 +399,15 @@ def assert_requests_txt(project_files: FileStorage) -> None:
     assert "dlt" in project_files.load(cli_utils.REQUIREMENTS_TXT)
 
 
-def assert_pipeline_files(project_files: FileStorage, pipeline_name: str, destination_name: str, has_source_section: bool = True) -> Tuple[PipelineScriptVisitor, SecretsTomlProvider]:
-    visitor, secrets = assert_common_files(project_files, pipeline_name + "_pipeline.py", destination_name)
-    assert project_files.has_folder(pipeline_name)
-    source_secrets = secrets.get_value(pipeline_name, Any, None, pipeline_name)
+def assert_source_files(project_files: FileStorage, source_name: str, destination_name: str, has_source_section: bool = True) -> Tuple[PipelineScriptVisitor, SecretsTomlProvider]:
+    visitor, secrets = assert_common_files(project_files, source_name + "_pipeline.py", destination_name)
+    assert project_files.has_folder(source_name)
+    source_secrets = secrets.get_value(source_name, Any, None, source_name)
     if has_source_section:
         assert source_secrets is not None
     else:
         assert source_secrets is None
-    local_index = files_ops.load_pipeline_local_index(pipeline_name)
+    local_index = files_ops.load_verified_sources_local_index(source_name)
     for file_entry in local_index["files"].values():
         # all files have the newest commit (first time clone)
         assert file_entry["commit_sha"] == local_index["last_commit_sha"]

@@ -95,8 +95,8 @@ If you are using a different destination, set up those credentials in the same w
 
 ### Setting up the first pipeline
 
-You can use dlt init to copy pipelines from the [pipelines repo](https://github.com/dlt-hub/pipelines).
-To do so use the command 'dlt init sourcename destination'. This will copy the sourcename folder from pipelines and install the requirements, and generate a pipeline for your destination.
+You can use dlt init to add sources from the [verified sources repo](https://github.com/dlt-hub/verified-sources).
+To do so use the command 'dlt init sourcename destination'. This will copy the sourcename folder from verified-sources, install the requirements and generate a pipeline for your destination.
 
 You can follow the Pipedrive example for a different source, by doing the step by step instructions below
 

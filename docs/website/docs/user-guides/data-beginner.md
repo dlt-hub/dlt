@@ -69,7 +69,7 @@ Good docs pages to check out:
 - [Understand the loaded data](../using-loaded-data/understanding-the-tables)
 - [Explore the loaded data in Streamlit](../using-loaded-data/exploring-the-data)
 - [Transform the data with SQL or python](../using-loaded-data/transforming-the-data)
-- [Contribute a pipeline](https://github.com/dlt-hub/pipelines)
+- [Contribute a pipeline](https://github.com/dlt-hub/verified-pipelines)
 
 Here are some example projects:
 - [Is DuckDB a database for ducks? Using DuckDB to explore the DuckDB open source community](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing)

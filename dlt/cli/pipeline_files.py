@@ -5,7 +5,7 @@ import yaml
 import posixpath
 from pathlib import Path
 from typing import Dict, NamedTuple, Sequence, Tuple, TypedDict, List
-from dlt.cli.exceptions import PipelineRepoError
+from dlt.cli.exceptions import VerifiedSourceRepoError
 
 from dlt.common import git
 from dlt.common.configuration.paths import make_dlt_settings_path
@@ -16,13 +16,13 @@ from dlt.common.reflection.utils import get_module_docstring
 from dlt.cli import utils
 
 
-PIPELINES_INIT_INFO_ENGINE_VERSION = 1
-PIPELINES_INIT_INFO_FILE = ".pipelines"
+SOURCES_INIT_INFO_ENGINE_VERSION = 1
+SOURCES_INIT_INFO_FILE = ".sources"
 IGNORE_FILES = ["*.py[cod]", "*$py.class", "__pycache__", "py.typed", "requirements.txt"]
-IGNORE_PIPELINES = [".*", "_*"]
+IGNORE_SOURCES = [".*", "_*"]
 
 
-class PipelineFiles(NamedTuple):
+class VerifiedSourceFiles(NamedTuple):
     is_template: bool
     storage: FileStorage
     pipeline_script: str
@@ -32,49 +32,49 @@ class PipelineFiles(NamedTuple):
     doc: str
 
 
-class TPipelineFileEntry(TypedDict):
+class TVerifiedSourceFileEntry(TypedDict):
     commit_sha: str
     git_sha: str
     sha3_256: str
 
 
-class TPipelineFileIndex(TypedDict):
+class TVerifiedSourceFileIndex(TypedDict):
     is_dirty: bool
     last_commit_sha: str
     last_commit_timestamp: str
-    files: Dict[str, TPipelineFileEntry]
+    files: Dict[str, TVerifiedSourceFileEntry]
 
 
-class TPipelinesFileIndex(TypedDict):
+class TVerifiedSourcesFileIndex(TypedDict):
     engine_version: int
-    pipelines: Dict[str, TPipelineFileIndex]
+    sources: Dict[str, TVerifiedSourceFileIndex]
 
 
-def _save_dot_pipelines(index: TPipelinesFileIndex) -> None:
-    with open(make_dlt_settings_path(PIPELINES_INIT_INFO_FILE), "w", encoding="utf-8") as f:
+def _save_dot_sources(index: TVerifiedSourcesFileIndex) -> None:
+    with open(make_dlt_settings_path(SOURCES_INIT_INFO_FILE), "w", encoding="utf-8") as f:
         yaml.dump(index, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
 
 
-def _load_dot_pipelines() -> TPipelinesFileIndex:
+def _load_dot_sources() -> TVerifiedSourcesFileIndex:
     try:
-        with open(make_dlt_settings_path(PIPELINES_INIT_INFO_FILE), "r", encoding="utf-8") as f:
-            index: TPipelinesFileIndex = yaml.safe_load(f)
+        with open(make_dlt_settings_path(SOURCES_INIT_INFO_FILE), "r", encoding="utf-8") as f:
+            index: TVerifiedSourcesFileIndex = yaml.safe_load(f)
             if not index:
-                raise FileNotFoundError(PIPELINES_INIT_INFO_FILE)
+                raise FileNotFoundError(SOURCES_INIT_INFO_FILE)
             return index
     except FileNotFoundError:
         return {
-            "engine_version": PIPELINES_INIT_INFO_ENGINE_VERSION,
-            "pipelines": {}
+            "engine_version": SOURCES_INIT_INFO_ENGINE_VERSION,
+            "sources": {}
         }
 
 
 def _merge_remote_index(
-    local_index: TPipelineFileIndex,
-    remote_index: TPipelineFileIndex,
-    remote_modified: Dict[str, TPipelineFileEntry],
-    remote_deleted: Dict[str, TPipelineFileEntry]
-) -> TPipelineFileIndex:
+    local_index: TVerifiedSourceFileIndex,
+    remote_index: TVerifiedSourceFileIndex,
+    remote_modified: Dict[str, TVerifiedSourceFileEntry],
+    remote_deleted: Dict[str, TVerifiedSourceFileEntry]
+) -> TVerifiedSourceFileIndex:
     # update all modified files
     local_index["files"].update(remote_modified)
     # delete all deleted
@@ -88,8 +88,8 @@ def _merge_remote_index(
     return local_index
 
 
-def load_pipeline_local_index(pipeline_name: str) -> TPipelineFileIndex:
-    return _load_dot_pipelines()["pipelines"].get(pipeline_name, {
+def load_verified_sources_local_index(source_name: str) -> TVerifiedSourceFileIndex:
+    return _load_dot_sources()["sources"].get(source_name, {
         "is_dirty": False,
         "last_commit_sha": None,
         "last_commit_timestamp": None,
@@ -98,25 +98,25 @@ def load_pipeline_local_index(pipeline_name: str) -> TPipelineFileIndex:
     )
 
 
-def save_pipeline_local_index(
-    pipeline_name: str,
-    remote_index: TPipelineFileIndex,
-    remote_modified: Dict[str, TPipelineFileEntry],
-    remote_deleted: Dict[str, TPipelineFileEntry]
+def save_verified_source_local_index(
+    source_name: str,
+    remote_index: TVerifiedSourceFileIndex,
+    remote_modified: Dict[str, TVerifiedSourceFileEntry],
+    remote_deleted: Dict[str, TVerifiedSourceFileEntry]
 ) -> None:
 
-    all_pipelines = _load_dot_pipelines()
-    local_index = all_pipelines["pipelines"].setdefault(pipeline_name, remote_index)
+    all_sources = _load_dot_sources()
+    local_index = all_sources["sources"].setdefault(source_name, remote_index)
     _merge_remote_index(local_index, remote_index, remote_modified, remote_deleted)
-    _save_dot_pipelines(all_pipelines)
+    _save_dot_sources(all_sources)
 
 
-def get_remote_pipeline_index(repo_path: str, files: Sequence[str]) -> TPipelineFileIndex:
+def get_remote_source_index(repo_path: str, files: Sequence[str]) -> TVerifiedSourceFileIndex:
 
     with git.get_repo(repo_path) as repo:
         tree = repo.tree()
         commit_sha = repo.head.commit.hexsha
-        files_sha: Dict[str, TPipelineFileEntry] = {}
+        files_sha: Dict[str, TVerifiedSourceFileEntry] = {}
         for file in files:
             posix_file = os.path.join(repo_path, file)
             posix_file = os.path.relpath(posix_file, repo.working_dir)
@@ -143,56 +143,56 @@ def get_remote_pipeline_index(repo_path: str, files: Sequence[str]) -> TPipeline
         }
 
 
-def get_pipeline_names(pipelines_storage: FileStorage) -> List[str]:
+def get_verified_source_names(sources_storage: FileStorage) -> List[str]:
     candidates: List[str] = []
-    for name in [n for n in pipelines_storage.list_folder_dirs(".", to_root=False) if not any(fnmatch.fnmatch(n, ignore) for ignore in IGNORE_PIPELINES)]:
+    for name in [n for n in sources_storage.list_folder_dirs(".", to_root=False) if not any(fnmatch.fnmatch(n, ignore) for ignore in IGNORE_SOURCES)]:
         # must contain at least one valid python script
-        if any(f.endswith(".py") for f in pipelines_storage.list_folder_files(name, to_root=False)):
+        if any(f.endswith(".py") for f in sources_storage.list_folder_files(name, to_root=False)):
             candidates.append(name)
     return candidates
 
 
-def get_pipeline_files(pipelines_storage: FileStorage, pipeline_name: str) -> PipelineFiles:
-    if not pipelines_storage.has_folder(pipeline_name):
-        raise PipelineRepoError(f"Pipeline {pipeline_name} could not be found in the repository", pipeline_name)
+def get_verified_source_files(sources_storage: FileStorage, source_name: str) -> VerifiedSourceFiles:
+    if not sources_storage.has_folder(source_name):
+        raise VerifiedSourceRepoError(f"Verified source {source_name} could not be found in the repository", source_name)
     # find example script
-    example_script = f"{pipeline_name}_pipeline.py"
-    if not pipelines_storage.has_file(example_script):
-        raise PipelineRepoError(f"Pipeline example script {example_script} could not be found in the repository", pipeline_name)
+    example_script = f"{source_name}_pipeline.py"
+    if not sources_storage.has_file(example_script):
+        raise VerifiedSourceRepoError(f"Pipeline example script {example_script} could not be found in the repository", source_name)
     # get all files recursively
     files: List[str] = []
-    for root, subdirs, _files in os.walk(pipelines_storage.make_full_path(pipeline_name)):
+    for root, subdirs, _files in os.walk(sources_storage.make_full_path(source_name)):
         # filter unwanted files
         for subdir in list(subdirs):
             if any(fnmatch.fnmatch(subdir, ignore) for ignore in IGNORE_FILES):
                 subdirs.remove(subdir)
-        rel_root = pipelines_storage.to_relative_path(root)
+        rel_root = sources_storage.to_relative_path(root)
         files.extend([os.path.join(rel_root, file) for file in _files if all(not fnmatch.fnmatch(file, ignore) for ignore in IGNORE_FILES)])
     # read the docs
-    init_py =  os.path.join(pipeline_name, utils.MODULE_INIT)
+    init_py =  os.path.join(source_name, utils.MODULE_INIT)
     docstring: str = ""
-    if pipelines_storage.has_file(init_py):
-        docstring = get_module_docstring(pipelines_storage.load(init_py))
+    if sources_storage.has_file(init_py):
+        docstring = get_module_docstring(sources_storage.load(init_py))
         if docstring:
             docstring = docstring.splitlines()[0]
     # read requirements
-    requirements_path = os.path.join(pipeline_name, utils.REQUIREMENTS_TXT)
-    if pipelines_storage.has_file(requirements_path):
-        requirements = pipelines_storage.load(requirements_path).splitlines()
+    requirements_path = os.path.join(source_name, utils.REQUIREMENTS_TXT)
+    if sources_storage.has_file(requirements_path):
+        requirements = sources_storage.load(requirements_path).splitlines()
     else:
         requirements = []
     # find requirements
-    return PipelineFiles(False, pipelines_storage, example_script, example_script, files, requirements, docstring)
+    return VerifiedSourceFiles(False, sources_storage, example_script, example_script, files, requirements, docstring)
 
 
 def gen_index_diff(
-    local_index: TPipelineFileIndex,
-    remote_index: TPipelineFileIndex
-) -> Tuple[Dict[str, TPipelineFileEntry], Dict[str, TPipelineFileEntry], Dict[str, TPipelineFileEntry]]:
+    local_index: TVerifiedSourceFileIndex,
+    remote_index: TVerifiedSourceFileIndex
+) -> Tuple[Dict[str, TVerifiedSourceFileEntry], Dict[str, TVerifiedSourceFileEntry], Dict[str, TVerifiedSourceFileEntry]]:
 
-    deleted: Dict[str, TPipelineFileEntry] = {}
-    modified: Dict[str, TPipelineFileEntry] = {}
-    new: Dict[str, TPipelineFileEntry] = {}
+    deleted: Dict[str, TVerifiedSourceFileEntry] = {}
+    modified: Dict[str, TVerifiedSourceFileEntry] = {}
+    new: Dict[str, TVerifiedSourceFileEntry] = {}
 
     for name, entry in remote_index["files"].items():
         if name not in local_index["files"]:
@@ -214,17 +214,17 @@ def gen_index_diff(
 
 
 def find_conflict_files(
-    local_index: TPipelineFileIndex,
-    remote_new: Dict[str, TPipelineFileEntry],
-    remote_modified: Dict[str, TPipelineFileEntry],
-    remote_deleted: Dict[str, TPipelineFileEntry],
+    local_index: TVerifiedSourceFileIndex,
+    remote_new: Dict[str, TVerifiedSourceFileEntry],
+    remote_modified: Dict[str, TVerifiedSourceFileEntry],
+    remote_deleted: Dict[str, TVerifiedSourceFileEntry],
     dest_storage: FileStorage
 ) -> Tuple[List[str], List[str]]:
-    """Use files index from .pipelines to identify modified files via sha3 content hash"""
+    """Use files index from .sources to identify modified files via sha3 content hash"""
 
     conflict_modified: List[str] = []
 
-    def is_file_modified(file: str, entry: TPipelineFileEntry) -> bool:
+    def is_file_modified(file: str, entry: TVerifiedSourceFileEntry) -> bool:
         with dest_storage.open_file(file, "br") as f:
             file_blob = f.read()
         # file exists but was not changed

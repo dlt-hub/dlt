@@ -10,8 +10,8 @@ keywords: [introduction, who, what, how]
 
 ## What is `dlt`?
 
-`dlt` is an open-source library that enables you to create a data [pipeline](./general-usage/glossary.md#pipeline) in a Python script. To use it, `pip install dlt` and then `import dlt`. Once set up, it will automatically load any [source](./general-usage/glossary.md#source) (e.g. an API) into a live dataset stored in the [destination](./general-usage/glossary.md#destination) of your choice.  
-  
+`dlt` is an open-source library that enables you to create a data [pipeline](./general-usage/glossary.md#pipeline) in a Python script. To use it, `pip install dlt` and then `import dlt`. Once set up, it will automatically load any [source](./general-usage/glossary.md#source) (e.g. an API) into a live dataset stored in the [destination](./general-usage/glossary.md#destination) of your choice.
+
 To try it out, install `dlt` with DuckDB using `pip install dlt[duckdb]` and run the following example:
 ```python
 import dlt
@@ -35,7 +35,7 @@ for player in ['magnuscarlsen', 'rpragchess']:
 
 
 # Extract, normalize, and load the data
-pipeline.run(data, table_name='player') 
+pipeline.run(data, table_name='player')
 ```
 
 [How it works](./how-dlt-works.md): `dlt` extracts data from a [source](general-usage/glossary.md#source), inspects its structure to create a [schema](general-usage/glossary.md#schema), normalizes and verifies the data,
@@ -52,7 +52,7 @@ The `dlt` library can be dropped into a variety of tools (e.g. a Colab notebook,
 ### Getting started with `dlt`
 1. Play with the [Google Colab demo](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing)
 2. [Install](installation.mdx) and try the [Getting Started](getting-started.md) tutorial
-3. Select an [existing pipeline](./pipelines/github.md) or start [creating your own](./walkthroughs/create-a-pipeline.md)
+3. Add a [verified source](walkthroughs/add-a-verified-source.md) or start [creating your own pipeline](./walkthroughs/create-a-pipeline.md)
 
 ### Become part of the `dlt` community
 1. Give the library a ⭐ and check out the code on [GitHub](https://github.com/dlt-hub/dlt)

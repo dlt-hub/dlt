@@ -12,17 +12,17 @@ from dlt.common.runners import Venv
 
 import dlt.cli.echo as fmt
 from dlt.cli import utils
-from dlt.cli.init_command import init_command, list_pipelines_command, DLT_INIT_DOCS_URL, DEFAULT_PIPELINES_REPO
+from dlt.cli.init_command import init_command, list_verified_sources_command, DLT_INIT_DOCS_URL, DEFAULT_VERIFIED_SOURCES_REPO
 from dlt.cli.deploy_command import PipelineWasNotRun, deploy_command, DLT_DEPLOY_DOCS_URL, DeploymentMethods, COMMAND_DEPLOY_REPO_LOCATION
 from dlt.cli.pipeline_command import pipeline_command, DLT_PIPELINE_COMMAND_DOCS_URL
 from dlt.cli.telemetry_command import DLT_TELEMETRY_DOCS_URL, change_telemetry_status_command, telemetry_status_command
 from dlt.pipeline.exceptions import CannotRestorePipelineException
 
 
-@utils.track_command("init", False, "pipeline_name", "destination_name")
-def init_command_wrapper(pipeline_name: str, destination_name: str, use_generic_template: bool, repo_location: str, branch: str) -> int:
+@utils.track_command("init", False, "source_name", "destination_name")
+def init_command_wrapper(source_name: str, destination_name: str, use_generic_template: bool, repo_location: str, branch: str) -> int:
     try:
-        init_command(pipeline_name, destination_name, use_generic_template, repo_location, branch)
+        init_command(source_name, destination_name, use_generic_template, repo_location, branch)
     except Exception as ex:
         click.secho(str(ex), err=True, fg="red")
         fmt.note("Please refer to %s for further assistance" % fmt.bold(DLT_INIT_DOCS_URL))
@@ -30,10 +30,10 @@ def init_command_wrapper(pipeline_name: str, destination_name: str, use_generic_
     return 0
 
 
-@utils.track_command("list_pipelines", False)
-def list_pipelines_command_wrapper(repo_location: str, branch: str) -> int:
+@utils.track_command("list_sources", False)
+def list_verified_sources_command_wrapper(repo_location: str, branch: str) -> int:
     try:
-        list_pipelines_command(repo_location, branch)
+        list_verified_sources_command(repo_location, branch)
     except Exception as ex:
         click.secho(str(ex), err=True, fg="red")
         fmt.note("Please refer to %s for further assistance" % fmt.bold(DLT_INIT_DOCS_URL))
@@ -181,18 +181,18 @@ class NonInteractiveAction(argparse.Action):
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Runs various DLT modules", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser = argparse.ArgumentParser(description="Creates, adds, inspects and deploys dlt pipelines.", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--version', action="version", version='%(prog)s {version}'.format(version=__version__))
     parser.add_argument('--disable-telemetry', action=TelemetryAction, help="Disables telemetry before command is executed")
     parser.add_argument('--enable-telemetry', action=TelemetryAction, help="Enables telemetry before command is executed")
     parser.add_argument('--non-interactive', action=NonInteractiveAction, help="Non interactive mode. Default choices are automatically made for confirmations and prompts.")
     subparsers = parser.add_subparsers(dest="command")
 
-    init_cmd = subparsers.add_parser("init", help="Adds or creates a pipeline in the current folder.")
-    init_cmd.add_argument("--list-pipelines", "-l",  default=False, action="store_true", help="List available pipelines")
-    init_cmd.add_argument("pipeline", nargs='?', help="Pipeline name. Adds existing pipeline or creates a new pipeline template if pipeline for your data source is not yet implemented.")
+    init_cmd = subparsers.add_parser("init", help="Creates a pipeline project in the current folder by adding existing verified source or creating a new one from template.")
+    init_cmd.add_argument("--list-verified-sources", "-l",  default=False, action="store_true", help="List available verified sources")
+    init_cmd.add_argument("source", nargs='?', help="Name of data source for which to create a pipeline. Adds existing verified source or creates a new pipeline template if verified source for your data source is not yet implemented.")
     init_cmd.add_argument("destination", nargs='?', help="Name of a destination ie. bigquery or redshift")
-    init_cmd.add_argument("--location", default=DEFAULT_PIPELINES_REPO, help="Advanced. Uses a specific url or local path to pipelines repository.")
+    init_cmd.add_argument("--location", default=DEFAULT_VERIFIED_SOURCES_REPO, help="Advanced. Uses a specific url or local path to verified sources repository.")
     init_cmd.add_argument("--branch", default=None, help="Advanced. Uses specific branch of the init repository to fetch the template.")
     init_cmd.add_argument("--generic", default=False, action="store_true", help="When present uses a generic template with all the dlt loading code present will be used. Otherwise a debug template is used that can be immediately run to get familiar with the dlt sources.")
 
@@ -276,14 +276,14 @@ def main() -> int:
             del command_kwargs["list_pipelines"]
             return pipeline_command_wrapper(**command_kwargs)
     elif args.command == "init":
-        if args.list_pipelines:
-            return list_pipelines_command_wrapper(args.location, args.branch)
+        if args.list_verified_sources:
+            return list_verified_sources_command_wrapper(args.location, args.branch)
         else:
-            if not args.pipeline or not args.destination:
+            if not args.source or not args.destination:
                 init_cmd.print_usage()
                 return -1
             else:
-                return init_command_wrapper(args.pipeline, args.destination, args.generic, args.location, args.branch)
+                return init_command_wrapper(args.source, args.destination, args.generic, args.location, args.branch)
     elif args.command == "deploy":
         return deploy_command_wrapper(args.pipeline_script_path, args.deployment_method, args.schedule, args.run_on_push, args.run_manually, args.location, args.branch)
     elif args.command == "telemetry":
