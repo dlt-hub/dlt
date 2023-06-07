@@ -83,7 +83,7 @@ client_email = "client_email" # please set me up!
 
 ```
 
-2. Replace the value of **stripe_secret_key** with the one that [you copied above](stripe.md#grab-api-credentials). This will ensure that your data pipeline can access your Stripe resources securely.
+2. Replace the value of **stripe_secret_key** with the one that [you copied above](stripe.md#grab-api-credentials). This will ensure that this source can access your Stripe resources securely.
 3. Finally, follow the instructions in **[Destinations](https://dlthub.com/docs/destinations/duckdb)** to add credentials for your chosen destination. This will ensure that your data is properly routed to its final destination.
 
 ## Run the pipeline[](https://dlthub.com/docs/pipelines/strapi#run-the-pipeline)
@@ -92,7 +92,7 @@ client_email = "client_email" # please set me up!
 
 `pip install -r requirements.txt`
 
-2. Now the pipeline can be run by using the command:
+2. Now the verified source can be run by using the command:
 
 `python3 stripe_analytics_pipeline.py`
 
@@ -100,7 +100,7 @@ client_email = "client_email" # please set me up!
 
 `dlt pipeline <pipeline_name> show`  
 
-(For example, the pipeline_name for the above pipeline is `stripe_analytics`, you may also use any custom name instead)
+(For example, the pipeline_name for the above source is `stripe_analytics`, you may also use any custom name instead)
 
 ## Customization
 
@@ -116,7 +116,7 @@ INCREMENTAL_ENDPOINTS = ("Event", "Invoice", "BalanceTransaction")
 
 ### **Source and resource methods**
 
-`dlt` works on the principle of [sources](https://dlthub.com/docs/general-usage/source) and [resources](https://dlthub.com/docs/general-usage/resource) that for this verfied source are found in the `__init__.py` file within the *stripe_analytics* directory. This verfied source `stripe_analytics_pipeline.py` has three default methods that form the basis of loading the pipeline. The methods are :
+`dlt` works on the principle of [sources](https://dlthub.com/docs/general-usage/source) and [resources](https://dlthub.com/docs/general-usage/resource) that for this verfied source are found in the `__init__.py` file within the *stripe_analytics* directory. This verfied source `stripe_analytics_pipeline.py` has three default methods that form the basis of loading. The methods are :
 
 **Source** **<u>stripe_source:</u>**
 
