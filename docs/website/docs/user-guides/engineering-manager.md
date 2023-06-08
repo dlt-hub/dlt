@@ -1,10 +1,37 @@
 ---
-title: Engineering Manager
+title: Staff data engineer
 description: A guide to using dlt for Engineering Managers
 keywords: [engineering manager, EM, data platform engineer]
 ---
 
-# Data Stack Architect / Chief data officer / Data platform engineer
+# Staff data engineer
+
+With this page, we address:
+* The engineers and architects who build *for others in the data team*
+* Engineering managers, Staff data engineers, Senior data/analytics engineers,Platform Architects, CTOs, CDOs, whatever you call yourself
+
+## What does this role do in an organisation?
+The job responsibilities of this senior vary, but often revolve around building and maintaining a robust data infrastructure.
+
+* Tech: They design and implement scalable data architectures, data pipelines, and data processing frameworks.
+* Governance: They ensure data integrity, reliability, and security across the data stack. They manage data governance, including data quality, data privacy, and regulatory compliance.
+* Strategy: Additionally, they evaluate and adopt new technologies, tools, and methodologies to improve the efficiency, performance, and scalability of data processes.
+* Team skills and staffing: Their responsibilities also involve providing technical leadership, mentoring team members, driving innovation, and aligning the data strategy with the organization's overall goals.
+* Return on investment focus: Ultimately, their focus is on empowering the organization to derive actionable insights, make data-driven decisions, and unlock the full potential of their data assets.
+
+
+## Choosing a Data Stack:
+The above roles play a critical role in choosing the right data stack for their organization.
+When selecting a data stack, they need to consider several factors. These include:
+- the organization's data requirements,
+- scalability, performance, data governance and security needs,
+- integration capabilities with existing systems and tools,
+- team skill sets, budget, and long-term strategic goals.
+
+They evaluate the pros and cons of various technologies, frameworks, and platforms, considering factors such as ease of use, community support, vendor reliability, and compatibility with their specific use cases.
+The goal is to choose a data stack that aligns with the organization's needs, enables efficient data processing and analysis, promotes data governance and security, and empowers teams to deliver valuable insights and solutions.
+
+What does this role do for their team?
 
 What does a senior architect or engineer consider when choosing a tech stack?
 
