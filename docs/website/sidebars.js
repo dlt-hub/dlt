@@ -25,7 +25,7 @@ const sidebars = {
         keywords: ['introduction'],
       },
       items: [
-
+        "intro"
       ],
     },
     {

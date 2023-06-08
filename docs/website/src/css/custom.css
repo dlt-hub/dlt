@@ -506,19 +506,19 @@ html[data-theme='dark'] .slack-navbar::before {
   padding: var(--ifm-menu-link-padding-vertical) var(--ifm-menu-link-padding-horizontal);
 }
 
-.theme-doc-sidebar-menu.menu__list>li:nth-child(1)>a::before {
+.theme-doc-sidebar-menu.menu__list>li:nth-child(1)>div>a::before {
   background-image: url(../../static/img/Introduction-Inactive.svg);
 }
 
-.theme-doc-sidebar-menu.menu__list>li:nth-child(2)>a::before {
+.theme-doc-sidebar-menu.menu__list>li:nth-child(2)>div>a::before {
   background-image: url(../../static/img/Installation-Inactive.svg);
 }
 
-.theme-doc-sidebar-menu.menu__list>li:nth-child(3)>a::before {
+.theme-doc-sidebar-menu.menu__list>li:nth-child(3)>div>a::before {
   background-image: url(../../static/img/GettingStarted-Inactive.svg);
 }
 
-.theme-doc-sidebar-menu.menu__list>li:nth-child(4)>a::before {
+.theme-doc-sidebar-menu.menu__list>li:nth-child(4)>div>a::before {
   background-image: url(../../static/img/Howdltworks-Inactive.svg);
 }
 
