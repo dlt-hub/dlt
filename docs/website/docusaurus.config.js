@@ -175,14 +175,15 @@ const config = {
         disableSwitch: false,
         respectPrefersColorScheme: true,
       },
-      scripts: [
-        {
-          src: 'https://dlt-static.s3.eu-central-1.amazonaws.com/dhelp.js',
-          async: true,
-          defer: true,
-        },
-      ],
     }),
+
+  scripts: [
+    {
+      src: 'https://dlt-static.s3.eu-central-1.amazonaws.com/dhelp.js',
+      async: true,
+      defer: true,
+    },
+  ],
 };
 
 module.exports = config;
