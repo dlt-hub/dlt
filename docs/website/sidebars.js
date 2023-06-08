@@ -92,6 +92,7 @@ const sidebars = {
         'walkthroughs/add-a-verified-source',
         'walkthroughs/run-a-pipeline',
         'walkthroughs/adjust-a-schema',
+        'walkthroughs/share-a-dataset',
         'walkthroughs/deploy-a-pipeline'
       ],
     },
