@@ -87,7 +87,7 @@ You must install additional dependencies to run {self.caller}. If you use pip yo
         return msg
 
     def _to_pip_install(self) -> str:
-        return "\n".join([f"pip install {d}" for d in self.dependencies])
+        return "\n".join([f"pip install \"{d}\"" for d in self.dependencies])
 
 
 class DestinationException(DltException):
