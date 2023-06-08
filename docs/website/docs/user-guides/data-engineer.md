@@ -1,10 +1,10 @@
 ---
-title: Data Engineer
+title: ETL engineer
 description: A guide to using dlt for Data Engineers
-keywords: [data engineer, de, pipeline builder]
+keywords: [data engineer, de, pipeline builder, ETL engineer]
 ---
 
-# Data Engineer
+# ETL engineer
 
 ## Use Case #1: Remove a big chunk of tedious work and most ETL maintenance
 
