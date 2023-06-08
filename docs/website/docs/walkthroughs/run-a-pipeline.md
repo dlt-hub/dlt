@@ -23,7 +23,7 @@ if __name__ == "__main__" :
     load_info = pipeline.run(data)
 ```
 
-The `run` method will [extract](../how-dlt-works.md#extract) data from the chess API, [normalize](../how-dlt-works.md#normalize) it into tables and then [load](../how-dlt-works.md#load) into `duckdb` in form of one or many load packages. The `run` method returns a `load_info` object that, when printed, displays information with pipeline and dataset names, ids of the load packages, optionally with the information on failed jobs. Add the following line to your script:
+The `run` method will [extract](../reference/how-dlt-works#extract) data from the chess API, [normalize](../reference/how-dlt-works#normalize) it into tables and then [load](../reference/how-dlt-works#load) into `duckdb` in form of one or many load packages. The `run` method returns a `load_info` object that, when printed, displays information with pipeline and dataset names, ids of the load packages, optionally with the information on failed jobs. Add the following line to your script:
 
 ```python
   print(load_info)

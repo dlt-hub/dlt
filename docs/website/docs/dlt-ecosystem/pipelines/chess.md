@@ -6,7 +6,7 @@ keywords: [chess.com api, chess.com verified source, chess.com]
 
 # Chess.com
 
-This verified source can be used to load player data from the [Chess.com API](https://www.chess.com/news/view/published-data-api) into a [destination](../general-usage/glossary.md#destination) of your choice.
+This verified source can be used to load player data from the [Chess.com API](https://www.chess.com/news/view/published-data-api) into a [destination](../../dlt-ecosystem/destinations) of your choice.
 
 ## Initialize the pipeline with Chess.com source
 

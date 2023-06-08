@@ -72,7 +72,7 @@ After deploying a `dlt` pipeline, you might ask yourself: how can we know if the
 
 There are two ways to catch errors:
 1. Tests
-2. People [monitoring](../running-in-production/monitoring.md)
+2. People [monitoring](../../running-in-production/monitoring.md)
 
 ## Tests
 

@@ -6,7 +6,7 @@ keywords: [github api, github verified source, github]
 
 # GitHub
 
-This verified source can be used to load data on issues or pull requests from any GitHub repository onto a [destination](../general-usage/glossary.md#destination) of your choice.
+This verified source can be used to load data on issues or pull requests from any GitHub repository onto a [destination](../../dlt-ecosystem/destinations) of your choice.
 
 It accesses the GitHub API from two `dlt` sources:
 1. `github_reactions` with the resource end-points `issues` and `pullRequests`.
