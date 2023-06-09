@@ -200,16 +200,16 @@ load_data = workable_source(start_date=datetime(2022, 1, 1), load_details=True)
 
 ```python
 load_info = pipeline.run(load_data)
-    # print the information on data that was loaded
-    print(load_info)
+# print the information on data that was loaded
+print(load_info)
 ```
 
-4. To use the method `pipeline.run()` to load custom endpoints “candidates” and “*members*”, the above script may be modified as:
+4. To use the method **`pipeline.run()`** to load custom endpoints “candidates” and “*members*”, the above script may be modified as:
 
 ```python
 load_info = pipeline.run(load_data.with_resources("candidates", "members")
-    # print the information on data that was loaded
-    print(load_info)
+# print the information on data that was loaded
+print(load_info)
 ```
 
 > Please note that in the above run, the "*candidates*" endpoint is loaded incrementally using the 'merge' mode, utilizing the '*updated_by*' key. During the initial run, the '*updated_by*' value will be set to the specified start date (if provided). However, for subsequent runs, the pipeline will only merge data for the "*candidates*" endpoint starting from the '*updated_by*.*last_value*', which represents the last '*updated_by*' value from the previous pipeline run. It's important to note that for all other endpoints, data is loaded in 'replace' mode.
