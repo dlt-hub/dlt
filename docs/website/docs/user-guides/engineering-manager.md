@@ -6,9 +6,10 @@ keywords: [engineering manager, EM, data platform engineer]
 
 # Staff data engineer
 
-With this page, we address:
-* The engineers and architects who build *for others in the data team*
-* Engineering managers, Staff data engineers, Senior data/analytics engineers,Platform Architects, CTOs, CDOs, whatever you call yourself
+Staff data engineers create data pipelines, data warehouses and data lakes in order to democratize access to data in their organizations.
+
+With dlt we offer a library and building blocks that data tool builders can use to create modern data infrastructure for their companies.
+Staff data engineer, senior data engineer, ETL engineer, head of data platform - there’s a variety of titles of how data tool builders are called in companies.
 
 ## What does this role do in an organisation?
 The job responsibilities of this senior vary, but often revolve around building and maintaining a robust data infrastructure.
