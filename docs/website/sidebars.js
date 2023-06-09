@@ -43,6 +43,7 @@ const sidebars = {
         'verified-sources/sql_database',
         'verified-sources/strapi',
         'verified-sources/stripe',
+        'verified-sources/workable',
         'verified-sources/zendesk',
       ],
     },
