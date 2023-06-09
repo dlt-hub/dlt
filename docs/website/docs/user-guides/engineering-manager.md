@@ -1,7 +1,7 @@
 ---
 title: Staff data engineer
-description: A guide to using dlt for Engineering Managers
-keywords: [engineering manager, EM, data platform engineer]
+description: A guide to using dlt for staff data engineers
+keywords: [staff data engineer, senior data engineer, ETL engineer, head of data platform, data platform engineer]
 ---
 
 # Staff data engineer
