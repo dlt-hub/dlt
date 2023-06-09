@@ -14,8 +14,8 @@ tags: [data platform, structured data lake, schema evolution]
 [Google Colaboratory demo](https://colab.research.google.com/drive/1H6HKFi-U1V4p0afVucw_Jzv1oiFbH2bu#scrollTo=e4y4sQ78P_OM)
 
 This colab demo was built and shown by our working student Rahul Joshi, for the Berlin Data meetup, where he talked about the state of schema evolution in the open source.
-:::  
-  
+:::
+
 # What is schema evolution?
 
 In the fast-paced world of data, the only constant is change, and it usually comes unannounced.
@@ -97,14 +97,16 @@ So, what if writing and merging parquet files is not for you? After all, file-ba
 4. **Ease of use:** Structured data is easier to understand and use, lowering the skill barrier for users. They no longer need to understand the intricate details of the data structure.
 5. **Data governance:** Having a defined schema allows for more effective data governance. Policies for data quality, data privacy, and data lifecycle can be applied consistently and automatically.
 
-By adopting a 'structure first' approach with `dlt`, organizations can effectively manage unstructured data in common destinations, optimizing for both, flexibility and control. It helps them overcome the challenges of schema-on-read, while reaping the benefits of a structured, scalable, and governance-friendly data environment.  
-  
-To try out schema evolution with `dlt`, check out our [colab demo.](https://colab.research.google.com/drive/1H6HKFi-U1V4p0afVucw_Jzv1oiFbH2bu#scrollTo=e4y4sQ78P_OM)  
+By adopting a 'structure first' approach with `dlt`, organizations can effectively manage unstructured data in common destinations, optimizing for both, flexibility and control. It helps them overcome the challenges of schema-on-read, while reaping the benefits of a structured, scalable, and governance-friendly data environment.
+
+To try out schema evolution with `dlt`, check out our [colab demo.](https://colab.research.google.com/drive/1H6HKFi-U1V4p0afVucw_Jzv1oiFbH2bu#scrollTo=e4y4sQ78P_OM)
+
+
 
 ![colab demo](/img/schema_evolution_colab_demo_light.png)
 
 ### Want more?
 
 - Join our [Slack](https://join.slack.com/t/dlthub-community/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g)
-- Read our [docs](https://dlthub.com/docs/intro)
+- Read our [docs on implementing schema evolution](https://dlthub.com/docs/general-usage/schema-evolution)
 - Stay tuned for the next article in the series: *How to do schema evolution with* `dlt` *in the most effective way*
