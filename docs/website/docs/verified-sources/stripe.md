@@ -119,10 +119,10 @@ INCREMENTAL_ENDPOINTS = ("Event", "Invoice", "BalanceTransaction")
 
 ```python
 @dlt.source
-def incremental_stripe_source(
-    endpoints: Tuple[str, ...] = INCREMENTAL_ENDPOINTS,
+def stripe_source(
+    endpoints: Tuple[str, ...] = ENDPOINTS,
     stripe_secret_key: str = dlt.secrets.value,
-    initial_start_date: Optional[DateTime] = None,
+    start_date: Optional[DateTime] = None,
     end_date: Optional[DateTime] = None,
 ) -> Iterable[DltResource]:
 ```
@@ -141,8 +141,9 @@ def incremental_stripe_source(
     endpoints: Tuple[str, ...] = INCREMENTAL_ENDPOINTS,
     stripe_secret_key: str = dlt.secrets.value,
     initial_start_date: Optional[DateTime] = None,
-    end_date: Optional[DateTime] = None
-) -> DltResource:
+    end_date: Optional[DateTime] = None,
+) -> Iterable[DltResource]:
+
 ```
 
 - **`endpoints`**: A tuple of incremental endpoint names used to retrieve data.
