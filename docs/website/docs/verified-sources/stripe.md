@@ -37,7 +37,7 @@ To get started with this verified source, follow these steps:
 1. Open up your terminal or command prompt and navigate to the directory where you'd like to create your project.
 2. Enter the following command:
 
-```
+```shell
 dlt init stripe_analytics bigquery
 ```
 
@@ -45,7 +45,7 @@ This command will initialize your verified source with Stripe and creates pipeli
 
 3. After running this command, a new directory will be created with the necessary files and configuration settings to get started.
 
-```
+```toml
 stripe_source
 ├── .dlt
 │   ├── config.toml
@@ -176,7 +176,7 @@ To create your data pipeline using single loading and [incremental data loading
     ```python
     pipeline = dlt.pipeline(
         pipeline_name="stripe_pipeline",# Use a custom name if desired
-        destination="bigquery",# Choose the appropriate destination (e.g., duckdb, redshift, post)
+        destination="bigquery",# Choose the appropriate destination (e.g., duckdb etc.)
         dataset_name="stripe_dataset"# Use a custom name if desired
     )
     ```
@@ -186,20 +186,20 @@ To create your data pipeline using single loading and [incremental data loading
     ```python
     source_single = stripe_source(
         endpoints=("Plan", "Charge"),
-    		start_date=datetime(2022, 1, 1),
-    		end_date=datetime(2022, 12, 31),
+    	start_date=datetime(2022, 1, 1),
+    	end_date=datetime(2022, 12, 31),
     )
     ```
     
 3. Then load data from the endpoint “Invoice”. This endpoint has uneditable data, so we can load it incrementally. For future runs, the **`dlt`** module will store the "end_date" for this pipeline run as the "initial_start_date" and load the data incrementally.
     
     ```python
-    # Load all data on the first run that was created after start_date and before end_date
     source_incremental = incremental_stripe_source(
         endpoints=("Invoice", ),
-    		initial_start_date=datetime(2022, 1, 1),
-    		end_date=datetime(2022, 12, 31),
+    	initial_start_date=datetime(2022, 1, 1),
+    	end_date=datetime(2022, 12, 31),
     )
+      # Load all data on the first run that was created after start_date and before end_date
     ```
     
 4. Use the method **`pipeline.run()`** to execute the pipeline.
@@ -219,7 +219,7 @@ To create your data pipeline using single loading and [incremental data loading
     )
     source_single = stripe_source(
         endpoints=("Plan", "Charge"),
-    		start_date=datetime(2022, 12, 31),
+    	start_date=datetime(2022, 12, 31),
     )
     source_incremental = incremental_stripe_source(
         endpoints=("Invoice", ),
