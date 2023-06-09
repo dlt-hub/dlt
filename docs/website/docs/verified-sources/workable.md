@@ -137,13 +137,13 @@ DEFAULT_DETAILS = {
 **Source** <u>**workable_source:**</u>
 
 ```python
-@dlt.source
+@dlt.source(name="workable")
 def workable_source(
     access_token: str = dlt.secrets.value,
     subdomain: str = dlt.config.value,
     start_date: Optional[DateTime] = None,
     load_details: bool = False,
-) -> Iterator[DltResource]: 
+) -> Iterable[DltResource]:
 ```
 
 - **`access_token`**: A token required to authenticate the Workable API. This token is defined in the *dlt.secret.toml* file.
@@ -158,11 +158,11 @@ For the workable verified source, it's important to note that the majority of en
 
 ```python
 @dlt.resource(name="candidates", write_disposition="merge", primary_key="id")
-def candidates_resource(
-    updated_at: Optional[Any] = dlt.sources.incremental(
-        "updated_at", initial_value=workable.start_date_iso
-    )
-) -> Generator[TDataItems, Any, None]:
+    def candidates_resource(
+        updated_at: Optional[Any] = dlt.sources.incremental(
+            "updated_at", initial_value=workable.start_date_iso
+        )
+    ) -> Iterable[TDataItem]:
 ```
 
  
