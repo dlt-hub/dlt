@@ -195,6 +195,7 @@ load_data = workable_source(start_date=datetime(2022, 1, 1), load_details=True)
 
 > Note: The **`load_details`** parameter controls whether the [**dependent endpoints]**(workable.md#dependent-endpoints) are loaded. If you want to load the dependent endpoints, set this parameter to **`True`** in your pipeline run. If not, **`False`**.
 > 
+
 3. Use the method **`pipeline.run()`** to execute the pipeline.
 
 ```python
@@ -203,7 +204,7 @@ load_info = pipeline.run(load_data)
     print(load_info)
 ```
 
-4. To use the method `**pipeline.run()**` to load custom endpoints “candidates” and “*members*”, the above script may be modified as:
+4. To use the method `pipeline.run()` to load custom endpoints “candidates” and “*members*”, the above script may be modified as:
 
 ```python
 load_info = pipeline.run(load_data.with_resources("candidates", "members")
@@ -213,6 +214,7 @@ load_info = pipeline.run(load_data.with_resources("candidates", "members")
 
 > Please note that in the above run, the "*candidates*" endpoint is loaded incrementally using the 'merge' mode, utilizing the '*updated_by*' key. During the initial run, the '*updated_by*' value will be set to the specified start date (if provided). However, for subsequent runs, the pipeline will only merge data for the "*candidates*" endpoint starting from the '*updated_by*.*last_value*', which represents the last '*updated_by*' value from the previous pipeline run. It's important to note that for all other endpoints, data is loaded in 'replace' mode.
 > 
+
 5. For using incremental loading for candidates endpoint, it's important to keep the pipeline name and destination dataset name unchanged. The pipeline name is crucial for retrieving the [state](https://dlthub.com/docs/general-usage/state) of the last pipeline run, which includes the end date needed for loading data incrementally. Modifying these names can lead to [“full_refresh”](https://dlthub.com/docs/general-usage/pipeline#do-experiments-with-full-refresh) which will disrupt the tracking of relevant metadata(state) for [incremental data loading](https://dlthub.com/docs/general-usage/incremental-loading).
 6. If you want to load data from the “jobs” endpoint and also load the endpoints dependent on like activities", "application_form". You can do that as follows:
 
