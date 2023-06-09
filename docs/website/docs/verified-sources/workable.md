@@ -58,7 +58,7 @@ This command will initialize your verified source with Workable and creates pipe
 
 3. After running this command, a new directory will be created with the necessary files and configuration settings to get started.
 
-```python
+```shell
 workable_source
 ├── .dlt
 │   ├── config.toml
@@ -78,8 +78,7 @@ workable_source
 
 Here's what the file looks like:
 
-```
-
+```toml
 # put your secret values and credentials here. do not share this file and do not push it to github
 [sources.workable]
 access_token = "access_token" # Your Workable token copied above
@@ -97,7 +96,7 @@ location = "US" # Project location (e.g. “US”)
 
 Here's what the *config.toml* looks like:
 
-```
+```toml
 [sources.workable]
 subdomain = "subdomain" # please set me up!
 ```
