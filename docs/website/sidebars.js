@@ -40,6 +40,7 @@ const sidebars = {
         'verified-sources/matomo',
         'verified-sources/pipedrive',
         'verified-sources/shopify',
+        'verified-sources/sql_database',
         'verified-sources/strapi',
         'verified-sources/zendesk',
       ],
