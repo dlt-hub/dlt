@@ -119,12 +119,12 @@ INCREMENTAL_ENDPOINTS = ("Event", "Invoice", "BalanceTransaction")
 
 ```python
 @dlt.source
-def stripe_source(
-    endpoints: Tuple[str, ...] = ENDPOINTS,
+def incremental_stripe_source(
+    endpoints: Tuple[str, ...] = INCREMENTAL_ENDPOINTS,
     stripe_secret_key: str = dlt.secrets.value,
-    start_date: Optional[DateTime] = None,
+    initial_start_date: Optional[DateTime] = None,
     end_date: Optional[DateTime] = None,
-) -> DltResource:
+) -> Iterable[DltResource]:
 ```
 
 - **`endpoints`**: A tuple of endpoint names used to retrieve data from.
@@ -155,7 +155,7 @@ After each run, the value of *initial_start_date* will be automatically update
 
 ```python
 @dlt.resource(name="Metrics", write_disposition="append", primary_key="created")
-def metrics_resource() -> Dict[str, Any]:
+def metrics_resource() -> Iterable[TDataItem]:
 ```
 
 This method is used to calculate and get metrics such as monthly recurring revenue (MRR) and churn rate from endpoints `Subscriptions` and `Events`.
