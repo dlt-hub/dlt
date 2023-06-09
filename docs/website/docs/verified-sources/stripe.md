@@ -194,12 +194,13 @@ To create your data pipeline using single loading and [incremental data loading
 3. Then load data from the endpoint “Invoice”. This endpoint has uneditable data, so we can load it incrementally. For future runs, the **`dlt`** module will store the "end_date" for this pipeline run as the "initial_start_date" and load the data incrementally.
     
     ```python
+    # Load all data on the first run that was created after start_date and before end_date
     source_incremental = incremental_stripe_source(
       endpoints=("Invoice", ),
       initial_start_date=datetime(2022, 1, 1),
       end_date=datetime(2022, 12, 31),
     )
-      # Load all data on the first run that was created after start_date and before end_date
+      
     ```
     
 4. Use the method **`pipeline.run()`** to execute the pipeline.
