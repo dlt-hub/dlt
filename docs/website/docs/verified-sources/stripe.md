@@ -185,9 +185,9 @@ To create your data pipeline using single loading and [incremental data loading
     
     ```python
     source_single = stripe_source(
-        endpoints=("Plan", "Charge"),
-    	start_date=datetime(2022, 1, 1),
-    	end_date=datetime(2022, 12, 31),
+      endpoints=("Plan", "Charge"),
+      start_date=datetime(2022, 1, 1),
+      end_date=datetime(2022, 12, 31),
     )
     ```
     
@@ -195,9 +195,9 @@ To create your data pipeline using single loading and [incremental data loading
     
     ```python
     source_incremental = incremental_stripe_source(
-        endpoints=("Invoice", ),
-    	initial_start_date=datetime(2022, 1, 1),
-    	end_date=datetime(2022, 12, 31),
+      endpoints=("Invoice", ),
+      initial_start_date=datetime(2022, 1, 1),
+      end_date=datetime(2022, 12, 31),
     )
       # Load all data on the first run that was created after start_date and before end_date
     ```
