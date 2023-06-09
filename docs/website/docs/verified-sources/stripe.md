@@ -53,6 +53,7 @@ stripe_source
 ├── stripe_analytics
 │   └── __init__.py
 │   └── helpers.py
+│   └── metrics.py
 │   └── settings.py
 ├── .gitignore
 ├── requirements.txt
@@ -101,7 +102,7 @@ location = "US" # Project location (e.g. “US”)
 
 To load data to the destination using this verified source, you have the option to write your own methods. However, it is important to note is how the `ENDPOINTS` and `INCREMENTAL_ENDPOINTS` tuples are defined by default (see `stripe_analytics/settings.py`).
 
-```
+```python
 # The most popular Stripe API's endpoints
 ENDPOINTS = ("Subscription", "Account", "Coupon","Customer","Product","Price")
 # Possible incremental endpoints
@@ -112,11 +113,11 @@ INCREMENTAL_ENDPOINTS = ("Event", "Invoice", "BalanceTransaction")
 
 ### **Source and resource methods**
 
-`dlt` works on the principle of [sources](https://dlthub.com/docs/general-usage/source) and [resources](https://dlthub.com/docs/general-usage/resource) that for this verified source are found in the `__init__.py` file within the *stripe_analytics* directory. This Stripe verified source has three default methods that form the basis of loading. The methods are :
+`dlt` works on the principle of [sources](https://dlthub.com/docs/general-usage/source) and [resources](https://dlthub.com/docs/general-usage/resource) that for this verified source are found in the `__init__.py` file within the *stripe_analytics* directory. This Stripe verified source has three default methods that form the basis of loading. The methods are:
 
 **Source** **stripe_source:**
 
-```
+```python
 @dlt.source
 def stripe_source(
     endpoints: Tuple[str, ...] = ENDPOINTS,
@@ -124,7 +125,6 @@ def stripe_source(
     start_date: Optional[DateTime] = None,
     end_date: Optional[DateTime] = None,
 ) -> DltResource:
-
 ```
 
 - **`endpoints`**: A tuple of endpoint names used to retrieve data from.
@@ -135,7 +135,7 @@ By default, this method utilizes the *replace* mode, which means that all the 
 
 **Source incremental_stripe_source**
 
-```
+```python
 @dlt.source
 def incremental_stripe_source(
     endpoints: Tuple[str, ...] = INCREMENTAL_ENDPOINTS,
@@ -143,7 +143,6 @@ def incremental_stripe_source(
     initial_start_date: Optional[DateTime] = None,
     end_date: Optional[DateTime] = None
 ) -> DltResource:
-
 ```
 
 - **`endpoints`**: A tuple of incremental endpoint names used to retrieve data.
@@ -154,10 +153,9 @@ After each run, the value of *initial_start_date* will be automatically update
 
 **Resource metrics_resource**
 
-```
+```python
 @dlt.resource(name="Metrics", write_disposition="append", primary_key="created")
 def metrics_resource() -> Dict[str, Any]:
-
 ```
 
 This method is used to calculate and get metrics such as monthly recurring revenue (MRR) and churn rate from endpoints `Subscriptions` and `Events`.
@@ -175,18 +173,17 @@ To create your data pipeline using single loading and [incremental data loading
 
 1. Configure the pipeline by specifying the pipeline name, destination, and dataset. To read more about pipeline configuration, please refer to our [documentation here](https://dlthub.com/docs/general-usage/pipeline).
     
-    ```
+    ```python
     pipeline = dlt.pipeline(
         pipeline_name="stripe_pipeline",# Use a custom name if desired
         destination="bigquery",# Choose the appropriate destination (e.g., duckdb, redshift, post)
         dataset_name="stripe_dataset"# Use a custom name if desired
     )
-    
     ```
     
 2. First load only endpoints you want to be loaded in *replace* mode, for example, "Plan" and "Charge". Load all data only for the year 2022.
     
-    ```
+    ```python
     source_single = stripe_source(
         endpoints=("Plan", "Charge"),
     		start_date=datetime(2022, 1, 1),
@@ -196,27 +193,25 @@ To create your data pipeline using single loading and [incremental data loading
     
 3. Then load data from the endpoint “Invoice”. This endpoint has uneditable data, so we can load it incrementally. For future runs, the **`dlt`** module will store the "end_date" for this pipeline run as the "initial_start_date" and load the data incrementally.
     
-    ```
+    ```python
     # Load all data on the first run that was created after start_date and before end_date
     source_incremental = incremental_stripe_source(
         endpoints=("Invoice", ),
     		initial_start_date=datetime(2022, 1, 1),
     		end_date=datetime(2022, 12, 31),
     )
-    
     ```
     
 4. Use the method **`pipeline.run()`** to execute the pipeline.
     
-    ```
+    ```python
     load_info = pipeline.run(data=[source_single, source_incremental])
     print(load_info)
-    
     ```
     
 5. If you need to load the new data that was created after 31, December 2022, change the data range for *stripe_source,* do this to avoid loading already loaded data again. You don’t have to provide the new data range for *incremental_stripe_source,* the value of *initial_start_date* will be automatically updated to the date for which the pipeline last loaded data in the previous run.
     
-    ```
+    ```python
     pipeline = dlt.pipeline(
         pipeline_name="stripe_pipeline",
         destination="bigquery",
@@ -231,7 +226,6 @@ To create your data pipeline using single loading and [incremental data loading
     )
     load_info = pipeline.run(data=[source_single, source_incremental])
     print(load_info)
-    
     ```
     
 6. It's important to keep the pipeline name and destination dataset name unchanged. The pipeline name is crucial for retrieving the [state](https://dlthub.com/docs/general-usage/state) of the last pipeline run, which includes the end date needed for loading data incrementally. Modifying these names can lead to [“full_refresh”](https://dlthub.com/docs/general-usage/pipeline#do-experiments-with-full-refresh) which will disrupt the tracking of relevant metadata(state) for [incremental data loading](https://dlthub.com/docs/general-usage/incremental-loading).
