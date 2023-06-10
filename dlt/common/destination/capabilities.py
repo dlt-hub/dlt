@@ -1,4 +1,6 @@
-from typing import Any, Callable, ClassVar, List, Literal
+import marshal
+import types
+from typing import Any, Callable, ClassVar, Dict, List, Literal
 
 from dlt.common.configuration.utils import serialize_value
 from dlt.common.configuration import configspec
@@ -48,3 +50,14 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
         caps.is_max_text_data_type_length_in_bytes = True
         caps.supports_ddl_transactions = True
         return caps
+
+    def __getstate__(self) -> Dict[str, Any]:
+        state = self.__dict__.copy()
+        state["escape_identifier"] = marshal.dumps(self.escape_identifier.__code__)
+        state["escape_literal"] = marshal.dumps(self.escape_literal.__code__)
+        return state
+
+    def __setstate__(self, state: Dict[str, Any]) -> None:
+        self.__dict__.update(state)
+        self.escape_identifier = types.FunctionType(marshal.loads(state["escape_identifier"]), globals())
+        self.escape_literal = types.FunctionType(marshal.loads(state["escape_literal"]), globals())
