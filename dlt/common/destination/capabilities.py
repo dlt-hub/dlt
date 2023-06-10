@@ -1,4 +1,5 @@
 import marshal
+import pickle
 import types
 from typing import Any, Callable, ClassVar, Dict, List, Literal
 
@@ -53,11 +54,25 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
 
     def __getstate__(self) -> Dict[str, Any]:
         state = self.__dict__.copy()
-        state["escape_identifier"] = marshal.dumps(self.escape_identifier.__code__)
-        state["escape_literal"] = marshal.dumps(self.escape_literal.__code__)
+        try:
+            state["escape_identifier"] = (pickle.dumps(self.escape_identifier), "pickle")
+        except pickle.PicklingError:
+            state["escape_identifier"] = (marshal.dumps(self.escape_identifier.__code__), "marshal")
+        try:
+            state["escape_literal"] = (pickle.dumps(self.escape_literal), "pickle")
+        except pickle.PicklingError:
+            state["escape_literal"] = (marshal.dumps(self.escape_literal.__code__), "marshal")
         return state
 
     def __setstate__(self, state: Dict[str, Any]) -> None:
         self.__dict__.update(state)
-        self.escape_identifier = types.FunctionType(marshal.loads(state["escape_identifier"]), globals())
-        self.escape_literal = types.FunctionType(marshal.loads(state["escape_literal"]), globals())
+        code, ser_method = state["escape_identifier"]
+        if ser_method == "pickle":
+            self.escape_identifier = pickle.loads(code)
+        else:
+            self.escape_identifier = types.FunctionType(code, globals())
+        code, ser_method = state["escape_literal"]
+        if ser_method == "pickle":
+            self.escape_literal = pickle.loads(code)
+        else:
+            self.escape_literal = types.FunctionType(code, globals())
