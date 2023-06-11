@@ -493,7 +493,7 @@ def test_run_load_pending() -> None:
 
     def some_data():
         yield from [1, 2, 3]
-    
+
     @dlt.source
     def source():
         return dlt.resource(some_data(), name="numbers")

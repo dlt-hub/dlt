@@ -609,20 +609,20 @@ class DltSource(Iterable[TDataItem]):
         RelationalNormalizer.update_normalizer_config(self._schema, {"max_nesting": value})
 
     @property
-    def root_key(self) -> bool:
-        """Enables merging on all resources by propagating root foreign key to child tables. This option is most useful if you plan to change write disposition of a resource to disable/enable merge"""
-        config = RelationalNormalizer.get_normalizer_config(self._schema).get("propagation")
-        return config is not None and "root" in config and "_dlt_id" in config["root"] and config["root"]["_dlt_id"] == "_dlt_root_id"
-
-    @property
     def exhausted(self) -> bool:
         """check all selected pipes wether one of them has started. if so, the source is exhausted."""
         for resource in self._resources.extracted.values():
             item = resource._pipe.gen
             if inspect.isgenerator(item):
                 if inspect.getgeneratorstate(item) != "GEN_CREATED":
-                    return True                
+                    return True
         return False
+
+    @property
+    def root_key(self) -> bool:
+        """Enables merging on all resources by propagating root foreign key to child tables. This option is most useful if you plan to change write disposition of a resource to disable/enable merge"""
+        config = RelationalNormalizer.get_normalizer_config(self._schema).get("propagation")
+        return config is not None and "root" in config and "_dlt_id" in config["root"] and config["root"]["_dlt_id"] == "_dlt_root_id"
 
     @root_key.setter
     def root_key(self, value: bool) -> None:
