@@ -121,7 +121,7 @@ To get started with your data verified source, follow these steps:
 
 6. Replace the value of the account id with the one copied above.
 
-## Run the pipeline example[](https://dlthub.com/docs/pipelines/strapi#run-the-pipeline)
+## Run the pipeline example
 
 1. Install the necessary dependencies by running the following command:
     ```properties
@@ -228,9 +228,9 @@ def facebook_insights_source(
 
 **`time_increment_days`**: The report aggregation window in days. use 7 for weekly aggregation. Defaults to 1.
 
-**`breakdowns`**: A presents with common aggregations. See [settings.py](https://github.com/dlt-hub/pipelines/blob/master/pipelines/facebook_ads/settings.py) for details. Defaults to "ads_insights_age_and_gender".
+**`breakdowns`**: A presents with common aggregations. See [settings.py](https://github.com/dlt-hub/verified-sources/blob/master/sources/facebook_ads/settings.py) for details. Defaults to "ads_insights_age_and_gender".
 
-**`action_breakdowns`**: Action aggregation types. See [settings.py](https://github.com/dlt-hub/pipelines/blob/master/pipelines/facebook_ads/settings.py) for details. Defaults to ALL_ACTION_BREAKDOWNS.
+**`action_breakdowns`**: Action aggregation types. See [settings.py](https://github.com/dlt-hub/verified-sources/blob/master/sources/facebook_ads/settings.py) for details. Defaults to ALL_ACTION_BREAKDOWNS.
 
 **`level`**: The granularity level. Defaults to "ad".
 
