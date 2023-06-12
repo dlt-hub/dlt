@@ -99,12 +99,12 @@ class MemoryTomlProvider(BaseTomlProvider):
     @property
     def supports_secrets(self) -> bool:
         return True
-    
+
     @property
     def name(self) -> str:
         return "memory"
 
-        
+
 class VaultTomlProvider(BaseTomlProvider):
     """A toml-backed Vault abstract config provider.
 

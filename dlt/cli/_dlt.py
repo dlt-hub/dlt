@@ -49,7 +49,7 @@ def deploy_command_wrapper(
     run_on_push: bool,
     run_on_dispatch: bool,
     repo_location: str,
-    branch: Optional[str], 
+    branch: Optional[str],
     secrets_format: Optional[str]) -> int:
     try:
         utils.ensure_git_command("deploy")
@@ -206,7 +206,7 @@ def main() -> int:
     deploy_cmd.add_argument("--branch", default=None, help="Advanced. Uses specific branch of the deploy repository to fetch the template.")
     deploy_sub_parsers = deploy_cmd.add_subparsers(dest="deployment_method")
 
-    deploy_github_cmd = deploy_sub_parsers.add_parser(DeploymentMethods.github_actions.value, help="Deploys the pipeline to Github Actions")
+    deploy_sub_parsers.add_parser(DeploymentMethods.github_actions.value, help="Deploys the pipeline to Github Actions")
     deploy_airlow_cmd = deploy_sub_parsers.add_parser(DeploymentMethods.airflow_composer.value, help="Deploys the pipeline to Airflow")
 
     deploy_airlow_cmd.add_argument("--secrets-format", default=SecretFormats.env, choices=[v.value for v in SecretFormats.__members__.values()], required=True, help="Format of the secrets")

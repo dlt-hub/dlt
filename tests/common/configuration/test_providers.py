@@ -34,14 +34,14 @@ key1 = "value1"
 [section2.subsection]
 key2 = "value2"
 """)
-                                  
+
     assert provider.get_value("key1", "", "section1", "subsection") ==  ("value1", "section1.subsection.key1")
     assert provider.get_value("key2", "", "section2", "subsection") ==  ("value2", "section2.subsection.key2")
 
     # test basic writing
     provider = MemoryTomlProvider("")
     assert provider.dumps() == ""
-    
+
     provider.set_value("key1", "value1", "section1", "subsection")
     assert provider.dumps() == """[section1.subsection]
 key1 = \"value1\"
