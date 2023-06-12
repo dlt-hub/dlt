@@ -148,6 +148,8 @@ The easiest way is to look at the last line of the exception message: `In secret
 credentials.password="loader"
 ```
 
+> 💡 Make sure you run the script from the same folder in which it is saved. For example `python chess_demo/chess.py` will run the script from `chess_demo` folder but the current working directory is folder above. This prevents `dlt` from finding `chess_demo/.dlt/secrets.toml` and filling-in credentials.
+
 ### Failed API or database connections and other exceptions
 
 `dlt` will raise `PipelineStepFailed` exception to inform you of a problem encountered during execution of particular step. You can catch those in code:
