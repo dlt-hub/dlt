@@ -22,10 +22,15 @@ from tests.utils import patch_random_home_dir, start_test_telemetry, test_storag
 def test_main_telemetry_command(test_storage: FileStorage) -> None:
     # home dir is patched to TEST_STORAGE, create project dir
     test_storage.create_folder("project")
+
     # inject provider context so the original providers are restored at the end
+    def _initial_providers():
+        return [ConfigTomlProvider(add_global_config=True)]
+
     glob_ctx = ConfigProvidersContext()
-    glob_ctx.providers = [ConfigTomlProvider(add_global_config=True)]
-    with set_working_dir(test_storage.make_full_path("project")), Container().injectable_context(glob_ctx):
+    glob_ctx.providers = _initial_providers()
+
+    with set_working_dir(test_storage.make_full_path("project")), Container().injectable_context(glob_ctx), patch("dlt.common.configuration.specs.config_providers_context.ConfigProvidersContext.initial_providers", _initial_providers):
         # no config files: status is ON
         with io.StringIO() as buf, contextlib.redirect_stdout(buf):
             telemetry_status_command()
@@ -121,7 +126,7 @@ def test_command_instrumentation() -> None:
 
 
 def test_instrumentation_wrappers() -> None:
-    from dlt.cli._dlt import init_command_wrapper, list_pipelines_command_wrapper, DEFAULT_PIPELINES_REPO, pipeline_command_wrapper, deploy_command_wrapper
+    from dlt.cli._dlt import init_command_wrapper, list_verified_sources_command_wrapper, DEFAULT_VERIFIED_SOURCES_REPO, pipeline_command_wrapper, deploy_command_wrapper, COMMAND_DEPLOY_REPO_LOCATION, DeploymentMethods
     from dlt.common.exceptions import UnknownDestinationModule
 
     with patch("dlt.common.runtime.segment.before_send", _mock_before_send):
@@ -129,17 +134,17 @@ def test_instrumentation_wrappers() -> None:
 
         SENT_ITEMS.clear()
         with pytest.raises(UnknownDestinationModule):
-            init_command_wrapper("instrumented_pipeline", "<UNK>", False, None, None)
+            init_command_wrapper("instrumented_source", "<UNK>", False, None, None)
         msg = SENT_ITEMS[0]
         assert msg["event"] == "command_init"
-        assert msg["properties"]["pipeline_name"] == "instrumented_pipeline"
+        assert msg["properties"]["source_name"] == "instrumented_source"
         assert msg["properties"]["destination_name"] == "<UNK>"
         assert msg["properties"]["success"] is False
 
         SENT_ITEMS.clear()
-        list_pipelines_command_wrapper(DEFAULT_PIPELINES_REPO, None)
+        list_verified_sources_command_wrapper(DEFAULT_VERIFIED_SOURCES_REPO, None)
         msg = SENT_ITEMS[0]
-        assert msg["event"] == "command_list_pipelines"
+        assert msg["event"] == "command_list_sources"
 
         # SENT_ITEMS.clear()
         # pipeline_command_wrapper("list", "-", None, 1)
@@ -148,10 +153,10 @@ def test_instrumentation_wrappers() -> None:
         # assert msg["properties"]["operation"] == "list"
 
         SENT_ITEMS.clear()
-        deploy_command_wrapper("list.py", "github-actions", "* * * * *", False, False, None)
+        deploy_command_wrapper("list.py", DeploymentMethods.github_actions.value, "* * * * *", False, False, COMMAND_DEPLOY_REPO_LOCATION, None)
         msg = SENT_ITEMS[0]
         assert msg["event"] == "command_deploy"
-        assert msg["properties"]["deployment_method"] == "github-actions"
+        assert msg["properties"]["deployment_method"] == DeploymentMethods.github_actions.value
         assert msg["properties"]["success"] is False
 
 

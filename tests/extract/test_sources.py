@@ -89,49 +89,49 @@ def test_parametrized_transformer() -> None:
 
     # transformer must be created on a callable with at least one argument
     with pytest.raises(InvalidTransformerDataTypeGeneratorFunctionRequired):
-        dlt.transformer(r)("a")
+        dlt.transformer(data_from=r)("a")
     with pytest.raises(InvalidTransformerDataTypeGeneratorFunctionRequired):
-        dlt.transformer(r)(bad_transformer())
+        dlt.transformer(data_from=r)(bad_transformer())
 
     # transformer must take at least one arg
     with pytest.raises(InvalidTransformerGeneratorFunction) as py_ex:
-        dlt.transformer(r)(bad_transformer)
+        dlt.transformer(data_from=r)(bad_transformer)
     assert py_ex.value.code == 1
     # transformer may have only one positional argument and it must be first
     with pytest.raises(InvalidTransformerGeneratorFunction) as py_ex:
-        dlt.transformer(r)(bad_transformer_2)
+        dlt.transformer(data_from=r)(bad_transformer_2)
     assert py_ex.value.code == 2
     # first argument cannot be kw only
     with pytest.raises(InvalidTransformerGeneratorFunction) as py_ex:
-        dlt.transformer(r)(bad_transformer_3)
+        dlt.transformer(data_from=r)(bad_transformer_3)
     assert py_ex.value.code == 3
 
     # transformer must take data from a resource
-    with pytest.raises(InvalidTransformerGeneratorFunction):
-        dlt.transformer(bad_transformer)(good_transformer)
+    with pytest.raises(InvalidParentResourceIsAFunction):
+        dlt.transformer(data_from=bad_transformer)(good_transformer)
     with pytest.raises(InvalidParentResourceDataType):
-        dlt.transformer(bad_transformer())(good_transformer)
+        dlt.transformer(data_from=bad_transformer())(good_transformer)
 
     # transformer is unbound
     r = dlt.resource(["itemX", "itemY"], name="items")
-    t = dlt.transformer(r)(good_transformer)
+    t = dlt.transformer(data_from=r)(good_transformer)
     with pytest.raises(ParametrizedResourceUnbound):
         list(t)
 
     # pass wrong arguments
     r = dlt.resource(["itemX", "itemY"], name="items")
-    t = dlt.transformer(r)(good_transformer)
+    t = dlt.transformer(data_from=r)(good_transformer)
     with pytest.raises(TypeError):
         list(t("p1", 1, 2, 3, 4))
 
     # pass arguments that fully bind the item
     r = dlt.resource(["itemX", "itemY"], name="items")
-    t = dlt.transformer(r)(good_transformer)
+    t = dlt.transformer(data_from=r)(good_transformer)
     with pytest.raises(TypeError):
         t(item={}, p1="p2", p2=1)
 
     r = dlt.resource(["itemX", "itemY"], name="items")
-    t = dlt.transformer(r)(good_transformer)
+    t = dlt.transformer(data_from=r)(good_transformer)
     items = list(t(p1="p1", p2=2))
 
     def assert_items(_items: TDataItems) -> None:
@@ -144,7 +144,7 @@ def test_parametrized_transformer() -> None:
 
     # parameters passed as args
     r = dlt.resource(["itemX", "itemY"], name="items")
-    t = dlt.transformer(r)(good_transformer)
+    t = dlt.transformer(data_from=r)(good_transformer)
     items = list(t("p1", 2))
     assert_items(items)
 
@@ -159,6 +159,7 @@ def test_resource_bind_when_in_source() -> None:
     r1 = parametrized(6)
     r2 = parametrized(7)
     assert r1 is not r2 is not parametrized
+    assert r1.source_name is r2.source_name is None
 
     # add parametrized to source
     @dlt.source
@@ -168,9 +169,12 @@ def test_resource_bind_when_in_source() -> None:
     s = test_source()
     # we cloned the instance
     assert s.resources["parametrized"] is not parametrized
+    assert s.resources["parametrized"].source_name == "test_source"
     cloned_r = s.resources["parametrized"]
     # calling resources always create a copy
     cr_1 = cloned_r(10)
+    # does not have source_name set
+    assert cr_1.source_name is None
     # different instance
     assert cloned_r is not cr_1
     # call bind directly to replace resource in place
@@ -296,15 +300,15 @@ def test_resource_bind_lazy_eval() -> None:
     def needs_param(param):
         yield from range(param)
 
-    @dlt.transformer(needs_param(3))
+    @dlt.transformer(data_from=needs_param(3))
     def tx_form(item, multi):
         yield item*multi
 
-    @dlt.transformer(tx_form(2))
+    @dlt.transformer(data_from=tx_form(2))
     def tx_form_fin(item, div):
         yield item / div
 
-    @dlt.transformer(needs_param)
+    @dlt.transformer(data_from=needs_param)
     def tx_form_dir(item, multi):
         yield item*multi
 
@@ -372,19 +376,70 @@ def test_select_resources() -> None:
 
     # successful select
     s_sel = s.with_resources("resource_1", "resource_7")
-    # returns self
-    assert s is s_sel
-    assert list(s.selected_resources) == ["resource_1", "resource_7"] == list(s.resources.selected)
-    assert list(s.resources) == all_resource_names
-    info = str(s)
+    # returns a clone
+    assert s is not s_sel
+    assert list(s_sel.selected_resources) == ["resource_1", "resource_7"] == list(s_sel.resources.selected)
+    assert list(s_sel.resources) == all_resource_names
+    info = str(s_sel)
     assert "resource resource_0 is not selected" in info
+    # original is not affected
+    assert list(s.selected_resources) == all_resource_names
 
     # reselect
     assert list(s.with_resources("resource_8").selected_resources) == ["resource_8"]
     # nothing selected
     assert list(s.with_resources().selected_resources) == []
     # nothing is selected so nothing yielded
-    assert list(s) == []
+    assert list(s.with_resources()) == []
+
+
+def test_clone_source() -> None:
+    @dlt.source
+    def test_source(no_resources):
+
+        def _gen(i):
+            yield "A" * i
+
+        for i in range(no_resources):
+            yield dlt.resource(_gen(i), name="resource_" + str(i))
+
+    s = test_source(4)
+    all_resource_names = ["resource_" + str(i) for i in range(4)]
+    clone_s = s.clone()
+    assert len(s.resources) == len(clone_s.resources) == len(all_resource_names)
+    assert s.schema is not clone_s.schema
+    for name in all_resource_names:
+        # resource is a clone
+        assert s.resources[name] is not clone_s.resources[name]
+        assert s.resources[name]._pipe is not clone_s.resources[name]._pipe
+        # but we keep pipe ids
+        assert s.resources[name]._pipe._pipe_id == clone_s.resources[name]._pipe._pipe_id
+
+    assert list(s) == ['', 'A', 'AA', 'AAA']
+    # we expired generators
+    assert list(clone_s) == []
+
+    # clone parametrized generators
+
+    @dlt.source
+    def test_source(no_resources):
+
+        def _gen(i):
+            yield "A" * i
+
+        for i in range(no_resources):
+            yield dlt.resource(_gen, name="resource_" + str(i))
+
+    s = test_source(4)
+    clone_s = s.clone()
+    # bind resources
+    for idx, name in enumerate(all_resource_names):
+        s.resources[name].bind(idx)
+        clone_s.resources[name].bind(idx)
+
+    # now thanks to late eval both sources evaluate separately
+    assert list(s) == ['', 'A', 'AA', 'AAA']
+    assert list(clone_s) == ['', 'A', 'AA', 'AAA']
 
 
 def test_multiple_parametrized_transformers() -> None:
@@ -422,18 +477,29 @@ def test_multiple_parametrized_transformers() -> None:
     s = _source(1)
     # all resources will be extracted (even if just the _t2 is selected)
     assert set(s.resources.extracted.keys()) == {"_t2", "_r1", "_t1"}
+    assert set(s.resources.selected_dag) == {("_r1", "_t1"), ("_t1", "_t2")}
+    components = s.decompose("scc")
+    # only one isolated component
+    assert len(components) == 1
+    # only _t2 is selected so component has only this node explicitly
+    assert set(components[0].selected_resources.keys()) == {"_t2"}
+
     # parametrize now
     s.resources["_t1"].bind("2")
     s._t2.bind(2)
-    # print(list(s._t2))
     assert list(s) == expected_data
     assert set(s.resources.extracted.keys()) == {"_t2", "_r1", "_t1"}
     # deselect _t2 and now nothing is selected
     s._t2.selected = False
     assert set(s.resources.extracted.keys()) == set()
+    assert set(s.resources.selected_dag) == set()
+    assert s.decompose("scc") == []
+
     s._r1.selected = True
-    # now only r2
+    # now only _r1
     assert set(s.resources.extracted.keys()) == {"_r1"}
+    assert set(s.resources.selected_dag) == {("_r1", "_r1")}
+    assert set(s.decompose("scc")[0].selected_resources.keys()) == {"_r1"}
 
     # this s contains only transformers
     s2 = _source(2)
@@ -442,17 +508,25 @@ def test_multiple_parametrized_transformers() -> None:
     s2._t1.bind("2")
     s2._t2.bind(2)
     assert list(s2) == expected_data
+    # also dag has all the edges - including those outside of resources in the source
+    assert set(s2.resources.selected_dag) == {("_r1", "_t1"), ("_t1", "_t2")}
+    assert set(s2.decompose("scc")[0].selected_resources.keys()) == {"_t2"}
+    # select the _t1
+    s2._t1.selected = True
+    assert set(s2.decompose("scc")[0].selected_resources.keys()) == {"_t2", "_t1"}
 
     s3 = _source(3)
     # here _t1 and _r1 are not in the source
     assert set(s3.resources.extracted.keys()) == {"_t2", "_r1", "_t1"}
     s3._t2.bind(2)
     assert list(s3) == expected_data
+    assert set(s3.resources.selected_dag) == {("_r1", "_t1"), ("_t1", "_t2")}
 
     s4 = _source(4)
     # here we return a pipe
     assert set(s4.resources.extracted.keys()) == {"_t2", "_r1", "_t1"}
     assert list(s4) == expected_data
+    assert set(s4.resources.selected_dag) == {("_r1", "_t1"), ("_t1", "_t2")}
 
 
 def test_extracted_resources_selector() -> None:
@@ -504,6 +578,74 @@ def test_extracted_resources_selector() -> None:
     assert set(s3.resources.extracted.keys()) == {"_r1", "_t1"}
     # inherits from _t1
     assert s3.resources.extracted["_r1"].write_disposition == "replace"
+
+
+def test_source_decompose() -> None:
+
+    @dlt.source
+    def _source():
+
+        @dlt.resource(selected=True)
+        def _r_init():
+            yield ["-", "x", "!"]
+
+        @dlt.resource(selected=False)
+        def _r1():
+            yield ["a", "b", "c"]
+
+        @dlt.transformer(data_from=_r1, selected=True)
+        def _t1(items, suffix):
+            yield list(map(lambda i: i + "_" + suffix, items))
+
+        @dlt.transformer(data_from=_r1)
+        def _t2(items, mul):
+            yield items*mul
+
+        @dlt.transformer(data_from=_r1)
+        def _t3(items, mul):
+            for item in items:
+                yield item.upper()*mul
+
+        # add something to init
+        @dlt.transformer(data_from=_r_init)
+        def _t_init_post(items):
+            for item in items:
+                yield item*2
+
+        @dlt.resource
+        def _r_isolee():
+            yield from ["AX", "CV", "ED"]
+
+        return _r_init, _t_init_post, _r1, _t1("POST"), _t2(3), _t3(2), _r_isolee
+
+    # when executing, we get the same data no matter the decomposition
+    direct_data = list(_source())
+    # no decomposition
+    none_data = []
+    for comp in _source().decompose("none"):
+        none_data.extend(list(comp))
+    assert direct_data == none_data
+
+    scc_data = []
+    for comp in _source().decompose("scc"):
+        scc_data.extend(list(comp))
+    assert direct_data == scc_data
+
+    # keeps order of resources inside
+    # here we didn't eliminate (_r_init, _r_init) as this not impacts decomposition, however this edge is not necessary
+    assert _source().resources.selected_dag == [("_r_init", "_r_init"), ("_r_init", "_t_init_post"), ('_r1', '_t1'), ('_r1', '_t2'), ('_r1', '_t3'), ('_r_isolee', '_r_isolee')]
+    components = _source().decompose("scc")
+    # first element contains _r_init
+    assert "_r_init" in components[0].resources.selected.keys()
+    # last is isolee
+    assert "_r_isolee" in components[-1].resources.selected.keys()
+
+    # groups isolated components
+    assert len(components) == 3
+    assert set(components[1].resources.selected.keys()) == {"_t1", "_t2", "_t3"}
+
+    # keeps isolated resources
+    assert list(components[-1].resources.selected.keys()) == ["_r_isolee"]
 
 
 def test_illegal_double_bind() -> None:
@@ -610,7 +752,7 @@ def test_source_state() -> None:
     with Container().injectable_context(StateInjectableContext(state={})) as state:
         test_source({}).state["value"] = 1
         test_source({"value": 1})
-        assert state.state == {'sources': {'test_sources': {'value': 1}}}
+        assert state.state == {'sources': {'test_source': {'value': 1}}}
 
 
 def test_resource_state() -> None:
@@ -619,12 +761,13 @@ def test_resource_state() -> None:
     def test_resource():
         yield [1, 2, 3]
 
-    @dlt.source(section="source_section")
+    @dlt.source(schema=Schema("schema_section"))
     def test_source():
         return test_resource
 
     r = test_resource()
     s = test_source()
+    assert s.name == "schema_section"
 
     with pytest.raises(PipelineStateNotAvailable):
         r.state
@@ -633,7 +776,7 @@ def test_resource_state() -> None:
     with pytest.raises(PipelineStateNotAvailable):
         s.test_resource.state
 
-    dlt.pipeline(full_refresh=True)
+    p = dlt.pipeline(full_refresh=True)
     assert r.state == {}
     assert s.state == {}
     assert s.test_resource.state == {}
@@ -642,9 +785,12 @@ def test_resource_state() -> None:
         r.state["direct"] = True
         s.test_resource.state["in-source"] = True
         # resource section is current module
-        assert state.state["sources"]["test_sources"] == {'resources': {'test_resource': {'direct': True}}}
-        # in source resource is part of the source state
+        print(state.state)
+        # the resource that is a part of the source will create a resource state key in the source state key
+        assert state.state["sources"]["schema_section"] == {'resources': {'test_resource': {'in-source': True}}}
         assert s.state == {'resources': {'test_resource': {'in-source': True}}}
+        # the standalone resource will create key which is default schema name
+        assert state.state["sources"][p._make_schema_with_default_name().name] == {'resources': {'test_resource': {'direct': True}}}
 
 
 # def test_add_resources_to_source_simple() -> None:
@@ -666,7 +812,7 @@ def test_source_multiple_iterations() -> None:
         yield [1, 2, 3]
         yield [1, 2, 3]
 
-    s = DltSource("source", "module", Schema("default"), [dlt.resource(some_data())])
+    s = DltSource("source", "module", Schema("source"), [dlt.resource(some_data())])
     assert s.exhausted is False
     assert list(s) == [1, 2, 3, 1, 2, 3]
     assert s.exhausted is True

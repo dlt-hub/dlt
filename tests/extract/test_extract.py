@@ -1,6 +1,6 @@
 import dlt
 from dlt.common import json
-from dlt.common.configuration.specs import NormalizeVolumeConfiguration
+from dlt.common.storages import NormalizeStorageConfiguration
 from dlt.extract.extract import ExtractorStorage, extract
 from dlt.extract.source import DltResource, DltSource
 
@@ -16,7 +16,7 @@ def test_extract_select_tables() -> None:
         source = DltSource("selectables", "module", dlt.Schema("selectables"), [resource(10)])
         schema = source.discover_schema()
 
-        storage = ExtractorStorage(NormalizeVolumeConfiguration())
+        storage = ExtractorStorage(NormalizeStorageConfiguration())
         extract_id = storage.create_extract_id()
         schema_update = extract(extract_id, source, storage)
         # odd and even tables
@@ -36,10 +36,11 @@ def test_extract_select_tables() -> None:
 
         # delete files
         clean_test_storage()
-        storage = ExtractorStorage(NormalizeVolumeConfiguration())
+        storage = ExtractorStorage(NormalizeStorageConfiguration())
         # same thing but select only odd
         source = DltSource("selectables", "module", dlt.Schema("selectables"), [resource])
-        source.with_resources(resource.name).selected_resources[resource.name].bind(10).select_tables("odd_table")
+        source = source.with_resources(resource.name)
+        source.selected_resources[resource.name].bind(10).select_tables("odd_table")
         extract_id = storage.create_extract_id()
         schema_update = extract(extract_id, source, storage)
         assert len(schema_update) == 1

@@ -1,14 +1,17 @@
 import itertools
 import os
 import pytest
+from sqlalchemy.engine import Engine, create_engine
 from typing import Optional, Union, Any
 
+import dlt
 from dlt.common.configuration.exceptions import InvalidNativeValue, ConfigFieldMissingException
 from dlt.common.configuration.providers import EnvironProvider
 from dlt.common.configuration.specs import CredentialsConfiguration, BaseConfiguration
 from dlt.common.configuration import configspec, resolve_configuration
 from dlt.common.configuration.specs.gcp_credentials import GcpServiceAccountCredentials
 from dlt.common.typing import TSecretValue
+from dlt.common.configuration.specs.connection_string_credentials import ConnectionStringCredentials
 
 from tests.common.configuration.utils import environment
 from tests.utils import preserve_environ
@@ -169,7 +172,6 @@ def test_union_decorator() -> None:
     with pytest.raises(ConfigFieldMissingException):
         assert list(zen_source(credentials={"api_key": "🔑", "password": "pass"}))[0].api_key == "🔑"
 
-import dlt
 
 class GoogleAnalyticsCredentialsBase(CredentialsConfiguration):
     """
@@ -212,3 +214,31 @@ def test_google_auth_union(environment: Any) -> None:
     credentials = list(google_analytics(credentials=info))[0]
     print(dict(credentials))
     assert isinstance(credentials, GcpServiceAccountCredentials)
+
+
+@dlt.source
+def sql_database(credentials: Union[ConnectionStringCredentials, Engine, str] = dlt.secrets.value):
+    yield dlt.resource([credentials], name="creds")
+
+
+def test_union_concrete_type(environment: Any) -> None:
+    # we can pass engine explicitly
+    engine = create_engine('sqlite:///:memory:', echo=True)
+    db = sql_database(credentials=engine)
+    creds = list(db)[0]
+    assert isinstance(creds, Engine)
+    # we can pass valid connection string explicitly
+    db = sql_database(credentials='sqlite://user@/:memory:')
+    creds = list(db)[0]
+    # but it is used as native value
+    assert isinstance(creds, ConnectionStringCredentials)
+    # pass instance of credentials
+    cn = ConnectionStringCredentials('sqlite://user@/:memory:')
+    db = sql_database(credentials=cn)
+    # exactly that instance is returned
+    assert list(db)[0] is cn
+    # invalid cn
+    with pytest.raises(InvalidNativeValue):
+        db = sql_database(credentials='?')
+    with pytest.raises(InvalidNativeValue):
+        db = sql_database(credentials=123)

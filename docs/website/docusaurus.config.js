@@ -53,8 +53,7 @@ const config = {
           customCss: require.resolve('./src/css/custom.css'),
         },
         gtag: {
-          trackingID: 'G-7F1SE12JLR',
-          trackingID: 'G-PRHSCL1CMK',
+          trackingID: ['G-7F1SE12JLR', 'G-PRHSCL1CMK'],
         },
       }),
     ],
@@ -157,6 +156,7 @@ const config = {
       prism: {
         theme: lightCodeTheme,
         darkTheme: darkCodeTheme,
+        additionalLanguages: ['powershell', 'bash', 'python', 'toml', 'yaml', 'log'],
       },
       metadata: [{ name: 'keywords', content: 'data loading, elt, etl, extract, load, transform, python, data engineering, data warehouse, data lake' }],
       algolia: {

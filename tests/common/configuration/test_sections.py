@@ -3,11 +3,12 @@ from typing import Any, Optional
 from dlt.common.configuration.container import Container
 
 from dlt.common.configuration import configspec, ConfigFieldMissingException, resolve, inject_section
+from dlt.common.configuration.providers.provider import ConfigProvider
 from dlt.common.configuration.specs import BaseConfiguration, ConfigSectionContext
 from dlt.common.configuration.exceptions import LookupTrace
 
 from tests.utils import preserve_environ
-from tests.common.configuration.utils import MockProvider, SectionedConfiguration, environment, mock_provider
+from tests.common.configuration.utils import MockProvider, SectionedConfiguration, environment, mock_provider, env_provider
 
 
 @configspec
@@ -41,7 +42,7 @@ class EmbeddedWithIgnoredEmbeddedConfiguration(BaseConfiguration):
     ignored_embedded: EmbeddedIgnoredWithSectionedConfiguration
 
 
-def test_sectioned_configuration(environment: Any) -> None:
+def test_sectioned_configuration(environment: Any, env_provider: ConfigProvider) -> None:
     with pytest.raises(ConfigFieldMissingException) as exc_val:
         resolve.resolve_configuration(SectionedConfiguration())
 

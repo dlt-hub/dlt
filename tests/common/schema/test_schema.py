@@ -6,7 +6,7 @@ import pytest
 from dlt.common import pendulum
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.container import Container
-from dlt.common.configuration.specs import SchemaVolumeConfiguration
+from dlt.common.storages import SchemaStorageConfiguration
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.exceptions import DictValidationException
 from dlt.common.normalizers.naming import snake_case, direct
@@ -27,7 +27,7 @@ EXPECTED_FILE_NAME = f"{SCHEMA_NAME}.schema.json"
 @pytest.fixture
 def schema_storage() -> SchemaStorage:
     C = resolve_configuration(
-        SchemaVolumeConfiguration(),
+        SchemaStorageConfiguration(),
         explicit_value={
             "import_schema_path": "tests/common/cases/schemas/rasa",
             "external_schema_format": "json"
@@ -160,6 +160,8 @@ def test_invalid_schema_name() -> None:
 def test_create_schema_with_normalize_name() -> None:
     s = Schema("a!b", normalize_name=True)
     assert s.name == "a_b"
+    s = Schema("A_b_c", normalize_name=True)
+    assert s.name == "a_b_c"
 
 
 def test_schema_descriptions_and_annotations(schema_storage: SchemaStorage):
@@ -176,7 +178,7 @@ def test_schema_descriptions_and_annotations(schema_storage: SchemaStorage):
     schema.tables["blocks"]["columns"]["_dlt_load_id"]["x-column-annotation"] += "Saved"
 
     print(schema_storage.save_schema(schema))
-    loaded_schema = schema_storage.load_schema("ethereum")
+    loaded_schema = schema_storage.load_schema("event")
     assert loaded_schema.tables["blocks"]["description"].endswith("Saved")
     assert loaded_schema.tables["blocks"]["x-annotation"].endswith("Saved")
     assert loaded_schema.tables["blocks"]["columns"]["_dlt_load_id"]["description"].endswith("Saved")

@@ -8,7 +8,7 @@ class CliCommandException(DltException):
         super().__init__(msg)
 
 
-class PipelineRepoError(DltException):
-    def __init__(self, msg: str, pipeline_name: str) -> None:
-        self.pipeline_name = pipeline_name
+class VerifiedSourceRepoError(DltException):
+    def __init__(self, msg: str, source_name: str) -> None:
+        self.source_name = source_name
         super().__init__(msg)

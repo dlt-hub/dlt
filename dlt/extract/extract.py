@@ -12,8 +12,8 @@ from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.common.utils import uniq_id
 from dlt.common.typing import TDataItems, TDataItem
 from dlt.common.schema import Schema, utils, TSchemaUpdate
-from dlt.common.storages import NormalizeStorage, DataItemStorage
-from dlt.common.configuration.specs import NormalizeVolumeConfiguration, known_sections
+from dlt.common.storages import NormalizeStorageConfiguration, NormalizeStorage, DataItemStorage
+from dlt.common.configuration.specs import known_sections
 
 from dlt.extract.decorators import SourceSchemaInjectableContext
 from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints
@@ -25,7 +25,7 @@ from dlt.extract.typing import TableNameMeta
 class ExtractorStorage(DataItemStorage, NormalizeStorage):
     EXTRACT_FOLDER: ClassVar[str] = "extract"
 
-    def __init__(self, C: NormalizeVolumeConfiguration) -> None:
+    def __init__(self, C: NormalizeStorageConfiguration) -> None:
         # data item storage with jsonl with pua encoding
         super().__init__("puae-jsonl", True, C)
         self.storage.create_folder(ExtractorStorage.EXTRACT_FOLDER, exists_ok=True)
@@ -161,7 +161,7 @@ def extract_with_schema(
     extract_id = storage.create_extract_id()
     with Container().injectable_context(SourceSchemaInjectableContext(schema)):
         # inject the config section with the current source name
-        with inject_section(ConfigSectionContext(sections=(known_sections.SOURCES, source.section, source.name))):
+        with inject_section(ConfigSectionContext(sections=(known_sections.SOURCES, source.section, source.name), source_state_key=source.name)):
             # reset resource states
             for resource in source.resources.extracted.values():
                 with contextlib.suppress(DataItemRequiredForDynamicTableHints):

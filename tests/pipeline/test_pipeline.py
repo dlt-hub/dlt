@@ -10,7 +10,7 @@ import dlt
 from dlt.common import json, sleep
 from dlt.common.configuration.container import Container
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.exceptions import DestinationHasFailedJobs, DestinationTerminalException, TerminalException, UnknownDestinationModule
+from dlt.common.exceptions import DestinationHasFailedJobs, DestinationTerminalException, PipelineStateNotAvailable, TerminalException, UnknownDestinationModule
 from dlt.common.pipeline import PipelineContext
 from dlt.common.runtime.collector import AliveCollector, EnlightenCollector, LogCollector, TqdmCollector
 from dlt.common.schema.exceptions import InvalidDatasetName
@@ -21,7 +21,7 @@ from dlt.extract.exceptions import SourceExhausted
 from dlt.extract.extract import ExtractorStorage
 from dlt.extract.source import DltResource, DltSource
 from dlt.load.exceptions import LoadClientJobFailed
-from dlt.pipeline.exceptions import InvalidPipelineName, PipelineStepFailed
+from dlt.pipeline.exceptions import InvalidPipelineName, PipelineNotActive, PipelineStepFailed
 from dlt.pipeline.helpers import retry_load
 from dlt.pipeline.state_sync import STATE_TABLE_NAME
 from tests.common.utils import TEST_SENTRY_DSN
@@ -51,7 +51,8 @@ def test_default_pipeline() -> None:
 
     # this will create default schema
     p.extract(["a", "b", "c"], table_name="data")
-    assert p.default_schema_name in possible_names
+    # `_pipeline` is removed from default schema name
+    assert p.default_schema_name in ["dlt_pytest", "dlt"]
 
 
 def test_run_full_refresh_default_dataset() -> None:
@@ -182,7 +183,7 @@ def test_extract_source_twice() -> None:
         yield [1, 2, 3]
         yield [1, 2, 3]
 
-    s = DltSource("source", "module", dlt.Schema("default"), [dlt.resource(some_data())])
+    s = DltSource("source", "module", dlt.Schema("source"), [dlt.resource(some_data())])
     dlt.pipeline().extract(s)
     with pytest.raises(PipelineStepFailed) as py_ex:
         dlt.pipeline().extract(s)
@@ -197,7 +198,7 @@ def test_disable_enable_state_sync(environment: Any) -> None:
     def some_data():
         yield [1, 2, 3]
 
-    s = DltSource("source", "module", dlt.Schema("default"), [dlt.resource(some_data())])
+    s = DltSource("default", "module", dlt.Schema("default"), [dlt.resource(some_data())])
     dlt.pipeline().extract(s)
     storage = ExtractorStorage(p._normalize_storage_config)
     assert len(storage.list_files_to_normalize_sorted()) == 1
@@ -207,14 +208,14 @@ def test_disable_enable_state_sync(environment: Any) -> None:
 
     p.config.restore_from_destination = True
     # extract to different schema, state must go to default schema
-    s = DltSource("source", "module", dlt.Schema("default_2"), [dlt.resource(some_data())])
+    s = DltSource("default_2", "module", dlt.Schema("default_2"), [dlt.resource(some_data())])
     dlt.pipeline().extract(s)
     expect_extracted_file(storage, "default", STATE_TABLE_NAME, "***")
 
 
 def test_extract_multiple_sources() -> None:
-    s1 = DltSource("source", "module", dlt.Schema("default"), [dlt.resource([1, 2, 3], name="resource_1"), dlt.resource([3, 4, 5], name="resource_2")])
-    s2 = DltSource("source_2", "module", dlt.Schema("default_2"), [dlt.resource([6, 7, 8], name="resource_3"), dlt.resource([9, 10, 0], name="resource_4")])
+    s1 = DltSource("default", "module", dlt.Schema("default"), [dlt.resource([1, 2, 3], name="resource_1"), dlt.resource([3, 4, 5], name="resource_2")])
+    s2 = DltSource("default_2", "module", dlt.Schema("default_2"), [dlt.resource([6, 7, 8], name="resource_3"), dlt.resource([9, 10, 0], name="resource_4")])
 
     p = dlt.pipeline(destination="dummy")
     p.config.restore_from_destination = False
@@ -233,8 +234,8 @@ def test_extract_multiple_sources() -> None:
     def i_fail():
         raise NotImplementedError()
 
-    s3 = DltSource("source", "module", dlt.Schema("default_3"), [dlt.resource([1, 2, 3], name="resource_1"), dlt.resource([3, 4, 5], name="resource_2")])
-    s4 = DltSource("source_2", "module", dlt.Schema("default_4"), [dlt.resource([6, 7, 8], name="resource_3"), i_fail])
+    s3 = DltSource("default_3", "module", dlt.Schema("default_3"), [dlt.resource([1, 2, 3], name="resource_1"), dlt.resource([3, 4, 5], name="resource_2")])
+    s4 = DltSource("default_4", "module", dlt.Schema("default_4"), [dlt.resource([6, 7, 8], name="resource_3"), i_fail])
 
     with pytest.raises(PipelineStepFailed):
        p.extract([s3, s4])
@@ -302,19 +303,12 @@ def test_first_run_flag() -> None:
 
 def test_has_pending_data_flag() -> None:
     p = dlt.pipeline(pipeline_name="pipe_" + uniq_id(), destination="dummy")
-
     assert p.has_pending_data is False
-
     p.extract([1, 2, 3], table_name="dummy_table")
-
     assert p.has_pending_data is True
-
     p.normalize()
-
     assert p.has_pending_data is True
-
     p.load()
-
     assert p.has_pending_data is False
 
 
@@ -596,6 +590,7 @@ def test_set_get_local_value() -> None:
     p.extract(_w_local_state)
     assert p.state["_local"][new_val] == new_val
 
+
 def test_changed_write_disposition() -> None:
     os.environ["COMPLETED_PROB"] = "1.0"
     pipeline_name = "pipe_" + uniq_id()
@@ -776,3 +771,67 @@ def test_pipeline_log_progress() -> None:
     p = dlt.attach(progress=dlt.progress.log(0.5, logger=logging.getLogger()))
     assert p.collector.logger is not None
     p.extract(many_delayed(2, 10))
+
+
+def test_pipeline_source_state_activation() -> None:
+
+    appendix_yielded = None
+
+    @dlt.source
+    def reads_state(source_st, resource_st):
+        if dlt.current.source_state().get("appendix"):
+
+            @dlt.resource
+            def appendix():
+                nonlocal appendix_yielded
+                appendix_yielded = dlt.current.source_state().get("appendix") or ["NO"]
+                yield appendix_yielded
+
+            yield appendix
+
+        @dlt.resource
+        def writes_state():
+            dlt.current.source_state()["appendix"] = source_st
+            dlt.current.resource_state()["RX"] = resource_st
+            yield from [1,2,3]
+
+        yield writes_state
+
+    # activate first pipeline
+    p_appendix = dlt.pipeline(pipeline_name="appendix_p")
+    assert p_appendix.is_active
+    s_appendix = reads_state("appendix", "r_appendix")
+    assert s_appendix.state == {}
+    # create state by running extract
+    p_appendix.extract(s_appendix)
+    assert s_appendix.state == {'appendix': 'appendix', 'resources': {'writes_state': {'RX': 'r_appendix'}}}
+    assert s_appendix.writes_state.state == {'RX': 'r_appendix'}
+
+    # change the active pipeline
+    p_postfix = dlt.pipeline(pipeline_name="postfix_p")
+    # now state comes from active pipeline which has an empty state
+    assert s_appendix.state == {}
+    # and back
+    p_appendix.activate()
+    assert s_appendix.writes_state.state == {'RX': 'r_appendix'}
+
+    # create another source
+    s_w_appendix = reads_state("appendix", "r_appendix")
+    # has appendix because state is present
+    assert hasattr(s_w_appendix, "appendix")
+
+    # now extract the source in p_postfix that does not have a state
+    p_postfix.activate()
+    p_postfix.extract(s_w_appendix)
+    # so appendix yielded NO
+    # NOTE: this behavior is not intuitive, s_w_appendix was created with p_appendix active so appendix resource was created because state was set
+    # but we evaluated it in p_postfix pipeline without the state
+    assert appendix_yielded == ["NO"]
+
+    with pytest.raises(PipelineNotActive):
+        p_appendix.deactivate()
+
+    p_postfix.deactivate()
+    with pytest.raises(PipelineStateNotAvailable):
+        assert s_appendix.state == {}
+

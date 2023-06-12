@@ -1,6 +1,6 @@
 from copy import deepcopy
 import os
-from typing import Any, Callable, Iterator, Tuple
+from typing import Any, Callable, Iterator, Tuple, Optional
 import pytest
 import itertools
 
@@ -15,16 +15,17 @@ from dlt.common.utils import uniq_id
 from dlt.extract.exceptions import ResourceNameMissing
 from dlt.extract.source import DltSource
 from dlt.pipeline.exceptions import CannotRestorePipelineException, PipelineConfigMissing, PipelineStepFailed
+from dlt.common.schema.exceptions import CannotCoerceColumnException
 
 from tests.utils import ALL_DESTINATIONS, patch_home_dir, preserve_environ, autouse_test_storage, TEST_STORAGE_ROOT
 # from tests.common.configuration.utils import environment
 from tests.pipeline.utils import drop_dataset_from_env, assert_load_info
 from tests.load.utils import delete_dataset
-from tests.load.pipeline.utils import drop_pipeline, assert_query_data, assert_table, load_table_counts, select_data
+from tests.load.pipeline.utils import drop_active_pipeline_data, drop_pipeline, assert_query_data, assert_table, load_table_counts, select_data
 
 
-@pytest.mark.parametrize('destination_name,use_single_dataset', itertools.product(ALL_DESTINATIONS, [True, False]))
-def test_default_pipeline_names(destination_name: str, use_single_dataset: bool) -> None:
+@pytest.mark.parametrize('use_single_dataset', [True, False])
+def test_default_pipeline_names(use_single_dataset: bool, any_destination: str) -> None:
     p = dlt.pipeline()
     p.config.use_single_dataset = use_single_dataset
     # this is a name of executing test harness or blank pipeline on windows
@@ -47,11 +48,12 @@ def test_default_pipeline_names(destination_name: str, use_single_dataset: bool)
 
     # this will create default schema
     p.extract(data_fun)
-    assert p.default_schema_name in possible_names
+    # _pipeline suffix removed when creating default schema name
+    assert p.default_schema_name in ["dlt_pytest", "dlt"]
 
     # this will create additional schema
     p.extract(data_fun(), schema=dlt.Schema("names"))
-    assert p.default_schema_name in possible_names
+    assert p.default_schema_name in ["dlt_pytest", "dlt"]
     assert "names" in p.schemas.keys()
 
     with pytest.raises(PipelineConfigMissing):
@@ -59,7 +61,7 @@ def test_default_pipeline_names(destination_name: str, use_single_dataset: bool)
 
     # mock the correct destinations (never do that in normal code)
     with p.managed_state():
-        p.destination = DestinationReference.from_name(destination_name)
+        p.destination = DestinationReference.from_name(any_destination)
     p.normalize()
     info = p.load(dataset_name="d" + uniq_id())
     assert info.pipeline is p
@@ -82,12 +84,11 @@ def test_default_duckdb_dataset_name() -> None:
     assert_table(info.pipeline, "data", data, info=info)
 
 
-@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
-def test_default_schema_name(destination_name: str) -> None:
+def test_default_schema_name(any_destination: str) -> None:
     dataset_name = "dataset_" + uniq_id()
     data = ["a", "b", "c"]
 
-    p = dlt.pipeline("test_default_schema_name", TEST_STORAGE_ROOT, destination=destination_name, dataset_name=dataset_name)
+    p = dlt.pipeline("test_default_schema_name", TEST_STORAGE_ROOT, destination=any_destination, dataset_name=dataset_name)
     p.extract(data, table_name="test", schema=Schema("default"))
     p.normalize()
     info = p.load()
@@ -100,8 +101,7 @@ def test_default_schema_name(destination_name: str) -> None:
     assert_table(p, "test", data, info=info)
 
 
-@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
-def test_attach_pipeline(destination_name: str) -> None:
+def test_attach_pipeline(any_destination: str) -> None:
     # load data and then restore the pipeline and see if data is still there
     data = ["a", "b", "c"]
 
@@ -110,7 +110,7 @@ def test_attach_pipeline(destination_name: str) -> None:
         for d in data:
             yield d
 
-    info = dlt.run(_data(), destination=destination_name, dataset_name="specific" + uniq_id())
+    info = dlt.run(_data(), destination=any_destination, dataset_name="specific" + uniq_id())
 
     with pytest.raises(CannotRestorePipelineException):
         dlt.attach("unknown")
@@ -160,9 +160,7 @@ def test_skip_sync_schema_for_tables_without_columns(destination_name: str) -> N
         assert not exists
 
 
-@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
-def test_run_full_refresh(destination_name: str) -> None:
-
+def test_run_full_refresh(any_destination: str) -> None:
     data = ["a", ["a", "b", "c"], ["a", "b", "c"]]
 
     def d():
@@ -173,7 +171,7 @@ def test_run_full_refresh(destination_name: str) -> None:
         return dlt.resource(d(), name="lists", write_disposition="replace")
 
     p = dlt.pipeline(full_refresh=True)
-    info = p.run(_data(), destination=destination_name, dataset_name="iteration" + uniq_id())
+    info = p.run(_data(), destination=any_destination, dataset_name="iteration" + uniq_id())
     assert info.dataset_name == p.dataset_name
     assert info.dataset_name.endswith(p._pipeline_instance_id)
     # print(p.default_schema.to_pretty_yaml())
@@ -334,6 +332,7 @@ def test_dataset_name_change(destination_name: str) -> None:
             # delete_dataset(client, ds_3_name)  # will be deleted by the fixture
 
 
+# do not remove - it allows us to filter tests by destination
 @pytest.mark.parametrize('destination_name', ["postgres"])
 def test_pipeline_explicit_destination_credentials(destination_name: str) -> None:
 
@@ -362,6 +361,157 @@ def test_pipeline_explicit_destination_credentials(destination_name: str) -> Non
     # p = dlt.pipeline(destination="postgres", credentials=c)
     # inner_c = p._get_destination_client(Schema("s"), p._get_destination_client_initial_config())
     # assert inner_c is c
+
+
+# do not remove - it allows us to filter tests by destination
+@pytest.mark.parametrize('destination_name', ["postgres"])
+def test_pipeline_with_sources_sharing_schema(destination_name: str) -> None:
+
+    schema = Schema("shared")
+
+    @dlt.source(schema=schema, max_table_nesting=1)
+    def source_1():
+
+        @dlt.resource(primary_key="user_id")
+        def gen1():
+            dlt.current.source_state()["source_1"] = True
+            dlt.current.resource_state()["source_1"] = True
+            yield {"id": "Y", "user_id": "user_y"}
+
+        @dlt.resource(columns={"col": {"data_type": "bigint"}})
+        def conflict():
+            yield "conflict"
+
+        return gen1, conflict
+
+    @dlt.source(schema=schema, max_table_nesting=2)
+    def source_2():
+
+        @dlt.resource(primary_key="id")
+        def gen1():
+            dlt.current.source_state()["source_2"] = True
+            dlt.current.resource_state()["source_2"] = True
+            yield {"id": "X", "user_id": "user_X"}
+
+        def gen2():
+            yield from "CDE"
+
+        @dlt.resource(columns={"col": {"data_type": "bool"}}, selected=False)
+        def conflict():
+            yield "conflict"
+
+        return gen2, gen1, conflict
+
+    # all selected tables with hints should be there
+    discover_1 = source_1().discover_schema()
+    assert "gen1" in discover_1.tables
+    assert discover_1.tables["gen1"]["columns"]["user_id"]["primary_key"] is True
+    assert "data_type" not in discover_1.tables["gen1"]["columns"]["user_id"]
+    assert "conflict" in discover_1.tables
+    assert discover_1.tables["conflict"]["columns"]["col"]["data_type"] == "bigint"
+
+    discover_2 = source_2().discover_schema()
+    assert "gen1" in discover_2.tables
+    assert "gen2" in discover_2.tables
+    # conflict deselected
+    assert "conflict" not in discover_2.tables
+
+    p = dlt.pipeline(pipeline_name="multi", destination="duckdb", full_refresh=True)
+    p.extract([source_1(), source_2()])
+    # tables without columns are not added after extract
+    default_schema = p.default_schema
+    gen1_table = default_schema.tables["gen1"]
+    assert "user_id" in gen1_table["columns"]
+    assert "id" in gen1_table["columns"]
+    assert "conflict" in default_schema.tables
+    assert "gen2" not in default_schema.tables
+    p.normalize()
+    # default schema is a live object and must contain gen2 now
+    assert "gen2" in default_schema.tables
+    p.load()
+    table_names = [t["name"] for t in default_schema.data_tables()]
+    counts = load_table_counts(p, *table_names)
+    assert counts == {'gen1': 2, 'gen2': 3, 'conflict': 1}
+    # both sources share the same state
+    assert p.state["sources"] == {
+        'shared': {
+            'source_1': True,
+            'resources': {'gen1': {'source_1': True, 'source_2': True}},
+            'source_2': True
+            }
+        }
+    drop_active_pipeline_data()
+
+    # same pipeline but enable conflict
+    p = dlt.pipeline(pipeline_name="multi", destination="duckdb", full_refresh=True)
+    with pytest.raises(PipelineStepFailed) as py_ex:
+        p.extract([source_1(), source_2().with_resources("conflict")])
+    assert isinstance(py_ex.value.__context__, CannotCoerceColumnException)
+
+
+# do not remove - it allows us to filter tests by destination
+@pytest.mark.parametrize('destination_name', ["postgres"])
+def test_many_pipelines_single_dataset(destination_name: str) -> None:
+    schema = Schema("shared")
+
+    @dlt.source(schema=schema, max_table_nesting=1)
+    def source_1():
+
+        @dlt.resource(primary_key="user_id")
+        def gen1():
+            dlt.current.source_state()["source_1"] = True
+            dlt.current.resource_state()["source_1"] = True
+            yield {"id": "Y", "user_id": "user_y"}
+
+        return gen1
+
+    @dlt.source(schema=schema, max_table_nesting=2)
+    def source_2():
+
+        @dlt.resource(primary_key="id")
+        def gen1():
+            dlt.current.source_state()["source_2"] = True
+            dlt.current.resource_state()["source_2"] = True
+            yield {"id": "X", "user_id": "user_X"}
+
+        def gen2():
+            yield from "CDE"
+
+        return gen2, gen1
+
+    # load source_1 to common dataset
+    p = dlt.pipeline(pipeline_name="source_1_pipeline", destination="duckdb", dataset_name="shared_dataset")
+    p.run(source_1(), credentials="duckdb:///_storage/test_quack.duckdb")
+    counts = load_table_counts(p, *p.default_schema.tables.keys())
+    assert counts.items() >= {'gen1': 1, '_dlt_pipeline_state': 1, "_dlt_loads": 1}.items()
+    p._wipe_working_folder()
+    p.deactivate()
+
+    p = dlt.pipeline(pipeline_name="source_2_pipeline", destination="duckdb", dataset_name="shared_dataset")
+    p.run(source_2(), credentials="duckdb:///_storage/test_quack.duckdb")
+    # table_names = [t["name"] for t in p.default_schema.data_tables()]
+    counts = load_table_counts(p, *p.default_schema.tables.keys())
+    # gen1: one record comes from source_1, 1 record from source_2
+    assert counts.items() >= {'gen1': 2, '_dlt_pipeline_state': 2, "_dlt_loads": 2}.items()
+    # assert counts == {'gen1': 2, 'gen2': 3}
+    p._wipe_working_folder()
+    p.deactivate()
+
+    # restore from destination, check state
+    p = dlt.pipeline(pipeline_name="source_1_pipeline", destination="duckdb", dataset_name="shared_dataset", credentials="duckdb:///_storage/test_quack.duckdb")
+    p.sync_destination()
+    # we have our separate state
+    assert p.state["sources"]["shared"] == {'source_1': True, 'resources': {'gen1': {'source_1': True}}}
+    # but the schema was common so we have the earliest one
+    assert "gen2" in p.default_schema.tables
+    p._wipe_working_folder()
+    p.deactivate()
+
+    p = dlt.pipeline(pipeline_name="source_2_pipeline", destination="duckdb", dataset_name="shared_dataset", credentials="duckdb:///_storage/test_quack.duckdb")
+    p.sync_destination()
+    # we have our separate state
+    assert p.state["sources"]["shared"] == {'source_2': True, 'resources': {'gen1': {'source_2': True}}}
+
 
 
 def simple_nested_pipeline(destination_name: str, dataset_name: str, full_refresh: bool) -> Tuple[dlt.Pipeline, Callable[[], DltSource]]:

@@ -10,7 +10,7 @@ Follow the steps below to run your pipeline script, see your loaded data and tab
 
 ## 1. Write and execute pipeline script
 
-Once you [created a new pipeline](create-a-pipeline) or [added an existing one](add-a-pipeline) you want to use it to load data. You need to write (or [customize](add-a-pipeline#3-customize-or-write-a-pipeline-script)) a pipeline script, like the one below that loads the data from chess.com API.
+Once you [created a new pipeline](create-a-pipeline) or [added an verified source](add-a-verified-source) you want to use it to load data. You need to write (or [customize](add-a-verified-source#3-customize-or-write-a-pipeline-script)) a pipeline script, like the one below that loads the data from chess.com API.
 
 ```python
 import dlt
@@ -147,6 +147,8 @@ The easiest way is to look at the last line of the exception message: `In secret
 ```toml
 credentials.password="loader"
 ```
+
+> 💡 Make sure you run the script from the same folder in which it is saved. For example `python chess_demo/chess.py` will run the script from `chess_demo` folder but the current working directory is folder above. This prevents `dlt` from finding `chess_demo/.dlt/secrets.toml` and filling-in credentials.
 
 ### Failed API or database connections and other exceptions
 

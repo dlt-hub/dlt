@@ -16,7 +16,7 @@ class ConnectionStringCredentials(CredentialsConfiguration):
     port: Optional[int] = None
     query: Optional[Dict[str, str]] = None
 
-    __config_gen_annotations__: ClassVar[List[str]] = ["port"]
+    __config_gen_annotations__: ClassVar[List[str]] = ["port", "password", "host"]
 
     def parse_native_representation(self, native_value: Any) -> None:
         if not isinstance(native_value, str):

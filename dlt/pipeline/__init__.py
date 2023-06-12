@@ -129,8 +129,7 @@ def pipeline(
         last_config(**kwargs),
         kwargs["runtime"])
     # set it as current pipeline
-    Container()[PipelineContext].activate(p)
-
+    p.activate()
     return p
 
 
@@ -151,7 +150,7 @@ def attach(
     # create new pipeline instance
     p = Pipeline(pipeline_name, pipelines_dir, pipeline_salt, None, None, None, None, None, full_refresh, progress, True, last_config(**kwargs), kwargs["runtime"])
     # set it as current pipeline
-    Container()[PipelineContext].activate(p)
+    p.activate()
     return p
 
 

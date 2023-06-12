@@ -10,8 +10,7 @@ from dlt.extract.source import DltResource
 from dlt.common.utils import uniq_id
 from dlt.pipeline import helpers, state_sync, Pipeline
 from dlt.load import Load
-from dlt.pipeline.exceptions import PipelineHasPendingDataException, PipelineStepFailed
-from dlt.common.pipeline import _resource_state
+from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.destinations.job_client_impl import SqlJobClientBase
 
 from tests.load.pipeline.utils import drop_pipeline

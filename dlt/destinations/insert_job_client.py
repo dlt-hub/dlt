@@ -45,7 +45,7 @@ class InsertValuesLoadJob(LoadJob, FollowupJob):
                 insert_sql.extend([header.format(qualified_table_name), values_mark, content])
                 # read one more line in order to
                 # 1. complete the content which ends at "random" position, not an end line
-                # 2. to modify it's ending without a need to re-allocating the 8MB of "content"
+                # 2. to modify its ending without a need to re-allocating the 8MB of "content"
                 until_nl = f.readline()
                 # if until next line contains just '\n' try to take another line so we can finish content properly
                 # TODO: write test for this case (content ends with ",")
@@ -87,8 +87,8 @@ class InsertValuesJobClient(SqlJobClientBase):
             job = EmptyLoadJob.from_file_path(file_path, "completed")
         return job
 
-    def start_file_load(self, table: TTableSchema, file_path: str) -> LoadJob:
-        job = super().start_file_load(table, file_path)
+    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
+        job = super().start_file_load(table, file_path, load_id)
         if not job:
             # this is using sql_client internally and will raise a right exception
             job = InsertValuesLoadJob(table["name"], table["write_disposition"], file_path, self.sql_client)

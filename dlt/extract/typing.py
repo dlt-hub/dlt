@@ -1,11 +1,11 @@
 import inspect
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Generic, Iterator, Optional, Protocol, TypedDict, TypeVar, Union, Awaitable
+from typing import Any, Callable, Generic, Iterator, Literal, Optional, Protocol, TypeVar, Union, Awaitable
 
 from dlt.common.typing import TAny, TDataItem, TDataItems
-from dlt.common.schema.typing import TTableSchemaColumns, TWriteDisposition, TColumnKey
 
 
+TDecompositionStrategy = Literal["none", "scc"]
 TDeferredDataItems = Callable[[], TDataItems]
 TAwaitableDataItems = Awaitable[TDataItems]
 TPipedDataItems = Union[TDataItems, TDeferredDataItems, TAwaitableDataItems]

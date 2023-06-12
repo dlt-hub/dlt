@@ -88,6 +88,16 @@ def mock_provider() -> "MockProvider":
         yield mock_provider
 
 
+@pytest.fixture(scope="function")
+def env_provider() -> ConfigProvider:
+    container = Container()
+    with container.injectable_context(ConfigProvidersContext()) as providers:
+        # inject only env provider
+        env_provider = EnvironProvider()
+        providers.providers = [env_provider]
+        yield env_provider
+
+
 @pytest.fixture
 def toml_providers() -> Iterator[ConfigProvidersContext]:
     pipeline_root = "./tests/common/cases/configuration/.dlt"

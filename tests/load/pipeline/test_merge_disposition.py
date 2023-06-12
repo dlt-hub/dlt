@@ -9,7 +9,7 @@ import dlt
 
 from dlt.common import json, pendulum
 from dlt.common.configuration.container import Container
-from dlt.common.pipeline import StateInjectableContext, _resource_state
+from dlt.common.pipeline import StateInjectableContext
 from dlt.common.typing import AnyFun, StrAny
 from dlt.common.utils import digest128
 from dlt.extract.source import DltResource

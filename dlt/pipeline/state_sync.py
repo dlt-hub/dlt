@@ -1,4 +1,3 @@
-import base64
 import binascii
 from typing import Any, Optional, cast
 import binascii

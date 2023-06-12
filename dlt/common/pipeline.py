@@ -1,10 +1,11 @@
 import os
 import datetime  # noqa: 251
 import humanize
+import inspect
 import contextlib
 from typing import Any, Callable, ClassVar, Dict, List, NamedTuple, Optional, Protocol, Sequence, TYPE_CHECKING, Tuple, TypedDict
 
-from dlt.common import pendulum
+from dlt.common import pendulum, logger
 from dlt.common.configuration import configspec
 from dlt.common.configuration import known_sections
 from dlt.common.configuration.container import Container
@@ -13,10 +14,11 @@ from dlt.common.configuration.specs import ContainerInjectableContext
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.configuration.paths import get_dlt_data_dir
 from dlt.common.configuration.specs import RunConfiguration
-from dlt.common.destination.reference import DestinationReference, TDestinationReferenceArg
-from dlt.common.exceptions import DestinationHasFailedJobs, PipelineStateNotAvailable, SourceSectionNotAvailable
+from dlt.common.destination import DestinationReference, TDestinationReferenceArg
+from dlt.common.exceptions import DestinationHasFailedJobs, PipelineStateNotAvailable, ResourceNameNotAvailable, SourceSectionNotAvailable
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TColumnKey, TColumnSchema, TWriteDisposition
+from dlt.common.source import get_current_pipe_name
 from dlt.common.storages.load_storage import LoadPackageInfo
 from dlt.common.typing import DictStrAny, REPattern
 from dlt.common.jsonpath import delete_matches, TAnyJsonPath
@@ -141,6 +143,8 @@ class SupportsPipeline(Protocol):
     """A protocol with core pipeline operations that lets high level abstractions ie. sources to access pipeline methods and properties"""
     pipeline_name: str
     """Name of the pipeline"""
+    default_schema_name: str
+    """Name of the default schema"""
     destination: DestinationReference
     """The destination reference which is ModuleType. `destination.__name__` returns the name string"""
     dataset_name: str
@@ -181,7 +185,9 @@ class SupportsPipeline(Protocol):
 
     def _set_context(self, is_active: bool) -> None:
         """Called when pipeline context activated or deactivate"""
-        ...
+
+    def _make_schema_with_default_name(self) -> Schema:
+        """Make a schema from the pipeline name using the name normalizer. "_pipeline" suffix is removed if present"""
 
 
 class SupportsPipelineRun(Protocol):
@@ -214,6 +220,9 @@ class PipelineContext(ContainerInjectableContext):
         return self._pipeline
 
     def activate(self, pipeline: SupportsPipeline) -> None:
+        # do not activate currently active pipeline
+        if pipeline == self._pipeline:
+            return
         self.deactivate()
         pipeline._set_context(True)
         self._pipeline = pipeline
@@ -264,18 +273,8 @@ def pipeline_state(container: Container, initial_default: TPipelineState = None)
             return proxy.pipeline().state, False
 
 
-def sources_state(pipeline_state_: Optional[TPipelineState] = None, /) -> DictStrAny:
+def _sources_state(pipeline_state_: Optional[TPipelineState] = None, /) -> DictStrAny:
     global _last_full_state
-
-    # # get the source name from the section context
-    # source_section: str = None
-    # with contextlib.suppress(ContextDefaultCannotBeCreated):
-    #     sections_context = container[ConfigSectionContext]
-    #     with contextlib.suppress(ValueError):
-    #         source_section = sections_context.source_section()
-
-    # if not source_section:
-    #     raise SourceSectionNotAvailable()
 
     if pipeline_state_ is None:
         state, _ = pipeline_state(Container())
@@ -292,23 +291,71 @@ def sources_state(pipeline_state_: Optional[TPipelineState] = None, /) -> DictSt
 
 
 def source_state() -> DictStrAny:
-    """Returns a dictionary with the source state. Such state is preserved across pipeline runs and may be used to implement incremental loads.
+    """Returns a dictionary with the source-scoped state. Source-scoped state may be shared across the resources of a particular source. Please avoid using source scoped state. Check
+    the `resource_state` function for resource-scoped state that is visible within particular resource. Dlt state is preserved across pipeline runs and may be used to implement incremental loads.
 
     ### Summary
-    The state is a python dictionary-like object that is available within the `@dlt.source` and `@dlt.resource` decorated functions and may be read and written to.
+    The source state is a python dictionary-like object that is available within the `@dlt.source` and `@dlt.resource` decorated functions and may be read and written to.
     The data within the state is loaded into destination together with any other extracted data and made automatically available to the source/resource extractor functions when they are run next time.
     When using the state:
-    * The source state is scoped to a section of the source. The source section is set by default to the module name in which source function is defined.
-    * If the `section` argument when decorating source function is not specified, all sources in the module will share the state
+    * The source state is scoped to a particular source and will be stored under the source name in the pipeline state
+    * It is possible to share state across many sources if they share a schema with the same name
     * Any JSON-serializable values can be written and the read from the state. `dlt` dumps and restores instances of Python bytes, DateTime, Date and Decimal types.
     * The state available in the source decorated function is read only and any changes will be discarded.
+    * The state available in the resource decorated function is writable and written values will be available on the next pipeline run
+    """
+    global _last_full_state
+
+    container = Container()
+
+    # get the source name from the section context
+    source_state_key: str = None
+    with contextlib.suppress(ContextDefaultCannotBeCreated):
+        sections_context = container[ConfigSectionContext]
+        source_state_key = sections_context.source_state_key
+
+    if not source_state_key:
+        raise SourceSectionNotAvailable()
+
+    try:
+        state = _sources_state()
+    except PipelineStateNotAvailable as e:
+        # Reraise with source section
+        raise PipelineStateNotAvailable(source_state_key) from e
+
+    return state.setdefault(source_state_key, {})  # type: ignore[no-any-return]
+
+
+_last_full_state: TPipelineState = None
+
+
+def _delete_source_state_keys(key: TAnyJsonPath, source_state_: Optional[DictStrAny] = None, /) -> None:
+    """Remove one or more key from the source state.
+    The `key` can be any number of keys and/or json paths to be removed.
+    """
+    state_ = source_state() if source_state_ is None else source_state_
+    delete_matches(key, state_)
+
+
+def resource_state(resource_name: str = None, source_state_: Optional[DictStrAny] = None, /) -> DictStrAny:
+    """Returns a dictionary with the resource-scoped state. Resource-scoped state is visible only to resource requesting the access. Dlt state is preserved across pipeline runs and may be used to implement incremental loads.
+
+    Note that this function accepts the resource name as optional argument. There are rare cases when `dlt` is not able to resolve resource name due to requesting function
+    working in different thread than the main. You'll need to pass the name explicitly when you request resource_state from async functions or functions decorated with @defer.
+
+    ### Summary
+    The resource state is a python dictionary-like object that is available within the `@dlt.resource` decorated functions and may be read and written to.
+    The data within the state is loaded into destination together with any other extracted data and made automatically available to the source/resource extractor functions when they are run next time.
+    When using the state:
+    * The resource state is scoped to a particular resource requesting it.
+    * Any JSON-serializable values can be written and the read from the state. `dlt` dumps and restores instances of Python bytes, DateTime, Date and Decimal types.
     * The state available in the resource decorated function is writable and written values will be available on the next pipeline run
 
     ### Example
     The most typical use case for the state is to implement incremental load.
     >>> @dlt.resource(write_disposition="append")
     >>> def players_games(chess_url, players, start_month=None, end_month=None):
-    >>>     checked_archives = dlt.current.state().setdefault("archives", [])
+    >>>     checked_archives = dlt.current.resource_state().setdefault("archives", [])
     >>>     archives = players_archives(chess_url, players)
     >>>     for url in archives:
     >>>         if url in checked_archives:
@@ -324,46 +371,22 @@ def source_state() -> DictStrAny:
 
     Here we store all the urls with game archives in the state and we skip loading them on next run. The archives are immutable. The state will grow with the coming months (and more players).
     Up to few thousand archives we should be good though.
-    """
-    global _last_full_state
+    Args:
+        resource_name (str, optional): forces to use state for a resource with this name. Defaults to None.
+        source_state_ (Optional[DictStrAny], optional): Alternative source state. Defaults to None.
 
-    container = Container()
+    Raises:
+        ResourceNameNotAvailable: Raise if used outside of resource context or from a different thread than main
 
-    # get the source name from the section context
-    source_section: str = None
-    with contextlib.suppress(ContextDefaultCannotBeCreated):
-        sections_context = container[ConfigSectionContext]
-        with contextlib.suppress(ValueError):
-            source_section = sections_context.source_section()
-
-    if not source_section:
-        raise SourceSectionNotAvailable()
-
-    try:
-        state = sources_state()
-    except PipelineStateNotAvailable as e:
-        # Reraise with source section
-        raise PipelineStateNotAvailable(source_section) from e
-
-    return state.setdefault(source_section, {})  # type: ignore[no-any-return]
-
-
-_last_full_state: TPipelineState = None
-
-
-def _delete_source_state_keys(key: TAnyJsonPath, source_state_: Optional[DictStrAny] = None, /) -> None:
-    """Remove one or more key from the source state.
-    The `key` can be any number of keys and/or json paths to be removed.
+    Returns:
+        DictStrAny: State dictionary
     """
     state_ = source_state() if source_state_ is None else source_state_
-    delete_matches(key, state_)
-
-
-def _resource_state(resource_name: str, source_state_: Optional[DictStrAny] = None, /) -> DictStrAny:
-    """Alpha version of the resource state, the signature will change.
-    Returns resource-scoped state.
-    """
-    state_ = source_state() if source_state_ is None else source_state_
+    # backtrace to find the shallowest resource
+    if not resource_name:
+        resource_name = get_current_pipe_name()
+    if not resource_name:
+        raise ResourceNameNotAvailable()
     return state_.setdefault('resources', {}).setdefault(resource_name, {})  # type: ignore
 
 

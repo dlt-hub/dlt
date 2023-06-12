@@ -47,6 +47,7 @@ What does a senior architect or engineer consider when choosing a tech stack?
 - Vendor Reliability and Ecosystem
 
 
+
 # What makes dlt a must-have for your data stack or platform?
 
 For starters, dlt is the first data pipeline solution that is built for your data team's ROI. Our vision is to add value, not gatekeep it.
@@ -95,6 +96,4 @@ The implications:
 - Dlt removes complexity: You can use dlt in your existing stack, no overheads, no race conditions, full observability. Other tools add complexity.
 - dlt can be leveraged by AI - because it's a library with low complexity to use, large language models can produce dlt code for your pipelines
 - Ease of adoption: If you are running python, you can adopt dlt. dlt is orchestrator and destination agnostic.
-
-
 

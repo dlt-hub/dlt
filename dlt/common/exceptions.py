@@ -87,7 +87,7 @@ You must install additional dependencies to run {self.caller}. If you use pip yo
         return msg
 
     def _to_pip_install(self) -> str:
-        return "\n".join([f"pip install {d}" for d in self.dependencies])
+        return "\n".join([f"pip install \"{d}\"" for d in self.dependencies])
 
 
 class DestinationException(DltException):
@@ -144,14 +144,20 @@ class PipelineException(DltException):
 
 
 class PipelineStateNotAvailable(PipelineException):
-    def __init__(self, source_name: Optional[str] = None) -> None:
-        if source_name:
-            msg = f"The source {source_name} requested the access to pipeline state but no pipeline is active right now."
+    def __init__(self, source_state_key: Optional[str] = None) -> None:
+        if source_state_key:
+            msg = f"The source {source_state_key} requested the access to pipeline state but no pipeline is active right now."
         else:
             msg = "The resource you called requested the access to pipeline state but no pipeline is active right now."
         msg += " Call dlt.pipeline(...) before you call the @dlt.source or  @dlt.resource decorated function."
-        self.source_name = source_name
+        self.source_state_key = source_state_key
         super().__init__(None, msg)
+
+
+class ResourceNameNotAvailable(PipelineException):
+    def __init__(self) -> None:
+        super().__init__(None,
+            "A resource state was requested but no active extract pipe context was found. Resource state may be only requested from @dlt.resource decorated function or with explicit resource name.")
 
 
 class SourceSectionNotAvailable(PipelineException):

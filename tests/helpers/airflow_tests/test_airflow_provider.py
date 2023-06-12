@@ -1,56 +1,21 @@
-import os
-import argparse
-import pytest
 from airflow import DAG
 from airflow.decorators import task, dag
-from airflow.cli.commands.db_command import resetdb
 from airflow.operators.python import PythonOperator
 from airflow.models.variable import Variable
 from airflow.models.taskinstance import TaskInstance
 from airflow.utils.state import State, DagRunState
 from airflow.utils.types import DagRunType
-from airflow.configuration import conf
 
 import dlt
 from dlt.common import pendulum
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
-from dlt.common.configuration.providers.airflow import AIRFLOW_SECRETS_TOML_VARIABLE_KEY
+from dlt.common.configuration.providers.toml import SECRETS_TOML_KEY
 
 from tests.utils import preserve_environ
+from tests.helpers.airflow_tests.utils import initialize_airflow_db
 
 DEFAULT_DATE = pendulum.datetime(2023, 4, 18, tz='Europe/Berlin')
-
-
-@pytest.fixture(scope='function', autouse=True)
-def initialize_airflow_db():
-    setup_airflow()
-    # backup context providers
-    providers = Container()[ConfigProvidersContext]
-    # allow airflow provider
-    os.environ["PROVIDERS__ENABLE_AIRFLOW_SECRETS"] = "true"
-    # re-create providers
-    del Container()[ConfigProvidersContext]
-    yield
-    # restore providers
-    Container()[ConfigProvidersContext] = providers
-    # Make sure the variable is not set
-    Variable.delete(AIRFLOW_SECRETS_TOML_VARIABLE_KEY)
-
-
-def setup_airflow() -> None:
-    # Disable loading examples
-    conf.set('core', 'load_examples', 'False')
-    # Prepare the arguments for the initdb function
-    args = argparse.Namespace()
-    args.backend = conf.get(section='core', key='sql_alchemy_conn')
-
-    # Run Airflow resetdb before running any tests
-    args.yes = True
-    args.skip_init = False
-    resetdb(args)
-
-
 # Test data
 SECRETS_TOML_CONTENT = """
 [sources]
@@ -58,16 +23,13 @@ api_key = "test_value"
 """
 
 
-def test_airflow_secrets_toml_provider():
+def test_airflow_secrets_toml_provider() -> None:
 
     @dag(start_date=DEFAULT_DATE)
     def test_dag():
-        from dlt.common.configuration.providers.airflow import (
-            AirflowSecretsTomlProvider,
-            AIRFLOW_SECRETS_TOML_VARIABLE_KEY,
-        )
+        from dlt.common.configuration.providers.airflow import AirflowSecretsTomlProvider
 
-        Variable.set(AIRFLOW_SECRETS_TOML_VARIABLE_KEY, SECRETS_TOML_CONTENT)
+        Variable.set(SECRETS_TOML_KEY, SECRETS_TOML_CONTENT)
 
         @task()
         def test_task():
@@ -107,12 +69,12 @@ def test_airflow_secrets_toml_provider():
     assert result['api_key_from_provider'] == 'test_value'
 
 
-def test_airflow_secrets_toml_provider_import_dlt_dag():
+def test_airflow_secrets_toml_provider_import_dlt_dag() -> None:
     """Tests if the provider is functional when defining DAG"""
 
     @dag(start_date=DEFAULT_DATE)
     def test_dag():
-        Variable.set(AIRFLOW_SECRETS_TOML_VARIABLE_KEY, SECRETS_TOML_CONTENT)
+        Variable.set(SECRETS_TOML_KEY, SECRETS_TOML_CONTENT)
 
         import dlt
         from dlt.common.configuration.accessors import secrets
@@ -146,7 +108,7 @@ def test_airflow_secrets_toml_provider_import_dlt_dag():
     assert result['api_key_from_provider'] == 'test_value'
 
 
-def test_airflow_secrets_toml_provider_import_dlt_task():
+def test_airflow_secrets_toml_provider_import_dlt_task() -> None:
     """Tests if the provider is functional when running in task"""
 
     @dag(start_date=DEFAULT_DATE)
@@ -154,8 +116,8 @@ def test_airflow_secrets_toml_provider_import_dlt_task():
 
         @task()
         def test_task():
-            Variable.set(AIRFLOW_SECRETS_TOML_VARIABLE_KEY, SECRETS_TOML_CONTENT)
-            import dlt
+            Variable.set(SECRETS_TOML_KEY, SECRETS_TOML_CONTENT)
+
             from dlt.common.configuration.accessors import secrets
 
             # this will initialize provider context
@@ -189,13 +151,9 @@ def test_airflow_secrets_toml_provider_is_loaded():
     dag = DAG(dag_id='test_dag', start_date=DEFAULT_DATE)
 
     def test_task():
-        from dlt.common.configuration.specs import config_providers_context
-        from dlt.common.configuration.providers.airflow import (
-            AirflowSecretsTomlProvider,
-            AIRFLOW_SECRETS_TOML_VARIABLE_KEY,
-        )
+        from dlt.common.configuration.providers.airflow import AirflowSecretsTomlProvider
 
-        Variable.set(AIRFLOW_SECRETS_TOML_VARIABLE_KEY, SECRETS_TOML_CONTENT)
+        Variable.set(SECRETS_TOML_KEY, SECRETS_TOML_CONTENT)
 
         providers_context = Container()[ConfigProvidersContext]
 
@@ -249,26 +207,14 @@ def test_airflow_secrets_toml_provider_missing_variable():
 
     def test_task():
         from dlt.common.configuration.specs import config_providers_context
-        from dlt.common.configuration.providers.airflow import (
-            AirflowSecretsTomlProvider,
-            AIRFLOW_SECRETS_TOML_VARIABLE_KEY,
-        )
+        from dlt.common.configuration.providers.airflow import AirflowSecretsTomlProvider
 
         # Make sure the variable is not set
-        Variable.delete(AIRFLOW_SECRETS_TOML_VARIABLE_KEY)
-
+        Variable.delete(SECRETS_TOML_KEY)
         providers = config_providers_context._extra_providers()
-
-        astp_is_loaded = any(
-            isinstance(provider, AirflowSecretsTomlProvider)
-            for provider in providers
-        )
-
-        # There's no pytest context here in the task, so we need to return
-        # the results as a dict and assert them in the test function.
-        # See ti.xcom_pull() below.
+        provider = next(provider for provider in providers if isinstance(provider, AirflowSecretsTomlProvider))
         return {
-            'airflow_secrets_toml_provider_is_loaded': astp_is_loaded,
+            'airflow_secrets_toml': provider._toml.as_string(),
         }
 
     task = PythonOperator(
@@ -289,7 +235,7 @@ def test_airflow_secrets_toml_provider_missing_variable():
     result = ti.xcom_pull(task_ids='test_task')
 
     assert ti.state == State.SUCCESS
-    assert not result['airflow_secrets_toml_provider_is_loaded']
+    assert result['airflow_secrets_toml'] == ""
 
 
 def test_airflow_secrets_toml_provider_invalid_content():
@@ -297,12 +243,9 @@ def test_airflow_secrets_toml_provider_invalid_content():
 
     def test_task():
         import tomlkit
-        from dlt.common.configuration.providers.airflow import (
-            AirflowSecretsTomlProvider,
-            AIRFLOW_SECRETS_TOML_VARIABLE_KEY,
-        )
+        from dlt.common.configuration.providers.airflow import AirflowSecretsTomlProvider
 
-        Variable.set(AIRFLOW_SECRETS_TOML_VARIABLE_KEY, 'invalid_content')
+        Variable.set(SECRETS_TOML_KEY, 'invalid_content')
 
         # There's no pytest context here in the task, so we need
         # to catch the exception manually and return the result
@@ -310,7 +253,7 @@ def test_airflow_secrets_toml_provider_invalid_content():
         exception_raised = False
         try:
             AirflowSecretsTomlProvider()
-        except tomlkit.exceptions.ParseError:
+        except ValueError:
             exception_raised = True
 
         return {

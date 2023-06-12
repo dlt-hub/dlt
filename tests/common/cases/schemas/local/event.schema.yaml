@@ -1,7 +1,7 @@
 version: 8
 version_hash: njJAySgJRs2TqGWgQXhP+3pCh1A1hXcqe77BpM7JtOU=
 engine_version: 4
-name: ethereum
+name: event
 
 tables:
   _dlt_loads:

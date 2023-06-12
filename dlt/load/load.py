@@ -81,7 +81,7 @@ class Load(Runnable[ThreadPool]):
                 table = self.get_load_table(schema, file_path)
                 if table["write_disposition"] not in ["append", "replace", "merge"]:
                     raise LoadClientUnsupportedWriteDisposition(job_info.table_name, table["write_disposition"], file_path)
-                job = client.start_file_load(table, self.load_storage.storage.make_full_path(file_path))
+                job = client.start_file_load(table, self.load_storage.storage.make_full_path(file_path), load_id)
         except (DestinationTerminalException, TerminalValueError):
             # if job irreversibly cannot be started, mark it as failed
             logger.exception(f"Terminal problem when adding job {file_path}")
@@ -339,7 +339,7 @@ class Load(Runnable[ThreadPool]):
         return LoadInfo(
             pipeline,
             self.initial_client_config.destination_name,
-            str(self.initial_client_config.credentials),
+            str(self.initial_client_config),
             dataset_name,
             list(load_ids),
             load_packages,

@@ -6,7 +6,6 @@ from dlt.common import pendulum, json, logger, sleep
 from dlt.common.configuration import with_config, known_sections
 from dlt.common.configuration.accessors import config
 from dlt.common.configuration.container import Container
-from dlt.common.configuration.specs import LoadVolumeConfiguration, NormalizeVolumeConfiguration
 from dlt.common.destination import DestinationCapabilitiesContext, TLoaderFileFormat
 from dlt.common.json import custom_pua_decode
 from dlt.common.runners import TRunMetrics, Runnable
@@ -15,7 +14,7 @@ from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.common.schema.typing import TStoredSchema, TTableSchemaColumns
 from dlt.common.schema.utils import merge_schema_updates
 from dlt.common.storages.exceptions import SchemaNotFoundError
-from dlt.common.storages import NormalizeStorage, SchemaStorage, LoadStorage
+from dlt.common.storages import NormalizeStorage, SchemaStorage, LoadStorage, LoadStorageConfiguration, NormalizeStorageConfiguration
 from dlt.common.typing import TDataItem
 from dlt.common.schema import TSchemaUpdate, Schema
 from dlt.common.schema.exceptions import CannotCoerceColumnException
@@ -66,8 +65,8 @@ class Normalize(Runnable[ProcessPool]):
 
     @staticmethod
     def w_normalize_files(
-            normalize_storage_config: NormalizeVolumeConfiguration,
-            loader_storage_config: LoadVolumeConfiguration,
+            normalize_storage_config: NormalizeStorageConfiguration,
+            loader_storage_config: LoadStorageConfiguration,
             destination_caps: DestinationCapabilitiesContext,
             stored_schema: TStoredSchema,
             load_id: str,

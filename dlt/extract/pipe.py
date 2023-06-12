@@ -13,6 +13,7 @@ from dlt.common.configuration import configspec
 from dlt.common.configuration.inject import with_config
 from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.exceptions import PipelineException
+from dlt.common.source import unset_current_pipe_name, set_current_pipe_name
 from dlt.common.typing import AnyFun, AnyType, TDataItems
 from dlt.common.utils import get_callable_name
 
@@ -423,7 +424,7 @@ class PipeIterator(Iterator[PipeItem]):
         futures_poll_interval: float = 0.01
         copy_on_fork: bool = False
 
-        __sections__ = "extract"
+        __section__ = "extract"
 
     def __init__(self, max_parallel_items: int, workers: int, futures_poll_interval: float) -> None:
         self.max_parallel_items = max_parallel_items
@@ -465,6 +466,7 @@ class PipeIterator(Iterator[PipeItem]):
         futures_poll_interval: float = 0.01,
         copy_on_fork: bool = False
     ) -> "PipeIterator":
+        # print(f"max_parallel_items: {max_parallel_items} workers: {workers}")
         extract = cls(max_parallel_items, workers, futures_poll_interval)
         # clone all pipes before iterating (recursively) as we will fork them (this add steps) and evaluate gens
         pipes = PipeIterator.clone_pipes(pipes)
@@ -551,14 +553,15 @@ class PipeIterator(Iterator[PipeItem]):
 
             # advance to next step
             step = pipe_item.pipe[pipe_item.step + 1]
-            assert callable(step)
             try:
+                set_current_pipe_name(pipe_item.pipe.name)
                 next_meta = pipe_item.meta
                 next_item = step(item, meta=pipe_item.meta)  # type: ignore
                 if isinstance(next_item, DataItemWithMeta):
                     next_meta = next_item.meta
                     next_item = next_item.data
             except TypeError as ty_ex:
+                assert callable(step)
                 raise InvalidStepFunctionArguments(pipe_item.pipe.name, get_callable_name(step), inspect.signature(step), str(ty_ex))
             except (PipelineException, ExtractorException, DltSourceException, PipeException):
                 raise
@@ -571,6 +574,9 @@ class PipeIterator(Iterator[PipeItem]):
                 pipe_item = None
 
     def close(self) -> None:
+        # unregister the pipe name right after execution of gen stopped
+        unset_current_pipe_name()
+
         def stop_background_loop(loop: asyncio.AbstractEventLoop) -> None:
             loop.stop()
 
@@ -667,8 +673,8 @@ class PipeIterator(Iterator[PipeItem]):
         # get items from last added iterator, this makes the overall Pipe as close to FIFO as possible
         gen, step, pipe, meta = self._sources[-1]
         # print(f"got {pipe.name} {pipe._pipe_id}")
-        # TODO: count items coming of the generator and stop the generator if reached. that allows for sampling the beginning of a stream
-        # _counts(id(gen)).setdefault(0) + 1
+        # register current pipe name during the execution of gen
+        set_current_pipe_name(pipe.name)
         try:
             item = next(gen)
             # full pipe item may be returned, this is used by ForkPipe step

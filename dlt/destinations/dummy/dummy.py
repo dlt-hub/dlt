@@ -89,7 +89,7 @@ class DummyClient(JobClientBase):
             raise DestinationTransientException("Raise on schema update due to fail_schema_update config flag")
         return applied_update
 
-    def start_file_load(self, table: TTableSchema, file_path: str) -> LoadJob:
+    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         job_id = FileStorage.get_file_name_from_file_path(file_path)
         file_name = FileStorage.get_file_name_from_file_path(file_path)
         # return existing job if already there
