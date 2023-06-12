@@ -128,7 +128,7 @@ To get started with your data verified source, follow these steps:
 
 2. Now the pipeline can be run by using the command:
     ```properties
-    python3 facebook_ads_pipeline.py`
+    python3 facebook_ads_pipeline.py
     ```
 
 3. To make sure that everything is loaded as expected, use the command:
@@ -177,8 +177,10 @@ The above function returns a list of resources to load campaigns, ad sets, ads, 
 ```python
 @dlt.resource(primary_key="id", write_disposition="replace")
 def ads(
-  fields: Sequence[str] = DEFAULT_AD_FIELDS, states: Sequence[str] = None
-    ) -> Iterator[TDataItems]:
+    fields: Sequence[str] = DEFAULT_AD_FIELDS,
+    states: Sequence[str] = None,
+) -> Iterator[TDataItems]:
+
   yield get_data_chunked(account.get_ads, fields, states, chunk_size)
 ```
 
@@ -246,10 +248,10 @@ The above function returns a list of resources to load facebook_insights. The fa
 ```python
 @dlt.resource(primary_key=INSIGHTS_PRIMARY_KEY, write_disposition="merge")
 def facebook_insights(
-        date_start: dlt.sources.incremental[str] = dlt.sources.incremental(
-            "date_start", initial_value=initial_load_start_date_str
-        )
-    ) -> Iterator[TDataItems]:
+    date_start: dlt.sources.incremental[str] = dlt.sources.incremental(
+        "date_start", initial_value=initial_load_start_date_str
+    )
+) -> Iterator[TDataItems]:
 ```
 
 **`date_start`**: parameter is used to set the initial value for the “date_start” parameter in *dlt.sources.incremental*. This parameter is equal to the “date_start” in the last pipeline run or defaults to today's date minus the number of days set in the “initial_load_past_days” parameter in the source method.
@@ -263,7 +265,6 @@ To create your data-loading pipeline follow the following steps:
 1. Configure the pipeline by specifying the pipeline name, destination, and dataset. To read more about pipeline configuration, please refer to our documentation [here](https://dlthub.com/docs/general-usage/pipeline).
 
     ```python
-
     pipeline = dlt.pipeline(
         pipeline_name="facebook_ads",  # Use a custom name if desired
         destination="bigquery",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
