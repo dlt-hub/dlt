@@ -43,7 +43,7 @@ dlthub_telemetry=false
 Anonymous telemetry is sent when:
 
 - Any `dlt` command is executed from the command line. The data contains the command name. In the case of `dlt init` command, we also send the requested destination and data source names.
-- When `pipeline.run` is called, we send information when [extract, normalize and load](how-dlt-works.md) steps are completed. The data contains the destination name (e.g. `duckdb`), elapsed time, and if the step succeeded or not.
+- When `pipeline.run` is called, we send information when [extract, normalize and load](how-dlt-works) steps are completed. The data contains the destination name (e.g. `duckdb`), elapsed time, and if the step succeeded or not.
 
 Here is an example `dlt init` telemetry message:
 

@@ -59,7 +59,7 @@ The state is stored in the `_dlt_pipeline_state` table at the destination and co
 ## When not to use pipeline state
 Do not use dlt state when it may grow to millions of elements. Do you plan to store modification timestamps of all of your millions of user records? This is probably a bad idea! In that case you could:
 - store the state in dynamo-db, redis etc. taking into the account that if the extract stage fails you'll end with invalid state.
-- use your loaded data as the state. `dlt` exposes the current pipeline via `dlt.current.pipeline()` from which you can obtain [sqlclient](../using-loaded-data/transforming-the-data.md#transforming-the-data-using-the-dlt-sql-client) and load the data of interest. In that case try at least to process your user records in batches.
+- use your loaded data as the state. `dlt` exposes the current pipeline via `dlt.current.pipeline()` from which you can obtain [sqlclient](../dlt-ecosystem/transformations/transforming-the-data.md#transforming-the-data-using-the-dlt-sql-client) and load the data of interest. In that case try at least to process your user records in batches.
 
 ## Inspect the pipeline state
 You can inspect pipeline state with [`dlt pipeline` command](../reference/command-line-interface.md#dlt-pipeline):
