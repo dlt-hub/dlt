@@ -19,7 +19,7 @@ This verified source loads data from the following default endpoints:
 | BalanceTransaction | represents a record of funds movement within a Stripe account |
 
 > Please note that the endpoints within the verified source can be tailored to meet your specific requirements, as outlined in the Stripe API reference documentation Detailed instructions on customizing these endpoints can be found in the customization section here.
-> 
+>
 
 ## Grab API credentials
 
@@ -37,7 +37,7 @@ To get started with this verified source, follow these steps:
 1. Open up your terminal or command prompt and navigate to the directory where you'd like to create your project.
 2. Enter the following command:
 
-```shell
+```properties
 dlt init stripe_analytics bigquery
 ```
 
@@ -85,16 +85,19 @@ location = "US" # Project location (e.g. “US”)
 ## Run the pipeline example
 
 1. Install the necessary dependencies by running the following command:
-
-`pip install -r requirements.txt`
+```properties
+pip install -r requirements.txt
+```
 
 2. Now the verified source can be run by using the command:
-
-`python3 stripe_analytics_pipeline.py`
+```properties
+python3 stripe_analytics_pipeline.py
+```
 
 3. To make sure that everything is loaded as expected, use the command:
-
-`dlt pipeline <pipeline_name> show`
+```properties
+dlt pipeline <pipeline_name> show
+```
 
 (For example, the pipeline_name for the above pipeline example is `stripe_analytics`, you may also use any custom name instead)
 
@@ -173,7 +176,7 @@ If you wish to create your own pipelines you can leverage these functions.
 To create your data pipeline using single loading and [incremental data loading](https://dlthub.com/docs/general-usage/incremental-loading), follow these steps:
 
 1. Configure the pipeline by specifying the pipeline name, destination, and dataset. To read more about pipeline configuration, please refer to our [documentation here](https://dlthub.com/docs/general-usage/pipeline).
-    
+
     ```python
     pipeline = dlt.pipeline(
         pipeline_name="stripe_pipeline",# Use a custom name if desired
@@ -181,9 +184,9 @@ To create your data pipeline using single loading and [incremental data loading
         dataset_name="stripe_dataset"# Use a custom name if desired
     )
     ```
-    
+
 2. First load only endpoints you want to be loaded in *replace* mode, for example, "Plan" and "Charge". Load all data only for the year 2022.
-    
+
     ```python
     source_single = stripe_source(
       endpoints=("Plan", "Charge"),
@@ -191,9 +194,9 @@ To create your data pipeline using single loading and [incremental data loading
       end_date=datetime(2022, 12, 31),
     )
     ```
-    
+
 3. Then load data from the endpoint “Invoice”. This endpoint has uneditable data, so we can load it incrementally. For future runs, the **`dlt`** module will store the "end_date" for this pipeline run as the "initial_start_date" and load the data incrementally.
-    
+
     ```python
     # Load all data on the first run that was created after start_date and before end_date
     source_incremental = incremental_stripe_source(
@@ -201,18 +204,18 @@ To create your data pipeline using single loading and [incremental data loading
       initial_start_date=datetime(2022, 1, 1),
       end_date=datetime(2022, 12, 31),
     )
-      
+
     ```
-    
+
 4. Use the method **`pipeline.run()`** to execute the pipeline.
-    
+
     ```python
     load_info = pipeline.run(data=[source_single, source_incremental])
     print(load_info)
     ```
-    
+
 5. If you need to load the new data that was created after 31, December 2022, change the data range for *stripe_source,* do this to avoid loading already loaded data again. You don’t have to provide the new data range for *incremental_stripe_source,* the value of *initial_start_date* will be automatically updated to the date for which the pipeline last loaded data in the previous run.
-    
+
     ```python
     pipeline = dlt.pipeline(
         pipeline_name="stripe_pipeline",
@@ -229,7 +232,7 @@ To create your data pipeline using single loading and [incremental data loading
     load_info = pipeline.run(data=[source_single, source_incremental])
     print(load_info)
     ```
-    
+
 6. It's important to keep the pipeline name and destination dataset name unchanged. The pipeline name is crucial for retrieving the [state](https://dlthub.com/docs/general-usage/state) of the last pipeline run, which includes the end date needed for loading data incrementally. Modifying these names can lead to [“full_refresh”](https://dlthub.com/docs/general-usage/pipeline#do-experiments-with-full-refresh) which will disrupt the tracking of relevant metadata(state) for [incremental data loading](https://dlthub.com/docs/general-usage/incremental-loading).
 
-Thats it! Enjoy running your Stripe DLT pipeline!
+That's it! Enjoy running your Stripe DLT pipeline!
