@@ -11,7 +11,7 @@ To get started with this verified source, follow these steps:
 1. Open up your terminal or command prompt and navigate to the directory where you'd like to create your project.
 2. Enter the following command:
 
-```shell
+```powershell
 dlt init sql_database bigquery
 ```
 
@@ -37,17 +37,16 @@ sql_database_source
 
 1. Inside the **`.dlt`** folder, you'll find a file called **`secrets.toml`**, which is where you can securely store credentials and other sensitive information. It's important to handle this file with care and keep it safe.
 2. To proceed with this demo, we will establish credentials using the provided connection URL given below. The connection URL is associated with a public database and is as follows:
-    
-  `connection_url = "mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam"`
-    
 
-  Here's what the `secrets.toml` looks like
+    `connection_url = "mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam"`
+
+   Here's what the `secrets.toml` looks like
 
   ```toml
   # Put your secret values and credentials here. do not share this file and do not push it to github
   # We will set up creds with the connection URL given below, which is a public database
 
-  # The credentials are as: 
+  # The credentials are as:
   drivername = "mysql+pymysql" # driver name for the database
   database = "Rfam" # database name
   username = "rfamro" # username associated with the database
@@ -81,7 +80,7 @@ sql_database_source
 
 ## Customizations
 
-To load data to the destination using this verified source, you have the option to write your own methods. 
+To load data to the destination using this verified source, you have the option to write your own methods.
 
 ### **Source and resource methods**
 
@@ -150,7 +149,7 @@ load_info = pipeline.run(load_source, write_disposition="replace")
 print(info)
 ```
 
-3. To load data from the "family" table in incremental mode, utilizing the "updated" field, you can employ the `sql_table` resource. In the provided code, the last value of the "updated" field is stored in the DLT state, initially set to January 1, 2022, at midnight (00:00:00). During subsequent runs, only the new data created after the last recorded "updated" value will be loaded. This ensures efficient and targeted data retrieval, optimizing the processing of your pipeline. 
+3. To load data from the "family" table in incremental mode, utilizing the "updated" field, you can employ the `sql_table` resource. In the provided code, the last value of the "updated" field is stored in the DLT state, initially set to January 1, 2022, at midnight (00:00:00). During subsequent runs, only the new data created after the last recorded "updated" value will be loaded. This ensures efficient and targeted data retrieval, optimizing the processing of your pipeline.
 
 ```python
 family = sql_table(
@@ -179,7 +178,7 @@ load_info = pipeline.run(load_data, write_disposition="merge")
 print(load_info)
 ```
 >
-The method depicted above loads data using the "_sql_database_" source using the “_with_resources_” function. It uses the "updated" field for incremental loading, ensuring that only newly updated data is retrieved. Moreover, the method utilizes the "_merge_" mode to load the new data into the destination everytime pipeline runs. 
+The method depicted above loads data using the "_sql_database_" source using the “_with_resources_” function. It uses the "updated" field for incremental loading, ensuring that only newly updated data is retrieved. Moreover, the method utilizes the "_merge_" mode to load the new data into the destination everytime pipeline runs.
 >
 
 5. It's important to keep the pipeline name and destination dataset name unchanged. The pipeline name is crucial for retrieving the [state](https://dlthub.com/docs/general-usage/state) of the last pipeline run, which includes the end date needed for loading data incrementally. Modifying these names can lead to [“full_refresh”](https://dlthub.com/docs/general-usage/pipeline#do-experiments-with-full-refresh) which will disrupt the tracking of relevant metadata(state) for [incremental data loading](https://dlthub.com/docs/general-usage/incremental-loading).
