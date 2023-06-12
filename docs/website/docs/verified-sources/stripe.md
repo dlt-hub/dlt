@@ -151,7 +151,7 @@ def incremental_stripe_source(
 
 After each run, the value of *initial_start_date* will be automatically updated to the date for which the pipeline last loaded data in the previous run. This ensures that in subsequent runs, only new data created after the last loaded date will be retrieved by the pipeline by using *append* mode. With this method, a massive amount of data is not downloaded each time, making the loading process more efficient and less time-consuming.
 
-**Resource metrics_resource**
+#### 3. Resource metrics_resource**
 
 ```python
 @dlt.resource(name="Metrics", write_disposition="append", primary_key="created")
