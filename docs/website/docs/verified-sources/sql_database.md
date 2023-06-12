@@ -11,7 +11,7 @@ To get started with this verified source, follow these steps:
 1. Open up your terminal or command prompt and navigate to the directory where you'd like to create your project.
 2. Enter the following command:
 
-```powershell
+```properties
 dlt init sql_database bigquery
 ```
 
@@ -66,15 +66,20 @@ sql_database_source
 
 1. Install the necessary dependencies by running the following command:
 
-`pip install -r requirements.txt`
+```properties
+pip install -r requirements.txt
+```
 
 2. Now the verified source can be run by using the command:
-
-`python3 sql_database_pipeline.py`
+```properties
+python3 sql_database_pipeline.py
+```
 
 3. To make sure that everything is loaded as expected, use the command:
 
-`dlt pipeline <pipeline_name> show`
+```properties
+dlt pipeline <pipeline_name> show
+```
 
 (For example, the pipeline_name for the above pipeline example is `rfam`, you may also use any custom name instead)
 
