@@ -847,6 +847,7 @@ html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(8)>div>[
   z-index: 1002;
   left: calc(50% - 350px);
   top: calc(50% - 250px);
+  padding: 30px;
 }
 
 .overlayBackground {
