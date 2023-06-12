@@ -58,17 +58,17 @@ By being a library built to enable free usage, we are uniquely positioned to run
 
 - Reduce engineering effort as much as 5x via a paradigm shift. Structure data automatically to not do it manually. [Read about structured data lake](https://dlthub.com/docs/blog/next-generation-data-platform), and [how to do schema evolution](https://dlthub.com/docs/general-usage/schema-evolution).
 - Better Collaboration and Communication: Structured data promotes better collaboration and communication among team members. Since everyone operates on a shared understanding of the data structure, it becomes easier to discuss and align on data-related topics. Queries, reports, and analysis can be easily shared and understood by others, enhancing collaboration and teamwork.
-- Faster time to build pipelines: After extracting data, if you pass it to dlt, you are done. If not, it needs to be structured. Because structuring is hard, we curate it. Curation involves at least the producer, and consumer, but often also an analyst and the engineer, and is a long, friction-full process.
+- Faster time to build pipelines: After extracting data, if you pass it to dlt, you are done. If not, it needs to be structured. Because structuring is hard, we curate it. Curation involves at least the producer, and consumer, but often also an analyst and the engineer, and is a long, friction-ful process.
 - Usage focus improves ROI.To use data, we need to understand what it is. Structured data already contains a technical description, accelerating usage.
 - Lower cost: Reading structured data is cheaper and faster because we can specify which parts of a document we want to read.
-- Removing friction: By alerting schema changes to the producer and stakeholder, and by automating structuring, we can keep the data engineer out of curation and remove the bottlneck. [notify maintenance events](../running-in-production/running#inspect-save-and-alert-on-schema-changes)
+- Removing friction: By alerting schema changes to the producer and stakeholder, and by automating structuring, we can keep the data engineer out of curation and remove the bottleneck. [notify maintenance events](../running-in-production/running#inspect-save-and-alert-on-schema-changes)
 - Improving quality. No more garbage in, garbage out. Because dlt structures data and alerts schema changes, we can have better governance.
 
 ## dlt makes your team happy.
 
 - Spend more time using data, less time loading it. When you build a dlt pipeline, you only build the extraction part, automating the tedious structuring and loading.
 - Data meshing to reduce friction: By structuring data before loading, the engineer is no longer involved in curation. This makes both the engineer and the others happy.
-- Better governance with end to end pipelining via dbt: [run dbt packges on the fly](../using-loaded-data/transforming-the-data#transforming-the-data-using-dbt). [lineage out of the box](../using-loaded-data/understanding-the-tables).
+- Better governance with end to end pipelining via dbt: [run dbt packages on the fly](../using-loaded-data/transforming-the-data#transforming-the-data-using-dbt). [lineage out of the box](../using-loaded-data/understanding-the-tables).
 - Zero learning curve: Declarative loading, simple functional programming: By using dlt's declarative, standard approach to loading data, there is no complicated code to maintain, and the analysts can thus maintain the code.
 - Autonomy and Self service: Customising pipelines is easy, whether you want to plug an anonymiser, rename things, or curate what you load. [Anonymisers, renamers](../customizations/customizing-pipelines/pseudonymizing_columns),
 - Easy discovery and governance: By tracking metadata like data lineage, describing data with schemas, and alerting changes, we stay on top of the data.
