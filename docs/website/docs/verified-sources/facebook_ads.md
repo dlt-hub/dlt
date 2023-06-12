@@ -254,7 +254,7 @@ def facebook_insights(
     ) -> Iterator[TDataItems]:
 ```
 
-**`date_start`**: parameter is used to set the initial value for the “date_start” parameter in _dlt.sources.incremental_. This parameter is equal to the “date_start” in the last pipeline run or defaults to today's date minus the number of days set in the “initial_load_past_days” parameter in the source method.
+**`date_start`**: parameter is used to set the initial value for the “date_start” parameter in *dlt.sources.incremental*. This parameter is equal to the “date_start” in the last pipeline run or defaults to today's date minus the number of days set in the “initial_load_past_days” parameter in the source method.
 
 ### **Create Your Data Loading Pipeline**
 
@@ -299,7 +299,7 @@ To create your data-loading pipeline follow the following steps:
     load_info = pipeline.run(load_data.with_resources("ads"), write_disposition="merge")
     print(load_info)
     ```
-    In the above steps, we first load the “ads” data with the “DISAPPROVED” state in replace mode and then merge the ads data with the “PAUSED” state on that.
+    In the above steps, we first load the “ads” data with the “DISAPPROVED” state in _replace_ mode and then merge the ads data with the “PAUSED” state on that.
 
 4. To load data with a custom field, for example, to load only “id” from Facebook ads, you can do the following:
 
@@ -314,7 +314,8 @@ To create your data-loading pipeline follow the following steps:
 5. This pipeline includes an enrichment transformation called **`enrich_ad_objects`** that you can apply to any resource to obtain additional data per object using **`object.get_api`**. The following code demonstrates how to enrich objects by adding an enrichment transformation that includes additional fields.
 
     ```python
-    load_data = facebook_ads_source(chunk_size=2) # You can reduce the chunk size for smaller requests
+    # You can reduce the chunk size for smaller requests
+    load_data = facebook_ads_source(chunk_size=2)
 
     # Request only the "id" field for ad_creatives
     load_data.ad_creatives.bind(fields=("id",))
@@ -331,16 +332,15 @@ To create your data-loading pipeline follow the following steps:
     print(load_info)
     ```
 
-    In the above code, the "_load_data_" object represents the Facebook Ads source, and we specify the desired chunk size for the requests. We then bind the "_id_" field for the "_ad_creatives_" resource using the "_bind()_" method.
+    In the above code, the "load_data" object represents the Facebook Ads source, and we specify the desired chunk size for the requests. We then bind the "id" field for the "ad_creatives" resource using the "bind()" method.
 
-    To enrich the ad_creatives objects, we add a transformation using the "_add_step()_" method. The "_enrich_ad_objects_" function is used to specify the AdCreative object type and request the fields defined in "_DEFAULT_ADCREATIVE_FIELDS_".
+    To enrich the ad_creatives objects, we add a transformation using the "add_step()" method. The "enrich_ad_objects" function is used to specify the AdCreative object type and request the fields defined in _DEFAULT_ADCREATIVE_FIELDS_.
 
     Finally, we run the pipeline with the ad_creatives resource and store the load information in the `load_info`.
 
 6. You can load the insights reports incrementally with defined granularity levels, fields, breakdowns etc. As defined in the facebook_insights_source. To load the data from the past 7 days in time increments of 1 day you can do as follows:
     ```python
     load_data = facebook_insights_source(initial_load_past_days=7, time_increment_days=7)
-
     load_info = pipeline.run(load_data)
     print(load_info)
     ```
