@@ -42,6 +42,7 @@ const sidebars = {
         'verified-sources/shopify',
         'verified-sources/sql_database',
         'verified-sources/strapi',
+        'verified-sources/stripe',
         'verified-sources/zendesk',
       ],
     },
