@@ -36,15 +36,7 @@ class SecretFormats(Enum):
     env = "env"
     toml = "toml"
 
-def deploy_command(
-    pipeline_script_path: str,
-    deployment_method: str,
-    schedule: Optional[str],
-    run_on_push: bool,
-    run_on_dispatch: bool,
-    repo_location: str,
-    branch: Optional[str] = None,
-    secret_format: Optional[str] = None,
+def deploy_command(deployment_method: str, **kwargs: Any
 ) -> None:
 
     # get current repo local folder
@@ -56,13 +48,7 @@ def deploy_command(
     else:
         raise ValueError(f"Deployment method '{deployment_method}' is not supported. Only {', '.join([m.value for m in DeploymentMethods])} are available.'")
 
-    deployment_class(pipeline_script_path=pipeline_script_path,
-            schedule=schedule,
-            run_on_push=run_on_push,
-            run_on_dispatch=run_on_dispatch,
-            repo_location=repo_location,
-            branch=branch,
-            secrets_format=secret_format).run_deployment()
+    deployment_class(**kwargs).run_deployment()
 
 
 class GithubActionDeployment(BaseDeployment):

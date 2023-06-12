@@ -42,15 +42,7 @@ def list_verified_sources_command_wrapper(repo_location: str, branch: str) -> in
 
 
 @utils.track_command("deploy", False, "deployment_method")
-def deploy_command_wrapper(
-    pipeline_script_path: str,
-    deployment_method: str,
-    schedule: Optional[str],
-    run_on_push: bool,
-    run_on_dispatch: bool,
-    repo_location: str,
-    branch: Optional[str],
-    secrets_format: Optional[str]) -> int:
+def deploy_command_wrapper(**kwargs: Any) -> int:
     try:
         utils.ensure_git_command("deploy")
     except Exception as ex:
@@ -59,7 +51,7 @@ def deploy_command_wrapper(
 
     from git import InvalidGitRepositoryError, NoSuchPathError
     try:
-        deploy_command(pipeline_script_path, deployment_method, schedule, run_on_push, run_on_dispatch, repo_location, branch, secrets_format)
+        deploy_command(**kwargs)
     except (CannotRestorePipelineException, PipelineWasNotRun) as ex:
         click.secho(str(ex), err=True, fg="red")
         fmt.note("You must run the pipeline locally successfully at least once in order to deploy it.")
@@ -67,7 +59,7 @@ def deploy_command_wrapper(
         return -1
     except InvalidGitRepositoryError:
         click.secho(
-            "No git repository found for pipeline script %s." % fmt.bold(pipeline_script_path),
+            "No git repository found for pipeline script %s." % fmt.bold(kwargs["pipeline_script_path"]),
             err=True,
             fg="red"
         )
@@ -197,19 +189,22 @@ def main() -> int:
     init_cmd.add_argument("--branch", default=None, help="Advanced. Uses specific branch of the init repository to fetch the template.")
     init_cmd.add_argument("--generic", default=False, action="store_true", help="When present uses a generic template with all the dlt loading code present will be used. Otherwise a debug template is used that can be immediately run to get familiar with the dlt sources.")
 
+    # deploy
     deploy_cmd = subparsers.add_parser("deploy", help="Creates a deployment package for a selected pipeline script")
     deploy_cmd.add_argument("pipeline_script_path", metavar="pipeline-script-path", help="Path to a pipeline script")
     deploy_cmd.add_argument("--schedule", required=False, help="A schedule with which to run the pipeline, in cron format. Example: '*/30 * * * *' will run the pipeline every 30 minutes.")
-    deploy_cmd.add_argument("--run-manually", default=True, action="store_true", help="Allows the pipeline to be run manually form Github Actions UI.")
-    deploy_cmd.add_argument("--run-on-push", default=False, action="store_true", help="Runs the pipeline with every push to the repository.")
     deploy_cmd.add_argument("--location", default=COMMAND_DEPLOY_REPO_LOCATION, help="Advanced. Uses a specific url or local path to pipelines repository.")
     deploy_cmd.add_argument("--branch", default=None, help="Advanced. Uses specific branch of the deploy repository to fetch the template.")
     deploy_sub_parsers = deploy_cmd.add_subparsers(dest="deployment_method")
 
-    deploy_sub_parsers.add_parser(DeploymentMethods.github_actions.value, help="Deploys the pipeline to Github Actions")
-    deploy_airlow_cmd = deploy_sub_parsers.add_parser(DeploymentMethods.airflow_composer.value, help="Deploys the pipeline to Airflow")
+    # deploy github actions
+    deploy_github_cmd = deploy_sub_parsers.add_parser(DeploymentMethods.github_actions.value, help="Deploys the pipeline to Github Actions")
+    deploy_github_cmd.add_argument("--run-manually", default=True, action="store_true", help="Allows the pipeline to be run manually form Github Actions UI.")
+    deploy_github_cmd.add_argument("--run-on-push", default=False, action="store_true", help="Runs the pipeline with every push to the repository.")
 
-    deploy_airlow_cmd.add_argument("--secrets-format", default=SecretFormats.env, choices=[v.value for v in SecretFormats.__members__.values()], required=True, help="Format of the secrets")
+    # deploy airflow composer
+    deploy_airlow_cmd = deploy_sub_parsers.add_parser(DeploymentMethods.airflow_composer.value, help="Deploys the pipeline to Airflow")
+    deploy_airlow_cmd.add_argument("--secrets-format", default=SecretFormats.env, choices=[v.value for v in SecretFormats.__members__.values()], required=False, help="Format of the secrets")
 
     schema = subparsers.add_parser("schema", help="Shows, converts and upgrades schemas")
     schema.add_argument("file", help="Schema file name, in yaml or json format, will autodetect based on extension")
@@ -286,7 +281,7 @@ def main() -> int:
             else:
                 return init_command_wrapper(args.source, args.destination, args.generic, args.location, args.branch)
     elif args.command == "deploy":
-        return deploy_command_wrapper(args.pipeline_script_path, args.deployment_method, args.schedule, args.run_on_push, args.run_manually, args.location, args.branch, args.secrets_format)
+        return deploy_command_wrapper(**vars(args))
     elif args.command == "telemetry":
         return telemetry_status_command_wrapper()
     else:

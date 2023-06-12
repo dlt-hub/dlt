@@ -37,18 +37,19 @@ class BaseDeployment(abc.ABC):
     def __init__(
         self,
         pipeline_script_path: str,
+        location: str,
         schedule: Optional[str],
-        run_on_push: bool,
-        run_on_dispatch: bool,
-        repo_location: str,
+        run_on_push: bool = False,
+        run_on_dispatch: bool = False,
         branch: Optional[str] = None,
         secrets_format: Optional[str] = None,
+        **_kwargs: Any
     ):
         self.pipeline_script_path = pipeline_script_path
         self.schedule = schedule
         self.run_on_push = run_on_push
         self.run_on_dispatch = run_on_dispatch
-        self.repo_location = repo_location
+        self.repo_location = location
         self.branch = branch
         self.secrets_format = secrets_format
 
