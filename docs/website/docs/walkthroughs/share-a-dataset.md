@@ -5,14 +5,18 @@ keywords: [how to, share a dataset]
 ---
 
 # Share a dataset: duckdb -> BigQuery
-In previous walkthroughs you used the local stack to create and run your pipeline. This saved you the headache of setting up cloud account, credentials and often also money. Our choice for local "warehouse" is `duckdb`, fast, feature rich and working everywhere. However at some point you want to move to production or share the results with your colleagues. The local `duckdb` file is not sufficient for that! Let's move the dataset to BigQuery now.
+In previous walkthroughs you used the local stack to create and run your pipeline. This saved you the headache of setting up cloud account, credentials and often also money. Our choice for local "warehouse" is `duckdb`, fast, feature rich and working everywhere. However at some point you want to move to production or share the results with your colleagues. The local `duckdb` file is not sufficient for that! Let's move a [dataset for chess.com api we have already](run-a-pipeline.md) to BigQuery:
 
 ## 1. Replace the "destination" argument with "bigquery"
 ```python
-if __name__=='__main__':
+import dlt
+from chess import chess
 
-    # below we replaced "duckdb" in the "destination" argument with "bigquery"
-    pipeline = dlt.pipeline(pipeline_name='weatherapi', destination='bigquery', dataset_name='weatherapi_data')
+if __name__ == "__main__" :
+    pipeline = dlt.pipeline(pipeline_name="chess_pipeline", destination='bigquery', dataset_name="games_data")
+    # get data for a few famous players
+    data = chess(['magnuscarlsen', 'rpragchess'], start_month="2022/11", end_month="2022/12")
+    load_info = pipeline.run(data)
 ```
 And that's it regarding the code modifications! If you run the script, `dlt` will create identical dataset you had in `duckdb` but in BigQuery.
 
@@ -32,7 +36,7 @@ client_email = "client_email" # please set me up!
 
 ## 4. Run the pipeline again
 ```
-python weatherapi.py
+python chess_pipeline.py
 ```
 Head on to the next section if you see exceptions!
 
@@ -43,8 +47,8 @@ You'll see this exception if `dlt` cannot find your bigquery credentials. In the
 ```
 dlt.common.configuration.exceptions.ConfigFieldMissingException: Following fields are missing: ['project_id', 'private_key', 'client_email'] in configuration with spec GcpServiceAccountCredentials
         for field "project_id" config providers and keys were tried in following order:
-                In Environment Variables key WEATHERAPI__DESTINATION__BIGQUERY__CREDENTIALS__PROJECT_ID was not found.
-                In Environment Variables key WEATHERAPI__DESTINATION__CREDENTIALS__PROJECT_ID was not found.
+                In Environment Variables key CHESS__DESTINATION__BIGQUERY__CREDENTIALS__PROJECT_ID was not found.
+                In Environment Variables key CHESS__DESTINATION__CREDENTIALS__PROJECT_ID was not found.
 ```
 The most common cases for the exception:
 1. The secrets are not in `secrets.toml` at all
@@ -53,14 +57,14 @@ The most common cases for the exception:
 [destination.bigquery]
 project_id = "project_id" # please set me up!
 ```
-3. You run the pipeline script from the **different** folder from which it is saved. For example `python weatherapi_demo/weatherapi.py` will run the script from `weatherapi_demo` folder but the current working directory is folder above. This prevents `dlt` from finding `weatherapi_demo/.dlt/secrets.toml` and filling-in credentials.
+3. You run the pipeline script from the **different** folder from which it is saved. For example `python chess_demo/chess_pipeline.py.py` will run the script from `chess_demo` folder but the current working directory is folder above. This prevents `dlt` from finding `chess_demo/.dlt/secrets.toml` and filling-in credentials.
 
 ### Placeholders still in secrets.toml
 Here BigQuery complain that the format of the `private_key` is incorrect. Practically this most often happens if you forgot to replace the placeholders in `secrets.toml` with real values
 
 ```
 <class 'dlt.destinations.exceptions.DestinationConnectionError'>
-Connection with BigQuerySqlClient to dataset name weatherapi_data failed. Please check if you configured the credentials at all and provided the right credentials values. You can be also denied access or your internet connection may be down. The actual reason given is: No key could be detected.
+Connection with BigQuerySqlClient to dataset name games_data failed. Please check if you configured the credentials at all and provided the right credentials values. You can be also denied access or your internet connection may be down. The actual reason given is: No key could be detected.
 ```
 
 ### Bigquery not enabled
@@ -88,7 +92,7 @@ Job ID: c1476d2c-883c-43f7-a5fe-73db195e7bcd
 Add `BigQuery Data Editor` as described in the [destination page](../destinations/bigquery.md).
 ```
 <class 'dlt.destinations.exceptions.DatabaseTransientException'>
-403 Access Denied: Table bq-walkthrough:weatherapi_data._dlt_loads: User does not have permission to query table bq-walkthrough:weatherapi_data._dlt_loads, or perhaps it does not exist in location EU.
+403 Access Denied: Table bq-walkthrough:games_data._dlt_loads: User does not have permission to query table bq-walkthrough:games_data._dlt_loads, or perhaps it does not exist in location EU.
 
 Location: EU
 Job ID: 299a92a3-7761-45dd-a433-79fdeb0c1a46
@@ -103,6 +107,6 @@ Job ID: 299a92a3-7761-45dd-a433-79fdeb0c1a46
 or
 
 ```
-2023-06-08 16:16:26,769|[WARNING              ]|8096|dlt|load.py|complete_jobs:198|Job for weatherapi_resource_83b8ac9e98_4_jsonl retried in load 1686233775.932288 with message {"error_result":{"reason":"billingNotEnabled","message":"Billing has not been enabled for this project. Enable billing at https://console.cloud.google.com/billing. Table expiration time must be less than 60 days while in sandbox mode."},"errors":[{"reason":"billingNotEnabled","message":"Billing has not been enabled for this project. Enable billing at https://console.cloud.google.com/billing. Table expiration time must be less than 60 days while in sandbox mode."}],"job_start":"2023-06-08T14:16:26.850000Z","job_end":"2023-06-08T14:16:26.850000Z","job_id":"weatherapi_resource_83b8ac9e98_4_jsonl"}
+2023-06-08 16:16:26,769|[WARNING              ]|8096|dlt|load.py|complete_jobs:198|Job for players_games_83b8ac9e98_4_jsonl retried in load 1686233775.932288 with message {"error_result":{"reason":"billingNotEnabled","message":"Billing has not been enabled for this project. Enable billing at https://console.cloud.google.com/billing. Table expiration time must be less than 60 days while in sandbox mode."},"errors":[{"reason":"billingNotEnabled","message":"Billing has not been enabled for this project. Enable billing at https://console.cloud.google.com/billing. Table expiration time must be less than 60 days while in sandbox mode."}],"job_start":"2023-06-08T14:16:26.850000Z","job_end":"2023-06-08T14:16:26.850000Z","job_id":"players_games_83b8ac9e98_4_jsonl"}
 ```
 you must enable the billing.
