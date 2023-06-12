@@ -809,3 +809,64 @@ html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(8)>div>[
 }
 
 /* responsive css :end */
+
+/* continue modal css :start */
+
+.overlayButton {
+  color: white;
+  background-color: var(--ifm-color-primary);
+  border-radius: 8px;
+  margin-right: 2px;
+  margin-left: 10px;
+  padding: 6px 10px 6px 10px;
+  display: flex;
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 1000;
+  position: fixed;
+}
+
+.overlayButton:hover {
+  background-color: var(--ifm-navbar-link-hover-color);
+  color: white;
+  text-decoration: none;
+}
+
+.dhelpButton {
+  bottom: 70px;
+}
+
+.overlayContent {
+  position: fixed;
+  width: 700px;
+  height: 500px;
+  left:0px;
+  top:0px;
+  background-color: white;
+  z-index: 1002;
+  left: calc(50% - 350px);
+  top: calc(50% - 250px);
+}
+
+.overlayBackground {
+  display: block;
+  position: fixed;
+  width: 100%;
+  height: 100%;
+  background-color: black;
+  top:0px;
+  left:0px;
+  opacity: 60%;
+  z-index: 1001;
+}
+
+.overlayContent {
+  background-color: white;
+}
+
+.overlayHidden {
+  display: none;
+}
+
+/* continue modal css :end */
