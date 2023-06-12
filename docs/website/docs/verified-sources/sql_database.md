@@ -11,7 +11,7 @@ To get started with this verified source, follow these steps:
 1. Open up your terminal or command prompt and navigate to the directory where you'd like to create your project.
 2. Enter the following command:
 
-```
+```shell
 dlt init sql_database bigquery
 ```
 
@@ -19,7 +19,7 @@ This command will initialize your verified source with SQL Database and creates 
 
 3. After running this command, a new directory will be created with the necessary files and configuration settings to get started.
 
-```python
+```
 sql_database_source
 ├── .dlt
 │   ├── config.toml
@@ -38,28 +38,28 @@ sql_database_source
 1. Inside the **`.dlt`** folder, you'll find a file called **`secrets.toml`**, which is where you can securely store credentials and other sensitive information. It's important to handle this file with care and keep it safe.
 2. To proceed with this demo, we will establish credentials using the provided connection URL given below. The connection URL is associated with a public database and is as follows:
     
-    `connection_url = "mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam"`
+  `connection_url = "mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam"`
     
 
-Here's what the `secrets.toml` looks like
+  Here's what the `secrets.toml` looks like
 
-```toml
-# Put your secret values and credentials here. do not share this file and do not push it to github
-# We will set up creds with the connection URL given below, which is a public database
+  ```toml
+  # Put your secret values and credentials here. do not share this file and do not push it to github
+  # We will set up creds with the connection URL given below, which is a public database
 
-# The credentials are as: 
-drivername = "mysql+pymysql" # driver name for the database
-database = "Rfam" # database name
-username = "rfamro" # username associated with the database
-host = "mysql-rfam-public.ebi.ac.uk" # host address
-port = "4497" # port required for connection
+  # The credentials are as: 
+  drivername = "mysql+pymysql" # driver name for the database
+  database = "Rfam" # database name
+  username = "rfamro" # username associated with the database
+  host = "mysql-rfam-public.ebi.ac.uk" # host address
+  port = "4497" # port required for connection
 
-[destination.bigquery.credentials]
-project_id = "project_id" # GCP project ID
-private_key = "private_key" # Unique private key (including `BEGIN and END PRIVATE KEY`)
-client_email = "client_email" # Service account email
-location = "US" # Project location (e.g. “US”)
-```
+  [destination.bigquery.credentials]
+  project_id = "project_id" # GCP project ID
+  private_key = "private_key" # Unique private key (including `BEGIN and END PRIVATE KEY`)
+  client_email = "client_email" # Service account email
+  location = "US" # Project location (e.g. “US”)
+  ```
 
 4. Finally, follow the instructions in **[Destinations](https://dlthub.com/docs/destinations/duckdb)** to add credentials for your chosen destination. This will ensure that your data is properly routed to its final destination.
 
@@ -87,7 +87,7 @@ To load data to the destination using this verified source, you have the option 
 
 `dlt` works on the principle of [sources](https://dlthub.com/docs/general-usage/source) and [resources](https://dlthub.com/docs/general-usage/resource) that for this verified source are found in the `__init__.py` file within the *sql_database* directory. This SQL Database verified source has the following default methods that form the basis of loading. The methods are:
 
-**Source** **sql_database_source:**
+#### Source sql_database:
 
 ```python
 @dlt.source
@@ -106,7 +106,7 @@ def sql_database(
 
 This function utilizes SQLAlchemy to load data from an SQL database. It automatically generates resources for each table within the specified schema or based on a provided list of tables.
 
-**Resource** **sql_table_source:**
+#### Resource sql_table:
 
 ```python
 @dlt.common.configuration.with_config(
