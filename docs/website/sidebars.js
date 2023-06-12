@@ -33,6 +33,7 @@ const sidebars = {
       items: [
         'verified-sources/asana',
         'verified-sources/chess',
+        'verified-sources/facebook_ads',
         'verified-sources/github',
         'verified-sources/google_analytics',
         'verified-sources/google_sheets',
