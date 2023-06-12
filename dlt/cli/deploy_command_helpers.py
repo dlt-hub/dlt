@@ -41,7 +41,8 @@ class BaseDeployment(abc.ABC):
         run_on_push: bool,
         run_on_dispatch: bool,
         repo_location: str,
-        branch: Optional[str] = None
+        branch: Optional[str] = None,
+        secrets_format: Optional[str] = None,
     ):
         self.pipeline_script_path = pipeline_script_path
         self.schedule = schedule
@@ -49,6 +50,7 @@ class BaseDeployment(abc.ABC):
         self.run_on_dispatch = run_on_dispatch
         self.repo_location = repo_location
         self.branch = branch
+        self.secrets_format = secrets_format
 
         self.pipelines_dir: Optional[str] = None
         self.pipeline_name: Optional[str] = None
