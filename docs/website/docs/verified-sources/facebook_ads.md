@@ -53,6 +53,7 @@ To retrieve the expiry date and the associated scopes of the token, you can use 
 from facebook_ads.fb import debug_access_token
 debug_access_token()
 ```
+We strongly advice you to add the token expiration timestamp to get notified a week before token expiration that you need to rotate it. Right now the notifications are sent to logger with error level. In config.toml / secrets.toml:
 
 ```toml
 [sources.facebook_ads]
@@ -68,7 +69,7 @@ To get started with your data verified source, follow these steps:
     ```properties
     dlt init facebook_ads bigquery
     ```
-    This command will initialize your verified source with Facebook Marketing API and creates an example pipeline with BigQuery as the destination. If you'd like to use a different destination, simply replace **`bigquery`** with the name of your preferred destination. You can find supported destinations and their configuration options in our [documentation](https://dlthub.com/docs/destinations/duckdb)
+    This command will initialize your verified source with Facebook Marketing API and creates an example pipeline with BigQuery as the destination. If you'd like to use a different destination, simply replace **`bigquery`** with the name of your preferred destination. You can find supported destinations and their configuration options in our [documentation](https://dlthub.com/docs/destinations/duckdb).
 
 3. After running this command, a new directory will be created with the necessary files and configuration settings to get started.
 
@@ -95,11 +96,8 @@ To get started with your data verified source, follow these steps:
     Here's what the file looks like:
     ```toml
     # put your secret values and credentials here. do not share this file and do not push it to github
-    [sources.workable]
-    access_token = "access_token" # Your Workable token copied above
-    client_id = "enter your App ID here" # Enter the App ID copied above
-    client_secret = "enter your App secret here" # Enter the App secret copied above
-    access_token_expires_at="enter your access token expiry time stamp"
+   [sources.facebook_ads]
+    access_token="set me up!"
 
     [destination.bigquery.credentials]
     project_id = "project_id" # GCP project ID
@@ -116,7 +114,7 @@ To get started with your data verified source, follow these steps:
     Here's what the config.toml looks like:
     ```toml
     [sources.facebook_ads]
-    account_id = "1430280281077689" # please set me up!
+    account_id = "1430280281077689"
     ```
 
 6. Replace the value of the account id with the one copied above.
