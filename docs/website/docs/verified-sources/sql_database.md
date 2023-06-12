@@ -12,7 +12,6 @@ To get started with this verified source, follow these steps:
 2. Enter the following command:
 
 ```
-
 dlt init sql_database bigquery
 ```
 
@@ -52,8 +51,8 @@ Here's what the `secrets.toml` looks like
 drivername = "mysql+pymysql" # driver name for the database
 database = "Rfam" # database name
 username = "rfamro" # username associated with the database
-host="mysql-rfam-public.ebi.ac.uk" # host address
-port="4497" #port required for connection
+host = "mysql-rfam-public.ebi.ac.uk" # host address
+port = "4497" # port required for connection
 
 [destination.bigquery.credentials]
 project_id = "project_id" # GCP project ID
@@ -86,7 +85,7 @@ To load data to the destination using this verified source, you have the option 
 
 ### **Source and resource methods**
 
-`dlt` works on the principle of [sources](https://dlthub.com/docs/general-usage/source) and [resources](https://dlthub.com/docs/general-usage/resource) that for this verified source are found in the `__init__.py` file within the *sql_database* directory. This SQL Database verified source has the following default methods that form the basis of loading. The methods are :
+`dlt` works on the principle of [sources](https://dlthub.com/docs/general-usage/source) and [resources](https://dlthub.com/docs/general-usage/resource) that for this verified source are found in the `__init__.py` file within the *sql_database* directory. This SQL Database verified source has the following default methods that form the basis of loading. The methods are:
 
 **Source** **sql_database_source:**
 
@@ -124,7 +123,7 @@ def sql_table(
 
 - **`@dlt.common.configuration.with_config`**: This decorator indicates that the function will be using a configuration from the specified sections ("sources" and "sql_database") and will be using the _SqlTableResourceConfiguration_ specification for validation.
 - **`credentials`**: This parameter represents the credentials required to establish a connection with the SQL database. It can be either database credentials or an Engine instance.
-- **`table`**: This parameter specifies the name of the SQL table to be used as the data source. The value can be configured, using ****dlt.config.value.****
+- **`table`**: This parameter specifies the name of the SQL table to be used as the data source. The value can be configured, using _dlt.config.value_.
 - **`schema`**: This optional parameter specifies the schema of the SQL table. If not provided, the value from _dlt.config.value_ will be used.
 - **`metadata`**: This optional parameter allows passing a metadata object that provides information about the database's structure, such as table names, column names, and relationships. If not provided, it defaults to “None”.
 - **`incremental`**: This optional parameter is related to the incremental loading of data and is of type _dlt.sources.incremental[Any]_. It allows specifying an incremental loading for the data source, such as keeping track of the last processed record. If not provided, it defaults to “None”.
@@ -185,4 +184,4 @@ The method depicted above loads data using the "_sql_database_" source using the
 
 5. It's important to keep the pipeline name and destination dataset name unchanged. The pipeline name is crucial for retrieving the [state](https://dlthub.com/docs/general-usage/state) of the last pipeline run, which includes the end date needed for loading data incrementally. Modifying these names can lead to [“full_refresh”](https://dlthub.com/docs/general-usage/pipeline#do-experiments-with-full-refresh) which will disrupt the tracking of relevant metadata(state) for [incremental data loading](https://dlthub.com/docs/general-usage/incremental-loading).
 
-Thats it! Enjoy running your SQL Database DLT pipeline!
+That's it! Enjoy running your SQL Database DLT pipeline!
