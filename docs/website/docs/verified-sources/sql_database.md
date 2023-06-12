@@ -87,7 +87,7 @@ To load data to the destination using this verified source, you have the option 
 
 `dlt` works on the principle of [sources](https://dlthub.com/docs/general-usage/source) and [resources](https://dlthub.com/docs/general-usage/resource) that for this verified source are found in the `__init__.py` file within the *sql_database* directory. This SQL Database verified source has the following default methods that form the basis of loading. The methods are:
 
-#### Source sql_database:
+**Source sql_database**:
 
 ```python
 @dlt.source
@@ -106,7 +106,7 @@ def sql_database(
 
 This function utilizes SQLAlchemy to load data from an SQL database. It automatically generates resources for each table within the specified schema or based on a provided list of tables.
 
-#### Resource sql_table:
+**Resource sql_table:**
 
 ```python
 @dlt.common.configuration.with_config(
