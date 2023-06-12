@@ -111,7 +111,7 @@ client_email = "client_email" # Service account email
 location = "US" # Project location (e.g. “US”)
 ```
 
-2. Replace the value of **`access_token`** with the one that [you copied above](wokable.md#grab-api-token). This will ensure that your verified source can access your Workable resources securely.
+2. Replace the value of **`access_token`** with the one that [you copied above](facebook_ads.md#grab-credentials). This will ensure that your verified source can access your Workable resources securely.
 3. Next, follow the instructions in **[Destinations](https://dlthub.com/docs/destinations/duckdb)** to add credentials for your chosen destination. This will ensure that your data is properly routed to its final destination.
 4. It is strongly recommended to add the token expiration timestamp to your **`config.toml`** or **`secrets.toml`** file.
 5. Inside the **`.dlt`** folder, you'll find a file called **`config.toml`**, where you can securely store your pipeline configuration details. 
@@ -338,7 +338,7 @@ To enrich the ad_creatives objects, we add a transformation using the "_add_step
 
 Finally, we run the pipeline with the ad_creatives resource and store the load information in the `load_info`.
 
-6. You can load the insights reports incrementally with defined granularity levels, fields, breakdowns etc. As defined in the **facebook_insights_source.**To load the data from the past 7 days in time increments of 1 day you can do as follows:
+6. You can load the insights reports incrementally with defined granularity levels, fields, breakdowns etc. As defined in the facebook_insights_source. To load the data from the past 7 days in time increments of 1 day you can do as follows:
 
 ```python
 load_data = facebook_insights_source(initial_load_past_days=7, time_increment_days=7)
