@@ -70,7 +70,7 @@ In this example, the **`pipeline`** function is used to create a pipeline with t
 
 The data you can pass to it should be iterable: Lists of rows, generators, or dlt sources will do just fine.
 
-# **Extracting data with `dlt`**
+# Extracting data with `dlt`
 
 Extracting data with dlt is simple - you simply decorate your data-producing functions with loading or incremental extraction metadata, which enables dlt to extract and load by your custom logic.
 
@@ -79,7 +79,7 @@ Technically, two key aspects contribute to `**dlt**`'s effectiveness:
 - scalability through iterators, chunking, parallelization,
 - and the utilization of implicit extraction DAGs that allow efficient api calls for data enrichments or transformations
 
-## *Scalability via iterators, chunking, and parallelization:*
+## Scalability via iterators, chunking, and parallelization:
 
 **`dlt`** offers scalable data extraction by leveraging iterators, chunking, and parallelization techniques. This approach allows for efficient processing of large datasets by breaking them down into manageable chunks.
 
@@ -120,17 +120,18 @@ def github_repo_events():
 
 In this example, the **`github_repo_events`** resource uses the merge write disposition with **`primary_key="id"`**. This ensures that only one copy of each event, identified by its unique ID, is present in the **`github_repo_events`** table. **`dlt`** takes care of loading the data incrementally, deduplicating it, and performing the necessary merge operations.
 
-## *Advanced state management:*
+## Advanced state management:
 
 Advanced state management in **`dlt`** allows you to store and retrieve values across pipeline runs by persisting them at the destination but accessing them in a dictionary in code. This enables you to track and manage incremental loading effectively. By leveraging the pipeline state, you can preserve information, such as last values, checkpoints or column renames, and utilize them later in the pipeline.
 
-# **Transforming the Data**
+# Transforming the Data
 
 Data transformation plays a crucial role in the data loading process. You can perform transformations both before and after loading the data. Here's how you can achieve it:
 
 ## Before Loading:
 
-Before loading the data, you have the flexibility to perform transformations using Python. You can leverage Python's extensive libraries and functions to manipulate and preprocess the data as needed. Here's an example of pseudonymizing columns before loading the data
+Before loading the data, you have the flexibility to perform transformations using Python. You can leverage Python's extensive libraries and functions to manipulate and preprocess the data as needed.
+Here's an example of [pseudonymizing_columns](/docs/general-usage/customising-pipelines/pseudonymizing_columns.md) before loading the data.
 
 In the above example, the **`pseudonymize_name`** function pseudonymizes the **`name`** column by generating a deterministic hash using SHA256. It adds a salt to the column value to ensure consistent mapping. The **`dummy_source`** generates dummy data with an **`id`** and **`name`** column, and the **`add_map`** function applies the **`pseudonymize_name`** transformation to each record.
 
@@ -138,7 +139,7 @@ In the above example, the **`pseudonymize_name`** function pseudonymizes the **`
 
 for transformations after loading the data, you have several options available:
 
-### **Using dbt**:
+### Using dbt:
 
 dbt is a powerful framework for transforming data. It enables you to structure your transformations into DAGs, providing cross-database compatibility and various features such as templating, backfills, testing, and troubleshooting. You can use the dbt runner in **`dlt`** to seamlessly integrate dbt into your pipeline. Here's an example of running a dbt package after loading the data:
 
@@ -166,7 +167,7 @@ for m in models:
 
 In this example, the first pipeline loads the data using **`pipedrive_source()`**. The second pipeline performs transformations using a dbt package called **`pipedrive`** after loading the data. The **`dbt.package`** function sets up the dbt runner, and **`dbt.run_all()`** executes the dbt models defined in the package.
 
-### **Using the dlt SQL client**:
+### Using the dlt SQL client:
 
 Another option is to leverage the dlt SQL client to query the loaded data and perform transformations using SQL statements. You can execute SQL statements that change the database schema or manipulate data within tables. Here's an example of inserting a row into the **`customers`** table using the dlt SQL client:
 
@@ -181,7 +182,7 @@ with pipeline.sql_client() as client:
 
 In this example, the **`execute_sql`** method of the SQL client allows you to execute SQL statements. The statement inserts a row with values into the **`customers`** table.
 
-### **Using Pandas**:
+### Using Pandas:
 
 You can fetch query results as Pandas data frames and perform transformations using Pandas functionalities. Here's an example of reading data from the **`issues`** table in DuckDB and counting reaction types using Pandas:
 
@@ -205,7 +206,7 @@ To streamline the process, dlt recommends attaching schemas to sources implicitl
 
 By adjusting the automated normalization process in dlt, you can ensure that the generated database schema meets your specific requirements and aligns with your preferred naming conventions, data types, and other customization needs.
 
-## **Customizing the Normalization Process**
+## Customizing the Normalization Process
 
 Customizing the normalization process in dlt allows you to adapt it to your specific requirements.
 
@@ -215,29 +216,29 @@ These customization options enable you to create a schema that aligns with your 
 
 Read more about how to configure [schema generation](./general-usage/schema)
 
-## **Exporting and Importing Schema Files**
+## Exporting and Importing Schema Files
 
 dlt allows you to export and import schema files, which contain the structure and instructions for processing and loading the data. Exporting schema files enables you to modify them directly, making adjustments to the schema as needed. You can then import the modified schema files back into dlt to use them in your pipeline.
 
 Read more: [Adjust a schema docs](./walkthroughs/adjust-a-schema)
 
-# **Governance Support in dlt Pipelines**
+# Governance Support in dlt Pipelines
 
 dlt pipelines offer robust governance support through three key mechanisms: pipeline metadata utilization, schema enforcement and curation, and schema change alerts.
 
-## **Pipeline Metadata**
+## Pipeline Metadata
 
 dlt pipelines leverage metadata to provide governance capabilities. This metadata includes load IDs, which consist of a timestamp and pipeline name. Load IDs enable incremental transformations and data vaulting by tracking data loads and facilitating data lineage and traceability.
 
 Read more about [lineage](./dlt-ecosystem/visualizations/understanding-the-tables#load-ids)
 
-## **Schema Enforcement and Curation**
+## Schema Enforcement and Curation
 
 dlt empowers users to enforce and curate schemas, ensuring data consistency and quality. Schemas define the structure of normalized data and guide the processing and loading of data. By adhering to predefined schemas, pipelines maintain data integrity and facilitate standardized data handling practices.
 
 Read more: [Adjust a schema docs](./walkthroughs/adjust-a-schema)
 
-## **Schema evolution**
+## Schema evolution
 
 dlt enables proactive governance by alerting users to schema changes. When modifications occur in the source data’s schema, such as table or column alterations, dlt notifies stakeholders, allowing them to take necessary actions, such as reviewing and validating the changes, updating downstream processes, or performing impact analysis.
 
@@ -255,7 +256,7 @@ If you can, yield pages when producing data. This makes some processes more effe
 
 dlt likes resources that yield data because it can request data into a buffer before processing and releasing it. This makes it possible to manage the amount of resources used. In order to configure this option, you can specify buffer size via env variables or by adding to the config.toml
 
-globally: `DATA_WRITER__BUFFER_MAX_ITEMS`=100
+globally: `DATA_WRITER__BUFFER_MAX_ITEMS=100`
 
 or specifically:
 
