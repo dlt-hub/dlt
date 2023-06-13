@@ -99,7 +99,7 @@ if __name__ == "__main__":
 
 ```
 
-## Run the pipeline[](https://dlthub.com/docs/pipelines/strapi#run-the-pipeline)
+## Run the pipeline[](https://dlthub.com/docs/dlt-ecosystem/verified-sources/strapi#run-the-pipeline)
 
 1. Install the necessary dependencies by running the following command:
 
@@ -113,7 +113,7 @@ if __name__ == "__main__":
 
 `dlt pipeline <pipeline_name> show` (For example, the pipeline_name for the above pipeline is `Matomo`, you may also use any custom name instead)
 
-## Customizations[](https://dlthub.com/docs/pipelines/strapi#run-the-pipeline)
+## Customizations[](https://dlthub.com/docs/dlt-ecosystem/verified-sources/strapi#run-the-pipeline)
 
 If you want to load custom reports created in Matomo into your pipeline, you can use the **`run_custom_reports()`** method provided in the pipeline.
 

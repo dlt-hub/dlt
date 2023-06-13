@@ -88,6 +88,7 @@ const sidebars = {
           items: [
             'dlt-ecosystem/verified-sources/asana',
             'dlt-ecosystem/verified-sources/chess',
+            'dlt-ecosystem/verified-sources/facebook_ads',
             'dlt-ecosystem/verified-sources/github',
             'dlt-ecosystem/verified-sources/google_analytics',
             'dlt-ecosystem/verified-sources/google_sheets',
@@ -95,7 +96,10 @@ const sidebars = {
             'dlt-ecosystem/verified-sources/matomo',
             'dlt-ecosystem/verified-sources/pipedrive',
             'dlt-ecosystem/verified-sources/shopify',
+            'dlt-ecosystem/verified-sources/sql_database',
             'dlt-ecosystem/verified-sources/strapi',
+            'dlt-ecosystem/verified-sources/stripe',
+            'dlt-ecosystem/verified-sources/workable',
             'dlt-ecosystem/verified-sources/zendesk',
           ]
         },

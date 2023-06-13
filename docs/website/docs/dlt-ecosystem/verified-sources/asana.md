@@ -93,7 +93,7 @@ if __name__ == "__main__":
 
 Please remember to save the file once you have made the necessary changes.
 
-## Run the pipeline[](https://dlthub.com/docs/pipelines/strapi#run-the-pipeline)
+## Run the pipeline[](https://dlthub.com/docs/dlt-ecosystem/verified-sources/strapi#run-the-pipeline)
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by running the command:
 
