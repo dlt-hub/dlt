@@ -421,3 +421,7 @@ def compressed_b64decode(value: str) -> bytes:
     """Decode a bytestring encoded with `compressed_b64encode`"""
     value_bytes = base64.b64decode(value, validate=True)
     return zlib.decompress(value_bytes)
+
+
+def identity(x: TAny) -> TAny:
+    return x

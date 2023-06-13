@@ -15,25 +15,16 @@ from dlt.common.configuration.container import Container
 
 from dlt.extract.extract import ExtractorStorage
 from dlt.normalize import Normalize
-from dlt.destinations.duckdb import capabilities as duck_insert_caps
-from dlt.destinations.redshift import capabilities as rd_insert_caps
-from dlt.destinations.postgres import capabilities as pg_insert_caps
-from dlt.destinations.bigquery import capabilities as jsonl_caps
 
 from tests.cases import JSON_TYPED_DICT, JSON_TYPED_DICT_TYPES
-from tests.utils import TEST_STORAGE_ROOT, TEST_DICT_CONFIG_PROVIDER, assert_no_dict_key_starts_with, clean_test_storage, init_test_logging
-from tests.normalize.utils import json_case_path
-
-
-INSERT_CAPS = [duck_insert_caps, rd_insert_caps, pg_insert_caps]
-JSONL_CAPS = [jsonl_caps]
-ALL_CAPS = INSERT_CAPS + JSONL_CAPS
+from tests.utils import TEST_DICT_CONFIG_PROVIDER, assert_no_dict_key_starts_with, clean_test_storage, init_test_logging
+from tests.normalize.utils import json_case_path, INSERT_CAPS, JSONL_CAPS, DEFAULT_CAPS, ALL_CAPABILITIES
 
 
 @pytest.fixture(scope="module", autouse=True)
 def default_caps() -> Iterator[DestinationCapabilitiesContext]:
     # set the postgres caps as default for the whole module
-    with Container().injectable_context(pg_insert_caps()) as caps:
+    with Container().injectable_context(DEFAULT_CAPS()) as caps:
         yield caps
 
 
@@ -196,19 +187,19 @@ def test_normalize_many_events(caps: DestinationCapabilitiesContext, rasa_normal
     assert f"{load_id}" in event_text
 
 
-@pytest.mark.parametrize("caps", ALL_CAPS, indirect=True)
+@pytest.mark.parametrize("caps", ALL_CAPABILITIES, indirect=True)
 def test_normalize_raw_no_type_hints(caps: DestinationCapabilitiesContext, raw_normalize: Normalize) -> None:
     normalize_event_user(raw_normalize, "event.event.user_load_1", EXPECTED_USER_TABLES)
     assert_timestamp_data_type(raw_normalize.load_storage, "double")
 
 
-@pytest.mark.parametrize("caps", ALL_CAPS, indirect=True)
+@pytest.mark.parametrize("caps", ALL_CAPABILITIES, indirect=True)
 def test_normalize_raw_type_hints(caps: DestinationCapabilitiesContext, rasa_normalize: Normalize) -> None:
     extract_and_normalize_cases(rasa_normalize, ["event.event.user_load_1"])
     assert_timestamp_data_type(rasa_normalize.load_storage, "timestamp")
 
 
-@pytest.mark.parametrize("caps", ALL_CAPS, indirect=True)
+@pytest.mark.parametrize("caps", ALL_CAPABILITIES, indirect=True)
 def test_normalize_many_schemas(caps: DestinationCapabilitiesContext, rasa_normalize: Normalize) -> None:
     extract_cases(
         rasa_normalize.normalize_storage,
@@ -234,7 +225,7 @@ def test_normalize_many_schemas(caps: DestinationCapabilitiesContext, rasa_norma
     assert set(schemas) == set(["ethereum", "event"])
 
 
-@pytest.mark.parametrize("caps", ALL_CAPS, indirect=True)
+@pytest.mark.parametrize("caps", ALL_CAPABILITIES, indirect=True)
 def test_normalize_typed_json(caps: DestinationCapabilitiesContext, raw_normalize: Normalize) -> None:
     extract_items(raw_normalize.normalize_storage, [JSON_TYPED_DICT], "special", "special")
     with ThreadPool(processes=1) as pool:
@@ -251,7 +242,7 @@ def test_normalize_typed_json(caps: DestinationCapabilitiesContext, raw_normaliz
         assert table[k]["data_type"] == v
 
 
-@pytest.mark.parametrize("caps", ALL_CAPS, indirect=True)
+@pytest.mark.parametrize("caps", ALL_CAPABILITIES, indirect=True)
 def test_schema_changes(caps: DestinationCapabilitiesContext, raw_normalize: Normalize) -> None:
     doc = {"str": "text", "int": 1}
     extract_items(raw_normalize.normalize_storage, [doc], "evolution", "doc")
@@ -294,7 +285,7 @@ def test_schema_changes(caps: DestinationCapabilitiesContext, raw_normalize: Nor
     assert {"_dlt_id", "_dlt_list_idx", "_dlt_parent_id", "str", "int", "bool", "int__v_text"} == set(doc__comp_table["columns"].keys())
 
 
-@pytest.mark.parametrize("caps", ALL_CAPS, indirect=True)
+@pytest.mark.parametrize("caps", ALL_CAPABILITIES, indirect=True)
 def test_normalize_twice_with_flatten(caps: DestinationCapabilitiesContext, raw_normalize: Normalize) -> None:
     load_id = extract_and_normalize_cases(raw_normalize, ["github.issues.load_page_5_duck"])
     _, table_files = expect_load_package(raw_normalize.load_storage, load_id, ["issues", "issues__labels", "issues__assignees"])

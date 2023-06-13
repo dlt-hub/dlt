@@ -3,6 +3,7 @@ from typing import Any, Callable, ClassVar, List, Literal
 from dlt.common.configuration.utils import serialize_value
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ContainerInjectableContext
+from dlt.common.utils import identity
 
 
 # known loader file formats
@@ -38,8 +39,8 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
         caps = DestinationCapabilitiesContext()
         caps.preferred_loader_file_format = preferred_loader_file_format
         caps.supported_loader_file_formats = ["jsonl", "insert_values"]
-        caps.escape_identifier = lambda x: x
-        caps.escape_literal = lambda x: serialize_value(x)
+        caps.escape_identifier = identity
+        caps.escape_literal = serialize_value
         caps.max_identifier_length = 65536
         caps.max_column_identifier_length = 65536
         caps.max_query_length = 32 * 1024 * 1024
