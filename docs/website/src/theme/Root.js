@@ -1,11 +1,27 @@
 import React, {useState} from 'react';
+import {useLocation} from '@docusaurus/router';
 
-// Default implementation, that you can customize
+// inject overlay content in root element
 export default function Root({children}) {
   return <>{children}<Overlay /></>;
 }
 
+// overlay config
+const overlays = {
+    "/docs/walkthroughs/create-a-pipeline": {
+        buttonTitle: "Pipeline Code Demo",
+        title: "Create a pipeline with GPT-4",
+        loomId: "d97180be7d674f4fbf57744365457162",
+        text: "Create dlt pipeline using the data source of your liking and let the GPT-4 write the resource functions and help you to debug the code."
+    }
+}
+
+
 function Overlay() {
+
+  const location = useLocation();
+  const overlayConfig = overlays[location.pathname];
+  const loomLink = `https://www.loom.com/embed/${overlayConfig?.loomId}`;
 
   const [continueModelOpen, setSontinueModelOpen] = useState(false);
   const [dhelpModalOpen, setDhelpModalOpen] = useState(false);
@@ -15,15 +31,19 @@ function Overlay() {
 
   return (
     <div className='overlays'>
-        <a href='#' className='overlayButton dhelpButton' onClick={() => setDhelpModalOpen(true)}>DHelp</a>
-        <a href='#' className='overlayButton' onClick={() => setSontinueModelOpen(true)}>Continue Demo</a>
+        {overlayConfig && <a href='#' className='overlayButton overlayButtonBottom continueButton' onClick={() => setSontinueModelOpen(true)}>{overlayConfig.buttonTitle}</a>}
+        <a href='#' className='overlayButton overlayButtonBottom' onClick={() => setDhelpModalOpen(true)}>Help Chat</a>
 
         <div className={continueModalClassname}>
             <div className='overlayBackground' onClick={() => setSontinueModelOpen(false)}></div>
             <div className='overlayContent'>
-                <h1>dltHub GPT-4 assisted playground</h1>
-                <h2>create a pipeline</h2>
-                <div>Introducing "Code Sphere", a revolutionary playground for coders, powered by OpenAI's GPT-4 model. It's an immersive, interactive space where developers of all skill levels can experiment, create, and learn. With GPT-4's incredible understanding and generation capabilities, Code Sphere offers real-time coding assistance, smart error correction, and insightful suggestions. Navigate through intricate algorithms, build impressive projects, and supercharge your coding journey with this state-of-the-art platform. Code Sphere - where coding meets AI-powered efficiency.</div>
+                <h1>{overlayConfig?.title}</h1>
+                <div>{overlayConfig?.text}</div>
+                <div className='loomContainer'><iframe src={loomLink} frameborder="0" webkitallowfullscreen mozallowfullscreen allowfullscreen className='loomFrame'></iframe></div>
+                <div>This demo works on codespaces. Codespaces are free development evnironment available for free to anyone with a Github account. You’ll be asked to fork the demo repository and from there we’ll guide you with further steps.</div>
+                <div>The demo uses the Continue VSCode extension.</div>
+                <br />
+                <a className="overlayButton" href="https://github.com/codespaces/new/dlt-hub/dlt-llm-code-playground?ref=create-pipeline"> Go to Codespaces</a>
             </div>
         </div>
 

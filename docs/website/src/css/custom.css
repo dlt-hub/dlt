@@ -817,14 +817,7 @@ html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(8)>div>[
   background-color: var(--ifm-color-primary);
   border-radius: 8px;
   margin-right: 2px;
-  margin-left: 10px;
   padding: 6px 10px 6px 10px;
-  display: flex;
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
-  z-index: 1000;
-  position: fixed;
 }
 
 .overlayButton:hover {
@@ -833,7 +826,17 @@ html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(8)>div>[
   text-decoration: none;
 }
 
-.dhelpButton {
+
+.overlayButtonBottom {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 1000;
+  position: fixed;
+}
+
+
+.continueButton {
   bottom: 70px;
 }
 
@@ -864,10 +867,33 @@ html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(8)>div>[
 
 .overlayContent {
   background-color: white;
+  overflow-y: scroll;
+  overflow-x: hidden;
+
+}
+
+.overlay {
+  z-index: 10006;
 }
 
 .overlayHidden {
-  display: none;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.loomContainer {
+  margin:20px 40px;
+  position: relative;
+  padding-bottom: 56.25%;
+  height: 0;
+}
+
+.loomFrame {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
 }
 
 /* continue modal css :end */
