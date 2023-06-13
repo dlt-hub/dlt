@@ -59,7 +59,7 @@ Read more about use cases by persona here: [User guides](user-guides)
 ### Getting started with `dlt`
 
 1. Play with the [Google Colab demo](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing). This is the simplest way you could use dlt. You can review
-2. Read the docs on [building a pipeline, warehouse or lake with dlt](../getting-started) or [using the existing pipelines](../dlt-ecosystem/verified-sources). Ask us on slack if you are unsure if your use case is supported.
+2. Read the docs on [building a pipeline, warehouse or lake with dlt](getting-started) or [using the existing pipelines](dlt-ecosystem/verified-sources). Ask us on slack if you are unsure if your use case is supported.
 3. Send the [user guides](user-guides) to the rest of your team and discuss use cases.
 
 ### Become part of the `dlt` community

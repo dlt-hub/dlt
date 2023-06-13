@@ -21,7 +21,7 @@ print(info)
 
 You instantiate a pipeline by calling `dlt.pipeline` function with following arguments:
 - `pipeline_name` a name of the pipeline that will be used to identify it in trace and monitoring events and to restore its state and data schemas on subsequent runs. If not provided, `dlt` will create pipeline name from the file name of currently executing Python module
-- `destination` a name of the [destination](../destinations/bigquery) to which dlt will load the data. May also be provided to `run` method of the `pipeline`.
+- `destination` a name of the [destination](../dlt-ecosystem/destinations/bigquery) to which dlt will load the data. May also be provided to `run` method of the `pipeline`.
 - `dataset_name` a name of the dataset to which the data will be loaded. A dataset is a logical group of tables ie. `schema` in relational databases or folder grouping many files. May also be provided later to the `run` or `load` methods of the pipeline. If not provided at all then defaults to the `pipeline_name`
 
 To load the data you call the `run` method and pass your data in `data` argument.

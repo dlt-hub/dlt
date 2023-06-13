@@ -37,7 +37,7 @@ Project idea:
 1. Choose an API that produces data. If this data is somehow business relevant, that’s better. Many business apps offer free developer accounts that allow you to develop business apps with them.
 2. Choose a use case for this data. Make sure this use case makes some business sense and is not completely theoretical. Business understanding and pragmatism are key for such roles, so do not waste your chance to show it. Keep the use case simple-otherwise it will not be pragmatic right off the bat, handicapping yourself from a good outcome. A few examples are ranking leads in a sales CRM, clustering users, and something around customer lifetime value predictions.
 3. Build a dlt pipeline that loads data from the API for your use case. Keep the case simple and your code clean. Use explicit variable and method names. Tell a story with your code. For loading mode, use incremental loading and don’t hardcode parameters that are subject to change.
-4. Build a [dbt package](./using-loaded-data/transforming-the-data) for this pipeline.
+4. Build a [dbt package](../dlt-ecosystem/transformations/transforming-the-data) for this pipeline.
 5. Build a visualization. Focus on usability more than code. Remember, your goal is to empower a business user to self-serve, so hard coded dashboards are usually seen as liabilities that need to be maintained. On the other hand, dashboard tools can be adjusted by business users too. For example, the free “Looker studio” fro Google is relatable to business users, while notebooks might make them feel insecure. Your evaluator will likely not take time to set up and run your things, so make sure your outcomes are well documented with images. Make sure they are self readable, explain how you intend the business user to use this visualization to fulfil the use case.
 6. Make it presentable somewhere public, such as GitHub, and add docs. Show it to someone for feedback. You will find likeminded people in [our Slack](https://join.slack.com/t/dlthub-community/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g) that will happily give their opinion.
 
@@ -55,20 +55,20 @@ Project idea:
 1. Choose an API that produces data. If this data is somehow business relevant, that’s better. Many business apps offer free developer accounts that allow you to develop business apps with them.
 2. Choose a use case for this data. Make sure this use case makes some business sense and is not completely theoretical. Business understanding and pragmatism are key for such roles, so do not waste your chance to show it. Keep the use case simple-otherwise it will not be pragmatic right off the bat, handicapping yourself from a good outcome. A few examples are ranking leads in a sales CRM, clustering users, and something around customer lifetime value predictions.
 3. Build a dlt pipeline that loads data from the API for your use case. Keep the case simple and your code clean. Use explicit variable and method names. Tell a story with your code. For loading mode, use incremental loading and don’t hardcode parameters that are subject to change.
-4. Build a data model with SQL. If you are ambitious you could try running the SQL with a [dbt package](./using-loaded-data/transforming-the-data)
+4. Build a data model with SQL. If you are ambitious you could try running the SQL with a [dbt package](../dlt-ecosystem/transformations/transforming-the-data)
 5. Showcase your chosen use case that uses ML or statistics to achieve your goal. Don’t forget to mention how you plan to do this “in production”. Choose a case that is simple so you don’t end up overcomplicating your solution. Focus on outcomes and next steps. Describe what the company needs to do to use your results, demonstrating that you understand the costs of your propositions.
 6. Make it presentable somewhere public, such as GitHub, and add docs. Show it to someone for feedback. You will find likeminded people in [our Slack](https://join.slack.com/t/dlthub-community/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g) that will happily give their opinion.
 
 ## Further reading
 
 Good docs pages to check out:
-- [Getting started](../getting-started)
+- [Getting started](getting-started)
 - [Create a pipeline](../walkthroughs/create-a-pipeline)
 - [Run a pipeline](../walkthroughs/run-a-pipeline)
 - [Deploy a pipeline](../walkthroughs/deploy-a-pipeline)
-- [Understand the loaded data](../using-loaded-data/understanding-the-tables)
-- [Explore the loaded data in Streamlit](../using-loaded-data/exploring-the-data)
-- [Transform the data with SQL or python](../using-loaded-data/transforming-the-data)
+- [Understand the loaded data](../dlt-ecosystem/visualizations/understanding-the-tables)
+- [Explore the loaded data in Streamlit](../dlt-ecosystem/visualizations/exploring-the-data.md)
+- [Transform the data with SQL or python](../dlt-ecosystem/transformations/transforming-the-data)
 - [Contribute a pipeline](https://github.com/dlt-hub/verified-pipelines)
 
 Here are some example projects:

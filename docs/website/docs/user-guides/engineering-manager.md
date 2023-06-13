@@ -69,9 +69,9 @@ By being a library built to enable free usage, we are uniquely positioned to run
 
 - Spend more time using data, less time loading it. When you build a dlt pipeline, you only build the extraction part, automating the tedious structuring and loading.
 - Data meshing to reduce friction: By structuring data before loading, the engineer is no longer involved in curation. This makes both the engineer and the others happy.
-- Better governance with end to end pipelining via dbt: [run dbt packages on the fly](../using-loaded-data/transforming-the-data#transforming-the-data-using-dbt). [lineage out of the box](../using-loaded-data/understanding-the-tables).
+- Better governance with end to end pipelining via dbt: [run dbt packages on the fly](../dlt-ecosystem/transformations/transforming-the-data#transforming-the-data-using-dbt). [lineage out of the box](../dlt-ecosystem/visualizations/understanding-the-tables).
 - Zero learning curve: Declarative loading, simple functional programming: By using dlt's declarative, standard approach to loading data, there is no complicated code to maintain, and the analysts can thus maintain the code.
-- Autonomy and Self service: Customising pipelines is easy, whether you want to plug an anonymiser, rename things, or curate what you load. [Anonymisers, renamers](../customizations/customizing-pipelines/pseudonymizing_columns),
+- Autonomy and Self service: Customising pipelines is easy, whether you want to plug an anonymiser, rename things, or curate what you load. [Anonymisers, renamers](../getting-started/build-a-data-pipeline/pseudonymizing_columns),
 - Easy discovery and governance: By tracking metadata like data lineage, describing data with schemas, and alerting changes, we stay on top of the data.
 - Simplified access: Querying structured data can be done by anyone with their tools of choice.
 
@@ -91,7 +91,7 @@ dlt is the first python library in this space, which means you can just run it w
 
 The implications:
 - Empowering Data Teams and Collaboration: You can discover or prototype in notebooks, run in cloud functions, and deploy to production, the same scalable, robust code. No more friction between roles. [Colab demo](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing#scrollTo=A3NRS0y38alk)
-- Rapid Data Exploration and Prototyping: By running in colab with duckdb, you can explore semi structured data much faster by structuring it with dlt and analysing it in sql.  [schema inference](../general-usage/schema#data-normalizer),[exploring the loaded data](../using-loaded-data/understanding-the-tables#show-tables-and-data-in-the-destination).
+- Rapid Data Exploration and Prototyping: By running in colab with duckdb, you can explore semi structured data much faster by structuring it with dlt and analysing it in sql.  [schema inference](../general-usage/schema#data-normalizer),[exploring the loaded data](../dlt-ecosystem/visualizations/understanding-the-tables#show-tables-and-data-in-the-destination).
 - No vendor limits: dlt is forever free, with no vendor strings. We do not create value by creating a pain for you and solving it. We create value by supporting you beyond.
 - Dlt removes complexity: You can use dlt in your existing stack, no overheads, no race conditions, full observability. Other tools add complexity.
 - dlt can be leveraged by AI - because it's a library with low complexity to use, large language models can produce dlt code for your pipelines

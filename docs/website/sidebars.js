@@ -59,6 +59,13 @@ const sidebars = {
         {
           type: 'category',
           label: 'Destinations',
+          link: {
+            type: 'generated-index',
+            title: 'Destinations',
+            description: 'Overview over our destinations. A destiantion is the data store where data from the source is loaded. Learn how to use them in your pipelines.',
+            slug: 'dlt-ecosystem/destinations',
+            keywords: ['destination'],
+          },
           items: [
             'dlt-ecosystem/destinations/bigquery',
             'dlt-ecosystem/destinations/duckdb',
@@ -85,6 +92,13 @@ const sidebars = {
         {
           type: 'category',
           label: 'Verified Sources',
+          link: {
+            type: 'generated-index',
+            title: 'Verified Sources',
+            description: 'Overview over our verified sources. A source is a location that holds data with certain structure. Organized into one or more resources. We have verified reference implementations for the sources listed below.',
+            slug: 'dlt-ecosystem/verified-sources',
+            keywords: ['verified source'],
+          },
           items: [
             'dlt-ecosystem/verified-sources/asana',
             'dlt-ecosystem/verified-sources/chess',

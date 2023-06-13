@@ -14,7 +14,7 @@ keywords: [analytics engineer, analytics, business intelligence]
 
 As a result, this data usually needs to be rearranged to get it to a structure that analysts and other business users can use to answer questions. For example, you will often want to consolidate this data into tables and entities that represent the business process makes it easier for downstream consumers.
 
-To make this easier, `dlt` supports a dbt runner that allows you to create a virtual environment, install dbt on it, pass it credentials, and run a dbt package from a local or online location. You can read more about this [here](../using-loaded-data/transforming-the-data).
+To make this easier, `dlt` supports a dbt runner that allows you to create a virtual environment, install dbt on it, pass it credentials, and run a dbt package from a local or online location. You can read more about this [here](../dlt-ecosystem/transformations/transforming-the-data).
 
 ### Contributing dbt packages
 
@@ -32,7 +32,7 @@ Follow the [CONTRIBUTING](https://github.com/dlt-hub/verified-sources/blob/maste
 
 ## Use Case #2: Clean, type, and customize how data is produced and loaded
 
-`dlt` allows you to customize how data is produced, enabling you to rename, filter, and modify the data that arrives at your destination. Before you pass the data to `dlt` for normalization, you can transform the data in Python. After `dlt` has normalized and loaded the data, you can also further transform it using SQL. You can learn more about possible customizations in the docs (e.g. [pseudonymizing_columns](../customizations/customizing-pipelines/pseudonymizing_columns)).
+`dlt` allows you to customize how data is produced, enabling you to rename, filter, and modify the data that arrives at your destination. Before you pass the data to `dlt` for normalization, you can transform the data in Python. After `dlt` has normalized and loaded the data, you can also further transform it using SQL. You can learn more about possible customizations in the docs (e.g. [pseudonymizing_columns](../getting-started/build-a-data-pipeline/pseudonymizing_columns)).
 
 ## Use Case #3: Create your own pipelines in a declarative fashion
 
@@ -42,4 +42,4 @@ It features a declarative approach to configuring loading modes, handling all of
 
 If you combine it with a `dbt` package, then you use it end to end to deliver analytics.
 
-Read more about [running dbt packages](../using-loaded-data/transforming-the-data), [incremental loading](../general-usage/incremental-loading), and [performance hints and schemas](../walkthroughs/adjust-a-schema).
+Read more about [running dbt packages](../dlt-ecosystem/transformations/transforming-the-data), [incremental loading](../general-usage/incremental-loading), and [performance hints and schemas](../walkthroughs/adjust-a-schema).

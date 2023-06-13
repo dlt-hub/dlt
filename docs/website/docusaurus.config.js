@@ -110,7 +110,7 @@ const config = {
             items: [
               {
                 label: 'Docs',
-                to: '/introduction',
+                to: '/intro',
                 className: 'footer-link'
               },
               {
