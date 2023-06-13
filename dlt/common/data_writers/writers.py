@@ -1,7 +1,12 @@
 import abc
+
+# TODO: needs to be changed to it only is used when parquet writer is active
+import pyarrow
+import pyarrow.parquet as pq
+
 # import jsonlines
 from dataclasses import dataclass
-from typing import Any, Dict, Sequence, IO, Type
+from typing import Any, Dict, Sequence, IO, Type, Optional, List
 
 from dlt.common import json
 from dlt.common.typing import StrAny
@@ -67,6 +72,8 @@ class DataWriter(abc.ABC):
             return JsonlListPUAEncodeWriter
         elif file_format == "insert_values":
             return InsertValuesWriter
+        elif file_format == "parquet":
+            return ParquetDataWriter
         else:
             raise ValueError(file_format)
 
@@ -173,3 +180,67 @@ class InsertValuesWriter(DataWriter):
             supports_compression=True,
             requires_destination_capabilities=True,
         )
+        return TFileFormatSpec("insert_values", "insert_values", False, False, requires_destination_capabilities=True)
+
+class ParquetDataWriter(DataWriter):
+
+    def __init__(self, f: IO[Any], caps: DestinationCapabilitiesContext = None) -> None:
+        super().__init__(f, caps)
+        self.columns_schema: Optional[TTableSchemaColumns] = None
+
+
+    def write_header(self, columns_schema: TTableSchemaColumns) -> None:
+        # remember schema and create 2 dimensional array for columns
+        self.columns_schema = columns_schema
+        self.data: List[List[Any]] = [[]*5 for i in range(len(columns_schema.values()))]
+
+    def write_data(self, rows: Sequence[Any]) -> None:
+        # convert to columns (could also just store rows and convert in write_footer?)
+        for row in rows:
+            count = 0
+            for item in row:
+                self.data[count].append(row[item])
+                count += 1
+
+    def write_footer(self) -> None:
+        column_names = list(self.columns_schema.keys())
+        column_types = [c["data_type"] for c in self.columns_schema.values()]
+
+        # columns
+        columns = []
+        count = 0
+        for column_data in self.data:
+            columns.append(pyarrow.array(column_data, self.get_data_type(column_types[count])))
+            count+=1
+
+        # build and write the table
+        table = pyarrow.table(columns, names=column_names)
+        pq.write_table(table, self._f)
+
+    def get_data_type(self, column_type: str) -> pyarrow.DataType:
+        if column_type == "text":
+            return pyarrow.string()
+        elif column_type == "double":
+            return pyarrow.float64()
+        elif column_type == "bool":
+            return pyarrow.bool_()
+        elif column_type == "timestamp":
+            return pyarrow.timestamp('ms')
+        elif column_type == "bigint":
+            return pyarrow.int64()
+        elif column_type == "binary":
+            return pyarrow.binary()
+        elif column_type == "complex":
+            return pyarrow.list_(pyarrow.float64())
+        elif column_type == "decimal":
+            return pyarrow.decimal128(38, 18)
+        elif column_type == "wei":
+            return pyarrow.decimal128(38, 0)
+        elif column_type == "date":
+            return pyarrow.date32()
+        else:
+            raise ValueError(column_type)
+
+    @classmethod
+    def data_format(cls) -> TFileFormatSpec:
+        return TFileFormatSpec("parquet", "parquet", True, False, requires_destination_capabilities=True)

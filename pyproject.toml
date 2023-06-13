@@ -108,6 +108,7 @@ duckdb = ["duckdb"]
 filesystem = ["s3fs", "boto3"]
 s3 = ["s3fs", "boto3"]
 gs = ["gcsfs"]
+parquet = ["pyarrow"]
 
 [tool.poetry.scripts]
 dlt = "dlt.cli._dlt:_main"

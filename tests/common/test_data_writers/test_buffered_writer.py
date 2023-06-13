@@ -1,5 +1,6 @@
 import os
 import pytest
+import pyarrow.parquet as pq
 
 from dlt.common.data_writers.buffered import BufferedDataWriter
 from dlt.common.data_writers.exceptions import BufferedDataWriterClosed
@@ -169,3 +170,18 @@ def test_writer_optional_schema(disable_compression: bool) -> None:
     with get_insert_writer(_format="jsonl", disable_compression=disable_compression) as writer:
             writer.write_data_item([{"col1": 1}], None)
             writer.write_data_item([{"col1": 1}], None)
+
+
+
+def test_parquet_writer() -> None:
+    c1 = new_column("col1", "bigint")
+    c2 = new_column("col2", "bigint")
+    c3 = new_column("col3", "text")
+    with get_insert_writer("parquet") as writer:
+        writer.write_data_item([{"col1": 1, "col2": 2, "col3": "3"}], {"col1": c1, "col2": c2, "col3": c3})
+
+    with open(writer.closed_files[0], "rb") as f:
+        table = pq.read_table(f)
+        assert table.column("col1").to_pylist() == [1]
+        assert table.column("col2").to_pylist() == [2]
+        assert table.column("col3").to_pylist() == ["3"]
