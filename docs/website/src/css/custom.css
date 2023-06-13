@@ -843,13 +843,12 @@ html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(8)>div>[
 .overlayContent {
   position: fixed;
   width: 700px;
-  height: 500px;
   left:0px;
-  top:0px;
+  top: 50%;
+  transform: translateY(-50%);
   background-color: white;
   z-index: 1002;
   left: calc(50% - 350px);
-  top: calc(50% - 250px);
   padding: 30px;
 }
 
@@ -895,5 +894,29 @@ html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(8)>div>[
   width: 100%;
   height: 100%;
 }
+
+@media only screen 
+and (max-width : 800px) {
+  /* Styles */
+  .overlayContent {
+    left:30px;
+    width: calc(100% - 60px);
+    .loomContainer {
+      margin:20px 0px;
+    }
+  }
+}
+
+@media only screen 
+and (max-height : 850px) {
+  /* Styles */
+  .overlayContent {
+    top:30px;
+    height: calc(100% - 60px);
+    transform: translateY(0%);
+  }
+}
+
+
 
 /* continue modal css :end */
