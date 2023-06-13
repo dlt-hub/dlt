@@ -26,8 +26,8 @@ const sidebars = {
         keywords: ['getting started'],
       },
       items: [
-        'try-in-colab',
-        'build-a-data-pipeline',
+        'getting-started/try-in-colab',
+        'getting-started/build-a-data-pipeline',
         {
           type: 'category',
           label: 'Build a data platform',
@@ -173,8 +173,8 @@ const sidebars = {
           type: 'category',
           label: 'customising-pipelines',
           items: [
-            'getting-started/build-a-data-pipeline/renaming_columns',
-            'getting-started/build-a-data-pipeline/pseudonymizing_columns',
+            'general-usage/customising-pipelines/renaming_columns',
+            'general-usage/customising-pipelines/pseudonymizing_columns',
           ]
         },
       ],
