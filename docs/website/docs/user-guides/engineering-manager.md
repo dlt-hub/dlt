@@ -71,7 +71,7 @@ By being a library built to enable free usage, we are uniquely positioned to run
 - Data meshing to reduce friction: By structuring data before loading, the engineer is no longer involved in curation. This makes both the engineer and the others happy.
 - Better governance with end to end pipelining via dbt: [run dbt packages on the fly](../dlt-ecosystem/transformations/transforming-the-data#transforming-the-data-using-dbt). [lineage out of the box](../dlt-ecosystem/visualizations/understanding-the-tables).
 - Zero learning curve: Declarative loading, simple functional programming: By using dlt's declarative, standard approach to loading data, there is no complicated code to maintain, and the analysts can thus maintain the code.
-- Autonomy and Self service: Customising pipelines is easy, whether you want to plug an anonymiser, rename things, or curate what you load. [Anonymisers, renamers](../getting-started/build-a-data-pipeline/pseudonymizing_columns),
+- Autonomy and Self service: Customising pipelines is easy, whether you want to plug an anonymiser, rename things, or curate what you load. [Anonymisers, renamers](../general-usage/customising-pipelines/pseudonymizing_columns.md),
 - Easy discovery and governance: By tracking metadata like data lineage, describing data with schemas, and alerting changes, we stay on top of the data.
 - Simplified access: Querying structured data can be done by anyone with their tools of choice.
 

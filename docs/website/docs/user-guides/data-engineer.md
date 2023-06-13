@@ -22,7 +22,7 @@ The big advantage of using dlt for this is that it automates what is otherwise a
 
 
 - Analysts can use ready-built sources or pass their unstructured data to `dlt`, which will create a sturdy pipeline (e.g. [get an existing source](./walkthroughs/add-a-verified-source), [build a pipeline](./walkthroughs/create-a-pipeline))
-- Python-first users can heavily customize how dlt sources produce data, as dlt supports selecting, filtering, renaming, anonymizing, and just about any custom operation (e.g. [rename columns example](../getting-started/build-a-data-pipeline/renaming_columns))
+- Python-first users can heavily customize how dlt sources produce data, as dlt supports selecting, filtering, renaming, anonymizing, and just about any custom operation (e.g. [rename columns example](../general-usage/customising-pipelines/renaming_columns.md))
 - Junior data engineers can configure dlt to do what they want-change the loading modes, add performance hints, etc. (e.g. [adjust a schema](./walkthroughs/adjust-a-schema))
 - Senior data engineers can dig even deeper into customization options and change schemas, normalizers, the way pipelines run such as parallelism, etc.
 
