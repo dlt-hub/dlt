@@ -13,56 +13,104 @@
 
 /** @type {import('@docusaurus/plugin-content-docs').SidebarsConfig} */
 const sidebars = {
-
   tutorialSidebar: [
     'intro',
-    'installation',
-    'getting-started',
-    'how-dlt-works',
     {
       type: 'category',
-      label: 'Verified Sources',
-      className: 'project',
+      label: 'Getting Started',
       link: {
         type: 'generated-index',
-        title: 'Verified Sources',
-        description: 'Overview over our verified sources. A source is a location that holds data with certain structure. Organized into one or more resources. We have verified reference implementations for the sources listed below.',
-        slug: 'verified-sources',
-        keywords: ['verified source'],
+        title: 'Getting Started',
+        description: 'Learn how to get started with using dlt',
+        slug: 'getting-started',
+        keywords: ['getting started'],
       },
       items: [
-        'verified-sources/asana',
-        'verified-sources/chess',
-        'verified-sources/facebook_ads',
-        'verified-sources/github',
-        'verified-sources/google_analytics',
-        'verified-sources/google_sheets',
-        'verified-sources/hubspot',
-        'verified-sources/matomo',
-        'verified-sources/pipedrive',
-        'verified-sources/shopify',
-        'verified-sources/sql_database',
-        'verified-sources/strapi',
-        'verified-sources/stripe',
-        'verified-sources/workable',
-        'verified-sources/zendesk',
+        'getting-started/try-in-colab',
+        'getting-started/build-a-data-pipeline',
+        {
+          type: 'category',
+          label: 'Build a data platform',
+          items: [
+            'getting-started/build-a-data-platform/where_does_dlt_fit',
+            'getting-started/build-a-data-platform/building_data_warehouse',
+            ,
+          ]
+        },
       ],
     },
     {
       type: 'category',
-      label: 'Destinations',
+      label: 'dlt Ecosystem',
       link: {
         type: 'generated-index',
-        title: 'Destinations',
-        description: 'Overview over our destinations. A destiantion is the data store where data from the source is loaded. Learn how to use them in your pipelines.',
-        slug: 'destinations',
-        keywords: ['destination'],
+        title: 'dlt Ecosystem',
+        description: 'An overview of different aspects of the dlt ecosystem',
+        slug: 'dlt-ecosystem',
+        keywords: ['getting started'],
       },
       items: [
-        'destinations/bigquery',
-        'destinations/duckdb',
-        'destinations/postgres',
-        'destinations/redshift',
+        {
+          type: 'category',
+          label: 'Destinations',
+          link: {
+            type: 'generated-index',
+            title: 'Destinations',
+            description: 'Overview over our destinations. A destiantion is the data store where data from the source is loaded. Learn how to use them in your pipelines.',
+            slug: 'dlt-ecosystem/destinations',
+            keywords: ['destination'],
+          },
+          items: [
+            'dlt-ecosystem/destinations/bigquery',
+            'dlt-ecosystem/destinations/duckdb',
+            'dlt-ecosystem/destinations/postgres',
+            'dlt-ecosystem/destinations/redshift',
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Transformations',
+          items: [
+            'dlt-ecosystem/transformations/transforming-the-data',
+            ,
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Visualizations',
+          items: [
+            'dlt-ecosystem/visualizations/exploring-the-data',
+            'dlt-ecosystem/visualizations/understanding-the-tables'
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Verified Sources',
+          link: {
+            type: 'generated-index',
+            title: 'Verified Sources',
+            description: 'Overview over our verified sources. A source is a location that holds data with certain structure. Organized into one or more resources. We have verified reference implementations for the sources listed below.',
+            slug: 'dlt-ecosystem/verified-sources',
+            keywords: ['verified source'],
+          },
+          items: [
+            'dlt-ecosystem/verified-sources/asana',
+            'dlt-ecosystem/verified-sources/chess',
+            'dlt-ecosystem/verified-sources/facebook_ads',
+            'dlt-ecosystem/verified-sources/github',
+            'dlt-ecosystem/verified-sources/google_analytics',
+            'dlt-ecosystem/verified-sources/google_sheets',
+            'dlt-ecosystem/verified-sources/hubspot',
+            'dlt-ecosystem/verified-sources/matomo',
+            'dlt-ecosystem/verified-sources/pipedrive',
+            'dlt-ecosystem/verified-sources/shopify',
+            'dlt-ecosystem/verified-sources/sql_database',
+            'dlt-ecosystem/verified-sources/strapi',
+            'dlt-ecosystem/verified-sources/stripe',
+            'dlt-ecosystem/verified-sources/workable',
+            'dlt-ecosystem/verified-sources/zendesk',
+          ]
+        },
       ],
     },
     {
@@ -72,7 +120,7 @@ const sidebars = {
         type: 'generated-index',
         title: 'User Guides',
         slug: 'user-guides',
-        keywords: ['user guide'],
+        keywords: ['user guides'],
       },
       items: [
         'user-guides/analytics-engineer',
@@ -121,25 +169,12 @@ const sidebars = {
         'general-usage/schema',
         'general-usage/schema-evolution',
         'general-usage/configuration',
-      ],
-    },
-    {
-      type: 'category',
-      label: 'Customizations',
-      link: {
-        type: 'generated-index',
-        title: 'Customizations',
-        description: 'Learn how to customize the default behaviour of dlt to your needs.',
-        slug: 'customizations',
-        keywords: ['customization'],
-      },
-      items: [
         {
           type: 'category',
-          label: 'Customizing pipelines',
+          label: 'customising-pipelines',
           items: [
-            'customizations/customizing-pipelines/renaming_columns',
-            'customizations/customizing-pipelines/pseudonymizing_columns',
+            'general-usage/customising-pipelines/renaming_columns',
+            'general-usage/customising-pipelines/pseudonymizing_columns',
           ]
         },
       ],
@@ -172,36 +207,22 @@ const sidebars = {
     },
     {
       type: 'category',
-      label: 'Using loaded data',
-      link: {
-        type: 'generated-index',
-        title: 'Using loaded data',
-        description: 'Learn how to make use of the data loaded by dlt.',
-        slug: 'using-loaded-data',
-        keywords: ['loaded data'],
-      },
-      items: [
-        'using-loaded-data/understanding-the-tables',
-        'using-loaded-data/exploring-the-data',
-        'using-loaded-data/transforming-the-data',
-      ],
-    },
-    {
-      type: 'category',
       label: 'Reference',
       link: {
         type: 'generated-index',
         title: 'Reference',
-        description: 'The dlthub reference. Learn about the CLI and the telemetry.',
+        description: 'The dlthub reference. Learn more about the dlt, CLI, and the telemetry.',
         slug: 'reference',
         keywords: ['reference'],
       },
       items: [
+        'reference/installation',
+        'reference/how-dlt-works',
         'reference/command-line-interface',
         'reference/telemetry',
       ],
     },
-  ],
+  ]
 };
 
 module.exports = sidebars;

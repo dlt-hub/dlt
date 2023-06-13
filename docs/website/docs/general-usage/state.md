@@ -33,7 +33,7 @@ Above, we request the resource-scoped state. The `checked_archives` list stored 
 The pipeline state is stored locally in [pipeline working directory](pipeline.md#pipeline-working-directory) and as a consequence - it cannot be shared with pipelines with different names. You must also make sure that data written into the state is JSON Serializable. Except standard Python types, `dlt` handles `DateTime`, `Decimal`, `bytes` and `UUID`.
 
 ## Share state across resources and read state in a source
-You can also access the source-scoped state with `dlt.current.source_state()` which can be shared across resources of a particular source and is also available read-only in the source-decorated functions. The most common use case for the source-scoped state is to store mapping of custom fields to their displayable names. You can take a look at our [pipedrive source](https://github.com/dlt-hub/pipelines/blob/master/pipelines/pipedrive/__init__.py#L118) for an example of state passed across resources.
+You can also access the source-scoped state with `dlt.current.source_state()` which can be shared across resources of a particular source and is also available read-only in the source-decorated functions. The most common use case for the source-scoped state is to store mapping of custom fields to their displayable names. You can take a look at our [pipedrive source](https://github.com/dlt-hub/verified-sources/blob/master/verified-sources/pipedrive/__init__.py#L118) for an example of state passed across resources.
 
 > 💡 Avoid the use of shared state if you plan to [decompose your source](../running-in-production/orchestrators/choosing-an-orchestrator.md#source---resource-decomposition) in order to, for example run it on Airflow in parallel. If you cannot avoid that, designate one of the resources as state writer and all the other as state readers. This is exactly what `pipedrive` pipeline does. With such structure you will still be able to run some of your resources in parallel.
 
@@ -59,7 +59,7 @@ The state is stored in the `_dlt_pipeline_state` table at the destination and co
 ## When not to use pipeline state
 Do not use dlt state when it may grow to millions of elements. Do you plan to store modification timestamps of all of your millions of user records? This is probably a bad idea! In that case you could:
 - store the state in dynamo-db, redis etc. taking into the account that if the extract stage fails you'll end with invalid state.
-- use your loaded data as the state. `dlt` exposes the current pipeline via `dlt.current.pipeline()` from which you can obtain [sqlclient](../using-loaded-data/transforming-the-data.md#transforming-the-data-using-the-dlt-sql-client) and load the data of interest. In that case try at least to process your user records in batches.
+- use your loaded data as the state. `dlt` exposes the current pipeline via `dlt.current.pipeline()` from which you can obtain [sqlclient](../dlt-ecosystem/transformations/transforming-the-data.md#transforming-the-data-using-the-dlt-sql-client) and load the data of interest. In that case try at least to process your user records in batches.
 
 ## Inspect the pipeline state
 You can inspect pipeline state with [`dlt pipeline` command](../reference/command-line-interface.md#dlt-pipeline):

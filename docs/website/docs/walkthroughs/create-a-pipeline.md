@@ -10,7 +10,7 @@ Follow the steps below to create a [pipeline](../general-usage/glossary.md#pipel
 WeatherAPI.com API to DuckDB from scratch. The same steps can be repeated for any source and destination of your
 choice—use `dlt init <source> <destination>` and then build the pipeline for that API instead.
 
-Please make sure you have [installed `dlt`](../installation.mdx) before following the steps below.
+Please make sure you have [installed `dlt`](../reference/installation.mdx) before following the steps below.
 
 ## 1. Initialize project
 
@@ -125,6 +125,6 @@ This will open a streamlit app that gives you an overview of the data loaded.
 
 Now that you have a working pipeline, you have options for what to learn next:
 - [Deploy this pipeline](./deploy-a-pipeline.md), so that the data is automatically loaded on a schedule
-- Transform the [loaded data](../using-loaded-data/transforming-the-data) with dbt or in Pandas DataFrames
+- Transform the [loaded data](../dlt-ecosystem/transformations/transforming-the-data) with dbt or in Pandas DataFrames
 - Learn how to [run](../running-in-production/running.md), [monitor](../running-in-production/monitoring.md), and [alert](../running-in-production/alerting.md) when you put your pipeline in production
-- Try loading data to a different destination like [Google BigQuery](../destinations/bigquery.md), [Amazon Redshift](../destinations/redshift.md), or [Postgres](../destinations/postgres.md)
+- Try loading data to a different destination like [Google BigQuery](../dlt-ecosystem/destinations/bigquery.md), [Amazon Redshift](../dlt-ecosystem/destinations/redshift.md), or [Postgres](../dlt-ecosystem/destinations/postgres.md)

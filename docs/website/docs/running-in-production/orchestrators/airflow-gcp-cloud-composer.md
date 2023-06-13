@@ -107,4 +107,4 @@ You can follow the Pipedrive example for a different source, by doing the step b
 
 ![pipeline](/img/pipeline.png)
 
-5. Read about how to transform data [here](/docs/using-loaded-data/transforming-the-data.md).
+5. Read about how to transform data [here](../../dlt-ecosystem/transformations/transforming-the-data).

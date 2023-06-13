@@ -32,7 +32,7 @@ The simplest way to authenticate is via subdomain + email address + password, si
 
 1.  Go to Zendesk products in the top right corner and select Admin Center.
 
-  <img src="https://raw.githubusercontent.com/dlt-hub/dlt/devel/docs/website/docs/pipelines/docs_images/Zendesk_admin_centre.png" alt="Admin Centre" width="400"/>
+  <img src="https://raw.githubusercontent.com/dlt-hub/dlt/devel/docs/website/docs/dlt-ecosystem/verified-sources/docs_images/Zendesk_admin_centre.png" alt="Admin Centre" width="400"/>
 
 
 2. Select Apps and Integrations.
@@ -40,7 +40,7 @@ The simplest way to authenticate is via subdomain + email address + password, si
 3. In the left pane, under APIs, choose Zendesk API from the menu on the left, and enable the “**Password access**” and “**Token access**” as shown below.
 
 
-<img src="https://raw.githubusercontent.com/dlt-hub/dlt/devel/docs/website/docs/pipelines/docs_images/Zendesk_token_access.png" alt="Token Access" width = "70%" />
+<img src="https://raw.githubusercontent.com/dlt-hub/dlt/devel/docs/website/docs/dlt-ecosystem/verified-sources/docs_images/Zendesk_token_access.png" alt="Token Access" width = "70%" />
 
 4. Click on “**Add API token**”, enter a description, and note the `API token`.
 
@@ -49,7 +49,7 @@ The simplest way to authenticate is via subdomain + email address + password, si
 To get an `OAuth token` follow these steps:
 1.  Go to Zendesk products in the top right corner and select Admin Center.
 
-  <img src="https://raw.githubusercontent.com/dlt-hub/dlt/devel/docs/website/docs/pipelines/docs_images/Zendesk_admin_centre.png" alt="Admin Centre" width="400"/>
+  <img src="https://raw.githubusercontent.com/dlt-hub/dlt/devel/docs/website/docs/dlt-ecosystem/verified-sources/docs_images/Zendesk_admin_centre.png" alt="Admin Centre" width="400"/>
 
 2. Select Apps and Integrations.
 3. In the left pane, under APIs, choose Zendesk API from the menu on the left and go to “OAuth Clients” tab.
@@ -124,7 +124,7 @@ To authenticate Zendesk chat, you will need the following credentials:
 
 1. Login to Zendesk chat. Or go to “Chat” using Zendesk products in the top right corner.
 
-  <img src="https://raw.githubusercontent.com/dlt-hub/dlt/devel/docs/website/docs/pipelines/docs_images/Zendesk_admin_centre.png" alt="Admin Centre" width="400"/>
+  <img src="https://raw.githubusercontent.com/dlt-hub/dlt/devel/docs/website/docs/dlt-ecosystem/verified-sources/docs_images/Zendesk_admin_centre.png" alt="Admin Centre" width="400"/>
 
 2. In Zendesk chat, go to **Settings**(on the left) **> Account > API > Add API client.**
 3. Enter the details like client name, company, and redirect URLs (if you don’t have redirect URLs; use: [http://localhost:8080](http://localhost:8080/)).

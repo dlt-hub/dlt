@@ -16,7 +16,7 @@ This command generates and launches a simple Streamlit app that you can use to i
 
 ## Table and column names
 
-We [normalize table and column names](../general-usage/schema.md#naming-convention) so they fit what the destination database allows. We convert all the names in your source data into `snake_case`, alphanumeric identifiers. Please note that in many cases the names you had in your input document will be (slightly) different from identifiers you see in the database.
+We [normalize table and column names](../../general-usage/schema.md#naming-convention) so they fit what the destination database allows. We convert all the names in your source data into `snake_case`, alphanumeric identifiers. Please note that in many cases the names you had in your input document will be (slightly) different from identifiers you see in the database.
 
 ## Child and parent tables
 
@@ -34,16 +34,16 @@ If you define your own primary key in a child table, it will be used to link to 
 
 ## Load IDs
 
-Load IDs are important and present in all of the top tables (`_dlt_loads`, `load_id`, etc). Each pipeline run creates one or more load packages, which can be identified by their `load_id`. A load package typically contains data from all [resources](../general-usage/glossary.md#resource) of a particular [source](../general-usage/glossary.md#source). The `load_id` of a particular package is added to the top data tables and to the `_dlt_loads` table with a status 0 (when the load process is fully completed).
+Load IDs are important and present in all of the top tables (`_dlt_loads`, `load_id`, etc). Each pipeline run creates one or more load packages, which can be identified by their `load_id`. A load package typically contains data from all [resources](../../general-usage/glossary.md#resource) of a particular [source](../../general-usage/glossary.md#source). The `load_id` of a particular package is added to the top data tables and to the `_dlt_loads` table with a status 0 (when the load process is fully completed).
 
-For each load, you can test and [alert](../running-in-production/alerting.md) on anomalies (e.g. no data, too much loaded to a table). There are also some useful load stats in the `Load info` tab of the [Streamlit app](understanding-the-tables.md#show-tables-and-data-in-the-destination) mentioned above.
+For each load, you can test and [alert](../../running-in-production/alerting.md) on anomalies (e.g. no data, too much loaded to a table). There are also some useful load stats in the `Load info` tab of the [Streamlit app](understanding-the-tables.md#show-tables-and-data-in-the-destination) mentioned above.
 
 The `_dlt_loads` table tracks complete loads and allows to chain transformations on top of them. Many destinations do not support distributed and long running transactions (e.g. Amazon Redshift). In that case, the user may see the partially loaded data. It is possible to filter such data out—any row with a `load_id` that does not exist in `_dlt_loads` is not yet completed.
 
-You can add [transformations](./transforming-the-data.md) and chain them together using the `status` column. You start the transformation for all of the data with a particular `load_id` with a status of 0 and then update it to 1. The next transformation starts with the status of 1 and is then updated to 2. This can repeated for every additional transformation.
+You can add [transformations](../transformations/transforming-the-data.md) and chain them together using the `status` column. You start the transformation for all of the data with a particular `load_id` with a status of 0 and then update it to 1. The next transformation starts with the status of 1 and is then updated to 2. This can repeated for every additional transformation.
 
 ### Data lineage
 
 Data lineage can be super relevant for architectures like the [data vault architecture](https://www.data-vault.co.uk/what-is-data-vault/) or when troubleshooting. The data vault architecture is a data warehouse that large organizations use when representing the same process across multiple systems, which adds data lineage requirements. Using the pipeline name and `load_id` provided out of the box by `dlt`, you are able to identify the source and time of data.
 
-You can [save](../running-in-production/running.md#inspect-and-save-the-load-info-and-trace) complete lineage info for a particular `load_id` including a list of loaded files, error messages (if any), elapsed times, schema changes. This can be helpful, for example, when troubleshooting problems.
+You can [save](../../running-in-production/running.md#inspect-and-save-the-load-info-and-trace) complete lineage info for a particular `load_id` including a list of loaded files, error messages (if any), elapsed times, schema changes. This can be helpful, for example, when troubleshooting problems.

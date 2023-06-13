@@ -506,19 +506,19 @@ html[data-theme='dark'] .slack-navbar::before {
   padding: var(--ifm-menu-link-padding-vertical) var(--ifm-menu-link-padding-horizontal);
 }
 
-.theme-doc-sidebar-menu.menu__list>li:nth-child(1)>a::before {
+.theme-doc-sidebar-menu.menu__list>li:nth-child(1)>div>a::before {
   background-image: url(../../static/img/Introduction-Inactive.svg);
 }
 
-.theme-doc-sidebar-menu.menu__list>li:nth-child(2)>a::before {
+/*.theme-doc-sidebar-menu.menu__list>li:nth-child(2)>a::before {
   background-image: url(../../static/img/Installation-Inactive.svg);
-}
+}*/
 
-.theme-doc-sidebar-menu.menu__list>li:nth-child(3)>a::before {
+.theme-doc-sidebar-menu.menu__list>li:nth-child(2)>div>a::before {
   background-image: url(../../static/img/GettingStarted-Inactive.svg);
 }
 
-.theme-doc-sidebar-menu.menu__list>li:nth-child(4)>a::before {
+/*.theme-doc-sidebar-menu.menu__list>li:nth-child(4)>a::before {
   background-image: url(../../static/img/Howdltworks-Inactive.svg);
 }
 
@@ -528,33 +528,38 @@ html[data-theme='dark'] .slack-navbar::before {
 
 .theme-doc-sidebar-menu.menu__list>li:nth-child(6)>div>a::before {
   background-image: url(../../static/img/Destinations-Inactive.svg);
-}
+}*/
 
-.theme-doc-sidebar-menu.menu__list>li:nth-child(7)>div>a::before {
-  background-image: url(../../static/img/UserGuide-Inactive.svg);
-}
-
-.theme-doc-sidebar-menu.menu__list>li:nth-child(8)>div>a::before {
-  background-image: url(../../static/img/Walkthrough-Inactive.svg);
-}
-
-.theme-doc-sidebar-menu.menu__list>li:nth-child(9)>div>a::before {
-  background-image: url(../../static/img/GeneralUsage-Inactive.svg);
-}
-
-.theme-doc-sidebar-menu.menu__list>li:nth-child(10)>div>a::before {
-  background-image: url(../../static/img/Customization-Inactive.svg);
-}
-
-.theme-doc-sidebar-menu.menu__list>li:nth-child(11)>div>a::before {
-  background-image: url(../../static/img/RunningInProduction-Inactive.svg);
-}
-
-.theme-doc-sidebar-menu.menu__list>li:nth-child(12)>div>a::before {
+.theme-doc-sidebar-menu.menu__list>li:nth-child(3)>div>a::before {
   background-image: url(../../static/img/UsingLoadedData-Inactive.svg);
 }
 
-.theme-doc-sidebar-menu.menu__list>li:nth-child(13)>div>a::before {
+
+.theme-doc-sidebar-menu.menu__list>li:nth-child(4)>div>a::before {
+  background-image: url(../../static/img/UserGuide-Inactive.svg);
+}
+
+.theme-doc-sidebar-menu.menu__list>li:nth-child(5)>div>a::before {
+  background-image: url(../../static/img/Walkthrough-Inactive.svg);
+}
+
+.theme-doc-sidebar-menu.menu__list>li:nth-child(6)>div>a::before {
+  background-image: url(../../static/img/GeneralUsage-Inactive.svg);
+}
+
+/*.theme-doc-sidebar-menu.menu__list>li:nth-child(10)>div>a::before {
+  background-image: url(../../static/img/Customization-Inactive.svg);
+}
+*/
+.theme-doc-sidebar-menu.menu__list>li:nth-child(7)>div>a::before {
+  background-image: url(../../static/img/RunningInProduction-Inactive.svg);
+}
+
+/*.theme-doc-sidebar-menu.menu__list>li:nth-child(12)>div>a::before {
+  background-image: url(../../static/img/UsingLoadedData-Inactive.svg);
+}
+*/
+.theme-doc-sidebar-menu.menu__list>li:nth-child(8)>div>a::before {
   background-image: url(../../static/img/Reference-Inactive.svg);
 }
 
@@ -566,17 +571,22 @@ html[data-theme='dark'] .slack-navbar::before {
   background-image: url(../../static/img/Introduction-Active.svg);
 }
 
-.theme-doc-sidebar-menu.menu__list>li:hover:nth-child(2)>a::before,
+/*.theme-doc-sidebar-menu.menu__list>li:hover:nth-child(2)>a::before,
 .theme-doc-sidebar-menu.menu__list>li:nth-child(2)>a.menu__link--active::before {
   background-image: url(../../static/img/Installation-Active.svg);
-}
+}*/
 
-.theme-doc-sidebar-menu.menu__list>li:hover:nth-child(3)>a::before,
-.theme-doc-sidebar-menu.menu__list>li:nth-child(3)>a.menu__link--active::before {
+.theme-doc-sidebar-menu.menu__list>li:hover:nth-child(2)>a::before,
+.theme-doc-sidebar-menu.menu__list>li:nth-child(2)>a.menu__link--active::before {
   background-image: url(../../static/img/GettingStarted-Active.svg);
 }
 
-.theme-doc-sidebar-menu.menu__list>li:hover:nth-child(4)>a::before,
+.theme-doc-sidebar-menu.menu__list>li:hover:nth-child(3)>div>a::before,
+.theme-doc-sidebar-menu.menu__list>li:nth-child(3)>div>[aria-expanded="true"]::before {
+  background-image: url(../../static/img/UsingLoadedData-Active.svg);
+}
+
+/*.theme-doc-sidebar-menu.menu__list>li:hover:nth-child(4)>a::before,
 .theme-doc-sidebar-menu.menu__list>li:nth-child(4)>a.menu__link--active::before {
   background-image: url(../../static/img/Howdltworks-Active.svg);
 }
@@ -589,40 +599,40 @@ html[data-theme='dark'] .slack-navbar::before {
 .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(6)>div>a::before,
 .theme-doc-sidebar-menu.menu__list>li:nth-child(6)>div>[aria-expanded="true"]::before {
   background-image: url(../../static/img/Destinations-Active.svg);
-}
+}*/
 
-.theme-doc-sidebar-menu.menu__list>li:hover:nth-child(7)>div>a::before,
-.theme-doc-sidebar-menu.menu__list>li:nth-child(7)>div>[aria-expanded="true"]::before {
+.theme-doc-sidebar-menu.menu__list>li:hover:nth-child(4)>div>a::before,
+.theme-doc-sidebar-menu.menu__list>li:nth-child(4)>div>[aria-expanded="true"]::before {
   background-image: url(../../static/img/UserGuide-Active.svg);
 }
 
-.theme-doc-sidebar-menu.menu__list>li:hover:nth-child(8)>div>a::before,
-.theme-doc-sidebar-menu.menu__list>li:nth-child(8)>div>[aria-expanded="true"]::before {
+.theme-doc-sidebar-menu.menu__list>li:hover:nth-child(5)>div>a::before,
+.theme-doc-sidebar-menu.menu__list>li:nth-child(5)>div>[aria-expanded="true"]::before {
   background-image: url(../../static/img/Walkthrough-Active.svg);
 }
 
-.theme-doc-sidebar-menu.menu__list>li:hover:nth-child(9)>div>a::before,
-.theme-doc-sidebar-menu.menu__list>li:nth-child(9)>div>[aria-expanded="true"]::before {
+.theme-doc-sidebar-menu.menu__list>li:hover:nth-child(6)>div>a::before,
+.theme-doc-sidebar-menu.menu__list>li:nth-child(6)>div>[aria-expanded="true"]::before {
   background-image: url(../../static/img/GeneralUsage-Active.svg);
 }
 
-.theme-doc-sidebar-menu.menu__list>li:hover:nth-child(10)>div>a::before,
+/*.theme-doc-sidebar-menu.menu__list>li:hover:nth-child(10)>div>a::before,
 .theme-doc-sidebar-menu.menu__list>li:nth-child(10)>div>[aria-expanded="true"]::before {
   background-image: url(../../static/img/Customization-Active.svg);
 }
-
-.theme-doc-sidebar-menu.menu__list>li:hover:nth-child(11)>div>a::before,
-.theme-doc-sidebar-menu.menu__list>li:nth-child(11)>div>[aria-expanded="true"]::before {
+*/
+.theme-doc-sidebar-menu.menu__list>li:hover:nth-child(7)>div>a::before,
+.theme-doc-sidebar-menu.menu__list>li:nth-child(7)>div>[aria-expanded="true"]::before {
   background-image: url(../../static/img/RunningInProduction-Active.svg);
 }
 
-.theme-doc-sidebar-menu.menu__list>li:hover:nth-child(12)>div>a::before,
+/*.theme-doc-sidebar-menu.menu__list>li:hover:nth-child(12)>div>a::before,
 .theme-doc-sidebar-menu.menu__list>li:nth-child(12)>div>[aria-expanded="true"]::before {
   background-image: url(../../static/img/UsingLoadedData-Active.svg);
 }
-
-.theme-doc-sidebar-menu.menu__list>li:hover:nth-child(13)>div>a::before,
-.theme-doc-sidebar-menu.menu__list>li:nth-child(13)>div>[aria-expanded="true"]::before {
+*/
+.theme-doc-sidebar-menu.menu__list>li:hover:nth-child(8)>div>a::before,
+.theme-doc-sidebar-menu.menu__list>li:nth-child(8)>div>[aria-expanded="true"]::before {
   background-image: url(../../static/img/Reference-Active.svg);
 }
 
@@ -634,19 +644,19 @@ html[data-theme='dark'] .slack-navbar::before {
 
 /* dark-mode-sidebar-icons */
 
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(1)>a::before {
+html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(1)>div>a::before {
   background-image: url(../../static/img/Introduction-Inactive-1.svg);
 }
 
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(2)>a::before {
+/*html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(2)>a::before {
   background-image: url(../../static/img/Installation-Inactive-1.svg);
-}
+}*/
 
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(3)>a::before {
+html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(2)>div>a::before {
   background-image: url(../../static/img/GettingStarted-Inactive-1.svg);
 }
 
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(4)>a::before {
+/*html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(4)>a::before {
   background-image: url(../../static/img/Howdltworks-Inactive-1.svg);
 }
 
@@ -656,33 +666,37 @@ html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(5)>div>a
 
 html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(6)>div>a::before {
   background-image: url(../../static/img/Destinations-Inactive-1.svg);
-}
+}*/
 
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(7)>div>a::before {
-  background-image: url(../../static/img/UserGuide-Inactive-1.svg);
-}
-
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(8)>div>a::before {
-  background-image: url(../../static/img/Walkthrough-Inactive-1.svg);
-}
-
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(9)>div>a::before {
-  background-image: url(../../static/img/GeneralUsage-Inactive-1.svg);
-}
-
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(10)>div>a::before {
-  background-image: url(../../static/img/Customization-Inactive-1.svg);
-}
-
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(11)>div>a::before {
-  background-image: url(../../static/img/RunningInProductionInactive-1.svg);
-}
-
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(12)>div>a::before {
+html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(3)>div>a::before {
   background-image: url(../../static/img/UsingLoadedData-Inactive-1.svg);
 }
 
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(13)>div>a::before {
+html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(4)>div>a::before {
+  background-image: url(../../static/img/UserGuide-Inactive-1.svg);
+}
+
+html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(5)>div>a::before {
+  background-image: url(../../static/img/Walkthrough-Inactive-1.svg);
+}
+
+html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(6)>div>a::before {
+  background-image: url(../../static/img/GeneralUsage-Inactive-1.svg);
+}
+
+/*html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(10)>div>a::before {
+  background-image: url(../../static/img/Customization-Inactive-1.svg);
+}*/
+
+html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(7)>div>a::before {
+  background-image: url(../../static/img/RunningInProductionInactive-1.svg);
+}
+
+/*html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(12)>div>a::before {
+  background-image: url(../../static/img/UsingLoadedData-Inactive-1.svg);
+}*/
+
+html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(8)>div>a::before {
   background-image: url(../../static/img/Reference-Inactive-1.svg);
 }
 
@@ -693,17 +707,22 @@ html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(1)>a.men
   background-image: url(../../static/img/Introduction-Active-1.svg);
 }
 
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(2)>a::before,
+/*html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(2)>a::before,
 html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(2)>a.menu__link--active::before {
   background-image: url(../../static/img/Installation-Active-1.svg);
-}
+}*/
 
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(3)>a::before,
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(3)>a.menu__link--active::before {
+html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(2)>a::before,
+html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(2)>a.menu__link--active::before {
   background-image: url(../../static/img/GettingStarted-Active-1.svg);
 }
 
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(4)>a::before,
+html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(3)>div>a::before,
+html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(3)>div>[aria-expanded="true"]::before {
+  background-image: url(../../static/img/UsingLoadedDataActive1.svg);
+}
+
+/*html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(4)>a::before,
 html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(4)>a.menu__link--active::before {
   background-image: url(../../static/img/Howdltworks-active-1.svg);
 }
@@ -716,40 +735,40 @@ html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(5)>div>[
 html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(6)>div>a::before,
 html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(6)>div>[aria-expanded="true"]::before {
   background-image: url(../../static/img/Destinations-Active-1.svg);
-}
+}*/
 
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(7)>div>a::before,
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(7)>div>[aria-expanded="true"]::before {
+html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(4)>div>a::before,
+html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(4)>div>[aria-expanded="true"]::before {
   background-image: url(../../static/img/UserGuide-Active-1.svg);
 }
 
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(8)>div>a::before,
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(8)>div>[aria-expanded="true"]::before {
+html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(5)>div>a::before,
+html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(5)>div>[aria-expanded="true"]::before {
   background-image: url(../../static/img/Walkthrough-Active-1.svg);
 }
 
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(9)>div>a::before,
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(9)>div>[aria-expanded="true"]::before {
+html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(6)>div>a::before,
+html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(6)>div>[aria-expanded="true"]::before {
   background-image: url(../../static/img/GeneralUsage-Active-1.svg);
 }
 
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(10)>div>a::before,
+/*html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(10)>div>a::before,
 html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(10)>div>[aria-expanded="true"]::before {
   background-image: url(../../static/img/Customization-Active-1.svg);
-}
+}*/
 
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(11)>div>a::before,
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(11)>div>[aria-expanded="true"]::before {
+html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(7)>div>a::before,
+html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(7)>div>[aria-expanded="true"]::before {
   background-image: url(../../static/img/RunningInProduction-Active-1.svg);
 }
 
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(12)>div>a::before,
+/*html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(12)>div>a::before,
 html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(12)>div>[aria-expanded="true"]::before {
   background-image: url(../../static/img/UsingLoadedDataActive1.svg);
-}
+}*/
 
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(13)>div>a::before,
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(13)>div>[aria-expanded="true"]::before {
+html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(8)>div>a::before,
+html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(8)>div>[aria-expanded="true"]::before {
   background-image: url(../../static/img/Reference-Active-1.svg);
 }
 

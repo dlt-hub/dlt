@@ -22,15 +22,15 @@ The big advantage of using dlt for this is that it automates what is otherwise a
 
 
 - Analysts can use ready-built sources or pass their unstructured data to `dlt`, which will create a sturdy pipeline (e.g. [get an existing source](./walkthroughs/add-a-verified-source), [build a pipeline](./walkthroughs/create-a-pipeline))
-- Python-first users can heavily customize how dlt sources produce data, as dlt supports selecting, filtering, renaming, anonymizing, and just about any custom operation (e.g. [rename columns example](./customizations/customizing-pipelines/renaming_columns))
+- Python-first users can heavily customize how dlt sources produce data, as dlt supports selecting, filtering, renaming, anonymizing, and just about any custom operation (e.g. [rename columns example](../general-usage/customising-pipelines/renaming_columns.md))
 - Junior data engineers can configure dlt to do what they want-change the loading modes, add performance hints, etc. (e.g. [adjust a schema](./walkthroughs/adjust-a-schema))
 - Senior data engineers can dig even deeper into customization options and change schemas, normalizers, the way pipelines run such as parallelism, etc.
 
 ## Use Case #3: Enhance your productivity with `dlt`
 
-`dlt` is meant to support natural workflows that occur in the data team. Offering native support for local development and testing, you can use `dlt` with a local duckdb destination and use `dlt pipeline show` to generate a web client to display and query the data. Once you are happy with it, you can simply switch to your production destination and you pipeline will run on production from the first try (e.g. [show data](../using-loaded-data/exploring-the-data), [colab duckdb example](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing)).
+`dlt` is meant to support natural workflows that occur in the data team. Offering native support for local development and testing, you can use `dlt` with a local duckdb destination and use `dlt pipeline show` to generate a web client to display and query the data. Once you are happy with it, you can simply switch to your production destination and you pipeline will run on production from the first try (e.g. [show data](../dlt-ecosystem/visualizations/exploring-the-data.md), [colab duckdb example](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing)).
 
-With dbt runner, you can aditionally develop and later run transformations. If you use cross-db compatibility for dbt, your code can even be developed locally such as on duckdb or reused by others if you choose to reshare your code (e.g. [run dbt from local or repository](../using-loaded-data/transforming-the-data)).
+With dbt runner, you can aditionally develop and later run transformations. If you use cross-db compatibility for dbt, your code can even be developed locally such as on duckdb or reused by others if you choose to reshare your code (e.g. [run dbt from local or repository](../dlt-ecosystem/transformations/transforming-the-data)).
 
 `dlt` supports Airflow and other workflow managers. It’s meant to plug into your data stack without causing more overheads (e.g. [how to set up on airflow](../running-in-production/orchestrators/airflow-gcp-cloud-composer))
 
@@ -50,6 +50,6 @@ Read more about our contribution process and contribute sources or request them 
 If you are taking over a `dlt` pipeline that someone else built or set up, you are in luck! What's important to know:
 - The pipeline is largely self-maintaining. The only thing you must ensure is that the source keeps producing data-from there dlt handles it.
 - You can notify schema evolution events (e.g. [alert schema change](./running-in-production/running#inspect-save-and-alert-on-schema-changes))
-- You can use the data by transforming it with dbt (e.g. [run dbt from local or repository](./using-loaded-data/transforming-the-data))
+- You can use the data by transforming it with dbt (e.g. [run dbt from local or repository](../dlt-ecosystem/transformations/transforming-the-data))
 - If the sources used are public, you can update your pipelines to the latest version from the online repo with the `dlt init`command. If you are the first to fix, you can contribute the fix back so it will be included in the future versions (e.g. [init a pipeline](./reference/command-line-interface#dlt-init), [contribute a source](https://github.com/dlt-hub/verified-source))
 
