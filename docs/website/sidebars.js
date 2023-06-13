@@ -27,14 +27,7 @@ const sidebars = {
       },
       items: [
         'try-in-colab',
-        {
-          type: 'category',
-          label: 'Build a data pipeline',
-          items: [
-            'getting-started/build-a-data-pipeline/renaming_columns',
-            'getting-started/build-a-data-pipeline/pseudonymizing_columns',
-          ]
-        },
+        'build-a-data-pipeline',
         {
           type: 'category',
           label: 'Build a data platform',
@@ -176,6 +169,14 @@ const sidebars = {
         'general-usage/schema',
         'general-usage/schema-evolution',
         'general-usage/configuration',
+        {
+          type: 'category',
+          label: 'customising-pipelines',
+          items: [
+            'getting-started/build-a-data-pipeline/renaming_columns',
+            'getting-started/build-a-data-pipeline/pseudonymizing_columns',
+          ]
+        },
       ],
     },
     {
