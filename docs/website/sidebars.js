@@ -26,6 +26,7 @@ const sidebars = {
         keywords: ['getting started'],
       },
       items: [
+        'try-in-colab',
         {
           type: 'category',
           label: 'Build a data pipeline',
