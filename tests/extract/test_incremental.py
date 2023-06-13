@@ -489,7 +489,6 @@ def test_replace_resets_state() -> None:
     p = dlt.pipeline(pipeline_name=uniq_id(), destination="duckdb")
     info = p.run(s)
     assert len(info.loads_ids) == 1
-    s.exhausted = False
     info = p.run(s)
     # state was reset
     assert 'child' not in s.state['resources']

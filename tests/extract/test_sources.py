@@ -819,3 +819,48 @@ def test_source_multiple_iterations() -> None:
     assert list(s) == []
     info = str(s)
     assert "Source is already iterated" in info
+
+
+def test_exhausted_property() -> None:
+
+    # this example will be exhausted after iteration
+    def open_generator_data():
+        yield from [1, 2, 3, 4]
+    s = DltSource("source", "module", Schema("source"), [dlt.resource(open_generator_data())])
+    assert s.exhausted is False
+    assert next(iter(s)) == 1
+    assert s.exhausted is True
+
+    # lists will not exhaust
+    s = DltSource("source", "module", Schema("source"), [dlt.resource([1, 2, 3, 4], table_name="table", name="resource")])
+    assert s.exhausted is False
+    assert next(iter(s)) == 1
+    assert s.exhausted is False
+
+    # iterators will not exhaust
+    s = DltSource("source", "module", Schema("source"), [dlt.resource(iter([1, 2, 3, 4]), table_name="table", name="resource")])
+    assert s.exhausted is False
+    assert next(iter(s)) == 1
+    assert s.exhausted is False
+
+    # having on exhausted generator resource will make the whole source exhausted
+    def open_generator_data():
+        yield from [1, 2, 3, 4]
+    s = DltSource("source", "module", Schema("source"), [ dlt.resource([1, 2, 3, 4], table_name="table", name="resource"), dlt.resource(open_generator_data())])
+    assert s.exhausted is False
+
+    # execute the whole source
+    list(s)
+    assert s.exhausted is True
+
+
+    # source with transformers also exhausts
+    @dlt.source
+    def mysource():
+        r = dlt.resource(itertools.count(start=1), name="infinity").add_limit(5)
+        yield r
+        yield r | dlt.transformer(name="double")(lambda x: x * 2)
+    s = mysource()
+    assert s.exhausted is False
+    assert next(iter(s)) == 2 # transformer is returned befor resource
+    assert s.exhausted is True

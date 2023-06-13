@@ -11,7 +11,8 @@ from typing import Any, ContextManager, Optional, Sequence, Union, Callable, Ite
 from dlt.common import sleep
 from dlt.common.configuration import configspec
 from dlt.common.configuration.inject import with_config
-from dlt.common.configuration.specs import BaseConfiguration
+from dlt.common.configuration.specs import BaseConfiguration, ContainerInjectableContext
+from dlt.common.configuration.container import Container
 from dlt.common.exceptions import PipelineException
 from dlt.common.source import unset_current_pipe_name, set_current_pipe_name
 from dlt.common.typing import AnyFun, AnyType, TDataItems
@@ -724,23 +725,34 @@ class PipeIterator(Iterator[PipeItem]):
 
 class ManagedPipeIterator(PipeIterator):
     """A version of the pipe iterator that gets closed automatically on an exception in _next_"""
-    _context_manager: ContextManager[Any] = None
+    _ctx: List[ContainerInjectableContext] = None
+    _container: Container = None
 
-    def set_context_manager(self, ctx: ContextManager[Any]) -> None:
-        """Enters the context manager that will exit automatically when iterator is closed"""
-        ctx.__enter__()
-        self._context_manager = ctx
+    def set_context(self, ctx: List[ContainerInjectableContext]) -> None:
+        """Sets list of injectable contexts that will be injected into Container for each call to __next__"""
+        self._ctx = ctx
+        self._container = Container()
 
     def __next__(self) -> PipeItem:
+        if self._ctx:
+            managers = [self._container.injectable_context(ctx) for ctx in self._ctx]
+            for manager in managers:
+                manager.__enter__()
         try:
-            return super().__next__()
+            item = super().__next__()
         except Exception as ex:
             # release context manager
-            if self._context_manager:
+            if self._ctx:
                 if isinstance(ex, StopIteration):
-                    self._context_manager.__exit__(None, None, None)
+                    for manager in managers:
+                        manager.__exit__(None, None, None)
                 else:
-                    self._context_manager.__exit__(type(ex), ex, None)
+                    for manager in managers:
+                        manager.__exit__(type(ex), ex, None)
             # crash in next
             self.close()
             raise
+        if self._ctx:
+            for manager in managers:
+                manager.__exit__(None, None, None)
+        return item

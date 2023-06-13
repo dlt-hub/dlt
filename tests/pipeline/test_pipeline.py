@@ -490,9 +490,13 @@ def test_run_load_pending() -> None:
     pipeline_name = "pipe_" + uniq_id()
     p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
 
+
+    def some_data():
+        yield from [1, 2, 3]
+
     @dlt.source
     def source():
-        return dlt.resource([1, 2, 3], name="numbers")
+        return dlt.resource(some_data(), name="numbers")
 
     s = source()
     p.extract(s)
