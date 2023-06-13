@@ -169,9 +169,6 @@ def extract_with_schema(
                         _reset_resource_state(resource._name)
 
             extractor = extract(extract_id, source, storage, collector, max_parallel_items=max_parallel_items, workers=workers)
-            # source iterates
-            # TODO: implement a real check if source is exhausted. most of the resources should be not
-            # source.exhausted = True
             # iterate over all items in the pipeline and update the schema if dynamic table hints were present
             for _, partials in extractor.items():
                 for partial in partials:

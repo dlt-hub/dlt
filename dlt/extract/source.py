@@ -300,7 +300,7 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
     @property
     def state(self) -> StrAny:
         """Gets resource-scoped state from the active pipeline. PipelineStateNotAvailable is raised if pipeline context is not available"""
-        with self._get_config_section_context():
+        with inject_section(self._get_config_section_context()):
             return resource_state(self.name)
 
     def clone(self, clone_pipe: bool = True, keep_pipe_id: bool = True) -> "DltResource":
@@ -340,22 +340,18 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
         # use the same state dict when opening iterator and when iterator is iterated
         container = Container()
         state, _ = pipeline_state(container, {})
+        state_context = StateInjectableContext(state=state)
+        section_context = self._get_config_section_context()
 
-        def _get_context() -> List[ContextManager[Any]]:
-            return [
-                self._get_config_section_context(),
-                Container().injectable_context(StateInjectableContext(state=state))
-            ]
-
-        # managed pipe iterator will remove injected contexts when closing
-        with multi_context_manager(_get_context()):
+        # managed pipe iterator will set the context on each call to  __next__
+        with inject_section(section_context), Container().injectable_context(state_context):
             pipe_iterator: ManagedPipeIterator = ManagedPipeIterator.from_pipes([self._pipe])  # type: ignore
 
-        pipe_iterator.set_context_manager(multi_context_manager(_get_context()))
+        pipe_iterator.set_context([state_context, section_context])
         _iter = map(lambda item: item.item, pipe_iterator)
         return flatten_list_or_items(_iter)
 
-    def _get_config_section_context(self) -> ContextManager[ConfigSectionContext]:
+    def _get_config_section_context(self) -> ConfigSectionContext:
         container = Container()
         proxy = container[PipelineContext]
         pipeline = None if not proxy.is_active() else proxy.pipeline()
@@ -369,12 +365,10 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
             default_schema_name = None
         if not default_schema_name and pipeline_name:
             default_schema_name = pipeline._make_schema_with_default_name().name
-        return inject_section(
-            ConfigSectionContext(
-                pipeline_name=pipeline_name,
-                sections=(known_sections.SOURCES, self.section or default_schema_name or uniq_id(), self.source_name or default_schema_name or self._name),
-                source_state_key=self.source_name or default_schema_name or self.section or uniq_id()
-            )
+        return ConfigSectionContext(
+            pipeline_name=pipeline_name,
+            sections=(known_sections.SOURCES, self.section or default_schema_name or uniq_id(), self.source_name or default_schema_name or self._name),
+            source_state_key=self.source_name or default_schema_name or self.section or uniq_id()
         )
 
     def __str__(self) -> str:
@@ -715,7 +709,7 @@ class DltSource(Iterable[TDataItem]):
     @property
     def state(self) -> StrAny:
         """Gets source-scoped state from the active pipeline. PipelineStateNotAvailable is raised if no pipeline is active"""
-        with self._get_config_section_context():
+        with inject_section(self._get_config_section_context()):
             return source_state()
 
     def clone(self) -> "DltSource":
@@ -732,29 +726,23 @@ class DltSource(Iterable[TDataItem]):
         """
         # use the same state dict when opening iterator and when iterator is iterated
         mock_state, _ = pipeline_state(Container(), {})
+        state_context = StateInjectableContext(state=mock_state)
+        section_context = self._get_config_section_context()
 
-        def _get_context() -> List[ContextManager[Any]]:
-            return [
-                self._get_config_section_context(),
-                Container().injectable_context(StateInjectableContext(state=mock_state))
-            ]
-
-        # managed pipe iterator will remove injected contexts when closing
-        with multi_context_manager(_get_context()):
+        # managed pipe iterator will set the context on each call to  __next__
+        with inject_section(section_context), Container().injectable_context(state_context):
             pipe_iterator: ManagedPipeIterator = ManagedPipeIterator.from_pipes(self._resources.selected_pipes)  # type: ignore
-        pipe_iterator.set_context_manager(multi_context_manager(_get_context()))
+        pipe_iterator.set_context([section_context, state_context])
         _iter = map(lambda item: item.item, pipe_iterator)
         return flatten_list_or_items(_iter)
 
-    def _get_config_section_context(self) -> ContextManager[ConfigSectionContext]:
+    def _get_config_section_context(self) -> ConfigSectionContext:
         proxy = Container()[PipelineContext]
         pipeline_name = None if not proxy.is_active() else proxy.pipeline().pipeline_name
-        return inject_section(
-            ConfigSectionContext(
-                pipeline_name=pipeline_name,
-                sections=(known_sections.SOURCES, self.section, self.name),
-                source_state_key=self.name
-            )
+        return ConfigSectionContext(
+            pipeline_name=pipeline_name,
+            sections=(known_sections.SOURCES, self.section, self.name),
+            source_state_key=self.name
         )
 
     def _add_resource(self, name: str, resource: DltResource) -> None:

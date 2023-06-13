@@ -864,4 +864,3 @@ def test_exhausted_property() -> None:
     assert s.exhausted is False
     assert next(iter(s)) == 2 # transformer is returned befor resource
     assert s.exhausted is True
-
