@@ -21,7 +21,7 @@ if __name__ == "__main__" :
 And that's it regarding the code modifications! If you run the script, `dlt` will create identical dataset you had in `duckdb` but in BigQuery.
 
 ## 2. Enable access to BigQuery and obtain credentials.
-Please [follow those steps](../destinations/bigquery.md) to enable `dlt` to write data to BigQuery.
+Please [follow those steps](../dlt-ecosystem/destinations/bigquery.md) to enable `dlt` to write data to BigQuery.
 
 ## 3. Add credentials to secrets.toml
 Please add the following section to your `secrets.toml` file, use the credentials obtained from the previous step
@@ -79,7 +79,7 @@ Job ID: a5f84253-3c10-428b-b2c8-1a09b22af9b2
  ```
 
 ### Lack of permissions to create jobs
-Add `BigQuery Job User` as described in the [destination page](../destinations/bigquery.md).
+Add `BigQuery Job User` as described in the [destination page](../dlt-ecosystem/destinations/bigquery.md).
 ```
 <class 'google.api_core.exceptions.Forbidden'>
 403 POST https://bigquery.googleapis.com/bigquery/v2/projects/bq-walkthrough/jobs?prettyPrint=false: Access Denied: Project bq-walkthrough: User does not have bigquery.jobs.create permission in project bq-walkthrough.
@@ -89,7 +89,7 @@ Job ID: c1476d2c-883c-43f7-a5fe-73db195e7bcd
 ```
 
 ### Lack of permissions to query/write data
-Add `BigQuery Data Editor` as described in the [destination page](../destinations/bigquery.md).
+Add `BigQuery Data Editor` as described in the [destination page](../dlt-ecosystem/destinations/bigquery.md).
 ```
 <class 'dlt.destinations.exceptions.DatabaseTransientException'>
 403 Access Denied: Table bq-walkthrough:games_data._dlt_loads: User does not have permission to query table bq-walkthrough:games_data._dlt_loads, or perhaps it does not exist in location EU.
