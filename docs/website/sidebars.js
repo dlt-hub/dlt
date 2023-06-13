@@ -14,7 +14,22 @@
 /** @type {import('@docusaurus/plugin-content-docs').SidebarsConfig} */
 const sidebars = {
   tutorialSidebar: [
-      'intro',
+    {
+      type: 'category',
+      label: 'Introduction',
+      link: {
+        type: 'generated-index',
+        title: 'Introduction',
+        description: 'A brief overview of what dlt is and whom it is for',
+        slug: 'introduction',
+        keywords: ['introduction'],
+      },
+      items: [
+        'introduction/what-is-dlt',
+        'introduction/who-is-dlt-for',
+        'introduction/community-and-support'
+      ],
+    },
     {
       type: 'category',
       label: 'Getting Started',
