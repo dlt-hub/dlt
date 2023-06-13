@@ -2,7 +2,7 @@
 
 This is an advanced guide that will take you through the main areas of pipelining with dlt.
 
-Go to the related pages you are instead looking for the [demo](./getting-started/try-in-colab.md), or the [step by step guide](./walkthroughs/create-a-pipeline.md)
+Go to the related pages you are instead looking for the [demo](try-in-colab.md), or the [step by step guide](./walkthroughs/create-a-pipeline)
 
 
 Below, we will deep dive into how to tackle building pipelines, from simple to complex, for the specific case you might have.
@@ -208,13 +208,13 @@ You can adjust table and column names, configure column properties, define data 
 
 These customization options enable you to create a schema that aligns with your desired naming conventions, data types, and overall data structure. With dlt, you have the flexibility to tailor the normalization process to meet your unique needs and achieve optimal results.
 
-Read more about how to implement here:
+Read more about how to configure [schema generation](./general-usage/schema)
 
 ## **Exporting and Importing Schema Files**
 
 dlt allows you to export and import schema files, which contain the structure and instructions for processing and loading the data. Exporting schema files enables you to modify them directly, making adjustments to the schema as needed. You can then import the modified schema files back into dlt to use them in your pipeline.
 
-Link to importing exporting schemas
+Read more: [Adjust a schema docs](./walkthroughs/adjust-a-schema)
 
 # **Governance Support in dlt Pipelines**
 
@@ -224,13 +224,13 @@ dlt pipelines offer robust governance support through three key mechanisms: pipe
 
 dlt pipelines leverage metadata to provide governance capabilities. This metadata includes load IDs, which consist of a timestamp and pipeline name. Load IDs enable incremental transformations and data vaulting by tracking data loads and facilitating data lineage and traceability.
 
-read more about lineage here https://dlthub.com/docs/using-loaded-data/understanding-the-tables#load-ids
+Read more about [lineage](./dlt-ecosystem/visualizations/understanding-the-tables#load-ids)
 
 ## **Schema Enforcement and Curation**
 
 dlt empowers users to enforce and curate schemas, ensuring data consistency and quality. Schemas define the structure of normalized data and guide the processing and loading of data. By adhering to predefined schemas, pipelines maintain data integrity and facilitate standardized data handling practices.
 
-read more about schemas here https://dlthub.com/docs/general-usage/schema
+Read more: [Adjust a schema docs](./walkthroughs/adjust-a-schema)
 
 ## **Schema evolution**
 
@@ -238,7 +238,7 @@ dlt enables proactive governance by alerting users to schema changes. When modif
 
 These governance features in dlt pipelines contribute to better data management practices, compliance adherence, and overall data governance, promoting data consistency, traceability, and control throughout the data processing lifecycle.
 
-read more about schema evolution here https://dlthub.com/docs/general-usage/schema-evolution
+read more about [schema evolution](./general-usage/schema-evolution)
 
 # Scaling
 
