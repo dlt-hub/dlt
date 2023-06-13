@@ -12,7 +12,7 @@ The [schema evolution demo](https://colab.research.google.com/drive/1H6HKFi-U1V4
 
 # The demo is trivial, what else is there?
 The demo is meant as a quick starting point - the next steps could be
-* check out the comprehensive [build a pipeline](./getting-started/build-a-data-pipeline.md) doc to better understand what you can do with dlt
+* check out the comprehensive [build a pipeline](build-a-data-pipeline.md) doc to better understand what you can do with dlt
 * check out the build a data platform section to see how to build a data warehouse or lake with dlt
 * check out the existing pipelines - you can use them for your ingestion, or as reference examples for what you want to build.
 
