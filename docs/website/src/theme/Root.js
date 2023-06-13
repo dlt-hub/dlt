@@ -20,7 +20,14 @@ const overlays = {
 function Overlay() {
 
   const location = useLocation();
-  const overlayConfig = overlays[location.pathname];
+
+  let overlayConfig = null;
+  for (const url in overlays) {
+    if (location.pathname.includes(url)) {
+        overlayConfig = overlays[url];
+    }
+    }
+
   const loomLink = `https://www.loom.com/embed/${overlayConfig?.loomId}`;
 
   const [continueModelOpen, setSontinueModelOpen] = useState(false);
