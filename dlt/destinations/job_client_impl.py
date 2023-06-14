@@ -40,7 +40,7 @@ class SqlLoadJob(LoadJob):
     def __init__(self, file_path: str, sql_client: SqlClientBase[Any]) -> None:
         super().__init__(FileStorage.get_file_name_from_file_path(file_path))
         # execute immediately if client present
-        with open(file_path, "r", encoding="utf-8") as f:
+        with FileStorage.open_zipsafe(file_path, "r", encoding="utf-8") as f:
             sql = f.read()
         with sql_client.begin_transaction():
             sql_client.execute_sql(sql)

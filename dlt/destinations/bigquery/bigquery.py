@@ -238,7 +238,7 @@ class BigQueryClient(SqlJobClientBase):
                 source_format=bigquery.SourceFormat.NEWLINE_DELIMITED_JSON,
                 ignore_unknown_values=False,
                 max_bad_records=0)
-            with open(file_path, "rb") as f:
+            with FileStorage.open_zipsafe(file_path, "rb") as f:
                 return self.sql_client.native_connection.load_table_from_file(
                         f,
                         self.sql_client.make_qualified_table_name(table_name, escape=False),
