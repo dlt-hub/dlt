@@ -6,9 +6,9 @@ keywords: [dlt, webhook, serverless]
 
 # Why run in cloud functions? Use cases and limitations
 
-## Real time data stream processing
+## Real time data stream processing:
 
-Real time data ingestion and usage architectures usually take the following steps
+Real time data ingestion and usage architectures usually take the following steps:
 1. Collect raw data in a buffer. For this we might use streaming technologies or some ad hoc buffer.
 2. Periodically read the buffer and process the data. Here we often use a serverless function that can validate schemas and load the data to the next stage.
 
@@ -32,12 +32,12 @@ Cloud functions offer a powerful alternative for batch ingestion. Due to the pos
 
 1. Choose platform to run on, and create a cloud function with python, and enough resources for what you want to process.
    * Make sure your cloud function hardware is sufficient by [configuring dlt buffer size](/docs/getting-started/build-a-data-pipeline#scaling)
-   * Make sure that the function is running the [required](/docs/reference/installation) library version
+   * Make sure that the function is running the [required](/docs/reference/installation) library version.
 2. Set up dependencies: Make sure that all the required dependencies are packaged and included in your function.
 3. Implement the function: Add the code itself and test it.
 4. Configure the triggers and any security settings, test it.
 5. Add the webhook to the data producing application or add credentials to the function, depending on what you are doing.
-6. Consider [alerting](/docs/running-in-production/running#using-slack-to-send-messages) non-success or scchema changes - use dlt's notifications or plug into the cloud monitoring
+6. Consider [alerting](/docs/running-in-production/running#using-slack-to-send-messages) non-success or scchema changes - use dlt's notifications or plug into the cloud monitoring.
 7. Define a monitoring strategy to keep track of function executions.
 
 

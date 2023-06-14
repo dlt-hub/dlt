@@ -4,26 +4,26 @@ description: How to run dlt in github actions
 keywords: [dlt, webhook, serverless]
 ---
 
-# Native deployment to github actions
+# Native deployment to GitHub Actions
 What is a native deployment to dlt? a native deployment is a deployment where dlt will generate the glue code and credentials instructions.
 
-For this easy style of deployment, dlt supports the cli command `dlt deploy scriptname.py orchestrator` which generates the necessary code and instructions.
+For this easy style of deployment, dlt supports the cli command `dlt deploy {scriptname.py} {orchestrator} {schedule}` which generates the necessary code and instructions.
 
 Read more about the [deployment command](/docs/reference/command-line-interface#github-action) here.
 
 ## Considerations
 * Github actions scheduling is not accurate - jobs will start within 0-30min of the scheduled time.
-* Github actions has a free tier and a pricing model that work best for small jobs
+* Github actions has a free tier and a pricing model that work best for small jobs.
 * To stop the jobs, disable the scheduled workflows or remove the workflow file.
 
 ## How does the cli deployment work?
-In the case of github actions, running the deploy command will do the following
-1. Instructions will get printed to your CLI. You will need to follow them
-2. A git workflow file is created. This file is equivalent to an airflow dag - it contains instructions of when and how to run your pipeline
+In the case of github actions, running the deploy command will do the following.
+1. Instructions will get printed to your CLI. You will need to follow them.
+2. A git workflow file is created. This file is equivalent to an airflow dag - it contains instructions of when and how to run your pipeline.
 3. follow the instructions to deploy the workflow file and add credentials to git for execution.
    1. follow the link and paste your credentials in.
-   2. git add, commit, push your workflow file
-   3. Run it manually to ensure everything runs fine
+   2. git add, commit, push your workflow file.
+   3. Run it manually to ensure everything runs fine.
 
 Here's what the instructions look like - by following them step by step you will have a running deployment:
 
