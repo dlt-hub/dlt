@@ -52,6 +52,20 @@ const sidebars = {
       items: [
         {
           type: 'category',
+          label: 'Deployments',
+          link: {
+            type: 'generated-index',
+            title: 'Deployments',
+            description: 'Overview over where you can deploy dlt.',
+            slug: 'dlt-ecosystem/deployments',
+            keywords: ['deployments'],
+          },
+          items: [
+            'dlt-ecosystem/deployments/where-can-dlt-run',
+          ]
+        },
+        {
+          type: 'category',
           label: 'Destinations',
           link: {
             type: 'generated-index',
