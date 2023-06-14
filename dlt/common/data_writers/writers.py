@@ -16,6 +16,7 @@ class TFileFormatSpec:
     is_binary_format: bool
     supports_schema_changes: bool
     requires_destination_capabilities: bool = False
+    compress_default: bool = False
 
 
 class DataWriter(abc.ABC):
@@ -86,7 +87,13 @@ class JsonlWriter(DataWriter):
 
     @classmethod
     def data_format(cls) -> TFileFormatSpec:
-        return TFileFormatSpec("jsonl", "jsonl", True, True)
+        return TFileFormatSpec(
+            "jsonl",
+            file_extension="jsonl",
+            is_binary_format=True,
+            supports_schema_changes=True,
+            compress_default=True,
+        )
 
 
 class JsonlListPUAEncodeWriter(JsonlWriter):
@@ -101,7 +108,13 @@ class JsonlListPUAEncodeWriter(JsonlWriter):
 
     @classmethod
     def data_format(cls) -> TFileFormatSpec:
-        return TFileFormatSpec("puae-jsonl", "jsonl", True, True)
+        return TFileFormatSpec(
+            "puae-jsonl",
+            file_extension="jsonl",
+            is_binary_format=True,
+            supports_schema_changes=True,
+            compress_default=True,
+        )
 
 
 class InsertValuesWriter(DataWriter):
@@ -152,4 +165,10 @@ class InsertValuesWriter(DataWriter):
 
     @classmethod
     def data_format(cls) -> TFileFormatSpec:
-        return TFileFormatSpec("insert_values", "insert_values", False, False, requires_destination_capabilities=True)
+        return TFileFormatSpec(
+            "insert_values",
+            file_extension="insert_values",
+            is_binary_format=False,
+            supports_schema_changes=False,
+            requires_destination_capabilities=True,
+        )
