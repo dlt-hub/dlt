@@ -11,8 +11,8 @@ from dlt.common.git import is_dirty
 
 from dlt.cli import utils
 from dlt.cli import echo as fmt
-from dlt.cli.deploy_command_helpers import (BaseDeployment, ask_files_overwrite, generate_pip_freeze, github_origin_to_url, serialize_templated_yaml,
-                                            wrap_template_str, PipelineWasNotRun)
+from dlt.cli.deploy_command_helpers import (PipelineWasNotRun, BaseDeployment, ask_files_overwrite, generate_pip_freeze, github_origin_to_url, serialize_templated_yaml,
+                                            wrap_template_str)
 
 from dlt.version import DLT_PKG_NAME
 
@@ -32,9 +32,11 @@ class DeploymentMethods(Enum):
     github_actions = "github-action"
     airflow_composer = "airflow-composer"
 
+
 class SecretFormats(Enum):
     env = "env"
     toml = "toml"
+
 
 def deploy_command(pipeline_script_path: str, deployment_method: str, repo_location: str, branch: Optional[str] = None, **kwargs: Any
 ) -> None:
@@ -247,10 +249,12 @@ class AirflowDeployment(BaseDeployment):
                 fmt.echo()
                 toml_provider = StringTomlProvider("")
                 for s_v in self.secret_envs:
-                    toml_provider.set_value(s_v.key, s_v.value, *s_v.sections)
+                    toml_provider.set_value(s_v.key, s_v.value, None, *s_v.sections)
                 for s_v in self.envs:
-                    toml_provider.set_value(s_v.key, s_v.value, *s_v.sections)
+                    toml_provider.set_value(s_v.key, s_v.value, None, *s_v.sections)
                 fmt.echo(toml_provider.dumps())
+            else:
+                raise ValueError(self.secrets_format)
 
         fmt.echo("4. Add dlt package below using Google Composer UI.")
         fmt.echo(fmt.bold(self.artifacts["requirements_txt"]))

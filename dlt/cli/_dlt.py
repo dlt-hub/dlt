@@ -57,10 +57,10 @@ def deploy_command_wrapper(pipeline_script_path: str, deployment_method: str, re
         click.secho(str(ex), err=True, fg="red")
         fmt.note("You must run the pipeline locally successfully at least once in order to deploy it.")
         fmt.note("Please refer to %s for further assistance" % fmt.bold(DLT_DEPLOY_DOCS_URL))
-        return -1
+        return -2
     except InvalidGitRepositoryError:
         click.secho(
-            "No git repository found for pipeline script %s." % fmt.bold(kwargs["pipeline_script_path"]),
+            "No git repository found for pipeline script %s." % fmt.bold(pipeline_script_path),
             err=True,
             fg="red"
         )
@@ -68,18 +68,18 @@ def deploy_command_wrapper(pipeline_script_path: str, deployment_method: str, re
         fmt.note("- Run the following command to initialize new repository: %s" % fmt.bold("git init"))
         fmt.note("- Add your local code to Github as described here: %s" % fmt.bold("https://docs.github.com/en/get-started/importing-your-projects-to-github/importing-source-code-to-github/adding-locally-hosted-code-to-github"))
         fmt.note("Please refer to %s for further assistance" % fmt.bold(DLT_DEPLOY_DOCS_URL))
-        return -1
+        return -3
     except NoSuchPathError as path_ex:
         click.secho(
             "The pipeline script does not exist\n%s" % str(path_ex),
             err=True,
             fg="red"
         )
-        return -1
+        return -4
     except Exception as ex:
         click.secho(str(ex), err=True, fg="red")
         fmt.note("Please refer to %s for further assistance" % fmt.bold(DLT_DEPLOY_DOCS_URL))
-        return -1
+        return -5
         # TODO: display stack trace if with debug flag
     return 0
 
@@ -204,8 +204,8 @@ def main() -> int:
     deploy_github_cmd.add_argument("--run-on-push", default=False, action="store_true", help="Runs the pipeline with every push to the repository.")
 
     # deploy airflow composer
-    deploy_airlow_cmd = deploy_sub_parsers.add_parser(DeploymentMethods.airflow_composer.value, help="Deploys the pipeline to Airflow")
-    deploy_airlow_cmd.add_argument("--secrets-format", default=SecretFormats.env, choices=[v.value for v in SecretFormats], required=False, help="Format of the secrets")
+    deploy_airflow_cmd = deploy_sub_parsers.add_parser(DeploymentMethods.airflow_composer.value, help="Deploys the pipeline to Airflow")
+    deploy_airflow_cmd.add_argument("--secrets-format", default=SecretFormats.env, choices=[v.value for v in SecretFormats], required=False, help="Format of the secrets")
 
     schema = subparsers.add_parser("schema", help="Shows, converts and upgrades schemas")
     schema.add_argument("file", help="Schema file name, in yaml or json format, will autodetect based on extension")
@@ -283,7 +283,13 @@ def main() -> int:
                 return init_command_wrapper(args.source, args.destination, args.generic, args.location, args.branch)
     elif args.command == "deploy":
         deploy_args = vars(args)
-        return deploy_command_wrapper(pipeline_script_path=deploy_args.pop("pipeline_script_path"), deployment_method=deploy_args.pop("deployment_method"), repo_location=deploy_args.pop("location"), branch=deploy_args.pop("branch"), **deploy_args)
+        return deploy_command_wrapper(
+            pipeline_script_path=deploy_args.pop("pipeline_script_path"),
+            deployment_method=deploy_args.pop("deployment_method"),
+            repo_location=deploy_args.pop("location"),
+            branch=deploy_args.pop("branch"),
+            **deploy_args
+        )
     elif args.command == "telemetry":
         return telemetry_status_command_wrapper()
     else:
