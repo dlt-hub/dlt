@@ -40,5 +40,4 @@ Cloud functions offer a powerful alternative for batch ingestion. Due to the pos
 6. Consider [alerting](/docs/running-in-production/running#using-slack-to-send-messages) non-success or scchema changes - use dlt's notifications or plug into the cloud monitoring
 7. Define a monitoring strategy to keep track of function executions.
 
-# Setting up GCP cloud function as webhook for event ingestion
 
