@@ -137,11 +137,11 @@ def load_data():
 
     # modify the pipeline parameters
     pipeline = dlt.pipeline(
-									 pipeline_name='pipeline_name',
-                   dataset_name='dataset_name',
-                   destination='duckdb',
-                   full_refresh=False # must be false if we decompose
-               )
+        pipeline_name='pipeline_name',
+        dataset_name='dataset_name',
+        destination='duckdb',
+        full_refresh=False # must be false if we decompose
+    )
     # create the source, the "serialize" decompose option will converts dlt resources into Airflow tasks. use "none" to disable it
     tasks.add_run(pipeline, source(), decompose="serialize", trigger_rule="all_done", retries=0, provide_context=True)
 
@@ -158,11 +158,11 @@ load_data()
     # set `use_data_folder` to True to store temporary data on the `data` bucket.
     # Use only when it does not fit on the local storage
     tasks = PipelineTasksGroup(
-    		pipeline_name="pipedrive",
-    		use_data_folder=False,
-    		wipe_local_data=True,
-    		use_task_logger=True,
-    		retry_policy=Retrying(stop=stop_after_attempt(3), reraise=True),
+        pipeline_name="pipedrive",
+        use_data_folder=False,
+        wipe_local_data=True,
+        use_task_logger=True,
+        retry_policy=Retrying(stop=stop_after_attempt(3), reraise=True),
     )
     ```
 
@@ -407,7 +407,7 @@ a. Add stage deployment files to commit. Use your Git UI or the following comman
     c. Push changes to GitHub. Use your Git UI or the following command:
 
     ```bash
-      git push origin
+    git push origin
     ```
 
 2. Run the trigger you build (in [Cloud Build](https://console.cloud.google.com/cloud-build/dashboard)).
@@ -443,9 +443,9 @@ For example:
 
 ```python
 tasks.add_run(
-		pipeline=pipeline,
-		data=[source, activities_source],
-		decompose="serialize",
+    pipeline=pipeline,
+    data=[source, activities_source],
+    decompose="serialize",
 )
 ```
 
@@ -455,14 +455,14 @@ PipelineTasksGroup can't handle the list of sources in the “serialize” mode,
 
 ```python
 tasks.add_run(
-		pipeline=pipeline,
-		data=source,
-		decompose="serialize",
+    pipeline=pipeline,
+    data=source,
+    decompose="serialize",
 )
 tasks.add_run(
-		pipeline=pipeline,
-		data=activities_source,
-		decompose="serialize",
+    pipeline=pipeline,
+    data=activities_source,
+    decompose="serialize",
 )
 ```
 
