@@ -1,5 +1,5 @@
 ---
-title: Deploy a pipeline with GitHub Actions
+title: Deploy with GitHub Actions
 description: How to deploy a pipeline with GitHub Actions
 keywords: [how to, deploy a pipeline, github actions]
 ---
