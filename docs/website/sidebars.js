@@ -167,7 +167,6 @@ const sidebars = {
         'general-usage/incremental-loading',
         'general-usage/credentials',
         'general-usage/schema',
-        'general-usage/schema-evolution',
         'general-usage/configuration',
         {
           type: 'category',
@@ -217,8 +216,10 @@ const sidebars = {
       },
       items: [
         'reference/installation',
-        'reference/how-dlt-works',
         'reference/command-line-interface',
+        'reference/performance',
+        'reference/explainers/how-dlt-works',
+        'reference/explainers/schema-evolution',
         'reference/telemetry',
       ],
     },

@@ -108,5 +108,5 @@ To try out schema evolution with `dlt`, check out our [colab demo.](https://cola
 ### Want more?
 
 - Join our [Slack](https://join.slack.com/t/dlthub-community/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g)
-- Read our [docs on implementing schema evolution](https://dlthub.com/docs/general-usage/schema-evolution)
+- Read our [docs on implementing schema evolution](https://dlthub.com/docs/reference/explainers/schema-evolution)
 - Stay tuned for the next article in the series: *How to do schema evolution with* `dlt` *in the most effective way*

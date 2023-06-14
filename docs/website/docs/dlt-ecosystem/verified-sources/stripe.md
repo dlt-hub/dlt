@@ -39,7 +39,7 @@ To get started with this verified source, follow these steps:
     ```properties
     dlt init stripe_analytics bigquery
     ```
-    This command will initialize your verified source with Stripe and creates pipeline example with BigQuery as the destination. If you'd like to use a different destination, simply replace **`bigquery`** with the name of your preferred destination. You can find supported destinations and their configuration options in our [documentation](https://dlthub.com/docs/destinations/duckdb)
+    This command will initialize your verified source with Stripe and creates pipeline example with BigQuery as the destination. If you'd like to use a different destination, simply replace **`bigquery`** with the name of your preferred destination. You can find supported destinations and their configuration options in our [documentation](../destinations/)
 
 3. After running this command, a new directory will be created with the necessary files and configuration settings to get started.
 
@@ -77,7 +77,7 @@ stripe_source
     ```
 
 2. Replace the value of **stripe_secret_key** with the one that [you copied above](stripe.md#grab-api-credentials). This will ensure that this source can access your Stripe resources securely.
-3. Finally, follow the instructions in **[Destinations](https://dlthub.com/docs/destinations/duckdb)** to add credentials for your chosen destination. This will ensure that your data is properly routed to its final destination.
+3. Finally, follow the instructions in **[Destinations](../destinations/)** to add credentials for your chosen destination. This will ensure that your data is properly routed to its final destination.
 
 ## Run the pipeline example
 

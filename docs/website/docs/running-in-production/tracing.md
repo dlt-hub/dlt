@@ -15,7 +15,7 @@ An exception trace is sent when:
 * Any Python logger (including `dlt`) logs a warning (enabled only if the `dlt` logging level is `WARNING` or below)
 * On unhandled exceptions
 
-A transaction trace is sent when the `pipeline.run` is called. We send information when [extract, normalize and load](../reference/how-dlt-works) steps are completed.
+A transaction trace is sent when the `pipeline.run` is called. We send information when [extract, normalize and load](../reference/explainers/how-dlt-works.md) steps are completed.
 
 The data available in Sentry makes finding and documenting bugs easy, allowing you to easily find bottlenecks and profile data extraction, normalization, and loading.
 

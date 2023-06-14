@@ -8,7 +8,7 @@ keywords: [hubspot api, hubspot verified source, hubspot]
 
 HubSpot is a customer relationship management (CRM) software and inbound marketing platform that helps businesses to attract visitors, engage customers, and close leads.
 
-The `dlt` HubSpot verified source allows you to automatically load data from HubSpot into a [destination](https://dlthub.com/docs/destinations) of your choice. It loads data from the following endpoints:
+The `dlt` HubSpot verified source allows you to automatically load data from HubSpot into a [destination](../destinations/) of your choice. It loads data from the following endpoints:
 
 |API|Data|
 | --- | --- |
@@ -50,7 +50,7 @@ Initialize the pipeline with the following command:
 
 `dlt init hubspot bigquery`
 
-Here, we chose BigQuery as the destination. Alternatively, you can also choose redshift, duckdb, or any of the other [destinations](https://dlthub.com/docs/destinations/duckdb).
+Here, we chose BigQuery as the destination. Alternatively, you can also choose redshift, duckdb, or any of the other [destinations](../destinations/).
 
 ## Add credentials
 
@@ -61,7 +61,7 @@ Here, we chose BigQuery as the destination. Alternatively, you can also choose r
 [sources.hubspot]
 api_key = "api_key" # please set me up!
 ```
-3. Enter credentials for your chosen destination as per the [docs](https://dlthub.com/docs/destinations#google-bigquery)
+3. Enter credentials for your chosen destination as per the [docs](../destinations/)
 ## Define the data loading function
 
 1. There are two data loading functions inside the script `hubspot_pipeline.py`:

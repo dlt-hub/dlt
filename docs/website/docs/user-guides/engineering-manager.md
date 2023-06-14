@@ -57,7 +57,7 @@ By being a library built to enable free usage, we are uniquely positioned to run
 
 ## dlt massively reduces pipeline maintenance, increases efficiency and ROI.
 
-- Reduce engineering effort as much as 5x via a paradigm shift. Structure data automatically to not do it manually. [Read about structured data lake](https://dlthub.com/docs/blog/next-generation-data-platform), and [how to do schema evolution](https://dlthub.com/docs/general-usage/schema-evolution).
+- Reduce engineering effort as much as 5x via a paradigm shift. Structure data automatically to not do it manually. [Read about structured data lake](https://dlthub.com/docs/blog/next-generation-data-platform), and [how to do schema evolution](../reference/explainers/schema-evolution.md).
 - Better Collaboration and Communication: Structured data promotes better collaboration and communication among team members. Since everyone operates on a shared understanding of the data structure, it becomes easier to discuss and align on data-related topics. Queries, reports, and analysis can be easily shared and understood by others, enhancing collaboration and teamwork.
 - Faster time to build pipelines: After extracting data, if you pass it to dlt, you are done. If not, it needs to be structured. Because structuring is hard, we curate it. Curation involves at least the producer, and consumer, but often also an analyst and the engineer, and is a long, friction-ful process.
 - Usage focus improves ROI.To use data, we need to understand what it is. Structured data already contains a technical description, accelerating usage.
