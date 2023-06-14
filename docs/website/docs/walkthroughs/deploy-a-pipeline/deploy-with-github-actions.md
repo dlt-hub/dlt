@@ -6,8 +6,8 @@ keywords: [how to, deploy a pipeline]
 
 # Deploy a pipeline
 
-Before you can deploy a pipeline, you will need to 1) [install dlt](../reference/installation.mdx),
-2) [create a pipeline](./create-a-pipeline.md), and 3) sign up for a [GitHub](https://github.com) account,
+Before you can deploy a pipeline, you will need to 1) [install dlt](../../reference/installation.mdx),
+2) [create a pipeline](../create-a-pipeline.md), and 3) sign up for a [GitHub](https://github.com) account,
 since you will be deploying using [GitHub Actions](https://github.com/features/actions).
 
 ## Add your `dlt` project directory to GitHub
