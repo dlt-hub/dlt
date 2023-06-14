@@ -145,7 +145,8 @@ const sidebars = {
         'walkthroughs/run-a-pipeline',
         'walkthroughs/adjust-a-schema',
         'walkthroughs/share-a-dataset',
-        'walkthroughs/deploy-a-pipeline'
+        'walkthroughs/deploy-a-pipeline/deploy-with-github-actions',
+        'walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer'
       ],
     },
     {

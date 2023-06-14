@@ -1,3 +1,9 @@
+---
+title: Deploy with Airflow and Google Composer
+description: How to deploy a pipeline with Airflow and Google Composer
+keywords: [how to, deploy a pipeline, airflow, gcp]
+---
+
 # Deploy a pipeline with Airflow
 
 Before you can deploy a pipeline, you will need to [install dlt](../../reference/installation.mdx) and [create a pipeline](../create-a-pipeline.md),
@@ -35,7 +41,7 @@ This command checks if your pipeline has run successfully before and creates the
 - dags
     - This folder contains the Python script `dag_{pipeline_name}.py`, which is an example of a simple serialized DAG using the Airflow *PipelineTasksGroup* wrapper.
 
-    **Note:** This folder is only needed to store DAG scripts, but it is not the Airflow *dags_folder*. Please refer to the [Troubleshooting](deploy-with-airflow.md#Troubleshooting) section for more information.
+    **Note:** This folder is only needed to store DAG scripts, but it is not the Airflow *dags_folder*. Please refer to the [Troubleshooting](deploy-with-airflow-composer.md#Troubleshooting) section for more information.
 
 By default, the `dlt deploy` command shows you the deployment credentials in ENV format.
 
