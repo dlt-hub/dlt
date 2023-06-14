@@ -31,8 +31,8 @@ Cloud functions offer a powerful alternative for batch ingestion. Due to the pos
 # How to set up dlt on a cloud function?
 
 1. Choose platform to run on, and create a cloud function with python, and enough resources for what you want to process.
-   * Make sure your cloud function hardware is sufficient by [configuring dlt buffer size](docs/website/docs/getting-started/build-a-data-pipeline#scaling)
-   * Make sure that the function is running the [required](docs/reference/installation) library version
+   * Make sure your cloud function hardware is sufficient by [configuring dlt buffer size](/docs/getting-started/build-a-data-pipeline#scaling)
+   * Make sure that the function is running the [required](/docs/reference/installation) library version
 2. Set up dependencies: Make sure that all the required dependencies are packaged and included in your function.
 3. Implement the function: Add the code itself and test it.
 4. Configure the triggers and any security settings, test it.
