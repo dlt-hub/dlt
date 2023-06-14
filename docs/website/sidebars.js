@@ -62,6 +62,7 @@ const sidebars = {
           },
           items: [
             'dlt-ecosystem/deployments/where-can-dlt-run',
+            'dlt-ecosystem/deployments/running-in-cloud-functions',
           ]
         },
         {
