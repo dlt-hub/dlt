@@ -94,8 +94,7 @@ class FileStorage:
             mode = mode + self.file_type
         if "r" in mode:
             return FileStorage.open_zipsafe(self.make_full_path(relative_path), mode, encoding=encoding_for_mode(mode))
-        else:
-            return open(self.make_full_path(relative_path), mode, encoding=encoding_for_mode(mode))
+        return open(self.make_full_path(relative_path), mode, encoding=encoding_for_mode(mode))
 
     def open_temp(self, delete: bool = False, mode: str = "w", file_type: str = None) -> IO[Any]:
         mode = mode + file_type or self.file_type
@@ -260,6 +259,9 @@ class FileStorage:
     def open_zipsafe(path: str, mode: str = "r", encoding: Optional[str] = None, **kwargs: Any) -> IO[Any]:
         """Opens a file using gzip.open if it is a gzip file, otherwise uses open."""
         try:
-            return cast(IO[Any], gzip.open(path, mode, encoding=encoding, **kwargs))
-        except gzip.BadGzipFile:
+            f = gzip.open(path, mode, encoding=encoding, **kwargs)
+            # Force gzip to read the first few bytes and check the magic number
+            f.read(2), f.seek(0)
+            return cast(IO[Any], f)
+        except (gzip.BadGzipFile, OSError):
             return open(path, mode, encoding=encoding, **kwargs)
