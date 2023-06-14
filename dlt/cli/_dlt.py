@@ -42,7 +42,8 @@ def list_verified_sources_command_wrapper(repo_location: str, branch: str) -> in
 
 
 @utils.track_command("deploy", False, "deployment_method")
-def deploy_command_wrapper(**kwargs: Any) -> int:
+def deploy_command_wrapper(pipeline_script_path: str, deployment_method: str, repo_location: str, branch: Optional[str] = None, **kwargs: Any
+) -> int:
     try:
         utils.ensure_git_command("deploy")
     except Exception as ex:
@@ -51,7 +52,7 @@ def deploy_command_wrapper(**kwargs: Any) -> int:
 
     from git import InvalidGitRepositoryError, NoSuchPathError
     try:
-        deploy_command(**kwargs)
+        deploy_command(pipeline_script_path=pipeline_script_path, deployment_method=deployment_method, repo_location=repo_location, branch=branch, **kwargs)
     except (CannotRestorePipelineException, PipelineWasNotRun) as ex:
         click.secho(str(ex), err=True, fg="red")
         fmt.note("You must run the pipeline locally successfully at least once in order to deploy it.")
@@ -204,7 +205,7 @@ def main() -> int:
 
     # deploy airflow composer
     deploy_airlow_cmd = deploy_sub_parsers.add_parser(DeploymentMethods.airflow_composer.value, help="Deploys the pipeline to Airflow")
-    deploy_airlow_cmd.add_argument("--secrets-format", default=SecretFormats.env, choices=[v.value for v in SecretFormats.__members__.values()], required=False, help="Format of the secrets")
+    deploy_airlow_cmd.add_argument("--secrets-format", default=SecretFormats.env, choices=[v.value for v in SecretFormats], required=False, help="Format of the secrets")
 
     schema = subparsers.add_parser("schema", help="Shows, converts and upgrades schemas")
     schema.add_argument("file", help="Schema file name, in yaml or json format, will autodetect based on extension")
@@ -281,7 +282,8 @@ def main() -> int:
             else:
                 return init_command_wrapper(args.source, args.destination, args.generic, args.location, args.branch)
     elif args.command == "deploy":
-        return deploy_command_wrapper(**vars(args))
+        deploy_args = vars(args)
+        return deploy_command_wrapper(pipeline_script_path=deploy_args.pop("pipeline_script_path"), deployment_method=deploy_args.pop("deployment_method"), repo_location=deploy_args.pop("location"), branch=deploy_args.pop("branch"), **deploy_args)
     elif args.command == "telemetry":
         return telemetry_status_command_wrapper()
     else:

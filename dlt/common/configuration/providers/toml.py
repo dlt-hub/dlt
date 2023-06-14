@@ -84,10 +84,10 @@ class BaseTomlProvider(ConfigProvider):
         return len(self._toml.body) == 0
 
 
-class MemoryTomlProvider(BaseTomlProvider):
+class StringTomlProvider(BaseTomlProvider):
 
     def __init__(self, toml_string: str) -> None:
-        super().__init__(MemoryTomlProvider.loads(toml_string))
+        super().__init__(StringTomlProvider.loads(toml_string))
 
     def dumps(self) -> str:
         return tomlkit.dumps(self._toml)

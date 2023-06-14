@@ -1,5 +1,5 @@
 import pytest
-from dlt.common.configuration.providers import MemoryTomlProvider
+from dlt.common.configuration.providers import StringTomlProvider
 
 @pytest.mark.skip("Not implemented")
 def test_providers_order() -> None:
@@ -27,7 +27,7 @@ def test_providers_value_getter() -> None:
 def test_toml_memory_provider() -> None:
 
     # test basic reading
-    provider = MemoryTomlProvider("""
+    provider = StringTomlProvider("""
 [section1.subsection]
 key1 = "value1"
 
@@ -39,7 +39,7 @@ key2 = "value2"
     assert provider.get_value("key2", "", "section2", "subsection") ==  ("value2", "section2.subsection.key2")
 
     # test basic writing
-    provider = MemoryTomlProvider("")
+    provider = StringTomlProvider("")
     assert provider.dumps() == ""
 
     provider.set_value("key1", "value1", "section1", "subsection")

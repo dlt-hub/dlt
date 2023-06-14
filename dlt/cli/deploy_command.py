@@ -4,7 +4,7 @@ import yaml
 from enum import Enum
 from importlib.metadata import version as pkg_version
 
-from dlt.common.configuration.providers import SECRETS_TOML, SECRETS_TOML_KEY, MemoryTomlProvider
+from dlt.common.configuration.providers import SECRETS_TOML, SECRETS_TOML_KEY, StringTomlProvider
 from dlt.common.configuration.paths import make_dlt_settings_path
 from dlt.common.configuration.utils import serialize_value
 from dlt.common.git import is_dirty
@@ -36,7 +36,7 @@ class SecretFormats(Enum):
     env = "env"
     toml = "toml"
 
-def deploy_command(deployment_method: str, **kwargs: Any
+def deploy_command(pipeline_script_path: str, deployment_method: str, repo_location: str, branch: Optional[str] = None, **kwargs: Any
 ) -> None:
 
     # get current repo local folder
@@ -48,7 +48,7 @@ def deploy_command(deployment_method: str, **kwargs: Any
     else:
         raise ValueError(f"Deployment method '{deployment_method}' is not supported. Only {', '.join([m.value for m in DeploymentMethods])} are available.'")
 
-    deployment_class(**kwargs).run_deployment()
+    deployment_class(pipeline_script_path=pipeline_script_path, location=repo_location, branch=branch, **kwargs).run_deployment()
 
 
 class GithubActionDeployment(BaseDeployment):
@@ -243,9 +243,9 @@ class AirflowDeployment(BaseDeployment):
                 self._echo_envs()
             elif self.secrets_format == SecretFormats.toml.value:
                 # build toml
-                fmt.echo(f"3. Add the following toml-string to the Airflow UI as the {SECRETS_TOML_KEY} variable.")
+                fmt.echo(f"3. Add the following toml-string in the Google Composer UI as the {SECRETS_TOML_KEY} variable.")
                 fmt.echo()
-                toml_provider = MemoryTomlProvider("")
+                toml_provider = StringTomlProvider("")
                 for s_v in self.secret_envs:
                     toml_provider.set_value(s_v.key, s_v.value, *s_v.sections)
                 for s_v in self.envs:
