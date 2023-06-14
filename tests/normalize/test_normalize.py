@@ -419,7 +419,7 @@ def expect_load_package(load_storage: LoadStorage, load_id: str, expected_tables
 def get_line_from_file(load_storage: LoadStorage, loaded_files: List[str], return_line: int = 0) -> Tuple[str, int]:
     lines = []
     for file in loaded_files:
-        with load_storage.storage.open_file(file) as f:
+        with load_storage.storage.open_file_zipsafe(file) as f:
             lines.extend(f.readlines())
     return lines[return_line], len(lines)
 

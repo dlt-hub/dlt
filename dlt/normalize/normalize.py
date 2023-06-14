@@ -86,7 +86,7 @@ class Normalize(Runnable[ProcessPool]):
                     line_no: int = 0
                     root_table_name = NormalizeStorage.parse_normalize_file_name(extracted_items_file).table_name
                     logger.debug(f"Processing extracted items in {extracted_items_file} in load_id {load_id} with table name {root_table_name} and schema {schema.name}")
-                    with normalize_storage.storage.open_file(extracted_items_file) as f:
+                    with normalize_storage.storage.open_file_zipsafe(extracted_items_file) as f:
                         # enumerate jsonl file line by line
                         for line_no, line in enumerate(f):
                             items: List[TDataItem] = json.loads(line)

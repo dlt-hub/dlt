@@ -1,3 +1,4 @@
+import gzip
 import os
 import re
 import stat
@@ -5,7 +6,7 @@ import errno
 import tempfile
 import shutil
 import pathvalidate
-from typing import IO, Any, List
+from typing import IO, Any, List, cast
 from dlt.common.typing import AnyFun
 
 from dlt.common.utils import encoding_for_mode, uniq_id
@@ -64,7 +65,7 @@ class FileStorage:
 
     def load(self, relative_path: str) -> Any:
         # raises on file not existing
-        with self.open_file(relative_path) as text_file:
+        with self.open_file_zipsafe(relative_path) as text_file:
             return text_file.read()
 
     def delete(self, relative_path: str) -> None:
@@ -92,6 +93,14 @@ class FileStorage:
         if "b" not in mode and "t" not in mode:
             mode = mode + self.file_type
         return open(self.make_full_path(relative_path), mode, encoding=encoding_for_mode(mode))
+
+    def open_file_zipsafe(self, relative_path: str, mode: str = "r") -> IO[Any]:
+        try:
+            if "b" not in mode and "t" not in mode:
+                mode = mode + self.file_type
+            return cast(IO[Any], gzip.open(self.make_full_path(relative_path), mode, encoding=encoding_for_mode(mode)))
+        except gzip.BadGzipFile:
+            return self.open_file(relative_path, mode)
 
     def open_temp(self, delete: bool = False, mode: str = "w", file_type: str = None) -> IO[Any]:
         mode = mode + file_type or self.file_type

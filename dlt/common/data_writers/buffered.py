@@ -1,3 +1,4 @@
+import gzip
 from typing import List, IO, Any, Optional, Type
 
 from dlt.common.utils import uniq_id
@@ -46,6 +47,8 @@ class BufferedDataWriter:
         self.buffer_max_items = min(buffer_max_items, file_max_items or buffer_max_items)
         self.file_max_bytes = file_max_bytes
         self.file_max_items = file_max_items
+        # the open function is either gzip.open or open
+        self.open = gzip.open if self._file_format_spec.compress_default else open
 
         self._current_columns: TTableSchemaColumns = None
         self._file_name: str = None
@@ -110,9 +113,9 @@ class BufferedDataWriter:
             if not self._writer:
                 # create new writer and write header
                 if self._file_format_spec.is_binary_format:
-                    self._file = open(self._file_name, "wb")
+                    self._file = self.open(self._file_name, "wb") # type: ignore
                 else:
-                    self._file = open(self._file_name, "wt", encoding="utf-8")
+                    self._file = self.open(self._file_name, "wt", encoding="utf-8") # type: ignore
                 self._writer = DataWriter.from_file_format(self.file_format, self._file, caps=self._caps)
                 self._writer.write_header(self._current_columns)
             # write buffer
