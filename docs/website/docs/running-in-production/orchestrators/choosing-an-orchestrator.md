@@ -52,7 +52,7 @@ Limitations:
 
 GitHub Actions is not a full blown orchestrator, but it works. It supports simple workflows and scheduling, allowing for a visual, lightweight deployment with web-based monitoring (i.e. you can see runs in GitHub Actions). It has a free tier, but its pricing is not convenient for large jobs.
 
-To deploy a pipeline on GitHub Actions, read [here](./walkthroughs/deploy-a-pipeline/deploy-with-github-actions.md) about using the `dlt deploy` command and [here](https://docs.github.com/en/actions/learn-github-actions/usage-limits-billing-and-administration) about the limitations of GitHub Actions and how their billing works.
+To deploy a pipeline on GitHub Actions, read [here](../../walkthroughs/deploy-a-pipeline/deploy-with-github-actions) about using the `dlt deploy` command and [here](https://docs.github.com/en/actions/learn-github-actions/usage-limits-billing-and-administration) about the limitations of GitHub Actions and how their billing works.
 
 ### **Other orchestrators**
 
