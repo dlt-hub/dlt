@@ -35,7 +35,7 @@ We decided to deploy our Streamlit app on a [Google Cloud VM instance](https://c
 
 ### Deploying the `dlt` pipeline with GitHub Actions
 
-Once we had our data warehouse set up, we were ready to deploy the pipeline. We then followed the [deploy a pipeline](https://dlthub.com/docs/walkthroughs/deploy-a-pipeline/deploy-with-github-actions.md) walkthrough to configure and deploy a pipeline that will load the data daily onto our data warehouse.
+Once we had our data warehouse set up, we were ready to deploy the pipeline. We then followed the [deploy a pipeline](https://dlthub.com/docs/walkthroughs/deploy-a-pipeline/deploy-with-github-actions) walkthrough to configure and deploy a pipeline that will load the data daily onto our data warehouse.
 
 ### Deploying the dashboard
 

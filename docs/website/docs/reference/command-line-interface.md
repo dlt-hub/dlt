@@ -35,7 +35,7 @@ You need to specify when the GitHub Action should run using a [cron schedule exp
 
 For the chess.com API example above, you could deploy it with `dlt deploy chess.py github-action --schedule "*/30 * * * *"`.
 
-Follow the [Deploy a pipeline](../walkthroughs/deploy-a-pipeline/deploy-with-github-actions.md) walkthrough to learn more.
+Follow the [Deploy a pipeline](../walkthroughs/deploy-a-pipeline/deploy-with-github-actions) walkthrough to learn more.
 
 ### airflow-composer
 
@@ -45,7 +45,7 @@ dlt deploy <script>.py airflow-composer --schedule "*/30 * * * *"
 
 [Google Composer](../running-in-production/orchestrators/airflow-gcp-cloud-composer.md) is a managed Airflow deployment provided by Google.
 
-This deployment type follows the same process as [github-action deployment](../walkthroughs/deploy-a-pipeline/deploy-with-github-actions.md).
+This deployment type follows the same process as [github-action deployment](../walkthroughs/deploy-a-pipeline/deploy-with-github-actions).
 
 It will create an Airflow DAG for your pipeline script that you should customize. The DAG is using `dlt` Airflow wrapper to make this process trivial.
 

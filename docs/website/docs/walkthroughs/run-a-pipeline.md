@@ -215,4 +215,4 @@ The most probable cause of the failed job is **the data in the job file**. You c
 
 ## Further readings
 - [Beef up your script for production](../running-in-production/running.md), easily add alerting, retries and logging so you are well informed when something goes wrong
-- [Deploy this pipeline with GitHub Actions](deploy-a-pipeline/deploy-with-github-actions.md), so that your pipeline script is automatically executed on a schedule
+- [Deploy this pipeline with GitHub Actions](deploy-a-pipeline/deploy-with-github-actions), so that your pipeline script is automatically executed on a schedule

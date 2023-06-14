@@ -65,7 +65,7 @@ Good docs pages to check out:
 - [Getting started](getting-started)
 - [Create a pipeline](../walkthroughs/create-a-pipeline)
 - [Run a pipeline](../walkthroughs/run-a-pipeline)
-- [Deploy a pipeline with GitHub Actions](../walkthroughs/deploy-a-pipeline/deploy-with-github-actions.md)
+- [Deploy a pipeline with GitHub Actions](../walkthroughs/deploy-a-pipeline/deploy-with-github-actions)
 - [Understand the loaded data](../dlt-ecosystem/visualizations/understanding-the-tables)
 - [Explore the loaded data in Streamlit](../dlt-ecosystem/visualizations/exploring-the-data.md)
 - [Transform the data with SQL or python](../dlt-ecosystem/transformations/transforming-the-data)
