@@ -16,7 +16,7 @@ Using this Notion `dlt` verified source and pipeline example, you can load the *
 1. Open the database that you want to load to the destination.
 2. Click on the three dots located at the top right corner and choose "Add connections".
     
-    <img src="https://raw.githubusercontent.com/dlt-hub/dlt/devel/docs/website/docs/dlt-ecosystem/verified-sources/docs_images/Notion_Database_2.png" alt="Notion Database"/>
+    ![Notion Database](./docs_images/Notion_Database_2.jpeg)
 
     
 3. From the list of options, select the integration you previously created and click on "Confirm".
@@ -29,7 +29,6 @@ To get started with your verified source and pipeline example follow these steps
 2. Enter the following command:
     
     ```bash
-    
     dlt init notion bigquery
     ```
     
@@ -51,13 +50,12 @@ To get started with your verified source and pipeline example follow these steps
     ├── .gitignore
     ├── requirements.txt
     └── notion_pipeline.py
-    
     ```
     
 
 ## **Add credential**
 
-1. Inside the **`.dlt`** folder, you'll find a file called “secrets.toml”, which is where you can securely store your access tokens and other sensitive information. It's important to handle this file with care and keep it safe.
+1. Inside the **`.dlt`** folder, you'll find a file called “_secrets.toml_”, which is where you can securely store your access tokens and other sensitive information. It's important to handle this file with care and keep it safe.
     
     Here's what the file looks like:
     
