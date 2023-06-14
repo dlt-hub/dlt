@@ -186,36 +186,35 @@ class ParquetDataWriter(DataWriter):
 
     def __init__(self, f: IO[Any], caps: DestinationCapabilitiesContext = None) -> None:
         super().__init__(f, caps)
-        self.columns_schema: Optional[TTableSchemaColumns] = None
-
+        self.writer: Optional[pq.ParquetWriter] = None
+        self.schema: Optional[pyarrow.Schema] = None
+        self.complex_indices: List[str] = None
 
     def write_header(self, columns_schema: TTableSchemaColumns) -> None:
-        # remember schema and create 2 dimensional array for columns
-        self.columns_schema = columns_schema
-        self.data: List[List[Any]] = [[]*5 for i in range(len(columns_schema.values()))]
+
+        # build schema
+        self.schema = pyarrow.schema([pyarrow.field(name, self.get_data_type(schema_item["data_type"])) for name, schema_item in columns_schema.items()])
+        # find row items that are of the complex type (could be abstracted out for use in other writers?)
+        self.complex_indices = [i for i, field in columns_schema.items() if field["data_type"] == "complex"]
+        self.writer = pq.ParquetWriter(self._f, self.schema, flavor="spark")
+
 
     def write_data(self, rows: Sequence[Any]) -> None:
-        # convert to columns (could also just store rows and convert in write_footer?)
+        # replace complex types with json
         for row in rows:
-            count = 0
-            for item in row:
-                self.data[count].append(row[item])
-                count += 1
+            for key in self.complex_indices:
+                if key in row:
+                    row[key] = json.dumps(row[key]) if row[key] else row[key]
+
+        table = pyarrow.Table.from_pylist(rows, schema=self.schema)
+        # Write chunks of data
+        for i in range(0, len(rows), 100):
+            chunk = table.slice(i, 100)
+            self.writer.write_table(chunk)
 
     def write_footer(self) -> None:
-        column_names = list(self.columns_schema.keys())
-        column_types = [c["data_type"] for c in self.columns_schema.values()]
-
-        # columns
-        columns = []
-        count = 0
-        for column_data in self.data:
-            columns.append(pyarrow.array(column_data, self.get_data_type(column_types[count])))
-            count+=1
-
-        # build and write the table
-        table = pyarrow.table(columns, names=column_names)
-        pq.write_table(table, self._f)
+        self.writer.close()
+        self.writer = None
 
     def get_data_type(self, column_type: str) -> pyarrow.DataType:
         if column_type == "text":
@@ -231,7 +230,7 @@ class ParquetDataWriter(DataWriter):
         elif column_type == "binary":
             return pyarrow.binary()
         elif column_type == "complex":
-            return pyarrow.list_(pyarrow.float64())
+            return pyarrow.string()
         elif column_type == "decimal":
             return pyarrow.decimal128(38, 18)
         elif column_type == "wei":
