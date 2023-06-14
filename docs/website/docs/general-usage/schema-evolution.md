@@ -108,6 +108,6 @@ If you had additional business-logic tests, you would still need to implement th
 
 
 ## The implementation recipe
-1. Use `dlt`. It will automatically infer and version schemas, so you can simply check if there are changes. You can just use the [normaliser + loader](../general-usage/pipeline) or [build extraction with dlt](../general-usage/resource). If you want to define additional constraints, you can do so in the (schema)[../general-usage/schema].
+1. Use `dlt`. It will automatically infer and version schemas, so you can simply check if there are changes. You can just use the [normaliser + loader](../general-usage/pipeline) or [build extraction with dlt](../general-usage/resource). If you want to define additional constraints, you can do so in the [schema](../general-usage/schema).
 2. [Define your slack hook](https://dlthub.com/docs/running-in-production/running#using-slack-to-send-messages) or create your own notification function. Make sure the slack channel contains the data producer and any stakeholders.
 3. [Capture the load job info and send it to the hook](../running-in-production/running#inspect-save-and-alert-on-schema-changes).
