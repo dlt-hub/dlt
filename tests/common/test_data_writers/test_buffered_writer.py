@@ -5,6 +5,7 @@ from dlt.common.data_writers.buffered import BufferedDataWriter
 from dlt.common.data_writers.exceptions import BufferedDataWriterClosed
 from dlt.common.destination import TLoaderFileFormat, DestinationCapabilitiesContext
 from dlt.common.schema.utils import new_column
+from dlt.common.storages.file_storage import FileStorage
 
 from dlt.common.typing import DictStrAny
 
@@ -61,7 +62,7 @@ def test_rotation_on_schema_change() -> None:
     # writer is closed and data was written
     assert len(writer.closed_files) == 1
     # check the content, mind that we swapped the columns
-    with open(writer.closed_files[0], "r", encoding="utf-8") as f:
+    with FileStorage.open_zipsafe_ro(writer.closed_files[0], "r", encoding="utf-8") as f:
         content = f.readlines()
     assert "col2,col1" in content[0]
     assert "NULL,0" in content[2]
@@ -113,7 +114,7 @@ def test_rotation_on_schema_change() -> None:
         assert len(writer.closed_files) == 2
         assert writer._buffered_items == []
     # the last file must contain text value of the column3
-    with open(writer.closed_files[-1], "r", encoding="utf-8") as f:
+    with FileStorage.open_zipsafe_ro(writer.closed_files[-1], "r", encoding="utf-8") as f:
         content = f.readlines()
     assert "(col3_value" in content[-1]
 
@@ -142,7 +143,7 @@ def test_NO_rotation_on_schema_change() -> None:
         # only the initial 15 items written
         assert writer._writer.items_count == 15
     # all written
-    with open(writer.closed_files[-1], "r", encoding="utf-8") as f:
+    with FileStorage.open_zipsafe_ro(writer.closed_files[-1], "r", encoding="utf-8") as f:
         content = f.readlines()
     assert content[-1] == '{"col1":1,"col2":3}\n'
 

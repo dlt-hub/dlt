@@ -19,6 +19,7 @@ class BufferedDataWriter:
         buffer_max_items: int = 5000
         file_max_items: Optional[int] = None
         file_max_bytes: Optional[int] = None
+        disable_compression: bool = False
         _caps: Optional[DestinationCapabilitiesContext] = None
 
         __section__ = known_sections.DATA_WRITER
@@ -33,6 +34,7 @@ class BufferedDataWriter:
         buffer_max_items: int = 5000,
         file_max_items: int = None,
         file_max_bytes: int = None,
+        disable_compression: bool = False,
         _caps: DestinationCapabilitiesContext = None
     ):
         self.file_format = file_format
@@ -48,7 +50,7 @@ class BufferedDataWriter:
         self.file_max_bytes = file_max_bytes
         self.file_max_items = file_max_items
         # the open function is either gzip.open or open
-        self.open = gzip.open if self._file_format_spec.compress_default else open
+        self.open = gzip.open if self._file_format_spec.supports_compression and not disable_compression else open
 
         self._current_columns: TTableSchemaColumns = None
         self._file_name: str = None

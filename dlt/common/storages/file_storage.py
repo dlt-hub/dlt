@@ -93,7 +93,7 @@ class FileStorage:
         if "b" not in mode and "t" not in mode:
             mode = mode + self.file_type
         if "r" in mode:
-            return FileStorage.open_zipsafe(self.make_full_path(relative_path), mode, encoding=encoding_for_mode(mode))
+            return FileStorage.open_zipsafe_ro(self.make_full_path(relative_path), mode)
         return open(self.make_full_path(relative_path), mode, encoding=encoding_for_mode(mode))
 
     def open_temp(self, delete: bool = False, mode: str = "w", file_type: str = None) -> IO[Any]:
@@ -256,8 +256,9 @@ class FileStorage:
                 os.remove(name)
 
     @staticmethod
-    def open_zipsafe(path: str, mode: str = "r", encoding: Optional[str] = None, **kwargs: Any) -> IO[Any]:
+    def open_zipsafe_ro(path: str, mode: str = "r", **kwargs: Any) -> IO[Any]:
         """Opens a file using gzip.open if it is a gzip file, otherwise uses open."""
+        encoding = kwargs.pop("encoding", encoding_for_mode(mode))
         try:
             f = gzip.open(path, mode, encoding=encoding, **kwargs)
             # Force gzip to read the first few bytes and check the magic number

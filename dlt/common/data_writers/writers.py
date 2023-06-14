@@ -16,7 +16,7 @@ class TFileFormatSpec:
     is_binary_format: bool
     supports_schema_changes: bool
     requires_destination_capabilities: bool = False
-    compress_default: bool = False
+    supports_compression: bool = False
 
 
 class DataWriter(abc.ABC):
@@ -92,7 +92,7 @@ class JsonlWriter(DataWriter):
             file_extension="jsonl",
             is_binary_format=True,
             supports_schema_changes=True,
-            compress_default=True,
+            supports_compression=True,
         )
 
 
@@ -113,7 +113,7 @@ class JsonlListPUAEncodeWriter(JsonlWriter):
             file_extension="jsonl",
             is_binary_format=True,
             supports_schema_changes=True,
-            compress_default=True,
+            supports_compression=True,
         )
 
 
@@ -170,5 +170,6 @@ class InsertValuesWriter(DataWriter):
             file_extension="insert_values",
             is_binary_format=False,
             supports_schema_changes=False,
+            supports_compression=True,
             requires_destination_capabilities=True,
         )

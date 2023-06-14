@@ -31,7 +31,7 @@ class InsertValuesLoadJob(LoadJob, FollowupJob):
     def _insert(self, qualified_table_name: str, write_disposition: TWriteDisposition, file_path: str) -> Iterator[List[str]]:
         # WARNING: maximum redshift statement is 16MB https://docs.aws.amazon.com/redshift/latest/dg/c_redshift-sql.html
         # the procedure below will split the inserts into max_query_length // 2 packs
-        with FileStorage.open_zipsafe(file_path, "r", encoding="utf-8") as f:
+        with FileStorage.open_zipsafe_ro(file_path, "r", encoding="utf-8") as f:
             header = f.readline()
             values_mark = f.readline()
             # properly formatted file has a values marker at the beginning
