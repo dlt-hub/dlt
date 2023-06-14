@@ -92,7 +92,10 @@ class FileStorage:
     def open_file(self, relative_path: str, mode: str = "r") -> IO[Any]:
         if "b" not in mode and "t" not in mode:
             mode = mode + self.file_type
-        return FileStorage.open_zipsafe(self.make_full_path(relative_path), mode, encoding=encoding_for_mode(mode))
+        if "r" in mode:
+            return FileStorage.open_zipsafe(self.make_full_path(relative_path), mode, encoding=encoding_for_mode(mode))
+        else:
+            return open(self.make_full_path(relative_path), mode, encoding=encoding_for_mode(mode))
 
     def open_temp(self, delete: bool = False, mode: str = "w", file_type: str = None) -> IO[Any]:
         mode = mode + file_type or self.file_type
