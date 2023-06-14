@@ -29,7 +29,7 @@ To get started with your data pipeline, follow these steps:
 dlt init shopify_dlt bigquery
 ```
 
-This command will initialize your pipeline with Shopify as the source and BigQuery as the destination. If you'd like to use a different destination, simply replace **`bigquery`** with the name of your preferred destination. You can find supported destinations and their configuration options in our [documentation](https://dlthub.com/docs/destinations/duckdb)
+This command will initialize your pipeline with Shopify as the source and BigQuery as the destination. If you'd like to use a different destination, simply replace **`bigquery`** with the name of your preferred destination. You can find supported destinations and their configuration options in our [documentation](../destinations/)
 
 3. After running this command, a new directory will be created with the necessary files and configuration settings to get started. From here, you can begin configuring your pipeline to suit your specific needs.
 
@@ -60,7 +60,7 @@ shop_url = "Please set me up !" # please set me up!
 
 4. Replace `shop_url` with the  URL of your Shopify store.  For example
 ”https://shop-123.myshopify.com/”
-5. Finally, follow the instructions in **[Destinations](https://dlthub.com/docs/destinations/duckdb)** to add credentials for your chosen destination. This will ensure that your data is properly routed to its final destination.
+5. Finally, follow the instructions in **[Destinations](../destinations/)** to add credentials for your chosen destination. This will ensure that your data is properly routed to its final destination.
 
 ## Customize the pipeline
 

@@ -52,7 +52,7 @@ Here, we chose BigQuery as the destination. To choose a different destination, r
     location = "set me up" #Project Location For ex. “US”
     ```
 3. Alternatively, if you're using service account credentials, replace the the fields and values with those present in the credentials .json that you generated above.
-4. Enter credentials for your chosen destination as per the [docs](https://dlthub.com/docs/destinations#google-bigquery).
+4. Enter credentials for your chosen destination as per the [docs](../destinations/).
 
 ## Pass property_id and request parameters
 
@@ -94,7 +94,7 @@ Here, we chose BigQuery as the destination. To choose a different destination, r
 
 3. Make sure that everything is loaded as expected, by using the command:
 
-    `dlt pipeline <pipeline_name> show` 
+    `dlt pipeline <pipeline_name> show`
 
     For example, the pipeline_name for the above pipeline is `dlt_google_analytics_pipeline`
     To change this, you can replace it in

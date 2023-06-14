@@ -64,7 +64,7 @@ location = "set me up" # Project location (e.g. “US”)
 ```
 
 2. Replace `"GITHUB_API_TOKEN"` with the API token you [copied above](#grab-the-api-auth-token) or leave it blank if not specified.
-3. Follow the instructions in the [Destinations](https://dlthub.com/docs/destinations) document to add credentials for your chosen destination.
+3. Follow the instructions in the [Destinations](../destinations/) document to add credentials for your chosen destination.
 
 ## Modify the script `github_pipeline.py`
 

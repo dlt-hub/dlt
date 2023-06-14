@@ -52,7 +52,7 @@ To get started with this verified source follow these steps:
     ```properties
     dlt init workable bigquery
     ```
-    This command will initialize your verified source with Workable and creates pipeline example with BigQuery as the destination. If you'd like to use a different destination, simply replace **`bigquery`** with the name of your preferred destination. You can find supported destinations and their configuration options in our [documentation](https://dlthub.com/docs/destinations/duckdb).
+    This command will initialize your verified source with Workable and creates pipeline example with BigQuery as the destination. If you'd like to use a different destination, simply replace **`bigquery`** with the name of your preferred destination. You can find supported destinations and their configuration options in our [documentation](../destinations/).
 
 3. After running this command, a new directory will be created with the necessary files and configuration settings to get started.
     ```shell
@@ -88,7 +88,7 @@ To get started with this verified source follow these steps:
     ```
 
 2. Replace the value of **`access_token`** with the one that [you copied above](workable.md#grab-api-credentials). This will ensure that your data pipeline example can access your Workable resources securely.
-3. Next, follow the instructions in [Destinations](https://dlthub.com/docs/destinations/duckdb) to add credentials for your chosen destination. This will ensure that your data is properly routed to its final destination.
+3. Next, follow the instructions in [Destinations](../destinations/) to add credentials for your chosen destination. This will ensure that your data is properly routed to its final destination.
 4. Inside the **`.dlt`** folder, you'll find a file called **`config.toml`**, where you can securely store your pipeline configuration details.
 
     Here's what the *config.toml* looks like:

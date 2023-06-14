@@ -7,7 +7,7 @@ keywords: [zendesk api, zendesk pipeline, zendesk]
 
 Zendesk is a cloud-based customer service and support platform. It offers a range of features, including ticket management, self-service options, knowledge base management, live chat, customer analytics, and talks.
 
-Using this guide, you can set up a pipeline that can automatically load data from three possible Zendesk API Clients ([Zendesk support](https://developer.zendesk.com/api-reference/ticketing/introduction/), [Zendesk chat](https://developer.zendesk.com/api-reference/live-chat/introduction/), [Zendesk talk](https://developer.zendesk.com/api-reference/voice/talk-api/introduction/)) onto a [destination](https://dlthub.com/docs/destinations) of your choice.
+Using this guide, you can set up a pipeline that can automatically load data from three possible Zendesk API Clients ([Zendesk support](https://developer.zendesk.com/api-reference/ticketing/introduction/), [Zendesk chat](https://developer.zendesk.com/api-reference/live-chat/introduction/), [Zendesk talk](https://developer.zendesk.com/api-reference/voice/talk-api/introduction/)) onto a [destination](../destinations/) of your choice.
 
 ## Get API credentials
 
@@ -196,7 +196,7 @@ location = "set me up" # Project location for ex. “US”
 ```
 
 2. Only add credentials for the APIs from which you wish to request data and remove the rest.
-3. Add credentials as required by your destination. See [here](https://dlthub.com/docs/destinations) for steps on how to do this.
+3. Add credentials as required by your destination. See [here](../destinations/) for steps on how to do this.
 
 ## Specify source methods in `zendesk_pipeline.py`
 

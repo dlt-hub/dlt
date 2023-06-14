@@ -15,7 +15,7 @@ To get started with this verified source, follow these steps:
 dlt init sql_database bigquery
 ```
 
-This command will initialize your verified source with SQL Database and creates pipeline example with BigQuery as the destination. If you'd like to use a different destination, simply replace **`bigquery`** with the name of your preferred destination. You can find supported destinations and their configuration options in our [documentation](https://dlthub.com/docs/destinations/duckdb)
+This command will initialize your verified source with SQL Database and creates pipeline example with BigQuery as the destination. If you'd like to use a different destination, simply replace **`bigquery`** with the name of your preferred destination. You can find supported destinations and their configuration options in our [documentation](../destinations/)
 
 3. After running this command, a new directory will be created with the necessary files and configuration settings to get started.
 
@@ -60,7 +60,7 @@ sql_database_source
   location = "US" # Project location (e.g. “US”)
   ```
 
-4. Finally, follow the instructions in **[Destinations](https://dlthub.com/docs/destinations/duckdb)** to add credentials for your chosen destination. This will ensure that your data is properly routed to its final destination.
+4. Finally, follow the instructions in **[Destinations](../destinations/)** to add credentials for your chosen destination. This will ensure that your data is properly routed to its final destination.
 
 ## Run the pipeline example
 

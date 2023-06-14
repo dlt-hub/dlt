@@ -70,7 +70,7 @@ private_key = "set me up" # Unique private key !(Must be copied fully including 
 client_email = "set me up" # Email for source service account
 location = "set me up" #Project Location For ex. “US”
 ```
-3. Enter credentials for your chosen destination as per the [docs](https://dlthub.com/docs/destinations/bigquery)
+3. Enter credentials for your chosen destination as per the [docs](../destinations/)
 
 ## Add Spreadsheet ID and URL
 

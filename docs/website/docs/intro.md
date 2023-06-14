@@ -33,7 +33,7 @@ for player in ['magnuscarlsen', 'rpragchess']:
 pipeline.run(data, table_name='player')
 ```
 
-[How it works](./reference/how-dlt-works.md): `dlt` extracts data from a [source](./general-usage/glossary.md#source), inspects its structure to create a [schema](general-usage/glossary.md#schema), structures, normalizes and verifies the data,
+[How it works](./reference/explainers/how-dlt-works.md): `dlt` extracts data from a [source](./general-usage/glossary.md#source), inspects its structure to create a [schema](general-usage/glossary.md#schema), structures, normalizes and verifies the data,
 and then loads the data into a [destination](./general-usage/glossary.md#destination).
 
 ## Who is dlt for?

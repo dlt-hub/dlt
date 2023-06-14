@@ -18,7 +18,7 @@ Or start with our pipeline template with sample chess.com data loaded to bigquer
 
     $ dlt init chess duckdb
 
-For more detailed info, see https://dlthub.com/docs/getting-started
+For more detailed info, see https://dlthub.com/docs/walkthroughs
 """
 
 from dlt.version import __version__

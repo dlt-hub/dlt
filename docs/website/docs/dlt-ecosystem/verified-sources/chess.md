@@ -18,7 +18,7 @@ Here, we chose BigQuery as the destination. To choose a different destination, r
 
 ## Add credentials
 
-Before running the pipeline you may need to add credentials in the `.dlt/secrets.toml` file for your chosen destination. For instructions on how to do this, follow the steps detailed under the desired destination in the [destinations](https://dlthub.com/docs/destinations) page.
+Before running the pipeline you may need to add credentials in the `.dlt/secrets.toml` file for your chosen destination. For instructions on how to do this, follow the steps detailed under the desired destination in the [destinations](../destinations/) page.
 
 Chess source does not require credentials to run.
 

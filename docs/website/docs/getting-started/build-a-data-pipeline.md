@@ -5,31 +5,7 @@ keywords: [build a data pipeline]
 ---
 # Building data pipelines with dlt, from basic to advanced
 
-This is an advanced guide that will take you through the main areas of pipelining with dlt.
-
-Go to the related pages you are instead looking for the [demo](try-in-colab.md), or the [step by step guide](./walkthroughs/create-a-pipeline)
-
-
-Below, we will deep dive into how to tackle building pipelines, from simple to complex, for the specific case you might have.
-
-Contents:
-
-- Intro: Why build with dlt? (run anywhere, etc)
-- The simplest pipeline: 1 liner to load data with schema evolution
-- Extracting data with dlt
-    - scalability via iterators, chunking and parallelisation
-    - implicit extraction dags
-- Defining incremental loading
-    - declarative loading
-    - advanced state management
-- Transforming the data
-    - before loading
-    - after loading
-- Adjusting the automated normalisation
-- Governance support
-    - Schema evolution with alerts
-    - Lineage support
-- Scaling
+This is in-depth overview will take you through the main areas of pipelining with dlt. Go to the related pages you are instead looking for the [demo](try-in-colab.md), or the [walkthroughs](../walkthroughs/)
 
 # Why build pipelines with dlt?
 
@@ -40,9 +16,9 @@ This allows our data team to focus on leveraging the data and driving value, whi
 # The simplest pipeline: 1 liner to load data with schema evolution
 
 ```python
-dlt.**pipeline**(destination='bigquery', dataset_name='mydata').**run**([{'id': 1, 'name': 'John'}])
+import dlt
+dlt.pipeline(destination='duckdb', dataset_name='mydata').run([{'id': 1, 'name': 'John'}], table_name="users")
 ```
-
 A pipeline in the dlt library is a powerful tool that allows you to move data from your Python code to a destination with a single function call. By defining a pipeline, you can easily load, normalize, and evolve your data schemas, enabling seamless data integration and analysis.
 
 For example, let's consider a scenario where you want to load a list of objects into a DuckDB table named "three". With dlt, you can create a pipeline and run it with just a few lines of code:
@@ -214,13 +190,13 @@ You can adjust table and column names, configure column properties, define data 
 
 These customization options enable you to create a schema that aligns with your desired naming conventions, data types, and overall data structure. With dlt, you have the flexibility to tailor the normalization process to meet your unique needs and achieve optimal results.
 
-Read more about how to configure [schema generation](./general-usage/schema)
+Read more about how to configure [schema generation](../general-usage/schema.md)
 
 ## Exporting and Importing Schema Files
 
 dlt allows you to export and import schema files, which contain the structure and instructions for processing and loading the data. Exporting schema files enables you to modify them directly, making adjustments to the schema as needed. You can then import the modified schema files back into dlt to use them in your pipeline.
 
-Read more: [Adjust a schema docs](./walkthroughs/adjust-a-schema)
+Read more: [Adjust a schema docs](../walkthroughs/adjust-a-schema.md)
 
 # Governance Support in dlt Pipelines
 
@@ -230,13 +206,13 @@ dlt pipelines offer robust governance support through three key mechanisms: pipe
 
 dlt pipelines leverage metadata to provide governance capabilities. This metadata includes load IDs, which consist of a timestamp and pipeline name. Load IDs enable incremental transformations and data vaulting by tracking data loads and facilitating data lineage and traceability.
 
-Read more about [lineage](./dlt-ecosystem/visualizations/understanding-the-tables#load-ids)
+Read more about [lineage](../dlt-ecosystem/visualizations/understanding-the-tables.md#load-ids)
 
 ## Schema Enforcement and Curation
 
 dlt empowers users to enforce and curate schemas, ensuring data consistency and quality. Schemas define the structure of normalized data and guide the processing and loading of data. By adhering to predefined schemas, pipelines maintain data integrity and facilitate standardized data handling practices.
 
-Read more: [Adjust a schema docs](./walkthroughs/adjust-a-schema)
+Read more: [Adjust a schema docs](../walkthroughs/adjust-a-schema.md)
 
 ## Schema evolution
 
@@ -244,35 +220,15 @@ dlt enables proactive governance by alerting users to schema changes. When modif
 
 These governance features in dlt pipelines contribute to better data management practices, compliance adherence, and overall data governance, promoting data consistency, traceability, and control throughout the data processing lifecycle.
 
-read more about [schema evolution](./general-usage/schema-evolution)
+read more about [schema evolution](../reference/explainers/schema-evolution.md)
 
-# Scaling
+## Scaling and finetuning
+`dlt` offers several mechanism and configuration options to scale up and finetune pipelines:
+- running extraction, normalization and load in parallel
+- writing sources and resources that are run in parallel via thread pools and async execution
+- finetune the memory buffers, intermediary file sizes and compression options
 
-### Yield pages instead of rows
-
-If you can, yield pages when producing data. This makes some processes more effective by lowering the necessary function calls
-
-### Memory /disk management
-
-dlt likes resources that yield data because it can request data into a buffer before processing and releasing it. This makes it possible to manage the amount of resources used. In order to configure this option, you can specify buffer size via env variables or by adding to the config.toml
-
-globally: `DATA_WRITER__BUFFER_MAX_ITEMS=100`
-
-or specifically:
-
-`NORMALIZE__DATA_WRITER__BUFFER_MAX_ITEMS = 100`
-
-`SOURCES__DATA_WRITER__BUFFER_MAX_ITEMS = 100`
-
-The default buffer is actually set to a moderately low value, so unless you are trying to run dlt on IOT sensors or other tiny infrastructures, you might actually want to increase it to speed up processing.
-
-Keep in mind load packages are buffered to disk and are left for any troubleshooting, so you can clear disk pace with the config.toml option `load.delete_completed_jobs=true` or the equivalent env var.
-
-To troubleshoot memory usage you can add the env var `PROGRESS=log`.
-
-### Parallelism
-
-Parallelism can be limited with the config option `max_parallel_items = 5` that you can place under a source. As dlt is a library can also leverage parallelism outside of dlt such as by placing tasks in parallel in a dag.
+read more about [performance](../reference/performance.md)
 
 ## Other advanced topics
 
