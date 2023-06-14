@@ -258,11 +258,15 @@ class FileStorage:
     @staticmethod
     def open_zipsafe_ro(path: str, mode: str = "r", **kwargs: Any) -> IO[Any]:
         """Opens a file using gzip.open if it is a gzip file, otherwise uses open."""
+        assert mode in {"r", "rb", "rt"}, "FileStorage.open_zipsafe_ro only supports read modes"
         encoding = kwargs.pop("encoding", encoding_for_mode(mode))
+        origmode = str(mode)
         try:
+            if encoding is not None and mode == "r":
+                mode += "t"  # gzip requires text mode explicitly to use encoding
             f = gzip.open(path, mode, encoding=encoding, **kwargs)
             # Force gzip to read the first few bytes and check the magic number
             f.read(2), f.seek(0)
             return cast(IO[Any], f)
         except (gzip.BadGzipFile, OSError):
-            return open(path, mode, encoding=encoding, **kwargs)
+            return open(path, origmode, encoding=encoding, **kwargs)
