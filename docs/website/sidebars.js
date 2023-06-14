@@ -52,39 +52,6 @@ const sidebars = {
       items: [
         {
           type: 'category',
-          label: 'Destinations',
-          link: {
-            type: 'generated-index',
-            title: 'Destinations',
-            description: 'Overview over our destinations. A destiantion is the data store where data from the source is loaded. Learn how to use them in your pipelines.',
-            slug: 'dlt-ecosystem/destinations',
-            keywords: ['destination'],
-          },
-          items: [
-            'dlt-ecosystem/destinations/bigquery',
-            'dlt-ecosystem/destinations/duckdb',
-            'dlt-ecosystem/destinations/postgres',
-            'dlt-ecosystem/destinations/redshift',
-          ]
-        },
-        {
-          type: 'category',
-          label: 'Transformations',
-          items: [
-            'dlt-ecosystem/transformations/transforming-the-data',
-            ,
-          ]
-        },
-        {
-          type: 'category',
-          label: 'Visualizations',
-          items: [
-            'dlt-ecosystem/visualizations/exploring-the-data',
-            'dlt-ecosystem/visualizations/understanding-the-tables'
-          ]
-        },
-        {
-          type: 'category',
           label: 'Verified Sources',
           link: {
             type: 'generated-index',
@@ -109,6 +76,55 @@ const sidebars = {
             'dlt-ecosystem/verified-sources/stripe',
             'dlt-ecosystem/verified-sources/workable',
             'dlt-ecosystem/verified-sources/zendesk',
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Destinations',
+          link: {
+            type: 'generated-index',
+            title: 'Destinations',
+            description: 'Overview over our destinations. A destiantion is the data store where data from the source is loaded. Learn how to use them in your pipelines.',
+            slug: 'dlt-ecosystem/destinations',
+            keywords: ['destination'],
+          },
+          items: [
+            'dlt-ecosystem/destinations/bigquery',
+            'dlt-ecosystem/destinations/duckdb',
+            'dlt-ecosystem/destinations/postgres',
+            'dlt-ecosystem/destinations/redshift',
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Deployments',
+          link: {
+            type: 'generated-index',
+            title: 'Deployments',
+            description: 'Overview over where you can deploy dlt.',
+            slug: 'dlt-ecosystem/deployments',
+            keywords: ['deployments'],
+          },
+          items: [
+            'dlt-ecosystem/deployments/where-can-dlt-run',
+            'dlt-ecosystem/deployments/github-actions',
+            'dlt-ecosystem/deployments/running-in-cloud-functions',
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Transformations',
+          items: [
+            'dlt-ecosystem/transformations/transforming-the-data',
+            ,
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Visualizations',
+          items: [
+            'dlt-ecosystem/visualizations/exploring-the-data',
+            'dlt-ecosystem/visualizations/understanding-the-tables'
           ]
         },
       ],
