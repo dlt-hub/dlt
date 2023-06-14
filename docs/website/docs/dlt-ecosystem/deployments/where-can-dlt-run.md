@@ -29,7 +29,7 @@ After the data is downloaded, dlt may spawn multiple parallel processes to norma
 
 This way, with dlt:
 - Large data can be processed on tiny machines. No more crashing airflow workers or pods.
-- when normalising data, we use the available compute resources optimally.
+- When normalising data, we use the available compute resources optimally.
 - By enabling running on micro workers, you are enabled to split your job before running it with dlt, to achieve more parallelism.
 
 
