@@ -201,6 +201,7 @@ class ParquetDataWriter(DataWriter):
 
 
     def write_data(self, rows: Sequence[Any]) -> None:
+        super().write_data(rows)
         from dlt.helpers.parquet_helper import pyarrow
 
         # replace complex types with json

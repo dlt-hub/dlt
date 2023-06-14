@@ -14,13 +14,11 @@ from tests.utils import TEST_STORAGE_ROOT, write_version, autouse_test_storage
 import datetime  # noqa: 251
 
 
-def get_insert_writer(_format: TLoaderFileFormat = "insert_values", buffer_max_items: int = 10) -> BufferedDataWriter:
+def get_writer(_format: TLoaderFileFormat = "insert_values", buffer_max_items: int = 10) -> BufferedDataWriter:
     caps = DestinationCapabilitiesContext.generic_capabilities()
     caps.preferred_loader_file_format = _format
     file_template = os.path.join(TEST_STORAGE_ROOT, f"{_format}.%s")
     return BufferedDataWriter(_format, file_template, buffer_max_items=buffer_max_items, _caps=caps)
-
-
 
 def test_parquet_writer_schema_evolution() -> None:
     c1 = new_column("col1", "bigint")
@@ -28,7 +26,7 @@ def test_parquet_writer_schema_evolution() -> None:
     c3 = new_column("col3", "text")
     c4 = new_column("col4", "text")
 
-    with get_insert_writer("parquet") as writer:
+    with get_writer("parquet") as writer:
         writer.write_data_item([{"col1": 1, "col2": 2, "col3": "3"}], {"col1": c1, "col2": c2, "col3": c3})
         writer.write_data_item([{"col1": 1, "col2": 2, "col3": "3", "col4": "4", "col5": {"hello": "marcin"}}], {"col1": c1, "col2": c2, "col3": c3, "col4": c4})
 
@@ -45,7 +43,7 @@ def test_parquet_writer_json_serialization() -> None:
     c2 = new_column("col2", "bigint")
     c3 = new_column("col3", "complex")
 
-    with get_insert_writer("parquet") as writer:
+    with get_writer("parquet") as writer:
         writer.write_data_item([{"col1": 1, "col2": 2, "col3": {"hello":"dave"}}], {"col1": c1, "col2": c2, "col3": c3})
         writer.write_data_item([{"col1": 1, "col2": 2, "col3": {"hello":"marcin"}}], {"col1": c1, "col2": c2, "col3": c3})
 
@@ -85,10 +83,22 @@ def test_parquet_writer_all_data_fields() -> None:
         "col10": datetime.date.today(),
     }
 
-    with get_insert_writer("parquet") as writer:
+    with get_writer("parquet") as writer:
         writer.write_data_item([data], columns)
         
     with open(writer.closed_files[0], "rb") as f:
         table = pq.read_table(f)
         for key, value in data.items():
             assert table.column(key).to_pylist() == [value]
+
+
+def test_parquet_writer_file_rotation() -> None:
+    columns = {
+        "col1": new_column("col1", "bigint"),
+    }
+
+    with get_writer("parquet") as writer:
+        for i in range(0, 100):
+            print(i)
+            writer.write_data_item([{"col1": i}], columns)
+        
