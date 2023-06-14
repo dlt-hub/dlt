@@ -135,7 +135,7 @@ After the walkthrough, we can start to experiment different questions and it wil
  
 Here, I asked ‘’why should data teams use dlt?’’ 
 
-<img>
+![chatgptq1](\img\chatgptQ1.png)  
 
 It outputted:
 
@@ -145,7 +145,7 @@ It outputted:
 
 Next, I asked "Who is dlt for?"  
 
-<img> 
+![chatgptq2](\img\chatgptQ2..png)  
 
 It outputted:
 1. `dlt` is meant to be accessible to every person on the data team, including data engineers, analysts, data scientists, and other stakeholders involved in data loading. It is designed to reduce knowledge requirements and enable collaborative working between engineers and analysts.
