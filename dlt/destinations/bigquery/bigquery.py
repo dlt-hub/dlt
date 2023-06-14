@@ -177,7 +177,7 @@ class BigQueryClient(SqlJobClientBase):
                     raise DestinationTransientException(gace)
         return job
 
-    def _get_table_update_sql(self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool, separate_alters: bool = False) -> str:
+    def _get_table_update_sql(self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool, separate_alters: bool = False) -> List[str]:
         sql = super()._get_table_update_sql(table_name, new_columns, generate_alter)
         canonical_name = self.sql_client.make_qualified_table_name(table_name)
 
@@ -189,9 +189,9 @@ class BigQueryClient(SqlJobClientBase):
             if len(partition_list) > 1:
                 raise DestinationSchemaWillNotUpdate(canonical_name, partition_list, "Partition requested for more than one column")
             else:
-                sql += f"\nPARTITION BY DATE({partition_list[0]})"
+                sql = [statement + f"\nPARTITION BY DATE({partition_list[0]})" for statement in sql]
         if len(cluster_list) > 0:
-                sql += "\nCLUSTER BY " + ",".join(cluster_list)
+            sql = [statement + "\nCLUSTER BY " + ",".join(cluster_list) for statement in sql]
 
         return sql
 

@@ -231,10 +231,11 @@ class SqlJobClientBase(JobClientBase):
             new_columns = self._create_table_update(table_name, storage_table)
             if len(new_columns) > 0:
                 # build and add sql to execute
-                sql = self._get_table_update_sql(table_name, new_columns, exists)
-                if not sql.endswith(";"):
-                    sql += ";"
-                sql_updates.append(sql)
+                sql_statements = self._get_table_update_sql(table_name, new_columns, exists)
+                for sql in sql_statements:
+                    if not sql.endswith(";"):
+                        sql += ";"
+                    sql_updates.append(sql)
                 # create a schema update for particular table
                 partial_table = copy(self.schema.get_table(table_name))
                 # keep only new columns
@@ -243,22 +244,26 @@ class SqlJobClientBase(JobClientBase):
 
         return sql_updates, schema_update
 
-    def _get_table_update_sql(self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool) -> str:
+    def _get_table_update_sql(self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool) -> List[str]:
         # build sql
         canonical_name = self.sql_client.make_qualified_table_name(table_name)
+        sql_result: List[str] = []
         if not generate_alter:
             # build CREATE
             sql = f"CREATE TABLE {canonical_name} (\n"
             sql += ",\n".join([self._get_column_def_sql(c) for c in new_columns])
             sql += ")"
+            sql_result.append(sql)
         else:
-            sql = f"ALTER TABLE {canonical_name}\n"
+            sql_base = f"ALTER TABLE {canonical_name}\n"
+            add_column_statements = [f"ADD COLUMN {self._get_column_def_sql(c)}" for c in new_columns]
             if self.capabilities.alter_add_multi_column:
                 column_sql = ",\n"
+                sql_result.append(sql_base + column_sql.join(add_column_statements))
             else:
-                # build ALTER as separate statement for each column (redshift limitation)
-                column_sql = ";" + sql
-            sql += column_sql.join([f"ADD COLUMN {self._get_column_def_sql(c)}" for c in new_columns])
+                # build ALTER as separate statement for each column (redshift, snowflake limitation)
+                sql_result.extend([sql_base + col_statement for col_statement in add_column_statements])
+
         # scan columns to get hints
         if generate_alter:
             # no hints may be specified on added columns
@@ -266,7 +271,7 @@ class SqlJobClientBase(JobClientBase):
                 if any(c.get(hint, False) is True for c in new_columns):
                     hint_columns = [self.capabilities.escape_identifier(c["name"]) for c in new_columns if c.get(hint, False)]
                     raise DestinationSchemaWillNotUpdate(canonical_name, hint_columns, f"{hint} requested after table was created")
-        return sql
+        return sql_result
 
     @abstractmethod
     def _get_column_def_sql(self, c: TColumnSchema) -> str:
