@@ -11,3 +11,11 @@
 # with datasets -> you can easily add columns, partition and data updates - all as new files.
 
 # you need to split the files yourself https://stackoverflow.com/questions/68678394/pyarrow-parquetwriter-is-there-a-way-to-limit-the-size-of-the-output-file-spli
+
+try:
+    import pyarrow
+    import pyarrow.parquet as pq
+except ImportError:
+    raise MissingDependencyException("DLT parquet Helpers", ["parquet"], "DLT Helpers for for parquet.")
+
+

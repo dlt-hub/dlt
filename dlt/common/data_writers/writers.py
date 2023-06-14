@@ -1,9 +1,5 @@
 import abc
 
-# TODO: needs to be changed to it only is used when parquet writer is active
-import pyarrow
-import pyarrow.parquet as pq
-
 # import jsonlines
 from dataclasses import dataclass
 from typing import Any, Dict, Sequence, IO, Type, Optional, List
@@ -186,11 +182,16 @@ class ParquetDataWriter(DataWriter):
 
     def __init__(self, f: IO[Any], caps: DestinationCapabilitiesContext = None) -> None:
         super().__init__(f, caps)
+        from dlt.helpers.parquet_helper import pq
+        from dlt.helpers.parquet_helper import pyarrow
+
         self.writer: Optional[pq.ParquetWriter] = None
         self.schema: Optional[pyarrow.Schema] = None
         self.complex_indices: List[str] = None
 
     def write_header(self, columns_schema: TTableSchemaColumns) -> None:
+        from dlt.helpers.parquet_helper import pyarrow
+        from dlt.helpers.parquet_helper import pq
 
         # build schema
         self.schema = pyarrow.schema([pyarrow.field(name, self.get_data_type(schema_item["data_type"])) for name, schema_item in columns_schema.items()])
@@ -200,6 +201,8 @@ class ParquetDataWriter(DataWriter):
 
 
     def write_data(self, rows: Sequence[Any]) -> None:
+        from dlt.helpers.parquet_helper import pyarrow
+
         # replace complex types with json
         for row in rows:
             for key in self.complex_indices:
@@ -216,7 +219,8 @@ class ParquetDataWriter(DataWriter):
         self.writer.close()
         self.writer = None
 
-    def get_data_type(self, column_type: str) -> pyarrow.DataType:
+    def get_data_type(self, column_type: str) -> Any:
+        from dlt.helpers.parquet_helper import pyarrow
         if column_type == "text":
             return pyarrow.string()
         elif column_type == "double":
