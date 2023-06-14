@@ -153,7 +153,7 @@ def test_instrumentation_wrappers() -> None:
         # assert msg["properties"]["operation"] == "list"
 
         SENT_ITEMS.clear()
-        deploy_command_wrapper("list.py", DeploymentMethods.github_actions.value, "* * * * *", False, False, COMMAND_DEPLOY_REPO_LOCATION, None)
+        deploy_command_wrapper("list.py", DeploymentMethods.github_actions.value, COMMAND_DEPLOY_REPO_LOCATION, schedule="* * * * *")
         msg = SENT_ITEMS[0]
         assert msg["event"] == "command_deploy"
         assert msg["properties"]["deployment_method"] == DeploymentMethods.github_actions.value
