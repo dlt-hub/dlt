@@ -12,7 +12,7 @@ Airflow is the current market standard for orchestrators. You can read more abou
 
 ## 2. GitHub Actions
 
-GitHub Actions supports simple workflows and scheduling, allowing for a visual, lightweight deployment with web-based monitoring (i.e. you can see runs in GitHub Actions). It has a free tier but its pricing is not convenient for large jobs. You can read more about it [here](./orchestrators/choosing-an-orchestrator.md#github-actions) and learn how to deploy it using the `dlt deploy` command [here](../walkthroughs/deploy-a-pipeline.md).
+GitHub Actions supports simple workflows and scheduling, allowing for a visual, lightweight deployment with web-based monitoring (i.e. you can see runs in GitHub Actions). It has a free tier but its pricing is not convenient for large jobs. You can read more about it [here](./orchestrators/choosing-an-orchestrator.md#github-actions) and learn how to deploy it using the `dlt deploy` command [here](../walkthroughs/deploy-a-pipeline/deploy-with-github-actions).
 
 ## Alternatives
 

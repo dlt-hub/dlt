@@ -161,7 +161,15 @@ const sidebars = {
         'walkthroughs/run-a-pipeline',
         'walkthroughs/adjust-a-schema',
         'walkthroughs/share-a-dataset',
-        'walkthroughs/deploy-a-pipeline'
+         {
+          type: 'category',
+          label: 'Deploy a pipeline',
+          items: [
+            'walkthroughs/deploy-a-pipeline/deploy-with-github-actions',
+            'walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer'
+          ]
+        },
+
       ],
     },
     {
@@ -186,7 +194,7 @@ const sidebars = {
         'general-usage/configuration',
         {
           type: 'category',
-          label: 'customising-pipelines',
+          label: 'Customising pipelines',
           items: [
             'general-usage/customising-pipelines/renaming_columns',
             'general-usage/customising-pipelines/pseudonymizing_columns',

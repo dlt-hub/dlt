@@ -25,7 +25,7 @@ We decided to make a dashboard that helps us better understand data attribution 
 
 ![Dashboard 1](/img/g4_dashboard_screen_grab_1.jpg) ![Dashboard 2](/img/g4_dashboard_screen_grab_2.jpg)
 
-With the data loaded locally, we were able to build the dashboard on our system using Streamlit. You can also do this on your system by simply cloning [this repo](https://github.com/dlt-hub/ga4-internal-dashboard-demo) and following the steps listed [here](https://github.com/dlt-hub/ga4-internal-dashboard-demo/tree/main/intial-explorations).  
+With the data loaded locally, we were able to build the dashboard on our system using Streamlit. You can also do this on your system by simply cloning [this repo](https://github.com/dlt-hub/ga4-internal-dashboard-demo) and following the steps listed [here](https://github.com/dlt-hub/ga4-internal-dashboard-demo/tree/main/intial-explorations).
 
 After having the pipeline and the dashboard set up just how we liked it, we were now ready to deploy it.
 
@@ -35,7 +35,7 @@ We decided to deploy our Streamlit app on a [Google Cloud VM instance](https://c
 
 ### Deploying the `dlt` pipeline with GitHub Actions
 
-Once we had our data warehouse set up, we were ready to deploy the pipeline. We then followed the [deploy a pipeline](https://dlthub.com/docs/walkthroughs/deploy-a-pipeline) walkthrough to configure and deploy a pipeline that will load the data daily onto our data warehouse.
+Once we had our data warehouse set up, we were ready to deploy the pipeline. We then followed the [deploy a pipeline](https://dlthub.com/docs/walkthroughs/deploy-a-pipeline/deploy-with-github-actions) walkthrough to configure and deploy a pipeline that will load the data daily onto our data warehouse.
 
 ### Deploying the dashboard
 
