@@ -426,7 +426,7 @@ class PipeIterator(Iterator[PipeItem]):
         workers: int = 5
         futures_poll_interval: float = 0.01
         copy_on_fork: bool = False
-        next_item_mode: TPipeNextItemMode = "current"
+        next_item_mode: str = "current"
 
         __section__ = "extract"
 
@@ -435,11 +435,13 @@ class PipeIterator(Iterator[PipeItem]):
         self.workers = workers
         self.futures_poll_interval = futures_poll_interval
 
+        self._round_robin_index: int = 0
         self._async_pool: asyncio.AbstractEventLoop = None
         self._async_pool_thread: Thread = None
         self._thread_pool: ThreadPoolExecutor = None
         self._sources: List[SourcePipeItem] = []
         self._futures: List[FuturePipeItem] = []
+        self._next_item_mode = next_item_mode
 
     @classmethod
     @with_config(spec=PipeIteratorConfiguration)
@@ -674,13 +676,18 @@ class PipeIterator(Iterator[PipeItem]):
         # no more sources to iterate
         if len(self._sources) == 0:
             return None
+        if self._next_item_mode == "current":
+            return self._get_source_item_current()
+        if self._next_item_mode == "round_robin":
+            return self._get_source_item_round_robin()
 
-        # get items from last added iterator, this makes the overall Pipe as close to FIFO as possible
-        gen, step, pipe, meta = self._sources[-1]
-        # print(f"got {pipe.name} {pipe._pipe_id}")
-        # register current pipe name during the execution of gen
-        set_current_pipe_name(pipe.name)
+    def _get_source_item_current(self) -> ResolvablePipeItem:
         try:
+            # get items from last added iterator, this makes the overall Pipe as close to FIFO as possible
+            gen, step, pipe, meta = self._sources[-1]
+            # print(f"got {pipe.name} {pipe._pipe_id}")
+            # register current pipe name during the execution of gen
+            set_current_pipe_name(pipe.name)
             item = next(gen)
             # full pipe item may be returned, this is used by ForkPipe step
             # to redirect execution of an item to another pipe
@@ -695,6 +702,39 @@ class PipeIterator(Iterator[PipeItem]):
         except StopIteration:
             # remove empty iterator and try another source
             self._sources.pop()
+            return self._get_source_item()
+        except (PipelineException, ExtractorException, DltSourceException, PipeException):
+            raise
+        except Exception as ex:
+            raise ResourceExtractionError(pipe.name, gen, str(ex), "generator") from ex
+
+
+
+    def _get_source_item_round_robin(self) -> ResolvablePipeItem:
+        try:
+            # get items from last added iterator, this makes the overall Pipe as close to FIFO as possible
+            self._round_robin_index = self._round_robin_index % len(self._sources)
+            gen, step, pipe, meta = self._sources[self._round_robin_index]
+            self._round_robin_index += 1
+            # print(f"got {pipe.name} {pipe._pipe_id}")
+            # register current pipe name during the execution of gen
+            set_current_pipe_name(pipe.name)
+            item = next(gen)
+            # full pipe item may be returned, this is used by ForkPipe step
+            # to redirect execution of an item to another pipe
+            if isinstance(item, ResolvablePipeItem):
+                return item
+            else:
+                # keep the item assigned step and pipe when creating resolvable item
+                if isinstance(item, DataItemWithMeta):
+                    return ResolvablePipeItem(item.data, step, pipe, item.meta)
+                else:
+                    return ResolvablePipeItem(item, step, pipe, meta)
+        except StopIteration:
+            # we need to decrease the index to keep the round robin order
+            self._round_robin_index -= 1
+            # remove empty iterator and try another source
+            self._sources.pop(self._round_robin_index)
             return self._get_source_item()
         except (PipelineException, ExtractorException, DltSourceException, PipeException):
             raise
