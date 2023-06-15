@@ -51,10 +51,10 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
     def __init__(self, file_path: str, table_name: str, write_disposition: TWriteDisposition, load_id: str, client: SnowflakeSqlClient) -> None:
         file_name = FileStorage.get_file_name_from_file_path(file_path)
         super().__init__(file_name)
-        qualified_table_name = client.make_qualified_table_name(table_name)
-        stage_name = client.make_qualified_table_name(f"{table_name}.{load_id}")
 
         with client.with_staging_dataset(write_disposition == "merge"):
+            qualified_table_name = client.make_qualified_table_name(table_name)
+            stage_name = client.make_qualified_table_name(f"{table_name}.{load_id}")
             with client.begin_transaction():
                 client.execute_sql(
                     """
