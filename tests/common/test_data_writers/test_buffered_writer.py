@@ -12,11 +12,11 @@ from dlt.common.typing import DictStrAny
 from tests.utils import TEST_STORAGE_ROOT, write_version, autouse_test_storage
 
 
-def get_insert_writer(_format: TLoaderFileFormat = "insert_values", buffer_max_items: int = 10) -> BufferedDataWriter:
+def get_insert_writer(_format: TLoaderFileFormat = "insert_values", buffer_max_items: int = 10, disable_compression: bool = False) -> BufferedDataWriter:
     caps = DestinationCapabilitiesContext.generic_capabilities()
     caps.preferred_loader_file_format = _format
     file_template = os.path.join(TEST_STORAGE_ROOT, f"{_format}.%s")
-    return BufferedDataWriter(_format, file_template, buffer_max_items=buffer_max_items, _caps=caps)
+    return BufferedDataWriter(_format, file_template, buffer_max_items=buffer_max_items, disable_compression=disable_compression, _caps=caps)
 
 
 def test_write_no_item() -> None:
@@ -29,7 +29,8 @@ def test_write_no_item() -> None:
     assert writer.closed_files == []
 
 
-def test_rotation_on_schema_change() -> None:
+@pytest.mark.parametrize("disable_compression", [True, False], ids=["no_compression", "compression"])
+def test_rotation_on_schema_change(disable_compression: bool) -> None:
 
     c1 = new_column("col1", "bigint")
     c2 = new_column("col2", "bigint")
@@ -49,7 +50,7 @@ def test_rotation_on_schema_change() -> None:
         return map(lambda x: {"col3": "col3_value"}, range(0, count))
 
     # change schema before file first flush
-    with get_insert_writer() as writer:
+    with get_insert_writer(disable_compression=disable_compression) as writer:
         writer.write_data_item(list(c1_doc(8)), t1)
         assert writer._current_columns == t1
         # but different instance
@@ -119,7 +120,8 @@ def test_rotation_on_schema_change() -> None:
     assert "(col3_value" in content[-1]
 
 
-def test_NO_rotation_on_schema_change() -> None:
+@pytest.mark.parametrize("disable_compression", [True, False], ids=["no_compression", "compression"])
+def test_NO_rotation_on_schema_change(disable_compression: bool) -> None:
     c1 = new_column("col1", "bigint")
     c2 = new_column("col2", "bigint")
 
@@ -133,7 +135,7 @@ def test_NO_rotation_on_schema_change() -> None:
         return map(lambda x: {"col1": x, "col2": x*2+1}, range(0, count))
 
     # change schema before file first flush
-    with get_insert_writer(_format="jsonl") as writer:
+    with get_insert_writer(_format="jsonl", disable_compression=disable_compression) as writer:
         writer.write_data_item(list(c1_doc(15)), t1)
         # flushed
         assert writer._file is not None
@@ -148,20 +150,22 @@ def test_NO_rotation_on_schema_change() -> None:
     assert content[-1] == '{"col1":1,"col2":3}\n'
 
 
-def test_writer_requiring_schema() -> None:
+@pytest.mark.parametrize("disable_compression", [True, False], ids=["no_compression", "compression"])
+def test_writer_requiring_schema(disable_compression: bool) -> None:
     # assertion on flushing
     with pytest.raises(AssertionError):
-        with get_insert_writer() as writer:
+        with get_insert_writer(disable_compression=disable_compression) as writer:
             writer.write_data_item([{"col1": 1}], None)
     # just single schema is enough
     c1 = new_column("col1", "bigint")
     t1 = {"col1": c1}
-    with get_insert_writer() as writer:
+    with get_insert_writer(disable_compression=disable_compression) as writer:
         writer.write_data_item([{"col1": 1}], None)
         writer.write_data_item([{"col1": 1}], t1)
 
 
-def test_writer_optional_schema() -> None:
-    with get_insert_writer(_format="jsonl") as writer:
+@pytest.mark.parametrize("disable_compression", [True, False], ids=["no_compression", "compression"])
+def test_writer_optional_schema(disable_compression: bool) -> None:
+    with get_insert_writer(_format="jsonl", disable_compression=disable_compression) as writer:
             writer.write_data_item([{"col1": 1}], None)
             writer.write_data_item([{"col1": 1}], None)
