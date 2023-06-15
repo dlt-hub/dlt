@@ -1,7 +1,7 @@
 # GPT-accelerated learning: Understanding open source codebases
 
 
-#### 💡Colab demo : https://colab.research.google.com/drive/16IKTjVXq0Bdo0uIb946Bj5_2w8H7t_hG
+#### 💡Colab demo : https://colab.research.google.com/drive/1KU1G_08Yihh5p-o1BsCuhA1OkH5zwgkf?usp=sharing
 ---
 
 Hi there! 👋
@@ -155,7 +155,7 @@ It outputted:
  
 It worked! we can see how GPT can learn about an open source library by using `dlt` and utilizing the assistance of Langchain and Deeplake. Moreover, by simply follow the steps above, you can customize the GPT model training to your own needs.
 
-***Curious? Give the Colab [demo](https://colab.research.google.com/drive/16IKTjVXq0Bdo0uIb946Bj5_2w8H7t_hG)💡 a try or share your questions with us, and we'll have ChatGPT address them in our upcoming article.***
+***Curious? Give the Colab [demo](https://colab.research.google.com/drive/1KU1G_08Yihh5p-o1BsCuhA1OkH5zwgkf?usp=sharing)💡 a try or share your questions with us, and we'll have ChatGPT address them in our upcoming article.***
 
 *** 
 [ What's more? ]
