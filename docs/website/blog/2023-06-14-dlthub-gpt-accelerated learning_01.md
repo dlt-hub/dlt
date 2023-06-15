@@ -1,7 +1,7 @@
 # GPT-accelerated learning: Understanding open source codebases
 
 
-#### 💡Colab demo : https://colab.research.google.com/drive/16IKTjVXq0Bdo0uIb946Bj5_2w8H7t_hG
+#### 💡Colab demo : https://colab.research.google.com/drive/1KU1G_08Yihh5p-o1BsCuhA1OkH5zwgkf?usp=sharing
 ---
 
 Hi there! 👋
@@ -134,7 +134,7 @@ qa = ConversationalRetrievalChain.from_llm(model,retriever=retriever)
 ### III.                                                             Result   
 After the walkthrough, we can start to experiment different questions and it will output answers based on our training from dlt hub repository. 
  
-Here, I asked ‘’why should data teams use dlt?’’ 
+Here, I asked " why should data teams use dlt? " 
 
 ![chatgptq1](\img\chatgptQ1.png)  
 
@@ -144,7 +144,7 @@ It outputted:
 2. You have complete control over your data. You can rename, filter, and modify it however you want before it reaches its destination.
 
 
-Next, I asked "Who is dlt for?"  
+Next, I asked " Who is dlt for? "  
 
 ![chatgptq2](\img\chatgptQ2..png)  
 
@@ -155,7 +155,7 @@ It outputted:
  
 It worked! we can see how GPT can learn about an open source library by using `dlt` and utilizing the assistance of Langchain and Deeplake. Moreover, by simply follow the steps above, you can customize the GPT model training to your own needs.
 
-***Curious? Give the Colab [demo](https://colab.research.google.com/drive/16IKTjVXq0Bdo0uIb946Bj5_2w8H7t_hG)💡 a try or share your questions with us, and we'll have ChatGPT address them in our upcoming article.***
+***Curious? Give the Colab [demo](https://colab.research.google.com/drive/1KU1G_08Yihh5p-o1BsCuhA1OkH5zwgkf?usp=sharing)💡 a try or share your questions with us, and we'll have ChatGPT address them in our upcoming article.***
 
 *** 
 [ What's more? ]
