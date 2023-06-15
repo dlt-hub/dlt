@@ -1,4 +1,4 @@
-# Simplifying the Complex: Training GPT with an Open-Source dlt Repository
+# GPT-accelerated learning: Understanding open source codebases
 
 
 #### 💡Colab demo : https://colab.research.google.com/drive/16IKTjVXq0Bdo0uIb946Bj5_2w8H7t_hG
@@ -20,7 +20,7 @@ IV. Summary
 ### I. Introduction
 Navigating an open-source repository can be overwhelming because comprehending the intricate labyrinths of code is always a significant problem. As a person who just entered the IT industry, I found an easy way to address this problem with an ELT tool called [`dlt`](https://dlthub.com/docs/intro) (data load tool) - the Python library for loading data.
 
-In this article, I would love to share a use case 'Training GPT with an Open-Source `dlt` Repository' using the `dlt` library to train GPT with customized "dlt-hub" repositories. In this way, I can write prompts about `dlt` and get my personalized answers.
+In this article, I would love to share a use case - training GPT with an Open-Source `dlt` Repository by using the `dlt` library. In this way, I can write prompts about `dlt` and get my personalized answers.
 
 ### II. Walkthrough
 
@@ -153,14 +153,12 @@ It outputted:
 
 ### IV. Summary  
  
-In this article, "Training GPT with an Open-Source `dlt` Repository," we can see how the `dlt` library can easily retrieve data from the `dlt` hub repository. Then, by simply training the model, we can get personalized results.
-
-It can also be used in different places. For more understanding about the `dlt` library or how to use it in different places, check these [user guide pages](https://dlthub.com/docs/user-guides) to discover more about the potential of `dlt` and how it can revolutionize your workflow. Also, take the plunge and join our vibrant [Slack community](https://dlthub-community.slack.com/ssb/redirect) to delve deeper into the `dlt` and engage in stimulating discussions!
-
+It worked! we can see how gpt can learn about an open source library by using `dlt`. It can also be used in different places. Moreover, by simply follow the steps above, you can customize the training to your needs.
 
 ***Curious? Give the Colab demo a try or share your questions with us, and we'll have ChatGPT address them in our upcoming article.***
 
 *** 
-> [ About dlt ]
+[ What's more? ]
+- Learn more about [dlt] 👉 [here](https://dlthub.com/docs/intro) 
+- Need help or want to discuss? Join our [Slack community](https://dlthub-community.slack.com/ssb/redirect) ! See you there 😊
 
-`dlt` is an open-source library that enables you to create a data [pipeline](https://dlthub.com/docs/general-usage/glossary#pipeline) in a Python script. To use it, `pip install dlt` and then `import dlt`. Once set up, it will automatically load any [source](https://dlthub.com/docs/general-usage/glossary#source) (e.g., an API) into a live dataset stored in the [destination](https://dlthub.com/docs/general-usage/glossary#destination) of your choice.
