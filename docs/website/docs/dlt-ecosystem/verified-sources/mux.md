@@ -161,9 +161,9 @@ To create your data pipeline, follow these steps:
 
     ```python
     pipeline = dlt.pipeline(
-    		pipeline_name="mux_pipeline",# Use a custom name if desired
-    		destination="bigquery",# Choose the appropriate destination (e.g., duckdb, redshift, post)
-    		dataset_name="mux_dataset"# Use a custom name if desired
+        pipeline_name="mux_pipeline",# Use a custom name if desired
+        destination="bigquery",# Choose the appropriate destination (e.g., duckdb, redshift, post)
+        dataset_name="mux_dataset"# Use a custom name if desired
     )
     ```
 
