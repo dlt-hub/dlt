@@ -15,6 +15,35 @@ from dlt.extract.pipe import ManagedPipeIterator, Pipe, PipeItem, PipeIterator
 # from tests.utils import preserve_environ
 
 
+def test_next_item_mode() -> None:
+
+    def source_gen1():
+        yield from range(1,5)
+
+    def source_gen2():
+        yield from range(11,16)
+
+    def source_gen3():
+        yield from range(3,4)
+
+    def get_pipes():
+        return [
+            Pipe.from_data("data1", source_gen1()),
+            Pipe.from_data("data2", source_gen2()),
+            Pipe.from_data("data3", source_gen3()),
+            ]
+
+    # default mode is "current"
+    _l = list(PipeIterator.from_pipes(get_pipes(), next_item_mode="current"))
+    # items will be in order of the pipes
+    assert [pi.item for pi in _l] == list(range(1,5)) + list(range(11,16)) + list(range(3,4))
+
+    # test mode "round robin"
+    _l = list(PipeIterator.from_pipes(get_pipes(), next_item_mode="round_robin"))
+    # items will be round robin (reversed from the order of the input pipes...)
+    assert [pi.item for pi in _l] == [3,11,1,12,2,13,3,14,4,15]
+
+
 def test_add_step() -> None:
     data = [1, 2, 3]
     data_iter = iter(data)
