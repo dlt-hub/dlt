@@ -1,6 +1,7 @@
-# Article 1 Simplifying the Complex: Training GPT with an Open-Source dlt Repository
+# Simplifying the Complex: Training GPT with an Open-Source dlt Repository
 
-> 💡 Colab demo : https://colab.research.google.com/drive/16IKTjVXq0Bdo0uIb946Bj5_2w8H7t_hG
+::: info
+>### 💡Colab demo : https://colab.research.google.com/drive/16IKTjVXq0Bdo0uIb946Bj5_2w8H7t_hG
 ---
 
 Hi there! 👋
@@ -160,5 +161,5 @@ It can also be used in different places. For more understanding about the `dlt` 
 ***Curious? Give the Colab demo a try or share your questions with us, and we'll have ChatGPT address them in our upcoming article.***
 
 *** 
-                        [ About dlt ]
-     `dlt` is an open-source library that enables you to create a data [pipeline](https://dlthub.com/docs/general-usage/glossary#pipeline) in a Python script. To use it, `pip install dlt` and then `import dlt`. Once set up, it will automatically load any [source](https://dlthub.com/docs/general-usage/glossary#source) (e.g., an API) into a live dataset stored in the [destination](https://dlthub.com/docs/general-usage/glossary#destination) of your choice.
+:----: [ About dlt ]
+`dlt` is an open-source library that enables you to create a data [pipeline](https://dlthub.com/docs/general-usage/glossary#pipeline) in a Python script. To use it, `pip install dlt` and then `import dlt`. Once set up, it will automatically load any [source](https://dlthub.com/docs/general-usage/glossary#source) (e.g., an API) into a live dataset stored in the [destination](https://dlthub.com/docs/general-usage/glossary#destination) of your choice.
