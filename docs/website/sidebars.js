@@ -164,6 +164,12 @@ const sidebars = {
          {
           type: 'category',
           label: 'Deploy a pipeline',
+          link: {
+            type: 'generated-index',
+            title: 'Deploy a pipeline',
+            description: 'Deploy dlt pipelines with different methods.',
+            slug: 'walkthroughs/deploy-a-pipeline',
+          },
           items: [
             'walkthroughs/deploy-a-pipeline/deploy-with-github-actions',
             'walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer'
