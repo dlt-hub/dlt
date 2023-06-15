@@ -1,6 +1,6 @@
 import os
 import pytest
-from dlt.common.arithmetics import Decimal  
+from dlt.common.arithmetics import Decimal
 
 from dlt.common.data_writers.buffered import BufferedDataWriter
 from dlt.common.data_writers.exceptions import BufferedDataWriterClosed
