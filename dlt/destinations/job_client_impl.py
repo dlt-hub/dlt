@@ -244,6 +244,10 @@ class SqlJobClientBase(JobClientBase):
 
         return sql_updates, schema_update
 
+    def _make_add_column_sql(self, new_columns: Sequence[TColumnSchema]) -> List[str]:
+        """Make one or more  ADD COLUMN sql clauses to be joined in ALTER TABLE statement(s)"""
+        return [f"ADD COLUMN {self._get_column_def_sql(c)}" for c in new_columns]
+
     def _get_table_update_sql(self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool) -> List[str]:
         # build sql
         canonical_name = self.sql_client.make_qualified_table_name(table_name)
@@ -256,12 +260,12 @@ class SqlJobClientBase(JobClientBase):
             sql_result.append(sql)
         else:
             sql_base = f"ALTER TABLE {canonical_name}\n"
-            add_column_statements = [f"ADD COLUMN {self._get_column_def_sql(c)}" for c in new_columns]
+            add_column_statements = self._make_add_column_sql(new_columns)
             if self.capabilities.alter_add_multi_column:
                 column_sql = ",\n"
                 sql_result.append(sql_base + column_sql.join(add_column_statements))
             else:
-                # build ALTER as separate statement for each column (redshift, snowflake limitation)
+                # build ALTER as separate statement for each column (redshift limitation)
                 sql_result.extend([sql_base + col_statement for col_statement in add_column_statements])
 
         # scan columns to get hints

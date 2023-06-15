@@ -125,6 +125,10 @@ class SnowflakeClient(SqlJobClientBase):
     def restore_file_load(self, file_path: str) -> LoadJob:
         return EmptyLoadJob.from_file_path(file_path, "completed")
 
+    def _make_add_column_sql(self, new_columns: Sequence[TColumnSchema]) -> List[str]:
+        # Override because snowflake requires multiple columns in a single ADD COLUMN clause
+        return ["ADD COLUMN\n" + ",\n".join(self._get_column_def_sql(c) for c in new_columns)]
+
     # def _get_table_update_sql(self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool, separate_alters: bool = False) -> str:
     #     sql = super()._get_table_update_sql(table_name, new_columns, generate_alter)
     #     canonical_name = self.sql_client.make_qualified_table_name(table_name)
@@ -145,7 +149,7 @@ class SnowflakeClient(SqlJobClientBase):
 
     def _execute_schema_update_sql(self, only_tables: Iterable[str]) -> TSchemaTables:
         sql_scripts, schema_update = self._build_schema_update_sql(only_tables)
-        # Snowflake doesn't seem to support multiple statements per call, so we run one at a time
+        # Snowflake doesn't support multiple statements per call, so we run one at a time
         for statement in sql_scripts:
             self.sql_client.execute_sql(statement)
         self._update_schema_in_storage(self.schema)
