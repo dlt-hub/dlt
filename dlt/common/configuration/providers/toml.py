@@ -84,6 +84,27 @@ class BaseTomlProvider(ConfigProvider):
         return len(self._toml.body) == 0
 
 
+class StringTomlProvider(BaseTomlProvider):
+
+    def __init__(self, toml_string: str) -> None:
+        super().__init__(StringTomlProvider.loads(toml_string))
+
+    def dumps(self) -> str:
+        return tomlkit.dumps(self._toml)
+
+    @staticmethod
+    def loads(toml_string: str) -> tomlkit.TOMLDocument:
+        return tomlkit.parse(toml_string)
+
+    @property
+    def supports_secrets(self) -> bool:
+        return True
+
+    @property
+    def name(self) -> str:
+        return "memory"
+
+
 class VaultTomlProvider(BaseTomlProvider):
     """A toml-backed Vault abstract config provider.
 

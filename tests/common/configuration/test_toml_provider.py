@@ -3,7 +3,6 @@ import pytest
 import tomlkit
 from typing import Any
 import datetime  # noqa: I251
-from unittest.mock import patch
 
 import dlt
 from dlt.common import pendulum, Decimal
@@ -11,7 +10,7 @@ from dlt.common.configuration import configspec, ConfigFieldMissingException, re
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.inject import with_config
 from dlt.common.configuration.exceptions import LookupTrace
-from dlt.common.configuration.providers.toml import SECRETS_TOML, CONFIG_TOML, BaseTomlProvider, SecretsTomlProvider, ConfigTomlProvider, TomlProviderReadException
+from dlt.common.configuration.providers.toml import SECRETS_TOML, CONFIG_TOML, BaseTomlProvider, SecretsTomlProvider, ConfigTomlProvider, StringTomlProvider, TomlProviderReadException
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
 from dlt.common.configuration.specs import BaseConfiguration, GcpServiceAccountCredentialsWithoutDefaults, ConnectionStringCredentials
 from dlt.common.runners.configuration import PoolRunnerConfiguration
@@ -352,3 +351,39 @@ inner_int_val=2121
     # only toml accepted with empty key
     with pytest.raises(ValueError):
         provider.set_value(None, {}, None)
+
+
+def test_toml_string_provider() -> None:
+
+    # test basic reading
+    provider = StringTomlProvider("""
+[section1.subsection]
+key1 = "value1"
+
+[section2.subsection]
+key2 = "value2"
+""")
+
+    assert provider.get_value("key1", "", "section1", "subsection") ==  ("value1", "section1.subsection.key1")
+    assert provider.get_value("key2", "", "section2", "subsection") ==  ("value2", "section2.subsection.key2")
+
+    # test basic writing
+    provider = StringTomlProvider("")
+    assert provider.dumps() == ""
+
+    provider.set_value("key1", "value1", "section1", "subsection")
+    assert provider.dumps() == """[section1.subsection]
+key1 = \"value1\"
+"""
+
+    provider.set_value("key1", "other_value", "section1", "subsection")
+    assert provider.dumps() == """[section1.subsection]
+key1 = \"other_value\"
+"""
+    provider.set_value("key1", "other_value", "section2", "subsection")
+    assert provider.dumps() == """[section1.subsection]
+key1 = \"other_value\"
+
+[section2.subsection]
+key1 = \"other_value\"
+"""

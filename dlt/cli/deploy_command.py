@@ -1,26 +1,26 @@
 import os
-from typing import Optional, Any
+from typing import Optional, Any, Type
 import yaml
 from enum import Enum
 from importlib.metadata import version as pkg_version
 
-from dlt.common.configuration.providers import SECRETS_TOML
+from dlt.common.configuration.providers import SECRETS_TOML, SECRETS_TOML_KEY, StringTomlProvider
 from dlt.common.configuration.paths import make_dlt_settings_path
 from dlt.common.configuration.utils import serialize_value
 from dlt.common.git import is_dirty
 
 from dlt.cli import utils
 from dlt.cli import echo as fmt
-from dlt.cli.deploy_command_helpers import (BaseDeployment, ask_files_overwrite, generate_pip_freeze, github_origin_to_url, serialize_templated_yaml,
-                                            wrap_template_str, PipelineWasNotRun)
+from dlt.cli.deploy_command_helpers import (PipelineWasNotRun, BaseDeployment, ask_files_overwrite, generate_pip_freeze, github_origin_to_url, serialize_templated_yaml,
+                                            wrap_template_str)
 
 from dlt.version import DLT_PKG_NAME
 
 from dlt.common.destination.reference import DestinationReference
 
 REQUIREMENTS_GITHUB_ACTION = "requirements_github_action.txt"
-DLT_DEPLOY_DOCS_URL = "https://dlthub.com/docs/walkthroughs/deploy-a-pipeline/deploy-with-github-actions"
-DLT_AIRFLOW_GCP_DOCS_URL = "https://dlthub.com/docs/running-in-production/orchestrators/airflow-gcp-cloud-composer"
+DLT_DEPLOY_DOCS_URL = "https://dlthub.com/docs/walkthroughs/deploy-a-pipeline"
+DLT_AIRFLOW_GCP_DOCS_URL = "https://dlthub.com/docs/walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer"
 AIRFLOW_GETTING_STARTED = "https://airflow.apache.org/docs/apache-airflow/stable/start.html"
 AIRFLOW_DAG_TEMPLATE_SCRIPT = "dag_template.py"
 AIRFLOW_CLOUDBUILD_YAML = "cloudbuild.yaml"
@@ -33,39 +33,24 @@ class DeploymentMethods(Enum):
     airflow_composer = "airflow-composer"
 
 
-def deploy_command(
-    pipeline_script_path: str,
-    deployment_method: str,
-    schedule: Optional[str],
-    run_on_push: bool,
-    run_on_dispatch: bool,
-    repo_location: str,
-    branch: Optional[str] = None,
+class SecretFormats(Enum):
+    env = "env"
+    toml = "toml"
+
+
+def deploy_command(pipeline_script_path: str, deployment_method: str, repo_location: str, branch: Optional[str] = None, **kwargs: Any
 ) -> None:
+
     # get current repo local folder
-    deployment_obj: BaseDeployment = None
+    deployment_class: Type[BaseDeployment] = None
     if deployment_method == DeploymentMethods.github_actions.value:
-        deployment_obj = GithubActionDeployment(
-            pipeline_script_path=pipeline_script_path,
-            schedule=schedule,
-            run_on_push=run_on_push,
-            run_on_dispatch=run_on_dispatch,
-            repo_location=repo_location,
-            branch=branch
-        )
+        deployment_class = GithubActionDeployment
     elif deployment_method == DeploymentMethods.airflow_composer.value:
-        deployment_obj = AirflowDeployment(
-            pipeline_script_path=pipeline_script_path,
-            schedule=schedule,
-            run_on_push=run_on_push,
-            run_on_dispatch=run_on_dispatch,
-            repo_location=repo_location,
-            branch=branch
-        )
+        deployment_class = AirflowDeployment
     else:
         raise ValueError(f"Deployment method '{deployment_method}' is not supported. Only {', '.join([m.value for m in DeploymentMethods])} are available.'")
 
-    deployment_obj.run_deployment()
+    deployment_class(pipeline_script_path=pipeline_script_path, location=repo_location, branch=branch, **kwargs).run_deployment()
 
 
 class GithubActionDeployment(BaseDeployment):
@@ -248,15 +233,28 @@ class AirflowDeployment(BaseDeployment):
         if len(self.secret_envs) == 0 and len(self.envs) == 0:
             fmt.echo("3. Your pipeline does not seem to need any secrets.")
         else:
-            fmt.echo("3. Add the following secret values (typically stored in %s): \n%s\n%s\nin ENVIRONMENT VARIABLES using Google Composer UI" % (
-                fmt.bold(make_dlt_settings_path(SECRETS_TOML)),
-                fmt.bold("\n".join(self.env_prov.get_key_name(s_v.key, *s_v.sections) for s_v in self.secret_envs)),
-                fmt.bold("\n".join(self.env_prov.get_key_name(v.key, *v.sections) for v in self.envs)),
-            ))
-            fmt.echo()
-            # if fmt.confirm("Do you want to list the environment variables in the format suitable for Airflow?", default=True):
-            self._echo_secrets()
-            self._echo_envs()
+            if self.secrets_format == SecretFormats.env.value:
+                fmt.echo("3. Add the following secret values (typically stored in %s): \n%s\n%s\nin ENVIRONMENT VARIABLES using Google Composer UI" % (
+                    fmt.bold(make_dlt_settings_path(SECRETS_TOML)),
+                    fmt.bold("\n".join(self.env_prov.get_key_name(s_v.key, *s_v.sections) for s_v in self.secret_envs)),
+                    fmt.bold("\n".join(self.env_prov.get_key_name(v.key, *v.sections) for v in self.envs)),
+                ))
+                fmt.echo()
+                # if fmt.confirm("Do you want to list the environment variables in the format suitable for Airflow?", default=True):
+                self._echo_secrets()
+                self._echo_envs()
+            elif self.secrets_format == SecretFormats.toml.value:
+                # build toml
+                fmt.echo(f"3. Add the following toml-string in the Google Composer UI as the {SECRETS_TOML_KEY} variable.")
+                fmt.echo()
+                toml_provider = StringTomlProvider("")
+                for s_v in self.secret_envs:
+                    toml_provider.set_value(s_v.key, s_v.value, None, *s_v.sections)
+                for s_v in self.envs:
+                    toml_provider.set_value(s_v.key, s_v.value, None, *s_v.sections)
+                fmt.echo(toml_provider.dumps())
+            else:
+                raise ValueError(self.secrets_format)
 
         fmt.echo("4. Add dlt package below using Google Composer UI.")
         fmt.echo(fmt.bold(self.artifacts["requirements_txt"]))
