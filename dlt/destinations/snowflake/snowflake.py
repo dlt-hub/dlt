@@ -27,7 +27,7 @@ MAX_NUMERIC_PRECISION = 38
 
 SCT_TO_BQT: Dict[TDataType, str] = {
     "complex": "VARIANT",
-    "text": "STRING",
+    "text": "VARCHAR",
     "double": "FLOAT",
     "bool": "BOOLEAN",
     "date": "DATE",
@@ -38,7 +38,7 @@ SCT_TO_BQT: Dict[TDataType, str] = {
 }
 
 BQT_TO_SCT: Dict[str, TDataType] = {
-    "STRING": "text",
+    "VARCHAR": "text",
     "FLOAT": "double",
     "BOOLEAN": "bool",
     "DATE": "date",
