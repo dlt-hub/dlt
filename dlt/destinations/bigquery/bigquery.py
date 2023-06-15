@@ -228,6 +228,13 @@ class BigQueryClient(SqlJobClientBase):
     def _create_load_job(self, table_name: str, write_disposition: TWriteDisposition, file_path: str) -> bigquery.LoadJob:
         # append to table for merge loads (append to stage) and regular appends
         bq_wd = bigquery.WriteDisposition.WRITE_TRUNCATE if write_disposition == "replace" else bigquery.WriteDisposition.WRITE_APPEND
+
+        # choose correct source format
+        if file_path.endswith("jsonl"):
+            source_format = bigquery.SourceFormat.NEWLINE_DELIMITED_JSON
+        elif file_path.endswith("parquet"):
+            source_format = bigquery.SourceFormat.PARQUET
+
         # if merge then load to staging
         with self.sql_client.with_staging_dataset(write_disposition == "merge"):
             job_id = BigQueryLoadJob.get_job_id_from_file_path(file_path)
@@ -235,7 +242,7 @@ class BigQueryClient(SqlJobClientBase):
                 autodetect=False,
                 write_disposition=bq_wd,
                 create_disposition=bigquery.CreateDisposition.CREATE_NEVER,
-                source_format=bigquery.SourceFormat.NEWLINE_DELIMITED_JSON,
+                source_format=source_format,
                 ignore_unknown_values=False,
                 max_bad_records=0)
             with open(file_path, "rb") as f:

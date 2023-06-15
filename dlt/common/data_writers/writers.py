@@ -194,7 +194,7 @@ class ParquetDataWriter(DataWriter):
         from dlt.helpers.parquet_helper import pq
 
         # build schema
-        self.schema = pyarrow.schema([pyarrow.field(name, self.get_data_type(schema_item["data_type"])) for name, schema_item in columns_schema.items()])
+        self.schema = pyarrow.schema([pyarrow.field(name, self.get_data_type(schema_item["data_type"]), nullable=schema_item["nullable"]) for name, schema_item in columns_schema.items()])
         # find row items that are of the complex type (could be abstracted out for use in other writers?)
         self.complex_indices = [i for i, field in columns_schema.items() if field["data_type"] == "complex"]
         self.writer = pq.ParquetWriter(self._f, self.schema, flavor="spark")

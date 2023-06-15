@@ -232,6 +232,7 @@ class Pipeline(SupportsPipeline):
             self.pipelines_dir,
             self.pipeline_salt,
             self.destination,
+            self._loader_file_format,
             self.dataset_name,
             self.credentials,
             self._schema_storage.config.import_schema_path,
@@ -684,7 +685,7 @@ class Pipeline(SupportsPipeline):
 
     def _get_load_storage(self) -> LoadStorage:
         caps = self._get_destination_capabilities()
-        preferred_loader_file_format: str = self._loader_file_format or caps.preferred_loader_file_format
+        preferred_loader_file_format: TLoaderFileFormat = self._loader_file_format or caps.preferred_loader_file_format
         return LoadStorage(True, preferred_loader_file_format, caps.supported_loader_file_formats, self._load_storage_config)
 
     def _init_working_dir(self, pipeline_name: str, pipelines_dir: str) -> None:

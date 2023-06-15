@@ -152,7 +152,7 @@ def attach(
         pipelines_dir = get_dlt_pipelines_dir()
     progress = collector_from_name(progress)
     # create new pipeline instance
-    p = Pipeline(pipeline_name, pipelines_dir, pipeline_salt, None, None, None, None, None, full_refresh, progress, True, last_config(**kwargs), kwargs["runtime"])
+    p = Pipeline(pipeline_name, pipelines_dir, pipeline_salt, None, None, None, None, None, None, full_refresh, progress, True, last_config(**kwargs), kwargs["runtime"])
     # set it as current pipeline
     p.activate()
     return p
