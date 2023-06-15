@@ -362,9 +362,9 @@ def test_preserve_column_order(client: SqlJobClientBase) -> None:
             idx = sql_.find(c["name"], idx)
             assert idx > 0, f"column {c['name']} not found in script"
 
-    sql = client._get_table_update_sql(table_name, columns, generate_alter=False)
+    sql = ';'.join(client._get_table_update_sql(table_name, columns, generate_alter=False))
     _assert_columns_order(sql)
-    sql = client._get_table_update_sql(table_name, columns, generate_alter=True)
+    sql = ';'.join(client._get_table_update_sql(table_name, columns, generate_alter=True))
     _assert_columns_order(sql)
 
 

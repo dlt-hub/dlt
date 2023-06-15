@@ -41,7 +41,7 @@ def gcp_client(schema: Schema) -> BigQueryClient:
 
 def test_create_table(gcp_client: BigQueryClient) -> None:
     # non existing table
-    sql = gcp_client._get_table_update_sql("event_test_table", TABLE_UPDATE, False)
+    sql = gcp_client._get_table_update_sql("event_test_table", TABLE_UPDATE, False)[0]
     sqlfluff.parse(sql, dialect="bigquery")
     assert sql.startswith("CREATE TABLE")
     assert "event_test_table" in sql
@@ -61,7 +61,7 @@ def test_create_table(gcp_client: BigQueryClient) -> None:
 
 def test_alter_table(gcp_client: BigQueryClient) -> None:
     # existing table has no columns
-    sql = gcp_client._get_table_update_sql("event_test_table", TABLE_UPDATE, True)
+    sql = gcp_client._get_table_update_sql("event_test_table", TABLE_UPDATE, True)[0]
     sqlfluff.parse(sql, dialect="bigquery")
     assert sql.startswith("ALTER TABLE")
     assert sql.count("ALTER TABLE") == 1
@@ -79,7 +79,7 @@ def test_alter_table(gcp_client: BigQueryClient) -> None:
     # table has col1 already in storage
     mod_table = deepcopy(TABLE_UPDATE)
     mod_table.pop(0)
-    sql = gcp_client._get_table_update_sql("event_test_table", mod_table, True)
+    sql = gcp_client._get_table_update_sql("event_test_table", mod_table, True)[0]
     assert "ADD COLUMN `col1` INTEGER NOT NULL" not in sql
     assert "ADD COLUMN `col2` FLOAT64 NOT NULL" in sql
 
@@ -90,7 +90,7 @@ def test_create_table_with_partition_and_cluster(gcp_client: BigQueryClient) -> 
     mod_update[3]["partition"] = True
     mod_update[4]["cluster"] = True
     mod_update[1]["cluster"] = True
-    sql = gcp_client._get_table_update_sql("event_test_table", mod_update, False)
+    sql = gcp_client._get_table_update_sql("event_test_table", mod_update, False)[0]
     sqlfluff.parse(sql, dialect="bigquery")
     # clustering must be the last
     assert sql.endswith("CLUSTER BY `col2`,`col5`")
