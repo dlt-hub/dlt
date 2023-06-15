@@ -18,7 +18,7 @@ III.                                                             Result
 IV. Summary          
 
 ### I. Introduction
-Navigating an open-source repository can be overwhelming because comprehending the intricate labyrinths of code is always a significant problem. As a person who just entered the IT industry, I found an easy way to address this problem with an ELT tool called `dlt`(https://dlthub.com/docs/intro) (data load tool) - the Python library for loading data.
+Navigating an open-source repository can be overwhelming because comprehending the intricate labyrinths of code is always a significant problem. As a person who just entered the IT industry, I found an easy way to address this problem with an ELT tool called [`dlt`](https://dlthub.com/docs/intro) (data load tool) - the Python library for loading data.
 
 In this article, I would love to share a use case 'Training GPT with an Open-Source `dlt` Repository' using the `dlt` library to train GPT with customized "dlt-hub" repositories. In this way, I can write prompts about `dlt` and get my personalized answers.
 
@@ -29,7 +29,7 @@ The code provided below demonstrates training a chat-oriented GPT model using th
 *The credit for the code goes to Langchain, which has been duly acknowledged at the end.*
 
 
-**#### 1. Run the following commands to install the necessary modules on your system.**
+ #### 1. Run the following commands to install the necessary modules on your system.
 
 
 
@@ -131,8 +131,7 @@ from langchain.chains import ConversationalRetrievalChain
 model = ChatOpenAI(model_name='gpt-3.5-turbo') 
 qa = ConversationalRetrievalChain.from_llm(model,retriever=retriever)
 ```
-###
-III.                                                             Result   
+### III.                                                             Result   
 After the walkthrough, we can start to experiment different questions and it will output answers based on our training from dlt hub repository. 
  
 Here, I asked ‘’why should data teams use dlt?’’ 
