@@ -37,7 +37,8 @@ To get started with your verified source and pipeline example follow these steps
     ```
 
     This command will initialize your verified source with Notion and creates a pipeline with BigQuery as the destination.
-    If you'd like to use a different destination, simply replace `bigquery` with the name of your preferred destination. You can find supported destinations and their configuration options in our [documentation](https://dlthub.com/docs/destinations/duckdb)
+    If you'd like to use a different destination, simply replace `bigquery` with the name of your preferred destination.
+    You can find supported destinations and their configuration options in our [documentation](../destinations/duckdb)
 
 3. After running this command, a new directory will be created with the necessary files and configuration settings to get started.
 
