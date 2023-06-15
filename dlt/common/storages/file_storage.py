@@ -1,3 +1,4 @@
+import gzip
 import os
 import re
 import stat
@@ -5,7 +6,7 @@ import errno
 import tempfile
 import shutil
 import pathvalidate
-from typing import IO, Any, List
+from typing import IO, Any, Optional, List, cast
 from dlt.common.typing import AnyFun
 
 from dlt.common.utils import encoding_for_mode, uniq_id
@@ -91,6 +92,8 @@ class FileStorage:
     def open_file(self, relative_path: str, mode: str = "r") -> IO[Any]:
         if "b" not in mode and "t" not in mode:
             mode = mode + self.file_type
+        if "r" in mode:
+            return FileStorage.open_zipsafe_ro(self.make_full_path(relative_path), mode)
         return open(self.make_full_path(relative_path), mode, encoding=encoding_for_mode(mode))
 
     def open_temp(self, delete: bool = False, mode: str = "w", file_type: str = None) -> IO[Any]:
@@ -251,3 +254,19 @@ class FileStorage:
                 os.rmdir(name)
             else:
                 os.remove(name)
+
+    @staticmethod
+    def open_zipsafe_ro(path: str, mode: str = "r", **kwargs: Any) -> IO[Any]:
+        """Opens a file using gzip.open if it is a gzip file, otherwise uses open."""
+        assert mode in {"r", "rb", "rt"}, "FileStorage.open_zipsafe_ro only supports read modes"
+        encoding = kwargs.pop("encoding", encoding_for_mode(mode))
+        origmode = str(mode)
+        try:
+            if encoding is not None and mode == "r":
+                mode += "t"  # gzip requires text mode explicitly to use encoding
+            f = gzip.open(path, mode, encoding=encoding, **kwargs)
+            # Force gzip to read the first few bytes and check the magic number
+            f.read(2), f.seek(0)
+            return cast(IO[Any], f)
+        except (gzip.BadGzipFile, OSError):
+            return open(path, origmode, encoding=encoding, **kwargs)
