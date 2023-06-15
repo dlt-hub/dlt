@@ -47,14 +47,14 @@ There are 2 ways to make the data engineers more efficient:
 - do all that while alerts go off 24/7 and you are the bottleneck for everyone downstream, analysts and business people screaming.
 
 
->💡 “I can't do
->   what ten people tell me to do,
->   So I guess I'll remain the same”
->   - Otis Redding, sitting on the dock of the bay
+>💡 “I can't do  
+> what ten people tell me to do,  
+> So I guess I'll remain the same”
+>   - Otis Redding, *Sittin' On The Dock Of The Bay*
 
 
 
-Option 2: Take away unproductive work.
+### Option 2: Take away unproductive work
 
 A data engineer has a pretty limited task repertoire - so could we give some of their work to roles we can hire?
 
@@ -71,7 +71,7 @@ Let’s see what a data engineer does, according to GPT:
 - **Data collaboration and sharing**: Facilitating data collaboration and sharing across teams, ensuring data accessibility, and promoting data-driven decision-making within the organization.
 - **Continuous improvement:** Staying updated with emerging technologies, industry trends, and best practices in data engineering, and actively seeking opportunities to improve data processes, quality, and efficiency.
 
-### Let’s get a back of the napkin estimation of how much time they spend on those areas.
+### Let’s get a back of the napkin estimation of how much time they spend on those areas
 
 
 Here’s an approximation as offered by gpt. Of course, actual numbers depend on the maturity of your team and their unique challenges.
@@ -99,9 +99,8 @@ It's important to note that these estimates are approximate and can vary based o
 
 # 40-80% of a data engineer’s time could be spared
 
-<aside>
-💡 **40-80% of a data engineer’s time could be spared**
-</aside>
+
+> 💡 **40-80% of a data engineer’s time could be spared**
 
 
 To achieve that,
