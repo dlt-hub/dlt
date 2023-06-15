@@ -93,7 +93,7 @@ class SnowflakeSqlClient(SqlClientBase[snowflake_lib.SnowflakeConnection], DBTra
         with self._conn.cursor() as curr:  # type: ignore[assignment]
             try:
                 curr.execute(query, db_args)
-                yield DBApiCursorImpl(curr)  # type: ignore[abstract]
+                yield SnowflakeCursorImpl(curr)  # type: ignore[abstract]
             except snowflake_lib.Error as outer:
                 try:
                     self._reset_connection()
@@ -148,3 +148,8 @@ class SnowflakeSqlClient(SqlClientBase[snowflake_lib.SnowflakeConnection], DBTra
     @staticmethod
     def is_dbapi_exception(ex: Exception) -> bool:
         return isinstance(ex, snowflake_lib.DatabaseError)
+
+
+class SnowflakeCursorImpl(DBApiCursorImpl):
+    def _get_columns(self) -> List[str]:
+        return [c[0].lower() for c in self.native_cursor.description]

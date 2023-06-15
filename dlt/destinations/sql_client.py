@@ -3,7 +3,7 @@ from contextlib import contextmanager
 from functools import wraps
 import inspect
 from types import TracebackType
-from typing import Any, ClassVar, ContextManager, Generic, Iterator, Optional, Sequence, Tuple, Type, AnyStr
+from typing import Any, ClassVar, ContextManager, Generic, Iterator, Optional, Sequence, Tuple, Type, AnyStr, List
 
 from dlt.common.typing import TFun
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -153,10 +153,13 @@ class DBApiCursorImpl(DBApiCursor):
     def __getattr__(self, name: str) -> Any:
         return getattr(self.native_cursor, name)
 
+    def _get_columns(self) -> List[str]:
+        return [c[0] for c in self.native_cursor.description]
+
     def df(self, chunk_size: int = None, **kwargs: Any) -> Optional[DataFrame]:
         from dlt.helpers.pandas_helper import _wrap_result
 
-        columns = [c[0] for c in self.native_cursor.description]
+        columns = self._get_columns()
         if chunk_size is None:
             return _wrap_result(self.native_cursor.fetchall(), columns, **kwargs)
         else:
