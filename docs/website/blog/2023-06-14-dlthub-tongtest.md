@@ -1,4 +1,4 @@
-# Simplifying the Complex: Training GPT with an Open-Source dlt Repository
+### Simplifying the Complex: Training GPT with an Open-Source dlt Repository
 
 ::: info
 >##### 💡Colab demo : https://colab.research.google.com/drive/16IKTjVXq0Bdo0uIb946Bj5_2w8H7t_hG
@@ -17,19 +17,19 @@ III.                                                             Result
                                                       
 IV. Summary          
 
-# I. Introduction
+##### I. Introduction
 Navigating an open-source repository can be overwhelming because comprehending the intricate labyrinths of code is always a significant problem. As a person who just entered the IT industry, I found an easy way to address this problem with an ELT tool called `dlt`(https://dlthub.com/docs/intro) (data load tool) - the Python library for [loading](https://dlthub.com/docs/intro) data.
 
 In this article, I would love to share a use case 'Training GPT with an Open-Source `dlt` Repository' using the `dlt` library to train GPT with customized "dlt-hub" repositories. In this way, I can write prompts about `dlt` and get my personalized answers.
 
-# II. Walkthrough
+##### II. Walkthrough
 
 The code provided below demonstrates training a chat-oriented GPT model using the `dlt`-hub repositories (`dlt` and pipelines). To train the GPT model, we utilized the assistance of two services: Langchain and Deeplake. In order to use these services for our project, you will need to create an account on both platforms and obtain the access token. The good news is that both services offer cost-effective options. GPT provides a $5 credit to test their API, while Deeplake offers a free tier. 
 
 *The credit for the code goes to Langchain, which has been duly acknowledged at the end.*
 
 
-## 1. Run the following commands to install the necessary modules on your system.
+###### 1. Run the following commands to install the necessary modules on your system.
 
 
 
@@ -49,7 +49,7 @@ os.environ['ACTIVELOOP_TOKEN'] = getpass.getpass('Activeloop Token:')
 embeddings = OpenAIEmbeddings(disallowed_special=())
 ```
 
-## 2. Create a directory to store the code for training the model. Clone the desired repositories into that.
+###### 2. Create a directory to store the code for training the model. Clone the desired repositories into that.
 
 ```python
   # making a new directory named dlt-repo
@@ -65,7 +65,7 @@ embeddings = OpenAIEmbeddings(disallowed_special=())
 %cd .. 
 ```
 
-## 3.Load the files from the directory 
+###### 3.Load the files from the directory 
 ```python 
 import os
 from langchain.document_loaders import TextLoader
@@ -80,7 +80,7 @@ for dirpath, dirnames, filenames in os.walk(root_dir):
         except Exception as e: 
             pass
 ```
-## 3.Load the files from the directory  
+###### 3.Load the files from the directory  
 ```python   
 import os
 from langchain.document_loaders import TextLoader
@@ -96,7 +96,7 @@ for dirpath, dirnames, filenames in os.walk(root_dir):
             pass
 ```
 
-## 4. Splitting files to chunks  
+###### 4. Splitting files to chunks  
 ```python 
 # This code uses CharacterTextSplitter to split documents into smaller chunksbased on character count and store the resulting chunks in the texts variable.
 
@@ -104,7 +104,7 @@ from langchain.text_splitter import CharacterTextSplitter
 text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
 texts = text_splitter.split_documents(docs)
 ```
-## 5. Create Deeplake dataset  
+###### 5. Create Deeplake dataset  
 ```python 
 # Set up your deeplake dataset by replacing the username with your Deeplake account and setting the dataset name. For example if the deeplakes username is “your_name” and the dataset is “dlt-hub-dataset” 
 
@@ -123,7 +123,7 @@ retriever.search_kwargs['fetch_k'] = 100
 retriever.search_kwargs['maximal_marginal_relevance'] = True
 retriever.search_kwargs['k'] = 10
 ```
-## 6. Initialize the GPT model 
+###### 6. Initialize the GPT model 
 ```python 
 from langchain.chat_models import ChatOpenAI
 from langchain.chains import ConversationalRetrievalChain
@@ -131,7 +131,8 @@ from langchain.chains import ConversationalRetrievalChain
 model = ChatOpenAI(model_name='gpt-3.5-turbo') 
 qa = ConversationalRetrievalChain.from_llm(model,retriever=retriever)
 ```
-# III.                                                             Result   
+#####
+III.                                                             Result   
 After the walkthrough, we can start to experiment different questions and it will output answers based on our training from dlt hub repository. 
  
 Here, I asked ‘’why should data teams use dlt?’’ 
@@ -151,7 +152,7 @@ Next, I asked "Who is dlt for?"
 It outputted:
 1. `dlt` is meant to be accessible to every person on the data team, including data engineers, analysts, data scientists, and other stakeholders involved in data loading. It is designed to reduce knowledge requirements and enable collaborative working between engineers and analysts.
 
-# IV. Summary  
+##### IV. Summary  
  
 In this article, "Training GPT with an Open-Source `dlt` Repository," we can see how the `dlt` library can easily retrieve data from the `dlt` hub repository. Then, by simply training the model, we can get personalized results.
 
