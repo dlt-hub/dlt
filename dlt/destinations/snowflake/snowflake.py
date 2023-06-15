@@ -13,6 +13,7 @@ from dlt.common.schema.typing import TTableSchema, TWriteDisposition
 from dlt.common.wei import EVM_DECIMAL_PRECISION
 
 from dlt.destinations.job_client_impl import SqlJobClientBase
+from dlt.destinations.job_impl import EmptyLoadJob
 from dlt.destinations.exceptions import DestinationSchemaWillNotUpdate, DestinationTransientException, LoadJobNotExistsException, LoadJobTerminalException, LoadJobUnknownTableException
 
 from dlt.destinations.snowflake import capabilities
@@ -54,7 +55,7 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
 
         with client.with_staging_dataset(write_disposition == "merge"):
             qualified_table_name = client.make_qualified_table_name(table_name)
-            stage_name = client.make_qualified_table_name(f"{table_name}.{load_id}")
+            stage_name = f'"{table_name}_{load_id}"'
             with client.begin_transaction():
                 client.execute_sql(
                     """
@@ -70,6 +71,7 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
                 client.execute_sql(
                     f"""COPY INTO {qualified_table_name}
                     FROM @{stage_name}
+                    FILE_FORMAT = dlt_jsonl_format
                     MATCH_BY_COLUMN_NAME='CASE_INSENSITIVE'
                     """
                 )
@@ -117,6 +119,9 @@ class SnowflakeClient(SqlJobClientBase):
                 file_path, table['name'], table['write_disposition'], load_id, self.sql_client
             )
         return job
+
+    def restore_file_load(self, file_path: str) -> LoadJob:
+        return EmptyLoadJob.from_file_path(file_path, "completed")
 
     # def _get_table_update_sql(self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool, separate_alters: bool = False) -> str:
     #     sql = super()._get_table_update_sql(table_name, new_columns, generate_alter)
