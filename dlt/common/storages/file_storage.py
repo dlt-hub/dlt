@@ -258,7 +258,7 @@ class FileStorage:
     @staticmethod
     def open_zipsafe_ro(path: str, mode: str = "r", **kwargs: Any) -> IO[Any]:
         """Opens a file using gzip.open if it is a gzip file, otherwise uses open."""
-        assert mode in {"r", "rb", "rt"}, "FileStorage.open_zipsafe_ro only supports read modes"
+        assert "r" in mode, "FileStorage.open_zipsafe_ro only supports read modes"
         encoding = kwargs.pop("encoding", encoding_for_mode(mode))
         origmode = str(mode)
         try:

@@ -22,12 +22,12 @@ SECRET_STORAGE_PATH = environ_provider.SECRET_STORAGE_PATH
 
 
 def load_json_case(name: str) -> Mapping:
-    with open(json_case_path(name), "br") as f:
+    with open(json_case_path(name), "rb") as f:
         return cast(Mapping, json.load(f))
 
 
 def load_yml_case(name: str) -> Mapping:
-    with open(yml_case_path(name), "br") as f:
+    with open(yml_case_path(name), "rb") as f:
         return cast(Mapping, yaml.safe_load(f))
 
 

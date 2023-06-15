@@ -207,7 +207,7 @@ def save_trace(trace_path: str, trace: PipelineTrace) -> None:
 
 def load_trace(trace_path: str) -> PipelineTrace:
     try:
-        with open(os.path.join(trace_path, TRACE_FILE_NAME), mode="br") as f:
+        with open(os.path.join(trace_path, TRACE_FILE_NAME), mode="rb") as f:
             return pickle.load(f)  # type: ignore
     except (AttributeError, FileNotFoundError):
         # on incompatible pickling / file not found return no trace
