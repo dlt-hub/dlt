@@ -114,7 +114,8 @@ def test_file_transaction_multiple_writers_with_races(fs: fsspec.AbstractFileSys
 
     # writer 2 acquires lock
     assert writer_2.acquire_lock() is True
-
+    # a small gap required on windows which has a timer resolution of ~16ms
+    time.sleep(0.02)
     # Test that we cannot acquire a lock if it is already held
     assert not writer_1.acquire_lock(blocking=False)
     writer_2.release_lock()
