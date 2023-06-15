@@ -87,7 +87,7 @@ def pipeline_command(operation: str, pipeline_name: str, pipelines_dir: str, ver
         if p.default_schema_name is None:
             fmt.warning("This pipeline does not have a default schema")
         else:
-            is_single_schema = len(p.schema_names)
+            is_single_schema = len(p.schema_names) == 1
             for schema_name in  p.schema_names:
                 fmt.echo("Resources in schema: %s" % fmt.bold(schema_name))
                 schema = p.schemas[schema_name]
