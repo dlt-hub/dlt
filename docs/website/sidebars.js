@@ -69,6 +69,7 @@ const sidebars = {
             'dlt-ecosystem/verified-sources/google_sheets',
             'dlt-ecosystem/verified-sources/hubspot',
             'dlt-ecosystem/verified-sources/matomo',
+            'dlt-ecosystem/verified-sources/notion',
             'dlt-ecosystem/verified-sources/pipedrive',
             'dlt-ecosystem/verified-sources/salesforce',
             'dlt-ecosystem/verified-sources/shopify',
