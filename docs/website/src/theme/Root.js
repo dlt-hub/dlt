@@ -9,9 +9,9 @@ export default function Root({children}) {
 // overlay config
 const overlays = {
     "/docs/walkthroughs/create-a-pipeline": {
-        buttonTitle: "Pipeline Code Demo",
+        buttonTitle: "Create a pipeline with GPT-4",
         title: "Create a pipeline with GPT-4",
-        loomId: "d97180be7d674f4fbf57744365457162",
+        loomId: "aa33b4b9f1ac47f99076644315c9b0ff",
         text: "Create dlt pipeline using the data source of your liking and let the GPT-4 write the resource functions and help you to debug the code."
     }
 }
@@ -47,10 +47,10 @@ function Overlay() {
                 <h1>{overlayConfig?.title}</h1>
                 <div>{overlayConfig?.text}</div>
                 <div className='loomContainer'><iframe src={loomLink} frameborder="0" webkitallowfullscreen mozallowfullscreen allowfullscreen className='loomFrame'></iframe></div>
-                <div>This demo works on codespaces. Codespaces are free development evnironment available for free to anyone with a Github account. You’ll be asked to fork the demo repository and from there we’ll guide you with further steps.</div>
+                <div>This demo works on codespaces. Codespaces is a development environment available for free to anyone with a Github account. You'll be asked to fork the demo repository and from there the README guides you with further steps.</div>
                 <div>The demo uses the Continue VSCode extension.</div>
                 <br />
-                <a className="overlayButton" href="https://github.com/codespaces/new/dlt-hub/dlt-llm-code-playground?ref=create-pipeline"> Go to Codespaces</a>
+                <a className="overlayButton" href="https://github.com/codespaces/new/dlt-hub/dlt-llm-code-playground?ref=create-pipeline">Off to codespaces!</a>
             </div>
         </div>
 
@@ -58,7 +58,7 @@ function Overlay() {
             <div className='overlayBackground' onClick={() => setDhelpModalOpen(false)}></div>
             <div className='overlayContent'>
                 <h1>DHelp</h1>
-                <h2>Ask a qestion</h2>
+                <h2>Ask a question</h2>
                 <div>Welcome to "Codex Central", your next-gen help center, driven by OpenAI's GPT-4 model. It's more than just a forum or a FAQ hub – it's a dynamic knowledge base where coders can find AI-assisted solutions to their pressing problems. With GPT-4's powerful comprehension and predictive abilities, Codex Central provides instantaneous issue resolution, insightful debugging, and personalized guidance. Get your code running smoothly with the unparalleled support at Codex Central - coding help reimagined with AI prowess.</div>
             </div>
         </div>
