@@ -1,7 +1,7 @@
-## Simplifying the Complex: Training GPT with an Open-Source dlt Repository
+# Simplifying the Complex: Training GPT with an Open-Source dlt Repository
 
 
->#### 💡Colab demo : https://colab.research.google.com/drive/16IKTjVXq0Bdo0uIb946Bj5_2w8H7t_hG
+#### 💡Colab demo : https://colab.research.google.com/drive/16IKTjVXq0Bdo0uIb946Bj5_2w8H7t_hG
 ---
 
 Hi there! 👋
@@ -18,18 +18,18 @@ III.                                                             Result
 IV. Summary          
 
 ### I. Introduction
-Navigating an open-source repository can be overwhelming because comprehending the intricate labyrinths of code is always a significant problem. As a person who just entered the IT industry, I found an easy way to address this problem with an ELT tool called `dlt`(https://dlthub.com/docs/intro) (data load tool) - the Python library for [loading](https://dlthub.com/docs/intro) data.
+Navigating an open-source repository can be overwhelming because comprehending the intricate labyrinths of code is always a significant problem. As a person who just entered the IT industry, I found an easy way to address this problem with an ELT tool called `dlt`(https://dlthub.com/docs/intro) (data load tool) - the Python library for loading data.
 
 In this article, I would love to share a use case 'Training GPT with an Open-Source `dlt` Repository' using the `dlt` library to train GPT with customized "dlt-hub" repositories. In this way, I can write prompts about `dlt` and get my personalized answers.
 
 ### II. Walkthrough
 
-The code provided below demonstrates training a chat-oriented GPT model using the `dlt`-hub repositories (`dlt` and pipelines). To train the GPT model, we utilized the assistance of two services: Langchain and Deeplake. In order to use these services for our project, you will need to create an account on both platforms and obtain the access token. The good news is that both services offer cost-effective options. GPT provides a $5 credit to test their API, while Deeplake offers a free tier. 
+The code provided below demonstrates training a chat-oriented GPT model using the `dlt`- hub repositories (`dlt` and pipelines). To train the GPT model, we utilized the assistance of two services: Langchain and Deeplake. In order to use these services for our project, you will need to create an account on both platforms and obtain the access token. The good news is that both services offer cost-effective options. GPT provides a $5 credit to test their API, while Deeplake offers a free tier. 
 
 *The credit for the code goes to Langchain, which has been duly acknowledged at the end.*
 
 
-#### 1. Run the following commands to install the necessary modules on your system.
+**#### 1. Run the following commands to install the necessary modules on your system.**
 
 
 
@@ -163,4 +163,5 @@ It can also be used in different places. For more understanding about the `dlt` 
 
 *** 
 > [ About dlt ]
+
 `dlt` is an open-source library that enables you to create a data [pipeline](https://dlthub.com/docs/general-usage/glossary#pipeline) in a Python script. To use it, `pip install dlt` and then `import dlt`. Once set up, it will automatically load any [source](https://dlthub.com/docs/general-usage/glossary#source) (e.g., an API) into a live dataset stored in the [destination](https://dlthub.com/docs/general-usage/glossary#destination) of your choice.
