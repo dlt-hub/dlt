@@ -9,6 +9,7 @@ from dlt.common.configuration.container import Container
 from dlt.common.configuration.inject import get_orig_args, last_config
 from dlt.common.destination.reference import DestinationReference, TDestinationReferenceArg
 from dlt.common.pipeline import LoadInfo, PipelineContext, get_dlt_pipelines_dir
+from dlt.common.data_writers import TLoaderFileFormat
 
 from dlt.pipeline.configuration import PipelineConfiguration, ensure_correct_pipeline_kwargs
 from dlt.pipeline.pipeline import Pipeline
@@ -21,6 +22,7 @@ def pipeline(
     pipelines_dir: str = None,
     pipeline_salt: TSecretValue = None,
     destination: TDestinationReferenceArg = None,
+    loader_file_format: TLoaderFileFormat = None,
     dataset_name: str = None,
     import_schema_path: str = None,
     export_schema_path: str = None,
@@ -85,6 +87,7 @@ def pipeline(
     pipelines_dir: str = None,
     pipeline_salt: TSecretValue = None,
     destination: TDestinationReferenceArg = None,
+    loader_file_format: TLoaderFileFormat = None,
     dataset_name: str = None,
     import_schema_path: str = None,
     export_schema_path: str = None,
@@ -119,6 +122,7 @@ def pipeline(
         pipelines_dir,
         pipeline_salt,
         destination,
+        loader_file_format,
         dataset_name,
         credentials,
         import_schema_path,

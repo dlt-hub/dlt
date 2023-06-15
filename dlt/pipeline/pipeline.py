@@ -27,6 +27,7 @@ from dlt.common.destination.reference import DestinationReference, JobClientBase
 from dlt.common.pipeline import ExtractInfo, LoadInfo, NormalizeInfo, PipelineContext, SupportsPipeline, TPipelineLocalState, TPipelineState, StateInjectableContext
 from dlt.common.schema import Schema
 from dlt.common.utils import is_interactive
+from dlt.common.data_writers import TLoaderFileFormat
 
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 
@@ -177,6 +178,7 @@ class Pipeline(SupportsPipeline):
             pipelines_dir: str,
             pipeline_salt: TSecretValue,
             destination: DestinationReference,
+            loader_file_format: TLoaderFileFormat,
             dataset_name: str,
             credentials: Any,
             import_schema_path: str,
@@ -205,6 +207,7 @@ class Pipeline(SupportsPipeline):
         self._trace: PipelineTrace = None
         self._last_trace: PipelineTrace = None
         self._state_restored: bool = False
+        self._loader_file_format: TLoaderFileFormat = loader_file_format
 
         initialize_runtime(self.runtime_config)
         # initialize pipeline working dir
@@ -304,7 +307,7 @@ class Pipeline(SupportsPipeline):
         # run with destination context
         with self._maybe_destination_capabilities():
             # shares schema storage with the pipeline so we do not need to install
-            normalize = Normalize(collector=self.collector, config=normalize_config, schema_storage=self._schema_storage)
+            normalize = Normalize(collector=self.collector, config=normalize_config, schema_storage=self._schema_storage, loader_file_format=self._loader_file_format)
             try:
                 with signals.delayed_signals():
                     runner.run_pool(normalize.config, normalize)
@@ -681,7 +684,8 @@ class Pipeline(SupportsPipeline):
 
     def _get_load_storage(self) -> LoadStorage:
         caps = self._get_destination_capabilities()
-        return LoadStorage(True, caps.preferred_loader_file_format, caps.supported_loader_file_formats, self._load_storage_config)
+        preferred_loader_file_format: str = self._loader_file_format or caps.preferred_loader_file_format
+        return LoadStorage(True, preferred_loader_file_format, caps.supported_loader_file_formats, self._load_storage_config)
 
     def _init_working_dir(self, pipeline_name: str, pipelines_dir: str) -> None:
         self.pipeline_name = pipeline_name
