@@ -1,4 +1,5 @@
 from copy import deepcopy
+import gzip
 import os
 from typing import Any, Callable, Iterator, Tuple, Optional
 import pytest
@@ -264,6 +265,24 @@ def test_evolve_schema(destination_name: str) -> None:
     # test data
     id_data = sorted(["level" + str(n) for n in range(10)] + ["level" + str(n) for n in range(100, 110)])
     assert_query_data(p, "SELECT * FROM simple_rows ORDER BY id", id_data)
+
+
+@pytest.mark.parametrize('disable_compression', [True, False])
+def test_pipeline_data_writer_compression(disable_compression: bool, any_destination: str) -> None:
+    # Ensure pipeline works without compression
+    data = ["a", "b", "c"]
+    dlt.config["data_writer"] = {"disable_compression": disable_compression}  # not sure how else to set this
+    p = dlt.pipeline(pipeline_name="compression_test", destination=any_destination)
+    p.extract(dlt.resource(data, name="data"))
+    s = p._get_normalize_storage()
+    # check that files are not compressed if compression is disabled
+    if disable_compression:
+        for f in s.list_files_to_normalize_sorted():
+            with pytest.raises(gzip.BadGzipFile):
+                gzip.open(s.storage.make_full_path(f), "rb").read()
+    p.normalize()
+    info = p.load()
+    assert_table(info.pipeline, "data", data, info=info)
 
 
 # def test_evolve_schema_conflict() -> None:

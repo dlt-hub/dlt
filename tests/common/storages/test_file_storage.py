@@ -1,3 +1,4 @@
+import gzip
 import os
 import stat
 import pytest
@@ -188,3 +189,49 @@ def test_save_atomic_encode() -> None:
     with storage.open_file("file.bin", mode="r") as f:
         assert hasattr(f, "encoding") is False
         assert f.read() == bstr
+
+
+def test_open_compressed() -> None:
+    tstr = "dataisfunindeed"
+    storage = FileStorage(TEST_STORAGE_ROOT)
+    fname = storage.make_full_path("file.txt.gz")
+    with gzip.open(fname, "wb") as f:
+        f.write(tstr.encode("utf-8"))
+    with open(fname[:-3], "wb") as f:
+        f.write(tstr.encode("utf-8"))
+
+    # Ensure open_file() can open compressed files
+    with storage.open_file("file.txt.gz", mode="r") as f:
+        assert f.read() == tstr
+
+    # Ensure open_file() can open uncompressed files
+    with storage.open_file("file.txt", mode="r") as f:
+        assert f.read() == tstr
+
+    bstr = b"axa\0x0\0x0"
+    with gzip.open(fname, "wb") as f:
+        f.write(bstr)
+    with open(fname[:-3], "wb") as f:
+        f.write(bstr)
+
+    # Ensure open_file() can open compressed files in binary mode
+    with storage.open_file("file.txt.gz", mode="rb") as f:
+        assert f.read() == bstr
+
+    # Ensure open_file() can open uncompressed files in binary mode
+    with storage.open_file("file.txt", mode="rb") as f:
+        assert f.read() == bstr
+
+    # Ensure open_file() can open compressed files in text mode
+    with storage.open_file("file.txt.gz", mode="rt") as f:
+        assert f.read() == bstr.decode("utf-8")
+
+    # Ensure open_file() can open uncompressed files in text mode
+    with storage.open_file("file.txt", mode="rt") as f:
+        assert f.read() == bstr.decode("utf-8")
+
+    # `r` defaults to `rt` for gzip to mimic the behavior of `open()`
+    with storage.open_file("file.txt.gz", mode="r") as f:
+        content = f.read()
+        assert isinstance(content, str)
+        assert content == bstr.decode("utf-8")

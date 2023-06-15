@@ -1,3 +1,4 @@
+import gzip
 from typing import List, IO, Any, Optional, Type
 
 from dlt.common.utils import uniq_id
@@ -18,6 +19,7 @@ class BufferedDataWriter:
         buffer_max_items: int = 5000
         file_max_items: Optional[int] = None
         file_max_bytes: Optional[int] = None
+        disable_compression: bool = False
         _caps: Optional[DestinationCapabilitiesContext] = None
 
         __section__ = known_sections.DATA_WRITER
@@ -32,6 +34,7 @@ class BufferedDataWriter:
         buffer_max_items: int = 5000,
         file_max_items: int = None,
         file_max_bytes: int = None,
+        disable_compression: bool = False,
         _caps: DestinationCapabilitiesContext = None
     ):
         self.file_format = file_format
@@ -46,6 +49,8 @@ class BufferedDataWriter:
         self.buffer_max_items = min(buffer_max_items, file_max_items or buffer_max_items)
         self.file_max_bytes = file_max_bytes
         self.file_max_items = file_max_items
+        # the open function is either gzip.open or open
+        self.open = gzip.open if self._file_format_spec.supports_compression and not disable_compression else open
 
         self._current_columns: TTableSchemaColumns = None
         self._file_name: str = None
@@ -110,9 +115,9 @@ class BufferedDataWriter:
             if not self._writer:
                 # create new writer and write header
                 if self._file_format_spec.is_binary_format:
-                    self._file = open(self._file_name, "wb")
+                    self._file = self.open(self._file_name, "wb") # type: ignore
                 else:
-                    self._file = open(self._file_name, "wt", encoding="utf-8")
+                    self._file = self.open(self._file_name, "wt", encoding="utf-8") # type: ignore
                 self._writer = DataWriter.from_file_format(self.file_format, self._file, caps=self._caps)
                 self._writer.write_header(self._current_columns)
             # write buffer
