@@ -123,6 +123,8 @@ class SnowflakeSqlClient(SqlClientBase[snowflake_lib.SnowflakeConnection], DBTra
         if isinstance(ex, snowflake_lib.errors.ProgrammingError):
             if ex.sqlstate in {'42S02', '02000'}:
                 return DatabaseUndefinedRelation(ex)
+            elif ex.sqlstate == '22023':  # Adding non-nullable no-default column
+                return DatabaseTerminalException(ex)
             else:
                 return DatabaseTransientException(ex)
         elif isinstance(ex, snowflake_lib.errors.DatabaseError):
@@ -131,6 +133,9 @@ class SnowflakeSqlClient(SqlClientBase[snowflake_lib.SnowflakeConnection], DBTra
                 return term
             else:
                 return DatabaseTransientException(ex)
+        elif isinstance(ex, TypeError):
+            # snowflake raises TypeError on malformed query parameters
+            return DatabaseTransientException(snowflake_lib.errors.ProgrammingError(str(ex)))
         elif cls.is_dbapi_exception(ex):
             return DatabaseTransientException(ex)
         else:

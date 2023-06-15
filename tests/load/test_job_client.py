@@ -613,7 +613,7 @@ def test_many_schemas_single_dataset(destination_name: str, file_storage: FileSt
         client.schema.bump_version()
         with pytest.raises(DatabaseException) as py_ex:
             client.update_storage_schema()
-        assert "mandatory_column" in str(py_ex.value) or "NOT NULL" in str(py_ex.value) or "Adding columns with constraints not yet supported" in str(py_ex.value)
+        assert "mandatory_column" in str(py_ex.value).lower() or "NOT NULL" in str(py_ex.value) or "Adding columns with constraints not yet supported" in str(py_ex.value)
 
 
 def prepare_schema(client: SqlJobClientBase, case: str) -> None:
