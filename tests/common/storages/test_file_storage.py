@@ -197,7 +197,7 @@ def test_open_compressed() -> None:
     fname = storage.make_full_path("file.txt.gz")
     with gzip.open(fname, "wb") as f:
         f.write(tstr.encode("utf-8"))
-    with gzip.open(fname[:-3], "wb") as f:
+    with open(fname[:-3], "wb") as f:
         f.write(tstr.encode("utf-8"))
 
     # Ensure open_file() can open compressed files
@@ -211,7 +211,7 @@ def test_open_compressed() -> None:
     bstr = b"axa\0x0\0x0"
     with gzip.open(fname, "wb") as f:
         f.write(bstr)
-    with gzip.open(fname[:-3], "wb") as f:
+    with open(fname[:-3], "wb") as f:
         f.write(bstr)
 
     # Ensure open_file() can open compressed files in binary mode
