@@ -358,9 +358,10 @@ def test_preserve_column_order(client: SqlJobClientBase) -> None:
     def _assert_columns_order(sql_: str) -> None:
         idx = 0
         for c in columns:
+            col_name = client.capabilities.escape_identifier(c["name"])
             # find column names
-            idx = sql_.find(c["name"], idx)
-            assert idx > 0, f"column {c['name']} not found in script"
+            idx = sql_.find(col_name, idx)
+            assert idx > 0, f"column {col_name} not found in script"
 
     sql = ';'.join(client._get_table_update_sql(table_name, columns, generate_alter=False))
     _assert_columns_order(sql)
