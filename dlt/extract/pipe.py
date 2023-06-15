@@ -6,7 +6,7 @@ from asyncio import Future
 from concurrent.futures import ThreadPoolExecutor
 from copy import copy
 from threading import Thread
-from typing import Any, ContextManager, Optional, Sequence, Union, Callable, Iterable, Iterator, List, NamedTuple, Awaitable, Tuple, Type, TYPE_CHECKING
+from typing import Any, ContextManager, Optional, Sequence, Union, Callable, Iterable, Iterator, List, NamedTuple, Awaitable, Tuple, Type, TYPE_CHECKING, Literal
 
 from dlt.common import sleep
 from dlt.common.configuration import configspec
@@ -64,6 +64,8 @@ TPipeStep = Union[
     Callable[[TDataItems, Optional[Any]], Iterator[TPipedDataItems]],
     Callable[[TDataItems, Optional[Any]], Iterator[ResolvablePipeItem]]
 ]
+
+TPipeNextItemMode = Union[Literal["current"], Literal["round_robin"]]
 
 
 class ForkPipe:
@@ -424,10 +426,11 @@ class PipeIterator(Iterator[PipeItem]):
         workers: int = 5
         futures_poll_interval: float = 0.01
         copy_on_fork: bool = False
+        next_item_mode: TPipeNextItemMode = "current"
 
         __section__ = "extract"
 
-    def __init__(self, max_parallel_items: int, workers: int, futures_poll_interval: float) -> None:
+    def __init__(self, max_parallel_items: int, workers: int, futures_poll_interval: float, next_item_mode: TPipeNextItemMode) -> None:
         self.max_parallel_items = max_parallel_items
         self.workers = workers
         self.futures_poll_interval = futures_poll_interval
@@ -440,7 +443,7 @@ class PipeIterator(Iterator[PipeItem]):
 
     @classmethod
     @with_config(spec=PipeIteratorConfiguration)
-    def from_pipe(cls, pipe: Pipe, *, max_parallel_items: int = 20, workers: int = 5, futures_poll_interval: float = 0.01) -> "PipeIterator":
+    def from_pipe(cls, pipe: Pipe, *, max_parallel_items: int = 20, workers: int = 5, futures_poll_interval: float = 0.01, next_item_mode: TPipeNextItemMode = "current") -> "PipeIterator":
         # join all dependent pipes
         if pipe.parent:
             pipe = pipe.full_pipe()
@@ -450,7 +453,7 @@ class PipeIterator(Iterator[PipeItem]):
         pipe.evaluate_gen()
         assert isinstance(pipe.gen, Iterator)
         # create extractor
-        extract = cls(max_parallel_items, workers, futures_poll_interval)
+        extract = cls(max_parallel_items, workers, futures_poll_interval, next_item_mode)
         # add as first source
         extract._sources.append(SourcePipeItem(pipe.gen, 0, pipe, None))
         return extract
@@ -465,10 +468,11 @@ class PipeIterator(Iterator[PipeItem]):
         max_parallel_items: int = 20,
         workers: int = 5,
         futures_poll_interval: float = 0.01,
-        copy_on_fork: bool = False
+        copy_on_fork: bool = False,
+        next_item_mode: TPipeNextItemMode = "current"
     ) -> "PipeIterator":
         # print(f"max_parallel_items: {max_parallel_items} workers: {workers}")
-        extract = cls(max_parallel_items, workers, futures_poll_interval)
+        extract = cls(max_parallel_items, workers, futures_poll_interval, next_item_mode)
         # clone all pipes before iterating (recursively) as we will fork them (this add steps) and evaluate gens
         pipes = PipeIterator.clone_pipes(pipes)
 
