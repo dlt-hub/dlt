@@ -65,7 +65,7 @@ embeddings = OpenAIEmbeddings(disallowed_special=())
 %cd .. 
 ```
 
-#### 3.Load the files from the directory 
+#### 3. Load the files from the directory 
 ```python 
 import os
 from langchain.document_loaders import TextLoader
@@ -80,7 +80,7 @@ for dirpath, dirnames, filenames in os.walk(root_dir):
         except Exception as e: 
             pass
 ```
-#### 4.Load the files from the directory  
+#### 4. Load the files from the directory  
 ```python   
 import os
 from langchain.document_loaders import TextLoader
