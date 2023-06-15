@@ -1,26 +1,37 @@
-Automating the data engineer: Addressing the talent shortage
+---
+slug: automating-data-engineers
+title: "Automating the data engineer: Addressing the talent shortage"
+authors:
+  name: Adrian Brudaru
+  title: Open source data engineer
+  url: https://github.com/adrianbr
+  image_url: https://avatars.githubusercontent.com/u/5762770?v=4
+tags: [data engineer shortage, structured data, schema evolution]
+---
 
-# Why is there a data engineer shortage?
+# Automating the data engineer: Addressing the talent shortage
+
+## Why is there a data engineer shortage?
 
 1. High Demand and Rapid Growth: The increasing reliance on data-driven decision-making and the rise of big data technologies have created a surge in demand for skilled data engineers.
 2. Skill Gap and Specialization: Data engineering requires a unique blend of technical skills, and finding individuals with the right combination of programming, database management, and cloud computing expertise can be challenging.
 3. Competition from Other Data Roles: The allure of data science and other data-related roles has attracted professionals, leading to a talent shortage in the data engineering field.
 
-# How big is the data engineer shortage?
+## How big is the data engineer shortage?
 
-<aside>
-💡 **In Europe there are 32K data engineers and 48K open positions to hire one. In the US the ratio is 41K to 79K…**
+
+>💡 "**In Europe there are 32K data engineers and 48K open positions to hire one. In the US the ratio is 41K to 79K**"
 Source: [Linkedin data analysis blog post](https://alkrusz.medium.com/look-for-data-engineers-where-no-one-is-looking-2169ffd9fc1b)
 
-</aside>
+
 
 Well that doesn’t look too bad - if only we could all be about 2x as efficient :)
 
-# Bridging the gap: How to make your data engineers 2x more efficient?
+## Bridging the gap: How to make your data engineers 2x more efficient?
 
 There are 2 ways to make the data engineers more efficient:
 
-## Option 1: Give them more to do, tell them how to do their jobs better!
+### Option 1: Give them more to do, tell them how to do their jobs better!
 
  **For some reason, this doesn’t work out great.** All the great minds of our generation told us we should be more like them
 
@@ -35,14 +46,13 @@ There are 2 ways to make the data engineers more efficient:
 - write a paper about the tests
 - do all that while alerts go off 24/7 and you are the bottleneck for everyone downstream, analysts and business people screaming.
 
-<aside>
-💡 “I can't do
-  what ten people tell me to do,
-So I guess I'll remain the same”
 
-- Otis Redding, sitting on the dock of the bay
+>💡 “I can't do
+>   what ten people tell me to do,
+>   So I guess I'll remain the same”
+>   - Otis Redding, sitting on the dock of the bay
 
-</aside>
+
 
 Option 2: Take away unproductive work.
 
@@ -61,7 +71,7 @@ Let’s see what a data engineer does, according to GPT:
 - **Data collaboration and sharing**: Facilitating data collaboration and sharing across teams, ensuring data accessibility, and promoting data-driven decision-making within the organization.
 - **Continuous improvement:** Staying updated with emerging technologies, industry trends, and best practices in data engineering, and actively seeking opportunities to improve data processes, quality, and efficiency.
 
-## Let’s get a back of the napkin estimation of how much time they spend on those areas.
+### Let’s get a back of the napkin estimation of how much time they spend on those areas.
 
 
 Here’s an approximation as offered by gpt. Of course, actual numbers depend on the maturity of your team and their unique challenges.
