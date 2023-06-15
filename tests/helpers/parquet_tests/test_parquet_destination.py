@@ -29,7 +29,7 @@ def test_pipeline_parquet_bigquery_destination() -> None:
     info = pipeline.run(some_source())
     package_info = pipeline.get_load_package_info(info.loads_ids[0])
     assert package_info.state == "loaded"
-    # both failed - we wait till the current loop is completed and then raise
+    # all three jobs succeeded
     assert len(package_info.jobs["failed_jobs"]) == 0
     assert len(package_info.jobs["completed_jobs"]) == 3
 
@@ -54,6 +54,7 @@ def test_pipeline_parquet_filesystem_destination() -> None:
     info = pipeline.run(some_source())
     package_info = pipeline.get_load_package_info(info.loads_ids[0])
     assert package_info.state == "loaded"
-    # both failed - we wait till the current loop is completed and then raise
+
+    # all three jobs succeeded
     assert len(package_info.jobs["failed_jobs"]) == 0
     assert len(package_info.jobs["completed_jobs"]) == 3
