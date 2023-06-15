@@ -68,3 +68,9 @@ escape_postgres_identifier = escape_redshift_identifier
 def escape_bigquery_identifier(v: str) -> str:
     # https://cloud.google.com/bigquery/docs/reference/standard-sql/lexical
     return "`" + v.replace("\\", "\\\\").replace("`","\\`") + "`"
+
+
+def escape_snowflake_identifier(v: str) -> str:
+    # Snowcase uppercase all identifiers unless quoted. Match this here so queries on information schema work without issue
+    # See also https://docs.snowflake.com/en/sql-reference/identifiers-syntax#double-quoted-identifiers
+    return v.upper()

@@ -161,10 +161,11 @@ class SnowflakeClient(SqlJobClientBase):
         return BQT_TO_SCT.get(bq_t, "text")
 
     def _get_column_def_sql(self, c: TColumnSchema) -> str:
-        name = c["name"]
+        name = self.capabilities.escape_identifier(c["name"])
         return f"{name} {self._to_db_type(c['data_type'])} {self._gen_not_null(c['nullable'])}"
 
     def get_storage_table(self, table_name: str) -> Tuple[bool, TTableSchemaColumns]:
+        table_name = self.capabilities.escape_identifier(table_name)  # Ensure upcased table name
         exists, table = super().get_storage_table(table_name)
         if not exists:
             return exists, table

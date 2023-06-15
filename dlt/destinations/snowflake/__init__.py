@@ -6,7 +6,7 @@ from dlt.common.configuration import with_config, known_sections
 from dlt.common.configuration.accessors import config
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import JobClientBase, DestinationClientConfiguration
-from dlt.common.data_writers.escape import escape_postgres_identifier, escape_postgres_literal, escape_bigquery_identifier
+from dlt.common.data_writers.escape import escape_snowflake_identifier
 
 from dlt.destinations.snowflake.configuration import SnowflakeClientConfiguration
 
@@ -20,7 +20,7 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps = DestinationCapabilitiesContext()
     caps.preferred_loader_file_format = "jsonl"
     caps.supported_loader_file_formats = ["jsonl"]
-    caps.escape_identifier = escape_postgres_identifier
+    caps.escape_identifier = escape_snowflake_identifier
     caps.max_identifier_length = 255
     caps.max_column_identifier_length = 255
     caps.max_query_length = 32 * 1024 * 1024
