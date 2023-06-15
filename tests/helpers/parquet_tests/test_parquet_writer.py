@@ -14,11 +14,11 @@ from tests.utils import TEST_STORAGE_ROOT, write_version, autouse_test_storage
 import datetime  # noqa: 251
 
 
-def get_writer(_format: TLoaderFileFormat = "insert_values", buffer_max_items: int = 10) -> BufferedDataWriter:
+def get_writer(_format: TLoaderFileFormat = "insert_values", buffer_max_items: int = 10, file_max_items: int = 10, file_max_bytes: int = None) -> BufferedDataWriter:
     caps = DestinationCapabilitiesContext.generic_capabilities()
     caps.preferred_loader_file_format = _format
     file_template = os.path.join(TEST_STORAGE_ROOT, f"{_format}.%s")
-    return BufferedDataWriter(_format, file_template, buffer_max_items=buffer_max_items, _caps=caps)
+    return BufferedDataWriter(_format, file_template, buffer_max_items=buffer_max_items, _caps=caps, file_max_items=file_max_items, file_max_bytes=file_max_bytes)
 
 def test_parquet_writer_schema_evolution() -> None:
     c1 = new_column("col1", "bigint")
@@ -92,13 +92,31 @@ def test_parquet_writer_all_data_fields() -> None:
             assert table.column(key).to_pylist() == [value]
 
 
-def test_parquet_writer_file_rotation() -> None:
+def test_parquet_writer_items_file_rotation() -> None:
     columns = {
         "col1": new_column("col1", "bigint"),
     }
 
-    with get_writer("parquet") as writer:
+    with get_writer("parquet", file_max_items=10) as writer:
         for i in range(0, 100):
-            print(i)
             writer.write_data_item([{"col1": i}], columns)
-        
+
+    assert len(writer.closed_files) == 10
+    with open(writer.closed_files[4], "rb") as f:
+        table = pq.read_table(f)
+        assert table.column("col1").to_pylist() == list(range(40, 50))       
+
+
+def test_parquet_writer_size_file_rotation() -> None:
+    columns = {
+        "col1": new_column("col1", "bigint"),
+    }
+
+    with get_writer("parquet", file_max_bytes=2**8, buffer_max_items=2) as writer:
+        for i in range(0, 100):
+            writer.write_data_item([{"col1": i}], columns)
+
+    assert len(writer.closed_files) == 25
+    with open(writer.closed_files[4], "rb") as f:
+        table = pq.read_table(f)
+        assert table.column("col1").to_pylist() == list(range(16, 20))     
