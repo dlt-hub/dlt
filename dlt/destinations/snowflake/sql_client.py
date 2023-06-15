@@ -125,8 +125,14 @@ class SnowflakeSqlClient(SqlClientBase[snowflake_lib.SnowflakeConnection], DBTra
                 return DatabaseUndefinedRelation(ex)
             elif ex.sqlstate == '22023':  # Adding non-nullable no-default column
                 return DatabaseTerminalException(ex)
+            elif ex.sqlstate == '42000' and ex.errno == 904:  # Invalid identifier
+                return DatabaseTerminalException(ex)
+            elif ex.sqlstate == "22000":
+                return DatabaseTerminalException(ex)
             else:
                 return DatabaseTransientException(ex)
+        elif isinstance(ex, snowflake_lib.errors.IntegrityError):
+            raise DatabaseTerminalException(ex)
         elif isinstance(ex, snowflake_lib.errors.DatabaseError):
             term = cls._maybe_make_terminal_exception_from_data_error(ex)
             if term:
