@@ -21,8 +21,8 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.preferred_loader_file_format = "jsonl"
     caps.supported_loader_file_formats = ["jsonl"]
     caps.escape_identifier = escape_postgres_identifier
-    caps.max_identifier_length = 63
-    caps.max_column_identifier_length = 63
+    caps.max_identifier_length = 255
+    caps.max_column_identifier_length = 255
     caps.max_query_length = 32 * 1024 * 1024
     caps.is_max_query_length_in_bytes = True
     caps.max_text_data_type_length = 16 * 1024 * 1024
