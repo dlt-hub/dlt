@@ -1,7 +1,7 @@
 # Simplifying the Complex: Training GPT with an Open-Source dlt Repository
 
 ::: info
->### 💡Colab demo : https://colab.research.google.com/drive/16IKTjVXq0Bdo0uIb946Bj5_2w8H7t_hG
+>##### 💡Colab demo : https://colab.research.google.com/drive/16IKTjVXq0Bdo0uIb946Bj5_2w8H7t_hG
 ---
 
 Hi there! 👋
