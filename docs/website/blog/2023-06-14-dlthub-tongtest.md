@@ -153,7 +153,7 @@ It outputted:
 
 ### IV. Summary  
  
-It worked! we can see how gpt can learn about an open source library by using `dlt`. It can also be used in different places. Moreover, by simply follow the steps above, you can customize the training to your needs.
+It worked! we can see how GPT can learn about an open source library by using `dlt` and utilizing the assistance of Langchain and Deeplake. Moreover, by simply follow the steps above, you can customize the GPT model training to your own needs.
 
 ***Curious? Give the Colab demo a try or share your questions with us, and we'll have ChatGPT address them in our upcoming article.***
 
