@@ -144,7 +144,7 @@ class SnowflakeClient(SqlJobClientBase):
         if bq_t == "NUMBER":
             if precision == BIGINT_PRECISION and scale == 0:
                 return 'bigint'
-            elif precision == MAX_NUMERIC_PRECISION:
+            elif precision == MAX_NUMERIC_PRECISION and scale == 0:
                 return 'wei'
             return 'decimal'
         return BQT_TO_SCT.get(bq_t, "text")
