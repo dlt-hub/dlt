@@ -53,7 +53,9 @@ To get started with your verified source, follow these steps:
     dlt init salesforce bigquery
     ```
 
-    This command will initialize your verified source with Salesforce and creates a pipeline example with BigQuery as the destination. If you'd like to use a different destination, simply replace `bigquery` with the name of your preferred destination. You can find supported destinations and their configuration options in our [documentation](https://dlthub.com/docs/destinations/duckdb).
+    This command will initialize your verified source with Salesforce and creates a pipeline example with BigQuery as the destination.
+    If you'd like to use a different destination, simply replace `bigquery` with the name of your preferred destination.
+    You can find supported destinations and their configuration options in our [documentation](../destinations/duckdb).
 
 3. After running this command, a new directory will be created with the necessary files and configuration settings to get started.
 
@@ -94,7 +96,7 @@ To get started with your verified source, follow these steps:
 
 2. Please replace the values of “*username”* and “*password”* in the “*secrets.toml”* with your actual Salesforce account login credentials.
 3. Next, replace the value of “*security_token”* with the one that [you copied above](salesforce.md#grab-credentials). This will ensure that your verified source can access your Salesforce resources securely.
-4. Next, follow the instructions in [Destinations](https://dlthub.com/docs/destinations/duckdb) to add credentials for your chosen destination. This will ensure that your data is properly routed to its final destination.
+4. Next, follow the instructions in [Destinations](../destinations/duckdb) to add credentials for your chosen destination. This will ensure that your data is properly routed to its final destination.
 
 ## Run the pipeline example
 
