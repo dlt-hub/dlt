@@ -391,19 +391,19 @@ def test_recover_on_explicit_tx(client: SqlJobClientBase) -> None:
     assert_load_id(client.sql_client, "ABC")
 
     # syntax error within tx
-    sql = f"BEGIN TRANSACTION;INVERT INTO {version_table} VALUES(1);COMMIT TRANSACTION;"
+    statements = ["BEGIN TRANSACTION;", f"INVERT INTO {version_table} VALUES(1);", "COMMIT;"]
     with pytest.raises(DatabaseTransientException):
-        client.sql_client.execute_sql(sql)
+        client.sql_client.execute_fragments(statements)
     # assert derives_from_class_of_name(term_ex.value.dbapi_exception, "ProgrammingError")
     assert client.get_newest_schema_from_storage() is not None
     client.complete_load("EFG")
     assert_load_id(client.sql_client, "EFG")
 
     # wrong value inserted
-    sql = f"BEGIN TRANSACTION;INSERT INTO {version_table}(version) VALUES(1);COMMIT TRANSACTION;"
+    statements = ["BEGIN TRANSACTION;", f"INSERT INTO {version_table}(version) VALUES(1);", "COMMIT;"]
     # cannot insert NULL value
     with pytest.raises(DatabaseTerminalException):
-        client.sql_client.execute_sql(sql)
+        client.sql_client.execute_fragments(statements)
     # assert derives_from_class_of_name(term_ex.value.dbapi_exception, "IntegrityError")
     # assert isinstance(term_ex.value.dbapi_exception, (psycopg2.InternalError, psycopg2.))
     assert client.get_newest_schema_from_storage() is not None
