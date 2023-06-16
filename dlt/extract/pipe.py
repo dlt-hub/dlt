@@ -65,7 +65,7 @@ TPipeStep = Union[
     Callable[[TDataItems, Optional[Any]], Iterator[ResolvablePipeItem]]
 ]
 
-TPipeNextItemMode = Union[Literal["current"], Literal["round_robin"]]
+TPipeNextItemMode = Union[Literal["fifo"], Literal["round_robin"]]
 
 
 class ForkPipe:
@@ -426,7 +426,7 @@ class PipeIterator(Iterator[PipeItem]):
         workers: int = 5
         futures_poll_interval: float = 0.01
         copy_on_fork: bool = False
-        next_item_mode: str = "current"
+        next_item_mode: str = "fifo"
 
         __section__ = "extract"
 
@@ -446,7 +446,7 @@ class PipeIterator(Iterator[PipeItem]):
 
     @classmethod
     @with_config(spec=PipeIteratorConfiguration)
-    def from_pipe(cls, pipe: Pipe, *, max_parallel_items: int = 20, workers: int = 5, futures_poll_interval: float = 0.01, next_item_mode: TPipeNextItemMode = "current") -> "PipeIterator":
+    def from_pipe(cls, pipe: Pipe, *, max_parallel_items: int = 20, workers: int = 5, futures_poll_interval: float = 0.01, next_item_mode: TPipeNextItemMode = "fifo") -> "PipeIterator":
         # join all dependent pipes
         if pipe.parent:
             pipe = pipe.full_pipe()
@@ -473,7 +473,7 @@ class PipeIterator(Iterator[PipeItem]):
         workers: int = 5,
         futures_poll_interval: float = 0.01,
         copy_on_fork: bool = False,
-        next_item_mode: TPipeNextItemMode = "current"
+        next_item_mode: TPipeNextItemMode = "fifo"
     ) -> "PipeIterator":
 
         # print(f"max_parallel_items: {max_parallel_items} workers: {workers}")
@@ -501,7 +501,7 @@ class PipeIterator(Iterator[PipeItem]):
                     extract._sources.append(SourcePipeItem(pipe.gen, 0, pipe, None))
 
         # reverse pipes for current mode, as we start processing from the back
-        if next_item_mode == "current":
+        if next_item_mode == "fifo":
             pipes.reverse()
         for pipe in pipes:
             _fork_pipeline(pipe)
@@ -682,7 +682,7 @@ class PipeIterator(Iterator[PipeItem]):
             return ResolvablePipeItem(item, step, pipe, meta)
 
     def _get_source_item(self) -> ResolvablePipeItem:
-        if self._next_item_mode == "current":
+        if self._next_item_mode == "fifo":
             return self._get_source_item_current()
         elif self._next_item_mode == "round_robin":
             return self._get_source_item_round_robin()
