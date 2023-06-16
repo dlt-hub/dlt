@@ -79,7 +79,9 @@ In a shell editor, navigate to the directory where the "main.py" file is located
         
 - This command deploys a function named "pipeline_notion" with Python 3.10 as the runtime environment, an HTTP trigger, and allows unauthenticated access. The source "." refers to all files in the directory.
 - See [the documentation](https://cloud.google.com/functions/docs) for more details on Google Cloud Functions.
+  
   ### Setting up environmental variables in the Cloud function using Secret Manager
+  
   After deploying the function, you need to create an environment variable in Cloud Function using the Notion Secret you created earlier.
   Go to the Google Cloud function, click on the function you deployed earlier using the shell editor and select "EDIT".
    1. In the 'Runtime, Build, Connections and Security Settings' section, select 'Security and Images Repo'.
