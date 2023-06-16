@@ -392,19 +392,20 @@ Read more about credentials for Airflow [here](../../running-in-production/orche
 ### 6. Finish the Airflow deploying
 
 1. Commit and push the pipeline files to GitHub.
-a. Add stage deployment files to commit. Use your Git UI or the following command:
+
+    Add stage deployment files to commit. Use your Git UI or the following command:
 
     ```bash
     git add dags/dag_pipedrive.py build/cloudbuild.yaml
     ```
 
-    b. Commit the files above. Use your Git UI or the following command:
+    Commit the files above. Use your Git UI or the following command:
 
     ```bash
     git commit -m 'initiate pipedrive pipeline with Airflow'
     ```
 
-    c. Push changes to GitHub. Use your Git UI or the following command:
+    Push changes to GitHub. Use your Git UI or the following command:
 
     ```bash
     git push origin
