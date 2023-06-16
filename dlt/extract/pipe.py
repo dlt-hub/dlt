@@ -475,10 +475,12 @@ class PipeIterator(Iterator[PipeItem]):
         copy_on_fork: bool = False,
         next_item_mode: TPipeNextItemMode = "current"
     ) -> "PipeIterator":
+
         # print(f"max_parallel_items: {max_parallel_items} workers: {workers}")
         extract = cls(max_parallel_items, workers, futures_poll_interval, next_item_mode)
         # clone all pipes before iterating (recursively) as we will fork them (this add steps) and evaluate gens
         pipes = PipeIterator.clone_pipes(pipes)
+
 
         def _fork_pipeline(pipe: Pipe) -> None:
             if pipe.parent:
@@ -498,10 +500,14 @@ class PipeIterator(Iterator[PipeItem]):
                 if not any(i.pipe == pipe for i in extract._sources):
                     extract._sources.append(SourcePipeItem(pipe.gen, 0, pipe, None))
 
-        for pipe in reversed(pipes):
+        # reverse pipes for current mode, as we start processing from the back
+        if next_item_mode == "current":
+            pipes.reverse()
+        for pipe in pipes:
             _fork_pipeline(pipe)
 
         extract._initial_sources_count = len(extract._sources)
+
         return extract
 
     def __next__(self) -> PipeItem:
@@ -751,7 +757,7 @@ class PipeIterator(Iterator[PipeItem]):
             raise ResourceExtractionError(pipe.name, gen, str(ex), "generator") from ex
 
     @staticmethod
-    def clone_pipes(pipes: Sequence[Pipe]) -> Sequence[Pipe]:
+    def clone_pipes(pipes: Sequence[Pipe]) -> List[Pipe]:
         """This will clone pipes and fix the parent/dependent references"""
         cloned_pipes = [p._clone() for p in pipes]
         cloned_pairs = {id(p): c for p, c in zip(pipes, cloned_pipes)}
