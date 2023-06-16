@@ -187,4 +187,4 @@ To get started with this verified source, follow these steps:
         ```
 
 
-    That’s it! Enjoy running your `dlt` Jira pipeline!
+That’s it! Enjoy running your `dlt` Jira pipeline!
