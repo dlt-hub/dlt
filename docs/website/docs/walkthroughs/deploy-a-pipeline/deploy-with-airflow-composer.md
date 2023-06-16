@@ -41,7 +41,7 @@ This command checks if your pipeline has run successfully before and creates the
 - dags
     - This folder contains the Python script `dag_{pipeline_name}.py`, which is an example of a simple serialized DAG using the Airflow *PipelineTasksGroup* wrapper.
 
-    **Note:** This folder is only needed to store DAG scripts, but it is not the Airflow *dags_folder*. Please refer to the [Troubleshooting](deploy-with-airflow-composer.md#Troubleshooting) section for more information.
+    **Note:** This folder is only needed to store DAG scripts, but it is not the Airflow *dags_folder*. Please refer to the [Troubleshooting](deploy-with-airflow-composer.md#troubleshooting) section for more information.
 
 By default, the `dlt deploy` command shows you the deployment credentials in ENV format.
 
@@ -199,11 +199,11 @@ You should now move your working code from the pipeline script you previously ra
 
     Copy this part of the code to the `dags/dag_pipedrive.py` script.
 
-    **Note:** Task ids in the task group should be still unique globally, so we have to exclude "custom_fields_mapping” from `activities_source`. See [Troubleshooting](https://www.notion.so/Deploy-a-pipeline-with-Airflow-245fd1058652479494307ead0b5565f3?pvs=21) section.
+    **Note:** Task ids in the task group should be still unique globally, so we have to exclude "custom_fields_mapping” from `activities_source`. See [Troubleshooting](deploy-with-airflow-composer.md#troubleshooting) section.
 
 - Pass your pipeline instance and source instance to the `add_run` method of tasks.
 
-    **Note**: PipelineTasksGroup can’t handle the list of sources (e.g. data=[source, activities_source]), so we have to add them sequentially. See [Troubleshooting](https://www.notion.so/Deploy-a-pipeline-with-Airflow-245fd1058652479494307ead0b5565f3?pvs=21) section.
+    **Note**: PipelineTasksGroup can’t handle the list of sources (e.g. data=[source, activities_source]), so we have to add them sequentially. See [Troubleshooting](deploy-with-airflow-composer.md#troubleshooting) section.
 
     ```python
     # create the source, the "serialize" decompose option will converts dlt resources into Airflow tasks. use "none" to disable it
