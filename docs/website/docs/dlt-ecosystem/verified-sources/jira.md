@@ -106,7 +106,7 @@ To get started with this verified source, follow these steps:
     
     `dlt` works on the principle of [sources](https://dlthub.com/docs/general-usage/source) and [resources](https://dlthub.com/docs/general-usage/resource) that for this verified source are found in the `__init__.py` file within the *jira* directory. This verified source has three default methods that form the basis of loading. The methods are:
     
-    Source jira:
+    Source <u>jira</u>:
     
     ```python
     @dlt.source
@@ -123,7 +123,7 @@ To get started with this verified source, follow these steps:
     
     The source function creates a list of resources and iterates over each resource, calling the "get_paginated_data()" function to retrieve paginated data from the corresponding Jira API endpoint.
     
-    Source jira_search:
+    Source <u>jira_search</u>:
     
     ```python
     @dlt.source
@@ -136,7 +136,7 @@ To get started with this verified source, follow these steps:
     
     This source function uses the “**subdomain**”, “**email**” and “**api_token**” for authentication. This source function generates a resource function for searching issues by using [JQL(Jira Query Language)](https://support.atlassian.com/jira-service-management-cloud/docs/use-advanced-search-with-jira-query-language-jql/) queries. This is the resource function used for searching issues.
     
-    Resource issues:
+    Resource <u>issues</u>:
     
     ```python
     @dlt.resource(write_disposition="replace")
