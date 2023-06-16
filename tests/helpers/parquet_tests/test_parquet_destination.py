@@ -6,7 +6,10 @@ import dlt
 from dlt.common.utils import uniq_id
 from dlt.common.storages.load_storage import LoadJobInfo
 from dlt.destinations.filesystem.filesystem import FilesystemClient, LoadFilesystemJob
+from dlt.destinations.bigquery.bigquery import BigQueryClient
 from dlt.common.schema.typing import LOADS_TABLE_NAME
+import pyarrow.parquet as pq
+
 
 def test_pipeline_parquet_bigquery_destination() -> None:
     """Run pipeline twice with merge write disposition
@@ -33,6 +36,11 @@ def test_pipeline_parquet_bigquery_destination() -> None:
     assert len(package_info.jobs["failed_jobs"]) == 0
     assert len(package_info.jobs["completed_jobs"]) == 3
 
+    client: BigQueryClient = pipeline._destination_client()  # type: ignore[assignment]
+    with client.sql_client as sql_client:
+        assert [row[0] for row in sql_client.execute_sql("SELECT * FROM other_data")] == [1, 2, 3, 4, 5]
+        assert [row[0] for row in sql_client.execute_sql("SELECT * FROM some_data")] == [1, 2, 3]
+
 
 def test_pipeline_parquet_filesystem_destination() -> None:
 
@@ -58,3 +66,21 @@ def test_pipeline_parquet_filesystem_destination() -> None:
     # all three jobs succeeded
     assert len(package_info.jobs["failed_jobs"]) == 0
     assert len(package_info.jobs["completed_jobs"]) == 3
+
+    client: FilesystemClient = pipeline._destination_client()  # type: ignore[assignment]
+    some_data_glob = posixpath.join(client.dataset_path, 'some_source.some_data.*')
+    other_data_glob = posixpath.join(client.dataset_path, 'some_source.other_data.*')
+
+    some_data_files = client.fs_client.glob(some_data_glob)
+    other_data_files = client.fs_client.glob(other_data_glob)
+
+    assert len(some_data_files) == 1
+    assert len(other_data_files) == 1
+
+    with open(some_data_files[0], "rb") as f:
+        table = pq.read_table(f)
+        assert table.column("id").to_pylist() == [1, 2, 3]
+
+    with open(other_data_files[0], "rb") as f:
+        table = pq.read_table(f)
+        assert table.column("value").to_pylist() == [1, 2, 3, 4, 5]
