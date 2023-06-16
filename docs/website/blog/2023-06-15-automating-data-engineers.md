@@ -13,7 +13,6 @@ tags: [data engineer shortage, structured data, schema evolution]
 
 ![automated pipeline automaton](/img/pipeline-automaton.png)
 
-
 ## Why is there a data engineer shortage?
 
 1. High Demand and Rapid Growth: The increasing reliance on data-driven decision-making and the rise of big data technologies have created a surge in demand for skilled data engineers.
