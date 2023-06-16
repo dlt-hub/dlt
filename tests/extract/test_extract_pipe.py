@@ -17,8 +17,14 @@ from dlt.extract.pipe import ManagedPipeIterator, Pipe, PipeItem, PipeIterator
 
 def test_next_item_mode() -> None:
 
+    def nested_gen_level_2():
+        yield from [88, 89]
+
+    def nested_gen():
+        yield from [55, 56, nested_gen_level_2(), 77]
+
     def source_gen1():
-        yield from [1, 2, iter([55, 56, iter([88, 89]), 77]), 3,4]
+        yield from [1, 2, nested_gen(), 3,4]
 
     def source_gen2():
         yield from range(11,16)
@@ -40,9 +46,9 @@ def test_next_item_mode() -> None:
 
     # test mode "round robin"
     reversed_pipes = get_pipes()
-    reversed_pipes.reverse()
+    reversed_pipes.reverse() # reverse order of pipes for easier testing
     _l = list(PipeIterator.from_pipes(reversed_pipes, next_item_mode="round_robin"))
-    # items will be round robin, nested iterators are fully iterated as soon as they are encountered
+    # items will be round robin, nested iterators are fully iterated and appear inline as soon as they are encountered
     assert [pi.item for pi in _l] == [1, 11, 20, 2, 12, 21, 55, 56, 88, 89, 77, 13, 3, 14, 4, 15]
 
 
