@@ -15,7 +15,7 @@ ALL_CAPABILITIES = INSERT_CAPS + JSONL_CAPS
 
 
 def load_json_case(name: str) -> Mapping:
-    with open(json_case_path(name), "br") as f:
+    with open(json_case_path(name), "rb") as f:
         return cast(Mapping, json.load(f))
 
 

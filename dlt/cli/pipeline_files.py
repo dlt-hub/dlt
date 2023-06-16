@@ -127,7 +127,7 @@ def get_remote_source_index(repo_path: str, files: Sequence[str]) -> TVerifiedSo
                 # if directory is dirty and we do not have git sha
                 blob_sha3 = None
 
-            with open(os.path.join(repo_path, file), "br") as f:
+            with open(os.path.join(repo_path, file), "rb") as f:
                 file_blob = f.read()
             files_sha[file] = {
                 "commit_sha": commit_sha,
@@ -225,7 +225,7 @@ def find_conflict_files(
     conflict_modified: List[str] = []
 
     def is_file_modified(file: str, entry: TVerifiedSourceFileEntry) -> bool:
-        with dest_storage.open_file(file, "br") as f:
+        with dest_storage.open_file(file, "rb") as f:
             file_blob = f.read()
         # file exists but was not changed
         return hashlib.sha3_256(file_blob).hexdigest() != entry["sha3_256"]

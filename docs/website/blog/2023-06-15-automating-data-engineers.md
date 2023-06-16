@@ -11,7 +11,9 @@ tags: [data engineer shortage, structured data, schema evolution]
 
 # Automating the data engineer: Addressing the talent shortage
 
+
 ![automated pipeline automaton](/img/pipeline-automaton.png)
+
 
 ## Why is there a data engineer shortage?
 

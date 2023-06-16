@@ -111,7 +111,7 @@ TABLE_ROW = {
 }
 
 def load_table(name: str) -> TTableSchemaColumns:
-    with open(f"./tests/load/cases/{name}.json", "br") as f:
+    with open(f"./tests/load/cases/{name}.json", "rb") as f:
         return cast(TTableSchemaColumns, json.load(f))
 
 

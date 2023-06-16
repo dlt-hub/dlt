@@ -298,7 +298,7 @@ def prepare_oauth_json() -> Tuple[str, str]:
 def prepare_service_json() -> Tuple[str, str]:
     # prepare real service.json
     storage = FileStorage("_secrets", makedirs=True)
-    with open(common_json_case_path("level-dragon-333019-707809ee408a") + ".b64", mode="br") as f:
+    with open(common_json_case_path("level-dragon-333019-707809ee408a") + ".b64", mode="rb") as f:
         services_str = base64.b64decode(f.read().strip(), validate=True).decode()
     dest_path = storage.save("level-dragon-333019-707809ee408a.json", services_str)
     return services_str, dest_path

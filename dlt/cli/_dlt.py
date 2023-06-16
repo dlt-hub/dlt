@@ -102,7 +102,7 @@ def pipeline_command_wrapper(
 
 @utils.track_command("schema", False, "operation")
 def schema_command_wrapper(file_path: str, format_: str, remove_defaults: bool) -> int:
-    with open(file_path, "br") as f:
+    with open(file_path, "rb") as f:
         if os.path.splitext(file_path)[1][1:] == "json":
             schema_dict: DictStrAny = json.load(f)
         else:
