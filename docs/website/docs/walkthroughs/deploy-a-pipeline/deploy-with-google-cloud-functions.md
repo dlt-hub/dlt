@@ -65,13 +65,13 @@ To deploy the pipeline, we'll use the Google Cloud Source Repositories(first met
     ```
     
     Note how we have referenced api_key to the variable named "notion_apikey_env" instead of "dlt.secrets.value".
- ## 2. Managing secrets with Secret Manager
-Next, go to the Google Secrets Manager. In Google Secrets Manager, create the secret "Notion API Key", name the secret "notion_secret" and add "Notion API key" to the secret values. To learn more about Google Secrets Manager, read the full **[documentation](https://cloud.google.com/secret-manager/docs/create-secret-quickstart) here**.
+    ### Managing secrets with Secret Manager
+     Next, go to the Google Secrets Manager. In Google Secrets Manager, create the secret "Notion API Key", name the secret "notion_secret" and add "Notion API key" to the secret values. To learn more about Google Secrets Manager, read the full **[documentation](https://cloud.google.com/secret-manager/docs/create-secret-quickstart) here**.
     
-   - Assign the "Secret Manager Secret Accessor" role to the service account that was used to create the function (this is usually the default service account associated with the Google Project where the function will be created).
-   - There would be a *default* *service account* associated with the project ID you are using, please assign the *Cloud Functions Developer* role to the associated service account. To learn more about the service account, read the [documentation](https://cloud.google.com/iam/docs/service-account-overview) here.
+      - Assign the "Secret Manager Secret Accessor" role to the service account that was used to create the function (this is usually the default service account associated with the Google Project where the function will be created).
+       - There would be a *default* *service account* associated with the project ID you are using, please assign the *Cloud Functions Developer* role to the associated service account. To learn more about the service account, read the [documentation](https://cloud.google.com/iam/docs/service-account-overview) here.
 
-## 3. Deploying GCP Cloud Function
+## 2. Deploying GCP Cloud Function
 In a shell editor, navigate to the directory where the "main.py" file is located and run the following command in the terminal
 ```bash
   gcloud functions deploy pipeline_notion --runtime python310 --trigger-http --allow-unauthenticated --source .
@@ -89,7 +89,7 @@ In a shell editor, navigate to the directory where the "main.py" file is located
    5. Finally, click 'DEPLOY' to deploy the function. The HTTP trigger will now successfully execute the pipeline each time the URL is  triggered.
 
 
-## 4. Monitor (and manually trigger) the cloud function
+## 3. Monitor (and manually trigger) the cloud function
 To manually trigger the function created, you can send a manual POST request to the trigger URL created by the cloud function as follows
 ```python
     import requests
