@@ -35,20 +35,20 @@ There are 2 ways to make the data engineers more efficient:
 
  **For some reason, this doesn’t work out great.** All the great minds of our generation told us we should be more like them
 
-- do more architecture
-- learn more tech
-- use this new toy
-- learn this paradigm
+- do more architecture;
+- learn more tech;
+- use this new toy!
+- learn this paradigm.
 - take a step back and consider your career choices.
-- write more tests
-- test the tests
-- analyse the tests
-- write a paper about the tests
-- do all that while alerts go off 24/7 and you are the bottleneck for everyone downstream, analysts and business people screaming.
+- write more tests;
+- test the tests!
+- analyse the tests :[
+- write a paper about the tests...
+- do all that while alerts go off 24/7 and you are the bottleneck for everyone downstream, analysts and business people screaming. (┛ಠ_ಠ)┛彡┻━┻
 
 
->💡 “I can't do  
-> what ten people tell me to do,  
+> “I can't do
+> what ten people tell me to do.
 > So I guess I'll remain the same”
 >   - Otis Redding, *Sittin' On The Dock Of The Bay*
 
@@ -74,7 +74,7 @@ Let’s see what a data engineer does, according to GPT:
 ### Let’s get a back of the napkin estimation of how much time they spend on those areas
 
 
-Here’s an approximation as offered by gpt. Of course, actual numbers depend on the maturity of your team and their unique challenges.
+Here’s an approximation as offered by GPT. Of course, actual numbers depend on the maturity of your team and their unique challenges.
 
 - **Collaboration** with others (including data **curation**): **Approximately 40-60% of their working hours**. This includes tasks such as collaborating with team members, understanding requirements, data curation activities, participating in meetings, and coordinating data-related activities.
 - Data analysis: **Around 10-30% of their working hours**. This involves supporting data **exploration**, providing insights, and assisting analysts in understanding and extracting value from the data.
@@ -88,7 +88,7 @@ By looking at it this way, solutions become clear:
 
 ### How much of their time could be saved?
 
-Chatgpt thinks:
+Chat GPT thinks:
 
 it is reasonable to expect significant time savings with the following estimates:
 
@@ -99,9 +99,9 @@ It's important to note that these estimates are approximate and can vary based o
 
 # 40-80% of a data engineer’s time could be spared
 
-
-> 💡 **40-80% of a data engineer’s time could be spared**
-
+<pre>
+💡 <b>40-80% of a data engineer’s time could be spared</b>
+</pre>
 
 To achieve that,
 
