@@ -6,7 +6,7 @@ from asyncio import Future
 from concurrent.futures import ThreadPoolExecutor
 from copy import copy
 from threading import Thread
-from typing import Any, ContextManager, Optional, Sequence, Union, Callable, Iterable, Iterator, List, NamedTuple, Awaitable, Tuple, Type, TYPE_CHECKING
+from typing import Any, ContextManager, Optional, Sequence, Union, Callable, Iterable, Iterator, List, NamedTuple, Awaitable, Tuple, Type, TYPE_CHECKING, Literal
 
 from dlt.common import sleep
 from dlt.common.configuration import configspec
@@ -64,6 +64,8 @@ TPipeStep = Union[
     Callable[[TDataItems, Optional[Any]], Iterator[TPipedDataItems]],
     Callable[[TDataItems, Optional[Any]], Iterator[ResolvablePipeItem]]
 ]
+
+TPipeNextItemMode = Union[Literal["fifo"], Literal["round_robin"]]
 
 
 class ForkPipe:
@@ -424,23 +426,27 @@ class PipeIterator(Iterator[PipeItem]):
         workers: int = 5
         futures_poll_interval: float = 0.01
         copy_on_fork: bool = False
+        next_item_mode: str = "fifo"
 
         __section__ = "extract"
 
-    def __init__(self, max_parallel_items: int, workers: int, futures_poll_interval: float) -> None:
+    def __init__(self, max_parallel_items: int, workers: int, futures_poll_interval: float, next_item_mode: TPipeNextItemMode) -> None:
         self.max_parallel_items = max_parallel_items
         self.workers = workers
         self.futures_poll_interval = futures_poll_interval
 
+        self._round_robin_index: int = -1
+        self._initial_sources_count: int = 0
         self._async_pool: asyncio.AbstractEventLoop = None
         self._async_pool_thread: Thread = None
         self._thread_pool: ThreadPoolExecutor = None
         self._sources: List[SourcePipeItem] = []
         self._futures: List[FuturePipeItem] = []
+        self._next_item_mode = next_item_mode
 
     @classmethod
     @with_config(spec=PipeIteratorConfiguration)
-    def from_pipe(cls, pipe: Pipe, *, max_parallel_items: int = 20, workers: int = 5, futures_poll_interval: float = 0.01) -> "PipeIterator":
+    def from_pipe(cls, pipe: Pipe, *, max_parallel_items: int = 20, workers: int = 5, futures_poll_interval: float = 0.01, next_item_mode: TPipeNextItemMode = "fifo") -> "PipeIterator":
         # join all dependent pipes
         if pipe.parent:
             pipe = pipe.full_pipe()
@@ -450,9 +456,10 @@ class PipeIterator(Iterator[PipeItem]):
         pipe.evaluate_gen()
         assert isinstance(pipe.gen, Iterator)
         # create extractor
-        extract = cls(max_parallel_items, workers, futures_poll_interval)
+        extract = cls(max_parallel_items, workers, futures_poll_interval, next_item_mode)
         # add as first source
         extract._sources.append(SourcePipeItem(pipe.gen, 0, pipe, None))
+        cls._initial_sources_count = 1
         return extract
 
     @classmethod
@@ -465,12 +472,15 @@ class PipeIterator(Iterator[PipeItem]):
         max_parallel_items: int = 20,
         workers: int = 5,
         futures_poll_interval: float = 0.01,
-        copy_on_fork: bool = False
+        copy_on_fork: bool = False,
+        next_item_mode: TPipeNextItemMode = "fifo"
     ) -> "PipeIterator":
+
         # print(f"max_parallel_items: {max_parallel_items} workers: {workers}")
-        extract = cls(max_parallel_items, workers, futures_poll_interval)
+        extract = cls(max_parallel_items, workers, futures_poll_interval, next_item_mode)
         # clone all pipes before iterating (recursively) as we will fork them (this add steps) and evaluate gens
         pipes = PipeIterator.clone_pipes(pipes)
+
 
         def _fork_pipeline(pipe: Pipe) -> None:
             if pipe.parent:
@@ -490,8 +500,13 @@ class PipeIterator(Iterator[PipeItem]):
                 if not any(i.pipe == pipe for i in extract._sources):
                     extract._sources.append(SourcePipeItem(pipe.gen, 0, pipe, None))
 
-        for pipe in reversed(pipes):
+        # reverse pipes for current mode, as we start processing from the back
+        if next_item_mode == "fifo":
+            pipes.reverse()
+        for pipe in pipes:
             _fork_pipeline(pipe)
+
+        extract._initial_sources_count = len(extract._sources)
 
         return extract
 
@@ -667,16 +682,21 @@ class PipeIterator(Iterator[PipeItem]):
             return ResolvablePipeItem(item, step, pipe, meta)
 
     def _get_source_item(self) -> ResolvablePipeItem:
+        if self._next_item_mode == "fifo":
+            return self._get_source_item_current()
+        elif self._next_item_mode == "round_robin":
+            return self._get_source_item_round_robin()
+
+    def _get_source_item_current(self) -> ResolvablePipeItem:
         # no more sources to iterate
         if len(self._sources) == 0:
             return None
-
-        # get items from last added iterator, this makes the overall Pipe as close to FIFO as possible
-        gen, step, pipe, meta = self._sources[-1]
-        # print(f"got {pipe.name} {pipe._pipe_id}")
-        # register current pipe name during the execution of gen
-        set_current_pipe_name(pipe.name)
         try:
+            # get items from last added iterator, this makes the overall Pipe as close to FIFO as possible
+            gen, step, pipe, meta = self._sources[-1]
+            # print(f"got {pipe.name} {pipe._pipe_id}")
+            # register current pipe name during the execution of gen
+            set_current_pipe_name(pipe.name)
             item = next(gen)
             # full pipe item may be returned, this is used by ForkPipe step
             # to redirect execution of an item to another pipe
@@ -697,8 +717,47 @@ class PipeIterator(Iterator[PipeItem]):
         except Exception as ex:
             raise ResourceExtractionError(pipe.name, gen, str(ex), "generator") from ex
 
+    def _get_source_item_round_robin(self) -> ResolvablePipeItem:
+        # no more sources to iterate
+        sources_count = len(self._sources)
+        if sources_count == 0:
+            return None
+        # if there are currently more sources than added initially, we need to process the new ones first
+        if sources_count > self._initial_sources_count:
+            return self._get_source_item_current()
+        try:
+            # get items from last added iterator, this makes the overall Pipe as close to FIFO as possible
+            self._round_robin_index = (self._round_robin_index + 1) % sources_count
+            gen, step, pipe, meta = self._sources[self._round_robin_index]
+            # print(f"got {pipe.name} {pipe._pipe_id}")
+            # register current pipe name during the execution of gen
+            set_current_pipe_name(pipe.name)
+            item = next(gen)
+            # full pipe item may be returned, this is used by ForkPipe step
+            # to redirect execution of an item to another pipe
+            if isinstance(item, ResolvablePipeItem):
+                return item
+            else:
+                # keep the item assigned step and pipe when creating resolvable item
+                if isinstance(item, DataItemWithMeta):
+                    return ResolvablePipeItem(item.data, step, pipe, item.meta)
+                else:
+                    return ResolvablePipeItem(item, step, pipe, meta)
+        except StopIteration:
+            # remove empty iterator and try another source
+            self._sources.pop(self._round_robin_index)
+            # we need to decrease the index to keep the round robin order
+            self._round_robin_index -= 1
+            # since in this case we have popped an initial source, we need to decrease the initial sources count
+            self._initial_sources_count -= 1
+            return self._get_source_item()
+        except (PipelineException, ExtractorException, DltSourceException, PipeException):
+            raise
+        except Exception as ex:
+            raise ResourceExtractionError(pipe.name, gen, str(ex), "generator") from ex
+
     @staticmethod
-    def clone_pipes(pipes: Sequence[Pipe]) -> Sequence[Pipe]:
+    def clone_pipes(pipes: Sequence[Pipe]) -> List[Pipe]:
         """This will clone pipes and fix the parent/dependent references"""
         cloned_pipes = [p._clone() for p in pipes]
         cloned_pairs = {id(p): c for p, c in zip(pipes, cloned_pipes)}

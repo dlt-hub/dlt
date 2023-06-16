@@ -15,6 +15,41 @@ from dlt.extract.pipe import ManagedPipeIterator, Pipe, PipeItem, PipeIterator
 # from tests.utils import preserve_environ
 
 
+def test_next_item_mode() -> None:
+
+    def nested_gen_level_2():
+        yield from [88, 89]
+
+    def nested_gen():
+        yield from [55, 56, 77, nested_gen_level_2()]
+
+    def source_gen1():
+        yield from [1, 2, nested_gen(), 3,4]
+
+    def source_gen2():
+        yield from range(11,16)
+
+    def source_gen3():
+        yield from range(20,22)
+
+    def get_pipes():
+        return [
+            Pipe.from_data("data1", source_gen1()),
+            Pipe.from_data("data2", source_gen2()),
+            Pipe.from_data("data3", source_gen3()),
+            ]
+
+    # default mode is "fifo"
+    _l = list(PipeIterator.from_pipes(get_pipes(), next_item_mode="fifo"))
+    # items will be in order of the pipes, nested iterator items appear inline
+    assert [pi.item for pi in _l] ==  [1, 2, 55, 56, 77, 88, 89,  3, 4, 11, 12, 13, 14, 15, 20, 21]
+
+    # round robin mode
+    _l = list(PipeIterator.from_pipes(get_pipes(), next_item_mode="round_robin"))
+    # items will be round robin, nested iterators are fully iterated and appear inline as soon as they are encountered
+    assert [pi.item for pi in _l] == [1, 11, 20, 2, 12, 21, 55, 56, 77, 88, 89, 13, 3, 14, 4, 15]
+
+
 def test_add_step() -> None:
     data = [1, 2, 3]
     data_iter = iter(data)
