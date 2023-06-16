@@ -435,7 +435,8 @@ class PipeIterator(Iterator[PipeItem]):
         self.workers = workers
         self.futures_poll_interval = futures_poll_interval
 
-        self._round_robin_index: int = 0
+        self._round_robin_index: int = -1
+        self._initial_sources_count: int = 0
         self._async_pool: asyncio.AbstractEventLoop = None
         self._async_pool_thread: Thread = None
         self._thread_pool: ThreadPoolExecutor = None
@@ -458,6 +459,7 @@ class PipeIterator(Iterator[PipeItem]):
         extract = cls(max_parallel_items, workers, futures_poll_interval, next_item_mode)
         # add as first source
         extract._sources.append(SourcePipeItem(pipe.gen, 0, pipe, None))
+        cls._initial_sources_count = 1
         return extract
 
     @classmethod
@@ -499,6 +501,7 @@ class PipeIterator(Iterator[PipeItem]):
         for pipe in reversed(pipes):
             _fork_pipeline(pipe)
 
+        extract._initial_sources_count = len(extract._sources)
         return extract
 
     def __next__(self) -> PipeItem:
@@ -673,15 +676,15 @@ class PipeIterator(Iterator[PipeItem]):
             return ResolvablePipeItem(item, step, pipe, meta)
 
     def _get_source_item(self) -> ResolvablePipeItem:
-        # no more sources to iterate
-        if len(self._sources) == 0:
-            return None
         if self._next_item_mode == "current":
             return self._get_source_item_current()
-        if self._next_item_mode == "round_robin":
+        elif self._next_item_mode == "round_robin":
             return self._get_source_item_round_robin()
 
     def _get_source_item_current(self) -> ResolvablePipeItem:
+        # no more sources to iterate
+        if len(self._sources) == 0:
+            return None
         try:
             # get items from last added iterator, this makes the overall Pipe as close to FIFO as possible
             gen, step, pipe, meta = self._sources[-1]
@@ -708,14 +711,18 @@ class PipeIterator(Iterator[PipeItem]):
         except Exception as ex:
             raise ResourceExtractionError(pipe.name, gen, str(ex), "generator") from ex
 
-
-
     def _get_source_item_round_robin(self) -> ResolvablePipeItem:
+        # no more sources to iterate
+        sources_count = len(self._sources)
+        if sources_count == 0:
+            return None
+        # if there are currently more sources than added initially, we need to process the new ones first
+        if sources_count > self._initial_sources_count:
+            return self._get_source_item_current()
         try:
             # get items from last added iterator, this makes the overall Pipe as close to FIFO as possible
-            self._round_robin_index = self._round_robin_index % len(self._sources)
+            self._round_robin_index = (self._round_robin_index + 1) % sources_count
             gen, step, pipe, meta = self._sources[self._round_robin_index]
-            self._round_robin_index += 1
             # print(f"got {pipe.name} {pipe._pipe_id}")
             # register current pipe name during the execution of gen
             set_current_pipe_name(pipe.name)
@@ -731,10 +738,12 @@ class PipeIterator(Iterator[PipeItem]):
                 else:
                     return ResolvablePipeItem(item, step, pipe, meta)
         except StopIteration:
-            # we need to decrease the index to keep the round robin order
-            self._round_robin_index -= 1
             # remove empty iterator and try another source
             self._sources.pop(self._round_robin_index)
+            # we need to decrease the index to keep the round robin order
+            self._round_robin_index -= 1
+            # since in this case we have popped an initial source, we need to decrease the initial sources count
+            self._initial_sources_count -= 1
             return self._get_source_item()
         except (PipelineException, ExtractorException, DltSourceException, PipeException):
             raise

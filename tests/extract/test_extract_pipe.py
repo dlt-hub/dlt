@@ -18,13 +18,13 @@ from dlt.extract.pipe import ManagedPipeIterator, Pipe, PipeItem, PipeIterator
 def test_next_item_mode() -> None:
 
     def source_gen1():
-        yield from range(1,5)
+        yield from [1, 2, iter([55, 56, iter([88, 89]), 77]), 3,4]
 
     def source_gen2():
         yield from range(11,16)
 
     def source_gen3():
-        yield from range(3,4)
+        yield from range(20,22)
 
     def get_pipes():
         return [
@@ -35,13 +35,15 @@ def test_next_item_mode() -> None:
 
     # default mode is "current"
     _l = list(PipeIterator.from_pipes(get_pipes(), next_item_mode="current"))
-    # items will be in order of the pipes
-    assert [pi.item for pi in _l] == list(range(1,5)) + list(range(11,16)) + list(range(3,4))
+    # items will be in order of the pipes, nested iterator items appear inline
+    assert [pi.item for pi in _l] ==  [1, 2, 55, 56, 88, 89, 77, 3, 4, 11, 12, 13, 14, 15, 20, 21]
 
     # test mode "round robin"
-    _l = list(PipeIterator.from_pipes(get_pipes(), next_item_mode="round_robin"))
-    # items will be round robin (reversed from the order of the input pipes...)
-    assert [pi.item for pi in _l] == [3,11,1,12,2,13,3,14,4,15]
+    reversed_pipes = get_pipes()
+    reversed_pipes.reverse()
+    _l = list(PipeIterator.from_pipes(reversed_pipes, next_item_mode="round_robin"))
+    # items will be round robin, nested iterators are fully iterated as soon as they are encountered
+    assert [pi.item for pi in _l] == [1, 11, 20, 2, 12, 21, 55, 56, 88, 89, 77, 13, 3, 14, 4, 15]
 
 
 def test_add_step() -> None:
