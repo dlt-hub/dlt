@@ -178,7 +178,6 @@ class Pipeline(SupportsPipeline):
             pipelines_dir: str,
             pipeline_salt: TSecretValue,
             destination: DestinationReference,
-            loader_file_format: TLoaderFileFormat,
             dataset_name: str,
             credentials: Any,
             import_schema_path: str,
@@ -207,7 +206,6 @@ class Pipeline(SupportsPipeline):
         self._trace: PipelineTrace = None
         self._last_trace: PipelineTrace = None
         self._state_restored: bool = False
-        self._loader_file_format: TLoaderFileFormat = loader_file_format
 
         initialize_runtime(self.runtime_config)
         # initialize pipeline working dir
@@ -232,7 +230,6 @@ class Pipeline(SupportsPipeline):
             self.pipelines_dir,
             self.pipeline_salt,
             self.destination,
-            self._loader_file_format,
             self.dataset_name,
             self.credentials,
             self._schema_storage.config.import_schema_path,
@@ -287,7 +284,7 @@ class Pipeline(SupportsPipeline):
     @with_runtime_trace
     @with_schemas_sync
     @with_config_section((known_sections.NORMALIZE,))
-    def normalize(self, workers: int = 1) -> NormalizeInfo:
+    def normalize(self, workers: int = 1, loader_file_format: TLoaderFileFormat = None) -> NormalizeInfo:
         """Normalizes the data prepared with `extract` method, infers the schema and creates load packages for the `load` method. Requires `destination` to be known."""
         if is_interactive() and workers > 1:
             raise NotImplementedError("Do not use normalize workers in interactive mode ie. in notebook")
@@ -306,9 +303,9 @@ class Pipeline(SupportsPipeline):
             _load_storage_config=self._load_storage_config
         )
         # run with destination context
-        with self._maybe_destination_capabilities():
+        with self._maybe_destination_capabilities(loader_file_format=loader_file_format):
             # shares schema storage with the pipeline so we do not need to install
-            normalize = Normalize(collector=self.collector, config=normalize_config, schema_storage=self._schema_storage, loader_file_format=self._loader_file_format)
+            normalize = Normalize(collector=self.collector, config=normalize_config, schema_storage=self._schema_storage)
             try:
                 with signals.delayed_signals():
                     runner.run_pool(normalize.config, normalize)
@@ -371,7 +368,8 @@ class Pipeline(SupportsPipeline):
         write_disposition: TWriteDisposition = None,
         columns: Sequence[TColumnSchema] = None,
         primary_key: TColumnKey = None,
-        schema: Schema = None
+        schema: Schema = None,
+        loader_file_format: TLoaderFileFormat = None
     ) -> LoadInfo:
         """Loads the data from `data` argument into the destination specified in `destination` and dataset specified in `dataset_name`.
 
@@ -436,7 +434,7 @@ class Pipeline(SupportsPipeline):
 
         # normalize and load pending data
         if self.list_extracted_resources():
-            self.normalize()
+            self.normalize(loader_file_format=loader_file_format)
         if self.list_normalized_load_packages():
             # if there were any pending loads, load them and **exit**
             if data is not None:
@@ -446,7 +444,7 @@ class Pipeline(SupportsPipeline):
         # extract from the source
         if data is not None:
             self.extract(data, table_name=table_name, write_disposition=write_disposition, columns=columns, primary_key=primary_key, schema=schema)
-            self.normalize()
+            self.normalize(loader_file_format=loader_file_format)
             return self.load(destination, dataset_name, credentials=credentials)
         else:
             return None
@@ -685,8 +683,8 @@ class Pipeline(SupportsPipeline):
 
     def _get_load_storage(self) -> LoadStorage:
         caps = self._get_destination_capabilities()
-        preferred_loader_file_format: TLoaderFileFormat = self._loader_file_format or caps.preferred_loader_file_format
-        return LoadStorage(True, preferred_loader_file_format, caps.supported_loader_file_formats, self._load_storage_config)
+        # TODO
+        return LoadStorage(True, caps.preferred_loader_file_format, caps.supported_loader_file_formats, self._load_storage_config)
 
     def _init_working_dir(self, pipeline_name: str, pipelines_dir: str) -> None:
         self.pipeline_name = pipeline_name
@@ -931,13 +929,15 @@ class Pipeline(SupportsPipeline):
             self._set_default_normalizers()
 
     @contextmanager
-    def _maybe_destination_capabilities(self) -> Iterator[DestinationCapabilitiesContext]:
+    def _maybe_destination_capabilities(self, loader_file_format: TLoaderFileFormat = None) -> Iterator[DestinationCapabilitiesContext]:
         try:
             caps: DestinationCapabilitiesContext = None
             injected_caps: ContextManager[DestinationCapabilitiesContext] = None
             if self.destination:
                 injected_caps = self._container.injectable_context(self._get_destination_capabilities())
                 caps = injected_caps.__enter__()
+                if loader_file_format:
+                    caps.preferred_loader_file_format = loader_file_format
             yield caps
         finally:
             if injected_caps:

@@ -22,6 +22,7 @@ from dlt.common.source import get_current_pipe_name
 from dlt.common.storages.load_storage import LoadPackageInfo
 from dlt.common.typing import DictStrAny, REPattern
 from dlt.common.jsonpath import delete_matches, TAnyJsonPath
+from dlt.common.data_writers.writers import TLoaderFileFormat
 
 
 class ExtractInfo(NamedTuple):
@@ -179,8 +180,9 @@ class SupportsPipeline(Protocol):
         write_disposition: TWriteDisposition = None,
         columns: Sequence[TColumnSchema] = None,
         primary_key: TColumnKey = None,
-        schema: Schema = None
-    ) -> LoadInfo:
+        schema: Schema = None,
+        loader_file_format: TLoaderFileFormat = None
+        ) -> LoadInfo:
         ...
 
     def _set_context(self, is_active: bool) -> None:

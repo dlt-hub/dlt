@@ -59,7 +59,7 @@ def test_pipeline_parquet_filesystem_destination() -> None:
     def some_source():  # type: ignore[no-untyped-def]
         return [some_data(), other_data()]
 
-    info = pipeline.run(some_source())
+    info = pipeline.run(some_source(), loader_file_format="parquet")
     package_info = pipeline.get_load_package_info(info.loads_ids[0])
     assert package_info.state == "loaded"
 

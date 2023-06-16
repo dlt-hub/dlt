@@ -33,14 +33,14 @@ TWorkerRV = Tuple[List[TSchemaUpdate], int, List[str]]
 class Normalize(Runnable[ProcessPool]):
 
     @with_config(spec=NormalizeConfiguration, sections=(known_sections.NORMALIZE,))
-    def __init__(self, collector: Collector = NULL_COLLECTOR, schema_storage: SchemaStorage = None, config: NormalizeConfiguration = config.value, loader_file_format: TLoaderFileFormat = None) -> None:
+    def __init__(self, collector: Collector = NULL_COLLECTOR, schema_storage: SchemaStorage = None, config: NormalizeConfiguration = config.value) -> None:
         self.config = config
         self.collector = collector
         self.pool: ProcessPool = None
         self.normalize_storage: NormalizeStorage = None
         self.load_storage: LoadStorage = None
         self.schema_storage: SchemaStorage = None
-        self.loader_file_format: TLoaderFileFormat = loader_file_format or config.destination_capabilities.preferred_loader_file_format
+        self.loader_file_format: TLoaderFileFormat = config.destination_capabilities.preferred_loader_file_format
 
         # setup storages
         self.create_storages(self.loader_file_format)

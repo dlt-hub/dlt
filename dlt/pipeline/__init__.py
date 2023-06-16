@@ -22,7 +22,6 @@ def pipeline(
     pipelines_dir: str = None,
     pipeline_salt: TSecretValue = None,
     destination: TDestinationReferenceArg = None,
-    loader_file_format: TLoaderFileFormat = None,
     dataset_name: str = None,
     import_schema_path: str = None,
     export_schema_path: str = None,
@@ -87,7 +86,6 @@ def pipeline(
     pipelines_dir: str = None,
     pipeline_salt: TSecretValue = None,
     destination: TDestinationReferenceArg = None,
-    loader_file_format: TLoaderFileFormat = None,
     dataset_name: str = None,
     import_schema_path: str = None,
     export_schema_path: str = None,
@@ -122,7 +120,6 @@ def pipeline(
         pipelines_dir,
         pipeline_salt,
         destination,
-        loader_file_format,
         dataset_name,
         credentials,
         import_schema_path,
@@ -152,7 +149,7 @@ def attach(
         pipelines_dir = get_dlt_pipelines_dir()
     progress = collector_from_name(progress)
     # create new pipeline instance
-    p = Pipeline(pipeline_name, pipelines_dir, pipeline_salt, None, None, None, None, None, None, full_refresh, progress, True, last_config(**kwargs), kwargs["runtime"])
+    p = Pipeline(pipeline_name, pipelines_dir, pipeline_salt, None, None, None, None, None, full_refresh, progress, True, last_config(**kwargs), kwargs["runtime"])
     # set it as current pipeline
     p.activate()
     return p
