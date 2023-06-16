@@ -32,9 +32,9 @@ const sidebars = {
           type: 'category',
           label: 'Build a data platform',
           items: [
-            'getting-started/build-a-data-platform/where_does_dlt_fit',
-            'getting-started/build-a-data-platform/building_data_warehouse',
-            ,
+            'getting-started/build-a-data-platform/where-does-dlt-fit',
+            'getting-started/build-a-data-platform/building-data-warehouse',
+            'getting-started/build-a-data-platform/build-structured-data-lakehouse',
           ]
         },
       ],

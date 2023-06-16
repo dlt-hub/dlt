@@ -15,5 +15,5 @@ The [Github reactions demo](https://colab.research.google.com/drive/1BXvma_9R9MX
 # What's beyond the colab demos?
 * get hands on immediately by following [installation guide](../reference/installation.mdx) and [walkthroughs](../walkthroughs/)
 * check out the comprehensive [build a pipeline](build-a-data-pipeline.md) doc to better understand what you can do with dlt
-* check out the [build a data platform](build-a-data-platform/building_data_warehouse.md) section to see how to build a data warehouse or lake with dlt
+* check out the [build a data warehouse](build-a-data-platform/building-data-warehouse.md) and [build a data lakehouse](build-a-data-platform/build-structured-data-lakehouse.md) section to see how to build a data warehouse or lake with dlt
 * check out the [verified sources repository](https://github.com/dlt-hub/verified-sources)  - you can use them for data ingestion, or as reference examples for what you want to build.
