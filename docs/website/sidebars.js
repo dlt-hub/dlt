@@ -176,7 +176,8 @@ const sidebars = {
           },
           items: [
             'walkthroughs/deploy-a-pipeline/deploy-with-github-actions',
-            'walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer'
+            'walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer',
+            'walkthroughs/deploy-a-pipeline/deploy-with-google-cloud-functions'
           ]
         },
 
