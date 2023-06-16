@@ -8,7 +8,7 @@ keywords: [how to, deploy a pipeline, Cloud Function]
 
 Before you can deploy a pipeline, you need to have a working knowledge of GCP and its associated services such as Cloud Functions, Cloud Source Repositories, Shell Editor, IAM and Permissions, and GCP service accounts. 
 
-To deploy a pipeline using the GCP Cloud feature, you'll first need to set up a blank repo in Cloud Source Repositories, a service provided by GCP for hosting repositories, or you can clone it to your local machine and then install the Google Cloud SDK on your local machine.
+To deploy a pipeline using the GCP Cloud functions, you'll first need to set up a blank repo in Cloud Source Repositories, a service provided by GCP for hosting repositories, or you can clone it to your local machine and then install the Google Cloud SDK on your local machine.
 
 ## Setup Pipeline in Google Cloud Repositories
 To deploy the pipeline, we'll use the Google Cloud Source Repositories(first method):
@@ -16,8 +16,7 @@ To deploy the pipeline, we'll use the Google Cloud Source Repositories(first met
 1. Sign in to your GCP account and enable the Cloud Functions API.
 2. To set up the environment, you can follow these steps:
     - Create an empty repo in Cloud Source Repositories.
-        
-        (Cloud Source repository is a service in GCP for hosting repositories from different platforms).
+      (Cloud Source repository is a service in GCP for hosting repositories from different platforms).
         
     - After making the repo, click Edit repo to open it in a "Shell Editor".
 3. In this guide, we'll demonstrate using the `dlt` Notion verified source. However, you can use any verified source or create a custom one to suit your needs.
@@ -71,7 +70,8 @@ Next, go to the Google Secrets Manager. In Google Secrets Manager, create the se
     
    - Assign the "Secret Manager Secret Accessor" role to the service account that was used to create the function (this is usually the default service account associated with the Google Project where the function will be created).
    - There would be a *default* *service account* associated with the project ID you are using, please assign the *Cloud Functions Developer* role to the associated service account. To learn more about the service account, read the [documentation here.](https://cloud.google.com/iam/docs/service-account-overview)
- ## Deploying GCP Cloud Function
+
+## Deploying GCP Cloud Function
 In a shell editor, navigate to the directory where the [main.py](http://main.py/) file is located and run the following command in the terminal
 ```bash
   gcloud functions deploy pipeline_notion --runtime python310 --trigger-http --allow-unauthenticated --source .
