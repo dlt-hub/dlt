@@ -68,7 +68,7 @@ class SnowflakeSqlClient(SqlClientBase[snowflake_lib.SnowflakeConnection], DBTra
                     FROM INFORMATION_SCHEMA.SCHEMATA
                     WHERE schema_name = %s;
                 """
-        rows = self.execute_sql(query, self.fully_qualified_dataset_name(escape=True))
+        rows = self.execute_sql(query, self.fully_qualified_dataset_name(escape=False))
         return len(rows) > 0
 
     def create_dataset(self) -> None:
@@ -112,7 +112,9 @@ class SnowflakeSqlClient(SqlClientBase[snowflake_lib.SnowflakeConnection], DBTra
 
     def fully_qualified_dataset_name(self, escape: bool = True) -> str:
         # Always escape for uppercase
-        return self.capabilities.escape_identifier(self.dataset_name)
+        if escape:
+            return self.capabilities.escape_identifier(self.dataset_name)
+        return self.dataset_name.upper()
 
     def _reset_connection(self) -> None:
         self._conn.rollback()

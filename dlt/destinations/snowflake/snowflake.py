@@ -176,7 +176,7 @@ class SnowflakeClient(SqlJobClientBase):
         return f"{name} {self._to_db_type(c['data_type'])} {self._gen_not_null(c['nullable'])}"
 
     def get_storage_table(self, table_name: str) -> Tuple[bool, TTableSchemaColumns]:
-        table_name = self.capabilities.escape_identifier(table_name)  # Ensure upcased table name
+        table_name = table_name.upper()  # All snowflake tables are uppercased in information schema
         exists, table = super().get_storage_table(table_name)
         if not exists:
             return exists, table
