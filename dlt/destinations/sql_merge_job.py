@@ -29,7 +29,9 @@ class SqlMergeJob(NewLoadJobImpl):
         top_table = table_chain[0]
         file_info = ParsedLoadJobFileName(top_table["name"], uniq_id()[:10], 0, "sql")
         try:
-            sql = cls.gen_merge_sql(table_chain, sql_client)
+            # Remove line breaks from multiline statements and write one SQL statement per line in output file
+            # to support clients that need to execute one statement at a time (i.e. snowflake)
+            sql = [' '.join(stmt.splitlines()) for stmt in cls.gen_merge_sql(table_chain, sql_client)]
             job = cls(file_info.job_id(), "running")
             job._save_text_file("\n".join(sql))
         except Exception:

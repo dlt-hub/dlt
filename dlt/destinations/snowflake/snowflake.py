@@ -86,17 +86,6 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
         raise NotImplementedError()
 
 
-class SnowflakeMergeJob(SqlMergeJob):
-
-    @classmethod
-    def gen_key_table_clauses(cls, root_table_name: str, staging_root_table_name: str, key_clauses: Sequence[str]) -> List[str]:
-        # generate several clauses: Snowflake does not support OR nor unions
-        sql: List[str] = []
-        for clause in key_clauses:
-            sql.append(f"FROM {root_table_name} AS d WHERE EXISTS (SELECT 1 FROM {staging_root_table_name} AS s WHERE {clause.format(d='d', s='s')})")
-        return sql
-
-
 class SnowflakeClient(SqlJobClientBase):
 
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
@@ -109,9 +98,6 @@ class SnowflakeClient(SqlJobClientBase):
         super().__init__(schema, config, sql_client)
         self.config: SnowflakeClientConfiguration = config
         self.sql_client: SnowflakeSqlClient = sql_client  # type: ignore
-
-    def create_merge_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
-        return SnowflakeMergeJob.from_table_chain(table_chain, self.sql_client)
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         job = super().start_file_load(table, file_path, load_id)
@@ -128,24 +114,6 @@ class SnowflakeClient(SqlJobClientBase):
     def _make_add_column_sql(self, new_columns: Sequence[TColumnSchema]) -> List[str]:
         # Override because snowflake requires multiple columns in a single ADD COLUMN clause
         return ["ADD COLUMN\n" + ",\n".join(self._get_column_def_sql(c) for c in new_columns)]
-
-    # def _get_table_update_sql(self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool, separate_alters: bool = False) -> str:
-    #     sql = super()._get_table_update_sql(table_name, new_columns, generate_alter)
-    #     canonical_name = self.sql_client.make_qualified_table_name(table_name)
-
-    #     cluster_list = [self.capabilities.escape_identifier(c["name"]) for c in new_columns if c.get("cluster", False)]
-    #     partition_list = [self.capabilities.escape_identifier(c["name"]) for c in new_columns if c.get("partition", False)]
-
-    #     # partition by must be added first
-    #     if len(partition_list) > 0:
-    #         if len(partition_list) > 1:
-    #             raise DestinationSchemaWillNotUpdate(canonical_name, partition_list, "Partition requested for more than one column")
-    #         else:
-    #             sql += f"\nPARTITION BY DATE({partition_list[0]})"
-    #     if len(cluster_list) > 0:
-    #             sql += "\nCLUSTER BY " + ",".join(cluster_list)
-
-    #     return sql
 
     def _execute_schema_update_sql(self, only_tables: Iterable[str]) -> TSchemaTables:
         sql_scripts, schema_update = self._build_schema_update_sql(only_tables)

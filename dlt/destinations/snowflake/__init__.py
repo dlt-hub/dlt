@@ -19,7 +19,7 @@ def _configure(config: SnowflakeClientConfiguration = config.value) -> Snowflake
 def capabilities() -> DestinationCapabilitiesContext:
     caps = DestinationCapabilitiesContext()
     caps.preferred_loader_file_format = "jsonl"
-    caps.supported_loader_file_formats = ["jsonl"]
+    caps.supported_loader_file_formats = ["jsonl", "sql"]
     caps.escape_identifier = escape_snowflake_identifier
     caps.max_identifier_length = 255
     caps.max_column_identifier_length = 255
@@ -29,6 +29,7 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.is_max_text_data_type_length_in_bytes = True
     caps.supports_ddl_transactions = True
     caps.alter_add_multi_column = True
+    caps.supports_multiple_statements = False
     return caps
 
 
