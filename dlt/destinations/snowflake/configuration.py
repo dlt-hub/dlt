@@ -13,7 +13,7 @@ class SnowflakeCredentials(ConnectionStringCredentials):
     drivername: Final[str] = "snowflake"  # type: ignore[misc]
     password: TSecretStrValue = None
     host: str = None
-    database: Optional[str] = None
+    database: str = None
     warehouse: Optional[str] = None
     role: Optional[str] = None
 
