@@ -23,7 +23,7 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.escape_identifier = escape_snowflake_identifier
     caps.max_identifier_length = 255
     caps.max_column_identifier_length = 255
-    caps.max_query_length = 32 * 1024 * 1024
+    caps.max_query_length = 2 * 1024 * 1024
     caps.is_max_query_length_in_bytes = True
     caps.max_text_data_type_length = 16 * 1024 * 1024
     caps.is_max_text_data_type_length_in_bytes = True
