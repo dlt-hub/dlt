@@ -33,7 +33,7 @@ SCT_TO_BQT: Dict[TDataType, str] = {
     "bool": "BOOLEAN",
     "date": "DATE",
     "timestamp": "TIMESTAMP_TZ",
-    "bigint": f"NUMBER({BIGINT_PRECISION}, 0)",  # Snowflake has no integer types
+    "bigint": f"NUMBER({BIGINT_PRECISION},0)",  # Snowflake has no integer types
     "binary": "BINARY",
     "decimal": f"NUMBER({DEFAULT_NUMERIC_PRECISION},{DEFAULT_NUMERIC_SCALE})",
 }
@@ -122,6 +122,16 @@ class SnowflakeClient(SqlJobClientBase):
             self.sql_client.execute_sql(statement)
         self._update_schema_in_storage(self.schema)
         return schema_update
+
+    def _get_table_update_sql(self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool, separate_alters: bool = False) -> List[str]:
+        sql = super()._get_table_update_sql(table_name, new_columns, generate_alter)
+
+        cluster_list = [self.capabilities.escape_identifier(c['name']) for c in new_columns if c.get('cluster')]
+
+        if cluster_list:
+            sql[0] = sql[0] + "\nCLUSTER BY " + ",".join(cluster_list)
+
+        return sql
 
     @staticmethod
     def _to_db_type(sc_t: TDataType) -> str:

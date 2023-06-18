@@ -181,17 +181,17 @@ class BigQueryClient(SqlJobClientBase):
         sql = super()._get_table_update_sql(table_name, new_columns, generate_alter)
         canonical_name = self.sql_client.make_qualified_table_name(table_name)
 
-        cluster_list = [self.capabilities.escape_identifier(c["name"]) for c in new_columns if c.get("cluster", False)]
-        partition_list = [self.capabilities.escape_identifier(c["name"]) for c in new_columns if c.get("partition", False)]
+        cluster_list = [self.capabilities.escape_identifier(c["name"]) for c in new_columns if c.get("cluster")]
+        partition_list = [self.capabilities.escape_identifier(c["name"]) for c in new_columns if c.get("partition")]
 
         # partition by must be added first
         if len(partition_list) > 0:
             if len(partition_list) > 1:
                 raise DestinationSchemaWillNotUpdate(canonical_name, partition_list, "Partition requested for more than one column")
             else:
-                sql = [statement + f"\nPARTITION BY DATE({partition_list[0]})" for statement in sql]
+                sql[0] = sql[0] + f"\nPARTITION BY DATE({partition_list[0]})"
         if len(cluster_list) > 0:
-            sql = [statement + "\nCLUSTER BY " + ",".join(cluster_list) for statement in sql]
+            sql[0] = sql[0] + "\nCLUSTER BY " + ",".join(cluster_list)
 
         return sql
 

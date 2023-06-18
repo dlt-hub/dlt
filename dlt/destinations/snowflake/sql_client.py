@@ -28,7 +28,8 @@ class SnowflakeSqlClient(SqlClientBase[snowflake_lib.SnowflakeConnection], DBTra
             account=self.credentials.host,
             warehouse=self.credentials.warehouse,
             database=self.credentials.database,
-            schema=self.fully_qualified_dataset_name()
+            schema=self.fully_qualified_dataset_name(),
+            role=self.credentials.role
         )
         return self._conn
 
