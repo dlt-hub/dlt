@@ -129,7 +129,7 @@ class SnowflakeClient(SqlJobClientBase):
         cluster_list = [self.capabilities.escape_identifier(c['name']) for c in new_columns if c.get('cluster')]
 
         if cluster_list:
-            sql[0] = sql[0] + "\nCLUSTER BY " + ",".join(cluster_list)
+            sql[0] = sql[0] + "\nCLUSTER BY (" + ",".join(cluster_list) + ")"
 
         return sql
 

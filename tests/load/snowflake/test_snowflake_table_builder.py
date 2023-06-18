@@ -89,7 +89,7 @@ def test_create_table_with_partition_and_cluster(snowflake_client: SnowflakeClie
     # sqlfluff.parse(sql, dialect="snowflake")
 
     # clustering must be the last
-    assert sql.endswith('CLUSTER BY "COL2","COL5"')
+    assert sql.endswith('CLUSTER BY ("COL2","COL5")')
 
 
 def test_cluster_alter_table_exception(snowflake_client: SnowflakeClient) -> None:
