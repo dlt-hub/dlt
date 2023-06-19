@@ -1,4 +1,4 @@
-from typing import Final, Optional, Any, Dict
+from typing import Final, Optional, Any, Dict, ClassVar, List
 
 from sqlalchemy.engine import URL
 
@@ -36,6 +36,8 @@ class SnowflakeCredentials(ConnectionStringCredentials):
     role: Optional[str] = None
     private_key: Optional[TSecretStrValue] = None
     private_key_passphrase: Optional[TSecretStrValue] = None
+
+    __config_gen_annotations__: ClassVar[List[str]] = ["password", "warehouse", "role"]
 
     def parse_native_representation(self, native_value: Any) -> None:
         super().parse_native_representation(native_value)
