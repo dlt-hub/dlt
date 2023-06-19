@@ -1,6 +1,6 @@
 ---
 slug: training-gpt-with-opensource-codebases
-title: GPT-accelerated learning Understanding open source codebases
+title: GPT-accelerated learning: Understanding open source codebases
 image: /img/blog_gpt_1.jpg
 authors:
   name: Tong Chen
