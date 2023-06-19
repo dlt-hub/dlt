@@ -93,7 +93,7 @@ class SnowflakeSqlClient(SqlClientBase[snowflake_lib.SnowflakeConnection], DBTra
         db_args = args if args else kwargs if kwargs else None
         with self._conn.cursor() as curr:  # type: ignore[assignment]
             try:
-                curr.execute(query, db_args)
+                curr.execute(query, db_args, num_statements=0)
                 yield SnowflakeCursorImpl(curr)  # type: ignore[abstract]
             except snowflake_lib.Error as outer:
                 try:

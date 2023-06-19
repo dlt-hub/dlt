@@ -29,7 +29,6 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.is_max_text_data_type_length_in_bytes = True
     caps.supports_ddl_transactions = True
     caps.alter_add_multi_column = True
-    caps.supports_multiple_statements = False
     return caps
 
 

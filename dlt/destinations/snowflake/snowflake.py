@@ -55,18 +55,17 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
 
         with client.with_staging_dataset(write_disposition == "merge"):
             qualified_table_name = client.make_qualified_table_name(table_name)
-            stage_name = f'"{table_name}_{load_id}"'
-            client.execute_sql(f"""
-            CREATE STAGE IF NOT EXISTS {stage_name} FILE_FORMAT = ( TYPE = 'JSON', BINARY_FORMAT = 'BASE64' )
-            """)
+
+            # Use implicit table stage name: "SCHEMA_NAME"."%TABLE_NAME"
+            stage_name = client.make_qualified_table_name('%'+table_name)
             with client.begin_transaction():
                 # PUT and copy files in one transaction
-                client.execute_sql(f"PUT file://{file_path} @{stage_name} OVERWRITE = TRUE")
+                client.execute_sql(f'PUT file://{file_path} @{stage_name}/"{load_id}" OVERWRITE = TRUE')
                 if write_disposition == "replace":
                     client.execute_sql(f"TRUNCATE TABLE IF EXISTS {qualified_table_name}")
                 client.execute_sql(
                     f"""COPY INTO {qualified_table_name}
-                    FROM @{stage_name}
+                    FROM @{stage_name}/"{load_id}"
                     FILE_FORMAT = ( TYPE = 'JSON', BINARY_FORMAT = 'BASE64' )
                     MATCH_BY_COLUMN_NAME='CASE_INSENSITIVE'
                     """
@@ -108,14 +107,6 @@ class SnowflakeClient(SqlJobClientBase):
     def _make_add_column_sql(self, new_columns: Sequence[TColumnSchema]) -> List[str]:
         # Override because snowflake requires multiple columns in a single ADD COLUMN clause
         return ["ADD COLUMN\n" + ",\n".join(self._get_column_def_sql(c) for c in new_columns)]
-
-    def _execute_schema_update_sql(self, only_tables: Iterable[str]) -> TSchemaTables:
-        sql_scripts, schema_update = self._build_schema_update_sql(only_tables)
-        # Snowflake doesn't support multiple statements per call, so we run one at a time
-        for statement in sql_scripts:
-            self.sql_client.execute_sql(statement)
-        self._update_schema_in_storage(self.schema)
-        return schema_update
 
     def _get_table_update_sql(self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool, separate_alters: bool = False) -> List[str]:
         sql = super()._get_table_update_sql(table_name, new_columns, generate_alter)

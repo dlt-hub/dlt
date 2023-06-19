@@ -42,13 +42,8 @@ class SqlLoadJob(LoadJob):
         # execute immediately if client present
         with FileStorage.open_zipsafe_ro(file_path, "r", encoding="utf-8") as f:
             sql = f.read()
-        if sql_client.capabilities.supports_multiple_statements:
-            statements = [sql]
-        else:
-            statements = sql.splitlines()
         with sql_client.begin_transaction():
-            for stmt in statements:
-                sql_client.execute_sql(stmt)
+            sql_client.execute_sql(sql)
 
     def state(self) -> TLoadJobState:
         # this job is always done
