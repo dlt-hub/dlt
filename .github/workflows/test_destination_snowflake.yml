@@ -64,7 +64,7 @@ jobs:
         if: runner.os != 'Windows'
         name: Run tests Linux/MAC
       - run: |
-          poetry run pytest tests/load --ignore=tests/load/redshift --ignore=tests/load/postgres --ignore=tests/load/duckdb --ignore=tests/load/filesystem --ignore=tests/load/snowflake --ignore=tests/load/bigquery -m "not forked" -k "(not redshift and not postgres and not duckdb and not filesystem and not bigquery)"
+          poetry run pytest tests/load --ignore=tests/load/redshift --ignore=tests/load/postgres --ignore=tests/load/duckdb --ignore=tests/load/filesystem --ignore=tests/load/bigquery -m "not forked" -k "(not redshift and not postgres and not duckdb and not filesystem and not bigquery)"
         if: runner.os == 'Windows'
         name: Run tests Windows
         shell: cmd
