@@ -13,9 +13,6 @@ from dlt.destinations.snowflake import capabilities
 class SnowflakeCursorImpl(DBApiCursorImpl):
     native_cursor: snowflake_lib.cursor.SnowflakeCursor  # type: ignore[assignment]
 
-    def _get_columns(self) -> List[str]:
-        return [c[0].lower() for c in self.native_cursor.description]
-
     def df(self, chunk_size: int = None, **kwargs: Any) -> Optional[DataFrame]:
         if chunk_size is None:
             return self.native_cursor.fetch_pandas_all(**kwargs)

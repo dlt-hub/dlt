@@ -198,6 +198,8 @@ def test_execute_df(client: SqlJobClientBase) -> None:
     client.sql_client.execute_sql(f"INSERT INTO tmp_{uniq_suffix} VALUES {insert_query};")
     with client.sql_client.execute_query(f"SELECT * FROM tmp_{uniq_suffix} ORDER BY col ASC") as curr:
         df = curr.df()
+        # Force lower case df columns, snowflake has all cols uppercase
+        df.columns = [dfcol.lower() for dfcol in df.columns]
         assert list(df["col"]) == list(range(0, total_records))
     # get chunked
     with client.sql_client.execute_query(f"SELECT * FROM tmp_{uniq_suffix} ORDER BY col ASC") as curr:
@@ -205,6 +207,11 @@ def test_execute_df(client: SqlJobClientBase) -> None:
         df_1 = curr.df(chunk_size=chunk_size)
         df_2 = curr.df(chunk_size=chunk_size)
         df_3 = curr.df(chunk_size=chunk_size)
+        # Force lower case df columns, snowflake has all cols uppercase
+        for df in [df_1, df_2, df_3]:
+            if df is not None:
+                df.columns = [dfcol.lower() for dfcol in df.columns]
+
     assert list(df_1["col"]) == list(range(0, chunk_size))
     assert list(df_2["col"]) == list(range(chunk_size, total_records))
     assert df_3 is None
