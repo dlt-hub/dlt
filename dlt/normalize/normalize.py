@@ -40,18 +40,17 @@ class Normalize(Runnable[ProcessPool]):
         self.normalize_storage: NormalizeStorage = None
         self.load_storage: LoadStorage = None
         self.schema_storage: SchemaStorage = None
-        self.loader_file_format: TLoaderFileFormat = config.destination_capabilities.preferred_loader_file_format
 
         # setup storages
-        self.create_storages(self.loader_file_format)
+        self.create_storages()
         # create schema storage with give type
         self.schema_storage = schema_storage or SchemaStorage(self.config._schema_storage_config, makedirs=True)
 
-    def create_storages(self, loader_file_format: TLoaderFileFormat) -> None:
+    def create_storages(self) -> None:
         # pass initial normalize storage config embedded in normalize config
         self.normalize_storage = NormalizeStorage(True, config=self.config._normalize_storage_config)
         # normalize saves in preferred format but can read all supported formats
-        self.load_storage = LoadStorage(True, loader_file_format, LoadStorage.ALL_SUPPORTED_FILE_FORMATS, config=self.config._load_storage_config)
+        self.load_storage = LoadStorage(True, self.config.destination_capabilities.preferred_loader_file_format, LoadStorage.ALL_SUPPORTED_FILE_FORMATS, config=self.config._load_storage_config)
 
 
     @staticmethod
@@ -72,7 +71,6 @@ class Normalize(Runnable[ProcessPool]):
             stored_schema: TStoredSchema,
             load_id: str,
             extracted_items_files: Sequence[str],
-            loader_file_format: TLoaderFileFormat
         ) -> TWorkerRV:
 
         schema_updates: List[TSchemaUpdate] = []
@@ -80,7 +78,7 @@ class Normalize(Runnable[ProcessPool]):
         # process all files with data items and write to buffered item storage
         with Container().injectable_context(destination_caps):
             schema = Schema.from_stored_schema(stored_schema)
-            load_storage = LoadStorage(False, loader_file_format or destination_caps.preferred_loader_file_format, LoadStorage.ALL_SUPPORTED_FILE_FORMATS, loader_storage_config)
+            load_storage = LoadStorage(False, destination_caps.preferred_loader_file_format, LoadStorage.ALL_SUPPORTED_FILE_FORMATS, loader_storage_config)
             normalize_storage = NormalizeStorage(False, normalize_storage_config)
 
             try:
@@ -177,7 +175,7 @@ class Normalize(Runnable[ProcessPool]):
         workers = self.pool._processes  # type: ignore
         chunk_files = self.group_worker_files(files, workers)
         schema_dict: TStoredSchema = schema.to_dict()
-        config_tuple = (self.normalize_storage.config, self.load_storage.config, self.config.destination_capabilities, schema_dict, self.loader_file_format)
+        config_tuple = (self.normalize_storage.config, self.load_storage.config, self.config.destination_capabilities, schema_dict)
         param_chunk = [[*config_tuple, load_id, files] for files in chunk_files]
         tasks: List[Tuple[AsyncResult[TWorkerRV], List[Any]]] = []
 
@@ -233,7 +231,6 @@ class Normalize(Runnable[ProcessPool]):
             schema.to_dict(),
             load_id,
             files,
-            self.loader_file_format
         )
         self.update_schema(schema, result[0])
         self.collector.update("Files", len(result[2]))

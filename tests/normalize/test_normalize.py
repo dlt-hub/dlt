@@ -32,6 +32,9 @@ def default_caps() -> Iterator[DestinationCapabilitiesContext]:
 def caps(request) -> Iterator[DestinationCapabilitiesContext]:
     # NOTE: you must put this fixture before any normalize fixture
     _caps = request.param()
+    # inject a different right load format for filesystem and bigquery since the tests depend on this being jsonl
+    if _caps.preferred_loader_file_format == "parquet":
+        _caps.preferred_loader_file_format = "jsonl"
     with Container().injectable_context(_caps):
         yield _caps
 

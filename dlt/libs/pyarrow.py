@@ -3,6 +3,7 @@ from typing import Any
 
 try:
     import pyarrow
+    import pyarrow.parquet
 except ImportError:
     raise MissingDependencyException("DLT parquet Helpers", ["parquet"], "DLT Helpers for for parquet.")
 

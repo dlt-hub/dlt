@@ -209,6 +209,9 @@ class ParquetDataWriter(DataWriter):
 
     def write_header(self, columns_schema: TTableSchemaColumns) -> None:
         from dlt.libs.pyarrow import pyarrow, get_py_arrow_datatype
+        print("HELLO")
+        print(pyarrow)
+        print(pyarrow.__dict__.keys())
 
         # build schema
         self.schema = pyarrow.schema([pyarrow.field(name, get_py_arrow_datatype(schema_item["data_type"]), nullable=schema_item["nullable"]) for name, schema_item in columns_schema.items()])
