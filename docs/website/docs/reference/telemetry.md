@@ -15,13 +15,13 @@ You can disable telemetry by adding `--disable-telemetry` to any dlt [command](c
 This command will disable telemetry both in the current project and globally for the whole machine:
 
 ```shell
-$ dlt --disable-telemetry
+dlt --disable-telemetry
 ```
 
 While this command will also permanently disable telemetry and then initialize the `chess` pipeline:
 
 ```shell
-$ dlt --disable-telemetry init chess duckdb
+dlt --disable-telemetry init chess duckdb
 ```
 
 You can check the current telemetry status with this command:
@@ -76,7 +76,7 @@ Here is an example `dlt init` telemetry message:
 }
 ```
 
-Example for `load` pipeline run step.
+Example for `load` pipeline run step:
 
 ```json
 {
@@ -112,10 +112,10 @@ Example for `load` pipeline run step.
 The message context contains the following information:
 
 - `anonymousId`: a random tracking cookie stored in `~/.dlt/.anonymous_id`.
-- `ci_run`: a flag indicating if the message was sent from a CI environment (e.g. `Github Actions`, `Travis CI`)
-- `cpu`: contains number of cores
-- `exec_info`: contains a list of strings that identify execution environment: (e.g. `kubernetes`, `docker`, `airflow`)
-- The `library`, `os`, and `python` give us some understanding of the runtime environment of the `dlt`
+- `ci_run`: a flag indicating if the message was sent from a CI environment (e.g. `Github Actions`, `Travis CI`).
+- `cpu`: contains number of cores.
+- `exec_info`: contains a list of strings that identify execution environment: (e.g. `kubernetes`, `docker`, `airflow`).
+- The `library`, `os`, and `python` give us some understanding of the runtime environment of the `dlt`.
 
 ## Sending telemetry data to your own Segment instance
 
