@@ -16,11 +16,9 @@ To deploy the pipeline, we'll use the Google Cloud Source Repositories method.
 1. Sign in to your GCP account and enable the Cloud Functions API.
 2. To set up the environment, you can follow these steps:
     - Create an empty repo in Cloud Source Repositories.
-      (Cloud Source repository is a service in GCP for hosting repositories from different platforms).
-        
     - After making the repo, click Edit repo to open it in a "Shell Editor".
     - You can also skip creating the repo and use the shell editor directly, depending on your requirements.
-3. In this guide, we'll demonstrate the `dlt` [Notion verified source](https://dlthub.com/docs/dlt-ecosystem/verified-sources/notion). However, you can use any verified source or create a custom one to suit your needs.
+3. In this guide, we'll be setting up the `dlt` [Notion verified source](https://dlthub.com/docs/dlt-ecosystem/verified-sources/notion). However, you can use any verified source or create a custom one to suit your needs.
 4. In the shell editor
     - Run the following command to initialise the verified source with Notion and create a pipeline with BigQuery as the target.
     
