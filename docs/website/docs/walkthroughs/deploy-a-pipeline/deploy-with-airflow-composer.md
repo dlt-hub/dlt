@@ -346,16 +346,18 @@ In this example, we will add our credential to Airflow environment using Google 
 
 Read more about credentials for Airflow [here](../../running-in-production/orchestrators/airflow-gcp-cloud-composer#adding-credentials).
 
-### 5. Configure `build/cloudbuild.yaml` to run it with Google Cloud Platform [[Cloud Composer](https://console.cloud.google.com/composer/environments)]
+### 5. Configure `build/cloudbuild.yaml`
+
+This file is required to deploy the pipeline with Google Cloud Platform [[Cloud Composer](https://console.cloud.google.com/composer/environments)].
 
 - Read our doc [How to deploy the main branch of your airflow project from Github to Cloud Composer](../../running-in-production/orchestrators/airflow-gcp-cloud-composer).
 
     There you can find:
 
     - How to set up the Cloud Composer Environment.
-    - How to create trigger.
-    - How to add the libraries needed.
-- Set **_BUCKET_NAME** up in `build/cloudbuild.yaml` file.
+    - How to create a trigger.
+    - How to add the required packages.
+- Set **_BUCKET_NAME** up in the `build/cloudbuild.yaml` file.
 
     The file has the following structure:
 
