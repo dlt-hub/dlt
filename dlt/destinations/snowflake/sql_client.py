@@ -117,10 +117,16 @@ class SnowflakeSqlClient(SqlClientBase[snowflake_lib.SnowflakeConnection], DBTra
     @classmethod
     def _make_database_exception(cls, ex: Exception) -> Exception:
         if isinstance(ex, snowflake_lib.errors.ProgrammingError):
+            if ex.sqlstate == 'P0000' and ex.errno == 100132:
+                # Error in a multi statement execution. These don't show the original error codes
+                msg = str(ex)
+                if "NULL result in a non-nullable column" in msg:
+                    return DatabaseTerminalException(ex)
+                elif "does not exist or not authorized" in msg:  # E.g. schema not found
+                    return DatabaseUndefinedRelation(ex)
+                else:
+                    return DatabaseTransientException(ex)
             if ex.sqlstate in {'42S02', '02000'}:
-                return DatabaseUndefinedRelation(ex)
-            elif ex.sqlstate == 'P0000' and ex.errno == 100132 and "does not exist or not authorized" in str(ex):
-                # When multi statement execution fails with undefined relation or schema
                 return DatabaseUndefinedRelation(ex)
             elif ex.sqlstate == '22023':  # Adding non-nullable no-default column
                 return DatabaseTerminalException(ex)
