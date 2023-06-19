@@ -23,13 +23,8 @@ class SnowflakeSqlClient(SqlClientBase[snowflake_lib.SnowflakeConnection], DBTra
 
     def open_connection(self) -> snowflake_lib.SnowflakeConnection:
         self._conn = snowflake_lib.connect(
-            user=self.credentials.username,
-            password=self.credentials.password,
-            account=self.credentials.host,
-            warehouse=self.credentials.warehouse,
-            database=self.credentials.database,
             schema=self.fully_qualified_dataset_name(),
-            role=self.credentials.role
+            **self.credentials.to_connector_params()
         )
         return self._conn
 
