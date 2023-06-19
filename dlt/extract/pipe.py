@@ -697,7 +697,9 @@ class PipeIterator(Iterator[PipeItem]):
             # print(f"got {pipe.name} {pipe._pipe_id}")
             # register current pipe name during the execution of gen
             set_current_pipe_name(pipe.name)
-            item = next(gen)
+            item = None
+            while item is None:
+                item = next(gen)
             # full pipe item may be returned, this is used by ForkPipe step
             # to redirect execution of an item to another pipe
             if isinstance(item, ResolvablePipeItem):
@@ -732,7 +734,9 @@ class PipeIterator(Iterator[PipeItem]):
             # print(f"got {pipe.name} {pipe._pipe_id}")
             # register current pipe name during the execution of gen
             set_current_pipe_name(pipe.name)
-            item = next(gen)
+            item = None
+            while not item:
+                item = next(gen)
             # full pipe item may be returned, this is used by ForkPipe step
             # to redirect execution of an item to another pipe
             if isinstance(item, ResolvablePipeItem):

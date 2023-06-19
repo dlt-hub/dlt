@@ -18,16 +18,16 @@ from dlt.extract.pipe import ManagedPipeIterator, Pipe, PipeItem, PipeIterator
 def test_next_item_mode() -> None:
 
     def nested_gen_level_2():
-        yield from [88, 89]
+        yield from [88, None, 89]
 
     def nested_gen():
-        yield from [55, 56, 77, nested_gen_level_2()]
+        yield from [55, 56, None, 77, nested_gen_level_2()]
 
     def source_gen1():
         yield from [1, 2, nested_gen(), 3,4]
 
     def source_gen2():
-        yield from range(11,16)
+        yield from range(11, 16)
 
     def source_gen3():
         yield from range(20,22)
