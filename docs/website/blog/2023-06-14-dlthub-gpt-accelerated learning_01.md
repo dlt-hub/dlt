@@ -10,7 +10,7 @@ authors:
 tags: [gpt-4, langchain, ELT]
 ---
 
-:::info
+:::info Check out the accompanying colab demo
 💡[Google Colaboratory demo](https://colab.research.google.com/drive/1KU1G_08Yihh5p-o1BsCuhA1OkH5zwgkf?usp=sharing)
 :::
 
