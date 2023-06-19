@@ -4,7 +4,7 @@ description: How to run dlt pipeline with Airflow
 keywords: [dlt, webhook, serverless, airflow, gcp, cloud composer]
 ---
 
-# `dlt` pipeline deployment with Airflow and Google Cloud Composer
+# Deployment with Airflow and Google Cloud Composer
 
 Airflow is like your personal assistant for managing data workflows. It's a cool open-source
 platform that lets you create and schedule complex data pipelines. You can break down your tasks
@@ -40,7 +40,7 @@ to find out more.
 
 ## How does the cli deployment work?
 
-In the case of Airflow GCP, running the deploy command will do the following:
+In the case of airflow-composer, running the deploy command will do the following:
 
 1. Instructions will get printed to your CLI. You will need to follow them.
 1. Two folders are created: `build` and `dags`:
