@@ -79,3 +79,8 @@ class SnowflakeCredentials(ConnectionStringCredentials):
 class SnowflakeClientConfiguration(DestinationClientDwhConfiguration):
     destination_name: Final[str] = "snowflake"  # type: ignore[misc]
     credentials: SnowflakeCredentials
+
+    stage_name: Optional[str] = None
+    """Use an existing named stage instead of the default. Default uses the implicit table stage per table"""
+    keep_staged_files: bool = True
+    """Whether to keep or delete the staged files after COPY INTO succeeeds"""

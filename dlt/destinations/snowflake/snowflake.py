@@ -49,15 +49,25 @@ BQT_TO_SCT: Dict[str, TDataType] = {
 }
 
 class SnowflakeLoadJob(LoadJob, FollowupJob):
-    def __init__(self, file_path: str, table_name: str, write_disposition: TWriteDisposition, load_id: str, client: SnowflakeSqlClient) -> None:
+    def __init__(
+            self, file_path: str, table_name: str, write_disposition: TWriteDisposition, load_id: str, client: SnowflakeSqlClient,
+            stage_name: Optional[str] = None, keep_staged_files: bool = True
+    ) -> None:
         file_name = FileStorage.get_file_name_from_file_path(file_path)
         super().__init__(file_name)
 
         with client.with_staging_dataset(write_disposition == "merge"):
             qualified_table_name = client.make_qualified_table_name(table_name)
 
-            # Use implicit table stage name: "SCHEMA_NAME"."%TABLE_NAME"
-            stage_name = client.make_qualified_table_name('%'+table_name)
+            if stage_name:
+                # Concat "SCHEMA_NAME".stage_name
+                stage_name = client.make_qualified_table_name(stage_name)
+                # Create the stage if it doesn't exist
+                client.execute_sql(f"CREATE STAGE IF NOT EXISTS {stage_name}")
+            else:
+                # Use implicit table stage by default: "SCHEMA_NAME"."%TABLE_NAME"
+                stage_name = client.make_qualified_table_name('%'+table_name)
+            stage_file_path = f'@{stage_name}/"{load_id}"/{file_name}'
             with client.begin_transaction():
                 # PUT and copy files in one transaction
                 client.execute_sql(f'PUT file://{file_path} @{stage_name}/"{load_id}" OVERWRITE = TRUE, AUTO_COMPRESS = FALSE')
@@ -65,11 +75,13 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
                     client.execute_sql(f"TRUNCATE TABLE IF EXISTS {qualified_table_name}")
                 client.execute_sql(
                     f"""COPY INTO {qualified_table_name}
-                    FROM @{stage_name}/"{load_id}"
+                    FROM {stage_file_path}
                     FILE_FORMAT = ( TYPE = 'JSON', BINARY_FORMAT = 'BASE64' )
                     MATCH_BY_COLUMN_NAME='CASE_INSENSITIVE'
                     """
                 )
+                if not keep_staged_files:
+                    client.execute_sql(f'REMOVE {stage_file_path}')
 
 
     def state(self) -> TLoadJobState:
@@ -97,7 +109,8 @@ class SnowflakeClient(SqlJobClientBase):
 
         if not job:
             job = SnowflakeLoadJob(
-                file_path, table['name'], table['write_disposition'], load_id, self.sql_client
+                file_path, table['name'], table['write_disposition'], load_id, self.sql_client,
+                stage_name=self.config.stage_name, keep_staged_files=self.config.keep_staged_files
             )
         return job
 

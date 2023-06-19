@@ -532,6 +532,52 @@ def test_many_pipelines_single_dataset(destination_name: str) -> None:
     assert p.state["sources"]["shared"] == {'source_2': True, 'resources': {'gen1': {'source_2': True}}}
 
 
+# do not remove - it allows us to filter tests by destination
+@pytest.mark.parametrize('destination_name', ["snowflake"])
+def test_snowflake_custom_stage(destination_name: str) -> None:
+    """Using custom stage name instead of the table stage"""
+    os.environ['DESTINATION__SNOWFLAKE__STAGE_NAME'] = 'my_custom_stage'
+
+    pipeline, data = simple_nested_pipeline(destination_name, f"custom_stage_{uniq_id()}", False)
+
+    info = pipeline.run(data())
+    assert_load_info(info)
+
+    load_id = info.loads_ids[0]
+
+    # Get a list of the staged files and verify correct number of files in the "load_id" dir
+    with pipeline.sql_client() as client:
+        stage_name = client.make_qualified_table_name('my_custom_stage')
+        staged_files = client.execute_sql(f'LIST @{stage_name}/"{load_id}"')
+        assert len(staged_files) == 3
+        # check data of one table to ensure copy was done successfully
+        tbl_name = client.make_qualified_table_name("lists")
+        assert_query_data(pipeline, f"SELECT value FROM {tbl_name}", ['a', None, None])
+
+
+# do not remove - it allows us to filter tests by destination
+@pytest.mark.parametrize('destination_name', ["snowflake"])
+def test_snowflake_delete_file_after_copy(destination_name: str) -> None:
+    """Using keep_staged_files = false option to remove staged files after copy"""
+    os.environ['DESTINATION__SNOWFLAKE__KEEP_STAGED_FILES'] = 'FALSE'
+
+    pipeline, data = simple_nested_pipeline(destination_name, f"delete_staged_files_{uniq_id()}", False)
+
+    info = pipeline.run(data())
+    assert_load_info(info)
+
+    load_id = info.loads_ids[0]
+
+    with pipeline.sql_client() as client:
+        # no files are left in table stage
+        stage_name = client.make_qualified_table_name('%lists')
+        staged_files = client.execute_sql(f'LIST @{stage_name}/"{load_id}"')
+        assert len(staged_files) == 0
+
+        # ensure copy was done
+        tbl_name = client.make_qualified_table_name("lists")
+        assert_query_data(pipeline, f"SELECT value FROM {tbl_name}", ['a', None, None])
+
 
 def simple_nested_pipeline(destination_name: str, dataset_name: str, full_refresh: bool) -> Tuple[dlt.Pipeline, Callable[[], DltSource]]:
     data = ["a", ["a", "b", "c"], ["a", "b", "c"]]
