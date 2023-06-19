@@ -170,9 +170,9 @@ Do you want to apply these changes? [y/N]
 
 As a result of the command above:
 
-1. all the indicated tables will be dropped in the destination. Note that `dlt` drops the child
+1. All the indicated tables will be dropped in the destination. Note that `dlt` drops the child
    tables as well.
-1. all the indicated tables will be removed from the indicated schema
+1. All the indicated tables will be removed from the indicated schema.
 1. The state for the resource `repo_events` was found and will be reset.
 1. New schema and state will be stored in the destination.
 
@@ -201,8 +201,7 @@ dlt pipeline chess_pipeline drop --state-paths archives
 This will select the `archives` key in `chess` source:
 
 ```json
-sources:
-{
+sources:{
   "chess": {
     "archives": [
       "https://api.chess.com/pub/player/magnuscarlsen/games/2022/05",
