@@ -1,5 +1,5 @@
 
-name: test bigquery
+name: test snowflake
 
 on:
   pull_request:
@@ -69,7 +69,7 @@ jobs:
         shell: cmd
 
   matrix_job_required_check:
-    name: BigQuery loader tests
+    name: Snowflake loader tests
     needs: run_loader
     runs-on: ubuntu-latest
     if: always()
