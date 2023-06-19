@@ -29,7 +29,7 @@ def test_create_table_with_hints(client: DuckDbClient) -> None:
     mod_update[0]["sort"] = True
     mod_update[1]["unique"] = True
     mod_update[4]["foreign_key"] = True
-    sql = ';'.join(client._get_table_update_sql("event_test_table", mod_update, False)[0])
+    sql = ';'.join(client._get_table_update_sql("event_test_table", mod_update, False))
     assert '"col1" BIGINT  NOT NULL' in sql
     assert '"col2" DOUBLE  NOT NULL' in sql
     assert '"col5" VARCHAR ' in sql
