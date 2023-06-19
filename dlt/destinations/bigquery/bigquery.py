@@ -230,9 +230,8 @@ class BigQueryClient(SqlJobClientBase):
         bq_wd = bigquery.WriteDisposition.WRITE_TRUNCATE if write_disposition == "replace" else bigquery.WriteDisposition.WRITE_APPEND
 
         # choose correct source format
-        if file_path.endswith("jsonl"):
-            source_format = bigquery.SourceFormat.NEWLINE_DELIMITED_JSON
-        elif file_path.endswith("parquet"):
+        source_format = bigquery.SourceFormat.NEWLINE_DELIMITED_JSON
+        if file_path.endswith("parquet"):
             source_format = bigquery.SourceFormat.PARQUET
 
         # if merge then load to staging
