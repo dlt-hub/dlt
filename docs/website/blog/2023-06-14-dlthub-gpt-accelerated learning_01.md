@@ -1,3 +1,17 @@
+---
+slug: training - GPT - with - opensource-codebases
+title: GPT-accelerated learning Understanding open source codebases
+image: /img/blog_gpt_1.jpg
+authors:
+  name: Tong Chen
+  title: Data Engineer Intern at dltHub
+  url: https://github.com/TongHere
+  image_url: https://freeimage.host/i/HP9uKIn
+tags: [gpt-4, langchain, ELT]
+---
+
+
+
 # GPT-accelerated learning: Understanding open source codebases
 
 
