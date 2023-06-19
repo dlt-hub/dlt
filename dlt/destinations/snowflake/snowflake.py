@@ -60,7 +60,7 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
             stage_name = client.make_qualified_table_name('%'+table_name)
             with client.begin_transaction():
                 # PUT and copy files in one transaction
-                client.execute_sql(f'PUT file://{file_path} @{stage_name}/"{load_id}" OVERWRITE = TRUE')
+                client.execute_sql(f'PUT file://{file_path} @{stage_name}/"{load_id}" OVERWRITE = TRUE, SOURCE_COMPRESSION = GZIP')
                 if write_disposition == "replace":
                     client.execute_sql(f"TRUNCATE TABLE IF EXISTS {qualified_table_name}")
                 client.execute_sql(
