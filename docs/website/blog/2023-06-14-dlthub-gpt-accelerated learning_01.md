@@ -1,5 +1,5 @@
 ---
-slug: training - GPT - with - opensource-codebases
+slug: training-gpt-with-opensource-codebases
 title: GPT-accelerated learning Understanding open source codebases
 image: /img/blog_gpt_1.jpg
 authors:
@@ -10,12 +10,10 @@ authors:
 tags: [gpt-4, langchain, ELT]
 ---
 
+:::info
+💡[Google Colaboratory demo](https://colab.research.google.com/drive/1KU1G_08Yihh5p-o1BsCuhA1OkH5zwgkf?usp=sharing)
+:::
 
-
-# GPT-accelerated learning: Understanding open source codebases
-
-
-#### 💡Colab demo : https://colab.research.google.com/drive/1KU1G_08Yihh5p-o1BsCuhA1OkH5zwgkf?usp=sharing
 ---
 
 Hi there! 👋
