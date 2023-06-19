@@ -65,15 +65,15 @@ Here's what a pipeline building process looks like:
 
 And when something changes,
 
-1. The data engineer sees something break
-1. they ask the producer about it
-1. they notify the analyst about it
-1. the analyst notifies the business that data will stop flowing until adjustments
-1. the analyst discusses with the stakeholder to get any updated requirements
-1. the analyst offers the requirements to the data engineer
-1. the data engineer checks with the producer/data how the new data should be loaded
-1. data engineer loads the new data
-1. the analyst can now adjust their scripts, re-run them, and offer data to stakeholder
+1. The data engineer sees something break.
+1. They ask the producer about it.
+1. They notify the analyst about it.
+1. The analyst notifies the business that data will stop flowing until adjustments.
+1. The analyst discusses with the stakeholder to get any updated requirements.
+1. The analyst offers the requirements to the data engineer.
+1. The data engineer checks with the producer/data how the new data should be loaded.
+1. Data engineer loads the new data.
+1. The analyst can now adjust their scripts, re-run them, and offer data to stakeholder.
 
 ## Divide et impera! The two problems are technical and communicational, so let's let computers solve tech and let humans solve communication.
 
@@ -85,7 +85,7 @@ Before we start solving, let's understand the problem:
 1. Now we are trying to solve two problems at once: structuring and curation, with each role
    functioning as a bottleneck for the other.
 
-So let's de-couple these two problems and solve them appropriately.
+So let's de-couple these two problems and solve them appropriately:
 
 - The technical issue is that unstructured data needs to be structured.
 - The curation issue relates to communication - so taking the engineer out of the loop would make
@@ -122,7 +122,7 @@ So how would we do schema evolution with `dlt`?
 1. Data is extracted, `dlt` infers schema and can compare it to the previous schema.
 1. Data is loaded to a structured data lake (staging area).
 1. Destination schema is compared to the new incoming schema.
-   1. If there are changes, we notify the producer and curator
+   1. If there are changes, we notify the producer and curator.
    1. If there are no changes, we carry on with transforming it to the curated form.
 
 So, schema evolution is essentially a simpler way to do a contract on schemas. If you had additional

@@ -178,7 +178,7 @@ As a result of the command above:
 
 The `drop` command accepts several advanced settings:
 
-1. You can use regexes to select resources. Prepend `re:` string to indicate regex patten. Example
+1. You can use regexes to select resources. Prepend `re:` string to indicate regex pattern. Example
    below will select all resources starting with `repo`:
 
 ```sh
