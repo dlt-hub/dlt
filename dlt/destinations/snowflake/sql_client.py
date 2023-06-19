@@ -6,9 +6,20 @@ import snowflake.connector as snowflake_lib
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.destinations.exceptions import DatabaseTerminalException, DatabaseTransientException, DatabaseUndefinedRelation
 from dlt.destinations.sql_client import DBApiCursorImpl, SqlClientBase, raise_database_error, raise_open_connection_error
-from dlt.destinations.typing import DBApi, DBApiCursor, DBTransaction
+from dlt.destinations.typing import DBApi, DBApiCursor, DBTransaction, DataFrame
 from dlt.destinations.snowflake.configuration import SnowflakeCredentials
 from dlt.destinations.snowflake import capabilities
+
+class SnowflakeCursorImpl(DBApiCursorImpl):
+    native_cursor: snowflake_lib.cursor.SnowflakeCursor  # type: ignore[assignment]
+
+    def _get_columns(self) -> List[str]:
+        return [c[0].lower() for c in self.native_cursor.description]
+
+    def df(self, chunk_size: int = None, **kwargs: Any) -> Optional[DataFrame]:
+        if chunk_size is None:
+            return self.native_cursor.fetch_pandas_all(**kwargs)
+        return super().df(chunk_size=chunk_size, **kwargs)
 
 
 class SnowflakeSqlClient(SqlClientBase[snowflake_lib.SnowflakeConnection], DBTransaction):
@@ -160,8 +171,3 @@ class SnowflakeSqlClient(SqlClientBase[snowflake_lib.SnowflakeConnection], DBTra
     @staticmethod
     def is_dbapi_exception(ex: Exception) -> bool:
         return isinstance(ex, snowflake_lib.DatabaseError)
-
-
-class SnowflakeCursorImpl(DBApiCursorImpl):
-    def _get_columns(self) -> List[str]:
-        return [c[0].lower() for c in self.native_cursor.description]
