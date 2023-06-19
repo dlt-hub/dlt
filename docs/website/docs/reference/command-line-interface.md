@@ -42,7 +42,7 @@ schedule into quotation marks as in the example above.
 For the chess.com API example above, you could deploy it with
 `dlt deploy chess.py github-action --schedule "*/30 * * * *"`.
 
-Follow the [Deploy a pipeline](../walkthroughs/deploy-a-pipeline/deploy-with-github-actions)
+Follow the [Deploy a pipeline with Github Actions](../walkthroughs/deploy-a-pipeline/deploy-with-github-actions)
 walkthrough to learn more.
 
 ### airflow-composer
@@ -54,7 +54,7 @@ dlt deploy <script>.py airflow-composer
 [Google Composer](../running-in-production/orchestrators/airflow-gcp-cloud-composer.md) is a managed
 Airflow deployment provided by Google.
 
-Follow the [Deploy a pipeline](../walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer)
+Follow the [Deploy a pipeline with Airflow](../walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer)
 walkthrough to learn more.
 
 It will create an Airflow DAG for your pipeline script that you should customize. The DAG is using
