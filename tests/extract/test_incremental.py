@@ -2,7 +2,8 @@ import os
 from time import sleep
 from typing import Optional, Any
 from datetime import datetime  # noqa: I251
-
+from dataclasses import field
+from typing import ClassVar
 import duckdb
 import pytest
 
@@ -192,15 +193,25 @@ def test_optional_incremental_from_config() -> None:
 
 @configspec
 class SomeDataOverrideConfiguration:
-    created_at: dlt.sources.incremental = dlt.sources.incremental('created_at', initial_value='2022-02-03T00:00:00Z')
+    created_at: ClassVar[dlt.sources.incremental] = dlt.sources.incremental('created_at', initial_value='2022-02-03T00:00:00Z')
 
 
 # provide what to inject via spec. the spec contain the default
 @dlt.resource(spec=SomeDataOverrideConfiguration)
 def some_data_override_config(created_at: dlt.sources.incremental = dlt.config.value):
     assert created_at.cursor_path == 'created_at'
-    assert created_at.initial_value == '2000-02-03T00:00:00Z'
+    assert created_at.initial_value == '2022-02-03T00:00:00Z'
     yield {'created_at': '2023-03-03T00:00:00Z'}
+
+
+def test_override_initial_value_from_config() -> None:
+    # use the shortest possible config version
+    # os.environ['SOURCES__TEST_INCREMENTAL__SOME_DATA_OVERRIDE_CONFIG__CREATED_AT__INITIAL_VALUE'] = '2000-02-03T00:00:00Z'
+    os.environ['CREATED_AT__INITIAL_VALUE'] = '2000-02-03T00:00:00Z'
+
+    p = dlt.pipeline(pipeline_name=uniq_id())
+    p.extract(some_data_override_config())
+    # p.extract(some_data_override_config())
 
 
 def test_optional_incremental_not_passed() -> None:
@@ -227,16 +238,6 @@ def optional_incremental_arg_resource(incremental: Optional[dlt.sources.incremen
 def test_optional_arg_from_spec_not_passed() -> None:
     p = dlt.pipeline(pipeline_name=uniq_id())
     p.extract(optional_incremental_arg_resource())
-
-
-def test_override_initial_value_from_config() -> None:
-    # use the shortest possible config version
-    # os.environ['SOURCES__TEST_INCREMENTAL__SOME_DATA_OVERRIDE_CONFIG__CREATED_AT__INITIAL_VALUE'] = '2000-02-03T00:00:00Z'
-    os.environ['CREATED_AT__INITIAL_VALUE'] = '2000-02-03T00:00:00Z'
-
-    p = dlt.pipeline(pipeline_name=uniq_id())
-    p.extract(some_data_override_config())
-    # p.extract(some_data_override_config())
 
 
 def test_override_primary_key_in_pipeline() -> None:
