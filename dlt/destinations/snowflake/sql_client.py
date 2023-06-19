@@ -1,4 +1,4 @@
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from typing import Any, AnyStr, ClassVar, Iterator, Optional, Sequence, List
 
 import snowflake.connector as snowflake_lib
@@ -73,6 +73,12 @@ class SnowflakeSqlClient(SqlClientBase[snowflake_lib.SnowflakeConnection], DBTra
     def drop_dataset(self) -> None:
         self.execute_sql("DROP SCHEMA %s CASCADE;" % self.fully_qualified_dataset_name())
 
+    def drop_tables(self, *tables: str) -> None:
+        # Tables are drop with `IF EXISTS`, but snowflake raises when the schema doesn't exist.
+        # Multi statement exec is safe and the error can be ignored since all tables are in the same schema.
+        with suppress(DatabaseUndefinedRelation):
+            super().drop_tables(*tables)
+
     def execute_sql(self, sql: AnyStr, *args: Any, **kwargs: Any) -> Optional[Sequence[Sequence[Any]]]:
         with self.execute_query(sql, *args, **kwargs) as curr:
             if curr.description is None:
@@ -113,6 +119,9 @@ class SnowflakeSqlClient(SqlClientBase[snowflake_lib.SnowflakeConnection], DBTra
         if isinstance(ex, snowflake_lib.errors.ProgrammingError):
             if ex.sqlstate in {'42S02', '02000'}:
                 return DatabaseUndefinedRelation(ex)
+            elif ex.sqlstate == 'P0000' and ex.errno == 100132 and "does not exist or not authorized" in str(ex):
+                # When multi statement execution fails with undefined relation or schema
+                return DatabaseUndefinedRelation(ex)
             elif ex.sqlstate == '22023':  # Adding non-nullable no-default column
                 return DatabaseTerminalException(ex)
             elif ex.sqlstate == '42000' and ex.errno == 904:  # Invalid identifier
@@ -121,6 +130,7 @@ class SnowflakeSqlClient(SqlClientBase[snowflake_lib.SnowflakeConnection], DBTra
                 return DatabaseTerminalException(ex)
             else:
                 return DatabaseTransientException(ex)
+
         elif isinstance(ex, snowflake_lib.errors.IntegrityError):
             raise DatabaseTerminalException(ex)
         elif isinstance(ex, snowflake_lib.errors.DatabaseError):
