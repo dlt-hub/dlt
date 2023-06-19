@@ -5,7 +5,7 @@ keywords: [build a data pipeline]
 ---
 # Building data pipelines with dlt, from basic to advanced
 
-This is in-depth overview will take you through the main areas of pipelining with dlt. Go to the related pages you are instead looking for the [demo](try-in-colab.md), or the [walkthroughs](../walkthroughs/)
+This is in-depth overview will take you through the main areas of pipelining with dlt. Go to the related pages you are instead looking for the [demo](try-in-colab.md), or the [walkthroughs](../walkthroughs/).
 
 # Why build pipelines with dlt?
 
@@ -23,7 +23,7 @@ A pipeline in the dlt library is a powerful tool that allows you to move data fr
 
 For example, let's consider a scenario where you want to load a list of objects into a DuckDB table named "three". With dlt, you can create a pipeline and run it with just a few lines of code:
 
-1. Create a pipeline to the destination
+1. Create a pipeline to the destination.
 2. Give this pipeline data and run it.
 
 ```python
@@ -53,7 +53,7 @@ Extracting data with dlt is simple - you simply decorate your data-producing fun
 Technically, two key aspects contribute to `**dlt**`'s effectiveness:
 
 - scalability through iterators, chunking, parallelization,
-- and the utilization of implicit extraction DAGs that allow efficient api calls for data enrichments or transformations
+- and the utilization of implicit extraction DAGs that allow efficient api calls for data enrichments or transformations.
 
 ## Scalability via iterators, chunking, and parallelization:
 
