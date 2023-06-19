@@ -2,7 +2,7 @@ import abc
 
 # import jsonlines
 from dataclasses import dataclass
-from typing import Any, Dict, Sequence, IO, Type, Optional, List
+from typing import Any, Dict, Sequence, IO, Type, Optional, List, cast
 
 from dlt.common import json
 from dlt.common.typing import StrAny
@@ -70,7 +70,7 @@ class DataWriter(abc.ABC):
         elif file_format == "insert_values":
             return InsertValuesWriter
         elif file_format == "parquet":
-            return ParquetDataWriter
+            return cast(Type["DataWriter"], ParquetDataWriter) # not sure why the cast is needed?
         else:
             raise ValueError(file_format)
 
@@ -189,19 +189,18 @@ class ParquetDataWriterConfiguration(BaseConfiguration):
 class ParquetDataWriter(DataWriter):
 
     @with_config(spec=ParquetDataWriterConfiguration)
-    def __init__(self, 
-                 f: IO[Any], 
-                 caps: DestinationCapabilitiesContext = None, 
-                 *, 
+    def __init__(self,
+                 f: IO[Any],
+                 caps: DestinationCapabilitiesContext = None,
+                 *,
                  flavor: str = "spark",
                  version: str = "2.4",
                  data_page_size: int = 1024 * 1024
                  ) -> None:
         super().__init__(f, caps)
-        from dlt.helpers.parquet_helper import pq
-        from dlt.helpers.parquet_helper import pyarrow
+        from dlt.libs.pyarrow import pyarrow
 
-        self.writer: Optional[pq.ParquetWriter] = None
+        self.writer: Optional[pyarrow.parquet.ParquetWriter] = None
         self.schema: Optional[pyarrow.Schema] = None
         self.complex_indices: List[str] = None
         self.parquet_flavor = flavor
@@ -209,19 +208,19 @@ class ParquetDataWriter(DataWriter):
         self.parquet_data_page_size = data_page_size
 
     def write_header(self, columns_schema: TTableSchemaColumns) -> None:
-        from dlt.helpers.parquet_helper import pyarrow
-        from dlt.helpers.parquet_helper import pq
+        from dlt.libs.pyarrow import pyarrow, get_py_arrow_datatype
 
         # build schema
-        self.schema = pyarrow.schema([pyarrow.field(name, self.get_data_type(schema_item["data_type"]), nullable=schema_item["nullable"]) for name, schema_item in columns_schema.items()])
+        self.schema = pyarrow.schema([pyarrow.field(name, get_py_arrow_datatype(schema_item["data_type"]), nullable=schema_item["nullable"]) for name, schema_item in columns_schema.items()])
         # find row items that are of the complex type (could be abstracted out for use in other writers?)
         self.complex_indices = [i for i, field in columns_schema.items() if field["data_type"] == "complex"]
-        self.writer = pq.ParquetWriter(self._f, self.schema, flavor=self.parquet_flavor, version=self.parquet_version, data_page_size=self.parquet_data_page_size)
+        self.writer = pyarrow.parquet.ParquetWriter(self._f, self.schema, flavor=self.parquet_flavor, version=self.parquet_version, data_page_size=self.parquet_data_page_size)
 
 
     def write_data(self, rows: Sequence[Any]) -> None:
         super().write_data(rows)
-        from dlt.helpers.parquet_helper import pyarrow
+        from dlt.libs.pyarrow import pyarrow
+
 
         # replace complex types with json
         for row in rows:
@@ -230,37 +229,13 @@ class ParquetDataWriter(DataWriter):
                     row[key] = json.dumps(row[key]) if row[key] else row[key]
 
         table = pyarrow.Table.from_pylist(rows, schema=self.schema)
-        # Write 
+        # Write
         self.writer.write_table(table)
 
     def write_footer(self) -> None:
         self.writer.close()
         self.writer = None
 
-    def get_data_type(self, column_type: str) -> Any:
-        from dlt.helpers.parquet_helper import pyarrow
-        if column_type == "text":
-            return pyarrow.string()
-        elif column_type == "double":
-            return pyarrow.float64()
-        elif column_type == "bool":
-            return pyarrow.bool_()
-        elif column_type == "timestamp":
-            return pyarrow.timestamp('ms')
-        elif column_type == "bigint":
-            return pyarrow.int64()
-        elif column_type == "binary":
-            return pyarrow.binary()
-        elif column_type == "complex":
-            return pyarrow.string()
-        elif column_type == "decimal":
-            return pyarrow.decimal128(38, 18)
-        elif column_type == "wei":
-            return pyarrow.decimal128(38, 0)
-        elif column_type == "date":
-            return pyarrow.date32()
-        else:
-            raise ValueError(column_type)
 
     @classmethod
     def data_format(cls) -> TFileFormatSpec:
