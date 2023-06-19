@@ -6,7 +6,7 @@ authors:
   name: Tong Chen
   title: Data Engineer Intern at dltHub
   url: https://github.com/TongHere
-  image_url: https://freeimage.host/i/HP9uKIn
+  image_url: https://iili.io/HP9uKIn.jpg
 tags: [gpt-4, langchain, ELT]
 ---
 
