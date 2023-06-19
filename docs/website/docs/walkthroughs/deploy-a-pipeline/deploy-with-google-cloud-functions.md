@@ -57,18 +57,18 @@ In a shell editor, navigate to the directory where the "main.py" file is located
 - This command deploys a function called "pipeline_notion" with Python 3.10 as the runtime environment, an HTTP trigger, and allows unauthenticated access. The source "." refers to all files in the directory. The timeout is set to 5 mins ( 300 secs ), if you are loading a large number of files to the destination you can increase this to 60 minutes for HTTP functions. 10 minutes for event driven functions. To learn more about the function timeout, you can read the [documentation here.](https://cloud.google.com/functions/docs/configuring/timeout)
 - See [the documentation](https://cloud.google.com/functions/docs) for more details on Google Cloud Functions.
   
-  ### Setting up environmental variables in the Cloud function using Secret Manager
+## 3. Setting up environmental variables in the Cloud function using Secret Manager
   
-  After deploying the function, you need to create an environment variable in Cloud Function using the Notion Secret you created earlier.
-  Go to the Google Cloud function, click on the function you deployed earlier using the shell editor and select "EDIT".
-   1. In the 'Runtime, Build, Connections and Security Settings' section, select 'Security and Images Repo'.
-   2. Click on 'Add a secret reference' and select the secret you created, e.g. 'notion_secret'.
-   3. Set the 'Reference method' to 'Mounted as environment variable'.
-   4. In the 'Environment Variable' field, enter the name of the environment variable that corresponds to the argument required by the pipeline.  (*If the variable name is specified in secrets.toml, store the corresponding value in the secrets manager. For example, in this example the variable name is api_key. We have defined the value of api_key in the secrets manager secret called "notion_secret" and then declared this secret as an environment variable called "API_KEY", remember to capitalise the variable name required by the pipeline.*)
-   7. Finally, click 'DEPLOY' to deploy the function. The HTTP trigger will now successfully execute the pipeline each time the URL is  triggered.
+After deploying the function, you need to create an environment variable in Cloud Function using the Notion Secret you created earlier.
+Go to the Google Cloud function, click on the function you deployed earlier using the shell editor and select "EDIT".
+ 1. In the 'Runtime, Build, Connections and Security Settings' section, select 'Security and Images Repo'.
+ 2. Click on 'Add a secret reference' and select the secret you created, e.g. 'notion_secret'.
+ 3. Set the 'Reference method' to 'Mounted as environment variable'.
+ 4. In the 'Environment Variable' field, enter the name of the environment variable that corresponds to the argument required by the pipeline.  (*the variable name is specified in secrets.toml. For example, in this example the variable name is api_key. We have defined the value of api_key in the secrets manager secret called "notion_secret" and then declared this secret as an environment variable called "API_KEY", remember to capitalise the variable name required by the pipeline.*)
+ 5. Finally, click 'DEPLOY' to deploy the function. The HTTP trigger will now successfully execute the pipeline each time the URL is  triggered.
 
 
-## 3. Monitor (and manually trigger) the cloud function
+## 4. Monitor (and manually trigger) the cloud function
 To manually trigger the created function, you can open the trigger URL in the address bar that was created by the Cloud function. The message "Pipeline run successful" would mean that the pipeline was successfully run and the data was successfully loaded into the destination.
 
     
