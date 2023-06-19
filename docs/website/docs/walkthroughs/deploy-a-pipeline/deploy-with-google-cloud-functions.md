@@ -6,9 +6,9 @@ keywords: [how to, deploy a pipeline, Cloud Function]
 
 # Deploy a pipeline with Google Could Fuctions
 
-Before you can deploy a pipeline, you need to have a working knowledge of GCP and its associated services such as Cloud Functions, Cloud Source Repositories, Shell Editor, IAM and Permissions, and GCP service accounts. 
+This guide shows you how to deploy a pipeline using the gcloud shell and `dlt` CLI commands. To deploy a pipeline using this method, you must have a working knowledge of GCP and its associated services, such as cloud functions, cloud source repositories, shell editor, IAM and permissions, and GCP service accounts.  
 
-To deploy a pipeline using the GCP Cloud functions, you'll first need to set up a blank repo in Cloud Source Repositories, a service provided by GCP for hosting repositories, or you can clone it to your local machine and then install the Google Cloud SDK on your local machine.
+To deploy a pipeline using the GCP cloud functions, you'll first need to set up an empty repo in Cloud Source Repositories, a service provided by GCP for hosting repositories, or you can clone it to your local machine and then install the Google Cloud SDK on your local machine.
 
 ## 1. Setup Pipeline in Google Cloud Repositories
 To deploy the pipeline, we'll use the Google Cloud Source Repositories(first method):
@@ -29,55 +29,32 @@ To deploy the pipeline, we'll use the Google Cloud Source Repositories(first met
     
     - After running the command, a new directory will be created with the necessary files and configurations.
     - Detailed information about initialising a verified source and a pipeline example can be found in the `dlthub` [documentation](https://dlthub.com/docs/dlt-ecosystem/verified-sources/notion).
-5. Rename the file "notion_pipeline.py" to "main.py" and modify the code as follows:
+5. In the notion_pipeline.py method, delete the `if __name__ == "__main__":` method and create a new Python file called "main.py", which can be configured as follows:
     
     ```python
-    import os
-    import dlt
-    from .notion import notion_databases
-    
-    def load_databases() -> str:
-        pipeline = dlt.pipeline(
-            pipeline_name="notion",
-            destination='bigquery',
-            dataset_name="notion_data_aman_atul",
-        )
-        data = notion_databases()
-    
-        info = pipeline.run(data)
-        print(info)
-        return "Data loaded successfully". # returns the value
-    
-    # Created a new function to call the load_database function 
-    def pipeline_notion(request):
-        return load_databases()
-    ```
-    In this code, we define a function named "pipeline_notion" that will be invoked by the cloud function. By default, Google Cloud Functions searches for the function in "main.py".
+    from notion_pipeline import load_databases
 
-6. Further, you need to modify,  the `__init__.py` file in the notion folder, and modify the `notion_databases` function as follows:
-    
-    ```python
-    @dlt.source
-    def notion_databases(
-        database_ids: Optional[List[Dict[str, str]]] = None,
-        api_key = notion_apikey_env, # Refers to the notion secret
-    ) -> Iterator[DltResource]:
+    def pipeline_notion(request):
+      load_databases()
+      return "Pipeline run successfull"
     ```
-    
-    Note how we have referenced api_key to the variable named "notion_apikey_env" instead of "dlt.secrets.value".
+    By default, Google Cloud Functions looks for the main.py file in the main directory, and we called the `load_databases()` function from notion_pipeline.py as shown above.
+
     ### Managing secrets with Secret Manager
      Next, go to the Google Secrets Manager. In Google Secrets Manager, create the secret "Notion API Key", name the secret "notion_secret" and add "Notion API key" to the secret values. To learn more about Google Secrets Manager, read the full **[documentation](https://cloud.google.com/secret-manager/docs/create-secret-quickstart) here**.
     
-      - Assign the "Secret Manager Secret Accessor" role to the service account that was used to create the function (this is usually the default service account associated with the Google Project where the function will be created).
-       - There would be a *default* *service account* associated with the project ID you are using, please assign the *Cloud Functions Developer* role to the associated service account. To learn more about the service account, read the [documentation](https://cloud.google.com/iam/docs/service-account-overview) here.
+      - Assign the "Secret Manager Secret Accessor" role to the service account that was used to create the function (*this is usually the default service account associated with the Google Project where the function is being created*).
+      
+      - There would be a *default* *service account* associated with the project ID you are using, please assign the *Cloud Functions Developer* role to the associated service account. To learn more about the service account, see the [documentation](https://cloud.google.com/iam/docs/service-account-overview) here.
 
 ## 2. Deploying GCP Cloud Function
 In a shell editor, navigate to the directory where the "main.py" file is located and run the following command in the terminal
 ```bash
-  gcloud functions deploy pipeline_notion --runtime python310 --trigger-http --allow-unauthenticated --source .
+ gcloud functions deploy pipeline_notion --runtime python310 --trigger-http --allow-unauthenticated --source . --timeout 300
+
 ```
         
-- This command deploys a function named "pipeline_notion" with Python 3.10 as the runtime environment, an HTTP trigger, and allows unauthenticated access. The source "." refers to all files in the directory.
+- This command deploys a function called "pipeline_notion" with Python 3.10 as the runtime environment, an HTTP trigger, and allows unauthenticated access. The source "." refers to all files in the directory. The timeout is set to 5 mins ( 300 secs ), if you are loading a large number of files to the destination you can increase this to 60 minutes for HTTP functions. 10 minutes for event driven functions. To learn more about the function timeout, you can read the [documentation here.](https://cloud.google.com/functions/docs/configuring/timeout)
 - See [the documentation](https://cloud.google.com/functions/docs) for more details on Google Cloud Functions.
   
   ### Setting up environmental variables in the Cloud function using Secret Manager
@@ -87,29 +64,12 @@ In a shell editor, navigate to the directory where the "main.py" file is located
    1. In the 'Runtime, Build, Connections and Security Settings' section, select 'Security and Images Repo'.
    2. Click on 'Add a secret reference' and select the secret you created, e.g. 'notion_secret'.
    3. Set the 'Reference method' to 'Mounted as environment variable'.
-   4. In the 'Environment Variable' field, enter the name of the environment variable assigned in the source method, in this case,    'notion_apikey_env', and set the version to 'latest'.
-   5. Finally, click 'DEPLOY' to deploy the function. The HTTP trigger will now successfully execute the pipeline each time the URL is  triggered.
+   4. In the 'Environment Variable' field, enter the name of the environment variable that corresponds to the argument required by the pipeline.  (*If the variable name is specified in secrets.toml, store the corresponding value in the secrets manager. For example, in this example the variable name is api_key. We have defined the value of api_key in the secrets manager secret called "notion_secret" and then declared this secret as an environment variable called "API_KEY", remember to capitalise the variable name required by the pipeline.*)
+   7. Finally, click 'DEPLOY' to deploy the function. The HTTP trigger will now successfully execute the pipeline each time the URL is  triggered.
 
 
 ## 3. Monitor (and manually trigger) the cloud function
-To manually trigger the function created, you can send a manual POST request to the trigger URL created by the cloud function as follows
-```python
-    import requests
-    
-    webhook_url = 'please set me up!' # Your cloud function Trigger URL
-    message = {
-        'text': 'Hello, Slack!',
-        'user': 'dlthub',
-        'channel': 'dlthub'
-    }
-    
-    response = requests.post(webhook_url, json=message)
-    if response.status_code == 200:
-        print('Message sent successfully.')
-    else:
-        print('Failed to send message. Error:', response.text)
-```
-    
-Replace the webhook_url with the Trigger URL for the cloud function created. 
+To manually trigger the created function, you can open the trigger URL in the address bar that was created by the Cloud function. The message "Pipeline run successful" would mean that the pipeline was successfully run and the data was successfully loaded into the destination.
+
     
 That’s it! Enjoy using `dlt` in google cloud functions!
