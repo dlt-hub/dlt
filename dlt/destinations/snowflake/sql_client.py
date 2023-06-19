@@ -98,14 +98,6 @@ class SnowflakeSqlClient(SqlClientBase[snowflake_lib.SnowflakeConnection], DBTra
                     self.open_connection()
                 raise outer
 
-    def execute_fragments(self, fragments: Sequence[AnyStr], *args: Any, **kwargs: Any) -> Optional[Sequence[Sequence[Any]]]:
-        results: List[Sequence[Any]] = []
-        for statement in fragments:
-            result = self.execute_sql(statement, *args, **kwargs)
-            if result:
-                results.append(result)
-        return results or None
-
     def fully_qualified_dataset_name(self, escape: bool = True) -> str:
         # Always escape for uppercase
         if escape:
