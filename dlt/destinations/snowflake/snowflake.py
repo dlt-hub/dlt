@@ -56,15 +56,9 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
         with client.with_staging_dataset(write_disposition == "merge"):
             qualified_table_name = client.make_qualified_table_name(table_name)
             stage_name = f'"{table_name}_{load_id}"'
-            # Create stage and file format
-            client.execute_sql(
-                """
-                CREATE FILE FORMAT IF NOT EXISTS dlt_jsonl_format
-                TYPE = 'JSON'
-                BINARY_FORMAT = 'BASE64'
-                """
-            )
-            client.execute_sql(f"CREATE STAGE IF NOT EXISTS {stage_name} FILE_FORMAT = dlt_jsonl_format")
+            client.execute_sql(f"""
+            CREATE STAGE IF NOT EXISTS {stage_name} FILE_FORMAT = ( TYPE = 'JSON', BINARY_FORMAT = 'BASE64' )
+            """)
             with client.begin_transaction():
                 # PUT and copy files in one transaction
                 client.execute_sql(f"PUT file://{file_path} @{stage_name} OVERWRITE = TRUE")
@@ -73,7 +67,7 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
                 client.execute_sql(
                     f"""COPY INTO {qualified_table_name}
                     FROM @{stage_name}
-                    FILE_FORMAT = dlt_jsonl_format
+                    FILE_FORMAT = ( TYPE = 'JSON', BINARY_FORMAT = 'BASE64' )
                     MATCH_BY_COLUMN_NAME='CASE_INSENSITIVE'
                     """
                 )
