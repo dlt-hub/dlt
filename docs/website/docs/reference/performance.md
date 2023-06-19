@@ -11,7 +11,7 @@ keywords: [scaling, parallelism, finetuning]
 If you can, yield pages when producing data. This makes some processes more effective by lowering
 the necessary function calls.
 
-## Memory /disk management
+## Memory/disk management
 
 `dlt` likes resources that yield data because it can request data into a buffer before processing
 and releasing it. This makes it possible to manage the amount of resources used. In order to
@@ -40,12 +40,12 @@ on IOT sensors or other tiny infrastructures, you might actually want to increas
 processing.
 
 Keep in mind load packages are buffered to disk and are left for any troubleshooting, so you can
-clear disk pace with the config.toml option `load.delete_completed_jobs=true` or the equivalent env
-var.
+clear disk space with the `config.toml` option `load.delete_completed_jobs=true` or the equivalent env
+variable.
 
-To troubleshoot memory usage you can add the env var `PROGRESS=log`.
+To troubleshoot memory usage you can add the env variable `PROGRESS=log`.
 
-### Parallelism
+## Parallelism
 
 Parallelism can be limited with the config option `max_parallel_items = 5` that you can place under
 a source. As `dlt` is a library can also leverage parallelism outside of `dlt` such as by placing
@@ -59,7 +59,7 @@ max_parallel_items=5
 max_parallel_items=5
 ```
 
-### Resources loading, fifo vs. round robin
+## Resources loading, `fifo` vs. `round robin`
 
 When extracting from resources, you have two options to determine what the order of queries to your
 resources are: `fifo` and `round_robin`.
@@ -68,8 +68,9 @@ resources are: `fifo` and `round_robin`.
 resource is extracted in the order that you added them to your source.
 
 `round_robin` will result in extraction of one item from the first resource, then one item from the
-second resource etc, doing as many rounds as necessary until all resources are fully extracted. You
-can change this setting in your `config.toml` as follows:
+second resource etc, doing as many rounds as necessary until all resources are fully extracted.
+
+You can change this setting in your `config.toml` as follows:
 
 ```toml
 [extract] # global setting
