@@ -264,4 +264,4 @@ class ParquetDataWriter(DataWriter):
 
     @classmethod
     def data_format(cls) -> TFileFormatSpec:
-        return TFileFormatSpec("parquet", "parquet", True, False, requires_destination_capabilities=True)
+        return TFileFormatSpec("parquet", "parquet", True, False, requires_destination_capabilities=True, supports_compression=False)
