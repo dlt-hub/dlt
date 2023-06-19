@@ -3,6 +3,7 @@ import types
 import asyncio
 import makefun
 from asyncio import Future
+from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from copy import copy
 from threading import Thread
@@ -435,12 +436,11 @@ class PipeIterator(Iterator[PipeItem]):
         self.workers = workers
         self.futures_poll_interval = futures_poll_interval
 
-        self._round_robin_index: int = -1
         self._initial_sources_count: int = 0
         self._async_pool: asyncio.AbstractEventLoop = None
         self._async_pool_thread: Thread = None
         self._thread_pool: ThreadPoolExecutor = None
-        self._sources: List[SourcePipeItem] = []
+        self._sources: deque[SourcePipeItem] = deque()
         self._futures: List[FuturePipeItem] = []
         self._next_item_mode = next_item_mode
 
@@ -718,37 +718,26 @@ class PipeIterator(Iterator[PipeItem]):
             raise ResourceExtractionError(pipe.name, gen, str(ex), "generator") from ex
 
     def _get_source_item_round_robin(self) -> ResolvablePipeItem:
-        # no more sources to iterate
+        """Get next item from the sources in round robin fashion."""
         sources_count = len(self._sources)
         if sources_count == 0:
             return None
-        # if there are currently more sources than added initially, we need to process the new ones first
         if sources_count > self._initial_sources_count:
             return self._get_source_item_current()
         try:
-            # get items from last added iterator, this makes the overall Pipe as close to FIFO as possible
-            self._round_robin_index = (self._round_robin_index + 1) % sources_count
-            gen, step, pipe, meta = self._sources[self._round_robin_index]
-            # print(f"got {pipe.name} {pipe._pipe_id}")
-            # register current pipe name during the execution of gen
+            self._sources.rotate(-1)
+            gen, step, pipe, meta = self._sources[-1]
             set_current_pipe_name(pipe.name)
             item = next(gen)
-            # full pipe item may be returned, this is used by ForkPipe step
-            # to redirect execution of an item to another pipe
             if isinstance(item, ResolvablePipeItem):
                 return item
             else:
-                # keep the item assigned step and pipe when creating resolvable item
                 if isinstance(item, DataItemWithMeta):
                     return ResolvablePipeItem(item.data, step, pipe, item.meta)
                 else:
                     return ResolvablePipeItem(item, step, pipe, meta)
         except StopIteration:
-            # remove empty iterator and try another source
-            self._sources.pop(self._round_robin_index)
-            # we need to decrease the index to keep the round robin order
-            self._round_robin_index -= 1
-            # since in this case we have popped an initial source, we need to decrease the initial sources count
+            self._sources.pop()
             self._initial_sources_count -= 1
             return self._get_source_item()
         except (PipelineException, ExtractorException, DltSourceException, PipeException):

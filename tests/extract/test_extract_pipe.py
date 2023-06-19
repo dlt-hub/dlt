@@ -591,7 +591,7 @@ def assert_pipes_closed(raise_gen, long_gen) -> None:
             list(pit)
         assert isinstance(py_ex.value.__cause__, RuntimeError)
     # it got closed
-    assert pit._sources == []
+    assert list(pit._sources) == []
     assert close_pipe_got_exit is True
     # while long gen was still yielding
     assert close_pipe_yielding is True
@@ -602,7 +602,7 @@ def assert_pipes_closed(raise_gen, long_gen) -> None:
     with pytest.raises(ResourceExtractionError) as py_ex:
         list(pit)
     assert isinstance(py_ex.value.__cause__, RuntimeError)
-    assert pit._sources == []
+    assert list(pit._sources) == []
     assert close_pipe_got_exit is True
     # while long gen was still yielding
     assert close_pipe_yielding is True
