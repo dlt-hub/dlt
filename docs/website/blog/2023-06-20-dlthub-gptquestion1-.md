@@ -1,6 +1,6 @@
 ---
 slug: trained-gpt-q&a
-title: "Hey gpt, tell me about my dlthub!"
+title: "Hey gpt, tell me about dlthub!"
 image: /img/traingptblog.jpg
 authors:
   name: Tong Chen
@@ -14,7 +14,7 @@ Hi there! 👋
 
 In this article, we tried to ask chatgpt some questions about `dlt` , the open source library. Questions include some basic introduction, random fun questions and advanced `dlt`  project processes. Let’s see how it gave us answers! 
        
-### 💡 Who can use `dlt`?
+#### 💡 Who can use `dlt`?
 >`dlt` is designed to be accessible and useful for various roles within a data team, including:
 >
 > 1. Data professionals and aspiring data professionals who want to showcase their understanding and value to data teams. They can use `dlt` to build end-to-end projects, load data to databases, transform data, and prepare reporting. Read more in the Data Beginner guide.
