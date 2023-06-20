@@ -1,6 +1,9 @@
 import os
 from typing import Any, Iterator, List
 
+import pickle
+import sqlglot.expressions as exp
+
 from dlt.common.destination.reference import LoadJob, FollowupJob, TLoadJobState
 from dlt.common.schema.typing import TTableSchema, TWriteDisposition
 from dlt.common.storages import FileStorage
@@ -31,41 +34,16 @@ class InsertValuesLoadJob(LoadJob, FollowupJob):
     def _insert(self, qualified_table_name: str, write_disposition: TWriteDisposition, file_path: str) -> Iterator[List[str]]:
         # WARNING: maximum redshift statement is 16MB https://docs.aws.amazon.com/redshift/latest/dg/c_redshift-sql.html
         # the procedure below will split the inserts into max_query_length // 2 packs
-        with FileStorage.open_zipsafe_ro(file_path, "r", encoding="utf-8") as f:
-            header = f.readline()
-            values_mark = f.readline()
-            # properly formatted file has a values marker at the beginning
-            assert values_mark == "VALUES\n"
-
-            insert_sql = []
+        with FileStorage.open_zipsafe_ro(file_path, "rb") as f:
+            ast: exp.Insert = pickle.load(f)
+            ast.find(exp.Placeholder).replace(exp.to_table(qualified_table_name))
+            ast.args["expression"] # <- this is the SELECT ... FROM VALUES, TODO: we should split it into chunks if needed
+            stmt = []
             if write_disposition == "replace":
-                insert_sql.append("DELETE FROM {};".format(qualified_table_name))
-            while content := f.read(self._sql_client.capabilities.max_query_length // 2):
-                # write INSERT
-                insert_sql.extend([header.format(qualified_table_name), values_mark, content])
-                # read one more line in order to
-                # 1. complete the content which ends at "random" position, not an end line
-                # 2. to modify its ending without a need to re-allocating the 8MB of "content"
-                until_nl = f.readline()
-                # if until next line contains just '\n' try to take another line so we can finish content properly
-                # TODO: write test for this case (content ends with ",")
-                if until_nl == "\n":
-                    until_nl = f.readline()
-                until_nl = until_nl.strip("\n")
-                # if there was anything left, until_nl contains the last line
-                is_eof = len(until_nl) == 0 or until_nl[-1] == ";"
-                if not is_eof:
-                    # print(f'replace the "," with " {until_nl} {len(insert_sql)}')
-                    until_nl = until_nl[:-1] + ";"
-                # actually this may be empty if we were able to read a full file into content
-                if until_nl:
-                    insert_sql.append(until_nl)
-                if not is_eof:
-                    # execute chunk of insert
-                    yield insert_sql
-                    insert_sql = []
-        if insert_sql:
-            yield insert_sql
+                exp.delete(qualified_table_name)
+                stmt.append(exp.delete(qualified_table_name).sql(dialect="duckdb"))
+            stmt.append(ast.sql(dialect="duckdb"))  # TODO: we should really have destination name to derive the right dialect
+            yield stmt
 
 
 class InsertValuesJobClient(SqlJobClientBase):

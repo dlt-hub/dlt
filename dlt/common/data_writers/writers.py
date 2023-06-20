@@ -1,7 +1,10 @@
 import abc
-# import jsonlines
+import pickle
+
+import sqlglot.expressions as exp
+
 from dataclasses import dataclass
-from typing import Any, Dict, Sequence, IO, Type
+from typing import Any, Dict, List, Sequence, IO, Type
 
 from dlt.common import json
 from dlt.common.typing import StrAny
@@ -117,58 +120,75 @@ class JsonlListPUAEncodeWriter(JsonlWriter):
         )
 
 
+SCT_TO_AST = {
+    "text": exp.DataType.build("text"),
+    "double": exp.DataType.build("double"),
+    "bool": exp.DataType.build("bool"),
+    "timestamp": exp.DataType.build("timestamp"),
+    "bigint": exp.DataType.build("bigint"),
+    "binary": exp.DataType.build("binary"),
+    "complex": exp.DataType.build("json"),
+    "decimal": exp.DataType.build("decimal"),
+    "wei": exp.DataType.build("decimal(38,9)"),
+    "date": exp.DataType.build("date"),
+}
+
+
 class InsertValuesWriter(DataWriter):
 
     def __init__(self, f: IO[Any], caps: DestinationCapabilitiesContext = None) -> None:
         super().__init__(f, caps)
         self._chunks_written = 0
         self._headers_lookup: Dict[str, int] = None
+        self._columns_to_types: Dict[str, int] = None
+        self._batch: List[Any] = []
 
     def write_header(self, columns_schema: TTableSchemaColumns) -> None:
         assert self._chunks_written == 0
         assert columns_schema is not None, "column schema required"
-        headers = columns_schema.keys()
-        # dict lookup is always faster
+        headers = list(columns_schema.keys())  # List ensures deterministic order
         self._headers_lookup = {v: i for i, v in enumerate(headers)}
-        # do not write INSERT INTO command, this must be added together with table name by the loader
-        self._f.write("INSERT INTO {}(")
-        self._f.write(",".join(map(self._caps.escape_identifier, headers)))
-        self._f.write(")\nVALUES\n")
+        self._columns_to_types = [(column, SCT_TO_AST[meta["data_type"]]) for column, meta in columns_schema.items()]
 
     def write_data(self, rows: Sequence[Any]) -> None:
         super().write_data(rows)
-
-        def write_row(row: StrAny) -> None:
-            output = ["NULL"] * len(self._headers_lookup)
-            for n,v  in row.items():
-                output[self._headers_lookup[n]] = self._caps.escape_literal(v)
-            self._f.write("(")
-            self._f.write(",".join(output))
-            self._f.write(")")
-
-        # if next chunk add separator
-        if self._chunks_written > 0:
-            self._f.write(",\n")
-
-        # write rows
-        for row in rows[:-1]:
-            write_row(row)
-            self._f.write(",\n")
-
-        # write last row without separator so we can write footer eventually
-        write_row(rows[-1])
+        row: StrAny
+        for row in rows:
+            output = [None] * len(self._headers_lookup)
+            for n, v in row.items():
+                ix = self._headers_lookup[n]
+                if self._columns_to_types[ix][1] is SCT_TO_AST["complex"]:
+                    v = json.dumps(v)
+                output[ix] = v
+            self._batch.append(tuple(output))
         self._chunks_written += 1
 
     def write_footer(self) -> None:
         assert self._chunks_written > 0
-        self._f.write(";")
+        casted_columns = [
+            exp.alias_(
+                exp.cast(column, to=data_type),
+                column,
+                copy=False,
+            )
+            for column, data_type in self._columns_to_types
+        ]
+        values_exp = exp.values(self._batch, alias="data", columns=dict(self._columns_to_types))
+        pickle.dump(
+            exp.Insert(
+                this=exp.Placeholder(),
+                expression=exp.select(*casted_columns).from_(values_exp)
+            ),
+            self._f,
+        )
+        self._batch.clear()
 
     @classmethod
     def data_format(cls) -> TFileFormatSpec:
         return TFileFormatSpec(
             "insert_values",
             file_extension="insert_values",
-            is_binary_format=False,
+            is_binary_format=True,
             supports_schema_changes=False,
             supports_compression=True,
             requires_destination_capabilities=True,
