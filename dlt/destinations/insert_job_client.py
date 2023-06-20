@@ -39,9 +39,14 @@ class InsertValuesLoadJob(LoadJob, FollowupJob):
             ast.find(exp.Placeholder).replace(exp.to_table(qualified_table_name))
             ast.args["expression"] # <- this is the SELECT ... FROM VALUES, TODO: we should split it into chunks if needed
             stmt = []
+            # TODO: we should really have destination name to derive the right dialect, this is a hack
+            if type(self._sql_client).__name__ == "DuckDbSqlClient":
+                dialect = "duckdb"
+            else:
+                dialect = "postgres" 
             if write_disposition == "replace":
-                stmt.append(exp.delete(qualified_table_name).sql(dialect="duckdb"))
-            stmt.append(ast.sql(dialect="duckdb"))  # TODO: we should really have destination name to derive the right dialect
+                stmt.append(exp.delete(qualified_table_name).sql(dialect=dialect) + ";")
+            stmt.append(ast.sql(dialect=dialect) + ";")
             yield stmt
 
 
