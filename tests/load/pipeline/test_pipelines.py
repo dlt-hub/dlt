@@ -271,8 +271,9 @@ def test_evolve_schema(destination_name: str) -> None:
 def test_pipeline_data_writer_compression(disable_compression: bool, any_destination: str) -> None:
     # Ensure pipeline works without compression
     data = ["a", "b", "c"]
+    dataset_name = "compression_data_"+ uniq_id()
     dlt.config["data_writer"] = {"disable_compression": disable_compression}  # not sure how else to set this
-    p = dlt.pipeline(pipeline_name="compression_test", destination=any_destination)
+    p = dlt.pipeline(pipeline_name="compression_test", destination=any_destination, dataset_name=dataset_name)
     p.extract(dlt.resource(data, name="data"))
     s = p._get_normalize_storage()
     # check that files are not compressed if compression is disabled

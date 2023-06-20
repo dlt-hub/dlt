@@ -64,3 +64,7 @@ def pytest_configure(config):
     # disable sqlfluff logging
     for log in ["sqlfluff.parser", "sqlfluff.linter", "sqlfluff.templater", "sqlfluff.lexer"]:
         logging.getLogger(log).setLevel("ERROR")
+
+    # disable snowflake logging
+    for log in ["snowflake.connector.cursor", "snowflake.connector.connection"]:
+        logging.getLogger(log).setLevel("ERROR")
