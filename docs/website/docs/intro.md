@@ -55,13 +55,13 @@ Read more about use cases by persona here: [User guides](user-guides)
 
 ## Getting started with `dlt`
 
-1. Play with the [Google Colab demo](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing). This is the simplest way you could use dlt. You can review
+1. Play with the [Google Colab demo](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing). This is the simplest way you could use dlt.
 2. Read the docs on [building a pipeline, warehouse or lake with dlt](getting-started) or [using the existing pipelines](dlt-ecosystem/verified-sources).
 3. Send the [user guides](user-guides) to the rest of your team and discuss use cases.
 4. Ask us on [slack](https://join.slack.com/t/dlthub-community/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g) if you have any questions about use cases or the library.
 
 
 ## Become part of the `dlt` community
-1. Give the library a ⭐ and check out the code on [GitHub](https://github.com/dlt-hub/dlt)
-2. Ask questions and share how you use the library on [Slack](https://join.slack.com/t/dlthub-community/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g)
-3. Report problems and make feature requests [here](https://github.com/dlt-hub/dlt/issues/new)
+1. Give the library a ⭐ and check out the code on [GitHub](https://github.com/dlt-hub/dlt).
+2. Ask questions and share how you use the library on [Slack](https://join.slack.com/t/dlthub-community/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g).
+3. Report problems and make feature requests [here](https://github.com/dlt-hub/dlt/issues/new).
