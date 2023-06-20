@@ -37,12 +37,7 @@ To deploy the pipeline, we'll use the Google Cloud Source Repositories method.
       return "Pipeline run successfull!"
     ```
     By default, Google Cloud Functions looks for the main.py file in the main directory, and we called the `load_databases()` function from notion_pipeline.py as shown above.
-6. In requirements.txt, add the following packages needed to run the pipeline, requirements.txt should look like:
-   
-   ```text
-   dlt[bigquery]
-   dlt
-   ```
+6. If you need any additional dependencies, add them to `requirements.txt` that got created.
 
 ## 2. Deploying GCP Cloud Function
 In a shell editor, navigate to the main directory where the "main.py" file is located and run the following command in the terminal
@@ -63,7 +58,7 @@ Environmental variables can be declared in the Cloud Function in two ways:
 
 - Go to the Google Cloud Function and select the deployed function. Click 'EDIT'.
 - Navigate to the 'BUILD' tab and click 'ADD VARIABLE' under 'BUILD ENVIRONMENTAL VARIABLE'.
-- Enter a name for the variable that corresponds to the argument required by the pipeline. Make sure to capitalise the variable name if it is specified in "secrets.toml". For example, if the variable name is api_key, set the variable name to "API_KEY".
+- Enter a name for the variable that corresponds to the argument required by the pipeline. Make sure to capitalise the variable name if it is specified in "secrets.toml". For example, if the variable name is `api_key`, set the variable name to "API_KEY".
 - Enter the value for the Notion API key.
 - Click Next and deploy the function.
 
@@ -75,9 +70,7 @@ Environmental variables can be declared in the Cloud Function in two ways:
 - Set the 'Reference method' to 'Mounted as environment variable'.
 - In the 'Environment Variable' field, enter the name of the environment variable that corresponds to the argument required by the pipeline. (Remember to capitalize the variable name if it is required by the pipeline and specified in secrets.toml. For example, if the variable name is api_key, you would declare the environment variable as "API_KEY".)
 - Finally, click 'DEPLOY' to deploy the function. The HTTP trigger will now successfully execute the pipeline each time the URL is triggered.
-
-
-> Create the secret and choose a suitable name. Add "Notion API key" to the secret values. Assign the `Secret Manager Secret Accessor` role to the service account used to deploy the cloud function. Typically, this is the default service account associated with the Google Project in which the function is being created.
+- Assign the `Secret Manager Secret Accessor` role to the service account used to deploy the cloud function. Typically, this is the default service account associated with the Google Project in which the function is being created.
 
 ## 4. Monitor (and manually trigger) the cloud function
 To manually trigger the created function, you can open the trigger URL created by the Cloud function in the address bar. The message "Pipeline run successful!" would mean that the pipeline was successfully run and the data was successfully loaded into the destination.
