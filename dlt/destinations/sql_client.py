@@ -3,7 +3,7 @@ from contextlib import contextmanager
 from functools import wraps
 import inspect
 from types import TracebackType
-from typing import Any, ClassVar, ContextManager, Generic, Iterator, Optional, Sequence, Tuple, Type, AnyStr
+from typing import Any, ClassVar, ContextManager, Generic, Iterator, Optional, Sequence, Tuple, Type, AnyStr, List
 
 from dlt.common.typing import TFun
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -65,15 +65,14 @@ class SqlClientBase(ABC, Generic[TNativeConn]):
         pass
 
     def truncate_tables(self, *tables: str) -> None:
-        sql = ";\n".join(f"TRUNCATE TABLE {self.make_qualified_table_name(t)}" for t in tables)
-        self.execute_sql(sql)
+        statements = [f"TRUNCATE TABLE {self.make_qualified_table_name(t)};" for t in tables]
+        self.execute_fragments(statements)
 
     def drop_tables(self, *tables: str) -> None:
         if not tables:
             return
-        clauses = (f"DROP TABLE IF EXISTS {self.make_qualified_table_name(table)}" for table in tables)
-        sql = ";\n".join(clauses)
-        self.execute_sql(sql)
+        statements = [f"DROP TABLE IF EXISTS {self.make_qualified_table_name(table)};" for table in tables]
+        self.execute_fragments(statements)
 
     @abstractmethod
     def execute_sql(self, sql: AnyStr, *args: Any, **kwargs: Any) -> Optional[Sequence[Sequence[Any]]]:
@@ -96,6 +95,11 @@ class SqlClientBase(ABC, Generic[TNativeConn]):
         if escape:
             table_name = self.capabilities.escape_identifier(table_name)
         return f"{self.fully_qualified_dataset_name(escape=escape)}.{table_name}"
+
+    def escape_column_name(self, column_name: str, escape: bool = True) -> str:
+        if escape:
+            return self.capabilities.escape_identifier(column_name)
+        return column_name
 
     @contextmanager
     def with_alternative_dataset_name(self, dataset_name: str) -> Iterator["SqlClientBase[TNativeConn]"]:
@@ -149,10 +153,13 @@ class DBApiCursorImpl(DBApiCursor):
     def __getattr__(self, name: str) -> Any:
         return getattr(self.native_cursor, name)
 
+    def _get_columns(self) -> List[str]:
+        return [c[0] for c in self.native_cursor.description]
+
     def df(self, chunk_size: int = None, **kwargs: Any) -> Optional[DataFrame]:
         from dlt.helpers.pandas_helper import _wrap_result
 
-        columns = [c[0] for c in self.native_cursor.description]
+        columns = self._get_columns()
         if chunk_size is None:
             return _wrap_result(self.native_cursor.fetchall(), columns, **kwargs)
         else:

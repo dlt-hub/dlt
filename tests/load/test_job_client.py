@@ -50,6 +50,11 @@ def duckdb_client() -> Iterator[SqlJobClientBase]:
     yield from yield_client_with_storage("duckdb")
 
 
+@pytest.fixture(scope='function')
+def snowflake_client() -> Iterator[SqlJobClientBase]:
+    yield from yield_client_with_storage('snowflake')
+
+
 @pytest.fixture(scope="function")
 def client(request) -> SqlJobClientBase:
     yield request.getfixturevalue(request.param)
@@ -353,13 +358,14 @@ def test_preserve_column_order(client: SqlJobClientBase) -> None:
     def _assert_columns_order(sql_: str) -> None:
         idx = 0
         for c in columns:
+            col_name = client.capabilities.escape_identifier(c["name"])
             # find column names
-            idx = sql_.find(c["name"], idx)
-            assert idx > 0, f"column {c['name']} not found in script"
+            idx = sql_.find(col_name, idx)
+            assert idx > 0, f"column {col_name} not found in script"
 
-    sql = client._get_table_update_sql(table_name, columns, generate_alter=False)
+    sql = ';'.join(client._get_table_update_sql(table_name, columns, generate_alter=False))
     _assert_columns_order(sql)
-    sql = client._get_table_update_sql(table_name, columns, generate_alter=True)
+    sql = ';'.join(client._get_table_update_sql(table_name, columns, generate_alter=True))
     _assert_columns_order(sql)
 
 
@@ -607,7 +613,7 @@ def test_many_schemas_single_dataset(destination_name: str, file_storage: FileSt
         client.schema.bump_version()
         with pytest.raises(DatabaseException) as py_ex:
             client.update_storage_schema()
-        assert "mandatory_column" in str(py_ex.value) or "NOT NULL" in str(py_ex.value) or "Adding columns with constraints not yet supported" in str(py_ex.value)
+        assert "mandatory_column" in str(py_ex.value).lower() or "NOT NULL" in str(py_ex.value) or "Adding columns with constraints not yet supported" in str(py_ex.value)
 
 
 def prepare_schema(client: SqlJobClientBase, case: str) -> None:

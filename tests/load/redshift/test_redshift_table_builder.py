@@ -34,7 +34,7 @@ def test_configuration() -> None:
 
 def test_create_table(client: RedshiftClient) -> None:
     # non existing table
-    sql = client._get_table_update_sql("event_test_table", TABLE_UPDATE, False)
+    sql = ';'.join(client._get_table_update_sql("event_test_table", TABLE_UPDATE, False))
     sqlfluff.parse(sql, dialect="redshift")
     assert "event_test_table" in sql
     assert '"col1" bigint  NOT NULL' in sql
@@ -51,7 +51,7 @@ def test_create_table(client: RedshiftClient) -> None:
 
 def test_alter_table(client: RedshiftClient) -> None:
     # existing table has no columns
-    sql = client._get_table_update_sql("event_test_table", TABLE_UPDATE, True)
+    sql = ';'.join(client._get_table_update_sql("event_test_table", TABLE_UPDATE, True))
     sqlfluff.parse(sql, dialect="redshift")
     canonical_name = client.sql_client.make_qualified_table_name("event_test_table")
     # must have several ALTER TABLE statements
@@ -76,7 +76,7 @@ def test_create_table_with_hints(client: RedshiftClient) -> None:
     mod_update[0]["sort"] = True
     mod_update[1]["cluster"] = True
     mod_update[4]["cluster"] = True
-    sql = client._get_table_update_sql("event_test_table", mod_update, False)
+    sql = ';'.join(client._get_table_update_sql("event_test_table", mod_update, False))
     sqlfluff.parse(sql, dialect="redshift")
     # PRIMARY KEY will not be present https://heap.io/blog/redshift-pitfalls-avoid
     assert '"col1" bigint SORTKEY NOT NULL' in sql
