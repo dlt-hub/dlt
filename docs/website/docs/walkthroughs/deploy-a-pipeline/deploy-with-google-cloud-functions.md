@@ -26,7 +26,7 @@ To deploy the pipeline, we'll use the Google Cloud Source Repositories method.
       dlt init notion bigquery
       ```
     
-    - After running the command, new files and folders will be created in the main directory where the command was executed. These files and folders will contain the necessary files and configurations.
+    - After the command is executed, new files and folders with the necessary configurations are created in the main directory where the command was executed.
     - Detailed information about initialising a verified source and a pipeline example can be found in the `dlthub` [documentation](https://dlthub.com/docs/dlt-ecosystem/verified-sources/notion).
 5. Create a new Python file called "main.py" in the main directory. The file can be configured as follows
     ```python
@@ -37,6 +37,12 @@ To deploy the pipeline, we'll use the Google Cloud Source Repositories method.
       return "Pipeline run successfull!"
     ```
     By default, Google Cloud Functions looks for the main.py file in the main directory, and we called the `load_databases()` function from notion_pipeline.py as shown above.
+6. In requirements.txt, add the following packages needed to run the pipeline, requirements.txt should look like:
+   
+   ```text
+   dlt[bigquery]
+   dlt
+   ```
 
 ## 2. Deploying GCP Cloud Function
 In a shell editor, navigate to the main directory where the "main.py" file is located and run the following command in the terminal
