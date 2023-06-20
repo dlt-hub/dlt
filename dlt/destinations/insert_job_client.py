@@ -40,7 +40,6 @@ class InsertValuesLoadJob(LoadJob, FollowupJob):
             ast.args["expression"] # <- this is the SELECT ... FROM VALUES, TODO: we should split it into chunks if needed
             stmt = []
             if write_disposition == "replace":
-                exp.delete(qualified_table_name)
                 stmt.append(exp.delete(qualified_table_name).sql(dialect="duckdb"))
             stmt.append(ast.sql(dialect="duckdb"))  # TODO: we should really have destination name to derive the right dialect
             yield stmt

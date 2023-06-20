@@ -4,7 +4,7 @@ import pickle
 import sqlglot.expressions as exp
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Sequence, IO, Type
+from typing import Any, Dict, List, Sequence, IO, Tuple, Type
 
 from dlt.common import json
 from dlt.common.typing import StrAny
@@ -140,7 +140,7 @@ class InsertValuesWriter(DataWriter):
         super().__init__(f, caps)
         self._chunks_written = 0
         self._headers_lookup: Dict[str, int] = None
-        self._columns_to_types: Dict[str, int] = None
+        self._columns_to_types: List[Tuple[str, exp.DataType]] = None
         self._batch: List[Any] = []
 
     def write_header(self, columns_schema: TTableSchemaColumns) -> None:
