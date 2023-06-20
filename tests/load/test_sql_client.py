@@ -44,6 +44,11 @@ def duckdb_client() -> Iterator[SqlJobClientBase]:
     yield from yield_client_with_storage("duckdb")
 
 
+@pytest.fixture(scope='function')
+def snowflake_client() -> Iterator[SqlJobClientBase]:
+    yield from yield_client_with_storage('snowflake')
+
+
 @pytest.fixture(scope="function")
 def client(request) -> SqlJobClientBase:
     yield request.getfixturevalue(request.param)
@@ -193,6 +198,8 @@ def test_execute_df(client: SqlJobClientBase) -> None:
     client.sql_client.execute_sql(f"INSERT INTO tmp_{uniq_suffix} VALUES {insert_query};")
     with client.sql_client.execute_query(f"SELECT * FROM tmp_{uniq_suffix} ORDER BY col ASC") as curr:
         df = curr.df()
+        # Force lower case df columns, snowflake has all cols uppercase
+        df.columns = [dfcol.lower() for dfcol in df.columns]
         assert list(df["col"]) == list(range(0, total_records))
     # get chunked
     with client.sql_client.execute_query(f"SELECT * FROM tmp_{uniq_suffix} ORDER BY col ASC") as curr:
@@ -200,6 +207,11 @@ def test_execute_df(client: SqlJobClientBase) -> None:
         df_1 = curr.df(chunk_size=chunk_size)
         df_2 = curr.df(chunk_size=chunk_size)
         df_3 = curr.df(chunk_size=chunk_size)
+        # Force lower case df columns, snowflake has all cols uppercase
+        for df in [df_1, df_2, df_3]:
+            if df is not None:
+                df.columns = [dfcol.lower() for dfcol in df.columns]
+
     assert list(df_1["col"]) == list(range(0, chunk_size))
     assert list(df_2["col"]) == list(range(chunk_size, total_records))
     assert df_3 is None
@@ -386,19 +398,19 @@ def test_recover_on_explicit_tx(client: SqlJobClientBase) -> None:
     assert_load_id(client.sql_client, "ABC")
 
     # syntax error within tx
-    sql = f"BEGIN TRANSACTION;INVERT INTO {version_table} VALUES(1);COMMIT TRANSACTION;"
+    statements = ["BEGIN TRANSACTION;", f"INVERT INTO {version_table} VALUES(1);", "COMMIT;"]
     with pytest.raises(DatabaseTransientException):
-        client.sql_client.execute_sql(sql)
+        client.sql_client.execute_fragments(statements)
     # assert derives_from_class_of_name(term_ex.value.dbapi_exception, "ProgrammingError")
     assert client.get_newest_schema_from_storage() is not None
     client.complete_load("EFG")
     assert_load_id(client.sql_client, "EFG")
 
     # wrong value inserted
-    sql = f"BEGIN TRANSACTION;INSERT INTO {version_table}(version) VALUES(1);COMMIT TRANSACTION;"
+    statements = ["BEGIN TRANSACTION;", f"INSERT INTO {version_table}(version) VALUES(1);", "COMMIT;"]
     # cannot insert NULL value
     with pytest.raises(DatabaseTerminalException):
-        client.sql_client.execute_sql(sql)
+        client.sql_client.execute_fragments(statements)
     # assert derives_from_class_of_name(term_ex.value.dbapi_exception, "IntegrityError")
     # assert isinstance(term_ex.value.dbapi_exception, (psycopg2.InternalError, psycopg2.))
     assert client.get_newest_schema_from_storage() is not None

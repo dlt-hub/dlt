@@ -276,7 +276,7 @@ def generate_pip_freeze(requirements_blacklist: List[str], requirements_file_nam
 
     # prepare new filtered DAG
     tree = tree.sort()
-    tree = tree.filter(includes, None)
+    tree = tree.filter_nodes(includes, None)
     nodes = tree.keys()
     branch_keys = {r.key for r in chain.from_iterable(tree.values())}
     nodes = [p for p in nodes if p.key not in branch_keys]

@@ -58,8 +58,8 @@ def write_value(
     # skip if table contains the name already
     if name in toml_table and not overwrite_existing:
         return
-    # do not dump final fields
-    if is_final_type(hint) or is_optional_type(hint):
+    # do not dump final and optional fields if they are not of special interest
+    if (is_final_type(hint) or is_optional_type(hint) or default_value is not None) and not is_default_of_interest:
         return
     # get the inner hint to generate cool examples
     hint = extract_inner_hint(hint)
@@ -71,11 +71,12 @@ def write_value(
     else:
         if default_value is None:
             example_value = generate_typed_example(name, hint)
+            print(f"{name} -> {example_value}")
             toml_table[name] = example_value
             # tomlkit not supporting comments on boolean
             if not isinstance(example_value, bool):
                 toml_table[name].comment("please set me up!")
-        elif is_default_of_interest:
+        else:
             toml_table[name] = default_value
 
 
@@ -84,6 +85,7 @@ def write_spec(toml_table: TOMLTable, config: BaseConfiguration, overwrite_exist
         default_value = getattr(config, name, None)
         # check if field is of particular interest and should be included if it has default
         is_default_of_interest = name in config.__config_gen_annotations__
+        print(name)
         write_value(toml_table, name, hint, overwrite_existing, default_value=default_value, is_default_of_interest=is_default_of_interest)
 
 

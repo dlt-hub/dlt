@@ -1,7 +1,21 @@
-# GPT-accelerated learning: Understanding open source codebases
+---
+slug: training-gpt-with-opensource-codebases
+title: "GPT-accelerated learning: Understanding open source codebases"
+image: /img/blog_gpt_1.jpg
+authors:
+  name: Tong Chen
+  title: Data Engineer Intern at dltHub
+  url: https://github.com/TongHere
+  image_url: https://iili.io/HP9uKIn.jpg
+tags: [gpt-4, langchain, ELT]
+---
 
+:::info 
 
-#### 💡Colab demo : https://colab.research.google.com/drive/1KU1G_08Yihh5p-o1BsCuhA1OkH5zwgkf?usp=sharing
+Check out the accompanying colab demo
+💡[Google Colaboratory demo](https://colab.research.google.com/drive/1KU1G_08Yihh5p-o1BsCuhA1OkH5zwgkf?usp=sharing)
+:::
+
 ---
 
 Hi there! 👋

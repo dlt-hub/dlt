@@ -31,6 +31,7 @@ So, let’s look at the use cases for major technologies:
     - **Snowflake**: Snowflake is fast and requires minimal maintenance. Its extra functionalities make it particularly friendly for people who come from enterprise solutions. It's easier to manage than Redshift, but offers less flexibility than BigQuery. **It caters to people who spend most of their time working with SQL.**
     - **Redshift**: The first MPP database among the ones we discuss. Launched in 2012, it follows an old paradigm, where the data engineer needs to manage how data is distributed between nodes - failure to do so degrades performance 100x. **The use case for Redshift is heavy read and processing**, because you rent compute resources that are always running, so you might as well utilise them. We do not recommend starting new projects on Redshift unless you understand the type of maintenance you will need to perform.
     - **Trino**: The open source alternative. Trino does not store data, but only queries it. It’s cheaper than the rest, if you have the internal resources to run it. It also has some features that only open source software would have, such as federated database access that allows you to integrate with other storage solutions and query the data directly. Trino originates out of Facebook’s Presto.
+    - **Azure Synapse Analytics**: This is suitable for professionals in the Microsoft ecosystem who do not want to use an independent vendor or open source.
 
 ### Choosing an orchestrator
 

@@ -31,12 +31,20 @@ def test_write_value(example_toml):
     assert "population" in toml_table
 
     # Test with optional hint
-    write_value(toml_table, "habitat", Optional[str], overwrite_existing=True, is_default_of_interest=True)
+    write_value(toml_table, "habitat", Optional[str], overwrite_existing=True, is_default_of_interest=False)
     assert "habitat" not in toml_table
 
+    # test with optional hint of interest
+    write_value(toml_table, "habitat", Optional[str], overwrite_existing=True, is_default_of_interest=True)
+    assert "habitat" in toml_table
+
     # Test with final hint
-    write_value(toml_table, "immutable_trait", Final[str], overwrite_existing=True, is_default_of_interest=True)
+    write_value(toml_table, "immutable_trait", Final[str], overwrite_existing=True, is_default_of_interest=False)
     assert "immutable_trait" not in toml_table
+
+    # Test with final hint of interest
+    write_value(toml_table, "immutable_trait", Final[str], overwrite_existing=True, is_default_of_interest=True)
+    assert "immutable_trait" in toml_table
 
 
 def test_write_values(example_toml):
