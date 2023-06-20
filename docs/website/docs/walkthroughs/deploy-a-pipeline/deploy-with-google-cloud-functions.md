@@ -26,7 +26,7 @@ To deploy the pipeline, we'll use the Google Cloud Source Repositories method.
       dlt init notion bigquery
       ```
     
-    - After running the command, new files and folders will be created in the main directory where the above command was executed, with the necessary files and configurations.
+    - After running the command, new files and folders will be created in the main directory where the command was executed. These files and folders will contain the necessary files and configurations.
     - Detailed information about initialising a verified source and a pipeline example can be found in the `dlthub` [documentation](https://dlthub.com/docs/dlt-ecosystem/verified-sources/notion).
 5. Create a new Python file called "main.py" in the main directory. The file can be configured as follows
     ```python
@@ -46,6 +46,8 @@ In a shell editor, navigate to the main directory where the "main.py" file is lo
         
 - This command uses a function called "pipeline_notion" with Python 3.10 as the runtime environment, an HTTP trigger, and allows unauthenticated access. The source "." refers to all files in the directory. The timeout is set to 5 minutes (300 seconds).
 - If you are uploading a large number of files to the destination, you can increase this to 60 minutes for HTTP functions. 10 minutes for event-driven functions. To learn more about the function timeout, see the [documentation here.](https://cloud.google.com/functions/docs/configuring/timeout).
+
+
 > Your project has a default service account associated with the project ID. Please assign the `Cloud Functions Developer` role to the associated service account.
   
 ## 3. Setting up environmental variables in the Cloud Function
@@ -67,6 +69,8 @@ Environmental variables can be declared in the Cloud Function in two ways:
 - Set the 'Reference method' to 'Mounted as environment variable'.
 - In the 'Environment Variable' field, enter the name of the environment variable that corresponds to the argument required by the pipeline. (Remember to capitalize the variable name if it is required by the pipeline and specified in secrets.toml. For example, if the variable name is api_key, you would declare the environment variable as "API_KEY".)
 - Finally, click 'DEPLOY' to deploy the function. The HTTP trigger will now successfully execute the pipeline each time the URL is triggered.
+
+
 > Create the secret and choose a suitable name. Add "Notion API key" to the secret values. Assign the `Secret Manager Secret Accessor` role to the service account used to deploy the cloud function. Typically, this is the default service account associated with the Google Project in which the function is being created.
 
 ## 4. Monitor (and manually trigger) the cloud function
