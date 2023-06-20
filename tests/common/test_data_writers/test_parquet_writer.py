@@ -2,11 +2,15 @@ import os
 import pytest
 import pyarrow.parquet as pq
 from dlt.common.arithmetics import Decimal
+from dlt.common.configuration import inject_section
 
 from dlt.common.data_writers.buffered import BufferedDataWriter
-from dlt.common.data_writers.exceptions import BufferedDataWriterClosed
 from dlt.common.destination import TLoaderFileFormat, DestinationCapabilitiesContext
 from dlt.common.schema.utils import new_column
+from dlt.common.data_writers.writers import ParquetDataWriterConfiguration
+from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
+
+from dlt.common.configuration.container import Container
 
 from dlt.common.typing import DictStrAny
 
@@ -142,3 +146,19 @@ def test_parquet_writer_size_file_rotation() -> None:
     with open(writer.closed_files[4], "rb") as f:
         table = pq.read_table(f)
         assert table.column("col1").to_pylist() == list(range(16, 20))
+
+def test_parquet_writer_config() -> None:
+
+    os.environ["NORMALIZE__DATA_WRITER__VERSION"] = "2.0"
+    os.environ["NORMALIZE__DATA_WRITER__DATA_PAGE_SIZE"] =  str(1024 * 512)
+
+    with inject_section(ConfigSectionContext(pipeline_name=None, sections=("normalize", "data_writer",))):
+        with get_writer("parquet", file_max_bytes=2**8, buffer_max_items=2) as writer:
+            for i in range(0, 5):
+                writer.write_data_item([{"col1": i}], {"col1": new_column("col1", "bigint")})
+            # force the parquet writer to be created
+            writer._flush_items()
+
+            # flavor can't be testet
+            assert writer._writer.parquet_version == "2.0"
+            assert writer._writer.parquet_data_page_size == 1024 * 512

@@ -115,7 +115,3 @@ def test_string_literal_escape_unicode() -> None:
     assert escape_redshift_literal("イロハニホヘト チリヌルヲ ワカヨタレソ ツネナラム") == "'イロハニホヘト チリヌルヲ ワカヨタレソ ツネナラム'"
     assert escape_redshift_identifier("ąćł\"") == '"ąćł"""'
     assert escape_redshift_identifier("イロハニホヘト チリヌルヲ \"ワカヨタレソ ツネナラム") == '"イロハニホヘト チリヌルヲ ""ワカヨタレソ ツネナラム"'
-
-
-def test_parquet_writer() -> None:
-    pass

@@ -70,7 +70,7 @@ class DataWriter(abc.ABC):
         elif file_format == "insert_values":
             return InsertValuesWriter
         elif file_format == "parquet":
-            return cast(Type["DataWriter"], ParquetDataWriter) # not sure why the cast is needed?
+            return ParquetDataWriter
         else:
             raise ValueError(file_format)
 
@@ -185,6 +185,7 @@ class ParquetDataWriterConfiguration(BaseConfiguration):
     flavor: str = "spark"
     version: str = "2.4"
     data_page_size: int = 1024 * 1024
+    section: str = known_sections.DATA_WRITER
 
 class ParquetDataWriter(DataWriter):
 
@@ -198,7 +199,7 @@ class ParquetDataWriter(DataWriter):
                  data_page_size: int = 1024 * 1024
                  ) -> None:
         super().__init__(f, caps)
-        from dlt.libs.pyarrow import pyarrow
+        from dlt.common.libs.pyarrow import pyarrow
 
         self.writer: Optional[pyarrow.parquet.ParquetWriter] = None
         self.schema: Optional[pyarrow.Schema] = None
@@ -208,10 +209,7 @@ class ParquetDataWriter(DataWriter):
         self.parquet_data_page_size = data_page_size
 
     def write_header(self, columns_schema: TTableSchemaColumns) -> None:
-        from dlt.libs.pyarrow import pyarrow, get_py_arrow_datatype
-        print("HELLO")
-        print(pyarrow)
-        print(pyarrow.__dict__.keys())
+        from dlt.common.libs.pyarrow import pyarrow, get_py_arrow_datatype
 
         # build schema
         self.schema = pyarrow.schema([pyarrow.field(name, get_py_arrow_datatype(schema_item["data_type"]), nullable=schema_item["nullable"]) for name, schema_item in columns_schema.items()])
@@ -222,12 +220,11 @@ class ParquetDataWriter(DataWriter):
 
     def write_data(self, rows: Sequence[Any]) -> None:
         super().write_data(rows)
-        from dlt.libs.pyarrow import pyarrow
-
+        from dlt.common.libs.pyarrow import pyarrow
 
         # replace complex types with json
-        for row in rows:
-            for key in self.complex_indices:
+        for key in self.complex_indices:
+            for row in rows:
                 if key in row:
                     row[key] = json.dumps(row[key]) if row[key] else row[key]
 

@@ -417,6 +417,8 @@ class Pipeline(SupportsPipeline):
 
             schema (Schema, optional): An explicit `Schema` object in which all table schemas will be grouped. By default `dlt` takes the schema from the source (if passed in `data` argument) or creates a default one itself.
 
+            loader_file_format (Literal["jsonl", "puae-jsonl", "insert_values", "sql", "parquet"], optional). The file format the loader will use to create the load package. Not all file_formats are compatible with all destinations. Defaults to the preferred file format of the selected destination.
+
         ### Raises:
             PipelineStepFailed when a problem happened during `extract`, `normalize` or `load` steps.
         ### Returns:
@@ -683,7 +685,6 @@ class Pipeline(SupportsPipeline):
 
     def _get_load_storage(self) -> LoadStorage:
         caps = self._get_destination_capabilities()
-        # TODO
         return LoadStorage(True, caps.preferred_loader_file_format, caps.supported_loader_file_formats, self._load_storage_config)
 
     def _init_working_dir(self, pipeline_name: str, pipelines_dir: str) -> None:
