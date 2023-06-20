@@ -12,7 +12,7 @@ tags: [trained gpt-4, Q&A, dlt ]
 --- 
 Hi there! 👋
 
-In this article, we tried to ask chatgpt some questions about `dlt` , the open source library. Questions include some basic introduction, random fun questions and advanced `dlt`  project processes. Let’s see how it gave us answers! 
+In this article, we asked ChatGPT questions about `dlt`, the open source library. Questions included some basic introduction, random fun questions, and advanced `dlt`  project processes. Let’s see how it answered our questions! 
        
 #### 💡 Who can use `dlt`?
 >`dlt` is designed to be accessible and useful for various roles within a data team, including:
@@ -65,7 +65,7 @@ In this article, we tried to ask chatgpt some questions about `dlt` , the open s
 >
 >Overall, I would recommend using the tool that best fits your specific use case and requirements, and then using `dlt` to load and transform your data as needed.
 
-#### 💡 How can I use dlt to create a machine learning model?
+#### 💡 How can I use `dlt` to create a machine learning model?
 
 >`dlt` can be used to create machine learning models in the following way:
 >
@@ -83,14 +83,14 @@ In this article, we tried to ask chatgpt some questions about `dlt` , the open s
 
 >I am sorry, but `dlt` is a data loading tool, and it is not related to building beach houses. It is meant to help you automate the process of loading and managing data in your applications. If you have any questions related to data loading or management, I will be happy to help!
  
-#### 💡 If data is the new oil, then what is dlt? newer oil?
+#### 💡 If data is the new oil, then what is `dlt`? newer oil?
 
 >`dlt` is not a type of oil. It is a data loading tool that automates time-consuming tasks, empowers stakeholders to solve pipeline maintenance issues, and offers different levels of abstraction that enable and empower data professionals to build and use pipelines. Its purpose is to make data loading a commodity and to simplify the process of loading data for organizations.
  
 *** 
 #### 💡 Conclusion
 
->We intended to ask Chatgpt different questions about `dlt`hub, and see if there are any misunderstandings. For example : how `dlt` can be intergrated in various use cases and how data team can use `dlt` in different projects? Seems it worked really well and answered our questions percisely based on our documentation and blog! Moreover, when we tried to ask some random questions, chatgpt aslo give us proper answers! Gpt seems really understands what we were trying to communicate with it! 
+>We intended to ask ChatGPT different questions about `dlt` and see if there are any misunderstandings. For example: how `dlt` can be intergrated in various use cases or how data teams can use `dlt` in different projects. Seems it worked really well and answered our questions precisely based on our documentation and blog! Moreover, when we tried to ask some random questions, ChatGPT also gave us proper answers! GPT really seems to understands what we were trying to communicate with it! 
 
 **What questions you would love to ask? Share with us in our [Slack community](https://dlthub-community.slack.com/ssb/redirect) ! See you there 😊**
 
