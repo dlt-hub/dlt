@@ -146,6 +146,7 @@ const sidebars = {
         'user-guides/analytics-engineer',
         'user-guides/data-beginner',
         'user-guides/data-engineer',
+        'user-guides/data-scientist',
         'user-guides/engineering-manager',
       ],
     },
