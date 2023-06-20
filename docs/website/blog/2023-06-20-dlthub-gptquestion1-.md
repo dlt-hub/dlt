@@ -26,12 +26,12 @@ In this article, we tried to ask chatgpt some questions about `dlt` , the open s
 > Overall, `dlt` is suitable for anyone working with data pipelines, from beginners to experienced professionals.
 
 
-### 💡 I am just starting in the data field, how can I use `dlt`?
+#### 💡 I am just starting in the data field, how can I use `dlt`?
 
 > If you are just starting in the data field, `dlt` can be a great tool to help you showcase your understanding and value to data teams. The first step is to get familiar with `dlt` by playing around with the Google Colab demo or installing it on your computer. Once you have `dlt` installed, you can initialize a project and pipeline to load data from an API, transform it, and load it into a database in minutes.
 
 
-### 💡 How can data scientists use `dlt` in data science projects?
+#### 💡 How can data scientists use `dlt` in data science projects?
 
 >Data scientists can use `dlt` in data science projects to easily load and transform data from various sources. `dlt` offers different levels of abstraction that enable and empower data scientists to build and use pipeline.
 >
@@ -42,7 +42,7 @@ In this article, we tried to ask chatgpt some questions about `dlt` , the open s
 
 ***Now, let’s start with some advanced questions:***
 
-### 💡 Is `dlt`  like dbt? How to use `dlt` with dbt? Can you show me the process?
+#### 💡 Is `dlt`  like dbt? How to use `dlt` with dbt? Can you show me the process?
 
 >Yes, `dlt` and `dbt` have similar functionalities, but they differ in their approach and scope. `dlt` is a Python package that helps you load data from various sources and transform it to be ready for analysis. `dbt`, on the other hand, is a SQL transformation tool that allows you to structure and transform your data using SQL. However, you can use `dlt` with `dbt` to create a complete data pipeline from data extraction to transformation and loading. Here is an example process to use `dlt` with `dbt`:
 >
@@ -57,7 +57,7 @@ In this article, we tried to ask chatgpt some questions about `dlt` , the open s
 >
 >Overall, using `dlt` with `dbt` can help you create a complete data pipeline that covers data extraction, transformation, and loading. This can help you streamline your data processes and make it easier to analyze your data.
 
-### 💡 Can I use `dlt` with Streamlit? Or Sheets? Or Power BI? Metabase, Looker? What do you recommend?
+#### 💡 Can I use `dlt` with Streamlit? Or Sheets? Or Power BI? Metabase, Looker? What do you recommend?
 
 >Yes, `dlt`  can be used with Streamlit, Google Sheets, Power BI, Metabase, and Looker. The choice of tool will depend on your specific use case and requirements. For example, if you want to enable business users to explore data and create their own dashboards, then Metabase or Looker might be a good choice. 
 >
@@ -65,7 +65,7 @@ In this article, we tried to ask chatgpt some questions about `dlt` , the open s
 >
 >Overall, I would recommend using the tool that best fits your specific use case and requirements, and then using `dlt` to load and transform your data as needed.
 
-### 💡 How can I use dlt to create a machine learning model?
+#### 💡 How can I use dlt to create a machine learning model?
 
 >`dlt` can be used to create machine learning models in the following way:
 >
@@ -79,16 +79,16 @@ In this article, we tried to ask chatgpt some questions about `dlt` , the open s
 ***Let’s try trolling :)***
 
 
-### 💡 I am tired of lakehouses, can I build a beach house with dlt? or a forest house??
+#### 💡 I am tired of lakehouses, can I build a beach house with dlt? or a forest house??
 
 >I am sorry, but `dlt` is a data loading tool, and it is not related to building beach houses. It is meant to help you automate the process of loading and managing data in your applications. If you have any questions related to data loading or management, I will be happy to help!
  
-### 💡 If data is the new oil, then what is dlt? newer oil?
+#### 💡 If data is the new oil, then what is dlt? newer oil?
 
 >`dlt` is not a type of oil. It is a data loading tool that automates time-consuming tasks, empowers stakeholders to solve pipeline maintenance issues, and offers different levels of abstraction that enable and empower data professionals to build and use pipelines. Its purpose is to make data loading a commodity and to simplify the process of loading data for organizations.
  
 *** 
-### 💡 Conclusion
+#### 💡 Conclusion
 
 >We intended to ask Chatgpt different questions about `dlt`hub, and see if there are any misunderstandings. For example : how `dlt` can be intergrated in various use cases and how data team can use `dlt` in different projects? Seems it worked really well and answered our questions percisely based on our documentation and blog! Moreover, when we tried to ask some random questions, chatgpt aslo give us proper answers! Gpt seems really understands what we were trying to communicate with it! 
 
