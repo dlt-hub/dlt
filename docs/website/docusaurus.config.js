@@ -87,7 +87,7 @@ const config = {
             href: 'https://join.slack.com/t/dlthub-community/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g',
             label: '.',
             position: 'right',
-            className: 'slack-navbar',          
+            className: 'slack-navbar',
           },
           {
             href: 'https://github.com/dlt-hub/dlt',
@@ -177,6 +177,14 @@ const config = {
         respectPrefersColorScheme: true,
       },
     }),
+
+  scripts: [
+    {
+      src: 'https://dlt-static.s3.eu-central-1.amazonaws.com/dhelp.js',
+      async: true,
+      defer: true,
+    },
+  ],
 };
 
 module.exports = config;
