@@ -1,6 +1,6 @@
 ---
 slug: trained-gpt-q&a
-title: "Hey gpt, tell me about dlthub!"
+title: "Hey GPT, tell me about dlthub!"
 image: /img/traingptblog.jpg
 authors:
   name: Tong Chen
