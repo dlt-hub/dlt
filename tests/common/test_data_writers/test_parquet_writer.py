@@ -152,7 +152,7 @@ def test_parquet_writer_config() -> None:
     os.environ["NORMALIZE__DATA_WRITER__VERSION"] = "2.0"
     os.environ["NORMALIZE__DATA_WRITER__DATA_PAGE_SIZE"] =  str(1024 * 512)
 
-    with inject_section(ConfigSectionContext(pipeline_name=None, sections=("normalize", "data_writer",))):
+    with inject_section(ConfigSectionContext(pipeline_name=None, sections=("normalize", ))):
         with get_writer("parquet", file_max_bytes=2**8, buffer_max_items=2) as writer:
             for i in range(0, 5):
                 writer.write_data_item([{"col1": i}], {"col1": new_column("col1", "bigint")})

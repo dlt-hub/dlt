@@ -185,7 +185,8 @@ class ParquetDataWriterConfiguration(BaseConfiguration):
     flavor: str = "spark"
     version: str = "2.4"
     data_page_size: int = 1024 * 1024
-    section: str = known_sections.DATA_WRITER
+
+    __section__: str = known_sections.DATA_WRITER
 
 class ParquetDataWriter(DataWriter):
 
