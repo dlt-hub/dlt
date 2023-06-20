@@ -96,5 +96,5 @@ In this article, we tried to ask chatgpt some questions about `dlt` , the open s
 
 *** 
 [ What's more? ]
-- Learn more about [dlt] 👉 [here](https://dlthub.com/docs/intro) 
+- Learn more about `dlt` 👉 [here](https://dlthub.com/docs/intro) 
 - Give the 👉 [Colab Demo](https://colab.research.google.com/drive/1KU1G_08Yihh5p-o1BsCuhA1OkH5zwgkf?usp=sharing) a try
