@@ -42,6 +42,8 @@ class InsertValuesLoadJob(LoadJob, FollowupJob):
             # TODO: we should really have destination name to derive the right dialect, this is a hack
             if type(self._sql_client).__name__ == "DuckDbSqlClient":
                 dialect = "duckdb"
+            elif type(self._sql_client).__name__ == "RedshiftSqlClient":
+                dialect = "redshift"
             else:
                 dialect = "postgres" 
             if write_disposition == "replace":
