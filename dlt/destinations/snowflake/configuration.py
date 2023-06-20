@@ -46,10 +46,12 @@ class SnowflakeCredentials(ConnectionStringCredentials):
 
     def parse_native_representation(self, native_value: Any) -> None:
         super().parse_native_representation(native_value)
-        if 'warehouse' in self.query:
-            self.warehouse = self.query['warehouse']
-        if 'role' in self.query:
-            self.role = self.query['role']
+        self.warehouse = self.query.get('warehouse')
+        self.role = self.query.get('role')
+        self.private_key = self.query.get('private_key')  # type: ignore
+        self.private_key_passphrase = self.query.get('private_key_passphrase')  # type: ignore
+        if not self.is_partial():
+            self.resolve()
 
     def to_url(self) -> URL:
         query = dict(self.query or {})

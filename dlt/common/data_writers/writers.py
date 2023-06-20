@@ -70,7 +70,7 @@ class DataWriter(abc.ABC):
         elif file_format == "insert_values":
             return InsertValuesWriter
         elif file_format == "parquet":
-            return ParquetDataWriter
+            return ParquetDataWriter  # type: ignore
         else:
             raise ValueError(file_format)
 
