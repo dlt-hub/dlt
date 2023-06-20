@@ -6,6 +6,7 @@ from dlt import version
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.typing import TSecretStrValue
 from dlt.common.configuration.specs import ConnectionStringCredentials
+from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common.configuration import configspec
 from dlt.common.destination.reference import DestinationClientDwhConfiguration
 
@@ -50,8 +51,12 @@ class SnowflakeCredentials(ConnectionStringCredentials):
         self.role = self.query.get('role')
         self.private_key = self.query.get('private_key')  # type: ignore
         self.private_key_passphrase = self.query.get('private_key_passphrase')  # type: ignore
-        if not self.is_partial():
+        if not self.is_partial() and (self.password or self.private_key):
             self.resolve()
+
+    def on_resolved(self) -> None:
+        if not self.password and not self.private_key:
+            raise ConfigurationValueError("Please specify password or private_key. SnowflakeCredentials supports password and private key authentication and one of those must be specified.")
 
     def to_url(self) -> URL:
         query = dict(self.query or {})

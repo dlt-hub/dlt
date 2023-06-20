@@ -1,16 +1,18 @@
+import os
 from typing import Iterator
 import pytest
 
 from dlt.common import pendulum, Wei
-from dlt.common.configuration.resolve import resolve_configuration
+from dlt.common.configuration.resolve import resolve_configuration, ConfigFieldMissingException
 from dlt.common.storages import FileStorage
 from dlt.common.utils import uniq_id
 
 from dlt.destinations.postgres.configuration import PostgresCredentials
 from dlt.destinations.postgres.postgres import PostgresClient, psycopg2
 
-from tests.utils import TEST_STORAGE_ROOT, delete_test_storage, skipifpypy
+from tests.utils import TEST_STORAGE_ROOT, delete_test_storage, skipifpypy, preserve_environ
 from tests.load.utils import expect_load_file, prepare_table, yield_client_with_storage
+from tests.common.configuration.utils import environment
 
 
 @pytest.fixture
@@ -36,6 +38,20 @@ def test_postgres_credentials_defaults() -> None:
     # port should be optional
     resolve_configuration(pg_cred, explicit_value="postgres://loader:loader@localhost/dlt_data")
     assert pg_cred.port == 5432
+
+
+def test_postgres_credentials_native_value(environment) -> None:
+    with pytest.raises(ConfigFieldMissingException):
+        resolve_configuration(PostgresCredentials(), explicit_value="postgres://loader@localhost/dlt_data")
+    # set password via env
+    os.environ["CREDENTIALS__PASSWORD"] = "pass"
+    c = resolve_configuration(PostgresCredentials(), explicit_value="postgres://loader@localhost/dlt_data")
+    assert c.is_resolved()
+    assert c.password == "pass"
+    # but if password is specified - it is final
+    c = resolve_configuration(PostgresCredentials(), explicit_value="postgres://loader:loader@localhost/dlt_data")
+    assert c.is_resolved()
+    assert c.password == "loader"
 
 
 def test_postgres_credentials_timeout() -> None:

@@ -1,17 +1,21 @@
+import os
+import pytest
 from pathlib import Path
+from sqlalchemy.engine import make_url
 
-from sqlalchemy.engine import URL, make_url
+from dlt.common.configuration.resolve import resolve_configuration
+from dlt.common.configuration.exceptions import ConfigurationValueError
 
 from dlt.destinations.snowflake.configuration import SnowflakeClientConfiguration, SnowflakeCredentials
 
+from tests.common.configuration.utils import environment
+
 
 def test_connection_string_with_all_params() -> None:
-    url = "snowflake://user1:pass1@host1/db1?warehouse=warehouse1&role=role1"
+    url = "snowflake://user1:pass1@host1/db1?warehouse=warehouse1&role=role1&private_key=pk&private_key_passphrase=paphr"
 
     creds = SnowflakeCredentials()
-    creds.parse_native_representation(
-        "snowflake://user1:pass1@host1/db1?warehouse=warehouse1&role=role1"
-    )
+    creds.parse_native_representation(url)
 
     assert creds.database == "db1"
     assert creds.username == "user1"
@@ -19,6 +23,8 @@ def test_connection_string_with_all_params() -> None:
     assert creds.host == "host1"
     assert creds.warehouse == "warehouse1"
     assert creds.role == "role1"
+    assert creds.private_key == "pk"
+    assert creds.private_key_passphrase == "paphr"
 
     expected = make_url(url)
 
@@ -51,3 +57,26 @@ def test_to_connector_params() -> None:
         warehouse='warehouse1',
         role='role1',
     )
+
+
+def test_snowflake_credentials_native_value(environment) -> None:
+    with pytest.raises(ConfigurationValueError):
+        resolve_configuration(SnowflakeCredentials(), explicit_value="snowflake://user1@host1/db1?warehouse=warehouse1&role=role1")
+    # set password via env
+    os.environ["CREDENTIALS__PASSWORD"] = "pass"
+    c = resolve_configuration(SnowflakeCredentials(), explicit_value="snowflake://user1@host1/db1?warehouse=warehouse1&role=role1")
+    assert c.is_resolved()
+    assert c.password == "pass"
+    # # but if password is specified - it is final
+    c = resolve_configuration(SnowflakeCredentials(), explicit_value="snowflake://user1:pass1@host1/db1?warehouse=warehouse1&role=role1")
+    assert c.is_resolved()
+    assert c.password == "pass1"
+
+    # set PK via env
+    del os.environ["CREDENTIALS__PASSWORD"]
+    os.environ["CREDENTIALS__PRIVATE_KEY"] = "pk"
+    c = resolve_configuration(SnowflakeCredentials(), explicit_value="snowflake://user1@host1/db1?warehouse=warehouse1&role=role1")
+    assert c.is_resolved()
+    assert c.private_key == "pk"
+
+
