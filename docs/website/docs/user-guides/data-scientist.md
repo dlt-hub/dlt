@@ -1,6 +1,6 @@
 # Data Scientist
 
-Data Load Tool (`dlt`) can be highly useful for Data Scientists in several ways. Here are four
+Data Load Tool (`dlt`) can be highly useful for Data Scientists in several ways. Here are three
 potential use cases:
 
 ## Use case #1: Efficient Data Ingestion and Optimized Workflow
@@ -23,7 +23,7 @@ exploration phase to the actual implementation of models, saving time and effort
 throughout the workflow, Data Scientists can ensure that the data is properly prepared and aligned
 with the production environment, leading to smoother integration and deployment of their models.
 
-- Use existed Verified Sources and pipeline examples or create your own quickly. See how to
+- [Use existed Verified Sources](../walkthroughs/add-a-verified-source) and pipeline examples or create your own quickly. See how to
   [create pipeline](../walkthroughs/create-a-pipeline).
 
   - [Deploy the pipeline](../walkthroughs/deploy-a-pipeline), so that the data
@@ -51,17 +51,20 @@ with the production environment, leading to smoother integration and deployment 
   This integration enables a smooth and interactive data analysis experience, where Data Scientists
   can leverage the power of `dlt` alongside Streamlit's intuitive interface and visualization
   capabilities.
-  - In addition to Streamlit, `dlt` natively supports
-    [DuckDB](https://dlthub.com/docs/blog/is-duckdb-a-database-for-ducks), an in-process SQL OLAP
-    database management system. This native support ensures efficient data processing and querying
-    within `dlt`, leveraging the capabilities of DuckDB. By integrating DuckDB, Data Scientists can
-    benefit from fast and scalable data operations, enhancing the overall performance of their
-    analytical workflows.
-  - Moreover, `dlt` provides resources that can directly return data in the form of
-    [Pandas DataFrames from an SQL client](../dlt-ecosystem/visualizations/exploring-the-data).
-    This feature simplifies data retrieval and allows Data Scientists to seamlessly work with data in
-    familiar Pandas DataFrame format. With this capability, Data Scientists can leverage the rich
-    ecosystem of Python libraries and tools that support Pandas.
+- In addition to Streamlit, `dlt` natively supports
+  [DuckDB](https://dlthub.com/docs/blog/is-duckdb-a-database-for-ducks), an in-process SQL OLAP
+  database management system. This native support ensures efficient data processing and querying
+  within `dlt`, leveraging the capabilities of DuckDB. By integrating DuckDB, Data Scientists can
+  benefit from fast and scalable data operations, enhancing the overall performance of their
+  analytical workflows.
+- Moreover, `dlt` provides resources that can directly return data in the form of
+  [Pandas DataFrames from an SQL client](../dlt-ecosystem/visualizations/exploring-the-data).
+  This feature simplifies data retrieval and allows Data Scientists to seamlessly work with data in
+  familiar Pandas DataFrame format. With this capability, Data Scientists can leverage the rich
+  ecosystem of Python libraries and tools that support Pandas.
+
+With `dlt`, the transition from local storage to remote is quick and easy.
+For example, read the documentation [Share a dataset: DuckDB -> BigQuery](../walkthroughs/share-a-dataset).
 
 ## Use case #2:  Structured Data and Enhanced Data Understanding
 
@@ -120,27 +123,3 @@ and just about any custom operation.
 Compliance is also a case where preprocessing is the way to solve the issue: Besides being
 python-friendly, the ability to apply transformation logic before loading data allows us to
 separate, filter or transform sensitive data.
-
-## Use case #4: Real-time Data Streaming
-
-Many Data Scientists work with real-time or streaming data, such as sensor data, social media feeds,
-or clickstream data. `dlt` can be instrumental in handling real-time data streams by offering
-integration with streaming frameworks. It enables Data Scientists to ingest and process continuous
-data streams, perform real-time analytics, and derive insights in near-real-time. This use case is
-particularly relevant for applications such as fraud detection, anomaly detection, or predictive
-maintenance.
-
-For handling events effectively, there are different approaches based on the scale:
-
-Small scale: transactional events are low volume types of events that have some business meaning -
-like a signup, purchase, etc. What they are depends on the process, and so this also determines the
-scale. You can imagine them as some kind of checkpoints for a process. For low volume events, it
-doesn’t make sense to set up complex tracking - so a simple webhook serverless function, like GCP
-cloud function or an AWS Lambda and Api Gateway could process events as they come.
-
-Large scale: “Clickstream” events are usually 100x more than transactional - they are highly
-granular events that capture a user’s journey between “transactions” or “checkpoints”. We use them
-to analyse what happens between checkpoints, to improve them. For high volumes of events, it would
-be very costly to process them one at a time, so a microbatching approach is better suited. You
-would set up some kind of queue that can capture the events, and then process them with dlt from the
-queue into a processed layer.
