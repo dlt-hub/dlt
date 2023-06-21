@@ -206,6 +206,23 @@ def test_merge_keys_non_existing_columns(destination_name: str) -> None:
         assert "m_a1" not in table_schema  # unbound columns were not created
 
 
+@pytest.mark.parametrize('destination_name', ["duckdb", "snowflake", "bigquery"])
+def test_pipeline_load_parquet(destination_name: str) -> None:
+    p = dlt.pipeline(destination=destination_name, dataset_name="github_3", full_refresh=True)
+    github_data = github()
+    # generate some complex types
+    github_data.max_table_nesting = 2
+    info = p.run(github_data, loader_file_format="parquet", write_disposition="replace")
+    assert_load_info(info)
+    # make sure it was parquet
+    files = p.get_load_package_info(p.list_completed_load_packages()[0]).jobs["completed_jobs"]
+    assert all(f.job_file_info.file_format == "parquet" for f in files)
+
+    github_1_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
+    assert github_1_counts["issues"] == 100
+
+
+
 @dlt.transformer(name="github_repo_events", primary_key="id", write_disposition="merge", table_name=lambda i: i['type'])
 def github_repo_events(page: List[StrAny], last_created_at = dlt.sources.incremental("created_at", "1970-01-01T00:00:00Z")):
     """A transformer taking a stream of github events and dispatching them to tables named by event type. Deduplicates be 'id'. Loads incrementally by 'created_at' """

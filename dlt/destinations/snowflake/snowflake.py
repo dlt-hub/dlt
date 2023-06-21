@@ -67,6 +67,11 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
             else:
                 # Use implicit table stage by default: "SCHEMA_NAME"."%TABLE_NAME"
                 stage_name = client.make_qualified_table_name('%'+table_name)
+
+            source_format = "( TYPE = 'JSON', BINARY_FORMAT = 'BASE64' )"
+            if file_path.endswith("parquet"):
+                source_format = "(TYPE = 'PARQUET')"
+
             stage_file_path = f'@{stage_name}/"{load_id}"/{file_name}'
             with client.begin_transaction():
                 # PUT and copy files in one transaction
@@ -76,7 +81,7 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
                 client.execute_sql(
                     f"""COPY INTO {qualified_table_name}
                     FROM {stage_file_path}
-                    FILE_FORMAT = ( TYPE = 'JSON', BINARY_FORMAT = 'BASE64' )
+                    FILE_FORMAT = {source_format}
                     MATCH_BY_COLUMN_NAME='CASE_INSENSITIVE'
                     """
                 )

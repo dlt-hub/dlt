@@ -1,13 +1,12 @@
 from copy import deepcopy
 import gzip
 import os
-from typing import Any, Callable, Iterator, Tuple, Optional
+from typing import Any, Callable, Iterator, Tuple
 import pytest
-import itertools
 
 import dlt
 
-from dlt.common import json, sleep, logger
+from dlt.common import json, sleep
 from dlt.common.destination.reference import DestinationReference
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import VERSION_TABLE_NAME
@@ -284,10 +283,6 @@ def test_pipeline_data_writer_compression(disable_compression: bool, any_destina
     p.normalize()
     info = p.load()
     assert_table(info.pipeline, "data", data, info=info)
-
-
-# def test_evolve_schema_conflict() -> None:
-#     pass
 
 
 @pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)

@@ -24,6 +24,7 @@ def get_writer(_format: TLoaderFileFormat = "insert_values", buffer_max_items: i
     file_template = os.path.join(TEST_STORAGE_ROOT, f"{_format}.%s")
     return BufferedDataWriter(_format, file_template, buffer_max_items=buffer_max_items, _caps=caps, file_max_items=file_max_items, file_max_bytes=file_max_bytes)
 
+
 def test_parquet_writer_schema_evolution_with_big_buffer() -> None:
     c1 = new_column("col1", "bigint")
     c2 = new_column("col2", "bigint")
@@ -40,6 +41,7 @@ def test_parquet_writer_schema_evolution_with_big_buffer() -> None:
         assert table.column("col2").to_pylist() == [2, 2]
         assert table.column("col3").to_pylist() == ["3", "3"]
         assert table.column("col4").to_pylist() == [None, "4"]
+
 
 def test_parquet_writer_schema_evolution_with_small_buffer() -> None:
     c1 = new_column("col1", "bigint")
