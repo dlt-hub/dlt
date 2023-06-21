@@ -735,8 +735,8 @@ class PipeIterator(Iterator[PipeItem]):
             # register current pipe name during the execution of gen
             set_current_pipe_name(pipe.name)
             item = next(gen)
-            if item is None:
-                return self._get_source_item_round_robin()
+            while item is None:
+                item = self._get_source_item_round_robin()
             # full pipe item may be returned, this is used by ForkPipe step
             # to redirect execution of an item to another pipe
             if isinstance(item, ResolvablePipeItem):
