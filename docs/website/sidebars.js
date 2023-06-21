@@ -111,8 +111,15 @@ const sidebars = {
           },
           items: [
             'dlt-ecosystem/deployments/where-can-dlt-run',
-            'dlt-ecosystem/deployments/github-actions',
             'dlt-ecosystem/deployments/running-in-cloud-functions',
+            {
+              type: 'category',
+              label: 'Orchestrators',
+              items: [
+                'dlt-ecosystem/deployments/orchestrators/choosing-an-orchestrator',
+                'dlt-ecosystem/deployments/orchestrators/github-actions',
+              ]
+            },
           ]
         },
         {
@@ -178,7 +185,8 @@ const sidebars = {
           items: [
             'walkthroughs/deploy-a-pipeline/deploy-with-github-actions',
             'walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer',
-            'walkthroughs/deploy-a-pipeline/deploy-with-google-cloud-functions'
+            'walkthroughs/deploy-a-pipeline/deploy-with-google-cloud-functions',
+            'walkthroughs/deploy-a-pipeline/airflow-gcp-cloud-composer',
           ]
         },
 
@@ -225,15 +233,6 @@ const sidebars = {
         keywords: ['production'],
       },
       items: [
-        {
-          type: 'category',
-          label: 'Orchestrators',
-          items: [
-            'running-in-production/orchestrators/choosing-an-orchestrator',
-            'running-in-production/orchestrators/airflow-gcp-cloud-composer',
-          ]
-        },
-        'running-in-production/deploying',
         'running-in-production/running',
         'running-in-production/monitoring',
         'running-in-production/alerting',
