@@ -87,21 +87,21 @@ You can decompose a pipeline into strongly connected components with
 `source().decompose(strategy="scc")`. The method returns a list of dlt sources each containing a
 single component. Method makes sure that no resource is executed twice.
 
-1. Serial decomposition:
+Serial decomposition:
 
 You can load such sources as tasks serially in order present of the list.
 Such DAG is safe for pipelines that use the state internally.
 [It is used internally by our Airflow mapper to construct DAGs.](https://github.com/dlt-hub/dlt/blob/devel/dlt/helpers/airflow_helper.py)
 
-2. Custom decomposition
+Custom decomposition:
 
-  - When decomposing pipelines into tasks, be mindful of shared state.
-  - Dependent resources pass data to each other via hard disk - so they need to run on the same
-    worker. Group them in a task that runs them together.
-  - State is per-pipeline. The pipeline identifier is the pipeline name. A single pipeline state
-    should be accesed serially to avoid losing details on parallel runs.
+- When decomposing pipelines into tasks, be mindful of shared state.
+- Dependent resources pass data to each other via hard disk - so they need to run on the same
+  worker. Group them in a task that runs them together.
+- State is per-pipeline. The pipeline identifier is the pipeline name. A single pipeline state
+  should be accesed serially to avoid losing details on parallel runs.
 
-3. Parallel decomposition
+Parallel decomposition:
 
 If you are using only the resource state (which most of the pipelines
 really should!) you can run your tasks in parallel.
