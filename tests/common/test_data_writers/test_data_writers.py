@@ -7,7 +7,7 @@ from dlt.common.typing import AnyFun
 # from dlt.destinations.postgres import capabilities
 from dlt.destinations.redshift import capabilities as redshift_caps
 from dlt.common.data_writers.escape import escape_redshift_identifier, escape_bigquery_identifier, escape_redshift_literal, escape_postgres_literal, escape_duckdb_literal
-from dlt.common.data_writers.writers import DataWriter, InsertValuesWriter, JsonlWriter
+from dlt.common.data_writers.writers import DataWriter, InsertValuesWriter, JsonlWriter, ParquetDataWriter
 
 from tests.common.utils import load_json_case, row_to_column_schemas
 

@@ -1,13 +1,15 @@
 import abc
+
 # import jsonlines
 from dataclasses import dataclass
-from typing import Any, Dict, Sequence, IO, Type
+from typing import Any, Dict, Sequence, IO, Type, Optional, List, cast
 
 from dlt.common import json
 from dlt.common.typing import StrAny
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.destination import TLoaderFileFormat, DestinationCapabilitiesContext
-
+from dlt.common.configuration import with_config, known_sections, configspec
+from dlt.common.configuration.specs import BaseConfiguration
 
 @dataclass
 class TFileFormatSpec:
@@ -67,6 +69,8 @@ class DataWriter(abc.ABC):
             return JsonlListPUAEncodeWriter
         elif file_format == "insert_values":
             return InsertValuesWriter
+        elif file_format == "parquet":
+            return ParquetDataWriter  # type: ignore
         else:
             raise ValueError(file_format)
 
@@ -173,3 +177,67 @@ class InsertValuesWriter(DataWriter):
             supports_compression=True,
             requires_destination_capabilities=True,
         )
+        return TFileFormatSpec("insert_values", "insert_values", False, False, requires_destination_capabilities=True)
+
+
+@configspec
+class ParquetDataWriterConfiguration(BaseConfiguration):
+    flavor: str = "spark"
+    version: str = "2.4"
+    data_page_size: int = 1024 * 1024
+
+    __section__: str = known_sections.DATA_WRITER
+
+class ParquetDataWriter(DataWriter):
+
+    @with_config(spec=ParquetDataWriterConfiguration)
+    def __init__(self,
+                 f: IO[Any],
+                 caps: DestinationCapabilitiesContext = None,
+                 *,
+                 flavor: str = "spark",
+                 version: str = "2.4",
+                 data_page_size: int = 1024 * 1024
+                 ) -> None:
+        super().__init__(f, caps)
+        from dlt.common.libs.pyarrow import pyarrow
+
+        self.writer: Optional[pyarrow.parquet.ParquetWriter] = None
+        self.schema: Optional[pyarrow.Schema] = None
+        self.complex_indices: List[str] = None
+        self.parquet_flavor = flavor
+        self.parquet_version = version
+        self.parquet_data_page_size = data_page_size
+
+    def write_header(self, columns_schema: TTableSchemaColumns) -> None:
+        from dlt.common.libs.pyarrow import pyarrow, get_py_arrow_datatype
+
+        # build schema
+        self.schema = pyarrow.schema([pyarrow.field(name, get_py_arrow_datatype(schema_item["data_type"]), nullable=schema_item["nullable"]) for name, schema_item in columns_schema.items()])
+        # find row items that are of the complex type (could be abstracted out for use in other writers?)
+        self.complex_indices = [i for i, field in columns_schema.items() if field["data_type"] == "complex"]
+        self.writer = pyarrow.parquet.ParquetWriter(self._f, self.schema, flavor=self.parquet_flavor, version=self.parquet_version, data_page_size=self.parquet_data_page_size)
+
+
+    def write_data(self, rows: Sequence[Any]) -> None:
+        super().write_data(rows)
+        from dlt.common.libs.pyarrow import pyarrow
+
+        # replace complex types with json
+        for key in self.complex_indices:
+            for row in rows:
+                if key in row:
+                    row[key] = json.dumps(row[key]) if row[key] else row[key]
+
+        table = pyarrow.Table.from_pylist(rows, schema=self.schema)
+        # Write
+        self.writer.write_table(table)
+
+    def write_footer(self) -> None:
+        self.writer.close()
+        self.writer = None
+
+
+    @classmethod
+    def data_format(cls) -> TFileFormatSpec:
+        return TFileFormatSpec("parquet", "parquet", True, False, requires_destination_capabilities=True, supports_compression=False)

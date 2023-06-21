@@ -1,5 +1,6 @@
 import os
 import pytest
+from dlt.common.arithmetics import Decimal
 
 from dlt.common.data_writers.buffered import BufferedDataWriter
 from dlt.common.data_writers.exceptions import BufferedDataWriterClosed
@@ -10,6 +11,7 @@ from dlt.common.storages.file_storage import FileStorage
 from dlt.common.typing import DictStrAny
 
 from tests.utils import TEST_STORAGE_ROOT, write_version, autouse_test_storage
+import datetime  # noqa: 251
 
 
 def get_insert_writer(_format: TLoaderFileFormat = "insert_values", buffer_max_items: int = 10, disable_compression: bool = False) -> BufferedDataWriter:
@@ -169,3 +171,4 @@ def test_writer_optional_schema(disable_compression: bool) -> None:
     with get_insert_writer(_format="jsonl", disable_compression=disable_compression) as writer:
             writer.write_data_item([{"col1": 1}], None)
             writer.write_data_item([{"col1": 1}], None)
+

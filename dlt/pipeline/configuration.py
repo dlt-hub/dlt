@@ -4,6 +4,7 @@ from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import RunConfiguration, BaseConfiguration
 from dlt.common.typing import AnyFun, TSecretValue
 from dlt.common.utils import digest256
+from dlt.common.data_writers import TLoaderFileFormat
 
 
 
@@ -12,6 +13,7 @@ class PipelineConfiguration(BaseConfiguration):
     pipeline_name: Optional[str] = None
     pipelines_dir: Optional[str] = None
     destination_name: Optional[str] = None
+    loader_file_format: Optional[TLoaderFileFormat] = None
     dataset_name: Optional[str] = None
     pipeline_salt: Optional[TSecretValue] = None
     restore_from_destination: bool = True

@@ -87,7 +87,7 @@ class BufferedDataWriter:
             if self.file_max_bytes and self._file.tell() >= self.file_max_bytes:
                 self._rotate_file()
             # rotate on max items
-            if self.file_max_items and self._writer.items_count >= self.file_max_items:
+            elif self.file_max_items and self._writer.items_count >= self.file_max_items:
                 self._rotate_file()
 
     def close(self) -> None:

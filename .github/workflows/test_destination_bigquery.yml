@@ -70,7 +70,7 @@ jobs:
 
       - name: Install dependencies
         # if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction -E bigquery --with providers
+        run: poetry install --no-interaction -E bigquery --with providers -E pyarrow
 
       # - name: Install self
       #   run: poetry install --no-interaction

@@ -27,6 +27,7 @@ from dlt.common.destination.reference import DestinationReference, JobClientBase
 from dlt.common.pipeline import ExtractInfo, LoadInfo, NormalizeInfo, PipelineContext, SupportsPipeline, TPipelineLocalState, TPipelineState, StateInjectableContext
 from dlt.common.schema import Schema
 from dlt.common.utils import is_interactive
+from dlt.common.data_writers import TLoaderFileFormat
 
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 
@@ -283,7 +284,7 @@ class Pipeline(SupportsPipeline):
     @with_runtime_trace
     @with_schemas_sync
     @with_config_section((known_sections.NORMALIZE,))
-    def normalize(self, workers: int = 1) -> NormalizeInfo:
+    def normalize(self, workers: int = 1, loader_file_format: TLoaderFileFormat = None) -> NormalizeInfo:
         """Normalizes the data prepared with `extract` method, infers the schema and creates load packages for the `load` method. Requires `destination` to be known."""
         if is_interactive() and workers > 1:
             raise NotImplementedError("Do not use normalize workers in interactive mode ie. in notebook")
@@ -302,7 +303,7 @@ class Pipeline(SupportsPipeline):
             _load_storage_config=self._load_storage_config
         )
         # run with destination context
-        with self._maybe_destination_capabilities():
+        with self._maybe_destination_capabilities(loader_file_format=loader_file_format):
             # shares schema storage with the pipeline so we do not need to install
             normalize = Normalize(collector=self.collector, config=normalize_config, schema_storage=self._schema_storage)
             try:
@@ -367,7 +368,8 @@ class Pipeline(SupportsPipeline):
         write_disposition: TWriteDisposition = None,
         columns: Sequence[TColumnSchema] = None,
         primary_key: TColumnKey = None,
-        schema: Schema = None
+        schema: Schema = None,
+        loader_file_format: TLoaderFileFormat = None
     ) -> LoadInfo:
         """Loads the data from `data` argument into the destination specified in `destination` and dataset specified in `dataset_name`.
 
@@ -415,6 +417,8 @@ class Pipeline(SupportsPipeline):
 
             schema (Schema, optional): An explicit `Schema` object in which all table schemas will be grouped. By default `dlt` takes the schema from the source (if passed in `data` argument) or creates a default one itself.
 
+            loader_file_format (Literal["jsonl", "puae-jsonl", "insert_values", "sql", "parquet"], optional). The file format the loader will use to create the load package. Not all file_formats are compatible with all destinations. Defaults to the preferred file format of the selected destination.
+
         ### Raises:
             PipelineStepFailed when a problem happened during `extract`, `normalize` or `load` steps.
         ### Returns:
@@ -432,7 +436,7 @@ class Pipeline(SupportsPipeline):
 
         # normalize and load pending data
         if self.list_extracted_resources():
-            self.normalize()
+            self.normalize(loader_file_format=loader_file_format)
         if self.list_normalized_load_packages():
             # if there were any pending loads, load them and **exit**
             if data is not None:
@@ -442,7 +446,7 @@ class Pipeline(SupportsPipeline):
         # extract from the source
         if data is not None:
             self.extract(data, table_name=table_name, write_disposition=write_disposition, columns=columns, primary_key=primary_key, schema=schema)
-            self.normalize()
+            self.normalize(loader_file_format=loader_file_format)
             return self.load(destination, dataset_name, credentials=credentials)
         else:
             return None
@@ -926,13 +930,15 @@ class Pipeline(SupportsPipeline):
             self._set_default_normalizers()
 
     @contextmanager
-    def _maybe_destination_capabilities(self) -> Iterator[DestinationCapabilitiesContext]:
+    def _maybe_destination_capabilities(self, loader_file_format: TLoaderFileFormat = None) -> Iterator[DestinationCapabilitiesContext]:
         try:
             caps: DestinationCapabilitiesContext = None
             injected_caps: ContextManager[DestinationCapabilitiesContext] = None
             if self.destination:
                 injected_caps = self._container.injectable_context(self._get_destination_capabilities())
                 caps = injected_caps.__enter__()
+                if loader_file_format:
+                    caps.preferred_loader_file_format = loader_file_format
             yield caps
         finally:
             if injected_caps:

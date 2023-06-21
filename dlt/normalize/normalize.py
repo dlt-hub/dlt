@@ -42,15 +42,15 @@ class Normalize(Runnable[ProcessPool]):
         self.schema_storage: SchemaStorage = None
 
         # setup storages
-        self.create_storages(config.destination_capabilities.preferred_loader_file_format)
+        self.create_storages()
         # create schema storage with give type
         self.schema_storage = schema_storage or SchemaStorage(self.config._schema_storage_config, makedirs=True)
 
-    def create_storages(self, loader_file_format: TLoaderFileFormat) -> None:
+    def create_storages(self) -> None:
         # pass initial normalize storage config embedded in normalize config
         self.normalize_storage = NormalizeStorage(True, config=self.config._normalize_storage_config)
         # normalize saves in preferred format but can read all supported formats
-        self.load_storage = LoadStorage(True, loader_file_format, LoadStorage.ALL_SUPPORTED_FILE_FORMATS, config=self.config._load_storage_config)
+        self.load_storage = LoadStorage(True, self.config.destination_capabilities.preferred_loader_file_format, LoadStorage.ALL_SUPPORTED_FILE_FORMATS, config=self.config._load_storage_config)
 
 
     @staticmethod
@@ -70,7 +70,7 @@ class Normalize(Runnable[ProcessPool]):
             destination_caps: DestinationCapabilitiesContext,
             stored_schema: TStoredSchema,
             load_id: str,
-            extracted_items_files: Sequence[str]
+            extracted_items_files: Sequence[str],
         ) -> TWorkerRV:
 
         schema_updates: List[TSchemaUpdate] = []
@@ -230,7 +230,7 @@ class Normalize(Runnable[ProcessPool]):
             self.config.destination_capabilities,
             schema.to_dict(),
             load_id,
-            files
+            files,
         )
         self.update_schema(schema, result[0])
         self.collector.update("Files", len(result[2]))

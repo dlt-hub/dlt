@@ -11,7 +11,7 @@ from dlt.common.utils import identity
 # puae-jsonl - internal extract -> normalize format bases on jsonl
 # insert_values - insert SQL statements
 # sql - any sql statement
-TLoaderFileFormat = Literal["jsonl", "puae-jsonl", "insert_values", "sql"]
+TLoaderFileFormat = Literal["jsonl", "puae-jsonl", "insert_values", "sql", "parquet"]
 
 
 @configspec(init=True)
@@ -38,7 +38,7 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     def generic_capabilities(preferred_loader_file_format: TLoaderFileFormat = None) -> "DestinationCapabilitiesContext":
         caps = DestinationCapabilitiesContext()
         caps.preferred_loader_file_format = preferred_loader_file_format
-        caps.supported_loader_file_formats = ["jsonl", "insert_values"]
+        caps.supported_loader_file_formats = ["jsonl", "insert_values", "parquet"]
         caps.escape_identifier = identity
         caps.escape_literal = serialize_value
         caps.max_identifier_length = 65536
