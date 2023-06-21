@@ -84,3 +84,37 @@ duckdb:
         - httpfs
         - parquet
       # TODO: emit the config of duck db
+
+
+# snowflake with password auth
+snowflake:
+  target: analytics
+  outputs:
+    analytics:
+      type: snowflake
+      account: "{{ env_var('CREDENTIALS__HOST') }}"
+      user: "{{ env_var('CREDENTIALS__USERNAME') }}"
+      password: "{{ env_var('CREDENTIALS__PASSWORD') }}"
+      database: "{{ env_var('CREDENTIALS__DATABASE') }}"
+      role: "{{ env_var('CREDENTIALS__ROLE', '') }}"
+      schema: "{{ var('destination_dataset_name', var('source_dataset_name')) }}"
+      warehouse: "{{ env_var('CREDENTIALS__WAREHOUSE') }}"
+      threads: 4
+
+
+# snowflake with private key auth
+snowflake_pkey:
+  target: analytics
+  outputs:
+    analytics:
+      type: snowflake
+      account: "{{ env_var('CREDENTIALS__HOST') }}"
+      user: "{{ env_var('CREDENTIALS__USERNAME') }}"
+      database: "{{ env_var('CREDENTIALS__DATABASE') }}"
+      password: "{{ env_var('CREDENTIALS__PASSWORD') }}"
+      role: "{{ env_var('CREDENTIALS__ROLE', '') }}"
+      schema: "{{ var('destination_dataset_name', var('source_dataset_name')) }}"
+      warehouse: "{{ env_var('CREDENTIALS__WAREHOUSE') }}"
+      private_key: "{{ env_var('CREDENTIALS__PRIVATE_KEY') }}"
+      private_key_passphrase: "{{ env_var('CREDENTIALS__PRIVATE_KEY_PASSPHRASE', '') }}"
+      threads: 4

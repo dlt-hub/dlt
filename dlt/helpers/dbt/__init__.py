@@ -20,6 +20,10 @@ def _default_profile_name(credentials: DestinationClientDwhConfiguration) -> str
     if isinstance(credentials.credentials, CredentialsWithDefault):
         if credentials.credentials.has_default_credentials():
             profile_name += "_default"
+    elif profile_name == 'snowflake':
+        if getattr(credentials.credentials, 'private_key', None):
+            # snowflake with private key is a separate profile
+            profile_name += '_pkey'
     return profile_name
 
 
