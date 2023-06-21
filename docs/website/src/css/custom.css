@@ -17,7 +17,7 @@
   --ifm-color-primary-dark: #191937;
   --ifm-color-primary-darker: #191937;
   --ifm-color-primary-darkest: #191937;
-  --ifm-color-primary-light:#4c4898; 
+  --ifm-color-primary-light:#4c4898;
   --ifm-color-primary: #191937;
   --ifm-font-family-base: 'Karla';
   --ifm-code-font-size: 95%;
@@ -68,7 +68,7 @@
   --docsearch-hit-active-color: #191937 !important;
   --docsearch-hit-background: #191937 !important;
   --docsearch-hit-color: #ffffff !important;
-  --ifm-color-primary-light:#f3ff36; 
+  --ifm-color-primary-light:#f3ff36;
 
 }
 
@@ -202,7 +202,7 @@ time{
   color: #191937;
 }
 
-.navbar__items.navbar__items--right  .clean-btn { 
+.navbar__items.navbar__items--right  .clean-btn {
   background: #191937 !important;
   color: #fff;
 }
@@ -300,9 +300,9 @@ html[data-theme='dark'] .colab-demo:hover {
   color: #191937;
   }
 
-  html[data-theme='dark'] .colab-demo:hover::before {
-    background: url("../../static/img/CO-Blue.svg") no-repeat;
-    }
+html[data-theme='dark'] .colab-demo:hover::before {
+  background: url("../../static/img/CO-Blue.svg") no-repeat;
+}
 
 .theme-admonition.theme-admonition-tip.alert svg path{
   fill: #191937;
@@ -826,6 +826,9 @@ html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(8)>div>[
   text-decoration: none;
 }
 
+html[data-theme='dark'] .overlayButton:hover {
+    color: #191937;
+}
 
 .overlayButtonBottom {
   position: fixed;
@@ -890,7 +893,7 @@ html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(8)>div>[
   height: 100%;
 }
 
-@media only screen 
+@media only screen
 and (max-width : 800px) {
   /* Styles */
   .overlayContent {
@@ -902,7 +905,7 @@ and (max-width : 800px) {
   }
 }
 
-@media only screen 
+@media only screen
 and (max-height : 850px) {
   /* Styles */
   .overlayContent {

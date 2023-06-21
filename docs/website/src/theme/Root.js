@@ -11,7 +11,7 @@ const overlays = {
     "/docs/walkthroughs/create-a-pipeline": {
         buttonTitle: "Create a pipeline with GPT-4",
         title: "Create a pipeline with GPT-4",
-        loomId: "aa33b4b9f1ac47f99076644315c9b0ff",
+        loomId: "2afe43660dbc4ab9b633cd5fd5d81a1c",
         text: "Create dlt pipeline using the data source of your liking and let the GPT-4 write the resource functions and help you to debug the code."
     }
 }
@@ -35,7 +35,7 @@ function Overlay() {
           }
         };
         window.addEventListener('keydown', handleEsc);
-    
+
         return () => {
           window.removeEventListener('keydown', handleEsc);
         };
