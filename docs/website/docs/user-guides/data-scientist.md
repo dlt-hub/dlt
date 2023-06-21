@@ -26,23 +26,23 @@ with the production environment, leading to smoother integration and deployment 
 - Use existed Verified Sources and pipeline examples or create your own quickly. See how to
   [create pipeline](../walkthroughs/create-a-pipeline).
 
-- [Deploy this pipeline](../walkthroughs/deploy-a-pipeline), so that the data
-  is automatically loaded on a schedule.
+  - [Deploy the pipeline](../walkthroughs/deploy-a-pipeline), so that the data
+    is automatically loaded on a schedule.
 
-- Transform the [loaded data](../dlt-ecosystem/transformations/transforming-the-data) with
-  dbt or in Pandas DataFrames.
+  - Transform the [loaded data](../dlt-ecosystem/transformations/transforming-the-data) with
+    dbt or in Pandas DataFrames.
 
-- Learn how to [run](../running-in-production/running),
-  [monitor](../running-in-production/monitoring), and
-  [alert](../running-in-production/alerting) when you put your pipeline in
-  production.
+  - Learn how to [run](../running-in-production/running),
+    [monitor](../running-in-production/monitoring), and
+    [alert](../running-in-production/alerting) when you put your pipeline in
+    production.
 
-- Use `dlt` when doing exploration in a Jupyter Notebook and move more easily to production. Explore
-  our
-  [Colab Demo for Chess.com API](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing)
-  to realize how easy it is to create and use `dlt` in your projects:
+  - Use `dlt` when doing exploration in a Jupyter Notebook and move more easily to production. Explore
+    our
+    [Colab Demo for Chess.com API](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing)
+    to realize how easy it is to create and use `dlt` in your projects:
 
-  ![colab-demo](images/colab-demo.png)
+    ![colab-demo](images/colab-demo.png)
 
 ### `dlt` is optimized for local use on laptops
 
@@ -51,17 +51,17 @@ with the production environment, leading to smoother integration and deployment 
   This integration enables a smooth and interactive data analysis experience, where Data Scientists
   can leverage the power of `dlt` alongside Streamlit's intuitive interface and visualization
   capabilities.
-- In addition to Streamlit, `dlt` natively supports
-  [DuckDB](https://dlthub.com/docs/blog/is-duckdb-a-database-for-ducks), an in-process SQL OLAP
-  database management system. This native support ensures efficient data processing and querying
-  within `dlt`, leveraging the capabilities of DuckDB. By integrating DuckDB, Data Scientists can
-  benefit from fast and scalable data operations, enhancing the overall performance of their
-  analytical workflows.
-- Moreover, `dlt` provides resources that can directly return data in the form of
-  [Pandas DataFrames from an SQL client](../dlt-ecosystem/visualizations/exploring-the-data).
-  This feature simplifies data retrieval and allows Data Scientists to seamlessly work with data in
-  familiar Pandas DataFrame format. With this capability, Data Scientists can leverage the rich
-  ecosystem of Python libraries and tools that support Pandas.
+  - In addition to Streamlit, `dlt` natively supports
+    [DuckDB](https://dlthub.com/docs/blog/is-duckdb-a-database-for-ducks), an in-process SQL OLAP
+    database management system. This native support ensures efficient data processing and querying
+    within `dlt`, leveraging the capabilities of DuckDB. By integrating DuckDB, Data Scientists can
+    benefit from fast and scalable data operations, enhancing the overall performance of their
+    analytical workflows.
+  - Moreover, `dlt` provides resources that can directly return data in the form of
+    [Pandas DataFrames from an SQL client](../dlt-ecosystem/visualizations/exploring-the-data).
+    This feature simplifies data retrieval and allows Data Scientists to seamlessly work with data in
+    familiar Pandas DataFrame format. With this capability, Data Scientists can leverage the rich
+    ecosystem of Python libraries and tools that support Pandas.
 
 ## Use case #2:  Structured Data and Enhanced Data Understanding
 
@@ -118,7 +118,7 @@ selecting,
 and just about any custom operation.
 
 Compliance is also a case where preprocessing is the way to solve the issue: Besides being
-python-friendly, the ability to apply transformation logic before loading data, allows us to
+python-friendly, the ability to apply transformation logic before loading data allows us to
 separate, filter or transform sensitive data.
 
 ## Use case #4: Real-time Data Streaming
@@ -130,13 +130,13 @@ data streams, perform real-time analytics, and derive insights in near-real-time
 particularly relevant for applications such as fraud detection, anomaly detection, or predictive
 maintenance.
 
-Handling events effectively:
+For handling events effectively, there are different approaches based on the scale:
 
 Small scale: transactional events are low volume types of events that have some business meaning -
 like a signup, purchase, etc. What they are depends on the process, and so this also determines the
 scale. You can imagine them as some kind of checkpoints for a process. For low volume events, it
 doesn’t make sense to set up complex tracking - so a simple webhook serverless function, like GCP
-cloud function or a lambda+ gateway could process events as they come.
+cloud function or an AWS Lambda and Api Gateway could process events as they come.
 
 Large scale: “Clickstream” events are usually 100x more than transactional - they are highly
 granular events that capture a user’s journey between “transactions” or “checkpoints”. We use them
@@ -144,13 +144,3 @@ to analyse what happens between checkpoints, to improve them. For high volumes o
 be very costly to process them one at a time, so a microbatching approach is better suited. You
 would set up some kind of queue that can capture the events, and then process them with dlt from the
 queue into a processed layer.
-
-To use `dlt` for streaming cases effectively, it’s a good idea to microbatch your data before
-sending it to `dlt`, to accelerate processing. Parsing the events as they come would also be
-possible, but more suitable for small scale event tracking such as transactional webhooks.
-
-In our blog you can find step-by-step tutorial how to create your own
-[Internal Dashboard for Google Analytics 4](https://dlthub.com/docs/blog/ga4-internal-dashboard-demo),
-where we read data from Google Analytics and load it to DuckDB.
-
-![google-analytics](images/google-analytics.png)
