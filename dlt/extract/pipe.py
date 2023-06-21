@@ -728,15 +728,14 @@ class PipeIterator(Iterator[PipeItem]):
         if sources_count > self._initial_sources_count:
             return self._get_source_item_current()
         try:
-            # get items from last added iterator, this makes the overall Pipe as close to FIFO as possible
-            self._round_robin_index = (self._round_robin_index + 1) % sources_count
-            gen, step, pipe, meta = self._sources[self._round_robin_index]
             # print(f"got {pipe.name} {pipe._pipe_id}")
             # register current pipe name during the execution of gen
-            set_current_pipe_name(pipe.name)
-            item = next(gen)
+            item = None
             while item is None:
-                item = self._get_source_item_round_robin()
+                self._round_robin_index = (self._round_robin_index + 1) % sources_count
+                gen, step, pipe, meta = self._sources[self._round_robin_index]
+                set_current_pipe_name(pipe.name)
+                item = next(gen)
             # full pipe item may be returned, this is used by ForkPipe step
             # to redirect execution of an item to another pipe
             if isinstance(item, ResolvablePipeItem):
