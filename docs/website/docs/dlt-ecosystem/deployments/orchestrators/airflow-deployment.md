@@ -6,11 +6,11 @@ keywords: [dlt, webhook, serverless, airflow, gcp, cloud composer]
 
 # Deployment with Airflow and Google Cloud Composer
 
-Airflow is like your personal assistant for managing data workflows. It's a cool open-source
+[Airflow](https://airflow.apache.org) is like your personal assistant for managing data workflows. It's a cool open-source
 platform that lets you create and schedule complex data pipelines. You can break down your tasks
 into smaller chunks, set dependencies between them, and keep an eye on how everything's running.
 
-Google cloud composer is a Google Cloud managed Airflow, which allows you to use Airflow without
+[Google Cloud Composer](https://cloud.google.com/composer) is a Google Cloud managed Airflow, which allows you to use Airflow without
 having to deploy it. It costs the same as you would run your own, except all the kinks and
 inefficiencies have mostly been ironed out. The latest version they offer features autoscaling which
 helps reduce cost further by shutting down unused workers.
