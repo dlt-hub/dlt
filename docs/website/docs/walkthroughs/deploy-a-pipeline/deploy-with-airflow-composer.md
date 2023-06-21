@@ -6,17 +6,21 @@ keywords: [how to, deploy a pipeline, airflow, gcp]
 
 # Deploy a pipeline with Airflow and Google Composer
 
-Before you can deploy a pipeline, you will need to [install dlt](../../reference/installation.mdx) and [create a pipeline](../create-a-pipeline.md).
+Before you can deploy a pipeline, you will need to [install dlt](../../reference/installation.mdx)
+and [create a pipeline](../create-a-pipeline.md).
 
 ## 1. Add your `dlt` project directory to GitHub
 
-You will need a GitHub repository for your project. If you don't have one yet, you need to initialize a Git repository in your `dlt` project directory and push it to GitHub as described in [Adding locally hosted code to GitHub](https://docs.github.com/en/get-started/importing-your-projects-to-github/importing-source-code-to-github/adding-locally-hosted-code-to-github).
+You will need a GitHub repository for your project. If you don't have one yet, you need to
+initialize a Git repository in your `dlt` project directory and push it to GitHub as described in
+[Adding locally hosted code to GitHub](https://docs.github.com/en/get-started/importing-your-projects-to-github/importing-source-code-to-github/adding-locally-hosted-code-to-github).
 
 ## 2. Ensure your pipeline works
 
 Before you can deploy, you need a working pipeline.
 
-[Set up credentials](../../general-usage/credentials) so you can test. Fill them in the secrets file `.dlt/secrets.toml` for now.
+[Set up credentials](../../general-usage/credentials) so you can test. Fill them in the secrets file
+`.dlt/secrets.toml` for now.
 
 Make sure that it is working by running.
 
@@ -37,11 +41,18 @@ dlt deploy {pipeline_name}_pipeline.py airflow-composer
 This command checks if your pipeline has run successfully before and creates the following folders:
 
 - build
-    - This folder contains a file called `cloudbuild.yaml` with a simple configuration for cloud deployment. We will use it below.
-- dags
-    - This folder contains the Python script `dag_{pipeline_name}.py`, which is an example of a simple serialized DAG using the Airflow *PipelineTasksGroup* wrapper.
 
-    **Note:** This folder is only needed to store DAG scripts, but it is not the Airflow *dags_folder*. Please refer to the [Troubleshooting](deploy-with-airflow-composer.md#troubleshooting) section for more information.
+  - This folder contains a file called `cloudbuild.yaml` with a simple configuration for cloud
+    deployment. We will use it below.
+
+- dags
+
+  - This folder contains the Python script `dag_{pipeline_name}.py`, which is an example of a simple
+    serialized DAG using the Airflow *PipelineTasksGroup* wrapper.
+
+  **Note:** This folder is only needed to store DAG scripts, but it is not the Airflow
+  *dags_folder*. Please refer to the
+  [Troubleshooting](deploy-with-airflow-composer.md#troubleshooting) section for more information.
 
 By default, the `dlt deploy` command shows you the deployment credentials in ENV format.
 
@@ -57,7 +68,9 @@ By default, the `dlt deploy` command shows you the deployment credentials in ENV
 dlt deploy pipedrive_pipeline.py airflow-composer
 ```
 
-On the command line, when you execute the `deploy` command, you will receive a brief instruction and the output of environment variables. These variables will be necessary for setting up the Airflow environment.
+On the command line, when you execute the `deploy` command, you will receive a brief instruction and
+the output of environment variables. These variables will be necessary for setting up the Airflow
+environment.
 
 ```toml
 Your airflow-composer deployment for pipeline pipedrive is ready!
@@ -84,7 +97,8 @@ Secret:
 c66c..
 ```
 
-**Note**: The deploy command for airflow-composer now includes a *secrets-format* option. It allows to pass the a secrets in a single Airflow Variable as explained later.
+**Note**: The `deploy` command for airflow-composer now includes a *secrets-format* option. It allows
+to pass the secrets in a single Airflow Variable as explained later.
 
 Run the command `deploy` with the key `--secrets-format toml`:
 
@@ -103,7 +117,8 @@ pipedrive_api_key = "c66..."
 
 ### 2. Modify DAG file
 
-In directory `dags/` you can find the file `dag_pipedrive.py` that you need to edit. It has the following structure:
+In directory `dags/` you can find the file `dag_pipedrive.py` that you need to edit. It has the
+following structure:
 
 ```python
 import dlt
@@ -149,85 +164,97 @@ load_data()
 ```
 
 - Customize the PipelineTaskGroup:
-    - change the name from “pipeline_name” to yours, for example, “pipedrive”.
-    - change runtime settings: data_folder, logging, retry policy etc. For example, let’s wipe all the data created by pipeline (`wipe_local_data=True`), redirect dlt logger into task logger (`use_task_logger=True`) and set the retry policy as a Retrying class object with three restart attempts.
 
-    ```python
-    from tenacity import Retrying, stop_after_attempt
+  - change the name from “pipeline_name” to yours, for example, “pipedrive”.
+  - change runtime settings: data_folder, logging, retry policy etc. For example, let’s wipe all the
+    data created by pipeline (`wipe_local_data=True`), redirect dlt logger into task logger
+    (`use_task_logger=True`) and set the retry policy as a Retrying class object with three restart
+    attempts.
 
-    # set `use_data_folder` to True to store temporary data on the `data` bucket.
-    # Use only when it does not fit on the local storage
-    tasks = PipelineTasksGroup(
-        pipeline_name="pipedrive",
-        use_data_folder=False,
-        wipe_local_data=True,
-        use_task_logger=True,
-        retry_policy=Retrying(stop=stop_after_attempt(3), reraise=True),
-    )
-    ```
+  ```python
+  from tenacity import Retrying, stop_after_attempt
 
+  # set `use_data_folder` to True to store temporary data on the `data` bucket.
+  # Use only when it does not fit on the local storage
+  tasks = PipelineTasksGroup(
+      pipeline_name="pipedrive",
+      use_data_folder=False,
+      wipe_local_data=True,
+      use_task_logger=True,
+      retry_policy=Retrying(stop=stop_after_attempt(3), reraise=True),
+  )
+  ```
 
 ### 3. Import sources and move the relevant code from the pipeline script
 
-You should now move your working code from the pipeline script you previously ran to the newly created DAG script.
+You should now move your working code from the pipeline script you previously ran to the newly
+created DAG script.
 
 - Import your sources from your existing pipeline script - after task group is created:
 
-    ```python
-    # import your source from pipeline script
-    from pipedrive import pipedrive_source
-    ```
+  ```python
+  # import your source from pipeline script
+  from pipedrive import pipedrive_source
+  ```
 
-    If you create your pipeline, instance in your source in the “__main__” function in your script then copy it here. For example, look at the `load_from_start_date` function in `pipedrive_pipeline.py`:
+  If you create your pipeline, instance in your source in the “__main__” function in your script
+  then copy it here. For example, look at the `load_from_start_date` function in
+  `pipedrive_pipeline.py`:
 
-    ```python
-    """Example to incrementally load activities limited to items updated after a given date"""
+  ```python
+  """Example to incrementally load activities limited to items updated after a given date"""
 
-    pipeline = dlt.pipeline(
-      pipeline_name="pipedrive", destination='duckdb', dataset_name="pipedrive_data"
-    )
+  pipeline = dlt.pipeline(
+    pipeline_name="pipedrive", destination='duckdb', dataset_name="pipedrive_data"
+  )
 
-    # First source configure to load everything except activities from the beginning
-    source = pipedrive_source()
-    source.resources["activities"].selected = False
+  # First source configure to load everything except activities from the beginning
+  source = pipedrive_source()
+  source.resources["activities"].selected = False
 
-    # Another source configured to activities starting at the given date (custom_fields_mapping is included to translate custom field hashes to names)
-    activities_source = pipedrive_source(
-      since_timestamp="2023-03-01 00:00:00Z"
-    ).with_resources("activities", "custom_fields_mapping")
-    ```
+  # Another source configured to activities starting at the given date (custom_fields_mapping is included to translate custom field hashes to names)
+  activities_source = pipedrive_source(
+    since_timestamp="2023-03-01 00:00:00Z"
+  ).with_resources("activities", "custom_fields_mapping")
+  ```
 
-    Copy this part of the code to the `dags/dag_pipedrive.py` script.
+  Copy this part of the code to the `dags/dag_pipedrive.py` script.
 
-    **Note:** Task ids in the task group should be still unique globally, so we have to exclude "custom_fields_mapping” from `activities_source`. See [Troubleshooting](deploy-with-airflow-composer.md#troubleshooting) section.
+  **Note:** Task ids in the task group should be still unique globally, so we have to exclude
+  "custom_fields_mapping” from `activities_source`. See
+  [Troubleshooting](deploy-with-airflow-composer.md#troubleshooting) section.
 
 - Pass your pipeline instance and source instance to the `add_run` method of tasks.
 
-    **Note**: PipelineTasksGroup can’t handle the list of sources (e.g. data=[source, activities_source]), so we have to add them sequentially. See [Troubleshooting](deploy-with-airflow-composer.md#troubleshooting) section.
+  **Note**: PipelineTasksGroup can’t handle the list of sources (e.g. data=\[source,
+  activities_source\]), so we have to add them sequentially. See
+  [Troubleshooting](deploy-with-airflow-composer.md#troubleshooting) section.
 
-    ```python
-    # create the source, the "serialize" decompose option will converts dlt resources into Airflow tasks. use "none" to disable it
-    tasks.add_run(
-        pipeline=pipeline,
-        data=source,
-        decompose="serialize",
-        trigger_rule="all_done",
-        retries=0,
-        provide_context=True
-    )
+  ```python
+  # create the source, the "serialize" decompose option will converts dlt resources into Airflow tasks. use "none" to disable it
+  tasks.add_run(
+      pipeline=pipeline,
+      data=source,
+      decompose="serialize",
+      trigger_rule="all_done",
+      retries=0,
+      provide_context=True
+  )
 
-    # PipelineTasksGroup can’t handle the list of sources (e.g. data=[source, activities_source]), so we have to add them sequentially
-    tasks.add_run(
-        pipeline=pipeline,
-        data=activities_source,
-        decompose="serialize",
-        trigger_rule="all_done",
-        retries=0,
-        provide_context=True
-    )
-    ```
+  # PipelineTasksGroup can’t handle the list of sources (e.g. data=[source, activities_source]), so we have to add them sequentially
+  tasks.add_run(
+      pipeline=pipeline,
+      data=activities_source,
+      decompose="serialize",
+      trigger_rule="all_done",
+      retries=0,
+      provide_context=True
+  )
+  ```
 
-- Customize the name of Airflow DAG by changing the name of the load_data function to your desired name, for example to `load_pipedrive_data`.
+- Customize the name of Airflow DAG by changing the name of the load_data function to your desired
+  name, for example to `load_pipedrive_data`.
+
 - Modify the @dag arguments. Set up *schedule, start_date, default_args*.
 
 As a result, we will get a script of the following form:
@@ -311,111 +338,123 @@ load_pipedrive_data()
 
 ### 4. Add credentials
 
-In this example, we will add our credential to Airflow environment using Google Composer UI in two ways:
+In this example, we will add our credential to Airflow environment using Google Composer UI in two
+ways:
 
 1. as ENVIRONMENT VARIABLES.
-    - During the execution of the `deploy` command with `--secrets-format env` (by default), environment variables will be displayed in the output:
 
-        ```toml
-        3. Add the following secret values (typically stored in ./.dlt/secrets.toml):
-        SOURCES__PIPEDRIVE__PIPEDRIVE_API_KEY
+   - During the execution of the `deploy` command with `--secrets-format env` (by default),
+     environment variables will be displayed in the output:
 
-        in ENVIRONMENT VARIABLES using Google Composer UI
+     ```toml
+     3. Add the following secret values (typically stored in ./.dlt/secrets.toml):
+     SOURCES__PIPEDRIVE__PIPEDRIVE_API_KEY
 
-        Name:
-        SOURCES__PIPEDRIVE__PIPEDRIVE_API_KEY
-        Secret:
-        c66c...
-        ```
+     in ENVIRONMENT VARIABLES using Google Composer UI
 
-    - Copy capitalized variables and add it into airflow’s env variables, save it. Now, `dlt` can pick it up.
+     Name:
+     SOURCES__PIPEDRIVE__PIPEDRIVE_API_KEY
+     Secret:
+     c66c...
+     ```
 
-        ![add-credential](images/add-credential.png)
+   - Copy capitalized variables and add it into airflow’s env variables, save it. Now, `dlt` can
+     pick it up.
 
-2. as the `dlt_secrets_toml` variable.
-    - During the execution of the `deploy` command with `--secrets-format toml`, secret variables will be displayed in the output:
+     ![add-credential](images/add-credential.png)
 
-        ```toml
-        3. Add the following toml-string to the Airflow UI as the dlt_secrets_toml variable.
+1. as the `dlt_secrets_toml` variable.
 
-        [sources.pipedrive]
-        pipedrive_api_key = "c66c..."
-        ```
+   - During the execution of the `deploy` command with `--secrets-format toml`, secret variables
+     will be displayed in the output:
 
-    - Copy toml secrets and add it into airflow’s env variables as `dlt_secrets_toml`, save it. Now, `dlt` can pick it up.
+     ```toml
+     3. Add the following toml-string to the Airflow UI as the dlt_secrets_toml variable.
 
-Read more about credentials for Airflow [here](../../running-in-production/orchestrators/airflow-gcp-cloud-composer#adding-credentials).
+     [sources.pipedrive]
+     pipedrive_api_key = "c66c..."
+     ```
 
-### 5. Configure `build/cloudbuild.yaml` to run it with Google Cloud Platform [[Cloud Composer](https://console.cloud.google.com/composer/environments)]
+   - Copy toml secrets and add it into airflow’s env variables as `dlt_secrets_toml`, save it. Now,
+     `dlt` can pick it up.
 
-- Read our doc [How to deploy the main branch of your airflow project from Github to Cloud Composer](../../running-in-production/orchestrators/airflow-gcp-cloud-composer).
+Read more about credentials for Airflow [here](airflow-gcp-cloud-composer.md#adding-credentials).
 
-    There you can find:
+### 5. Configure `build/cloudbuild.yaml` to run it with Google Cloud Platform \[[Cloud Composer](https://console.cloud.google.com/composer/environments)\]
 
-    - How to set up the Cloud Composer Environment.
-    - How to create trigger.
-    - How to add the libraries needed.
-- Set **_BUCKET_NAME** up in `build/cloudbuild.yaml` file.
+- Read our doc
+  [How to deploy the main branch of your airflow project from GitHub to Cloud Composer](airflow-gcp-cloud-composer.md).
 
-    The file has the following structure:
+  There you can find:
+
+  - How to set up the Cloud Composer Environment.
+  - How to create trigger.
+  - How to add the libraries needed.
+
+- Set **\_BUCKET_NAME** up in `build/cloudbuild.yaml` file.
+
+  The file has the following structure:
+
+  ```yaml
+  steps:
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'bash'
+    args:
+    - '-c'
+    - gsutil -m rsync -d -r ./ gs://${_BUCKET_NAME}/dags
+
+  substitutions:
+    _BUCKET_NAME: "set me up!"
+  options:
+    logging: CLOUD_LOGGING_ONLY
+  ```
+
+  This code copies the whole pipeline repository into the bucket’s DAGs folder.
+
+  To fill it, we need to get the name of the DAGs bucket from Cloud Composer, so we know where to
+  deploy.
+
+  - Go to [Cloud Composer](https://console.cloud.google.com/composer/environments), click on the
+    DAGs folder, and get the bucket name.
+
+    ![dag-folder](images/dag-folder.png)
+
+  - In your `cloudbuild.yaml`, set **\_BUCKET_NAME** up in the `substitutions` section.
 
     ```yaml
-    steps:
-    - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-      entrypoint: 'bash'
-      args:
-      - '-c'
-      - gsutil -m rsync -d -r ./ gs://${_BUCKET_NAME}/dags
-
     substitutions:
       _BUCKET_NAME: "set me up!"
-    options:
-      logging: CLOUD_LOGGING_ONLY
     ```
-
-    This code copies the whole pipeline repository into the bucket’s DAGs folder.
-
-    To fill it, we need to get the name of the DAGs bucket from Cloud Composer, so we know where to deploy.
-
-    - Go to [Cloud Composer](https://console.cloud.google.com/composer/environments), click on the DAGs folder, and get the bucket name.
-
-        ![dag-folder](images/dag-folder.png)
-
-    - In your `cloudbuild.yaml`, set **_BUCKET_NAME** up in the `substitutions` section.
-
-        ```yaml
-        substitutions:
-          _BUCKET_NAME: "set me up!"
-        ```
-
 
 ### 6. Finish the Airflow deploying
 
 1. Commit and push the pipeline files to GitHub.
 
-    Add stage deployment files to commit. Use your Git UI or the following command:
+   Add stage deployment files to commit. Use your Git UI or the following command:
 
-    ```bash
-    git add dags/dag_pipedrive.py build/cloudbuild.yaml
-    ```
+   ```bash
+   git add dags/dag_pipedrive.py build/cloudbuild.yaml
+   ```
 
-    Commit the files above. Use your Git UI or the following command:
+   Commit the files above. Use your Git UI or the following command:
 
-    ```bash
-    git commit -m 'initiate pipedrive pipeline with Airflow'
-    ```
+   ```bash
+   git commit -m 'initiate pipedrive pipeline with Airflow'
+   ```
 
-    Push changes to GitHub. Use your Git UI or the following command:
+   Push changes to GitHub. Use your Git UI or the following command:
 
-    ```bash
-    git push origin
-    ```
+   ```bash
+   git push origin
+   ```
 
-2. Run the trigger you build (in [Cloud Build](https://console.cloud.google.com/cloud-build/dashboard)).
+1. Run the trigger you build (in
+   [Cloud Build](https://console.cloud.google.com/cloud-build/dashboard)).
 
-    ![run-trigger](images/run-trigger.png)
+   ![run-trigger](images/run-trigger.png)
 
-3. Wait a minute, and check if your files arrived in the bucket. In our case, we added a whole repository with `pipedrive` project, and we can see it appeared.
+1. Wait a minute, and check if your files arrived in the bucket. In our case, we added a whole
+   repository with `pipedrive` project, and we can see it appeared.
 
 ## Troubleshooting
 
@@ -423,7 +462,8 @@ This section will cover the most common probable errors and exceptions.
 
 ### 1. ModuleNotFoundError: No module named ‘{source_name}’
 
-If you got this error, then make sure that your repository has been completely copied to the DAGs folder.
+If you got this error, then make sure that your repository has been completely copied to the DAGs
+folder.
 
 If you run it locally, then check your `airflow.cfg` file (line 4):
 
@@ -438,7 +478,8 @@ dags_folder = absolute_path_to_your_project
 
 ### 2. ValueError: Can only decompose dlt sources
 
-In this case you perhaps passed a list of sources to the method `add_run` as data or another unacceptable data structure and provided `decompose = "serialize"`.
+In this case you perhaps passed a list of sources to the method `add_run` as data or another
+unacceptable data structure and provided `decompose = "serialize"`.
 
 For example:
 
@@ -450,9 +491,12 @@ tasks.add_run(
 )
 ```
 
-If `data` is a DltSource and `decompose` is “serialize” it will decompose the source into disjoint connected components (isolated group of resources) and execute them one after another as separate Airflow tasks.
+If `data` is a DltSource and `decompose` is “serialize” it will decompose the source into disjoint
+connected components (isolated group of resources) and execute them one after another as separate
+Airflow tasks.
 
-PipelineTasksGroup can't handle the list of sources in the “serialize” mode, it can only decompose `DltSource`, so we have to add them sequentially:
+PipelineTasksGroup can't handle the list of sources in the “serialize” mode, it can only decompose
+`DltSource`, so we have to add them sequentially:
 
 ```python
 tasks.add_run(
@@ -491,7 +535,9 @@ airflow.exceptions.DuplicateTaskIdFound:
 Task id ‘pipedrive.pipedrive_custom_fields_mapping’ has already been added to the DAG
 ```
 
-Task ids in the task group should be still unique globally, so in this case we have to exclude “custom_fields_mapping” from `activities_source`.  “custom_fields_mapping” will be taken from the current state to translate custom field hashes to names:
+Task ids in the task group should be still unique globally, so in this case we have to exclude
+“custom_fields_mapping” from `activities_source`. “custom_fields_mapping” will be taken from the
+current state to translate custom field hashes to names:
 
 ```python
 activities_source = pipedrive_source(

@@ -18,7 +18,7 @@ When `dlt` and GitHub Actions join forces, data loading and software development
 Say goodbye to manual work and enjoy seamless data management.
 
 For this easy style of deployment, dlt supports the
-[cli command](/docs/reference/command-line-interface#github-action):
+[cli command](../../../reference/command-line-interface#github-action):
 
 ```shell
 dlt deploy <script>.py github-action --schedule <cron schedule>
@@ -26,6 +26,6 @@ dlt deploy <script>.py github-action --schedule <cron schedule>
 
 which generates the necessary code and instructions.
 
-Read our
-[Walkthroughs: Deploy a pipeline with GitHub Actions](../../walkthroughs/deploy-a-pipeline/deploy-with-github-actions)
+> 💡 Read our
+[Walkthroughs: Deploy a pipeline with GitHub Actions](../../../walkthroughs/deploy-a-pipeline/deploy-with-github-actions)
 to find out more.

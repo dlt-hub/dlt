@@ -51,7 +51,7 @@ walkthrough to learn more.
 dlt deploy <script>.py airflow-composer
 ```
 
-[Google Composer](../running-in-production/orchestrators/airflow-gcp-cloud-composer.md) is a managed
+[Google Composer](../walkthroughs/deploy-a-pipeline/airflow-gcp-cloud-composer.md) is a managed
 Airflow deployment provided by Google.
 
 Follow the [Deploy a pipeline with Airflow](../walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer)
