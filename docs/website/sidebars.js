@@ -117,6 +117,7 @@ const sidebars = {
               label: 'Orchestrators',
               items: [
                 'dlt-ecosystem/deployments/orchestrators/choosing-an-orchestrator',
+                'dlt-ecosystem/deployments/orchestrators/airflow-deployment',
                 'dlt-ecosystem/deployments/orchestrators/github-actions',
               ]
             },
