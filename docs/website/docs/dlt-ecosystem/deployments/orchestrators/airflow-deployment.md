@@ -26,7 +26,7 @@ your Airflow workflow in Google Cloud Composer. It's all about simplicity and ge
 with just a few keystrokes.
 
 For this easy style of deployment, `dlt` supports
-[the cli command](../../reference/command-line-interface.md#airflow-composer):
+[the cli command](../../../reference/command-line-interface.md#airflow-composer):
 
 ```bash
 dlt deploy {pipeline_script}.py airflow-composer
@@ -35,5 +35,5 @@ dlt deploy {pipeline_script}.py airflow-composer
 which generates the necessary code and instructions.
 
 Read our
-[Walkthroughs: Deploy a pipeline with Airflow and Google Composer](../../walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer.md)
+[Walkthroughs: Deploy a pipeline with Airflow and Google Composer](../../../walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer.md)
 to find out more.
