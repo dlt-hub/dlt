@@ -42,8 +42,7 @@ s3://mybucket_filesystem
 
 ### Configure `secrets.toml`
 
-To edit the `dlt` credentials file with your secret info, open `.dlt/secrets.toml`.
-The “secrets.toml” file created looks like:
+To edit the `dlt` credentials file with your secret info, open `.dlt/secrets.toml`, which looks like this:
 
 ```
 [destination.filesystem]
@@ -53,5 +52,6 @@ bucket_url = "s3://[your_bucket_name]" # replace with your bucket name,
 aws_access_key_id = "please set me up!" # copy the access key here
 aws_secret_access_key = "please set me up!" # copy the secret access key here
 ```
+Please, enter the credentials [grabbed](filesystem.md#grab-credentials) in the file above. 
 
 That’s it! This is how you can set up your AWS S3 filesystem credentials.
