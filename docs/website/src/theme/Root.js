@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useState, useEffect} from 'react';
 import {useLocation} from '@docusaurus/router';
 
 // inject overlay content in root element
@@ -27,6 +27,19 @@ function Overlay() {
         overlayConfig = overlays[url];
     }
     }
+    useEffect(() => {
+        const handleEsc = (event) => {
+           if (event.keyCode === 27) {
+            setSontinueModelOpen(false);
+            setDhelpModalOpen(false);
+          }
+        };
+        window.addEventListener('keydown', handleEsc);
+    
+        return () => {
+          window.removeEventListener('keydown', handleEsc);
+        };
+      }, []);
 
   const loomLink = `https://www.loom.com/embed/${overlayConfig?.loomId}`;
 
