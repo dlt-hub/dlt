@@ -39,7 +39,7 @@ function Overlay() {
   return (
     <div className='overlays'>
         {overlayConfig && <a href='#' className='overlayButton overlayButtonBottom continueButton' onClick={() => setSontinueModelOpen(true)}>{overlayConfig.buttonTitle}</a>}
-        <a href='#' className='overlayButton overlayButtonBottom' onClick={() => setDhelpModalOpen(true)}>Help Chat</a>
+        {/*<a href='#' className='overlayButton overlayButtonBottom' onClick={() => setDhelpModalOpen(true)}>Help Chat</a>*/}
 
         <div className={continueModalClassname}>
             <div className='overlayBackground' onClick={() => setSontinueModelOpen(false)}></div>
