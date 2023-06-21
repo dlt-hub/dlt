@@ -23,26 +23,25 @@ exploration phase to the actual implementation of models, saving time and effort
 throughout the workflow, Data Scientists can ensure that the data is properly prepared and aligned
 with the production environment, leading to smoother integration and deployment of their models.
 
-- [Use existed Verified Sources](../walkthroughs/add-a-verified-source) and pipeline examples or create your own quickly. See how to
-  [create pipeline](../walkthroughs/create-a-pipeline).
+- [Use existed Verified Sources](../walkthroughs/add-a-verified-source) and pipeline examples or [create your own](../walkthroughs/create-a-pipeline) quickly.
 
-  - [Deploy the pipeline](../walkthroughs/deploy-a-pipeline), so that the data
-    is automatically loaded on a schedule.
+- [Deploy the pipeline](../walkthroughs/deploy-a-pipeline), so that the data
+  is automatically loaded on a schedule.
 
-  - Transform the [loaded data](../dlt-ecosystem/transformations/transforming-the-data) with
-    dbt or in Pandas DataFrames.
+- Transform the [loaded data](../dlt-ecosystem/transformations/transforming-the-data) with
+  dbt or in Pandas DataFrames.
 
-  - Learn how to [run](../running-in-production/running),
-    [monitor](../running-in-production/monitoring), and
-    [alert](../running-in-production/alerting) when you put your pipeline in
-    production.
+- Learn how to [run](../running-in-production/running),
+  [monitor](../running-in-production/monitoring), and
+  [alert](../running-in-production/alerting) when you put your pipeline in
+  production.
 
-  - Use `dlt` when doing exploration in a Jupyter Notebook and move more easily to production. Explore
-    our
-    [Colab Demo for Chess.com API](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing)
-    to realize how easy it is to create and use `dlt` in your projects:
+- Use `dlt` when doing exploration in a Jupyter Notebook and move more easily to production. Explore
+  our
+  [Colab Demo for Chess.com API](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing)
+  to realize how easy it is to create and use `dlt` in your projects:
 
-    ![colab-demo](images/colab-demo.png)
+  ![colab-demo](images/colab-demo.png)
 
 ### `dlt` is optimized for local use on laptops
 
