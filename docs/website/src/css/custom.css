@@ -846,10 +846,12 @@ html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(8)>div>[
   left:0px;
   top: 50%;
   transform: translateY(-50%);
-  background-color: white;
+  background-color: var(--ifm-background-color); ;
   z-index: 1002;
   left: calc(50% - 350px);
   padding: 30px;
+  overflow-y: scroll;
+  overflow-x: hidden;
 }
 
 .overlayBackground {
@@ -862,13 +864,6 @@ html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(8)>div>[
   left:0px;
   opacity: 60%;
   z-index: 1001;
-}
-
-.overlayContent {
-  background-color: white;
-  overflow-y: scroll;
-  overflow-x: hidden;
-
 }
 
 .overlay {
