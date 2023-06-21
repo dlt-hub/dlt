@@ -33,12 +33,12 @@ collaborative working between engineers and analysts.
 
 - Analysts can use ready-built sources or pass their unstructured data to `dlt`, which will create a
   sturdy pipeline (e.g. [get an existing source](../walkthroughs/add-a-verified-source),
-  [build a pipeline](../walkthroughs/create-a-pipeline))
+  [build a pipeline](../walkthroughs/create-a-pipeline)).
 - Python-first users can heavily customize how dlt sources produce data, as dlt supports selecting,
   filtering, renaming, anonymizing, and just about any custom operation (e.g.
-  [rename columns example](../general-usage/customising-pipelines/renaming_columns.md))
+  [rename columns example](../general-usage/customising-pipelines/renaming_columns.md)).
 - Junior data engineers can configure dlt to do what they want-change the loading modes, add
-  performance hints, etc. (e.g. [adjust a schema](../walkthroughs/adjust-a-schema))
+  performance hints, etc. (e.g. [adjust a schema](../walkthroughs/adjust-a-schema)).
 - Senior data engineers can dig even deeper into customization options and change schemas,
   normalizers, the way pipelines run such as parallelism, etc.
 
@@ -58,7 +58,7 @@ if you choose to reshare your code (e.g.
 
 `dlt` supports Airflow and other workflow managers. It’s meant to plug into your data stack without
 causing more overheads (e.g.
-[how to set up on airflow](../walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer.md))
+[how to set up on airflow](../walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer.md)).
 
 `dlt` also allows easy customization and maintenance of the code-`dlt` sources are pythonic and
 simple, so no object oriented programming required. Your junior data scientist can fix and customize
@@ -75,8 +75,8 @@ No more reinventing the flat tyre in the form of yet another custom pipeline.
   be distributed via our command line interface. The command also handles versioning, merging,
   upgrading, etc.
 
-Read more about our contribution process and contribute sources or request them
-[here](https://github.com/dlt-hub/verified-pipelines).
+Read more about our contribution process and contribute sources or request them in
+[verified sources repository](https://github.com/dlt-hub/verified-sources).
 
 ## Inheriting a running `dlt` pipeline
 
@@ -86,11 +86,11 @@ important to know:
 - The pipeline is largely self-maintaining. The only thing you must ensure is that the source keeps
   producing data-from there dlt handles it.
 - You can notify schema evolution events (e.g.
-  [alert schema change](../running-in-production/running#inspect-save-and-alert-on-schema-changes))
+  [alert schema change](../running-in-production/running#inspect-save-and-alert-on-schema-changes)).
 - You can use the data by transforming it with dbt (e.g.
-  [run dbt from local or repository](../dlt-ecosystem/transformations/transforming-the-data))
+  [run dbt from local or repository](../dlt-ecosystem/transformations/transforming-the-data)).
 - If the sources used are public, you can update your pipelines to the latest version from the
   online repo with the `dlt init`command. If you are the first to fix, you can contribute the fix
   back so it will be included in the future versions (e.g.
   [init a pipeline](../reference/command-line-interface#dlt-init),
-  [contribute a source](https://github.com/dlt-hub/verified-source))
+  [contribute a source](https://github.com/dlt-hub/verified-sources)).

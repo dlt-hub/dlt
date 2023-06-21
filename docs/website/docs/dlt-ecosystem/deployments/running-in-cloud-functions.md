@@ -1,10 +1,10 @@
 ---
-title: Running in cloud functions
+title: Running in Cloud Functions
 description: how to run dlt in serverless functions
 keywords: [dlt, webhook, serverless]
 ---
 
-# Why run in cloud functions? Use cases and limitations
+# Why run in Cloud Functions? Use cases and limitations
 
 ## Real time data stream processing:
 

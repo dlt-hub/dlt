@@ -58,7 +58,7 @@ Follow the [Deploy a pipeline with Airflow](../walkthroughs/deploy-a-pipeline/de
 walkthrough to learn more.
 
 It will create an Airflow DAG for your pipeline script that you should customize. The DAG is using
-`dlt` Airflow *PipelineTasksGroup* wrapper to make this process trivial.
+`dlt` [Airflow wrapper](https://github.com/dlt-hub/dlt/blob/devel/dlt/helpers/airflow_helper.py#L37) to make this process trivial.
 
 It displays the environment variables with secrets you must add to the Airflow.
 
