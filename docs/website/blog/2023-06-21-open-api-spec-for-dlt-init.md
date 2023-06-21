@@ -16,9 +16,9 @@ If you build APIs, for example with [FastAPI](https://fastapi.tiangolo.com/), yo
 You can see how Marcin generates such a pipeline from the OpenAPI spec using the [Pokemon API](https://pokeapi.co/) in the Loom below.  
 [![marcin-demo](https://camo.githubusercontent.com/1aca1132999dde59bc5b274aeb4d01c79eab525941362491a534ddd8d1015dce/68747470733a2f2f63646e2e6c6f6f6d2e636f6d2f73657373696f6e732f7468756d626e61696c732f32383036623837336261316334653065613338326562336234666261663830382d776974682d706c61792e676966)](https://www.loom.com/share/2806b873ba1c4e0ea382eb3b4fbaf808?sid=501add8b-90a0-4734-9620-c6184d840995)  
   
-Part of our vision is that each API will come with a `dlt` pipeline - like it now often comes with a python client. We believe that very often API users do not really want to deal with endpoints, http requests, and JSON responses. They need live, evolving datasets that they can place anywhere they want so that it's accessible to any workflow.
+Part of our vision is that each API will come with a `dlt` pipeline - similar to how these days often it comes with a python client. We believe that very often API users do not really want to deal with endpoints, http requests, and JSON responses. They need live, evolving datasets that they can place anywhere they want so that it's accessible to any workflow.
 
-We believe that API builders will bundle `dlt` pipelines with their APIs only if such a process is hassle free. And the answer to that is code generation and the reuse of information from the OpenAPI spec. 
+We believe that API builders will bundle `dlt` pipelines with their APIs only if such a process is hassle free. One answer to that is code generation and the reuse of information from the OpenAPI spec.
 
 This release is a part of a bigger vision for `dlt` of a world centered around accessible data for modern data teams. In these new times code is becoming more disposable, but the data stays valuable. We eventually want to create an ecosystem where hundreds of thousands of pipelines will be created, shared, and deployed. Where datasets, reports, and analytics can be written and shared publicly and privately. [Code generation is automation on steroids](https://dlthub.com/product/#code-generation-is-automation-on-steroids) and we are going to be releasing many more features based on this principle.  
   
