@@ -71,7 +71,6 @@ def write_value(
     else:
         if default_value is None:
             example_value = generate_typed_example(name, hint)
-            print(f"{name} -> {example_value}")
             toml_table[name] = example_value
             # tomlkit not supporting comments on boolean
             if not isinstance(example_value, bool):
@@ -85,7 +84,6 @@ def write_spec(toml_table: TOMLTable, config: BaseConfiguration, overwrite_exist
         default_value = getattr(config, name, None)
         # check if field is of particular interest and should be included if it has default
         is_default_of_interest = name in config.__config_gen_annotations__
-        print(name)
         write_value(toml_table, name, hint, overwrite_existing, default_value=default_value, is_default_of_interest=is_default_of_interest)
 
 
