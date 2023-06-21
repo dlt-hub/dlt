@@ -17,7 +17,7 @@ pip install -r requirements.txt
 
 ### Grab `credentials`
 
-To grab the credentials required you need to create a S3 bucket and a user who can access that bucket using certain permisssions/policies.
+To grab the credentials required you need to create a S3 bucket and a user who can access that bucket using certain permissions/policies.
 
 1. You can create the S3 bucket in AWS console by clicking on "Create Bucket" in S3 and assigning appropriate name and permissions to the bucket.
 2. Once the bucket is created you'll have the bucket URL. For example, If the bucket name is "mybucket_filesystem", then the bucket URL will be:
@@ -35,7 +35,8 @@ s3://mybucket_filesystem
 | s3:*Object | GetObject, DeleteObject, PutObject, and any other Amazon S3 action that ends with the word "Object"  |
 
 > To read more about granting the read/write access to the bucket, please refer the following [documentation.](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_examples_s3_rw-bucket.html)
-> 
+
+
 5. To grab the access and secret key for the user. Go to IAM > Users and in the “Security Credentials”, click on “Create Access Key”, and preferably select “Command Line Interface” and create the access key.
 6. Grab the “Access Key” and “Secret Access Key” created that are to be used in "secrets.toml".
 
