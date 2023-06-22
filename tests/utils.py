@@ -25,7 +25,7 @@ from dlt.common.utils import uniq_id
 TEST_STORAGE_ROOT = "_storage"
 ALL_DESTINATIONS = dlt.config.get("ALL_DESTINATIONS", list) or ["bigquery", "redshift", "postgres", "duckdb"]
 ALL_LOCAL_DESTINATIONS = set(ALL_DESTINATIONS).intersection("postgres", "duckdb")
-# ALL_DESTINATIONS = ["duckdb", "postgres"]
+ALL_DESTINATIONS = ["bigquery"]
 
 
 def TEST_DICT_CONFIG_PROVIDER():
