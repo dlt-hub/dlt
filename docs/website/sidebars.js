@@ -95,6 +95,7 @@ const sidebars = {
           items: [
             'dlt-ecosystem/file-formats/jsonl',
             'dlt-ecosystem/file-formats/parquet',
+            'dlt-ecosystem/file-formats/insert-format',
           ]
         },
         {

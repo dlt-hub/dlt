@@ -13,6 +13,7 @@ the necessary function calls.
 
 ## Memory/disk management
 
+### Controlling in-memory and filesystem buffers
 `dlt` likes resources that yield data because it can request data into a buffer before processing
 and releasing it. This makes it possible to manage the amount of resources used. In order to
 configure this option, you can specify buffer size via env variables or by adding to the
@@ -39,11 +40,27 @@ The default buffer is actually set to a moderately low value, so unless you are 
 on IOT sensors or other tiny infrastructures, you might actually want to increase it to speed up
 processing.
 
-Keep in mind load packages are buffered to disk and are left for any troubleshooting, so you can
-clear disk space with the `config.toml` option `load.delete_completed_jobs=true` or the equivalent env
-variable.
+### Disabling and enabling file compression
+Several [text file formats](../dlt-ecosystem/file-formats/) have `gzip` compression enabled by default. If you wish that your load packages have uncompressed files (ie. to debug the content easily), change `data_writer.disable_compression` configuration. The entry below will disable the compression of the files processed in `normalize` stage.
+```toml
+[normalize.data_writer]
+disable_compression=false
+```
 
-To troubleshoot memory usage you can add the env variable `PROGRESS=log`.
+
+### Freeing disk space after loading
+
+Keep in mind load packages are buffered to disk and are left for any troubleshooting, so you can [clear disk space by setting `delete_completed_jobs` option](../running-in-production/running.md#data-left-behind).
+
+### Observing cpu and memory usage
+Please make sure that you have `psutils` package installed (note that Airflow installs it by default). Then you can dump the stats periodically by setting the [progress](../general-usage/pipeline.md#display-the-loading-progress) to `log` in `config.toml`:
+```toml
+progress="log"
+```
+or when running the pipeline:
+```sh
+PROGRESS=log python pipeline_script.py
+```
 
 ## Parallelism
 
