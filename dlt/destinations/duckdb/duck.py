@@ -11,7 +11,7 @@ from dlt.destinations.duckdb import capabilities
 from dlt.destinations.duckdb.sql_client import DuckDbSqlClient
 from dlt.destinations.duckdb.configuration import DuckDbClientConfiguration
 
-from dlt.common.destination.reference import LoadJob, TLoadJobState
+from dlt.common.destination.reference import LoadJob, FollowupJob, TLoadJobState
 
 from dlt.common.schema.typing import TTableSchema, TWriteDisposition
 
@@ -47,12 +47,12 @@ HINT_TO_POSTGRES_ATTR: Dict[TColumnHint, str] = {
 }
 
 
-class DuckDbCopyJob(LoadJob):
+class DuckDbCopyJob(LoadJob, FollowupJob):
     def __init__(self, table_name: str, write_disposition: TWriteDisposition, file_path: str, sql_client: DuckDbSqlClient) -> None:
         super().__init__(FileStorage.get_file_name_from_file_path(file_path))
-        qualified_table_name = sql_client.make_qualified_table_name(table_name)
 
         with sql_client.with_staging_dataset(write_disposition=="merge"):
+            qualified_table_name = sql_client.make_qualified_table_name(table_name)
             with sql_client.begin_transaction():
                 if write_disposition == "replace":
                     sql_client.execute_sql(f"TRUNCATE TABLE {qualified_table_name}")
