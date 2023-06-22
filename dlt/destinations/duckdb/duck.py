@@ -11,6 +11,12 @@ from dlt.destinations.duckdb import capabilities
 from dlt.destinations.duckdb.sql_client import DuckDbSqlClient
 from dlt.destinations.duckdb.configuration import DuckDbClientConfiguration
 
+from dlt.common.destination.reference import LoadJob, FollowupJob, TLoadJobState
+
+from dlt.common.schema.typing import TTableSchema, TWriteDisposition
+
+from dlt.common.storages.file_storage import FileStorage
+
 
 SCT_TO_PGT: Dict[TDataType, str] = {
     "complex": "JSON",
@@ -41,6 +47,24 @@ HINT_TO_POSTGRES_ATTR: Dict[TColumnHint, str] = {
 }
 
 
+class DuckDbCopyJob(LoadJob, FollowupJob):
+    def __init__(self, table_name: str, write_disposition: TWriteDisposition, file_path: str, sql_client: DuckDbSqlClient) -> None:
+        super().__init__(FileStorage.get_file_name_from_file_path(file_path))
+
+        with sql_client.with_staging_dataset(write_disposition=="merge"):
+            qualified_table_name = sql_client.make_qualified_table_name(table_name)
+            with sql_client.begin_transaction():
+                if write_disposition == "replace":
+                    sql_client.execute_sql(f"TRUNCATE TABLE {qualified_table_name}")
+                sql_client.execute_sql(f"COPY {qualified_table_name} FROM '{file_path}' ( FORMAT PARQUET );")
+
+
+    def state(self) -> TLoadJobState:
+        return "completed"
+
+    def exception(self) -> str:
+        raise NotImplementedError()
+
 class DuckDbClient(InsertValuesJobClient):
 
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
@@ -54,6 +78,11 @@ class DuckDbClient(InsertValuesJobClient):
         self.config: DuckDbClientConfiguration = config
         self.sql_client: DuckDbSqlClient = sql_client  # type: ignore
         self.active_hints = HINT_TO_POSTGRES_ATTR if self.config.create_indexes else {}
+
+    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
+        if file_path.endswith("parquet"):
+            return DuckDbCopyJob(table["name"], table["write_disposition"], file_path, self.sql_client)
+        return super().start_file_load(table, file_path, load_id)
 
     def _get_column_def_sql(self, c: TColumnSchema) -> str:
         hints_str = " ".join(self.active_hints.get(h, "") for h in self.active_hints.keys() if c.get(h, False) is True)
