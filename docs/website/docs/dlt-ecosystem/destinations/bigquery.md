@@ -15,6 +15,7 @@ dlt init chess bigquery
 ```
 pip install -r requirements.txt
 ```
+This will install dlt with **bigquery** extra which contains all the dependencies required by bigquery client.
 
 **3. Log in to or create a Google Cloud account**
 
@@ -57,7 +58,7 @@ open .dlt/secrets.toml
 ```
 
 Replace the `project_id`, `private_key`, and `client_email` with the values from the downloaded `JSON` file:
-```
+```toml
 [destination.bigquery.credentials]
 
 location = "US"

@@ -18,7 +18,7 @@ pip install -r requirements.txt
 
 **3. Run the pipeline**
 ```
-python3 chess.py
+python3 chess_pipeline.py
 ```
 
 ## Destination Configuration

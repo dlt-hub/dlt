@@ -15,6 +15,7 @@ dlt init chess redshift
 ```
 pip install -r requirements.txt
 ```
+This will install dlt with **redshift** extra which contains `psycopg2` client.
 
 **3. Edit the `dlt` credentials file with your info**
 ```
