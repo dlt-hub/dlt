@@ -27,7 +27,8 @@ def pipeline(
     export_schema_path: str = None,
     full_refresh: bool = False,
     credentials: Any = None,
-    progress: TCollectorArg = _NULL_COLLECTOR
+    progress: TCollectorArg = _NULL_COLLECTOR,
+    staging_destination: TDestinationReferenceArg = None,
 ) -> Pipeline:
     """Creates a new instance of `dlt` pipeline, which moves the data from the source ie. a REST API to a destination ie. database or a data lake.
 
@@ -92,6 +93,7 @@ def pipeline(
     full_refresh: bool = False,
     credentials: Any = None,
     progress: TCollectorArg = _NULL_COLLECTOR,
+    staging_destination: TDestinationReferenceArg = None,
     **kwargs: Any
 ) -> Pipeline:
     ensure_correct_pipeline_kwargs(pipeline, **kwargs)
@@ -113,6 +115,10 @@ def pipeline(
         pipelines_dir = get_dlt_pipelines_dir()
 
     destination = DestinationReference.from_name(destination or kwargs["destination_name"])
+    if staging_destination:
+        staging_destination = DestinationReference.from_name(staging_destination or kwargs["staging_destination_name"])
+    else:
+        staging_destination = None
     progress = collector_from_name(progress)
     # create new pipeline instance
     p = Pipeline(
@@ -128,7 +134,8 @@ def pipeline(
         progress,
         False,
         last_config(**kwargs),
-        kwargs["runtime"])
+        kwargs["runtime"],
+        staging_destination)
     # set it as current pipeline
     p.activate()
     return p

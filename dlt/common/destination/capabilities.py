@@ -11,7 +11,7 @@ from dlt.common.utils import identity
 # puae-jsonl - internal extract -> normalize format bases on jsonl
 # insert_values - insert SQL statements
 # sql - any sql statement
-TLoaderFileFormat = Literal["jsonl", "puae-jsonl", "insert_values", "sql", "parquet"]
+TLoaderFileFormat = Literal["jsonl", "puae-jsonl", "insert_values", "sql", "parquet", "reference"]
 
 
 @configspec(init=True)

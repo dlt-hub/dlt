@@ -32,16 +32,20 @@ class Load(Runnable[ThreadPool]):
     def __init__(
         self,
         destination: DestinationReference,
+        staging_destination: DestinationReference,
         collector: Collector = NULL_COLLECTOR,
         is_storage_owner: bool = False,
         config: LoaderConfiguration = config.value,
-        initial_client_config: DestinationClientConfiguration = config.value
+        initial_client_config: DestinationClientConfiguration = config.value,
+        initial_staging_client_config: DestinationClientConfiguration = config.value
     ) -> None:
         self.config = config
         self.collector = collector
         self.initial_client_config = initial_client_config
+        self.initial_staging_client_config = initial_staging_client_config
         self.destination = destination
         self.capabilities = destination.capabilities()
+        self.staging_destination = staging_destination
         self.pool: ThreadPool = None
         self.load_storage: LoadStorage = self.create_storage(is_storage_owner)
         self._processed_load_ids: Dict[str, int] = {}
@@ -73,7 +77,7 @@ class Load(Runnable[ThreadPool]):
     def w_spool_job(self: "Load", file_path: str, load_id: str, schema: Schema) -> Optional[LoadJob]:
         job: LoadJob = None
         try:
-            with self.destination.client(schema, self.initial_client_config) as client:
+            with self.staging_destination.client(schema, self.initial_staging_client_config) as client:
                 job_info = self.load_storage.parse_job_file_name(file_path)
                 if job_info.file_format not in self.capabilities.supported_loader_file_formats:
                     raise LoadClientUnsupportedFileFormats(job_info.file_format, self.capabilities.supported_loader_file_formats, file_path)

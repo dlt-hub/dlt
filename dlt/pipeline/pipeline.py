@@ -186,15 +186,17 @@ class Pipeline(SupportsPipeline):
             progress: _Collector,
             must_attach_to_local_pipeline: bool,
             config: PipelineConfiguration,
-            runtime: RunConfiguration
+            runtime: RunConfiguration,
+            staging_destination: DestinationReference,
         ) -> None:
         """Initializes the Pipeline class which implements `dlt` pipeline. Please use `pipeline` function in `dlt` module to create a new Pipeline instance."""
-
         self.pipeline_salt = pipeline_salt
         self.config = config
         self.runtime_config = runtime
         self.full_refresh = full_refresh
         self.collector = progress or _NULL_COLLECTOR
+        self.destination = None
+        self.staging_destination = None
 
         self._container = Container()
         self._pipeline_instance_id = self._create_pipeline_instance_id()
@@ -216,6 +218,8 @@ class Pipeline(SupportsPipeline):
             self._state_to_props(state)
             # we overwrite the state with the values from init
             self._set_destination(destination)  # changing the destination could be dangerous if pipeline has not loaded items
+            if staging_destination:
+                self._set_staging_destination(staging_destination)
             self._set_dataset_name(dataset_name)
             self.credentials = credentials
             self._configure(import_schema_path, export_schema_path, must_attach_to_local_pipeline)
@@ -338,6 +342,9 @@ class Pipeline(SupportsPipeline):
 
         # make sure that destination is set and client is importable and can be instantiated
         client = self._get_destination_client(self.default_schema)
+        staging_client = None
+        if self.staging_destination:
+            staging_client = self._get_staging_destination_client(self.default_schema)
 
         # create default loader config and the loader
         load_config = LoaderConfiguration(
@@ -345,7 +352,7 @@ class Pipeline(SupportsPipeline):
             raise_on_failed_jobs=raise_on_failed_jobs,
             _load_storage_config=self._load_storage_config
         )
-        load = Load(self.destination, collector=self.collector, is_storage_owner=False, config=load_config, initial_client_config=client.config)
+        load = Load(self.destination, staging_destination=self.staging_destination, collector=self.collector, is_storage_owner=False, config=load_config, initial_client_config=client.config, initial_staging_client_config=staging_client.config if staging_client else None)
         try:
             with signals.delayed_signals():
                 runner.run_pool(load.config, load)
@@ -844,8 +851,8 @@ class Pipeline(SupportsPipeline):
 
         return extract_id
 
-    def _get_destination_client_initial_config(self, credentials: Any = None) -> DestinationClientConfiguration:
-        if not self.destination:
+    def _get_destination_client_initial_config(self, destination: DestinationReference, credentials: Any = None) -> DestinationClientConfiguration:
+        if not destination:
             raise PipelineConfigMissing(
                 self.pipeline_name,
                 "destination",
@@ -853,7 +860,7 @@ class Pipeline(SupportsPipeline):
                 "Please provide `destination` argument to `pipeline`, `run` or `load` method directly or via .dlt config.toml file or environment variable."
             )
         # create initial destination client config
-        client_spec = self.destination.spec()
+        client_spec = destination.spec()
         # initialize explicit credentials
         credentials = credentials or self.credentials
         if credentials is not None and not isinstance(credentials, CredentialsConfiguration):
@@ -871,8 +878,22 @@ class Pipeline(SupportsPipeline):
         try:
             # config is not provided then get it with injected credentials
             if not initial_config:
-                initial_config = self._get_destination_client_initial_config()
+                initial_config = self._get_destination_client_initial_config(self.destination)
             return self.destination.client(schema, initial_config)
+        except ImportError:
+            client_spec = self.destination.spec()
+            raise MissingDependencyException(
+                f"{client_spec.destination_name} destination",
+                [f"{version.DLT_PKG_NAME}[{client_spec.destination_name}]"],
+                "Dependencies for specific destinations are available as extras of dlt"
+            )
+        
+    def _get_staging_destination_client(self, schema: Schema, initial_config: DestinationClientConfiguration = None) -> JobClientBase:
+        try:
+            # config is not provided then get it with injected credentials
+            if not initial_config:
+                initial_config = self._get_destination_client_initial_config(self.staging_destination)
+            return self.staging_destination.client(schema, initial_config)
         except ImportError:
             client_spec = self.destination.spec()
             raise MissingDependencyException(
@@ -928,6 +949,11 @@ class Pipeline(SupportsPipeline):
         with self._maybe_destination_capabilities():
             # default normalizers must match the destination
             self._set_default_normalizers()
+
+    def _set_staging_destination(self, destination: TDestinationReferenceArg) -> None:
+        destination_mod = DestinationReference.from_name(destination)
+        self.staging_destination = destination_mod or self.staging_destination
+
 
     @contextmanager
     def _maybe_destination_capabilities(self, loader_file_format: TLoaderFileFormat = None) -> Iterator[DestinationCapabilitiesContext]:
