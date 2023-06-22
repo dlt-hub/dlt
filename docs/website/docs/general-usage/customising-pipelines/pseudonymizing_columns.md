@@ -1,7 +1,7 @@
 ---
 title: Pseudonymizing columns
 description: Pseudonymizing (or anonymizing) columns by replacing the special characters
-keywords: [pseudonymize, anonymize, columns, special chracaters]
+keywords: [pseudonymize, anonymize, columns, special characters]
 ---
 
 # Pseudonymizing columns
@@ -28,7 +28,8 @@ def dummy_source(prefix: str = None):
 def pseudonymize_name(doc):
     '''
     Pseudonmyisation is a deterministic type of PII-obscuring
-    Its role is to allow identifying users by their hash, without revealing the underlying info.
+    Its role is to allow identifying users by their hash,
+    without revealing the underlying info.
     '''
     # add a constant salt to generate
     salt = 'WI@N57%zZrmk#88c'

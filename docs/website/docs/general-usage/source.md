@@ -6,15 +6,15 @@ keywords: [source, api, dlt.source]
 
 # Source
 
-A [source](general-usage/glossary.md#source) is a logical grouping of resources ie. endpoints of a
+A [source](glossary.md#source) is a logical grouping of resources i.e. endpoints of a
 single API. The most common approach is to define it in a separate Python module.
 
-- a source is a function decorated with `@dlt.source` that returns one or more resources
-- a source can optionally define a [schema](./schema.md) with tables, columns, performance hints and
-  more
-- the source Python module typically contains optional customizations and data transformations.
-- the source Python module typically contains the authentication and pagination code for particular
-  API
+- A source is a function decorated with `@dlt.source` that returns one or more resources.
+- A source can optionally define a [schema](schema.md) with tables, columns, performance hints and
+  more.
+- The source Python module typically contains optional customizations and data transformations.
+- The source Python module typically contains the authentication and pagination code for particular
+  API.
 
 ## Declare sources
 
@@ -27,7 +27,6 @@ You can create resources by using `dlt.resource` as a function. In an example be
 single generator function to create a list of resources for several Hubspot endpoints.
 
 ```python
-
 @dlt.source
 def hubspot(api_key=dlt.secrets.value):
 
@@ -37,7 +36,8 @@ def hubspot(api_key=dlt.secrets.value):
         yield requests.get(url + "/" + endpoint).json()
 
     for endpoint in endpoints:
-        # calling get_resource creates generator, the actual code of the function will be executed in pipeline.run
+        # calling get_resource creates generator,
+        # the actual code of the function will be executed in pipeline.run
         yield dlt.resource(get_resource(endpoint), name=endpoint)
 ```
 
@@ -65,12 +65,13 @@ print(source.resources.selected.keys())
 pipeline.run(source.with_resources("companies", "deals"))
 ```
 
-Resources can be individually accessed and selected
+Resources can be individually accessed and selected:
 
 ```python
 # resources are accessible as attributes of a source
 for c in source.companies:  # enumerate all data in companies resource
-  print(c)
+    print(c)
+
 # check if deals are selected to load
 print(source.deals.selected)
 # deselect the deals
@@ -86,7 +87,7 @@ date:
 source.deals.add_filter(lambda deal: deal["created_at"] > yesterday)
 ```
 
-Find more on transforms [here](resource.md#filter-transform-and-pivot-data)
+Find more on transforms [here](resource.md#filter-transform-and-pivot-data).
 
 ### Load data partially
 
@@ -104,7 +105,7 @@ load_info = pipeline.run(pipedrive_source().add_limit(10))
 print(load_info)
 ```
 
-Find more on sampling data [here](resource.md#sample-from-large-data)
+Find more on sampling data [here](resource.md#sample-from-large-data).
 
 ### Add more resources to existing source
 
@@ -122,9 +123,9 @@ source = hubspot()
 
 @dlt.transformer(data_from=source.deals)
 def deal_scores(deal_item):
-  # obtain the score, deal_items contains data yielded by source.deals
-  score = model.predict(featurize(deal_item))
-  yield {"deal_id": deal_item, "score": score}
+    # obtain the score, deal_items contains data yielded by source.deals
+    score = model.predict(featurize(deal_item))
+    yield {"deal_id": deal_item, "score": score}
 
 # add the deal_scores to the source
 source.deal_scores = deal_scores
@@ -135,7 +136,7 @@ pipeline.run(source)
 
 ### Reduce the nesting level of generated tables
 
-You can limit how deep `dlt` goes when generating child tables. By default the library will descend
+You can limit how deep `dlt` goes when generating child tables. By default, the library will descend
 and generate child tables for all nested lists, without limit.
 
 ```python
@@ -159,17 +160,16 @@ from mongo_db import mongo_db
 
 source = mongo_db()
 source.max_table_nesting = 0
-
 ```
 
-Several data sources are prone to contain semi-structured documents with very deep nesting ie.
-MongoDb databases. Our practical experience is that setting the `max_nesting_level` to 2 or 3
-produces the clearest and human readable schemas.
+Several data sources are prone to contain semi-structured documents with very deep nesting i.e.
+MongoDB databases. Our practical experience is that setting the `max_nesting_level` to 2 or 3
+produces the clearest and human-readable schemas.
 
 ### Modify schema
 
 The schema is available via `schema` property of the source.
-[You can manipulate this schema ie. add tables, change column definitions etc. before the data is loaded.](schema.md#schema-is-modified-in-the-source-function-body)
+[You can manipulate this schema i.e. add tables, change column definitions etc. before the data is loaded.](schema.md#schema-is-modified-in-the-source-function-body)
 
 Source provides two other convenience properties:
 
@@ -178,12 +178,12 @@ Source provides two other convenience properties:
 
 ## Load sources
 
-You can pass individual sources or list of sources to the `dlt.pipeline` object. By default all the
+You can pass individual sources or list of sources to the `dlt.pipeline` object. By default, all the
 sources will be loaded to a single dataset.
 
 You are also free to decompose a single source into several ones. For example, you may want to break
 down a 50 table copy job into an airflow dag with high parallelism to load the data faster. To do
-so, you could get the list of resources as
+so, you could get the list of resources as:
 
 ```python
 # get a list of resources' names
@@ -191,12 +191,12 @@ resource_list = sql_source().resources.keys()
 
 #now we are able to make a pipeline for each resource
 for res in resource_list:
-		pipeline.run(sql_source().with_resources(res))
+    pipeline.run(sql_source().with_resources(res))
 ```
 
 ### Do a full refresh
 
-You can temporarily change the write disposition to `replace` on all (or selected) resources within
+You can temporarily change the "write disposition" to `replace` on all (or selected) resources within
 a source to force a full refresh:
 
 ```python

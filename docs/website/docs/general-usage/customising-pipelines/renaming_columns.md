@@ -1,7 +1,7 @@
 ---
 title: Renaming columns
 description: Renaming columns by replacing the special characters
-keywords: [renaming, columns, special chracaters]
+keywords: [renaming, columns, special characters]
 ---
 
 # Renaming columns
