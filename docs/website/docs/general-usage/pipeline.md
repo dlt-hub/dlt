@@ -11,7 +11,9 @@ A [pipeline](glossary.md#pipeline) is a connection that moves the data from your
 [resources](resource.md) to the pipeline. You can also pass generators, lists and other iterables to
 it. When the pipeline runs, the resources get executed and the data is loaded at destination.
 
-Example: This pipeline will load a list of objects into `duckdb` table with a name "three":
+Example:
+
+This pipeline will load a list of objects into `duckdb` table with a name "three":
 
 ```python
 import dlt

@@ -13,7 +13,7 @@ When using a pipeline locally, we recommend using the `.dlt/secrets.toml` method
 To do so, open your dlt secrets file and match the source names and credentials to the ones in your
 script, for example:
 
-```
+```toml
 [sources.pipedrive]
 pipedrive_api_key = "pipedrive_api_key" # please set me up!
 
@@ -57,7 +57,9 @@ print(load_info)
 ```
 
 When a source is defined, you define how credentials are passed. So it is here that you could look
-to understand how to pass custom credentials. Example:
+to understand how to pass custom credentials.
+
+Example:
 
 ```python
 @dlt.source(name='pipedrive')
@@ -71,7 +73,7 @@ You can see that the pipedrive source expects a `pipedrive_api_key`. So you coul
 api_key = BaseHook.get_connection('pipedrive_api_key').extra # get it from airflow or other credential store
 load_info = pipeline.run(pipedrive_source(pipedrive_api_key=api_key))
 ```
-> Note: be careful not to put your credentials directly in code - use your own credential vault instead.
+> ❗ Note: be careful not to put your credentials directly in code - use your own credential vault instead.
 
 ### Reading credentials from environment variables
 

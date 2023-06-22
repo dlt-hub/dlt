@@ -109,7 +109,7 @@ A column schema contains following basic hints:
    root table.
 1. `unique` tells that column is unique. on some destination that generates unique index.
 
-`dlt` let's you define additional performance hints.
+`dlt` lets you define additional performance hints:
 
 1. `partition` marks column to be used to partition data.
 1. `sort` marks column as sortable/having order. on some destinations that non-unique generates
@@ -198,11 +198,11 @@ Example:
 ```yaml
 settings:
   preferred_types:
-      timestamp: timestamp
-      re:^inserted_at$: timestamp
-      re:^created_at$: timestamp
-      re:^updated_at$: timestamp
-      re:^_dlt_list_idx$: bigint
+    timestamp: timestamp
+    re:^inserted_at$: timestamp
+    re:^created_at$: timestamp
+    re:^updated_at$: timestamp
+    re:^_dlt_list_idx$: bigint
 ```
 
 ## Export and import schema files
@@ -219,12 +219,12 @@ data itself.
 The `dlt.source` decorator accepts a schema instance that you can create yourself and modify in
 whatever way you wish. The decorator also support a few typical use cases:
 
-### Schema created implicitly by decorator
+### 1. Schema created implicitly by decorator
 
 If no schema instance is passed, the decorator creates a schema with the name set to source name and
 all the settings to default.
 
-### Automatically load schema file stored with source python module
+### 2. Automatically load schema file stored with source python module
 
 If no schema instance is passed, and a file with a name `{source name}_schema.yml` exists in the
 same folder as the module with the decorated function, it will be automatically loaded and used as
@@ -232,7 +232,7 @@ the schema.
 
 This should make easier to bundle a fully specified (or pre-configured) schema with a source.
 
-### Schema is modified in the source function body
+### 3. Schema is modified in the source function body
 
 What if you can configure your schema or add some tables only inside your schema function, when i.e.
 you have the source credentials and user settings available? You could for example add detailed

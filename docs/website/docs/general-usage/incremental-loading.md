@@ -17,12 +17,12 @@ The challenge of incremental pipelines is that if we do not keep track of the st
 
 ### The 3 write dispositions:
 
-**Full load**: replaces the destination dataset with whatever the source produced on this run. To
-achieve this, use `write_disposition='replace'`in your resources.
+- **Full load**: replaces the destination dataset with whatever the source produced on this run. To
+achieve this, use `write_disposition='replace'` in your resources.
 
-**Append**: appends the new data to the destination. Use `write_disposition='append'`.
+- **Append**: appends the new data to the destination. Use `write_disposition='append'`.
 
-**Merge**: Merges new data to the destination using `merge_key` and/or deduplicates/upserts new data
+- **Merge**: Merges new data to the destination using `merge_key` and/or deduplicates/upserts new data
 using `private_key`. Use `write_disposition='merge'`.
 
 ### Two simple questions determine the write disposition you use
@@ -191,7 +191,6 @@ duplicates and past issues.
 
 ```python
 # use naming function in table name to generate separate tables for each event
-
 @dlt.resource(primary_key="id", table_name=lambda i: i['type'])  # type: ignore
 def repo_events(
     last_created_at = dlt.sources.incremental("created_at", initial_value="1970-01-01T00:00:00Z", last_value_func=max)
@@ -207,7 +206,7 @@ def repo_events(
         if page and page[-1]["created_at"] < last_created_at.start_value:
             break
 
-return repo_events
+    return repo_events
 ```
 
 We just yield all the events and `dlt` does the filtering (using `id` column declared as
@@ -308,7 +307,7 @@ You may force a full refresh of a `merge` and `append` pipelines:
 Example:
 
 ```python
-p = dlt.pipeline(destination="bigquery", dataset_name="github_3")
+p = dlt.pipeline(destination="bigquery", dataset_name="dataset_name")
 # do a full refresh
 p.run(merge_source(), write_disposition="replace")
 # do a full refresh of just one table
@@ -350,7 +349,7 @@ def tweets():
     dlt.current.state()["last_updated"]  = data["last_timestamp"]
 ```
 
-if we keep a list or a dictionary in the state, we can modify the underlying values in the objects,
+If we keep a list or a dictionary in the state, we can modify the underlying values in the objects,
 and thus we do not need to set the state back explicitly.
 
 ```python
@@ -425,8 +424,7 @@ def search_tweets(twitter_bearer_token=dlt.secrets.value, search_terms=None, sta
         # make cache for each term
         last_value_cache = dlt.current.state().setdefault(f"last_value_{search_term}", None)
         print(f'last_value_cache: {last_value_cache}')
-        params = {...
-        }
+        params = {...}
         url = "https://api.twitter.com/2/tweets/search/recent"
         response = _paginated_get(url, headers=headers, params=params)
         for page in response:
