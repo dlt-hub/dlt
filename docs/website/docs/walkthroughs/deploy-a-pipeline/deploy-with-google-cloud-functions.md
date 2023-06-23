@@ -26,8 +26,8 @@ To deploy the pipeline, we'll use the Google Cloud Source Repositories method.
    - You can also skip creating the repo and use the shell editor directly, depending on your
      requirements.
 1. In this guide, we'll be setting up the `dlt`
-   [Notion verified source](../../dlt-ecosystem/verified-sources/notion). However,
-   you can use any verified source or create a custom one to suit your needs.
+   [Notion verified source](../../dlt-ecosystem/verified-sources/notion). However, you can use any
+   verified source or create a custom one to suit your needs.
 1. In the shell editor:
    - Run the following command to initialise the verified source with Notion and create a pipeline
      example with BigQuery as the target.

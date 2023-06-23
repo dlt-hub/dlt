@@ -7,28 +7,30 @@ keywords: [how to, create a pipeline]
 # Create a pipeline
 
 Follow the steps below to create a [pipeline](../general-usage/glossary.md#pipeline) from the
-WeatherAPI.com API to DuckDB from scratch. The same steps can be repeated for any source and destination of your
-choice—use `dlt init <source> <destination>` and then build the pipeline for that API instead.
+WeatherAPI.com API to DuckDB from scratch. The same steps can be repeated for any source and
+destination of your choice—use `dlt init <source> <destination>` and then build the pipeline for
+that API instead.
 
-Please make sure you have [installed `dlt`](../reference/installation.mdx) before following the steps below.
+Please make sure you have [installed `dlt`](../reference/installation.mdx) before following the
+steps below.
 
 ## 1. Initialize project
 
-Create a new empty directory for your `dlt` project by running
+Create a new empty directory for your `dlt` project by running:
 
-```
+```bash
 mkdir weatherapi_duckdb
 ```
 
-Start a `dlt` project with a pipeline template that loads data to DuckDB by running
+Start a `dlt` project with a pipeline template that loads data to DuckDB by running:
 
-```
+```bash
 dlt init weatherapi duckdb
 ```
 
 Install the dependencies necessary for DuckDB:
 
-```
+```bash
 pip install -r requirements.txt
 ```
 
@@ -36,22 +38,22 @@ pip install -r requirements.txt
 
 You will need to [sign up for the WeatherAPI.com API](https://www.weatherapi.com/signup.aspx).
 
-Once you do this, you should see your `API Key` at the top of your [user page](https://www.weatherapi.com/my/).
+Once you do this, you should see your `API Key` at the top of your
+[user page](https://www.weatherapi.com/my/).
 
 Copy the value of the API key into `.dlt/secrets.toml`:
 
-```
+```toml
 [sources]
-
 api_secret_key = '<api key value>'
 ```
 
-The secret name must correspond to the argument name in the source (i.e. `api_secret_key=dlt.secrets.value`
-in `def weatherapi_source(api_secret_key=dlt.secrets.value):`).
+The secret name must correspond to the argument name in the source (i.e.
+`api_secret_key=dlt.secrets.value` in `def weatherapi_source(api_secret_key=dlt.secrets.value):`).
 
 Run the `weatherapi.py` pipeline script to test that authentication headers look fine:
 
-```
+```bash
 python3 weatherapi.py
 ```
 
@@ -59,7 +61,8 @@ Your API key should be printed out to stdout along with some test data.
 
 ## 3. Request data from the WeatherAPI.com API
 
-Replace the defintion of the `weatherapi_resource` function definition in the `weatherapi.py` pipeline script with a call to the WeatherAPI.com API:
+Replace the definition of the `weatherapi_resource` function definition in the `weatherapi.py`
+pipeline script with a call to the WeatherAPI.com API:
 
 ```python
 @dlt.resource(write_disposition="append")
@@ -124,7 +127,15 @@ This will open a streamlit app that gives you an overview of the data loaded.
 ## 5. Next steps
 
 Now that you have a working pipeline, you have options for what to learn next:
-- [Deploy this pipeline with GitHub Actions](deploy-a-pipeline/deploy-with-github-actions), so that the data is automatically loaded on a schedule.
-- Transform the [loaded data](../dlt-ecosystem/transformations/transforming-the-data) with dbt or in Pandas DataFrames.
-- Learn how to [run](../running-in-production/running.md), [monitor](../running-in-production/monitoring.md), and [alert](../running-in-production/alerting.md) when you put your pipeline in production
-- Try loading data to a different destination like [Google BigQuery](../dlt-ecosystem/destinations/bigquery.md), [Amazon Redshift](../dlt-ecosystem/destinations/redshift.md), or [Postgres](../dlt-ecosystem/destinations/postgres.md)
+
+- [Deploy this pipeline with GitHub Actions](deploy-a-pipeline/deploy-with-github-actions), so that
+  the data is automatically loaded on a schedule.
+- Transform the [loaded data](../dlt-ecosystem/transformations/transforming-the-data) with dbt or in
+  Pandas DataFrames.
+- Learn how to [run](../running-in-production/running.md),
+  [monitor](../running-in-production/monitoring.md), and
+  [alert](../running-in-production/alerting.md) when you put your pipeline in production
+- Try loading data to a different destination like
+  [Google BigQuery](../dlt-ecosystem/destinations/bigquery.md),
+  [Amazon Redshift](../dlt-ecosystem/destinations/redshift.md), or
+  [Postgres](../dlt-ecosystem/destinations/postgres.md)

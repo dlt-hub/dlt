@@ -97,8 +97,8 @@ Secret:
 c66c..
 ```
 
-**Note**: The `deploy` command for airflow-composer now includes a *secrets-format* option. It allows
-to pass the secrets in a single Airflow Variable as explained later.
+**Note**: The `deploy` command for airflow-composer now includes a *secrets-format* option. It
+allows to pass the secrets in a single Airflow Variable as explained later.
 
 Run the command `deploy` with the key `--secrets-format toml`:
 
