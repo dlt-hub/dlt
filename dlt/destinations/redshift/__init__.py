@@ -18,7 +18,7 @@ def _configure(config: RedshiftClientConfiguration = config.value) -> RedshiftCl
 def capabilities() -> DestinationCapabilitiesContext:
     caps = DestinationCapabilitiesContext()
     caps.preferred_loader_file_format = "insert_values"
-    caps.supported_loader_file_formats = ["insert_values", "sql"]
+    caps.supported_loader_file_formats = ["insert_values", "sql", "reference"]
     caps.escape_identifier = escape_redshift_identifier
     caps.escape_literal = escape_redshift_literal
     caps.max_identifier_length = 127

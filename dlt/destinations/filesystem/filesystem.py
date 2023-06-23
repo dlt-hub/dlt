@@ -8,16 +8,20 @@ from dlt.common.schema import Schema, TTableSchema
 from dlt.common.schema.typing import TWriteDisposition, LOADS_TABLE_NAME
 from dlt.common.storages import FileStorage
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import NewLoadJob, TLoadJobState, LoadJob, JobClientBase
+from dlt.common.destination.reference import NewLoadJob, TLoadJobState, LoadJob, JobClientBase, FollowupJob
 from dlt.destinations.job_impl import EmptyLoadJob
 from dlt.destinations.filesystem import capabilities
 from dlt.destinations.filesystem.configuration import FilesystemClientConfiguration
 from dlt.destinations.filesystem.filesystem_client import client_from_config
 from dlt.common.storages import LoadStorage
+from dlt.destinations.job_impl import NewLoadJobImpl
 
 lock = threading.Lock()
 
-class LoadFilesystemJob(LoadJob):
+class NewReferenceJob(NewLoadJobImpl):
+    pass
+
+class LoadFilesystemJob(LoadJob, FollowupJob):
     def __init__(
             self,
             local_path: str,
@@ -101,6 +105,13 @@ class FilesystemClient(JobClientBase):
 
     def create_merge_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
         return None
+    
+    def create_reference_job(self, job: LoadFilesystemJob) -> NewLoadJob:
+        file_name = (".").join(job.file_name().split(".")[0:-1] + ["reference"])
+        job = NewReferenceJob(file_name=file_name, status="running")
+        remote_path = posixpath.join(self.dataset_path, job.file_name()) 
+        job._save_text_file(remote_path)
+        return job
 
     def complete_load(self, load_id: str) -> None:
         schema_name = self.schema.name

@@ -18,6 +18,7 @@ from dlt.common.schema import Schema
 from dlt.common.schema.typing import TTableSchema, TWriteDisposition
 from dlt.common.storages import LoadStorage
 from dlt.common.destination.reference import DestinationClientDwhConfiguration, FollowupJob, JobClientBase, DestinationReference, LoadJob, NewLoadJob, TLoadJobState, DestinationClientConfiguration
+from dlt.destinations.filesystem.filesystem import LoadFilesystemJob
 
 from dlt.destinations.job_impl import EmptyLoadJob
 from dlt.destinations.exceptions import DestinationTerminalException, DestinationTransientException, LoadJobUnknownTableException
@@ -76,8 +77,12 @@ class Load(Runnable[ThreadPool]):
     @workermethod
     def w_spool_job(self: "Load", file_path: str, load_id: str, schema: Schema) -> Optional[LoadJob]:
         job: LoadJob = None
+        is_reference = file_path.endswith(".reference")
         try:
-            with self.staging_destination.client(schema, self.initial_staging_client_config) as client:
+            # if we have a staging destination and the file is not a reference, send to staging
+            use_staging_client = self.staging_destination is not None and not is_reference
+            client = self.staging_destination.client(schema, self.initial_staging_client_config) if use_staging_client else self.destination.client(schema, self.initial_client_config)
+            with client as client:
                 job_info = self.load_storage.parse_job_file_name(file_path)
                 if job_info.file_format not in self.capabilities.supported_loader_file_formats:
                     raise LoadClientUnsupportedFileFormats(job_info.file_format, self.capabilities.supported_loader_file_formats, file_path)
@@ -121,6 +126,7 @@ class Load(Runnable[ThreadPool]):
 
         # list all files that were started but not yet completed
         started_jobs = self.load_storage.list_started_jobs(load_id)
+
         logger.info(f"Found {len(started_jobs)} that are already started and should be continued")
         if len(started_jobs) == 0:
             return 0, jobs
@@ -166,14 +172,23 @@ class Load(Runnable[ThreadPool]):
         assert len(table_chain) > 0
         # all tables completed, create merge sql job
         return self.destination.client(schema, self.initial_client_config).create_merge_job(table_chain)
+    
+    def create_reference_job(self, load_id: str, schema: Schema, starting_job: LoadFilesystemJob) -> NewLoadJob:
+        return self.staging_destination.client(schema, self.initial_staging_client_config).create_reference_job(starting_job)
 
     def create_followup_jobs(self, load_id: str, state: TLoadJobState, starting_job: LoadJob, schema: Schema) -> List[NewLoadJob]:
         jobs: List[NewLoadJob] = []
         if isinstance(starting_job, FollowupJob):
             if state == "completed":
+                # merge jobs
                 top_merged_table = get_top_level_table(schema.tables, self.get_load_table(schema, starting_job.file_name())["name"])
                 if top_merged_table["write_disposition"] == "merge":
                     job = self.create_merge_job(load_id, schema, top_merged_table, starting_job)
+                    if job:
+                        jobs.append(job)
+                # if we have a staging destination, we have to create reference followup jobs for non reference jobs
+                if self.staging_destination and not starting_job.file_name().endswith(".reference") and isinstance(starting_job, LoadFilesystemJob):
+                    job = self.create_reference_job(load_id, schema, starting_job)
                     if job:
                         jobs.append(job)
         return jobs
@@ -327,6 +342,7 @@ class Load(Runnable[ThreadPool]):
         self._processed_load_ids[load_id] = None
         with self.collector(f"Load {schema.name} in {load_id}"):
             self.load_single_package(load_id, schema)
+
         return TRunMetrics(False, len(self.load_storage.list_packages()))
 
     def get_load_info(self, pipeline: SupportsPipeline, started_at: datetime.datetime = None) -> LoadInfo:

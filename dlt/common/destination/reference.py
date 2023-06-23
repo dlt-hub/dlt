@@ -160,6 +160,9 @@ class JobClientBase(ABC):
         """
         pass
 
+    def create_reference_job(self, job: LoadJob) -> NewLoadJob:
+        pass
+
     @abstractmethod
     def complete_load(self, load_id: str) -> None:
         pass
