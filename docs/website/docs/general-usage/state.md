@@ -11,7 +11,7 @@ it and, on next pipeline run, request them back.
 
 ## Read and write pipeline state in a resource
 
-You read and write the state in in your resources. Below we use the state to create a list of chess
+You read and write the state in your resources. Below we use the state to create a list of chess
 game archives which we then use to
 [prevent requesting duplicates](incremental-loading.md#advanced-state-usage-storing-a-list-of-processed-entities).
 
