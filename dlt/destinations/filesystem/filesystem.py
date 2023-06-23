@@ -51,8 +51,8 @@ class LoadFilesystemJob(LoadJob, FollowupJob):
             if items:
                 fs_client.rm(items)
 
-        destination_file_name = LoadFilesystemJob.make_destination_filename(file_name, schema_name, load_id)
-        fs_client.put_file(local_path, posixpath.join(dataset_path, destination_file_name))
+        self.destination_file_name = LoadFilesystemJob.make_destination_filename(file_name, schema_name, load_id)
+        fs_client.put_file(local_path, posixpath.join(dataset_path, self.destination_file_name))
 
     @staticmethod
     def make_destination_filename(file_name: str, schema_name: str, load_id: str) -> str:
@@ -108,10 +108,10 @@ class FilesystemClient(JobClientBase):
     
     def create_reference_job(self, job: LoadFilesystemJob) -> NewLoadJob:
         file_name = (".").join(job.file_name().split(".")[0:-1] + ["reference"])
-        job = NewReferenceJob(file_name=file_name, status="running")
-        remote_path = posixpath.join(self.dataset_path, job.file_name()) 
-        job._save_text_file(remote_path)
-        return job
+        ref_job = NewReferenceJob(file_name=file_name, status="running")
+        remote_path = "s3://" + posixpath.join(self.dataset_path, job.destination_file_name)
+        ref_job._save_text_file(remote_path)
+        return ref_job
 
     def complete_load(self, load_id: str) -> None:
         schema_name = self.schema.name

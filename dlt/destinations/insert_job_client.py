@@ -67,6 +67,22 @@ class InsertValuesLoadJob(LoadJob, FollowupJob):
         if insert_sql:
             yield insert_sql
 
+class CopyFileLoadJob(LoadJob, FollowupJob):
+    def __init__(self, table_name: str, write_disposition: TWriteDisposition, file_path: str, sql_client: SqlClientBase[Any]) -> None:
+        super().__init__(FileStorage.get_file_name_from_file_path(file_path))
+        self._sql_client = sql_client
+        with open(file_path, "r+") as f:
+            # Reading from a file
+            bucket_path = f.read()
+        
+        self._sql_client.execute_sql(f"""
+                                         copy {table_name} 
+                                         from '{bucket_path}'
+                                         credentials 'aws_access_key_id=...;aws_secret_access_key=...'""")
+
+    def state(self) -> TLoadJobState:
+        # this job is always done
+        return "completed"
 
 class InsertValuesJobClient(SqlJobClientBase):
 
@@ -89,6 +105,8 @@ class InsertValuesJobClient(SqlJobClientBase):
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         job = super().start_file_load(table, file_path, load_id)
+        if file_path.endswith(".reference"):
+            job = CopyFileLoadJob(table["name"], table["write_disposition"], file_path, self.sql_client)
         if not job:
             # this is using sql_client internally and will raise a right exception
             job = InsertValuesLoadJob(table["name"], table["write_disposition"], file_path, self.sql_client)
