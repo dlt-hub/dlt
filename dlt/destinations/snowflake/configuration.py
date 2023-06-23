@@ -90,4 +90,4 @@ class SnowflakeClientConfiguration(DestinationClientDwhConfiguration):
     stage_name: Optional[str] = None
     """Use an existing named stage instead of the default. Default uses the implicit table stage per table"""
     keep_staged_files: bool = True
-    """Whether to keep or delete the staged files after COPY INTO succeeeds"""
+    """Whether to keep or delete the staged files after COPY INTO succeeds"""

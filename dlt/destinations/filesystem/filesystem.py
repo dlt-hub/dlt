@@ -15,7 +15,6 @@ from dlt.destinations.filesystem.configuration import FilesystemClientConfigurat
 from dlt.destinations.filesystem.filesystem_client import client_from_config
 from dlt.common.storages import LoadStorage
 
-lock = threading.Lock()
 
 class LoadFilesystemJob(LoadJob):
     def __init__(
