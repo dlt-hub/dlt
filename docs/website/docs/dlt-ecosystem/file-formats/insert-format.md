@@ -4,7 +4,7 @@ description: The INSERT file format
 keywords: [insert_values, file-formats]
 ---
 
-# INSERT file format
+# SQL INSERT file format
 This file format contains an INSERT...VALUES statement to be executed on the destination during the `load` stage.
 
 Additional data types are stored as follows:

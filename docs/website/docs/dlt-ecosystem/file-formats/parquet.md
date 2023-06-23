@@ -6,9 +6,9 @@ keywords: [parquet, file-formats]
 
 # Parquet file format
 
-[Apache Parquet](https://en.wikipedia.org/wiki/Apache_Parquet) is a free and open-source column-oriented data storage format in the Apache Hadoop ecosystem. dlthub is able to store data in this format when configured to do so.
+[Apache Parquet](https://en.wikipedia.org/wiki/Apache_Parquet) is a free and open-source column-oriented data storage format in the Apache Hadoop ecosystem. dlt is able to store data in this format when configured to do so.
 
-To use this format you need a `pyarrow` package. You can get this package as an `dlt` extra as well:
+To use this format you need a `pyarrow` package. You can get this package as a `dlt` extra as well:
 ```sh
 pip install dlt[pyarrow]
 ```
@@ -43,7 +43,7 @@ flavor="spark"
 version="2.4"
 data_page_size=1048576
 ```
-or using environment variables
+or using environment variables:
 ```
 NORMALIZE__DATA_WRITER__FLAVOR
 NORMALIZE__DATA_WRITER__VERSION
