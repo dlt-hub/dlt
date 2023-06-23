@@ -14,16 +14,13 @@ pip install dlt[pyarrow]
 ```
 
 ## Supported destinations
-Used by default by: **filesystem**
-
-Supported by: **BigQuery**, **DuckdDb**, **Snowflake**
+Supported by: **BigQuery**, **DuckdDb**, **Snowflake**, **filesystem**
 
 By setting the `loader_file_format` argument to `parquet` in the run command, the pipeline will store your data in the parquet format to the destination:
 
 ```python
 info = pipeline.run(some_source(), loader_file_format="parquet")
 ```
-
 
 ## Options
 
