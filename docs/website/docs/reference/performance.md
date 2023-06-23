@@ -41,7 +41,7 @@ on IOT sensors or other tiny infrastructures, you might actually want to increas
 processing.
 
 ### Disabling and enabling file compression
-Several [text file formats](../dlt-ecosystem/file-formats/) have `gzip` compression enabled by default. If you wish that your load packages have uncompressed files (ie. to debug the content easily), change `data_writer.disable_compression` configuration. The entry below will disable the compression of the files processed in `normalize` stage.
+Several [text file formats](../dlt-ecosystem/file-formats/) have `gzip` compression enabled by default. If you wish that your load packages have uncompressed files (ie. to debug the content easily), change `data_writer.disable_compression` in config.toml. The entry below will disable the compression of the files processed in `normalize` stage.
 ```toml
 [normalize.data_writer]
 disable_compression=false
