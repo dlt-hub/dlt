@@ -67,3 +67,6 @@ Postgres destination creates UNIQUE indexes by default on columns with `unique` 
 [destination.postgres]
 create_indexes=false
 ```
+
+## dbt support
+This destination [integrates with dbt](../transformations/transforming-the-data.md#transforming-the-data-using-dbt) via dbt-postgres.

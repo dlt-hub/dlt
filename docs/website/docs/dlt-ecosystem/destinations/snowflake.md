@@ -102,8 +102,7 @@ Currently **jsonl** (default) and **parquet** file formats are supported.
 ### Table and column identifiers
 Snowflake makes all unquoted identifiers uppercase and then resolves them case-insensitive in SQL statements. `dlt` (effectively) does not quote identifies in DDL preserving default behavior.
 
-Names of tables and columns in [schemas](../../general-usage/schema.md) are kept in lower case like for all other destinations. This is the pattern we observed in other tools ie. `dbt`. In case of `dlt` it is however trivial to write your own uppercase [naming convention](../../general-usage/schema.md#naming-convention)
-
+Names of tables and columns in [schemas](../../general-usage/schema.md) are kept in lower case like for all other destinations. This is the pattern we observed in other tools ie. `dbt`. In case of `dlt` it is however trivial to define your own uppercase [naming convention](../../general-usage/schema.md#naming-convention)
 
 ## Additional destination options
 You can define your own stage to PUT files and disable removing of the staged files after loading.
@@ -114,3 +113,6 @@ stage_name="DLT_STAGE"
 # Whether to keep or delete the staged files after COPY INTO succeeds
 keep_staged_files=true
 ```
+
+## dbt support
+This destination [integrates with dbt](../transformations/transforming-the-data.md#transforming-the-data-using-dbt) via [dbt-snowflake](https://github.com/dbt-labs/dbt-snowflake). Both password and key pair authentication is supported and shared with dbt runners.

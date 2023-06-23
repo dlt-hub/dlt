@@ -47,3 +47,5 @@ You can configure a DuckDB destination with [secret / config values](../../gener
 ```toml
 destination.duckdb.credentials=duckdb:///_storage/test_quack.duckdb
 ```
+## dbt support
+This destination [integrates with dbt](../transformations/transforming-the-data.md#transforming-the-data-using-dbt) via [dbt-duckdb](https://github.com/jwills/dbt-duckdb) which is a community supported package. The `duckdb` database is shared with `dbt`. In rare cases you may see information that binary database format does not match the database format expected by `dbt-duckdb`. You may avoid that by updating the `duckdb` package in your `dlt` project with `pip install -U`.

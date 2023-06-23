@@ -66,3 +66,6 @@ project_id = "project_id" # please set me up!
 private_key = "private_key" # please set me up!
 client_email = "client_email" # please set me up!
 ```
+
+## dbt support
+This destination [integrates with dbt](../transformations/transforming-the-data.md#transforming-the-data-using-dbt) via [dbt-bigquery](https://github.com/dbt-labs/dbt-bigquery). Credentials, if explicitly defined, are shared with `dbt` along with other settings like **location** and retries and timeouts. In case of implicit credentials (ie. available in cloud function), `dlt` shares the `project_id` and delegates obtaining credentials to `dbt` adapter.
