@@ -187,7 +187,7 @@ class Pipeline(SupportsPipeline):
             must_attach_to_local_pipeline: bool,
             config: PipelineConfiguration,
             runtime: RunConfiguration,
-            staging_destination: DestinationReference,
+            staging_destination: DestinationReference = None
         ) -> None:
         """Initializes the Pipeline class which implements `dlt` pipeline. Please use `pipeline` function in `dlt` module to create a new Pipeline instance."""
         self.pipeline_salt = pipeline_salt
