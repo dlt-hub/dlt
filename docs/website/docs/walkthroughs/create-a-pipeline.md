@@ -67,7 +67,6 @@ pipeline script with a call to the WeatherAPI.com API:
 ```python
 @dlt.resource(write_disposition="append")
 def weatherapi_resource(api_secret_key=dlt.secrets.value):
-
     url = "https://api.weatherapi.com/v1/current.json"
     params = {
         "q": "NYC",
@@ -80,7 +79,7 @@ def weatherapi_resource(api_secret_key=dlt.secrets.value):
 
 Run the `weatherapi.py` pipeline script to test that the API call works:
 
-```
+```bash
 python3 weatherapi.py
 ```
 
@@ -95,7 +94,11 @@ Remove the `exit()` call from the `main` function in `weatherapi.py`, so that ru
 if __name__=='__main__':
 
     # configure the pipeline with your destination details
-    pipeline = dlt.pipeline(pipeline_name='weatherapi', destination='duckdb', dataset_name='weatherapi_data')
+    pipeline = dlt.pipeline(
+        pipeline_name='weatherapi',
+        destination='duckdb',
+        dataset_name='weatherapi_data'
+    )
 
     # print credentials by running the resource
     data = list(weatherapi_resource())
@@ -112,17 +115,17 @@ if __name__=='__main__':
 
 Run the `weatherapi.py` pipeline script to load data into DuckDB:
 
-```
+```bash
 python3 weatherapi.py
 ```
 
 Then this command to see that the data loaded:
 
-```
+```bash
 dlt pipeline weatherapi show
 ```
 
-This will open a streamlit app that gives you an overview of the data loaded.
+This will open a Streamlit app that gives you an overview of the data loaded.
 
 ## 5. Next steps
 
