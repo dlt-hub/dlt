@@ -15,6 +15,7 @@ dlt init chess postgres
 ```
 pip install -r requirements.txt
 ```
+This will install dlt with **postgres** extra which contains `psycopg2` client.
 
 **3. Create a new database after setting up a Postgres instance and `psql` / query editor by running**
 ```
@@ -37,8 +38,9 @@ ALTER DATABASE dlt_data OWNER TO loader;
 
 It is possible to set more restrictive permissions (e.g. give user access to a specific schema).
 
-**6. Your `.dlt/secrets.toml` should now look like**
-```
+**6. Enter your credentials into `.dlt/secrets.toml`.**
+It should now look like
+```toml
 [destination.postgres.credentials]
 
 database = "dlt_data"
@@ -48,3 +50,23 @@ host = "localhost" # or the IP address location of your database
 port = 5432
 connect_timeout = 15
 ```
+
+You can also pass a database connection string similar to the one used by `psycopg2` library or [SQLAlchemy](https://docs.sqlalchemy.org/en/20/core/engines.html#postgresql). Credentials above will look like this:
+```toml
+destination.postgres.credentials="postgresql://loader:<password>@localhost/dlt_data?connect_timeout=15"
+```
+
+To pass credentials directly you can use `credentials` argument passed to `dlt.pipeline` or `pipeline.run` methods.
+```python
+pipeline = dlt.pipeline(pipeline_name='chess', destination='postgres', dataset_name='chess_data', credentials="postgresql://loader:<password>@localhost/dlt_data")
+```
+
+## Additional destination options
+Postgres destination creates UNIQUE indexes by default on columns with `unique` hint (ie. `_dlt_id`). To disable this behavior
+```toml
+[destination.postgres]
+create_indexes=false
+```
+
+## dbt support
+This destination [integrates with dbt](../transformations/transforming-the-data.md#transforming-the-data-using-dbt) via dbt-postgres.

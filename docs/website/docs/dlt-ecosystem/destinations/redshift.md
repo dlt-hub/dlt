@@ -15,8 +15,12 @@ dlt init chess redshift
 ```
 pip install -r requirements.txt
 ```
+This will install dlt with **redshift** extra which contains `psycopg2` client.
 
 **3. Edit the `dlt` credentials file with your info**
 ```
 open .dlt/secrets.toml
 ```
+
+## dbt support
+This destination [integrates with dbt](../transformations/transforming-the-data.md#transforming-the-data-using-dbt) via [dbt-redshift](https://github.com/dbt-labs/dbt-redshift).

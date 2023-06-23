@@ -97,6 +97,7 @@ const sidebars = {
             'dlt-ecosystem/destinations/duckdb',
             'dlt-ecosystem/destinations/postgres',
             'dlt-ecosystem/destinations/redshift',
+            'dlt-ecosystem/destinations/snowflake',
           ]
         },
         {
