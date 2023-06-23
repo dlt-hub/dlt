@@ -17,7 +17,7 @@ def filesystem_caps_jsonl_adapter():
 
 DEFAULT_CAPS = pg_insert_caps
 INSERT_CAPS = [duck_insert_caps, rd_insert_caps, pg_insert_caps]
-JSONL_CAPS = [jsonl_caps, filesystem_caps_jsonl_adapter]
+JSONL_CAPS = [jsonl_caps, filesystem_caps]
 ALL_CAPABILITIES = INSERT_CAPS + JSONL_CAPS
 
 
