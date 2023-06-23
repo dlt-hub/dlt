@@ -84,6 +84,22 @@ const sidebars = {
         },
         {
           type: 'category',
+          label: 'File formats',
+          link: {
+            type: 'generated-index',
+            title: 'File formats',
+            description: 'Overview over our loader file formats',
+            slug: 'dlt-ecosystem/file-formats',
+            keywords: ['destination'],
+          },
+          items: [
+            'dlt-ecosystem/file-formats/jsonl',
+            'dlt-ecosystem/file-formats/parquet',
+            'dlt-ecosystem/file-formats/insert-format',
+          ]
+        },
+        {
+          type: 'category',
           label: 'Destinations',
           link: {
             type: 'generated-index',
