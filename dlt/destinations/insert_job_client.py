@@ -78,7 +78,7 @@ class CopyFileLoadJob(LoadJob, FollowupJob):
         self._sql_client.execute_sql(f"""
                                          copy {table_name} 
                                          from '{bucket_path}'
-                                         credentials 'aws_access_key_id=...;aws_secret_access_key=...'""")
+                                         credentials 'aws_access_key_id=...;aws_secret_access_key=...' parquet""")
 
     def state(self) -> TLoadJobState:
         # this job is always done
