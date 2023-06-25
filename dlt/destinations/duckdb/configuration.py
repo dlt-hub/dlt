@@ -1,7 +1,7 @@
 import os
 import threading
 from pathvalidate import is_valid_filepath
-from typing import Any, Final, Optional, Tuple
+from typing import Any, ClassVar, Final, List, Optional, Tuple
 
 from dlt.common import logger
 from dlt.common.configuration import configspec
@@ -26,7 +26,7 @@ class DuckDbCredentials(ConnectionStringCredentials):
 
     read_only: bool = False  # open database read/write
 
-    # __config_gen_annotations__: ClassVar[List[str]] = ["database"]
+    __config_gen_annotations__: ClassVar[List[str]] = []
 
     def borrow_conn(self, read_only: bool) -> Any:
         import duckdb
