@@ -19,6 +19,9 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps = DestinationCapabilitiesContext()
     caps.preferred_loader_file_format = "jsonl"
     caps.supported_loader_file_formats = ["jsonl", "sql", "parquet"]
+    caps.preferred_staging_file_format = None
+    caps.supported_staging_file_formats = []
+    caps.supported_staging_destinations = []
     caps.escape_identifier = escape_bigquery_identifier
     caps.escape_literal = None
     caps.max_identifier_length = 1024

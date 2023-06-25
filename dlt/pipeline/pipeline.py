@@ -13,7 +13,7 @@ from dlt.common.configuration.specs import RunConfiguration, CredentialsConfigur
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import ConfigFieldMissingException, ContextDefaultCannotBeCreated
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
-from dlt.common.exceptions import MissingDependencyException
+from dlt.common.exceptions import MissingDependencyException, DestinationUnsupportedStagingDestinationException, DestinationIncompatibleLoaderFileFormatException
 from dlt.common.normalizers import default_normalizers, import_normalizers
 from dlt.common.runtime import signals, initialize_runtime
 from dlt.common.schema.exceptions import InvalidDatasetName
@@ -911,6 +911,9 @@ class Pipeline(SupportsPipeline):
                     "Please provide `destination` argument to `pipeline`, `run` or `load` method directly or via .dlt config.toml file or environment variable."
                 )
         return self.destination.capabilities()
+    
+    def _get_staging_destination_capabilities(self) -> DestinationCapabilitiesContext:
+        return self.staging_destination.capabilities() if self.staging_destination else None
 
     def _validate_pipeline_name(self) -> None:
         try:
@@ -961,14 +964,44 @@ class Pipeline(SupportsPipeline):
             caps: DestinationCapabilitiesContext = None
             injected_caps: ContextManager[DestinationCapabilitiesContext] = None
             if self.destination:
-                injected_caps = self._container.injectable_context(self._get_destination_capabilities())
+                destination_caps = self._get_destination_capabilities()
+                stage_caps = self._get_staging_destination_capabilities()
+                injected_caps = self._container.injectable_context(destination_caps)
                 caps = injected_caps.__enter__()
-                if loader_file_format:
-                    caps.preferred_loader_file_format = loader_file_format
+                caps.preferred_loader_file_format = self._resolve_loader_file_format(
+                    DestinationReference.to_name(self.destination),
+                    DestinationReference.to_name(self.staging_destination) if self.staging_destination else None,
+                    destination_caps, stage_caps, loader_file_format)
             yield caps
         finally:
             if injected_caps:
                 injected_caps.__exit__(None, None, None)
+
+    @staticmethod
+    def _resolve_loader_file_format(
+            destination: str,
+            staging_destination: str, 
+            dest_caps: DestinationCapabilitiesContext,
+            stage_caps: DestinationCapabilitiesContext,
+            file_format: TLoaderFileFormat) -> TLoaderFileFormat:
+        # check wether staging destination is supported at all
+        if stage_caps and staging_destination not in dest_caps.supported_staging_destinations:
+            raise DestinationUnsupportedStagingDestinationException(destination, staging_destination)
+        if not stage_caps:
+            possible_file_formats = dest_caps.supported_loader_file_formats
+        if stage_caps:
+            possible_file_formats = list(set(dest_caps.supported_staging_file_formats) & set(stage_caps.supported_loader_file_formats))
+        if not file_format:
+            if not stage_caps:
+                file_format = dest_caps.preferred_loader_file_format
+            elif stage_caps and dest_caps.preferred_staging_file_format in possible_file_formats:
+                file_format = dest_caps.preferred_staging_file_format
+            else:
+                file_format = possible_file_formats[0] if len(possible_file_formats) > 0 else None
+        if file_format not in possible_file_formats:
+            raise DestinationIncompatibleLoaderFileFormatException(destination, staging_destination, file_format)
+        print(file_format)
+        return file_format
 
     def _set_default_normalizers(self) -> None:
         self._default_naming, _ = import_normalizers(default_normalizers())
