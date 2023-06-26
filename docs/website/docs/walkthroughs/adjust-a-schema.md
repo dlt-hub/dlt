@@ -19,10 +19,16 @@ schema. Set up an import folder from which `dlt` will read your modifications by
 Following our example in [run a pipeline](run-a-pipeline.md):
 
 ```python
-dlt.pipeline(import_schema_path="schemas/import", export_schema_path="schemas/export", pipeline_name="chess_pipeline", destination='duckdb', dataset_name="games_data")
+dlt.pipeline(
+    import_schema_path="schemas/import",
+    export_schema_path="schemas/export",
+    pipeline_name="chess_pipeline",
+    destination='duckdb',
+    dataset_name="games_data"
+)
 ```
 
-will create following folder structure in project root folder
+Following folder structure in project root folder will be created:
 
 ```
 schemas
@@ -30,7 +36,7 @@ schemas
     |---export/
 ```
 
-Instead of modifying the code, you can put those settings in `config.toml`
+Instead of modifying the code, you can put those settings in `config.toml`:
 
 ```toml
 export_schema_path="schemas/export"
@@ -65,8 +71,8 @@ You should keep the import schema as simple as possible and let `dlt` do the res
 >    automatically on the next run. It means that after an user update, the schema in `import`
 >    folder reverts all the automatic updates from the data.
 
-In next steps we'll experiment a lot, you will wan to **set `full_refresh=True` in the
-`dlt.pipeline` until we are done experimenting**
+In next steps we'll experiment a lot, you will be warned to set `full_refresh=True` in the
+`dlt.pipeline` until we are done experimenting.
 
 ### Change the data type
 
@@ -76,59 +82,59 @@ know that there is a timestamp. Let's change it and see if it works.
 Copy the column:
 
 ```yaml
-      end_time:
-        nullable: true
-        data_type: text
+end_time:
+  nullable: true
+  data_type: text
 ```
 
-from export to import schema and change the data type to get
+from export to import schema and change the data type to get:
 
 ```yaml
-  players_games:
-    columns:
-      end_time:
-        nullable: true
-        data_type: timestamp
+players_games:
+  columns:
+    end_time:
+      nullable: true
+      data_type: timestamp
 ```
 
 Run the pipeline script again and make sure that the change is visible in export schema. Then,
-launch the Streamlit app to see the changed data.
+[launch the Streamlit app](../dlt-ecosystem/visualizations/exploring-the-data.md) to see the changed data.
 
 ### Load data as json instead of generating child table or columns from flattened dicts
 
-In the export schema, you can see that white and black players properties got flattened into
+In the export schema, you can see that white and black players properties got flattened into:
 
 ```yaml
-      white__rating:
-        nullable: true
-        data_type: bigint
-      white__result:
-        nullable: true
-        data_type: text
-      white__aid:
-        nullable: true
-        data_type: text
+white__rating:
+  nullable: true
+  data_type: bigint
+white__result:
+  nullable: true
+  data_type: text
+white__aid:
+  nullable: true
+  data_type: text
 ```
 
 For some reason you'd rather deal with a single JSON (or struct) column. Just declare the `white`
 column as `complex`, which will instruct `dlt` not to flatten it (or not convert into child table in
-case of a list). Do the same with `black` column.
+case of a list). Do the same with `black` column:
 
 ```yaml
-  players_games:
-    columns:
-      end_time:
-        nullable: true
-        data_type: timestamp
-      white:
-        nullable: false
-        data_type: complex
-      black:
-        nullable: false
-        data_type: complex
+players_games:
+  columns:
+    end_time:
+      nullable: true
+      data_type: timestamp
+    white:
+      nullable: false
+      data_type: complex
+    black:
+      nullable: false
+      data_type: complex
 ```
 
-Run the pipeline script again and now you can query `black` and `white` columns with JSON
+Run the pipeline script again, and now you can query `black` and `white` columns with JSON
 expressions.
 
 ### Add performance hints
@@ -138,21 +144,21 @@ of `duckdb`. You'd like to partition your data to save on query costs. The `end_
 fixed looks like a good candidate.
 
 ```yaml
-  players_games:
-    columns:
-      end_time:
-        nullable: false
-        data_type: timestamp
-        partition: true
-      white:
-        nullable: false
-        data_type: complex
-      black:
-        nullable: false
-        data_type: complex
+players_games:
+  columns:
+    end_time:
+      nullable: false
+      data_type: timestamp
+      partition: true
+    white:
+      nullable: false
+      data_type: complex
+    black:
+      nullable: false
+      data_type: complex
 ```
 
 ## 4. Keep your import schema
 
 Just add and push the import folder to git. It will be used automatically when cloned. Alternatively
-[bundle such schema with your source](../general-usage/schema.md#attaching-schemas-to-sources)
+[bundle such schema with your source](../general-usage/schema.md#attaching-schemas-to-sources).

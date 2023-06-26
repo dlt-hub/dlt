@@ -137,8 +137,8 @@ Now that you have a working pipeline, you have options for what to learn next:
   Pandas DataFrames.
 - Learn how to [run](../running-in-production/running.md),
   [monitor](../running-in-production/monitoring.md), and
-  [alert](../running-in-production/alerting.md) when you put your pipeline in production
+  [alert](../running-in-production/alerting.md) when you put your pipeline in production.
 - Try loading data to a different destination like
   [Google BigQuery](../dlt-ecosystem/destinations/bigquery.md),
   [Amazon Redshift](../dlt-ecosystem/destinations/redshift.md), or
-  [Postgres](../dlt-ecosystem/destinations/postgres.md)
+  [Postgres](../dlt-ecosystem/destinations/postgres.md).

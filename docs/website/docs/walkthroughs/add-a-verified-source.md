@@ -14,22 +14,22 @@ steps below.
 
 ## 1. Initialize project
 
-Create a new empty directory for your `dlt` project by running
+Create a new empty directory for your `dlt` project by running:
 
 ```shell
 mkdir various_pipelines
 cd various_pipelines
 ```
 
-List available verified sources to see their names and descriptions
+List available verified sources to see their names and descriptions:
 
-```
+```bash
 dlt init --list-verified-sources
 ```
 
-Now pick one of the source names, for example `pipedrive` and a destination ie. `bigquery`.
+Now pick one of the source names, for example `pipedrive` and a destination i.e. `bigquery`:
 
-```
+```bash
 dlt init pipedrive bigquery
 ```
 
@@ -41,7 +41,10 @@ The command will create your pipeline project by copying over the `pipedrive` fo
 │   ├── config.toml
 │   └── secrets.toml
 ├── pipedrive
+│   └── helpers
 │   └── __init__.py
+│   └── settings.py
+│   └── typing.py
 ├── .gitignore
 ├── pipedrive_pipeline.py
 └── requirements.txt
@@ -54,8 +57,13 @@ dependencies.
 Verified source pipedrive was added to your project!
 * See the usage examples and code snippets to copy from pipedrive_pipeline.py
 * Add credentials for bigquery and other secrets in .dlt/secrets.toml
-* requirements.txt was created. Install it with:
-pip3 install -r requirements.txt
+* Add the required dependencies to pyproject.toml:
+  dlt[bigquery]>=0.3.1
+  If the dlt dependency is already added, make sure you install the extra for bigquery to it
+  If you are using poetry you may issue the following command:
+  poetry add dlt -E bigquery
+
+* Read https://dlthub.com/docs/walkthroughs/create-a-pipeline for more information
 ```
 
 So make sure you install the requirements with `pip3 install -r requirements.txt`. When deploying to
@@ -92,43 +100,43 @@ You can modify an existing verified source in place.
 
 ## 5. Add more sources to your project
 
-```
+```bash
 dlt init chess duckdb
 ```
 
-To add another verified source, just run the dlt init command at the same location as the first
-pipeline
+To add another verified source, just run the `dlt init` command at the same location as the first
+pipeline:
 
-- the shared files will be updated (secrets, config)
-- a new folder will be created for the new source
-- do not forget to install the requirements for the second source!
+- The shared files will be updated (secrets, config).
+- A new folder will be created for the new source.
+- Do not forget to install the requirements for the second source!
 
 ## 6. Update the verified source with the newest version
 
 To update the verified source you have to the newest online version just do the same init command in
 the parent folder.
 
-```
+```bash
 dlt init pipedrive bigquery
 ```
 
 ## 7. Advanced: Using dlt init with branches, local folders or git repos.
 
-To find out more info about this command, use --help.
+To find out more info about this command, use --help:
 
-```
+```bash
 dlt init --help
 ```
 
 To deploy from a branch of the `verified-sources` repo, you can use the following:
 
-```
-dlt init source destination --branch branchname
+```bash
+dlt init source destination --branch <branch_name>
 ```
 
 To deploy from another repo, you could fork the verified-sources repo and then provide the new repo
-url as below, replacing `dlt-hub` with your fork name
+url as below, replacing `dlt-hub` with your fork name:
 
-```
+```bash
 dlt init pipedrive bigquery --location "https://github.com/dlt-hub/verified-sources"
 ```

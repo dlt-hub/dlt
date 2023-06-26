@@ -60,7 +60,8 @@ In a shell editor, navigate to the main directory where the "main.py" file is lo
 following command in the terminal:
 
 ```bash
- gcloud functions deploy pipeline_notion --runtime python310 --trigger-http --allow-unauthenticated --source . --timeout 300
+gcloud functions deploy pipeline_notion --runtime python310 \
+  --trigger-http --allow-unauthenticated --source . --timeout 300
 ```
 
 - This command uses a function called "pipeline_notion" with Python 3.10 as the runtime environment,
@@ -69,7 +70,7 @@ following command in the terminal:
 - If you are uploading a large number of files to the destination, you can increase this to 60
   minutes for HTTP functions. 10 minutes for event-driven functions. To learn more about the
   function timeout, see the
-  [documentation here.](https://cloud.google.com/functions/docs/configuring/timeout).
+  [documentation here](https://cloud.google.com/functions/docs/configuring/timeout).
 
 > Your project has a default service account associated with the project ID. Please assign the
 > `Cloud Functions Developer` role to the associated service account.
@@ -107,8 +108,8 @@ Environmental variables can be declared in the Cloud Function in two ways:
 
 ## 4. Monitor (and manually trigger) the cloud function
 
-To manually trigger the created function, you can open the trigger URL created by the Cloud function
+To manually trigger the created function, you can open the trigger URL created by the Cloud Function
 in the address bar. The message "Pipeline run successfully!" would mean that the pipeline was
 successfully run and the data was successfully loaded into the destination.
 
-That's it! Have fun using `dlt` in Google Cloud functions!
+That's it! Have fun using `dlt` in Google Cloud Functions!

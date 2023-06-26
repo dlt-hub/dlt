@@ -6,9 +6,10 @@ keywords: [how to, deploy a pipeline, github actions]
 
 # Deploy a pipeline with GitHub Actions
 
-Before you can deploy a pipeline, you will need to 1)
-[install dlt](../../reference/installation.mdx), 2) [create a pipeline](../create-a-pipeline.md),
-and 3) sign up for a [GitHub](https://github.com) account, since you will be deploying using
+Before you can deploy a pipeline, you will need to:
+  1. [Install dlt](../../reference/installation.mdx);
+  2. [Create a pipeline](../create-a-pipeline.md);
+  3. Sign up for a [GitHub](https://github.com) account, since you will be deploying using
 [GitHub Actions](https://github.com/features/actions).
 
 ## Add your `dlt` project directory to GitHub
@@ -21,8 +22,8 @@ initialize a Git repo in your `dlt` project directory and push it to GitHub as d
 
 Before you can deploy, you need a working pipeline. Make sure that it is working by running
 
-```
-python3 chess.py # replace chess.py with your pipeline file
+```shell
+python3 chess_pipeline.py # replace chess_pipeline.py with your pipeline file
 ```
 
 This should successfully load data from the source to the destination once.
@@ -31,10 +32,10 @@ This should successfully load data from the source to the destination once.
 
 In the same `dlt` project as your working pipeline, you can create a deployment using
 [GitHub Actions](https://github.com/features/actions) that will load data with the `chess.py` script
-every 30 minutes by running
+every 30 minutes by running:
 
-```
-dlt deploy chess.py github-action --schedule "*/30 * * * *" # replace chess.py
+```shell
+dlt deploy chess_pipeline.py github-action --schedule "*/30 * * * *" # replace chess_pipeline.py
 ```
 
 This command checks that your pipeline has run successfully before and creates a GitHub Actions
@@ -49,15 +50,15 @@ out by the `dlt deploy` command line tool.
 
 ## Add, commit, and push your files
 
-To finish the GitHub Actions workflow setup, you need to first add and commit your files
+To finish the GitHub Actions workflow setup, you need to first add and commit your files:
 
-```
+```shell
 git add . && git commit -m 'pipeline deployed with github action'
 ```
 
-And then push them to GitHub
+And then push them to GitHub:
 
-```
+```shell
 git push origin
 ```
 
@@ -73,6 +74,6 @@ repository.
 The GitHub cron scheduler has fidelity of ~30 minutes. You cannot expect that your job will be run
 at the exact the intervals or times you specify.
 
-- The minimum official supported interval is 5 minutes
-- If you set it to 5 minutes, you can expect intervals between 5 and 30 minutes
-- From practical experience, any intervals above 30 minutes work on average as expected
+- The minimum official supported interval is 5 minutes.
+- If you set it to 5 minutes, you can expect intervals between 5 and 30 minutes.
+- From practical experience, any intervals above 30 minutes work on average as expected.
