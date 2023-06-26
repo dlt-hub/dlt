@@ -1,6 +1,6 @@
 ---
 slug: trained-gpt-q&a-2
-title: "How does dlt brings you efficienct pipline maintenance?"
+title: "`dlt` AI Assistant provides answers you need!"
 image: /img/blog_gpt_QA2.jpg
 authors:
   name: Tong Chen
@@ -94,7 +94,7 @@ In this article, we tried to ask our `dlt` AI Assistant- the conversational comp
 
 >During this Q&A converstation, we can understand dlt helps reduce maintenance in data pipelines by automating structuring, handling schema evolution, standardizing data loading, providing pre-built sources, and allowing easy customization. It offers powerful capabilities to simplify and improve data pipeline management, reducing maintenance efforts and driving better outcomes. 
 
-Now we understand how dlt significantly improve your work efficiency! Let’s ask more questions with our `dlt` AI Assistant, just click on the "Help" button located at the bottom right.
+Now we understand how dlt significantly improve your work efficiency! Let’s ask more questions with our `dlt` AI Assistant, just click on the "Get Help" button located at the bottom right.
 
 *** 
 [ What's more? ]
