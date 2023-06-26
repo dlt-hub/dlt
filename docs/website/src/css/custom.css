@@ -577,8 +577,8 @@ html[data-theme='dark'] .slack-navbar::before {
   background-image: url(../../static/img/Installation-Active.svg);
 }*/
 
-.theme-doc-sidebar-menu.menu__list>li:hover:nth-child(2)>a::before,
-.theme-doc-sidebar-menu.menu__list>li:nth-child(2)>a.menu__link--active::before {
+.theme-doc-sidebar-menu.menu__list>li:hover:nth-child(2)>div>a::before,
+.theme-doc-sidebar-menu.menu__list>li:nth-child(2)>div>[aria-expanded="true"]::before {
   background-image: url(../../static/img/GettingStarted-Active.svg);
 }
 
@@ -713,8 +713,8 @@ html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(2)>a.men
   background-image: url(../../static/img/Installation-Active-1.svg);
 }*/
 
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(2)>a::before,
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(2)>a.menu__link--active::before {
+html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(2)>div>a::before,
+html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(2)>div>[aria-expanded="true"]::before {
   background-image: url(../../static/img/GettingStarted-Active-1.svg);
 }
 
