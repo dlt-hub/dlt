@@ -12,7 +12,7 @@ tags: [trained gpt-4, Q&A, dlt ]
 --- 
 Hi there! 👋
 
-In this article, we tried to ask chatgpt some questions about `dlt`, the open source library. Questions include some basic introduction, random fun questions and advanced `dlt`  project processes. Let’s see how it gave us answers! 
+In this article, we tried to ask our `dlt` AI Assistant- the conversational companion for the dltHub docs. We asked some questions about how `dlt` helps with Data pipeline maintenance and advanced `dlt`  project processes. Let’s see how it gave us answers! 
        
 #### 💡 How does `dlt` reduce maintenance ? 
 >dlt reduces maintenance in several ways:
