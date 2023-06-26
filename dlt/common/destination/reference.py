@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from importlib import import_module
 from types import TracebackType, ModuleType
-from typing import ClassVar, Final, Optional, Literal, Sequence, Iterable, Type, Protocol, Union, TYPE_CHECKING, cast
+from typing import ClassVar, Final, Optional, Literal, Sequence, Iterable, Type, Protocol, Union, TYPE_CHECKING, cast, List
 
 from dlt.common import logger
 from dlt.common.exceptions import IdentifierTooLongException, InvalidDestinationReference, UnknownDestinationModule
@@ -106,16 +106,18 @@ class NewLoadJob(LoadJob):
 
 class FollowupJob:
     """Adds a trait that allows to create a followup job"""
-    pass
+    def create_followup_jobs(self, next_state: str,load_id: str, schema: Schema) -> List[NewLoadJob]:
+        return []
 
 
 class JobClientBase(ABC):
 
     capabilities: ClassVar[DestinationCapabilitiesContext] = None
 
-    def __init__(self, schema: Schema, config: DestinationClientConfiguration) -> None:
+    def __init__(self, schema: Schema, config: DestinationClientConfiguration, is_staging: bool = False) -> None:
         self.schema = schema
         self.config = config
+        self.is_staging = is_staging
 
     @abstractmethod
     def initialize_storage(self, staging: bool = False, truncate_tables: Iterable[str] = None) -> None:
@@ -158,9 +160,6 @@ class JobClientBase(ABC):
         """Creates a table merge job without executing it. The `table_chain` contains a list of tables, ordered by ancestry, that should be merged.
         Clients that cannot merge should return None
         """
-        pass
-
-    def create_reference_job(self, job: LoadJob) -> NewLoadJob: # noqa: B027
         pass
 
     @abstractmethod
@@ -224,7 +223,7 @@ class DestinationReference(Protocol):
     def capabilities(self) -> DestinationCapabilitiesContext:
         ...
 
-    def client(self, schema: Schema, initial_config: DestinationClientConfiguration = config.value) -> "JobClientBase":
+    def client(self, schema: Schema, initial_config: DestinationClientConfiguration = config.value, as_staging: bool = False) -> "JobClientBase":
         ...
 
     def spec(self) -> Type[DestinationClientConfiguration]:

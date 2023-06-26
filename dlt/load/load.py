@@ -79,7 +79,7 @@ class Load(Runnable[ThreadPool]):
         job: LoadJob = None
         try:
             # if we have a staging destination and the file is not a reference, send to staging
-            client = self.staging.client(schema, self.initial_staging_client_config) if self.is_staging_job(file_path) else self.destination.client(schema, self.initial_client_config)
+            client = self.get_staging_client(schema) if self.is_staging_job(file_path) else self.destination.client(schema, self.initial_client_config)
             with client as client:
                 job_info = self.load_storage.parse_job_file_name(file_path)
                 if job_info.file_format not in self.capabilities.supported_loader_file_formats:
@@ -175,9 +175,6 @@ class Load(Runnable[ThreadPool]):
         # all tables completed, create merge sql job on destination client
         return self.destination.client(schema, self.initial_client_config).create_merge_job(table_chain)
 
-    def create_reference_job(self, load_id: str, schema: Schema, starting_job: LoadFilesystemJob) -> NewLoadJob:
-        return self.staging.client(schema, self.initial_staging_client_config).create_reference_job(starting_job)
-
     def create_followup_jobs(self, load_id: str, state: TLoadJobState, starting_job: LoadJob, schema: Schema) -> List[NewLoadJob]:
         jobs: List[NewLoadJob] = []
         if isinstance(starting_job, FollowupJob):
@@ -188,11 +185,7 @@ class Load(Runnable[ThreadPool]):
                     job = self.create_merge_job(load_id, schema, top_merged_table, starting_job)
                     if job:
                         jobs.append(job)
-                # if we have a staging destination, we have to create reference followup jobs for non reference jobs
-                if self.staging and not starting_job.file_name().endswith(".reference") and isinstance(starting_job, LoadFilesystemJob):
-                    job = self.create_reference_job(load_id, schema, starting_job)
-                    if job:
-                        jobs.append(job)
+            jobs = jobs + starting_job.create_followup_jobs(state, load_id, schema)
         return jobs
 
     def complete_jobs(self, load_id: str, jobs: List[LoadJob], schema: Schema) -> List[LoadJob]:
@@ -278,7 +271,7 @@ class Load(Runnable[ThreadPool]):
                 self.load_storage.commit_schema_update(load_id, applied_update)
             # spool or retrieve unfinished jobs
             if self.staging:
-                with self.staging.client(schema, self.initial_staging_client_config) as staging_client:
+                with self.get_staging_client(schema) as staging_client:
                     jobs_count, jobs = self.retrieve_jobs(job_client, load_id, staging_client)
             else:
                 jobs_count, jobs = self.retrieve_jobs(job_client, load_id)
@@ -325,6 +318,9 @@ class Load(Runnable[ThreadPool]):
                 # the package is completed and skipped
                 self.complete_package(load_id, schema, True)
                 raise
+
+    def get_staging_client(self, schema: Schema) -> JobClientBase:
+        return self.staging.client(schema, self.initial_staging_client_config, as_staging=True)
 
     def run(self, pool: ThreadPool) -> TRunMetrics:
         # store pool

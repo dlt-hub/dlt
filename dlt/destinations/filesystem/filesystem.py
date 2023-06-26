@@ -21,7 +21,7 @@ lock = threading.Lock()
 class NewReferenceJob(NewLoadJobImpl):
     pass
 
-class LoadFilesystemJob(LoadJob, FollowupJob):
+class LoadFilesystemJob(LoadJob):
     def __init__(
             self,
             local_path: str,
@@ -34,6 +34,9 @@ class LoadFilesystemJob(LoadJob, FollowupJob):
             load_id: str
     ) -> None:
         file_name = FileStorage.get_file_name_from_file_path(local_path)
+        self.config = config
+        self.dataset_path = dataset_path
+
         super().__init__(file_name)
         fs_client, _ = client_from_config(config)
 
@@ -66,6 +69,18 @@ class LoadFilesystemJob(LoadJob, FollowupJob):
         raise NotImplementedError()
 
 
+class FollowupFilesystemJob(FollowupJob, LoadFilesystemJob):
+    def create_followup_jobs(self, next_state: str, load_id: str, schema: Schema) -> List[NewLoadJob]:
+        jobs = super().create_followup_jobs(next_state, load_id, schema)
+        if next_state == "completed":
+            file_name = (".").join(self.file_name().split(".")[0:-1] + ["reference"])
+            ref_job = NewReferenceJob(file_name=file_name, status="running")
+            remote_path = f"{self.config.protocol}://{posixpath.join(self.dataset_path, self.destination_file_name)}"
+            ref_job._save_text_file(remote_path)
+            jobs.append(ref_job)
+        return jobs
+
+
 class FilesystemClient(JobClientBase):
     """filesystem client storing jobs in memory"""
 
@@ -73,8 +88,8 @@ class FilesystemClient(JobClientBase):
     fs_client: AbstractFileSystem
     fs_path: str
 
-    def __init__(self, schema: Schema, config: FilesystemClientConfiguration) -> None:
-        super().__init__(schema, config)
+    def __init__(self, schema: Schema, config: FilesystemClientConfiguration, as_staging: bool = False) -> None:
+        super().__init__(schema, config, as_staging)
         self.fs_client, self.fs_path = client_from_config(config)
         self.config: FilesystemClientConfiguration = config
 
@@ -89,8 +104,9 @@ class FilesystemClient(JobClientBase):
         return self.fs_client.isdir(self.dataset_path)  # type: ignore[no-any-return]
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
+        cls = FollowupFilesystemJob if self.is_staging else LoadFilesystemJob
         has_merge_keys = any(col['merge_key'] or col['primary_key'] for col in table['columns'].values())
-        return LoadFilesystemJob(
+        return cls(
             file_path,
             self.dataset_path,
             config=self.config,
@@ -106,13 +122,6 @@ class FilesystemClient(JobClientBase):
     def create_merge_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
         return None
 
-    def create_reference_job(self, job: LoadJob) -> NewLoadJob:
-        job = cast(LoadFilesystemJob, job)
-        file_name = (".").join(job.file_name().split(".")[0:-1] + ["reference"])
-        ref_job = NewReferenceJob(file_name=file_name, status="running")
-        remote_path = f"{self.config.protocol}://{posixpath.join(self.dataset_path, job.destination_file_name)}"
-        ref_job._save_text_file(remote_path)
-        return ref_job
 
     def complete_load(self, load_id: str) -> None:
         schema_name = self.schema.name
