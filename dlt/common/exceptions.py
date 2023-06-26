@@ -118,7 +118,7 @@ class DestinationTerminalException(DestinationException, TerminalException):
 class DestinationTransientException(DestinationException, TransientException):
     pass
 
-class DestinationUnsupportedStagingDestinationException(TerminalException, DestinationException):
+class DestinationUnsupportedStagingException(TerminalException, DestinationException):
     def __init__(self, destination: str, staging: str) -> None:
         self.destination = destination
         self.staging = staging

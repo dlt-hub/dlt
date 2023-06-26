@@ -85,6 +85,7 @@ class CopyFileLoadJob(LoadJob, FollowupJob):
         self.execute(table_name, bucket_path, _fs_configure(FilesystemClientConfiguration(dataset_name="something")))
         
     def execute(self, table_name: str, bucket_path: str, fs_config: FilesystemClientConfiguration) -> None:
+        # implement in child implementations
         return
 
     def state(self) -> TLoadJobState:

@@ -71,14 +71,17 @@ class RedshiftSqlClient(Psycopg2SqlClient):
             return DatabaseTerminalException(pg_ex)
         return None
 
-class RedshiftCopfileLoadJob(CopyFileLoadJob):
+class RedshiftCopyFileLoadJob(CopyFileLoadJob):
     def execute(self, table_name: str, bucket_path: str, fs_config: FilesystemClientConfiguration) -> None:
         aws_access_key = fs_config.credentials.aws_access_key_id
         aws_secret_key = fs_config.credentials.aws_secret_access_key
+
+        file_type = "PARQUET"
         self._sql_client.execute_sql(f"""
-                                         copy {table_name} 
-                                         from '{bucket_path}'
-                                         credentials 'aws_access_key_id={aws_access_key};aws_secret_access_key={aws_secret_key}' parquet""")
+            COPY {table_name} 
+            FROM '{bucket_path}'
+            {file_type}
+            CREDENTIALS 'aws_access_key_id={aws_access_key};aws_secret_access_key={aws_secret_key}'""")
 
 class RedshiftClient(InsertValuesJobClient):
 
@@ -113,5 +116,5 @@ class RedshiftClient(InsertValuesJobClient):
     
     @staticmethod
     def get_file_copy_job() -> Type[CopyFileLoadJob]:
-        return RedshiftCopfileLoadJob
+        return RedshiftCopyFileLoadJob
 
