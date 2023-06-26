@@ -1,13 +1,17 @@
 import os
-from typing import Any, Iterator, List
+import abc
+from typing import Any, Iterator, List, Type
 
 from dlt.common.destination.reference import LoadJob, FollowupJob, TLoadJobState
 from dlt.common.schema.typing import TTableSchema, TWriteDisposition
 from dlt.common.storages import FileStorage
+from dlt.common.configuration import with_config, known_sections
+from dlt.common.configuration.accessors import config
 
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.job_impl import EmptyLoadJob
 from dlt.destinations.job_client_impl import SqlJobClientBase
+from dlt.destinations.filesystem.configuration import FilesystemClientConfiguration
 
 
 class InsertValuesLoadJob(LoadJob, FollowupJob):
@@ -67,18 +71,21 @@ class InsertValuesLoadJob(LoadJob, FollowupJob):
         if insert_sql:
             yield insert_sql
 
+@with_config(spec=FilesystemClientConfiguration, sections=(known_sections.DESTINATION, "filesystem",))
+def _fs_configure(config: FilesystemClientConfiguration = config.value) -> FilesystemClientConfiguration:
+    return config
+
 class CopyFileLoadJob(LoadJob, FollowupJob):
-    def __init__(self, table_name: str, write_disposition: TWriteDisposition, file_path: str, sql_client: SqlClientBase[Any]) -> None:
+    def __init__(self, table_name: str, file_path: str, sql_client: SqlClientBase[Any]) -> None:
         super().__init__(FileStorage.get_file_name_from_file_path(file_path))
         self._sql_client = sql_client
         with open(file_path, "r+") as f:
             # Reading from a file
             bucket_path = f.read()
+        self.execute(table_name, bucket_path, _fs_configure(FilesystemClientConfiguration(dataset_name="something")))
         
-        self._sql_client.execute_sql(f"""
-                                         copy {table_name} 
-                                         from '{bucket_path}'
-                                         credentials 'aws_access_key_id=...;aws_secret_access_key=...' parquet""")
+    def execute(self, table_name: str, bucket_path: str, fs_config: FilesystemClientConfiguration) -> None:
+        return
 
     def state(self) -> TLoadJobState:
         # this job is always done
@@ -106,7 +113,8 @@ class InsertValuesJobClient(SqlJobClientBase):
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         job = super().start_file_load(table, file_path, load_id)
         if file_path.endswith(".reference"):
-            job = CopyFileLoadJob(table["name"], table["write_disposition"], file_path, self.sql_client)
+            JobClass = self.get_file_copy_job()
+            job = JobClass(table["name"], file_path, self.sql_client)
         if not job:
             # this is using sql_client internally and will raise a right exception
             job = InsertValuesLoadJob(table["name"], table["write_disposition"], file_path, self.sql_client)
@@ -120,3 +128,7 @@ class InsertValuesJobClient(SqlJobClientBase):
     def _get_out_table_constrains_sql(self, t: TTableSchema) -> str:
         # set non unique indexes
         pass
+
+    @staticmethod
+    def get_file_copy_job() -> Type[CopyFileLoadJob]:
+        return CopyFileLoadJob

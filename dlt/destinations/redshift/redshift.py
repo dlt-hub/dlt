@@ -8,18 +8,19 @@ else:
     import psycopg2
     # from psycopg2.sql import SQL, Composed
 
-from typing import ClassVar, Dict, Optional, Sequence
+from typing import ClassVar, Dict, Optional, Sequence, Type
 
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.data_types import TDataType
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
 
-from dlt.destinations.insert_job_client import InsertValuesJobClient
+from dlt.destinations.insert_job_client import InsertValuesJobClient, CopyFileLoadJob
 from dlt.destinations.exceptions import DatabaseTerminalException
 
 from dlt.destinations.redshift import capabilities
 from dlt.destinations.redshift.configuration import RedshiftClientConfiguration
+from dlt.destinations.filesystem.configuration import FilesystemClientConfiguration
 
 
 
@@ -70,6 +71,14 @@ class RedshiftSqlClient(Psycopg2SqlClient):
             return DatabaseTerminalException(pg_ex)
         return None
 
+class RedshiftCopfileLoadJob(CopyFileLoadJob):
+    def execute(self, table_name: str, bucket_path: str, fs_config: FilesystemClientConfiguration) -> None:
+        aws_access_key = fs_config.credentials.aws_access_key_id
+        aws_secret_key = fs_config.credentials.aws_secret_access_key
+        self._sql_client.execute_sql(f"""
+                                         copy {table_name} 
+                                         from '{bucket_path}'
+                                         credentials 'aws_access_key_id={aws_access_key};aws_secret_access_key={aws_secret_key}' parquet""")
 
 class RedshiftClient(InsertValuesJobClient):
 
@@ -88,7 +97,7 @@ class RedshiftClient(InsertValuesJobClient):
         hints_str = " ".join(HINT_TO_REDSHIFT_ATTR.get(h, "") for h in HINT_TO_REDSHIFT_ATTR.keys() if c.get(h, False) is True)
         column_name = self.capabilities.escape_identifier(c["name"])
         return f"{column_name} {self._to_db_type(c['data_type'])} {hints_str} {self._gen_not_null(c['nullable'])}"
-
+    
     @staticmethod
     def _to_db_type(sc_t: TDataType) -> str:
         if sc_t == "wei":
@@ -101,3 +110,8 @@ class RedshiftClient(InsertValuesJobClient):
             if precision == DEFAULT_NUMERIC_PRECISION and scale == 0:
                 return "wei"
         return PGT_TO_SCT.get(pq_t, "text")
+    
+    @staticmethod
+    def get_file_copy_job() -> Type[CopyFileLoadJob]:
+        return RedshiftCopfileLoadJob
+
