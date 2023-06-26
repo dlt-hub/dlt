@@ -112,7 +112,14 @@ class BigQueryMergeJob(SqlMergeJob):
 class BigQueryCopyFileLoadJob(CopyFileLoadJob):
     def execute(self, table_name: str, bucket_path: str, fs_config: FilesystemClientConfiguration) -> None:
 
-        file_type = "PARQUET"
+        ext = bucket_path.split(".")[-1]
+        if ext == "parquet":
+            file_type = "PARQUET"
+        elif ext == "jsonl":
+            file_type = "JSON"
+        else:
+            raise Exception(f"Unsupported file type {ext}")
+
         self._sql_client.execute_sql(f"""
             LOAD DATA INTO {table_name}
             FROM FILES (
