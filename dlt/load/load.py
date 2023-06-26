@@ -77,11 +77,9 @@ class Load(Runnable[ThreadPool]):
     @workermethod
     def w_spool_job(self: "Load", file_path: str, load_id: str, schema: Schema) -> Optional[LoadJob]:
         job: LoadJob = None
-        is_reference = file_path.endswith(".reference")
         try:
             # if we have a staging destination and the file is not a reference, send to staging
-            use_staging_client = self.staging is not None and not is_reference
-            client = self.staging.client(schema, self.initial_staging_client_config) if use_staging_client else self.destination.client(schema, self.initial_client_config)
+            client = self.staging.client(schema, self.initial_staging_client_config) if self.is_staging_job(file_path) else self.destination.client(schema, self.initial_client_config)
             with client as client:
                 job_info = self.load_storage.parse_job_file_name(file_path)
                 if job_info.file_format not in self.capabilities.supported_loader_file_formats:
@@ -120,8 +118,11 @@ class Load(Runnable[ThreadPool]):
         jobs: List[LoadJob] = self.pool.starmap(Load.w_spool_job, param_chunk)
         # remove None jobs and check the rest
         return file_count, [job for job in jobs if job is not None]
+    
+    def is_staging_job(self, file_path: str) -> bool:
+        return self.staging and file_path.split(".")[-1] in self.staging.capabilities().supported_loader_file_formats
 
-    def retrieve_jobs(self, client: JobClientBase, load_id: str) -> Tuple[int, List[LoadJob]]:
+    def retrieve_jobs(self, client: JobClientBase, load_id: str, staging_client: JobClientBase = None) -> Tuple[int, List[LoadJob]]:
         jobs: List[LoadJob] = []
 
         # list all files that were started but not yet completed
@@ -134,6 +135,7 @@ class Load(Runnable[ThreadPool]):
         for file_path in started_jobs:
             try:
                 logger.info(f"Will retrieve {file_path}")
+                client = staging_client if self.is_staging_job(file_path) else client
                 job = client.restore_file_load(file_path)
             except DestinationTerminalException:
                 logger.exception(f"Job retrieval for {file_path} failed, job will be terminated")
@@ -170,7 +172,7 @@ class Load(Runnable[ThreadPool]):
             table_chain.append(table)
         # there must be at least 1 job
         assert len(table_chain) > 0
-        # all tables completed, create merge sql job
+        # all tables completed, create merge sql job on destination client
         return self.destination.client(schema, self.initial_client_config).create_merge_job(table_chain)
     
     def create_reference_job(self, load_id: str, schema: Schema, starting_job: LoadFilesystemJob) -> NewLoadJob:
@@ -275,7 +277,11 @@ class Load(Runnable[ThreadPool]):
                     job_client.initialize_storage(staging=True, truncate_tables=merge_tables)
                 self.load_storage.commit_schema_update(load_id, applied_update)
             # spool or retrieve unfinished jobs
-            jobs_count, jobs = self.retrieve_jobs(job_client, load_id)
+            if self.staging:
+                with self.staging.client(schema, self.initial_staging_client_config) as staging_client:
+                    jobs_count, jobs = self.retrieve_jobs(job_client, load_id, staging_client)
+            else:
+                jobs_count, jobs = self.retrieve_jobs(job_client, load_id)
 
         if not jobs:
             # jobs count is a total number of jobs including those that could not be initialized
