@@ -852,6 +852,7 @@ class Pipeline(SupportsPipeline):
         return extract_id
 
     def _get_destination_client_initial_config(self, destination: DestinationReference, credentials: Any = None) -> DestinationClientConfiguration:
+        destination = destination or self.destination
         if not destination:
             raise PipelineConfigMissing(
                 self.pipeline_name,
