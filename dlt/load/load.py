@@ -33,7 +33,7 @@ class Load(Runnable[ThreadPool]):
     def __init__(
         self,
         destination: DestinationReference,
-        staging: DestinationReference,
+        staging: DestinationReference = None,
         collector: Collector = NULL_COLLECTOR,
         is_storage_owner: bool = False,
         config: LoaderConfiguration = config.value,
