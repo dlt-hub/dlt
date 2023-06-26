@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import ClassVar, Dict, Optional, Sequence, Tuple, List, cast
+from typing import ClassVar, Dict, Optional, Sequence, Tuple, List, cast, Type
 import google.cloud.bigquery as bigquery  # noqa: I250
 from google.cloud import exceptions as gcp_exceptions
 from google.api_core import exceptions as api_core_exceptions
@@ -16,6 +16,8 @@ from dlt.common.schema.typing import TTableSchema, TWriteDisposition
 
 from dlt.destinations.job_client_impl import SqlJobClientBase
 from dlt.destinations.exceptions import DestinationSchemaWillNotUpdate, DestinationTransientException, LoadJobNotExistsException, LoadJobTerminalException, LoadJobUnknownTableException
+from dlt.destinations.filesystem.configuration import FilesystemClientConfiguration
+from dlt.destinations.job_client_impl import CopyFileLoadJob
 
 from dlt.destinations.bigquery import capabilities
 from dlt.destinations.bigquery.configuration import BigQueryClientConfiguration
@@ -106,6 +108,16 @@ class BigQueryMergeJob(SqlMergeJob):
             sql.append(f"FROM {root_table_name} AS d WHERE EXISTS (SELECT 1 FROM {staging_root_table_name} AS s WHERE {clause.format(d='d', s='s')})")
         return sql
 
+
+class BigQueryCopyFileLoadJob(CopyFileLoadJob):
+    def execute(self, table_name: str, bucket_path: str, fs_config: FilesystemClientConfiguration) -> None:
+
+        file_type = "PARQUET"
+        self._sql_client.execute_sql(f"""
+            LOAD DATA INTO {table_name}
+            FROM FILES (
+            format = '{file_type}',
+            uris = ['{bucket_path}']);""")
 
 class BigQueryClient(SqlJobClientBase):
 
@@ -267,3 +279,8 @@ class BigQueryClient(SqlJobClientBase):
             if precision is None:  # biggest numeric possible
                 return "wei"
         return BQT_TO_SCT.get(bq_t, "text")
+
+    @staticmethod
+    def get_file_copy_job() -> Type[CopyFileLoadJob]:
+        return BigQueryCopyFileLoadJob
+

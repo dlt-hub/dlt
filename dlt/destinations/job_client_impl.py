@@ -15,14 +15,18 @@ from dlt.common.schema.typing import COLUMN_HINTS, LOADS_TABLE_NAME, VERSION_TAB
 from dlt.common.schema.utils import add_missing_hints
 from dlt.common.storages import FileStorage
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns, TSchemaTables
-from dlt.common.destination.reference import DestinationClientConfiguration, DestinationClientDwhConfiguration, NewLoadJob, TLoadJobState, LoadJob, JobClientBase
+from dlt.common.destination.reference import DestinationClientConfiguration, DestinationClientDwhConfiguration, NewLoadJob, TLoadJobState, LoadJob, JobClientBase, FollowupJob
 from dlt.common.utils import concat_strings_with_limit
 from dlt.destinations.exceptions import DatabaseUndefinedRelation, DestinationSchemaWillNotUpdate
 from dlt.destinations.job_impl import EmptyLoadJobWithoutFollowup
 from dlt.destinations.sql_merge_job import SqlMergeJob
+from dlt.destinations.filesystem.configuration import FilesystemClientConfiguration
+from dlt.common.configuration.accessors import config
+from dlt.destinations.filesystem.configuration import FilesystemClientConfiguration
 
 from dlt.destinations.typing import TNativeConn
 from dlt.destinations.sql_client import SqlClientBase
+from dlt.common.configuration import with_config, known_sections
 
 
 class StorageSchemaInfo(NamedTuple):
@@ -56,6 +60,32 @@ class SqlLoadJob(LoadJob):
     @staticmethod
     def is_sql_job(file_path: str) -> bool:
         return os.path.splitext(file_path)[1][1:] == "sql"
+
+@with_config(spec=FilesystemClientConfiguration, sections=(known_sections.DESTINATION, "filesystem",))
+def _fs_configure(config: FilesystemClientConfiguration = config.value) -> FilesystemClientConfiguration:
+    return config
+
+
+class CopyFileLoadJob(LoadJob, FollowupJob):
+    def __init__(self, table_name: str, file_path: str, sql_client: SqlClientBase[Any]) -> None:
+        super().__init__(FileStorage.get_file_name_from_file_path(file_path))
+        self._sql_client = sql_client
+        with open(file_path, "r+", encoding="utf-8") as f:
+            # Reading from a file
+            bucket_path = f.read()
+        self.execute(table_name, bucket_path, _fs_configure(FilesystemClientConfiguration(dataset_name="something")))
+
+    def execute(self, table_name: str, bucket_path: str, fs_config: FilesystemClientConfiguration) -> None:
+        # implement in child implementations
+        raise NotImplementedError()
+
+    def state(self) -> TLoadJobState:
+        # this job is always done
+        return "completed"
+
+    @staticmethod
+    def is_copy_job(file_path: str) -> bool:
+        return file_path.endswith(".reference")
 
 
 class SqlJobClientBase(JobClientBase):
@@ -121,6 +151,9 @@ class SqlJobClientBase(JobClientBase):
         if SqlLoadJob.is_sql_job(file_path):
             # execute sql load job
             return SqlLoadJob(file_path, self.sql_client)
+        if CopyFileLoadJob.is_copy_job(file_path):
+            cls = self.get_file_copy_job()
+            return cls(table["name"], file_path, self.sql_client)
         return None
 
     def restore_file_load(self, file_path: str) -> LoadJob:
@@ -339,3 +372,7 @@ class SqlJobClientBase(JobClientBase):
         self.sql_client.execute_sql(
             f"INSERT INTO {name}({self.VERSION_TABLE_SCHEMA_COLUMNS}) VALUES (%s, %s, %s, %s, %s, %s);", schema.stored_version_hash, schema.name, schema.version, schema.ENGINE_VERSION, now_ts, schema_str
         )
+
+    @staticmethod
+    def get_file_copy_job() -> Type[CopyFileLoadJob]:
+        return CopyFileLoadJob

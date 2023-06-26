@@ -969,6 +969,7 @@ class Pipeline(SupportsPipeline):
                 stage_caps = self._get_staging_capabilities()
                 injected_caps = self._container.injectable_context(destination_caps)
                 caps = injected_caps.__enter__()
+
                 caps.preferred_loader_file_format = self._resolve_loader_file_format(
                     DestinationReference.to_name(self.destination),
                     DestinationReference.to_name(self.staging) if self.staging else None,

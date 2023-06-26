@@ -1,6 +1,6 @@
 
 from contextlib import contextmanager
-from typing import Any, AnyStr, ClassVar, Iterator, List, Optional, Sequence
+from typing import Any, AnyStr, ClassVar, Iterator, List, Optional, Sequence, Type
 
 import google.cloud.bigquery as bigquery  # noqa: I250
 from google.cloud.bigquery import dbapi as bq_dbapi
@@ -16,6 +16,7 @@ from dlt.common.typing import StrAny
 from dlt.destinations.typing import DBApi, DBApiCursor, DBTransaction, DataFrame
 from dlt.destinations.exceptions import DatabaseTerminalException, DatabaseTransientException, DatabaseUndefinedRelation
 from dlt.destinations.sql_client import DBApiCursorImpl, SqlClientBase, raise_database_error, raise_open_connection_error
+from dlt.destinations.job_client_impl import CopyFileLoadJob
 
 from dlt.destinations.bigquery import capabilities
 
@@ -55,6 +56,7 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
         self._default_retry = bigquery.DEFAULT_RETRY.with_deadline(credentials.retry_deadline)
         self._default_query = bigquery.QueryJobConfig(default_dataset=self.fully_qualified_dataset_name(escape=False))
         self._session_query: bigquery.QueryJobConfig = None
+
 
     @raise_open_connection_error
     def open_connection(self) -> bigquery.Client:

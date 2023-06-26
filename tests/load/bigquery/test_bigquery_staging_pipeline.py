@@ -8,8 +8,8 @@ from dlt.common.utils import uniq_id
 def test_redshift_parquet_staging_load() -> None:
 
     # set aws bucket url
-    os.environ['DESTINATION__FILESYSTEM__BUCKET_URL'] = "s3://dlt-ci-test-bucket"
-    pipeline = dlt.pipeline(pipeline_name='parquet_test_' + uniq_id(), destination="redshift", staging="filesystem", dataset_name='redshift_copy_parquet_test_' + uniq_id())
+    os.environ['DESTINATION__FILESYSTEM__BUCKET_URL'] = "gs://ci-test-bucket"
+    pipeline = dlt.pipeline(pipeline_name='bq_staging_parquet_test_' + uniq_id(), destination="bigquery", staging="filesystem", dataset_name='bigquery_copy_parquet_test_' + uniq_id())
 
     @dlt.resource(primary_key='id')
     def some_data():  # type: ignore[no-untyped-def]
