@@ -506,7 +506,8 @@ html[data-theme='dark'] .slack-navbar::before {
   padding: var(--ifm-menu-link-padding-vertical) var(--ifm-menu-link-padding-horizontal);
 }
 
-.theme-doc-sidebar-menu.menu__list>li:nth-child(1)>div>a::before {
+
+.theme-doc-sidebar-menu.menu__list>li:nth-child(1)>a::before {
   background-image: url(../../static/img/Introduction-Inactive.svg);
 }
 
@@ -644,7 +645,7 @@ html[data-theme='dark'] .slack-navbar::before {
 
 /* dark-mode-sidebar-icons */
 
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(1)>div>a::before {
+html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(1)>a::before {
   background-image: url(../../static/img/Introduction-Inactive-1.svg);
 }
 
