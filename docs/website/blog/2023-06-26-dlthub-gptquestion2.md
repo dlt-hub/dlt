@@ -94,8 +94,10 @@ In this article, we tried to ask our `dlt` AI Assistant- the conversational comp
 
 >During this Q&A converstation, we can understand dlt helps reduce maintenance in data pipelines by automating structuring, handling schema evolution, standardizing data loading, providing pre-built sources, and allowing easy customization. It offers powerful capabilities to simplify and improve data pipeline management, reducing maintenance efforts and driving better outcomes. 
 
-Now we understand how dlt significantly improve your work efficiency, let’s try it out with out dlt demo  👉 [Colab Demo](https://colab.research.google.com/drive/1KU1G_08Yihh5p-o1BsCuhA1OkH5zwgkf?usp=sharing)  ! 
+Now we understand how dlt significantly improve your work efficiency! Let’s ask more questions with our `dlt` AI Assistant, just click on the "Help" button located at the bottom right.
+
 *** 
 [ What's more? ]
 - Learn more about `dlt` 👉 [here](https://dlthub.com/docs/intro) 
 - Want to discuss more? Join our [Slack community](https://dlthub-community.slack.com/ssb/redirect) !
+- Try out with out dlt demo  👉 [Colab Demo](https://colab.research.google.com/drive/1KU1G_08Yihh5p-o1BsCuhA1OkH5zwgkf?usp=sharing)  ! 
