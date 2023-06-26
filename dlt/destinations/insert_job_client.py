@@ -79,11 +79,11 @@ class CopyFileLoadJob(LoadJob, FollowupJob):
     def __init__(self, table_name: str, file_path: str, sql_client: SqlClientBase[Any]) -> None:
         super().__init__(FileStorage.get_file_name_from_file_path(file_path))
         self._sql_client = sql_client
-        with open(file_path, "r+") as f:
+        with open(file_path, "r+", encoding="utf-8") as f:
             # Reading from a file
             bucket_path = f.read()
         self.execute(table_name, bucket_path, _fs_configure(FilesystemClientConfiguration(dataset_name="something")))
-        
+
     def execute(self, table_name: str, bucket_path: str, fs_config: FilesystemClientConfiguration) -> None:
         # implement in child implementations
         return

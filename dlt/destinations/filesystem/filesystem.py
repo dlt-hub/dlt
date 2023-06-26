@@ -1,7 +1,7 @@
 import posixpath
 import threading
 from types import TracebackType
-from typing import ClassVar, List, Sequence, Type, Iterable
+from typing import ClassVar, List, Sequence, Type, Iterable, cast
 from fsspec import AbstractFileSystem
 
 from dlt.common.schema import Schema, TTableSchema
@@ -105,8 +105,9 @@ class FilesystemClient(JobClientBase):
 
     def create_merge_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
         return None
-    
-    def create_reference_job(self, job: LoadFilesystemJob) -> NewLoadJob:
+
+    def create_reference_job(self, job: LoadJob) -> NewLoadJob:
+        job = cast(LoadFilesystemJob, job)
         file_name = (".").join(job.file_name().split(".")[0:-1] + ["reference"])
         ref_job = NewReferenceJob(file_name=file_name, status="running")
         remote_path = f"{self.config.protocol}://{posixpath.join(self.dataset_path, job.destination_file_name)}"

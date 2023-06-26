@@ -73,12 +73,12 @@ class RedshiftSqlClient(Psycopg2SqlClient):
 
 class RedshiftCopyFileLoadJob(CopyFileLoadJob):
     def execute(self, table_name: str, bucket_path: str, fs_config: FilesystemClientConfiguration) -> None:
-        aws_access_key = fs_config.credentials.aws_access_key_id
-        aws_secret_key = fs_config.credentials.aws_secret_access_key
+        aws_access_key = fs_config.credentials.aws_access_key_id # type: ignore
+        aws_secret_key = fs_config.credentials.aws_secret_access_key # type: ignore
 
         file_type = "PARQUET"
         self._sql_client.execute_sql(f"""
-            COPY {table_name} 
+            COPY {table_name}
             FROM '{bucket_path}'
             {file_type}
             CREDENTIALS 'aws_access_key_id={aws_access_key};aws_secret_access_key={aws_secret_key}'""")
@@ -100,7 +100,7 @@ class RedshiftClient(InsertValuesJobClient):
         hints_str = " ".join(HINT_TO_REDSHIFT_ATTR.get(h, "") for h in HINT_TO_REDSHIFT_ATTR.keys() if c.get(h, False) is True)
         column_name = self.capabilities.escape_identifier(c["name"])
         return f"{column_name} {self._to_db_type(c['data_type'])} {hints_str} {self._gen_not_null(c['nullable'])}"
-    
+
     @staticmethod
     def _to_db_type(sc_t: TDataType) -> str:
         if sc_t == "wei":
@@ -113,7 +113,7 @@ class RedshiftClient(InsertValuesJobClient):
             if precision == DEFAULT_NUMERIC_PRECISION and scale == 0:
                 return "wei"
         return PGT_TO_SCT.get(pq_t, "text")
-    
+
     @staticmethod
     def get_file_copy_job() -> Type[CopyFileLoadJob]:
         return RedshiftCopyFileLoadJob

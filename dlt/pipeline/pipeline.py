@@ -888,13 +888,13 @@ class Pipeline(SupportsPipeline):
                 [f"{version.DLT_PKG_NAME}[{client_spec.destination_name}]"],
                 "Dependencies for specific destinations are available as extras of dlt"
             )
-        
+
     def _get_staging_client(self, schema: Schema, initial_config: DestinationClientConfiguration = None) -> JobClientBase:
         try:
             # config is not provided then get it with injected credentials
             if not initial_config:
                 initial_config = self._get_destination_client_initial_config(self.staging)
-            return self.staging.client(schema, initial_config)
+            return self.staging.client(schema, initial_config) # type: ignore
         except ImportError:
             client_spec = self.destination.spec()
             raise MissingDependencyException(
@@ -912,9 +912,9 @@ class Pipeline(SupportsPipeline):
                     "Please provide `destination` argument to `pipeline`, `run` or `load` method directly or via .dlt config.toml file or environment variable."
                 )
         return self.destination.capabilities()
-    
+
     def _get_staging_capabilities(self) -> DestinationCapabilitiesContext:
-        return self.staging.capabilities() if self.staging else None
+        return self.staging.capabilities() if self.staging is not None else None # type: ignore
 
     def _validate_pipeline_name(self) -> None:
         try:
@@ -981,7 +981,7 @@ class Pipeline(SupportsPipeline):
     @staticmethod
     def _resolve_loader_file_format(
             destination: str,
-            staging: str, 
+            staging: str,
             dest_caps: DestinationCapabilitiesContext,
             stage_caps: DestinationCapabilitiesContext,
             file_format: TLoaderFileFormat) -> TLoaderFileFormat:

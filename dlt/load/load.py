@@ -118,9 +118,9 @@ class Load(Runnable[ThreadPool]):
         jobs: List[LoadJob] = self.pool.starmap(Load.w_spool_job, param_chunk)
         # remove None jobs and check the rest
         return file_count, [job for job in jobs if job is not None]
-    
+
     def is_staging_job(self, file_path: str) -> bool:
-        return self.staging and file_path.split(".")[-1] in self.staging.capabilities().supported_loader_file_formats
+        return self.staging is not None and file_path.split(".")[-1] in self.staging.capabilities().supported_loader_file_formats
 
     def retrieve_jobs(self, client: JobClientBase, load_id: str, staging_client: JobClientBase = None) -> Tuple[int, List[LoadJob]]:
         jobs: List[LoadJob] = []
@@ -174,7 +174,7 @@ class Load(Runnable[ThreadPool]):
         assert len(table_chain) > 0
         # all tables completed, create merge sql job on destination client
         return self.destination.client(schema, self.initial_client_config).create_merge_job(table_chain)
-    
+
     def create_reference_job(self, load_id: str, schema: Schema, starting_job: LoadFilesystemJob) -> NewLoadJob:
         return self.staging.client(schema, self.initial_staging_client_config).create_reference_job(starting_job)
 

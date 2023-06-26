@@ -6,7 +6,7 @@ from dlt.common.utils import uniq_id
 
 
 def test_redshift_parquet_staging_load() -> None:
-    
+
     # set aws bucket url
     os.environ['DESTINATION__FILESYSTEM__BUCKET_URL'] = "s3://dlt-ci-test-bucket"
     pipeline = dlt.pipeline(pipeline_name='parquet_test_' + uniq_id(), destination="redshift", staging="filesystem", dataset_name='redshift_copy_parquet_test_' + uniq_id())

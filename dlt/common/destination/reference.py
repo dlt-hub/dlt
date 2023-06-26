@@ -160,7 +160,7 @@ class JobClientBase(ABC):
         """
         pass
 
-    def create_reference_job(self, job: LoadJob) -> NewLoadJob:
+    def create_reference_job(self, job: LoadJob) -> NewLoadJob: # noqa: B027
         pass
 
     @abstractmethod
