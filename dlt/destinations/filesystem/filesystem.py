@@ -109,7 +109,7 @@ class FilesystemClient(JobClientBase):
     def create_reference_job(self, job: LoadFilesystemJob) -> NewLoadJob:
         file_name = (".").join(job.file_name().split(".")[0:-1] + ["reference"])
         ref_job = NewReferenceJob(file_name=file_name, status="running")
-        remote_path = "s3://" + posixpath.join(self.dataset_path, job.destination_file_name)
+        remote_path = f"{self.config.protocol}://{posixpath.join(self.dataset_path, job.destination_file_name)}"
         ref_job._save_text_file(remote_path)
         return ref_job
 
