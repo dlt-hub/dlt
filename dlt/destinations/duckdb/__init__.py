@@ -21,7 +21,7 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.supported_loader_file_formats = ["insert_values", "parquet", "sql"]
     caps.preferred_staging_file_format = None
     caps.supported_staging_file_formats = []
-    caps.supported_staging_destinations = []
+    caps.supported_stagings = []
     caps.escape_identifier = escape_postgres_identifier
     caps.escape_literal = escape_duckdb_literal
     caps.max_identifier_length = 65536

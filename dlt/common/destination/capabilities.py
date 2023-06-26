@@ -20,7 +20,7 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     supported_loader_file_formats: List[TLoaderFileFormat]
     preferred_staging_file_format: Union[None, TLoaderFileFormat]
     supported_staging_file_formats: List[TLoaderFileFormat]
-    supported_staging_destinations: List[str] # should be TDestinationReferenceArg, but Circular Reference..
+    supported_stagings: List[str] # should be TDestinationReferenceArg, but Circular Reference..
     escape_identifier: Callable[[str], str]
     escape_literal: Callable[[Any], Any]
     max_identifier_length: int
@@ -43,7 +43,7 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
         caps.supported_loader_file_formats = ["jsonl", "insert_values", "parquet"]
         caps.preferred_staging_file_format = None
         caps.supported_staging_file_formats = []
-        caps.supported_staging_destinations = []
+        caps.supported_stagings = []
         caps.escape_identifier = identity
         caps.escape_literal = serialize_value
         caps.max_identifier_length = 65536

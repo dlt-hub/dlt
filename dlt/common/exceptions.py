@@ -119,19 +119,19 @@ class DestinationTransientException(DestinationException, TransientException):
     pass
 
 class DestinationUnsupportedStagingDestinationException(TerminalException, DestinationException):
-    def __init__(self, destination: str, staging_destination: str) -> None:
+    def __init__(self, destination: str, staging: str) -> None:
         self.destination = destination
-        self.staging_destination = staging_destination
-        msg = f"Staging destination {staging_destination} not supported by destination {destination}."
+        self.staging = staging
+        msg = f"Staging destination {staging} not supported by destination {destination}."
         super().__init__(msg)
 
 class DestinationIncompatibleLoaderFileFormatException(TerminalException, DestinationException):
-    def __init__(self, destination: str, staging_destination: str, file_format: str) -> None:
+    def __init__(self, destination: str, staging: str, file_format: str) -> None:
         self.destination = destination
-        self.staging_destination = staging_destination
+        self.staging = staging
         self.file_format = file_format
-        if self.staging_destination:
-            msg = f"Loader File format {file_format} destination {destination} in combination with staging destination {staging_destination}."
+        if self.staging:
+            msg = f"Loader File format {file_format} destination {destination} in combination with staging destination {staging}."
         else:
             msg = f"Loader File format {file_format} destination {destination}."
         super().__init__(msg)

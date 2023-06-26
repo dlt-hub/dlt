@@ -187,7 +187,7 @@ class Pipeline(SupportsPipeline):
             must_attach_to_local_pipeline: bool,
             config: PipelineConfiguration,
             runtime: RunConfiguration,
-            staging_destination: DestinationReference = None
+            staging: DestinationReference = None
         ) -> None:
         """Initializes the Pipeline class which implements `dlt` pipeline. Please use `pipeline` function in `dlt` module to create a new Pipeline instance."""
         self.pipeline_salt = pipeline_salt
@@ -196,7 +196,7 @@ class Pipeline(SupportsPipeline):
         self.full_refresh = full_refresh
         self.collector = progress or _NULL_COLLECTOR
         self.destination = None
-        self.staging_destination = None
+        self.staging = None
 
         self._container = Container()
         self._pipeline_instance_id = self._create_pipeline_instance_id()
@@ -218,8 +218,8 @@ class Pipeline(SupportsPipeline):
             self._state_to_props(state)
             # we overwrite the state with the values from init
             self._set_destination(destination)  # changing the destination could be dangerous if pipeline has not loaded items
-            if staging_destination:
-                self._set_staging_destination(staging_destination)
+            if staging:
+                self._set_staging(staging)
             self._set_dataset_name(dataset_name)
             self.credentials = credentials
             self._configure(import_schema_path, export_schema_path, must_attach_to_local_pipeline)
@@ -343,8 +343,8 @@ class Pipeline(SupportsPipeline):
         # make sure that destination is set and client is importable and can be instantiated
         client = self._get_destination_client(self.default_schema)
         staging_client = None
-        if self.staging_destination:
-            staging_client = self._get_staging_destination_client(self.default_schema)
+        if self.staging:
+            staging_client = self._get_staging_client(self.default_schema)
 
         # create default loader config and the loader
         load_config = LoaderConfiguration(
@@ -352,7 +352,7 @@ class Pipeline(SupportsPipeline):
             raise_on_failed_jobs=raise_on_failed_jobs,
             _load_storage_config=self._load_storage_config
         )
-        load = Load(self.destination, staging_destination=self.staging_destination, collector=self.collector, is_storage_owner=False, config=load_config, initial_client_config=client.config, initial_staging_client_config=staging_client.config if staging_client else None)
+        load = Load(self.destination, staging=self.staging, collector=self.collector, is_storage_owner=False, config=load_config, initial_client_config=client.config, initial_staging_client_config=staging_client.config if staging_client else None)
         try:
             with signals.delayed_signals():
                 runner.run_pool(load.config, load)
@@ -888,12 +888,12 @@ class Pipeline(SupportsPipeline):
                 "Dependencies for specific destinations are available as extras of dlt"
             )
         
-    def _get_staging_destination_client(self, schema: Schema, initial_config: DestinationClientConfiguration = None) -> JobClientBase:
+    def _get_staging_client(self, schema: Schema, initial_config: DestinationClientConfiguration = None) -> JobClientBase:
         try:
             # config is not provided then get it with injected credentials
             if not initial_config:
-                initial_config = self._get_destination_client_initial_config(self.staging_destination)
-            return self.staging_destination.client(schema, initial_config)
+                initial_config = self._get_destination_client_initial_config(self.staging)
+            return self.staging.client(schema, initial_config)
         except ImportError:
             client_spec = self.destination.spec()
             raise MissingDependencyException(
@@ -912,8 +912,8 @@ class Pipeline(SupportsPipeline):
                 )
         return self.destination.capabilities()
     
-    def _get_staging_destination_capabilities(self) -> DestinationCapabilitiesContext:
-        return self.staging_destination.capabilities() if self.staging_destination else None
+    def _get_staging_capabilities(self) -> DestinationCapabilitiesContext:
+        return self.staging.capabilities() if self.staging else None
 
     def _validate_pipeline_name(self) -> None:
         try:
@@ -953,9 +953,9 @@ class Pipeline(SupportsPipeline):
             # default normalizers must match the destination
             self._set_default_normalizers()
 
-    def _set_staging_destination(self, destination: TDestinationReferenceArg) -> None:
+    def _set_staging(self, destination: TDestinationReferenceArg) -> None:
         destination_mod = DestinationReference.from_name(destination)
-        self.staging_destination = destination_mod or self.staging_destination
+        self.staging = destination_mod or self.staging
 
 
     @contextmanager
@@ -965,12 +965,12 @@ class Pipeline(SupportsPipeline):
             injected_caps: ContextManager[DestinationCapabilitiesContext] = None
             if self.destination:
                 destination_caps = self._get_destination_capabilities()
-                stage_caps = self._get_staging_destination_capabilities()
+                stage_caps = self._get_staging_capabilities()
                 injected_caps = self._container.injectable_context(destination_caps)
                 caps = injected_caps.__enter__()
                 caps.preferred_loader_file_format = self._resolve_loader_file_format(
                     DestinationReference.to_name(self.destination),
-                    DestinationReference.to_name(self.staging_destination) if self.staging_destination else None,
+                    DestinationReference.to_name(self.staging) if self.staging else None,
                     destination_caps, stage_caps, loader_file_format)
             yield caps
         finally:
@@ -980,13 +980,13 @@ class Pipeline(SupportsPipeline):
     @staticmethod
     def _resolve_loader_file_format(
             destination: str,
-            staging_destination: str, 
+            staging: str, 
             dest_caps: DestinationCapabilitiesContext,
             stage_caps: DestinationCapabilitiesContext,
             file_format: TLoaderFileFormat) -> TLoaderFileFormat:
         # check wether staging destination is supported at all
-        if stage_caps and staging_destination not in dest_caps.supported_staging_destinations:
-            raise DestinationUnsupportedStagingDestinationException(destination, staging_destination)
+        if stage_caps and staging not in dest_caps.supported_stagings:
+            raise DestinationUnsupportedStagingDestinationException(destination, staging)
         if not stage_caps:
             possible_file_formats = dest_caps.supported_loader_file_formats
         if stage_caps:
@@ -999,7 +999,7 @@ class Pipeline(SupportsPipeline):
             else:
                 file_format = possible_file_formats[0] if len(possible_file_formats) > 0 else None
         if file_format not in possible_file_formats:
-            raise DestinationIncompatibleLoaderFileFormatException(destination, staging_destination, file_format)
+            raise DestinationIncompatibleLoaderFileFormatException(destination, staging, file_format)
         print(file_format)
         return file_format
 

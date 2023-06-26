@@ -33,7 +33,7 @@ class Load(Runnable[ThreadPool]):
     def __init__(
         self,
         destination: DestinationReference,
-        staging_destination: DestinationReference,
+        staging: DestinationReference,
         collector: Collector = NULL_COLLECTOR,
         is_storage_owner: bool = False,
         config: LoaderConfiguration = config.value,
@@ -46,7 +46,7 @@ class Load(Runnable[ThreadPool]):
         self.initial_staging_client_config = initial_staging_client_config
         self.destination = destination
         self.capabilities = destination.capabilities()
-        self.staging_destination = staging_destination
+        self.staging = staging
         self.pool: ThreadPool = None
         self.load_storage: LoadStorage = self.create_storage(is_storage_owner)
         self._processed_load_ids: Dict[str, int] = {}
@@ -80,8 +80,8 @@ class Load(Runnable[ThreadPool]):
         is_reference = file_path.endswith(".reference")
         try:
             # if we have a staging destination and the file is not a reference, send to staging
-            use_staging_client = self.staging_destination is not None and not is_reference
-            client = self.staging_destination.client(schema, self.initial_staging_client_config) if use_staging_client else self.destination.client(schema, self.initial_client_config)
+            use_staging_client = self.staging is not None and not is_reference
+            client = self.staging.client(schema, self.initial_staging_client_config) if use_staging_client else self.destination.client(schema, self.initial_client_config)
             with client as client:
                 job_info = self.load_storage.parse_job_file_name(file_path)
                 if job_info.file_format not in self.capabilities.supported_loader_file_formats:
@@ -174,7 +174,7 @@ class Load(Runnable[ThreadPool]):
         return self.destination.client(schema, self.initial_client_config).create_merge_job(table_chain)
     
     def create_reference_job(self, load_id: str, schema: Schema, starting_job: LoadFilesystemJob) -> NewLoadJob:
-        return self.staging_destination.client(schema, self.initial_staging_client_config).create_reference_job(starting_job)
+        return self.staging.client(schema, self.initial_staging_client_config).create_reference_job(starting_job)
 
     def create_followup_jobs(self, load_id: str, state: TLoadJobState, starting_job: LoadJob, schema: Schema) -> List[NewLoadJob]:
         jobs: List[NewLoadJob] = []
@@ -187,7 +187,7 @@ class Load(Runnable[ThreadPool]):
                     if job:
                         jobs.append(job)
                 # if we have a staging destination, we have to create reference followup jobs for non reference jobs
-                if self.staging_destination and not starting_job.file_name().endswith(".reference") and isinstance(starting_job, LoadFilesystemJob):
+                if self.staging and not starting_job.file_name().endswith(".reference") and isinstance(starting_job, LoadFilesystemJob):
                     job = self.create_reference_job(load_id, schema, starting_job)
                     if job:
                         jobs.append(job)
