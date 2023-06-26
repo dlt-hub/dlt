@@ -53,10 +53,13 @@ class Load(Runnable[ThreadPool]):
 
 
     def create_storage(self, is_storage_owner: bool) -> LoadStorage:
+        supoprted_file_formats = self.capabilities.supported_loader_file_formats
+        if self.staging:
+            supoprted_file_formats = self.staging.capabilities().supported_loader_file_formats + ["reference"]
         load_storage = LoadStorage(
             is_storage_owner,
             self.capabilities.preferred_loader_file_format,
-            self.capabilities.supported_loader_file_formats,
+            supoprted_file_formats,
             config=self.config._load_storage_config
         )
         return load_storage
@@ -82,7 +85,7 @@ class Load(Runnable[ThreadPool]):
             client = self.get_staging_client(schema) if self.is_staging_job(file_path) else self.destination.client(schema, self.initial_client_config)
             with client as client:
                 job_info = self.load_storage.parse_job_file_name(file_path)
-                if job_info.file_format not in self.capabilities.supported_loader_file_formats:
+                if job_info.file_format not in self.load_storage.supported_file_formats:
                     raise LoadClientUnsupportedFileFormats(job_info.file_format, self.capabilities.supported_loader_file_formats, file_path)
                 logger.info(f"Will load file {file_path} with table name {job_info.table_name}")
                 table = self.get_load_table(schema, file_path)

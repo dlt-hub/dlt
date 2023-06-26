@@ -18,7 +18,7 @@ def _configure(config: RedshiftClientConfiguration = config.value) -> RedshiftCl
 def capabilities() -> DestinationCapabilitiesContext:
     caps = DestinationCapabilitiesContext()
     caps.preferred_loader_file_format = "insert_values"
-    caps.supported_loader_file_formats = ["insert_values", "sql", "reference", "parquet"]  # parquet should not be here, but is needed for getting the staging loading to work for now
+    caps.supported_loader_file_formats = ["insert_values", "sql"]
     caps.preferred_staging_file_format = "parquet"
     caps.supported_staging_file_formats = ["parquet"]
     caps.supported_stagings = ["filesystem"]
