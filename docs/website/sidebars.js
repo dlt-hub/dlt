@@ -145,7 +145,9 @@ const sidebars = {
           type: 'category',
           label: 'Transformations',
           items: [
-            'dlt-ecosystem/transformations/transforming-the-data',
+            'dlt-ecosystem/transformations/dbt',
+            'dlt-ecosystem/transformations/sql',
+            'dlt-ecosystem/transformations/pandas',
             ,
           ]
         },
