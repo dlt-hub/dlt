@@ -178,6 +178,7 @@ class Pipeline(SupportsPipeline):
             pipelines_dir: str,
             pipeline_salt: TSecretValue,
             destination: DestinationReference,
+            staging: DestinationReference,
             dataset_name: str,
             credentials: Any,
             import_schema_path: str,
@@ -187,7 +188,6 @@ class Pipeline(SupportsPipeline):
             must_attach_to_local_pipeline: bool,
             config: PipelineConfiguration,
             runtime: RunConfiguration,
-            staging: DestinationReference = None
         ) -> None:
         """Initializes the Pipeline class which implements `dlt` pipeline. Please use `pipeline` function in `dlt` module to create a new Pipeline instance."""
         self.pipeline_salt = pipeline_salt
@@ -234,6 +234,7 @@ class Pipeline(SupportsPipeline):
             self.pipelines_dir,
             self.pipeline_salt,
             self.destination,
+            self.staging,
             self.dataset_name,
             self.credentials,
             self._schema_storage.config.import_schema_path,

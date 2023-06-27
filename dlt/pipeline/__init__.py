@@ -22,13 +22,13 @@ def pipeline(
     pipelines_dir: str = None,
     pipeline_salt: TSecretValue = None,
     destination: TDestinationReferenceArg = None,
+    staging: TDestinationReferenceArg = None,
     dataset_name: str = None,
     import_schema_path: str = None,
     export_schema_path: str = None,
     full_refresh: bool = False,
     credentials: Any = None,
     progress: TCollectorArg = _NULL_COLLECTOR,
-    staging: TDestinationReferenceArg = None,
 ) -> Pipeline:
     """Creates a new instance of `dlt` pipeline, which moves the data from the source ie. a REST API to a destination ie. database or a data lake.
 
@@ -87,13 +87,13 @@ def pipeline(
     pipelines_dir: str = None,
     pipeline_salt: TSecretValue = None,
     destination: TDestinationReferenceArg = None,
+    staging: TDestinationReferenceArg = None,
     dataset_name: str = None,
     import_schema_path: str = None,
     export_schema_path: str = None,
     full_refresh: bool = False,
     credentials: Any = None,
     progress: TCollectorArg = _NULL_COLLECTOR,
-    staging: TDestinationReferenceArg = None,
     **kwargs: Any
 ) -> Pipeline:
     ensure_correct_pipeline_kwargs(pipeline, **kwargs)
@@ -124,6 +124,7 @@ def pipeline(
         pipelines_dir,
         pipeline_salt,
         destination,
+        staging,
         dataset_name,
         credentials,
         import_schema_path,
@@ -132,8 +133,7 @@ def pipeline(
         progress,
         False,
         last_config(**kwargs),
-        kwargs["runtime"],
-        staging)
+        kwargs["runtime"])
     # set it as current pipeline
     p.activate()
     return p
@@ -154,7 +154,7 @@ def attach(
         pipelines_dir = get_dlt_pipelines_dir()
     progress = collector_from_name(progress)
     # create new pipeline instance
-    p = Pipeline(pipeline_name, pipelines_dir, pipeline_salt, None, None, None, None, None, full_refresh, progress, True, last_config(**kwargs), kwargs["runtime"])
+    p = Pipeline(pipeline_name, pipelines_dir, pipeline_salt, None, None, None, None, None, None, full_refresh, progress, True, last_config(**kwargs), kwargs["runtime"])
     # set it as current pipeline
     p.activate()
     return p
