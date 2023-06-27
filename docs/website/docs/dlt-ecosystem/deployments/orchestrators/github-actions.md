@@ -27,5 +27,5 @@ dlt deploy <script>.py github-action --schedule <cron schedule>
 which generates the necessary code and instructions.
 
 > 💡 Read our
-[Walkthroughs: Deploy a pipeline with GitHub Actions](../../../walkthroughs/deploy-a-pipeline/deploy-with-github-actions)
-to find out more.
+> [Walkthroughs: Deploy a pipeline with GitHub Actions](../../../walkthroughs/deploy-a-pipeline/deploy-with-github-actions)
+> to find out more.
