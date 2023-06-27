@@ -104,7 +104,7 @@ const sidebars = {
           link: {
             type: 'generated-index',
             title: 'Destinations',
-            description: 'Overview over our destinations. A destiantion is the data store where data from the source is loaded. Learn how to use them in your pipelines.',
+            description: 'Overview over our destinations. A destination is the data store where data from the source is loaded. Learn how to use them in your pipelines.',
             slug: 'dlt-ecosystem/destinations',
             keywords: ['destination'],
           },
@@ -144,6 +144,13 @@ const sidebars = {
         {
           type: 'category',
           label: 'Transformations',
+          link: {
+            type: 'generated-index',
+            title: 'Transformations',
+            description: 'If you want to transform the data after loading, you can use one of the following methods: dbt, SQL, Pandas.',
+            slug: 'dlt-ecosystem/transformations',
+            keywords: ['transformations'],
+          },
           items: [
             'dlt-ecosystem/transformations/dbt',
             'dlt-ecosystem/transformations/sql',
