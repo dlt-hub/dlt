@@ -188,7 +188,7 @@ class Load(Runnable[ThreadPool]):
                     job = self.create_merge_job(load_id, schema, top_merged_table, starting_job)
                     if job:
                         jobs.append(job)
-            jobs = jobs + starting_job.create_followup_jobs(state, load_id, schema)
+            jobs = jobs + starting_job.create_followup_jobs(state, load_id)
         return jobs
 
     def complete_jobs(self, load_id: str, jobs: List[LoadJob], schema: Schema) -> List[LoadJob]:

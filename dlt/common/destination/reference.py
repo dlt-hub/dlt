@@ -106,7 +106,7 @@ class NewLoadJob(LoadJob):
 
 class FollowupJob:
     """Adds a trait that allows to create a followup job"""
-    def create_followup_jobs(self, next_state: str,load_id: str, schema: Schema) -> List[NewLoadJob]:
+    def create_followup_jobs(self, next_state: str,load_id: str) -> List[NewLoadJob]:
         return []
 
 

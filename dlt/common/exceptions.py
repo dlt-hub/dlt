@@ -118,12 +118,6 @@ class DestinationTerminalException(DestinationException, TerminalException):
 class DestinationTransientException(DestinationException, TransientException):
     pass
 
-class DestinationUnsupportedStagingException(TerminalException, DestinationException):
-    def __init__(self, destination: str, staging: str) -> None:
-        self.destination = destination
-        self.staging = staging
-        msg = f"Staging destination {staging} not supported by destination {destination}."
-        super().__init__(msg)
 
 class DestinationIncompatibleLoaderFileFormatException(TerminalException, DestinationException):
     def __init__(self, destination: str, staging: str, file_format: str) -> None:

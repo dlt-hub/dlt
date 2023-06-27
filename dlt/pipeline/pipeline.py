@@ -13,7 +13,7 @@ from dlt.common.configuration.specs import RunConfiguration, CredentialsConfigur
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import ConfigFieldMissingException, ContextDefaultCannotBeCreated
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
-from dlt.common.exceptions import MissingDependencyException, DestinationUnsupportedStagingException, DestinationIncompatibleLoaderFileFormatException
+from dlt.common.exceptions import MissingDependencyException, DestinationIncompatibleLoaderFileFormatException
 from dlt.common.normalizers import default_normalizers, import_normalizers
 from dlt.common.runtime import signals, initialize_runtime
 from dlt.common.schema.exceptions import InvalidDatasetName
@@ -986,9 +986,6 @@ class Pipeline(SupportsPipeline):
             dest_caps: DestinationCapabilitiesContext,
             stage_caps: DestinationCapabilitiesContext,
             file_format: TLoaderFileFormat) -> TLoaderFileFormat:
-        # check wether staging destination is supported at all
-        if stage_caps and staging not in dest_caps.supported_stagings:
-            raise DestinationUnsupportedStagingException(destination, staging)
         if not stage_caps:
             possible_file_formats = dest_caps.supported_loader_file_formats
         if stage_caps:

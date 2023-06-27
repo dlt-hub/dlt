@@ -21,7 +21,6 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.supported_loader_file_formats = ["insert_values", "sql"]
     caps.preferred_staging_file_format = "parquet"
     caps.supported_staging_file_formats = ["parquet"]
-    caps.supported_stagings = ["filesystem"]
     caps.escape_identifier = escape_redshift_identifier
     caps.escape_literal = escape_redshift_literal
     caps.max_identifier_length = 127

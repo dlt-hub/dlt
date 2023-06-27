@@ -1,4 +1,4 @@
-from typing import Any, Callable, ClassVar, List, Literal, Union
+from typing import Any, Callable, ClassVar, List, Literal, Optional
 
 from dlt.common.configuration.utils import serialize_value
 from dlt.common.configuration import configspec
@@ -18,9 +18,8 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     """Injectable destination capabilities required for many Pipeline stages ie. normalize"""
     preferred_loader_file_format: TLoaderFileFormat
     supported_loader_file_formats: List[TLoaderFileFormat]
-    preferred_staging_file_format: Union[None, TLoaderFileFormat]
+    preferred_staging_file_format: Optional[TLoaderFileFormat]
     supported_staging_file_formats: List[TLoaderFileFormat]
-    supported_stagings: List[str] # should be TDestinationReferenceArg, but Circular Reference..
     escape_identifier: Callable[[str], str]
     escape_literal: Callable[[Any], Any]
     max_identifier_length: int
@@ -43,7 +42,6 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
         caps.supported_loader_file_formats = ["jsonl", "insert_values", "parquet"]
         caps.preferred_staging_file_format = None
         caps.supported_staging_file_formats = []
-        caps.supported_stagings = []
         caps.escape_identifier = identity
         caps.escape_literal = serialize_value
         caps.max_identifier_length = 65536

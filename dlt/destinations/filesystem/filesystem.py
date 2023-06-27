@@ -70,8 +70,8 @@ class LoadFilesystemJob(LoadJob):
 
 
 class FollowupFilesystemJob(FollowupJob, LoadFilesystemJob):
-    def create_followup_jobs(self, next_state: str, load_id: str, schema: Schema) -> List[NewLoadJob]:
-        jobs = super().create_followup_jobs(next_state, load_id, schema)
+    def create_followup_jobs(self, next_state: str, load_id: str) -> List[NewLoadJob]:
+        jobs = super().create_followup_jobs(next_state, load_id)
         if next_state == "completed":
             file_name = (".").join(self.file_name().split(".")[0:-1] + ["reference"])
             ref_job = NewReferenceJob(file_name=file_name, status="running")
