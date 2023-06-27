@@ -1,10 +1,10 @@
 ---
-title: ETL engineer
+title: ETL Engineer
 description: A guide to using dlt for Data Engineers
 keywords: [data engineer, de, pipeline builder, ETL engineer]
 ---
 
-# ETL engineer
+# ETL Engineer
 
 ## Use Case #1: Remove a big chunk of tedious work and most ETL maintenance
 
@@ -22,8 +22,8 @@ that here [pipeline docs](../general-usage/pipeline).
 
 The big advantage of using dlt for this is that it automates what is otherwise an error prone and
 tedious operation for the data engineer. What’s more, `dlt` can migrate schemas, removing not only
-development work but also most of the maintenance work as well. Read more about how to monitor
-schema evolution [here](../running-in-production/running#inspect-save-and-alert-on-schema-changes).
+development work but also most of the maintenance work as well. Read more about [how to monitor
+schema evolution](../running-in-production/running#inspect-save-and-alert-on-schema-changes).
 
 ## Use Case #2: Empower everyone on the team with a library
 
