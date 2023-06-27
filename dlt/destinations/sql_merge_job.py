@@ -59,7 +59,9 @@ class SqlMergeJob(NewLoadJobImpl):
 
             A list of clauses may be returned for engines that do not support OR in subqueries. Like BigQuery
         """
-        return [f"FROM {root_table_name} WHERE EXISTS (SELECT 1 FROM {staging_root_table_name} WHERE {' OR '.join([c.format(d=root_table_name,s=staging_root_table_name) for c in key_clauses])})"]
+        # return [f"FROM {root_table_name} WHERE EXISTS (SELECT 1 FROM {staging_root_table_name} WHERE {' OR '.join([c.format(d=root_table_name,s=staging_root_table_name) for c in key_clauses])})"]
+        # return [f"FROM {root_table_name} as d JOIN {staging_root_table_name} as s ON {' OR '.join([c.format(d='d',s='s') for c in key_clauses])}"]
+        return [f"FROM {root_table_name} as d WHERE EXISTS (SELECT 1 FROM {staging_root_table_name} as s WHERE {' OR '.join([c.format(d='d',s='s') for c in key_clauses])})"]
 
     @classmethod
     def gen_delete_temp_table_sql(cls, unique_column: str, key_table_clauses: Sequence[str]) -> Tuple[List[str], str]:
@@ -69,7 +71,7 @@ class SqlMergeJob(NewLoadJobImpl):
         """
         sql: List[str] = []
         temp_table_name = f"delete_{uniq_id()}"
-        sql.append(f"CREATE TEMP TABLE {temp_table_name} AS SELECT {unique_column} {key_table_clauses[0]};")
+        sql.append(f"CREATE TEMP TABLE {temp_table_name} AS SELECT d.{unique_column} {key_table_clauses[0]};")
         for clause in key_table_clauses[1:]:
             sql.append(f"INSERT INTO {temp_table_name} SELECT {unique_column} {clause};")
         return sql, temp_table_name
