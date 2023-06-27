@@ -17,10 +17,11 @@ class SqlClientBase(ABC, Generic[TNativeConn]):
     dbapi: ClassVar[DBApi] = None
     capabilities: ClassVar[DestinationCapabilitiesContext] = None
 
-    def __init__(self, dataset_name: str) -> None:
+    def __init__(self, database_name: str, dataset_name: str) -> None:
         if not dataset_name:
             raise ValueError(dataset_name)
         self.dataset_name = dataset_name
+        self.database_name = database_name
 
     @abstractmethod
     def open_connection(self) -> TNativeConn:
@@ -52,9 +53,18 @@ class SqlClientBase(ABC, Generic[TNativeConn]):
     def native_connection(self) -> TNativeConn:
         pass
 
-    @abstractmethod
     def has_dataset(self) -> bool:
-        pass
+        query = """
+SELECT 1
+    FROM INFORMATION_SCHEMA.SCHEMATA
+    WHERE schema_name = %s
+"""
+        if self.database_name:
+            query += " AND catalog_name = %s"
+            rows = self.execute_sql(query, self.dataset_name, self.database_name)
+        else:
+            rows = self.execute_sql(query, self.dataset_name)
+        return len(rows) > 0
 
     @abstractmethod
     def create_dataset(self) -> None:

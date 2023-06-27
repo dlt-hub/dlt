@@ -50,7 +50,7 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
     def __init__(self, dataset_name: str, credentials: GcpServiceAccountCredentialsWithoutDefaults) -> None:
         self._client: bigquery.Client = None
         self.credentials: GcpServiceAccountCredentialsWithoutDefaults = credentials
-        super().__init__(dataset_name)
+        super().__init__(credentials.project_id, dataset_name)
 
         self._default_retry = bigquery.DEFAULT_RETRY.with_deadline(credentials.retry_deadline)
         self._default_query = bigquery.QueryJobConfig(default_dataset=self.fully_qualified_dataset_name(escape=False))
