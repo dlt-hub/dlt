@@ -370,6 +370,7 @@ class Pipeline(SupportsPipeline):
         data: Any = None,
         *,
         destination: TDestinationReferenceArg = None,
+        staging: TDestinationReferenceArg = None,
         dataset_name: str = None,
         credentials: Any = None,
         table_name: str = None,
@@ -434,6 +435,7 @@ class Pipeline(SupportsPipeline):
         """
         signals.raise_if_signalled()
         self._set_destination(destination)
+        self._set_staging(staging)
         self._set_dataset_name(dataset_name)
 
         # sync state with destination
