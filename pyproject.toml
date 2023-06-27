@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dlt"
-version = "0.3.2"
+version = "0.3.3a0"
 description = "DLT is an open-source python-native scalable data loading framework that does not require any devops efforts to run."
 authors = ["dltHub Inc. <services@dlthub.com>"]
 maintainers = [ "Marcin Rudolf <marcin@dlthub.com>", "Adrian Brudaru <adrian@dlthub.com>", "Ty Dunn <ty@dlthub.com>"]
@@ -110,6 +110,7 @@ filesystem = ["s3fs", "boto3"]
 s3 = ["s3fs", "boto3"]
 gs = ["gcsfs"]
 snowflake = ["snowflake-connector-python"]
+motherduck= ["duckdb", "pyarrow"]
 
 [tool.poetry.scripts]
 dlt = "dlt.cli._dlt:_main"
