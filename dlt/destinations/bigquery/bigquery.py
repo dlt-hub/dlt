@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from typing import ClassVar, Dict, Optional, Sequence, Tuple, List, cast, Type
 import google.cloud.bigquery as bigquery  # noqa: I250
@@ -174,6 +175,7 @@ class BigQueryClient(SqlJobClientBase):
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         job = super().start_file_load(table, file_path, load_id)
+
         if not job:
             try:
                 job = BigQueryLoadJob(
@@ -248,9 +250,17 @@ class BigQueryClient(SqlJobClientBase):
         # append to table for merge loads (append to stage) and regular appends
         bq_wd = bigquery.WriteDisposition.WRITE_TRUNCATE if write_disposition == "replace" else bigquery.WriteDisposition.WRITE_APPEND
 
+        # determine wether we load from local or uri
+        bucket_path = None
+        format = os.path.splitext(file_path)[1][1:]
+        if CopyFileLoadJob.is_reference_job(file_path):
+            with open(file_path, "r+", encoding="utf-8") as f:
+                bucket_path = f.read()
+                format = os.path.splitext(bucket_path)[1][1:]
+
         # choose correct source format
         source_format = bigquery.SourceFormat.NEWLINE_DELIMITED_JSON
-        if file_path.endswith("parquet"):
+        if format == "parquet":
             source_format = bigquery.SourceFormat.PARQUET
 
         # if merge then load to staging
@@ -263,6 +273,17 @@ class BigQueryClient(SqlJobClientBase):
                 source_format=source_format,
                 ignore_unknown_values=False,
                 max_bad_records=0)
+            
+            
+            if bucket_path:
+                return self.sql_client.native_connection.load_table_from_uri(
+                        bucket_path,
+                        self.sql_client.make_qualified_table_name(table_name, escape=False),
+                        job_id=job_id,
+                        job_config=job_config,
+                        timeout=self.config.credentials.file_upload_timeout
+                    )
+            
             with open(file_path, "rb") as f:
                 return self.sql_client.native_connection.load_table_from_file(
                         f,
@@ -287,7 +308,4 @@ class BigQueryClient(SqlJobClientBase):
                 return "wei"
         return BQT_TO_SCT.get(bq_t, "text")
 
-    @staticmethod
-    def get_file_copy_job() -> Type[CopyFileLoadJob]:
-        return BigQueryCopyFileLoadJob
 

@@ -33,7 +33,7 @@ def test_bigquery_parquet_staging_load() -> None:
     assert len(package_info.jobs["completed_jobs"]) == 6
 
 
-@pytest.mark.skip(reason="giving some unclear error")
+# @pytest.mark.skip(reason="giving some unclear error")
 def test_bigquery_jsonl_staging_load() -> None:
 
     # set aws bucket url

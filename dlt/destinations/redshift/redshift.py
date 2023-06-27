@@ -14,10 +14,11 @@ from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SC
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.data_types import TDataType
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
+from dlt.common.schema.typing import TTableSchema
 
 from dlt.destinations.insert_job_client import InsertValuesJobClient
 from dlt.destinations.exceptions import DatabaseTerminalException
-from dlt.destinations.job_client_impl import CopyFileLoadJob
+from dlt.destinations.job_client_impl import CopyFileLoadJob, LoadJob
 
 from dlt.destinations.redshift import capabilities
 from dlt.destinations.redshift.configuration import RedshiftClientConfiguration
@@ -84,6 +85,10 @@ class RedshiftCopyFileLoadJob(CopyFileLoadJob):
             {file_type}
             CREDENTIALS 'aws_access_key_id={aws_access_key};aws_secret_access_key={aws_secret_key}'""")
 
+    def exception(self) -> str:
+        # this part of code should be never reached
+        raise NotImplementedError()
+
 class RedshiftClient(InsertValuesJobClient):
 
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
@@ -102,6 +107,12 @@ class RedshiftClient(InsertValuesJobClient):
         column_name = self.capabilities.escape_identifier(c["name"])
         return f"{column_name} {self._to_db_type(c['data_type'])} {hints_str} {self._gen_not_null(c['nullable'])}"
 
+    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
+        """Starts SqlLoadJob for files ending with .sql or returns None to let derived classes to handle their specific jobs"""
+        if RedshiftCopyFileLoadJob.is_reference_job(file_path):
+            return RedshiftCopyFileLoadJob(table["name"], file_path, self.sql_client)
+        return super().start_file_load(table, file_path, load_id)
+
     @staticmethod
     def _to_db_type(sc_t: TDataType) -> str:
         if sc_t == "wei":
@@ -114,8 +125,4 @@ class RedshiftClient(InsertValuesJobClient):
             if precision == DEFAULT_NUMERIC_PRECISION and scale == 0:
                 return "wei"
         return PGT_TO_SCT.get(pq_t, "text")
-
-    @staticmethod
-    def get_file_copy_job() -> Type[CopyFileLoadJob]:
-        return RedshiftCopyFileLoadJob
 

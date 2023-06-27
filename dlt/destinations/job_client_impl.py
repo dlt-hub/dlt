@@ -84,8 +84,8 @@ class CopyFileLoadJob(LoadJob, FollowupJob):
         return "completed"
 
     @staticmethod
-    def is_copy_job(file_path: str) -> bool:
-        return file_path.endswith(".reference")
+    def is_reference_job(file_path: str) -> bool:
+        return os.path.splitext(file_path)[1][1:] == "reference"
 
 
 class SqlJobClientBase(JobClientBase):
@@ -151,9 +151,6 @@ class SqlJobClientBase(JobClientBase):
         if SqlLoadJob.is_sql_job(file_path):
             # execute sql load job
             return SqlLoadJob(file_path, self.sql_client)
-        if CopyFileLoadJob.is_copy_job(file_path):
-            cls = self.get_file_copy_job()
-            return cls(table["name"], file_path, self.sql_client)
         return None
 
     def restore_file_load(self, file_path: str) -> LoadJob:
@@ -373,6 +370,3 @@ class SqlJobClientBase(JobClientBase):
             f"INSERT INTO {name}({self.VERSION_TABLE_SCHEMA_COLUMNS}) VALUES (%s, %s, %s, %s, %s, %s);", schema.stored_version_hash, schema.name, schema.version, schema.ENGINE_VERSION, now_ts, schema_str
         )
 
-    @staticmethod
-    def get_file_copy_job() -> Type[CopyFileLoadJob]:
-        return CopyFileLoadJob
