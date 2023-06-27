@@ -104,7 +104,7 @@ const sidebars = {
           link: {
             type: 'generated-index',
             title: 'Destinations',
-            description: 'Overview over our destinations. A destination is the data store where data from the source is loaded. Learn how to use them in your pipelines.',
+            description: 'Overview of our destinations. A destination is the data store where data from the source is loaded. Learn how to use them in your pipelines.',
             slug: 'dlt-ecosystem/destinations',
             keywords: ['destination'],
           },
@@ -115,6 +115,7 @@ const sidebars = {
             'dlt-ecosystem/destinations/postgres',
             'dlt-ecosystem/destinations/redshift',
             'dlt-ecosystem/destinations/snowflake',
+            'dlt-ecosystem/destinations/motherduck',
           ]
         },
         {
