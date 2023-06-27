@@ -14,7 +14,7 @@ pipeline state, trace and handle the most common problems.
 Once you [created a new pipeline](create-a-pipeline) or
 [added an verified source](add-a-verified-source) you want to use it to load data. You need to write
 (or [customize](add-a-verified-source#3-customize-or-write-a-pipeline-script)) a pipeline script,
-like the one below that loads the data from chess.com API:
+like the one below that loads the data from [chess.com](chess.com) API:
 
 ```python
 import dlt
@@ -183,7 +183,10 @@ What this exception tells you?
 How to fix that?
 
 The easiest way is to look at the last line of the exception message:
-`In secrets.toml key credentials.password was not found.` and just add the `password` to your
+
+`In secrets.toml key credentials.password was not found.`
+
+and just add the `password` to your
 `secrets.toml` using the suggested key:
 
 ```toml

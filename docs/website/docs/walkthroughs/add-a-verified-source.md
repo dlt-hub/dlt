@@ -51,7 +51,7 @@ The command will create your pipeline project by copying over the `pipedrive` fo
 ```
 
 After running the command, read the command output for the instructions on how to install the
-dependencies.
+dependencies:
 
 ```
 Verified source pipedrive was added to your project!
@@ -114,13 +114,13 @@ pipeline:
 ## 6. Update the verified source with the newest version
 
 To update the verified source you have to the newest online version just do the same init command in
-the parent folder.
+the parent folder:
 
 ```bash
 dlt init pipedrive bigquery
 ```
 
-## 7. Advanced: Using dlt init with branches, local folders or git repos.
+## 7. Advanced: Using dlt init with branches, local folders or git repos
 
 To find out more info about this command, use --help:
 
