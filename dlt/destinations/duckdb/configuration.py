@@ -16,17 +16,13 @@ LOCAL_STATE_KEY = "duckdb_database"
 
 
 @configspec
-class DuckDbCredentials(ConnectionStringCredentials):
-    drivername: Final[str] = "duckdb" # type: ignore
+class DuckDbBaseCredentials(ConnectionStringCredentials):
     password: Optional[TSecretValue] = None
-    username: Optional[str] = None
     host: Optional[str] = None
     port: Optional[int] = None
     database: Optional[str] = None
 
     read_only: bool = False  # open database read/write
-
-    __config_gen_annotations__: ClassVar[List[str]] = []
 
     def borrow_conn(self, read_only: bool) -> Any:
         import duckdb
@@ -37,7 +33,7 @@ class DuckDbCredentials(ConnectionStringCredentials):
         # obtain a lock because duck releases the GIL and we have refcount concurrency
         with self._conn_lock:
             if not hasattr(self, "_conn"):
-                self._conn = duckdb.connect(database=self.database, read_only=read_only)
+                self._conn = duckdb.connect(database=self._conn_str(), read_only=read_only)
                 self._conn_owner = True
                 self._conn_borrows = 0
 
@@ -78,6 +74,26 @@ class DuckDbCredentials(ConnectionStringCredentials):
                 self.database = native_value
             else:
                 raise
+
+    def _conn_str(self) -> str:
+        return self.database
+
+    def _delete_conn(self) -> None:
+        # print("Closing conn because is owner")
+        self._conn.close()
+        delattr(self, "_conn")
+
+    def __del__(self) -> None:
+        if hasattr(self, "_conn") and self._conn_owner:
+            self._delete_conn()
+
+
+@configspec
+class DuckDbCredentials(DuckDbBaseCredentials):
+    drivername: Final[str] = "duckdb"  # type: ignore
+    username: Optional[str] = None
+
+    __config_gen_annotations__: ClassVar[List[str]] = []
 
     def on_resolved(self) -> None:
         # do not set any paths for external database
@@ -156,16 +172,6 @@ class DuckDbCredentials(ConnectionStringCredentials):
                 pass
 
         return default_path, True
-
-
-    def _delete_conn(self) -> None:
-        # print("Closing conn because is owner")
-        self._conn.close()
-        delattr(self, "_conn")
-
-    def __del__(self) -> None:
-        if hasattr(self, "_conn") and self._conn_owner:
-            self._delete_conn()
 
 
 @configspec(init=True)

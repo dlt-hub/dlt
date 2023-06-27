@@ -9,7 +9,7 @@ from dlt.destinations.typing import DBApi, DBApiCursor, DBTransaction, DataFrame
 from dlt.destinations.sql_client import SqlClientBase, DBApiCursorImpl, raise_database_error, raise_open_connection_error
 
 from dlt.destinations.duckdb import capabilities
-from dlt.destinations.duckdb.configuration import DuckDbCredentials
+from dlt.destinations.duckdb.configuration import DuckDbBaseCredentials
 
 
 class DuckDBDBApiCursorImpl(DBApiCursorImpl):
@@ -34,8 +34,8 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
     dbapi: ClassVar[DBApi] = duckdb
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
-    def __init__(self, dataset_name: str, credentials: DuckDbCredentials) -> None:
-        super().__init__(dataset_name)
+    def __init__(self, dataset_name: str, credentials: DuckDbBaseCredentials) -> None:
+        super().__init__(None, dataset_name)
         self._conn: duckdb.DuckDBPyConnection = None
         self.credentials = credentials
 
@@ -90,15 +90,6 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
     @property
     def native_connection(self) -> duckdb.DuckDBPyConnection:
         return self._conn
-
-    def has_dataset(self) -> bool:
-        query = """
-                SELECT 1
-                    FROM INFORMATION_SCHEMA.SCHEMATA
-                    WHERE schema_name = %s;
-                """
-        rows = self.execute_sql(query, self.fully_qualified_dataset_name(escape=False))
-        return len(rows) > 0
 
     def create_dataset(self) -> None:
         self.execute_sql("CREATE SCHEMA %s" % self.fully_qualified_dataset_name())
