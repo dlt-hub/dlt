@@ -74,12 +74,14 @@ def test_parquet_writer_json_serialization() -> None:
     with get_writer("parquet") as writer:
         writer.write_data_item([{"col1": 1, "col2": 2, "col3": {"hello":"dave"}}], {"col1": c1, "col2": c2, "col3": c3})
         writer.write_data_item([{"col1": 1, "col2": 2, "col3": {"hello":"marcin"}}], {"col1": c1, "col2": c2, "col3": c3})
+        writer.write_data_item([{"col1": 1, "col2": 2, "col3": {}}], {"col1": c1, "col2": c2, "col3": c3})
+        writer.write_data_item([{"col1": 1, "col2": 2, "col3": []}], {"col1": c1, "col2": c2, "col3": c3})
 
     with open(writer.closed_files[0], "rb") as f:
         table = pq.read_table(f)
-        assert table.column("col1").to_pylist() == [1, 1]
-        assert table.column("col2").to_pylist() == [2, 2]
-        assert table.column("col3").to_pylist() == ["""{"hello":"dave"}""","""{"hello":"marcin"}"""]
+        assert table.column("col1").to_pylist() == [1, 1, 1, 1]
+        assert table.column("col2").to_pylist() == [2, 2, 2, 2]
+        assert table.column("col3").to_pylist() == ["""{"hello":"dave"}""","""{"hello":"marcin"}""","""{}""","""[]"""]
 
 
 def test_parquet_writer_all_data_fields() -> None:
