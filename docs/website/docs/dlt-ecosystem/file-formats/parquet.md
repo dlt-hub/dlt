@@ -1,7 +1,7 @@
 ---
 title: Parquet
 description: The parquet file format
-keywords: [parquet, file-formats]
+keywords: [parquet, file formats]
 ---
 
 # Parquet file format
@@ -18,7 +18,7 @@ pip install dlt[pyarrow]
 
 ## Supported destinations
 
-Supported by: **BigQuery**, **DuckdDb**, **Snowflake**, **filesystem**
+Supported by: **BigQuery**, **DuckDB**, **Snowflake**, **filesystem**.
 
 By setting the `loader_file_format` argument to `parquet` in the run command, the pipeline will
 store your data in the parquet format to the destination:
@@ -34,12 +34,12 @@ Under the hood dlt uses the
 to create the files. The following options can be used to change the behavior of the writer:
 
 - `flavor`: Sanitize schema or set other compatibility options to work with various target systems.
-  Defaults to spark.
+  Defaults to "spark".
 - `version`: Determine which Parquet logical types are available for use, whether the reduced set
   from the Parquet 1.x.x format or the expanded logical types added in later format versions.
-  Defaults to 2.4.
+  Defaults to "2.4".
 - `data_page_size`: Set a target threshold for the approximate encoded size of data pages within a
-  column chunk (in bytes).
+  column chunk (in bytes). Defaults to "1048576".
 
 Read the
 [pyarrow parquet docs](https://arrow.apache.org/docs/python/generated/pyarrow.parquet.ParquetWriter.html)

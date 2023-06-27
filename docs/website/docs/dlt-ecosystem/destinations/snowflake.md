@@ -148,6 +148,6 @@ keep_staged_files=true
 ## dbt support
 
 This destination
-[integrates with dbt](../transformations/transforming-the-data.md#transforming-the-data-using-dbt)
+[integrates with dbt](../transformations/dbt.md)
 via [dbt-snowflake](https://github.com/dbt-labs/dbt-snowflake). Both password and key pair
 authentication is supported and shared with dbt runners.

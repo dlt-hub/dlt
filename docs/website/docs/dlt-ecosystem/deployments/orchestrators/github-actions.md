@@ -1,6 +1,6 @@
 ---
-title: Github actions
-description: How to run dlt in github actions
+title: GitHub Actions
+description: How to run dlt in GitHub Actions
 keywords: [dlt, webhook, serverless, deploy, github actions]
 ---
 

@@ -63,10 +63,10 @@ Many destinations do not support distributed and long running transactions (e.g.
 In that case, the user may see the partially loaded data. It is possible to filter such data out—any
 row with a `load_id` that does not exist in `_dlt_loads` is not yet completed.
 
-You can add [transformations](../transformations/transforming-the-data.md) and chain them together
-using the `status` column. You start the transformation for all of the data with a particular
+You can add [transformations](../transformations) and chain them together
+using the `status` column. You start the transformation for all the data with a particular
 `load_id` with a status of 0 and then update it to 1. The next transformation starts with the status
-of 1 and is then updated to 2. This can repeated for every additional transformation.
+of 1 and is then updated to 2. This can be repeated for every additional transformation.
 
 ### Data lineage
 

@@ -86,5 +86,5 @@ create_indexes=false
 ## dbt support
 
 This destination
-[integrates with dbt](../transformations/transforming-the-data.md#transforming-the-data-using-dbt)
+[integrates with dbt](../transformations/dbt.md)
 via dbt-postgres.

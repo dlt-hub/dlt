@@ -65,7 +65,7 @@ destination.duckdb.credentials=duckdb:///_storage/test_quack.duckdb
 ## dbt support
 
 This destination
-[integrates with dbt](../transformations/transforming-the-data.md#transforming-the-data-using-dbt)
+[integrates with dbt](../transformations/dbt.md)
 via [dbt-duckdb](https://github.com/jwills/dbt-duckdb) which is a community supported package. The
 `duckdb` database is shared with `dbt`. In rare cases you may see information that binary database
 format does not match the database format expected by `dbt-duckdb`. You may avoid that by updating

@@ -1,6 +1,6 @@
 ---
 title: Choosing an orchestrator
-description: How to choose an orchestractor to a deploy dlt pipeline
+description: How to choose an orchestrator to deploy dlt pipeline
 keywords: [orchestrator, airflow, github actions]
 ---
 
@@ -100,7 +100,7 @@ Custom decomposition:
 - Dependent resources pass data to each other via hard disk - so they need to run on the same
   worker. Group them in a task that runs them together.
 - State is per-pipeline. The pipeline identifier is the pipeline name. A single pipeline state
-  should be accesed serially to avoid losing details on parallel runs.
+  should be accessed serially to avoid losing details on parallel runs.
 
 Parallel decomposition:
 
@@ -117,4 +117,4 @@ the schema, that should be a problem though as long as your data does not create
 
 ## Credentials
 
-[See credentials section for passing credentials to or from dlt](../../../general-usage/credentials.md)
+[See credentials section for passing credentials to or from dlt.](../../../general-usage/credentials.md)

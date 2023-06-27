@@ -28,7 +28,7 @@ with the production environment, leading to smoother integration and deployment 
 - [Deploy the pipeline](../walkthroughs/deploy-a-pipeline), so that the data
   is automatically loaded on a schedule.
 
-- Transform the [loaded data](../dlt-ecosystem/transformations/transforming-the-data) with
+- Transform the [loaded data](../dlt-ecosystem/transformations) with
   dbt or in Pandas DataFrames.
 
 - Learn how to [run](../running-in-production/running),
