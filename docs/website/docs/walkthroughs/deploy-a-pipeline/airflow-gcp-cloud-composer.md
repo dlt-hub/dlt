@@ -129,7 +129,7 @@ below:
    [https://github.com/dlt-hub/airflow_example/blob/main/dags/dag_pipedrive.py](https://github.com/dlt-hub/airflow_example/blob/main/dags/dag_pipedrive.py).
 1. git add, commit, push, and you should see your pipeline in Airflow.
 
-![pipeline](/img/pipeline.png)
+  ![pipeline](/img/pipeline.png)
 
 1. Read about how to transform data
    [here](../../dlt-ecosystem/transformations/transforming-the-data).
