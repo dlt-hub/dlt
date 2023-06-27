@@ -12,7 +12,7 @@ access to data in their organizations.
 
 With `dlt` we offer a library and building blocks that data tool builders can use to create modern
 data infrastructure for their companies. Staff Data Engineer, Senior Data Engineer, ETL Engineer,
-head of data platform - there’s a variety of titles of how data tool builders are called in
+Head of Data Platform - there’s a variety of titles of how data tool builders are called in
 companies.
 
 ## What does this role do in an organisation?
@@ -90,7 +90,7 @@ open source communities can.
   document we want to read.
 - Removing friction: By alerting schema changes to the producer and stakeholder, and by automating
   structuring, we can keep the data engineer out of curation and remove the bottleneck.
-  [notify maintenance events.](../running-in-production/running#inspect-save-and-alert-on-schema-changes)
+  [Notify maintenance events.](../running-in-production/running#inspect-save-and-alert-on-schema-changes)
 - Improving quality: No more garbage in, garbage out. Because `dlt` structures data and alerts schema
   changes, we can have better governance.
 
@@ -101,7 +101,7 @@ open source communities can.
 - Data meshing to reduce friction: By structuring data before loading, the engineer is no longer
   involved in curation. This makes both the engineer and the others happy.
 - Better governance with end to end pipelining via dbt:
-  [run dbt packages on the fly](../dlt-ecosystem/transformations/transforming-the-data#transforming-the-data-using-dbt).
+  [run dbt packages on the fly](../dlt-ecosystem/transformations/transforming-the-data#transforming-the-data-using-dbt),
   [lineage out of the box](../dlt-ecosystem/visualizations/understanding-the-tables).
 - Zero learning curve: Declarative loading, simple functional programming. By using `dlt`'s
   declarative, standard approach to loading data, there is no complicated code to maintain, and the
@@ -142,8 +142,8 @@ The implications:
   roles.
   [Colab demo.](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing#scrollTo=A3NRS0y38alk)
 - Rapid Data Exploration and Prototyping: By running in Colab with DuckDB, you can explore
-  semi-structured data much faster by structuring it with `dlt` and analysing it in sql.
-  [schema inference](../general-usage/schema#data-normalizer),
+  semi-structured data much faster by structuring it with `dlt` and analysing it in SQL.
+  [Schema inference](../general-usage/schema#data-normalizer),
   [exploring the loaded data](../dlt-ecosystem/visualizations/understanding-the-tables#show-tables-and-data-in-the-destination).
 - No vendor limits: `dlt` is forever free, with no vendor strings. We do not create value by creating
   a pain for you and solving it. We create value by supporting you beyond.

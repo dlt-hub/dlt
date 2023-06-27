@@ -39,8 +39,8 @@ We are especially interested in dbt packages that:
 
 #### How to contribute?
 
-Follow the [CONTRIBUTING](https://github.com/dlt-hub/verified-sources/blob/master/CONTRIBUTING.md)
-guide in `verified-pipelines` repo.
+Follow the [contributing guide](https://github.com/dlt-hub/verified-sources/blob/master/CONTRIBUTING.md)
+in `verified-sources` repo.
 
 ## Use Case #2: Clean, type, and customize how data is produced and loaded
 
@@ -48,7 +48,7 @@ guide in `verified-pipelines` repo.
 data that arrives at your destination. Before you pass the data to `dlt` for normalization, you can
 transform the data in Python. After `dlt` has normalized and loaded the data, you can also further
 transform it using SQL. You can learn more about possible customizations in the docs (e.g.
-[pseudonymizing_columns](../general-usage/customising-pipelines/pseudonymizing_columns.md)).
+[pseudonymizing columns](../general-usage/customising-pipelines/pseudonymizing_columns.md)).
 
 ## Use Case #3: Create your own pipelines in a declarative fashion
 

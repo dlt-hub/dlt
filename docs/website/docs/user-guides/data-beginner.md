@@ -11,8 +11,8 @@ value to data teams with the help of `dlt`.
 
 ## Analytics: Empowering decision-makers
 
-Operational users at a company need general business analytics capabilities to make decisions (e.g.
-dashboards, data warehouse, self-service, etc.)
+Operational users at a company need general business analytics capabilities to make decisions, e.g.
+dashboards, data warehouse, self-service, etc.
 
 ### Show you can deliver results, not numbers
 
@@ -127,4 +127,4 @@ Here are some example projects:
 - [Using DuckDB to explore the Rasa open source community.](https://colab.research.google.com/drive/1c9HrNwRi8H36ScSn47m3rDqwj5O0obMk?usp=sharing)
 - [MRR and churn calculations on Stripe data.](../dlt-ecosystem/verified-sources/stripe.md)
 
-Please [open a PR](https://github.com/dlt-hub/verified-pipelines) to add projects that use `dlt` here!
+Please [open a PR](https://github.com/dlt-hub/verified-sources) to add projects that use `dlt` here!
