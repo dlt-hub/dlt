@@ -70,6 +70,7 @@ class CopyFileLoadJob(LoadJob, FollowupJob):
     def __init__(self, table_name: str, file_path: str, sql_client: SqlClientBase[Any]) -> None:
         super().__init__(FileStorage.get_file_name_from_file_path(file_path))
         self._sql_client = sql_client
+
         with open(file_path, "r+", encoding="utf-8") as f:
             # Reading from a file
             bucket_path = f.read()

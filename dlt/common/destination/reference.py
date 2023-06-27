@@ -21,6 +21,7 @@ from dlt.common.utils import get_module_name
 class DestinationClientConfiguration(BaseConfiguration):
     destination_name: str = None  # which destination to load data to
     credentials: Optional[CredentialsConfiguration]
+    forward_staging_credentials: bool = True
 
     def __str__(self) -> str:
         """Return displayable destination location"""

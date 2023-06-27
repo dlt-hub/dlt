@@ -23,7 +23,7 @@ from tests.cases import JSON_TYPED_DICT
 
 @pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
 def test_restore_state_utils(destination_name: str) -> None:
-    p = dlt.pipeline(pipeline_name="pipe_" + uniq_id(), destination=destination_name, dataset_name="state_test_" + uniq_id())
+    p = dlt.pipeline(pipeline_name="pipe_" + uniq_id(), destination=destination_name, staging="filesystem", dataset_name="state_test_" + uniq_id())
     schema = Schema("state")
     # inject schema into pipeline, don't do it in production
     p._inject_schema(schema)

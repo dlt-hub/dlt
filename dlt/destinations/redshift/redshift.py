@@ -75,15 +75,19 @@ class RedshiftSqlClient(Psycopg2SqlClient):
 
 class RedshiftCopyFileLoadJob(CopyFileLoadJob):
     def execute(self, table_name: str, bucket_path: str, fs_config: FilesystemClientConfiguration) -> None:
-        aws_access_key = fs_config.credentials.aws_access_key_id # type: ignore
-        aws_secret_key = fs_config.credentials.aws_secret_access_key # type: ignore
+
+        credentials = ""
+        if fs_config.forward_staging_credentials:
+            aws_access_key = fs_config.credentials.aws_access_key_id # type: ignore
+            aws_secret_key = fs_config.credentials.aws_secret_access_key # type: ignore
+            credentials = f"CREDENTIALS 'aws_access_key_id={aws_access_key};aws_secret_access_key={aws_secret_key}'"
 
         file_type = "PARQUET"
         self._sql_client.execute_sql(f"""
             COPY {table_name}
             FROM '{bucket_path}'
             {file_type}
-            CREDENTIALS 'aws_access_key_id={aws_access_key};aws_secret_access_key={aws_secret_key}'""")
+            {credentials}""")
 
     def exception(self) -> str:
         # this part of code should be never reached

@@ -128,6 +128,7 @@ class TPipelineState(TypedDict, total=False):
     schema_names: Optional[List[str]]
     """All the schemas present within the pipeline working directory"""
     destination: Optional[str]
+    staging: Optional[str]
 
     # properties starting with _ are not automatically applied to pipeline object when state is restored
     _state_version: int

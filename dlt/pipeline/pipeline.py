@@ -989,10 +989,8 @@ class Pipeline(SupportsPipeline):
             dest_caps: DestinationCapabilitiesContext,
             stage_caps: DestinationCapabilitiesContext,
             file_format: TLoaderFileFormat) -> TLoaderFileFormat:
-        if not stage_caps:
-            possible_file_formats = dest_caps.supported_loader_file_formats
-        if stage_caps:
-            possible_file_formats = list(set(dest_caps.supported_staging_file_formats) & set(stage_caps.supported_loader_file_formats))
+
+        possible_file_formats = dest_caps.supported_staging_file_formats if stage_caps else dest_caps.supported_loader_file_formats
         if not file_format:
             if not stage_caps:
                 file_format = dest_caps.preferred_loader_file_format
@@ -1002,7 +1000,6 @@ class Pipeline(SupportsPipeline):
                 file_format = possible_file_formats[0] if len(possible_file_formats) > 0 else None
         if file_format not in possible_file_formats:
             raise DestinationIncompatibleLoaderFileFormatException(destination, staging, file_format)
-        print(file_format)
         return file_format
 
     def _set_default_normalizers(self) -> None:
@@ -1187,6 +1184,8 @@ class Pipeline(SupportsPipeline):
                 setattr(self, prop, state["_local"][prop])  # type: ignore
         if "destination" in state:
             self._set_destination(DestinationReference.from_name(self.destination))
+        if "staging" in state:
+            self._set_staging(DestinationReference.from_name(self.staging))
 
     def _props_to_state(self, state: TPipelineState) -> None:
         """Write pipeline props to `state`"""
@@ -1198,6 +1197,8 @@ class Pipeline(SupportsPipeline):
                 state["_local"][prop] = getattr(self, prop)  # type: ignore
         if self.destination:
             state["destination"] = self.destination.__name__
+        if self.staging:
+            state["staging"] = self.staging.__name__
         state["schema_names"] = self._schema_storage.list_schemas()
 
     def _save_state(self, state: TPipelineState) -> None:
