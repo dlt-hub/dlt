@@ -216,10 +216,12 @@ class Pipeline(SupportsPipeline):
         with self.managed_state() as state:
             # set the pipeline properties from state
             self._state_to_props(state)
+
             # we overwrite the state with the values from init
-            self._set_destination(destination)  # changing the destination could be dangerous if pipeline has not loaded items
             if staging:
                 self._set_staging(staging)
+            self._set_destination(destination)  # changing the destination could be dangerous if pipeline has not loaded items
+
             self._set_dataset_name(dataset_name)
             self.credentials = credentials
             self._configure(import_schema_path, export_schema_path, must_attach_to_local_pipeline)
@@ -958,8 +960,8 @@ class Pipeline(SupportsPipeline):
             self._set_default_normalizers()
 
     def _set_staging(self, destination: TDestinationReferenceArg) -> None:
-        destination_mod = DestinationReference.from_name(destination)
-        self.staging = destination_mod or self.staging
+        staging_mode = DestinationReference.from_name(destination)
+        self.staging = staging_mode or self.staging
 
 
     @contextmanager
@@ -990,7 +992,9 @@ class Pipeline(SupportsPipeline):
             stage_caps: DestinationCapabilitiesContext,
             file_format: TLoaderFileFormat) -> TLoaderFileFormat:
 
-        possible_file_formats = dest_caps.supported_staging_file_formats if stage_caps else dest_caps.supported_loader_file_formats
+        possible_file_formats = dest_caps.supported_loader_file_formats
+        if stage_caps:
+            possible_file_formats = list(set(dest_caps.supported_staging_file_formats).intersection(set(stage_caps.supported_loader_file_formats)))
         if not file_format:
             if not stage_caps:
                 file_format = dest_caps.preferred_loader_file_format
@@ -998,6 +1002,7 @@ class Pipeline(SupportsPipeline):
                 file_format = dest_caps.preferred_staging_file_format
             else:
                 file_format = possible_file_formats[0] if len(possible_file_formats) > 0 else None
+        print(possible_file_formats)
         if file_format not in possible_file_formats:
             raise DestinationIncompatibleLoaderFileFormatException(destination, staging, file_format)
         return file_format
@@ -1182,10 +1187,10 @@ class Pipeline(SupportsPipeline):
         for prop in Pipeline.LOCAL_STATE_PROPS:
             if prop in state["_local"] and not prop.startswith("_"):
                 setattr(self, prop, state["_local"][prop])  # type: ignore
-        if "destination" in state:
-            self._set_destination(DestinationReference.from_name(self.destination))
         if "staging" in state:
             self._set_staging(DestinationReference.from_name(self.staging))
+        if "destination" in state:
+            self._set_destination(DestinationReference.from_name(self.destination))
 
     def _props_to_state(self, state: TPipelineState) -> None:
         """Write pipeline props to `state`"""
