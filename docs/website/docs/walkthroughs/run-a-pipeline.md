@@ -14,7 +14,7 @@ pipeline state, trace and handle the most common problems.
 Once you [created a new pipeline](create-a-pipeline) or
 [added an verified source](add-a-verified-source) you want to use it to load data. You need to write
 (or [customize](add-a-verified-source#3-customize-or-write-a-pipeline-script)) a pipeline script,
-like the one below that loads the data from [chess.com](chess.com) API:
+like the one below that loads the data from [chess.com](https://www.chess.com) API:
 
 ```python
 import dlt
