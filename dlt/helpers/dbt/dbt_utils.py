@@ -15,6 +15,7 @@ try:
     logbook.compat.redirect_logging = lambda : None
 
     # can only import DBT after redirect is disabled
+    # https://stackoverflow.com/questions/48619517/call-a-click-command-from-code
     import dbt.main
     import dbt.logger
     from dbt.events import functions
