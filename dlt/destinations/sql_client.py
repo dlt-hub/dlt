@@ -57,13 +57,12 @@ class SqlClientBase(ABC, Generic[TNativeConn]):
         query = """
 SELECT 1
     FROM INFORMATION_SCHEMA.SCHEMATA
-    WHERE schema_name = %s
-"""
-        if self.database_name:
-            query += " AND catalog_name = %s"
-            rows = self.execute_sql(query, self.dataset_name, self.database_name)
-        else:
-            rows = self.execute_sql(query, self.dataset_name)
+    WHERE """
+        db_params = self.fully_qualified_dataset_name(escape=False).split(".", 2)
+        if len(db_params) == 2:
+            query += " catalog_name = %s AND "
+        query += "schema_name = %s"
+        rows = self.execute_sql(query, *db_params)
         return len(rows) > 0
 
     @abstractmethod
