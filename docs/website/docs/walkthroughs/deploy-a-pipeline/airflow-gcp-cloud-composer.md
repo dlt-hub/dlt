@@ -127,4 +127,4 @@ below:
   ![pipeline](/img/pipeline.png)
 
 1. Read about how to transform data
-   [here](../../dlt-ecosystem/transformations/transforming-the-data).
+   [here](../../dlt-ecosystem/transformations).

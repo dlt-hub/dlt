@@ -20,7 +20,7 @@ downstream consumers.
 
 To make this easier, `dlt` supports a dbt runner that allows you to create a virtual environment,
 install dbt on it, pass it credentials, and run a dbt package from a local or online location. You
-can read more about this [here](../dlt-ecosystem/transformations/transforming-the-data).
+can read more about this [here](../dlt-ecosystem/transformations).
 
 ### Contributing dbt packages
 
@@ -63,6 +63,6 @@ migrations, data typing, performance hint declarations, schema management, etc.
 
 If you combine it with a `dbt` package, then you use it end-to-end to deliver analytics.
 
-Read more about [running dbt packages](../dlt-ecosystem/transformations/transforming-the-data),
+Read more about [running dbt packages](../dlt-ecosystem/transformations/dbt.md),
 [incremental loading](../general-usage/incremental-loading), and
 [performance hints and schemas](../walkthroughs/adjust-a-schema).

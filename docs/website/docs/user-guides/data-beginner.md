@@ -53,7 +53,7 @@ Project idea:
 1. Build a dlt pipeline that loads data from the API for your use case. Keep the case simple and
    your code clean. Use explicit variable and method names. Tell a story with your code. For loading
    mode, use incremental loading and don’t hardcode parameters that are subject to change.
-1. Build a [dbt package](../dlt-ecosystem/transformations/transforming-the-data) for this pipeline.
+1. Build a [dbt package](../dlt-ecosystem/transformations/dbt.md) for this pipeline.
 1. Build a visualization. Focus on usability more than code. Remember, your goal is to empower a
    business user to self-serve, so hard coded dashboards are usually seen as liabilities that need
    to be maintained. On the other hand, dashboard tools can be adjusted by business users too. For
@@ -98,7 +98,7 @@ Project idea:
    your code clean. Use explicit variable and method names. Tell a story with your code. For loading
    mode, use incremental loading and don’t hardcode parameters that are subject to change.
 1. Build a data model with SQL. If you are ambitious you could try running the SQL with a
-   [dbt package](../dlt-ecosystem/transformations/transforming-the-data).
+   [dbt package](../dlt-ecosystem/transformations).
 1. Showcase your chosen use case that uses ML or statistics to achieve your goal. Don’t forget to
    mention how you plan to do this “in production”. Choose a case that is simple so you don’t end up
    overcomplicating your solution. Focus on outcomes and next steps. Describe what the company needs
@@ -118,7 +118,7 @@ Good docs pages to check out:
 - [Deploy a pipeline with GitHub Actions.](../walkthroughs/deploy-a-pipeline/deploy-with-github-actions)
 - [Understand the loaded data.](../dlt-ecosystem/visualizations/understanding-the-tables)
 - [Explore the loaded data in Streamlit.](../dlt-ecosystem/visualizations/exploring-the-data.md)
-- [Transform the data with SQL or python.](../dlt-ecosystem/transformations/transforming-the-data)
+- [Transform the data with SQL or python.](../dlt-ecosystem/transformations)
 - [Contribute a pipeline.](https://github.com/dlt-hub/verified-sources/blob/master/CONTRIBUTING.md)
 
 Here are some example projects:

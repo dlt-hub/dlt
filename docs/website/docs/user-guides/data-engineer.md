@@ -54,7 +54,7 @@ from the first try (e.g. [show data](../dlt-ecosystem/visualizations/exploring-t
 With dbt runner, you can additionally develop and later run transformations. If you use cross-db
 compatibility for dbt, your code can even be developed locally such as on DuckDB or reused by others
 if you choose to share your code (e.g.
-[run dbt from local or repository](../dlt-ecosystem/transformations/transforming-the-data)).
+[run dbt from local or repository](../dlt-ecosystem/transformations/dbt.md)).
 
 `dlt` supports Airflow and other workflow managers. It’s meant to plug into your data stack without
 causing more overheads (e.g.
@@ -89,7 +89,7 @@ important to know:
 - You can notify schema evolution events (e.g.
   [alert schema change](../running-in-production/running#inspect-save-and-alert-on-schema-changes)).
 - You can use the data by transforming it with dbt (e.g.
-  [run dbt from local or repository](../dlt-ecosystem/transformations/transforming-the-data)).
+  [run dbt from local or repository](../dlt-ecosystem/transformations/dbt.md)).
 - If the sources used are public, you can update your pipelines to the latest version from the
   online repo with the `dlt init`command. If you are the first to fix, you can contribute the fix
   back, so it will be included in the future versions (e.g.

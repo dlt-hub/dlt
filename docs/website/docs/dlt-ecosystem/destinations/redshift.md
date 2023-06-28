@@ -23,4 +23,4 @@ open .dlt/secrets.toml
 ```
 
 ## dbt support
-This destination [integrates with dbt](../transformations/transforming-the-data.md#transforming-the-data-using-dbt) via [dbt-redshift](https://github.com/dbt-labs/dbt-redshift).
+This destination [integrates with dbt](../transformations/dbt.md) via [dbt-redshift](https://github.com/dbt-labs/dbt-redshift).

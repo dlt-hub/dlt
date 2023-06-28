@@ -101,7 +101,7 @@ open source communities can.
 - Data meshing to reduce friction: By structuring data before loading, the engineer is no longer
   involved in curation. This makes both the engineer and the others happy.
 - Better governance with end to end pipelining via dbt:
-  [run dbt packages on the fly](../dlt-ecosystem/transformations/transforming-the-data#transforming-the-data-using-dbt),
+  [run dbt packages on the fly](../dlt-ecosystem/transformations/dbt.md),
   [lineage out of the box](../dlt-ecosystem/visualizations/understanding-the-tables).
 - Zero learning curve: Declarative loading, simple functional programming. By using `dlt`'s
   declarative, standard approach to loading data, there is no complicated code to maintain, and the
