@@ -81,7 +81,7 @@ Since you will be running SQL queries, it makes sense to use a tool to help you 
 
 For example, you could develop with dbt cloud, save to GitHub, and run your dbt GitHub package from your airflow instance via `dlt`.
 
-Read more about using dbt with `dlt` [here](https://dlthub.com/docs/using-loaded-data/transforming-the-data#transforming-the-data-using-dbt).
+Read more about using dbt with `dlt` [here](../transformations/dbt.md).
 
 ## Step 3: Governance
 
