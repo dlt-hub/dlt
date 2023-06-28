@@ -31,7 +31,15 @@ def test_redshift_parquet_staging_load() -> None:
     assert len(package_info.jobs["failed_jobs"]) == 0
     # we have 3 parquet and 3 reference jobs
     assert len(package_info.jobs["completed_jobs"]) == 6
+    assert len([x for x in package_info.jobs["completed_jobs"] if x.job_file_info.file_format =="reference"]) == 3
+    assert len([x for x in package_info.jobs["completed_jobs"] if x.job_file_info.file_format =="parquet"]) == 3
 
+    # check data in redshift
+    with pipeline._get_destination_client(pipeline.default_schema) as client:
+        rows = client.sql_client.execute_sql("SELECT * FROM some_data")
+        assert len(rows) == 3
+        rows = client.sql_client.execute_sql("SELECT * FROM other_data")
+        assert len(rows) == 5
 
     # test that credentials are not forwarded if setting disabled
     os.environ['DESTINATION__FORWARD_STAGING_CREDENTIALS'] = "False"

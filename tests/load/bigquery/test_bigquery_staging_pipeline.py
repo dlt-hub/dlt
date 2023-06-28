@@ -8,7 +8,7 @@ from dlt.common.utils import uniq_id
 @pytest.mark.parametrize("file_format", ["parquet", "jsonl"])
 def test_bigquery_staging_load(file_format: str) -> None:
 
-    # set aws bucket url
+    # set gcs bucket url
     os.environ['DESTINATION__FILESYSTEM__BUCKET_URL'] = "gs://ci-test-bucket"
     pipeline = dlt.pipeline(pipeline_name='bq_staging_parquet_test_' + uniq_id(), destination="bigquery", staging="filesystem", dataset_name='bigquery_staging_test_' + uniq_id())
 
@@ -32,7 +32,14 @@ def test_bigquery_staging_load(file_format: str) -> None:
     assert len(package_info.jobs["failed_jobs"]) == 0
     # we have 3 parquet and 3 reference jobs
     assert len(package_info.jobs["completed_jobs"]) == 6
+    assert len([x for x in package_info.jobs["completed_jobs"] if x.job_file_info.file_format == "reference"]) == 3
+    assert len([x for x in package_info.jobs["completed_jobs"] if x.job_file_info.file_format == file_format]) == 3
 
-
+    # check data in redshift
+    with pipeline._get_destination_client(pipeline.default_schema) as client:
+        rows = client.sql_client.execute_sql("SELECT * FROM some_data")
+        assert len(rows) == 3
+        rows = client.sql_client.execute_sql("SELECT * FROM other_data")
+        assert len(rows) == 5
 
 
