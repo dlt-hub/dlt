@@ -7,7 +7,7 @@ keywords: [parquet, file formats]
 # Parquet file format
 
 [Apache Parquet](https://en.wikipedia.org/wiki/Apache_Parquet) is a free and open-source
-column-oriented data storage format in the Apache Hadoop ecosystem. dlt is able to store data in
+column-oriented data storage format in the Apache Hadoop ecosystem. `dlt` is able to store data in
 this format when configured to do so.
 
 To use this format you need a `pyarrow` package. You can get this package as a `dlt` extra as well:
@@ -29,7 +29,7 @@ info = pipeline.run(some_source(), loader_file_format="parquet")
 
 ## Options
 
-Under the hood dlt uses the
+Under the hood `dlt` uses the
 [pyarrow parquet writer](https://arrow.apache.org/docs/python/generated/pyarrow.parquet.ParquetWriter.html)
 to create the files. The following options can be used to change the behavior of the writer:
 

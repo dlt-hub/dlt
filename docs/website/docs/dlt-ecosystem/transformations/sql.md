@@ -17,7 +17,10 @@ pipeline = dlt.pipeline(destination="bigquery", dataset_name="crm")
 try:
     with pipeline.sql_client() as client:
         client.sql_client.execute_sql(
-            f"INSERT INTO customers VALUES (%s, %s, %s)", 10, "Fred", "fred@fred.com"
+            f"INSERT INTO customers VALUES (%s, %s, %s)",
+            10,
+            "Fred",
+            "fred@fred.com"
         )
 ```
 
@@ -28,7 +31,8 @@ corresponding to selected columns.
 try:
     with pipeline.sql_client() as client:
         res = client.execute_sql(
-            "SELECT id, name, email FROM customers WHERE id = %s", 10
+            "SELECT id, name, email FROM customers WHERE id = %s",
+            10
         )
         # prints columns values of first row
         print(res[0])
@@ -39,5 +43,5 @@ try:
 If you want to transform the data before loading, you can use Python. If you want to transform the
 data after loading, you can use SQL or one of the following:
 
-1. [dbt.](dbt.md) (recommended)
+1. [dbt](dbt.md) (recommended).
 1. [Pandas.](pandas.md)

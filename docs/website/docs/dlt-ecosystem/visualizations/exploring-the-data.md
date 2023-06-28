@@ -36,7 +36,10 @@ Execute any SQL query and get results following the Python
 ```python
 pipeline = dlt.pipeline(destination="bigquery", dataset_name="crm")
 with pipeline.sql_client() as client:
-    with client.execute_query("SELECT id, name, email FROM customers WHERE id = %s", 10) as cursor:
+    with client.execute_query(
+        "SELECT id, name, email FROM customers WHERE id = %s",
+        10
+    ) as cursor:
         # get all data from the cursor as list of rows
         print(cursor.fetchall())
 ```
@@ -61,7 +64,7 @@ pipeline = dlt.pipeline(
 with pipeline.sql_client() as client:
     with client.execute_query(
         'SELECT "reactions__+1", "reactions__-1", reactions__laugh, reactions__hooray, reactions__rocket FROM issues'
-        ) as table:
+    ) as table:
         # calling `df` on a cursor, returns the data as a DataFrame
         reactions = table.df()
 counts = reactions.sum(0).sort_values(0, ascending=False)

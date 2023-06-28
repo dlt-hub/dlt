@@ -11,9 +11,9 @@ This file format contains an INSERT...VALUES statement to be executed on the des
 
 Additional data types are stored as follows:
 
-- `datetime` and `date` as ISO strings.
-- `decimal` as text representation of decimal number.
-- `binary` depends on the format accepted by the destination.
+- `datetime` and `date` as ISO strings;
+- `decimal` as text representation of decimal number;
+- `binary` depends on the format accepted by the destination;
 - `complex` depends on the format accepted by the destination.
 
 This file format is

@@ -70,7 +70,12 @@ models = dbt.run_all()
 
 # on success print outcome
 for m in models:
-    print(f"Model {m.model_name} materialized in {m.time} with status {m.status} and message {m.message}")
+    print(
+        f"Model {m.model_name} materialized" +
+        f"in {m.time}" +
+        f"with status {m.status}" +
+        f"and message {m.message}"
+    )
 ```
 
 ## Other transforming tools

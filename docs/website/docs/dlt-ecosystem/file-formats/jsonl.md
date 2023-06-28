@@ -15,7 +15,7 @@ Additional data types are stored as follows:
 - `decimal` as text representation of decimal number;
 - `binary` is base64 encoded string;
 - `HexBytes` is hex encoded string;
-- `complex` is serialized as a string;
+- `complex` is serialized as a string.
 
 This file format is
 [compressed](../../reference/performance.md#disabling-and-enabling-file-compression) by default.
