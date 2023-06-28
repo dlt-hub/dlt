@@ -126,7 +126,7 @@ based on your problem.
 
 Read more about the star schema [here](https://en.wikipedia.org/wiki/Star_schema).
 
-#### **dbt**
+### **dbt**
 
 Since you will be running SQL queries, it makes sense to use a tool to help you manage them. One
 popular such tool is dbt.
@@ -200,7 +200,7 @@ democratization doesn't compromise data integrity, security, or compliance.
 
 So make sure you document and enforce your governance, unless you want to create data anarchy.
 
-# Finally, a recipe for beginners:
+# Finally, a recipe for beginners
 
 1. Orchestration and storage: Choose BigQuery and Cloud Composer
    - GCP offers “normie” software, meaning normal people can use it. So if you are feeling normal

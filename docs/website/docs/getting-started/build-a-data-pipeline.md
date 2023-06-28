@@ -33,8 +33,8 @@ normalize, and evolve your data schemas, enabling seamless data integration and 
 For example, let's consider a scenario where you want to load a list of objects into a DuckDB table
 named "three". With dlt, you can create a pipeline and run it with just a few lines of code:
 
-1. Create a pipeline to the destination.
-1. Give this pipeline data and run it.
+1. [Create a pipeline](../walkthroughs/create-a-pipeline.md) to the [destination](../dlt-ecosystem/destinations).
+1. Give this pipeline data and [run it](../walkthroughs/run-a-pipeline.md).
 
 ```python
 import dlt
@@ -65,10 +65,10 @@ just fine.
 Extracting data with dlt is simple - you simply decorate your data-producing functions with loading
 or incremental extraction metadata, which enables dlt to extract and load by your custom logic.
 
-Technically, two key aspects contribute to `**dlt**`'s effectiveness:
+Technically, two key aspects contribute to **`dlt`**'s effectiveness:
 
-- scalability through iterators, chunking, parallelization,
-- and the utilization of implicit extraction DAGs that allow efficient API calls for data
+- Scalability through iterators, chunking, parallelization.
+- The utilization of implicit extraction DAGs that allow efficient API calls for data
   enrichments or transformations.
 
 ## Scalability via iterators, chunking, and parallelization
@@ -103,12 +103,12 @@ database. **`dlt`** analyzes the dependencies between the API endpoints and tran
 generates an extraction DAG accordingly. The extraction DAG ensures that the data is extracted in
 the correct order, accounting for any dependencies and transformations.
 
-When deploying to airflow, the internal dag is unpacked into airflow tasks in such a way to ensure
+When deploying to Airflow, the internal DAG is unpacked into Airflow tasks in such a way to ensure
 consistency and allow granular loading.
 
 # Defining Incremental Loading
 
-Incremental loading is a crucial concept in data pipelines that involves loading only new or changed
+[Incremental loading](../general-usage/incremental-loading.md) is a crucial concept in data pipelines that involves loading only new or changed
 data instead of reloading the entire dataset. This approach provides several benefits, including
 low-latency data transfer and cost savings.
 
