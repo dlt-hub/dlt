@@ -1,9 +1,9 @@
-import posixpath
+import pytest
 from pathlib import Path
 
 import dlt, os
 from dlt.common.utils import uniq_id
-
+from dlt.pipeline.exceptions import PipelineStepFailed
 
 def test_redshift_parquet_staging_load() -> None:
 
@@ -31,3 +31,11 @@ def test_redshift_parquet_staging_load() -> None:
     assert len(package_info.jobs["failed_jobs"]) == 0
     # we have 3 parquet and 3 reference jobs
     assert len(package_info.jobs["completed_jobs"]) == 6
+
+
+
+
+    os.environ['DESTINATION__FORWARD_STAGING_CREDENTIALS'] = "False"
+    # test that credentials are not forwarded if setting disabled
+    with pytest.raises(PipelineStepFailed):
+        pipeline.run(some_source())

@@ -33,6 +33,6 @@ def test_bigquery_staging_load(file_format: str) -> None:
     # we have 3 parquet and 3 reference jobs
     assert len(package_info.jobs["completed_jobs"]) == 6
 
-    
+
 
 

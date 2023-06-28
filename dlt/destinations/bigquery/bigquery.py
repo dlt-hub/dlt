@@ -111,7 +111,7 @@ class BigQueryMergeJob(SqlMergeJob):
 
 
 class BigQueryCopyFileLoadJob(CopyFileLoadJob):
-    def execute(self, table_name: str, bucket_path: str, fs_config: FilesystemClientConfiguration) -> None:
+    def execute(self, table_name: str, bucket_path: str) -> None:
 
         ext = bucket_path.split(".")[-1]
         if ext == "parquet":
@@ -252,15 +252,15 @@ class BigQueryClient(SqlJobClientBase):
 
         # determine wether we load from local or uri
         bucket_path = None
-        format = os.path.splitext(file_path)[1][1:]
+        ext = os.path.splitext(file_path)[1][1:]
         if CopyFileLoadJob.is_reference_job(file_path):
             with open(file_path, "r+", encoding="utf-8") as f:
                 bucket_path = f.read()
-                format = os.path.splitext(bucket_path)[1][1:]
+                ext = os.path.splitext(bucket_path)[1][1:]
 
         # choose correct source format
         source_format = bigquery.SourceFormat.NEWLINE_DELIMITED_JSON
-        if format == "parquet":
+        if ext == "parquet":
             source_format = bigquery.SourceFormat.PARQUET
 
         # if merge then load to staging
@@ -273,8 +273,8 @@ class BigQueryClient(SqlJobClientBase):
                 source_format=source_format,
                 ignore_unknown_values=False,
                 max_bad_records=0)
-            
-            
+
+
             if bucket_path:
                 return self.sql_client.native_connection.load_table_from_uri(
                         bucket_path,
@@ -283,7 +283,7 @@ class BigQueryClient(SqlJobClientBase):
                         job_config=job_config,
                         timeout=self.config.credentials.file_upload_timeout
                     )
-            
+
             with open(file_path, "rb") as f:
                 return self.sql_client.native_connection.load_table_from_file(
                         f,

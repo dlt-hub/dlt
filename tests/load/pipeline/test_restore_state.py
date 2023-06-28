@@ -23,7 +23,16 @@ from tests.cases import JSON_TYPED_DICT
 
 @pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
 def test_restore_state_utils(destination_name: str) -> None:
-    p = dlt.pipeline(pipeline_name="pipe_" + uniq_id(), destination=destination_name, staging="filesystem", dataset_name="state_test_" + uniq_id())
+
+    staging = None
+    if destination_name == "redshift":
+        staging = "filesystem"
+        os.environ['DESTINATION__FILESYSTEM__BUCKET_URL'] = "s3://dlt-ci-test-bucket"
+    if destination_name == "bigquery":
+        staging = "filesystem"
+        os.environ['DESTINATION__FILESYSTEM__BUCKET_URL'] = "gs://ci-test-bucket"
+
+    p = dlt.pipeline(pipeline_name="pipe_" + uniq_id(), destination=destination_name, staging=staging, dataset_name="state_test_" + uniq_id())
     schema = Schema("state")
     # inject schema into pipeline, don't do it in production
     p._inject_schema(schema)

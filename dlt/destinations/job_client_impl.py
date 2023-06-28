@@ -20,9 +20,6 @@ from dlt.common.utils import concat_strings_with_limit
 from dlt.destinations.exceptions import DatabaseUndefinedRelation, DestinationSchemaWillNotUpdate
 from dlt.destinations.job_impl import EmptyLoadJobWithoutFollowup
 from dlt.destinations.sql_merge_job import SqlMergeJob
-from dlt.destinations.filesystem.configuration import FilesystemClientConfiguration
-from dlt.common.configuration.accessors import config
-from dlt.destinations.filesystem.configuration import FilesystemClientConfiguration
 
 from dlt.destinations.typing import TNativeConn
 from dlt.destinations.sql_client import SqlClientBase
@@ -61,22 +58,19 @@ class SqlLoadJob(LoadJob):
     def is_sql_job(file_path: str) -> bool:
         return os.path.splitext(file_path)[1][1:] == "sql"
 
-@with_config(spec=FilesystemClientConfiguration, sections=(known_sections.DESTINATION, "filesystem",))
-def _fs_configure(config: FilesystemClientConfiguration = config.value) -> FilesystemClientConfiguration:
-    return config
-
 
 class CopyFileLoadJob(LoadJob, FollowupJob):
-    def __init__(self, table_name: str, file_path: str, sql_client: SqlClientBase[Any]) -> None:
+    def __init__(self, table_name: str, file_path: str, sql_client: SqlClientBase[Any], forward_staging_credentials: bool = True) -> None:
         super().__init__(FileStorage.get_file_name_from_file_path(file_path))
         self._sql_client = sql_client
+        self._forward_staging_credentials = forward_staging_credentials
 
         with open(file_path, "r+", encoding="utf-8") as f:
             # Reading from a file
             bucket_path = f.read()
-        self.execute(table_name, bucket_path, _fs_configure(FilesystemClientConfiguration(dataset_name="something")))
+        self.execute(table_name, bucket_path)
 
-    def execute(self, table_name: str, bucket_path: str, fs_config: FilesystemClientConfiguration) -> None:
+    def execute(self, table_name: str, bucket_path: str) -> None:
         # implement in child implementations
         raise NotImplementedError()
 
