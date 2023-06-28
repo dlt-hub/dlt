@@ -237,9 +237,8 @@ class BigQueryClient(SqlJobClientBase):
         bucket_path = None
         ext = os.path.splitext(file_path)[1][1:]
         if CopyFileLoadJob.is_reference_job(file_path):
-            with open(file_path, "r+", encoding="utf-8") as f:
-                bucket_path = f.read()
-                ext = os.path.splitext(bucket_path)[1][1:]
+            bucket_path = CopyFileLoadJob.get_bucket_path(file_path)
+            ext = os.path.splitext(bucket_path)[1][1:]
 
         # choose correct source format
         source_format = bigquery.SourceFormat.NEWLINE_DELIMITED_JSON

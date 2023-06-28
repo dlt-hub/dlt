@@ -1,4 +1,5 @@
 import platform
+import os
 
 from dlt.destinations.postgres.sql_client import Psycopg2SqlClient
 if platform.python_implementation() == "PyPy":
@@ -91,7 +92,13 @@ class RedshiftCopyFileLoadJob(CopyFileLoadJob):
         aws_secret_key = config.aws_secret_access_key if self._forward_staging_credentials else ""
         credentials = f"CREDENTIALS 'aws_access_key_id={aws_access_key};aws_secret_access_key={aws_secret_key}'"
         table_name = table["name"]
-        file_type = "PARQUET"
+
+        # get format
+        ext = os.path.splitext(bucket_path)[1][1:]
+        file_type = "format as json 'auto'"
+        if ext == "parquet":
+            file_type = "PARQUET"
+
         with self._sql_client.with_staging_dataset(table["write_disposition"]=="merge"):
             with self._sql_client.begin_transaction():
                 if table["write_disposition"]=="replace":

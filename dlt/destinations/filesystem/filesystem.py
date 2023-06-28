@@ -73,7 +73,7 @@ class FollowupFilesystemJob(FollowupJob, LoadFilesystemJob):
     def create_followup_jobs(self, next_state: str, load_id: str) -> List[NewLoadJob]:
         jobs = super().create_followup_jobs(next_state, load_id)
         if next_state == "completed":
-            file_name = (".").join(self.file_name().split(".")[0:-1] + ["reference"])
+            file_name = ".".join(self.file_name().split(".")[0:-1] + ["reference"])
             ref_job = NewReferenceJob(file_name=file_name, status="running")
             remote_path = f"{self.config.protocol}://{posixpath.join(self.dataset_path, self.destination_file_name)}"
             ref_job._save_text_file(remote_path)

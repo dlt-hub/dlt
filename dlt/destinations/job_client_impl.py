@@ -65,10 +65,9 @@ class CopyFileLoadJob(LoadJob, FollowupJob):
         self._sql_client = sql_client
         self._forward_staging_credentials = forward_staging_credentials
 
-        with open(file_path, "r+", encoding="utf-8") as f:
-            # Reading from a file
-            bucket_path = f.read()
-        self.execute(table, bucket_path)
+        self.execute(table, self.get_bucket_path(file_path))
+
+
 
     def execute(self, table: TTableSchema, bucket_path: str) -> None:
         # implement in child implementations
@@ -77,6 +76,12 @@ class CopyFileLoadJob(LoadJob, FollowupJob):
     def state(self) -> TLoadJobState:
         # this job is always done
         return "completed"
+
+    @staticmethod
+    def get_bucket_path(file_path: str) -> str:
+        with open(file_path, "r+", encoding="utf-8") as f:
+            # Reading from a file
+            return f.read()
 
     @staticmethod
     def is_reference_job(file_path: str) -> bool:
