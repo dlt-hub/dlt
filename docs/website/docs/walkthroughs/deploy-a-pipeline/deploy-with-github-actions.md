@@ -31,7 +31,7 @@ This should successfully load data from the source to the destination once.
 ## Initialize deployment
 
 In the same `dlt` project as your working pipeline, you can create a deployment using
-[GitHub Actions](https://github.com/features/actions) that will load data with the `chess.py` script
+[GitHub Actions](https://github.com/features/actions) that will load data with the `chess_pipeline.py` script
 every 30 minutes by running:
 
 ```shell
