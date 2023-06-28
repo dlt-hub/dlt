@@ -1,0 +1,83 @@
+import pytest
+
+from pathlib import Path
+import dlt, os
+from dlt.common.utils import uniq_id
+from dlt.common import json
+
+from tests.load.pipeline.test_merge_disposition import github
+from tests.load.pipeline.utils import  load_table_counts
+from tests.pipeline.utils import  assert_load_info
+
+
+@dlt.resource(table_name="issues", write_disposition="merge", primary_key="id", merge_key=("node_id", "url"))
+def load_modified_issues():
+    with open("tests/normalize/cases/github.issues.load_page_5_duck.json", "r", encoding="utf-8") as f:
+        issues = json.load(f)
+
+        # change 2 issues
+        issue = next(filter(lambda i: i["id"] == 1232152492, issues))
+        issue["number"] = 105
+
+        issue = next(filter(lambda i: i["id"] == 1142699354, issues))
+        issue["number"] = 300
+
+        yield from issues
+
+
+@pytest.mark.parametrize("destination,file_format,bucket", [("redshift","parquet","s3://dlt-ci-test-bucket"), ("redshift","parquet","s3://dlt-ci-test-bucket"), ("bigquery","jsonl","gs://ci-test-bucket")])
+def test_bigquery_staging_load(destination: str, file_format: str, bucket: str) -> None:
+
+    # set gcs bucket url
+    os.environ['DESTINATION__FILESYSTEM__BUCKET_URL'] = bucket
+    pipeline = dlt.pipeline(pipeline_name='test_stage_loading', destination=destination, staging="filesystem", dataset_name='staging_test', full_refresh=True)
+
+    info = pipeline.run(github(), loader_file_format=file_format)
+    assert_load_info(info)
+    package_info = pipeline.get_load_package_info(info.loads_ids[0])
+    assert package_info.state == "loaded"
+
+    assert len(package_info.jobs["failed_jobs"]) == 0
+    # we have 4 parquet and 4 reference jobs plus one merge job
+    assert len(package_info.jobs["completed_jobs"]) == 9
+    assert len([x for x in package_info.jobs["completed_jobs"] if x.job_file_info.file_format == "reference"]) == 4
+    assert len([x for x in package_info.jobs["completed_jobs"] if x.job_file_info.file_format == file_format]) == 4
+    assert len([x for x in package_info.jobs["completed_jobs"] if x.job_file_info.file_format == "sql"]) == 1
+
+    initial_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
+    assert initial_counts["issues"] == 100
+
+    # check item of first row in db
+    with pipeline._get_destination_client(pipeline.default_schema) as client:
+        rows = client.sql_client.execute_sql("SELECT url FROM issues WHERE id = 388089021 LIMIT 1")
+        assert rows[0][0] == "https://api.github.com/repos/duckdb/duckdb/issues/71"
+
+    # test merging in some changed values
+    info = pipeline.run(load_modified_issues)
+    assert_load_info(info)
+    assert pipeline.default_schema.tables["issues"]["write_disposition"] == "merge"
+    merge_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
+    assert merge_counts == initial_counts
+
+    # check changes where merged in
+    with pipeline._get_destination_client(pipeline.default_schema) as client:
+        rows = client.sql_client.execute_sql("SELECT number FROM issues WHERE id = 1232152492 LIMIT 1")
+        assert rows[0][0] == 105
+        rows = client.sql_client.execute_sql("SELECT number FROM issues WHERE id = 1142699354 LIMIT 1")
+        assert rows[0][0] == 300
+
+    # test append
+    info = pipeline.run(github().load_issues, write_disposition="append")
+    assert_load_info(info)
+    assert pipeline.default_schema.tables["issues"]["write_disposition"] == "append"
+    # the counts of all tables must be double
+    append_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
+    assert {k:v*2 for k, v in initial_counts.items()} == append_counts
+
+    # test replace
+    info = pipeline.run(github().load_issues, write_disposition="replace")
+    assert_load_info(info)
+    assert pipeline.default_schema.tables["issues"]["write_disposition"] == "replace"
+    # the counts of all tables must be double
+    replace_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
+    assert replace_counts == initial_counts

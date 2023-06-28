@@ -55,7 +55,7 @@ class Load(Runnable[ThreadPool]):
     def create_storage(self, is_storage_owner: bool) -> LoadStorage:
         supoprted_file_formats = self.capabilities.supported_loader_file_formats
         if self.staging:
-            supoprted_file_formats = self.staging.capabilities().supported_loader_file_formats + ["reference"]
+            supoprted_file_formats = self.staging.capabilities().supported_loader_file_formats + ["reference", "sql"]
         load_storage = LoadStorage(
             is_storage_owner,
             self.capabilities.preferred_loader_file_format,

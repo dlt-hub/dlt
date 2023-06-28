@@ -93,11 +93,15 @@ class RedshiftCopyFileLoadJob(CopyFileLoadJob):
         table_name = table["name"]
         file_type = "PARQUET"
         with self._sql_client.with_staging_dataset(table["write_disposition"]=="merge"):
-            self._sql_client.execute_sql(f"""
-                COPY {table_name}
-                FROM '{bucket_path}'
-                {file_type}
-                {credentials}""")
+            with self._sql_client.begin_transaction():
+                if table["write_disposition"]=="replace":
+                    self._sql_client.execute_sql(f"""TRUNCATE TABLE {table_name}""")
+                dataset_name = self._sql_client.dataset_name
+                self._sql_client.execute_sql(f"""
+                    COPY {dataset_name}.{table_name}
+                    FROM '{bucket_path}'
+                    {file_type}
+                    {credentials}""")
 
     def exception(self) -> str:
         # this part of code should be never reached
