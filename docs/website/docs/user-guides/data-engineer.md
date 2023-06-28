@@ -1,10 +1,10 @@
 ---
-title: ETL engineer
+title: ETL Engineer
 description: A guide to using dlt for Data Engineers
 keywords: [data engineer, de, pipeline builder, ETL engineer]
 ---
 
-# ETL engineer
+# ETL Engineer
 
 ## Use Case #1: Remove a big chunk of tedious work and most ETL maintenance
 
@@ -12,7 +12,7 @@ With `dlt`, you can automate the transition from unstructured (nested, untyped) 
 (tabular, typed) data.
 
 `dlt` is a library that you can use almost anywhere, so you are not forced to use some prescribed
-way of doing things. The simplest usage of dlt would be to use it as a unstructured to structured
+way of doing things. The simplest usage of dlt would be to use it as an unstructured to structured
 data transition tool in your existing code.
 
 A `dlt` pipeline is made of a source, which contains resources, and a connection to the destination,
@@ -22,8 +22,8 @@ that here [pipeline docs](../general-usage/pipeline).
 
 The big advantage of using dlt for this is that it automates what is otherwise an error prone and
 tedious operation for the data engineer. What’s more, `dlt` can migrate schemas, removing not only
-development work but also most of the maintenance work as well. Read more about how to monitor
-schema evolution [here](../running-in-production/running#inspect-save-and-alert-on-schema-changes).
+development work but also most of the maintenance work as well. Read more about [how to monitor
+schema evolution](../running-in-production/running#inspect-save-and-alert-on-schema-changes).
 
 ## Use Case #2: Empower everyone on the team with a library
 
@@ -49,21 +49,21 @@ local development and testing, you can use `dlt` with a local duckdb destination
 `dlt pipeline show` to generate a web client to display and query the data. Once you are happy with
 it, you can simply switch to your production destination and you pipeline will run on production
 from the first try (e.g. [show data](../dlt-ecosystem/visualizations/exploring-the-data.md),
-[colab duckdb example](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing)).
+[Colab DuckDB example](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing)).
 
-With dbt runner, you can aditionally develop and later run transformations. If you use cross-db
-compatibility for dbt, your code can even be developed locally such as on duckdb or reused by others
-if you choose to reshare your code (e.g.
+With dbt runner, you can additionally develop and later run transformations. If you use cross-db
+compatibility for dbt, your code can even be developed locally such as on DuckDB or reused by others
+if you choose to share your code (e.g.
 [run dbt from local or repository](../dlt-ecosystem/transformations/dbt.md)).
 
 `dlt` supports Airflow and other workflow managers. It’s meant to plug into your data stack without
 causing more overheads (e.g.
-[how to set up on airflow](../walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer.md)).
+[how to set up on Airflow](../walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer.md)).
 
 `dlt` also allows easy customization and maintenance of the code-`dlt` sources are pythonic and
 simple, so no object oriented programming required. Your junior data scientist can fix and customize
-the pipelines too (e.g
-[strapi example](https://github.com/dlt-hub/verified-sources/blob/master/sources/strapi/__init__.py)).
+the pipelines too (e.g.
+[Strapi example](https://github.com/dlt-hub/verified-sources/blob/master/sources/strapi/__init__.py)).
 
 ## Use Case #4: Solve problems with a community
 
@@ -75,7 +75,8 @@ No more reinventing the flat tyre in the form of yet another custom pipeline.
   be distributed via our command line interface. The command also handles versioning, merging,
   upgrading, etc.
 
-Read more about our contribution process and contribute sources or request them in
+Read more about our [contribution process](https://github.com/dlt-hub/verified-sources/blob/master/CONTRIBUTING.md)
+and contribute sources or request them in
 [verified sources repository](https://github.com/dlt-hub/verified-sources).
 
 ## Inheriting a running `dlt` pipeline
@@ -91,6 +92,6 @@ important to know:
   [run dbt from local or repository](../dlt-ecosystem/transformations/dbt.md)).
 - If the sources used are public, you can update your pipelines to the latest version from the
   online repo with the `dlt init`command. If you are the first to fix, you can contribute the fix
-  back so it will be included in the future versions (e.g.
+  back, so it will be included in the future versions (e.g.
   [init a pipeline](../reference/command-line-interface#dlt-init),
-  [contribute a source](https://github.com/dlt-hub/verified-sources)).
+  [contribute a source](https://github.com/dlt-hub/verified-sources/blob/master/CONTRIBUTING.md)).
