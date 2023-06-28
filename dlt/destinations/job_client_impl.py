@@ -60,7 +60,7 @@ class SqlLoadJob(LoadJob):
 
 
 class CopyFileLoadJob(LoadJob, FollowupJob):
-    def __init__(self, table_name: str, file_path: str, sql_client: SqlClientBase[Any], forward_staging_credentials: bool = True) -> None:
+    def __init__(self, table: TTableSchema, file_path: str, sql_client: SqlClientBase[Any], forward_staging_credentials: bool = True) -> None:
         super().__init__(FileStorage.get_file_name_from_file_path(file_path))
         self._sql_client = sql_client
         self._forward_staging_credentials = forward_staging_credentials
@@ -68,9 +68,9 @@ class CopyFileLoadJob(LoadJob, FollowupJob):
         with open(file_path, "r+", encoding="utf-8") as f:
             # Reading from a file
             bucket_path = f.read()
-        self.execute(table_name, bucket_path)
+        self.execute(table, bucket_path)
 
-    def execute(self, table_name: str, bucket_path: str) -> None:
+    def execute(self, table: TTableSchema, bucket_path: str) -> None:
         # implement in child implementations
         raise NotImplementedError()
 

@@ -83,20 +83,21 @@ class RedshiftSqlClient(Psycopg2SqlClient):
         return None
 
 class RedshiftCopyFileLoadJob(CopyFileLoadJob):
-    def execute(self, table_name: str, bucket_path: str) -> None:
+    def execute(self, table: TTableSchema, bucket_path: str) -> None:
 
         # we assume s3 credentials where provided for the staging
         config = _s3_config()
         aws_access_key = config.aws_access_key_id if self._forward_staging_credentials else ""
         aws_secret_key = config.aws_secret_access_key if self._forward_staging_credentials else ""
         credentials = f"CREDENTIALS 'aws_access_key_id={aws_access_key};aws_secret_access_key={aws_secret_key}'"
-
+        table_name = table["name"]
         file_type = "PARQUET"
-        self._sql_client.execute_sql(f"""
-            COPY {table_name}
-            FROM '{bucket_path}'
-            {file_type}
-            {credentials}""")
+        with self._sql_client.with_staging_dataset(table["write_disposition"]=="merge"):
+            self._sql_client.execute_sql(f"""
+                COPY {table_name}
+                FROM '{bucket_path}'
+                {file_type}
+                {credentials}""")
 
     def exception(self) -> str:
         # this part of code should be never reached
@@ -123,7 +124,7 @@ class RedshiftClient(InsertValuesJobClient):
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         """Starts SqlLoadJob for files ending with .sql or returns None to let derived classes to handle their specific jobs"""
         if RedshiftCopyFileLoadJob.is_reference_job(file_path):
-            return RedshiftCopyFileLoadJob(table["name"], file_path, self.sql_client, forward_staging_credentials=self.config.forward_staging_credentials)
+            return RedshiftCopyFileLoadJob(table, file_path, self.sql_client, forward_staging_credentials=self.config.forward_staging_credentials)
         return super().start_file_load(table, file_path, load_id)
 
     @staticmethod
