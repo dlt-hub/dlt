@@ -6,7 +6,7 @@ from dlt.common.utils import uniq_id
 from dlt.common.schema import Schema
 
 from dlt.destinations.postgres.postgres import PostgresClient
-from dlt.destinations.postgres.configuration import PostgresClientConfiguration
+from dlt.destinations.postgres.configuration import PostgresClientConfiguration, PostgresCredentials
 
 from tests.load.utils import TABLE_UPDATE
 
@@ -19,7 +19,7 @@ def schema() -> Schema:
 @pytest.fixture
 def client(schema: Schema) -> PostgresClient:
     # return client without opening connection
-    return PostgresClient(schema, PostgresClientConfiguration(dataset_name="test_" + uniq_id()))
+    return PostgresClient(schema, PostgresClientConfiguration(dataset_name="test_" + uniq_id(), credentials=PostgresCredentials()))
 
 
 def test_create_table(client: PostgresClient) -> None:
@@ -76,7 +76,7 @@ def test_create_table_with_hints(client: PostgresClient) -> None:
     assert '"col4" timestamp with time zone  NOT NULL' in sql
 
     # same thing without indexes
-    client = PostgresClient(client.schema, PostgresClientConfiguration(dataset_name="test_" + uniq_id(), create_indexes=False))
+    client = PostgresClient(client.schema, PostgresClientConfiguration(dataset_name="test_" + uniq_id(), create_indexes=False, credentials=PostgresCredentials()))
     sql = client._get_table_update_sql("event_test_table", mod_update, False)[0]
     sqlfluff.parse(sql, dialect="postgres")
     assert '"col2" double precision  NOT NULL' in sql
