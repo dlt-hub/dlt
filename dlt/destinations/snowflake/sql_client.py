@@ -25,7 +25,7 @@ class SnowflakeSqlClient(SqlClientBase[snowflake_lib.SnowflakeConnection], DBTra
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
     def __init__(self, dataset_name: str, credentials: SnowflakeCredentials) -> None:
-        super().__init__(dataset_name)
+        super().__init__(credentials.database, dataset_name)
         self._conn: snowflake_lib.SnowflakeConnection = None
         self.credentials = credentials
 
@@ -65,15 +65,6 @@ class SnowflakeSqlClient(SqlClientBase[snowflake_lib.SnowflakeConnection], DBTra
     @property
     def native_connection(self) -> "snowflake_lib.SnowflakeConnection":
         return self._conn
-
-    def has_dataset(self) -> bool:
-        query = """
-                SELECT 1
-                    FROM INFORMATION_SCHEMA.SCHEMATA
-                    WHERE schema_name = %s;
-                """
-        rows = self.execute_sql(query, self.fully_qualified_dataset_name(escape=False))
-        return len(rows) > 0
 
     def create_dataset(self) -> None:
         self.execute_sql("CREATE SCHEMA %s" % self.fully_qualified_dataset_name())

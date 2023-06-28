@@ -85,6 +85,13 @@ duckdb:
         - parquet
       # TODO: emit the config of duck db
 
+motherduck:
+  target: analytics
+  outputs:
+    analytics:
+      type: duckdb
+      schema: "{{ var('destination_dataset_name', var('source_dataset_name')) }}"
+      path: "md:{{ env_var('CREDENTIALS__DATABASE') }}?token={{env_var('CREDENTIALS__PASSWORD')}}"
 
 # snowflake with password auth
 snowflake:
