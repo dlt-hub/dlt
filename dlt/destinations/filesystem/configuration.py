@@ -3,7 +3,7 @@ from urllib.parse import urlparse
 from typing import Final, Type, Optional, Union
 
 from dlt.common.configuration import configspec, resolve_type
-from dlt.common.destination.reference import CredentialsConfiguration, DestinationClientDwhConfiguration
+from dlt.common.destination.reference import CredentialsConfiguration, DestinationClientStagingConfiguration
 from dlt.common.configuration.specs import GcpCredentials, GcpServiceAccountCredentials, AwsCredentials, GcpOAuthCredentials
 
 from dlt.common.configuration.exceptions import ConfigurationValueError
@@ -18,7 +18,7 @@ PROTOCOL_CREDENTIALS = {
 
 
 @configspec(init=True)
-class FilesystemClientConfiguration(DestinationClientDwhConfiguration):
+class FilesystemClientConfiguration(DestinationClientStagingConfiguration):
     credentials: Union[AwsCredentials, GcpCredentials]
 
     destination_name: Final[str] = "filesystem"  # type: ignore

@@ -88,8 +88,8 @@ class FilesystemClient(JobClientBase):
     fs_client: AbstractFileSystem
     fs_path: str
 
-    def __init__(self, schema: Schema, config: FilesystemClientConfiguration, as_staging: bool = False) -> None:
-        super().__init__(schema, config, as_staging)
+    def __init__(self, schema: Schema, config: FilesystemClientConfiguration) -> None:
+        super().__init__(schema, config)
         self.fs_client, self.fs_path = client_from_config(config)
         self.config: FilesystemClientConfiguration = config
 
@@ -104,7 +104,7 @@ class FilesystemClient(JobClientBase):
         return self.fs_client.isdir(self.dataset_path)  # type: ignore[no-any-return]
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
-        cls = FollowupFilesystemJob if self.is_staging else LoadFilesystemJob
+        cls = FollowupFilesystemJob if self.config.as_staging else LoadFilesystemJob
         has_merge_keys = any(col['merge_key'] or col['primary_key'] for col in table['columns'].values())
         return cls(
             file_path,

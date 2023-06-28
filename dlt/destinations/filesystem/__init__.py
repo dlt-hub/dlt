@@ -18,11 +18,11 @@ def capabilities() -> DestinationCapabilitiesContext:
     return DestinationCapabilitiesContext.generic_capabilities("parquet")
 
 
-def client(schema: Schema, initial_config: DestinationClientDwhConfiguration = config.value, as_staging: bool = False) -> JobClientBase:
+def client(schema: Schema, initial_config: DestinationClientDwhConfiguration = config.value) -> JobClientBase:
     # import client when creating instance so capabilities and config specs can be accessed without dependencies installed
     from dlt.destinations.filesystem.filesystem import FilesystemClient
 
-    return FilesystemClient(schema, _configure(initial_config), as_staging=as_staging)  # type: ignore
+    return FilesystemClient(schema, _configure(initial_config))  # type: ignore
 
 
 def spec() -> Type[FilesystemClientConfiguration]:

@@ -323,7 +323,7 @@ class Load(Runnable[ThreadPool]):
                 raise
 
     def get_staging_client(self, schema: Schema) -> JobClientBase:
-        return self.staging.client(schema, self.initial_staging_client_config, as_staging=True)
+        return self.staging.client(schema, self.initial_staging_client_config)
 
     def run(self, pool: ThreadPool) -> TRunMetrics:
         # store pool

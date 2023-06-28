@@ -28,7 +28,8 @@ class DestinationClientConfiguration(BaseConfiguration):
         return str(self.credentials)
 
     if TYPE_CHECKING:
-        def __init__(self, destination_name: str = None, credentials: Optional[CredentialsConfiguration] = None) -> None:
+        def __init__(self, destination_name: str = None, credentials: Optional[CredentialsConfiguration] = None, forward_staging_credentials: bool = True
+) -> None:
             ...
 
 
@@ -45,10 +46,29 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
             self,
             destination_name: str = None,
             credentials: Optional[CredentialsConfiguration] = None,
+            forward_staging_credentials: bool = True,
             dataset_name: str = None,
             default_schema_name: Optional[str] = None
         ) -> None:
             ...
+
+@configspec(init=True)
+class DestinationClientStagingConfiguration(DestinationClientDwhConfiguration):
+    as_staging: bool = False
+
+
+    if TYPE_CHECKING:
+        def __init__(
+            self,
+            destination_name: str = None,
+            credentials: Optional[CredentialsConfiguration] = None,
+            forward_staging_credentials: bool = True,
+            dataset_name: str = None,
+            default_schema_name: Optional[str] = None,
+            as_staging: bool = False
+        ) -> None:
+            ...
+
 
 
 TLoadJobState = Literal["running", "failed", "retry", "completed"]
@@ -115,10 +135,9 @@ class JobClientBase(ABC):
 
     capabilities: ClassVar[DestinationCapabilitiesContext] = None
 
-    def __init__(self, schema: Schema, config: DestinationClientConfiguration, is_staging: bool = False) -> None:
+    def __init__(self, schema: Schema, config: DestinationClientConfiguration) -> None:
         self.schema = schema
         self.config = config
-        self.is_staging = is_staging
 
     @abstractmethod
     def initialize_storage(self, staging: bool = False, truncate_tables: Iterable[str] = None) -> None:
@@ -224,7 +243,7 @@ class DestinationReference(Protocol):
     def capabilities(self) -> DestinationCapabilitiesContext:
         ...
 
-    def client(self, schema: Schema, initial_config: DestinationClientConfiguration = config.value, as_staging: bool = False) -> "JobClientBase":
+    def client(self, schema: Schema, initial_config: DestinationClientConfiguration = config.value) -> "JobClientBase":
         ...
 
     def spec(self) -> Type[DestinationClientConfiguration]:

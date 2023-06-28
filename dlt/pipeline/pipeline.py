@@ -23,7 +23,7 @@ from dlt.common.typing import TFun, TSecretValue
 from dlt.common.runners import pool_runner as runner
 from dlt.common.storages import LiveSchemaStorage, NormalizeStorage, LoadStorage, SchemaStorage, FileStorage, NormalizeStorageConfiguration, SchemaStorageConfiguration, LoadStorageConfiguration
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import DestinationReference, JobClientBase, DestinationClientConfiguration, DestinationClientDwhConfiguration, TDestinationReferenceArg
+from dlt.common.destination.reference import DestinationReference, JobClientBase, DestinationClientConfiguration, DestinationClientDwhConfiguration, TDestinationReferenceArg, DestinationClientStagingConfiguration
 from dlt.common.pipeline import ExtractInfo, LoadInfo, NormalizeInfo, PipelineContext, SupportsPipeline, TPipelineLocalState, TPipelineState, StateInjectableContext
 from dlt.common.schema import Schema
 from dlt.common.utils import is_interactive
@@ -856,7 +856,7 @@ class Pipeline(SupportsPipeline):
 
         return extract_id
 
-    def _get_destination_client_initial_config(self, destination: DestinationReference = None, credentials: Any = None) -> DestinationClientConfiguration:
+    def _get_destination_client_initial_config(self, destination: DestinationReference = None, credentials: Any = None, as_staging: bool = False) -> DestinationClientConfiguration:
         destination = destination or self.destination
         if not destination:
             raise PipelineConfigMissing(
@@ -873,12 +873,14 @@ class Pipeline(SupportsPipeline):
             # use passed credentials as initial value. initial value may resolve credentials
             credentials = client_spec.get_resolvable_fields()["credentials"](credentials)
         # this client support schemas and datasets
-        if issubclass(client_spec, DestinationClientDwhConfiguration):
+        default_schema_name = None if self.config.use_single_dataset else self.default_schema_name
+
+        if issubclass(client_spec, DestinationClientStagingConfiguration):
+            return client_spec(dataset_name=self.dataset_name, default_schema_name=default_schema_name, credentials=credentials, as_staging=as_staging)
+        elif issubclass(client_spec, DestinationClientDwhConfiguration):
             # set default schema name to load all incoming data to a single dataset, no matter what is the current schema name
-            default_schema_name = None if self.config.use_single_dataset else self.default_schema_name
             return client_spec(dataset_name=self.dataset_name, default_schema_name=default_schema_name, credentials=credentials)
-        else:
-            return client_spec(credentials=credentials)
+        return client_spec(credentials=credentials)
 
     def _get_destination_client(self, schema: Schema, initial_config: DestinationClientConfiguration = None) -> JobClientBase:
         try:
@@ -898,7 +900,7 @@ class Pipeline(SupportsPipeline):
         try:
             # config is not provided then get it with injected credentials
             if not initial_config:
-                initial_config = self._get_destination_client_initial_config(self.staging)
+                initial_config = self._get_destination_client_initial_config(self.staging, as_staging=True)
             return self.staging.client(schema, initial_config) # type: ignore
         except ImportError:
             client_spec = self.destination.spec()
