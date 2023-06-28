@@ -16,7 +16,8 @@ deploying to main.
 - Create a GitHub repository.
 
 - In Google Cloud web interface, go to Source repositories and create a repository that mirrors your
-  GitHub repository. This will simplify the authentication by doing it through this mirroring service.
+  GitHub repository. This will simplify the authentication by doing it through this mirroring
+  service.
 
 - In this GitHub repository, add the following folders:
 
@@ -50,9 +51,11 @@ deploying to main.
   ```
 
 - Make sure your repository code is pushed to main.
+
 - Run the trigger you build (in Cloud Build).
-- Wait a minute, and check if your files arrived in the bucket. In our case, we added a
-  `pipedrive` folder, and we can see it appeared.
+
+- Wait a minute, and check if your files arrived in the bucket. In our case, we added a `pipedrive`
+  folder, and we can see it appeared.
 
   ![bucket-details](/img/bucket-details.png)
 
@@ -64,9 +67,11 @@ Assuming you already spun up a Cloud Composer.
 
 - Make sure the user you added has rights to change the base image (add libraries). I already had
   these added, you may get away with less (not clear in docs):
+
   - Artifact Registry Administrator;
   - Artifact Registry Repository Administrator;
   - Remote Build Execution Artifact Admin;
+
 - Navigate to your composer environment and add the needed libraries. In the case of this example
   pipedrive pipeline, we only need dlt, so add `dlt` library.
 
@@ -111,9 +116,9 @@ out for the CLI error about which credentials are missing.
 ### Setting up the first pipeline
 
 You can use dlt init to add sources from the
-[verified sources repo](https://github.com/dlt-hub/verified-sources). To do so use the command `dlt
-init sourcename destination`. This will copy the sourcename folder from verified-sources, install
-the requirements and generate a pipeline for your destination.
+[verified sources repo](https://github.com/dlt-hub/verified-sources). To do so use the command
+`dlt init sourcename destination`. This will copy the sourcename folder from verified-sources,
+install the requirements and generate a pipeline for your destination.
 
 You can follow the Pipedrive example for a different source, by doing the step-by-step instructions
 below:
