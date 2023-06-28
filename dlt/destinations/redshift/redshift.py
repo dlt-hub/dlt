@@ -19,6 +19,7 @@ from dlt.common.configuration.accessors import config
 from dlt.common.configuration import with_config, known_sections
 from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.configuration import configspec
+from dlt.common.configuration.specs import AwsCredentials
 
 from dlt.destinations.insert_job_client import InsertValuesJobClient
 from dlt.destinations.exceptions import DatabaseTerminalException
@@ -61,15 +62,8 @@ HINT_TO_REDSHIFT_ATTR: Dict[TColumnHint, str] = {
 }
 
 
-# inject s3 credentials for copyjobs, TODO: a better generic way to pass staging creds to final load jobs
-@configspec(init=True)
-class S3Credentials(BaseConfiguration):
-    aws_access_key_id: str = None
-    aws_secret_access_key: str = None
-
-
-@with_config(spec=S3Credentials, sections=(known_sections.DESTINATION, "filesystem", "credentials"))
-def _s3_config(config: S3Credentials = config.value) -> S3Credentials:
+@with_config(spec=AwsCredentials, sections=(known_sections.DESTINATION, "filesystem", "credentials"))
+def _s3_config(config: AwsCredentials = config.value) -> AwsCredentials:
     return config
 
 

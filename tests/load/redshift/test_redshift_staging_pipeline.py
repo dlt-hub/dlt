@@ -33,9 +33,7 @@ def test_redshift_parquet_staging_load() -> None:
     assert len(package_info.jobs["completed_jobs"]) == 6
 
 
-
-
-    os.environ['DESTINATION__FORWARD_STAGING_CREDENTIALS'] = "False"
     # test that credentials are not forwarded if setting disabled
+    os.environ['DESTINATION__FORWARD_STAGING_CREDENTIALS'] = "False"
     with pytest.raises(PipelineStepFailed):
         pipeline.run(some_source())

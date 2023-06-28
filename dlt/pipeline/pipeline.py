@@ -996,7 +996,7 @@ class Pipeline(SupportsPipeline):
 
         possible_file_formats = dest_caps.supported_loader_file_formats
         if stage_caps:
-            possible_file_formats = list(set(dest_caps.supported_staging_file_formats).intersection(set(stage_caps.supported_loader_file_formats)))
+            possible_file_formats = [f for f in dest_caps.supported_staging_file_formats if f in stage_caps.supported_loader_file_formats]
         if not file_format:
             if not stage_caps:
                 file_format = dest_caps.preferred_loader_file_format
