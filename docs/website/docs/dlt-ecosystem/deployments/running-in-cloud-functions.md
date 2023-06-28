@@ -1,6 +1,6 @@
 ---
 title: Running in Cloud Functions
-description: how to run dlt in serverless functions
+description: How to run dlt in serverless functions
 keywords: [dlt, webhook, serverless]
 ---
 
@@ -31,7 +31,7 @@ these steps:
    required event payload or metadata.
 1. Develop Cloud Function: Write the event processing logic in the chosen cloud function programming
    language. This logic defines how the incoming event data is processed, transformed, stored, or
-   integrated with other systems or services. dlt enables you to validate schemas and process events
+   integrated with other systems or services. `dlt` enables you to validate schemas and process events
    in this step.
 1. Deploy and Configure Cloud Function: Deploy the cloud function to the serverless function
    platform, such as AWS Lambda, Google Cloud Functions, or Azure Functions. Configure the function

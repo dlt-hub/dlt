@@ -133,7 +133,7 @@ Now that you have a working pipeline, you have options for what to learn next:
 
 - [Deploy this pipeline with GitHub Actions](deploy-a-pipeline/deploy-with-github-actions), so that
   the data is automatically loaded on a schedule.
-- Transform the [loaded data](../dlt-ecosystem/transformations/transforming-the-data) with dbt or in
+- Transform the [loaded data](../dlt-ecosystem/transformations) with dbt or in
   Pandas DataFrames.
 - Learn how to [run](../running-in-production/running.md),
   [monitor](../running-in-production/monitoring.md), and

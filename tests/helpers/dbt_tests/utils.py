@@ -8,6 +8,18 @@ from dlt.helpers.dbt.exceptions import DBTNodeResult
 JAFFLE_SHOP_REPO = "https://github.com/dbt-labs/jaffle_shop.git"
 TEST_CASES_PATH = "./tests/helpers/dbt_tests/cases/"
 
+JAFFLE_RESULT_MESSAGES = {
+    'postgres': {
+        'stg_orders': 'CREATE VIEW',
+        'customers': 'SELECT 100',
+    },
+    # Snowflake only returns generic success messages
+    'snowflake': {
+        'stg_orders': 'SUCCESS 1',
+        'customers': 'SUCCESS 1',
+    }
+}
+
 
 def load_test_case(case: str) -> str:
     with open(os.path.join(TEST_CASES_PATH, case), "r", encoding="utf-8") as f:
@@ -25,12 +37,13 @@ def clone_jaffle_repo(test_storage: FileStorage) -> str:
     return repo_path
 
 
-def assert_jaffle_completed(test_storage: FileStorage, results: List[DBTNodeResult], jaffle_dir: str = "jaffle/jaffle_shop") -> None:
+def assert_jaffle_completed(test_storage: FileStorage, results: List[DBTNodeResult], destination_name: str, jaffle_dir: str = "jaffle/jaffle_shop") -> None:
     assert len(results) == 5
     assert all(r.status == "success" for r in results)
-    assert results[0].message == "CREATE VIEW"
+    stg_orders = find_run_result(results, 'stg_orders')
+    assert stg_orders.message == JAFFLE_RESULT_MESSAGES[destination_name]['stg_orders']
     customers = find_run_result(results, "customers")
-    assert customers.message == "SELECT 100"
+    assert customers.message == JAFFLE_RESULT_MESSAGES[destination_name]['customers']
     # `run_dbt` has injected credentials into environ. make sure that credentials were removed
     assert "CREDENTIALS__PASSWORD" not in os.environ
     # make sure jaffle_shop was cloned into right dir

@@ -2,10 +2,6 @@ version: 2
 
 sources:
   - name: dlt
-    quoting:
-      database: true
-      schema: true
-      identifier: true
     schema: "{{ var('source_dataset_name') }}"
     tables:
       - name: _dlt_loads
@@ -20,10 +16,6 @@ sources:
                   #   tags: prerequisites
 
   - name: chess
-    quoting:
-      database: true
-      schema: true
-      identifier: true
     schema: "{{ var('source_dataset_name') }}"
     tables:
       - name: players_profiles

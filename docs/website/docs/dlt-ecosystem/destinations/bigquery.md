@@ -15,6 +15,7 @@ dlt init chess bigquery
 ```
 pip install -r requirements.txt
 ```
+This will install dlt with **bigquery** extra which contains all the dependencies required by bigquery client.
 
 **3. Log in to or create a Google Cloud account**
 
@@ -57,7 +58,7 @@ open .dlt/secrets.toml
 ```
 
 Replace the `project_id`, `private_key`, and `client_email` with the values from the downloaded `JSON` file:
-```
+```toml
 [destination.bigquery.credentials]
 
 location = "US"
@@ -65,3 +66,6 @@ project_id = "project_id" # please set me up!
 private_key = "private_key" # please set me up!
 client_email = "client_email" # please set me up!
 ```
+
+## dbt support
+This destination [integrates with dbt](../transformations/dbt.md) via [dbt-bigquery](https://github.com/dbt-labs/dbt-bigquery). Credentials, if explicitly defined, are shared with `dbt` along with other settings like **location** and retries and timeouts. In case of implicit credentials (ie. available in cloud function), `dlt` shares the `project_id` and delegates obtaining credentials to `dbt` adapter.
