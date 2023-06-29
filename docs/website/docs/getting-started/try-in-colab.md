@@ -4,7 +4,7 @@ description: Simple pipeline demo
 keywords: [demo, colab, quickstart]
 ---
 
-# What is the simplest way to try dlt?
+# What is the simplest way to try `dlt`?
 
 Our
 [Colab demo](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing)

@@ -46,26 +46,26 @@ loads the data into a [destination](general-usage/glossary.md#destination).
 
 ## Who is `dlt` for?
 
-### Why does the data team love dlt?
+### Why does the data team love `dlt`?
 
 - Automated maintenance - with schema inference and evolution and alerts, and with short declarative
   code, maintenance becomes simple.
 - Run anywhere - Run on Airflow, serverless functions, anywhere that python goes data flows. No
   special requirements, scales on micro and large infra alike.
-- dlt offers a user-friendly, declarative interface that removes knowledge obstacles for beginners
+- `dlt` offers a user-friendly, declarative interface that removes knowledge obstacles for beginners
   while empowering senior professionals.
 
-### By automating a large core of data engineering work, dlt solves different problems for different people
+### By automating a large core of data engineering work, `dlt` solves different problems for different people
 
-- For organisations: dlt unleashes a tidal wave of transformation around usage and curation of
+- For organisations: `dlt` unleashes a tidal wave of transformation around usage and curation of
   datasets.
-- For tech leads: dlt is a game changer that enables all your team quickly build "masterpiece-grade"
+- For tech leads: `dlt` is a game changer that enables all your team quickly build "masterpiece-grade"
   pipelines faster and more robust than they would build the usual throwaway code.
-- For engineers, dlt is a groundbreaking force that streamlines their work, banishes errors,
+- For engineers, `dlt` is a groundbreaking force that streamlines their work, banishes errors,
   notifies contract changes, leaving a trail of awe and amazement in its wake.
-- For data scientists and analysts, dlt is the light on the path to data discovery, structuring and
+- For data scientists and analysts, `dlt` is the light on the path to data discovery, structuring and
   usage.
-- For data producers, dlt serves as an all-in-one "data contract and pipeline solution," that
+- For data producers, `dlt` serves as an all-in-one "data contract and pipeline solution," that
   enables delivering governed data.
 
 Read more about use cases by persona here: [User guides](user-guides).
@@ -74,8 +74,8 @@ Read more about use cases by persona here: [User guides](user-guides).
 
 1. Play with the
    [Google Colab demo](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing).
-   This is the simplest way you could use dlt.
-1. Read the docs on [building a pipeline, warehouse or lake with dlt](getting-started) or
+   This is the simplest way you could use `dlt`.
+1. Read the docs on [building a pipeline, warehouse or lake with `dlt`](getting-started) or
    [using the existing pipelines](dlt-ecosystem/verified-sources).
 1. Send the [user guides](user-guides) to the rest of your team and discuss use cases.
 1. Ask us on

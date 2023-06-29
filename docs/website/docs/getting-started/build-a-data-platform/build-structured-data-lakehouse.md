@@ -127,7 +127,7 @@ automatically infer the schema based on the data. However, this is not always pe
 for complex or semi-structured data. Delta Lake complements this by enforcing the schema when data
 is written, which helps prevent inconsistencies and errors in your data.
 
-## dlt python library enables structured lakes on common technologies
+## `dlt` python library enables structured lakes on common technologies
 
 `dlt` is not a framework, meaning you can easily use it in various contexts, enabling it to be tech
 agnostic.
@@ -138,7 +138,7 @@ In `dlt`’s paradigm, semi-structured data should always be structured.
 - You can use it to structure any stored semi-structured or unstructured data before curation and
   usage.
 
-### So to create a structured data lake with dlt?
+### So to create a structured data lake with `dlt`?
 
 - If you have unstructured data such as text or images for later structuring, store it in storage.
 - If you have semi-structured data, let `dlt` structure it and manage schemas, and curate the

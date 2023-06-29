@@ -103,7 +103,7 @@ Inevitably, you will end up having some custom sources and scripts, and an orche
 so it makes sense that the pipelines should be runnable by this orchestrator too, and not add more
 complexity.
 
-**This is one of the main reasons we created dlt:**
+**This is one of the main reasons we created `dlt`:**
 
 - For common sources, `dlt`’s community-built and maintained pipelines can deploy to your airflow
   with only two CLI commands (`dlt init source`, `dlt deploy source airflow`). Maintenance is partly

@@ -4,13 +4,13 @@ description: Build a data pipeline - the comprehensive guide
 keywords: [build a data pipeline]
 ---
 
-# Building data pipelines with dlt, from basic to advanced
+# Building data pipelines with `dlt`, from basic to advanced
 
 This is in-depth overview will take you through the main areas of pipelining with `dlt`. Go to the
 related pages you are instead looking for the [demo](try-in-colab.md), or the
 [walkthroughs](../walkthroughs).
 
-# Why build pipelines with dlt?
+# Why build pipelines with `dlt`?
 
 By utilizing `dlt`, we can easily adapt and structure data as it evolves, reducing the time spent on
 maintenance and development.
@@ -60,7 +60,7 @@ information about the loaded data, such as package IDs and job metadata.
 The data you can pass to it should be iterable: Lists of rows, generators, or `dlt` sources will do
 just fine.
 
-# Extracting data with dlt
+# Extracting data with `dlt`
 
 Extracting data with `dlt` is simple - you simply decorate your data-producing functions with loading
 or incremental extraction metadata, which enables `dlt` to extract and load by your custom logic.
@@ -208,7 +208,7 @@ pipeline performs transformations using a dbt package called `pipedrive` after l
 The `dbt.package` function sets up the dbt runner, and `dbt.run_all()` executes the dbt
 models defined in the package.
 
-### [Using the dlt SQL client](../dlt-ecosystem/transformations/sql.md)
+### [Using the `dlt` SQL client](../dlt-ecosystem/transformations/sql.md)
 
 Another option is to leverage the `dlt` SQL client to query the loaded data and perform
 transformations using SQL statements. You can execute SQL statements that change the database schema
@@ -289,7 +289,7 @@ use them in your pipeline.
 
 Read more: [Adjust a schema docs.](../walkthroughs/adjust-a-schema.md)
 
-# Governance Support in dlt Pipelines
+# Governance Support in `dlt` Pipelines
 
 `dlt` pipelines offer robust governance support through three key mechanisms: pipeline metadata
 utilization, schema enforcement and curation, and schema change alerts.
