@@ -1,6 +1,6 @@
 ---
 slug: trained-gpt-q&a-2
-title: "dlt AI Assistant is all you need!"
+title: "dlt AI Assistant provides answers you need!"
 image: /img/blog_gpt_QA2.jpg
 authors:
   name: Tong Chen
