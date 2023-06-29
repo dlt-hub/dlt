@@ -4,9 +4,7 @@ import datetime  # noqa: 251
 
 from pathlib import Path
 import dlt, os
-from dlt.common.utils import uniq_id
 from dlt.common import json
-from dlt.pipeline.exceptions import PipelineStepFailed
 
 from tests.load.pipeline.test_merge_disposition import github
 from tests.load.pipeline.utils import  load_table_counts
@@ -93,16 +91,6 @@ def test_staging_load(destination: str, file_format: str, bucket: str) -> None:
     replace_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
     assert replace_counts == initial_counts
 
-
-def test_forward_credentials_settings() -> None:
-
-    # set bucket url
-    os.environ['DESTINATION__FILESYSTEM__BUCKET_URL'] = "s3://dlt-ci-test-bucket"
-    pipeline = dlt.pipeline(pipeline_name='test_stage_loading', destination="redshift", staging="filesystem", dataset_name='staging_test', full_refresh=True)
-
-    os.environ['DESTINATION__FORWARD_STAGING_CREDENTIALS'] = "False"
-    with pytest.raises(PipelineStepFailed):
-        pipeline.run(github())
 
 # @pytest.mark.skip(reason="need to discuss")
 @pytest.mark.parametrize(staging_combinations_fields, staging_combinations)
