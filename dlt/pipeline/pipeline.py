@@ -1004,7 +1004,6 @@ class Pipeline(SupportsPipeline):
                 file_format = dest_caps.preferred_staging_file_format
             else:
                 file_format = possible_file_formats[0] if len(possible_file_formats) > 0 else None
-        print(possible_file_formats)
         if file_format not in possible_file_formats:
             raise DestinationIncompatibleLoaderFileFormatException(destination, staging, file_format)
         return file_format
