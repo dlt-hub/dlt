@@ -54,6 +54,8 @@ class LoadInfo(NamedTuple):
     pipeline: "SupportsPipeline"
     destination_name: str
     destination_displayable_credentials: str
+    staging_name: str
+    staging_displayable_credentials: str
     dataset_name: str
     loads_ids: List[str]
     """ids of the loaded packages"""
@@ -79,6 +81,9 @@ class LoadInfo(NamedTuple):
         else:
             msg += "---"
         msg += f"\n{len(self.loads_ids)} load package(s) were loaded to destination {self.destination_name} and into dataset {self.dataset_name}\n"
+        if self.staging_name:
+            msg += f"The {self.staging_name} staging destination used {self.staging_displayable_credentials} location to stage data\n"
+
         msg += f"The {self.destination_name} destination used {self.destination_displayable_credentials} location to store data"
         for load_package in self.load_packages:
             cstr = load_package.state.upper() if load_package.completed_at else "NOT COMPLETED"

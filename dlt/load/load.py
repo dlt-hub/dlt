@@ -17,7 +17,7 @@ from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TTableSchema, TWriteDisposition
 from dlt.common.storages import LoadStorage
-from dlt.common.destination.reference import DestinationClientDwhConfiguration, FollowupJob, JobClientBase, DestinationReference, LoadJob, NewLoadJob, TLoadJobState, DestinationClientConfiguration
+from dlt.common.destination.reference import DestinationClientDwhConfiguration, FollowupJob, JobClientBase, DestinationReference, LoadJob, NewLoadJob, TLoadJobState, DestinationClientConfiguration, DestinationClientStagingConfiguration
 from dlt.destinations.filesystem.filesystem import LoadFilesystemJob
 
 from dlt.destinations.job_impl import EmptyLoadJob
@@ -365,6 +365,8 @@ class Load(Runnable[ThreadPool]):
             pipeline,
             self.initial_client_config.destination_name,
             str(self.initial_client_config),
+            self.initial_staging_client_config.destination_name if self.initial_staging_client_config else None,
+            str(self.initial_staging_client_config) if self.initial_staging_client_config else None,
             dataset_name,
             list(load_ids),
             load_packages,
