@@ -8,6 +8,7 @@ from dlt.common.storages import LoadStorage, FileStorage
 from dlt.common.destination.reference import LoadJob
 from dlt.destinations.filesystem.filesystem import FilesystemClient, LoadFilesystemJob
 from dlt.load import Load
+from dlt.destinations.job_impl import EmptyLoadJob
 
 from tests.utils import clean_test_storage, init_test_logging, preserve_environ
 from tests.load.filesystem.utils import get_client_instance, setup_loader
@@ -110,6 +111,9 @@ def perform_load(
     jobs = []
     for f in files:
         job = Load.w_spool_job(load, f, load_id, schema)
+        # job execution failed
+        if isinstance(job, EmptyLoadJob):
+            raise RuntimeError(job.exception())
         jobs.append(job)
 
     return jobs, root_path, load_id

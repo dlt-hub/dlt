@@ -15,7 +15,7 @@ def _configure(config: FilesystemClientConfiguration = config.value) -> Filesyst
 
 
 def capabilities() -> DestinationCapabilitiesContext:
-    return DestinationCapabilitiesContext.generic_capabilities("parquet")
+    return DestinationCapabilitiesContext.generic_capabilities("jsonl")
 
 
 def client(schema: Schema, initial_config: DestinationClientDwhConfiguration = config.value) -> JobClientBase:

@@ -2,6 +2,7 @@ import os
 import asyncio
 import inspect
 from typing import List, Sequence
+import time
 
 import pytest
 
@@ -18,16 +19,16 @@ from dlt.extract.pipe import ManagedPipeIterator, Pipe, PipeItem, PipeIterator
 def test_next_item_mode() -> None:
 
     def nested_gen_level_2():
-        yield from [88, 89]
+        yield from [88, None, 89]
 
     def nested_gen():
-        yield from [55, 56, 77, nested_gen_level_2()]
+        yield from [55, 56, None, 77, nested_gen_level_2()]
 
     def source_gen1():
         yield from [1, 2, nested_gen(), 3,4]
 
     def source_gen2():
-        yield from range(11,16)
+        yield from range(11, 16)
 
     def source_gen3():
         yield from range(20,22)
@@ -48,6 +49,57 @@ def test_next_item_mode() -> None:
     _l = list(PipeIterator.from_pipes(get_pipes(), next_item_mode="round_robin"))
     # items will be round robin, nested iterators are fully iterated and appear inline as soon as they are encountered
     assert [pi.item for pi in _l] == [1, 11, 20, 2, 12, 21, 55, 56, 77, 88, 89, 13, 3, 14, 4, 15]
+
+
+def test_rotation_on_none() -> None:
+
+    global started
+    global gen_1_started
+    global gen_2_started
+    global gen_3_started
+    started = time.time()
+
+    def source_gen1():
+        gen_1_started = time.time()
+        yield None
+        while time.time() - gen_1_started < 0.5:
+            time.sleep(0.1)
+            yield None
+        yield 1
+
+    def source_gen2():
+        gen_2_started = time.time()
+        yield None
+        while time.time() - gen_2_started < 0.3:
+            time.sleep(0.1)
+            yield None
+        yield 2
+
+    def source_gen3():
+        gen_3_started = time.time()
+        yield None
+        while time.time() - gen_3_started < 0.4:
+            time.sleep(0.1)
+            yield None
+        yield 3
+
+    def get_pipes():
+        return [
+            Pipe.from_data("data1", source_gen1()),
+            Pipe.from_data("data2", source_gen2()),
+            Pipe.from_data("data3", source_gen3()),
+            ]
+
+    # round robin mode
+    _l = list(PipeIterator.from_pipes(get_pipes(), next_item_mode="round_robin"))
+    # items will be round robin, nested iterators are fully iterated and appear inline as soon as they are encountered
+    assert [pi.item for pi in _l] == [2, 3, 1]
+    # jobs should have been executed in parallel
+    assert time.time() - started < 0.6
+
+
+
+
 
 
 def test_add_step() -> None:

@@ -11,7 +11,7 @@ it and, on next pipeline run, request them back.
 
 ## Read and write pipeline state in a resource
 
-You read and write the state in in your resources. Below we use the state to create a list of chess
+You read and write the state in your resources. Below we use the state to create a list of chess
 game archives which we then use to
 [prevent requesting duplicates](incremental-loading.md#advanced-state-usage-storing-a-list-of-processed-entities).
 
@@ -104,7 +104,7 @@ could:
   you'll end with invalid state.
 - Use your loaded data as the state. `dlt` exposes the current pipeline via `dlt.current.pipeline()`
   from which you can obtain
-  [sqlclient](../dlt-ecosystem/transformations/transforming-the-data.md#transforming-the-data-using-the-dlt-sql-client)
+  [sqlclient](../dlt-ecosystem/transformations/sql.md)
   and load the data of interest. In that case try at least to process your user records in batches.
 
 ## Inspect the pipeline state

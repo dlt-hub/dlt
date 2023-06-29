@@ -16,7 +16,6 @@ from dlt.destinations.filesystem.filesystem_client import client_from_config
 from dlt.common.storages import LoadStorage
 from dlt.destinations.job_impl import NewLoadJobImpl
 
-lock = threading.Lock()
 
 class NewReferenceJob(NewLoadJobImpl):
     pass
@@ -51,8 +50,11 @@ class LoadFilesystemJob(LoadJob):
             # NOTE: glob implementation in fsspec does not look thread safe, way better is to use ls and then filter
             all_files: List[str] = fs_client.ls(dataset_path, detail=False, refresh=True)
             items = [item for item in all_files if item.startswith(search_prefix)]
-            if items:
-                fs_client.rm(items)
+            # NOTE: deleting in chunks on s3 does not raise on access denied, file non existing and probably other errors
+            # if items:
+            #     fs_client.rm(items[0])
+            for item in items:
+                fs_client.rm_file(item)
 
         self.destination_file_name = LoadFilesystemJob.make_destination_filename(file_name, schema_name, load_id)
         fs_client.put_file(local_path, posixpath.join(dataset_path, self.destination_file_name))

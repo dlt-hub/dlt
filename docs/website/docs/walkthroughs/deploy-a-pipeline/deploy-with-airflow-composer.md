@@ -97,12 +97,12 @@ Secret:
 c66c..
 ```
 
-**Note**: The `deploy` command for airflow-composer now includes a *secrets-format* option. It allows
-to pass the secrets in a single Airflow Variable as explained later.
+**Note**: The `deploy` command for airflow-composer now includes a *secrets-format* option. It
+allows to pass the secrets in a single Airflow Variable as explained later.
 
 Run the command `deploy` with the key `--secrets-format toml`:
 
-```
+```bash
 dlt deploy pipedrive_pipeline.py airflow-composer --secrets-format toml
 ```
 
@@ -126,7 +126,7 @@ from airflow.decorators import dag
 from dlt.common import pendulum
 from dlt.helpers.airflow_helper import PipelineTasksGroup
 
-# modify the dag arguments
+# Modify the dag arguments
 default_args = {
     'owner': 'airflow',
     'depends_on_past': False,
@@ -144,20 +144,23 @@ default_args = {
     default_args=default_args
 )
 def load_data():
-    # set `use_data_folder` to True to store temporary data on the `data` bucket. Use only when it does not fit on the local storage
+    # Set `use_data_folder` to True to store temporary data on the `data` bucket.
+    # Use only when it does not fit on the local storage
     tasks = PipelineTasksGroup("pipeline_name", use_data_folder=False, wipe_local_data=True)
 
-    # import your source from pipeline script
+    # Import your source from pipeline script
     from pipeline_or_source_script import source
 
-    # modify the pipeline parameters
+    # Modify the pipeline parameters
     pipeline = dlt.pipeline(
         pipeline_name='pipeline_name',
         dataset_name='dataset_name',
         destination='duckdb',
         full_refresh=False # must be false if we decompose
     )
-    # create the source, the "serialize" decompose option will converts dlt resources into Airflow tasks. use "none" to disable it
+    # Create the source, the "serialize" decompose option
+    # will convert dlt resources into Airflow tasks.
+    # Use "none" to disable it
     tasks.add_run(pipeline, source(), decompose="serialize", trigger_rule="all_done", retries=0, provide_context=True)
 
 load_data()
@@ -174,7 +177,7 @@ load_data()
   ```python
   from tenacity import Retrying, stop_after_attempt
 
-  # set `use_data_folder` to True to store temporary data on the `data` bucket.
+  # Set `use_data_folder` to True to store temporary data on the `data` bucket.
   # Use only when it does not fit on the local storage
   tasks = PipelineTasksGroup(
       pipeline_name="pipedrive",
@@ -193,7 +196,7 @@ created DAG script.
 - Import your sources from your existing pipeline script - after task group is created:
 
   ```python
-  # import your source from pipeline script
+  # Import your source from pipeline script
   from pipedrive import pipedrive_source
   ```
 
@@ -231,7 +234,10 @@ created DAG script.
   [Troubleshooting](deploy-with-airflow-composer.md#troubleshooting) section.
 
   ```python
-  # create the source, the "serialize" decompose option will converts dlt resources into Airflow tasks. use "none" to disable it
+  # Create the source,
+  # the "serialize" decompose option will convert
+  # dlt resources into Airflow tasks.
+  # Use "none" to disable it
   tasks.add_run(
       pipeline=pipeline,
       data=source,
@@ -241,7 +247,9 @@ created DAG script.
       provide_context=True
   )
 
-  # PipelineTasksGroup can’t handle the list of sources (e.g. data=[source, activities_source]), so we have to add them sequentially
+  # PipelineTasksGroup can’t handle the list of
+  # sources (e.g. data=[source, activities_source]),
+  # so we have to add them sequentially
   tasks.add_run(
       pipeline=pipeline,
       data=activities_source,
@@ -265,7 +273,7 @@ from airflow.decorators import dag
 from dlt.common import pendulum
 from dlt.helpers.airflow_helper import PipelineTasksGroup
 
-# modify the dag arguments
+# Modify the dag arguments
 default_args = {
     'owner': 'airflow',
     'depends_on_past': False,
@@ -285,8 +293,8 @@ default_args = {
 def load_pipedrive_data():
     from tenacity import Retrying, stop_after_attempt
 
-    # set `use_data_folder` to True to store temporary data on the `data` bucket.
-    # Use only when it does not fit on the local storage
+    # Set `use_data_folder` to True to store temporary data on the `data` bucket.
+    # Use only when it does not fit on the local storage.
     tasks = PipelineTasksGroup(
         pipeline_name="pipedrive",
         use_data_folder=False,
@@ -295,7 +303,7 @@ def load_pipedrive_data():
         retry_policy=Retrying(stop=stop_after_attempt(3), reraise=True),
     )
 
-    # import your source from pipeline script
+    # Import your source from pipeline script
     from pipedrive import pipedrive_source
 
     """Example to incrementally load activities limited to items updated after a given date"""
@@ -304,16 +312,21 @@ def load_pipedrive_data():
         pipeline_name="pipedrive", destination='duckdb', dataset_name="pipedrive_data"
     )
 
-    # First source configure to load everything except activities from the beginning
+    # First source configure to load everything
+    # except activities from the beginning
     source = pipedrive_source()
     source.resources["activities"].selected = False
 
-    # Another source configured to activities starting at the given date (custom_fields_mapping is included to translate custom field hashes to names)
+    # Another source configured to activities
+    # starting at the given date (custom_fields_mapping is included to
+    # translate custom field hashes to names)
     activities_source = pipedrive_source(
         since_timestamp="2023-03-01 00:00:00Z"
     ).with_resources("activities")
 
-    # create the source, the "serialize" decompose option will converts dlt resources into Airflow tasks. use "none" to disable it
+    # Create the source, the "serialize" decompose option
+    # will convert dlt resources into Airflow tasks.
+    # Use "none" to disable it.
     tasks.add_run(
         pipeline=pipeline,
         data=source,
@@ -323,7 +336,9 @@ def load_pipedrive_data():
         provide_context=True
     )
 
-    # PipelineTasksGroup can’t handle the list of sources (e.g. data=[source, activities_source]), so we have to add them sequentially
+    # PipelineTasksGroup can’t handle the list of sources
+    # (e.g. data=[source, activities_source]),
+    # so we have to add them sequentially.
     tasks.add_run(
         pipeline=pipeline,
         data=activities_source,
@@ -522,7 +537,8 @@ In case of `pipedrive` pipeline we tried to load data from “custom_fields_mapp
 source = pipedrive_source()
 source.resources["activities"].selected = False
 
-# Another source configured to activities starting at the given date (custom_fields_mapping is included to translate custom field hashes to names)
+# Another source configured to activities starting at the given date
+# (custom_fields_mapping is included to translate custom field hashes to names)
 activities_source = pipedrive_source(
     since_timestamp="2023-03-01 00:00:00Z"
 ).with_resources("activities", "custom_fields_mapping")

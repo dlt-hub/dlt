@@ -25,7 +25,7 @@ class Psycopg2SqlClient(SqlClientBase["psycopg2.connection"], DBTransaction):
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
     def __init__(self, dataset_name: str, credentials: PostgresCredentials) -> None:
-        super().__init__(dataset_name)
+        super().__init__(credentials.database, dataset_name)
         self._conn: psycopg2.connection = None
         self.credentials = credentials
 
@@ -67,15 +67,6 @@ class Psycopg2SqlClient(SqlClientBase["psycopg2.connection"], DBTransaction):
     @property
     def native_connection(self) -> "psycopg2.connection":
         return self._conn
-
-    def has_dataset(self) -> bool:
-        query = """
-                SELECT 1
-                    FROM INFORMATION_SCHEMA.SCHEMATA
-                    WHERE schema_name = %s;
-                """
-        rows = self.execute_sql(query, self.fully_qualified_dataset_name(escape=False))
-        return len(rows) > 0
 
     def create_dataset(self) -> None:
         self.execute_sql("CREATE SCHEMA %s" % self.fully_qualified_dataset_name())

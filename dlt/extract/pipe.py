@@ -697,7 +697,9 @@ class PipeIterator(Iterator[PipeItem]):
             # print(f"got {pipe.name} {pipe._pipe_id}")
             # register current pipe name during the execution of gen
             set_current_pipe_name(pipe.name)
-            item = next(gen)
+            item = None
+            while item is None:
+                item = next(gen)
             # full pipe item may be returned, this is used by ForkPipe step
             # to redirect execution of an item to another pipe
             if isinstance(item, ResolvablePipeItem):
@@ -718,21 +720,22 @@ class PipeIterator(Iterator[PipeItem]):
             raise ResourceExtractionError(pipe.name, gen, str(ex), "generator") from ex
 
     def _get_source_item_round_robin(self) -> ResolvablePipeItem:
-        # no more sources to iterate
         sources_count = len(self._sources)
+        # no more sources to iterate
         if sources_count == 0:
             return None
         # if there are currently more sources than added initially, we need to process the new ones first
         if sources_count > self._initial_sources_count:
             return self._get_source_item_current()
         try:
-            # get items from last added iterator, this makes the overall Pipe as close to FIFO as possible
-            self._round_robin_index = (self._round_robin_index + 1) % sources_count
-            gen, step, pipe, meta = self._sources[self._round_robin_index]
             # print(f"got {pipe.name} {pipe._pipe_id}")
             # register current pipe name during the execution of gen
-            set_current_pipe_name(pipe.name)
-            item = next(gen)
+            item = None
+            while item is None:
+                self._round_robin_index = (self._round_robin_index + 1) % sources_count
+                gen, step, pipe, meta = self._sources[self._round_robin_index]
+                set_current_pipe_name(pipe.name)
+                item = next(gen)
             # full pipe item may be returned, this is used by ForkPipe step
             # to redirect execution of an item to another pipe
             if isinstance(item, ResolvablePipeItem):
@@ -750,7 +753,7 @@ class PipeIterator(Iterator[PipeItem]):
             self._round_robin_index -= 1
             # since in this case we have popped an initial source, we need to decrease the initial sources count
             self._initial_sources_count -= 1
-            return self._get_source_item()
+            return self._get_source_item_round_robin()
         except (PipelineException, ExtractorException, DltSourceException, PipeException):
             raise
         except Exception as ex:

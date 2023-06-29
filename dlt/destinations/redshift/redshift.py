@@ -9,20 +9,24 @@ else:
     import psycopg2
     # from psycopg2.sql import SQL, Composed
 
-from typing import ClassVar, Dict, Optional, Sequence, Type
+from typing import ClassVar, Dict, List, Optional, Sequence, Type
 
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 from dlt.common.destination import DestinationCapabilitiesContext
+from dlt.common.destination.reference import NewLoadJob
 from dlt.common.data_types import TDataType
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
 from dlt.common.schema.typing import TTableSchema
+
 from dlt.common.configuration.accessors import config
 from dlt.common.configuration import with_config, known_sections
 from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import AwsCredentials
 
+
 from dlt.destinations.insert_job_client import InsertValuesJobClient
+from dlt.destinations.sql_merge_job import SqlMergeJob
 from dlt.destinations.exceptions import DatabaseTerminalException
 from dlt.destinations.job_client_impl import CopyFileLoadJob, LoadJob
 
@@ -122,6 +126,19 @@ class RedshiftCopyFileLoadJob(CopyFileLoadJob):
         # this part of code should be never reached
         raise NotImplementedError()
 
+class RedshiftMergeJob(SqlMergeJob):
+
+    @classmethod
+    def gen_key_table_clauses(cls, root_table_name: str, staging_root_table_name: str, key_clauses: Sequence[str], for_delete: bool) -> List[str]:
+        """Generate sql clauses that may be used to select or delete rows in root table of destination dataset
+
+            A list of clauses may be returned for engines that do not support OR in subqueries. Like BigQuery
+        """
+        if for_delete:
+            return [f"FROM {root_table_name} WHERE EXISTS (SELECT 1 FROM {staging_root_table_name} WHERE {' OR '.join([c.format(d=root_table_name,s=staging_root_table_name) for c in key_clauses])})"]
+        return SqlMergeJob.gen_key_table_clauses(root_table_name, staging_root_table_name, key_clauses, for_delete)
+
+
 class RedshiftClient(InsertValuesJobClient):
 
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
@@ -134,6 +151,9 @@ class RedshiftClient(InsertValuesJobClient):
         super().__init__(schema, config, sql_client)
         self.sql_client = sql_client
         self.config: RedshiftClientConfiguration = config
+
+    def create_merge_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
+        return RedshiftMergeJob.from_table_chain(table_chain, self.sql_client)
 
     def _get_column_def_sql(self, c: TColumnSchema) -> str:
         hints_str = " ".join(HINT_TO_REDSHIFT_ATTR.get(h, "") for h in HINT_TO_REDSHIFT_ATTR.keys() if c.get(h, False) is True)

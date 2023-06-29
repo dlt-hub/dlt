@@ -12,11 +12,12 @@ env:
   # all credentials must be present to be passed to dbt runner
   DESTINATION__POSTGRES__CREDENTIALS: postgresql://loader@dlttests.cwz0jfxu0m7m.eu-central-1.rds.amazonaws.com:5432/dlt_data
   DESTINATION__REDSHIFT__CREDENTIALS: postgresql://loader@3.73.90.3:5439/dlt_ci
+  DESTINATION__SNOWFLAKE__CREDENTIALS: snowflake://loader@kgiotue-wn98412/dlt_data?warehouse=COMPUTE_WH&role=DLT_LOADER_ROLE
   DESTINATION__CREDENTIALS__PASSWORD: ${{ secrets.PG_PASSWORD }}
 
   DESTINATION__CREDENTIALS__PROJECT_ID: chat-analytics-rasa-ci
   DESTINATION__CREDENTIALS__CLIENT_EMAIL: chat-analytics-loader@chat-analytics-rasa-ci.iam.gserviceaccount.com
-  DESTINATION__CREDENTIALS__PRIVATE_KEY: ${{ secrets.BQ_CRED_PRIVATE_KEY }}
+  DESTINATION__BIGQUERY__CREDENTIALS__PRIVATE_KEY: ${{ secrets.BQ_CRED_PRIVATE_KEY }}
   DESTINATION__CREDENTIALS__TOKEN_URI: https://oauth2.googleapis.com/token
 
   RUNTIME__LOG_LEVEL: ERROR

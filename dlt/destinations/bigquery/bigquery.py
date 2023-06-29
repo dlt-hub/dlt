@@ -102,7 +102,7 @@ class BigQueryLoadJob(LoadJob, FollowupJob):
 class BigQueryMergeJob(SqlMergeJob):
 
     @classmethod
-    def gen_key_table_clauses(cls, root_table_name: str, staging_root_table_name: str, key_clauses: Sequence[str]) -> List[str]:
+    def gen_key_table_clauses(cls, root_table_name: str, staging_root_table_name: str, key_clauses: Sequence[str], for_delete: bool) -> List[str]:
         # generate several clauses: BigQuery does not support OR nor unions
         sql: List[str] = []
         for clause in key_clauses:

@@ -1,3 +1,10 @@
+---
+title: Data Scientist
+description: A guide to using dlt for Data Scientists
+keywords: [data scientist, data science, machine learning, machine learning engineer]
+---
+
+
 # Data Scientist
 
 Data Load Tool (`dlt`) can be highly useful for Data Scientists in several ways. Here are three
@@ -23,18 +30,18 @@ exploration phase to the actual implementation of models, saving time and effort
 throughout the workflow, Data Scientists can ensure that the data is properly prepared and aligned
 with the production environment, leading to smoother integration and deployment of their models.
 
-- [Use existed Verified Sources](../walkthroughs/add-a-verified-source) and pipeline examples or [create your own](../walkthroughs/create-a-pipeline) quickly.
+- [Use existed Verified Sources](../walkthroughs/add-a-verified-source) and pipeline examples or
+  [create your own](../walkthroughs/create-a-pipeline) quickly.
 
-- [Deploy the pipeline](../walkthroughs/deploy-a-pipeline), so that the data
-  is automatically loaded on a schedule.
+- [Deploy the pipeline](../walkthroughs/deploy-a-pipeline), so that the data is automatically loaded
+  on a schedule.
 
-- Transform the [loaded data](../dlt-ecosystem/transformations/transforming-the-data) with
-  dbt or in Pandas DataFrames.
+- Transform the [loaded data](../dlt-ecosystem/transformations) with dbt or in
+  Pandas DataFrames.
 
 - Learn how to [run](../running-in-production/running),
-  [monitor](../running-in-production/monitoring), and
-  [alert](../running-in-production/alerting) when you put your pipeline in
-  production.
+  [monitor](../running-in-production/monitoring), and [alert](../running-in-production/alerting)
+  when you put your pipeline in production.
 
 - Use `dlt` when doing exploration in a Jupyter Notebook and move more easily to production. Explore
   our
@@ -57,13 +64,13 @@ with the production environment, leading to smoother integration and deployment 
   benefit from fast and scalable data operations, enhancing the overall performance of their
   analytical workflows.
 - Moreover, `dlt` provides resources that can directly return data in the form of
-  [Pandas DataFrames from an SQL client](../dlt-ecosystem/visualizations/exploring-the-data).
-  This feature simplifies data retrieval and allows Data Scientists to seamlessly work with data in
+  [Pandas DataFrames from an SQL client](../dlt-ecosystem/visualizations/exploring-the-data). This
+  feature simplifies data retrieval and allows Data Scientists to seamlessly work with data in
   familiar Pandas DataFrame format. With this capability, Data Scientists can leverage the rich
   ecosystem of Python libraries and tools that support Pandas.
 
-With `dlt`, the transition from local storage to remote is quick and easy.
-For example, read the documentation [Share a dataset: DuckDB -> BigQuery](../walkthroughs/share-a-dataset).
+With `dlt`, the transition from local storage to remote is quick and easy. For example, read the
+documentation [Share a dataset: DuckDB -> BigQuery](../walkthroughs/share-a-dataset).
 
 ## Use case #2:  Structured Data and Enhanced Data Understanding
 
@@ -101,8 +108,7 @@ Besides, having a schema imposed on the data acts as a technical description of 
 accelerating the discovery process.
 
 See [Understanding the tables](../dlt-ecosystem/visualizations/understanding-the-tables),
-[Exploring the data](../dlt-ecosystem/visualizations/exploring-the-data) in our
-documentation.
+[Exploring the data](../dlt-ecosystem/visualizations/exploring-the-data) in our documentation.
 
 ## Use case #3: Data Preprocessing and Transformation
 
@@ -113,11 +119,10 @@ feature scaling, and feature engineering. Data Scientists can leverage these cap
 and transform their datasets efficiently, making them suitable for subsequent analysis and modeling.
 
 Python-first users can heavily customize how `dlt` sources produce data, as `dlt` supports
-selecting,
-[filtering](../general-usage/resource#filter-transform-and-pivot-data),
+selecting, [filtering](../general-usage/resource#filter-transform-and-pivot-data),
 [renaming](../general-usage/customising-pipelines/renaming_columns),
-[anonymizing](../general-usage/customising-pipelines/pseudonymizing_columns),
-and just about any custom operation.
+[anonymizing](../general-usage/customising-pipelines/pseudonymizing_columns), and just about any
+custom operation.
 
 Compliance is also a case where preprocessing is the way to solve the issue: Besides being
 python-friendly, the ability to apply transformation logic before loading data allows us to
