@@ -63,7 +63,7 @@ def test_rotation_on_none() -> None:
         gen_1_started = time.time()
         yield None
         while time.time() - gen_1_started < 0.5:
-            time.sleep(0.1)
+            time.sleep(0.05)
             yield None
         yield 1
 
@@ -71,7 +71,7 @@ def test_rotation_on_none() -> None:
         gen_2_started = time.time()
         yield None
         while time.time() - gen_2_started < 0.3:
-            time.sleep(0.1)
+            time.sleep(0.05)
             yield None
         yield 2
 
@@ -79,7 +79,7 @@ def test_rotation_on_none() -> None:
         gen_3_started = time.time()
         yield None
         while time.time() - gen_3_started < 0.4:
-            time.sleep(0.1)
+            time.sleep(0.05)
             yield None
         yield 3
 
