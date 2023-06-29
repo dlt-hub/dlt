@@ -25,10 +25,14 @@ def load_modified_issues():
         yield from issues
 
 
-@pytest.mark.parametrize("destination,file_format,bucket", [("redshift","parquet","s3://dlt-ci-test-bucket"), ("redshift","parquet","s3://dlt-ci-test-bucket"), ("bigquery","jsonl","gs://ci-test-bucket")])
+@pytest.mark.parametrize("destination,file_format,bucket", [
+    ("redshift","parquet","s3://dlt-ci-test-bucket"),
+    ("redshift","jsonl","s3://dlt-ci-test-bucket"),
+    ("bigquery","parquet","gs://ci-test-bucket"),
+    ("bigquery","jsonl","gs://ci-test-bucket")])
 def test_bigquery_staging_load(destination: str, file_format: str, bucket: str) -> None:
 
-    # set gcs bucket url
+    # set bucket url
     os.environ['DESTINATION__FILESYSTEM__BUCKET_URL'] = bucket
     pipeline = dlt.pipeline(pipeline_name='test_stage_loading', destination=destination, staging="filesystem", dataset_name='staging_test', full_refresh=True)
 

@@ -95,7 +95,13 @@ class RedshiftCopyFileLoadJob(CopyFileLoadJob):
 
         # get format
         ext = os.path.splitext(bucket_path)[1][1:]
-        file_type = "format as json 'auto'"
+        file_type = ""
+        dateformat = ""
+        compression = ""
+        if ext == "jsonl":
+            file_type = "FORMAT AS JSON 'auto'"
+            dateformat = "dateformat 'auto' timeformat 'auto'"
+            compression = "GZIP"
         if ext == "parquet":
             file_type = "PARQUET"
 
@@ -108,7 +114,9 @@ class RedshiftCopyFileLoadJob(CopyFileLoadJob):
                     COPY {dataset_name}.{table_name}
                     FROM '{bucket_path}'
                     {file_type}
-                    {credentials}""")
+                    {dateformat}
+                    {compression}
+                    {credentials};""")
 
     def exception(self) -> str:
         # this part of code should be never reached
