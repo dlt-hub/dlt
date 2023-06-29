@@ -4,7 +4,9 @@ import yaml
 from git import Repo, Commit
 from pathlib import Path
 from typing import Mapping, Tuple, cast, Any
+import datetime  # noqa: 251
 
+from dlt.common.arithmetics import Decimal
 from dlt.common import json
 from dlt.common.typing import StrAny
 from dlt.common.schema import utils
@@ -75,3 +77,18 @@ def modify_and_commit_file(repo_path: str, file_name: str, content: str = "NEW R
         commit = repo.index.commit(f"mod {file_name}")
 
     return file_path, commit
+
+
+def all_data_types() -> Any:
+    return {
+        "col1": "hello",
+        "col2": 1.0,
+        "col3": True,
+        "col4": datetime.datetime.now().replace(microsecond=0),
+        "col5": 10**10,
+        "col6": b"hello",
+        "col7": {"hello": "dave"},
+        "col8": Decimal('1.000000000'),
+        "col9": 1,
+        "col10": datetime.date.today(),
+    }

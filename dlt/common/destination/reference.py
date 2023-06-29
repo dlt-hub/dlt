@@ -21,14 +21,13 @@ from dlt.common.utils import get_module_name
 class DestinationClientConfiguration(BaseConfiguration):
     destination_name: str = None  # which destination to load data to
     credentials: Optional[CredentialsConfiguration]
-    forward_staging_credentials: bool = True
 
     def __str__(self) -> str:
         """Return displayable destination location"""
         return str(self.credentials)
 
     if TYPE_CHECKING:
-        def __init__(self, destination_name: str = None, credentials: Optional[CredentialsConfiguration] = None, forward_staging_credentials: bool = True
+        def __init__(self, destination_name: str = None, credentials: Optional[CredentialsConfiguration] = None
 ) -> None:
             ...
 
@@ -46,7 +45,6 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
             self,
             destination_name: str = None,
             credentials: Optional[CredentialsConfiguration] = None,
-            forward_staging_credentials: bool = True,
             dataset_name: str = None,
             default_schema_name: Optional[str] = None
         ) -> None:
@@ -62,7 +60,6 @@ class DestinationClientStagingConfiguration(DestinationClientDwhConfiguration):
             self,
             destination_name: str = None,
             credentials: Optional[CredentialsConfiguration] = None,
-            forward_staging_credentials: bool = True,
             dataset_name: str = None,
             default_schema_name: Optional[str] = None,
             as_staging: bool = False

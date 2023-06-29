@@ -18,3 +18,4 @@ class RedshiftCredentials(PostgresCredentials):
 class RedshiftClientConfiguration(PostgresClientConfiguration):
     destination_name: Final[str] = "redshift"  # type: ignore
     credentials: RedshiftCredentials
+    forward_staging_credentials: bool = True
