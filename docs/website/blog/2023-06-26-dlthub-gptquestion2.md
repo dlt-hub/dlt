@@ -1,6 +1,6 @@
 ---
 slug: trained-gpt-q&a-2
-title: "`dlt` AI Assistant provides answers you need!"
+title: "dlt AI Assistant provides answers you need!"
 image: /img/blog_gpt_QA2.jpg
 authors:
   name: Tong Chen
@@ -12,8 +12,10 @@ tags: [trained gpt-4, Q&A, dlt ]
 --- 
 Hi there! 👋
 
-In this article, we tried to ask our `dlt` AI Assistant- the conversational companion for the dltHub docs. We asked some questions about how `dlt` helps with Data pipeline maintenance and advanced `dlt`  project processes. Let’s see how it gave us answers! 
-       
+Maintenance of data pipelines can often pose significant challenges for organizations. Ensuring the smooth operation of these pipelines, managing updates and changes, and addressing potential bottlenecks are just a few examples of the complexities involved. This is where `dlt` comes into play as a valuable solution, as `dlt` can efficient alleviate these maintenance burdens and optimize data pipeline management.
+
+In this article, we delve into the capabilities of our `dlt` AI Assistant, the conversational companion for the `dlt`Hub docs. Our aim was to explore how `dlt` can effectively address data pipeline maintenance challenges and streamline advanced `dlt` project processes. To gain insights, we posed several questions to our AI Assistant. Let's delve into the details and discover how it responded!
+
 #### 💡 How does `dlt` reduce maintenance ? 
 >dlt reduces maintenance in several ways:
 >1. **Automating structuring**: dlt automates the transition from unstructured (nested, untyped) to structured (tabular, typed) data, which eliminates the need for manual data structuring and reduces the chances of errors.
@@ -96,8 +98,10 @@ In this article, we tried to ask our `dlt` AI Assistant- the conversational comp
 
 Now we understand how dlt significantly improve your work efficiency! Let’s ask more questions with our `dlt` AI Assistant, just click on the "Get Help" button located at the bottom right.
 
+![dlthelp](\img\dlthelp.jpg)  
+
 *** 
 [ What's more? ]
 - Learn more about `dlt` 👉 [here](https://dlthub.com/docs/intro) 
 - Want to discuss more? Join our [Slack community](https://dlthub-community.slack.com/ssb/redirect) !
-- Try out with out dlt demo  👉 [Colab Demo](https://colab.research.google.com/drive/1KU1G_08Yihh5p-o1BsCuhA1OkH5zwgkf?usp=sharing)  ! 
+- Try out with dlt demo  👉 [Colab Demo](https://colab.research.google.com/drive/1KU1G_08Yihh5p-o1BsCuhA1OkH5zwgkf?usp=sharing)  ! 
