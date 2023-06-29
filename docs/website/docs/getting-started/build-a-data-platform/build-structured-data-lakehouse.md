@@ -8,7 +8,7 @@ keywords: [data lake, lakehouse, structured]
 
 A structured data lake is a data lake that contains data that is as structured as can be.
 
-It's similar to a lakehouse concept except where in the lakehouse data is ingested raw, with dlt it
+It's similar to a lakehouse concept except where in the lakehouse data is ingested raw, with `dlt` it
 is possible to automate this first step and instead curate structured data directly.
 
 In effect, this adds more structure and accelerates development by providing an easier to discover
@@ -46,7 +46,7 @@ unstructured format.
 
 ### Which data should stay semi structured?
 
-The data we do not intend to use. The only reason to store semi structured data is because it’s
+The data we do not intend to use. The only reason to store semi-structured data is that it’s
 simple to store.
 
 If we intend to simply store data that we may later decide to delete without looking into it, we do
@@ -129,19 +129,19 @@ is written, which helps prevent inconsistencies and errors in your data.
 
 ## dlt python library enables structured lakes on common technologies
 
-dlt is not a framework, meaning you can easily use it in various contexts, enabling it to be tech
+`dlt` is not a framework, meaning you can easily use it in various contexts, enabling it to be tech
 agnostic.
 
-In dlt’s paradigm, semi-structured data should always be structured.
+In `dlt`’s paradigm, semi-structured data should always be structured.
 
-- You can use dlt to directly ingest structured data.
+- You can use `dlt` to directly ingest structured data.
 - You can use it to structure any stored semi-structured or unstructured data before curation and
   usage.
 
 ### So to create a structured data lake with dlt?
 
 - If you have unstructured data such as text or images for later structuring, store it in storage.
-- If you have semi-structured data, let dlt structure it and manage schemas, and curate the
+- If you have semi-structured data, let `dlt` structure it and manage schemas, and curate the
   structured data in your structured destination.
 - Use [data evolution alerts](../../reference/explainers/schema-evolution) to curate the data:
   notify changes and curate it together with the producer and consumer, without the engineer.
@@ -153,5 +153,5 @@ In dlt’s paradigm, semi-structured data should always be structured.
 - Moving forward we should stop manually curating and structuring semi structured data, and let
   machines handle it.
 - Humans should work with clean structured data whenever possible to ensure the best outcomes.
-- Currently, delta lake framework and dlt library support this paradigm in the open source. Delta
-  lake is Spark file centric, while dlt supports common destinations.
+- Currently, delta lake framework and `dlt` library support this paradigm in the open source. Delta
+  lake is Spark file centric, while `dlt` supports common destinations.

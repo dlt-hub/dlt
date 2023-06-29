@@ -180,7 +180,7 @@ reliable, and secure. It ensures:
 1. **Compliance**: Data governance also helps maintain compliance with regulations on data usage and
    privacy, like GDPR or CCPA. Make sure you follow the respective documentation. If you want to
    anonymize before ingestion,
-   [check out the dlt docs](../../general-usage/customising-pipelines/pseudonymizing_columns#pseudonymizing-or-anonymizing-columns-by-replacing-the-special-characters).
+   [check out the `dlt` docs](../../general-usage/customising-pipelines/pseudonymizing_columns#pseudonymizing-or-anonymizing-columns-by-replacing-the-special-characters).
 1. **Data Literacy**: Data governance helps ensure users have a clear understanding of the data they
    are working with, its context, limitations, and appropriate usage, preventing misinterpretation
    or misuse of data. If you are using Metabase with dbt, dbt-metabase is a nice solution. If not,

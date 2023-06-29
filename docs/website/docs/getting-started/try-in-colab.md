@@ -26,9 +26,9 @@ dataframes and SQL. `duckdb/duckdb` repo is analyzed by default.
   look at [verified sources](../dlt-ecosystem/verified-sources) and
   [walkthroughs](../walkthroughs).
 - Check out the comprehensive [build a pipeline](build-a-data-pipeline.md) doc to better understand
-  what you can do with dlt.
+  what you can do with `dlt`.
 - Check out the [build a data warehouse](build-a-data-platform/building-data-warehouse.md) and
   [build a data lakehouse](build-a-data-platform/build-structured-data-lakehouse.md) section to see
-  how to build a data warehouse or lake with dlt.
+  how to build a data warehouse or lake with `dlt`.
 - Check out the [verified sources repository](https://github.com/dlt-hub/verified-sources) - you can
   use them for data ingestion, or as reference examples for what you want to build.
