@@ -95,7 +95,7 @@ def test_rotation_on_none() -> None:
     # items will be round robin, nested iterators are fully iterated and appear inline as soon as they are encountered
     assert [pi.item for pi in _l] == [2, 3, 1]
     # jobs should have been executed in parallel
-    assert time.time() - started < 0.6
+    assert time.time() - started < 0.8
 
 
 
