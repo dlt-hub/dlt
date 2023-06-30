@@ -121,7 +121,7 @@ class FilesystemClient(JobClientBase):
     def restore_file_load(self, file_path: str) -> LoadJob:
         return EmptyLoadJob.from_file_path(file_path, "completed")
 
-    def create_merge_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
+    def create_merge_job(self, table_chain: Sequence[TTableSchema], truncate_destination_tables: bool) -> NewLoadJob:
         return None
 
 

@@ -123,7 +123,7 @@ class BigQueryClient(SqlJobClientBase):
         self.config: BigQueryClientConfiguration = config
         self.sql_client: BigQuerySqlClient = sql_client  # type: ignore
 
-    def create_merge_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
+    def create_merge_job(self, table_chain: Sequence[TTableSchema], truncate_destination_tables: bool) -> NewLoadJob:
         return BigQueryMergeJob.from_table_chain(table_chain, self.sql_client)
 
     def restore_file_load(self, file_path: str) -> LoadJob:
@@ -246,7 +246,7 @@ class BigQueryClient(SqlJobClientBase):
             source_format = bigquery.SourceFormat.PARQUET
 
         # if merge then load to staging
-        with self.sql_client.with_staging_dataset(write_disposition == "merge"):
+        with self.sql_client.with_staging_dataset(write_disposition in ["merge", "replace.stage"]):
             job_id = BigQueryLoadJob.get_job_id_from_file_path(file_path)
             job_config = bigquery.LoadJobConfig(
                 autodetect=False,

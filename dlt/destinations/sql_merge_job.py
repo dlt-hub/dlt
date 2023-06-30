@@ -16,7 +16,7 @@ from dlt.destinations.sql_client import SqlClientBase
 class SqlMergeJob(NewLoadJobImpl):
 
     @classmethod
-    def from_table_chain(cls, table_chain: Sequence[TTableSchema], sql_client: SqlClientBase[Any]) -> NewLoadJobImpl:
+    def from_table_chain(cls, table_chain: Sequence[TTableSchema], sql_client: SqlClientBase[Any], truncate_destination_tables: bool = False) -> NewLoadJobImpl:
         """Generates a list of sql statements that merge the data in staging dataset with the data in destination dataset.
 
         The `table_chain` contains a list schemas of a tables with parent-child relationship, ordered by the ancestry (the root of the tree is first on the list).
@@ -31,7 +31,7 @@ class SqlMergeJob(NewLoadJobImpl):
         try:
             # Remove line breaks from multiline statements and write one SQL statement per line in output file
             # to support clients that need to execute one statement at a time (i.e. snowflake)
-            sql = [' '.join(stmt.splitlines()) for stmt in cls.gen_merge_sql(table_chain, sql_client)]
+            sql = [' '.join(stmt.splitlines()) for stmt in cls.gen_merge_sql(table_chain, sql_client, truncate_destination_tables)]
             job = cls(file_info.job_id(), "running")
             job._save_text_file("\n".join(sql))
         except Exception:
@@ -87,7 +87,7 @@ class SqlMergeJob(NewLoadJobImpl):
         return sql, temp_table_name
 
     @classmethod
-    def gen_merge_sql(cls, table_chain: Sequence[TTableSchema], sql_client: SqlClientBase[Any]) -> List[str]:
+    def gen_merge_sql(cls, table_chain: Sequence[TTableSchema], sql_client: SqlClientBase[Any], truncate_destination_tables: bool) -> List[str]:
         sql: List[str] = []
         root_table = table_chain[0]
 
@@ -103,6 +103,11 @@ class SqlMergeJob(NewLoadJobImpl):
         unique_column: str = None
         root_key_column: str = None
         insert_temp_table_sql: str = None
+
+        if truncate_destination_tables:
+            for table in table_chain:
+                table_name = sql_client.make_qualified_table_name(table["name"])
+                sql.append(f"DELETE FROM {table_name} WHERE 1=1;")
 
         if len(table_chain) == 1:
             key_table_clauses = cls.gen_key_table_clauses(root_table_name, staging_root_table_name, key_clauses, for_delete=True)

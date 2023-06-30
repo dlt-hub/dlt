@@ -56,7 +56,7 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
         file_name = FileStorage.get_file_name_from_file_path(file_path)
         super().__init__(file_name)
 
-        with client.with_staging_dataset(write_disposition == "merge"):
+        with client.with_staging_dataset(write_disposition in ["merge", "replace.stage"]):
             qualified_table_name = client.make_qualified_table_name(table_name)
 
             if stage_name:

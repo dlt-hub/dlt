@@ -108,8 +108,7 @@ class RedshiftCopyFileLoadJob(CopyFileLoadJob):
             compression = "GZIP"
         if ext == "parquet":
             file_type = "PARQUET"
-
-        with self._sql_client.with_staging_dataset(table["write_disposition"]=="merge"):
+        with self._sql_client.with_staging_dataset(table["write_disposition"] in ["merge", "replace.stage"]):
             with self._sql_client.begin_transaction():
                 if table["write_disposition"]=="replace":
                     self._sql_client.execute_sql(f"""TRUNCATE TABLE {table_name}""")
@@ -152,7 +151,7 @@ class RedshiftClient(InsertValuesJobClient):
         self.sql_client = sql_client
         self.config: RedshiftClientConfiguration = config
 
-    def create_merge_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
+    def create_merge_job(self, table_chain: Sequence[TTableSchema], truncate_destination_tables: bool) -> NewLoadJob:
         return RedshiftMergeJob.from_table_chain(table_chain, self.sql_client)
 
     def _get_column_def_sql(self, c: TColumnSchema) -> str:

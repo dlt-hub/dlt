@@ -173,7 +173,7 @@ class JobClientBase(ABC):
         pass
 
     @abstractmethod
-    def create_merge_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
+    def create_merge_job(self, table_chain: Sequence[TTableSchema], truncate_destination_tables: bool) -> NewLoadJob:
         """Creates a table merge job without executing it. The `table_chain` contains a list of tables, ordered by ancestry, that should be merged.
         Clients that cannot merge should return None
         """

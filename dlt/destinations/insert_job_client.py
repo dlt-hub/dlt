@@ -15,8 +15,7 @@ class InsertValuesLoadJob(LoadJob, FollowupJob):
     def __init__(self, table_name: str, write_disposition: TWriteDisposition, file_path: str, sql_client: SqlClientBase[Any]) -> None:
         super().__init__(FileStorage.get_file_name_from_file_path(file_path))
         self._sql_client = sql_client
-        # insert file content immediately
-        with self._sql_client.with_staging_dataset(write_disposition=="merge"):
+        with self._sql_client.with_staging_dataset(write_disposition in ["merge", "replace.stage"]):
             with self._sql_client.begin_transaction():
                 for fragments in self._insert(sql_client.make_qualified_table_name(table_name), write_disposition, file_path):
                     self._sql_client.execute_fragments(fragments)

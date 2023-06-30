@@ -89,7 +89,7 @@ class Load(Runnable[ThreadPool]):
                     raise LoadClientUnsupportedFileFormats(job_info.file_format, self.capabilities.supported_loader_file_formats, file_path)
                 logger.info(f"Will load file {file_path} with table name {job_info.table_name}")
                 table = self.get_load_table(schema, file_path)
-                if table["write_disposition"] not in ["append", "replace", "merge"]:
+                if table["write_disposition"] not in ["append", "replace", "merge", "replace.stage"]:
                     raise LoadClientUnsupportedWriteDisposition(job_info.table_name, table["write_disposition"], file_path)
                 job = client.start_file_load(table, self.load_storage.storage.make_full_path(file_path), load_id)
         except (DestinationTerminalException, TerminalValueError):
@@ -159,7 +159,7 @@ class Load(Runnable[ThreadPool]):
                 jobs_info.append(LoadStorage.parse_job_file_name(job_file))
         return jobs_info
 
-    def create_merge_job(self, load_id: str, schema: Schema, top_merged_table: TTableSchema, starting_job: LoadJob) -> NewLoadJob:
+    def create_merge_job(self, load_id: str, schema: Schema, top_merged_table: TTableSchema, starting_job: LoadJob, truncate_destination_tables: bool) -> NewLoadJob:
         # returns ordered list of tables from parent to child leaf tables
         table_chain: List[TTableSchema] = []
         # make sure all the jobs for the table chain is completed
@@ -176,7 +176,7 @@ class Load(Runnable[ThreadPool]):
         # there must be at least 1 job
         assert len(table_chain) > 0
         # all tables completed, create merge sql job on destination client
-        return self.destination.client(schema, self.initial_client_config).create_merge_job(table_chain)
+        return self.destination.client(schema, self.initial_client_config).create_merge_job(table_chain, truncate_destination_tables=truncate_destination_tables)
 
     def create_followup_jobs(self, load_id: str, state: TLoadJobState, starting_job: LoadJob, schema: Schema) -> List[NewLoadJob]:
         jobs: List[NewLoadJob] = []
@@ -184,8 +184,8 @@ class Load(Runnable[ThreadPool]):
             if state == "completed":
                 # merge jobs
                 top_merged_table = get_top_level_table(schema.tables, self.get_load_table(schema, starting_job.file_name())["name"])
-                if top_merged_table["write_disposition"] == "merge":
-                    job = self.create_merge_job(load_id, schema, top_merged_table, starting_job)
+                if top_merged_table["write_disposition"] in ["merge", "replace.stage"]:
+                    job = self.create_merge_job(load_id, schema, top_merged_table, starting_job, truncate_destination_tables=top_merged_table["write_disposition"] == "replace.stage")
                     if job:
                         jobs.append(job)
             jobs = jobs + starting_job.create_followup_jobs(state, load_id)
@@ -263,12 +263,14 @@ class Load(Runnable[ThreadPool]):
                 applied_update = job_client.update_storage_schema(only_tables=set(all_tables+dlt_tables), expected_update=expected_update)
                 # update the staging dataset
                 merge_jobs = self.get_new_jobs_info(load_id, schema, "merge")
-                if merge_jobs:
+                replace_stage_jobs = self.get_new_jobs_info(load_id, schema, "replace.stage")
+                if merge_jobs or replace_stage_jobs:
                     logger.info(f"Client for {job_client.config.destination_name} will start initialize STAGING storage")
                     job_client.initialize_storage(staging=True)
                     logger.info(f"Client for {job_client.config.destination_name} will UPDATE STAGING SCHEMA to package schema")
                     merge_tables = [job.table_name for job in merge_jobs]
-                    job_client.update_storage_schema(staging=True, only_tables=set(merge_tables+dlt_tables), expected_update=expected_update)
+                    replace_stage_tables = [job.table_name for job in replace_stage_jobs]
+                    job_client.update_storage_schema(staging=True, only_tables=set(merge_tables+dlt_tables+replace_stage_tables), expected_update=expected_update)
                     logger.info(f"Client for {job_client.config.destination_name} will TRUNCATE STAGING TABLES: {merge_tables}")
                     job_client.initialize_storage(staging=True, truncate_tables=merge_tables)
                 self.load_storage.commit_schema_update(load_id, applied_update)

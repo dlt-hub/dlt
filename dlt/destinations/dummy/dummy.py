@@ -108,7 +108,7 @@ class DummyClient(JobClientBase):
             raise LoadJobNotExistsException(job_id)
         return JOBS[job_id]
 
-    def create_merge_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
+    def create_merge_job(self, table_chain: Sequence[TTableSchema], truncate_destination_tables: bool) -> NewLoadJob:
         return None
 
     def complete_load(self, load_id: str) -> None:

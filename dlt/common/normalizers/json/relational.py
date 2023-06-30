@@ -158,7 +158,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
     def _get_propagated_values(self, table: str, row: TDataItemRow, _r_lvl: int) -> StrAny:
         extend: DictStrAny = {}
         # propagate root id for merge tables
-        if _r_lvl == 0 and self.schema.tables.get(table, {}).get("write_disposition") == "merge":
+        if _r_lvl == 0 and self.schema.tables.get(table, {}).get("write_disposition") in ["merge", "replace.stage"]:
             extend["_dlt_root_id"] = row["_dlt_id"]
 
         config = self.propagation_config

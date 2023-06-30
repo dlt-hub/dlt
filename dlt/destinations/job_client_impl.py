@@ -143,8 +143,8 @@ class SqlJobClientBase(JobClientBase):
         else:
             yield
 
-    def create_merge_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
-        return SqlMergeJob.from_table_chain(table_chain, self.sql_client)
+    def create_merge_job(self, table_chain: Sequence[TTableSchema], truncate_destination_tables: bool) -> NewLoadJob:
+        return SqlMergeJob.from_table_chain(table_chain, self.sql_client, truncate_destination_tables)
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         """Starts SqlLoadJob for files ending with .sql or returns None to let derived classes to handle their specific jobs"""

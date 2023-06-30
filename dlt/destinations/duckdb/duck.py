@@ -51,7 +51,7 @@ class DuckDbCopyJob(LoadJob, FollowupJob):
     def __init__(self, table_name: str, write_disposition: TWriteDisposition, file_path: str, sql_client: DuckDbSqlClient) -> None:
         super().__init__(FileStorage.get_file_name_from_file_path(file_path))
 
-        with sql_client.with_staging_dataset(write_disposition=="merge"):
+        with sql_client.with_staging_dataset(write_disposition in ["merge", "replace.stage"]):
             qualified_table_name = sql_client.make_qualified_table_name(table_name)
             with sql_client.begin_transaction():
                 if write_disposition == "replace":
