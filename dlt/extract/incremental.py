@@ -27,6 +27,8 @@ class IncrementalColumnState(TypedDict):
     initial_value: Optional[Any]
     last_value: Optional[Any]
     unique_hashes: List[str]
+    previous_last_value: Optional[Any]
+    previous_unique_hashes: Optional[List[str]]
 
 
 class IncrementalCursorPathMissing(PipeException):
@@ -75,16 +77,21 @@ class Incremental(FilterItem, BaseConfiguration, Generic[TCursorValue]):
         initial_value: Optional value used for `last_value` when no state is available, e.g. on the first run of the pipeline. If not provided `last_value` will be `None` on the first run.
         last_value_func: Callable used to determine which cursor value to save in state. It is called with a list of the stored state value and all cursor vals from currently processing items. Default is `max`
         primary_key: Optional primary key used to deduplicate data. If not provided, a primary key defined by the resource will be used. Pass a tuple to define a compound key. Pass empty tuple to disable unique checks
+        end_value: Optional value used to load a limited range of records. The resource generator is stopped when this value is reached.
+            Use in conjunction with `initial_value`, e.g. load records from given month `incremental(initial_value="2022-01-01T00:00:00Z", end_value="2022-02-01T00:00:00Z")`
     """
     cursor_path: str = None
+    # TODO: Support typevar here
     initial_value: Optional[Any] = None
+    end_value: Optional[Any] = None
 
     def __init__(
             self,
             cursor_path: str = dlt.config.value,
             initial_value: Optional[TCursorValue]=None,
             last_value_func: Optional[LastValueFunc[TCursorValue]]=max,
-            primary_key: Optional[TTableHintTemplate[TColumnKey]] = None
+            primary_key: Optional[TTableHintTemplate[TColumnKey]] = None,
+            end_value: Optional[TCursorValue] = None
     ) -> None:
         self.cursor_path = cursor_path
         if self.cursor_path:
@@ -92,6 +99,7 @@ class Incremental(FilterItem, BaseConfiguration, Generic[TCursorValue]):
         self.last_value_func = last_value_func
         self.initial_value = initial_value
         """Initial value of last_value"""
+        self.end_value = end_value
         self.start_value: Any = initial_value
         """Value of last_value at the beginning of current pipeline run"""
         self.resource_name: Optional[str] = None
@@ -109,7 +117,25 @@ class Incremental(FilterItem, BaseConfiguration, Generic[TCursorValue]):
         return i
 
     def copy(self) -> "Incremental[TCursorValue]":
-        return self.__class__(self.cursor_path, initial_value=self.initial_value, last_value_func=self.last_value_func, primary_key=self.primary_key)
+        return self.__class__(
+            self.cursor_path, initial_value=self.initial_value, last_value_func=self.last_value_func, primary_key=self.primary_key, end_value=self.end_value
+        )
+
+    def merge(self, other: "Incremental[TCursorValue]") -> "Incremental[TCursorValue]":
+        """Create a new incremental instance which merges the two instances.
+        Only properties which are not `None` from `other` override the current instance properties.
+
+        This supports use cases with partial overrides, such as:
+        >>> def my_resource(updated=incremental('updated', initial_value='1970-01-01'))
+        >>>     ...
+        >>>
+        >>> my_resource(updated=incremental(initial_value='2023-01-01', end_value='2023-02-01'))
+        """
+        kwargs = dict(self, last_value_func=self.last_value_func, primary_key=self.primary_key)
+        for key, value in dict(other, last_value_func=other.last_value_func, primary_key=other.primary_key).items():
+            if value is not None:
+                kwargs[key] = value
+        return self.__class__(**kwargs)
 
     def on_resolved(self) -> None:
         self.cursor_path_p = compile_path(self.cursor_path)
@@ -119,6 +145,7 @@ class Incremental(FilterItem, BaseConfiguration, Generic[TCursorValue]):
             self.cursor_path = native_value.cursor_path
             self.initial_value = native_value.initial_value
             self.last_value_func = native_value.last_value_func
+            self.end_value = native_value.end_value
             self.cursor_path_p = self.cursor_path_p
             self.resource_name = self.resource_name
         else:  # TODO: Maybe check if callable(getattr(native_value, '__lt__', None))
@@ -131,6 +158,8 @@ class Incremental(FilterItem, BaseConfiguration, Generic[TCursorValue]):
         """Returns an Incremental state for a particular cursor column"""
         if not self.resource_name:
             raise IncrementalUnboundError(self.cursor_path)
+
+        first = self._cached_state is None
         self._cached_state = Incremental._get_state(self.resource_name, self.cursor_path)
         if len(self._cached_state) == 0:
             # set the default like this, setdefault evaluates the default no matter if it is needed or not. and our default is heavy
@@ -141,6 +170,13 @@ class Incremental(FilterItem, BaseConfiguration, Generic[TCursorValue]):
                     'unique_hashes': []
                 }
             )
+        if first and self.end_value is not None:
+            # When loading a range we always set last_value to initial_value
+            # Temporarily store the previous last value to make sure we set the highest chunk later
+            self._cached_state['previous_unique_hashes'] = self._cached_state['unique_hashes']
+            self._cached_state['previous_last_value'] = self._cached_state['last_value']
+            self._cached_state['last_value'] = self.initial_value
+            self._cached_state['unique_hashes'] = []
         return self._cached_state
 
     @staticmethod
@@ -175,12 +211,27 @@ class Incremental(FilterItem, BaseConfiguration, Generic[TCursorValue]):
 
         incremental_state = self._cached_state
         last_value = incremental_state['last_value']
+
         row_value = row_values[0]
 
         # For datetime cursor, ensure the value is a timezone aware datetime.
         # The object saved in state will always be a tz aware pendulum datetime so this ensures values are comparable
         if isinstance(row_value, datetime):
             row_value = pendulum.instance(row_value)
+
+        # Check whether end_value has been reached
+        if self.end_value is not None and (
+            row_value == self.end_value or self.last_value_func((row_value, self.end_value)) != self.end_value
+        ):
+            previous_last_value = incremental_state['previous_last_value']
+            new_value = self.last_value_func((self.end_value, previous_last_value))
+            # last_value state updated with end_value only if it's "higher", allows backloading chunks in any order
+            if new_value == previous_last_value:
+                incremental_state['last_value'] = new_value
+                incremental_state['unique_hashes'] = incremental_state.pop('previous_unique_hashes')  # type: ignore[misc]
+            incremental_state.pop('previous_last_value')  # type: ignore[misc]
+            # Stop the generator
+            raise StopIteration()
 
         check_values = (row_value,) + ((last_value, ) if last_value is not None else ())
         new_value = self.last_value_func(check_values)
@@ -265,14 +316,19 @@ class IncrementalResourceWrapper(FilterItem):
             if p.name in bound_args.arguments:
                 explicit_value = bound_args.arguments[p.name]
                 if isinstance(explicit_value, Incremental):
-                    # Explicit Incremental instance is untouched
-                    new_incremental = explicit_value.copy()
+                    # Explicit Incremental instance is merged with default
+                    # allowing e.g. to only update initial_value/end_value but keeping default cursor_path
+                    if isinstance(p.default, Incremental):
+                        new_incremental = p.default.merge(explicit_value)
+                    else:
+                        new_incremental = explicit_value.copy()
                 elif isinstance(p.default, Incremental):
                     # Passing only initial value explicitly updates the default instance
                     new_incremental = p.default.copy()
                     new_incremental.initial_value = explicit_value
             elif isinstance(p.default, Incremental):
                 new_incremental = p.default.copy()
+
 
             if not new_incremental or new_incremental.is_partial():
                 if is_optional_type(p.annotation):
