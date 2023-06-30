@@ -272,7 +272,7 @@ class Load(Runnable[ThreadPool]):
                     replace_stage_tables = [job.table_name for job in replace_stage_jobs]
                     job_client.update_storage_schema(staging=True, only_tables=set(merge_tables+dlt_tables+replace_stage_tables), expected_update=expected_update)
                     logger.info(f"Client for {job_client.config.destination_name} will TRUNCATE STAGING TABLES: {merge_tables}")
-                    job_client.initialize_storage(staging=True, truncate_tables=merge_tables)
+                    job_client.initialize_storage(staging=True, truncate_tables=merge_tables+replace_stage_tables)
                 self.load_storage.commit_schema_update(load_id, applied_update)
             # spool or retrieve unfinished jobs
             if self.staging:

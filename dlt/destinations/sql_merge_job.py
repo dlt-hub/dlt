@@ -106,8 +106,13 @@ class SqlMergeJob(NewLoadJobImpl):
 
         if truncate_destination_tables:
             for table in table_chain:
+                with sql_client.with_staging_dataset(staging=True):
+                    staging_table_name = sql_client.make_qualified_table_name(table["name"])
                 table_name = sql_client.make_qualified_table_name(table["name"])
+                columns = ", ".join(map(sql_client.capabilities.escape_identifier, table["columns"].keys()))
                 sql.append(f"DELETE FROM {table_name} WHERE 1=1;")
+                sql.append(f"INSERT INTO {table_name}({columns}) SELECT {columns} FROM {staging_table_name};")
+            return sql
 
         if len(table_chain) == 1:
             key_table_clauses = cls.gen_key_table_clauses(root_table_name, staging_root_table_name, key_clauses, for_delete=True)
