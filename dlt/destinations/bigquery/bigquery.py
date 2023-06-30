@@ -124,7 +124,7 @@ class BigQueryClient(SqlJobClientBase):
         self.sql_client: BigQuerySqlClient = sql_client  # type: ignore
 
     def create_merge_job(self, table_chain: Sequence[TTableSchema], truncate_destination_tables: bool) -> NewLoadJob:
-        return BigQueryMergeJob.from_table_chain(table_chain, self.sql_client)
+        return BigQueryMergeJob.from_table_chain(table_chain, self.sql_client, truncate_destination_tables)
 
     def restore_file_load(self, file_path: str) -> LoadJob:
         """Returns a completed SqlLoadJob or restored BigQueryLoadJob
