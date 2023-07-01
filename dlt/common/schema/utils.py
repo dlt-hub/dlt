@@ -258,6 +258,11 @@ def migrate_schema(schema_dict: DictStrAny, from_engine: int, to_engine: int) ->
         schema_dict["tables"][VERSION_TABLE_NAME] = version_table()
         schema_dict["tables"][LOADS_TABLE_NAME] = load_table()
         from_engine = 5
+    if from_engine == 5 and to_engine > 5:
+        # replace loads table
+        schema_dict["tables"][LOADS_TABLE_NAME] = load_table()
+        from_engine = 6
+
 
     schema_dict["engine_version"] = from_engine
     if from_engine != to_engine:

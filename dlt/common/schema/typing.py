@@ -4,7 +4,7 @@ from dlt.common.data_types import TDataType
 from dlt.common.normalizers.typing import TNormalizersConfig
 
 # current version of schema engine
-SCHEMA_ENGINE_VERSION = 5
+SCHEMA_ENGINE_VERSION = 6
 
 # dlt tables
 VERSION_TABLE_NAME = "_dlt_version"
