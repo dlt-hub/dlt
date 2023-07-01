@@ -258,6 +258,13 @@ def test_upgrade_engine_v1_schema() -> None:
     assert upgraded["engine_version"] == 4
     utils.validate_stored_schema(upgraded)
 
+    # upgrade 1 -> 6
+    schema_dict: DictStrAny = load_json_case("schemas/ev1/event.schema")
+    assert schema_dict["engine_version"] == 1
+    upgraded = utils.migrate_schema(schema_dict, from_engine=1, to_engine=6)
+    assert upgraded["engine_version"] == 6
+    utils.validate_stored_schema(upgraded)
+
 
 def test_unknown_engine_upgrade() -> None:
     schema_dict: TStoredSchema = load_json_case("schemas/ev1/event.schema")
