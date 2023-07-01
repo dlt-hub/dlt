@@ -512,6 +512,11 @@ def load_table() -> TTableSchema:
                 "nullable": True
             }),
             add_missing_hints({
+                "name": "version",
+                "data_type": "bigint",
+                "nullable": True,
+            }),
+            add_missing_hints({
                 "name": "status",
                 "data_type": "bigint",
                 "nullable": False
