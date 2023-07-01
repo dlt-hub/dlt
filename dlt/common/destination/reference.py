@@ -6,6 +6,7 @@ from typing import ClassVar, Final, Optional, Literal, Sequence, Iterable, Type,
 from dlt.common import logger
 from dlt.common.exceptions import IdentifierTooLongException, InvalidDestinationReference, UnknownDestinationModule
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
+from dlt.common.schema.typing import TTableSchema, TWriteDisposition
 from dlt.common.schema.exceptions import InvalidDatasetName
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration
@@ -173,11 +174,14 @@ class JobClientBase(ABC):
         pass
 
     @abstractmethod
-    def create_merge_job(self, table_chain: Sequence[TTableSchema], truncate_destination_tables: bool) -> NewLoadJob:
-        """Creates a table merge job without executing it. The `table_chain` contains a list of tables, ordered by ancestry, that should be merged.
-        Clients that cannot merge should return None
-        """
-        pass
+    def get_stage_dispositions(self) -> List[TWriteDisposition]:
+        """Returns a list of dispositions that require staging tables to be populated"""
+        return []
+
+    @abstractmethod
+    def create_table_chain_completed_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
+        """Creates a list of followup jobs that should be executed after a table chain is completed"""
+        return []
 
     @abstractmethod
     def complete_load(self, load_id: str) -> None:

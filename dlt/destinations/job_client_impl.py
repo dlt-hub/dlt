@@ -11,7 +11,7 @@ import zlib
 
 from dlt.common import json, pendulum, logger
 from dlt.common.data_types import TDataType
-from dlt.common.schema.typing import COLUMN_HINTS, LOADS_TABLE_NAME, VERSION_TABLE_NAME, TColumnSchemaBase, TTableSchema
+from dlt.common.schema.typing import COLUMN_HINTS, LOADS_TABLE_NAME, VERSION_TABLE_NAME, TColumnSchemaBase, TTableSchema, TWriteDisposition
 from dlt.common.schema.utils import add_missing_hints
 from dlt.common.storages import FileStorage
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns, TSchemaTables
@@ -19,7 +19,7 @@ from dlt.common.destination.reference import DestinationClientConfiguration, Des
 from dlt.common.utils import concat_strings_with_limit
 from dlt.destinations.exceptions import DatabaseUndefinedRelation, DestinationSchemaWillNotUpdate
 from dlt.destinations.job_impl import EmptyLoadJobWithoutFollowup
-from dlt.destinations.sql_merge_job import SqlMergeJob
+from dlt.destinations.sql_merge_job import SqlMergeJob, SqlStagingCopyJob
 
 from dlt.destinations.typing import TNativeConn
 from dlt.destinations.sql_client import SqlClientBase
@@ -143,8 +143,25 @@ class SqlJobClientBase(JobClientBase):
         else:
             yield
 
-    def create_merge_job(self, table_chain: Sequence[TTableSchema], truncate_destination_tables: bool) -> NewLoadJob:
-        return SqlMergeJob.from_table_chain(table_chain, self.sql_client, truncate_destination_tables)
+    def get_stage_dispositions(self) -> List[TWriteDisposition]:
+        """Returns a list of dispositions that require staging tables to be populated"""
+        return ["merge", "replace.stage"]
+
+    def create_table_chain_completed_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
+        jobs = super().create_table_chain_completed_followup_jobs(table_chain)
+        """Creates a list of followup jobs that should be executed after a table chain is completed"""
+        write_disposition = table_chain[0]["write_disposition"]
+        if write_disposition == "merge":
+            jobs.append(self.create_merge_job(table_chain))
+        elif write_disposition == "merge":
+            jobs.append(self.create_staging_copy_job(table_chain))
+        return jobs
+
+    def create_merge_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
+        return SqlMergeJob.from_table_chain(table_chain, self.sql_client)
+
+    def create_staging_copy_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
+        return SqlStagingCopyJob.from_table_chain(table_chain, self.sql_client)
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         """Starts SqlLoadJob for files ending with .sql or returns None to let derived classes to handle their specific jobs"""
