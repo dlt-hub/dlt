@@ -1,5 +1,5 @@
 import os
-from typing import Any, Callable, List, Dict, Sequence, Tuple
+from typing import Any, Callable, List, Dict, Sequence, Tuple, Set
 from multiprocessing.pool import AsyncResult, Pool as ProcessPool
 
 from dlt.common import pendulum, json, logger, sleep
@@ -52,7 +52,6 @@ class Normalize(Runnable[ProcessPool]):
         # normalize saves in preferred format but can read all supported formats
         self.load_storage = LoadStorage(True, self.config.destination_capabilities.preferred_loader_file_format, LoadStorage.ALL_SUPPORTED_FILE_FORMATS, config=self.config._load_storage_config)
 
-
     @staticmethod
     def load_or_create_schema(schema_storage: SchemaStorage, schema_name: str) -> Schema:
         try:
@@ -82,12 +81,16 @@ class Normalize(Runnable[ProcessPool]):
             normalize_storage = NormalizeStorage(False, normalize_storage_config)
 
             try:
+                root_tables: Set[str] = set()
+                populated_root_tables: Set[str] = set()
                 for extracted_items_file in extracted_items_files:
                     line_no: int = 0
                     root_table_name = NormalizeStorage.parse_normalize_file_name(extracted_items_file).table_name
+                    root_tables.add(root_table_name)
                     logger.debug(f"Processing extracted items in {extracted_items_file} in load_id {load_id} with table name {root_table_name} and schema {schema.name}")
                     with normalize_storage.storage.open_file(extracted_items_file) as f:
                         # enumerate jsonl file line by line
+                        items_count = 0
                         for line_no, line in enumerate(f):
                             items: List[TDataItem] = json.loads(line)
                             partial_update, items_count = Normalize._w_normalize_chunk(load_storage, schema, load_id, root_table_name, items)
@@ -96,7 +99,13 @@ class Normalize(Runnable[ProcessPool]):
                             logger.debug(f"Processed {line_no} items from file {extracted_items_file}, items {items_count} of total {total_items}")
                         # if any item found in the file
                         if items_count > 0:
+                            populated_root_tables.add(root_table_name)
                             logger.debug(f"Processed total {line_no + 1} lines from file {extracted_items_file}, total items {total_items}")
+                # write empty jobs for tables without items
+                for table_name in root_tables - populated_root_tables:
+                    logger.debug(f"Writing empty job for table {table_name}")
+                    columns = schema.get_table_columns(table_name, only_complete=True)
+                    load_storage.write_empty_file(load_id, schema.name, table_name, columns)
             except Exception:
                 logger.exception(f"Exception when processing file {extracted_items_file}, line {line_no}")
                 raise

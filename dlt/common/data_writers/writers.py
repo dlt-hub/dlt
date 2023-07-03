@@ -163,8 +163,8 @@ class InsertValuesWriter(DataWriter):
         self._chunks_written += 1
 
     def write_footer(self) -> None:
-        assert self._chunks_written > 0
-        self._f.write(";")
+        if self._chunks_written > 0:
+            self._f.write(";")
 
     @classmethod
     def data_format(cls) -> TFileFormatSpec:

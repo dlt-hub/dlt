@@ -5,7 +5,7 @@ from tests.load.pipeline.utils import  load_table_counts
 from tests.utils import ALL_DESTINATIONS
 
 @pytest.mark.parametrize("destination", ALL_DESTINATIONS)
-def test_replace_strategies(destination: str) -> None:
+def test_replace_disposition(destination: str) -> None:
     # only allow 40 items per file
     os.environ['DATA_WRITER__FILE_MAX_ITEMS'] = "40"
     pipeline = dlt.pipeline(pipeline_name='test_replace_strategies', destination=destination, dataset_name='test_replace_strategies_2', full_refresh=True)
@@ -67,6 +67,8 @@ def test_replace_strategies(destination: str) -> None:
 
     # as it stands, only one job will be present for each table and it is unclear which of the items have made it into the table
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
-    # assert table_counts["items"] == 0
-    # assert table_counts["items__sub_items"] == 0
-    # assert table_counts["items__sub_items__sub_sub_items"] == 0
+
+    # table and child tables should be cleared
+    assert table_counts["items"] == 0
+    assert table_counts["items__sub_items"] == 0
+    assert table_counts["items__sub_items__sub_sub_items"] == 0
