@@ -8,7 +8,7 @@ from tests.utils import ALL_DESTINATIONS
 def test_replace_disposition(destination: str) -> None:
     # only allow 40 items per file
     os.environ['DATA_WRITER__FILE_MAX_ITEMS'] = "40"
-    pipeline = dlt.pipeline(pipeline_name='test_replace_strategies', destination=destination, dataset_name='test_replace_strategies_2', full_refresh=True)
+    pipeline = dlt.pipeline(pipeline_name='test_replace_strategies', destination=destination, dataset_name='test_replace_strategies', full_refresh=True)
 
     global offset
     offset = 1000
@@ -72,3 +72,78 @@ def test_replace_disposition(destination: str) -> None:
     assert table_counts["items"] == 0
     assert table_counts["items__sub_items"] == 0
     assert table_counts["items__sub_items__sub_sub_items"] == 0
+
+
+@pytest.mark.parametrize("destination", ALL_DESTINATIONS)
+def test_replace_table_clearing(destination: str) -> None:
+
+    pipeline = dlt.pipeline(pipeline_name='test_replace_table_clearing', destination=destination, dataset_name='test_replace_table_clearing', full_refresh=True)
+
+
+    @dlt.resource(table_name="items", write_disposition="replace", primary_key="id")
+    def items_with_subitems():
+        yield {
+            "id": 1,
+            "name": "item",
+            "sub_items": [{
+                "id": 101,
+                "name": "sub item 101"
+            },{
+                "id": 101,
+                "name": "sub item 102"
+            }]
+        }
+
+    @dlt.resource(table_name="items", write_disposition="replace", primary_key="id")
+    def items_without_subitems():
+        yield {
+            "id": 1,
+            "name": "item",
+            "sub_items": []
+        }
+
+    @dlt.resource(table_name="items", write_disposition="replace", primary_key="id")
+    def items_with_subitems_yield_none():
+        yield None
+        yield None
+        yield {
+            "id": 1,
+            "name": "item",
+            "sub_items": [{
+                "id": 101,
+                "name": "sub item 101"
+            },{
+                "id": 101,
+                "name": "sub item 102"
+            }]
+        }
+        yield None
+
+    @dlt.resource(table_name="items", write_disposition="replace", primary_key="id")
+    def yield_none():
+        yield None
+
+    # regular call
+    pipeline.run(items_with_subitems)
+    table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
+    assert table_counts["items"] == 1
+    assert table_counts["items__sub_items"] == 2
+
+    # see if child table gets cleared
+    pipeline.run(items_without_subitems)
+    table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
+    assert table_counts["items"] == 1
+    assert table_counts["items__sub_items"] == 0
+
+    # see if yield none clears everything
+    pipeline.run(items_with_subitems)
+    pipeline.run(yield_none)
+    table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
+    assert table_counts["items"] == 0
+    assert table_counts["items__sub_items"] == 0
+
+    # see if yielding something next to other none entries still goes into db
+    pipeline.run(items_with_subitems_yield_none)
+    table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
+    assert table_counts["items"] == 1
+    assert table_counts["items__sub_items"] == 2
