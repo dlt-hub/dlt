@@ -151,11 +151,9 @@ def extract(
                         _write_static_table(resource, table_name)
                         _write_item(table_name, pipe_item.item)
 
-            # find replace pipes that did not yield any pipeitems and create empty jobs for them
+            # find defined resources that did not yield any pipeitems and create empty jobs for them
             for resource in source.resources.selected.values():
-                if resource.write_disposition != "replace":
-                    continue
-                if resource._table_name_hint_fun:
+                if resource.write_disposition != "replace" or resource._table_name_hint_fun:
                     continue
                 table_name = resource.table_name
                 # if table does not exist in schema, there is no need to create empty jobs
