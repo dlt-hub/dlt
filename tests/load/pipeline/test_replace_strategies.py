@@ -8,7 +8,7 @@ from tests.utils import ALL_DESTINATIONS
 def test_replace_strategies(destination: str) -> None:
     # only allow 40 items per file
     os.environ['DATA_WRITER__FILE_MAX_ITEMS'] = "40"
-    pipeline = dlt.pipeline(pipeline_name='test_replace_strategies', destination=destination, dataset_name='test_replace_strategies_2')
+    pipeline = dlt.pipeline(pipeline_name='test_replace_strategies', destination=destination, dataset_name='test_replace_strategies_2', full_refresh=True)
 
     global offset
     offset = 1000
@@ -38,7 +38,7 @@ def test_replace_strategies(destination: str) -> None:
 
 
     # first run with offset 0
-    # info = pipeline.run(load_items)
+    info = pipeline.run(load_items)
     # second run with higher offset so we can check the results
     offset = 1000
     info = pipeline.run(load_items)

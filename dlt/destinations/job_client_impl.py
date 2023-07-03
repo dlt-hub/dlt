@@ -153,7 +153,7 @@ class SqlJobClientBase(JobClientBase):
         write_disposition = table_chain[0]["write_disposition"]
         if write_disposition == "merge":
             jobs.append(self.create_merge_job(table_chain))
-        elif write_disposition == "merge":
+        elif write_disposition == "replace.stage":
             jobs.append(self.create_staging_copy_job(table_chain))
         return jobs
 
