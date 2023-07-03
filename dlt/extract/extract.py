@@ -156,7 +156,11 @@ def extract(
                 resource = source.resources.find_by_pipe(pipe)
                 if resource._table_name_hint_fun:
                     continue
-                if resource.table_name and resource.table_name not in populated_tables:
+                table_name = resource.table_name
+                # if table does not exist in schema, there is no need to create empty jobs
+                if table_name not in schema.tables:
+                    continue
+                if table_name and table_name not in populated_tables:
                     _write_empty_file(resource.table_name)
 
             if left_gens > 0:
