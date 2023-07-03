@@ -428,7 +428,14 @@ def test_load_with_all_types(client: SqlJobClientBase, write_disposition: str, f
     client.schema.update_schema(new_table(table_name, write_disposition=write_disposition, columns=TABLE_UPDATE))
     client.schema.bump_version()
     client.update_storage_schema()
-    canonical_name = client.sql_client.make_qualified_table_name(table_name)
+
+    if write_disposition in client.get_stage_dispositions():
+        # create staging for merge dataset
+        client.initialize_storage(staging=True)
+        client.update_storage_schema(staging=True)
+
+    with client.sql_client.with_staging_dataset(write_disposition in client.get_stage_dispositions()):
+        canonical_name = client.sql_client.make_qualified_table_name(table_name)
     # write row
     with io.BytesIO() as f:
         write_dataset(client, f, [TABLE_ROW], TABLE_UPDATE_COLUMNS_SCHEMA)
@@ -468,7 +475,7 @@ def test_write_dispositions(client: SqlJobClientBase, write_disposition: str, fi
         )
     client.schema.bump_version()
     client.update_storage_schema()
-    if write_disposition == "merge":
+    if write_disposition in client.get_stage_dispositions():
         # add root key
         client.schema.tables[table_name]["columns"]["col1"]["root_key"] = True
         # create staging for merge dataset
@@ -489,8 +496,11 @@ def test_write_dispositions(client: SqlJobClientBase, write_disposition: str, fi
                 # we append 1 row to tables in each iteration
                 assert len(db_rows) == idx + 1
             elif write_disposition == "replace":
-                # we overwrite with the same row. merge fallbacks to replace when no keys specified
-                assert len(db_rows) == 1
+                # we append one row in staging on each iteration
+                assert len(db_rows) == 0
+                with client.sql_client.with_staging_dataset(staging=True):
+                    db_rows = list(client.sql_client.execute_sql(f"SELECT * FROM {client.sql_client.make_qualified_table_name(t)} ORDER BY col1 ASC"))
+                    assert len(db_rows) == idx + 1
             else:
                 # merge on client level, without loader, loads to staging dataset. so this table is empty
                 assert len(db_rows) == 0
