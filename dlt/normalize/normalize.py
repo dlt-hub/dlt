@@ -101,8 +101,10 @@ class Normalize(Runnable[ProcessPool]):
                         if items_count > 0:
                             populated_root_tables.add(root_table_name)
                             logger.debug(f"Processed total {line_no + 1} lines from file {extracted_items_file}, total items {total_items}")
-                # write empty jobs for tables without items
+                # write empty jobs for tables without items if table exists in schema
                 for table_name in root_tables - populated_root_tables:
+                    if table_name not in schema.tables:
+                        continue
                     logger.debug(f"Writing empty job for table {table_name}")
                     columns = schema.get_table_columns(table_name, only_complete=True)
                     load_storage.write_empty_file(load_id, schema.name, table_name, columns)

@@ -129,29 +129,34 @@ def extract(
                 table_name: str = None
                 if isinstance(pipe_item.meta, TableNameMeta):
                     table_name = pipe_item.meta.table_name
+                    populated_tables.add(table_name)
                     _write_static_table(resource, table_name)
                     _write_item(table_name, pipe_item.item)
                 else:
                     # get partial table from table template
                     if resource._table_name_hint_fun:
-                        table_name = resource._table_name_hint_fun(pipe_item.item)
                         if isinstance(pipe_item.item, List):
                             for item in pipe_item.item:
+                                table_name = resource._table_name_hint_fun(item)
+                                populated_tables.add(table_name)
                                 _write_dynamic_table(table_name, resource, item)
                         else:
+                            table_name = resource._table_name_hint_fun(pipe_item.item)
+                            populated_tables.add(table_name)
                             _write_dynamic_table(table_name, resource, pipe_item.item)
                     else:
                         # write item belonging to table with static name
                         table_name = resource.table_name
+                        populated_tables.add(table_name)
                         _write_static_table(resource, table_name)
                         _write_item(table_name, pipe_item.item)
-                if table_name:
-                    populated_tables.add(table_name)
 
             # find pipes that did not yield any pipeitems and create empty jobs for them
             for pipe in source.resources.selected_pipes:
                 resource = source.resources.find_by_pipe(pipe)
-                if resource.table_name not in populated_tables:
+                if resource._table_name_hint_fun:
+                    continue
+                if resource.table_name and resource.table_name not in populated_tables:
                     _write_empty_file(resource.table_name)
 
             if left_gens > 0:
