@@ -56,7 +56,7 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
         file_name = FileStorage.get_file_name_from_file_path(file_path)
         super().__init__(file_name)
 
-        with client.with_staging_dataset(write_disposition in ["merge", "replace.stage"]):
+        with client.with_staging_dataset(write_disposition in ["merge", "replace"]):
             qualified_table_name = client.make_qualified_table_name(table_name)
 
             if stage_name:
@@ -76,8 +76,6 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
             with client.begin_transaction():
                 # PUT and copy files in one transaction
                 client.execute_sql(f'PUT file://{file_path} @{stage_name}/"{load_id}" OVERWRITE = TRUE, AUTO_COMPRESS = FALSE')
-                if write_disposition == "replace":
-                    client.execute_sql(f"TRUNCATE TABLE IF EXISTS {qualified_table_name}")
                 client.execute_sql(
                     f"""COPY INTO {qualified_table_name}
                     FROM {stage_file_path}

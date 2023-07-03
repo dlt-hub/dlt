@@ -231,7 +231,7 @@ class BigQueryClient(SqlJobClientBase):
 
     def _create_load_job(self, table_name: str, write_disposition: TWriteDisposition, file_path: str) -> bigquery.LoadJob:
         # append to table for merge loads (append to stage) and regular appends
-        bq_wd = bigquery.WriteDisposition.WRITE_TRUNCATE if write_disposition == "replace" else bigquery.WriteDisposition.WRITE_APPEND
+        bq_wd = bigquery.WriteDisposition.WRITE_APPEND
 
         # determine wether we load from local or uri
         bucket_path = None
@@ -245,8 +245,8 @@ class BigQueryClient(SqlJobClientBase):
         if ext == "parquet":
             source_format = bigquery.SourceFormat.PARQUET
 
-        # if merge then load to staging
-        with self.sql_client.with_staging_dataset(write_disposition in ["merge", "replace.stage"]):
+        # if merge or replace then load to staging
+        with self.sql_client.with_staging_dataset(write_disposition in ["merge", "replace"]):
             job_id = BigQueryLoadJob.get_job_id_from_file_path(file_path)
             job_config = bigquery.LoadJobConfig(
                 autodetect=False,

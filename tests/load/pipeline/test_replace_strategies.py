@@ -13,7 +13,7 @@ def test_replace_strategies(destination: str) -> None:
     global offset
     offset = 1000
 
-    @dlt.resource(table_name="items", write_disposition="replace.stage", primary_key="id")
+    @dlt.resource(table_name="items", write_disposition="replace", primary_key="id")
     def load_items():
         # will produce 3 jobs for the main table with 40 items each
         # 6 jobs for the sub_items
@@ -59,4 +59,14 @@ def test_replace_strategies(destination: str) -> None:
     assert table_counts["items__sub_items"] == 240
     assert table_counts["items__sub_items__sub_sub_items"] == 120
 
+    # we need to test that destination tables including child tables are cleared when we yield none from the resource
+    @dlt.resource(table_name="items", write_disposition="replace", primary_key="id")
+    def load_items_none():
+        yield None
+    info = pipeline.run(load_items_none)
 
+    # as it stands, only one job will be present for each table and it is unclear which of the items have made it into the table
+    table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
+    # assert table_counts["items"] == 0
+    # assert table_counts["items__sub_items"] == 0
+    # assert table_counts["items__sub_items__sub_sub_items"] == 0

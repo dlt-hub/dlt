@@ -12,7 +12,7 @@ LOADS_TABLE_NAME = "_dlt_loads"
 
 TColumnHint = Literal["not_null", "partition", "cluster", "primary_key", "foreign_key", "sort", "unique", "root_key", "merge_key"]
 TColumnProp = Literal["name", "data_type", "nullable", "partition", "cluster", "primary_key", "foreign_key", "sort", "unique", "merge_key", "root_key"]
-TWriteDisposition = Literal["skip", "append", "replace", "merge", "replace.stage"]
+TWriteDisposition = Literal["skip", "append", "replace", "merge"]
 TTypeDetections = Literal["timestamp", "iso_timestamp", "large_integer", "hexbytes_to_text", "wei_to_double"]
 TTypeDetectionFunc = Callable[[Type[Any], Any], Optional[TDataType]]
 TColumnKey = Union[str, Sequence[str]]

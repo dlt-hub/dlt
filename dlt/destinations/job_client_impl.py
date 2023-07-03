@@ -145,7 +145,7 @@ class SqlJobClientBase(JobClientBase):
 
     def get_stage_dispositions(self) -> List[TWriteDisposition]:
         """Returns a list of dispositions that require staging tables to be populated"""
-        return ["merge", "replace.stage"]
+        return ["merge", "replace"]
 
     def create_table_chain_completed_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
         jobs = super().create_table_chain_completed_followup_jobs(table_chain)
@@ -153,7 +153,7 @@ class SqlJobClientBase(JobClientBase):
         write_disposition = table_chain[0]["write_disposition"]
         if write_disposition == "merge":
             jobs.append(self.create_merge_job(table_chain))
-        elif write_disposition == "replace.stage":
+        elif write_disposition == "replace":
             jobs.append(self.create_staging_copy_job(table_chain))
         return jobs
 
