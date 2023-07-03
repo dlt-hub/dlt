@@ -1,6 +1,6 @@
 from functools import reduce
 import datetime  # noqa: 251
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Set
 from multiprocessing.pool import ThreadPool
 
 from dlt.common import sleep, logger
@@ -165,10 +165,6 @@ class Load(Runnable[ThreadPool]):
         # make sure all the jobs for the table chain is completed
         for table in get_child_tables(schema.tables, top_merged_table["name"]):
             table_jobs = self.load_storage.list_jobs_for_table(load_id, table["name"])
-            # if no jobs for table then skip the table in the chain. we assume that if parent has no jobs, the child would also have no jobs
-            # so it will be eliminated by this loop as well
-            if not table_jobs:
-                continue
             # all jobs must be completed in order for merge to be created
             if any(job.state not in ("failed_jobs", "completed_jobs") and job.job_file_info.job_id() != starting_job.job_file_info().job_id() for job in table_jobs):
                 return None
@@ -268,8 +264,13 @@ class Load(Runnable[ThreadPool]):
                     logger.info(f"Client for {job_client.config.destination_name} will start initialize STAGING storage")
                     job_client.initialize_storage(staging=True)
                     logger.info(f"Client for {job_client.config.destination_name} will UPDATE STAGING SCHEMA to package schema")
-                    staging_tables = [job.table_name for job in staging_jobs]
-                    job_client.update_storage_schema(staging=True, only_tables=set(staging_tables+dlt_tables), expected_update=expected_update)
+                    # find all tables in schema that need staging tables to be cleared, this includes tables of the current jobs
+                    # plus their children
+                    staging_tables: Set[str] = set()
+                    for job in staging_jobs:
+                        table_tree = get_child_tables(schema.tables, job.table_name)
+                        staging_tables = staging_tables.union({table["name"] for table in table_tree})
+                    job_client.update_storage_schema(staging=True, only_tables=staging_tables.union(set(dlt_tables)), expected_update=expected_update)
                     logger.info(f"Client for {job_client.config.destination_name} will TRUNCATE STAGING TABLES: {staging_tables}")
                     job_client.initialize_storage(staging=True, truncate_tables=staging_tables)
                 self.load_storage.commit_schema_update(load_id, applied_update)
