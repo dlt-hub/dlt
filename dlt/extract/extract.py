@@ -152,14 +152,17 @@ def extract(
                         _write_item(table_name, pipe_item.item)
 
             # find pipes that did not yield any pipeitems and create empty jobs for them
-            for pipe in source.resources.selected_pipes:
-                resource = source.resources.find_by_pipe(pipe)
+            for resource in source.resources.selected.values():
                 if resource._table_name_hint_fun:
+                    continue
+
+                if resource.write_disposition != "replace":
                     continue
                 table_name = resource.table_name
                 # if table does not exist in schema, there is no need to create empty jobs
                 if table_name not in schema.tables:
                     continue
+
                 if table_name and table_name not in populated_tables:
                     _write_empty_file(resource.table_name)
 
