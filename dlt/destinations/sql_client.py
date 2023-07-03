@@ -146,6 +146,16 @@ SELECT 1
     def make_staging_dataset_name(dataset_name: str) -> str:
         return dataset_name + "_staging"
 
+    #
+    # generate sql statements
+    #
+    def truncate_table_sql(self, table_name: str) -> str:
+        if self.capabilities.supports_truncate_command:
+            return f"TRUNCATE TABLE {table_name};"
+        else:
+            return f"DELETE FROM {table_name};"
+
+
 
 
 class DBApiCursorImpl(DBApiCursor):
