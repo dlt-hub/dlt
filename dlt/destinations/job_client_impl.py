@@ -19,7 +19,7 @@ from dlt.common.destination.reference import DestinationClientConfiguration, Des
 from dlt.common.utils import concat_strings_with_limit
 from dlt.destinations.exceptions import DatabaseUndefinedRelation, DestinationSchemaWillNotUpdate
 from dlt.destinations.job_impl import EmptyLoadJobWithoutFollowup
-from dlt.destinations.sql_merge_job import SqlMergeJob, SqlStagingCopyJob
+from dlt.destinations.sql_jobs import SqlMergeJob, SqlStagingCopyJob
 
 from dlt.destinations.typing import TNativeConn
 from dlt.destinations.sql_client import SqlClientBase

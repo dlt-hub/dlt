@@ -26,7 +26,7 @@ from dlt.common.configuration.specs import AwsCredentials
 
 
 from dlt.destinations.insert_job_client import InsertValuesJobClient
-from dlt.destinations.sql_merge_job import SqlMergeJob
+from dlt.destinations.sql_jobs import SqlMergeJob
 from dlt.destinations.exceptions import DatabaseTerminalException
 from dlt.destinations.job_client_impl import CopyFileLoadJob, LoadJob
 

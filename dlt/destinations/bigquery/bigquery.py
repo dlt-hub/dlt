@@ -23,7 +23,7 @@ from dlt.destinations.job_client_impl import CopyFileLoadJob
 from dlt.destinations.bigquery import capabilities
 from dlt.destinations.bigquery.configuration import BigQueryClientConfiguration
 from dlt.destinations.bigquery.sql_client import BigQuerySqlClient, BQ_TERMINAL_REASONS
-from dlt.destinations.sql_merge_job import SqlMergeJob
+from dlt.destinations.sql_jobs import SqlMergeJob
 
 
 SCT_TO_BQT: Dict[TDataType, str] = {

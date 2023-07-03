@@ -11,21 +11,44 @@ from dlt.destinations.exceptions import MergeDispositionException
 from dlt.destinations.job_impl import NewLoadJobImpl
 from dlt.destinations.sql_client import SqlClientBase
 
-# TODO, create a common base class and clean up code
-class SqlStagingCopyJob(NewLoadJobImpl):
-    """Generates a list of sql statements that copy the data from staging dataset into destination dataset."""
+
+class SqlBaseJob(NewLoadJobImpl):
+    """Sql base job for jobs that rely on the whole tablechain"""
+    failed_text: str = ""
 
     @classmethod
     def from_table_chain(cls, table_chain: Sequence[TTableSchema], sql_client: SqlClientBase[Any]) -> NewLoadJobImpl:
-        """Generates a list of sql statements that merge the data in staging dataset with the data in destination dataset.
+        """Generates a list of sql statements, that will be executed by the sql client when the job is executed in the loader.
 
         The `table_chain` contains a list schemas of a tables with parent-child relationship, ordered by the ancestry (the root of the tree is first on the list).
-        The root table is merged using primary_key and merge_key hints which can be compound and be both specified. In that case the OR clause is generated.
-        The child tables are merged based on propagated `root_key` which is a type of foreign key but always leading to a root table.
-
-        First we store the root_keys of root table elements to be deleted in the temp table. Then we use the temp table to delete records from root and all child tables in the destination dataset.
-        At the end we copy the data from the staging dataset into destination dataset.
         """
+
+        top_table = table_chain[0]
+        file_info = ParsedLoadJobFileName(top_table["name"], uniq_id()[:10], 0, "sql")
+        try:
+            # Remove line breaks from multiline statements and write one SQL statement per line in output file
+            # to support clients that need to execute one statement at a time (i.e. snowflake)
+            sql = [' '.join(stmt.splitlines()) for stmt in cls.generate_sql(table_chain, sql_client)]
+            job = cls(file_info.job_id(), "running")
+            job._save_text_file("\n".join(sql))
+        except Exception:
+            # return failed job
+            tables_str = yaml.dump(table_chain, allow_unicode=True, default_flow_style=False, sort_keys=False)
+            job = cls(file_info.job_id(), "failed", pretty_format_exception())
+            job._save_text_file("\n".join([cls.failed_text, tables_str]))
+        return job
+
+    @classmethod
+    def generate_sql(cls, table_chain: Sequence[TTableSchema], sql_client: SqlClientBase[Any]) -> List[str]:
+        pass
+
+
+class SqlStagingCopyJob(SqlBaseJob):
+    """Generates a list of sql statements that copy the data from staging dataset into destination dataset."""
+    failed_text: str = "Tried to generate a staging copy sql job for the following tables:"
+
+    @classmethod
+    def generate_sql(cls, table_chain: Sequence[TTableSchema], sql_client: SqlClientBase[Any]) -> List[str]:
         sql: List[str] = []
         for table in table_chain:
             with sql_client.with_staging_dataset(staging=True):
@@ -34,27 +57,15 @@ class SqlStagingCopyJob(NewLoadJobImpl):
             columns = ", ".join(map(sql_client.capabilities.escape_identifier, table["columns"].keys()))
             sql.append(f"DELETE FROM {table_name} WHERE 1=1;")
             sql.append(f"INSERT INTO {table_name}({columns}) SELECT {columns} FROM {staging_table_name};")
+        return sql
 
-        top_table = table_chain[0]
-        file_info = ParsedLoadJobFileName(top_table["name"], uniq_id()[:10], 0, "sql")
-        try:
-            # Remove line breaks from multiline statements and write one SQL statement per line in output file
-            # to support clients that need to execute one statement at a time (i.e. snowflake)
-            sql = [' '.join(stmt.splitlines()) for stmt in sql]
-            job = cls(file_info.job_id(), "running")
-            job._save_text_file("\n".join(sql))
-        except Exception:
-            # return failed job
-            failed_text = "Tried to generate a staging copy sql job for the following tables:"
-            tables_str = yaml.dump(table_chain, allow_unicode=True, default_flow_style=False, sort_keys=False)
-            job = cls(file_info.job_id(), "failed", pretty_format_exception())
-            job._save_text_file("\n".join([failed_text, tables_str]))
-        return job
 
-class SqlMergeJob(NewLoadJobImpl):
+class SqlMergeJob(SqlBaseJob):
+    """Generates a list of sql statements that merge the data from staging dataset into destination dataset."""
+    failed_text: str = "Tried to generate a merge sql job for the following tables:"
 
     @classmethod
-    def from_table_chain(cls, table_chain: Sequence[TTableSchema], sql_client: SqlClientBase[Any]) -> NewLoadJobImpl:
+    def generate_sql(cls, table_chain: Sequence[TTableSchema], sql_client: SqlClientBase[Any]) -> List[str]:
         """Generates a list of sql statements that merge the data in staging dataset with the data in destination dataset.
 
         The `table_chain` contains a list schemas of a tables with parent-child relationship, ordered by the ancestry (the root of the tree is first on the list).
@@ -64,21 +75,7 @@ class SqlMergeJob(NewLoadJobImpl):
         First we store the root_keys of root table elements to be deleted in the temp table. Then we use the temp table to delete records from root and all child tables in the destination dataset.
         At the end we copy the data from the staging dataset into destination dataset.
         """
-        top_table = table_chain[0]
-        file_info = ParsedLoadJobFileName(top_table["name"], uniq_id()[:10], 0, "sql")
-        try:
-            # Remove line breaks from multiline statements and write one SQL statement per line in output file
-            # to support clients that need to execute one statement at a time (i.e. snowflake)
-            sql = [' '.join(stmt.splitlines()) for stmt in cls.gen_merge_sql(table_chain, sql_client)]
-            job = cls(file_info.job_id(), "running")
-            job._save_text_file("\n".join(sql))
-        except Exception:
-            # return failed job
-            failed_text = "Tried to generate a merge sql job for the following tables:"
-            tables_str = yaml.dump(table_chain, allow_unicode=True, default_flow_style=False, sort_keys=False)
-            job = cls(file_info.job_id(), "failed", pretty_format_exception())
-            job._save_text_file("\n".join([failed_text, tables_str]))
-        return job
+        return cls.gen_merge_sql(table_chain, sql_client)
 
     @classmethod
     def _gen_key_table_clauses(cls, primary_keys: Sequence[str], merge_keys: Sequence[str])-> List[str]:

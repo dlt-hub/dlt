@@ -19,7 +19,7 @@ from dlt.destinations.exceptions import DestinationSchemaWillNotUpdate, Destinat
 from dlt.destinations.snowflake import capabilities
 from dlt.destinations.snowflake.configuration import SnowflakeClientConfiguration
 from dlt.destinations.snowflake.sql_client import SnowflakeSqlClient
-from dlt.destinations.sql_merge_job import SqlMergeJob
+from dlt.destinations.sql_jobs import SqlMergeJob
 from dlt.destinations.snowflake.sql_client import SnowflakeSqlClient
 
 BIGINT_PRECISION = 19
