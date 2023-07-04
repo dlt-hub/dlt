@@ -181,6 +181,10 @@ class BigQueryClient(SqlJobClientBase):
                     raise DestinationTransientException(gace)
         return job
 
+    def get_existing_tables(self) -> List[str]:
+        tables = self.sql_client.native_connection.list_tables(self.sql_client.dataset_name)
+        return [t.table_id for t in tables]
+
     def _get_table_update_sql(self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool, separate_alters: bool = False) -> List[str]:
         sql = super()._get_table_update_sql(table_name, new_columns, generate_alter)
         canonical_name = self.sql_client.make_qualified_table_name(table_name)
