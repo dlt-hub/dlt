@@ -50,6 +50,7 @@ class Load(Runnable[ThreadPool]):
         self.pool: ThreadPool = None
         self.load_storage: LoadStorage = self.create_storage(is_storage_owner)
         self._processed_load_ids: Dict[str, int] = {}
+        self._existing_tables: Set[str] = set()
 
 
     def create_storage(self, is_storage_owner: bool) -> LoadStorage:
@@ -160,13 +161,10 @@ class Load(Runnable[ThreadPool]):
         return jobs_info
 
     def get_table_chain_with_existing_children(self, schema: Schema, table: str) -> List[TTableSchema]:
-        with self.destination.client(schema, self.initial_client_config) as job_client:
-            existing_tables = job_client.get_existing_tables()
-        print(existing_tables)
         top_table = get_top_level_table(schema.tables, table)
         child_tables = get_child_tables(schema.tables, top_table["name"])
         # filter out for existing ables, always include original table
-        result = [t for t in child_tables if (t["name"] in existing_tables or t["name"] == table)]
+        result = [t for t in child_tables if (t["name"] in self._existing_tables or t["name"] == table)]
         return result
 
     def is_table_chain_completed(self, load_id: str, schema: Schema, top_table: TTableSchema, starting_job: LoadJob) -> List[TTableSchema]:
@@ -270,6 +268,8 @@ class Load(Runnable[ThreadPool]):
                 applied_update = job_client.update_storage_schema(only_tables=set(all_tables+dlt_tables), expected_update=expected_update)
                 # update the staging dataset
                 staging_jobs = self.get_new_jobs_info(load_id, schema, job_client.get_stage_dispositions())
+                # cache the existing tables
+                self._existing_tables = set(job_client.get_existing_tables())
                 if staging_jobs:
                     logger.info(f"Client for {job_client.config.destination_name} will start initialize STAGING storage")
                     job_client.initialize_storage(staging=True)
