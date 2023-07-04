@@ -184,6 +184,11 @@ class JobClientBase(ABC):
         return []
 
     @abstractmethod
+    def get_existing_tables(self) -> List[str]:
+        """Return a list of existing tables"""
+        return []
+
+    @abstractmethod
     def complete_load(self, load_id: str) -> None:
         pass
 

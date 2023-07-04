@@ -117,6 +117,8 @@ class DummyClient(JobClientBase):
         """Creates a list of followup jobs that should be executed after a table chain is completed"""
         return []
 
+    def get_existing_tables(self) -> List[str]:
+        return []
 
     def complete_load(self, load_id: str) -> None:
         pass

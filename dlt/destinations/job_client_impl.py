@@ -157,6 +157,12 @@ class SqlJobClientBase(JobClientBase):
             jobs.append(self.create_staging_copy_job(table_chain))
         return jobs
 
+    def get_existing_tables(self) -> List[str]:
+        rows = self.sql_client.execute_sql(
+            "select table_name, table_schema from information_schema.tables WHERE table_schema = %s;", self.sql_client.dataset_name
+        )
+        return [row[0] for row in rows]
+
     def create_merge_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
         return SqlMergeJob.from_table_chain(table_chain, self.sql_client)
 

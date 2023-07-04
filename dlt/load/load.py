@@ -159,16 +159,22 @@ class Load(Runnable[ThreadPool]):
                 jobs_info.append(LoadStorage.parse_job_file_name(job_file))
         return jobs_info
 
+    def get_table_chain_with_existing_children(self, schema: Schema, table: str) -> List[TTableSchema]:
+        with self.destination.client(schema, self.initial_client_config) as job_client:
+            existing_tables = job_client.get_existing_tables()
+        print(existing_tables)
+        top_table = get_top_level_table(schema.tables, table)
+        child_tables = get_child_tables(schema.tables, top_table["name"])
+        # filter out for existing ables, always include original table
+        result = [t for t in child_tables if (t["name"] in existing_tables or t["name"] == table)]
+        return result
+
     def is_table_chain_completed(self, load_id: str, schema: Schema, top_table: TTableSchema, starting_job: LoadJob) -> List[TTableSchema]:
         # returns ordered list of tables from parent to child leaf tables
         table_chain: List[TTableSchema] = []
         # make sure all the jobs for the table chain is completed
-        for table in get_child_tables(schema.tables, top_table["name"]):
+        for table in self.get_table_chain_with_existing_children(schema, top_table["name"]):
             table_jobs = self.load_storage.list_jobs_for_table(load_id, table["name"])
-            # if no jobs for table then skip the table in the chain. we assume that if parent has no jobs, the child would also have no jobs
-            # so it will be eliminated by this loop as well for merge jobs, not for replace jobs
-            if not table_jobs and top_table["write_disposition"] == "merge":
-                continue
             # all jobs must be completed in order for merge to be created
             if any(job.state not in ("failed_jobs", "completed_jobs") and job.job_file_info.job_id() != starting_job.job_file_info().job_id() for job in table_jobs):
                 return None
@@ -272,12 +278,8 @@ class Load(Runnable[ThreadPool]):
                     # plus their children in case of replace, or just tables of the current jobs in case of merge
                     staging_tables: Set[str] = set()
                     for job in staging_jobs:
-                        top_table = get_top_level_table(schema.tables, job.table_name)
-                        if top_table["write_disposition"] == "replace":
-                            table_tree = get_child_tables(schema.tables, job.table_name)
-                            staging_tables = staging_tables.union({table["name"] for table in table_tree})
-                        else:
-                            staging_tables.add(job.table_name)
+                        table_chain = self.get_table_chain_with_existing_children(schema, job.table_name)
+                        staging_tables = staging_tables.union({table["name"] for table in table_chain})
                     job_client.update_storage_schema(staging=True, only_tables=staging_tables.union(set(dlt_tables)), expected_update=expected_update)
                     logger.info(f"Client for {job_client.config.destination_name} will TRUNCATE STAGING TABLES: {staging_tables}")
                     job_client.initialize_storage(staging=True, truncate_tables=staging_tables)
