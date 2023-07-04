@@ -159,12 +159,16 @@ class Load(Runnable[ThreadPool]):
                 jobs_info.append(LoadStorage.parse_job_file_name(job_file))
         return jobs_info
 
-    def is_table_chain_completed(self, load_id: str, schema: Schema, top_merged_table: TTableSchema, starting_job: LoadJob) -> List[TTableSchema]:
+    def is_table_chain_completed(self, load_id: str, schema: Schema, top_table: TTableSchema, starting_job: LoadJob) -> List[TTableSchema]:
         # returns ordered list of tables from parent to child leaf tables
         table_chain: List[TTableSchema] = []
         # make sure all the jobs for the table chain is completed
-        for table in get_child_tables(schema.tables, top_merged_table["name"]):
+        for table in get_child_tables(schema.tables, top_table["name"]):
             table_jobs = self.load_storage.list_jobs_for_table(load_id, table["name"])
+            # if no jobs for table then skip the table in the chain. we assume that if parent has no jobs, the child would also have no jobs
+            # so it will be eliminated by this loop as well for merge jobs, not for replace jobs
+            if not table_jobs and top_table["write_disposition"] == "merge":
+                continue
             # all jobs must be completed in order for merge to be created
             if any(job.state not in ("failed_jobs", "completed_jobs") and job.job_file_info.job_id() != starting_job.job_file_info().job_id() for job in table_jobs):
                 return None
@@ -179,10 +183,10 @@ class Load(Runnable[ThreadPool]):
         if isinstance(starting_job, FollowupJob):
             if state == "completed":
                 # merge jobs
-                top_merged_table = get_top_level_table(schema.tables, self.get_load_table(schema, starting_job.file_name())["name"])
+                top_table = get_top_level_table(schema.tables, self.get_load_table(schema, starting_job.file_name())["name"])
                 client = self.destination.client(schema, self.initial_client_config)
-                if top_merged_table["write_disposition"] in client.get_stage_dispositions():
-                    table_chain = self.is_table_chain_completed(load_id, schema, top_merged_table, starting_job)
+                if top_table["write_disposition"] in client.get_stage_dispositions():
+                    table_chain = self.is_table_chain_completed(load_id, schema, top_table, starting_job)
                     if table_chain:
                         jobs = jobs + client.create_table_chain_completed_followup_jobs(table_chain)
             jobs = jobs + starting_job.create_followup_jobs(state, load_id)
@@ -265,11 +269,15 @@ class Load(Runnable[ThreadPool]):
                     job_client.initialize_storage(staging=True)
                     logger.info(f"Client for {job_client.config.destination_name} will UPDATE STAGING SCHEMA to package schema")
                     # find all tables in schema that need staging tables to be cleared, this includes tables of the current jobs
-                    # plus their children
+                    # plus their children in case of replace, or just tables of the current jobs in case of merge
                     staging_tables: Set[str] = set()
                     for job in staging_jobs:
-                        table_tree = get_child_tables(schema.tables, job.table_name)
-                        staging_tables = staging_tables.union({table["name"] for table in table_tree})
+                        top_table = get_top_level_table(schema.tables, job.table_name)
+                        if top_table["write_disposition"] == "replace":
+                            table_tree = get_child_tables(schema.tables, job.table_name)
+                            staging_tables = staging_tables.union({table["name"] for table in table_tree})
+                        else:
+                            staging_tables.add(job.table_name)
                     job_client.update_storage_schema(staging=True, only_tables=staging_tables.union(set(dlt_tables)), expected_update=expected_update)
                     logger.info(f"Client for {job_client.config.destination_name} will TRUNCATE STAGING TABLES: {staging_tables}")
                     job_client.initialize_storage(staging=True, truncate_tables=staging_tables)
