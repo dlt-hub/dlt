@@ -100,6 +100,7 @@ def test_dbt_run_full_refresh(destination_info: DBTDestinationInfo) -> None:
     runner.test(destination_dataset_name=DESTINATION_DATASET_NAME, additional_vars={"user_id": "metadata__user_id"})
 
 
+
 def test_dbt_run_error_via_additional_vars(destination_info: DBTDestinationInfo) -> None:
     # generate with setting external user and session to non existing fields (metadata__sess_id not exists in JM schema)
     runner = setup_rasa_runner(destination_info.destination_name)
