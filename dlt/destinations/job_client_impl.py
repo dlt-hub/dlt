@@ -159,7 +159,7 @@ class SqlJobClientBase(JobClientBase):
 
     def get_existing_tables(self) -> List[str]:
         rows = self.sql_client.execute_sql(
-            "select table_name, table_schema from information_schema.tables WHERE table_schema = %s;", self.sql_client.dataset_name
+            "select table_name, table_schema from information_schema.tables WHERE table_schema = %s;", self.sql_client.fully_qualified_dataset_name(escape=False)
         )
         return [row[0] for row in rows]
 
