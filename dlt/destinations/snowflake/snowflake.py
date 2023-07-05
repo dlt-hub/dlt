@@ -1,9 +1,13 @@
 from pathlib import Path
+import os
 from typing import ClassVar, Dict, Optional, Sequence, Tuple, List, cast, Iterable
 
 from dlt.common import json, logger
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 from dlt.common.configuration.specs import GcpServiceAccountCredentialsWithoutDefaults
+from dlt.common.configuration import with_config, known_sections
+from dlt.common.configuration.specs import AwsCredentials
+from dlt.common.configuration.accessors import config
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import FollowupJob, NewLoadJob, TLoadJobState, LoadJob
 from dlt.common.data_types import TDataType
@@ -12,7 +16,8 @@ from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns, TSchem
 from dlt.common.schema.typing import TTableSchema, TWriteDisposition
 from dlt.common.wei import EVM_DECIMAL_PRECISION
 
-from dlt.destinations.job_client_impl import SqlJobClientBase
+
+from dlt.destinations.job_client_impl import SqlJobClientBase, CopyFileLoadJob
 from dlt.destinations.job_impl import EmptyLoadJob
 from dlt.destinations.exceptions import DestinationSchemaWillNotUpdate, DestinationTransientException, LoadJobNotExistsException, LoadJobTerminalException, LoadJobUnknownTableException
 
@@ -48,6 +53,11 @@ BQT_TO_SCT: Dict[str, TDataType] = {
     "VARIANT": "complex"
 }
 
+@with_config(spec=AwsCredentials, sections=(known_sections.DESTINATION, "filesystem", "credentials"))
+def _s3_config(config: AwsCredentials = config.value) -> AwsCredentials:
+    return config
+
+
 class SnowflakeLoadJob(LoadJob, FollowupJob):
     def __init__(
             self, file_path: str, table_name: str, write_disposition: TWriteDisposition, load_id: str, client: SnowflakeSqlClient,
@@ -68,17 +78,27 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
                 # Use implicit table stage by default: "SCHEMA_NAME"."%TABLE_NAME"
                 stage_name = client.make_qualified_table_name('%'+table_name)
 
+            # handle reference jobs
+            credentials = ""
+            if CopyFileLoadJob.is_reference_job(file_path):
+                stage_file_path = CopyFileLoadJob.get_bucket_path(file_path)
+                s3_config = _s3_config()
+                credentials = f"""credentials=(AWS_KEY_ID='{s3_config.aws_access_key_id}' AWS_SECRET_KEY='{s3_config.aws_secret_access_key}')"""
+            else:
+                stage_file_path = f'@{stage_name}/"{load_id}"/{file_name}'
+
+            # decide on source format
             source_format = "( TYPE = 'JSON', BINARY_FORMAT = 'BASE64' )"
-            if file_path.endswith("parquet"):
+            if stage_file_path.endswith("parquet"):
                 source_format = "(TYPE = 'PARQUET')"
 
-            stage_file_path = f'@{stage_name}/"{load_id}"/{file_name}'
             with client.begin_transaction():
-                # PUT and copy files in one transaction
-                client.execute_sql(f'PUT file://{file_path} @{stage_name}/"{load_id}" OVERWRITE = TRUE, AUTO_COMPRESS = FALSE')
+                # PUT and COPY in one tx if local file, otherwise only copy
+                if not CopyFileLoadJob.is_reference_job(file_path):
+                    client.execute_sql(f'PUT file://{file_path} @{stage_name}/"{load_id}" OVERWRITE = TRUE, AUTO_COMPRESS = FALSE')
                 client.execute_sql(
                     f"""COPY INTO {qualified_table_name}
-                    FROM {stage_file_path}
+                    FROM {stage_file_path} {credentials}
                     FILE_FORMAT = {source_format}
                     MATCH_BY_COLUMN_NAME='CASE_INSENSITIVE'
                     """

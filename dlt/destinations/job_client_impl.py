@@ -67,8 +67,6 @@ class CopyFileLoadJob(LoadJob, FollowupJob):
 
         self.execute(table, self.get_bucket_path(file_path))
 
-
-
     def execute(self, table: TTableSchema, bucket_path: str) -> None:
         # implement in child implementations
         raise NotImplementedError()

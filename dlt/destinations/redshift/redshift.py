@@ -20,8 +20,6 @@ from dlt.common.schema.typing import TTableSchema
 
 from dlt.common.configuration.accessors import config
 from dlt.common.configuration import with_config, known_sections
-from dlt.common.configuration.specs import BaseConfiguration
-from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import AwsCredentials
 
 

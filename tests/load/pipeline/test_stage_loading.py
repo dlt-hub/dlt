@@ -16,7 +16,8 @@ staging_combinations = [
     ("redshift","parquet","s3://dlt-ci-test-bucket"),
     ("redshift","jsonl","s3://dlt-ci-test-bucket"),
     ("bigquery","parquet","gs://ci-test-bucket"),
-    ("bigquery","jsonl","gs://ci-test-bucket")
+    ("bigquery","jsonl","gs://ci-test-bucket"),
+    ("snowflake","jsonl","s3://dlt-ci-test-bucket"),
     ]
 
 @dlt.resource(table_name="issues", write_disposition="merge", primary_key="id", merge_key=("node_id", "url"))
