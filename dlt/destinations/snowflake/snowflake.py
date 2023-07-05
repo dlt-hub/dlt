@@ -117,6 +117,13 @@ class SnowflakeClient(SqlJobClientBase):
             )
         return job
 
+    def get_existing_tables(self) -> List[str]:
+        rows = self.sql_client.execute_sql(
+            f"SHOW TERSE TABLES IN SCHEMA {self.sql_client.fully_qualified_dataset_name()};"
+        )
+        # table names are returned in second position and as uppercase strings, so:
+        return [row[1].lower() for row in rows]
+
     def restore_file_load(self, file_path: str) -> LoadJob:
         return EmptyLoadJob.from_file_path(file_path, "completed")
 
