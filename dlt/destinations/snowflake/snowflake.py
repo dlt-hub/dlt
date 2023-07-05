@@ -88,7 +88,7 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
                 from_clause = f"FROM @{stage_name}"
                 # select all files that match the file from our job
                 pattern_clause = f"PATTERN = '.*{file_name}'"
-            # s3 case
+            # s3 credentials case
             elif bucket_path:
                 if bucket_path.startswith("s3://"):
                     s3_config = _s3_config()

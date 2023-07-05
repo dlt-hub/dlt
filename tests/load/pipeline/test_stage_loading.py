@@ -16,11 +16,11 @@ from tests.common.utils import all_data_types
 
 staging_combinations_fields = "destination,file_format,bucket,storage_integration"
 staging_combinations = [
-    # ("redshift","parquet","s3://dlt-ci-test-bucket", ""),
-    # ("redshift","jsonl","s3://dlt-ci-test-bucket", ""),
-    # ("bigquery","parquet","gcs://ci-test-bucket", ""),
-    # ("bigquery","jsonl","gs://ci-test-bucket", ""),
-    # ("snowflake","jsonl","s3://dlt-ci-test-bucket", ""),
+    ("redshift","parquet","s3://dlt-ci-test-bucket", ""),
+    ("redshift","jsonl","s3://dlt-ci-test-bucket", ""),
+    ("bigquery","parquet","gcs://ci-test-bucket", ""),
+    ("bigquery","jsonl","gs://ci-test-bucket", ""),
+    ("snowflake","jsonl","s3://dlt-ci-test-bucket", ""), # "dlt_s3"),
     ("snowflake","jsonl","gcs://ci-test-bucket", "dlt_gcs")
     ]
 
