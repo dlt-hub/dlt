@@ -490,9 +490,9 @@ def test_replace_resets_state() -> None:
     info = p.run(s)
     # state was reset
     assert 'child' not in s.state['resources']
-    # there's a load package but it contains 1 job to reset state
-    assert len(info.load_packages[0].jobs['completed_jobs']) == 1
-    assert info.load_packages[0].jobs['completed_jobs'][0].job_file_info.table_name == "_dlt_pipeline_state"
+    # there will be a load package to reset the state but also a load package to update the child table
+    assert len(info.load_packages[0].jobs['completed_jobs']) == 2
+    assert {job.job_file_info.table_name for job in info.load_packages[0].jobs['completed_jobs'] } == {"_dlt_pipeline_state", "child"}
 
 
 def test_incremental_as_transform() -> None:

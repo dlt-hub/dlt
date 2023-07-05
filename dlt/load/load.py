@@ -1,6 +1,6 @@
 from functools import reduce
 import datetime  # noqa: 251
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Set
 from multiprocessing.pool import ThreadPool
 import os
 
@@ -51,6 +51,7 @@ class Load(Runnable[ThreadPool]):
         self.pool: ThreadPool = None
         self.load_storage: LoadStorage = self.create_storage(is_storage_owner)
         self._processed_load_ids: Dict[str, int] = {}
+        self._existing_tables: Set[str] = set()
 
 
     def create_storage(self, is_storage_owner: bool) -> LoadStorage:
@@ -160,6 +161,7 @@ class Load(Runnable[ThreadPool]):
                 jobs_info.append(LoadStorage.parse_job_file_name(job_file))
         return jobs_info
 
+
     def get_completed_table_chain(self, load_id: str, schema: Schema, top_merged_table: TTableSchema, starting_job_id: str) -> List[TTableSchema]:
         """Gets a table chain starting from the `top_merged_table` containing only tables with completed/failed jobs. None is returned if there's any job that is not completed"""
         # returns ordered list of tables from parent to child leaf tables
@@ -167,10 +169,6 @@ class Load(Runnable[ThreadPool]):
         # make sure all the jobs for the table chain is completed
         for table in get_child_tables(schema.tables, top_merged_table["name"]):
             table_jobs = self.load_storage.list_jobs_for_table(load_id, table["name"])
-            # if no jobs for table then skip the table in the chain. we assume that if parent has no jobs, the child would also have no jobs
-            # so it will be eliminated by this loop as well
-            if not table_jobs:
-                continue
             # all jobs must be completed in order for merge to be created
             if any(job.state not in ("failed_jobs", "completed_jobs") and job.job_file_info.job_id() != starting_job_id for job in table_jobs):
                 return None
@@ -274,7 +272,11 @@ class Load(Runnable[ThreadPool]):
                             logger.info(f"Client for {job_client.config.destination_name} will start initialize STAGING storage")
                             job_client.initialize_storage()
                             logger.info(f"Client for {job_client.config.destination_name} will UPDATE STAGING SCHEMA to package schema")
-                            staging_tables = set(job.table_name for job in staging_table_jobs)
+                            staging_tables: Set[str] = set()
+                            for job in staging_table_jobs:
+                                top_job_table = get_top_level_table(schema.tables, self.get_load_table(schema, job.job_id())["name"])
+                                table_chain = get_child_tables(schema.tables, top_job_table["name"])
+                                staging_tables = staging_tables.union({table["name"] for table in table_chain})
                             job_client.update_storage_schema(only_tables=staging_tables | {VERSION_TABLE_NAME}, expected_update=expected_update)
                             logger.info(f"Client for {job_client.config.destination_name} will TRUNCATE STAGING TABLES: {staging_tables}")
                             job_client.initialize_storage(truncate_tables=staging_tables)

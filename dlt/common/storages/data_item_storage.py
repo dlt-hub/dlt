@@ -13,7 +13,7 @@ class DataItemStorage(ABC):
         self.buffered_writers: Dict[str, BufferedDataWriter] = {}
         super().__init__(*args)
 
-    def write_data_item(self, load_id: str, schema_name: str, table_name: str, item: TDataItems, columns: TTableSchemaColumns) -> None:
+    def get_writer(self, load_id: str, schema_name: str, table_name: str) -> BufferedDataWriter:
         # unique writer id
         writer_id = f"{load_id}.{schema_name}.{table_name}"
         writer = self.buffered_writers.get(writer_id, None)
@@ -22,8 +22,16 @@ class DataItemStorage(ABC):
             path = self._get_data_item_path_template(load_id, schema_name, table_name)
             writer = BufferedDataWriter(self.loader_file_format, path)
             self.buffered_writers[writer_id] = writer
+        return writer
+
+    def write_data_item(self, load_id: str, schema_name: str, table_name: str, item: TDataItems, columns: TTableSchemaColumns) -> None:
+        writer = self.get_writer(load_id, schema_name, table_name)
         # write item(s)
         writer.write_data_item(item, columns)
+
+    def write_empty_file(self, load_id: str, schema_name: str, table_name: str, columns: TTableSchemaColumns) -> None:
+        writer = self.get_writer(load_id, schema_name, table_name)
+        writer.write_empty_file(columns)
 
     def close_writers(self, extract_id: str) -> None:
         # flush and close all files

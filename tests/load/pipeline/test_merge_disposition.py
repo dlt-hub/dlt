@@ -232,9 +232,9 @@ def test_pipeline_load_parquet(destination_name: str) -> None:
     github_data.max_table_nesting = 2
     info = p.run(github_data, loader_file_format="parquet", write_disposition="replace")
     assert_load_info(info)
-    # make sure it was parquet only
+    # make sure it was parquet or sql inserts
     files = p.get_load_package_info(p.list_completed_load_packages()[1]).jobs["completed_jobs"]
-    assert all(f.job_file_info.file_format == "parquet" for f in files)
+    assert all(f.job_file_info.file_format in ["parquet", "sql"] for f in files)
 
     github_1_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
     assert github_1_counts["issues"] == 100

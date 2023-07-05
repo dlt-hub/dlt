@@ -81,25 +81,31 @@ def test_replace_disposition(destination_config: DestinationTestConfiguration, r
 
     # TODO uncomment once child table clearing is implemented
     # we need to test that destination tables including child tables are cleared when we yield none from the resource
-    # @dlt.resource(table_name="items", write_disposition="replace", primary_key="id")
-    # def load_items_none():
-    #     yield None
-    # info = pipeline.run(load_items_none, loader_file_format=file_format)
+    @dlt.resource(table_name="items", write_disposition="replace", primary_key="id")
+    def load_items_none():
+        yield None
+    info = pipeline.run(load_items_none, loader_file_format=destination_config.file_format)
 
-    # table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
+    table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
 
-    # # table and child tables should be cleared
-    # assert table_counts["items"] == 0
-    # assert table_counts["items__sub_items"] == 0
-    # assert table_counts["items__sub_items__sub_sub_items"] == 0
+    # table and child tables should be cleared
+    assert table_counts["items"] == 0
+    assert table_counts["items__sub_items"] == 0
+    assert table_counts["items__sub_items__sub_sub_items"] == 0
 
 
-@pytest.mark.skip("child tables management not included in this version yet")
-@pytest.mark.parametrize("destination", ALL_DESTINATIONS)
-def test_replace_table_clearing(destination: str) -> None:
+@pytest.mark.parametrize("destination_config", destinations_configs(default_staging_configs=True, default_non_staging_configs=True), ids=lambda x: x.name)
+@pytest.mark.parametrize("replace_strategy", REPLACE_STRATEGIES)
+def test_replace_table_clearing(destination_config: DestinationTestConfiguration,replace_strategy: str) -> None:
+    set_destination_config_envs(destination_config)
 
-    pipeline = dlt.pipeline(pipeline_name='test_replace_table_clearing', destination=destination, dataset_name='test_replace_table_clearing', full_refresh=True)
+    if replace_strategy == "truncate-and-insert":
+        pytest.skip("truncate-and-insert does not clear child tables for now")
 
+    # use staging tables for replace
+    os.environ['DESTINATION__REPLACE_STRATEGY'] = replace_strategy
+
+    pipeline = dlt.pipeline(pipeline_name='test_replace_table_clearing', destination=destination_config.destination, staging=destination_config.staging, dataset_name='test_replace_table_clearing', full_refresh=True)
 
     @dlt.resource(table_name="items", write_disposition="replace", primary_key="id")
     def items_with_subitems():
@@ -145,26 +151,26 @@ def test_replace_table_clearing(destination: str) -> None:
         yield None
 
     # regular call
-    pipeline.run(items_with_subitems)
+    pipeline.run(items_with_subitems, loader_file_format=destination_config.file_format)
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
     assert table_counts["items"] == 1
     assert table_counts["items__sub_items"] == 2
 
     # see if child table gets cleared
-    pipeline.run(items_without_subitems)
+    pipeline.run(items_without_subitems, loader_file_format=destination_config.file_format)
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
     assert table_counts["items"] == 1
     assert table_counts["items__sub_items"] == 0
 
     # see if yield none clears everything
-    pipeline.run(items_with_subitems)
-    pipeline.run(yield_none)
+    pipeline.run(items_with_subitems, loader_file_format=destination_config.file_format)
+    pipeline.run(yield_none, loader_file_format=destination_config.file_format)
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
     assert table_counts["items"] == 0
     assert table_counts["items__sub_items"] == 0
 
     # see if yielding something next to other none entries still goes into db
-    pipeline.run(items_with_subitems_yield_none)
+    pipeline.run(items_with_subitems_yield_none, loader_file_format=destination_config.file_format)
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
     assert table_counts["items"] == 1
     assert table_counts["items__sub_items"] == 2

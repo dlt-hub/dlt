@@ -430,7 +430,14 @@ def test_load_with_all_types(client: SqlJobClientBase, write_disposition: str, f
     client.schema.update_schema(new_table(table_name, write_disposition=write_disposition, columns=TABLE_UPDATE))
     client.schema.bump_version()
     client.update_storage_schema()
-    canonical_name = client.sql_client.make_qualified_table_name(table_name)
+
+    if write_disposition in client.get_stage_dispositions():
+        # create staging for merge dataset
+        client.initialize_storage(staging=True)
+        client.update_storage_schema(staging=True)
+
+    with client.sql_client.with_staging_dataset(write_disposition in client.get_stage_dispositions()):
+        canonical_name = client.sql_client.make_qualified_table_name(table_name)
     # write row
     with io.BytesIO() as f:
         write_dataset(client, f, [TABLE_ROW_ALL_DATA_TYPES], TABLE_UPDATE_COLUMNS_SCHEMA)

@@ -1,6 +1,6 @@
 import contextlib
 import os
-from typing import ClassVar, List
+from typing import ClassVar, List, Set
 
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.resolve import inject_section
@@ -72,6 +72,11 @@ def extract(
 
     with collector(f"Extract {source.name}"):
 
+        def _write_empty_file(table_name: str) -> None:
+            table_name = schema.naming.normalize_identifier(table_name)
+            collector.update(table_name)
+            storage.write_empty_file(extract_id, schema.name, table_name, None)
+
         def _write_item(table_name: str, item: TDataItems) -> None:
             # normalize table name before writing so the name match the name in schema
             # note: normalize function should be cached so there's almost no penalty on frequent calling
@@ -80,8 +85,7 @@ def extract(
             collector.update(table_name)
             storage.write_data_item(extract_id, schema.name, table_name, item, None)
 
-        def _write_dynamic_table(resource: DltResource, item: TDataItem) -> None:
-            table_name = resource._table_name_hint_fun(item)
+        def _write_dynamic_table(table_name: str, resource: DltResource, item: TDataItem) -> None:
             existing_table = dynamic_tables.get(table_name)
             if existing_table is None:
                 dynamic_tables[table_name] = [resource.table_schema(item)]
@@ -105,6 +109,7 @@ def extract(
                 dynamic_tables[table_name] = [static_table]
 
         # yield from all selected pipes
+        populated_tables: Set[str] = set()
         with PipeIterator.from_pipes(source.resources.selected_pipes, max_parallel_items=max_parallel_items, workers=workers, futures_poll_interval=futures_poll_interval) as pipes:
             left_gens = total_gens = len(pipes._sources)
             collector.update("Resources", 0, total_gens)
@@ -121,8 +126,10 @@ def extract(
                 # TODO: many resources may be returned. if that happens the item meta must be present with table name and this name must match one of resources
                 # if meta contains table name
                 resource = source.resources.find_by_pipe(pipe_item.pipe)
+                table_name: str = None
                 if isinstance(pipe_item.meta, TableNameMeta):
                     table_name = pipe_item.meta.table_name
+                    populated_tables.add(table_name)
                     _write_static_table(resource, table_name)
                     _write_item(table_name, pipe_item.item)
                 else:
@@ -130,14 +137,31 @@ def extract(
                     if resource._table_name_hint_fun:
                         if isinstance(pipe_item.item, List):
                             for item in pipe_item.item:
-                                _write_dynamic_table(resource, item)
+                                table_name = resource._table_name_hint_fun(item)
+                                populated_tables.add(table_name)
+                                _write_dynamic_table(table_name, resource, item)
                         else:
-                            _write_dynamic_table(resource, pipe_item.item)
+                            table_name = resource._table_name_hint_fun(pipe_item.item)
+                            populated_tables.add(table_name)
+                            _write_dynamic_table(table_name, resource, pipe_item.item)
                     else:
                         # write item belonging to table with static name
                         table_name = resource.table_name
+                        populated_tables.add(table_name)
                         _write_static_table(resource, table_name)
                         _write_item(table_name, pipe_item.item)
+
+            # find defined resources that did not yield any pipeitems and create empty jobs for them
+            for resource in source.resources.selected.values():
+                if resource.write_disposition != "replace" or resource._table_name_hint_fun:
+                    continue
+                table_name = resource.table_name
+                # if table does not exist in schema, there is no need to create empty jobs
+                if table_name not in schema.tables:
+                    continue
+                if table_name and table_name not in populated_tables:
+                    _write_empty_file(resource.table_name)
+
             if left_gens > 0:
                 # go to 100%
                 collector.update("Resources", left_gens)
