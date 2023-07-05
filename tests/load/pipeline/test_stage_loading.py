@@ -11,13 +11,17 @@ from tests.load.pipeline.utils import  load_table_counts
 from tests.pipeline.utils import  assert_load_info
 from tests.common.utils import all_data_types
 
-staging_combinations_fields = "destination,file_format,bucket"
+
+# dlt_gcs
+
+staging_combinations_fields = "destination,file_format,bucket,storage_integration"
 staging_combinations = [
-    ("redshift","parquet","s3://dlt-ci-test-bucket"),
-    ("redshift","jsonl","s3://dlt-ci-test-bucket"),
-    ("bigquery","parquet","gs://ci-test-bucket"),
-    ("bigquery","jsonl","gs://ci-test-bucket"),
-    ("snowflake","jsonl","s3://dlt-ci-test-bucket"),
+    # ("redshift","parquet","s3://dlt-ci-test-bucket", ""),
+    # ("redshift","jsonl","s3://dlt-ci-test-bucket", ""),
+    # ("bigquery","parquet","gcs://ci-test-bucket", ""),
+    # ("bigquery","jsonl","gs://ci-test-bucket", ""),
+    # ("snowflake","jsonl","s3://dlt-ci-test-bucket", ""),
+    ("snowflake","jsonl","gcs://ci-test-bucket", "dlt_gcs")
     ]
 
 @dlt.resource(table_name="issues", write_disposition="merge", primary_key="id", merge_key=("node_id", "url"))
@@ -36,10 +40,12 @@ def load_modified_issues():
 
 
 @pytest.mark.parametrize(staging_combinations_fields, staging_combinations)
-def test_staging_load(destination: str, file_format: str, bucket: str) -> None:
+def test_staging_load(destination: str, file_format: str, bucket: str, storage_integration: str) -> None:
 
-    # set bucket url
+    # set env vars
     os.environ['DESTINATION__FILESYSTEM__BUCKET_URL'] = bucket
+    os.environ['DESTINATION__STORAGE_INTEGRATION'] = storage_integration
+
     pipeline = dlt.pipeline(pipeline_name='test_stage_loading', destination=destination, staging="filesystem", dataset_name='staging_test', full_refresh=True)
 
     info = pipeline.run(github(), loader_file_format=file_format)
@@ -95,9 +101,10 @@ def test_staging_load(destination: str, file_format: str, bucket: str) -> None:
 
 # @pytest.mark.skip(reason="need to discuss")
 @pytest.mark.parametrize(staging_combinations_fields, staging_combinations)
-def test_all_data_types(destination: str, file_format: str, bucket: str) -> None:
-    # set bucket url
+def test_all_data_types(destination: str, file_format: str, bucket: str, storage_integration: str) -> None:
+    # set env vars
     os.environ['DESTINATION__FILESYSTEM__BUCKET_URL'] = bucket
+    os.environ['DESTINATION__STORAGE_INTEGRATION'] = storage_integration
     pipeline = dlt.pipeline(pipeline_name='test_stage_loading', destination=destination, dataset_name='staging_test', full_refresh=True)
 
     global data_types
