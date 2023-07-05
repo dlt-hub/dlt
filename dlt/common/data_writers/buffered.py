@@ -90,6 +90,11 @@ class BufferedDataWriter:
             elif self.file_max_items and self._writer.items_count >= self.file_max_items:
                 self._rotate_file()
 
+    def write_empty_file(self, columns: TTableSchemaColumns) -> None:
+        if columns is not None:
+            self._current_columns = dict(columns)
+        self._flush_items(allow_empty_file=True)
+
     def close(self) -> None:
         self._ensure_open()
         self._flush_and_close_file()
@@ -109,8 +114,8 @@ class BufferedDataWriter:
         self._flush_and_close_file()
         self._file_name = self.file_name_template % uniq_id(5) + "." + self._file_format_spec.file_extension
 
-    def _flush_items(self) -> None:
-        if len(self._buffered_items) > 0:
+    def _flush_items(self, allow_empty_file: bool = False) -> None:
+        if len(self._buffered_items) > 0 or allow_empty_file:
             # we only open a writer when there are any items in the buffer and first flush is requested
             if not self._writer:
                 # create new writer and write header
@@ -121,7 +126,8 @@ class BufferedDataWriter:
                 self._writer = DataWriter.from_file_format(self.file_format, self._file, caps=self._caps)
                 self._writer.write_header(self._current_columns)
             # write buffer
-            self._writer.write_data(self._buffered_items)
+            if self._buffered_items:
+                self._writer.write_data(self._buffered_items)
             self._buffered_items.clear()
 
     def _flush_and_close_file(self) -> None:

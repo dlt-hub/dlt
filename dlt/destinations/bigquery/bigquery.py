@@ -23,7 +23,7 @@ from dlt.destinations.job_client_impl import CopyFileLoadJob
 from dlt.destinations.bigquery import capabilities
 from dlt.destinations.bigquery.configuration import BigQueryClientConfiguration
 from dlt.destinations.bigquery.sql_client import BigQuerySqlClient, BQ_TERMINAL_REASONS
-from dlt.destinations.sql_merge_job import SqlMergeJob
+from dlt.destinations.sql_jobs import SqlMergeJob
 
 
 SCT_TO_BQT: Dict[TDataType, str] = {
@@ -181,6 +181,10 @@ class BigQueryClient(SqlJobClientBase):
                     raise DestinationTransientException(gace)
         return job
 
+    def get_existing_tables(self) -> List[str]:
+        tables = self.sql_client.native_connection.list_tables(self.sql_client.dataset_name)
+        return [t.table_id for t in tables]
+
     def _get_table_update_sql(self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool, separate_alters: bool = False) -> List[str]:
         sql = super()._get_table_update_sql(table_name, new_columns, generate_alter)
         canonical_name = self.sql_client.make_qualified_table_name(table_name)
@@ -231,7 +235,7 @@ class BigQueryClient(SqlJobClientBase):
 
     def _create_load_job(self, table_name: str, write_disposition: TWriteDisposition, file_path: str) -> bigquery.LoadJob:
         # append to table for merge loads (append to stage) and regular appends
-        bq_wd = bigquery.WriteDisposition.WRITE_TRUNCATE if write_disposition == "replace" else bigquery.WriteDisposition.WRITE_APPEND
+        bq_wd = bigquery.WriteDisposition.WRITE_APPEND
 
         # determine wether we load from local or uri
         bucket_path = None
@@ -245,8 +249,8 @@ class BigQueryClient(SqlJobClientBase):
         if ext == "parquet":
             source_format = bigquery.SourceFormat.PARQUET
 
-        # if merge then load to staging
-        with self.sql_client.with_staging_dataset(write_disposition == "merge"):
+        # if merge or replace then load to staging
+        with self.sql_client.with_staging_dataset(write_disposition in ["merge", "replace"]):
             job_id = BigQueryLoadJob.get_job_id_from_file_path(file_path)
             job_config = bigquery.LoadJobConfig(
                 autodetect=False,

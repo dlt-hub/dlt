@@ -19,7 +19,7 @@ from dlt.destinations.exceptions import DestinationSchemaWillNotUpdate, Destinat
 from dlt.destinations.snowflake import capabilities
 from dlt.destinations.snowflake.configuration import SnowflakeClientConfiguration
 from dlt.destinations.snowflake.sql_client import SnowflakeSqlClient
-from dlt.destinations.sql_merge_job import SqlMergeJob
+from dlt.destinations.sql_jobs import SqlMergeJob
 from dlt.destinations.snowflake.sql_client import SnowflakeSqlClient
 
 BIGINT_PRECISION = 19
@@ -56,7 +56,7 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
         file_name = FileStorage.get_file_name_from_file_path(file_path)
         super().__init__(file_name)
 
-        with client.with_staging_dataset(write_disposition == "merge"):
+        with client.with_staging_dataset(write_disposition in ["merge", "replace"]):
             qualified_table_name = client.make_qualified_table_name(table_name)
 
             if stage_name:
@@ -76,8 +76,6 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
             with client.begin_transaction():
                 # PUT and copy files in one transaction
                 client.execute_sql(f'PUT file://{file_path} @{stage_name}/"{load_id}" OVERWRITE = TRUE, AUTO_COMPRESS = FALSE')
-                if write_disposition == "replace":
-                    client.execute_sql(f"TRUNCATE TABLE IF EXISTS {qualified_table_name}")
                 client.execute_sql(
                     f"""COPY INTO {qualified_table_name}
                     FROM {stage_file_path}
@@ -118,6 +116,13 @@ class SnowflakeClient(SqlJobClientBase):
                 stage_name=self.config.stage_name, keep_staged_files=self.config.keep_staged_files
             )
         return job
+
+    def get_existing_tables(self) -> List[str]:
+        rows = self.sql_client.execute_sql(
+            f"SHOW TERSE TABLES IN SCHEMA {self.sql_client.fully_qualified_dataset_name()};"
+        )
+        # table names are returned in second position and as uppercase strings, so:
+        return [row[1].lower() for row in rows]
 
     def restore_file_load(self, file_path: str) -> LoadJob:
         return EmptyLoadJob.from_file_path(file_path, "completed")

@@ -26,7 +26,7 @@ from dlt.common.configuration.specs import AwsCredentials
 
 
 from dlt.destinations.insert_job_client import InsertValuesJobClient
-from dlt.destinations.sql_merge_job import SqlMergeJob
+from dlt.destinations.sql_jobs import SqlMergeJob
 from dlt.destinations.exceptions import DatabaseTerminalException
 from dlt.destinations.job_client_impl import CopyFileLoadJob, LoadJob
 
@@ -108,11 +108,8 @@ class RedshiftCopyFileLoadJob(CopyFileLoadJob):
             compression = "GZIP"
         if ext == "parquet":
             file_type = "PARQUET"
-
-        with self._sql_client.with_staging_dataset(table["write_disposition"]=="merge"):
+        with self._sql_client.with_staging_dataset(table["write_disposition"] in ["merge", "replace"]):
             with self._sql_client.begin_transaction():
-                if table["write_disposition"]=="replace":
-                    self._sql_client.execute_sql(f"""TRUNCATE TABLE {table_name}""")
                 dataset_name = self._sql_client.dataset_name
                 self._sql_client.execute_sql(f"""
                     COPY {dataset_name}.{table_name}
