@@ -18,7 +18,7 @@ staging_combinations_fields = "destination,file_format,bucket,storage_integratio
 staging_combinations = [
     ("redshift","parquet","s3://dlt-ci-test-bucket", ""),
     ("redshift","jsonl","s3://dlt-ci-test-bucket", ""),
-    ("bigquery","parquet","gcs://ci-test-bucket", ""),
+    ("bigquery","parquet","gs://ci-test-bucket", ""),
     ("bigquery","jsonl","gs://ci-test-bucket", ""),
     ("snowflake","jsonl","s3://dlt-ci-test-bucket", ""), # "dlt_s3"),
     ("snowflake","jsonl","gcs://ci-test-bucket", "dlt_gcs")
@@ -46,7 +46,7 @@ def test_staging_load(destination: str, file_format: str, bucket: str, storage_i
     os.environ['DESTINATION__FILESYSTEM__BUCKET_URL'] = bucket
     os.environ['DESTINATION__STORAGE_INTEGRATION'] = storage_integration
 
-    pipeline = dlt.pipeline(pipeline_name='test_stage_loading', destination=destination, staging="filesystem", dataset_name='staging_test', full_refresh=True)
+    pipeline = dlt.pipeline(pipeline_name='test_stage_loading_5', destination=destination, staging="filesystem", dataset_name='staging_test', full_refresh=True)
 
     info = pipeline.run(github(), loader_file_format=file_format)
     assert_load_info(info)
