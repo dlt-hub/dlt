@@ -67,8 +67,6 @@ class CopyFileLoadJob(LoadJob, FollowupJob):
 
         self.execute(table, self.get_bucket_path(file_path))
 
-
-
     def execute(self, table: TTableSchema, bucket_path: str) -> None:
         # implement in child implementations
         raise NotImplementedError()
@@ -82,6 +80,14 @@ class CopyFileLoadJob(LoadJob, FollowupJob):
         with open(file_path, "r+", encoding="utf-8") as f:
             # Reading from a file
             return f.read()
+
+    @staticmethod
+    def get_bucket(file_path: str) -> str:
+        bucket_url = CopyFileLoadJob.get_bucket_path(file_path)
+        parts = bucket_url.split("//")
+        protocol = parts[0]
+        bucket = parts[1].split("/")[0]
+        return f"{protocol}//{bucket}"
 
     @staticmethod
     def is_reference_job(file_path: str) -> bool:

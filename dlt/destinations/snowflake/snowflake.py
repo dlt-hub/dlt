@@ -1,9 +1,13 @@
 from pathlib import Path
+import os
 from typing import ClassVar, Dict, Optional, Sequence, Tuple, List, cast, Iterable
 
 from dlt.common import json, logger
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 from dlt.common.configuration.specs import GcpServiceAccountCredentialsWithoutDefaults
+from dlt.common.configuration import with_config, known_sections
+from dlt.common.configuration.specs import AwsCredentials
+from dlt.common.configuration.accessors import config
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import FollowupJob, NewLoadJob, TLoadJobState, LoadJob
 from dlt.common.data_types import TDataType
@@ -12,7 +16,8 @@ from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns, TSchem
 from dlt.common.schema.typing import TTableSchema, TWriteDisposition
 from dlt.common.wei import EVM_DECIMAL_PRECISION
 
-from dlt.destinations.job_client_impl import SqlJobClientBase
+
+from dlt.destinations.job_client_impl import SqlJobClientBase, CopyFileLoadJob
 from dlt.destinations.job_impl import EmptyLoadJob
 from dlt.destinations.exceptions import DestinationSchemaWillNotUpdate, DestinationTransientException, LoadJobNotExistsException, LoadJobTerminalException, LoadJobUnknownTableException
 
@@ -48,10 +53,15 @@ BQT_TO_SCT: Dict[str, TDataType] = {
     "VARIANT": "complex"
 }
 
+@with_config(spec=AwsCredentials, sections=(known_sections.DESTINATION, "filesystem", "credentials"))
+def _s3_config(config: AwsCredentials = config.value) -> AwsCredentials:
+    return config
+
+
 class SnowflakeLoadJob(LoadJob, FollowupJob):
     def __init__(
             self, file_path: str, table_name: str, write_disposition: TWriteDisposition, load_id: str, client: SnowflakeSqlClient,
-            stage_name: Optional[str] = None, keep_staged_files: bool = True
+            stage_name: Optional[str] = None, storage_integration: Optional[str] = None, keep_staged_files: bool = True
     ) -> None:
         file_name = FileStorage.get_file_name_from_file_path(file_path)
         super().__init__(file_name)
@@ -59,33 +69,67 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
         with client.with_staging_dataset(write_disposition == "merge"):
             qualified_table_name = client.make_qualified_table_name(table_name)
 
-            if stage_name:
+            # extract and prepare some vars
+            bucket_path = CopyFileLoadJob.get_bucket_path(file_path) if CopyFileLoadJob.is_reference_job(file_path) else ""
+            file_name = FileStorage.get_file_name_from_file_path(bucket_path) if bucket_path else file_name
+            from_clause = ""
+            credentials_clause = ""
+            pattern_clause = ""
+            stage_file_path = ""
+
+            # create storage integration stage for reference jobs if defined, for now gcs only
+            if bucket_path and storage_integration:
+                stage_name = client.make_qualified_table_name(stage_name) if stage_name else qualified_table_name
+                bucket = CopyFileLoadJob.get_bucket(file_path)
+                client.execute_sql(f"""
+                    CREATE STAGE IF NOT EXISTS {stage_name}
+                    URL = '{bucket}'
+                    STORAGE_INTEGRATION = {storage_integration};""")
+                from_clause = f"FROM @{stage_name}"
+                # select all files that match the file from our job
+                pattern_clause = f"PATTERN = '.*{file_name}'"
+            # s3 credentials case
+            elif bucket_path:
+                if bucket_path.startswith("s3://"):
+                    s3_config = _s3_config()
+                    credentials_clause = f"""CREDENTIALS=(AWS_KEY_ID='{s3_config.aws_access_key_id}' AWS_SECRET_KEY='{s3_config.aws_secret_access_key}')"""
+                from_clause = f"FROM '{bucket_path}'"
+            # create a stage if so defined
+            elif stage_name:
                 # Concat "SCHEMA_NAME".stage_name
                 stage_name = client.make_qualified_table_name(stage_name)
                 # Create the stage if it doesn't exist
                 client.execute_sql(f"CREATE STAGE IF NOT EXISTS {stage_name}")
+            # or use implicit stage
             else:
                 # Use implicit table stage by default: "SCHEMA_NAME"."%TABLE_NAME"
                 stage_name = client.make_qualified_table_name('%'+table_name)
 
+            if not bucket_path: # this means we have a local file
+                stage_file_path = f'@{stage_name}/"{load_id}"/{file_name}'
+                from_clause = f"FROM {stage_file_path}"
+
+            # decide on source format, stage_file_path will either be a local file or a bucket path
             source_format = "( TYPE = 'JSON', BINARY_FORMAT = 'BASE64' )"
-            if file_path.endswith("parquet"):
+            if file_name.endswith("parquet"):
                 source_format = "(TYPE = 'PARQUET')"
 
-            stage_file_path = f'@{stage_name}/"{load_id}"/{file_name}'
             with client.begin_transaction():
-                # PUT and copy files in one transaction
-                client.execute_sql(f'PUT file://{file_path} @{stage_name}/"{load_id}" OVERWRITE = TRUE, AUTO_COMPRESS = FALSE')
                 if write_disposition == "replace":
                     client.execute_sql(f"TRUNCATE TABLE IF EXISTS {qualified_table_name}")
+                # PUT and COPY in one tx if local file, otherwise only copy
+                if not bucket_path:
+                    client.execute_sql(f'PUT file://{file_path} @{stage_name}/"{load_id}" OVERWRITE = TRUE, AUTO_COMPRESS = FALSE')
                 client.execute_sql(
                     f"""COPY INTO {qualified_table_name}
-                    FROM {stage_file_path}
+                    {from_clause}
+                    {pattern_clause}
+                    {credentials_clause}
                     FILE_FORMAT = {source_format}
                     MATCH_BY_COLUMN_NAME='CASE_INSENSITIVE'
                     """
                 )
-                if not keep_staged_files:
+                if stage_file_path and not keep_staged_files:
                     client.execute_sql(f'REMOVE {stage_file_path}')
 
 
@@ -115,7 +159,7 @@ class SnowflakeClient(SqlJobClientBase):
         if not job:
             job = SnowflakeLoadJob(
                 file_path, table['name'], table['write_disposition'], load_id, self.sql_client,
-                stage_name=self.config.stage_name, keep_staged_files=self.config.keep_staged_files
+                stage_name=self.config.stage_name, storage_integration=self.config.storage_integration, keep_staged_files=self.config.keep_staged_files
             )
         return job
 
