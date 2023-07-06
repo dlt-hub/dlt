@@ -2,15 +2,20 @@ from contextlib import contextmanager
 from typing import Iterator, Any, cast, Type
 from unittest import mock
 from email.utils import format_datetime
+import os
+import random
 
 import pytest
 import requests
 import requests_mock
 from tenacity import wait_exponential, RetryCallState, RetryError
 
-from dlt.sources.helpers.requests import Session, Client
+from tests.utils import preserve_environ
+import dlt
+from dlt.common.configuration.specs import RunConfiguration
+from dlt.sources.helpers.requests import Session, Client, client as default_client
 from dlt.sources.helpers.requests.retry import (
-    DEFAULT_RETRY_EXCEPTIONS, DEFAULT_RETRY_STATUS, DEFAULT_RETRY_ATTEMPTS, retry_if_status, retry_any, Retrying, wait_exponential_retry_after
+    DEFAULT_RETRY_EXCEPTIONS, DEFAULT_RETRY_STATUS, retry_if_status, retry_any, Retrying, wait_exponential_retry_after
 )
 
 
@@ -61,7 +66,7 @@ def test_retry_on_status_all_fails(mock_sleep: mock.MagicMock) -> None:
         with pytest.raises(requests.HTTPError):
             session.get(url)
 
-    assert m.call_count == DEFAULT_RETRY_ATTEMPTS
+    assert m.call_count == RunConfiguration.request_max_attempts
 
 def test_retry_on_status_success_after_2(mock_sleep: mock.MagicMock) -> None:
     """Test successful request after 2 retries
@@ -91,7 +96,7 @@ def test_retry_on_status_without_raise_for_status(mock_sleep: mock.MagicMock) ->
         response = session.get(url)
         assert response.status_code == 503
 
-    assert m.call_count == DEFAULT_RETRY_ATTEMPTS
+    assert m.call_count == RunConfiguration.request_max_attempts
 
 @pytest.mark.parametrize('exception_class', [requests.ConnectionError, requests.ConnectTimeout, requests.exceptions.ChunkedEncodingError])
 def test_retry_on_exception_all_fails(exception_class: Type[Exception], mock_sleep: mock.MagicMock) -> None:
@@ -103,7 +108,7 @@ def test_retry_on_exception_all_fails(exception_class: Type[Exception], mock_sle
         with pytest.raises(exception_class):
             session.get(url)
 
-    assert m.call_count == DEFAULT_RETRY_ATTEMPTS
+    assert m.call_count == RunConfiguration.request_max_attempts
 
 def test_retry_on_custom_condition(mock_sleep: mock.MagicMock) -> None:
     def retry_on(response: requests.Response, exception: BaseException) -> bool:
@@ -117,7 +122,7 @@ def test_retry_on_custom_condition(mock_sleep: mock.MagicMock) -> None:
         response = session.get(url)
         assert response.content == b"error"
 
-    assert m.call_count == DEFAULT_RETRY_ATTEMPTS
+    assert m.call_count == RunConfiguration.request_max_attempts
 
 def test_retry_on_custom_condition_success_after_2(mock_sleep: mock.MagicMock) -> None:
     def retry_on(response: requests.Response, exception: BaseException) -> bool:
@@ -148,3 +153,28 @@ def test_wait_retry_after_int(mock_sleep: mock.MagicMock) -> None:
 
     mock_sleep.assert_called_once()
     assert 4 <= mock_sleep.call_args[0][0] <= 5  # Adds jitter up to 1s
+
+
+@pytest.mark.parametrize('existing_session', (False, True))
+def test_init_default_client(existing_session: bool) -> None:
+    """Test that the default client config is updated from runtime configuration.
+    Run twice. 1. Clean start with no existing session attached.
+    2. With session in thread local (session is updated)
+    """
+    cfg = {
+        'RUNTIME__REQUEST_TIMEOUT': random.randrange(1, 100),
+        'RUNTIME__REQUEST_MAX_ATTEMPTS': random.randrange(1, 100),
+        'RUNTIME__REQUEST_BACKOFF_FACTOR': random.randrange(1, 100),
+        'RUNTIME__REQUEST_MAX_RETRY_DELAY': random.randrange(1, 100),
+    }
+
+    os.environ.update({key: str(value) for key, value in cfg.items()})
+
+    dlt.pipeline(pipeline_name='dummy_pipeline')
+
+    session = default_client.session
+    assert session.timeout == cfg['RUNTIME__REQUEST_TIMEOUT']
+    retry = session.request.retry  # type: ignore[attr-defined]
+    assert retry.wait.multiplier == cfg['RUNTIME__REQUEST_BACKOFF_FACTOR']
+    assert retry.stop.max_attempt_number == cfg['RUNTIME__REQUEST_MAX_ATTEMPTS']
+    assert retry.wait.max == cfg['RUNTIME__REQUEST_MAX_RETRY_DELAY']
