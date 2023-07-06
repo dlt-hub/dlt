@@ -1,5 +1,5 @@
 from contextlib import contextmanager
-from typing import Iterator, Any, cast
+from typing import Iterator, Any, cast, Type
 from unittest import mock
 from email.utils import format_datetime
 
@@ -93,13 +93,14 @@ def test_retry_on_status_without_raise_for_status(mock_sleep: mock.MagicMock) ->
 
     assert m.call_count == DEFAULT_RETRY_ATTEMPTS
 
-def test_retry_on_exception_all_fails(mock_sleep: mock.MagicMock) -> None:
+@pytest.mark.parametrize('exception_class', [requests.ConnectionError, requests.ConnectTimeout, requests.exceptions.ChunkedEncodingError])
+def test_retry_on_exception_all_fails(exception_class: Type[Exception], mock_sleep: mock.MagicMock) -> None:
     session = Client().session
     url = 'https://example.com/data'
 
     with requests_mock.mock(session=session) as m:
-        m.get(url, exc=requests.ConnectionError)
-        with pytest.raises(requests.ConnectionError):
+        m.get(url, exc=exception_class)
+        with pytest.raises(exception_class):
             session.get(url)
 
     assert m.call_count == DEFAULT_RETRY_ATTEMPTS

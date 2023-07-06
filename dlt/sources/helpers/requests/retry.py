@@ -4,7 +4,8 @@ import time
 from typing import Optional, cast, Callable, Type, Union, Sequence, Tuple, List, TYPE_CHECKING, Any
 from threading import local
 
-from requests import Response, HTTPError, ConnectionError, Timeout, Session as BaseSession
+from requests import Response, HTTPError, Session as BaseSession
+from requests.exceptions import ConnectionError, Timeout, ChunkedEncodingError
 from requests.adapters import HTTPAdapter
 from tenacity import Retrying, retry_if_exception_type, stop_after_attempt, RetryCallState, retry_any, wait_exponential
 from tenacity.retry import retry_base
@@ -14,7 +15,7 @@ from dlt.common.typing import TimedeltaSeconds
 
 
 DEFAULT_RETRY_STATUS = (429, *range(500, 600))
-DEFAULT_RETRY_EXCEPTIONS = (ConnectionError, Timeout)
+DEFAULT_RETRY_EXCEPTIONS = (ConnectionError, Timeout, ChunkedEncodingError)
 DEFAULT_RETRY_ATTEMPTS = 5
 DEFAULT_BACKOFF_FACTOR = 1
 
