@@ -204,7 +204,7 @@ def test_run_jaffle_invalid_run_args(test_storage: FileStorage, dbt_package_f: T
         with pytest.raises(DBTProcessingError) as pr_exc:
             dbt_func(client.config, test_storage.make_full_path("jaffle"), JAFFLE_SHOP_REPO).run_all(["--wrong_flag"])
         # dbt < 1.5 raises systemexit, dbt >= 1.5 just returns success False
-        assert isinstance(pr_exc.value.dbt_results, SystemExit) or pr_exc.value.dbt_results.status == None
+        assert isinstance(pr_exc.value.dbt_results, SystemExit) or pr_exc.value.dbt_results is None
 
 
 def test_run_jaffle_failed_run(test_storage: FileStorage, dbt_package_f: Tuple[str, AnyFun]) -> None:
