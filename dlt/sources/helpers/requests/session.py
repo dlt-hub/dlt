@@ -9,7 +9,7 @@ from dlt.common.time import to_seconds
 TSession = TypeVar("TSession", bound=BaseSession)
 
 
-DEFAULT_TIMEOUT = 30
+DEFAULT_TIMEOUT = 60
 
 
 class Session(BaseSession):
