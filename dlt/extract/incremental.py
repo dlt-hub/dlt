@@ -8,7 +8,7 @@ from dlt.common.json import json
 from dlt.common.jsonpath import compile_path, find_values, JSONPath
 from dlt.common.typing import TDataItem, TDataItems, TFun, extract_inner_type, is_optional_type
 from dlt.common.schema.typing import TColumnKey
-from dlt.common.configuration import configspec
+from dlt.common.configuration import configspec, ConfigurationValueError
 from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.pipeline import resource_state
 from dlt.common.utils import digest128
@@ -27,8 +27,6 @@ class IncrementalColumnState(TypedDict):
     initial_value: Optional[Any]
     last_value: Optional[Any]
     unique_hashes: List[str]
-    previous_last_value: Optional[Any]
-    previous_unique_hashes: Optional[List[str]]
 
 
 class IncrementalCursorPathMissing(PipeException):
@@ -77,7 +75,7 @@ class Incremental(FilterItem, BaseConfiguration, Generic[TCursorValue]):
         initial_value: Optional value used for `last_value` when no state is available, e.g. on the first run of the pipeline. If not provided `last_value` will be `None` on the first run.
         last_value_func: Callable used to determine which cursor value to save in state. It is called with a list of the stored state value and all cursor vals from currently processing items. Default is `max`
         primary_key: Optional primary key used to deduplicate data. If not provided, a primary key defined by the resource will be used. Pass a tuple to define a compound key. Pass empty tuple to disable unique checks
-        end_value: Optional value used to load a limited range of records. The resource generator is stopped when this value is reached.
+        end_value: Optional value used to load a limited range of records between `initial_value` and `end_value`. The resource generator is stopped when this value is reached.
             Use in conjunction with `initial_value`, e.g. load records from given month `incremental(initial_value="2022-01-01T00:00:00Z", end_value="2022-02-01T00:00:00Z")`
     """
     cursor_path: str = None
@@ -139,6 +137,21 @@ class Incremental(FilterItem, BaseConfiguration, Generic[TCursorValue]):
 
     def on_resolved(self) -> None:
         self.cursor_path_p = compile_path(self.cursor_path)
+        if self.end_value is not None and self.initial_value is None:
+            raise ConfigurationValueError(
+                "Incremental 'end_value' was specified without 'initial_value'. 'initial_value' is required when using 'end_value'."
+            )
+        # Ensure end value is "higher" than initial value
+        if self.end_value is not None and self.last_value_func([self.end_value, self.initial_value]) != self.end_value:
+            if self.last_value_func in (min, max):
+                adject = 'higher' if self.last_value_func is max else 'lower'
+                msg = f"Incremental 'initial_value' ({self.initial_value}) is {adject} than 'end_value` ({self.end_value}). 'end_value' must be {adject} than 'initial_value'"
+            else:
+                msg = (
+                    f"Incremental 'initial_value' ({self.initial_value}) is greater than 'end_value' ({self.end_value}) as determined by the custom 'last_value_func'. "
+                    f"The result of '{self.last_value_func.__name__}([end_value, initial_value])' must equal 'end_value'"
+                )
+            raise ConfigurationValueError(msg)
 
     def parse_native_representation(self, native_value: Any) -> None:
         if isinstance(native_value, Incremental):
@@ -159,7 +172,14 @@ class Incremental(FilterItem, BaseConfiguration, Generic[TCursorValue]):
         if not self.resource_name:
             raise IncrementalUnboundError(self.cursor_path)
 
-        first = self._cached_state is None
+        if self.end_value is not None:
+            # End value uses mock state. We don't want to write it.
+            return {
+                'initial_value': self.initial_value,
+                'last_value': self.initial_value,
+                'unique_hashes': []
+            }
+
         self._cached_state = Incremental._get_state(self.resource_name, self.cursor_path)
         if len(self._cached_state) == 0:
             # set the default like this, setdefault evaluates the default no matter if it is needed or not. and our default is heavy
@@ -170,13 +190,6 @@ class Incremental(FilterItem, BaseConfiguration, Generic[TCursorValue]):
                     'unique_hashes': []
                 }
             )
-        if first and self.end_value is not None:
-            # When loading a range we always set last_value to initial_value
-            # Temporarily store the previous last value to make sure we set the highest chunk later
-            self._cached_state['previous_unique_hashes'] = self._cached_state['unique_hashes']
-            self._cached_state['previous_last_value'] = self._cached_state['last_value']
-            self._cached_state['last_value'] = self.initial_value
-            self._cached_state['unique_hashes'] = []
         return self._cached_state
 
     @staticmethod
@@ -223,14 +236,6 @@ class Incremental(FilterItem, BaseConfiguration, Generic[TCursorValue]):
         if self.end_value is not None and (
             row_value == self.end_value or self.last_value_func((row_value, self.end_value)) != self.end_value
         ):
-            previous_last_value = incremental_state['previous_last_value']
-            new_value = self.last_value_func((self.end_value, previous_last_value))
-            # last_value state updated with end_value only if it's "higher", allows backloading chunks in any order
-            if new_value == previous_last_value:
-                incremental_state['last_value'] = new_value
-                incremental_state['unique_hashes'] = incremental_state.pop('previous_unique_hashes')  # type: ignore[misc]
-            incremental_state.pop('previous_last_value')  # type: ignore[misc]
-            # Stop the generator
             raise StopIteration()
 
         check_values = (row_value,) + ((last_value, ) if last_value is not None else ())
@@ -339,6 +344,7 @@ class IncrementalResourceWrapper(FilterItem):
             # NOTE: the _incremental may be also set by applying hints to the resource see `set_template` in `DltResource`
             if p.name in bound_args.arguments or not self._incremental:
                 self._incremental = new_incremental
+            self._incremental.resolve()
             # in case of transformers the bind will be called before this wrapper is set: because transformer is called for a first time late in the pipe
             self._incremental.bind(Pipe(self.resource_name))
             bound_args.arguments[p.name] = self._incremental
