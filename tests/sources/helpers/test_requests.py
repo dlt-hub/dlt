@@ -43,7 +43,7 @@ def test_custom_session_retry_settings(respect_retry_after_header: bool) -> None
 
     session = Client(
         request_max_attempts=14,
-        condition=custom_retry_cond,
+        retry_condition=custom_retry_cond,
         request_backoff_factor=2,
         respect_retry_after_header=False,
     ).session
@@ -114,7 +114,7 @@ def test_retry_on_custom_condition(mock_sleep: mock.MagicMock) -> None:
     def retry_on(response: requests.Response, exception: BaseException) -> bool:
         return response.text == 'error'
 
-    session = Client(condition=retry_on).session
+    session = Client(retry_condition=retry_on).session
     url = 'https://example.com/data'
 
     with requests_mock.mock(session=session) as m:
@@ -128,7 +128,7 @@ def test_retry_on_custom_condition_success_after_2(mock_sleep: mock.MagicMock) -
     def retry_on(response: requests.Response, exception: BaseException) -> bool:
         return response.text == 'error'
 
-    session = Client(condition=retry_on).session
+    session = Client(retry_condition=retry_on).session
     url = 'https://example.com/data'
     responses = [dict(text='error'), dict(text='error'), dict(text='success')]
 
