@@ -8,6 +8,8 @@ keywords: [MotherDuck, duckdb, destination, data warehouse]
 
 > 🧪 MotherDuck is still invitation only and intensively tested. Please see the limitations / problems at the end.
 
+## Setup Guide
+
 **1. Initialize a project with a pipeline that loads to MotherDuck by running**
 ```
 dlt init chess motherduck
@@ -39,6 +41,9 @@ motherduck.credentials="md:///dlt_data_3?token=<my service token>"
 python3 chess_pipeline.py
 ```
 
+## Write disposition
+All write dispositions are supported
+
 ## Data loading
 By default **parquet** files and `COPY` command is used to move files to remote duckdb database. All write dispositions are supported.
 
@@ -46,6 +51,9 @@ By default **parquet** files and `COPY` command is used to move files to remote 
 
 ## dbt support
 MotherDuck dbt profile got added but until we make `dbt` version 1.5.x working with `dlt`, we can't launch `dbt-duckdb` that supports motherduck.
+
+## Syncing of `dlt` state
+This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination)
 
 ## Automated tests
 Each destination must pass few hundred automatic tests. MotherDuck is passing those tests (except the transactions OFC). However we encountered issues with ATTACH timeouts when connecting which makes running such number of tests unstable. Tests on CI are disabled.
