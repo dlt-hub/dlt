@@ -152,16 +152,17 @@ def test_gcp_service_credentials_native_representation(environment) -> None:
     with pytest.raises(InvalidGoogleServicesJson):
         GcpServiceAccountCredentials().parse_native_representation("notjson")
 
-    assert GcpServiceAccountCredentials.__config_gen_annotations__ == ["location"]
+    assert GcpServiceAccountCredentials.__config_gen_annotations__ == []
 
     gcpc = GcpServiceAccountCredentials()
     gcpc.parse_native_representation(SERVICE_JSON % '"private_key": "-----BEGIN PRIVATE KEY-----\\n\\n-----END PRIVATE KEY-----\\n",')
     assert gcpc.private_key == "-----BEGIN PRIVATE KEY-----\n\n-----END PRIVATE KEY-----\n"
     assert gcpc.project_id == "chat-analytics"
     assert gcpc.client_email == "loader@iam.gserviceaccount.com"
-    # get native representation, it will also include timeouts
+    # location is present but deprecated
+    assert gcpc.location == "US"
+    # get native representation, it will also location
     _repr = gcpc.to_native_representation()
-    assert "retry_deadline" in _repr
     assert "location" in _repr
     # parse again
     gcpc_2 = GcpServiceAccountCredentials()
@@ -211,10 +212,9 @@ def test_gcp_oauth_credentials_native_representation(environment) -> None:
     assert gcoauth.scopes == ["email", "service"]
 
 
-    # get native representation, it will also include timeouts
+    # get native representation, it will also location
     _repr = gcoauth.to_native_representation()
-    assert "retry_deadline" in _repr
-    assert "location" in _repr
+    assert "localhost" in _repr
     # parse again
     gcpc_2 = GcpOAuthCredentials()
     gcpc_2.parse_native_representation(_repr)

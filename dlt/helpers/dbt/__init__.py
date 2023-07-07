@@ -68,12 +68,10 @@ def package_runner(
     auto_full_refresh_when_out_of_sync: bool = None
 ) -> DBTPackageRunner:
     default_profile_name = _default_profile_name(destination_configuration)
-    dataset_name = destination_configuration.dataset_name
     return create_runner(
         venv,
-        destination_configuration.credentials,
+        destination_configuration,
         working_dir,
-        dataset_name,
         package_location,
         package_repository_branch=package_repository_branch,
         package_repository_ssh_key=package_repository_ssh_key,
