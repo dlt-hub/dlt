@@ -14,6 +14,7 @@ from dlt.sources.helpers.requests.session import Session, DEFAULT_TIMEOUT
 from dlt.sources.helpers.requests.typing import TRequestTimeout
 from dlt.common.typing import TimedeltaSeconds
 from dlt.common.configuration.specs import RunConfiguration
+from dlt.common.configuration import with_config
 
 
 DEFAULT_RETRY_STATUS = (429, *range(500, 600))
@@ -134,45 +135,49 @@ class Client:
     The retry is triggered when either any of the predicates or the default conditions based on status code/exception are `True`.
 
     ### Args:
-        timeout: Timeout for requests in seconds. May be passed as `timedelta` or `float/int` number of seconds.
+        request_timeout: Timeout for requests in seconds. May be passed as `timedelta` or `float/int` number of seconds.
         max_connections: Max connections per host in the HTTPAdapter pool
         raise_for_status: Whether to raise exception on error status codes (using `response.raise_for_status()`)
         session: Optional `requests.Session` instance to add the retry handler to. A new session is created by default.
         status_codes: Retry when response has any of these status codes. Default `429` and all `5xx` codes. Pass an empty list to disable retry based on status.
         exceptions: Retry on exception of given type(s). Default `(requests.Timeout, requests.ConnectionError)`. Pass an empty list to disable retry on exceptions.
-        max_attempts: Max number of retry attempts before giving up
-        condition: A predicate or a list of predicates to decide whether to retry. If any predicate returns `True` the request is retried
-        backoff_factor: Multiplier used for exponential delay between retries
+        request_max_attempts: Max number of retry attempts before giving up
+        retry_condition: A predicate or a list of predicates to decide whether to retry. If any predicate returns `True` the request is retried
+        request_backoff_factor: Multiplier used for exponential delay between retries
+        request_max_retry_delay: Maximum delay when using exponential backoff
         respect_retry_after_header: Whether to use the `Retry-After` response header (when available) to determine the retry delay
-        **session_attrs: Extra attributes that will be set on the session instance, e.g. `headers: {'Authorization': 'api-key'}` (see `requests.sessions.Session` for possible attributes)
+        session_attrs: Extra attributes that will be set on the session instance, e.g. `{headers: {'Authorization': 'api-key'}}` (see `requests.sessions.Session` for possible attributes)
     """
+    _session_attrs: Dict[str, Any]
+
+    @with_config(spec=RunConfiguration)
     def __init__(
         self,
-        timeout: Optional[Union[TimedeltaSeconds, Tuple[TimedeltaSeconds, TimedeltaSeconds]]] = DEFAULT_TIMEOUT,
+        request_timeout: Optional[Union[TimedeltaSeconds, Tuple[TimedeltaSeconds, TimedeltaSeconds]]] = DEFAULT_TIMEOUT,
         max_connections: int = 50,
         raise_for_status: bool = True,
         status_codes: Sequence[int] = DEFAULT_RETRY_STATUS,
         exceptions: Sequence[Type[Exception]] = DEFAULT_RETRY_EXCEPTIONS,
-        max_attempts: int = RunConfiguration.request_max_attempts,
-        condition: Union[RetryPredicate, Sequence[RetryPredicate], None] = None,
-        backoff_factor: float = RunConfiguration.request_backoff_factor,
-        max_retry_delay: TimedeltaSeconds = RunConfiguration.request_max_retry_delay,
+        request_max_attempts: int = RunConfiguration.request_max_attempts,
+        retry_condition: Union[RetryPredicate, Sequence[RetryPredicate], None] = None,
+        request_backoff_factor: float = RunConfiguration.request_backoff_factor,
+        request_max_retry_delay: TimedeltaSeconds = RunConfiguration.request_max_retry_delay,
         respect_retry_after_header: bool = True,
-        **session_attrs: Any
+        session_attrs: Optional[Dict[str, Any]] = None,
     ) -> None:
         self._adapter = HTTPAdapter(pool_maxsize=max_connections)
         self._local = local()
-        self._session_kwargs = dict(timeout=timeout, raise_for_status=raise_for_status)
+        self._session_kwargs = dict(timeout=request_timeout, raise_for_status=raise_for_status)
         self._retry_kwargs: Dict[str, Any] = dict(
             status_codes=status_codes,
             exceptions=exceptions,
-            max_attempts=max_attempts,
-            condition=condition,
-            backoff_factor=backoff_factor,
+            max_attempts=request_max_attempts,
+            condition=retry_condition,
+            backoff_factor=request_backoff_factor,
             respect_retry_after_header=respect_retry_after_header,
-            max_delay=max_retry_delay
+            max_delay=request_max_retry_delay
         )
-        self._session_attrs = session_attrs
+        self._session_attrs = session_attrs or {}
 
         if TYPE_CHECKING:
             self.get = self.session.get

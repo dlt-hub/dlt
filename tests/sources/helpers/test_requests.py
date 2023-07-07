@@ -42,9 +42,9 @@ def test_custom_session_retry_settings(respect_retry_after_header: bool) -> None
         return True
 
     session = Client(
-        max_attempts=14,
+        request_max_attempts=14,
         condition=custom_retry_cond,
-        backoff_factor=2,
+        request_backoff_factor=2,
         respect_retry_after_header=False,
     ).session
 
@@ -140,7 +140,7 @@ def test_retry_on_custom_condition_success_after_2(mock_sleep: mock.MagicMock) -
     assert m.call_count == 3
 
 def test_wait_retry_after_int(mock_sleep: mock.MagicMock) -> None:
-    session = Client(backoff_factor=0).session
+    session = Client(request_backoff_factor=0).session
     url = 'https://example.com/data'
     responses = [
         dict(text='error', headers={'retry-after': '4'}, status_code=429),
@@ -173,6 +173,26 @@ def test_init_default_client(existing_session: bool) -> None:
     dlt.pipeline(pipeline_name='dummy_pipeline')
 
     session = default_client.session
+    assert session.timeout == cfg['RUNTIME__REQUEST_TIMEOUT']
+    retry = session.request.retry  # type: ignore[attr-defined]
+    assert retry.wait.multiplier == cfg['RUNTIME__REQUEST_BACKOFF_FACTOR']
+    assert retry.stop.max_attempt_number == cfg['RUNTIME__REQUEST_MAX_ATTEMPTS']
+    assert retry.wait.max == cfg['RUNTIME__REQUEST_MAX_RETRY_DELAY']
+
+
+@pytest.mark.parametrize('existing_session', (False, True))
+def test_client_instance_with_config(existing_session: bool) -> None:
+    cfg = {
+        'RUNTIME__REQUEST_TIMEOUT': random.randrange(1, 100),
+        'RUNTIME__REQUEST_MAX_ATTEMPTS': random.randrange(1, 100),
+        'RUNTIME__REQUEST_BACKOFF_FACTOR': random.randrange(1, 100),
+        'RUNTIME__REQUEST_MAX_RETRY_DELAY': random.randrange(1, 100),
+    }
+    os.environ.update({key: str(value) for key, value in cfg.items()})
+
+    client = Client()
+
+    session = client.session
     assert session.timeout == cfg['RUNTIME__REQUEST_TIMEOUT']
     retry = session.request.retry  # type: ignore[attr-defined]
     assert retry.wait.multiplier == cfg['RUNTIME__REQUEST_BACKOFF_FACTOR']

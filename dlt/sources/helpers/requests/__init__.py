@@ -12,6 +12,7 @@ from requests import (
     TooManyRedirects,
     URLRequired,
 )
+from requests.exceptions import ChunkedEncodingError
 from dlt.sources.helpers.requests.retry import Client
 from dlt.sources.helpers.requests.session import Session
 from dlt.common.configuration.specs import RunConfiguration
