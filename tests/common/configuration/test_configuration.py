@@ -444,7 +444,7 @@ def test_configuration_is_mutable_mapping(environment: Any, env_provider: Config
         'dlthub_telemetry_segment_write_key': 'TLJiyRkGVZGCi2TtjClamXpFcxAA1rSB',
         'log_format': '{asctime}|[{levelname:<21}]|{process}|{name}|{filename}|{funcName}:{lineno}|{message}',
         'log_level': 'WARNING',
-        'request_timeout': (15, 60),
+        'request_timeout': 60,
         'request_max_attempts': 5,
         'request_backoff_factor': 1,
         'request_max_retry_delay': 300,
