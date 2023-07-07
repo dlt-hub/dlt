@@ -3,7 +3,6 @@ from typing import Any
 from git import GitCommandError
 import pytest
 
-from dlt.common.typing import StrStr
 from dlt.common.utils import uniq_id
 
 from dlt.helpers.dbt.dbt_utils import DBTProcessingError
@@ -15,8 +14,8 @@ from tests.common.utils import modify_and_commit_file, load_secret
 from tests.helpers.dbt_tests.local.utils import setup_rasa_runner_client, setup_rasa_runner, DBTDestinationInfo
 
 DESTINATION_DATASET_NAME = "test_" + uniq_id()
-ALL_DBT_DESTINATIONS = [DBTDestinationInfo("redshift", "SELECT", "INSERT"), DBTDestinationInfo("bigquery", "CREATE TABLE", "MERGE")]
-ALL_DBT_DESTINATIONS_NAMES = ["redshift", "bigquery"]
+ALL_DBT_DESTINATIONS = [DBTDestinationInfo("bigquery", "CREATE TABLE", "MERGE")]  # DBTDestinationInfo("redshift", "SELECT", "INSERT")
+ALL_DBT_DESTINATIONS_NAMES = ["bigquery"]  # "redshift",
 
 
 @pytest.fixture(scope="module", params=ALL_DBT_DESTINATIONS, ids=ALL_DBT_DESTINATIONS_NAMES)

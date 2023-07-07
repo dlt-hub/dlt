@@ -52,7 +52,7 @@ def setup_rasa_runner(profile_name: str, dataset_name: str = None, override_valu
 def setup_rasa_runner_client(destination_name: str, destination_dataset_name: str) -> Iterator[None]:
     with cm_yield_client(destination_name, FIXTURES_DATASET_NAME) as client:
         # emit environ so credentials are passed to dbt profile
-        add_config_to_env(client.config.credentials, ("DLT",))
+        add_config_to_env(client.config, ("DLT",))
         yield
         # delete temp schemas
         dataset_name = f"{destination_dataset_name}_views"
