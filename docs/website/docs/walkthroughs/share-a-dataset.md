@@ -48,8 +48,10 @@ Please add the following section to your `secrets.toml` file, use the credential
 previous step:
 
 ```toml
+[destination.bigquery]
+location = "US"
+
 [destination.bigquery.credentials]
-location = "US"  # change the location of the data
 project_id = "project_id" # please set me up!
 private_key = "private_key" # please set me up!
 client_email = "client_email" # please set me up!
