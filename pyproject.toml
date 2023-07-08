@@ -111,7 +111,8 @@ filesystem = ["s3fs", "boto3"]
 s3 = ["s3fs", "boto3"]
 gs = ["gcsfs"]
 snowflake = ["snowflake-connector-python"]
-motherduck= ["duckdb", "pyarrow"]
+motherduck = ["duckdb", "pyarrow"]
+weaviate = ["weaviate-client"]
 
 [tool.poetry.scripts]
 dlt = "dlt.cli._dlt:_main"
