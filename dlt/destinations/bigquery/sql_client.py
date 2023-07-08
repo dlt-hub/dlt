@@ -51,9 +51,9 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
         self,
         dataset_name: str,
         credentials: GcpServiceAccountCredentialsWithoutDefaults,
-        location: str,
-        http_timeout: float,
-        retry_deadline: float
+        location: str = "US",
+        http_timeout: float = 15.0,
+        retry_deadline: float = 60.0
     ) -> None:
         self._client: bigquery.Client = None
         self.credentials: GcpServiceAccountCredentialsWithoutDefaults = credentials
