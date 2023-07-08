@@ -2,6 +2,7 @@ from requests import Session as BaseSession
 from tenacity import Retrying, retry_if_exception_type
 from typing import Optional, TYPE_CHECKING, Sequence, Union, Tuple, Type, TypeVar
 
+from dlt.sources.helpers.requests.typing import TRequestTimeout
 from dlt.common.typing import TimedeltaSeconds
 from dlt.common.time import to_seconds
 
@@ -9,7 +10,11 @@ from dlt.common.time import to_seconds
 TSession = TypeVar("TSession", bound=BaseSession)
 
 
-DEFAULT_TIMEOUT = 30
+DEFAULT_TIMEOUT = 60
+
+
+def _timeout_to_seconds(timeout: TRequestTimeout) -> Optional[Union[Tuple[float, float], float]]:
+    return (to_seconds(timeout[0]), to_seconds(timeout[1])) if isinstance(timeout, tuple) else to_seconds(timeout)
 
 
 class Session(BaseSession):
@@ -17,15 +22,16 @@ class Session(BaseSession):
 
     ### Args
         timeout: Timeout for requests in seconds. May be passed as `timedelta` or `float/int` number of seconds.
+            May be a single value or a tuple for separate (connect, read) timeout.
         raise_for_status: Whether to raise exception on error status codes (using `response.raise_for_status()`)
     """
     def __init__(
         self,
-        timeout: Optional[TimedeltaSeconds] = DEFAULT_TIMEOUT,
+        timeout: Optional[Union[TimedeltaSeconds, Tuple[TimedeltaSeconds, TimedeltaSeconds]]] = DEFAULT_TIMEOUT,
         raise_for_status: bool = True,
     ) -> None:
         super().__init__()
-        self.timeout = to_seconds(timeout)
+        self.timeout = _timeout_to_seconds(timeout)
         self.raise_for_status = raise_for_status
 
     if TYPE_CHECKING:
