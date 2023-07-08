@@ -50,7 +50,7 @@ By default **parquet** files and `COPY` command is used to move files to remote 
 **INSERT** format is also supported and will execute a large INSERT queries directly into the remote database. This is way slower and may exceed maximum query size - so not advised.
 
 ## dbt support
-MotherDuck dbt profile got added but until we make `dbt` version 1.5.x working with `dlt`, we can't launch `dbt-duckdb` that supports motherduck.
+This destination [integrates with dbt](../transformations/dbt.md) via [dbt-duckdb](https://github.com/jwills/dbt-duckdb) which is a community supported package. `dbt` version >= 1.5 is required (which is current `dlt` default.)
 
 ## Syncing of `dlt` state
 This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination)
