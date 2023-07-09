@@ -4,7 +4,7 @@ import tempfile  # noqa: 251
 from dlt.common.storages import FileStorage
 
 from dlt.common.destination.reference import NewLoadJob, FollowupJob, TLoadJobState, LoadJob
-
+from dlt.common.storages.load_storage import ParsedLoadJobFileName
 
 class EmptyLoadJobWithoutFollowup(LoadJob):
     def __init__(self, file_name: str, status: TLoadJobState, exception: str = None) -> None:
@@ -37,3 +37,15 @@ class NewLoadJobImpl(EmptyLoadJobWithoutFollowup, NewLoadJob):
     def new_file_path(self) -> str:
         """Path to a newly created temporary job file"""
         return self._new_file_path
+
+class NewReferenceJob(NewLoadJobImpl):
+
+    def __init__(self, file_name: str, status: TLoadJobState, exception: str = None, remote_path: str = None) -> None:
+        file_name = os.path.splitext(file_name)[0] + ".reference"
+        super().__init__(file_name, status, exception)
+        self._remote_path = remote_path
+        self._save_text_file(remote_path)
+
+    @staticmethod
+    def is_reference_job(file_path: str) -> bool:
+        return ParsedLoadJobFileName.parse(file_path).file_format == "reference"

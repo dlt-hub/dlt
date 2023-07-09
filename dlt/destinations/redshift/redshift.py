@@ -30,6 +30,7 @@ from dlt.destinations.job_client_impl import CopyFileLoadJob, LoadJob
 
 from dlt.destinations.redshift import capabilities
 from dlt.destinations.redshift.configuration import RedshiftClientConfiguration
+from dlt.destinations.job_impl import NewReferenceJob
 
 
 
@@ -104,8 +105,10 @@ class RedshiftCopyFileLoadJob(CopyFileLoadJob):
             file_type = "FORMAT AS JSON 'auto'"
             dateformat = "dateformat 'auto' timeformat 'auto'"
             compression = "GZIP"
-        if ext == "parquet":
+        elif ext == "parquet":
             file_type = "PARQUET"
+        else:
+            raise ValueError(f"Unsupported file type {ext} for Redshift.")
 
         with self._sql_client.with_staging_dataset(table["write_disposition"]=="merge"):
             with self._sql_client.begin_transaction():
@@ -160,7 +163,7 @@ class RedshiftClient(InsertValuesJobClient):
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         """Starts SqlLoadJob for files ending with .sql or returns None to let derived classes to handle their specific jobs"""
-        if RedshiftCopyFileLoadJob.is_reference_job(file_path):
+        if NewReferenceJob.is_reference_job(file_path):
             return RedshiftCopyFileLoadJob(table, file_path, self.sql_client, forward_staging_credentials=self.config.forward_staging_credentials)
         return super().start_file_load(table, file_path, load_id)
 

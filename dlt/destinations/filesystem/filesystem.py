@@ -1,5 +1,6 @@
 import posixpath
 import threading
+import os
 from types import TracebackType
 from typing import ClassVar, List, Sequence, Type, Iterable, cast
 from fsspec import AbstractFileSystem
@@ -15,10 +16,8 @@ from dlt.destinations.filesystem.configuration import FilesystemClientConfigurat
 from dlt.destinations.filesystem.filesystem_client import client_from_config
 from dlt.common.storages import LoadStorage
 from dlt.destinations.job_impl import NewLoadJobImpl
+from dlt.destinations.job_impl import NewReferenceJob
 
-
-class NewReferenceJob(NewLoadJobImpl):
-    pass
 
 class LoadFilesystemJob(LoadJob):
     def __init__(
@@ -64,6 +63,9 @@ class LoadFilesystemJob(LoadJob):
         job_info = LoadStorage.parse_job_file_name(file_name)
         return f"{schema_name}.{job_info.table_name}.{load_id}.{job_info.file_id}.{job_info.file_format}"
 
+    def make_remote_path(self) -> str:
+        return f"{self.config.protocol}://{posixpath.join(self.dataset_path, self.destination_file_name)}"
+
     def state(self) -> TLoadJobState:
         return "completed"
 
@@ -75,10 +77,7 @@ class FollowupFilesystemJob(FollowupJob, LoadFilesystemJob):
     def create_followup_jobs(self, next_state: str, load_id: str) -> List[NewLoadJob]:
         jobs = super().create_followup_jobs(next_state, load_id)
         if next_state == "completed":
-            file_name = ".".join(self.file_name().split(".")[0:-1] + ["reference"])
-            ref_job = NewReferenceJob(file_name=file_name, status="running")
-            remote_path = f"{self.config.protocol}://{posixpath.join(self.dataset_path, self.destination_file_name)}"
-            ref_job._save_text_file(remote_path)
+            ref_job = NewReferenceJob(file_name=self.file_name(), status="running", remote_path=self.make_remote_path())
             jobs.append(ref_job)
         return jobs
 

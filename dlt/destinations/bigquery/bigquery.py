@@ -18,13 +18,14 @@ from dlt.common.schema.typing import TTableSchema, TWriteDisposition
 from dlt.destinations.job_client_impl import SqlJobClientBase
 from dlt.destinations.exceptions import DestinationSchemaWillNotUpdate, DestinationTransientException, LoadJobNotExistsException, LoadJobTerminalException, LoadJobUnknownTableException
 from dlt.destinations.filesystem.configuration import FilesystemClientConfiguration
-from dlt.destinations.job_client_impl import CopyFileLoadJob
 
 from dlt.destinations.bigquery import capabilities
 from dlt.destinations.bigquery.configuration import BigQueryClientConfiguration
 from dlt.destinations.bigquery.sql_client import BigQuerySqlClient, BQ_TERMINAL_REASONS
 from dlt.destinations.sql_merge_job import SqlMergeJob
-
+from dlt.destinations.job_client_impl import CopyFileLoadJob
+from dlt.destinations.job_impl import NewReferenceJob
+from dlt.common.storages.load_storage import ParsedLoadJobFileName
 
 SCT_TO_BQT: Dict[TDataType, str] = {
     "complex": "JSON",
@@ -235,8 +236,8 @@ class BigQueryClient(SqlJobClientBase):
 
         # determine wether we load from local or uri
         bucket_path = None
-        ext = os.path.splitext(file_path)[1][1:]
-        if CopyFileLoadJob.is_reference_job(file_path):
+        ext: str = ParsedLoadJobFileName.parse(file_path).file_format
+        if NewReferenceJob.is_reference_job(file_path):
             bucket_path = CopyFileLoadJob.get_bucket_path(file_path)
             ext = os.path.splitext(bucket_path)[1][1:]
 

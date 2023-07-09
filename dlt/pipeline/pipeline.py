@@ -962,8 +962,8 @@ class Pipeline(SupportsPipeline):
             self._set_default_normalizers()
 
     def _set_staging(self, destination: TDestinationReferenceArg) -> None:
-        staging_mode = DestinationReference.from_name(destination)
-        self.staging = staging_mode or self.staging
+        staging_mod = DestinationReference.from_name(destination)
+        self.staging = staging_mod or self.staging
 
 
     @contextmanager

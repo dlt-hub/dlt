@@ -26,6 +26,7 @@ from dlt.destinations.snowflake.configuration import SnowflakeClientConfiguratio
 from dlt.destinations.snowflake.sql_client import SnowflakeSqlClient
 from dlt.destinations.sql_merge_job import SqlMergeJob
 from dlt.destinations.snowflake.sql_client import SnowflakeSqlClient
+from dlt.destinations.job_impl import NewReferenceJob
 
 BIGINT_PRECISION = 19
 MAX_NUMERIC_PRECISION = 38
@@ -70,7 +71,7 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
             qualified_table_name = client.make_qualified_table_name(table_name)
 
             # extract and prepare some vars
-            bucket_path = CopyFileLoadJob.get_bucket_path(file_path) if CopyFileLoadJob.is_reference_job(file_path) else ""
+            bucket_path = CopyFileLoadJob.get_bucket_path(file_path) if NewReferenceJob.is_reference_job(file_path) else ""
             file_name = FileStorage.get_file_name_from_file_path(bucket_path) if bucket_path else file_name
             from_clause = ""
             credentials_clause = ""

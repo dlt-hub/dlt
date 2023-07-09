@@ -2,6 +2,7 @@ from functools import reduce
 import datetime  # noqa: 251
 from typing import Dict, List, Optional, Tuple
 from multiprocessing.pool import ThreadPool
+import os
 
 from dlt.common import sleep, logger
 from dlt.common.configuration import with_config, known_sections
@@ -82,7 +83,7 @@ class Load(Runnable[ThreadPool]):
         job: LoadJob = None
         try:
             # if we have a staging destination and the file is not a reference, send to staging
-            client = self.get_staging_client(schema) if self.is_staging_job(file_path) else self.destination.client(schema, self.initial_client_config)
+            client = self.get_staging_client(schema) if self.is_staging_job(file_path) else self.get_destination_client(schema)
             with client as client:
                 job_info = self.load_storage.parse_job_file_name(file_path)
                 if job_info.file_format not in self.load_storage.supported_file_formats:
@@ -123,7 +124,7 @@ class Load(Runnable[ThreadPool]):
         return file_count, [job for job in jobs if job is not None]
 
     def is_staging_job(self, file_path: str) -> bool:
-        return self.staging is not None and file_path.split(".")[-1] in self.staging.capabilities().supported_loader_file_formats
+        return self.staging is not None and os.path.splitext(file_path)[1][1:] in self.staging.capabilities().supported_loader_file_formats
 
     def retrieve_jobs(self, client: JobClientBase, load_id: str, staging_client: JobClientBase = None) -> Tuple[int, List[LoadJob]]:
         jobs: List[LoadJob] = []
@@ -237,10 +238,13 @@ class Load(Runnable[ThreadPool]):
 
         return remaining_jobs
 
+    def get_destination_client(self, schema: Schema) -> JobClientBase:
+        return self.destination.client(schema, self.initial_client_config)
+
     def complete_package(self, load_id: str, schema: Schema, aborted: bool = False) -> None:
         # do not commit load id for aborted packages
         if not aborted:
-            with self.destination.client(schema, self.initial_client_config) as job_client:
+            with self.get_destination_client(schema) as job_client:
                 job_client.complete_load(load_id)
         self.load_storage.complete_load_package(load_id, aborted)
         logger.info(f"All jobs completed, archiving package {load_id} with aborted set to {aborted}")
@@ -249,7 +253,7 @@ class Load(Runnable[ThreadPool]):
     def load_single_package(self, load_id: str, schema: Schema) -> None:
         # initialize analytical storage ie. create dataset required by passed schema
         job_client: JobClientBase
-        with self.destination.client(schema, self.initial_client_config) as job_client:
+        with self.get_destination_client(schema) as job_client:
             expected_update = self.load_storage.begin_schema_update(load_id)
             if expected_update is not None:
                 # update the default dataset
