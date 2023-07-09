@@ -27,47 +27,41 @@ To get started with this verified source, follow these steps:
 2. Enter the following command:
 
     ```bash
-    dlt init mux bigquery
+    dlt init mux duckdb
     ```
 
-    This command will initialize your verified source with Mux and create a pipeline example with BigQuery as the destination.
-    If you'd like to use a different destination, simply replace `bigquery` with the name of your preferred destination.
+    This command will initialize your verified source with Mux and create a pipeline example with duckdb as the destination.
+    If you'd like to use a different destination, simply replace `duckdb` with the name of your preferred destination.
     You can find supported destinations and their configuration options in our [documentation](../destinations/duckdb).
 
 3. After running this command, a new directory will be created with the necessary files and configuration settings to get started.
 
-    ```toml
-    mux_source
-    ├── .dlt
-    │   ├── config.toml
-    │   └── secrets.toml
-    ├── mux
-    │   └── __init__.py
-    │   └── settings.py
-    ├── .gitignore
-    ├── requirements.txt
-    └── mux_pipeline.py
-    ```
+```
+mux_source
+├── .dlt
+│   ├── config.toml
+│   └── secrets.toml
+├── mux
+│   └── __init__.py
+│   └── settings.py
+├── .gitignore
+├── requirements.txt
+└── mux_pipeline.py
+```
 
 
 ## **Add credentials**
 
 1. Inside the `.dlt` folder, you'll find a file called `secrets.toml`, which is where you can securely store your access tokens and other sensitive information. It's important to handle this file with care and keep it safe.
 
-    Here's what the file looks like:
+Here's what the file looks like:
 
-    ```toml
-    # Put your secret values and credentials here. Do not share this file and do not push it to github
-    [sources.mux]
-    mux_api_access_token = "please set me up" # Mux API access token
-    mux_api_secret_key = "please set me up!" # Mux API secret key
-
-    [destination.bigquery.credentials]
-    project_id = "project_id" # GCP project ID
-    private_key = "private_key" # Unique private key (including `BEGIN and END PRIVATE KEY`)
-    client_email = "client_email" # Service account email
-    location = "US" # Project location (e.g. “US”)
-    ```
+```toml
+# Put your secret values and credentials here. Do not share this file and do not push it to github
+[sources.mux]
+mux_api_access_token = "please set me up" # Mux API access token
+mux_api_secret_key = "please set me up!" # Mux API secret key
+```
 
 2. Replace the API access and secret key with the ones that you copied above.
    This will ensure that this source can access your Mux resources securely.

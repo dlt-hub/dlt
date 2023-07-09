@@ -2,7 +2,11 @@
 
 SQL databases, or Structured Query Language databases, are a type of database management system (DBMS) that stores and manages data in a structured format. SQL databases are widely used for storing and retrieving structured data efficiently and reliably.
 
-The SQL Database `dlt` verified source and pipeline example that facilitates the loading of data from your SQL Database to a destination of your choosing. It offers flexibility in terms of loading either the entire database or specific tables to the destination. You have the option to perform a single load using the "replace" mode, or load data incrementally using the "merge" or "append" modes.
+The SQL Database `dlt` verified source loads data from your SQL Database to a destination of your choosing. It offers flexibility in terms of loading either the entire database or specific tables to the destination. You have the option to perform a single load using the "replace" mode, or load data incrementally using the "merge" or "append" modes.
+
+Internally we use `SqlAlchemy` to query the data. You may need to pip install the right dialect for your database. `dlt` will inform you on the missing dialect on the first run of the pipeline.
+
+`dlt` understands the SqlAlchemy connection strings. Special options that are passed via query strings are supported. We give a few examples below.
 
 ## Initialize the SQL Database verified source and the pipeline example
 
@@ -12,15 +16,15 @@ To get started with this verified source, follow these steps:
 2. Enter the following command:
 
 ```properties
-dlt init sql_database bigquery
+dlt init sql_database duckdb
 ```
 
-This command will initialize your verified source with SQL Database and creates pipeline example with BigQuery as the destination. If you'd like to use a different destination, simply replace **`bigquery`** with the name of your preferred destination. You can find supported destinations and their configuration options in our [documentation](../destinations/)
+This command will initialize your verified source with SQL Database and creates pipeline example with duckdb as the destination. If you'd like to use a different destination, simply replace **duckdb** with the name of your preferred destination. You can find supported destinations and their configuration options in our [documentation](../destinations/)
 
 3. After running this command, a new directory will be created with the necessary files and configuration settings to get started.
 
 ```
-sql_database_source
+sql_database
 ├── .dlt
 │   ├── config.toml
 │   └── secrets.toml
@@ -33,32 +37,27 @@ sql_database_source
 └── sql_database_pipeline.py
 ```
 
-## **Add credential**
+## Add credentials
 
 1. Inside the **`.dlt`** folder, you'll find a file called **`secrets.toml`**, which is where you can securely store credentials and other sensitive information. It's important to handle this file with care and keep it safe.
-2. To proceed with this demo, we will establish credentials using the provided connection URL given below. The connection URL is associated with a public database and is as follows:
+2. To proceed with this demo, we will establish credentials using the provided connection URL given below. The connection URL is associated with a public database and is: `mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam`
 
-    `connection_url = "mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam"`
+Here's what the `secrets.toml` looks like
 
-   Here's what the `secrets.toml` looks like
+```toml
+# make sure this is at the top of toml file, not in any section like [sources]
+sources.sql_database.credentials="mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam"
+```
 
-  ```toml
-  # Put your secret values and credentials here. do not share this file and do not push it to github
-  # We will set up creds with the connection URL given below, which is a public database
-
-  # The credentials are as:
-  drivername = "mysql+pymysql" # driver name for the database
-  database = "Rfam" # database name
-  username = "rfamro" # username associated with the database
-  host = "mysql-rfam-public.ebi.ac.uk" # host address
-  port = "4497" # port required for connection
-
-  [destination.bigquery.credentials]
-  project_id = "project_id" # GCP project ID
-  private_key = "private_key" # Unique private key (including `BEGIN and END PRIVATE KEY`)
-  client_email = "client_email" # Service account email
-  location = "US" # Project location (e.g. “US”)
-  ```
+You can set up the credentials by passing host, password etc. separately
+```toml
+[sources.sql_database.credentials]
+drivername = "mysql+pymysql" # driver name for the database
+database = "Rfam" # database name
+username = "rfamro" # username associated with the database
+host = "mysql-rfam-public.ebi.ac.uk" # host address
+port = "4497" # port required for connection
+```
 
 4. Finally, follow the instructions in **[Destinations](../destinations/)** to add credentials for your chosen destination. This will ensure that your data is properly routed to its final destination.
 
@@ -84,65 +83,34 @@ dlt pipeline <pipeline_name> show
 (For example, the pipeline_name for the above pipeline example is `rfam`, you may also use any custom name instead)
 
 ## Customizations
+This source let's you build your own pipeline where you pick the whole database or selected tables to be synchronized with the destination. The source and resource functions allow to set up write disposition (append or replace data) or incremental/merge loads.
 
-To load data to the destination using this verified source, you have the option to write your own methods.
+The demo script that you get with `dlt init` contains several well commented examples that we explain further below.
 
-### **Source and resource methods**
-
-`dlt` works on the principle of [sources](https://dlthub.com/docs/general-usage/source) and [resources](https://dlthub.com/docs/general-usage/resource) that for this verified source are found in the `__init__.py` file within the *sql_database* directory. This SQL Database verified source has the following default methods that form the basis of loading. The methods are:
+### Include and configure the tables to be synchronized
 
 **Source sql_database**:
-
 ```python
-@dlt.source
-def sql_database(
-    credentials: Union[ConnectionStringCredentials, Engine, str] = dlt.secrets.value,
-    schema: Optional[str] = dlt.config.value,
-    metadata: Optional[MetaData] = None,
-    table_names: Optional[List[str]] = dlt.config.value,
-) -> Iterable[DltResource]:
+from sql_database import sql_database
 ```
 
-- **`credentials`:** This parameter represents the credentials needed to establish a connection with the SQL database. Database credentials or an Engine instance representing the database connection.
-- **`schema`:** This optional parameter specifies the schema to be used within the SQL database. If not provided, the value from _dlt.config.value_ will be used, indicating that the schema can be configured externally.
-- **`metadata`:** This optional parameter allows passing a metadata object that provides information about the database's structure, such as table names, column names, and relationships. If not provided, it defaults to “None”.
-- **`table_names`:** This optional parameter specifies a list of table names to be used as the data source. If not provided, the value from _dlt.config.value_ will be used, suggesting that the list of table names can be configured externally.
+This `sql_database` source uses SQLAlchemy to reflect the whole source database and create dlt resource for each table. You can also provide and explicit list of tables to be reflected.
 
-This function utilizes SQLAlchemy to load data from an SQL database. It automatically generates resources for each table within the specified schema or based on a provided list of tables.
 
 **Resource sql_table:**
 
 ```python
-@dlt.common.configuration.with_config(
-    sections=("sources", "sql_database"), spec=SqlTableResourceConfiguration
-)
-def sql_table(
-    credentials: Union[ConnectionStringCredentials, Engine, str] = dlt.secrets.value,
-    table: str = dlt.config.value,
-    schema: Optional[str] = dlt.config.value,
-    metadata: Optional[MetaData] = None,
-    incremental: Optional[dlt.sources.incremental[Any]] = None,
-) -> DltResource:
+from sql_database import sql_table
 ```
+`sql_table` resource will reflect a single table with provided name.
 
-- **`@dlt.common.configuration.with_config`**: This decorator indicates that the function will be using a configuration from the specified sections ("sources" and "sql_database") and will be using the _SqlTableResourceConfiguration_ specification for validation.
-- **`credentials`**: This parameter represents the credentials required to establish a connection with the SQL database. It can be either database credentials or an Engine instance.
-- **`table`**: This parameter specifies the name of the SQL table to be used as the data source. The value can be configured, using _dlt.config.value_.
-- **`schema`**: This optional parameter specifies the schema of the SQL table. If not provided, the value from _dlt.config.value_ will be used.
-- **`metadata`**: This optional parameter allows passing a metadata object that provides information about the database's structure, such as table names, column names, and relationships. If not provided, it defaults to “None”.
-- **`incremental`**: This optional parameter is related to the incremental loading of data and is of type _dlt.sources.incremental[Any]_. It allows specifying an incremental loading for the data source, such as keeping track of the last processed record. If not provided, it defaults to “None”.
+### Usage examples
 
-The provided code defines a `dlt` resource that utilizes SQLAlchemy to extract data from an SQL database table.  The above code allows incremental loading using any parameter that is passed. By preserving the most recent parameter value from the previous pipeline run, in the next pipeline run, it fetches the latest values from the database that were created after the previous pipeline run. This ensures a seamless progression.
-
-### **Create Your Data Loading Pipeline using SQL Database verified source**
-
-To create your data pipeline using single loading and [incremental data loading](https://dlthub.com/docs/general-usage/incremental-loading), follow these steps:
-
-1. Configure the pipeline by specifying the pipeline name, destination, and dataset. To read more about pipeline configuration, please refer to our documentation [here](https://dlthub.com/docs/general-usage/pipeline).
+1. Declare the pipeline by specifying the pipeline name, destination, and dataset. To read more about pipeline configuration, please refer to our documentation [here](https://dlthub.com/docs/general-usage/pipeline).
 
 ```python
 pipeline = dlt.pipeline(
-     pipeline_name="rfam", destination='bigquery', dataset_name="rfam"
+     pipeline_name="rfam", destination='duckdb', dataset_name="rfam"
 )
 ```
 
@@ -167,11 +135,13 @@ family = sql_table(
 load_info = pipeline.extract(family, write_disposition="merge")
 print(info)
 ```
->
-In the provided code, the "_merge_" mode write deposition is utilized. This mode ensures that only unique rows are added to the destination. Had the "_append_" mode been used instead, all rows, regardless of their uniqueness, would have been added to the destination after the last "updated" field. By employing the merge mode, data integrity is maintained, and only distinct records are included.
->
 
-4. You can also achieve loading data from the “family”  table in incremental mode, using the "sql_database"  source method, as follows
+In the provided code, the "_merge_" mode write deposition is utilized. This mode ensures that only unique rows are added to the destination. Had the "_append_" mode been used instead, all rows, regardless of their uniqueness, would have been added to the destination after the last "updated" field. By employing the merge mode, data integrity is maintained, and only distinct records are included.
+
+> 💡 Please note that to use merge write disposition a primary key must exist in the source table. `dlt` finds and sets up primary keys automatically.
+
+
+4. You can also load data from the “family”  table in incremental mode, using the "sql_database" source method:
 
 ```python
 load_data = sql_database().with_resources("family")
@@ -182,10 +152,21 @@ load_data.family.apply_hints(incremental=dlt.sources.incremental("updated"),init
 load_info = pipeline.run(load_data, write_disposition="merge")
 print(load_info)
 ```
->
-The method depicted above loads data using the "_sql_database_" source using the “_with_resources_” function. It uses the "updated" field for incremental loading, ensuring that only newly updated data is retrieved. Moreover, the method utilizes the "_merge_" mode to load the new data into the destination everytime pipeline runs.
->
+
+In the example above first we reflect the whole source database and then select only the **family** table to be loaded (`with_resources()`). Then we use `apply_hints` method to set up incremental load on **updated** column.
+
+> 💡 `apply_hints` is a powerful method that allows to modify the schema of the resource after it was created: including the write disposition and primary keys. You are free to select many different tables and use `apply_hints` several times to have pipelines where some resources are merged, appended or replaced.
 
 5. It's important to keep the pipeline name and destination dataset name unchanged. The pipeline name is crucial for retrieving the [state](https://dlthub.com/docs/general-usage/state) of the last pipeline run, which includes the end date needed for loading data incrementally. Modifying these names can lead to [“full_refresh”](https://dlthub.com/docs/general-usage/pipeline#do-experiments-with-full-refresh) which will disrupt the tracking of relevant metadata(state) for [incremental data loading](https://dlthub.com/docs/general-usage/incremental-loading).
+
+### Provide special options in connection string
+Here we use `mysql` and `pymysql` dialect to set up ssl connection to a server. All information taken from the [SQLAlchemy docs](https://docs.sqlalchemy.org/en/14/dialects/mysql.html#ssl-connections)
+
+1. If your server accepts clients without client certificate but exclusively over ssl you may try to force ssl on the client by passing the following DSN to `dlt`: `mysql+pymysql://root:<pass>@<host>:3306/mysql?ssl_ca=`
+2. You can also pass server public certificate as a file. Possibly bundled with your pipeline as this is not any secret. Below we also disable the host name check on the client: most certificates are self-issued and host name typically does not match: `mysql+pymysql://root:<pass>@<host>:3306/mysql?ssl_ca=server-ca.pem&ssl_check_hostname=false`
+3. If your server requires client certificate, you must pass the private key of the client which is a secret value. In Airflow we typically paste it into a variable and then dump it to file before use. We do not provide server cert below.
+```toml
+sources.sql_database.credentials="'mysql+pymysql://root:8P5gyDPNo9zo582rQG6a@35.203.96.191:3306/mysql?ssl_ca=&ssl_cert=client-cert.pem&ssl_key=client-key.pem')
+```
 
 That's it! Enjoy running your SQL Database DLT pipeline!

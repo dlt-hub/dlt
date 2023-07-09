@@ -12,9 +12,9 @@ This verified source can be used to load player data from the [Chess.com API](ht
 
 Initialize the pipeline with the following command:
 ```
-dlt init chess bigquery
+dlt init chess duckdb
 ```
-Here, we chose BigQuery as the destination. To choose a different destination, replace `bigquery` with your choice of destination.
+Here, we chose duckdb as the destination. To choose a different destination, replace `duckdb` with your choice of destination.
 
 ## Add credentials
 
@@ -45,7 +45,7 @@ For example, if you wish to load player games for a specific set of players, add
 ```python
 def load_players_games_example(start_month: str, end_month: str):
 
-    pipeline = dlt.pipeline(pipeline_name="chess_pipeline", destination='bigquery', dataset_name="chess_players_games_data")
+    pipeline = dlt.pipeline(pipeline_name="chess_pipeline", destination='duckdb', dataset_name="chess_players_games_data")
 
     data = chess(
         [], # Specify your list of players here

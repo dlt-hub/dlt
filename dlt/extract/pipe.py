@@ -581,6 +581,9 @@ class PipeIterator(Iterator[PipeItem]):
                 raise InvalidStepFunctionArguments(pipe_item.pipe.name, get_callable_name(step), inspect.signature(step), str(ty_ex))
             except (PipelineException, ExtractorException, DltSourceException, PipeException):
                 raise
+            except StopIteration:
+                # To avoid catching StopIteration in the general Exception handler below, we just want to stop the generator
+                raise
             except Exception as ex:
                 raise ResourceExtractionError(pipe_item.pipe.name, step, str(ex), "transform") from ex
             # create next pipe item if a value was returned. A None means that item was consumed/filtered out and should not be further processed

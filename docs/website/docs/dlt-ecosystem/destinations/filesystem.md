@@ -1,8 +1,6 @@
 # Filesystem & buckets
 Filesystem destination stores data in remote file systems and bucket storages like **S3**, **google storage** or **azure blob storage**. Underneath it uses [fsspec](https://github.com/fsspec/filesystem_spec) to abstract file operations. Its primary role is to be used as a staging for other destinations but you can also quickly build a [data lake](../../getting-started/build-a-data-platform/build-structured-data-lakehouse.md) with it.
 
-The default file format is **jsonl**. **parquet** is supported.
-
 > 💡 Please read the notes on the layout of the data files. Currently we are getting feedback on it. Please join our slack (icon at the top of the page) and help us to find the optimal layout.
 
 ## Setup Guide
@@ -92,7 +90,7 @@ client_email = "client_email" # please set me up!
 
 > 💡 Note that you can share the same credentials with BigQuery, just replace the **[destination.filesystem.credentials]** section with less specific one: **[destination.credentials]** which applies to both destinations
 
-if you have default google cloud credentials in your environment (ie. on cloud function) just remove the credentials sections above and `dlt` will fallback to them.
+if you have default google cloud credentials in your environment (ie. on cloud function) just remove the credentials sections above and `dlt` will fallback to the available default.
 
 Use **Cloud Storage** admin to create a new bucket. Then assign the **Storage Object Admin** role to your service account.
 
@@ -107,6 +105,12 @@ If for any reason you want to have those files in local folder, setup the `bucke
 bucket_url = "file:///absolute/path"  # three / for absolute path
 # bucket_url = "file://relative/path"  # two / for relative path
 ```
+
+## Write disposition
+`filesystem` destination handles the write dispositions as follows:
+- `append` - files belonging to such tables are added to dataset folder
+- `replace` - all files that belong to such tables are deleted from dataset folder and then current set of files is added.
+- `merge` - fallbacks to `append` or to `replace` when no merge nor primary key is defined
 
 ## Data loading
 All the files are stored in a single folder with the name of the dataset that you passed to the `run` or `load` methods of `pipeline`. In our example chess pipeline it is **chess_players_games_data**.
@@ -125,13 +129,12 @@ Please note:
 - `dlt` will not dump the current schema content to the bucket
 - `dlt` will mark complete loads by creating an empty file that corresponds to `_dlt_loads` table. For example if `chess._dlt_loads.1685299832` file is present in dataset folders, you can be sure that all files for the load package `1685299832` are completely loaded
 
-## Write disposition
-`filesystem` destination handles the write dispositions as follows:
-- `append` - files belonging to such tables are added to dataset folder
-- `replace` - all files that belong to such tables are deleted from dataset folder and then current set of files is added.
-- `merge` - fallbacks to `append` or to `replace` when no merge nor primary key is defined
+## Supported file formats
+You can choose the following file formats:
+* [jsonl](../file-formats/jsonl.md) is used by default
+* [parquet](../file-formats/parquet.md) is supported
 
 
 ## Syncing of `dlt` state
 This destination does not support restoring the `dlt` state. You can change that by contributing to the core library 😄
-You can however easily backup and restore the pipeline working folder - reusing the bucket and credentials used to store files.
+You can however easily [backup and restore the pipeline working folder](https://gist.github.com/rudolfix/ee6e16d8671f26ac4b9ffc915ad24b6e) - reusing the bucket and credentials used to store files.

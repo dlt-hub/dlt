@@ -2,7 +2,8 @@ import os
 import ast
 import contextlib
 import tomlkit
-from typing import Any, Dict, Mapping, NamedTuple, Optional, Type, Sequence
+from typing import Any, Dict, Mapping, NamedTuple, Optional, Tuple, Type, Sequence
+from collections.abc import Mapping as C_Mapping
 
 from dlt.common import json
 from dlt.common.typing import AnyType, TAny
@@ -131,17 +132,26 @@ def get_resolved_traces() -> Dict[str, ResolvedValueTrace]:
     return _RESOLVED_TRACES
 
 
-def add_config_to_env(config: BaseConfiguration) ->  None:
-    """Writes values in configuration back into environment using the naming convention of EnvironProvider"""
-    return add_config_dict_to_env(dict(config), config.__section__, overwrite_keys=True)
+def add_config_to_env(config: BaseConfiguration, sections: Tuple[str, ...] = ()) ->  None:
+    """Writes values in configuration back into environment using the naming convention of EnvironProvider. Will descend recursively if embedded BaseConfiguration instances are found"""
+    if config.__section__:
+        sections += (config.__section__, )
+    return add_config_dict_to_env(dict(config), sections, overwrite_keys=True)
 
 
-def add_config_dict_to_env(dict_: Mapping[str, Any], section: str = None, overwrite_keys: bool = False) -> None:
-    """Writes values in dict_ back into environment using the naming convention of EnvironProvider. Applies `section` if specified. Does not overwrite existing keys by default"""
+def add_config_dict_to_env(dict_: Mapping[str, Any], sections: Tuple[str, ...] = (), overwrite_keys: bool = False) -> None:
+    """Writes values in dict_ back into environment using the naming convention of EnvironProvider. Applies `sections` if specified. Does not overwrite existing keys by default"""
     for k, v in dict_.items():
-        env_key = EnvironProvider.get_key_name(k, section)
-        if env_key not in os.environ or overwrite_keys:
-            if v is None:
-                os.environ.pop(env_key, None)
+        if isinstance(v, BaseConfiguration):
+            if not v.__section__:
+                embedded_sections = sections + (k, )
             else:
-                os.environ[env_key] = serialize_value(v)
+                embedded_sections = sections
+            add_config_to_env(v, embedded_sections)
+        else:
+            env_key = EnvironProvider.get_key_name(k, *sections)
+            if env_key not in os.environ or overwrite_keys:
+                if v is None:
+                    os.environ.pop(env_key, None)
+                else:
+                    os.environ[env_key] = serialize_value(v)

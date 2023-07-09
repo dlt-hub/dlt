@@ -2,6 +2,7 @@ import os
 from time import sleep
 from typing import Optional, Any
 from datetime import datetime  # noqa: I251
+from itertools import chain
 
 import duckdb
 import pytest
@@ -9,6 +10,7 @@ import pytest
 import dlt
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.base_configuration import configspec, BaseConfiguration
+from dlt.common.configuration import ConfigurationValueError
 from dlt.common.pendulum import pendulum, timedelta
 from dlt.common.pipeline import StateInjectableContext, resource_state
 from dlt.common.schema.schema import Schema
@@ -643,3 +645,102 @@ def test_timezone_naive_datetime() -> None:
 
     pipeline = dlt.pipeline(pipeline_name=uniq_id())
     pipeline.extract(some_data())
+
+
+@dlt.resource
+def endless_sequence(
+    updated_at: dlt.sources.incremental[int] = dlt.sources.incremental('updated_at', initial_value=1)
+) -> Any:
+    max_values = 20
+    start = updated_at.last_value
+
+    for i in range(start, start + max_values):
+        yield {'updated_at': i}
+
+
+def test_chunked_ranges() -> None:
+    """Load chunked ranges with end value along with incremental"""
+
+    pipeline = dlt.pipeline(pipeline_name='incremental_' + uniq_id(), destination='duckdb')
+
+    chunks = [
+        # Load some start/end ranges in and out of order
+        (40, 50),
+        (50, 60),
+        (60, 61),
+        (62, 70),
+        (20, 30),
+        # # Do a couple of runs with incremental loading, starting from highest range end
+        (70, None),
+        # Load another chunk from the past
+        (10, 20),
+        # Incremental again
+        (None, None),
+    ]
+
+    for start, end in chunks:
+        pipeline.run(
+            endless_sequence(updated_at=dlt.sources.incremental(initial_value=start, end_value=end)),
+            write_disposition='append'
+        )
+
+    expected_range = list(chain(
+        range(10, 20),
+        range(20, 30),
+        range(40, 50),
+        range(50, 60),
+        range(60, 61),
+        range(62, 70),
+        range(70, 89),
+        range(89, 109),
+    ))
+
+    with pipeline.sql_client() as client:
+        items = [row[0] for row in client.execute_sql("SELECT updated_at FROM endless_sequence ORDER BY updated_at")]
+
+    assert items == expected_range
+
+
+def test_load_with_end_value_does_not_write_state() -> None:
+    """When loading chunk with initial/end value range. The resource state is untouched.
+    """
+    pipeline = dlt.pipeline(pipeline_name='incremental_' + uniq_id(), destination='duckdb')
+
+    pipeline.extract(endless_sequence(updated_at=dlt.sources.incremental(initial_value=20, end_value=30)))
+
+    assert pipeline.state.get('sources') is None
+
+
+def test_end_value_initial_value_errors() -> None:
+    @dlt.resource
+    def some_data(
+        updated_at: dlt.sources.incremental[int] = dlt.sources.incremental('updated_at')
+    ) -> Any:
+        yield {'updated_at': 1}
+
+    # end_value without initial_value
+    with pytest.raises(ConfigurationValueError) as ex:
+        list(some_data(updated_at=dlt.sources.incremental(end_value=22)))
+
+    assert str(ex.value).startswith("Incremental 'end_value' was specified without 'initial_value'")
+
+    # max function and end_value lower than initial_value
+    with pytest.raises(ConfigurationValueError) as ex:
+        list(some_data(updated_at=dlt.sources.incremental(initial_value=42, end_value=22)))
+
+    assert str(ex.value).startswith("Incremental 'initial_value' (42) is higher than 'end_value` (22)")
+
+    # max function and end_value higher than initial_value
+    with pytest.raises(ConfigurationValueError) as ex:
+        list(some_data(updated_at=dlt.sources.incremental(initial_value=22, end_value=42, last_value_func=min)))
+
+    assert str(ex.value).startswith("Incremental 'initial_value' (22) is lower than 'end_value` (42).")
+
+    def custom_last_value(items):  # type: ignore[no-untyped-def]
+        return max(items)
+
+    # custom function which evaluates end_value lower than initial
+    with pytest.raises(ConfigurationValueError) as ex:
+        list(some_data(updated_at=dlt.sources.incremental(initial_value=42, end_value=22, last_value_func=custom_last_value)))
+
+    assert "The result of 'custom_last_value([end_value, initial_value])' must equal 'end_value'" in str(ex.value)

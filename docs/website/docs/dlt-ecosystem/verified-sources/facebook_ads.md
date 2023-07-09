@@ -66,56 +66,50 @@ To get started with your data verified source, follow these steps:
 
 1. Open up your terminal or command prompt and navigate to the directory where you'd like to create your project.
 2. Enter the following command:
-    ```properties
-    dlt init facebook_ads bigquery
-    ```
-    This command will initialize your verified source with Facebook Marketing API and creates an example pipeline with BigQuery as the destination. If you'd like to use a different destination, simply replace **`bigquery`** with the name of your preferred destination. You can find supported destinations and their configuration options in our [documentation](../destinations/).
+```sh
+dlt init facebook_ads duckdb
+```
+This command will initialize your verified source with Facebook Marketing API and creates an example pipeline with duckdb as the destination. If you'd like to use a different destination, simply replace **duckdb** with the name of your preferred destination. You can find supported destinations and their configuration options in our [documentation](../destinations/).
 
 3. After running this command, a new directory will be created with the necessary files and configuration settings to get started.
 
-    ```
-    facebook_ads_source
-    ├── .dlt
-    │   ├── config.toml
-    │   └── secrets.toml
-    ├── facebook_ads
-    │   └── __init__.py
-    │   └── exceptions.py
-    │   └── fb.py
-    │   └── README.py
-    │   └── settings.py
-    ├── .gitignore
-    ├── requirements.txt
-    └── facebook_ads_pipeline.py
-    ```
+```
+facebook_ads_source
+├── .dlt
+│   ├── config.toml
+│   └── secrets.toml
+├── facebook_ads
+│   └── __init__.py
+│   └── exceptions.py
+│   └── fb.py
+│   └── README.py
+│   └── settings.py
+├── .gitignore
+├── requirements.txt
+└── facebook_ads_pipeline.py
+```
 
-## **Add credential**
+## Add credential
 
 1. Inside the **`.dlt`** folder, you'll find a file called **`secrets.toml`**, which is where you can securely store your access tokens and other sensitive information. It's important to handle this file with care and keep it safe.
 
-    Here's what the file looks like:
-    ```toml
-    # put your secret values and credentials here. do not share this file and do not push it to github
-   [sources.facebook_ads]
-    access_token="set me up!"
-
-    [destination.bigquery.credentials]
-    project_id = "project_id" # GCP project ID
-    private_key = "private_key" # Unique private key (including `BEGIN and END PRIVATE KEY`)
-    client_email = "client_email" # Service account email
-    location = "US" # Project location (e.g. “US”)
-    ```
+Here's what the file looks like:
+```toml
+# put your secret values and credentials here. do not share this file and do not push it to github
+[sources.facebook_ads]
+access_token="set me up!"
+```
 
 2. Replace the value of **`access_token`** with the one that [you copied above](facebook_ads.md#grab-credentials). This will ensure that your verified source can access your Workable resources securely.
 3. Next, follow the instructions in **[Destinations](../destinations/)** to add credentials for your chosen destination. This will ensure that your data is properly routed to its final destination.
 4. It is strongly recommended to add the token expiration timestamp to your **`config.toml`** or **`secrets.toml`** file.
 5. Inside the **`.dlt`** folder, you'll find a file called **`config.toml`**, where you can securely store your pipeline configuration details.
 
-    Here's what the config.toml looks like:
-    ```toml
-    [sources.facebook_ads]
-    account_id = "1430280281077689"
-    ```
+Here's what the config.toml looks like:
+```toml
+[sources.facebook_ads]
+account_id = "1430280281077689"
+```
 
 6. Replace the value of the account id with the one copied above.
 
@@ -138,11 +132,6 @@ To get started with your data verified source, follow these steps:
     (For example, the pipeline_name for the above pipeline  example is `facebook_ads`, you may also use any custom name instead)
 
 ## Customizations
-
-To load data to the destination using  this verified source, you have the option to write your own methods. However, it is important to note the endpoints that can be loaded using this method:
-
-| campaigns | ad_sets | ads | creatives | ad_leads | facebook_insights |
-| --- | --- | --- | --- | --- | --- |
 
 ### Source and resource methods
 
@@ -267,7 +256,7 @@ To create your data-loading pipeline follow the following steps:
     ```python
     pipeline = dlt.pipeline(
         pipeline_name="facebook_ads",  # Use a custom name if desired
-        destination="bigquery",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
+        destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
         dataset_name="facebook_ads_data"  # Use a custom name if desired
     )
     ```

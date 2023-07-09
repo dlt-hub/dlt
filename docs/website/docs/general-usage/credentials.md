@@ -17,11 +17,13 @@ script, for example:
 [sources.pipedrive]
 pipedrive_api_key = "pipedrive_api_key" # please set me up!
 
+[destination.bigquery]
+location = "US"
+
 [destination.bigquery.credentials]
 project_id = "project_id" # please set me up!
 private_key = "private_key" # please set me up!
 client_email = "client_email" # please set me up!
-location = "US"
 ```
 > Note that for toml names are case-sensitive and sections are separated with ".".
 
@@ -83,17 +85,18 @@ load_info = pipeline.run(pipedrive_source(pipedrive_api_key=api_key))
 [sources.pipedrive]
 pipedrive_api_key = "pipedrive_api_key" # please set me up!
 
+[destination.bigquery]
+location = "US"
+
 [destination.bigquery.credentials]
 project_id = "project_id" # please set me up!
 private_key = "private_key" # please set me up!
 client_email = "client_email" # please set me up!
-location = "US"
 ```
 
 If dlt tries to read this from environment variables, it will use a different naming convention.
 
-For environment variables all names are capitalized and sections are separated with double
-underscore "\_\_".
+For environment variables all names are capitalized and sections are separated with double underscore "\_\_".
 
 For example for the above secrets, we would need to put into environment:
 
@@ -102,5 +105,5 @@ SOURCES__PIPEDRIVE__PIPEDRIVE_API_KEY
 DESTINATION__BIGQUERY__CREDENTIALS__PROJECT_ID
 DESTINATION__BIGQUERY__CREDENTIALS__PRIVATE_KEY
 DESTINATION__BIGQUERY__CREDENTIALS__CLIENT_EMAIL
-DESTINATION__BIGQUERY__CREDENTIALS__LOCATION
+DESTINATION__BIGQUERY__LOCATION
 ```

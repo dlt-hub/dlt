@@ -37,14 +37,14 @@ To get started with this verified source, follow these steps:
 1. Open up your terminal or command prompt and navigate to the directory where you'd like to create your project.
 2. Enter the following command:
     ```properties
-    dlt init stripe_analytics bigquery
+    dlt init stripe_analytics duckdb
     ```
-    This command will initialize your verified source with Stripe and creates pipeline example with BigQuery as the destination. If you'd like to use a different destination, simply replace **`bigquery`** with the name of your preferred destination. You can find supported destinations and their configuration options in our [documentation](../destinations/)
+    This command will initialize your verified source with Stripe and creates pipeline example with duckdb as the destination. If you'd like to use a different destination, simply replace **duckdb** with the name of your preferred destination. You can find supported destinations and their configuration options in our [documentation](../destinations/)
 
 3. After running this command, a new directory will be created with the necessary files and configuration settings to get started.
 
 ```
-stripe_source
+stripe_analytics
 ├── .dlt
 │   ├── config.toml
 │   └── secrets.toml
@@ -58,23 +58,17 @@ stripe_source
 └── stripe_analytics_pipeline.py
 ```
 
-## **Add credential**
+## Add credentials
 
 1. Inside the **`.dlt`** folder, you'll find a file called **`secrets.toml`**, which is where you can securely store your access tokens and other sensitive information. It's important to handle this file with care and keep it safe.
 
-    Here's what the file looks like:
+Here's what the file looks like:
 
-    ```toml
-    # put your secret values and credentials here. do not share this file and do not push it to github
-    [sources.stripe_analytics]
-    stripe_secret_key = "stripe_secret_key"# please set me up!
-
-    [destination.bigquery.credentials]
-    project_id = "project_id" # GCP project ID
-    private_key = "private_key" # Unique private key (including `BEGIN and END PRIVATE KEY`)
-    client_email = "client_email" # Service account email
-    location = "US" # Project location (e.g. “US”)
-    ```
+```toml
+# put your secret values and credentials here. do not share this file and do not push it to github
+[sources.stripe_analytics]
+stripe_secret_key = "stripe_secret_key"# please set me up!
+```
 
 2. Replace the value of **stripe_secret_key** with the one that [you copied above](stripe.md#grab-api-credentials). This will ensure that this source can access your Stripe resources securely.
 3. Finally, follow the instructions in **[Destinations](../destinations/)** to add credentials for your chosen destination. This will ensure that your data is properly routed to its final destination.
@@ -111,8 +105,7 @@ INCREMENTAL_ENDPOINTS = ("Event", "Invoice", "BalanceTransaction")
 ```
 
 ### **Source and resource methods**
-
-`dlt` works on the principle of [sources](https://dlthub.com/docs/general-usage/source) and [resources](https://dlthub.com/docs/general-usage/resource) that for this verified source are found in the `__init__.py` file within the *stripe_analytics* directory. This Stripe verified source has three default methods that form the basis of loading. The methods are:
+This Stripe verified source has three default methods to use in your pipelines. The methods are:
 
 #### 1. Source stripe_source:
 
@@ -176,7 +169,7 @@ To create your data pipeline using single loading and [incremental data loading
     ```python
     pipeline = dlt.pipeline(
         pipeline_name="stripe_pipeline",# Use a custom name if desired
-        destination="bigquery",# Choose the appropriate destination (e.g., duckdb etc.)
+        destination="duckdb",# Choose the appropriate destination (e.g., duckdb etc.)
         dataset_name="stripe_dataset"# Use a custom name if desired
     )
     ```
@@ -215,7 +208,7 @@ To create your data pipeline using single loading and [incremental data loading
     ```python
     pipeline = dlt.pipeline(
         pipeline_name="stripe_pipeline",
-        destination="bigquery",
+        destination="duckdb",
         dataset_name="stripe_dataset"
     )
     source_single = stripe_source(

@@ -24,7 +24,7 @@ dlt init pipedrive [destination]
 ```
 
 This will create a directory that includes the following file structure:
-```bash
+```
 pipedrive_pipeline
 ├── .dlt
 │   ├── config.toml
@@ -53,21 +53,15 @@ You can learn more about Pipedrive API token authentication in the docs [here](
 ## Configure `dlt` credentials
 
 1. In the `.dlt` folder, you will find `secrets.toml`, which looks like this:
-```bash
+```toml
 # Put your secret values and credentials here
 # Note: Do not share this file and do not push it to GitHub!
 pipedrive_api_key = "PIPEDRIVE_API_TOKEN" # please set me up :)
-
-[destination.bigquery.credentials] # the credentials require will change based on the destination
-project_id = "set me up" # GCP project ID
-private_key = "set me up" # Unique private key (including `BEGINand END PRIVATE KEY`)
-client_email = "set me up" # Service account email
-location = "set me up" # Project location (e.g. “US”)
 ```
 
 2. Replace `PIPEDRIVE_API_TOKEN` with the API token you [copied above](#grab-api-auth-token)
 
-3. Add the credentials required by your destination (e.g. [Google BigQuery](http://localhost:3000/docs/destinations#google-bigquery))
+3. Add the credentials required by your destination (e.g. [Google BigQuery](../destinations/bigquery.md)
 
 ## Run the pipeline
 
