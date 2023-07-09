@@ -14,6 +14,10 @@ from tests.pipeline.utils import drop_dataset_from_env
 from tests.load.pipeline.utils import select_data, drop_pipeline
 from tests.utils import ALL_DESTINATIONS, autouse_test_storage, preserve_environ, patch_home_dir
 
+# uncomment add motherduck tests
+# NOTE: the tests are passing but we disable them due to frequent ATTACH DATABASE timeouts
+# ALL_DESTINATIONS += ["motherduck"]
+
 
 @pytest.fixture(scope="module")
 def dbt_venv() -> Iterator[Venv]:

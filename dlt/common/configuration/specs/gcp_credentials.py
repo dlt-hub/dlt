@@ -1,5 +1,5 @@
 import sys
-from typing import Any, ClassVar, Final, List, Tuple, Union
+from typing import Any, Final, List, Tuple, Union
 from deprecated import deprecated
 
 from dlt.common import json, pendulum
@@ -17,13 +17,8 @@ class GcpCredentials(CredentialsConfiguration):
     auth_uri: Final[str] = "https://accounts.google.com/o/oauth2/auth"
 
     project_id: str = None
-    location: str = "US"
 
-    http_timeout: float = 15.0
-    file_upload_timeout: float = 30 * 60.0
-    retry_deadline: float = 60  # how long to retry the operation in case of error, the backoff 60s
-
-    __config_gen_annotations__: ClassVar[List[str]] = ["location"]
+    location: str = "US"  # DEPRECATED! and present only for backward compatibility. please set bigquery location in BigQuery configuration
 
     def parse_native_representation(self, native_value: Any) -> None:
         if not isinstance(native_value, str):
@@ -40,7 +35,7 @@ class GcpCredentials(CredentialsConfiguration):
         self.update(info)
 
     def __str__(self) -> str:
-        return f"{self.project_id}[{self.location}]"
+        return f"{self.project_id}"
 
 
 @configspec
@@ -96,7 +91,7 @@ class GcpServiceAccountCredentialsWithoutDefaults(GcpCredentials):
             return ServiceAccountCredentials.from_service_account_info(self)
 
     def __str__(self) -> str:
-        return f"{self.client_email}@{self.project_id}[{self.location}]"
+        return f"{self.client_email}@{self.project_id}"
 
 
 @configspec
@@ -211,7 +206,7 @@ class GcpOAuthCredentialsWithoutDefaults(GcpCredentials, OAuth2Credentials):
         return info_dict
 
     def __str__(self) -> str:
-        return f"{self.client_id}@{self.project_id}[{self.location}]"
+        return f"{self.client_id}@{self.project_id}"
 
 
 @configspec

@@ -57,7 +57,7 @@ class WithCredentialsConfiguration(BaseConfiguration):
     credentials: SecretCredentials
 
 
-@configspec
+@configspec(init=True)
 class SectionedConfiguration(BaseConfiguration):
     __section__ = "DLT_TEST"
 

@@ -26,10 +26,10 @@ To get started with your data pipeline, follow these steps:
 
 ```bash
 
-dlt init shopify_dlt bigquery
+dlt init shopify_dlt duckdb
 ```
 
-This command will initialize your pipeline with Shopify as the source and BigQuery as the destination. If you'd like to use a different destination, simply replace **`bigquery`** with the name of your preferred destination. You can find supported destinations and their configuration options in our [documentation](../destinations/)
+This command will initialize your pipeline with Shopify as the source and duckdb as the destination. If you'd like to use a different destination, simply replace **duckdb** with the name of your preferred destination. You can find supported destinations and their configuration options in our [documentation](../destinations/)
 
 3. After running this command, a new directory will be created with the necessary files and configuration settings to get started. From here, you can begin configuring your pipeline to suit your specific needs.
 
@@ -37,23 +37,16 @@ This command will initialize your pipeline with Shopify as the source and BigQue
 
 1. Inside the **`.dlt`** folder, you'll find a file called **`secrets.toml`**, which is where you can securely store your access tokens and other sensitive information. It's important to handle this file with care and keep it safe. The `secrets.toml` looks like this:
 
-```bash
+```toml
 #shopify
-[sources.shopify]
+[sources.shopify_dlt]
 private_app_password=" Please set me up !" #Admin API access token copied above
-
-# bigquery
-[destination.bigquery.credentials] # the credentials required will change based on the destination
-project_id = "Please set me up !" # GCP project ID
-private_key = "Please set me up !" # Unique private key (including `BEGINand END PRIVATE KEY`)
-client_email = "Please set me up !" # Service account email
-location = "Please set me up !" # Project location (e.g. “US”)
 ```
 
 2. Replace the value of `private_app_password` with the `API access token` that [you copied above](shopify.md#grab-api-token). This will ensure that your data pipeline can access your Shopify resources securely.
 3. Inside the **`.dlt`** folder, you'll find another file called **`config.toml`**,  where you can store your shopify url. The `config.toml` looks like this:
 
-```python
+```toml
 [sources.shopify_dlt]
 shop_url = "Please set me up !" # please set me up!
 ```

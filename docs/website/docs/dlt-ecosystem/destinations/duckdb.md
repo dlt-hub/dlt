@@ -6,6 +6,8 @@ keywords: [duckdb, destination, data warehouse]
 
 # DuckDB
 
+## Setup Guide
+
 **1. Initialize a project with a pipeline that loads to DuckDB by running**
 ```
 dlt init chess duckdb
@@ -20,6 +22,20 @@ pip install -r requirements.txt
 ```
 python3 chess_pipeline.py
 ```
+
+## Write disposition
+All write dispositions are supported
+
+## Data loading
+`dlt` will load data using large INSERT VALUES statements by default. Loading is multithreaded (20 threads by default). If you are ok with installing `pyarrow` we suggest to switch to `parquet` as file format. Loading is faster (and also multithreaded).
+
+## Supported file formats
+You can configure the following file formats to load data to duckdb
+* [insert-values](../file-formats/insert-format.md) is used by default
+* [parquet](../file-formats/parquet.md) is supported
+
+## Supported column hints
+`duckdb` may create unique indexes for all columns with `unique` hints but this behavior **is disabled by default** because it slows the loading down significantly.
 
 ## Destination Configuration
 
@@ -47,5 +63,15 @@ You can configure a DuckDB destination with [secret / config values](../../gener
 ```toml
 destination.duckdb.credentials=duckdb:///_storage/test_quack.duckdb
 ```
-## dbt support
+
+Unique indexes may be created during loading if the following config value is set:
+```toml
+[destination.duckdb]
+create_indexes=true
+```
+
+### dbt support
 This destination [integrates with dbt](../transformations/dbt.md) via [dbt-duckdb](https://github.com/jwills/dbt-duckdb) which is a community supported package. The `duckdb` database is shared with `dbt`. In rare cases you may see information that binary database format does not match the database format expected by `dbt-duckdb`. You may avoid that by updating the `duckdb` package in your `dlt` project with `pip install -U`.
+
+### Syncing of `dlt` state
+This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination)

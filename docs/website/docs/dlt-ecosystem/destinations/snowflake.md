@@ -6,6 +6,8 @@ keywords: [Snowflake, destination, data warehouse]
 
 # Snowflake
 
+## Setup Guide
+
 **1. Initialize a project with a pipeline that loads to snowflake by running**
 ```
 dlt init chess snowflake
@@ -38,7 +40,7 @@ https://kgiotue-wn98412.snowflakecomputing.com and extracting the host name (**k
 The **warehouse** and **role** are optional if you assign defaults to your user. In the example below we do not do that, so we set them explicitly.
 
 
-## Setup the database user and permissions
+### Setup the database user and permissions
 Instructions below assume that you use the default account setup that you get after creating Snowflake account. You should have default warehouse named **COMPUTE_WH** and snowflake account. Below we create a new database, user and assign permissions. The permissions are very generous. A more experienced user can easily reduce `dlt` permissions to just one schema in the database.
 ```sql
 --create database with standard settings
@@ -63,7 +65,7 @@ Now you can use the user named `LOADER` to access database `DLT_DATA` and log in
 
 You can also decrease the suspend time for your warehouse to 1 minute (**Admin**/**Warehouses** in Snowflake UI)
 
-## Authentication types
+### Authentication types
 Snowflake destination accepts two authentication type
 - password authentication
 - [key pair authentication](https://docs.snowflake.com/en/user-guide/key-pair-auth)
@@ -72,6 +74,7 @@ The **password authentication** is not any different from other databases like P
 
 You can also pass credentials as a database connection string. For example:
 ```toml
+# keep it at the top of your toml file! before any section starts
 destination.postgres.snowflake="snowflake://loader:<password>@kgiotue-wn98412/dlt_data?warehouse=COMPUTE_WH&role=DLT_LOADER_ROLE"
 ```
 
@@ -91,13 +94,23 @@ private_key_passphrase="passphrase"
 
 We allow to pass private key and passphrase in connection string. Please url encode the private key and passphrase.
 ```toml
+# keep it at the top of your toml file! before any section starts
 destination.postgres.snowflake="snowflake://loader:<password>@kgiotue-wn98412/dlt_data?private_key=<url encoded pem>&private_key_passphrase=<url encoded passphrase>"
 ```
+
+## Write disposition
+All write dispositions are supported
 
 ## Data loading
 The data is loaded using internal Snowflake stage. We use `PUT` command and per-table built-in stages by default. Stage files are immediately removed (if not specified otherwise).
 
-Currently **jsonl** (default) and **parquet** file formats are supported.
+## Supported file formats
+* [insert-values](../file-formats/insert-format.md) is used by default
+* [parquet](../file-formats/parquet.md) is supported
+
+## Supported column hints
+Snowflake supports the following [column hints](https://dlthub.com/docs/general-usage/schema#tables-and-columns):
+* `cluster` - creates a cluster column(s). Many column per table are supported and only when a new table is created.
 
 ### Table and column identifiers
 Snowflake makes all unquoted identifiers uppercase and then resolves them case-insensitive in SQL statements. `dlt` (effectively) does not quote identifies in DDL preserving default behavior.
@@ -114,5 +127,8 @@ stage_name="DLT_STAGE"
 keep_staged_files=true
 ```
 
-## dbt support
+### dbt support
 This destination [integrates with dbt](../transformations/dbt.md) via [dbt-snowflake](https://github.com/dbt-labs/dbt-snowflake). Both password and key pair authentication is supported and shared with dbt runners.
+
+### Syncing of `dlt` state
+This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination)

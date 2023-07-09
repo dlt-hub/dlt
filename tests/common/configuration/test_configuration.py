@@ -1,7 +1,7 @@
 import pytest
 import datetime  # noqa: I251
 from unittest.mock import patch
-from typing import Any, Dict, Final, List, Mapping, MutableMapping, NewType, Optional, Sequence, Type, Union, Literal
+from typing import Any, Dict, Final, List, Mapping, MutableMapping, NewType, Optional, Type, Union
 
 from dlt.common import json, pendulum, Decimal, Wei
 from dlt.common.configuration.providers.provider import ConfigProvider
@@ -9,13 +9,13 @@ from dlt.common.configuration.specs.gcp_credentials import GcpServiceAccountCred
 from dlt.common.utils import custom_environ
 from dlt.common.typing import AnyType, DictStrAny, StrAny, TSecretValue, extract_inner_type
 from dlt.common.configuration.exceptions import (
-    ConfigFieldMissingTypeHintException, ConfigFieldTypeHintNotSupported, FinalConfigFieldException,
+    ConfigFieldMissingTypeHintException, ConfigFieldTypeHintNotSupported,
     InvalidNativeValue, LookupTrace, ValueNotSecretException, UnmatchedConfigHintResolversException
 )
 from dlt.common.configuration import configspec, ConfigFieldMissingException, ConfigValueCannotBeCoercedException, resolve, is_valid_hint, resolve_type
 from dlt.common.configuration.specs import BaseConfiguration, RunConfiguration, ConnectionStringCredentials
 from dlt.common.configuration.providers import environ as environ_provider, toml
-from dlt.common.configuration.utils import get_resolved_traces, ResolvedValueTrace, serialize_value, deserialize_value, add_config_dict_to_env
+from dlt.common.configuration.utils import get_resolved_traces, ResolvedValueTrace, serialize_value, deserialize_value, add_config_dict_to_env, add_config_to_env
 
 from tests.utils import preserve_environ
 from tests.common.configuration.utils import (
@@ -982,3 +982,26 @@ def test_unmatched_dynamic_hint_resolvers(environment: Dict[str, str]) -> None:
 
     assert set(e.value.field_names) == {"a", "b", "c"}
     assert e.value.spec_name == ConfigWithInvalidDynamicType.__name__
+
+
+def test_add_config_to_env(environment: Dict[str, str]) -> None:
+    c = resolve.resolve_configuration(EmbeddedConfiguration(instrumented="h>tu>u>be>he", sectioned=SectionedConfiguration(password="PASS"), default="BUBA"))
+    add_config_to_env(c, ("dlt", ))
+    # must contain DLT prefix everywhere, INSTRUMENTED section taken from key and DLT_TEST taken from password
+    assert environment.items() >= {
+        'DLT__DEFAULT': 'BUBA',
+        'DLT__INSTRUMENTED__HEAD': 'h', 'DLT__INSTRUMENTED__TUBE': '["tu","u","be"]', 'DLT__INSTRUMENTED__HEELS': 'he',
+        'DLT__DLT_TEST__PASSWORD': 'PASS'
+    }.items()
+    # no dlt
+    environment.clear()
+    add_config_to_env(c)
+    assert environment.items() == {
+        'DEFAULT': 'BUBA',
+        'INSTRUMENTED__HEAD': 'h', 'INSTRUMENTED__TUBE': '["tu","u","be"]', 'INSTRUMENTED__HEELS': 'he',
+        'DLT_TEST__PASSWORD': 'PASS'
+    }.items()
+    # starts with sectioned
+    environment.clear()
+    add_config_to_env(c.sectioned)
+    assert environment == {'DLT_TEST__PASSWORD': 'PASS'}

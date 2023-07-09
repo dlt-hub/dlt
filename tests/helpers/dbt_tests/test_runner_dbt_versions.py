@@ -125,7 +125,7 @@ def test_runner_setup(client: PostgresClient, test_storage: FileStorage) -> None
     test_storage.create_folder("jaffle")
     r = package_runner(Venv.restore_current(), client.config, test_storage.make_full_path("jaffle"), JAFFLE_SHOP_REPO)
     # runner settings
-    assert r.credentials is client.config.credentials
+    assert r.credentials is client.config
     assert r.working_dir == test_storage.make_full_path("jaffle")
     assert r.source_dataset_name == client.config.dataset_name
     assert client.config.dataset_name.startswith("test")
