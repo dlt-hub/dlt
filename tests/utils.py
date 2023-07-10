@@ -21,10 +21,38 @@ from dlt.common.storages.versioned_storage import VersionedStorage
 from dlt.common.typing import StrAny
 from dlt.common.utils import uniq_id
 
+# bucket urls
+AWS_BUCKET = dlt.config.get("tests.bucket_url_aws", str)
+GCS_BUCKET = dlt.config.get("tests.bucket_url_gcs", str)
+FILE_BUCKET = dlt.config.get("tests.bucket_url_file", str)
+MEMORY_BUCKET = dlt.config.get("tests.memory", str)
+ALL_BUCKETS = [GCS_BUCKET, AWS_BUCKET, FILE_BUCKET, MEMORY_BUCKET]
 
 TEST_STORAGE_ROOT = "_storage"
+
+# destination configs
 ALL_DESTINATIONS = dlt.config.get("ALL_DESTINATIONS", list) or ["bigquery", "redshift", "postgres", "duckdb", "snowflake"]
 ALL_LOCAL_DESTINATIONS = set(ALL_DESTINATIONS).intersection("postgres", "duckdb")
+
+# destination configs including staging
+STAGING_COMBINAION_FIELDS = "destination,staging,file_format,bucket,storage_integration"
+
+ALL_DEFAULT_FILETYPE_STAGING_COMBINATIONS = [
+    ("bigquery","filesystem","parquet",GCS_BUCKET, ""),
+    ("redshift","filesystem","parquet",AWS_BUCKET, ""),
+    ("snowflake","filesystem","jsonl",AWS_BUCKET, ""), # "dlt_s3"),
+    ("snowflake","filesystem","jsonl",GCS_BUCKET, "dlt_gcs")
+    ]
+
+ALL_STAGING_COMBINATIONS = ALL_DEFAULT_FILETYPE_STAGING_COMBINATIONS + [
+    ("redshift","filesystem","jsonl",AWS_BUCKET, ""),
+    ("bigquery","filesystem","jsonl",GCS_BUCKET, "")
+]
+
+STAGING_AND_NON_STAGING_COMBINATIONS = ALL_DEFAULT_FILETYPE_STAGING_COMBINATIONS + [
+  (destination, "", "", "", "") for destination in ALL_DESTINATIONS
+]
+
 # ALL_DESTINATIONS = ["duckdb", "postgres"]
 
 

@@ -17,22 +17,23 @@ from tests.utils import ALL_DESTINATIONS, patch_home_dir, preserve_environ, auto
 from tests.common.utils import IMPORTED_VERSION_HASH_ETH_V5, yml_case_path as common_yml_case_path
 from tests.common.configuration.utils import environment
 from tests.pipeline.utils import drop_dataset_from_env
-from tests.load.pipeline.utils import assert_query_data, drop_pipeline
+from tests.load.pipeline.utils import assert_query_data # , drop_pipeline
 from tests.cases import JSON_TYPED_DICT
+from tests.utils import STAGING_AND_NON_STAGING_COMBINATIONS, STAGING_COMBINAION_FIELDS
 
 
-@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
-def test_restore_state_utils(destination_name: str) -> None:
+@pytest.mark.parametrize(STAGING_COMBINAION_FIELDS, STAGING_AND_NON_STAGING_COMBINATIONS)
+def test_restore_state_utils(destination: str, staging: str, file_format: str, bucket: str, storage_integration: str) -> None:
 
-    staging = None
-    if destination_name == "redshift":
-        staging = "filesystem"
-        os.environ['DESTINATION__FILESYSTEM__BUCKET_URL'] = "s3://dlt-ci-test-bucket"
-    if destination_name == "bigquery":
-        staging = "filesystem"
-        os.environ['DESTINATION__FILESYSTEM__BUCKET_URL'] = "gs://ci-test-bucket"
+    # snowflake requires gcs prefix instead of gs in bucket path
+    if destination == "snowflake" and bucket:
+        bucket = bucket.replace("gs://", "gcs://")
 
-    p = dlt.pipeline(pipeline_name="pipe_" + uniq_id(), destination=destination_name, staging=staging, dataset_name="state_test_" + uniq_id())
+    # set env vars
+    os.environ['DESTINATION__FILESYSTEM__BUCKET_URL'] = bucket
+    os.environ['DESTINATION__STORAGE_INTEGRATION'] = storage_integration
+
+    p = dlt.pipeline(pipeline_name="pipe_" + uniq_id(), destination=destination, staging=staging, dataset_name="state_test_" + uniq_id())
     schema = Schema("state")
     # inject schema into pipeline, don't do it in production
     p._inject_schema(schema)

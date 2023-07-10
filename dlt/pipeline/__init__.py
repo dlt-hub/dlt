@@ -118,7 +118,7 @@ def pipeline(
         pipelines_dir = get_dlt_pipelines_dir()
 
     destination = DestinationReference.from_name(destination or kwargs["destination_name"])
-    staging = DestinationReference.from_name(staging or kwargs["staging_name"]) if staging is not None else None
+    staging = DestinationReference.from_name(staging or kwargs.get("staging_name", None)) if staging is not None else None
 
     progress = collector_from_name(progress)
     # create new pipeline instance

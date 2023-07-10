@@ -12,18 +12,8 @@ from tests.load.pipeline.test_merge_disposition import github
 from tests.load.pipeline.utils import  load_table_counts
 from tests.pipeline.utils import  assert_load_info
 from tests.load.utils import TABLE_ROW_ALL_DATA_TYPES
-
+from tests.utils import ALL_STAGING_COMBINATIONS, STAGING_COMBINAION_FIELDS
 # dlt_gcs
-
-staging_combinations_fields = "destination,file_format,bucket,storage_integration"
-staging_combinations = [
-    ("redshift","parquet","tests.bucket_url_aws", ""),
-    ("redshift","jsonl","tests.bucket_url_aws", ""),
-    ("bigquery","parquet","tests.bucket_url_gcs", ""),
-    ("bigquery","jsonl","tests.bucket_url_gcs", ""),
-    ("snowflake","jsonl","tests.bucket_url_awst", ""), # "dlt_s3"),
-    ("snowflake","jsonl","tests.bucket_url_gcs", "dlt_gcs")
-    ]
 
 @dlt.resource(table_name="issues", write_disposition="merge", primary_key="id", merge_key=("node_id", "url"))
 def load_modified_issues():
@@ -40,10 +30,8 @@ def load_modified_issues():
         yield from issues
 
 
-@pytest.mark.parametrize(staging_combinations_fields, staging_combinations)
-def test_staging_load(destination: str, file_format: str, bucket: str, storage_integration: str) -> None:
-
-    bucket = dlt.config.get(bucket, str)
+@pytest.mark.parametrize(STAGING_COMBINAION_FIELDS, ALL_STAGING_COMBINATIONS)
+def test_staging_load(destination: str, staging: str, file_format: str, bucket: str, storage_integration: str) -> None:
 
     # snowflake requires gcs prefix instead of gs in bucket path
     if destination == "snowflake":
@@ -53,7 +41,7 @@ def test_staging_load(destination: str, file_format: str, bucket: str, storage_i
     os.environ['DESTINATION__FILESYSTEM__BUCKET_URL'] = bucket
     os.environ['DESTINATION__STORAGE_INTEGRATION'] = storage_integration
 
-    pipeline = dlt.pipeline(pipeline_name='test_stage_loading_5', destination=destination, staging="filesystem", dataset_name='staging_test', full_refresh=True)
+    pipeline = dlt.pipeline(pipeline_name='test_stage_loading_5', destination=destination, staging=staging, dataset_name='staging_test', full_refresh=True)
 
     info = pipeline.run(github(), loader_file_format=file_format)
     assert_load_info(info)
@@ -107,8 +95,8 @@ def test_staging_load(destination: str, file_format: str, bucket: str, storage_i
 
 
 # @pytest.mark.skip(reason="need to discuss")
-@pytest.mark.parametrize(staging_combinations_fields, staging_combinations)
-def test_all_data_types(destination: str, file_format: str, bucket: str, storage_integration: str) -> None:
+@pytest.mark.parametrize(STAGING_COMBINAION_FIELDS, ALL_STAGING_COMBINATIONS)
+def test_all_data_types(destination: str, staging: str, file_format: str, bucket: str, storage_integration: str) -> None:
     # set env vars
     os.environ['DESTINATION__FILESYSTEM__BUCKET_URL'] = bucket
     os.environ['DESTINATION__STORAGE_INTEGRATION'] = storage_integration
