@@ -43,11 +43,15 @@ ALL_DEFAULT_FILETYPE_STAGING_COMBINATIONS = [
     ("snowflake","filesystem","jsonl",AWS_BUCKET, ""), # "PUBLIC.dlt_s3_stage"),
     ("snowflake","filesystem","jsonl",GCS_BUCKET, "PUBLIC.dlt_gcs_stage")
     ]
+# filter out destinations not set for this run
+ALL_DEFAULT_FILETYPE_STAGING_COMBINATIONS = [item for item in ALL_DEFAULT_FILETYPE_STAGING_COMBINATIONS if item[0] in ALL_DESTINATIONS]
 
 ALL_STAGING_COMBINATIONS = ALL_DEFAULT_FILETYPE_STAGING_COMBINATIONS + [
     ("redshift","filesystem","jsonl",AWS_BUCKET, ""),
     ("bigquery","filesystem","jsonl",GCS_BUCKET, "")
 ]
+# filter out destinations not set for this run
+ALL_STAGING_COMBINATIONS = [item for item in ALL_STAGING_COMBINATIONS if item[0] in ALL_DESTINATIONS]
 
 STAGING_AND_NON_STAGING_COMBINATIONS = ALL_DEFAULT_FILETYPE_STAGING_COMBINATIONS + [
   (destination, "", "", "", "") for destination in ALL_DESTINATIONS
