@@ -79,7 +79,7 @@ const sidebars = {
             'dlt-ecosystem/verified-sources/strapi',
             'dlt-ecosystem/verified-sources/stripe',
             'dlt-ecosystem/verified-sources/workable',
-            'dlt-ecosystem/verified-sources/zendesk',
+            'dlt-ecosystem/verified-sources/zendesk'
           ]
         },
         {
@@ -118,6 +118,7 @@ const sidebars = {
             'dlt-ecosystem/destinations/motherduck',
           ]
         },
+        'dlt-ecosystem/staging',
         {
           type: 'category',
           label: 'Deployments',

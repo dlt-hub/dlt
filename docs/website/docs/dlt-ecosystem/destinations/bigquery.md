@@ -126,3 +126,21 @@ This destination [integrates with dbt](../transformations/dbt.md) via [dbt-bigqu
 
 ### Syncing of `dlt` state
 This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination)
+
+## BigQuery and staging on GCS
+
+BigQuery supports gcs as a file staging destination. DLT will upload files in the parquet format to gcs and ask BigQuery to copy their data directly into the db. Please refere to the [Google Storage filesystem documentation](./filesystem.md#google-storage) to learn how to set up your gcs bucket with the bucket_url and credentials. If you use the same service account for gcs and your redshift deployment, you do not need to provide additional authentication for BigQuery to be able to read from your bucket. Alternavitely to parquet files, you can also specify jsonl as the staging file format. For this set the `loader_file_format` argument of the `run` command of the pipeline to `jsonl`.
+
+### BigQuery/GCS staging Example Code
+
+```python
+# Create a dlt pipeline that will load
+# chess player data to the BigQuery destination
+# via a gcs bucket.
+pipeline = dlt.pipeline(
+    pipeline_name='chess_pipeline',
+    destination='biquery',
+    staging='filesystem', # add this to activate the staging location
+    dataset_name='player_data'
+)
+```
