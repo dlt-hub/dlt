@@ -97,7 +97,7 @@ TABLE_UPDATE: List[TColumnSchema] = [
 ]
 TABLE_UPDATE_COLUMNS_SCHEMA: TTableSchemaColumns = {t["name"]:t for t in TABLE_UPDATE}
 
-TABLE_ROW = {
+TABLE_ROW_ALL_DATA_TYPES  = {
     "col1": 989127831,
     "col2": 898912.821982,
     "col3": True,

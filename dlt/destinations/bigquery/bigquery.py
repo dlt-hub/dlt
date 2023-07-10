@@ -274,7 +274,7 @@ class BigQueryClient(SqlJobClientBase):
                         self.sql_client.make_qualified_table_name(table_name, escape=False),
                         job_id=job_id,
                         job_config=job_config,
-                        timeout=self.config.credentials.file_upload_timeout
+                        timeout=self.config.file_upload_timeout
                     )
 
             with open(file_path, "rb") as f:

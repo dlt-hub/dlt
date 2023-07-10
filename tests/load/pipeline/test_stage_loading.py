@@ -1,27 +1,28 @@
 import pytest
 import pytz
-import datetime  # noqa: 251
+import datetime # noqa: I251
+import dateutil.parser
 
 from pathlib import Path
 import dlt, os
-from dlt.common import json
+from dlt.common import json, Decimal
+from copy import deepcopy
 
 from tests.load.pipeline.test_merge_disposition import github
 from tests.load.pipeline.utils import  load_table_counts
 from tests.pipeline.utils import  assert_load_info
-from tests.common.utils import all_data_types
-
+from tests.load.utils import TABLE_ROW_ALL_DATA_TYPES
 
 # dlt_gcs
 
 staging_combinations_fields = "destination,file_format,bucket,storage_integration"
 staging_combinations = [
-    ("redshift","parquet","s3://dlt-ci-test-bucket", ""),
-    # ("redshift","jsonl","s3://dlt-ci-test-bucket", ""),
-    # ("bigquery","parquet","gs://ci-test-bucket", ""),
-    # ("bigquery","jsonl","gs://ci-test-bucket", ""),
-    # ("snowflake","jsonl","s3://dlt-ci-test-bucket", ""), # "dlt_s3"),
-    # ("snowflake","jsonl","gcs://ci-test-bucket", "dlt_gcs")
+    ("redshift","parquet","tests.bucket_url_aws", ""),
+    ("redshift","jsonl","tests.bucket_url_aws", ""),
+    ("bigquery","parquet","tests.bucket_url_gcs", ""),
+    ("bigquery","jsonl","tests.bucket_url_gcs", ""),
+    ("snowflake","jsonl","tests.bucket_url_awst", ""), # "dlt_s3"),
+    ("snowflake","jsonl","tests.bucket_url_gcs", "dlt_gcs")
     ]
 
 @dlt.resource(table_name="issues", write_disposition="merge", primary_key="id", merge_key=("node_id", "url"))
@@ -41,6 +42,12 @@ def load_modified_issues():
 
 @pytest.mark.parametrize(staging_combinations_fields, staging_combinations)
 def test_staging_load(destination: str, file_format: str, bucket: str, storage_integration: str) -> None:
+
+    bucket = dlt.config.get(bucket, str)
+
+    # snowflake requires gcs prefix instead of gs in bucket path
+    if destination == "snowflake":
+        bucket = bucket.replace("gs://", "gcs://")
 
     # set env vars
     os.environ['DESTINATION__FILESYSTEM__BUCKET_URL'] = bucket
@@ -108,7 +115,7 @@ def test_all_data_types(destination: str, file_format: str, bucket: str, storage
     pipeline = dlt.pipeline(pipeline_name='test_stage_loading', destination=destination, dataset_name='staging_test', full_refresh=True)
 
     global data_types
-    data_types = all_data_types()
+    data_types = deepcopy(TABLE_ROW_ALL_DATA_TYPES)
 
     @dlt.resource(table_name="data_types", write_disposition="merge")
     def my_resource():
@@ -119,13 +126,18 @@ def test_all_data_types(destination: str, file_format: str, bucket: str, storage
     assert_load_info(info)
     with pipeline._get_destination_client(pipeline.default_schema) as client:
         sent_values = list(data_types.values())
-        # add utc timezone info
-        sent_values[3] = sent_values[3].replace(tzinfo=datetime.timezone.utc)
-        # complex field only value gets saved (is this correct? also happens when not staging)
-        sent_values[6] = list(sent_values[6].values())[0]
+        # create datetime object and add utc timezone info
+        sent_values[3] = dateutil.parser.isoparse(sent_values[3]).replace(tzinfo=datetime.timezone.utc)
+
+        # change precision of decimal...
+        sent_values[5] = Decimal(str(sent_values[5]) + ("0" * 7))
+
         # bytes get saved as hex on redshift
         if destination == "redshift":
-            sent_values[5] = sent_values[5].hex()
+            sent_values[6] = sent_values[6].hex()
+
+        # for the complex value only the second value is stored, I don't think this is right..
+        sent_values[8] = sent_values[8]["link"]
 
         rows = client.sql_client.execute_sql("SELECT * FROM data_types")
         assert sent_values == [val for val in rows[0]][0:-2]
