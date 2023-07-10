@@ -90,10 +90,12 @@ class RedshiftCopyFileLoadJob(CopyFileLoadJob):
     def execute(self, table: TTableSchema, bucket_path: str) -> None:
 
         # we assume s3 credentials where provided for the staging
-        config = _s3_config()
-        aws_access_key = config.aws_access_key_id if self._forward_staging_credentials else ""
-        aws_secret_key = config.aws_secret_access_key if self._forward_staging_credentials else ""
-        credentials = f"CREDENTIALS 'aws_access_key_id={aws_access_key};aws_secret_access_key={aws_secret_key}'"
+        credentials = ""
+        if self._forward_staging_credentials:
+            config = _s3_config()
+            aws_access_key = config.aws_access_key_id
+            aws_secret_key = config.aws_secret_access_key
+            credentials = f"CREDENTIALS 'aws_access_key_id={aws_access_key};aws_secret_access_key={aws_secret_key}'"
         table_name = table["name"]
 
         # get format
