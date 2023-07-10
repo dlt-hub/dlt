@@ -40,7 +40,7 @@ STAGING_COMBINAION_FIELDS = "destination,staging,file_format,bucket,stage_name"
 ALL_DEFAULT_FILETYPE_STAGING_COMBINATIONS = [
     # ("bigquery","filesystem","parquet",GCS_BUCKET, ""),
     # ("redshift","filesystem","parquet",AWS_BUCKET, ""),
-    # ("snowflake","filesystem","jsonl",AWS_BUCKET, ""), # "dlt_s3"),
+    # ("snowflake","filesystem","jsonl",AWS_BUCKET, ""), # "PUBLIC.dlt_s3_stage"),
     ("snowflake","filesystem","jsonl",GCS_BUCKET, "PUBLIC.dlt_gcs_stage")
     ]
 
