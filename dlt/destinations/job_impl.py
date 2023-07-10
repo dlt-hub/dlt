@@ -48,4 +48,4 @@ class NewReferenceJob(NewLoadJobImpl):
 
     @staticmethod
     def is_reference_job(file_path: str) -> bool:
-        return ParsedLoadJobFileName.parse(file_path).file_format == "reference"
+        return os.path.splitext(file_path)[1][1:] == "reference"

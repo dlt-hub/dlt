@@ -246,7 +246,7 @@ class BigQueryClient(SqlJobClientBase):
 
         # determine wether we load from local or uri
         bucket_path = None
-        ext: str = ParsedLoadJobFileName.parse(file_path).file_format
+        ext: str = os.path.splitext(file_path)[1][1:]
         if NewReferenceJob.is_reference_job(file_path):
             bucket_path = CopyFileLoadJob.get_bucket_path(file_path)
             ext = os.path.splitext(bucket_path)[1][1:]

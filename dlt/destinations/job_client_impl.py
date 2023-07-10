@@ -20,7 +20,6 @@ from dlt.common.utils import concat_strings_with_limit
 from dlt.destinations.exceptions import DatabaseUndefinedRelation, DestinationSchemaWillNotUpdate
 from dlt.destinations.job_impl import EmptyLoadJobWithoutFollowup
 from dlt.destinations.sql_merge_job import SqlMergeJob
-from dlt.common.storages.load_storage import ParsedLoadJobFileName
 
 from dlt.destinations.typing import TNativeConn
 from dlt.destinations.sql_client import SqlClientBase
@@ -57,7 +56,7 @@ class SqlLoadJob(LoadJob):
 
     @staticmethod
     def is_sql_job(file_path: str) -> bool:
-        return ParsedLoadJobFileName.parse(file_path).file_format == "sql"
+        return os.path.splitext(file_path)[1][1:] == "sql"
 
 
 class CopyFileLoadJob(LoadJob, FollowupJob):
