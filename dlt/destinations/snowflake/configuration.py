@@ -91,5 +91,3 @@ class SnowflakeClientConfiguration(DestinationClientDwhConfiguration):
     """Use an existing named stage instead of the default. Default uses the implicit table stage per table"""
     keep_staged_files: bool = True
     """Whether to keep or delete the staged files after COPY INTO succeeds"""
-    storage_integration: Optional[str] = None
-    """Use an configured storage integration. For now needed for gcs"""

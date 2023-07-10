@@ -35,18 +35,18 @@ ALL_DESTINATIONS = dlt.config.get("ALL_DESTINATIONS", list) or ["bigquery", "red
 ALL_LOCAL_DESTINATIONS = set(ALL_DESTINATIONS).intersection("postgres", "duckdb")
 
 # destination configs including staging
-STAGING_COMBINAION_FIELDS = "destination,staging,file_format,bucket,storage_integration"
+STAGING_COMBINAION_FIELDS = "destination,staging,file_format,bucket,stage_name"
 
 ALL_DEFAULT_FILETYPE_STAGING_COMBINATIONS = [
-    ("bigquery","filesystem","parquet",GCS_BUCKET, ""),
-    ("redshift","filesystem","parquet",AWS_BUCKET, ""),
-    ("snowflake","filesystem","jsonl",AWS_BUCKET, ""), # "dlt_s3"),
-    ("snowflake","filesystem","jsonl",GCS_BUCKET, "dlt_gcs")
+    # ("bigquery","filesystem","parquet",GCS_BUCKET, ""),
+    # ("redshift","filesystem","parquet",AWS_BUCKET, ""),
+    # ("snowflake","filesystem","jsonl",AWS_BUCKET, ""), # "dlt_s3"),
+    ("snowflake","filesystem","jsonl",GCS_BUCKET, "PUBLIC.dlt_gcs_stage")
     ]
 
 ALL_STAGING_COMBINATIONS = ALL_DEFAULT_FILETYPE_STAGING_COMBINATIONS + [
-    ("redshift","filesystem","jsonl",AWS_BUCKET, ""),
-    ("bigquery","filesystem","jsonl",GCS_BUCKET, "")
+    # ("redshift","filesystem","jsonl",AWS_BUCKET, ""),
+    # ("bigquery","filesystem","jsonl",GCS_BUCKET, "")
 ]
 
 STAGING_AND_NON_STAGING_COMBINATIONS = ALL_DEFAULT_FILETYPE_STAGING_COMBINATIONS + [

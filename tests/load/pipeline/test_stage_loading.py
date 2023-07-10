@@ -31,7 +31,7 @@ def load_modified_issues():
 
 
 @pytest.mark.parametrize(STAGING_COMBINAION_FIELDS, ALL_STAGING_COMBINATIONS)
-def test_staging_load(destination: str, staging: str, file_format: str, bucket: str, storage_integration: str) -> None:
+def test_staging_load(destination: str, staging: str, file_format: str, bucket: str, stage_name: str) -> None:
 
     # snowflake requires gcs prefix instead of gs in bucket path
     if destination == "snowflake":
@@ -39,7 +39,7 @@ def test_staging_load(destination: str, staging: str, file_format: str, bucket: 
 
     # set env vars
     os.environ['DESTINATION__FILESYSTEM__BUCKET_URL'] = bucket
-    os.environ['DESTINATION__STORAGE_INTEGRATION'] = storage_integration
+    os.environ['DESTINATION__STAGE_NAME'] = stage_name
 
     pipeline = dlt.pipeline(pipeline_name='test_stage_loading_5', destination=destination, staging=staging, dataset_name='staging_test', full_refresh=True)
 
@@ -96,10 +96,10 @@ def test_staging_load(destination: str, staging: str, file_format: str, bucket: 
 
 # @pytest.mark.skip(reason="need to discuss")
 @pytest.mark.parametrize(STAGING_COMBINAION_FIELDS, ALL_STAGING_COMBINATIONS)
-def test_all_data_types(destination: str, staging: str, file_format: str, bucket: str, storage_integration: str) -> None:
+def test_all_data_types(destination: str, staging: str, file_format: str, bucket: str, stage_name: str) -> None:
     # set env vars
     os.environ['DESTINATION__FILESYSTEM__BUCKET_URL'] = bucket
-    os.environ['DESTINATION__STORAGE_INTEGRATION'] = storage_integration
+    os.environ['DESTINATION__STAGE_NAME'] = stage_name
     pipeline = dlt.pipeline(pipeline_name='test_stage_loading', destination=destination, dataset_name='staging_test', full_refresh=True)
 
     global data_types

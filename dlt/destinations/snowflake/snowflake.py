@@ -62,7 +62,7 @@ def _s3_config(config: AwsCredentials = config.value) -> AwsCredentials:
 class SnowflakeLoadJob(LoadJob, FollowupJob):
     def __init__(
             self, file_path: str, table_name: str, write_disposition: TWriteDisposition, load_id: str, client: SnowflakeSqlClient,
-            stage_name: Optional[str] = None, storage_integration: Optional[str] = None, keep_staged_files: bool = True
+            stage_name: Optional[str] = None, keep_staged_files: bool = True
     ) -> None:
         file_name = FileStorage.get_file_name_from_file_path(file_path)
         super().__init__(file_name)
@@ -75,20 +75,16 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
             file_name = FileStorage.get_file_name_from_file_path(bucket_path) if bucket_path else file_name
             from_clause = ""
             credentials_clause = ""
-            pattern_clause = ""
+            files_clause = ""
             stage_file_path = ""
 
             # create storage integration stage for reference jobs if defined, for now gcs only
-            if bucket_path and storage_integration:
-                stage_name = client.make_qualified_table_name(stage_name) if stage_name else qualified_table_name
-                bucket = CopyFileLoadJob.get_bucket(file_path)
-                client.execute_sql(f"""
-                    CREATE STAGE IF NOT EXISTS {stage_name}
-                    URL = '{bucket}'
-                    STORAGE_INTEGRATION = {storage_integration};""")
-                from_clause = f"FROM @{stage_name}"
+            if bucket_path and stage_name:
+                from_clause = f"FROM @{stage_name}/"
                 # select all files that match the file from our job
-                pattern_clause = f"PATTERN = '.*{file_name}'"
+                bucket = CopyFileLoadJob.get_bucket(file_path)
+                file_path = bucket_path.replace(bucket + "/", "")
+                files_clause = f"FILES = ('{file_path}')"
             # s3 credentials case
             elif bucket_path:
                 if bucket_path.startswith("s3://"):
@@ -124,7 +120,7 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
                 client.execute_sql(
                     f"""COPY INTO {qualified_table_name}
                     {from_clause}
-                    {pattern_clause}
+                    {files_clause}
                     {credentials_clause}
                     FILE_FORMAT = {source_format}
                     MATCH_BY_COLUMN_NAME='CASE_INSENSITIVE'
@@ -160,7 +156,7 @@ class SnowflakeClient(SqlJobClientBase):
         if not job:
             job = SnowflakeLoadJob(
                 file_path, table['name'], table['write_disposition'], load_id, self.sql_client,
-                stage_name=self.config.stage_name, storage_integration=self.config.storage_integration, keep_staged_files=self.config.keep_staged_files
+                stage_name=self.config.stage_name, keep_staged_files=self.config.keep_staged_files
             )
         return job
 
