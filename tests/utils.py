@@ -38,15 +38,15 @@ ALL_LOCAL_DESTINATIONS = set(ALL_DESTINATIONS).intersection("postgres", "duckdb"
 STAGING_COMBINAION_FIELDS = "destination,staging,file_format,bucket,stage_name"
 
 ALL_DEFAULT_FILETYPE_STAGING_COMBINATIONS = [
-    # ("bigquery","filesystem","parquet",GCS_BUCKET, ""),
-    # ("redshift","filesystem","parquet",AWS_BUCKET, ""),
-    # ("snowflake","filesystem","jsonl",AWS_BUCKET, ""), # "PUBLIC.dlt_s3_stage"),
+    ("bigquery","filesystem","parquet",GCS_BUCKET, ""),
+    ("redshift","filesystem","parquet",AWS_BUCKET, ""),
+    ("snowflake","filesystem","jsonl",AWS_BUCKET, ""), # "PUBLIC.dlt_s3_stage"),
     ("snowflake","filesystem","jsonl",GCS_BUCKET, "PUBLIC.dlt_gcs_stage")
     ]
 
 ALL_STAGING_COMBINATIONS = ALL_DEFAULT_FILETYPE_STAGING_COMBINATIONS + [
-    # ("redshift","filesystem","jsonl",AWS_BUCKET, ""),
-    # ("bigquery","filesystem","jsonl",GCS_BUCKET, "")
+    ("redshift","filesystem","jsonl",AWS_BUCKET, ""),
+    ("bigquery","filesystem","jsonl",GCS_BUCKET, "")
 ]
 
 STAGING_AND_NON_STAGING_COMBINATIONS = ALL_DEFAULT_FILETYPE_STAGING_COMBINATIONS + [
