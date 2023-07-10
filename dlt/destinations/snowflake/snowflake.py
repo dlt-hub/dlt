@@ -62,7 +62,7 @@ def _s3_config(config: AwsCredentials = config.value) -> AwsCredentials:
 class SnowflakeLoadJob(LoadJob, FollowupJob):
     def __init__(
             self, file_path: str, table_name: str, write_disposition: TWriteDisposition, load_id: str, client: SnowflakeSqlClient,
-            stage_name: Optional[str] = None, keep_staged_files: bool = True
+            stage_name: Optional[str] = None, keep_staged_files: bool = True, forward_staging_credentials: bool = True
     ) -> None:
         file_name = FileStorage.get_file_name_from_file_path(file_path)
         super().__init__(file_name)
@@ -87,7 +87,7 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
                 files_clause = f"FILES = ('{file_path}')"
             # s3 credentials case
             elif bucket_path:
-                if bucket_path.startswith("s3://"):
+                if bucket_path.startswith("s3://") and forward_staging_credentials:
                     s3_config = _s3_config()
                     credentials_clause = f"""CREDENTIALS=(AWS_KEY_ID='{s3_config.aws_access_key_id}' AWS_SECRET_KEY='{s3_config.aws_secret_access_key}')"""
                 from_clause = f"FROM '{bucket_path}'"
@@ -156,7 +156,8 @@ class SnowflakeClient(SqlJobClientBase):
         if not job:
             job = SnowflakeLoadJob(
                 file_path, table['name'], table['write_disposition'], load_id, self.sql_client,
-                stage_name=self.config.stage_name, keep_staged_files=self.config.keep_staged_files
+                stage_name=self.config.stage_name, keep_staged_files=self.config.keep_staged_files,
+                forward_staging_credentials=self.config.forward_staging_credentials
             )
         return job
 

@@ -39,7 +39,7 @@ Redshift supports s3 as a file staging destination. DLT will upload files in the
 If you would like to load from s3 without forwarding the aws staging credentials in every copy command to redshift, you can disable this by setting the config option `forward_staging_credentials` to false:
 
 ```toml
-[destination.filesystem]
+[destination]
 forward_staging_credentials=false
 ```
 

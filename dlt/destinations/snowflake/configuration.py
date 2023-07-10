@@ -91,3 +91,5 @@ class SnowflakeClientConfiguration(DestinationClientDwhConfiguration):
     """Use an existing named stage instead of the default. Default uses the implicit table stage per table"""
     keep_staged_files: bool = True
     """Whether to keep or delete the staged files after COPY INTO succeeds"""
+    forward_staging_credentials: bool = True
+    """Whether to forward the credentials from the stage bucket provider. This can be used as an authentication mechanism for s3"""
