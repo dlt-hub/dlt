@@ -69,11 +69,11 @@ Amazon Redshift supports following column hints:
 - `cluster` - hint is a Redshift term for table distribution. Applying it to a column makes it the "DISTKEY," affecting query and join performance. Check the following [documentation](https://docs.aws.amazon.com/redshift/latest/dg/c_best-practices-best-dist-key.html) for more info.
 - `sort` - creates SORTKEY to order rows on disk physically. It is used to improve query and join speed in Redshift, please read the [sort key docs](https://docs.aws.amazon.com/redshift/latest/dg/c_best-practices-sort-key.html) to learn more.
 
-## dbt support
+### dbt support
 
 - This destination [integrates with dbt](https://dlthub.com/docs/dlt-ecosystem/transformations/dbt) via [dbt-redshift](https://github.com/dbt-labs/dbt-redshift). If explicitly defined, credentials are shared with dbt and other settings such as location, retries, and timeouts. In the case of implicit credentials (i.e., available in the cloud feature), dlt shares the project_id and delegates the retrieval of certificates to the dbt adapter.
 
-## Syncing of `dlt` state
+### Syncing of `dlt` state
 
 - This destination fully supports [dlt state sync](https://dlthub.com/docs/general-usage/state#syncing-state-with-destination)
 
