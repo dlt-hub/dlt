@@ -1,10 +1,15 @@
 from types import TracebackType
 from typing import ClassVar, Optional, Sequence, Type, Iterable
+import base64
+import binascii
+import zlib
 
 import weaviate
 
-from dlt.common import json
+
+from dlt.common import json, pendulum, logger
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
+from dlt.common.schema.typing import VERSION_TABLE_NAME
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
     NewLoadJob,
@@ -14,6 +19,7 @@ from dlt.common.destination.reference import (
 )
 from dlt.common.storages import FileStorage
 from dlt.destinations.job_impl import EmptyLoadJob
+from dlt.destinations.job_client_impl import StorageSchemaInfo
 
 from dlt.destinations.weaviate import capabilities
 from dlt.destinations.weaviate.configuration import WeaviateClientConfiguration
@@ -104,12 +110,83 @@ class WeaviateClient(JobClientBase):
         only_tables: Iterable[str] = None,
         expected_update: TSchemaTables = None,
     ) -> Optional[TSchemaTables]:
-        for table_name in self.schema.tables:
+        # Retrieve the schema from Weaviate
+        applied_update: TSchemaTables = {}
+        schema_info = self.get_schema_by_hash(self.schema.stored_version_hash)
+        if schema_info is None:
+            logger.info(
+                f"Schema with hash {self.schema.stored_version_hash} "
+                f"not found in the storage. upgrading"
+            )
+            self._execute_schema_update(only_tables)
+        else:
+            logger.info(
+                f"Schema with hash {self.schema.stored_version_hash} "
+                f"inserted at {schema_info.inserted_at} found "
+                f"in storage, no upgrade required"
+            )
+
+    def _execute_schema_update(self, only_tables: Iterable[str]) -> None:
+        for table_name in only_tables or self.schema.tables:
             table = self.schema.tables[table_name]
             class_schema = self.make_weaviate_class_schema(table)
 
-            # Todo: check if schema exists (by hash)
             self.db_client.schema.create_class(class_schema)
+        self._update_schema_in_storage(self.schema)
+
+    def get_schema_by_hash(self, schema_hash: str) -> dict:
+        version_class_name = table_name_to_class_name(VERSION_TABLE_NAME)
+
+        try:
+            self.db_client.schema.get(version_class_name)
+        except weaviate.exceptions.UnexpectedStatusCodeException as e:
+            if e.status_code == 404:
+                return None
+            raise
+
+        properties = [
+            "version_hash",
+            "schema_name",
+            "version",
+            "engine_version",
+            "inserted_at",
+            "schema",
+        ]
+
+        response = (
+            self.db_client.query.get(version_class_name, properties)
+            .with_where(
+                {
+                    "path": ["version_hash"],
+                    "operator": "Equal",
+                    "valueString": schema_hash,
+                }
+            )
+            .with_limit(1)
+            .do()
+        )
+
+        try:
+            record = response["data"]["Get"][version_class_name][0]
+        except IndexError:
+            return None
+
+        # XXX: Duplicate code from dlt/destinations/job_client_impl.py
+        schema_str = record["schema"]
+        try:
+            schema_bytes = base64.b64decode(schema_str, validate=True)
+            schema_str = zlib.decompress(schema_bytes).decode("utf-8")
+        except binascii.Error:
+            pass
+
+        return StorageSchemaInfo(
+            version_hash=record["version_hash"],
+            schema_name=record["schema_name"],
+            version=record["version"],
+            engine_version=record["engine_version"],
+            inserted_at=pendulum.parse(record["inserted_at"]),
+            schema=schema_str,
+        )
 
     def make_weaviate_class_schema(self, table: TTableSchema) -> dict:
         """Creates a Weaviate class schema from a table schema."""
@@ -174,3 +251,26 @@ class WeaviateClient(JobClientBase):
         exc_tb: TracebackType,
     ) -> None:
         pass
+
+    def _update_schema_in_storage(self, schema: Schema) -> None:
+        now_ts = str(pendulum.now())
+        schema_str = json.dumps(schema.to_dict())
+        schema_bytes = schema_str.encode("utf-8")
+        if len(schema_bytes) > self.capabilities.max_text_data_type_length:
+            # compress and to base64
+            schema_str = base64.b64encode(zlib.compress(schema_bytes, level=9)).decode(
+                "ascii"
+            )
+        version_class_name = table_name_to_class_name(VERSION_TABLE_NAME)
+        properties = {
+            "version_hash": schema.stored_version_hash,
+            "schema_name": schema.name,
+            "version": schema.version,
+            "engine_version": schema.ENGINE_VERSION,
+            "inserted_at": now_ts,
+            "schema": schema_str,
+        }
+
+        uuid = self.db_client.data_object.create(properties, version_class_name)
+
+        print(f"Created version {uuid} of schema {schema.name}")
