@@ -71,7 +71,7 @@ class LoadWeaviateJob(LoadJob):
             with FileStorage.open_zipsafe_ro(local_path) as f:
                 for line in f:
                     data = json.loads(line)
-                    db_client.batch.add_data_object(data, class_name)
+                    batch.add_data_object(data, class_name)
 
     def state(self) -> TLoadJobState:
         return "completed"
@@ -271,6 +271,4 @@ class WeaviateClient(JobClientBase):
             "schema": schema_str,
         }
 
-        uuid = self.db_client.data_object.create(properties, version_class_name)
-
-        print(f"Created version {uuid} of schema {schema.name}")
+        self.db_client.data_object.create(properties, version_class_name)
