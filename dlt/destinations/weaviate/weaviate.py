@@ -9,7 +9,7 @@ import weaviate
 
 from dlt.common import json, pendulum, logger
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
-from dlt.common.schema.typing import VERSION_TABLE_NAME
+from dlt.common.schema.typing import VERSION_TABLE_NAME, LOADS_TABLE_NAME
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
     NewLoadJob,
@@ -239,18 +239,17 @@ class WeaviateClient(JobClientBase):
         return None
 
     def complete_load(self, load_id: str) -> None:
-        pass
+        load_table_name = table_name_to_class_name(LOADS_TABLE_NAME)
+        properties = {
+            "load_id": load_id,
+            "schema_name": self.schema.name,
+            "status": 0,
+            "inserted_at": str(pendulum.now()),
+        }
+        self.db_client.data_object.create(properties, load_table_name)
 
     def __enter__(self) -> "WeaviateClient":
         return self
-
-    def __exit__(
-        self,
-        exc_type: Type[BaseException],
-        exc_val: BaseException,
-        exc_tb: TracebackType,
-    ) -> None:
-        pass
 
     def _update_schema_in_storage(self, schema: Schema) -> None:
         now_ts = str(pendulum.now())
