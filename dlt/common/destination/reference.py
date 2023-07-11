@@ -15,7 +15,7 @@ from dlt.common.schema.utils import is_complete_column
 from dlt.common.storages import FileStorage
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.utils import get_module_name
-from dlt.common.configuration.specs import GcpCredentials, AwsCredentials
+from dlt.common.configuration.specs import GcpCredentials, AwsCredentialsPure
 
 
 @configspec(init=True)
@@ -55,13 +55,13 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
 class DestinationClientStagingConfiguration(DestinationClientDwhConfiguration):
     as_staging: bool = False
     bucket_url: str
-    credentials: Union[AwsCredentials, GcpCredentials]
+    credentials: Union[AwsCredentialsPure, GcpCredentials]
 
     if TYPE_CHECKING:
         def __init__(
             self,
             destination_name: str = None,
-            credentials: Union[AwsCredentials, GcpCredentials] = None,
+            credentials: Union[AwsCredentialsPure, GcpCredentials] = None,
             dataset_name: str = None,
             default_schema_name: Optional[str] = None,
             as_staging: bool = False,

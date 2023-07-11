@@ -4,6 +4,7 @@ from dlt.common.exceptions import MissingDependencyException
 from dlt.common.typing import TSecretStrValue
 from dlt.common.configuration.specs import CredentialsConfiguration, CredentialsWithDefault, configspec
 from dlt import version
+from dlt. common.configuration.specs.aws_credentials_pure import AwsCredentialsPure
 
 if TYPE_CHECKING:
     from botocore.credentials import Credentials
@@ -11,11 +12,7 @@ if TYPE_CHECKING:
 
 
 @configspec
-class AwsCredentials(CredentialsConfiguration, CredentialsWithDefault):
-    aws_access_key_id: str = None
-    aws_secret_access_key: TSecretStrValue = None
-    aws_session_token: Optional[TSecretStrValue] = None
-    aws_profile: Optional[str] = None
+class AwsCredentials(AwsCredentialsPure):
 
     def on_partial(self) -> None:
         # Try get default credentials
@@ -39,18 +36,3 @@ class AwsCredentials(CredentialsConfiguration, CredentialsWithDefault):
 
     def to_native_credentials(self) -> Optional["Credentials"]:
         return self._to_session().get_credentials()
-
-    def to_s3fs_credentials(self) -> Dict[str, Optional[str]]:
-        """Dict of keyword arguments that can be passed to s3fs"""
-        return dict(
-            key=self.aws_access_key_id,
-            secret=self.aws_secret_access_key,
-            token=self.aws_session_token,
-            profile=self.aws_profile
-        )
-
-    def to_native_representation(self) -> Dict[str, Optional[str]]:
-        """Return a dict that can be passed as kwargs to boto3 session"""
-        d = dict(self)
-        d['profile_name'] = d.pop('aws_profile')  # boto3 argument doesn't match env var name
-        return d

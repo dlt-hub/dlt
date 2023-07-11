@@ -4,9 +4,6 @@ from typing import ClassVar, Dict, Optional, Sequence, Tuple, List, cast, Iterab
 
 from dlt.common import json, logger
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
-from dlt.common.configuration.specs import GcpServiceAccountCredentialsWithoutDefaults
-from dlt.common.configuration import with_config, known_sections
-from dlt.common.configuration.specs import AwsCredentials
 from dlt.common.configuration.accessors import config
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import FollowupJob, NewLoadJob, TLoadJobState, LoadJob, DestinationClientStagingConfiguration
