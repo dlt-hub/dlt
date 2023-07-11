@@ -5,6 +5,8 @@ keywords: [redshift, destination, data warehouse]
 ---
 
 # Amazon Redshift
+
+## Setup Guide
 ### 1. Initialize the dlt project
 
 Let's start by initializing a new dlt project as follows:
