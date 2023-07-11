@@ -18,11 +18,31 @@ from dlt.destinations.job_impl import EmptyLoadJob
 from dlt.destinations.weaviate import capabilities
 from dlt.destinations.weaviate.configuration import WeaviateClientConfiguration
 
+DLT_TABLE_PREFIX = "_dlt"
+
 
 # TODO: move to common
+def is_dlt_table(table_name: str) -> bool:
+    return table_name.startswith(DLT_TABLE_PREFIX)
+
+
 def snake_to_camel(snake_str: str) -> str:
     components = snake_str.split("_")
     return "".join(x.capitalize() for x in components)
+
+
+def table_name_to_class_name(table_name):
+    # Weaviate requires class names to be written with
+    # a capital letter first:
+    # https://weaviate.io/developers/weaviate/config-refs/schema#class
+    # For dlt tables strip the underscore from the name
+    # and make it all caps
+    # For non dlt tables make the class name camel case
+    return (
+        snake_to_camel(table_name)
+        if not is_dlt_table(table_name)
+        else table_name.lstrip("_").upper()
+    )
 
 
 class LoadWeaviateJob(LoadJob):
@@ -37,7 +57,7 @@ class LoadWeaviateJob(LoadJob):
         file_name = FileStorage.get_file_name_from_file_path(local_path)
         super().__init__(file_name)
 
-        class_name = snake_to_camel(table_name)
+        class_name = table_name_to_class_name(table_name)
 
         with db_client.batch(
             batch_size=client_config.weaviate_batch_size,
@@ -85,29 +105,44 @@ class WeaviateClient(JobClientBase):
         expected_update: TSchemaTables = None,
     ) -> Optional[TSchemaTables]:
         for table_name in self.schema.tables:
-            if table_name.startswith("_"):
-                continue
             table = self.schema.tables[table_name]
-            class_name = snake_to_camel(table_name)
-
-            class_obj = {
-                "class": class_name,
-                "vectorizer": "text2vec-openai",
-                "moduleConfig": {
-                    "text2vec-openai": {
-                        "model": "ada",
-                        "modelVersion": "002",
-                        "type": "text",
-                    },
-                },
-            }
+            class_schema = self.make_weaviate_class_schema(table)
 
             # Todo: check if schema exists (by hash)
-            self.db_client.schema.create_class(class_obj)
+            self.db_client.schema.create_class(class_schema)
 
-    def _create_class(self, table: TTableSchema) -> None:
-        """Creates a Weaviate class from a table schema."""
-        pass
+    def make_weaviate_class_schema(self, table: TTableSchema) -> dict:
+        """Creates a Weaviate class schema from a table schema."""
+        table_name = table["name"]
+
+        class_name = table_name_to_class_name(table_name)
+
+        if is_dlt_table(table_name):
+            return self._make_non_vectorized_class_schema(class_name)
+
+        return self._make_vectorized_class_schema(class_name)
+
+    def _make_vectorized_class_schema(self, class_name: str) -> dict:
+        return {
+            "class": class_name,
+            "vectorizer": "text2vec-openai",
+            "moduleConfig": {
+                "text2vec-openai": {
+                    "model": "ada",
+                    "modelVersion": "002",
+                    "type": "text",
+                },
+            },
+        }
+
+    def _make_non_vectorized_class_schema(self, class_name: str) -> dict:
+        return {
+            "class": class_name,
+            "vectorizer": "none",
+            "vectorIndexConfig": {
+                "skip": True,
+            },
+        }
 
     def start_file_load(
         self, table: TTableSchema, file_path: str, load_id: str
