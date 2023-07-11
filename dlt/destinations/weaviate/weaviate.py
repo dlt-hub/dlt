@@ -6,7 +6,6 @@ import zlib
 
 import weaviate
 
-
 from dlt.common import json, pendulum, logger
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
 from dlt.common.schema.typing import VERSION_TABLE_NAME, LOADS_TABLE_NAME
@@ -33,8 +32,7 @@ def is_dlt_table(table_name: str) -> bool:
 
 
 def snake_to_camel(snake_str: str) -> str:
-    components = snake_str.split("_")
-    return "".join(x.capitalize() for x in components)
+    return "".join(x.capitalize() for x in snake_str.split("_"))
 
 
 def table_name_to_class_name(table_name):
@@ -86,15 +84,13 @@ class WeaviateClient(JobClientBase):
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
     def __init__(self, schema: Schema, config: WeaviateClientConfiguration) -> None:
-        db_client = weaviate.Client(
+        super().__init__(schema, config)
+        self.config: WeaviateClientConfiguration = config
+        self.db_client = weaviate.Client(
             url=config.credentials.url,
             auth_client_secret=weaviate.AuthApiKey(api_key=config.credentials.api_key),
             additional_headers=config.credentials.additional_headers,
         )
-
-        super().__init__(schema, config)
-        self.config: WeaviateClientConfiguration = config
-        self.db_client = db_client
 
     def initialize_storage(
         self, staging: bool = False, truncate_tables: Iterable[str] = None
@@ -170,7 +166,9 @@ class WeaviateClient(JobClientBase):
             record = response["data"]["Get"][version_class_name][0]
         except IndexError:
             return None
+        return self._decode_schema(record)
 
+    def _decode_schema(self, record: dict) -> StorageSchemaInfo:
         # XXX: Duplicate code from dlt/destinations/job_client_impl.py
         schema_str = record["schema"]
         try:
@@ -250,6 +248,14 @@ class WeaviateClient(JobClientBase):
 
     def __enter__(self) -> "WeaviateClient":
         return self
+
+    def __exit__(
+        self,
+        exc_type: Type[BaseException],
+        exc_val: BaseException,
+        exc_tb: TracebackType,
+    ) -> None:
+        pass
 
     def _update_schema_in_storage(self, schema: Schema) -> None:
         now_ts = str(pendulum.now())
