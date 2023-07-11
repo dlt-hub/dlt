@@ -9,7 +9,7 @@ from dlt.common.configuration import with_config, known_sections
 from dlt.common.configuration.specs import AwsCredentials
 from dlt.common.configuration.accessors import config
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import FollowupJob, NewLoadJob, TLoadJobState, LoadJob
+from dlt.common.destination.reference import FollowupJob, NewLoadJob, TLoadJobState, LoadJob, DestinationClientStagingConfiguration
 from dlt.common.data_types import TDataType
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns, TSchemaTables
@@ -54,15 +54,11 @@ BQT_TO_SCT: Dict[str, TDataType] = {
     "VARIANT": "complex"
 }
 
-@with_config(spec=AwsCredentials, sections=(known_sections.DESTINATION, "filesystem", "credentials"))
-def _s3_config(config: AwsCredentials = config.value) -> AwsCredentials:
-    return config
-
 
 class SnowflakeLoadJob(LoadJob, FollowupJob):
     def __init__(
             self, file_path: str, table_name: str, write_disposition: TWriteDisposition, load_id: str, client: SnowflakeSqlClient,
-            stage_name: Optional[str] = None, keep_staged_files: bool = True, forward_staging_credentials: bool = True
+            stage_name: Optional[str] = None, keep_staged_files: bool = True, forward_staging_credentials: bool = True, staging_config: Optional[DestinationClientStagingConfiguration] = None
     ) -> None:
         file_name = FileStorage.get_file_name_from_file_path(file_path)
         super().__init__(file_name)
@@ -88,8 +84,9 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
             # s3 credentials case
             elif bucket_path:
                 if bucket_path.startswith("s3://") and forward_staging_credentials:
-                    s3_config = _s3_config()
-                    credentials_clause = f"""CREDENTIALS=(AWS_KEY_ID='{s3_config.aws_access_key_id}' AWS_SECRET_KEY='{s3_config.aws_secret_access_key}')"""
+                    aws_access_key = staging_config.credentials.aws_access_key_id # type: ignore
+                    aws_secret_key = staging_config.credentials.aws_secret_access_key # type: ignore
+                    credentials_clause = f"""CREDENTIALS=(AWS_KEY_ID='{aws_access_key}' AWS_SECRET_KEY='{aws_secret_key}')"""
                 from_clause = f"FROM '{bucket_path}'"
             # create a stage if so defined
             elif stage_name:
@@ -157,7 +154,8 @@ class SnowflakeClient(SqlJobClientBase):
             job = SnowflakeLoadJob(
                 file_path, table['name'], table['write_disposition'], load_id, self.sql_client,
                 stage_name=self.config.stage_name, keep_staged_files=self.config.keep_staged_files,
-                forward_staging_credentials=self.config.forward_staging_credentials
+                forward_staging_credentials=self.config.forward_staging_credentials,
+                staging_config=self.config.staging_config
             )
         return job
 

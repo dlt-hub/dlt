@@ -23,7 +23,7 @@ from dlt.common.typing import TFun, TSecretValue
 from dlt.common.runners import pool_runner as runner
 from dlt.common.storages import LiveSchemaStorage, NormalizeStorage, LoadStorage, SchemaStorage, FileStorage, NormalizeStorageConfiguration, SchemaStorageConfiguration, LoadStorageConfiguration
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import DestinationReference, JobClientBase, DestinationClientConfiguration, DestinationClientDwhConfiguration, TDestinationReferenceArg, DestinationClientStagingConfiguration
+from dlt.common.destination.reference import DestinationReference, JobClientBase, DestinationClientConfiguration, DestinationClientDwhConfiguration, TDestinationReferenceArg, DestinationClientStagingConfiguration, DestinationClientDwhWithStagingConfiguration
 from dlt.common.pipeline import ExtractInfo, LoadInfo, NormalizeInfo, PipelineContext, SupportsPipeline, TPipelineLocalState, TPipelineState, StateInjectableContext
 from dlt.common.schema import Schema
 from dlt.common.utils import is_interactive
@@ -348,6 +348,9 @@ class Pipeline(SupportsPipeline):
         staging_client = None
         if self.staging:
             staging_client = self._get_staging_client(self.default_schema)
+            # inject staging config into destination config, TODO: Not super clean I think?
+            if isinstance(client.config, DestinationClientDwhWithStagingConfiguration):
+                client.config.staging_config = staging_client.config # type: ignore
 
         # create default loader config and the loader
         load_config = LoaderConfiguration(

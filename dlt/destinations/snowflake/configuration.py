@@ -8,7 +8,7 @@ from dlt.common.typing import TSecretStrValue
 from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common.configuration import configspec
-from dlt.common.destination.reference import DestinationClientDwhConfiguration
+from dlt.common.destination.reference import DestinationClientDwhWithStagingConfiguration
 
 
 def _read_private_key(private_key: str, password: Optional[str] = None) -> bytes:
@@ -83,7 +83,7 @@ class SnowflakeCredentials(ConnectionStringCredentials):
 
 
 @configspec(init=True)
-class SnowflakeClientConfiguration(DestinationClientDwhConfiguration):
+class SnowflakeClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     destination_name: Final[str] = "snowflake"  # type: ignore[misc]
     credentials: SnowflakeCredentials
 

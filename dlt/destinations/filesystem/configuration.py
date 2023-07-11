@@ -19,10 +19,7 @@ PROTOCOL_CREDENTIALS = {
 
 @configspec(init=True)
 class FilesystemClientConfiguration(DestinationClientStagingConfiguration):
-    credentials: Union[AwsCredentials, GcpCredentials]
-
     destination_name: Final[str] = "filesystem"  # type: ignore
-    bucket_url: str
 
     @property
     def protocol(self) -> str:

@@ -15,6 +15,7 @@ from dlt.common.schema.utils import is_complete_column
 from dlt.common.storages import FileStorage
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.utils import get_module_name
+from dlt.common.configuration.specs import GcpCredentials, AwsCredentials
 
 
 @configspec(init=True)
@@ -53,7 +54,24 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
 @configspec(init=True)
 class DestinationClientStagingConfiguration(DestinationClientDwhConfiguration):
     as_staging: bool = False
+    bucket_url: str
+    credentials: Union[AwsCredentials, GcpCredentials]
 
+    if TYPE_CHECKING:
+        def __init__(
+            self,
+            destination_name: str = None,
+            credentials: Union[AwsCredentials, GcpCredentials] = None,
+            dataset_name: str = None,
+            default_schema_name: Optional[str] = None,
+            as_staging: bool = False,
+            bucket_url: str = None,
+        ) -> None:
+            ...
+
+@configspec(init=True)
+class DestinationClientDwhWithStagingConfiguration(DestinationClientDwhConfiguration):
+    staging_config: Optional[DestinationClientStagingConfiguration] = None
 
     if TYPE_CHECKING:
         def __init__(
@@ -62,10 +80,9 @@ class DestinationClientStagingConfiguration(DestinationClientDwhConfiguration):
             credentials: Optional[CredentialsConfiguration] = None,
             dataset_name: str = None,
             default_schema_name: Optional[str] = None,
-            as_staging: bool = False
+            staging_config: Optional[DestinationClientStagingConfiguration] = None
         ) -> None:
             ...
-
 
 
 TLoadJobState = Literal["running", "failed", "retry", "completed"]
