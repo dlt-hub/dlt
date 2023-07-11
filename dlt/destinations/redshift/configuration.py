@@ -1,4 +1,4 @@
-from typing import Final
+from typing import Final, Optional
 
 from dlt.common.typing import TSecretValue
 from dlt.common.configuration import configspec
@@ -19,3 +19,4 @@ class RedshiftClientConfiguration(PostgresClientConfiguration):
     destination_name: Final[str] = "redshift"  # type: ignore
     credentials: RedshiftCredentials
     forward_staging_credentials: bool = True
+    staging_iam_role: Optional[str] = None

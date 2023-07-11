@@ -9,11 +9,11 @@ else:
     import psycopg2
     # from psycopg2.sql import SQL, Composed
 
-from typing import ClassVar, Dict, List, Optional, Sequence
+from typing import ClassVar, Dict, List, Optional, Sequence, Any
 
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import NewLoadJob
+from dlt.common.destination.reference import NewLoadJob, DestinationClientStagingConfiguration
 from dlt.common.data_types import TDataType
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
 from dlt.common.schema.typing import TTableSchema
@@ -26,6 +26,7 @@ from dlt.destinations.job_client_impl import CopyFileLoadJob, LoadJob
 from dlt.destinations.redshift import capabilities
 from dlt.destinations.redshift.configuration import RedshiftClientConfiguration
 from dlt.destinations.job_impl import NewReferenceJob
+from dlt.destinations.sql_client import SqlClientBase
 
 
 
@@ -77,11 +78,18 @@ class RedshiftSqlClient(Psycopg2SqlClient):
         return None
 
 class RedshiftCopyFileLoadJob(CopyFileLoadJob):
+
+    def __init__(self, table: TTableSchema, file_path: str, sql_client: SqlClientBase[Any], forward_staging_credentials: bool = True, staging_config: Optional[DestinationClientStagingConfiguration] = None, staging_iam_role: str = None) -> None:
+        self._staging_iam_role = staging_iam_role
+        super().__init__(table, file_path, sql_client, forward_staging_credentials, staging_config)
+
     def execute(self, table: TTableSchema, bucket_path: str) -> None:
 
         # we assume s3 credentials where provided for the staging
         credentials = ""
-        if self._forward_staging_credentials:
+        if self._staging_iam_role:
+            credentials = f"IAM_ROLE '{self._staging_iam_role}'"
+        elif self._forward_staging_credentials:
             aws_access_key = self._staging_config.credentials.aws_access_key_id # type: ignore
             aws_secret_key = self._staging_config.credentials.aws_secret_access_key # type: ignore
             credentials = f"CREDENTIALS 'aws_access_key_id={aws_access_key};aws_secret_access_key={aws_secret_key}'"
@@ -155,7 +163,7 @@ class RedshiftClient(InsertValuesJobClient):
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         """Starts SqlLoadJob for files ending with .sql or returns None to let derived classes to handle their specific jobs"""
         if NewReferenceJob.is_reference_job(file_path):
-            return RedshiftCopyFileLoadJob(table, file_path, self.sql_client, forward_staging_credentials=self.config.forward_staging_credentials, staging_config=self.config.staging_config)
+            return RedshiftCopyFileLoadJob(table, file_path, self.sql_client, forward_staging_credentials=self.config.forward_staging_credentials, staging_config=self.config.staging_config, staging_iam_role=self.config.staging_iam_role)
         return super().start_file_load(table, file_path, load_id)
 
     @staticmethod

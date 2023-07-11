@@ -1,7 +1,7 @@
 import itertools
 import os
 import shutil
-from typing import Any
+from typing import Any, Dict
 import pytest
 
 import dlt
@@ -23,7 +23,7 @@ from tests.utils import STAGING_AND_NON_STAGING_COMBINATIONS, STAGING_COMBINAION
 
 
 @pytest.mark.parametrize(STAGING_COMBINAION_FIELDS, STAGING_AND_NON_STAGING_COMBINATIONS)
-def test_restore_state_utils(destination: str, staging: str, file_format: str, bucket: str, stage_name: str) -> None:
+def test_restore_state_utils(destination: str, staging: str, file_format: str, bucket: str, settings: Dict[str, Any]) -> None:
 
     # snowflake requires gcs prefix instead of gs in bucket path
     if destination == "snowflake" and bucket:
@@ -31,7 +31,7 @@ def test_restore_state_utils(destination: str, staging: str, file_format: str, b
 
     # set env vars
     os.environ['DESTINATION__FILESYSTEM__BUCKET_URL'] = bucket
-    os.environ['DESTINATION__STAGE_NAME'] = stage_name
+    os.environ['DESTINATION__STAGE_NAME'] = settings.get("stage_name", "")
 
     p = dlt.pipeline(pipeline_name="pipe_" + uniq_id(), destination=destination, staging=staging, dataset_name="state_test_" + uniq_id())
     schema = Schema("state")

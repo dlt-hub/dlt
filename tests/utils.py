@@ -35,26 +35,28 @@ ALL_DESTINATIONS = dlt.config.get("ALL_DESTINATIONS", list) or ["bigquery", "red
 ALL_LOCAL_DESTINATIONS = set(ALL_DESTINATIONS).intersection("postgres", "duckdb")
 
 # destination configs including staging
-STAGING_COMBINAION_FIELDS = "destination,staging,file_format,bucket,stage_name"
+STAGING_COMBINAION_FIELDS = "destination,staging,file_format,bucket,settings"
 
 ALL_DEFAULT_FILETYPE_STAGING_COMBINATIONS = [
-    ("bigquery","filesystem","parquet",GCS_BUCKET, ""),
-    ("redshift","filesystem","parquet",AWS_BUCKET, ""),
-    ("snowflake","filesystem","jsonl",AWS_BUCKET, ""), # "PUBLIC.dlt_s3_stage"),
-    ("snowflake","filesystem","jsonl",GCS_BUCKET, "PUBLIC.dlt_gcs_stage")
+    # redshift with iam role
+    ("redshift","filesystem","parquet",AWS_BUCKET,{"forward_staging_credentials": False, "staging_iam_role": "arn:aws:iam::267388281016:role/redshift_s3_read"}),
+    ("bigquery","filesystem","parquet",GCS_BUCKET, {}),
+    ("snowflake","filesystem","jsonl",AWS_BUCKET, {}), # "PUBLIC.dlt_s3_stage"),
+    ("snowflake","filesystem","jsonl",GCS_BUCKET, {"stage_name": "PUBLIC.dlt_gcs_stage"})
     ]
 # filter out destinations not set for this run
 ALL_DEFAULT_FILETYPE_STAGING_COMBINATIONS = [item for item in ALL_DEFAULT_FILETYPE_STAGING_COMBINATIONS if item[0] in ALL_DESTINATIONS]
 
 ALL_STAGING_COMBINATIONS = ALL_DEFAULT_FILETYPE_STAGING_COMBINATIONS + [
-    ("redshift","filesystem","jsonl",AWS_BUCKET, ""),
-    ("bigquery","filesystem","jsonl",GCS_BUCKET, "")
+    ("redshift","filesystem","parquet",AWS_BUCKET,{}), # redshift with credential forwarding
+    ("redshift","filesystem","jsonl",AWS_BUCKET, {}),
+    ("bigquery","filesystem","jsonl",GCS_BUCKET, {})
 ]
 # filter out destinations not set for this run
 ALL_STAGING_COMBINATIONS = [item for item in ALL_STAGING_COMBINATIONS if item[0] in ALL_DESTINATIONS]
 
 STAGING_AND_NON_STAGING_COMBINATIONS = ALL_DEFAULT_FILETYPE_STAGING_COMBINATIONS + [
-  (destination, "", "", "", "") for destination in ALL_DESTINATIONS
+  (destination, "", "", "", {}) for destination in ALL_DESTINATIONS
 ]
 
 # ALL_DESTINATIONS = ["duckdb", "postgres"]
