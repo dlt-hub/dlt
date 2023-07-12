@@ -6,6 +6,13 @@ keywords: [hubspot api, hubspot verified source, hubspot]
 
 # HubSpot
 
+:::info
+Need help deploying these sources, or figuring out how to run them in your data stack?
+
+[Join our slack community](https://dlthub-community.slack.com/join/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g) or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
+:::
+
+
 HubSpot is a customer relationship management (CRM) software and inbound marketing platform that helps businesses to attract visitors, engage customers, and close leads.
 
 The `dlt` HubSpot verified source allows you to automatically load data from HubSpot into a [destination](../destinations/) of your choice. It loads data from the following endpoints:

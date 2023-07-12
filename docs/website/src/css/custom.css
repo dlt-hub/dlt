@@ -917,5 +917,8 @@ and (max-height : 850px) {
 }
 
 
-
 /* continue modal css :end */
+
+.container a {
+  text-decoration: var(--ifm-link-hover-decoration);
+}

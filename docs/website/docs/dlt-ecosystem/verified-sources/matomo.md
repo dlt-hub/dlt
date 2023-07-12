@@ -1,4 +1,12 @@
 # Matomo
+
+:::info
+Need help deploying these sources, or figuring out how to run them in your data stack?
+
+[Join our slack community](https://dlthub-community.slack.com/join/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g) or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
+:::
+
+
 Matomo is a free and open-source web analytics platform that allows website owners and businesses to get detailed insights into their website and application performance.Matomo provides a comprehensive range of features including visitor maps, site search analytics, real-time visitor tracking, and custom reports, among others.
 
 With this verified source, you can effortlessly extract and seamlessly load data from Matomo to your preferred destination. This incredible process covers a wide range of options, including loading visitor data, live events, and reports, which can yield you with insights into your website's performance.

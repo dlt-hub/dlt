@@ -6,6 +6,13 @@ keywords: [asana api, asana verified source, asana]
 
 # Asana
 
+:::info
+Need help deploying these sources, or figuring out how to run them in your data stack?
+
+[Join our slack community](https://dlthub-community.slack.com/join/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g) or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
+:::
+
+
 Asana is a widely used web-based project management and collaboration tool that helps teams stay organized, focused, and productive. With Asana, team members can easily create, assign, and track tasks, set deadlines, and communicate with each other in real time.
 
 When you use Asana, you can create various resources like "projects", "tasks", "users", "workspaces" and others mentioned below to help you manage your work effectively. You'll be happy to know that you can easily load these resources via the dlt pipeline.
