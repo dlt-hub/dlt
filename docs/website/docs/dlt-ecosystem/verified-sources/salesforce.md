@@ -1,5 +1,12 @@
 # Salesforce
 
+:::info
+Need help deploying these sources, or figuring out how to run them in your data stack?
+
+[Join our slack community](https://dlthub-community.slack.com/join/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g) or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
+:::
+
+
 Salesforce is a cloud-based platform that helps businesses manage customer relationships and optimize various operational aspects. It empowers you to effectively handle sales, marketing, customer service, and more.
 
 This Salesforce `dlt` verified source and pipeline example offers the capability to load Salesforce endpoints such as "User" and "Opportunity" to a destination of your choosing. It enables you to conveniently load the following endpoints:

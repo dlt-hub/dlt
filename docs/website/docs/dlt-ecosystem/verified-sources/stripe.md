@@ -1,5 +1,12 @@
 # Stripe
 
+:::info
+Need help deploying these sources, or figuring out how to run them in your data stack?
+
+[Join our slack community](https://dlthub-community.slack.com/join/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g) or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
+:::
+
+
 Stripe is an online payment company that offers a platform for businesses to process payments from customers over the Internet. It's a convenient way for businesses to accept payments and manage their financial transactions securely.
 
 This verified source utilizes Stripe's API and `dlt` to extract key data such as customer information, subscription details, event records, etc, and then load them into a database. Additionally, the pipeline example shows how to calculate some important metrics such as MRR (monthly recurring revenue) and churn rate.

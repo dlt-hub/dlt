@@ -1,5 +1,12 @@
 # Google Analytics
 
+:::info
+Need help deploying these sources, or figuring out how to run them in your data stack?
+
+[Join our slack community](https://dlthub-community.slack.com/join/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g) or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
+:::
+
+
 [Google Analytics](https://marketingplatform.google.com/about/analytics/#?modal_active=none) is a web analytics service that tracks and provides data related to user engagement with your website or application.
 
 ## Google Analytics API authentication

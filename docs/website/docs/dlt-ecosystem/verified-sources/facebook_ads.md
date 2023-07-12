@@ -1,5 +1,12 @@
 # Facebook Ads
 
+:::info
+Need help deploying these sources, or figuring out how to run them in your data stack?
+
+[Join our slack community](https://dlthub-community.slack.com/join/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g) or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
+:::
+
+
 Facebook is a social media platform that allows users to create profiles, connect with friends, share photos and videos, and engage in various forms of online communication.
 
 Facebook Ads refer to the advertising platform and features provided by Facebook for businesses and individuals to create and run targeted advertisements on the Facebook platform and its affiliated apps, such as Instagram, Messenger, and Audience Network.

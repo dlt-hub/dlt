@@ -5,6 +5,13 @@ keywords: [zendesk api, zendesk pipeline, zendesk]
 ---
 # Zendesk
 
+:::info
+Need help deploying these sources, or figuring out how to run them in your data stack?
+
+[Join our slack community](https://dlthub-community.slack.com/join/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g) or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
+:::
+
+
 Zendesk is a cloud-based customer service and support platform. It offers a range of features, including ticket management, self-service options, knowledge base management, live chat, customer analytics, and talks.
 
 Using this guide, you can set up a pipeline that can automatically load data from three possible Zendesk API Clients ([Zendesk support](https://developer.zendesk.com/api-reference/ticketing/introduction/), [Zendesk chat](https://developer.zendesk.com/api-reference/live-chat/introduction/), [Zendesk talk](https://developer.zendesk.com/api-reference/voice/talk-api/introduction/)) onto a [destination](../destinations/) of your choice.
