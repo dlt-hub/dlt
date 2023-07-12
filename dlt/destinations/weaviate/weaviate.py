@@ -1,5 +1,5 @@
 from types import TracebackType
-from typing import ClassVar, Optional, Sequence, Type, Iterable
+from typing import ClassVar, Optional, Sequence, Dict, Type, Iterable, Any
 import base64
 import binascii
 import zlib
@@ -35,7 +35,7 @@ def snake_to_camel(snake_str: str) -> str:
     return "".join(x.capitalize() for x in snake_str.split("_"))
 
 
-def table_name_to_class_name(table_name):
+def table_name_to_class_name(table_name: str) -> str:
     # Weaviate requires class names to be written with
     # a capital letter first:
     # https://weaviate.io/developers/weaviate/config-refs/schema#class
@@ -86,7 +86,11 @@ class WeaviateClient(JobClientBase):
     def __init__(self, schema: Schema, config: WeaviateClientConfiguration) -> None:
         super().__init__(schema, config)
         self.config: WeaviateClientConfiguration = config
-        self.db_client = weaviate.Client(
+        self.db_client = self.create_db_client(config)
+
+    @staticmethod
+    def create_db_client(config: WeaviateClientConfiguration) -> weaviate.Client:
+        return weaviate.Client(
             url=config.credentials.url,
             auth_client_secret=weaviate.AuthApiKey(api_key=config.credentials.api_key),
             additional_headers=config.credentials.additional_headers,
@@ -122,6 +126,8 @@ class WeaviateClient(JobClientBase):
                 f"in storage, no upgrade required"
             )
 
+        return applied_update
+
     def _execute_schema_update(self, only_tables: Iterable[str]) -> None:
         for table_name in only_tables or self.schema.tables:
             table = self.schema.tables[table_name]
@@ -130,7 +136,7 @@ class WeaviateClient(JobClientBase):
             self.db_client.schema.create_class(class_schema)
         self._update_schema_in_storage(self.schema)
 
-    def get_schema_by_hash(self, schema_hash: str) -> dict:
+    def get_schema_by_hash(self, schema_hash: str) -> Optional[StorageSchemaInfo]:
         version_class_name = table_name_to_class_name(VERSION_TABLE_NAME)
 
         try:
@@ -168,7 +174,7 @@ class WeaviateClient(JobClientBase):
             return None
         return self._decode_schema(record)
 
-    def _decode_schema(self, record: dict) -> StorageSchemaInfo:
+    def _decode_schema(self, record: Dict[str, Any]) -> StorageSchemaInfo:
         # XXX: Duplicate code from dlt/destinations/job_client_impl.py
         schema_str = record["schema"]
         try:
@@ -186,7 +192,7 @@ class WeaviateClient(JobClientBase):
             schema=schema_str,
         )
 
-    def make_weaviate_class_schema(self, table: TTableSchema) -> dict:
+    def make_weaviate_class_schema(self, table: TTableSchema) -> Dict[str, Any]:
         """Creates a Weaviate class schema from a table schema."""
         table_name = table["name"]
 
@@ -197,7 +203,7 @@ class WeaviateClient(JobClientBase):
 
         return self._make_vectorized_class_schema(class_name)
 
-    def _make_vectorized_class_schema(self, class_name: str) -> dict:
+    def _make_vectorized_class_schema(self, class_name: str) -> Dict[str, Any]:
         return {
             "class": class_name,
             "vectorizer": "text2vec-openai",
@@ -210,7 +216,7 @@ class WeaviateClient(JobClientBase):
             },
         }
 
-    def _make_non_vectorized_class_schema(self, class_name: str) -> dict:
+    def _make_non_vectorized_class_schema(self, class_name: str) -> Dict[str, Any]:
         return {
             "class": class_name,
             "vectorizer": "none",
