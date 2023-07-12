@@ -55,20 +55,19 @@ We can now create the pipeline.
 Initialize a `dlt` project with the following command:
 
 ```bash
-dlt init google_sheets bigquery
+dlt init google_sheets duckdb
 ```
-Here, we chose BigQuery as the destination. To choose a different destination, replace `bigquery` with your choice of destination.
+Here, we chose duckdb as the destination. To choose a different destination, replace `duckdb` with your choice of destination.
 
 ## Add credentials
 
 1. Open `.dlt/secrets.toml`
 2. From the .json that you downloaded earlier, copy `project_id`, `private_key`, and `client_email` under `[sources.google_spreadsheet.credentials]`
-```python
+```toml
 [sources.google_spreadsheet.credentials]
 project_id = "set me up" # GCP Source project ID!
 private_key = "set me up" # Unique private key !(Must be copied fully including BEGIN and END PRIVATE KEY)
 client_email = "set me up" # Email for source service account
-location = "set me up" #Project Location For ex. “US”
 ```
 3. Enter credentials for your chosen destination as per the [docs](../destinations/)
 

@@ -35,22 +35,21 @@ We can now create the pipeline.
 
 Initialize a `dlt` project with the following command:
 
-`dlt init google_analytics bigquery`
+`dlt init google_analytics duckdb`
 
-Here, we chose BigQuery as the destination. To choose a different destination, replace `bigquery` with your choice of destination.
+Here, we chose duckdb as the destination. To choose a different destination, replace `duckdb` with your choice of destination.
 
 ## Add credentials
 
 1. Open `.dlt/secrets.toml`.
 2. From the .json that you downloaded earlier, copy `project_id`, `private_key`, and `client_email` under `[sources.google_spreadsheet.credentials]`.
 
-    ```python
-    [sources.google_analytics.credentials]
-    project_id = "set me up" # GCP Source project ID!
-    private_key = "set me up" # Unique private key !(Must be copied fully including BEGIN and END PRIVATE KEY)
-    client_email = "set me up" # Email for source service account
-    location = "set me up" #Project Location For ex. “US”
-    ```
+```toml
+[sources.google_analytics.credentials]
+project_id = "set me up" # GCP Source project ID!
+private_key = "set me up" # Unique private key !(Must be copied fully including BEGIN and END PRIVATE KEY)
+client_email = "set me up" # Email for source service account
+```
 3. Alternatively, if you're using service account credentials, replace the the fields and values with those present in the credentials .json that you generated above.
 4. Enter credentials for your chosen destination as per the [docs](../destinations/).
 
@@ -63,15 +62,18 @@ Here, we chose BigQuery as the destination. To choose a different destination, r
 2. You can also specify the parameters of the API requests such as dimensions and metrics to get your desired data.
 3. An example of how you can pass all of this in `dlt` is to simply insert it in the `.dlt/config.toml` file as below:
 
-    ```bash
-    [sources.google_analytics]
-    property_id = "299059933"
-    queries = [
-        {"resource_name"= "sample_analytics_data1", "dimensions"= ["browser", "city"], "metrics"= ["totalUsers", "transactions"]},
-        {"resource_name"= "sample_analytics_data2", "dimensions"= ["browser", "city", "dateHour"], "metrics"= ["totalUsers"]}
-    ]
-    ```
-    In this example, we pass our request parameters inside a list called `queries`. The data from each request will be loaded onto a table having the table name specified by the parameter `resource_name`.
+```toml
+[sources.google_analytics]
+property_id = "299059933"
+queries = [
+    {"resource_name"= "sample_analytics_data1", "dimensions"= ["browser", "city"], "metrics"= ["totalUsers", "transactions"]},
+    {"resource_name"= "sample_analytics_data2", "dimensions"= ["browser", "city", "dateHour"], "metrics"= ["totalUsers"]}
+]
+```
+In this example, we pass our request parameters inside a list called `queries`. The data from each request will be loaded onto a table having the table name specified by the parameter `resource_name`.
+
+
+
 4. If you're adding the property_id and queries to `.dlt/config.toml`, then you will need to modify the script `google_analytics_pipeline.py`.
 5. In the main method of the script `google_analytics_pipeline.py`, replace the function `simple_load()` with the function `simple_load_config()`. This function will automatically read the property_id and queries from `.dlt/config.toml`.
     ```python
@@ -109,26 +111,26 @@ This verified source has some predefined methods that you can use; or you can al
 - **simple_load()**
     1. If you don’t want to define the `property_id` and `queries` in the `config.toml` you can define them in the `google_analytics_pipeline.py` as defined below:
 
-        ```python
-            queries = [
-                {"resource_name": "sample_analytics_data1", "dimensions": ["browser", "city"], "metrics": ["totalUsers", "transactions"]},
-                {"resource_name": "sample_analytics_data2", "dimensions": ["browser", "city", "dateHour"], "metrics": ["totalUsers"]}
-            ] # Define the queries as these are defined
+```python
+    queries = [
+        {"resource_name": "sample_analytics_data1", "dimensions": ["browser", "city"], "metrics": ["totalUsers", "transactions"]},
+        {"resource_name": "sample_analytics_data2", "dimensions": ["browser", "city", "dateHour"], "metrics": ["totalUsers"]}
+    ] # Define the queries as these are defined
 
-            def simple_load():
-                """
-                Just loads the data normally. Incremental loading for this pipeline is on, the last load time is saved in dlt_state and the next load of the pipeline will have the last load as a starting date.
-                :returns: Load info on the pipeline that has been run
-                """
-                # FULL PIPELINE RUN
-                pipeline = dlt.pipeline(pipeline_name="dlt_google_analytics_pipeline", destination='bigquery', full_refresh=False, dataset_name="sample_analytics_data")
-                # Google Analytics source function - taking data from queries defined locally instead of config
-                # TODO: pass your google analytics property id'
-                data_analytics = google_analytics(property_id="12345678", queries=queries) # Pass the property_id and queries here
-                info = pipeline.run(data=data_analytics)
-                print(info)
-                return info
-        ```
+    def simple_load():
+        """
+        Just loads the data normally. Incremental loading for this pipeline is on, the last load time is saved in dlt_state and the next load of the pipeline will have the last load as a starting date.
+        :returns: Load info on the pipeline that has been run
+        """
+        # FULL PIPELINE RUN
+        pipeline = dlt.pipeline(pipeline_name="dlt_google_analytics_pipeline", destination='duckdb', full_refresh=False, dataset_name="sample_analytics_data")
+        # Google Analytics source function - taking data from queries defined locally instead of config
+        # TODO: pass your google analytics property id'
+        data_analytics = google_analytics(property_id="12345678", queries=queries) # Pass the property_id and queries here
+        info = pipeline.run(data=data_analytics)
+        print(info)
+        return info
+```
 
     2. Include the function `simple_load()` in the main method in `google_analytics_pipeline.py`
     3. Run the pipeline as above.

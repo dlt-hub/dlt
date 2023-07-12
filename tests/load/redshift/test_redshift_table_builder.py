@@ -21,7 +21,7 @@ def schema() -> Schema:
 @pytest.fixture
 def client(schema: Schema) -> RedshiftClient:
     # return client without opening connection
-    return RedshiftClient(schema, RedshiftClientConfiguration(dataset_name="test_" + uniq_id()))
+    return RedshiftClient(schema, RedshiftClientConfiguration(dataset_name="test_" + uniq_id(), credentials=RedshiftCredentials()))
 
 
 def test_configuration() -> None:

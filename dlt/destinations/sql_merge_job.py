@@ -54,12 +54,12 @@ class SqlMergeJob(NewLoadJobImpl):
         return clauses or ["1=1"]
 
     @classmethod
-    def gen_key_table_clauses(cls, root_table_name: str, staging_root_table_name: str, key_clauses: Sequence[str]) -> List[str]:
+    def gen_key_table_clauses(cls, root_table_name: str, staging_root_table_name: str, key_clauses: Sequence[str], for_delete: bool) -> List[str]:
         """Generate sql clauses that may be used to select or delete rows in root table of destination dataset
 
             A list of clauses may be returned for engines that do not support OR in subqueries. Like BigQuery
         """
-        return [f"FROM {root_table_name} WHERE EXISTS (SELECT 1 FROM {staging_root_table_name} WHERE {' OR '.join([c.format(d=root_table_name,s=staging_root_table_name) for c in key_clauses])})"]
+        return [f"FROM {root_table_name} as d WHERE EXISTS (SELECT 1 FROM {staging_root_table_name} as s WHERE {' OR '.join([c.format(d='d',s='s') for c in key_clauses])})"]
 
     @classmethod
     def gen_delete_temp_table_sql(cls, unique_column: str, key_table_clauses: Sequence[str]) -> Tuple[List[str], str]:
@@ -69,7 +69,7 @@ class SqlMergeJob(NewLoadJobImpl):
         """
         sql: List[str] = []
         temp_table_name = f"delete_{uniq_id()}"
-        sql.append(f"CREATE TEMP TABLE {temp_table_name} AS SELECT {unique_column} {key_table_clauses[0]};")
+        sql.append(f"CREATE TEMP TABLE {temp_table_name} AS SELECT d.{unique_column} {key_table_clauses[0]};")
         for clause in key_table_clauses[1:]:
             sql.append(f"INSERT INTO {temp_table_name} SELECT {unique_column} {clause};")
         return sql, temp_table_name
@@ -99,16 +99,18 @@ class SqlMergeJob(NewLoadJobImpl):
         primary_keys = list(map(sql_client.capabilities.escape_identifier, get_columns_names_with_prop(root_table, "primary_key")))
         merge_keys = list(map(sql_client.capabilities.escape_identifier, get_columns_names_with_prop(root_table, "merge_key")))
         key_clauses = cls._gen_key_table_clauses(primary_keys, merge_keys)
-        key_table_clauses = cls.gen_key_table_clauses(root_table_name, staging_root_table_name, key_clauses)
+
         unique_column: str = None
         root_key_column: str = None
         insert_temp_table_sql: str = None
 
         if len(table_chain) == 1:
+            key_table_clauses = cls.gen_key_table_clauses(root_table_name, staging_root_table_name, key_clauses, for_delete=True)
             # if no child tables, just delete data from top table
             for clause in key_table_clauses:
                 sql.append(f"DELETE {clause};")
         else:
+            key_table_clauses = cls.gen_key_table_clauses(root_table_name, staging_root_table_name, key_clauses, for_delete=False)
             # use unique hint to create temp table with all identifiers to delete
             unique_columns = get_columns_names_with_prop(root_table, "unique")
             if not unique_columns:

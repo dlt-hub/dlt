@@ -161,15 +161,18 @@ class SqlJobClientBase(JobClientBase):
                 return True
             raise ValueError(v)
 
-        schema_table: TTableSchemaColumns = {}
+        db_params = self.sql_client.make_qualified_table_name(table_name, escape=False).split(".", 3)
         query = """
-                SELECT column_name, data_type, is_nullable, numeric_precision, numeric_scale
-                    FROM INFORMATION_SCHEMA.COLUMNS
-                WHERE table_schema = %s AND table_name = %s
-                ORDER BY ordinal_position;
-                """
-        rows = self.sql_client.execute_sql(query, self.sql_client.fully_qualified_dataset_name(escape=False), table_name)
+SELECT column_name, data_type, is_nullable, numeric_precision, numeric_scale
+    FROM INFORMATION_SCHEMA.COLUMNS
+WHERE """
+        if len(db_params) == 3:
+            query += "table_catalog = %s AND "
+        query += "table_schema = %s AND table_name = %s ORDER BY ordinal_position;"
+        rows = self.sql_client.execute_sql(query, *db_params)
+
         # if no rows we assume that table does not exist
+        schema_table: TTableSchemaColumns = {}
         if len(rows) == 0:
             # TODO: additionally check if table exists
             return False, schema_table

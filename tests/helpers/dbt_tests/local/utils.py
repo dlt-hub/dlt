@@ -1,10 +1,12 @@
 
 import contextlib
 from typing import Iterator, NamedTuple
-from dlt.common import logger
+
 from dlt.common.configuration.utils import add_config_to_env
+from dlt.common.destination.reference import DestinationClientDwhConfiguration
 from dlt.common.runners import Venv
 from dlt.common.typing import StrAny
+
 from dlt.helpers.dbt.configuration import DBTRunnerConfiguration
 from dlt.helpers.dbt.runner import DBTPackageRunner, create_runner
 
@@ -35,9 +37,9 @@ def setup_rasa_runner(profile_name: str, dataset_name: str = None, override_valu
 
     runner = create_runner(
         Venv.restore_current(),
-        None,   # credentials are exported to env in setup_rasa_runner_client
+        # credentials are exported to env in setup_rasa_runner_client
+        DestinationClientDwhConfiguration(dataset_name=dataset_name or FIXTURES_DATASET_NAME),
         TEST_STORAGE_ROOT,
-        dataset_name or FIXTURES_DATASET_NAME,
         package_profile_name=profile_name,
         config=C
     )
@@ -50,7 +52,7 @@ def setup_rasa_runner(profile_name: str, dataset_name: str = None, override_valu
 def setup_rasa_runner_client(destination_name: str, destination_dataset_name: str) -> Iterator[None]:
     with cm_yield_client(destination_name, FIXTURES_DATASET_NAME) as client:
         # emit environ so credentials are passed to dbt profile
-        add_config_to_env(client.config.credentials)
+        add_config_to_env(client.config, ("DLT",))
         yield
         # delete temp schemas
         dataset_name = f"{destination_dataset_name}_views"

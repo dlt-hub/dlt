@@ -11,7 +11,7 @@ from dlt.version import get_installed_requirement_string
 
 from dlt.helpers.dbt.runner import create_runner, DBTPackageRunner
 
-DEFAULT_DBT_VERSION = ">=1.1,<1.5"
+DEFAULT_DBT_VERSION = ">=1.1,<1.6"
 
 
 def _default_profile_name(credentials: DestinationClientDwhConfiguration) -> str:
@@ -38,6 +38,9 @@ def _create_dbt_deps(destination_names: List[str], dbt_version: str = DEFAULT_DB
 
     all_packages = destination_names + ["core"]
     for idx, package in enumerate(all_packages):
+        # TODO: if we have more cases like this, move to destination capabilities
+        if package == "motherduck":
+            package = "duckdb"
         package_w_ver = "dbt-" + package + dbt_version
         # verify package
         pkg_resources.Requirement.parse(package_w_ver)
@@ -68,12 +71,10 @@ def package_runner(
     auto_full_refresh_when_out_of_sync: bool = None
 ) -> DBTPackageRunner:
     default_profile_name = _default_profile_name(destination_configuration)
-    dataset_name = destination_configuration.dataset_name
     return create_runner(
         venv,
-        destination_configuration.credentials,
+        destination_configuration,
         working_dir,
-        dataset_name,
         package_location,
         package_repository_branch=package_repository_branch,
         package_repository_ssh_key=package_repository_ssh_key,

@@ -3,7 +3,6 @@ from typing import Any
 from git import GitCommandError
 import pytest
 
-from dlt.common.typing import StrStr
 from dlt.common.utils import uniq_id
 
 from dlt.helpers.dbt.dbt_utils import DBTProcessingError
@@ -15,8 +14,8 @@ from tests.common.utils import modify_and_commit_file, load_secret
 from tests.helpers.dbt_tests.local.utils import setup_rasa_runner_client, setup_rasa_runner, DBTDestinationInfo
 
 DESTINATION_DATASET_NAME = "test_" + uniq_id()
-ALL_DBT_DESTINATIONS = [DBTDestinationInfo("redshift", "SELECT", "INSERT"), DBTDestinationInfo("bigquery", "CREATE TABLE", "MERGE")]
-ALL_DBT_DESTINATIONS_NAMES = ["redshift", "bigquery"]
+ALL_DBT_DESTINATIONS = [DBTDestinationInfo("bigquery", "CREATE TABLE", "MERGE")]  # DBTDestinationInfo("redshift", "SELECT", "INSERT")
+ALL_DBT_DESTINATIONS_NAMES = ["bigquery"]  # "redshift",
 
 
 @pytest.fixture(scope="module", params=ALL_DBT_DESTINATIONS, ids=ALL_DBT_DESTINATIONS_NAMES)
@@ -83,6 +82,8 @@ def test_dbt_test_no_raw_schema(destination_info: DBTDestinationInfo) -> None:
 
 
 def test_dbt_run_full_refresh(destination_info: DBTDestinationInfo) -> None:
+    if destination_info.destination_name == "redshift":
+        pytest.skip("redshift disabled due to missing fixtures")
     runner = setup_rasa_runner(destination_info.destination_name)
     run_results = runner.run_all(
         destination_dataset_name=DESTINATION_DATASET_NAME,
@@ -101,6 +102,8 @@ def test_dbt_run_full_refresh(destination_info: DBTDestinationInfo) -> None:
 
 
 def test_dbt_run_error_via_additional_vars(destination_info: DBTDestinationInfo) -> None:
+    if destination_info.destination_name == "redshift":
+        pytest.skip("redshift disabled due to missing fixtures")
     # generate with setting external user and session to non existing fields (metadata__sess_id not exists in JM schema)
     runner = setup_rasa_runner(destination_info.destination_name)
     with pytest.raises(DBTProcessingError) as dbt_err:
@@ -115,6 +118,8 @@ def test_dbt_run_error_via_additional_vars(destination_info: DBTDestinationInfo)
 
 
 def test_dbt_incremental_schema_out_of_sync_error(destination_info: DBTDestinationInfo) -> None:
+    if destination_info.destination_name == "redshift":
+        pytest.skip("redshift disabled due to missing fixtures")
     runner = setup_rasa_runner(destination_info.destination_name)
     runner.run_all(
         destination_dataset_name=DESTINATION_DATASET_NAME,

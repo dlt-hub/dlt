@@ -26,7 +26,7 @@ def init_command_wrapper(source_name: str, destination_name: str, use_generic_te
     except Exception as ex:
         click.secho(str(ex), err=True, fg="red")
         fmt.note("Please refer to %s for further assistance" % fmt.bold(DLT_INIT_DOCS_URL))
-        raise
+        return -1
     return 0
 
 

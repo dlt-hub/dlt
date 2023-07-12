@@ -48,15 +48,15 @@ Before running the pipeline, you will need to get API credentials. HubSpot no lo
 
 Initialize the pipeline with the following command:
 
-`dlt init hubspot bigquery`
+`dlt init hubspot duckdb`
 
-Here, we chose BigQuery as the destination. Alternatively, you can also choose redshift, duckdb, or any of the other [destinations](../destinations/).
+Here, we chose duckdb as the destination. Alternatively, you can also choose redshift, duckdb, or any of the other [destinations](../destinations/).
 
 ## Add credentials
 
 1. Open `.dlt/secrets.toml`
 2. Enter the token created [above](#get-api-credentials) via app.
-```
+```toml
 # put your secret values and credentials here. do not share this file and do not push it to github
 [sources.hubspot]
 api_key = "api_key" # please set me up!

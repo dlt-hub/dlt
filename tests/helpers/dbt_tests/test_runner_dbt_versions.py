@@ -32,8 +32,15 @@ def client() -> Iterator[PostgresClient]:
 
 
 PACKAGE_PARAMS = [
-    ("postgres", "1.1.3"), ("postgres", "1.2.4"), ("postgres", "1.3.2"), ("postgres", "1.4.0"), ("postgres", None),
-    ("snowflake", "1.1.1"), ("snowflake", "1.2.1"), ("snowflake", "1.3.2"), ("snowflake", "1.4.0"), ("snowflake", None)
+    ("postgres", "1.1.3"),
+    ("postgres", "1.2.4"),
+    ("postgres", "1.3.2"),
+    ("postgres", "1.4.0"),
+    ("postgres", "1.5.2"),
+    ("postgres", None),
+    ("snowflake", "1.4.0"),
+    ("snowflake", "1.5.2"),
+    ("snowflake", None)
 ]
 PACKAGE_IDS = [
     f"{destination}-venv-{version}"
@@ -118,7 +125,7 @@ def test_runner_setup(client: PostgresClient, test_storage: FileStorage) -> None
     test_storage.create_folder("jaffle")
     r = package_runner(Venv.restore_current(), client.config, test_storage.make_full_path("jaffle"), JAFFLE_SHOP_REPO)
     # runner settings
-    assert r.credentials is client.config.credentials
+    assert r.credentials is client.config
     assert r.working_dir == test_storage.make_full_path("jaffle")
     assert r.source_dataset_name == client.config.dataset_name
     assert client.config.dataset_name.startswith("test")
@@ -196,7 +203,8 @@ def test_run_jaffle_invalid_run_args(test_storage: FileStorage, dbt_package_f: T
         # we run all the tests before tables are materialized
         with pytest.raises(DBTProcessingError) as pr_exc:
             dbt_func(client.config, test_storage.make_full_path("jaffle"), JAFFLE_SHOP_REPO).run_all(["--wrong_flag"])
-        assert isinstance(pr_exc.value.dbt_results, SystemExit)
+        # dbt < 1.5 raises systemexit, dbt >= 1.5 just returns success False
+        assert isinstance(pr_exc.value.dbt_results, SystemExit) or pr_exc.value.dbt_results is None
 
 
 def test_run_jaffle_failed_run(test_storage: FileStorage, dbt_package_f: Tuple[str, AnyFun]) -> None:

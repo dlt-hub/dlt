@@ -6,6 +6,8 @@ keywords: [postgres, destination, data warehouse]
 
 # Postgres
 
+## Setup Guide
+
 **1. Initialize a project with a pipeline that loads to Postgres by running**
 ```
 dlt init chess postgres
@@ -53,6 +55,7 @@ connect_timeout = 15
 
 You can also pass a database connection string similar to the one used by `psycopg2` library or [SQLAlchemy](https://docs.sqlalchemy.org/en/20/core/engines.html#postgresql). Credentials above will look like this:
 ```toml
+# keep it at the top of your toml file! before any section starts
 destination.postgres.credentials="postgresql://loader:<password>@localhost/dlt_data?connect_timeout=15"
 ```
 
@@ -61,6 +64,18 @@ To pass credentials directly you can use `credentials` argument passed to `dlt.p
 pipeline = dlt.pipeline(pipeline_name='chess', destination='postgres', dataset_name='chess_data', credentials="postgresql://loader:<password>@localhost/dlt_data")
 ```
 
+## Write disposition
+All write dispositions are supported
+
+## Data loading
+`dlt` will load data using large INSERT VALUES statements by default. Loading is multithreaded (20 threads by default).
+
+## Supported file formats
+* [insert-values](../file-formats/insert-format.md) is used by default
+
+## Supported column hints
+`postgres` will create unique indexes for all columns with `unique` hints. This behavior **may be disabled**
+
 ## Additional destination options
 Postgres destination creates UNIQUE indexes by default on columns with `unique` hint (ie. `_dlt_id`). To disable this behavior
 ```toml
@@ -68,5 +83,8 @@ Postgres destination creates UNIQUE indexes by default on columns with `unique` 
 create_indexes=false
 ```
 
-## dbt support
-This destination [integrates with dbt](../transformations/transforming-the-data.md#transforming-the-data-using-dbt) via dbt-postgres.
+### dbt support
+This destination [integrates with dbt](../transformations/dbt.md) via dbt-postgres.
+
+### Syncing of `dlt` state
+This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination)

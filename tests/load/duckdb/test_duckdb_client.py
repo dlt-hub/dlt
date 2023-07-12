@@ -5,7 +5,7 @@ import dlt
 from dlt.common.configuration.resolve import resolve_configuration
 from dlt.common.configuration.utils import get_resolved_traces
 
-from dlt.destinations.duckdb.configuration import DUCK_DB_NAME, DuckDbClientConfiguration, DEFAULT_DUCK_DB_NAME
+from dlt.destinations.duckdb.configuration import DUCK_DB_NAME, DuckDbClientConfiguration, DuckDbCredentials, DEFAULT_DUCK_DB_NAME
 
 from tests.load.pipeline.utils import drop_pipeline
 from tests.utils import patch_home_dir, autouse_test_storage, preserve_environ, TEST_STORAGE_ROOT
@@ -214,7 +214,6 @@ def test_external_duckdb_database() -> None:
     assert c.credentials._conn_owner is False
     assert hasattr(c.credentials, "_conn")
     conn.close()
-
 
 
 def delete_quack_db() -> None:

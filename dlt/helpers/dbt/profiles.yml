@@ -7,15 +7,15 @@ redshift:
   outputs:
     analytics:
       type: redshift
-      host: "{{ env_var('CREDENTIALS__HOST') }}"
-      user: "{{ env_var('CREDENTIALS__USERNAME') }}"
-      password: "{{ env_var('CREDENTIALS__PASSWORD') }}"
-      port: "{{ env_var('CREDENTIALS__PORT', 5439) | as_number }}"
-      dbname: "{{ env_var('CREDENTIALS__DATABASE') }}"
+      host: "{{ env_var('DLT__CREDENTIALS__HOST') }}"
+      user: "{{ env_var('DLT__CREDENTIALS__USERNAME') }}"
+      password: "{{ env_var('DLT__CREDENTIALS__PASSWORD') }}"
+      port: "{{ env_var('DLT__CREDENTIALS__PORT', 5439) | as_number }}"
+      dbname: "{{ env_var('DLT__CREDENTIALS__DATABASE') }}"
       schema: "{{ var('destination_dataset_name', var('source_dataset_name')) }}"
       threads: 4
       keepalives_idle: 0 # default 0, indicating the system default
-      connect_timeout: "{{ env_var('CREDENTIALS__CONNECT_TIMEOUT') | as_number}}"
+      connect_timeout: "{{ env_var('DLT__CREDENTIALS__CONNECT_TIMEOUT') | as_number}}"
       # search_path: public # optional, not recommended
       #sslmode: [optional, set the sslmode used to connect to the database (in case this parameter is set, will look for ca in ~/.postgresql/root.crt)]
       ra3: true # enables cross-database sources
@@ -26,15 +26,15 @@ postgres:
   outputs:
     analytics:
       type: postgres
-      host: "{{ env_var('CREDENTIALS__HOST') }}"
-      user: "{{ env_var('CREDENTIALS__USERNAME') }}"
-      password: "{{ env_var('CREDENTIALS__PASSWORD') }}"
-      port: "{{ env_var('CREDENTIALS__PORT', 5432) | as_number }}"
-      dbname: "{{ env_var('CREDENTIALS__DATABASE') }}"
+      host: "{{ env_var('DLT__CREDENTIALS__HOST') }}"
+      user: "{{ env_var('DLT__CREDENTIALS__USERNAME') }}"
+      password: "{{ env_var('DLT__CREDENTIALS__PASSWORD') }}"
+      port: "{{ env_var('DLT__CREDENTIALS__PORT', 5432) | as_number }}"
+      dbname: "{{ env_var('DLT__CREDENTIALS__DATABASE') }}"
       schema: "{{ var('destination_dataset_name', var('source_dataset_name')) }}"
       threads: 4
       keepalives_idle: 0 # default 0, indicating the system default
-      connect_timeout: "{{ env_var('CREDENTIALS__CONNECT_TIMEOUT') | as_number}}"
+      connect_timeout: "{{ env_var('DLT__CREDENTIALS__CONNECT_TIMEOUT') | as_number}}"
       # search_path: public # optional, not recommended
       #sslmode: [optional, set the sslmode used to connect to the database (in case this parameter is set, will look for ca in ~/.postgresql/root.crt)]
       ra3: true # enables cross-database sources
@@ -45,13 +45,13 @@ bigquery_default:
     analytics:
       type: bigquery
       method: oauth
-      project: "{{ env_var('CREDENTIALS__PROJECT_ID') }}"
-      location: "{{ env_var('CREDENTIALS__LOCATION') }}"
+      project: "{{ env_var('DLT__CREDENTIALS__PROJECT_ID') }}"
+      location: "{{ env_var('DLT__LOCATION') }}"
       schema: "{{ var('destination_dataset_name', var('source_dataset_name')) }}"
       threads: 4
       keepalives_idle: 0 # default 0, indicating the system default
-      job_creation_timeout_seconds: "{{ env_var('CREDENTIALS__HTTP_TIMEOUT') | as_number}}"
-      job_retry_deadline_seconds: "{{ env_var('CREDENTIALS__RETRY_DEADLINE') | as_number}}"
+      job_creation_timeout_seconds: "{{ env_var('DLT__HTTP_TIMEOUT') | as_number}}"
+      job_retry_deadline_seconds: "{{ env_var('DLT__RETRY_DEADLINE') | as_number}}"
 
 bigquery:
   target: analytics
@@ -59,19 +59,19 @@ bigquery:
     analytics:
       type: bigquery
       method: service-account-json
-      project: "{{ env_var('CREDENTIALS__PROJECT_ID') }}"
-      location: "{{ env_var('CREDENTIALS__LOCATION') }}"
+      project: "{{ env_var('DLT__CREDENTIALS__PROJECT_ID') }}"
+      location: "{{ env_var('DLT__LOCATION') }}"
       schema: "{{ var('destination_dataset_name', var('source_dataset_name')) }}"
       keyfile_json:
         type: service_account
-        project_id: "{{ env_var('CREDENTIALS__PROJECT_ID') }}"
-        private_key: "{{ env_var('CREDENTIALS__PRIVATE_KEY') }}"
-        client_email: "{{ env_var('CREDENTIALS__CLIENT_EMAIL') }}"
-        token_uri: "{{ env_var('CREDENTIALS__TOKEN_URI') }}"
+        project_id: "{{ env_var('DLT__CREDENTIALS__PROJECT_ID') }}"
+        private_key: "{{ env_var('DLT__CREDENTIALS__PRIVATE_KEY') }}"
+        client_email: "{{ env_var('DLT__CREDENTIALS__CLIENT_EMAIL') }}"
+        token_uri: "{{ env_var('DLT__CREDENTIALS__TOKEN_URI') }}"
       threads: 4
       keepalives_idle: 0 # default 0, indicating the system default
-      job_creation_timeout_seconds: "{{ env_var('CREDENTIALS__HTTP_TIMEOUT') | as_number}}"
-      job_retry_deadline_seconds: "{{ env_var('CREDENTIALS__RETRY_DEADLINE') | as_number}}"
+      job_creation_timeout_seconds: "{{ env_var('DLT__HTTP_TIMEOUT') | as_number}}"
+      job_retry_deadline_seconds: "{{ env_var('DLT__RETRY_DEADLINE') | as_number}}"
 
 duckdb:
   target: analytics
@@ -79,12 +79,19 @@ duckdb:
     analytics:
       type: duckdb
       schema: "{{ var('destination_dataset_name', var('source_dataset_name')) }}"
-      path: "{{ env_var('CREDENTIALS__DATABASE') }}"
+      path: "{{ env_var('DLT__CREDENTIALS__DATABASE') }}"
       extensions:
         - httpfs
         - parquet
       # TODO: emit the config of duck db
 
+motherduck:
+  target: analytics
+  outputs:
+    analytics:
+      type: duckdb
+      schema: "{{ var('destination_dataset_name', var('source_dataset_name')) }}"
+      path: "md:{{ env_var('DLT__CREDENTIALS__DATABASE') }}?token={{env_var('DLT__CREDENTIALS__PASSWORD')}}"
 
 # snowflake with password auth
 snowflake:
@@ -92,13 +99,13 @@ snowflake:
   outputs:
     analytics:
       type: snowflake
-      account: "{{ env_var('CREDENTIALS__HOST') }}"
-      user: "{{ env_var('CREDENTIALS__USERNAME') }}"
-      password: "{{ env_var('CREDENTIALS__PASSWORD') }}"
-      database: "{{ env_var('CREDENTIALS__DATABASE') }}"
-      role: "{{ env_var('CREDENTIALS__ROLE', '') }}"
+      account: "{{ env_var('DLT__CREDENTIALS__HOST') }}"
+      user: "{{ env_var('DLT__CREDENTIALS__USERNAME') }}"
+      password: "{{ env_var('DLT__CREDENTIALS__PASSWORD') }}"
+      database: "{{ env_var('DLT__CREDENTIALS__DATABASE') }}"
+      role: "{{ env_var('DLT__CREDENTIALS__ROLE', '') }}"
       schema: "{{ var('destination_dataset_name', var('source_dataset_name')) }}"
-      warehouse: "{{ env_var('CREDENTIALS__WAREHOUSE') }}"
+      warehouse: "{{ env_var('DLT__CREDENTIALS__WAREHOUSE', '') }}"
       threads: 4
 
 
@@ -108,13 +115,13 @@ snowflake_pkey:
   outputs:
     analytics:
       type: snowflake
-      account: "{{ env_var('CREDENTIALS__HOST') }}"
-      user: "{{ env_var('CREDENTIALS__USERNAME') }}"
-      database: "{{ env_var('CREDENTIALS__DATABASE') }}"
-      password: "{{ env_var('CREDENTIALS__PASSWORD') }}"
-      role: "{{ env_var('CREDENTIALS__ROLE', '') }}"
+      account: "{{ env_var('DLT__CREDENTIALS__HOST') }}"
+      user: "{{ env_var('DLT__CREDENTIALS__USERNAME') }}"
+      database: "{{ env_var('DLT__CREDENTIALS__DATABASE') }}"
+      password: "{{ env_var('DLT__CREDENTIALS__PASSWORD') }}"
+      role: "{{ env_var('DLT__CREDENTIALS__ROLE', '') }}"
       schema: "{{ var('destination_dataset_name', var('source_dataset_name')) }}"
-      warehouse: "{{ env_var('CREDENTIALS__WAREHOUSE') }}"
-      private_key: "{{ env_var('CREDENTIALS__PRIVATE_KEY') }}"
-      private_key_passphrase: "{{ env_var('CREDENTIALS__PRIVATE_KEY_PASSPHRASE', '') }}"
+      warehouse: "{{ env_var('DLT__CREDENTIALS__WAREHOUSE', '') }}"
+      private_key: "{{ env_var('DLT__CREDENTIALS__PRIVATE_KEY') }}"
+      private_key_passphrase: "{{ env_var('DLT__CREDENTIALS__PRIVATE_KEY_PASSPHRASE', '') }}"
       threads: 4

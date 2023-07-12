@@ -84,20 +84,38 @@ const sidebars = {
         },
         {
           type: 'category',
+          label: 'File formats',
+          link: {
+            type: 'generated-index',
+            title: 'File formats',
+            description: 'Overview over our loader file formats',
+            slug: 'dlt-ecosystem/file-formats',
+            keywords: ['destination'],
+          },
+          items: [
+            'dlt-ecosystem/file-formats/jsonl',
+            'dlt-ecosystem/file-formats/parquet',
+            'dlt-ecosystem/file-formats/insert-format',
+          ]
+        },
+        {
+          type: 'category',
           label: 'Destinations',
           link: {
             type: 'generated-index',
             title: 'Destinations',
-            description: 'Overview over our destinations. A destiantion is the data store where data from the source is loaded. Learn how to use them in your pipelines.',
+            description: 'Overview of our destinations. A destination is the data store where data from the source is loaded. Learn how to use them in your pipelines.',
             slug: 'dlt-ecosystem/destinations',
             keywords: ['destination'],
           },
           items: [
             'dlt-ecosystem/destinations/bigquery',
             'dlt-ecosystem/destinations/duckdb',
+            'dlt-ecosystem/destinations/filesystem',
             'dlt-ecosystem/destinations/postgres',
             'dlt-ecosystem/destinations/redshift',
             'dlt-ecosystem/destinations/snowflake',
+            'dlt-ecosystem/destinations/motherduck',
           ]
         },
         {
@@ -127,8 +145,17 @@ const sidebars = {
         {
           type: 'category',
           label: 'Transformations',
+          link: {
+            type: 'generated-index',
+            title: 'Transformations',
+            description: 'If you want to transform the data after loading, you can use one of the following methods: dbt, SQL, Pandas.',
+            slug: 'dlt-ecosystem/transformations',
+            keywords: ['transformations'],
+          },
           items: [
-            'dlt-ecosystem/transformations/transforming-the-data',
+            'dlt-ecosystem/transformations/dbt',
+            'dlt-ecosystem/transformations/sql',
+            'dlt-ecosystem/transformations/pandas',
             ,
           ]
         },
@@ -188,6 +215,7 @@ const sidebars = {
             'walkthroughs/deploy-a-pipeline/deploy-with-github-actions',
             'walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer',
             'walkthroughs/deploy-a-pipeline/deploy-with-google-cloud-functions',
+            'walkthroughs/deploy-a-pipeline/deploy-gcp-cloud-function-as-webhook',
             'walkthroughs/deploy-a-pipeline/airflow-gcp-cloud-composer',
           ]
         },

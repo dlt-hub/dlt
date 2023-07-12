@@ -20,6 +20,10 @@ from tests.pipeline.utils import drop_dataset_from_env, assert_load_info
 from tests.load.utils import delete_dataset
 from tests.load.pipeline.utils import drop_pipeline, load_table_counts, select_data
 
+# uncomment add motherduck tests
+# NOTE: the tests are passing but we disable them due to frequent ATTACH DATABASE timeouts
+# ALL_DESTINATIONS += ["motherduck"]
+
 
 @pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
 def test_merge_on_keys_in_schema(destination_name: str) -> None:

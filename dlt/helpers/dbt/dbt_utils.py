@@ -15,12 +15,20 @@ try:
     logbook.compat.redirect_logging = lambda : None
 
     # can only import DBT after redirect is disabled
-    import dbt.main
+    # https://stackoverflow.com/questions/48619517/call-a-click-command-from-code
+
     import dbt.logger
     from dbt.events import functions
     from dbt.contracts import results as dbt_results
 except ImportError:
     raise MissingDependencyException("DBT Core", ["dbt-core"])
+
+try:
+    # dbt <1.5
+    from dbt.main import handle_and_check
+except ImportError:
+    # dbt >=1.5
+    from dbt.cli.main import dbtRunner
 
 try:
     from dbt.exceptions import FailFastException  # type: ignore
@@ -125,8 +133,19 @@ def run_dbt_command(
         success: bool = None
         # dbt uses logbook which does not run on python 10. below is a hack that allows that
         warnings.filterwarnings("ignore", category=DeprecationWarning, module="logbook")
-        with dbt.main.log_manager.applicationbound():
-            results, success = dbt.main.handle_and_check((global_args or []) + [command] + args)  # type: ignore
+        runner_args = (global_args or []) + [command] + args # type: ignore
+
+        with dbt.logger.log_manager.applicationbound():
+            try:
+                # dbt 1.5
+                runner = dbtRunner()
+                run_result = runner.invoke(runner_args)
+                success = run_result.success
+                results = run_result.result  # type: ignore
+            except NameError:
+                # dbt < 1.5
+                results, success = handle_and_check(runner_args)
+
         assert type(success) is bool
         parsed_results = parse_dbt_execution_results(results)
         if not success:

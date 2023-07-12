@@ -1,3 +1,4 @@
+import os
 import base64
 from copy import copy
 from typing import Any, Iterator, Tuple
@@ -13,7 +14,7 @@ from dlt.common.configuration.specs.exceptions import InvalidGoogleNativeCredent
 from dlt.common.storages import FileStorage
 from dlt.common.utils import uniq_id, custom_environ
 
-from dlt.destinations.bigquery.bigquery import BigQueryClient
+from dlt.destinations.bigquery.bigquery import BigQueryClient, BigQueryClientConfiguration
 from dlt.destinations.exceptions import LoadJobNotExistsException, LoadJobTerminalException
 
 from tests.utils import TEST_STORAGE_ROOT, delete_test_storage, preserve_environ
@@ -179,6 +180,29 @@ def test_get_oauth_access_token() -> None:
     assert c.token is not None
 
 
+def test_bigquery_configuration() -> None:
+    config = resolve_configuration(BigQueryClientConfiguration(dataset_name="dataset"), sections=("destination", "bigquery"))
+    assert config.location == "US"
+    assert config.get_location() == "US"
+    assert config.http_timeout == 15.0
+    assert config.retry_deadline == 60.0
+    assert config.file_upload_timeout == 1800.0
+
+    # credentials location is deprecated
+    os.environ["CREDENTIALS__LOCATION"] = "EU"
+    config = resolve_configuration(BigQueryClientConfiguration(dataset_name="dataset"), sections=("destination", "bigquery"))
+    assert config.location == "US"
+    assert config.credentials.location == "EU"
+    # but if it is set, we propagate it to the config
+    assert config.get_location() == "EU"
+    os.environ["LOCATION"] = "ATLANTIS"
+    config = resolve_configuration(BigQueryClientConfiguration(dataset_name="dataset"), sections=("destination", "bigquery"))
+    assert config.get_location() == "ATLANTIS"
+    os.environ["DESTINATION__FILE_UPLOAD_TIMEOUT"] = "20000"
+    config = resolve_configuration(BigQueryClientConfiguration(dataset_name="dataset"), sections=("destination", "bigquery"))
+    assert config.file_upload_timeout == 20000.0
+
+
 def test_bigquery_job_errors(client: BigQueryClient, file_storage: FileStorage) -> None:
     # non existing job
     with pytest.raises(LoadJobNotExistsException):
@@ -215,7 +239,7 @@ def test_bigquery_job_errors(client: BigQueryClient, file_storage: FileStorage) 
 
 @pytest.mark.parametrize('location', ["US", "EU"])
 def test_bigquery_location(location: str, file_storage: FileStorage) -> None:
-    with cm_yield_client_with_storage("bigquery", default_config_values={"credentials": {"location": location}}) as client:
+    with cm_yield_client_with_storage("bigquery", default_config_values={"location": location}) as client:
         user_table_name = prepare_table(client)
         load_json = {
             "_dlt_id": uniq_id(),

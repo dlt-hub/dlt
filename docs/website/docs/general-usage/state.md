@@ -104,7 +104,7 @@ could:
   you'll end with invalid state.
 - Use your loaded data as the state. `dlt` exposes the current pipeline via `dlt.current.pipeline()`
   from which you can obtain
-  [sqlclient](../dlt-ecosystem/transformations/transforming-the-data.md#transforming-the-data-using-the-dlt-sql-client)
+  [sqlclient](../dlt-ecosystem/transformations/sql.md)
   and load the data of interest. In that case try at least to process your user records in batches.
 
 ## Inspect the pipeline state

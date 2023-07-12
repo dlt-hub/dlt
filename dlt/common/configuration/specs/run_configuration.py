@@ -18,7 +18,14 @@ class RunConfiguration(BaseConfiguration):
     dlthub_telemetry_segment_write_key: str = "a1F2gc6cNYw2plyAt02sZouZcsRjG7TD"
     log_format: str = '{asctime}|[{levelname:<21}]|{process}|{name}|{filename}|{funcName}:{lineno}|{message}'
     log_level: str = "WARNING"
-    request_timeout: Tuple[int, int] = (15, 300)  # default request timeout for all http clients
+    request_timeout: float = 60
+    """Timeout for http requests"""
+    request_max_attempts: int = 5
+    """Max retry attempts for http clients"""
+    request_backoff_factor: float = 1
+    """Multiplier applied to exponential retry delay for http requests"""
+    request_max_retry_delay: float = 300
+    """Maximum delay between http request retries"""
     config_files_storage_path: str = "/run/config/"
 
     __section__ = "runtime"

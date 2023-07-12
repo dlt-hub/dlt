@@ -1,6 +1,5 @@
 import abc
 
-# import jsonlines
 from dataclasses import dataclass
 from typing import Any, Dict, Sequence, IO, Type, Optional, List, cast
 
@@ -177,7 +176,6 @@ class InsertValuesWriter(DataWriter):
             supports_compression=True,
             requires_destination_capabilities=True,
         )
-        return TFileFormatSpec("insert_values", "insert_values", False, False, requires_destination_capabilities=True)
 
 
 @configspec
@@ -227,7 +225,7 @@ class ParquetDataWriter(DataWriter):
         for key in self.complex_indices:
             for row in rows:
                 if key in row:
-                    row[key] = json.dumps(row[key]) if row[key] else row[key]
+                    row[key] = json.dumps(row[key])
 
         table = pyarrow.Table.from_pylist(rows, schema=self.schema)
         # Write

@@ -295,6 +295,27 @@ which we bind the endpoint: **dlt.resource(...)(endpoint)**.
 > is created. That prevents `dlt` from controlling the **created** argument during runtime and will
 > result in `IncrementalUnboundError` exception.
 
+### Using `dlt.sources.incremental` for backloading
+You can specify both initial and end dates when defining incremental loading. Let's go back to our Github example:
+```python
+@dlt.resource(primary_key="id")
+def repo_issues(
+    access_token,
+    repository,
+    created_at = dlt.sources.incremental("created_at", initial_value="1970-01-01T00:00:00Z", end_value="2022-07-01T00:00:00Z")
+):
+    # get issues from created from last "created_at" value
+    for page in _get_issues_page(access_token, repository, since=created_at.last_value, until=created_at.end_value):
+        yield page
+```
+Above we use `initial_value` and `end_value` arguments of the `incremental` to define the range of issues that we want to retrieve
+and pass this range to the Github API (`since` and `until`). As in the examples above, `dlt` will make sure that only the issues from
+defined range are returned.
+
+Please note that when `end_date` is specified, `dlt` **will not modify the existing incremental state**. The backloading is **stateless** and:
+1. You can run backloading and incremental load in parallel (ie. in Airflow DAG) in a single pipeline.
+2. You can partition your backloading into several smaller chunks and run them in parallel as well.
+
 ## Doing a full refresh
 
 You may force a full refresh of a `merge` and `append` pipelines:

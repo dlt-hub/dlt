@@ -13,7 +13,7 @@ def init_sentry(config: RunConfiguration) -> None:
     version = dlt_version_info(config.pipeline_name)
     sys_ver = version["dlt_version"]
     release = sys_ver + "_" + version.get("commit_sha", "")
-    _SentryHttpTransport.timeout = config.request_timeout[0]
+    _SentryHttpTransport.timeout = config.request_timeout
     # TODO: ignore certain loggers ie. dbt loggers
     # https://docs.sentry.io/platforms/python/guides/logging/
     sentry_sdk.init(
@@ -53,7 +53,7 @@ def before_send(event: DictStrAny, _unused_hint: Optional[StrAny] = None) -> Opt
 
 class _SentryHttpTransport(HttpTransport):
 
-    timeout: int = 0
+    timeout: float = 0
 
     def _get_pool_options(self, *a: Any, **kw: Any) -> DictStrAny:
         rv = HttpTransport._get_pool_options(self, *a, **kw)

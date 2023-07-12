@@ -38,12 +38,6 @@ In the `.dlt` folder, you will find `secrets.toml`, which looks like this:
 [sources.strapi]
 api_secret_key = "api_secret_key" # please set me up!
 domain = "domain" # please set me up!
-
-[destination.bigquery.credentials] # the credentials required will change based on the destination
-project_id = "set me up" # GCP project ID
-private_key = "set me up" # Unique private key (including `BEGINand END PRIVATE KEY`)
-client_email = "set me up" # Service account email
-location = "set me up" # Project location (e.g. “US”)
 ```
 
 1. Replace `api_secret_key` with [the API token you copied above](strapi.md#grab-api-token)

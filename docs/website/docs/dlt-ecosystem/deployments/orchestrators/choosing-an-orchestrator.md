@@ -1,6 +1,6 @@
 ---
 title: Choosing an orchestrator
-description: How to choose an orchestractor to a deploy dlt pipeline
+description: How to choose an orchestrator to deploy dlt pipeline
 keywords: [orchestrator, airflow, github actions]
 ---
 
@@ -49,17 +49,18 @@ Your Airflow options are:
    - [Astronomer.io](http://Astronomer.io) (recommended for non GCP users). CI/CD out of the box
    - AWS has a managed Airflow too, though it is the hardest to use.
 
-2. Self-managed Airflow:
+1. Self-managed Airflow:
 
-   - You can self-host and run your own Airflow. This is not recommended unless the team plans to have
-     the skills to work with this in house.
+   - You can self-host and run your own Airflow. This is not recommended unless the team plans to
+     have the skills to work with this in house.
 
 Limitations:
 
 - Airflow manages large scale setups and small alike.
 
-To deploy a pipeline on Airflow with Google Composer, read our [step-by-step tutorial](../../../walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer)
-about using the `dlt deploy` command.
+To deploy a pipeline on Airflow with Google Composer, read our
+[step-by-step tutorial](../../../walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer) about
+using the `dlt deploy` command.
 
 ### **GitHub Actions**
 
@@ -68,8 +69,8 @@ scheduling, allowing for a visual, lightweight deployment with web-based monitor
 see runs in GitHub Actions). It has a free tier, but its pricing is not convenient for large jobs.
 
 To deploy a pipeline on GitHub Actions, read
-[here](../../../walkthroughs/deploy-a-pipeline/deploy-with-github-actions) about using the `dlt deploy`
-command and
+[here](../../../walkthroughs/deploy-a-pipeline/deploy-with-github-actions) about using the
+`dlt deploy` command and
 [here](https://docs.github.com/en/actions/learn-github-actions/usage-limits-billing-and-administration)
 about the limitations of GitHub Actions and how their billing works.
 
@@ -89,8 +90,8 @@ single component. Method makes sure that no resource is executed twice.
 
 Serial decomposition:
 
-You can load such sources as tasks serially in order present of the list.
-Such DAG is safe for pipelines that use the state internally.
+You can load such sources as tasks serially in order present of the list. Such DAG is safe for
+pipelines that use the state internally.
 [It is used internally by our Airflow mapper to construct DAGs.](https://github.com/dlt-hub/dlt/blob/devel/dlt/helpers/airflow_helper.py)
 
 Custom decomposition:
@@ -99,12 +100,12 @@ Custom decomposition:
 - Dependent resources pass data to each other via hard disk - so they need to run on the same
   worker. Group them in a task that runs them together.
 - State is per-pipeline. The pipeline identifier is the pipeline name. A single pipeline state
-  should be accesed serially to avoid losing details on parallel runs.
+  should be accessed serially to avoid losing details on parallel runs.
 
 Parallel decomposition:
 
-If you are using only the resource state (which most of the pipelines
-really should!) you can run your tasks in parallel.
+If you are using only the resource state (which most of the pipelines really should!) you can run
+your tasks in parallel.
 
 - Perform the `scc` decomposition.
 - Run each component in a pipeline with different but deterministic `pipeline_name` (same component
@@ -116,4 +117,4 @@ the schema, that should be a problem though as long as your data does not create
 
 ## Credentials
 
-[See credentials section for passing credentials to or from dlt](../../../general-usage/credentials.md)
+[See credentials section for passing credentials to or from dlt.](../../../general-usage/credentials.md)

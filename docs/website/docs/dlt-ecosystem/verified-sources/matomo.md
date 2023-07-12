@@ -37,29 +37,22 @@ To get started with your data pipeline, follow these steps:
 
 ```bash
 
-dlt init matomo bigquery
+dlt init matomo duckdb
 ```
 
-This command will initialize your pipeline with Matomo as the source and BigQuery as the destination. If you'd like to use a different destination, simply replace **`bigquery`** with the name of your preferred destination. You can find supported destinations and their configuration options in our [documentation](../destinations/)
+This command will initialize your pipeline with Matomo as the source and duckdb as the destination. If you'd like to use a different destination, simply replace **duckdb** with the name of your preferred destination. You can find supported destinations and their configuration options in our [documentation](../destinations/)
 
 3. After running this command, a new directory will be created with the necessary files and configuration settings to get started. From here, you can begin configuring your pipeline to suit your specific needs.
 
-## **Add credential**
+## Add credentials
 
 1. Inside the **`.dlt`** folder, you'll find a file called **`secrets.toml`**, which is where you can securely store your access tokens and other sensitive information. It's important to handle this file with care and keep it safe.
 
 Here's what the file looks like:
 
-```
-
+```toml
 [sources.matomo]
 api_token= "access_token" # please set me up!
-
-[destination.bigquery.credentials]
-project_id = "project_id" # GCP project ID
-private_key = "private_key" # Unique private key (including `BEGIN and END PRIVATE KEY`)
-client_email = "client_email" # Service account email
-location = "US" # Project location (e.g. “US”)
 ```
 
 2. Replace the value of **`api_token`** with the one that [you copied above](matomo.md#grab-api-access-token). This will ensure that your data pipeline can access your Matomo resources securely.
@@ -68,7 +61,7 @@ location = "US" # Project location (e.g. “US”)
 
 Here's what the config.toml looks like:
 
-```python
+```toml
 [sources.matomo]
 url = "Please set me up !" # please set me up!
 queries = ["a", "b", "c"] # please set me up!
