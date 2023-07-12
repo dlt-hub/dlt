@@ -41,14 +41,15 @@ ALL_DEFAULT_FILETYPE_STAGING_COMBINATIONS = [
     # redshift with iam role
     ("redshift","filesystem","parquet",AWS_BUCKET,{"forward_staging_credentials": False, "staging_iam_role": "arn:aws:iam::267388281016:role/redshift_s3_read"}),
     ("bigquery","filesystem","parquet",GCS_BUCKET, {}),
-    ("snowflake","filesystem","jsonl",AWS_BUCKET, {}), # "PUBLIC.dlt_s3_stage"),
-    ("snowflake","filesystem","jsonl",GCS_BUCKET, {"stage_name": "PUBLIC.dlt_gcs_stage"})
+    ("snowflake","filesystem","jsonl",GCS_BUCKET, {"stage_name": "PUBLIC.dlt_gcs_stage"}),
+    ("snowflake","filesystem","jsonl",AWS_BUCKET, {"stage_name":"PUBLIC.dlt_s3_stage"})
     ]
 # filter out destinations not set for this run
 ALL_DEFAULT_FILETYPE_STAGING_COMBINATIONS = [item for item in ALL_DEFAULT_FILETYPE_STAGING_COMBINATIONS if item[0] in ALL_DESTINATIONS]
 
 ALL_STAGING_COMBINATIONS = ALL_DEFAULT_FILETYPE_STAGING_COMBINATIONS + [
     ("redshift","filesystem","parquet",AWS_BUCKET,{}), # redshift with credential forwarding
+    ("snowflake","filesystem","jsonl",AWS_BUCKET, {}), # snowflake with credential forwarding
     ("redshift","filesystem","jsonl",AWS_BUCKET, {}),
     ("bigquery","filesystem","jsonl",GCS_BUCKET, {})
 ]
@@ -60,7 +61,6 @@ STAGING_AND_NON_STAGING_COMBINATIONS = ALL_DEFAULT_FILETYPE_STAGING_COMBINATIONS
 ]
 
 # ALL_DESTINATIONS = ["duckdb", "postgres"]
-
 
 def TEST_DICT_CONFIG_PROVIDER():
     # add test dictionary provider

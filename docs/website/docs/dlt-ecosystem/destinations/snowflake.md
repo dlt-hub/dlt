@@ -141,13 +141,21 @@ Alternavitely to parquet files, you can also specify jsonl as the staging file f
 
 ### Snowflake and Amazon S3
 
-Please refer to the [S3 documentation](./filesystem.md#aws-s3) to learn how to set up your bucket with the bucket_url and credentials. For s3 The dlt Redshift loader will use the aws credentials provided for s3 to access the s3 bucket if not specified otherwise (see config options below). 
+Please refer to the [S3 documentation](./filesystem.md#aws-s3) to learn how to set up your bucket with the bucket_url and credentials. For s3 The dlt Redshift loader will use the aws credentials provided for s3 to access the s3 bucket if not specified otherwise (see config options below). Alternatively you can create a stage for your S3 Bucket by following the instructions provided in the [Snowflake S3 documentation](https://docs.snowflake.com/en/user-guide/data-load-s3-config-storage-integration).
+The basic steps are as follows:
 
-To prevent dlt from forwarding the s3 bucket credentials on every command, set the following setting. 
+* Create a storage integration linked to GCS and the right bucket
+* Grant access to this storage integration to the snowflake role you are using to load the data into snowflake.
+* Create a stage from this storage integration in the PUBLIC namespace, or the namespace of the schema of your data.
+* Also grant access to this stage for the role you are using to load data into snowflake.
+* Provide the name of your stage (including the namespace) to dlt like so:
+
+To prevent dlt from forwarding the s3 bucket credentials on every command, and set your s3 stage, change these settings:
 
 ```toml
 [destination]
 forward_staging_credentials=false
+stage_name=PUBLIC.my_s3_stage
 ```
 
 To run Snowflake with s3 as staging destination:
@@ -166,7 +174,7 @@ pipeline = dlt.pipeline(
 
 ### Snowflake and Google Cloud Storage
 
-Please refere to the [Google Storage filesystem documentation](./filesystem.md#google-storage) to learn how to set up your bucket with the bucket_url and credentials. For gcs you can define a stage in Snowflake and provide the stage identifier in the configuration (see config options below.) Please consult the snowflake Documentation on how to create a stage for your GCS Bucket: https://docs.snowflake.com/en/user-guide/data-load-gcs-config. The basic steps are as follows:
+Please refer to the [Google Storage filesystem documentation](./filesystem.md#google-storage) to learn how to set up your bucket with the bucket_url and credentials. For gcs you can define a stage in Snowflake and provide the stage identifier in the configuration (see config options below.) Please consult the snowflake Documentation on [how to create a stage for your GCS Bucket](https://docs.snowflake.com/en/user-guide/data-load-gcs-config). The basic steps are as follows:
 
 * Create a storage integration linked to GCS and the right bucket
 * Grant access to this storage integration to the snowflake role you are using to load the data into snowflake.
@@ -176,7 +184,7 @@ Please refere to the [Google Storage filesystem documentation](./filesystem.md#g
 
 ```toml
 [destination]
-stage_name=PUBLIC.my_stage
+stage_name=PUBLIC.my_gcs_stage
 ```
 
 To run Snowflake with gcs as staging destination:
