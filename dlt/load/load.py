@@ -261,18 +261,18 @@ class Load(Runnable[ThreadPool]):
                 job_client.initialize_storage()
                 logger.info(f"Client for {job_client.config.destination_name} will update schema to package schema")
                 all_jobs = self.get_new_jobs_info(load_id, schema)
-                all_tables = [job.table_name for job in all_jobs]
-                dlt_tables = [t["name"] for t in schema.dlt_tables()]
+                all_tables = set(job.table_name for job in all_jobs)
+                dlt_tables = set(t["name"] for t in schema.dlt_tables())
                 # only update tables that are present in the load package
-                applied_update = job_client.update_storage_schema(only_tables=set(all_tables+dlt_tables), expected_update=expected_update)
+                applied_update = job_client.update_storage_schema(only_tables=all_tables | dlt_tables, expected_update=expected_update)
                 # update the staging dataset
                 merge_jobs = self.get_new_jobs_info(load_id, schema, "merge")
                 if merge_jobs:
                     logger.info(f"Client for {job_client.config.destination_name} will start initialize STAGING storage")
                     job_client.initialize_storage(staging=True)
                     logger.info(f"Client for {job_client.config.destination_name} will UPDATE STAGING SCHEMA to package schema")
-                    merge_tables = [job.table_name for job in merge_jobs]
-                    job_client.update_storage_schema(staging=True, only_tables=set(merge_tables+dlt_tables), expected_update=expected_update)
+                    merge_tables = set(job.table_name for job in merge_jobs)
+                    job_client.update_storage_schema(staging=True, only_tables=merge_tables | dlt_tables, expected_update=expected_update)
                     logger.info(f"Client for {job_client.config.destination_name} will TRUNCATE STAGING TABLES: {merge_tables}")
                     job_client.initialize_storage(staging=True, truncate_tables=merge_tables)
                 self.load_storage.commit_schema_update(load_id, applied_update)
