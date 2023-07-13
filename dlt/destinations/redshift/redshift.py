@@ -21,7 +21,7 @@ from dlt.common.schema.typing import TTableSchema
 from dlt.common.configuration.specs import AwsCredentialsWithoutDefaults
 
 from dlt.destinations.insert_job_client import InsertValuesJobClient
-from dlt.destinations.sql_merge_job import SqlMergeJob
+from dlt.destinations.sql_jobs import SqlMergeJob
 from dlt.destinations.exceptions import DatabaseTerminalException, LoadJobTerminalException
 from dlt.destinations.job_client_impl import CopyRemoteFileLoadJob, LoadJob
 
@@ -81,8 +81,10 @@ class RedshiftSqlClient(Psycopg2SqlClient):
 
 class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
 
-    def __init__(self, table: TTableSchema, file_path: str, sql_client: SqlClientBase[Any], staging_credentials: Optional[CredentialsConfiguration] = None, staging_iam_role: str = None) -> None:
+    def __init__(self, table: TTableSchema, file_path: str, sql_client: SqlClientBase[Any], use_staging_table: bool, truncate_destination_table: bool, staging_credentials: Optional[CredentialsConfiguration] = None, staging_iam_role: str = None) -> None:
         self._staging_iam_role = staging_iam_role
+        self._use_staging_table = use_staging_table
+        self._truncate_destination_table = truncate_destination_table
         super().__init__(table, file_path, sql_client, staging_credentials)
 
     def execute(self, table: TTableSchema, bucket_path: str) -> None:
@@ -117,9 +119,9 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
         else:
             raise ValueError(f"Unsupported file type {ext} for Redshift.")
 
-        with self._sql_client.with_staging_dataset(table["write_disposition"]=="merge"):
+        with self._sql_client.with_staging_dataset(self._use_staging_table):
             with self._sql_client.begin_transaction():
-                if table["write_disposition"]=="replace":
+                if self._truncate_destination_table:
                     self._sql_client.execute_sql(f"""TRUNCATE TABLE {table_name}""")
                 dataset_name = self._sql_client.dataset_name
                 # TODO: if we ever support csv here remember to add column names to COPY
@@ -172,7 +174,8 @@ class RedshiftClient(InsertValuesJobClient):
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         """Starts SqlLoadJob for files ending with .sql or returns None to let derived classes to handle their specific jobs"""
         if NewReferenceJob.is_reference_job(file_path):
-            return RedshiftCopyFileLoadJob(table, file_path, self.sql_client, staging_credentials=self.config.staging_credentials, staging_iam_role=self.config.staging_iam_role)
+            disposition = table["write_disposition"]
+            return RedshiftCopyFileLoadJob(table, file_path, self.sql_client, disposition in self.get_stage_dispositions(), self.truncate_destination_table(disposition), staging_credentials=self.config.staging_credentials, staging_iam_role=self.config.staging_iam_role)
         return super().start_file_load(table, file_path, load_id)
 
     @classmethod

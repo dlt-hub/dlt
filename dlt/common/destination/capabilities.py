@@ -41,6 +41,7 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     supports_ddl_transactions: bool
     naming_convention: str = "snake_case"
     alter_add_multi_column: bool = True
+    supports_truncate_command: bool = True
 
     # do not allow to create default value, destination caps must be always explicitly inserted into container
     can_create_default: ClassVar[bool] = False

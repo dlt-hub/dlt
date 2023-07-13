@@ -6,6 +6,7 @@ from typing import ClassVar, Final, Optional, Literal, Sequence, Iterable, Type,
 from dlt.common import logger
 from dlt.common.exceptions import IdentifierTooLongException, InvalidDestinationReference, UnknownDestinationModule
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
+from dlt.common.schema.typing import TWriteDisposition
 from dlt.common.schema.exceptions import InvalidDatasetName
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration
@@ -17,11 +18,14 @@ from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.utils import get_module_name
 from dlt.common.configuration.specs import GcpCredentials, AwsCredentialsWithoutDefaults
 
+TLoaderReplaceStrategy = Literal["classic", "staging"]
 
 @configspec(init=True)
 class DestinationClientConfiguration(BaseConfiguration):
     destination_name: str = None  # which destination to load data to
     credentials: Optional[CredentialsConfiguration]
+    replace_strategy: TLoaderReplaceStrategy = "classic"
+    # how to handle the replace write disposition
 
     def __str__(self) -> str:
         """Return displayable destination location"""
@@ -171,6 +175,20 @@ class JobClientBase(ABC):
     @abstractmethod
     def restore_file_load(self, file_path: str) -> LoadJob:
         pass
+
+    @abstractmethod
+    def get_stage_dispositions(self) -> List[TWriteDisposition]:
+        """Returns a list of dispositions that require staging tables to be populated"""
+        return []
+
+    def truncate_destination_table(self, disposition: TWriteDisposition) -> bool:
+        """Returns wether the destination table should be truncated before loading"""
+        return False
+
+    @abstractmethod
+    def create_table_chain_completed_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
+        """Creates a list of followup jobs that should be executed after a table chain is completed"""
+        return []
 
     @abstractmethod
     def create_merge_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:

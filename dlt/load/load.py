@@ -152,11 +152,11 @@ class Load(Runnable[ThreadPool]):
 
         return len(jobs), jobs
 
-    def get_new_jobs_info(self, load_id: str, schema: Schema, disposition: TWriteDisposition = None) -> List[ParsedLoadJobFileName]:
+    def get_new_jobs_info(self, load_id: str, schema: Schema, dispositions: List[TWriteDisposition] = None) -> List[ParsedLoadJobFileName]:
         jobs_info: List[ParsedLoadJobFileName] = []
         new_job_files = self.load_storage.list_new_jobs(load_id)
         for job_file in new_job_files:
-            if not disposition or self.get_load_table(schema, job_file)["write_disposition"] == disposition:
+            if not dispositions or self.get_load_table(schema, job_file)["write_disposition"] in dispositions:
                 jobs_info.append(LoadStorage.parse_job_file_name(job_file))
         return jobs_info
 
@@ -185,12 +185,13 @@ class Load(Runnable[ThreadPool]):
             # check for merge jobs only for non-staging jobs. we may move that logic to the interface
             starting_job_file_name = starting_job.file_name()
             if state == "completed" and not self.is_staging_job(starting_job_file_name):
+                client = self.destination.client(schema, self.initial_client_config)
                 top_job_table = get_top_level_table(schema.tables, self.get_load_table(schema, starting_job_file_name)["name"])
-                if top_job_table["write_disposition"] == "merge":
+                if top_job_table["write_disposition"] in client.get_stage_dispositions():
                     # if all tables completed, create merge sql job on destination client
                     if table_chain := self.get_completed_table_chain(load_id, schema, top_job_table, starting_job.job_file_info().job_id()):
-                        if job := self.destination.client(schema, self.initial_client_config).create_merge_job(table_chain):
-                            jobs.append(job)
+                        if follow_up_jobs := client.create_table_chain_completed_followup_jobs(table_chain):
+                            jobs = jobs + follow_up_jobs
             jobs = jobs + starting_job.create_followup_jobs(state)
         return jobs
 
@@ -268,15 +269,15 @@ class Load(Runnable[ThreadPool]):
                 # only update tables that are present in the load package
                 applied_update = job_client.update_storage_schema(only_tables=all_tables | dlt_tables, expected_update=expected_update)
                 # update the staging dataset
-                merge_jobs = self.get_new_jobs_info(load_id, schema, "merge")
-                if merge_jobs:
+                staging_table_jobs = self.get_new_jobs_info(load_id, schema, job_client.get_stage_dispositions())
+                if staging_table_jobs:
                     logger.info(f"Client for {job_client.config.destination_name} will start initialize STAGING storage")
                     job_client.initialize_storage(staging=True)
                     logger.info(f"Client for {job_client.config.destination_name} will UPDATE STAGING SCHEMA to package schema")
-                    merge_tables = set(job.table_name for job in merge_jobs)
-                    job_client.update_storage_schema(staging=True, only_tables=merge_tables | {VERSION_TABLE_NAME}, expected_update=expected_update)
-                    logger.info(f"Client for {job_client.config.destination_name} will TRUNCATE STAGING TABLES: {merge_tables}")
-                    job_client.initialize_storage(staging=True, truncate_tables=merge_tables)
+                    staging_tables = set(job.table_name for job in staging_table_jobs)
+                    job_client.update_storage_schema(staging=True, only_tables=staging_tables | dlt_tables, expected_update=expected_update)
+                    logger.info(f"Client for {job_client.config.destination_name} will TRUNCATE STAGING TABLES: {staging_tables}")
+                    job_client.initialize_storage(staging=True, truncate_tables=staging_tables)
                 self.load_storage.commit_schema_update(load_id, applied_update)
             # spool or retrieve unfinished jobs
             if self.staging:

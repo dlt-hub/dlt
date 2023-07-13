@@ -120,9 +120,19 @@ class FilesystemClient(JobClientBase):
     def restore_file_load(self, file_path: str) -> LoadJob:
         return EmptyLoadJob.from_file_path(file_path, "completed")
 
-    def create_merge_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
-        return None
+    def get_stage_dispositions(self) -> List[TWriteDisposition]:
+        """Returns a list of dispositions that require staging tables to be populated"""
+        return []
 
+    def create_table_chain_completed_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
+        """Creates a list of followup jobs that should be executed after a table chain is completed"""
+        return []
+
+    def create_merge_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
+        """Creates a table merge job without executing it. The `table_chain` contains a list of tables, ordered by ancestry, that should be merged.
+        Clients that cannot merge should return None
+        """
+        pass
 
     def complete_load(self, load_id: str) -> None:
         schema_name = self.schema.name

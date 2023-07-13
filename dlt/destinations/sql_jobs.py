@@ -12,11 +12,60 @@ from dlt.destinations.job_impl import NewLoadJobImpl
 from dlt.destinations.sql_client import SqlClientBase
 
 
-
-class SqlMergeJob(NewLoadJobImpl):
+class SqlBaseJob(NewLoadJobImpl):
+    """Sql base job for jobs that rely on the whole tablechain"""
+    failed_text: str = ""
 
     @classmethod
     def from_table_chain(cls, table_chain: Sequence[TTableSchema], sql_client: SqlClientBase[Any]) -> NewLoadJobImpl:
+        """Generates a list of sql statements, that will be executed by the sql client when the job is executed in the loader.
+
+        The `table_chain` contains a list schemas of a tables with parent-child relationship, ordered by the ancestry (the root of the tree is first on the list).
+        """
+
+        top_table = table_chain[0]
+        file_info = ParsedLoadJobFileName(top_table["name"], uniq_id()[:10], 0, "sql")
+        try:
+            # Remove line breaks from multiline statements and write one SQL statement per line in output file
+            # to support clients that need to execute one statement at a time (i.e. snowflake)
+            sql = [' '.join(stmt.splitlines()) for stmt in cls.generate_sql(table_chain, sql_client)]
+            job = cls(file_info.job_id(), "running")
+            job._save_text_file("\n".join(sql))
+        except Exception:
+            # return failed job
+            tables_str = yaml.dump(table_chain, allow_unicode=True, default_flow_style=False, sort_keys=False)
+            job = cls(file_info.job_id(), "failed", pretty_format_exception())
+            job._save_text_file("\n".join([cls.failed_text, tables_str]))
+        return job
+
+    @classmethod
+    def generate_sql(cls, table_chain: Sequence[TTableSchema], sql_client: SqlClientBase[Any]) -> List[str]:
+        pass
+
+
+class SqlStagingCopyJob(SqlBaseJob):
+    """Generates a list of sql statements that copy the data from staging dataset into destination dataset."""
+    failed_text: str = "Tried to generate a staging copy sql job for the following tables:"
+
+    @classmethod
+    def generate_sql(cls, table_chain: Sequence[TTableSchema], sql_client: SqlClientBase[Any]) -> List[str]:
+        sql: List[str] = []
+        for table in table_chain:
+            with sql_client.with_staging_dataset(staging=True):
+                staging_table_name = sql_client.make_qualified_table_name(table["name"])
+            table_name = sql_client.make_qualified_table_name(table["name"])
+            columns = ", ".join(map(sql_client.capabilities.escape_identifier, table["columns"].keys()))
+            sql.append(sql_client.truncate_table_sql(table_name))
+            sql.append(f"INSERT INTO {table_name}({columns}) SELECT {columns} FROM {staging_table_name};")
+        return sql
+
+
+class SqlMergeJob(SqlBaseJob):
+    """Generates a list of sql statements that merge the data from staging dataset into destination dataset."""
+    failed_text: str = "Tried to generate a merge sql job for the following tables:"
+
+    @classmethod
+    def generate_sql(cls, table_chain: Sequence[TTableSchema], sql_client: SqlClientBase[Any]) -> List[str]:
         """Generates a list of sql statements that merge the data in staging dataset with the data in destination dataset.
 
         The `table_chain` contains a list schemas of a tables with parent-child relationship, ordered by the ancestry (the root of the tree is first on the list).
@@ -26,21 +75,7 @@ class SqlMergeJob(NewLoadJobImpl):
         First we store the root_keys of root table elements to be deleted in the temp table. Then we use the temp table to delete records from root and all child tables in the destination dataset.
         At the end we copy the data from the staging dataset into destination dataset.
         """
-        top_table = table_chain[0]
-        file_info = ParsedLoadJobFileName(top_table["name"], uniq_id()[:10], 0, "sql")
-        try:
-            # Remove line breaks from multiline statements and write one SQL statement per line in output file
-            # to support clients that need to execute one statement at a time (i.e. snowflake)
-            sql = [' '.join(stmt.splitlines()) for stmt in cls.gen_merge_sql(table_chain, sql_client)]
-            job = cls(file_info.job_id(), "running")
-            job._save_text_file("\n".join(sql))
-        except Exception:
-            # return failed job
-            failed_text = "Tried to generate a merge sql job for the following tables:"
-            tables_str = yaml.dump(table_chain, allow_unicode=True, default_flow_style=False, sort_keys=False)
-            job = cls(file_info.job_id(), "failed", pretty_format_exception())
-            job._save_text_file("\n".join([failed_text, tables_str]))
-        return job
+        return cls.gen_merge_sql(table_chain, sql_client)
 
     @classmethod
     def _gen_key_table_clauses(cls, primary_keys: Sequence[str], merge_keys: Sequence[str])-> List[str]:
@@ -103,6 +138,7 @@ class SqlMergeJob(NewLoadJobImpl):
         unique_column: str = None
         root_key_column: str = None
         insert_temp_table_sql: str = None
+
 
         if len(table_chain) == 1:
             key_table_clauses = cls.gen_key_table_clauses(root_table_name, staging_root_table_name, key_clauses, for_delete=True)

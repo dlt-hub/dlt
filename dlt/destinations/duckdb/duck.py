@@ -44,13 +44,13 @@ HINT_TO_POSTGRES_ATTR: Dict[TColumnHint, str] = {
 
 
 class DuckDbCopyJob(LoadJob, FollowupJob):
-    def __init__(self, table_name: str, write_disposition: TWriteDisposition, file_path: str, sql_client: DuckDbSqlClient) -> None:
+    def __init__(self, table_name: str, use_staging_table: bool, truncate_destination_table: bool, file_path: str, sql_client: DuckDbSqlClient) -> None:
         super().__init__(FileStorage.get_file_name_from_file_path(file_path))
 
-        with sql_client.with_staging_dataset(write_disposition=="merge"):
+        with sql_client.with_staging_dataset(use_staging_table):
             qualified_table_name = sql_client.make_qualified_table_name(table_name)
             with sql_client.begin_transaction():
-                if write_disposition == "replace":
+                if truncate_destination_table:
                     sql_client.execute_sql(f"TRUNCATE TABLE {qualified_table_name}")
                 sql_client.execute_sql(f"COPY {qualified_table_name} FROM '{file_path}' ( FORMAT PARQUET );")
 
@@ -77,7 +77,8 @@ class DuckDbClient(InsertValuesJobClient):
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         if file_path.endswith("parquet"):
-            return DuckDbCopyJob(table["name"], table["write_disposition"], file_path, self.sql_client)
+            disposition = table["write_disposition"]
+            return DuckDbCopyJob(table["name"], disposition in self.get_stage_dispositions(), self.truncate_destination_table(disposition), file_path, self.sql_client)
         return super().start_file_load(table, file_path, load_id)
 
     def _get_column_def_sql(self, c: TColumnSchema) -> str:

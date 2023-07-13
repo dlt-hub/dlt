@@ -18,6 +18,7 @@ from dlt.destinations.exceptions import LoadJobTerminalException
 from dlt.destinations.snowflake import capabilities
 from dlt.destinations.snowflake.configuration import SnowflakeClientConfiguration
 from dlt.destinations.snowflake.sql_client import SnowflakeSqlClient
+from dlt.destinations.sql_jobs import SqlMergeJob
 from dlt.destinations.snowflake.sql_client import SnowflakeSqlClient
 from dlt.destinations.job_impl import NewReferenceJob
 
@@ -50,13 +51,13 @@ SNOW_TO_SCT: Dict[str, TDataType] = {
 
 class SnowflakeLoadJob(LoadJob, FollowupJob):
     def __init__(
-            self, file_path: str, table_name: str, write_disposition: TWriteDisposition, load_id: str, client: SnowflakeSqlClient,
+            self, file_path: str, table_name: str, use_staging_table: bool, truncate_destination_table: bool, load_id: str, client: SnowflakeSqlClient,
             stage_name: Optional[str] = None, keep_staged_files: bool = True, staging_credentials: Optional[CredentialsConfiguration] = None
     ) -> None:
         file_name = FileStorage.get_file_name_from_file_path(file_path)
         super().__init__(file_name)
 
-        with client.with_staging_dataset(write_disposition == "merge"):
+        with client.with_staging_dataset(use_staging_table):
             qualified_table_name = client.make_qualified_table_name(table_name)
 
             # extract and prepare some vars
@@ -92,7 +93,7 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
                 source_format = "(TYPE = 'PARQUET', BINARY_AS_TEXT = FALSE)"
 
             with client.begin_transaction():
-                if write_disposition == "replace":
+                if truncate_destination_table:
                     client.execute_sql(f"TRUNCATE TABLE IF EXISTS {qualified_table_name}")
                 # PUT and COPY in one tx if local file, otherwise only copy
                 if not bucket_path:
@@ -134,8 +135,9 @@ class SnowflakeClient(SqlJobClientBase):
         job = super().start_file_load(table, file_path, load_id)
 
         if not job:
+            disposition = table['write_disposition']
             job = SnowflakeLoadJob(
-                file_path, table['name'], table['write_disposition'], load_id, self.sql_client,
+                file_path, table['name'], disposition in self.get_stage_dispositions(), self.truncate_destination_table(disposition), load_id, self.sql_client,
                 stage_name=self.config.stage_name, keep_staged_files=self.config.keep_staged_files,
                 staging_credentials=self.config.staging_credentials
             )

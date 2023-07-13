@@ -1,10 +1,11 @@
 import random
 from copy import copy
 from types import TracebackType
-from typing import ClassVar, Dict, Optional, Sequence, Type, Iterable
+from typing import ClassVar, Dict, Optional, Sequence, Type, Iterable, List
 
 from dlt.common import pendulum
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
+from dlt.common.schema.typing import TWriteDisposition
 from dlt.common.storages import FileStorage
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import FollowupJob, NewLoadJob, TLoadJobState, LoadJob, JobClientBase
@@ -108,8 +109,19 @@ class DummyClient(JobClientBase):
             raise LoadJobNotExistsException(job_id)
         return JOBS[job_id]
 
+    def get_stage_dispositions(self) -> List[TWriteDisposition]:
+        """Returns a list of dispositions that require staging tables to be populated"""
+        return []
+
+    def create_table_chain_completed_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
+        """Creates a list of followup jobs that should be executed after a table chain is completed"""
+        return []
+
     def create_merge_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
-        return None
+        """Creates a table merge job without executing it. The `table_chain` contains a list of tables, ordered by ancestry, that should be merged.
+        Clients that cannot merge should return None
+        """
+        pass
 
     def complete_load(self, load_id: str) -> None:
         pass
