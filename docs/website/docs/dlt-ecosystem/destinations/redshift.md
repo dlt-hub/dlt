@@ -40,7 +40,7 @@ To load data into Redshift, it is necessary to create a Redshift cluster and ena
     password = "please set me up!" # keep your redshift db instance password here
     username = "please set me up!" # keep your redshift db instance username here
     host = "please set me up!" # copy your redshift host from cluster endpoint here
-    port = "please set me up!" # enter redshift db instance port number
+    port = 5439
     connect_timeout = 15 # enter the timeout value
     ```
 
@@ -72,11 +72,7 @@ Amazon Redshift supports the following column hints:
 ## Additional destination options
 ### dbt support
 
-- This destination [integrates with dbt](../transformations/dbt) via [dbt-redshift](https://github.com/dbt-labs/dbt-redshift). If explicitly defined, credentials are shared with dbt and other settings such as location, retries, and timeouts. In the case of implicit credentials (i.e., available in the cloud feature), dlt shares the project_id and delegates the retrieval of certificates to the dbt adapter.
+- This destination [integrates with dbt](../transformations/dbt) via [dbt-redshift](https://github.com/dbt-labs/dbt-redshift). Credentials and timeout settings are shared automatically with `dbt`.
 
 ### Syncing of `dlt` state
-
 - This destination fully supports [dlt state sync.](../../general-usage/state#syncing-state-with-destination)
-
-
-

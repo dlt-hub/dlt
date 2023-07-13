@@ -45,7 +45,7 @@ const sidebars = {
       link: {
         type: 'generated-index',
         title: 'dlt Ecosystem',
-        description: 'An overview of different aspects of the dlt ecosystem',
+        description: 'dlt fits everywhere where the data flows. check out our curated data sources, destinations and unexpected places where dlt runs',
         slug: 'dlt-ecosystem',
         keywords: ['getting started'],
       },
@@ -54,11 +54,8 @@ const sidebars = {
           type: 'category',
           label: 'Verified Sources',
           link: {
-            type: 'generated-index',
-            title: 'Verified Sources',
-            description: 'Overview over our verified sources. A source is a location that holds data with certain structure. Organized into one or more resources. We have verified reference implementations for the sources listed below.',
-            slug: 'dlt-ecosystem/verified-sources',
-            keywords: ['verified source'],
+            type: 'doc',
+            id: 'dlt-ecosystem/verified-sources/index',
           },
           items: [
             'dlt-ecosystem/verified-sources/asana',
@@ -102,11 +99,8 @@ const sidebars = {
           type: 'category',
           label: 'Destinations',
           link: {
-            type: 'generated-index',
-            title: 'Destinations',
-            description: 'Overview of our destinations. A destination is the data store where data from the source is loaded. Learn how to use them in your pipelines.',
-            slug: 'dlt-ecosystem/destinations',
-            keywords: ['destination'],
+            type: 'doc',
+            id: 'dlt-ecosystem/destinations/index',
           },
           items: [
             'dlt-ecosystem/destinations/bigquery',
