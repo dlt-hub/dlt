@@ -87,11 +87,10 @@ Redshift supports s3 as a file staging destination. DLT will upload files in the
 
 ### Authentication iam Role
 
-If you would like to load from s3 without forwarding the aws staging credentials but authorize with an iam role connected to Redshift, follow the [Redshift documentation](https://docs.aws.amazon.com/redshift/latest/mgmt/authorizing-redshift-service.html) to create a role with access to s3 linked to your redshift cluster and change your destination settings to not forward staging credentials but use the iam role: 
+If you would like to load from s3 without forwarding the aws staging credentials but authorize with an iam role connected to Redshift, follow the [Redshift documentation](https://docs.aws.amazon.com/redshift/latest/mgmt/authorizing-redshift-service.html) to create a role with access to s3 linked to your redshift cluster and change your destination settings to use the iam role: 
 
 ```toml
 [destination]
-forward_staging_credentials=false
 staging_iam_role="arn:aws:iam::..."
 ```
 

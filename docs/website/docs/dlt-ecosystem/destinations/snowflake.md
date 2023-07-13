@@ -154,7 +154,6 @@ To prevent dlt from forwarding the s3 bucket credentials on every command, and s
 
 ```toml
 [destination]
-forward_staging_credentials=false
 stage_name=PUBLIC.my_s3_stage
 ```
 
