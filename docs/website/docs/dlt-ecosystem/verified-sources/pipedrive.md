@@ -6,6 +6,13 @@ keywords: [pipedrive api, pipedrive verified source, pipedrive]
 
 # Pipedrive
 
+:::info
+Need help deploying these sources, or figuring out how to run them in your data stack?
+
+[Join our slack community](https://dlthub-community.slack.com/join/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g) or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
+:::
+
+
 Here you will find a setup guide for the [Pipedrive](https://developers.pipedrive.com/docs/api/v1) verified source.
 
 ## Set up account

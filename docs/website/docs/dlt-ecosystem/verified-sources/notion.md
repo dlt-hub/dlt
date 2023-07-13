@@ -1,5 +1,12 @@
 # Notion
 
+:::info
+Need help deploying these sources, or figuring out how to run them in your data stack?
+
+[Join our slack community](https://dlthub-community.slack.com/join/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g) or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
+:::
+
+
 Notion is a tool that allows users to organize and manage their personal and professional lives.
 It provides a flexible workspace where you can create and customize various types of digital content,
 such as notes, documents, databases, task lists, and more.

@@ -1,5 +1,12 @@
 # Workable
 
+:::info
+Need help deploying these sources, or figuring out how to run them in your data stack?
+
+[Join our slack community](https://dlthub-community.slack.com/join/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g) or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
+:::
+
+
 Workable is an online platform for posting jobs and managing the hiring process. With Workable, employers can create job listings, receive applications, track candidates, collaborate with team members, schedule interviews, and manage the overall hiring workflow.
 
 With the Workable `dlt` verified source and pipeline example, you have the flexibility to load various endpoints such as "members", "recruiters", etc to the destination of your choice. Additionally, you can load details about "candidates" and "jobs".

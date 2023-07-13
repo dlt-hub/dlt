@@ -6,6 +6,14 @@ keywords: [chess.com api, chess.com verified source, chess.com]
 
 # Chess.com
 
+:::info
+Need help deploying these sources, or figuring out how to run them in your data stack?
+
+[Join our slack community](https://dlthub-community.slack.com/join/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g) or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
+:::
+
+
+
 This verified source can be used to load player data from the [Chess.com API](https://www.chess.com/news/view/published-data-api) into a [destination](../destinations) of your choice.
 
 ## Initialize the pipeline with Chess.com source

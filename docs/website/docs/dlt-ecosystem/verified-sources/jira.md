@@ -1,5 +1,11 @@
 # Jira
 
+:::info
+Need help deploying these sources, or figuring out how to run them in your data stack?
+
+[Join our slack community](https://dlthub-community.slack.com/join/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g) or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
+:::
+
 Jira, developed by Atlassian, is project management and issue-tracking software designed to assist teams in effectively organizing and tracking their projects and tasks. It provides a centralized platform for collaboration, prioritization, and organization of work.
 
 With the help of this `dlt` Jira Verified Source and pipeline example, you can load data from various endpoints of the Jira API to your desired destination. This enables you to efficiently transfer and utilize Jira data in a way that suits your specific needs.

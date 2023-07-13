@@ -6,6 +6,13 @@ keywords: [github api, github verified source, github]
 
 # GitHub
 
+:::info
+Need help deploying these sources, or figuring out how to run them in your data stack?
+
+[Join our slack community](https://dlthub-community.slack.com/join/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g) or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
+:::
+
+
 This verified source can be used to load data on issues or pull requests from any GitHub repository onto a [destination](../../dlt-ecosystem/destinations) of your choice.
 
 It accesses the GitHub API from two `dlt` sources:
