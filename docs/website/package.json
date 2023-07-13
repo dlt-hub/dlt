@@ -24,7 +24,8 @@
     "react-twitter-embed": "^4.0.4"
   },
   "devDependencies": {
-    "@docusaurus/module-type-aliases": "2.4.1"
+    "@docusaurus/module-type-aliases": "2.4.1",
+    "docusaurus": "^1.14.7"
   },
   "browserslist": {
     "production": [
