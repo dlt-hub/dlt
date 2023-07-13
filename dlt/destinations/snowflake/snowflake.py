@@ -80,18 +80,12 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
                 file_path = bucket_path.replace(bucket + "/", "")
                 files_clause = f"FILES = ('{file_path}')"
             # s3 credentials case
-            elif bucket_path:
-                if bucket_path.startswith("s3://") and staging_credentials and isinstance(staging_credentials, AwsCredentialsWithoutDefaults):
-                    aws_access_key = staging_credentials.aws_access_key_id
-                    aws_secret_key = staging_credentials.aws_secret_access_key
-                    credentials_clause = f"""CREDENTIALS=(AWS_KEY_ID='{aws_access_key}' AWS_SECRET_KEY='{aws_secret_key}')"""
+            elif bucket_path and bucket_path.startswith("s3://") and staging_credentials and isinstance(staging_credentials, AwsCredentialsWithoutDefaults):
+                credentials_clause = f"""CREDENTIALS=(AWS_KEY_ID='{staging_credentials.aws_access_key_id}' AWS_SECRET_KEY='{staging_credentials.aws_secret_access_key}')"""
                 from_clause = f"FROM '{bucket_path}'"
             # create a stage if so defined
-            elif stage_name:
-                # Concat "SCHEMA_NAME".stage_name
-                stage_name = client.make_qualified_table_name(stage_name)
-                # Create the stage if it doesn't exist
-                client.execute_sql(f"CREATE STAGE IF NOT EXISTS {stage_name}")
+            elif bucket_path:
+                raise LoadJobTerminalException(f"Cannot load from bucket path {bucket_path} without a stage name or credentials")
             # or use implicit stage
             else:
                 # Use implicit table stage by default: "SCHEMA_NAME"."%TABLE_NAME"
