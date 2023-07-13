@@ -7,7 +7,7 @@ from dlt.common.utils import filter_env_vars
 from dlt.version import __version__
 
 
-TExecInfoNames = Literal["kubernetes", "docker", "codespaces", "github_actions", "airflow", "notebook", "colab"]
+TExecInfoNames = Literal["kubernetes", "docker", "codespaces", "github_actions", "airflow", "notebook", "colab","aws_lambda"]
 # if one of these environment variables is set, we assume to be running in CI env
 CI_ENVIRONMENT_TELL = [
     "bamboo.buildKey",
@@ -45,6 +45,8 @@ def exec_info_names() -> List[TExecInfoNames]:
         names.append("colab")
     if airflow_info():
         names.append("airflow")
+    if is_aws_lambda():
+        names.append("aws_lambda")
     return names
 
 
@@ -150,3 +152,8 @@ def is_docker() -> bool:
             return "docker" in f.read()
     except Exception:
         return False
+
+
+def is_aws_lambda() -> bool:
+    "Return True if the process is running in the serverless platform AWS Lambda"
+    return os.environ.get("AWS_LAMBDA_FUNCTION_NAME") is not None
