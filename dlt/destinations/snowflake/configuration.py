@@ -8,7 +8,7 @@ from dlt.common.typing import TSecretStrValue
 from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common.configuration import configspec
-from dlt.common.destination.reference import DestinationClientDwhWithStagingConfiguration
+from dlt.common.destination.reference import DestinationClientDwhConfiguration
 
 
 def _read_private_key(private_key: str, password: Optional[str] = None) -> bytes:
@@ -83,7 +83,7 @@ class SnowflakeCredentials(ConnectionStringCredentials):
 
 
 @configspec(init=True)
-class SnowflakeClientConfiguration(DestinationClientDwhWithStagingConfiguration):
+class SnowflakeClientConfiguration(DestinationClientDwhConfiguration):
     destination_name: Final[str] = "snowflake"  # type: ignore[misc]
     credentials: SnowflakeCredentials
 
@@ -91,5 +91,3 @@ class SnowflakeClientConfiguration(DestinationClientDwhWithStagingConfiguration)
     """Use an existing named stage instead of the default. Default uses the implicit table stage per table"""
     keep_staged_files: bool = True
     """Whether to keep or delete the staged files after COPY INTO succeeds"""
-    forward_staging_credentials: bool = True
-    """Whether to forward the credentials from the stage bucket provider. This can be used as an authentication mechanism for s3"""

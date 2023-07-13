@@ -15,7 +15,7 @@ from dlt.common.schema.typing import COLUMN_HINTS, LOADS_TABLE_NAME, VERSION_TAB
 from dlt.common.schema.utils import add_missing_hints
 from dlt.common.storages import FileStorage
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns, TSchemaTables
-from dlt.common.destination.reference import DestinationClientConfiguration, DestinationClientDwhConfiguration, NewLoadJob, TLoadJobState, LoadJob, JobClientBase, FollowupJob, DestinationClientStagingConfiguration
+from dlt.common.destination.reference import DestinationClientConfiguration, DestinationClientDwhConfiguration, NewLoadJob, TLoadJobState, LoadJob, JobClientBase, FollowupJob, DestinationClientStagingConfiguration, CredentialsConfiguration
 from dlt.common.utils import concat_strings_with_limit
 from dlt.destinations.exceptions import DatabaseUndefinedRelation, DestinationSchemaWillNotUpdate
 from dlt.destinations.job_impl import EmptyLoadJobWithoutFollowup
@@ -60,11 +60,10 @@ class SqlLoadJob(LoadJob):
 
 
 class CopyFileLoadJob(LoadJob, FollowupJob):
-    def __init__(self, table: TTableSchema, file_path: str, sql_client: SqlClientBase[Any], forward_staging_credentials: bool = True, staging_config: Optional[DestinationClientStagingConfiguration] = None) -> None:
+    def __init__(self, table: TTableSchema, file_path: str, sql_client: SqlClientBase[Any], staging_credentials: Optional[CredentialsConfiguration] = None) -> None:
         super().__init__(FileStorage.get_file_name_from_file_path(file_path))
         self._sql_client = sql_client
-        self._forward_staging_credentials = forward_staging_credentials
-        self._staging_config = staging_config
+        self._staging_credentials = staging_credentials
 
         self.execute(table, self.get_bucket_path(file_path))
 
@@ -89,7 +88,6 @@ class CopyFileLoadJob(LoadJob, FollowupJob):
         protocol = parts[0]
         bucket = parts[1].split("/")[0]
         return f"{protocol}//{bucket}"
-
 
 class SqlJobClientBase(JobClientBase):
 

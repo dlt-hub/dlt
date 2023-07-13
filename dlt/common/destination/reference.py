@@ -15,7 +15,7 @@ from dlt.common.schema.utils import is_complete_column
 from dlt.common.storages import FileStorage
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.utils import get_module_name
-from dlt.common.configuration.specs import GcpCredentials, AwsCredentialsPure
+from dlt.common.configuration.specs import GcpCredentials, AwsCredentialsWithoutDefaults
 
 
 @configspec(init=True)
@@ -40,6 +40,7 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
     """dataset name in the destination to load data to, for schemas that are not default schema, it is used as dataset prefix"""
     default_schema_name: Optional[str] = None
     """name of default schema to be used to name effective dataset to load data to"""
+    staging_credentials: Optional[CredentialsConfiguration] = None
 
     if TYPE_CHECKING:
         def __init__(
@@ -47,43 +48,26 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
             destination_name: str = None,
             credentials: Optional[CredentialsConfiguration] = None,
             dataset_name: str = None,
-            default_schema_name: Optional[str] = None
+            default_schema_name: Optional[str] = None,
+            staging_credentials: Optional[CredentialsConfiguration] = None
         ) -> None:
             ...
 
 @configspec(init=True)
 class DestinationClientStagingConfiguration(DestinationClientDwhConfiguration):
     as_staging: bool = False
-    bucket_url: str
-    credentials: Union[AwsCredentialsPure, GcpCredentials]
 
     if TYPE_CHECKING:
         def __init__(
             self,
             destination_name: str = None,
-            credentials: Union[AwsCredentialsPure, GcpCredentials] = None,
+            credentials: Union[AwsCredentialsWithoutDefaults, GcpCredentials] = None,
             dataset_name: str = None,
             default_schema_name: Optional[str] = None,
             as_staging: bool = False,
             bucket_url: str = None,
         ) -> None:
             ...
-
-@configspec(init=True)
-class DestinationClientDwhWithStagingConfiguration(DestinationClientDwhConfiguration):
-    staging_config: Optional[DestinationClientStagingConfiguration] = None
-
-    if TYPE_CHECKING:
-        def __init__(
-            self,
-            destination_name: str = None,
-            credentials: Optional[CredentialsConfiguration] = None,
-            dataset_name: str = None,
-            default_schema_name: Optional[str] = None,
-            staging_config: Optional[DestinationClientStagingConfiguration] = None
-        ) -> None:
-            ...
-
 
 TLoadJobState = Literal["running", "failed", "retry", "completed"]
 

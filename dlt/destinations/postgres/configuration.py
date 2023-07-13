@@ -3,7 +3,7 @@ from sqlalchemy.engine import URL
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ConnectionStringCredentials
-from dlt.common.destination.reference import DestinationClientDwhWithStagingConfiguration
+from dlt.common.destination.reference import DestinationClientDwhConfiguration
 from dlt.common.typing import TSecretValue
 
 
@@ -33,7 +33,7 @@ class PostgresCredentials(ConnectionStringCredentials):
 
 
 @configspec(init=True)
-class PostgresClientConfiguration(DestinationClientDwhWithStagingConfiguration):
+class PostgresClientConfiguration(DestinationClientDwhConfiguration):
     destination_name: Final[str] = "postgres"  # type: ignore
     credentials: PostgresCredentials
 

@@ -39,7 +39,7 @@ STAGING_COMBINAION_FIELDS = "destination,staging,file_format,bucket,settings"
 
 ALL_DEFAULT_FILETYPE_STAGING_COMBINATIONS = [
     # redshift with iam role
-    ("redshift","filesystem","parquet",AWS_BUCKET,{"forward_staging_credentials": False, "staging_iam_role": "arn:aws:iam::267388281016:role/redshift_s3_read"}),
+    ("redshift","filesystem","parquet",AWS_BUCKET,{"staging_iam_role": "arn:aws:iam::267388281016:role/redshift_s3_read"}),
     ("bigquery","filesystem","parquet",GCS_BUCKET, {}),
     ("snowflake","filesystem","jsonl",GCS_BUCKET, {"stage_name": "PUBLIC.dlt_gcs_stage"}),
     ("snowflake","filesystem","jsonl",AWS_BUCKET, {"stage_name":"PUBLIC.dlt_s3_stage"})

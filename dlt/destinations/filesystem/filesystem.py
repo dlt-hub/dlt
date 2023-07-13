@@ -56,7 +56,7 @@ class LoadFilesystemJob(LoadJob):
                 fs_client.rm_file(item)
 
         self.destination_file_name = LoadFilesystemJob.make_destination_filename(file_name, schema_name, load_id)
-        fs_client.put_file(local_path, posixpath.join(dataset_path, self.destination_file_name))
+        fs_client.put_file(local_path, self.make_remote_path())
 
     @staticmethod
     def make_destination_filename(file_name: str, schema_name: str, load_id: str) -> str:
