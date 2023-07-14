@@ -723,6 +723,16 @@ def test_end_value_with_batches() -> None:
 
     assert items == list(range(1, 10))
 
+    pipeline.run(
+        batched_sequence(updated_at=dlt.sources.incremental(initial_value=10, end_value=14)),
+        write_disposition='append'
+    )
+
+    with pipeline.sql_client() as client:
+        items = [row[0] for row in client.execute_sql("SELECT updated_at FROM batched_sequence ORDER BY updated_at")]
+
+    assert items == list(range(1, 14))
+
 
 def test_load_with_end_value_does_not_write_state() -> None:
     """When loading chunk with initial/end value range. The resource state is untouched.
