@@ -5,6 +5,11 @@ from dlt.common.exceptions import DltException
 from dlt.common.utils import get_callable_name
 
 
+class StopGenerator(Exception):
+    """Can be raised from resources and filters to pre-emptively stop the generator"""
+    pass
+
+
 class ExtractorException(DltException):
     pass
 

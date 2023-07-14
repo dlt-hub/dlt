@@ -12,7 +12,7 @@ from dlt.common.configuration import configspec, ConfigurationValueError
 from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.pipeline import resource_state
 from dlt.common.utils import digest128
-from dlt.extract.exceptions import IncrementalUnboundError, PipeException
+from dlt.extract.exceptions import IncrementalUnboundError, PipeException, StopGenerator
 from dlt.extract.pipe import Pipe
 from dlt.extract.utils import resolve_column_value
 from dlt.extract.typing import FilterItem, SupportsPipe, TTableHintTemplate
@@ -43,6 +43,9 @@ class IncrementalPrimaryKeyMissing(PipeException):
         self.item = item
         msg = f"Primary key column {primary_key_column} was not found in extracted data item. All data items must contain this column. Use the same names of fields as in your JSON document."
         super().__init__(pipe_name, msg)
+
+
+STOP_INCREMENTAL = object()  # Marker for when to stop iterator if incremental done
 
 
 @configspec
@@ -105,6 +108,7 @@ class Incremental(FilterItem, BaseConfiguration, Generic[TCursorValue]):
         self._cached_state: IncrementalColumnState = None
         """State dictionary cached on first access"""
         super().__init__(self.transform)
+        self._end_value_reached: bool = False
 
     @classmethod
     def from_existing_state(cls, resource_name: str, cursor_path: str) -> "Incremental[TCursorValue]":
@@ -236,7 +240,8 @@ class Incremental(FilterItem, BaseConfiguration, Generic[TCursorValue]):
         if self.end_value is not None and (
             row_value == self.end_value or self.last_value_func((row_value, self.end_value)) != self.end_value
         ):
-            raise StopIteration()
+            self._end_value_reached = True
+            return False
 
         check_values = (row_value,) + ((last_value, ) if last_value is not None else ())
         new_value = self.last_value_func(check_values)
@@ -276,6 +281,12 @@ class Incremental(FilterItem, BaseConfiguration, Generic[TCursorValue]):
         # cache state
         self._cached_state = self.get_state()
         return self
+
+    def __call__(self, item: TDataItems, meta: Any = None) -> Optional[TDataItems]:
+        # For end_value, Yield values before stopping generator. If it's a batch some rows might be lower than end_value
+        yield super().__call__(item, meta=meta)
+        if self._end_value_reached:
+            raise StopGenerator()  # Triggers stop in pipe
 
     def __str__(self) -> str:
         return f"Incremental at {id(self)} for resource {self.resource_name} with cursor path: {self.cursor_path} initial {self.initial_value} lv_func {self.last_value_func}"

@@ -701,6 +701,29 @@ def test_chunked_ranges() -> None:
     assert items == expected_range
 
 
+def test_end_value_with_batches() -> None:
+    """Ensure incremental with end_value works correctly when resource yields lists instead of single items"""
+    @dlt.resource
+    def batched_sequence(
+            updated_at: dlt.sources.incremental[int] = dlt.sources.incremental('updated_at', initial_value=1)
+    ) -> Any:
+        start = updated_at.last_value
+        yield [{'updated_at': i} for i in range(start, start + 12)]
+        yield [{'updated_at': i} for i in range(start+12, start + 20)]
+
+    pipeline = dlt.pipeline(pipeline_name='incremental_' + uniq_id(), destination='duckdb')
+
+    pipeline.run(
+        batched_sequence(updated_at=dlt.sources.incremental(initial_value=1, end_value=10)),
+        write_disposition='append'
+    )
+
+    with pipeline.sql_client() as client:
+        items = [row[0] for row in client.execute_sql("SELECT updated_at FROM batched_sequence ORDER BY updated_at")]
+
+    assert items == list(range(1, 10))
+
+
 def test_load_with_end_value_does_not_write_state() -> None:
     """When loading chunk with initial/end value range. The resource state is untouched.
     """

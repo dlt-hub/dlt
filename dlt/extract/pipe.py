@@ -18,7 +18,7 @@ from dlt.common.source import unset_current_pipe_name, set_current_pipe_name
 from dlt.common.typing import AnyFun, AnyType, TDataItems
 from dlt.common.utils import get_callable_name
 
-from dlt.extract.exceptions import CreatePipeException, DltSourceException, ExtractorException, InvalidResourceDataTypeFunctionNotAGenerator, InvalidStepFunctionArguments, InvalidTransformerGeneratorFunction, ParametrizedResourceUnbound, PipeException, PipeItemProcessingError, PipeNotBoundToData, ResourceExtractionError
+from dlt.extract.exceptions import CreatePipeException, DltSourceException, ExtractorException, InvalidResourceDataTypeFunctionNotAGenerator, InvalidStepFunctionArguments, InvalidTransformerGeneratorFunction, ParametrizedResourceUnbound, PipeException, PipeItemProcessingError, PipeNotBoundToData, ResourceExtractionError, StopGenerator
 from dlt.extract.typing import DataItemWithMeta, ItemTransform, SupportsPipe, TPipedDataItems
 
 if TYPE_CHECKING:
@@ -581,9 +581,6 @@ class PipeIterator(Iterator[PipeItem]):
                 raise InvalidStepFunctionArguments(pipe_item.pipe.name, get_callable_name(step), inspect.signature(step), str(ty_ex))
             except (PipelineException, ExtractorException, DltSourceException, PipeException):
                 raise
-            except StopIteration:
-                # To avoid catching StopIteration in the general Exception handler below, we just want to stop the generator
-                raise
             except Exception as ex:
                 raise ResourceExtractionError(pipe_item.pipe.name, step, str(ex), "transform") from ex
             # create next pipe item if a value was returned. A None means that item was consumed/filtered out and should not be further processed
@@ -713,6 +710,9 @@ class PipeIterator(Iterator[PipeItem]):
                     return ResolvablePipeItem(item.data, step, pipe, item.meta)
                 else:
                     return ResolvablePipeItem(item, step, pipe, meta)
+        except StopGenerator:
+            self._sources.pop()
+            return self._get_source_item()
         except StopIteration:
             # remove empty iterator and try another source
             self._sources.pop()
