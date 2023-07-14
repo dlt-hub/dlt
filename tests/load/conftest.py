@@ -1,12 +1,9 @@
 from typing import Iterator, Tuple
 import os
-
 import pytest
 
-import dlt
 
-from tests.utils import preserve_environ
-from tests.utils import ALL_DESTINATIONS
+from tests.utils import ALL_DESTINATIONS, preserve_environ
 from tests.load.utils import ALL_BUCKETS
 
 

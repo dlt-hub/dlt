@@ -32,7 +32,7 @@ SCT_TO_PGT: Dict[TDataType, str] = {
     "date": "date",
     "bigint": "bigint",
     "binary": "bytea",
-    "decimal": f"numeric({DEFAULT_NUMERIC_PRECISION},{DEFAULT_NUMERIC_SCALE})"
+    "decimal": "numeric(%i,%i)"
 }
 
 PGT_TO_SCT: Dict[str, TDataType] = {
@@ -70,15 +70,20 @@ class PostgresClient(InsertValuesJobClient):
         column_name = self.capabilities.escape_identifier(c["name"])
         return f"{column_name} {self._to_db_type(c['data_type'])} {hints_str} {self._gen_not_null(c['nullable'])}"
 
-    @staticmethod
-    def _to_db_type(sc_t: TDataType) -> str:
+    @classmethod
+    def _to_db_type(cls, sc_t: TDataType) -> str:
+        if sc_t == "wei":
+            return SCT_TO_PGT["decimal"] % cls.capabilities.wei_precision
+        if sc_t == "decimal":
+            return SCT_TO_PGT["decimal"] % cls.capabilities.decimal_precision
+
         if sc_t == "wei":
             return f"numeric({2*EVM_DECIMAL_PRECISION},{EVM_DECIMAL_PRECISION})"
         return SCT_TO_PGT[sc_t]
 
-    @staticmethod
-    def _from_db_type(pq_t: str, precision: Optional[int], scale: Optional[int]) -> TDataType:
+    @classmethod
+    def _from_db_type(cls, pq_t: str, precision: Optional[int], scale: Optional[int]) -> TDataType:
         if pq_t == "numeric":
-            if precision == 2*EVM_DECIMAL_PRECISION and scale == EVM_DECIMAL_PRECISION:
+            if (precision, scale) == cls.capabilities.wei_precision:
                 return "wei"
         return PGT_TO_SCT.get(pq_t, "text")

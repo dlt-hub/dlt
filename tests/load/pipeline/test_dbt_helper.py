@@ -10,9 +10,8 @@ from dlt.common.utils import uniq_id
 from dlt.helpers.dbt import create_venv
 from dlt.helpers.dbt.exceptions import DBTProcessingError, PrerequisitesException
 
-from tests.pipeline.utils import drop_dataset_from_env
-from tests.load.pipeline.utils import select_data, drop_pipeline
-from tests.utils import ALL_DESTINATIONS, autouse_test_storage, preserve_environ, patch_home_dir
+from tests.load.pipeline.utils import select_data
+from tests.utils import ALL_DESTINATIONS
 
 # uncomment add motherduck tests
 # NOTE: the tests are passing but we disable them due to frequent ATTACH DATABASE timeouts

@@ -1,21 +1,17 @@
 from typing import ClassVar, Dict, Optional
 
-from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.data_types import TDataType
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
+from dlt.common.destination.reference import LoadJob, FollowupJob, TLoadJobState
+from dlt.common.schema.typing import TTableSchema, TWriteDisposition
+from dlt.common.storages.file_storage import FileStorage
 
 from dlt.destinations.insert_job_client import InsertValuesJobClient
 
 from dlt.destinations.duckdb import capabilities
 from dlt.destinations.duckdb.sql_client import DuckDbSqlClient
 from dlt.destinations.duckdb.configuration import DuckDbClientConfiguration
-
-from dlt.common.destination.reference import LoadJob, FollowupJob, TLoadJobState
-
-from dlt.common.schema.typing import TTableSchema, TWriteDisposition
-
-from dlt.common.storages.file_storage import FileStorage
 
 
 SCT_TO_PGT: Dict[TDataType, str] = {
@@ -27,7 +23,7 @@ SCT_TO_PGT: Dict[TDataType, str] = {
     "timestamp": "TIMESTAMP WITH TIME ZONE",
     "bigint": "BIGINT",
     "binary": "BLOB",
-    "decimal": f"DECIMAL({DEFAULT_NUMERIC_PRECISION},{DEFAULT_NUMERIC_SCALE})"
+    "decimal": "DECIMAL(%i,%i)"
 }
 
 PGT_TO_SCT: Dict[str, TDataType] = {
@@ -89,14 +85,16 @@ class DuckDbClient(InsertValuesJobClient):
         column_name = self.capabilities.escape_identifier(c["name"])
         return f"{column_name} {self._to_db_type(c['data_type'])} {hints_str} {self._gen_not_null(c['nullable'])}"
 
-    @staticmethod
-    def _to_db_type(sc_t: TDataType) -> str:
+    @classmethod
+    def _to_db_type(cls, sc_t: TDataType) -> str:
         if sc_t == "wei":
-            return "DECIMAL(38,0)"
+            return SCT_TO_PGT["decimal"] % cls.capabilities.wei_precision
+        if sc_t == "decimal":
+            return SCT_TO_PGT["decimal"] % cls.capabilities.decimal_precision
         return SCT_TO_PGT[sc_t]
 
-    @staticmethod
-    def _from_db_type(pq_t: str, precision: Optional[int], scale: Optional[int]) -> TDataType:
+    @classmethod
+    def _from_db_type(cls, pq_t: str, precision: Optional[int], scale: Optional[int]) -> TDataType:
         # duckdb provides the types with scale and precision
         pq_t = pq_t.split("(")[0].upper()
         if pq_t == "DECIMAL":

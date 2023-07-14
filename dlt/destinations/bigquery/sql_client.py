@@ -16,7 +16,6 @@ from dlt.common.typing import StrAny
 from dlt.destinations.typing import DBApi, DBApiCursor, DBTransaction, DataFrame
 from dlt.destinations.exceptions import DatabaseTerminalException, DatabaseTransientException, DatabaseUndefinedRelation
 from dlt.destinations.sql_client import DBApiCursorImpl, SqlClientBase, raise_database_error, raise_open_connection_error
-from dlt.destinations.job_client_impl import CopyFileLoadJob
 
 from dlt.destinations.bigquery import capabilities
 

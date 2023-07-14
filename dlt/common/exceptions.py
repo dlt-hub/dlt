@@ -1,4 +1,4 @@
-from typing import Any, AnyStr, Sequence, Optional
+from typing import Any, AnyStr, List, Sequence, Optional, Iterable
 
 
 class DltException(Exception):
@@ -119,15 +119,32 @@ class DestinationTransientException(DestinationException, TransientException):
     pass
 
 
-class DestinationIncompatibleLoaderFileFormatException(TerminalException, DestinationException):
-    def __init__(self, destination: str, staging: str, file_format: str) -> None:
+class DestinationLoadingViaStagingNotSupported(DestinationTerminalException):
+    def __init__(self, destination: str) -> None:
+        self.destination = destination
+        super().__init__(f"Destination {destination} does not support loading via staging.")
+
+
+class DestinationNoStagingMode(DestinationTerminalException):
+    def __init__(self, destination: str) -> None:
+        self.destination = destination
+        super().__init__(f"Destination {destination} cannot be used as a staging")
+
+
+class DestinationIncompatibleLoaderFileFormatException(DestinationTerminalException):
+    def __init__(self, destination: str, staging: str, file_format: str, supported_formats: Iterable[str]) -> None:
         self.destination = destination
         self.staging = staging
         self.file_format = file_format
+        self.supported_formats = supported_formats
+        supported_formats_str = ", ".join(supported_formats)
         if self.staging:
-            msg = f"Loader File format {file_format} destination {destination} in combination with staging destination {staging}."
+            if not supported_formats:
+                msg = f"Staging {staging} cannot be used with destination {destination} because they have no file formats in common."
+            else:
+                msg = f"Unsupported file format {file_format} for destination {destination} in combination with staging destination {staging}. Supported formats: {supported_formats_str}"
         else:
-            msg = f"Loader File format {file_format} destination {destination}."
+            msg = f"Unsupported file format {file_format} destination {destination}. Supported formats: {supported_formats_str}. Check the staging option in the dlt.pipeline for additional formats."
         super().__init__(msg)
 
 
@@ -141,11 +158,11 @@ class IdentifierTooLongException(DestinationTerminalException):
 
 
 class DestinationHasFailedJobs(DestinationTerminalException):
-    def __init__(self, destination_name: str, load_id: str) -> None:
+    def __init__(self, destination_name: str, load_id: str, failed_jobs: List[Any]) -> None:
         self.destination_name = destination_name
         self.load_id = load_id
+        self.failed_jobs = failed_jobs
         super().__init__(f"Destination {destination_name} has failed jobs in load package {load_id}")
-
 
 
 class PipelineException(DltException):

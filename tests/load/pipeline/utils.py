@@ -11,6 +11,35 @@ from dlt.pipeline.exceptions import SqlClientNotAvailable
 if TYPE_CHECKING:
     from dlt.destinations.filesystem.filesystem import FilesystemClient
 
+from tests.load.utils import ALL_DESTINATIONS, AWS_BUCKET, GCS_BUCKET
+
+
+# destination configs including staging
+STAGING_COMBINATION_FIELDS = "destination,staging,file_format,bucket,settings"
+
+ALL_DEFAULT_FILETYPE_STAGING_COMBINATIONS = [
+    # redshift with iam role
+    ("redshift","filesystem","parquet",AWS_BUCKET,{"staging_iam_role": "arn:aws:iam::267388281016:role/redshift_s3_read"}),
+    ("bigquery","filesystem","parquet",GCS_BUCKET, {}),
+    ("snowflake","filesystem","jsonl",GCS_BUCKET, {"stage_name": "PUBLIC.dlt_gcs_stage"}),
+    ("snowflake","filesystem","jsonl",AWS_BUCKET, {"stage_name":"PUBLIC.dlt_s3_stage"})
+    ]
+# filter out destinations not set for this run
+ALL_DEFAULT_FILETYPE_STAGING_COMBINATIONS = [item for item in ALL_DEFAULT_FILETYPE_STAGING_COMBINATIONS if item[0] in ALL_DESTINATIONS]
+
+ALL_STAGING_COMBINATIONS = ALL_DEFAULT_FILETYPE_STAGING_COMBINATIONS + [
+    ("redshift","filesystem","parquet",AWS_BUCKET,{}), # redshift with credential forwarding
+    ("snowflake","filesystem","parquet",AWS_BUCKET, {}), # snowflake with credential forwarding
+    ("redshift","filesystem","jsonl",AWS_BUCKET, {}),
+    ("bigquery","filesystem","jsonl",GCS_BUCKET, {})
+]
+# filter out destinations not set for this run
+ALL_STAGING_COMBINATIONS = [item for item in ALL_STAGING_COMBINATIONS if item[0] in ALL_DESTINATIONS]
+
+STAGING_AND_NON_STAGING_COMBINATIONS = ALL_DEFAULT_FILETYPE_STAGING_COMBINATIONS + [
+  (destination, None, None, "", {}) for destination in ALL_DESTINATIONS
+]
+
 
 @pytest.fixture(autouse=True)
 def drop_pipeline() -> Iterator[None]:
@@ -19,7 +48,7 @@ def drop_pipeline() -> Iterator[None]:
 
 
 def drop_active_pipeline_data() -> None:
-    """Drops all the datasets for currently active pipeline and then deactivated it. Does not drop the working dir - see new_test_storage"""
+    """Drops all the datasets for currently active pipeline, wipes the working folder and then deactivated it."""
     if Container()[PipelineContext].is_active():
         # take existing pipeline
         p = dlt.pipeline()

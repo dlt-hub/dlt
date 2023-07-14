@@ -59,13 +59,13 @@ class SqlLoadJob(LoadJob):
         return os.path.splitext(file_path)[1][1:] == "sql"
 
 
-class CopyFileLoadJob(LoadJob, FollowupJob):
+class CopyRemoteFileLoadJob(LoadJob, FollowupJob):
     def __init__(self, table: TTableSchema, file_path: str, sql_client: SqlClientBase[Any], staging_credentials: Optional[CredentialsConfiguration] = None) -> None:
         super().__init__(FileStorage.get_file_name_from_file_path(file_path))
         self._sql_client = sql_client
         self._staging_credentials = staging_credentials
 
-        self.execute(table, NewReferenceJob.resolve_remote_path(file_path))
+        self.execute(table, NewReferenceJob.resolve_reference(file_path))
 
     def execute(self, table: TTableSchema, bucket_path: str) -> None:
         # implement in child implementations
@@ -204,14 +204,14 @@ WHERE """
             schema_table[c[0]] = add_missing_hints(schema_c)
         return True, schema_table
 
-    @staticmethod
+    @classmethod
     @abstractmethod
-    def _to_db_type(schema_type: TDataType) -> str:
+    def _to_db_type(cls, schema_type: TDataType) -> str:
         pass
 
-    @staticmethod
+    @classmethod
     @abstractmethod
-    def _from_db_type(db_type: str, precision: Optional[int], scale: Optional[int]) -> TDataType:
+    def _from_db_type(cls, db_type: str, precision: Optional[int], scale: Optional[int]) -> TDataType:
         pass
 
     def get_newest_schema_from_storage(self) -> StorageSchemaInfo:

@@ -6,8 +6,6 @@ from google.cloud import exceptions as gcp_exceptions
 from google.api_core import exceptions as api_core_exceptions
 
 from dlt.common import json, logger
-from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
-from dlt.common.configuration.specs import GcpServiceAccountCredentialsWithoutDefaults
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import FollowupJob, NewLoadJob, TLoadJobState, LoadJob
 from dlt.common.data_types import TDataType
@@ -17,15 +15,14 @@ from dlt.common.schema.typing import TTableSchema, TWriteDisposition
 
 from dlt.destinations.job_client_impl import SqlJobClientBase
 from dlt.destinations.exceptions import DestinationSchemaWillNotUpdate, DestinationTransientException, LoadJobNotExistsException, LoadJobTerminalException, LoadJobUnknownTableException
-from dlt.destinations.filesystem.configuration import FilesystemClientConfiguration
 
 from dlt.destinations.bigquery import capabilities
 from dlt.destinations.bigquery.configuration import BigQueryClientConfiguration
 from dlt.destinations.bigquery.sql_client import BigQuerySqlClient, BQ_TERMINAL_REASONS
 from dlt.destinations.sql_merge_job import SqlMergeJob
-from dlt.destinations.job_client_impl import CopyFileLoadJob
 from dlt.destinations.job_impl import NewReferenceJob
-from dlt.common.storages.load_storage import ParsedLoadJobFileName
+
+from dlt.common.schema.utils import table_schema_has_type
 
 SCT_TO_BQT: Dict[TDataType, str] = {
     "complex": "JSON",
@@ -36,7 +33,7 @@ SCT_TO_BQT: Dict[TDataType, str] = {
     "timestamp": "TIMESTAMP",
     "bigint": "INTEGER",
     "binary": "BYTES",
-    "decimal": f"NUMERIC({DEFAULT_NUMERIC_PRECISION},{DEFAULT_NUMERIC_SCALE})",
+    "decimal": "NUMERIC(%i,%i)",
     "wei": "BIGNUMERIC"  # non parametrized should hold wei values
 }
 
@@ -161,7 +158,7 @@ class BigQueryClient(SqlJobClientBase):
                 if reason == "notFound":
                     raise LoadJobNotExistsException(file_path)
                 elif reason in BQ_TERMINAL_REASONS:
-                    raise LoadJobTerminalException(file_path)
+                    raise LoadJobTerminalException(file_path, f"The server reason was: {reason}")
                 else:
                     raise DestinationTransientException(gace)
         return job
@@ -173,7 +170,7 @@ class BigQueryClient(SqlJobClientBase):
             try:
                 job = BigQueryLoadJob(
                     FileStorage.get_file_name_from_file_path(file_path),
-                    self._create_load_job(table["name"], table["write_disposition"], file_path),
+                    self._create_load_job(table, file_path),
                     self.config.http_timeout,
                     self.config.retry_deadline
                 )
@@ -187,7 +184,7 @@ class BigQueryClient(SqlJobClientBase):
                     return self.restore_file_load(file_path)
                 elif reason in BQ_TERMINAL_REASONS:
                     # google.api_core.exceptions.BadRequest - will not be processed ie bad job name
-                    raise LoadJobTerminalException(file_path)
+                    raise LoadJobTerminalException(file_path, f"The server reason was: {reason}")
                 else:
                     raise DestinationTransientException(gace)
         return job
@@ -240,7 +237,9 @@ class BigQueryClient(SqlJobClientBase):
         except gcp_exceptions.NotFound:
             return False, schema_table
 
-    def _create_load_job(self, table_name: str, write_disposition: TWriteDisposition, file_path: str) -> bigquery.LoadJob:
+    def _create_load_job(self, table: TTableSchema, file_path: str) -> bigquery.LoadJob:
+        table_name = table["name"]
+        write_disposition = table["write_disposition"]
         # append to table for merge loads (append to stage) and regular appends
         bq_wd = bigquery.WriteDisposition.WRITE_TRUNCATE if write_disposition == "replace" else bigquery.WriteDisposition.WRITE_APPEND
 
@@ -248,13 +247,19 @@ class BigQueryClient(SqlJobClientBase):
         bucket_path = None
         ext: str = os.path.splitext(file_path)[1][1:]
         if NewReferenceJob.is_reference_job(file_path):
-            bucket_path = NewReferenceJob.resolve_remote_path(file_path)
+            bucket_path = NewReferenceJob.resolve_reference(file_path)
             ext = os.path.splitext(bucket_path)[1][1:]
 
         # choose correct source format
         source_format = bigquery.SourceFormat.NEWLINE_DELIMITED_JSON
+        decimal_target_types: List[str] = None
         if ext == "parquet":
+            # if table contains complex types, we cannot load with parquet
+            if table_schema_has_type(table, "complex"):
+                raise LoadJobTerminalException(file_path, "Bigquery cannot load into JSON data type from parquet. Use jsonl instead.")
             source_format = bigquery.SourceFormat.PARQUET
+            # parquet needs NUMERIC type autodetection
+            decimal_target_types = ["NUMERIC", "BIGNUMERIC"]
 
         # if merge then load to staging
         with self.sql_client.with_staging_dataset(write_disposition == "merge"):
@@ -264,9 +269,9 @@ class BigQueryClient(SqlJobClientBase):
                 write_disposition=bq_wd,
                 create_disposition=bigquery.CreateDisposition.CREATE_NEVER,
                 source_format=source_format,
+                decimal_target_types=decimal_target_types,
                 ignore_unknown_values=False,
                 max_bad_records=0)
-
 
             if bucket_path:
                 return self.sql_client.native_connection.load_table_from_uri(
@@ -290,12 +295,14 @@ class BigQueryClient(SqlJobClientBase):
         job_id = BigQueryLoadJob.get_job_id_from_file_path(file_path)
         return cast(bigquery.LoadJob, self.sql_client.native_connection.get_job(job_id))
 
-    @staticmethod
-    def _to_db_type(sc_t: TDataType) -> str:
+    @classmethod
+    def _to_db_type(cls, sc_t: TDataType) -> str:
+        if sc_t == "decimal":
+            return SCT_TO_BQT["decimal"] % cls.capabilities.decimal_precision
         return SCT_TO_BQT[sc_t]
 
-    @staticmethod
-    def _from_db_type(bq_t: str, precision: Optional[int], scale: Optional[int]) -> TDataType:
+    @classmethod
+    def _from_db_type(cls, bq_t: str, precision: Optional[int], scale: Optional[int]) -> TDataType:
         if bq_t == "BIGNUMERIC":
             if precision is None:  # biggest numeric possible
                 return "wei"

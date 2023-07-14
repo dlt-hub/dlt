@@ -1,9 +1,18 @@
 
 import dlt
 import pytest
-from dlt.common.exceptions import DestinationIncompatibleLoaderFileFormatException
+
+from dlt.common.exceptions import DestinationIncompatibleLoaderFileFormatException, DestinationLoadingViaStagingNotSupported, DestinationNoStagingMode
 
 def test_file_format_resolution()  -> None:
+    # raise on destinations that does not support staging
+    with pytest.raises(DestinationLoadingViaStagingNotSupported):
+        p = dlt.pipeline(pipeline_name="managed_state_pipeline", destination="postgres", staging="filesystem")
+
+    # raise on staging that does not support staging interface
+    with pytest.raises(DestinationNoStagingMode):
+        p = dlt.pipeline(pipeline_name="managed_state_pipeline", staging="postgres")
+
     p = dlt.pipeline(pipeline_name="managed_state_pipeline")
 
     class cp():

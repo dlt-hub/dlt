@@ -10,13 +10,11 @@ import dlt
 from dlt.common import json, sleep
 from dlt.common.configuration.container import Container
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.exceptions import DestinationHasFailedJobs, DestinationTerminalException, PipelineStateNotAvailable, TerminalException, UnknownDestinationModule
+from dlt.common.exceptions import DestinationHasFailedJobs, DestinationTerminalException, PipelineStateNotAvailable, UnknownDestinationModule
 from dlt.common.pipeline import PipelineContext
 from dlt.common.runtime.collector import AliveCollector, EnlightenCollector, LogCollector, TqdmCollector
 from dlt.common.schema.exceptions import InvalidDatasetName
-from dlt.common.schema.schema import Schema
 from dlt.common.utils import uniq_id
-from dlt.destinations.redshift.configuration import RedshiftCredentials
 from dlt.extract.exceptions import SourceExhausted
 from dlt.extract.extract import ExtractorStorage
 from dlt.extract.source import DltResource, DltSource
@@ -26,10 +24,10 @@ from dlt.pipeline.helpers import retry_load
 from dlt.pipeline.state_sync import STATE_TABLE_NAME
 from tests.common.utils import TEST_SENTRY_DSN
 
-from tests.utils import ALL_DESTINATIONS, TEST_STORAGE_ROOT, preserve_environ, autouse_test_storage, patch_home_dir
+from tests.utils import ALL_DESTINATIONS, TEST_STORAGE_ROOT
 from tests.common.configuration.utils import environment
 from tests.extract.utils import expect_extracted_file
-from tests.pipeline.utils import assert_load_info, drop_dataset_from_env, drop_pipeline
+from tests.pipeline.utils import assert_load_info
 
 
 def test_default_pipeline() -> None:

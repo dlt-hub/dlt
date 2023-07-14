@@ -6,6 +6,7 @@ from dlt.common.configuration.accessors import config
 from dlt.common.data_writers.escape import escape_postgres_identifier, escape_duckdb_literal
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import JobClientBase, DestinationClientConfiguration
+from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 
 from dlt.destinations.duckdb.configuration import DuckDbClientConfiguration
 
@@ -23,6 +24,8 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.supported_staging_file_formats = []
     caps.escape_identifier = escape_postgres_identifier
     caps.escape_literal = escape_duckdb_literal
+    caps.decimal_precision = (DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE)
+    caps.wei_precision = (DEFAULT_NUMERIC_PRECISION, 0)
     caps.max_identifier_length = 65536
     caps.max_column_identifier_length = 65536
     caps.naming_convention = "duck_case"

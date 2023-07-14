@@ -1,9 +1,13 @@
-from typing import Any, Callable, ClassVar, List, Literal, Optional
+from typing import Any, Callable, ClassVar, List, Literal, Optional, Tuple, Set, get_args
 
 from dlt.common.configuration.utils import serialize_value
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ContainerInjectableContext
 from dlt.common.utils import identity
+
+from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
+
+from dlt.common.wei import EVM_DECIMAL_PRECISION
 
 # known loader file formats
 # jsonl - new line separated json documents
@@ -11,6 +15,10 @@ from dlt.common.utils import identity
 # insert_values - insert SQL statements
 # sql - any sql statement
 TLoaderFileFormat = Literal["jsonl", "puae-jsonl", "insert_values", "sql", "parquet", "reference"]
+# file formats used internally by dlt
+INTERNAL_LOADER_FILE_FORMATS: Set[TLoaderFileFormat] = {"puae-jsonl", "sql", "reference"}
+# file formats that may be chosen by the user
+EXTERNAL_LOADER_FILE_FORMATS: Set[TLoaderFileFormat] = set(get_args(TLoaderFileFormat)) - INTERNAL_LOADER_FILE_FORMATS
 
 
 @configspec(init=True)
@@ -22,6 +30,8 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     supported_staging_file_formats: List[TLoaderFileFormat]
     escape_identifier: Callable[[str], str]
     escape_literal: Callable[[Any], Any]
+    decimal_precision: Tuple[int, int]
+    wei_precision: Tuple[int, int]
     max_identifier_length: int
     max_column_identifier_length: int
     max_query_length: int
@@ -44,6 +54,8 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
         caps.supported_staging_file_formats = []
         caps.escape_identifier = identity
         caps.escape_literal = serialize_value
+        caps.decimal_precision = (DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE)
+        caps.wei_precision = (EVM_DECIMAL_PRECISION, 0)
         caps.max_identifier_length = 65536
         caps.max_column_identifier_length = 65536
         caps.max_query_length = 32 * 1024 * 1024

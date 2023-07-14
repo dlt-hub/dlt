@@ -418,6 +418,11 @@ def get_write_disposition(tables: TSchemaTables, table_name: str) -> TWriteDispo
     raise ValueError(f"No write disposition found in the chain of tables for '{table_name}'.")
 
 
+def table_schema_has_type(table: TTableSchema, _typ: TDataType) -> bool:
+    """Checks if `table` schema contains column with type _typ"""
+    return any(c["data_type"] == _typ for c in table["columns"].values())
+
+
 def get_top_level_table(tables: TSchemaTables, table_name: str) -> TTableSchema:
     """Finds top level (without parent) of a `table_name` following the ancestry hierarchy."""
     table = tables[table_name]

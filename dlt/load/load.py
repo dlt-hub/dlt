@@ -16,7 +16,7 @@ from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.common.runtime.logger import pretty_format_exception
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema import Schema
-from dlt.common.schema.typing import TTableSchema, TWriteDisposition
+from dlt.common.schema.typing import VERSION_TABLE_NAME, TTableSchema, TWriteDisposition
 from dlt.common.storages import LoadStorage
 from dlt.common.destination.reference import DestinationClientDwhConfiguration, FollowupJob, JobClientBase, DestinationReference, LoadJob, NewLoadJob, TLoadJobState, DestinationClientConfiguration, DestinationClientStagingConfiguration
 from dlt.destinations.filesystem.filesystem import LoadFilesystemJob
@@ -54,13 +54,13 @@ class Load(Runnable[ThreadPool]):
 
 
     def create_storage(self, is_storage_owner: bool) -> LoadStorage:
-        supoprted_file_formats = self.capabilities.supported_loader_file_formats
+        supported_file_formats = self.capabilities.supported_loader_file_formats
         if self.staging:
-            supoprted_file_formats = self.staging.capabilities().supported_loader_file_formats + ["reference", "sql"]
+            supported_file_formats = self.staging.capabilities().supported_loader_file_formats + ["reference", "sql"]
         load_storage = LoadStorage(
             is_storage_owner,
             self.capabilities.preferred_loader_file_format,
-            supoprted_file_formats,
+            supported_file_formats,
             config=self.config._load_storage_config
         )
         return load_storage
@@ -160,7 +160,8 @@ class Load(Runnable[ThreadPool]):
                 jobs_info.append(LoadStorage.parse_job_file_name(job_file))
         return jobs_info
 
-    def create_merge_job(self, load_id: str, schema: Schema, top_merged_table: TTableSchema, starting_job: LoadJob) -> NewLoadJob:
+    def get_completed_table_chain(self, load_id: str, schema: Schema, top_merged_table: TTableSchema, starting_job_id: str) -> List[TTableSchema]:
+        """Gets a table chain starting from the `top_merged_table` containing only tables with completed/failed jobs. None is returned if there's any job that is not completed"""
         # returns ordered list of tables from parent to child leaf tables
         table_chain: List[TTableSchema] = []
         # make sure all the jobs for the table chain is completed
@@ -171,25 +172,26 @@ class Load(Runnable[ThreadPool]):
             if not table_jobs:
                 continue
             # all jobs must be completed in order for merge to be created
-            if any(job.state not in ("failed_jobs", "completed_jobs") and job.job_file_info.job_id() != starting_job.job_file_info().job_id() for job in table_jobs):
+            if any(job.state not in ("failed_jobs", "completed_jobs") and job.job_file_info.job_id() != starting_job_id for job in table_jobs):
                 return None
             table_chain.append(table)
         # there must be at least 1 job
         assert len(table_chain) > 0
-        # all tables completed, create merge sql job on destination client
-        return self.destination.client(schema, self.initial_client_config).create_merge_job(table_chain)
+        return table_chain
 
     def create_followup_jobs(self, load_id: str, state: TLoadJobState, starting_job: LoadJob, schema: Schema) -> List[NewLoadJob]:
         jobs: List[NewLoadJob] = []
         if isinstance(starting_job, FollowupJob):
-            if state == "completed":
-                # merge jobs
-                top_merged_table = get_top_level_table(schema.tables, self.get_load_table(schema, starting_job.file_name())["name"])
-                if top_merged_table["write_disposition"] == "merge":
-                    job = self.create_merge_job(load_id, schema, top_merged_table, starting_job)
-                    if job:
-                        jobs.append(job)
-            jobs = jobs + starting_job.create_followup_jobs(state, load_id)
+            # check for merge jobs only for non-staging jobs. we may move that logic to the interface
+            starting_job_file_name = starting_job.file_name()
+            if state == "completed" and not self.is_staging_job(starting_job_file_name):
+                top_job_table = get_top_level_table(schema.tables, self.get_load_table(schema, starting_job_file_name)["name"])
+                if top_job_table["write_disposition"] == "merge":
+                    # if all tables completed, create merge sql job on destination client
+                    if table_chain := self.get_completed_table_chain(load_id, schema, top_job_table, starting_job.job_file_info().job_id()):
+                        if job := self.destination.client(schema, self.initial_client_config).create_merge_job(table_chain):
+                            jobs.append(job)
+            jobs = jobs + starting_job.create_followup_jobs(state)
         return jobs
 
     def complete_jobs(self, load_id: str, jobs: List[LoadJob], schema: Schema) -> List[LoadJob]:
@@ -272,7 +274,7 @@ class Load(Runnable[ThreadPool]):
                     job_client.initialize_storage(staging=True)
                     logger.info(f"Client for {job_client.config.destination_name} will UPDATE STAGING SCHEMA to package schema")
                     merge_tables = set(job.table_name for job in merge_jobs)
-                    job_client.update_storage_schema(staging=True, only_tables=merge_tables | dlt_tables, expected_update=expected_update)
+                    job_client.update_storage_schema(staging=True, only_tables=merge_tables | {VERSION_TABLE_NAME}, expected_update=expected_update)
                     logger.info(f"Client for {job_client.config.destination_name} will TRUNCATE STAGING TABLES: {merge_tables}")
                     job_client.initialize_storage(staging=True, truncate_tables=merge_tables)
                 self.load_storage.commit_schema_update(load_id, applied_update)

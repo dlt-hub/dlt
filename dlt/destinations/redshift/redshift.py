@@ -2,6 +2,8 @@ import platform
 import os
 
 from dlt.destinations.postgres.sql_client import Psycopg2SqlClient
+
+from dlt.common.schema.utils import table_schema_has_type
 if platform.python_implementation() == "PyPy":
     import psycopg2cffi as psycopg2
     # from psycopg2cffi.sql import SQL, Composed
@@ -11,7 +13,6 @@ else:
 
 from typing import ClassVar, Dict, List, Optional, Sequence, Any
 
-from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import NewLoadJob, CredentialsConfiguration
 from dlt.common.data_types import TDataType
@@ -21,8 +22,8 @@ from dlt.common.configuration.specs import AwsCredentialsWithoutDefaults
 
 from dlt.destinations.insert_job_client import InsertValuesJobClient
 from dlt.destinations.sql_merge_job import SqlMergeJob
-from dlt.destinations.exceptions import DatabaseTerminalException
-from dlt.destinations.job_client_impl import CopyFileLoadJob, LoadJob
+from dlt.destinations.exceptions import DatabaseTerminalException, LoadJobTerminalException
+from dlt.destinations.job_client_impl import CopyRemoteFileLoadJob, LoadJob
 
 from dlt.destinations.redshift import capabilities
 from dlt.destinations.redshift.configuration import RedshiftClientConfiguration
@@ -40,7 +41,7 @@ SCT_TO_PGT: Dict[TDataType, str] = {
     "timestamp": "timestamp with time zone",
     "bigint": "bigint",
     "binary": "varbinary",
-    "decimal": f"numeric({DEFAULT_NUMERIC_PRECISION},{DEFAULT_NUMERIC_SCALE})"
+    "decimal": "numeric(%i,%i)"
 }
 
 PGT_TO_SCT: Dict[str, TDataType] = {
@@ -78,7 +79,7 @@ class RedshiftSqlClient(Psycopg2SqlClient):
             return DatabaseTerminalException(pg_ex)
         return None
 
-class RedshiftCopyFileLoadJob(CopyFileLoadJob):
+class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
 
     def __init__(self, table: TTableSchema, file_path: str, sql_client: SqlClientBase[Any], staging_credentials: Optional[CredentialsConfiguration] = None, staging_iam_role: str = None) -> None:
         self._staging_iam_role = staging_iam_role
@@ -102,11 +103,17 @@ class RedshiftCopyFileLoadJob(CopyFileLoadJob):
         dateformat = ""
         compression = ""
         if ext == "jsonl":
+            if table_schema_has_type(table, "binary"):
+                raise LoadJobTerminalException(self.file_name(), "Redshift cannot load VARBYTE columns from json files. Switch to parquet to load binaries.")
             file_type = "FORMAT AS JSON 'auto'"
             dateformat = "dateformat 'auto' timeformat 'auto'"
             compression = "GZIP"
         elif ext == "parquet":
             file_type = "PARQUET"
+            # if table contains complex types then SUPER field will be used.
+            # https://docs.aws.amazon.com/redshift/latest/dg/ingest-super.html
+            if table_schema_has_type(table, "complex"):
+                file_type += " SERIALIZETOJSON"
         else:
             raise ValueError(f"Unsupported file type {ext} for Redshift.")
 
@@ -115,13 +122,14 @@ class RedshiftCopyFileLoadJob(CopyFileLoadJob):
                 if table["write_disposition"]=="replace":
                     self._sql_client.execute_sql(f"""TRUNCATE TABLE {table_name}""")
                 dataset_name = self._sql_client.dataset_name
+                # TODO: if we ever support csv here remember to add column names to COPY
                 self._sql_client.execute_sql(f"""
                     COPY {dataset_name}.{table_name}
                     FROM '{bucket_path}'
                     {file_type}
                     {dateformat}
                     {compression}
-                    {credentials};""")
+                    {credentials} MAXERROR 0;""")
 
     def exception(self) -> str:
         # this part of code should be never reached
@@ -167,16 +175,18 @@ class RedshiftClient(InsertValuesJobClient):
             return RedshiftCopyFileLoadJob(table, file_path, self.sql_client, staging_credentials=self.config.staging_credentials, staging_iam_role=self.config.staging_iam_role)
         return super().start_file_load(table, file_path, load_id)
 
-    @staticmethod
-    def _to_db_type(sc_t: TDataType) -> str:
+    @classmethod
+    def _to_db_type(cls, sc_t: TDataType) -> str:
         if sc_t == "wei":
-            return f"numeric({DEFAULT_NUMERIC_PRECISION},0)"
+            return SCT_TO_PGT["decimal"] % cls.capabilities.wei_precision
+        if sc_t == "decimal":
+            return SCT_TO_PGT["decimal"] % cls.capabilities.decimal_precision
         return SCT_TO_PGT[sc_t]
 
-    @staticmethod
-    def _from_db_type(pq_t: str, precision: Optional[int], scale: Optional[int]) -> TDataType:
+    @classmethod
+    def _from_db_type(cls, pq_t: str, precision: Optional[int], scale: Optional[int]) -> TDataType:
         if pq_t == "numeric":
-            if precision == DEFAULT_NUMERIC_PRECISION and scale == 0:
+            if (precision, scale) == cls.capabilities.wei_precision:
                 return "wei"
         return PGT_TO_SCT.get(pq_t, "text")
 

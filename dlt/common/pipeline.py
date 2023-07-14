@@ -111,8 +111,9 @@ class LoadInfo(NamedTuple):
     def raise_on_failed_jobs(self) -> None:
         """Raises `DestinationHasFailedJobs` exception if any of the load packages has a failed job."""
         for load_package in self.load_packages:
-            if len(load_package.jobs["failed_jobs"]):
-                raise DestinationHasFailedJobs(self.destination_name, load_package.load_id)
+            failed_jobs = load_package.jobs["failed_jobs"]
+            if len(failed_jobs):
+                raise DestinationHasFailedJobs(self.destination_name, load_package.load_id, failed_jobs)
 
     def __str__(self) -> str:
         return self.asstr(verbosity=1)

@@ -1,20 +1,16 @@
 import pytest
-import pytz
-import datetime # noqa: I251
-import dateutil.parser
 from typing import Dict, Any
 
-from pathlib import Path
 import dlt, os
-from dlt.common import json, Decimal
+from dlt.common import json, sleep
 from copy import deepcopy
 
 from tests.load.pipeline.test_merge_disposition import github
 from tests.load.pipeline.utils import  load_table_counts
 from tests.pipeline.utils import  assert_load_info
-from tests.load.utils import TABLE_ROW_ALL_DATA_TYPES
-from tests.utils import ALL_STAGING_COMBINATIONS, STAGING_COMBINAION_FIELDS
-# dlt_gcs
+from tests.load.utils import TABLE_ROW_ALL_DATA_TYPES, TABLE_UPDATE_COLUMNS_SCHEMA, assert_all_data_types_row
+from tests.load.pipeline.utils import ALL_STAGING_COMBINATIONS, STAGING_COMBINATION_FIELDS
+
 
 @dlt.resource(table_name="issues", write_disposition="merge", primary_key="id", merge_key=("node_id", "url"))
 def load_modified_issues():
@@ -31,7 +27,7 @@ def load_modified_issues():
         yield from issues
 
 
-@pytest.mark.parametrize(STAGING_COMBINAION_FIELDS, ALL_STAGING_COMBINATIONS)
+@pytest.mark.parametrize(STAGING_COMBINATION_FIELDS, ALL_STAGING_COMBINATIONS)
 def test_staging_load(destination: str, staging: str, file_format: str, bucket: str, settings: Dict[str, Any]) -> None:
 
     # snowflake requires gcs prefix instead of gs in bucket path
@@ -66,7 +62,7 @@ def test_staging_load(destination: str, staging: str, file_format: str, bucket: 
         assert rows[0][0] == "https://api.github.com/repos/duckdb/duckdb/issues/71"
 
     # test merging in some changed values
-    info = pipeline.run(load_modified_issues)
+    info = pipeline.run(load_modified_issues, loader_file_format=file_format)
     assert_load_info(info)
     assert pipeline.default_schema.tables["issues"]["write_disposition"] == "merge"
     merge_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
@@ -80,7 +76,7 @@ def test_staging_load(destination: str, staging: str, file_format: str, bucket: 
         assert rows[0][0] == 300
 
     # test append
-    info = pipeline.run(github().load_issues, write_disposition="append")
+    info = pipeline.run(github().load_issues, write_disposition="append", loader_file_format=file_format)
     assert_load_info(info)
     assert pipeline.default_schema.tables["issues"]["write_disposition"] == "append"
     # the counts of all tables must be double
@@ -88,7 +84,7 @@ def test_staging_load(destination: str, staging: str, file_format: str, bucket: 
     assert {k:v*2 for k, v in initial_counts.items()} == append_counts
 
     # test replace
-    info = pipeline.run(github().load_issues, write_disposition="replace")
+    info = pipeline.run(github().load_issues, write_disposition="replace", loader_file_format=file_format)
     assert_load_info(info)
     assert pipeline.default_schema.tables["issues"]["write_disposition"] == "replace"
     # the counts of all tables must be double
@@ -96,38 +92,46 @@ def test_staging_load(destination: str, staging: str, file_format: str, bucket: 
     assert replace_counts == initial_counts
 
 
-# @pytest.mark.skip(reason="need to discuss")
-@pytest.mark.parametrize(STAGING_COMBINAION_FIELDS, ALL_STAGING_COMBINATIONS)
+@pytest.mark.parametrize(STAGING_COMBINATION_FIELDS, ALL_STAGING_COMBINATIONS)
 def test_all_data_types(destination: str, staging: str, file_format: str, bucket: str, settings: Dict[str, Any]) -> None:
     # set env vars
     os.environ['DESTINATION__FILESYSTEM__BUCKET_URL'] = bucket
     os.environ['DESTINATION__STAGE_NAME'] = settings.get("stage_name", "")
-    pipeline = dlt.pipeline(pipeline_name='test_stage_loading', destination=destination, dataset_name='staging_test', full_refresh=True)
+    pipeline = dlt.pipeline(pipeline_name='test_stage_loading', destination=destination, dataset_name='staging_test', full_refresh=True, staging=staging)
 
-    global data_types
     data_types = deepcopy(TABLE_ROW_ALL_DATA_TYPES)
+    column_schemas = deepcopy(TABLE_UPDATE_COLUMNS_SCHEMA)
 
-    @dlt.resource(table_name="data_types", write_disposition="merge")
-    def my_resource():
-        global data_types
-        yield data_types
-
-    info = pipeline.run(my_resource())
-    assert_load_info(info)
-    with pipeline._get_destination_client(pipeline.default_schema) as client:
-        sent_values = list(data_types.values())
-        # create datetime object and add utc timezone info
-        sent_values[3] = dateutil.parser.isoparse(sent_values[3]).replace(tzinfo=datetime.timezone.utc)
-
-        # change precision of decimal...
-        sent_values[5] = Decimal(str(sent_values[5]) + ("0" * 7))
-
-        # bytes get saved as hex on redshift
+    # bigquery cannot load into JSON fields from parquet
+    if file_format == "parquet":
+        if destination == "bigquery":
+            # change datatype to text and then allow for it in the assert (parse_complex_strings)
+            column_schemas["col9_null"]["data_type"] = column_schemas["col9"]["data_type"] = "text"
+    # redshift cannot load from json into VARBYTE
+    if file_format == "jsonl":
         if destination == "redshift":
-            sent_values[6] = sent_values[6].hex()
+            # change the datatype to text which will result in inserting base64 (allow_base64_binary)
+            column_schemas["col7_null"]["data_type"] = column_schemas["col7"]["data_type"] = "text"
 
-        # for the complex value only the second value is stored, I don't think this is right..
-        sent_values[8] = sent_values[8]["link"]
+    # apply the exact columns definitions so we process complex and wei types correctly!
+    @dlt.resource(table_name="data_types", write_disposition="merge", columns=column_schemas)
+    def my_resource():
+        nonlocal data_types
+        yield [data_types]*10
 
-        rows = client.sql_client.execute_sql("SELECT * FROM data_types")
-        assert sent_values == [val for val in rows[0]][0:-2]
+    @dlt.source(max_table_nesting=0)
+    def my_source():
+        return my_resource
+
+    info = pipeline.run(my_source(), loader_file_format=file_format)
+    assert_load_info(info)
+
+    with pipeline.sql_client() as sql_client:
+        db_rows = sql_client.execute_sql("SELECT * FROM data_types")
+        assert len(db_rows) == 10
+        db_row = list(db_rows[0])
+        # parquet is not really good at inserting json, best we get are strings in JSON columns
+        parse_complex_strings = file_format == "parquet" and destination in ["redshift", "bigquery", "snowflake"]
+        allow_base64_binary = file_format == "jsonl" and destination in ["redshift"]
+        # content must equal
+        assert_all_data_types_row(db_row[:-2], parse_complex_strings=parse_complex_strings, allow_base64_binary=allow_base64_binary)

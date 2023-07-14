@@ -13,7 +13,7 @@ from dlt.common.configuration.specs import RunConfiguration, CredentialsConfigur
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import ConfigFieldMissingException, ContextDefaultCannotBeCreated
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
-from dlt.common.exceptions import MissingDependencyException, DestinationIncompatibleLoaderFileFormatException
+from dlt.common.exceptions import DestinationLoadingViaStagingNotSupported, DestinationNoStagingMode, MissingDependencyException, DestinationIncompatibleLoaderFileFormatException
 from dlt.common.normalizers import default_normalizers, import_normalizers
 from dlt.common.runtime import signals, initialize_runtime
 from dlt.common.schema.exceptions import InvalidDatasetName
@@ -47,6 +47,8 @@ from dlt.pipeline.exceptions import CannotRestorePipelineException, InvalidPipel
 from dlt.pipeline.trace import PipelineTrace, PipelineStepTrace, load_trace, merge_traces, start_trace, start_trace_step, end_trace_step, end_trace
 from dlt.pipeline.typing import TPipelineStep
 from dlt.pipeline.state_sync import STATE_ENGINE_VERSION, load_state_from_destination, merge_state_if_changed, migrate_state, state_resource, json_encode_state, json_decode_state
+
+from dlt.common.destination.capabilities import INTERNAL_LOADER_FILE_FORMATS
 
 
 def with_state_sync(may_extract_state: bool = False) -> Callable[[TFun], TFun]:
@@ -295,6 +297,8 @@ class Pipeline(SupportsPipeline):
         """Normalizes the data prepared with `extract` method, infers the schema and creates load packages for the `load` method. Requires `destination` to be known."""
         if is_interactive() and workers > 1:
             raise NotImplementedError("Do not use normalize workers in interactive mode ie. in notebook")
+        if loader_file_format and loader_file_format in INTERNAL_LOADER_FILE_FORMATS:
+            raise ValueError(f"{loader_file_format} is one of internal dlt file formats.")
         # check if any schema is present, if not then no data was extracted
         if not self.default_schema_name:
             return None
@@ -431,7 +435,7 @@ class Pipeline(SupportsPipeline):
 
             schema (Schema, optional): An explicit `Schema` object in which all table schemas will be grouped. By default `dlt` takes the schema from the source (if passed in `data` argument) or creates a default one itself.
 
-            loader_file_format (Literal["jsonl", "puae-jsonl", "insert_values", "sql", "parquet"], optional). The file format the loader will use to create the load package. Not all file_formats are compatible with all destinations. Defaults to the preferred file format of the selected destination.
+            loader_file_format (Literal["jsonl", "insert_values", "parquet"], optional). The file format the loader will use to create the load package. Not all file_formats are compatible with all destinations. Defaults to the preferred file format of the selected destination.
 
         ### Raises:
             PipelineStepFailed when a problem happened during `extract`, `normalize` or `load` steps.
@@ -964,10 +968,11 @@ class Pipeline(SupportsPipeline):
             # default normalizers must match the destination
             self._set_default_normalizers()
 
-    def _set_staging(self, destination: TDestinationReferenceArg) -> None:
-        staging_mod = DestinationReference.from_name(destination)
-        self.staging = staging_mod or self.staging
-
+    def _set_staging(self, staging: TDestinationReferenceArg) -> None:
+        staging_module = DestinationReference.from_name(staging)
+        if staging_module and not issubclass(staging_module.spec(), DestinationClientStagingConfiguration):
+            raise DestinationNoStagingMode(staging_module.__name__)
+        self.staging = staging_module or self.staging
 
     @contextmanager
     def _maybe_destination_capabilities(self, loader_file_format: TLoaderFileFormat = None) -> Iterator[DestinationCapabilitiesContext]:
@@ -999,6 +1004,8 @@ class Pipeline(SupportsPipeline):
 
         possible_file_formats = dest_caps.supported_loader_file_formats
         if stage_caps:
+            if not dest_caps.supported_staging_file_formats:
+                raise DestinationLoadingViaStagingNotSupported(destination)
             possible_file_formats = [f for f in dest_caps.supported_staging_file_formats if f in stage_caps.supported_loader_file_formats]
         if not file_format:
             if not stage_caps:
@@ -1008,7 +1015,7 @@ class Pipeline(SupportsPipeline):
             else:
                 file_format = possible_file_formats[0] if len(possible_file_formats) > 0 else None
         if file_format not in possible_file_formats:
-            raise DestinationIncompatibleLoaderFileFormatException(destination, staging, file_format)
+            raise DestinationIncompatibleLoaderFileFormatException(destination, staging, file_format, set(possible_file_formats) - INTERNAL_LOADER_FILE_FORMATS)
         return file_format
 
     def _set_default_normalizers(self) -> None:

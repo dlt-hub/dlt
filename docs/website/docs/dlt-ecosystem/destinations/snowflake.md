@@ -107,6 +107,13 @@ The data is loaded using internal Snowflake stage. We use `PUT` command and per-
 ## Supported file formats
 * [insert-values](../file-formats/insert-format.md) is used by default
 * [parquet](../file-formats/parquet.md) is supported
+* [jsonl](../file-formats/jsonl.md) is supported
+
+When staging is enabled:
+* [jsonl](../file-formats/jsonl.md) is used by default
+* [parquet](../file-formats/parquet.md) is supported
+
+> ❗ When loading from `parquet`, Snowflake will store `complex` types (JSON) in `VARIANT` as string. Use `jsonl` format instead or use `PARSE_JSON` to update the `VARIANT`` field after loading.
 
 ## Supported column hints
 Snowflake supports the following [column hints](https://dlthub.com/docs/general-usage/schema#tables-and-columns):
@@ -117,25 +124,9 @@ Snowflake makes all unquoted identifiers uppercase and then resolves them case-i
 
 Names of tables and columns in [schemas](../../general-usage/schema.md) are kept in lower case like for all other destinations. This is the pattern we observed in other tools ie. `dbt`. In case of `dlt` it is however trivial to define your own uppercase [naming convention](../../general-usage/schema.md#naming-convention)
 
-## Additional destination options
-You can define your own stage to PUT files and disable removing of the staged files after loading.
-```toml
-[destination.snowflake]
-# Use an existing named stage instead of the default. Default uses the implicit table stage per table
-stage_name="DLT_STAGE"
-# Whether to keep or delete the staged files after COPY INTO succeeds
-keep_staged_files=true
-```
+## Staging support
 
-### dbt support
-This destination [integrates with dbt](../transformations/dbt.md) via [dbt-snowflake](https://github.com/dbt-labs/dbt-snowflake). Both password and key pair authentication is supported and shared with dbt runners.
-
-### Syncing of `dlt` state
-This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination)
-
-## Snowflake and staging on Amazon S3 or Google Cloud Storage
-
-Snowflake supports s3 and gcs as a file staging destinations. DLT will upload files in the parquet format to the bucket provider and will ask snowflake to copy their data directly into the db. 
+Snowflake supports s3 and gcs as a file staging destinations. DLT will upload files in the parquet format to the bucket provider and will ask snowflake to copy their data directly into the db.
 
 Alternavitely to parquet files, you can also specify jsonl as the staging file format. For this set the `loader_file_format` argument of the `run` command of the pipeline to `jsonl`.
 
@@ -199,3 +190,19 @@ pipeline = dlt.pipeline(
     dataset_name='player_data'
 )
 ```
+
+## Additional destination options
+You can define your own stage to PUT files and disable removing of the staged files after loading.
+```toml
+[destination.snowflake]
+# Use an existing named stage instead of the default. Default uses the implicit table stage per table
+stage_name="DLT_STAGE"
+# Whether to keep or delete the staged files after COPY INTO succeeds
+keep_staged_files=true
+```
+
+### dbt support
+This destination [integrates with dbt](../transformations/dbt.md) via [dbt-snowflake](https://github.com/dbt-labs/dbt-snowflake). Both password and key pair authentication is supported and shared with dbt runners.
+
+### Syncing of `dlt` state
+This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination)

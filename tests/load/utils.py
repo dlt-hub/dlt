@@ -1,3 +1,4 @@
+import base64
 import contextlib
 from importlib import import_module
 import codecs
@@ -7,7 +8,7 @@ import shutil
 from pathlib import Path
 
 import dlt
-from dlt.common import json, Decimal, sleep
+from dlt.common import json, Decimal, sleep, pendulum
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
@@ -24,7 +25,14 @@ from dlt.load import Load
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
 
-from tests.utils import ALL_DESTINATIONS, ALL_BUCKETS
+from tests.utils import ALL_DESTINATIONS
+
+# bucket urls
+AWS_BUCKET = dlt.config.get("tests.bucket_url_aws", str)
+GCS_BUCKET = dlt.config.get("tests.bucket_url_gcs", str)
+FILE_BUCKET = dlt.config.get("tests.bucket_url_file", str)
+MEMORY_BUCKET = dlt.config.get("tests.memory", str)
+ALL_BUCKETS = [GCS_BUCKET, AWS_BUCKET, FILE_BUCKET, MEMORY_BUCKET]
 
 
 ALL_CLIENTS = [f"{name}_client" for name in ALL_DESTINATIONS]
@@ -58,7 +66,7 @@ TABLE_UPDATE: List[TColumnSchema] = [
     {
         "name": "col5",
         "data_type": "text",
-        "nullable": True
+        "nullable": False
     },
     {
         "name": "col6",
@@ -68,12 +76,12 @@ TABLE_UPDATE: List[TColumnSchema] = [
     {
         "name": "col7",
         "data_type": "binary",
-        "nullable": True
+        "nullable": False
     },
     {
         "name": "col8",
         "data_type": "wei",
-        "nullable": True
+        "nullable": False
     },
     {
         "name": "col9",
@@ -85,6 +93,57 @@ TABLE_UPDATE: List[TColumnSchema] = [
         "name": "col10",
         "data_type": "date",
         "nullable": False
+    },
+    {
+        "name": "col1_null",
+        "data_type": "bigint",
+        "nullable": True
+    },
+    {
+        "name": "col2_null",
+        "data_type": "double",
+        "nullable": True
+    },
+    {
+        "name": "col3_null",
+        "data_type": "bool",
+        "nullable": True
+    },
+    {
+        "name": "col4_null",
+        "data_type": "timestamp",
+        "nullable": True
+    },
+    {
+        "name": "col5_null",
+        "data_type": "text",
+        "nullable": True
+    },
+    {
+        "name": "col6_null",
+        "data_type": "decimal",
+        "nullable": True
+    },
+    {
+        "name": "col7_null",
+        "data_type": "binary",
+        "nullable": True
+    },
+    {
+        "name": "col8_null",
+        "data_type": "wei",
+        "nullable": True
+    },
+    {
+        "name": "col9_null",
+        "data_type": "complex",
+        "nullable": True,
+        "variant": True
+    },
+    {
+        "name": "col10_null",
+        "data_type": "date",
+        "nullable": True
     }
 ]
 TABLE_UPDATE_COLUMNS_SCHEMA: TTableSchemaColumns = {t["name"]:t for t in TABLE_UPDATE}
@@ -99,8 +158,48 @@ TABLE_ROW_ALL_DATA_TYPES  = {
     "col7": b'binary data \n \r \x8e',
     "col8": 2**56 + 92093890840,
     "col9": {"complex":[1,2,3,"a"], "link": "?commen\ntU\nrn=urn%3Ali%3Acomment%3A%28acti\012 \6 \\vity%3A69'08444473\n\n551163392%2C6n \r \x8e9085"},
-    "col10": "2023-02-27"
+    "col10": "2023-02-27",
+    "col1_null": None,
+    "col2_null": None,
+    "col3_null": None,
+    "col4_null": None,
+    "col5_null": None,
+    "col6_null": None,
+    "col7_null": None,
+    "col8_null": None,
+    "col9_null": None,
+    "col10_null": None
 }
+
+
+def assert_all_data_types_row(db_row: List[Any], parse_complex_strings: bool = False, allow_base64_binary: bool = False) -> None:
+    print(db_row)
+    # content must equal
+    db_row[3] = str(pendulum.instance(db_row[3]))  # serialize date
+    if isinstance(db_row[6], str):
+        try:
+            db_row[6] = bytes.fromhex(db_row[6])  # redshift returns binary as hex string
+        except ValueError:
+            if not allow_base64_binary:
+                raise
+            db_row[6] = base64.b64decode(db_row[6], validate=True)
+    else:
+        db_row[6] = bytes(db_row[6])
+    # redshift and bigquery return strings from structured fields
+    if isinstance(db_row[8], str):
+        # then it must be json
+        db_row[8] = json.loads(db_row[8])
+    # parse again
+    if parse_complex_strings and isinstance(db_row[8], str):
+        # then it must be json
+        db_row[8] = json.loads(db_row[8])
+
+    db_row[9] = db_row[9].isoformat()
+
+    expected_rows = list(TABLE_ROW_ALL_DATA_TYPES.values())
+    print(expected_rows)
+    assert db_row == expected_rows
+
 
 def load_table(name: str) -> TTableSchemaColumns:
     with open(f"./tests/load/cases/{name}.json", "rb") as f:
@@ -212,12 +311,15 @@ def cm_yield_client_with_storage(
     return yield_client_with_storage(destination_name, default_config_values, schema_name)
 
 
-def write_dataset(client: JobClientBase, f: IO[bytes], rows: Sequence[StrAny], columns_schema: TTableSchemaColumns) -> None:
+def write_dataset(client: JobClientBase, f: IO[bytes], rows: List[StrAny], columns_schema: TTableSchemaColumns) -> None:
     data_format = DataWriter.data_format_from_file_format(client.capabilities.preferred_loader_file_format)
     # adapt bytes stream to text file format
     if not data_format.is_binary_format and isinstance(f.read(0), bytes):
         f = codecs.getwriter("utf-8")(f)
     writer = DataWriter.from_destination_capabilities(client.capabilities, f)
+    # remove None values
+    for idx, row in enumerate(rows):
+        rows[idx] = {k:v for k, v in row.items() if v is not None}
     writer.write_all(columns_schema, rows)
 
 

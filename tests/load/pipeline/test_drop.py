@@ -1,5 +1,4 @@
 from typing import Any, Iterator, Dict, Any, List
-import secrets
 from unittest import mock
 from itertools import chain
 
@@ -13,7 +12,6 @@ from dlt.load import Load
 from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.destinations.job_client_impl import SqlJobClientBase
 
-from tests.load.pipeline.utils import drop_pipeline
 from tests.utils import ALL_DESTINATIONS
 
 
