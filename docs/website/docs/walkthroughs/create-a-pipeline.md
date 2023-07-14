@@ -19,8 +19,7 @@ steps below.
 Create a new empty directory for your `dlt` project by running:
 
 ```bash
-mkdir weatherapi_duckdb
-cd weatherapi_duckdb
+mkdir weatherapi_duckdb && cd weatherapi_duckdb
 ```
 
 Start a `dlt` project with a pipeline template that loads data to DuckDB by running:
