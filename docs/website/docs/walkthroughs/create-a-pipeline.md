@@ -20,10 +20,6 @@ Create a new empty directory for your `dlt` project by running:
 
 ```bash
 mkdir weatherapi_duckdb
-```
-
-Change into your new directory by running:
-```bash
 cd weatherapi_duckdb
 ```
 
