@@ -49,3 +49,17 @@ class NewReferenceJob(NewLoadJobImpl):
     @staticmethod
     def is_reference_job(file_path: str) -> bool:
         return os.path.splitext(file_path)[1][1:] == "reference"
+
+    @staticmethod
+    def resolve_remote_path(file_path: str) -> str:
+        with open(file_path, "r+", encoding="utf-8") as f:
+            # Reading from a file
+            return f.read()
+
+    @staticmethod
+    def get_bucket(file_path: str) -> str:
+        bucket_url = NewReferenceJob.resolve_remote_path(file_path)
+        parts = bucket_url.split("//")
+        protocol = parts[0]
+        bucket = parts[1].split("/")[0]
+        return f"{protocol}//{bucket}"

@@ -65,7 +65,6 @@ class DestinationClientStagingConfiguration(DestinationClientDwhConfiguration):
             dataset_name: str = None,
             default_schema_name: Optional[str] = None,
             as_staging: bool = False,
-            bucket_url: str = None,
         ) -> None:
             ...
 

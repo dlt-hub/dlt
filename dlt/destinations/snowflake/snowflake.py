@@ -65,7 +65,7 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
             qualified_table_name = client.make_qualified_table_name(table_name)
 
             # extract and prepare some vars
-            bucket_path = CopyFileLoadJob.get_bucket_path(file_path) if NewReferenceJob.is_reference_job(file_path) else ""
+            bucket_path = NewReferenceJob.resolve_remote_path(file_path) if NewReferenceJob.is_reference_job(file_path) else ""
             file_name = FileStorage.get_file_name_from_file_path(bucket_path) if bucket_path else file_name
             from_clause = ""
             credentials_clause = ""
@@ -76,7 +76,7 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
             if bucket_path and stage_name:
                 from_clause = f"FROM @{stage_name}/"
                 # select all files that match the file from our job
-                bucket = CopyFileLoadJob.get_bucket(file_path)
+                bucket = NewReferenceJob.get_bucket(file_path)
                 file_path = bucket_path.replace(bucket + "/", "")
                 files_clause = f"FILES = ('{file_path}')"
             # s3 credentials case

@@ -18,7 +18,7 @@ from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns, TSchem
 from dlt.common.destination.reference import DestinationClientConfiguration, DestinationClientDwhConfiguration, NewLoadJob, TLoadJobState, LoadJob, JobClientBase, FollowupJob, DestinationClientStagingConfiguration, CredentialsConfiguration
 from dlt.common.utils import concat_strings_with_limit
 from dlt.destinations.exceptions import DatabaseUndefinedRelation, DestinationSchemaWillNotUpdate
-from dlt.destinations.job_impl import EmptyLoadJobWithoutFollowup
+from dlt.destinations.job_impl import EmptyLoadJobWithoutFollowup, NewReferenceJob
 from dlt.destinations.sql_merge_job import SqlMergeJob
 
 from dlt.destinations.typing import TNativeConn
@@ -65,7 +65,7 @@ class CopyFileLoadJob(LoadJob, FollowupJob):
         self._sql_client = sql_client
         self._staging_credentials = staging_credentials
 
-        self.execute(table, self.get_bucket_path(file_path))
+        self.execute(table, NewReferenceJob.resolve_remote_path(file_path))
 
     def execute(self, table: TTableSchema, bucket_path: str) -> None:
         # implement in child implementations
@@ -75,19 +75,6 @@ class CopyFileLoadJob(LoadJob, FollowupJob):
         # this job is always done
         return "completed"
 
-    @staticmethod
-    def get_bucket_path(file_path: str) -> str:
-        with open(file_path, "r+", encoding="utf-8") as f:
-            # Reading from a file
-            return f.read()
-
-    @staticmethod
-    def get_bucket(file_path: str) -> str:
-        bucket_url = CopyFileLoadJob.get_bucket_path(file_path)
-        parts = bucket_url.split("//")
-        protocol = parts[0]
-        bucket = parts[1].split("/")[0]
-        return f"{protocol}//{bucket}"
 
 class SqlJobClientBase(JobClientBase):
 

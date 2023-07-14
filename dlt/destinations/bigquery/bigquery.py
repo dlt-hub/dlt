@@ -248,7 +248,7 @@ class BigQueryClient(SqlJobClientBase):
         bucket_path = None
         ext: str = os.path.splitext(file_path)[1][1:]
         if NewReferenceJob.is_reference_job(file_path):
-            bucket_path = CopyFileLoadJob.get_bucket_path(file_path)
+            bucket_path = NewReferenceJob.resolve_remote_path(file_path)
             ext = os.path.splitext(bucket_path)[1][1:]
 
         # choose correct source format
