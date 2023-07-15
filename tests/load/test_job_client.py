@@ -20,7 +20,7 @@ from dlt.destinations.job_client_impl import SqlJobClientBase
 
 from tests.utils import TEST_STORAGE_ROOT, ALL_DESTINATIONS, autouse_test_storage
 from tests.common.utils import load_json_case
-from tests.load.utils import (ALL_CLIENTS_SUBSET, TABLE_UPDATE, TABLE_UPDATE_COLUMNS_SCHEMA, TABLE_ROW, expect_load_file, load_table, yield_client_with_storage,
+from tests.load.utils import (ALL_CLIENTS_SUBSET, TABLE_UPDATE, TABLE_UPDATE_COLUMNS_SCHEMA, TABLE_ROW_ALL_DATA_TYPES, assert_all_data_types_row , expect_load_file, load_table, yield_client_with_storage,
                                 cm_yield_client_with_storage, write_dataset, prepare_table, ALL_CLIENTS)
 
 
@@ -431,27 +431,12 @@ def test_load_with_all_types(client: SqlJobClientBase, write_disposition: str, f
     canonical_name = client.sql_client.make_qualified_table_name(table_name)
     # write row
     with io.BytesIO() as f:
-        write_dataset(client, f, [TABLE_ROW], TABLE_UPDATE_COLUMNS_SCHEMA)
+        write_dataset(client, f, [TABLE_ROW_ALL_DATA_TYPES], TABLE_UPDATE_COLUMNS_SCHEMA)
         query = f.getvalue().decode()
     expect_load_file(client, file_storage, query, table_name)
     db_row = list(client.sql_client.execute_sql(f"SELECT * FROM {canonical_name}")[0])
     # content must equal
-    db_row[3] = str(pendulum.instance(db_row[3]))  # serialize date
-    if isinstance(db_row[6], str):
-        db_row[6] = bytes.fromhex(db_row[6])  # redshift returns binary as hex string
-    else:
-        db_row[6] = bytes(db_row[6])
-    # redshift and bigquery return strings from structured fields
-    if isinstance(db_row[8], str):
-        # then it must be json
-        db_row[8] = json.loads(db_row[8])
-
-    db_row[9] = db_row[9].isoformat()
-
-    expected_rows = list(TABLE_ROW.values())
-    # expected_rows[8] = COL_9_DICT
-
-    assert db_row == expected_rows
+    assert_all_data_types_row(db_row)
 
 
 @pytest.mark.parametrize('write_disposition', ["append", "replace", "merge"])
@@ -477,7 +462,7 @@ def test_write_dispositions(client: SqlJobClientBase, write_disposition: str, fi
     for idx in range(2):
         for t in [table_name, child_table]:
             # write row, use col1 (INT) as row number
-            table_row = deepcopy(TABLE_ROW)
+            table_row = deepcopy(TABLE_ROW_ALL_DATA_TYPES )
             table_row["col1"] = idx
             with io.BytesIO() as f:
                 write_dataset(client, f, [table_row], TABLE_UPDATE_COLUMNS_SCHEMA)

@@ -1,19 +1,22 @@
 import posixpath
 import threading
+import os
 from types import TracebackType
-from typing import ClassVar, List, Sequence, Type, Iterable
+from typing import ClassVar, List, Sequence, Type, Iterable, cast
 from fsspec import AbstractFileSystem
 
 from dlt.common.schema import Schema, TTableSchema
 from dlt.common.schema.typing import TWriteDisposition, LOADS_TABLE_NAME
 from dlt.common.storages import FileStorage
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import NewLoadJob, TLoadJobState, LoadJob, JobClientBase
+from dlt.common.destination.reference import NewLoadJob, TLoadJobState, LoadJob, JobClientBase, FollowupJob
 from dlt.destinations.job_impl import EmptyLoadJob
 from dlt.destinations.filesystem import capabilities
 from dlt.destinations.filesystem.configuration import FilesystemClientConfiguration
 from dlt.destinations.filesystem.filesystem_client import client_from_config
 from dlt.common.storages import LoadStorage
+from dlt.destinations.job_impl import NewLoadJobImpl
+from dlt.destinations.job_impl import NewReferenceJob
 
 
 class LoadFilesystemJob(LoadJob):
@@ -29,6 +32,9 @@ class LoadFilesystemJob(LoadJob):
             load_id: str
     ) -> None:
         file_name = FileStorage.get_file_name_from_file_path(local_path)
+        self.config = config
+        self.dataset_path = dataset_path
+
         super().__init__(file_name)
         fs_client, _ = client_from_config(config)
 
@@ -49,19 +55,31 @@ class LoadFilesystemJob(LoadJob):
             for item in items:
                 fs_client.rm_file(item)
 
-        destination_file_name = LoadFilesystemJob.make_destination_filename(file_name, schema_name, load_id)
-        fs_client.put_file(local_path, posixpath.join(dataset_path, destination_file_name))
+        self.destination_file_name = LoadFilesystemJob.make_destination_filename(file_name, schema_name, load_id)
+        fs_client.put_file(local_path, self.make_remote_path())
 
     @staticmethod
     def make_destination_filename(file_name: str, schema_name: str, load_id: str) -> str:
         job_info = LoadStorage.parse_job_file_name(file_name)
         return f"{schema_name}.{job_info.table_name}.{load_id}.{job_info.file_id}.{job_info.file_format}"
 
+    def make_remote_path(self) -> str:
+        return f"{self.config.protocol}://{posixpath.join(self.dataset_path, self.destination_file_name)}"
+
     def state(self) -> TLoadJobState:
         return "completed"
 
     def exception(self) -> str:
         raise NotImplementedError()
+
+
+class FollowupFilesystemJob(FollowupJob, LoadFilesystemJob):
+    def create_followup_jobs(self, next_state: str) -> List[NewLoadJob]:
+        jobs = super().create_followup_jobs(next_state)
+        if next_state == "completed":
+            ref_job = NewReferenceJob(file_name=self.file_name(), status="running", remote_path=self.make_remote_path())
+            jobs.append(ref_job)
+        return jobs
 
 
 class FilesystemClient(JobClientBase):
@@ -87,8 +105,9 @@ class FilesystemClient(JobClientBase):
         return self.fs_client.isdir(self.dataset_path)  # type: ignore[no-any-return]
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
+        cls = FollowupFilesystemJob if self.config.as_staging else LoadFilesystemJob
         has_merge_keys = any(col['merge_key'] or col['primary_key'] for col in table['columns'].values())
-        return LoadFilesystemJob(
+        return cls(
             file_path,
             self.dataset_path,
             config=self.config,
@@ -103,6 +122,7 @@ class FilesystemClient(JobClientBase):
 
     def create_merge_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
         return None
+
 
     def complete_load(self, load_id: str) -> None:
         schema_name = self.schema.name

@@ -102,10 +102,38 @@ You can configure the following file formats to load data to BigQuery
 * [jsonl](../file-formats/jsonl.md) is used by default
 * [parquet](../file-formats/parquet.md) is supported
 
+When staging is enabled:
+* [jsonl](../file-formats/jsonl.md) is used by default
+* [parquet](../file-formats/parquet.md) is supported
+
+> ❗ **Bigquery cannot load JSON columns from `parquet` files**. `dlt` will fail such jobs permanently. Switch to `jsonl` to load and parse JSON properly.
+
 ## Supported column hints
 BigQuery supports the following [column hints](https://dlthub.com/docs/general-usage/schema#tables-and-columns):
 * `partition` - creates a partition with a day granularity on decorated column (`PARTITION BY DATE`). May be used with `datetime`, `date` data types and `bigint` and `double` if they contain valid UNIX timestamps. Only one column per table is supported and only when a new table is created.
 * `cluster` - creates a cluster column(s). Many column per table are supported and only when a new table is created.
+
+## Staging Support
+
+BigQuery supports gcs as a file staging destination. DLT will upload files in the parquet format to gcs and ask BigQuery to copy their data directly into the db. Please refer to the [Google Storage filesystem documentation](./filesystem.md#google-storage) to learn how to set up your gcs bucket with the bucket_url and credentials. If you use the same service account for gcs and your redshift deployment, you do not need to provide additional authentication for BigQuery to be able to read from your bucket.
+```toml
+```
+
+Alternatively to parquet files, you can also specify jsonl as the staging file format. For this set the `loader_file_format` argument of the `run` command of the pipeline to `jsonl`.
+
+### BigQuery/GCS staging Example Code
+
+```python
+# Create a dlt pipeline that will load
+# chess player data to the BigQuery destination
+# via a gcs bucket.
+pipeline = dlt.pipeline(
+    pipeline_name='chess_pipeline',
+    destination='biquery',
+    staging='filesystem', # add this to activate the staging location
+    dataset_name='player_data'
+)
+```
 
 ## Additional destination options
 You can configure the data location and various timeouts as shown below. This information is not a secret so can be placed in `config.toml` as well.

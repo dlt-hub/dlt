@@ -9,8 +9,7 @@ from dlt.common.schema.typing import LOADS_TABLE_NAME
 
 import pyarrow.parquet as pq
 
-from tests.utils import autouse_test_storage, init_test_logging, preserve_environ, patch_home_dir
-from tests.load.pipeline.utils import drop_pipeline
+from tests.utils import init_test_logging
 
 
 

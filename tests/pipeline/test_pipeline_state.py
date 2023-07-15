@@ -15,8 +15,8 @@ from dlt.pipeline.exceptions import PipelineStateEngineNoUpgradePathException, P
 from dlt.pipeline.pipeline import Pipeline
 from dlt.pipeline.state_sync import migrate_state, STATE_ENGINE_VERSION
 
-from tests.utils import autouse_test_storage, test_storage, patch_home_dir, preserve_environ
-from tests.pipeline.utils import drop_dataset_from_env, json_case_path, load_json_case, drop_pipeline
+from tests.utils import test_storage
+from tests.pipeline.utils import json_case_path, load_json_case
 
 
 @dlt.resource()
@@ -31,6 +31,24 @@ def some_data_resource_state():
     last_value = dlt.current.resource_state().get("last_value", 0)
     yield [1,2,3]
     dlt.current.resource_state()["last_value"] = last_value + 1
+
+
+def test_restore_state_props() -> None:
+    p = dlt.pipeline(pipeline_name="restore_state_props", destination="redshift", staging="filesystem", dataset_name="the_dataset")
+    p.extract(some_data())
+    state = p.state
+    assert state["dataset_name"] == "the_dataset"
+    assert state["destination"].endswith("redshift")
+    assert state["staging"].endswith("filesystem")
+
+    p = dlt.pipeline(pipeline_name="restore_state_props")
+    state = p.state
+    assert state["dataset_name"] == "the_dataset"
+    assert state["destination"].endswith("redshift")
+    assert state["staging"].endswith("filesystem")
+    # also instances are restored
+    assert p.destination.__name__.endswith("redshift")
+    assert p.staging.__name__.endswith("filesystem")
 
 
 def test_managed_state() -> None:

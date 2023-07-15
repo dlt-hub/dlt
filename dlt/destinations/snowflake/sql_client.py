@@ -30,9 +30,14 @@ class SnowflakeSqlClient(SqlClientBase[snowflake_lib.SnowflakeConnection], DBTra
         self.credentials = credentials
 
     def open_connection(self) -> snowflake_lib.SnowflakeConnection:
+        conn_params = self.credentials.to_connector_params()
+        # set the timezone to UTC so when loading from file formats that do not have timezones
+        # we get dlt expected UTC
+        if "timezone" not in conn_params:
+            conn_params["timezone"] = "UTC"
         self._conn = snowflake_lib.connect(
             schema=self.fully_qualified_dataset_name(),
-            **self.credentials.to_connector_params()
+            **conn_params
         )
         return self._conn
 

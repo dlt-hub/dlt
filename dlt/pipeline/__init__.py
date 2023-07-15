@@ -22,12 +22,13 @@ def pipeline(
     pipelines_dir: str = None,
     pipeline_salt: TSecretValue = None,
     destination: TDestinationReferenceArg = None,
+    staging: TDestinationReferenceArg = None,
     dataset_name: str = None,
     import_schema_path: str = None,
     export_schema_path: str = None,
     full_refresh: bool = False,
     credentials: Any = None,
-    progress: TCollectorArg = _NULL_COLLECTOR
+    progress: TCollectorArg = _NULL_COLLECTOR,
 ) -> Pipeline:
     """Creates a new instance of `dlt` pipeline, which moves the data from the source ie. a REST API to a destination ie. database or a data lake.
 
@@ -50,6 +51,9 @@ def pipeline(
         Default value should not be used for any cryptographic purposes.
 
         destination (str | DestinationReference, optional): A name of the destination to which dlt will load the data, or a destination module imported from `dlt.destination`.
+        May also be provided to `run` method of the `pipeline`.
+
+        staging (str | DestinationReference, optional): A name of the destination where dlt will stage the data before final loading, or a destination module imported from `dlt.destination`.
         May also be provided to `run` method of the `pipeline`.
 
         dataset_name (str, optional): A name of the dataset to which the data will be loaded. A dataset is a logical group of tables ie. `schema` in relational databases or folder grouping many files.
@@ -86,6 +90,7 @@ def pipeline(
     pipelines_dir: str = None,
     pipeline_salt: TSecretValue = None,
     destination: TDestinationReferenceArg = None,
+    staging: TDestinationReferenceArg = None,
     dataset_name: str = None,
     import_schema_path: str = None,
     export_schema_path: str = None,
@@ -113,6 +118,8 @@ def pipeline(
         pipelines_dir = get_dlt_pipelines_dir()
 
     destination = DestinationReference.from_name(destination or kwargs["destination_name"])
+    staging = DestinationReference.from_name(staging or kwargs.get("staging_name", None)) if staging is not None else None
+
     progress = collector_from_name(progress)
     # create new pipeline instance
     p = Pipeline(
@@ -120,6 +127,7 @@ def pipeline(
         pipelines_dir,
         pipeline_salt,
         destination,
+        staging,
         dataset_name,
         credentials,
         import_schema_path,
@@ -149,7 +157,7 @@ def attach(
         pipelines_dir = get_dlt_pipelines_dir()
     progress = collector_from_name(progress)
     # create new pipeline instance
-    p = Pipeline(pipeline_name, pipelines_dir, pipeline_salt, None, None, None, None, None, full_refresh, progress, True, last_config(**kwargs), kwargs["runtime"])
+    p = Pipeline(pipeline_name, pipelines_dir, pipeline_salt, None, None, None, None, None, None, full_refresh, progress, True, last_config(**kwargs), kwargs["runtime"])
     # set it as current pipeline
     p.activate()
     return p

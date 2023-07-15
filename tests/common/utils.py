@@ -4,7 +4,9 @@ import yaml
 from git import Repo, Commit
 from pathlib import Path
 from typing import Mapping, Tuple, cast, Any
+import datetime  # noqa: 251
 
+from dlt.common.arithmetics import Decimal
 from dlt.common import json
 from dlt.common.typing import StrAny
 from dlt.common.schema import utils

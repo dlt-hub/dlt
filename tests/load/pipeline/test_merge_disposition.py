@@ -15,10 +15,9 @@ from dlt.common.utils import digest128
 from dlt.extract.source import DltResource
 from dlt.sources.helpers.transform import skip_first, take_first
 
-from tests.utils import ALL_DESTINATIONS, patch_home_dir, preserve_environ, autouse_test_storage
-from tests.pipeline.utils import drop_dataset_from_env, assert_load_info
-from tests.load.utils import delete_dataset
-from tests.load.pipeline.utils import drop_pipeline, load_table_counts, select_data
+from tests.utils import ALL_DESTINATIONS
+from tests.pipeline.utils import assert_load_info
+from tests.load.pipeline.utils import load_table_counts, select_data
 
 # uncomment add motherduck tests
 # NOTE: the tests are passing but we disable them due to frequent ATTACH DATABASE timeouts

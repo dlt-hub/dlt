@@ -21,9 +21,8 @@ from dlt.pipeline.pipeline import Pipeline
 from dlt.pipeline.trace import PipelineTrace, SerializableResolvedValueTrace, load_trace
 from dlt.pipeline.track import slack_notify_load_success
 
-from tests.utils import preserve_environ, patch_home_dir, start_test_telemetry
+from tests.utils import start_test_telemetry
 from tests.common.configuration.utils import toml_providers, environment
-from tests.pipeline.utils import drop_dataset_from_env, drop_pipeline
 
 def test_create_trace(toml_providers: ConfigProvidersContext) -> None:
 

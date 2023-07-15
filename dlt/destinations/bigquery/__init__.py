@@ -6,6 +6,7 @@ from dlt.common.configuration import with_config, known_sections
 from dlt.common.configuration.accessors import config
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import JobClientBase, DestinationClientConfiguration
+from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 
 from dlt.destinations.bigquery.configuration import BigQueryClientConfiguration
 
@@ -19,8 +20,12 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps = DestinationCapabilitiesContext()
     caps.preferred_loader_file_format = "jsonl"
     caps.supported_loader_file_formats = ["jsonl", "sql", "parquet"]
+    caps.preferred_staging_file_format = "parquet"
+    caps.supported_staging_file_formats = ["parquet", "jsonl"]
     caps.escape_identifier = escape_bigquery_identifier
     caps.escape_literal = None
+    caps.decimal_precision = (DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE)
+    caps.wei_precision = (76, 38)
     caps.max_identifier_length = 1024
     caps.max_column_identifier_length = 300
     caps.max_query_length = 1024 * 1024

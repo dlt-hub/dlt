@@ -15,14 +15,15 @@ from dlt.common.schema.typing import COLUMN_HINTS, LOADS_TABLE_NAME, VERSION_TAB
 from dlt.common.schema.utils import add_missing_hints
 from dlt.common.storages import FileStorage
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns, TSchemaTables
-from dlt.common.destination.reference import DestinationClientConfiguration, DestinationClientDwhConfiguration, NewLoadJob, TLoadJobState, LoadJob, JobClientBase
+from dlt.common.destination.reference import DestinationClientConfiguration, DestinationClientDwhConfiguration, NewLoadJob, TLoadJobState, LoadJob, JobClientBase, FollowupJob, DestinationClientStagingConfiguration, CredentialsConfiguration
 from dlt.common.utils import concat_strings_with_limit
 from dlt.destinations.exceptions import DatabaseUndefinedRelation, DestinationSchemaWillNotUpdate
-from dlt.destinations.job_impl import EmptyLoadJobWithoutFollowup
+from dlt.destinations.job_impl import EmptyLoadJobWithoutFollowup, NewReferenceJob
 from dlt.destinations.sql_merge_job import SqlMergeJob
 
 from dlt.destinations.typing import TNativeConn
 from dlt.destinations.sql_client import SqlClientBase
+from dlt.common.configuration import with_config, known_sections
 
 
 class StorageSchemaInfo(NamedTuple):
@@ -56,6 +57,23 @@ class SqlLoadJob(LoadJob):
     @staticmethod
     def is_sql_job(file_path: str) -> bool:
         return os.path.splitext(file_path)[1][1:] == "sql"
+
+
+class CopyRemoteFileLoadJob(LoadJob, FollowupJob):
+    def __init__(self, table: TTableSchema, file_path: str, sql_client: SqlClientBase[Any], staging_credentials: Optional[CredentialsConfiguration] = None) -> None:
+        super().__init__(FileStorage.get_file_name_from_file_path(file_path))
+        self._sql_client = sql_client
+        self._staging_credentials = staging_credentials
+
+        self.execute(table, NewReferenceJob.resolve_reference(file_path))
+
+    def execute(self, table: TTableSchema, bucket_path: str) -> None:
+        # implement in child implementations
+        raise NotImplementedError()
+
+    def state(self) -> TLoadJobState:
+        # this job is always done
+        return "completed"
 
 
 class SqlJobClientBase(JobClientBase):
@@ -186,14 +204,14 @@ WHERE """
             schema_table[c[0]] = add_missing_hints(schema_c)
         return True, schema_table
 
-    @staticmethod
+    @classmethod
     @abstractmethod
-    def _to_db_type(schema_type: TDataType) -> str:
+    def _to_db_type(cls, schema_type: TDataType) -> str:
         pass
 
-    @staticmethod
+    @classmethod
     @abstractmethod
-    def _from_db_type(db_type: str, precision: Optional[int], scale: Optional[int]) -> TDataType:
+    def _from_db_type(cls, db_type: str, precision: Optional[int], scale: Optional[int]) -> TDataType:
         pass
 
     def get_newest_schema_from_storage(self) -> StorageSchemaInfo:
@@ -342,3 +360,4 @@ WHERE """
         self.sql_client.execute_sql(
             f"INSERT INTO {name}({self.VERSION_TABLE_SCHEMA_COLUMNS}) VALUES (%s, %s, %s, %s, %s, %s);", schema.stored_version_hash, schema.name, schema.version, schema.ENGINE_VERSION, now_ts, schema_str
         )
+

@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from importlib import import_module
 from types import TracebackType, ModuleType
-from typing import ClassVar, Final, Optional, Literal, Sequence, Iterable, Type, Protocol, Union, TYPE_CHECKING, cast
+from typing import ClassVar, Final, Optional, Literal, Sequence, Iterable, Type, Protocol, Union, TYPE_CHECKING, cast, List
 
 from dlt.common import logger
 from dlt.common.exceptions import IdentifierTooLongException, InvalidDestinationReference, UnknownDestinationModule
@@ -15,6 +15,7 @@ from dlt.common.schema.utils import is_complete_column
 from dlt.common.storages import FileStorage
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.utils import get_module_name
+from dlt.common.configuration.specs import GcpCredentials, AwsCredentialsWithoutDefaults
 
 
 @configspec(init=True)
@@ -27,7 +28,8 @@ class DestinationClientConfiguration(BaseConfiguration):
         return str(self.credentials)
 
     if TYPE_CHECKING:
-        def __init__(self, destination_name: str = None, credentials: Optional[CredentialsConfiguration] = None) -> None:
+        def __init__(self, destination_name: str = None, credentials: Optional[CredentialsConfiguration] = None
+) -> None:
             ...
 
 
@@ -38,6 +40,7 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
     """dataset name in the destination to load data to, for schemas that are not default schema, it is used as dataset prefix"""
     default_schema_name: Optional[str] = None
     """name of default schema to be used to name effective dataset to load data to"""
+    staging_credentials: Optional[CredentialsConfiguration] = None
 
     if TYPE_CHECKING:
         def __init__(
@@ -45,10 +48,25 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
             destination_name: str = None,
             credentials: Optional[CredentialsConfiguration] = None,
             dataset_name: str = None,
-            default_schema_name: Optional[str] = None
+            default_schema_name: Optional[str] = None,
+            staging_credentials: Optional[CredentialsConfiguration] = None
         ) -> None:
             ...
 
+@configspec(init=True)
+class DestinationClientStagingConfiguration(DestinationClientDwhConfiguration):
+    as_staging: bool = False
+
+    if TYPE_CHECKING:
+        def __init__(
+            self,
+            destination_name: str = None,
+            credentials: Union[AwsCredentialsWithoutDefaults, GcpCredentials] = None,
+            dataset_name: str = None,
+            default_schema_name: Optional[str] = None,
+            as_staging: bool = False,
+        ) -> None:
+            ...
 
 TLoadJobState = Literal["running", "failed", "retry", "completed"]
 
@@ -106,7 +124,8 @@ class NewLoadJob(LoadJob):
 
 class FollowupJob:
     """Adds a trait that allows to create a followup job"""
-    pass
+    def create_followup_jobs(self, next_state: str) -> List[NewLoadJob]:
+        return []
 
 
 class JobClientBase(ABC):

@@ -1,5 +1,7 @@
 from dlt.common.exceptions import MissingDependencyException
-from typing import Any
+from typing import Any, Tuple
+
+from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 
 try:
     import pyarrow
@@ -8,7 +10,7 @@ except ImportError:
     raise MissingDependencyException("DLT parquet Helpers", ["parquet"], "DLT Helpers for for parquet.")
 
 
-def get_py_arrow_datatype(column_type: str) -> Any:
+def get_py_arrow_datatype(column_type: str, caps: DestinationCapabilitiesContext) -> Any:
     if column_type == "text":
         return pyarrow.string()
     elif column_type == "double":
@@ -22,12 +24,22 @@ def get_py_arrow_datatype(column_type: str) -> Any:
     elif column_type == "binary":
         return pyarrow.binary()
     elif column_type == "complex":
+        # return pyarrow.struct([pyarrow.field('json', pyarrow.string())])
         return pyarrow.string()
     elif column_type == "decimal":
-        return pyarrow.decimal128(38, 18)
+        return get_py_arrow_numeric(caps.decimal_precision)
     elif column_type == "wei":
-        return pyarrow.decimal128(38, 0)
+        return get_py_arrow_numeric(caps.wei_precision)
     elif column_type == "date":
         return pyarrow.date32()
     else:
         raise ValueError(column_type)
+
+
+def get_py_arrow_numeric(precision: Tuple[int, int]) -> Any:
+    if precision[0] <= 38:
+        return pyarrow.decimal128(*precision)
+    if precision[0] <= 76:
+        return pyarrow.decimal256(*precision)
+    # for higher precision use max precision and trim scale to leave the most significant part
+    return pyarrow.decimal256(76, max(0, 76 - (precision[0] - precision[1])))

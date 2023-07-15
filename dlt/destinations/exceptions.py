@@ -51,8 +51,8 @@ class LoadJobNotExistsException(DestinationTerminalException):
 
 
 class LoadJobTerminalException(DestinationTerminalException):
-    def __init__(self, file_path: str) -> None:
-        super().__init__(f"Job with id/file name {file_path} encountered unrecoverable problem")
+    def __init__(self, file_path: str, message: str) -> None:
+        super().__init__(f"Job with id/file name {file_path} encountered unrecoverable problem: {message}")
 
 
 class LoadJobUnknownTableException(DestinationTerminalException):

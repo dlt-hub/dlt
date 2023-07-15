@@ -1,5 +1,6 @@
 import os
-from typing import Any, Iterator, List
+import abc
+from typing import Any, Iterator, List, Type
 
 from dlt.common.destination.reference import LoadJob, FollowupJob, TLoadJobState
 from dlt.common.schema.typing import TTableSchema, TWriteDisposition
@@ -102,3 +103,4 @@ class InsertValuesJobClient(SqlJobClientBase):
     def _get_out_table_constrains_sql(self, t: TTableSchema) -> str:
         # set non unique indexes
         pass
+

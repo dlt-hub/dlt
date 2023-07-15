@@ -16,12 +16,12 @@ from dlt.extract.exceptions import ResourceNameMissing
 from dlt.extract.source import DltSource
 from dlt.pipeline.exceptions import CannotRestorePipelineException, PipelineConfigMissing, PipelineStepFailed
 from dlt.common.schema.exceptions import CannotCoerceColumnException
+from dlt.common.exceptions import DestinationHasFailedJobs
 
-from tests.utils import ALL_DESTINATIONS, patch_home_dir, preserve_environ, autouse_test_storage, TEST_STORAGE_ROOT
-# from tests.common.configuration.utils import environment
-from tests.pipeline.utils import drop_dataset_from_env, assert_load_info
-from tests.load.utils import delete_dataset
-from tests.load.pipeline.utils import drop_active_pipeline_data, drop_pipeline, assert_query_data, assert_table, load_table_counts, select_data
+from tests.utils import ALL_DESTINATIONS, TEST_STORAGE_ROOT
+from tests.pipeline.utils import assert_load_info
+from tests.load.utils import TABLE_ROW_ALL_DATA_TYPES, TABLE_UPDATE_COLUMNS_SCHEMA, assert_all_data_types_row, delete_dataset
+from tests.load.pipeline.utils import drop_active_pipeline_data, assert_query_data, assert_table, load_table_counts, select_data
 
 
 @pytest.mark.parametrize('use_single_dataset', [True, False])
@@ -532,10 +532,21 @@ def test_many_pipelines_single_dataset(destination_name: str) -> None:
 @pytest.mark.parametrize('destination_name', ["snowflake"])
 def test_snowflake_custom_stage(destination_name: str) -> None:
     """Using custom stage name instead of the table stage"""
-    os.environ['DESTINATION__SNOWFLAKE__STAGE_NAME'] = 'my_custom_stage'
-
+    os.environ['DESTINATION__SNOWFLAKE__STAGE_NAME'] = 'my_non_existing_stage'
     pipeline, data = simple_nested_pipeline(destination_name, f"custom_stage_{uniq_id()}", False)
+    info = pipeline.run(data())
+    with pytest.raises(DestinationHasFailedJobs) as f_jobs:
+        info.raise_on_failed_jobs()
+    assert "MY_NON_EXISTING_STAGE" in f_jobs.value.failed_jobs[0].failed_message
 
+    drop_active_pipeline_data()
+
+    # NOTE: this stage must be created in DLT_DATA database for this test to pass!
+    # CREATE STAGE MY_CUSTOM_LOCAL_STAGE;
+    # GRANT READ, WRITE ON STAGE DLT_DATA.PUBLIC.MY_CUSTOM_LOCAL_STAGE TO ROLE DLT_LOADER_ROLE;
+    stage_name = 'PUBLIC.MY_CUSTOM_LOCAL_STAGE'
+    os.environ['DESTINATION__SNOWFLAKE__STAGE_NAME'] = stage_name
+    pipeline, data = simple_nested_pipeline(destination_name, f"custom_stage_{uniq_id()}", False)
     info = pipeline.run(data())
     assert_load_info(info)
 
@@ -543,7 +554,6 @@ def test_snowflake_custom_stage(destination_name: str) -> None:
 
     # Get a list of the staged files and verify correct number of files in the "load_id" dir
     with pipeline.sql_client() as client:
-        stage_name = client.make_qualified_table_name('my_custom_stage')
         staged_files = client.execute_sql(f'LIST @{stage_name}/"{load_id}"')
         assert len(staged_files) == 3
         # check data of one table to ensure copy was done successfully
@@ -575,6 +585,57 @@ def test_snowflake_delete_file_after_copy(destination_name: str) -> None:
         assert_query_data(pipeline, f"SELECT value FROM {tbl_name}", ['a', None, None])
 
 
+# do not remove - it allows us to filter tests by destination
+@pytest.mark.parametrize('destination_name', ["bigquery", "snowflake", "duckdb"])
+def test_parquet_loading(destination_name: str) -> None:
+    """Run pipeline twice with merge write disposition
+    Resource with primary key falls back to append. Resource without keys falls back to replace.
+    """
+    pipeline = dlt.pipeline(pipeline_name='parquet_test_' + uniq_id(), destination=destination_name,  dataset_name='parquet_test_' + uniq_id())
+
+    @dlt.resource(primary_key='id')
+    def some_data():  # type: ignore[no-untyped-def]
+        yield [{'id': 1}, {'id': 2}, {'id': 3}]
+
+    @dlt.resource(write_disposition="replace")
+    def other_data():  # type: ignore[no-untyped-def]
+        yield [1, 2, 3, 4, 5]
+
+    data_types = deepcopy(TABLE_ROW_ALL_DATA_TYPES)
+    column_schemas = deepcopy(TABLE_UPDATE_COLUMNS_SCHEMA)
+
+    # parquet on bigquery does not support JSON but we still want to run the test
+    if destination_name == "bigquery":
+        column_schemas["col9_null"]["data_type"] = column_schemas["col9"]["data_type"] = "text"
+
+    # apply the exact columns definitions so we process complex and wei types correctly!
+    @dlt.resource(table_name="data_types", write_disposition="merge", columns=column_schemas)
+    def my_resource():
+        nonlocal data_types
+        yield [data_types]*10
+
+    @dlt.source(max_table_nesting=0)
+    def some_source():  # type: ignore[no-untyped-def]
+        return [some_data(), other_data(), my_resource()]
+
+    info = pipeline.run(some_source(), loader_file_format="parquet")
+    package_info = pipeline.get_load_package_info(info.loads_ids[0])
+    assert package_info.state == "loaded"
+    # all three jobs succeeded
+    assert len(package_info.jobs["failed_jobs"]) == 0
+    assert len(package_info.jobs["completed_jobs"]) == 5  # 3 tables + 1 state + 1 sql merge job
+
+    client = pipeline._destination_client()  # type: ignore[assignment]
+    with client.sql_client as sql_client:
+        assert [row[0] for row in sql_client.execute_sql("SELECT * FROM other_data")] == [1, 2, 3, 4, 5]
+        assert [row[0] for row in sql_client.execute_sql("SELECT * FROM some_data")] == [1, 2, 3]
+        db_rows = sql_client.execute_sql("SELECT * FROM data_types")
+        assert len(db_rows) == 10
+        db_row = list(db_rows[0])
+        # "snowflake" and "bigquery" do not parse JSON form parquet string so double parse
+        assert_all_data_types_row(db_row[:-2], parse_complex_strings=destination_name in ["snowflake", "bigquery"])
+
+
 def simple_nested_pipeline(destination_name: str, dataset_name: str, full_refresh: bool) -> Tuple[dlt.Pipeline, Callable[[], DltSource]]:
     data = ["a", ["a", "b", "c"], ["a", "b", "c"]]
 
@@ -585,6 +646,6 @@ def simple_nested_pipeline(destination_name: str, dataset_name: str, full_refres
     def _data():
         return dlt.resource(d(), name="lists", write_disposition="append")
 
-    p = dlt.pipeline(full_refresh=full_refresh, destination=destination_name, dataset_name=dataset_name)
+    p = dlt.pipeline(pipeline_name=f"pipeline_{dataset_name}", full_refresh=full_refresh, destination=destination_name, dataset_name=dataset_name)
     return p, _data
 

@@ -62,12 +62,50 @@ All [write dispositions](../../general-usage/incremental-loading#choosing-a-writ
 ## Supported file formats
 [SQL Insert](../file-formats/insert-format) is used by default.
 
+When staging is enabled:
+* [jsonl](../file-formats/jsonl.md) is used by default
+* [parquet](../file-formats/parquet.md) is supported
+
+> ❗ **Redshift cannot load VARBYTE columns from `json` files**. `dlt` will fail such jobs permanently. Switch to `parquet` to load binaries.
+
+> ❗ **Redshift cannot detect compression type from `json` files**. `dlt` assumes that `jsonl` files are gzip compressed which is the default.
+
+> ❗ **Redshift loads `complex` types as strings into SUPER with `parquet`**. Use `jsonl` format to store JSON in SUPER natively or transform your SUPER columns with `PARSE_JSON``.
+
+
 ## Supported column hints
 
 Amazon Redshift supports the following column hints:
 
 - `cluster` - hint is a Redshift term for table distribution. Applying it to a column makes it the "DISTKEY," affecting query and join performance. Check the following [documentation](https://docs.aws.amazon.com/redshift/latest/dg/c_best-practices-best-dist-key.html) for more info.
 - `sort` - creates SORTKEY to order rows on disk physically. It is used to improve a query and join speed in Redshift, please read the [sort key docs](https://docs.aws.amazon.com/redshift/latest/dg/c_best-practices-sort-key.html) to learn more.
+
+## Staging support
+
+Redshift supports s3 as a file staging destination. DLT will upload files in the parquet format to s3 and ask redshift to copy their data directly into the db. Please refere to the [S3 documentation](./filesystem.md#aws-s3) to learn how to set up your s3 bucket with the bucket_url and credentials. The `dlt`` Redshift loader will use the aws credentials provided for s3 to access the s3 bucket if not specified otherwise (see config options below). Alternatively to parquet files, you can also specify jsonl as the staging file format. For this set the `loader_file_format` argument of the `run` command of the pipeline to `jsonl`.
+
+### Authentication iam Role
+
+If you would like to load from s3 without forwarding the aws staging credentials but authorize with an iam role connected to Redshift, follow the [Redshift documentation](https://docs.aws.amazon.com/redshift/latest/mgmt/authorizing-redshift-service.html) to create a role with access to s3 linked to your redshift cluster and change your destination settings to use the iam role:
+
+```toml
+[destination]
+staging_iam_role="arn:aws:iam::..."
+```
+
+### Redshift/S3 staging example code
+
+```python
+# Create a dlt pipeline that will load
+# chess player data to the redshift destination
+# via staging on s3
+pipeline = dlt.pipeline(
+    pipeline_name='chess_pipeline',
+    destination='redshift',
+    staging='filesystem', # add this to activate the staging location
+    dataset_name='player_data'
+)
+```
 
 ## Additional destination options
 ### dbt support
@@ -76,3 +114,7 @@ Amazon Redshift supports the following column hints:
 
 ### Syncing of `dlt` state
 - This destination fully supports [dlt state sync.](../../general-usage/state#syncing-state-with-destination)
+
+## Supported loader file formats
+
+Supported loader file formats for Redshift are `sql` and `insert_values` (default). When using a staging location, Redshift supports `parquet` and `jsonl`.

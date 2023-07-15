@@ -7,6 +7,7 @@ from dlt.common.configuration.accessors import config
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import JobClientBase, DestinationClientConfiguration
 from dlt.common.data_writers.escape import escape_snowflake_identifier
+from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 
 from dlt.destinations.snowflake.configuration import SnowflakeClientConfiguration
 
@@ -20,7 +21,11 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps = DestinationCapabilitiesContext()
     caps.preferred_loader_file_format = "jsonl"
     caps.supported_loader_file_formats = ["jsonl", "parquet", "sql"]
+    caps.preferred_staging_file_format = "jsonl"
+    caps.supported_staging_file_formats = ["jsonl", "parquet", "sql"]
     caps.escape_identifier = escape_snowflake_identifier
+    caps.decimal_precision = (DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE)
+    caps.wei_precision = (DEFAULT_NUMERIC_PRECISION, 0)
     caps.max_identifier_length = 255
     caps.max_column_identifier_length = 255
     caps.max_query_length = 2 * 1024 * 1024
