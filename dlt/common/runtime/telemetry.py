@@ -63,7 +63,6 @@ def with_telemetry(category: TEventCategory, command: str, track_before: bool, *
                     if not _TELEMETRY_STARTED:
                         c = resolve_configuration(RunConfiguration())
                         start_telemetry(c)
-                    print(f"TRACK: {category} {command} {props}")
                     track(category, command, props)
 
             # some commands should be tracked before execution
