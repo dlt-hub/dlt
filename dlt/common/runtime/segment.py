@@ -13,13 +13,14 @@ from typing import Literal, Optional
 from dlt.common.configuration.paths import get_dlt_data_dir
 
 from dlt.common.runtime import logger
+
 from dlt.common.configuration.specs import RunConfiguration
 from dlt.common.runtime.exec_info import exec_info_names, in_continuous_integration
 from dlt.common.typing import DictStrAny, StrAny
 from dlt.common.utils import uniq_id
 from dlt.version import __version__, DLT_PKG_NAME
 
-TEventCategory = Literal["pipeline", "command"]
+TEventCategory = Literal["pipeline", "command", "helper"]
 
 _THREAD_POOL: ThreadPoolExecutor = None
 _SESSION: requests.Session = None
@@ -202,9 +203,10 @@ def _send_event(
     headers = _segment_request_header(_WRITE_KEY)
 
     def _future_send() -> None:
+        # import time
         # start_ts = time.time()
         resp = _SESSION.post(_SEGMENT_ENDPOINT, headers=headers, json=payload, timeout=_SEGMENT_REQUEST_TIMEOUT)
-        # print(f"sending to Segment done {resp.status_code} {time.time() - start_ts}")
+        # print(f"SENDING TO Segment done {resp.status_code} {time.time() - start_ts} {base64.b64decode(_WRITE_KEY)}")
         # handle different failure cases
         if resp.status_code != 200:
             logger.debug(

@@ -1,7 +1,6 @@
 import os
 import datetime  # noqa: 251
 import humanize
-import inspect
 import contextlib
 from typing import Any, Callable, ClassVar, Dict, List, NamedTuple, Optional, Protocol, Sequence, TYPE_CHECKING, Tuple, TypedDict
 
@@ -27,6 +26,9 @@ from dlt.common.data_writers.writers import TLoaderFileFormat
 
 class ExtractInfo(NamedTuple):
     """A tuple holding information on extracted data items. Returned by pipeline `extract` method."""
+
+    extract_data_info: List[Tuple[str, str]]
+
     def asdict(self) -> DictStrAny:
         return {}
 
@@ -209,7 +211,8 @@ class SupportsPipelineRun(Protocol):
         table_name: str = None,
         write_disposition: TWriteDisposition = None,
         columns: Sequence[TColumnSchema] = None,
-        schema: Schema = None
+        schema: Schema = None,
+        loader_file_format: TLoaderFileFormat = None
     ) -> LoadInfo:
         ...
 
