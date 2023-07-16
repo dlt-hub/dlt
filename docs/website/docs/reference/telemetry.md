@@ -52,6 +52,7 @@ Anonymous telemetry is sent when:
 - When `pipeline.run` is called, we send information when
   [extract, normalize and load](explainers/how-dlt-works.md) steps are completed. The data contains
   the destination name (e.g. `duckdb`), elapsed time, and if the step succeeded or not.
+- When `dbt` and `airflow` helpers are used
 
 Here is an example `dlt init` telemetry message:
 
