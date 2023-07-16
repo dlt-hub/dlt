@@ -24,10 +24,15 @@ from dlt.common.jsonpath import delete_matches, TAnyJsonPath
 from dlt.common.data_writers.writers import TLoaderFileFormat
 
 
+class ExtractDataInfo(TypedDict):
+    name: str
+    data_type: str
+
+
 class ExtractInfo(NamedTuple):
     """A tuple holding information on extracted data items. Returned by pipeline `extract` method."""
 
-    extract_data_info: List[Tuple[str, str]]
+    extract_data_info: List[ExtractDataInfo]
 
     def asdict(self) -> DictStrAny:
         return {}

@@ -55,7 +55,7 @@ def test_create_trace(toml_providers: ConfigProvidersContext) -> None:
     assert isinstance(step.started_at, datetime.datetime)
     assert isinstance(step.finished_at, datetime.datetime)
     assert isinstance(step.step_info, ExtractInfo)
-    assert step.step_info.extract_data_info == [("inject_tomls", "source")]
+    assert step.step_info.extract_data_info == [{"name": "inject_tomls", "data_type": "source"}]
     # check config trace
     resolved = _find_resolved_value(trace.resolved_config_values, "api_type", [])
     assert resolved.config_type_name == "TestCreateTraceInjectTomlsConfiguration"
@@ -101,7 +101,7 @@ def test_create_trace(toml_providers: ConfigProvidersContext) -> None:
     assert step.step == "extract"
     assert isinstance(step.step_exception, str)
     assert isinstance(step.step_info, ExtractInfo)
-    assert step.step_info.extract_data_info == [("async_exception", "source")]
+    assert step.step_info.extract_data_info == [{"name": "async_exception", "data_type": "source"}]
     assert_trace_printable(trace)
 
     # normalize
@@ -231,7 +231,7 @@ def test_trace_telemetry() -> None:
             assert isinstance(event["properties"]["transaction_id"], str)
             # check extract info
             if step == "extract":
-                assert event["properties"]["extract_data"] == [("", "int")]
+                assert event["properties"]["extract_data"] == [{"name": "", "data_type": "int"}]
         # we have two failed files (state and data) that should be logged by sentry
         assert len(SENTRY_SENT_ITEMS) == 2
 
@@ -253,24 +253,32 @@ def test_trace_telemetry() -> None:
         assert isinstance(event["properties"]["elapsed"], float)
         # check extract info
         if step == "extract":
-            assert event["properties"]["extract_data"] == [("data", "resource")]
+            assert event["properties"]["extract_data"] == [{"name": "data", "data_type": "resource"}]
         # we didn't log any errors
         assert len(SENTRY_SENT_ITEMS) == 0
 
 
 def test_extract_data_describe() -> None:
     schema = Schema("test")
-    assert describe_extract_data(DltSource("sss_extract", "sect", schema)) == [("sss_extract", "source")]
-    assert describe_extract_data(DltResource(Pipe("rrr_extract"), None, False)) == [("rrr_extract", "resource")]
-    assert describe_extract_data([DltSource("sss_extract", "sect", schema)]) == [("sss_extract", "source")]
-    assert describe_extract_data([DltResource(Pipe("rrr_extract"), None, False)]) == [("rrr_extract", "resource")]
-    assert describe_extract_data([DltResource(Pipe("rrr_extract"), None, False), DltSource("sss_extract", "sect", schema)]) == [("rrr_extract", "resource"), ("sss_extract", "source")]
-    assert describe_extract_data([{"a": "b"}]) == [("", "dict")]
+    assert describe_extract_data(DltSource("sss_extract", "sect", schema)) == [{"name": "sss_extract", "data_type": "source"}]
+    assert describe_extract_data(DltResource(Pipe("rrr_extract"), None, False)) == [{"name": "rrr_extract", "data_type": "resource"}]
+    assert describe_extract_data([DltSource("sss_extract", "sect", schema)]) == [{"name": "sss_extract", "data_type": "source"}]
+    assert describe_extract_data([DltResource(Pipe("rrr_extract"), None, False)]) == [{"name": "rrr_extract", "data_type": "resource"}]
+    assert describe_extract_data(
+        [DltResource(Pipe("rrr_extract"), None, False), DltSource("sss_extract", "sect", schema)]
+        ) == [
+            {"name": "rrr_extract", "data_type": "resource"}, {"name": "sss_extract", "data_type": "source"}
+        ]
+    assert describe_extract_data([{"a": "b"}]) == [{"name": "", "data_type": "dict"}]
     from pandas import DataFrame
     # we assume that List content has same type
-    assert describe_extract_data([DataFrame(), {"a": "b"}]) == [("", "DataFrame")]
+    assert describe_extract_data([DataFrame(), {"a": "b"}]) == [{"name": "", "data_type": "DataFrame"}]
     # first unnamed element in the list breaks checking info
-    assert describe_extract_data([DltResource(Pipe("rrr_extract"), None, False), DataFrame(), DltSource("sss_extract", "sect", schema)]) == [("rrr_extract", "resource"), ("", "DataFrame")]
+    assert describe_extract_data(
+        [DltResource(Pipe("rrr_extract"), None, False), DataFrame(), DltSource("sss_extract", "sect", schema)]
+        ) == [
+            {"name": "rrr_extract", "data_type": "resource"}, {"name": "", "data_type": "DataFrame"}
+        ]
 
 
 def test_slack_hook(environment: StrStr) -> None:
