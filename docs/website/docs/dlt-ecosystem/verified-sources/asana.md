@@ -129,7 +129,7 @@ def asana_source(access_token: str = dlt.secrets.value) -> Any:
 ```
 
 `access_token`: Token required to authenticate the Asana API. This token is defined in
-the `dlt.secret.toml` file.
+the `.dlt/secret.toml` file.
 
 The function returns a list of resources: "workspaces", "projects",
 "sections","tags","tasks","stories", "teams", and "users".
@@ -147,7 +147,7 @@ def workspaces(
 ```
 
 `access_token`: Token required to authenticate the Asana API. This token is defined in
-the `dlt.secret.toml` file.
+the `.dlt/secret.toml` file.
 
 `fields`: A list of workspace fields to be fetched from `asana_dlt/settings.py`. For example, "gid",
 "name", "resource_type”, etc.
@@ -185,7 +185,7 @@ def projects(
 ```
 
 `access_token`: Token required to authenticate the Asana API. This token is defined in
-the `dlt.secret.toml` file.
+the `.dlt/secret.toml` file.
 
 `workspace`: The workspace data from the resources.
 
