@@ -4,11 +4,11 @@ from typing import Any, Callable, List, Literal, Sequence
 from tenacity import retry_if_exception, wait_exponential, stop_after_attempt, Retrying, RetryCallState
 
 from dlt.common.exceptions import MissingDependencyException
+from dlt.common.runtime.telemetry import with_telemetry
 
 try:
     from airflow.configuration import conf
     from airflow.utils.task_group import TaskGroup
-    #from airflow.decorators import task
     from airflow.operators.python import PythonOperator
     from airflow.operators.python import get_current_context
 except ImportError:
@@ -118,6 +118,7 @@ class PipelineTasksGroup(TaskGroup):
         if ConfigProvidersContext in Container():
             del Container()[ConfigProvidersContext]
 
+    @with_telemetry("helper", "airflow_add_run", False, "decompose")
     def add_run(
         self,
         pipeline: Pipeline,

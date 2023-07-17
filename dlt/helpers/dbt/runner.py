@@ -19,6 +19,8 @@ from dlt.common.utils import with_custom_environ
 from dlt.helpers.dbt.configuration import DBTRunnerConfiguration
 from dlt.helpers.dbt.exceptions import IncrementalSchemaOutOfSyncError, PrerequisitesException, DBTNodeResult, DBTProcessingError
 
+from dlt.common.runtime.telemetry import with_telemetry
+
 
 class DBTPackageRunner:
     """A Python wrapper over a dbt package
@@ -256,6 +258,7 @@ with exec_to_stdout(f):
             raise
 
 
+@with_telemetry("helper", "dbt_create_runner", False, "package_profile_name")
 @with_config(spec=DBTRunnerConfiguration, sections=(known_sections.DBT_PACKAGE_RUNNER,))
 def create_runner(
     venv: Venv,

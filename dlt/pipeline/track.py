@@ -10,7 +10,7 @@ from dlt.common import logger
 from dlt.common.runtime.exec_info import github_info
 from dlt.common.runtime.segment import track as dlthub_telemetry_track
 from dlt.common.runtime.slack import send_slack_message
-from dlt.common.pipeline import LoadInfo, SupportsPipeline
+from dlt.common.pipeline import LoadInfo, ExtractInfo, SupportsPipeline
 from dlt.common.destination import DestinationReference
 
 from dlt.pipeline.typing import TPipelineStep
@@ -80,12 +80,17 @@ def on_end_trace_step(trace: PipelineTrace, step: PipelineStepTrace, pipeline: S
     # if step.step == "load":
     #     if pipeline.runtime_config.slack_incoming_hook and step.step_exception is None:
     #         slack_notify_load_success(pipeline.runtime_config.slack_incoming_hook, step_info, trace)
-    dlthub_telemetry_track("pipeline", step.step, {
+    props = {
         "elapsed": (step.finished_at - trace.started_at).total_seconds(),
         "success": step.step_exception is None,
         "destination_name": DestinationReference.to_name(pipeline.destination) if pipeline.destination else None,
         "transaction_id": trace.transaction_id
-    })
+    }
+    # disable automatic slack messaging until we can configure messages themselves
+    if step.step == "extract" and step_info:
+        assert isinstance(step_info, ExtractInfo)
+        props["extract_data"] = step_info.extract_data_info
+    dlthub_telemetry_track("pipeline", step.step, props)
 
 
 def on_end_trace(trace: PipelineTrace, pipeline: SupportsPipeline) -> None:

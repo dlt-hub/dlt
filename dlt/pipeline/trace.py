@@ -2,18 +2,19 @@ import os
 import pickle
 import datetime  # noqa: 251
 import dataclasses
-from typing import Any, List, NamedTuple, Optional, Protocol, Sequence
-
+from collections.abc import Sequence as C_Sequence
+from typing import Any, List, Tuple, NamedTuple, Optional, Protocol, Sequence
 import humanize
 
 from dlt.common import pendulum
 from dlt.common.runtime.logger import suppress_and_warn
 from dlt.common.configuration import is_secret_hint
 from dlt.common.configuration.utils import _RESOLVED_TRACES
-from dlt.common.pipeline import SupportsPipeline
+from dlt.common.pipeline import ExtractDataInfo, SupportsPipeline
 from dlt.common.typing import StrAny
 from dlt.common.utils import uniq_id
 
+from dlt.extract.source import DltResource, DltSource
 from dlt.pipeline.typing import TPipelineStep
 from dlt.pipeline.exceptions import PipelineStepFailed
 
@@ -212,3 +213,35 @@ def load_trace(trace_path: str) -> PipelineTrace:
     except (AttributeError, FileNotFoundError):
         # on incompatible pickling / file not found return no trace
         return None
+
+
+def describe_extract_data(data: Any) -> List[ExtractDataInfo]:
+    """Extract source and resource names from data passed to extract"""
+    data_info: List[ExtractDataInfo] = []
+
+    def add_item(item: Any) -> bool:
+        if isinstance(item, (DltResource, DltSource)):
+            # record names of sources/resources
+            data_info.append({
+                "name": item.name,
+                "data_type": "resource" if isinstance(item, DltResource) else "source"
+            })
+            return False
+        else:
+            # anything else
+            data_info.append({
+                "name": "",
+                "data_type": type(item).__name__
+            })
+            return True
+
+    item: Any = data
+    if isinstance(data, C_Sequence) and len(data) > 0:
+        for item in data:
+            # add_item returns True if non named item was returned. in that case we break
+            if add_item(item):
+                break
+        return data_info
+
+    add_item(item)
+    return data_info
