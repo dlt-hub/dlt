@@ -21,8 +21,9 @@ Currently, only one destination the [filesystem](destinations/filesystem.md) can
 ### How to use
 In essence, you need to set up two destinations and then pass them to `dlt.pipeline`. Below we'll use `filesystem` staging with `parquet` files to load into `Redshift` destination.
 
-1. **Set up the s3 bucket and filesystem staging.** \
-Please follow our guide in [filesystem destination documentation](destinations/filesystem.md). Test the staging as standalone destination to make sure that files go where you want them. In your `secrets.toml` you should now have a working `filesystem` configuration:
+1. **Set up the s3 bucket and filesystem staging.**
+
+    Please follow our guide in [filesystem destination documentation](destinations/filesystem.md). Test the staging as standalone destination to make sure that files go where you want them. In your `secrets.toml` you should now have a working `filesystem` configuration:
     ```toml
     [destination.filesystem]
     bucket_url = "s3://[your_bucket_name]" # replace with your bucket name,
@@ -32,18 +33,21 @@ Please follow our guide in [filesystem destination documentation](destinations/f
     aws_secret_access_key = "please set me up!" # copy the secret access key here
     ```
 
-2. **Set up the Redshift destination.** \
-Please follow our guide in [redshift destination documentation](destinations/redshift.md). In your `secrets.toml` you added:
+2. **Set up the Redshift destination.**
+
+    Please follow our guide in [redshift destination documentation](destinations/redshift.md). In your `secrets.toml` you added:
     ```toml
     # keep it at the top of your toml file! before any section starts
     destination.redshift.credentials="redshift://loader:<password>@localhost/dlt_data?connect_timeout=15"
     ```
 
-3. **Authorize Redshift cluster to access the staging bucket.** \
-By default `dlt` will forward the credentials configured for `filesystem` to the `Redshift` COPY command. If you are fine with this, move to the next step.
+3. **Authorize Redshift cluster to access the staging bucket.**
 
-4. **Chain staging to destination and request `parquet` file format.** \
-Pass the `staging` argument to `dlt.pipeline`. It works like the destination `argument`:
+    By default `dlt` will forward the credentials configured for `filesystem` to the `Redshift` COPY command. If you are fine with this, move to the next step.
+
+4. **Chain staging to destination and request `parquet` file format.**
+
+    Pass the `staging` argument to `dlt.pipeline`. It works like the destination `argument`:
     ```python
     # Create a dlt pipeline that will load
     # chess player data to the redshift destination
@@ -60,7 +64,8 @@ Pass the `staging` argument to `dlt.pipeline`. It works like the destination `ar
     info = pipeline.run(chess(), loader_file_format="parquet")
     ```
 
-5. **Run the pipeline script.** \
-Run the pipeline script as usual.
+5. **Run the pipeline script.**
+
+    Run the pipeline script as usual.
 
 > 💡 Please note that `dlt` does not delete loaded files from the staging storage after the load is complete.
