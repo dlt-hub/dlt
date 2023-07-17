@@ -513,7 +513,7 @@ def assert_new_schema_values(schema: Schema) -> None:
     assert schema.stored_version == 1
     assert schema.stored_version_hash is not None
     assert schema.version_hash is not None
-    assert schema.ENGINE_VERSION == 5
+    assert schema.ENGINE_VERSION == 6
     assert len(schema.settings["default_hints"]) > 0
     # check settings
     assert utils.standard_type_detections() == schema.settings["detections"] == schema._type_detections
