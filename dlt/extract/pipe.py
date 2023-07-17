@@ -18,7 +18,7 @@ from dlt.common.source import unset_current_pipe_name, set_current_pipe_name
 from dlt.common.typing import AnyFun, AnyType, TDataItems
 from dlt.common.utils import get_callable_name
 
-from dlt.extract.exceptions import CreatePipeException, DltSourceException, ExtractorException, InvalidResourceDataTypeFunctionNotAGenerator, InvalidStepFunctionArguments, InvalidTransformerGeneratorFunction, ParametrizedResourceUnbound, PipeException, PipeItemProcessingError, PipeNotBoundToData, ResourceExtractionError, StopGenerator
+from dlt.extract.exceptions import CreatePipeException, DltSourceException, ExtractorException, InvalidResourceDataTypeFunctionNotAGenerator, InvalidStepFunctionArguments, InvalidTransformerGeneratorFunction, ParametrizedResourceUnbound, PipeException, PipeItemProcessingError, PipeNotBoundToData, ResourceExtractionError
 from dlt.extract.typing import DataItemWithMeta, ItemTransform, SupportsPipe, TPipedDataItems
 
 if TYPE_CHECKING:
@@ -710,9 +710,6 @@ class PipeIterator(Iterator[PipeItem]):
                     return ResolvablePipeItem(item.data, step, pipe, item.meta)
                 else:
                     return ResolvablePipeItem(item, step, pipe, meta)
-        except StopGenerator:
-            self._sources.pop()
-            return self._get_source_item()
         except StopIteration:
             # remove empty iterator and try another source
             self._sources.pop()
