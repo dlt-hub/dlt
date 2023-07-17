@@ -55,6 +55,12 @@ To load data into Redshift, it is necessary to create a Redshift cluster and ena
 
 3. The `connect_timeout` is the number of minutes the pipeline will wait before the timeout.
 
+You can also pass a database connection string similar to the one used by `psycopg2` library or [SQLAlchemy](https://docs.sqlalchemy.org/en/20/core/engines.html#postgresql). Credentials above will look like this:
+```toml
+# keep it at the top of your toml file! before any section starts
+destination.redshift.credentials="redshift://loader:<password>@localhost/dlt_data?connect_timeout=15"
+```
+
 ## Write disposition
 
 All [write dispositions](../../general-usage/incremental-loading#choosing-a-write-disposition) are supported.
