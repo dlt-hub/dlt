@@ -1,20 +1,43 @@
-from collections.abc import Mapping as C_Mapping, Sequence as C_Sequence
 import inspect
+from collections.abc import Mapping as C_Mapping
+from collections.abc import Sequence as C_Sequence
 from re import Pattern as _REPattern
-from typing import Callable, Dict, Any, Final, Literal, List, Mapping, NewType, Tuple, Type, TypeVar, Generic, Protocol, TYPE_CHECKING, Union, runtime_checkable, get_args, get_origin
-from typing_extensions import TypeAlias, ParamSpec, Concatenate
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    Final,
+    Generic,
+    List,
+    Literal,
+    Mapping,
+    NewType,
+    Protocol,
+    Tuple,
+    Type,
+    TypeVar,
+    Union,
+    get_args,
+    get_origin,
+    runtime_checkable,
+)
+
+from typing_extensions import Concatenate, ParamSpec, TypeAlias
 
 from dlt.common.pendulum import timedelta
 
-
 if TYPE_CHECKING:
-    from _typeshed import StrOrBytesPath
     # from typing_extensions import ParamSpec
     from typing import _TypedDict
+
+    from _typeshed import StrOrBytesPath
+
     REPattern = _REPattern[str]
 else:
     StrOrBytesPath = Any
     from typing import _TypedDictMeta as _TypedDict
+
     REPattern = _REPattern
     # ParamSpec = lambda x: [x]
 
@@ -34,21 +57,27 @@ TimedeltaSeconds = Union[int, float, timedelta]
 TSecretValue = NewType("TSecretValue", Any)  # type: ignore
 TSecretStrValue = NewType("TSecretValue", str)  # type: ignore
 TDataItem: TypeAlias = Any  # a single data item as extracted from data source
-TDataItems: TypeAlias = Union[TDataItem, List[TDataItem]]  # a single or many data items as extracted from the data source
+TDataItems: TypeAlias = Union[
+    TDataItem, List[TDataItem]
+]  # a single or many data items as extracted from the data source
 
-ConfigValue: None = None  # a value of type None indicating argument that may be injected by config provider
+ConfigValue: None = (
+    None  # a value of type None indicating argument that may be injected by config provider
+)
 
 TVariantBase = TypeVar("TVariantBase", covariant=True)
 TVariantRV = Tuple[str, Any]
 VARIANT_FIELD_FORMAT = "v_%s"
 
+
 @runtime_checkable
 class SupportsVariant(Protocol, Generic[TVariantBase]):
     """Defines variant type protocol that should be recognized by normalizers
 
-        Variant types behave like TVariantBase type (ie. Decimal) but also implement the protocol below that is used to extract the variant value from it.
-        See `Wei` type declaration which returns Decimal or str for values greater than supported by destination warehouse.
+    Variant types behave like TVariantBase type (ie. Decimal) but also implement the protocol below that is used to extract the variant value from it.
+    See `Wei` type declaration which returns Decimal or str for values greater than supported by destination warehouse.
     """
+
     def __call__(self) -> Union[TVariantBase, TVariantRV]:
         ...
 

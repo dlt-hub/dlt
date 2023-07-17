@@ -1,29 +1,31 @@
 import gzip
-from typing import List, IO, Any, Optional, Type
+import typing as t
 
-from dlt.common.utils import uniq_id
-from dlt.common.typing import TDataItem, TDataItems
-from dlt.common.data_writers import TLoaderFileFormat
-from dlt.common.data_writers.exceptions import BufferedDataWriterClosed, DestinationCapabilitiesRequired, InvalidFileNameTemplateException
-from dlt.common.data_writers.writers import DataWriter
-from dlt.common.schema.typing import TTableSchemaColumns
-from dlt.common.configuration import with_config, known_sections, configspec
+from dlt.common.configuration import configspec, known_sections, with_config
 from dlt.common.configuration.specs import BaseConfiguration
+from dlt.common.data_writers import TLoaderFileFormat
+from dlt.common.data_writers.exceptions import (
+    BufferedDataWriterClosed,
+    DestinationCapabilitiesRequired,
+    InvalidFileNameTemplateException,
+)
+from dlt.common.data_writers.writers import DataWriter
 from dlt.common.destination import DestinationCapabilitiesContext
+from dlt.common.schema.typing import TTableSchemaColumns
+from dlt.common.typing import TDataItem, TDataItems
+from dlt.common.utils import uniq_id
 
 
 class BufferedDataWriter:
-
     @configspec
     class BufferedDataWriterConfiguration(BaseConfiguration):
         buffer_max_items: int = 5000
-        file_max_items: Optional[int] = None
-        file_max_bytes: Optional[int] = None
+        file_max_items: t.Optional[int] = None
+        file_max_bytes: t.Optional[int] = None
         disable_compression: bool = False
-        _caps: Optional[DestinationCapabilitiesContext] = None
+        _caps: t.Optional[DestinationCapabilitiesContext] = None
 
         __section__ = known_sections.DATA_WRITER
-
 
     @with_config(spec=BufferedDataWriterConfiguration)
     def __init__(
@@ -35,7 +37,7 @@ class BufferedDataWriter:
         file_max_items: int = None,
         file_max_bytes: int = None,
         disable_compression: bool = False,
-        _caps: DestinationCapabilitiesContext = None
+        _caps: DestinationCapabilitiesContext = None,
     ):
         self.file_format = file_format
         self._file_format_spec = DataWriter.data_format_from_file_format(self.file_format)
@@ -44,19 +46,23 @@ class BufferedDataWriter:
         self._caps = _caps
         # validate if template has correct placeholders
         self.file_name_template = file_name_template
-        self.closed_files: List[str] = []  # all fully processed files
+        self.closed_files: t.List[str] = []  # all fully processed files
         # buffered items must be less than max items in file
         self.buffer_max_items = min(buffer_max_items, file_max_items or buffer_max_items)
         self.file_max_bytes = file_max_bytes
         self.file_max_items = file_max_items
         # the open function is either gzip.open or open
-        self.open = gzip.open if self._file_format_spec.supports_compression and not disable_compression else open
+        self.open = (
+            gzip.open
+            if self._file_format_spec.supports_compression and not disable_compression
+            else open
+        )
 
         self._current_columns: TTableSchemaColumns = None
         self._file_name: str = None
-        self._buffered_items: List[TDataItem] = []
+        self._buffered_items: t.List[TDataItem] = []
         self._writer: DataWriter = None
-        self._file: IO[Any] = None
+        self._file: t.IO[t.Any] = None
         self._closed = False
         try:
             self._rotate_file()
@@ -67,13 +73,17 @@ class BufferedDataWriter:
         self._ensure_open()
         # rotate file if columns changed and writer does not allow for that
         # as the only allowed change is to add new column (no updates/deletes), we detect the change by comparing lengths
-        if self._writer and not self._writer.data_format().supports_schema_changes and len(columns) != len(self._current_columns):
+        if (
+            self._writer
+            and not self._writer.data_format().supports_schema_changes
+            and len(columns) != len(self._current_columns)
+        ):
             assert len(columns) > len(self._current_columns)
             self._rotate_file()
         # until the first chunk is written we can change the columns schema freely
         if columns is not None:
             self._current_columns = dict(columns)
-        if isinstance(item, List):
+        if isinstance(item, t.List):
             # items coming in single list will be written together, not matter how many are there
             self._buffered_items.extend(item)
         else:
@@ -102,12 +112,16 @@ class BufferedDataWriter:
     def __enter__(self) -> "BufferedDataWriter":
         return self
 
-    def __exit__(self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: Any) -> None:
+    def __exit__(
+        self, exc_type: t.Type[BaseException], exc_val: BaseException, exc_tb: t.Any
+    ) -> None:
         self.close()
 
     def _rotate_file(self) -> None:
         self._flush_and_close_file()
-        self._file_name = self.file_name_template % uniq_id(5) + "." + self._file_format_spec.file_extension
+        self._file_name = (
+            self.file_name_template % uniq_id(5) + "." + self._file_format_spec.file_extension
+        )
 
     def _flush_items(self) -> None:
         if len(self._buffered_items) > 0:
@@ -115,10 +129,12 @@ class BufferedDataWriter:
             if not self._writer:
                 # create new writer and write header
                 if self._file_format_spec.is_binary_format:
-                    self._file = self.open(self._file_name, "wb") # type: ignore
+                    self._file = self.open(self._file_name, "wb")  # type: ignore
                 else:
-                    self._file = self.open(self._file_name, "wt", encoding="utf-8") # type: ignore
-                self._writer = DataWriter.from_file_format(self.file_format, self._file, caps=self._caps)
+                    self._file = self.open(self._file_name, "wt", encoding="utf-8")  # type: ignore
+                self._writer = DataWriter.from_file_format(
+                    self.file_format, self._file, caps=self._caps
+                )
                 self._writer.write_header(self._current_columns)
             # write buffer
             self._writer.write_data(self._buffered_items)

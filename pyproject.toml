@@ -138,6 +138,22 @@ optional = true
 [tool.poetry.group.providers.dependencies]
 google-api-python-client = "^2.86.0"
 
+[tool.black] # https://black.readthedocs.io/en/stable/usage_and_configuration/the_basics.html#configuration-via-a-file
+line-length = 100
+preview = true
+
+[tool.isort] # https://pycqa.github.io/isort/docs/configuration/options.html
+color_output = true
+line_length = 100
+profile = "black"
+src_paths = ["dlt"]
+multi_line_output = 3
+
+[tool.ruff] # https://beta.ruff.rs/docs/
+line-length = 100
+ignore = ["F401"]
+ignore-init-module-imports = true
+
 [build-system]
 requires = ["poetry-core>=1.0.8"]
 build-backend = "poetry.core.masonry.api"

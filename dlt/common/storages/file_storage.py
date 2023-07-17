@@ -1,24 +1,22 @@
+import errno
 import gzip
 import os
 import re
-import stat
-import errno
-import tempfile
 import shutil
+import stat
+import tempfile
+from typing import IO, Any, List, Optional, cast
+
 import pathvalidate
-from typing import IO, Any, Optional, List, cast
+
 from dlt.common.typing import AnyFun
-
 from dlt.common.utils import encoding_for_mode, uniq_id
-
 
 FILE_COMPONENT_INVALID_CHARACTERS = re.compile(r"[.%{}]")
 
+
 class FileStorage:
-    def __init__(self,
-                 storage_path: str,
-                 file_type: str = "t",
-                 makedirs: bool = False) -> None:
+    def __init__(self, storage_path: str, file_type: str = "t", makedirs: bool = False) -> None:
         # make it absolute path
         self.storage_path = os.path.realpath(storage_path)  # os.path.join(, '')
         self.file_type = file_type
@@ -31,7 +29,9 @@ class FileStorage:
     @staticmethod
     def save_atomic(storage_path: str, relative_path: str, data: Any, file_type: str = "t") -> str:
         mode = "w" + file_type
-        with tempfile.NamedTemporaryFile(dir=storage_path, mode=mode, delete=False, encoding=encoding_for_mode(mode)) as f:
+        with tempfile.NamedTemporaryFile(
+            dir=storage_path, mode=mode, delete=False, encoding=encoding_for_mode(mode)
+        ) as f:
             tmp_path = f.name
             f.write(data)
         try:
@@ -75,7 +75,9 @@ class FileStorage:
         else:
             raise FileNotFoundError(file_path)
 
-    def delete_folder(self, relative_path: str, recursively: bool = False, delete_ro: bool = False) -> None:
+    def delete_folder(
+        self, relative_path: str, recursively: bool = False, delete_ro: bool = False
+    ) -> None:
         folder_path = self.make_full_path(relative_path)
         if os.path.isdir(folder_path):
             if recursively:
@@ -98,7 +100,9 @@ class FileStorage:
 
     def open_temp(self, delete: bool = False, mode: str = "w", file_type: str = None) -> IO[Any]:
         mode = mode + file_type or self.file_type
-        return tempfile.NamedTemporaryFile(dir=self.storage_path, mode=mode, delete=delete, encoding=encoding_for_mode(mode))
+        return tempfile.NamedTemporaryFile(
+            dir=self.storage_path, mode=mode, delete=delete, encoding=encoding_for_mode(mode)
+        )
 
     def has_file(self, relative_path: str) -> bool:
         return os.path.isfile(self.make_full_path(relative_path))
@@ -119,7 +123,9 @@ class FileStorage:
         scan_path = self.make_full_path(relative_path)
         if to_root:
             # list files in relative path, returning paths relative to storage root
-            return [os.path.join(relative_path, e.name) for e in os.scandir(scan_path) if e.is_file()]
+            return [
+                os.path.join(relative_path, e.name) for e in os.scandir(scan_path) if e.is_file()
+            ]
         else:
             # or to the folder
             return [e.name for e in os.scandir(scan_path) if e.is_file()]
@@ -129,7 +135,9 @@ class FileStorage:
         scan_path = self.make_full_path(relative_path)
         if to_root:
             # list folders in relative path, returning paths relative to storage root
-            return [os.path.join(relative_path, e.name) for e in os.scandir(scan_path) if e.is_dir()]
+            return [
+                os.path.join(relative_path, e.name) for e in os.scandir(scan_path) if e.is_dir()
+            ]
         else:
             # or to the folder
             return [e.name for e in os.scandir(scan_path) if e.is_dir()]
@@ -139,10 +147,7 @@ class FileStorage:
 
     def link_hard(self, from_relative_path: str, to_relative_path: str) -> None:
         # note: some interesting stuff on links https://lightrun.com/answers/conan-io-conan-research-investigate-symlinks-and-hard-links
-        os.link(
-            self.make_full_path(from_relative_path),
-            self.make_full_path(to_relative_path)
-        )
+        os.link(self.make_full_path(from_relative_path), self.make_full_path(to_relative_path))
 
     def atomic_rename(self, from_relative_path: str, to_relative_path: str) -> None:
         """Renames a path using os.rename which is atomic on POSIX, Windows and NFS v4.
@@ -153,10 +158,7 @@ class FileStorage:
         3. All buckets mapped with FUSE are not atomic
         """
 
-        os.rename(
-            self.make_full_path(from_relative_path),
-            self.make_full_path(to_relative_path)
-        )
+        os.rename(self.make_full_path(from_relative_path), self.make_full_path(to_relative_path))
 
     def rename_tree(self, from_relative_path: str, to_relative_path: str) -> None:
         """Renames a tree using os.rename if possible making it atomic
@@ -196,8 +198,11 @@ class FileStorage:
                 os.rmdir(root)
 
     def atomic_import(self, external_file_path: str, to_folder: str) -> str:
-        """Moves a file at `external_file_path` into the `to_folder` effectively importing file into storage"""
-        return self.to_relative_path(FileStorage.copy_atomic(external_file_path, self.make_full_path(to_folder)))
+        """Moves a file at `external_file_path` into the `to_folder` effectively importing file into storage
+        """
+        return self.to_relative_path(
+            FileStorage.copy_atomic(external_file_path, self.make_full_path(to_folder))
+        )
         # file_name = FileStorage.get_file_name_from_file_path(external_path)
         # os.rename(external_path, os.path.join(self.make_full_path(to_folder), file_name))
 
@@ -244,7 +249,9 @@ class FileStorage:
         pathvalidate.validate_filename(name, platform="Universal")
         # component cannot contain "."
         if FILE_COMPONENT_INVALID_CHARACTERS.search(name):
-            raise pathvalidate.error.InvalidCharError(description="Component name cannot contain the following characters: . % { }")
+            raise pathvalidate.error.InvalidCharError(
+                description="Component name cannot contain the following characters: . % { }"
+            )
 
     @staticmethod
     def rmtree_del_ro(action: AnyFun, name: str, exc: Any) -> Any:

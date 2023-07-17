@@ -1,19 +1,27 @@
 import random
 from copy import copy
 from types import TracebackType
-from typing import ClassVar, Dict, Optional, Sequence, Type, Iterable
+from typing import ClassVar, Dict, Iterable, Optional, Sequence, Type
 
 from dlt.common import pendulum
-from dlt.common.schema import Schema, TTableSchema, TSchemaTables
-from dlt.common.storages import FileStorage
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import FollowupJob, NewLoadJob, TLoadJobState, LoadJob, JobClientBase
-
-from dlt.destinations.exceptions import (LoadJobNotExistsException, LoadJobInvalidStateTransitionException,
-                                            DestinationTerminalException, DestinationTransientException)
-
+from dlt.common.destination.reference import (
+    FollowupJob,
+    JobClientBase,
+    LoadJob,
+    NewLoadJob,
+    TLoadJobState,
+)
+from dlt.common.schema import Schema, TSchemaTables, TTableSchema
+from dlt.common.storages import FileStorage
 from dlt.destinations.dummy import capabilities
 from dlt.destinations.dummy.configuration import DummyClientConfiguration
+from dlt.destinations.exceptions import (
+    DestinationTerminalException,
+    DestinationTransientException,
+    LoadJobInvalidStateTransitionException,
+    LoadJobNotExistsException,
+)
 
 
 class LoadDummyJob(LoadJob, FollowupJob):
@@ -29,7 +37,6 @@ class LoadDummyJob(LoadJob, FollowupJob):
             raise DestinationTerminalException(self._exception)
         if s == "retry":
             raise DestinationTransientException(self._exception)
-
 
     def state(self) -> TLoadJobState:
         # this should poll the server for a job status, here we simulate various outcomes
@@ -77,16 +84,25 @@ class DummyClient(JobClientBase):
         super().__init__(schema, config)
         self.config: DummyClientConfiguration = config
 
-    def initialize_storage(self, staging: bool = False, truncate_tables: Iterable[str] = None) -> None:
+    def initialize_storage(
+        self, staging: bool = False, truncate_tables: Iterable[str] = None
+    ) -> None:
         pass
 
     def is_storage_initialized(self, staging: bool = False) -> bool:
         return True
 
-    def update_storage_schema(self, staging: bool = False, only_tables: Iterable[str] = None, expected_update: TSchemaTables = None) -> Optional[TSchemaTables]:
+    def update_storage_schema(
+        self,
+        staging: bool = False,
+        only_tables: Iterable[str] = None,
+        expected_update: TSchemaTables = None,
+    ) -> Optional[TSchemaTables]:
         applied_update = super().update_storage_schema(staging, only_tables, expected_update)
         if self.config.fail_schema_update:
-            raise DestinationTransientException("Raise on schema update due to fail_schema_update config flag")
+            raise DestinationTransientException(
+                "Raise on schema update due to fail_schema_update config flag"
+            )
         return applied_update
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
@@ -117,11 +133,10 @@ class DummyClient(JobClientBase):
     def __enter__(self) -> "DummyClient":
         return self
 
-    def __exit__(self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: TracebackType) -> None:
+    def __exit__(
+        self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: TracebackType
+    ) -> None:
         pass
 
     def _create_job(self, job_id: str) -> LoadDummyJob:
-        return LoadDummyJob(
-            job_id,
-            config=self.config
-            )
+        return LoadDummyJob(job_id, config=self.config)

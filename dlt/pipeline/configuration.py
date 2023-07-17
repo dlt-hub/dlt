@@ -1,10 +1,10 @@
 from typing import Any, Optional
 
 from dlt.common.configuration import configspec
-from dlt.common.configuration.specs import RunConfiguration, BaseConfiguration
+from dlt.common.configuration.specs import BaseConfiguration, RunConfiguration
+from dlt.common.data_writers import TLoaderFileFormat
 from dlt.common.typing import AnyFun, TSecretValue
 from dlt.common.utils import digest256
-from dlt.common.data_writers import TLoaderFileFormat
 
 
 @configspec

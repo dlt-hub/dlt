@@ -1,10 +1,9 @@
 from typing import Any, ClassVar, Final, List
 
 from dlt.common.configuration import configspec
+from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common.destination.reference import DestinationClientDwhConfiguration
 from dlt.common.typing import TSecretValue
-from dlt.common.configuration.exceptions import ConfigurationValueError
-
 from dlt.destinations.duckdb.configuration import DuckDbBaseCredentials
 
 MOTHERDUCK_DRIVERNAME = "md"
@@ -34,7 +33,10 @@ class MotherDuckCredentials(DuckDbBaseCredentials):
     def on_resolved(self) -> None:
         self._token_to_password()
         if self.drivername == MOTHERDUCK_DRIVERNAME and not self.password:
-            raise ConfigurationValueError("Motherduck schema 'md' was specified without corresponding token or password. The required format of connection string is: md:///<database_name>?token=<token>")
+            raise ConfigurationValueError(
+                "Motherduck schema 'md' was specified without corresponding token or password. The"
+                " required format of connection string is: md:///<database_name>?token=<token>"
+            )
 
 
 @configspec(init=True)
@@ -42,4 +44,6 @@ class MotherDuckClientConfiguration(DestinationClientDwhConfiguration):
     destination_name: Final[str] = "motherduck"  # type: ignore
     credentials: MotherDuckCredentials
 
-    create_indexes: bool = False  # should unique indexes be created, this slows loading down massively
+    create_indexes: bool = (
+        False  # should unique indexes be created, this slows loading down massively
+    )

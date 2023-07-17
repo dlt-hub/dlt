@@ -1,20 +1,19 @@
 """Implements SupportsTracking"""
 import contextlib
 from typing import Any
+
 import humanize
 from sentry_sdk import Hub
 from sentry_sdk.tracing import Span
 
-from dlt.common import pendulum
-from dlt.common import logger
+from dlt.common import logger, pendulum
+from dlt.common.destination import DestinationReference
+from dlt.common.pipeline import ExtractInfo, LoadInfo, SupportsPipeline
 from dlt.common.runtime.exec_info import github_info
 from dlt.common.runtime.segment import track as dlthub_telemetry_track
 from dlt.common.runtime.slack import send_slack_message
-from dlt.common.pipeline import LoadInfo, ExtractInfo, SupportsPipeline
-from dlt.common.destination import DestinationReference
-
+from dlt.pipeline.trace import PipelineStepTrace, PipelineTrace
 from dlt.pipeline.typing import TPipelineStep
-from dlt.pipeline.trace import PipelineTrace, PipelineStepTrace
 
 
 def _add_sentry_tags(span: Span, pipeline: SupportsPipeline) -> None:
@@ -26,7 +25,8 @@ def _add_sentry_tags(span: Span, pipeline: SupportsPipeline) -> None:
 
 
 def slack_notify_load_success(incoming_hook: str, load_info: LoadInfo, trace: PipelineTrace) -> int:
-    """Sends a markdown formatted success message and returns http status code from the Slack incoming hook"""
+    """Sends a markdown formatted success message and returns http status code from the Slack incoming hook
+    """
     try:
         author = github_info().get("github_user", "")
         if author:
@@ -63,7 +63,9 @@ def on_start_trace(trace: PipelineTrace, step: TPipelineStep, pipeline: Supports
         transaction.__enter__()
 
 
-def on_start_trace_step(trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline) -> None:
+def on_start_trace_step(
+    trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline
+) -> None:
     if pipeline.runtime_config.sentry_dsn:
         # print(f"START SENTRY SPAN {trace.transaction_id}:{trace_step.span_id} SCOPE: {Hub.current.scope}")
         span = Hub.current.scope.span.start_child(description=step, op=step).__enter__()
@@ -71,7 +73,9 @@ def on_start_trace_step(trace: PipelineTrace, step: TPipelineStep, pipeline: Sup
         _add_sentry_tags(span, pipeline)
 
 
-def on_end_trace_step(trace: PipelineTrace, step: PipelineStepTrace, pipeline: SupportsPipeline, step_info: Any) -> None:
+def on_end_trace_step(
+    trace: PipelineTrace, step: PipelineStepTrace, pipeline: SupportsPipeline, step_info: Any
+) -> None:
     if pipeline.runtime_config.sentry_dsn:
         # print(f"---END SENTRY SPAN {trace.transaction_id}:{step.span_id}: {step} SCOPE: {Hub.current.scope}")
         with contextlib.suppress(Exception):
@@ -83,8 +87,10 @@ def on_end_trace_step(trace: PipelineTrace, step: PipelineStepTrace, pipeline: S
     props = {
         "elapsed": (step.finished_at - trace.started_at).total_seconds(),
         "success": step.step_exception is None,
-        "destination_name": DestinationReference.to_name(pipeline.destination) if pipeline.destination else None,
-        "transaction_id": trace.transaction_id
+        "destination_name": DestinationReference.to_name(pipeline.destination)
+        if pipeline.destination
+        else None,
+        "transaction_id": trace.transaction_id,
     }
     # disable automatic slack messaging until we can configure messages themselves
     if step.step == "extract" and step_info:

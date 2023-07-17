@@ -3,10 +3,9 @@ from typing import Any, Optional, Type
 
 from hexbytes import HexBytes
 
-from dlt.common import pendulum, Wei
+from dlt.common import Wei, pendulum
 from dlt.common.data_types import TDataType
 from dlt.common.time import parse_iso_like_datetime
-
 
 _NOW_TS: float = pendulum.now().timestamp()
 _FLOAT_TS_RANGE = 5 * 31536000.0  # seconds in year

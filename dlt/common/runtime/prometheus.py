@@ -1,4 +1,5 @@
 from typing import Iterable
+
 from prometheus_client import Gauge
 from prometheus_client.metrics import MetricWrapperBase
 
@@ -6,7 +7,6 @@ from dlt.common.configuration.specs import RunConfiguration
 from dlt.common.runtime import logger
 from dlt.common.runtime.exec_info import dlt_version_info
 from dlt.common.typing import DictStrAny, StrAny
-
 
 # def init_prometheus(config: RunConfiguration) -> None:
 #         from prometheus_client import start_http_server, Info
@@ -23,7 +23,9 @@ def get_metrics_from_prometheus(gauges: Iterable[MetricWrapperBase]) -> StrAny:
         name = g._name
         if g._is_parent():
             # for gauges containing many label values, enumerate all
-            metrics.update(get_metrics_from_prometheus([g.labels(*label) for label in g._metrics.keys()]))
+            metrics.update(
+                get_metrics_from_prometheus([g.labels(*label) for label in g._metrics.keys()])
+            )
             continue
         # for gauges with labels: add the label to the name and enumerate samples
         if g._labelvalues:

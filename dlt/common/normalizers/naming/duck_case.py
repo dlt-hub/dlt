@@ -5,7 +5,6 @@ from dlt.common.normalizers.naming.snake_case import NamingConvention as BaseNam
 
 
 class NamingConvention(BaseNamingConvention):
-
     _RE_NON_ALPHANUMERIC = re.compile(r"[^a-zA-Z\d_+-]+")
     _REDUCE_ALPHABET = ("*@|", "xal")
     _TR_REDUCE_ALPHABET = str.maketrans(_REDUCE_ALPHABET[0], _REDUCE_ALPHABET[1])
@@ -20,7 +19,5 @@ class NamingConvention(BaseNamingConvention):
 
         # shorten identifier
         return NamingConvention.shorten_identifier(
-            NamingConvention._to_snake_case(normalized_ident),
-            identifier,
-            max_length
+            NamingConvention._to_snake_case(normalized_ident), identifier, max_length
         )

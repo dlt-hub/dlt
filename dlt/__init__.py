@@ -21,17 +21,20 @@ Or start with our pipeline template with sample chess.com data loaded to bigquer
 For more detailed info, see https://dlthub.com/docs/walkthroughs
 """
 
-from dlt.version import __version__
+from dlt import sources
 from dlt.common.configuration.accessors import config, secrets
-from dlt.common.typing import TSecretValue as _TSecretValue
 from dlt.common.configuration.specs import CredentialsConfiguration as _CredentialsConfiguration
 from dlt.common.pipeline import source_state as state
 from dlt.common.schema import Schema
-
-from dlt import sources
-from dlt.extract.decorators import source, resource, transformer, defer
-from dlt.pipeline import pipeline as _pipeline, run, attach, Pipeline, dbt, current as _current, mark as _mark
-from dlt.pipeline import progress
+from dlt.common.typing import TSecretValue as _TSecretValue
+from dlt.extract.decorators import defer, resource, source, transformer
+from dlt.pipeline import Pipeline, attach
+from dlt.pipeline import current as _current
+from dlt.pipeline import dbt
+from dlt.pipeline import mark as _mark
+from dlt.pipeline import pipeline as _pipeline
+from dlt.pipeline import progress, run
+from dlt.version import __version__
 
 pipeline = _pipeline
 current = _current

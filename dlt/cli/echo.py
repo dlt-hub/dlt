@@ -1,7 +1,7 @@
 import contextlib
 from typing import Any, Iterable, Iterator, Optional
-import click
 
+import click
 
 ALWAYS_CHOOSE_DEFAULT = False
 ALWAYS_CHOOSE_VALUE: Any = None
@@ -18,7 +18,6 @@ def always_choose(always_choose_default: bool, always_choose_value: Any) -> Iter
     yield
     ALWAYS_CHOOSE_DEFAULT = _always_choose_default
     ALWAYS_CHOOSE_VALUE = _always_choose_value
-
 
 
 echo = click.echo
@@ -60,6 +59,7 @@ def prompt(text: str, choices: Iterable[str], default: Optional[Any] = None) -> 
         return default
     click_choices = click.Choice(choices)
     return click.prompt(text, type=click_choices, default=default)
+
 
 def text_input(text: str) -> str:
     return click.prompt(text)  # type: ignore[no-any-return]

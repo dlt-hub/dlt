@@ -1,6 +1,7 @@
-from importlib.metadata import version as pkg_version, distribution as pkg_distribution
-from urllib.request import url2pathname
+from importlib.metadata import distribution as pkg_distribution
+from importlib.metadata import version as pkg_version
 from urllib.parse import urlparse
+from urllib.request import url2pathname
 
 DLT_IMPORT_NAME = "dlt"
 DLT_PKG_NAME = "dlt"

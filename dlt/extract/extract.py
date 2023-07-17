@@ -4,17 +4,15 @@ from typing import ClassVar, List
 
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.resolve import inject_section
+from dlt.common.configuration.specs import known_sections
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.pipeline import _reset_resource_state
-
 from dlt.common.runtime import signals
-from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
+from dlt.common.runtime.collector import NULL_COLLECTOR, Collector
+from dlt.common.schema import Schema, TSchemaUpdate, utils
+from dlt.common.storages import DataItemStorage, NormalizeStorage, NormalizeStorageConfiguration
+from dlt.common.typing import TDataItem, TDataItems
 from dlt.common.utils import uniq_id
-from dlt.common.typing import TDataItems, TDataItem
-from dlt.common.schema import Schema, utils, TSchemaUpdate
-from dlt.common.storages import NormalizeStorageConfiguration, NormalizeStorage, DataItemStorage
-from dlt.common.configuration.specs import known_sections
-
 from dlt.extract.decorators import SourceSchemaInjectableContext
 from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints
 from dlt.extract.pipe import PipeIterator
@@ -64,9 +62,8 @@ def extract(
     *,
     max_parallel_items: int = None,
     workers: int = None,
-    futures_poll_interval: float = None
+    futures_poll_interval: float = None,
 ) -> TSchemaUpdate:
-
     dynamic_tables: TSchemaUpdate = {}
     schema = source.schema
 
@@ -105,11 +102,15 @@ def extract(
                 dynamic_tables[table_name] = [static_table]
 
         # yield from all selected pipes
-        with PipeIterator.from_pipes(source.resources.selected_pipes, max_parallel_items=max_parallel_items, workers=workers, futures_poll_interval=futures_poll_interval) as pipes:
+        with PipeIterator.from_pipes(
+            source.resources.selected_pipes,
+            max_parallel_items=max_parallel_items,
+            workers=workers,
+            futures_poll_interval=futures_poll_interval,
+        ) as pipes:
             left_gens = total_gens = len(pipes._sources)
             collector.update("Resources", 0, total_gens)
             for pipe_item in pipes:
-
                 curr_gens = len(pipes._sources)
                 if left_gens > curr_gens:
                     delta = left_gens - curr_gens
@@ -155,24 +156,35 @@ def extract_with_schema(
     schema: Schema,
     collector: Collector,
     max_parallel_items: int,
-    workers: int
+    workers: int,
 ) -> str:
     # generate extract_id to be able to commit all the sources together later
     extract_id = storage.create_extract_id()
     with Container().injectable_context(SourceSchemaInjectableContext(schema)):
         # inject the config section with the current source name
-        with inject_section(ConfigSectionContext(sections=(known_sections.SOURCES, source.section, source.name), source_state_key=source.name)):
+        with inject_section(
+            ConfigSectionContext(
+                sections=(known_sections.SOURCES, source.section, source.name),
+                source_state_key=source.name,
+            )
+        ):
             # reset resource states
             for resource in source.resources.extracted.values():
                 with contextlib.suppress(DataItemRequiredForDynamicTableHints):
                     if resource.write_disposition == "replace":
                         _reset_resource_state(resource._name)
 
-            extractor = extract(extract_id, source, storage, collector, max_parallel_items=max_parallel_items, workers=workers)
+            extractor = extract(
+                extract_id,
+                source,
+                storage,
+                collector,
+                max_parallel_items=max_parallel_items,
+                workers=workers,
+            )
             # iterate over all items in the pipeline and update the schema if dynamic table hints were present
             for _, partials in extractor.items():
                 for partial in partials:
                     schema.update_schema(schema.normalize_table_identifiers(partial))
 
     return extract_id
-

@@ -1,18 +1,15 @@
 from typing import ClassVar, Dict, Optional
 
-from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.data_types import TDataType
-from dlt.common.schema import TColumnSchema, TColumnHint, Schema
-from dlt.common.destination.reference import LoadJob, FollowupJob, TLoadJobState
+from dlt.common.destination import DestinationCapabilitiesContext
+from dlt.common.destination.reference import FollowupJob, LoadJob, TLoadJobState
+from dlt.common.schema import Schema, TColumnHint, TColumnSchema
 from dlt.common.schema.typing import TTableSchema, TWriteDisposition
 from dlt.common.storages.file_storage import FileStorage
-
-from dlt.destinations.insert_job_client import InsertValuesJobClient
-
 from dlt.destinations.duckdb import capabilities
-from dlt.destinations.duckdb.sql_client import DuckDbSqlClient
 from dlt.destinations.duckdb.configuration import DuckDbClientConfiguration
-
+from dlt.destinations.duckdb.sql_client import DuckDbSqlClient
+from dlt.destinations.insert_job_client import InsertValuesJobClient
 
 SCT_TO_PGT: Dict[TDataType, str] = {
     "complex": "JSON",
@@ -23,7 +20,7 @@ SCT_TO_PGT: Dict[TDataType, str] = {
     "timestamp": "TIMESTAMP WITH TIME ZONE",
     "bigint": "BIGINT",
     "binary": "BLOB",
-    "decimal": "DECIMAL(%i,%i)"
+    "decimal": "DECIMAL(%i,%i)",
 }
 
 PGT_TO_SCT: Dict[str, TDataType] = {
@@ -35,25 +32,30 @@ PGT_TO_SCT: Dict[str, TDataType] = {
     "TIMESTAMP WITH TIME ZONE": "timestamp",
     "BIGINT": "bigint",
     "BLOB": "binary",
-    "DECIMAL": "decimal"
+    "DECIMAL": "decimal",
 }
 
-HINT_TO_POSTGRES_ATTR: Dict[TColumnHint, str] = {
-    "unique": "UNIQUE"
-}
+HINT_TO_POSTGRES_ATTR: Dict[TColumnHint, str] = {"unique": "UNIQUE"}
 
 
 class DuckDbCopyJob(LoadJob, FollowupJob):
-    def __init__(self, table_name: str, write_disposition: TWriteDisposition, file_path: str, sql_client: DuckDbSqlClient) -> None:
+    def __init__(
+        self,
+        table_name: str,
+        write_disposition: TWriteDisposition,
+        file_path: str,
+        sql_client: DuckDbSqlClient,
+    ) -> None:
         super().__init__(FileStorage.get_file_name_from_file_path(file_path))
 
-        with sql_client.with_staging_dataset(write_disposition=="merge"):
+        with sql_client.with_staging_dataset(write_disposition == "merge"):
             qualified_table_name = sql_client.make_qualified_table_name(table_name)
             with sql_client.begin_transaction():
                 if write_disposition == "replace":
                     sql_client.execute_sql(f"TRUNCATE TABLE {qualified_table_name}")
-                sql_client.execute_sql(f"COPY {qualified_table_name} FROM '{file_path}' ( FORMAT PARQUET );")
-
+                sql_client.execute_sql(
+                    f"COPY {qualified_table_name} FROM '{file_path}' ( FORMAT PARQUET );"
+                )
 
     def state(self) -> TLoadJobState:
         return "completed"
@@ -61,14 +63,14 @@ class DuckDbCopyJob(LoadJob, FollowupJob):
     def exception(self) -> str:
         raise NotImplementedError()
 
-class DuckDbClient(InsertValuesJobClient):
 
+class DuckDbClient(InsertValuesJobClient):
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
     def __init__(self, schema: Schema, config: DuckDbClientConfiguration) -> None:
         sql_client = DuckDbSqlClient(
             self.make_dataset_name(schema, config.dataset_name, config.default_schema_name),
-            config.credentials
+            config.credentials,
         )
         super().__init__(schema, config, sql_client)
         self.config: DuckDbClientConfiguration = config
@@ -77,13 +79,21 @@ class DuckDbClient(InsertValuesJobClient):
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         if file_path.endswith("parquet"):
-            return DuckDbCopyJob(table["name"], table["write_disposition"], file_path, self.sql_client)
+            return DuckDbCopyJob(
+                table["name"], table["write_disposition"], file_path, self.sql_client
+            )
         return super().start_file_load(table, file_path, load_id)
 
     def _get_column_def_sql(self, c: TColumnSchema) -> str:
-        hints_str = " ".join(self.active_hints.get(h, "") for h in self.active_hints.keys() if c.get(h, False) is True)
+        hints_str = " ".join(
+            self.active_hints.get(h, "")
+            for h in self.active_hints.keys()
+            if c.get(h, False) is True
+        )
         column_name = self.capabilities.escape_identifier(c["name"])
-        return f"{column_name} {self._to_db_type(c['data_type'])} {hints_str} {self._gen_not_null(c['nullable'])}"
+        return (
+            f"{column_name} {self._to_db_type(c['data_type'])} {hints_str} {self._gen_not_null(c['nullable'])}"
+        )
 
     @classmethod
     def _to_db_type(cls, sc_t: TDataType) -> str:

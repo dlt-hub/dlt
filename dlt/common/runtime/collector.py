@@ -1,15 +1,30 @@
+import logging
 import os
 import sys
-import logging
 import time
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from typing import Any, ContextManager, Dict, Type, TYPE_CHECKING, DefaultDict, NamedTuple, Optional, Union, TextIO, TypeVar
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    ContextManager,
+    DefaultDict,
+    Dict,
+    NamedTuple,
+    Optional,
+    TextIO,
+    Type,
+    TypeVar,
+    Union,
+)
+
 if TYPE_CHECKING:
-    from tqdm import tqdm
     import enlighten
-    from enlighten import Counter as EnlCounter, StatusBar as EnlStatusBar, Manager as EnlManager
     from alive_progress import alive_bar
+    from enlighten import Counter as EnlCounter
+    from enlighten import Manager as EnlManager
+    from enlighten import StatusBar as EnlStatusBar
+    from tqdm import tqdm
 else:
     tqdm = EnlCounter = EnlStatusBar = EnlManager = Any
 
@@ -20,11 +35,12 @@ TCollector = TypeVar("TCollector", bound="Collector")
 
 
 class Collector(ABC):
-
     step: str
 
     @abstractmethod
-    def update(self, name: str, inc: int = 1, total: int = None, message: str = None, label: str = None) -> None:
+    def update(
+        self, name: str, inc: int = 1, total: int = None, message: str = None, label: str = None
+    ) -> None:
         """Creates or updates a counter
 
         This function updates a counter `name` with a value `inc`. If counter does not exist, it is created with optional total value of `total`.
@@ -46,7 +62,8 @@ class Collector(ABC):
 
     @abstractmethod
     def _stop(self) -> None:
-        """Stops counting. Should close all counters and release resources ie. screen or push the results to a server."""
+        """Stops counting. Should close all counters and release resources ie. screen or push the results to a server.
+        """
         pass
 
     def __call__(self: TCollector, step: str) -> TCollector:
@@ -65,7 +82,9 @@ class Collector(ABC):
 class NullCollector(Collector):
     """A default counter that does not count anything."""
 
-    def update(self, name: str, inc: int = 1, total: int = None, message: str = None, label: str = None) -> None:
+    def update(
+        self, name: str, inc: int = 1, total: int = None, message: str = None, label: str = None
+    ) -> None:
         pass
 
     def _start(self, step: str) -> None:
@@ -81,7 +100,9 @@ class DictCollector(Collector):
     def __init__(self) -> None:
         self.counters: DefaultDict[str, int] = None
 
-    def update(self, name: str, inc: int = 1, total: int = None, message: str = None, label: str = None) -> None:
+    def update(
+        self, name: str, inc: int = 1, total: int = None, message: str = None, label: str = None
+    ) -> None:
         assert not label, "labels not supported in dict collector"
         self.counters[name] += inc
 
@@ -103,7 +124,13 @@ class LogCollector(Collector):
         start_time: float
         total: Optional[int]
 
-    def __init__(self, log_period: float = 1.0, logger: Union[logging.Logger, TextIO] = sys.stdout, log_level: int = logging.INFO, dump_system_stats: bool = True) -> None:
+    def __init__(
+        self,
+        log_period: float = 1.0,
+        logger: Union[logging.Logger, TextIO] = sys.stdout,
+        log_level: int = logging.INFO,
+        dump_system_stats: bool = True,
+    ) -> None:
         """
         Collector writing to a `logger` every `log_period` seconds. The logger can be a Python logger instance, text stream, or None that will attach `dlt` logger
 
@@ -123,12 +150,19 @@ class LogCollector(Collector):
             try:
                 import psutil
             except ImportError:
-                self._log(logging.WARNING, "psutil dependency is not installed and mem stats will not be available. add psutil to your environment or pass dump_system_stats argument as False to disable warning.")
+                self._log(
+                    logging.WARNING,
+                    "psutil dependency is not installed and mem stats will not be available. add"
+                    " psutil to your environment or pass dump_system_stats argument as False to"
+                    " disable warning.",
+                )
                 dump_system_stats = False
         self.dump_system_stats = dump_system_stats
         self.last_log_time: float = None
 
-    def update(self, name: str, inc: int = 1, total: int = None, message: str = None, label: str = None) -> None:
+    def update(
+        self, name: str, inc: int = 1, total: int = None, message: str = None, label: str = None
+    ) -> None:
         counter_key = f"{name}_{label}" if label else name
 
         if counter_key not in self.counters:
@@ -169,7 +203,10 @@ class LogCollector(Collector):
             items_per_second_str = f"{items_per_second:.2f}/s"
             message = f"[{self.messages[name]}]" if self.messages[name] is not None else ""
 
-            counter_line = f"{info.description}: {progress} {percentage} | Time: {elapsed_time_str} | Rate: {items_per_second_str} {message}"
+            counter_line = (
+                f"{info.description}: {progress} {percentage} | Time: {elapsed_time_str} | Rate:"
+                f" {items_per_second_str} {message}"
+            )
             log_lines.append(counter_line.strip())
 
         if self.dump_system_stats:
@@ -177,10 +214,13 @@ class LogCollector(Collector):
 
             process = psutil.Process(os.getpid())
             mem_info = process.memory_info()
-            current_mem = mem_info.rss / (1024 ** 2)  # Convert to MB
+            current_mem = mem_info.rss / (1024**2)  # Convert to MB
             mem_percent = psutil.virtual_memory().percent
             cpu_percent = process.cpu_percent()
-            log_lines.append(f"Memory usage: {current_mem:.2f} MB ({mem_percent:.2f}%) | CPU usage: {cpu_percent:.2f}%")
+            log_lines.append(
+                f"Memory usage: {current_mem:.2f} MB ({mem_percent:.2f}%) | CPU usage:"
+                f" {cpu_percent:.2f}%"
+            )
 
         log_lines.append("")
         log_message = "\n".join(log_lines)
@@ -213,17 +253,22 @@ class TqdmCollector(Collector):
     """A Collector that shows progress with `tqdm` progress bars"""
 
     def __init__(self, single_bar: bool = False, **tqdm_kwargs: Any) -> None:
-        """A Collector that uses tqdm to display counters as progress bars. Set `single_bar` to True to show just the main progress bar. Pass any config to tqdm in kwargs"""
+        """A Collector that uses tqdm to display counters as progress bars. Set `single_bar` to True to show just the main progress bar. Pass any config to tqdm in kwargs
+        """
         try:
             global tqdm
             from tqdm import tqdm
         except ImportError:
-            raise MissingDependencyException("TqdmCollector", ["tqdm"], "We need tqdm to display progress bars.")
+            raise MissingDependencyException(
+                "TqdmCollector", ["tqdm"], "We need tqdm to display progress bars."
+            )
         self.single_bar = single_bar
         self._bars: Dict[str, tqdm] = {}
         self.tqdm_kwargs = tqdm_kwargs or {}
 
-    def update(self, name: str, inc: int = 1, total: int = None, message: str = None, label: str = "") -> None:
+    def update(
+        self, name: str, inc: int = 1, total: int = None, message: str = None, label: str = ""
+    ) -> None:
         key = f"{name}_{label}"
         bar = self._bars.get(key)
         if bar is None:
@@ -257,19 +302,26 @@ class AliveCollector(Collector):
     """A Collector that shows progress with `alive-progress` progress bars"""
 
     def __init__(self, single_bar: bool = True, **alive_kwargs: Any) -> None:
-        """Collector that uses alive_progress to display counters as progress bars. Set `single_bar` to True to show just the main progress bar. Pass any config to alive_progress in kwargs"""
+        """Collector that uses alive_progress to display counters as progress bars. Set `single_bar` to True to show just the main progress bar. Pass any config to alive_progress in kwargs
+        """
         try:
             global alive_bar
             from alive_progress import alive_bar
 
         except ImportError:
-            raise MissingDependencyException("AliveCollector", ["alive-progress"], "We need alive-progress to display progress bars.")
+            raise MissingDependencyException(
+                "AliveCollector",
+                ["alive-progress"],
+                "We need alive-progress to display progress bars.",
+            )
         self.single_bar = single_bar
         self._bars: Dict[str, Any] = {}
         self._bars_contexts: Dict[str, ContextManager[Any]] = {}
         self.alive_kwargs = alive_kwargs or {}
 
-    def update(self, name: str, inc: int = 1, total: int = None, message: str = None, label: str = "") -> None:
+    def update(
+        self, name: str, inc: int = 1, total: int = None, message: str = None, label: str = ""
+    ) -> None:
         key = f"{name}_{label}"
         bar = self._bars.get(key)
         if bar is None:
@@ -301,25 +353,35 @@ class AliveCollector(Collector):
 
 
 class EnlightenCollector(Collector):
-    """A Collector that shows progress with `enlighten` progress and status bars that also allow for logging."""
+    """A Collector that shows progress with `enlighten` progress and status bars that also allow for logging.
+    """
 
     _bars: Dict[str, EnlCounter]
     _manager: EnlManager
     _status: EnlStatusBar
 
     def __init__(self, single_bar: bool = False, **enlighten_kwargs: Any) -> None:
-        """Collector that uses Enlighten to display counters as progress bars. Set `single_bar` to True to show just the main progress bar. Pass any config to Enlighten in kwargs"""
+        """Collector that uses Enlighten to display counters as progress bars. Set `single_bar` to True to show just the main progress bar. Pass any config to Enlighten in kwargs
+        """
         try:
             global enlighten
 
             import enlighten
-            from enlighten import Counter as EnlCounter, StatusBar as EnlStatusBar, Manager as EnlManager
+            from enlighten import Counter as EnlCounter
+            from enlighten import Manager as EnlManager
+            from enlighten import StatusBar as EnlStatusBar
         except ImportError:
-            raise MissingDependencyException("EnlightenCollector", ["enlighten"], "We need enlighten to display progress bars with a space for log messages.")
+            raise MissingDependencyException(
+                "EnlightenCollector",
+                ["enlighten"],
+                "We need enlighten to display progress bars with a space for log messages.",
+            )
         self.single_bar = single_bar
         self.enlighten_kwargs = enlighten_kwargs
 
-    def update(self,  name: str, inc: int = 1, total: int = None, message: str = None, label: str = "") -> None:
+    def update(
+        self, name: str, inc: int = 1, total: int = None, message: str = None, label: str = ""
+    ) -> None:
         key = f"{name}_{label}"
         bar = self._bars.get(key)
         if bar is None:
@@ -328,7 +390,9 @@ class EnlightenCollector(Collector):
             if len(self._bars) > 0 and self.single_bar:
                 # do not add any more counters
                 return
-            bar = self._manager.counter(desc=name, total=total, leave=True, force=True, **self.enlighten_kwargs)
+            bar = self._manager.counter(
+                desc=name, total=total, leave=True, force=True, **self.enlighten_kwargs
+            )
             bar.refresh()
             self._bars[key] = bar
         bar.update(inc)
@@ -336,7 +400,9 @@ class EnlightenCollector(Collector):
     def _start(self, step: str) -> None:
         self._bars = {}
         self._manager = enlighten.get_manager(enabled=True)
-        self._status = self._manager.status_bar(leave=True, justify=enlighten.Justify.CENTER, fill="=")
+        self._status = self._manager.status_bar(
+            leave=True, justify=enlighten.Justify.CENTER, fill="="
+        )
         self._status.update(step)
 
     def _stop(self) -> None:
@@ -352,4 +418,4 @@ class EnlightenCollector(Collector):
         self._status = None
 
 
-NULL_COLLECTOR =  NullCollector()
+NULL_COLLECTOR = NullCollector()

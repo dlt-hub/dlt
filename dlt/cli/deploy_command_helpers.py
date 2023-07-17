@@ -1,34 +1,32 @@
-import re
 import abc
 import os
-import yaml
-from yaml import Dumper
-import pipdeptree
+import re
 from itertools import chain
-from typing import List, Optional, Sequence, Tuple, Any, Dict
-from astunparse import unparse
+from typing import Any, Dict, List, Optional, Sequence, Tuple
+
 import cron_descriptor
+import pipdeptree
+import yaml
+from astunparse import unparse
+from yaml import Dumper
 
 import dlt
-
+from dlt.cli import echo as fmt
+from dlt.cli import utils
+from dlt.cli.exceptions import CliCommandException
 from dlt.common.configuration.exceptions import LookupTrace
 from dlt.common.configuration.providers import ConfigTomlProvider, EnvironProvider
-from dlt.common.git import get_origin, get_repo, Repo
 from dlt.common.configuration.specs.run_configuration import get_default_pipeline_name
-from dlt.common.typing import StrAny
-from dlt.common.reflection.utils import evaluate_node_literal
+from dlt.common.git import Repo, get_origin, get_repo
 from dlt.common.pipeline import LoadInfo, TPipelineState
+from dlt.common.reflection.utils import evaluate_node_literal
 from dlt.common.storages import FileStorage
+from dlt.common.typing import StrAny
 from dlt.common.utils import set_working_dir
-
 from dlt.pipeline.pipeline import Pipeline
 from dlt.pipeline.trace import PipelineTrace
 from dlt.reflection import names as n
 from dlt.reflection.script_visitor import PipelineScriptVisitor
-
-from dlt.cli import utils
-from dlt.cli import echo as fmt
-from dlt.cli.exceptions import CliCommandException
 
 GITHUB_URL = "https://github.com/"
 
@@ -43,7 +41,7 @@ class BaseDeployment(abc.ABC):
         run_on_dispatch: bool = False,
         branch: Optional[str] = None,
         secrets_format: Optional[str] = None,
-        **_kwargs: Any
+        **_kwargs: Any,
     ):
         self.pipeline_script_path = pipeline_script_path
         self.schedule = schedule
@@ -78,12 +76,16 @@ class BaseDeployment(abc.ABC):
         # make sure the repo has origin
         self.origin = self._get_origin()
         # convert to path relative to repo
-        self.repo_pipeline_script_path = self.repo_storage.from_wd_to_relative_path(self.pipeline_script_path)
+        self.repo_pipeline_script_path = self.repo_storage.from_wd_to_relative_path(
+            self.pipeline_script_path
+        )
         # load a pipeline script and extract full_refresh and pipelines_dir args
         self.pipeline_script = self.repo_storage.load(self.repo_pipeline_script_path)
         # validate schedule
         self.schedule_description = self._get_schedule_description()
-        fmt.echo("Looking up the deployment template scripts in %s...\n" % fmt.bold(self.repo_location))
+        fmt.echo(
+            "Looking up the deployment template scripts in %s...\n" % fmt.bold(self.repo_location)
+        )
         self.template_storage = utils.clone_command_repo(self.repo_location, self.branch)
         self.working_directory = os.path.split(self.pipeline_script_path)[0]
 
@@ -94,9 +96,19 @@ class BaseDeployment(abc.ABC):
         try:
             origin = get_origin(self.repo)
             if "github.com" not in origin:
-                raise CliCommandException("deploy", f"Your current repository origin is not set to github but to {origin}.\nYou must change it to be able to run the pipelines with github actions: https://docs.github.com/en/get-started/getting-started-with-git/managing-remote-repositories")
+                raise CliCommandException(
+                    "deploy",
+                    f"Your current repository origin is not set to github but to {origin}.\nYou"
+                    " must change it to be able to run the pipelines with github actions:"
+                    " https://docs.github.com/en/get-started/getting-started-with-git/managing-remote-repositories",
+                )
         except ValueError:
-            raise CliCommandException("deploy", "Your current repository has no origin set. Please set it up to be able to run the pipelines with github actions: https://docs.github.com/en/get-started/importing-your-projects-to-github/importing-source-code-to-github/adding-locally-hosted-code-to-github")
+            raise CliCommandException(
+                "deploy",
+                "Your current repository has no origin set. Please set it up to be able to run the"
+                " pipelines with github actions:"
+                " https://docs.github.com/en/get-started/importing-your-projects-to-github/importing-source-code-to-github/adding-locally-hosted-code-to-github",
+            )
 
         return origin
 
@@ -120,10 +132,16 @@ class BaseDeployment(abc.ABC):
                     self.pipeline_name = dlt.config.get("pipeline_name")
                     if not self.pipeline_name:
                         self.pipeline_name = get_default_pipeline_name(self.pipeline_script_path)
-                        fmt.warning(f"Using default pipeline name {self.pipeline_name}. The pipeline name is not passed as argument to dlt.pipeline nor configured via config provides ie. config.toml")
+                        fmt.warning(
+                            f"Using default pipeline name {self.pipeline_name}. The pipeline name"
+                            " is not passed as argument to dlt.pipeline nor configured via config"
+                            " provides ie. config.toml"
+                        )
 
                 # attach to pipeline name, get state and trace
-                pipeline = dlt.attach(pipeline_name=self.pipeline_name, pipelines_dir=self.pipelines_dir)
+                pipeline = dlt.attach(
+                    pipeline_name=self.pipeline_name, pipelines_dir=self.pipelines_dir
+                )
                 self.state, trace = get_state_and_trace(pipeline)
                 self._update_envs(trace)
 
@@ -141,12 +159,26 @@ class BaseDeployment(abc.ABC):
         for resolved_value in trace.resolved_config_values:
             if resolved_value.is_secret_hint:
                 # generate special forms for all secrets
-                self.secret_envs.append(LookupTrace(self.env_prov.name, tuple(resolved_value.sections), resolved_value.key, resolved_value.value))
+                self.secret_envs.append(
+                    LookupTrace(
+                        self.env_prov.name,
+                        tuple(resolved_value.sections),
+                        resolved_value.key,
+                        resolved_value.value,
+                    )
+                )
                 # fmt.echo(f"{resolved_value.key}:{resolved_value.value}{type(resolved_value.value)} in {resolved_value.sections} is SECRET")
             else:
                 # move all config values that are not in config.toml into env
                 if resolved_value.provider_name != self.config_prov.name:
-                    self.envs.append(LookupTrace(self.env_prov.name, tuple(resolved_value.sections), resolved_value.key, resolved_value.value))
+                    self.envs.append(
+                        LookupTrace(
+                            self.env_prov.name,
+                            tuple(resolved_value.sections),
+                            resolved_value.key,
+                            resolved_value.value,
+                        )
+                    )
                     # fmt.echo(f"{resolved_value.key} in {resolved_value.sections} moved to CONFIG")
 
     def _echo_secrets(self) -> None:
@@ -182,12 +214,20 @@ def get_state_and_trace(pipeline: Pipeline) -> Tuple[TPipelineState, PipelineTra
     # trace must exist and end with a successful loading step
     trace = pipeline.last_trace
     if trace is None or len(trace.steps) == 0:
-        raise PipelineWasNotRun("Pipeline run trace could not be found. Please run the pipeline at least once locally.")
+        raise PipelineWasNotRun(
+            "Pipeline run trace could not be found. Please run the pipeline at least once locally."
+        )
     last_step = trace.steps[-1]
     if last_step.step_exception is not None:
-        raise PipelineWasNotRun(f"The last pipeline run ended with error. Please make sure that pipeline runs correctly before deployment.\n{last_step.step_exception}")
+        raise PipelineWasNotRun(
+            "The last pipeline run ended with error. Please make sure that pipeline runs correctly"
+            f" before deployment.\n{last_step.step_exception}"
+        )
     if not isinstance(last_step.step_info, LoadInfo):
-        raise PipelineWasNotRun("The last pipeline run did not reach the load step. Please run the pipeline locally until it loads data into destination.")
+        raise PipelineWasNotRun(
+            "The last pipeline run did not reach the load step. Please run the pipeline locally"
+            " until it loads data into destination."
+        )
 
     return pipeline.state, trace
 
@@ -195,7 +235,10 @@ def get_state_and_trace(pipeline: Pipeline) -> Tuple[TPipelineState, PipelineTra
 def get_visitors(pipeline_script: str, pipeline_script_path: str) -> PipelineScriptVisitor:
     visitor = utils.parse_init_script("deploy", pipeline_script, pipeline_script_path)
     if n.RUN not in visitor.known_calls:
-        raise CliCommandException("deploy", f"The pipeline script {pipeline_script_path} does not seem to run the pipeline.")
+        raise CliCommandException(
+            "deploy",
+            f"The pipeline script {pipeline_script_path} does not seem to run the pipeline.",
+        )
     return visitor
 
 
@@ -207,22 +250,40 @@ def parse_pipeline_info(visitor: PipelineScriptVisitor) -> Tuple[Optional[str], 
             if f_r_node:
                 f_r_value = evaluate_node_literal(f_r_node)
                 if f_r_value is None:
-                    fmt.warning(f"The value of `full_refresh` in call to `dlt.pipeline` cannot be determined from {unparse(f_r_node).strip()}. We assume that you know what you are doing :)")
+                    fmt.warning(
+                        "The value of `full_refresh` in call to `dlt.pipeline` cannot be"
+                        f" determined from {unparse(f_r_node).strip()}. We assume that you know"
+                        " what you are doing :)"
+                    )
                 if f_r_value is True:
-                    if fmt.confirm("The value of 'full_refresh' is set to True. Do you want to abort to set it to False?", default=True):
+                    if fmt.confirm(
+                        "The value of 'full_refresh' is set to True. Do you want to abort to set it"
+                        " to False?",
+                        default=True,
+                    ):
                         return None, None
 
             p_d_node = call_args.arguments.get("pipelines_dir")
             if p_d_node:
                 pipelines_dir = evaluate_node_literal(p_d_node)
                 if pipelines_dir is None:
-                    raise CliCommandException("deploy", f"The value of 'pipelines_dir' argument in call to `dlt_pipeline` cannot be determined from {unparse(p_d_node).strip()}. Pipeline working dir will be found. Pass it directly with --pipelines-dir option.")
+                    raise CliCommandException(
+                        "deploy",
+                        "The value of 'pipelines_dir' argument in call to `dlt_pipeline` cannot be"
+                        f" determined from {unparse(p_d_node).strip()}. Pipeline working dir will"
+                        " be found. Pass it directly with --pipelines-dir option.",
+                    )
 
             p_n_node = call_args.arguments.get("pipeline_name")
             if p_n_node:
                 pipeline_name = evaluate_node_literal(p_n_node)
                 if pipeline_name is None:
-                    raise CliCommandException("deploy", f"The value of 'pipeline_name' argument in call to `dlt_pipeline` cannot be determined from {unparse(p_d_node).strip()}. Pipeline working dir will be found. Pass it directly with --pipeline-name option.")
+                    raise CliCommandException(
+                        "deploy",
+                        "The value of 'pipeline_name' argument in call to `dlt_pipeline` cannot be"
+                        f" determined from {unparse(p_d_node).strip()}. Pipeline working dir will"
+                        " be found. Pass it directly with --pipeline-name option.",
+                    )
 
     return pipeline_name, pipelines_dir
 
@@ -231,8 +292,8 @@ def str_representer(dumper: yaml.Dumper, data: str) -> yaml.ScalarNode:
     # format multiline strings as blocks with the exception of placeholders
     # that will be expanded as yaml
     if len(data.splitlines()) > 1 and "{{ toYaml" not in data:  # check for multiline string
-        return dumper.represent_scalar('tag:yaml.org,2002:str', data, style='|')
-    return dumper.represent_scalar('tag:yaml.org,2002:str', data)
+        return dumper.represent_scalar("tag:yaml.org,2002:str", data, style="|")
+    return dumper.represent_scalar("tag:yaml.org,2002:str", data)
 
 
 def wrap_template_str(s: str) -> str:
@@ -244,17 +305,14 @@ def serialize_templated_yaml(tree: StrAny) -> str:
     try:
         yaml.add_representer(str, str_representer)
         # pretty serialize yaml
-        serialized: str = yaml.dump(tree, allow_unicode=True, default_flow_style=False, sort_keys=False)
+        serialized: str = yaml.dump(
+            tree, allow_unicode=True, default_flow_style=False, sort_keys=False
+        )
         # removes apostrophes around the template
-        serialized = re.sub(r"'([\s\n]*?\${{.+?}})'",
-                            r"\1",
-                            serialized,
-                            flags=re.DOTALL)
+        serialized = re.sub(r"'([\s\n]*?\${{.+?}})'", r"\1", serialized, flags=re.DOTALL)
         # print(serialized)
         # fix the new lines in templates ending }}
-        serialized = re.sub(r"(\${{.+)\n.+(}})",
-                            r"\1 \2",
-                            serialized)
+        serialized = re.sub(r"(\${{.+)\n.+(}})", r"\1 \2", serialized)
         return serialized
     finally:
         yaml.add_representer(str, old_representer)
@@ -285,7 +343,10 @@ def generate_pip_freeze(requirements_blacklist: List[str], requirements_file_nam
     conflicts = pipdeptree.conflicting_deps(tree)
     cycles = pipdeptree.cyclic_deps(tree)
     if conflicts:
-        fmt.warning(f"Unable to create dependencies for the github action. Please edit {requirements_file_name} yourself")
+        fmt.warning(
+            "Unable to create dependencies for the github action. Please edit"
+            f" {requirements_file_name} yourself"
+        )
         pipdeptree.render_conflicts_text(conflicts)
         pipdeptree.render_cycles_text(cycles)
         fmt.echo()

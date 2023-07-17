@@ -1,4 +1,5 @@
-from typing import Any, AnyStr, List, Type, Optional, Protocol, Tuple, TypeVar
+from typing import Any, AnyStr, List, Optional, Protocol, Tuple, Type, TypeVar
+
 try:
     from pandas import DataFrame
 except ImportError:
@@ -6,6 +7,7 @@ except ImportError:
 
 # native connection
 TNativeConn = TypeVar("TNativeConn", bound=Any)
+
 
 class DBTransaction(Protocol):
     def commit_transaction(self) -> None:
@@ -23,6 +25,7 @@ class DBApi(Protocol):
 
 class DBApiCursor(Protocol):
     """Protocol for DBAPI cursor"""
+
     description: Tuple[Any, ...]
 
     native_cursor: "DBApiCursor"
@@ -30,12 +33,16 @@ class DBApiCursor(Protocol):
 
     def execute(self, query: AnyStr, *args: Any, **kwargs: Any) -> None:
         ...
+
     def fetchall(self) -> List[Tuple[Any, ...]]:
         ...
+
     def fetchmany(self, size: int = ...) -> List[Tuple[Any, ...]]:
         ...
+
     def fetchone(self) -> Optional[Tuple[Any, ...]]:
         ...
+
     def close(self) -> None:
         ...
 
@@ -54,4 +61,3 @@ class DBApiCursor(Protocol):
             Optional[DataFrame]: A data frame with query results. If chunk_size > 0, None will be returned if there is no more data in results
         """
         ...
-

@@ -1,18 +1,22 @@
 from typing import Type
-from dlt.common.data_writers.escape import escape_bigquery_identifier
 
-from dlt.common.schema.schema import Schema
-from dlt.common.configuration import with_config, known_sections
-from dlt.common.configuration.accessors import config
-from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import JobClientBase, DestinationClientConfiguration
-from dlt.common.data_writers.escape import escape_snowflake_identifier
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
-
+from dlt.common.configuration import known_sections, with_config
+from dlt.common.configuration.accessors import config
+from dlt.common.data_writers.escape import escape_bigquery_identifier, escape_snowflake_identifier
+from dlt.common.destination import DestinationCapabilitiesContext
+from dlt.common.destination.reference import DestinationClientConfiguration, JobClientBase
+from dlt.common.schema.schema import Schema
 from dlt.destinations.snowflake.configuration import SnowflakeClientConfiguration
 
 
-@with_config(spec=SnowflakeClientConfiguration, sections=(known_sections.DESTINATION, "snowflake",))
+@with_config(
+    spec=SnowflakeClientConfiguration,
+    sections=(
+        known_sections.DESTINATION,
+        "snowflake",
+    ),
+)
 def _configure(config: SnowflakeClientConfiguration = config.value) -> SnowflakeClientConfiguration:
     return config
 
@@ -37,7 +41,9 @@ def capabilities() -> DestinationCapabilitiesContext:
     return caps
 
 
-def client(schema: Schema, initial_config: DestinationClientConfiguration = config.value) -> JobClientBase:
+def client(
+    schema: Schema, initial_config: DestinationClientConfiguration = config.value
+) -> JobClientBase:
     # import client when creating instance so capabilities and config specs can be accessed without dependencies installed
     from dlt.destinations.snowflake.snowflake import SnowflakeClient
 

@@ -1,13 +1,12 @@
 import base64
-from abc import abstractmethod, ABC
-from functools import lru_cache
-import math
 import hashlib
-from typing import Any, List, Protocol, Sequence, Type
+import math
+import typing as t
+from abc import ABC, abstractmethod
+from functools import lru_cache
 
 
 class NamingConvention(ABC):
-
     _TR_TABLE = bytes.maketrans(b"/+", b"ab")
     _DEFAULT_COLLISION_PROB = 0.001
 
@@ -16,7 +15,8 @@ class NamingConvention(ABC):
 
     @abstractmethod
     def normalize_identifier(self, identifier: str) -> str:
-        """Normalizes and shortens the identifier according to naming convention in this function code"""
+        """Normalizes and shortens the identifier according to naming convention in this function code
+        """
         if identifier is None:
             raise ValueError("name is None")
         identifier = identifier.strip()
@@ -30,12 +30,13 @@ class NamingConvention(ABC):
         pass
 
     @abstractmethod
-    def break_path(self, path: str) -> Sequence[str]:
+    def break_path(self, path: str) -> t.Sequence[str]:
         """Breaks path into sequence of identifiers"""
         pass
 
     def normalize_path(self, path: str) -> str:
-        """Breaks path into identifiers, normalizes components, reconstitutes and shortens the path"""
+        """Breaks path into identifiers, normalizes components, reconstitutes and shortens the path
+        """
         normalized_idents = [self.normalize_identifier(ident) for ident in self.break_path(path)]
         # shorten the whole path
         return self.shorten_identifier(self.make_path(*normalized_idents), path, self.max_length)
@@ -49,8 +50,14 @@ class NamingConvention(ABC):
 
     @staticmethod
     @lru_cache(maxsize=None)
-    def shorten_identifier(normalized_ident: str, identifier: str, max_length: int, collision_prob: float = _DEFAULT_COLLISION_PROB) -> str:
-        """Shortens the `name` to `max_length` and adds a tag to it to make it unique. Tag may be placed in the middle or at the end"""
+    def shorten_identifier(
+        normalized_ident: str,
+        identifier: str,
+        max_length: int,
+        collision_prob: float = _DEFAULT_COLLISION_PROB,
+    ) -> str:
+        """Shortens the `name` to `max_length` and adds a tag to it to make it unique. Tag may be placed in the middle or at the end
+        """
         if max_length and len(normalized_ident) > max_length:
             # use original identifier to compute tag
             tag = NamingConvention._compute_tag(identifier, collision_prob)
@@ -62,9 +69,14 @@ class NamingConvention(ABC):
     def _compute_tag(identifier: str, collision_prob: float) -> str:
         # assume that shake_128 has perfect collision resistance 2^N/2 then collision prob is 1/resistance: prob = 1/2^N/2, solving for prob
         # take into account that we are case insensitive in base64 so we need ~1.5x more bits (2+1)
-        tl_bytes = int(((2+1)*math.log2(1/(collision_prob)) // 8) + 1)
-        tag = base64.b64encode(hashlib.shake_128(identifier.encode("utf-8")).digest(tl_bytes)
-                               ).rstrip(b"=").translate(NamingConvention._TR_TABLE).lower().decode("ascii")
+        tl_bytes = int(((2 + 1) * math.log2(1 / (collision_prob)) // 8) + 1)
+        tag = (
+            base64.b64encode(hashlib.shake_128(identifier.encode("utf-8")).digest(tl_bytes))
+            .rstrip(b"=")
+            .translate(NamingConvention._TR_TABLE)
+            .lower()
+            .decode("ascii")
+        )
         return tag
 
     @staticmethod
@@ -72,13 +84,17 @@ class NamingConvention(ABC):
         assert len(tag) <= max_length
         remaining_length = max_length - len(tag)
         remaining_overflow = remaining_length % 2
-        identifier = identifier[:remaining_length // 2 + remaining_overflow] + tag + identifier[len(identifier) - remaining_length // 2:]
+        identifier = (
+            identifier[: remaining_length // 2 + remaining_overflow]
+            + tag
+            + identifier[len(identifier) - remaining_length // 2 :]
+        )
         assert len(identifier) == max_length
         return identifier
 
 
-class SupportsNamingConvention(Protocol):
+class SupportsNamingConvention(t.Protocol):
     """Expected of modules defining naming convention"""
 
-    NamingConvention: Type[NamingConvention]
+    NamingConvention: t.Type[NamingConvention]
     """A class with a name NamingConvention deriving from normalizers.naming.NamingConvention"""

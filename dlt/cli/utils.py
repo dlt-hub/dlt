@@ -3,18 +3,15 @@ import os
 import tempfile
 from typing import Callable
 
+from dlt.cli.exceptions import CliCommandException
 from dlt.common import git
-from dlt.common.reflection.utils import set_ast_parents
-from dlt.common.storages import FileStorage
-from dlt.common.typing import TFun
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.specs import RunConfiguration
+from dlt.common.reflection.utils import set_ast_parents
 from dlt.common.runtime.telemetry import with_telemetry
-
+from dlt.common.storages import FileStorage
+from dlt.common.typing import TFun
 from dlt.reflection.script_visitor import PipelineScriptVisitor
-
-from dlt.cli.exceptions import CliCommandException
-
 
 REQUIREMENTS_TXT = "requirements.txt"
 PYPROJECT_TOML = "pyproject.toml"
@@ -32,14 +29,20 @@ def clone_command_repo(repo_location: str, branch: str) -> FileStorage:
         return FileStorage(template_dir)
 
 
-def parse_init_script(command: str, script_source: str, init_script_name: str) -> PipelineScriptVisitor:
+def parse_init_script(
+    command: str, script_source: str, init_script_name: str
+) -> PipelineScriptVisitor:
     # parse the script first
     tree = ast.parse(source=script_source)
     set_ast_parents(tree)
     visitor = PipelineScriptVisitor(script_source)
     visitor.visit_passes(tree)
     if len(visitor.mod_aliases) == 0:
-        raise CliCommandException(command, f"The pipeline script {init_script_name} does not import dlt and does not seem to run any pipelines")
+        raise CliCommandException(
+            command,
+            f"The pipeline script {init_script_name} does not import dlt and does not seem to run"
+            " any pipelines",
+        )
 
     return visitor
 
@@ -52,8 +55,9 @@ def ensure_git_command(command: str) -> None:
             raise
         raise CliCommandException(
             command,
-            "'git' command is not available. Install and setup git with the following the guide %s" % "https://docs.github.com/en/get-started/quickstart/set-up-git",
-            imp_ex
+            "'git' command is not available. Install and setup git with the following the guide %s"
+            % "https://docs.github.com/en/get-started/quickstart/set-up-git",
+            imp_ex,
         ) from imp_ex
 
 

@@ -1,19 +1,28 @@
-import duckdb
-
 from contextlib import contextmanager
 from typing import Any, AnyStr, ClassVar, Iterator, Optional, Sequence
+
+import duckdb
+
 from dlt.common.destination import DestinationCapabilitiesContext
-
-from dlt.destinations.exceptions import DatabaseTerminalException, DatabaseTransientException, DatabaseUndefinedRelation
-from dlt.destinations.typing import DBApi, DBApiCursor, DBTransaction, DataFrame
-from dlt.destinations.sql_client import SqlClientBase, DBApiCursorImpl, raise_database_error, raise_open_connection_error
-
 from dlt.destinations.duckdb import capabilities
 from dlt.destinations.duckdb.configuration import DuckDbBaseCredentials
+from dlt.destinations.exceptions import (
+    DatabaseTerminalException,
+    DatabaseTransientException,
+    DatabaseUndefinedRelation,
+)
+from dlt.destinations.sql_client import (
+    DBApiCursorImpl,
+    SqlClientBase,
+    raise_database_error,
+    raise_open_connection_error,
+)
+from dlt.destinations.typing import DataFrame, DBApi, DBApiCursor, DBTransaction
 
 
 class DuckDBDBApiCursorImpl(DBApiCursorImpl):
     """Use native BigQuery data frame support if available"""
+
     native_cursor: duckdb.DuckDBPyConnection  # type: ignore
     vector_size: ClassVar[int] = 2048
 
@@ -21,7 +30,9 @@ class DuckDBDBApiCursorImpl(DBApiCursorImpl):
         if chunk_size is None:
             return self.native_cursor.df(**kwargs)
         else:
-            multiple = chunk_size // self.vector_size + (0 if self.vector_size % chunk_size == 0 else 1)
+            multiple = chunk_size // self.vector_size + (
+                0 if self.vector_size % chunk_size == 0 else 1
+            )
             df = self.native_cursor.fetch_df_chunk(multiple, **kwargs)
             if df.shape[0] == 0:
                 return None
@@ -30,7 +41,6 @@ class DuckDBDBApiCursorImpl(DBApiCursorImpl):
 
 
 class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
-
     dbapi: ClassVar[DBApi] = duckdb
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
@@ -44,11 +54,11 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
         self._conn = self.credentials.borrow_conn(read_only=self.credentials.read_only)
         # TODO: apply config settings from credentials
         self._conn.execute("PRAGMA enable_checkpoint_on_shutdown;")
-        config={
+        config = {
             "search_path": self.fully_qualified_dataset_name(),
             "TimeZone": "UTC",
-            "checkpoint_threshold": "1gb"
-            }
+            "checkpoint_threshold": "1gb",
+        }
         if config:
             for k, v in config.items():
                 try:
@@ -97,7 +107,9 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
     def drop_dataset(self) -> None:
         self.execute_sql("DROP SCHEMA %s CASCADE;" % self.fully_qualified_dataset_name())
 
-    def execute_sql(self, sql: AnyStr, *args: Any, **kwargs: Any) -> Optional[Sequence[Sequence[Any]]]:
+    def execute_sql(
+        self, sql: AnyStr, *args: Any, **kwargs: Any
+    ) -> Optional[Sequence[Sequence[Any]]]:
         with self.execute_query(sql, *args, **kwargs) as curr:
             if curr.description is None:
                 return None
@@ -136,7 +148,9 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
     #         return None
 
     def fully_qualified_dataset_name(self, escape: bool = True) -> str:
-        return self.capabilities.escape_identifier(self.dataset_name) if escape else self.dataset_name
+        return (
+            self.capabilities.escape_identifier(self.dataset_name) if escape else self.dataset_name
+        )
 
     @classmethod
     def _make_database_exception(cls, ex: Exception) -> Exception:
@@ -145,7 +159,15 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
         elif isinstance(ex, duckdb.InvalidInputException):
             # duckdb raises TypeError on malformed query parameters
             return DatabaseTransientException(duckdb.ProgrammingError(ex))
-        elif isinstance(ex, (duckdb.OperationalError, duckdb.InternalError, duckdb.SyntaxException, duckdb.ParserException)):
+        elif isinstance(
+            ex,
+            (
+                duckdb.OperationalError,
+                duckdb.InternalError,
+                duckdb.SyntaxException,
+                duckdb.ParserException,
+            ),
+        ):
             term = cls._maybe_make_terminal_exception_from_data_error(ex)
             if term:
                 return term

@@ -1,5 +1,5 @@
 import dataclasses
-from typing import Optional, TYPE_CHECKING
+import typing as t
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import BaseConfiguration
@@ -14,8 +14,10 @@ class NormalizersConfiguration(BaseConfiguration):
     __section__: str = "schema"
 
     naming: str
-    json_normalizer: StrAny = dataclasses.field(default_factory=lambda: dict({"module": "dlt.common.normalizers.json.relational"}))
-    destination_capabilities: Optional[DestinationCapabilitiesContext] = None  # injectable
+    json_normalizer: StrAny = dataclasses.field(
+        default_factory=lambda: dict({"module": "dlt.common.normalizers.json.relational"})
+    )
+    destination_capabilities: t.Optional[DestinationCapabilitiesContext] = None  # injectable
 
     def on_partial(self) -> None:
         if self.naming is None:
@@ -28,6 +30,7 @@ class NormalizersConfiguration(BaseConfiguration):
         else:
             raise self.__exception__
 
-    if TYPE_CHECKING:
+    if t.TYPE_CHECKING:
+
         def __init__(self, naming: str = None, json_normalizer: TJSONNormalizer = None) -> None:
             ...

@@ -1,10 +1,10 @@
-from typing import Dict, Any, List
 from abc import ABC, abstractmethod
+from typing import Any, Dict, List
 
 from dlt.common import logger
+from dlt.common.data_writers import BufferedDataWriter, TLoaderFileFormat
 from dlt.common.schema import TTableSchemaColumns
 from dlt.common.typing import TDataItems
-from dlt.common.data_writers import TLoaderFileFormat, BufferedDataWriter
 
 
 class DataItemStorage(ABC):
@@ -13,7 +13,14 @@ class DataItemStorage(ABC):
         self.buffered_writers: Dict[str, BufferedDataWriter] = {}
         super().__init__(*args)
 
-    def write_data_item(self, load_id: str, schema_name: str, table_name: str, item: TDataItems, columns: TTableSchemaColumns) -> None:
+    def write_data_item(
+        self,
+        load_id: str,
+        schema_name: str,
+        table_name: str,
+        item: TDataItems,
+        columns: TTableSchemaColumns,
+    ) -> None:
         # unique writer id
         writer_id = f"{load_id}.{schema_name}.{table_name}"
         writer = self.buffered_writers.get(writer_id, None)
@@ -29,7 +36,10 @@ class DataItemStorage(ABC):
         # flush and close all files
         for name, writer in self.buffered_writers.items():
             if name.startswith(extract_id):
-                logger.debug(f"Closing writer for {name} with file {writer._file} and actual name {writer._file_name}")
+                logger.debug(
+                    f"Closing writer for {name} with file {writer._file} and actual name"
+                    f" {writer._file_name}"
+                )
                 writer.close()
 
     def closed_files(self) -> List[str]:

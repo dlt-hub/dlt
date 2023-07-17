@@ -1,9 +1,19 @@
 import inspect
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Generic, Iterator, Literal, Optional, Protocol, TypeVar, Union, Awaitable
+from typing import (
+    Any,
+    Awaitable,
+    Callable,
+    Generic,
+    Iterator,
+    Literal,
+    Optional,
+    Protocol,
+    TypeVar,
+    Union,
+)
 
 from dlt.common.typing import TAny, TDataItem, TDataItems
-
 
 TDecompositionStrategy = Literal["none", "scc"]
 TDeferredDataItems = Callable[[], TDataItems]
@@ -37,6 +47,7 @@ class TableNameMeta:
 
 class SupportsPipe(Protocol):
     """A protocol with the core Pipe properties and operations"""
+
     name: str
     """Pipe name which is inherited by a resource"""
 
@@ -44,6 +55,7 @@ class SupportsPipe(Protocol):
 ItemTransformFunctionWithMeta = Callable[[TDataItem, str], TAny]
 ItemTransformFunctionNoMeta = Callable[[TDataItem], TAny]
 ItemTransformFunc = Union[ItemTransformFunctionWithMeta[TAny], ItemTransformFunctionNoMeta[TAny]]
+
 
 class ItemTransform(ABC, Generic[TAny]):
     _f_meta: ItemTransformFunctionWithMeta[TAny] = None
@@ -63,7 +75,8 @@ class ItemTransform(ABC, Generic[TAny]):
 
     @abstractmethod
     def __call__(self, item: TDataItems, meta: Any = None) -> Optional[TDataItems]:
-        """Transforms `item` (a list of TDataItem or a single TDataItem) and returns or yields TDataItems. Returns None to consume item (filter out)"""
+        """Transforms `item` (a list of TDataItem or a single TDataItem) and returns or yields TDataItems. Returns None to consume item (filter out)
+        """
         pass
 
 
@@ -108,7 +121,7 @@ class MapItem(ItemTransform[TDataItem]):
 
 
 class YieldMapItem(ItemTransform[Iterator[TDataItem]]):
-     # mypy needs those to type correctly
+    # mypy needs those to type correctly
     _f_meta: ItemTransformFunctionWithMeta[TDataItem]
     _f: ItemTransformFunctionNoMeta[TDataItem]
 

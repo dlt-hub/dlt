@@ -1,11 +1,11 @@
 from abc import ABC, abstractmethod
 from functools import wraps
-from typing import Any, Dict, Type, TypeVar, TYPE_CHECKING, Union, Generic
 from multiprocessing.pool import Pool
+from typing import TYPE_CHECKING, Any, Dict, Generic, Type, TypeVar, Union
 from weakref import WeakValueDictionary
 
-from dlt.common.typing import TFun
 from dlt.common.runners.typing import TRunMetrics
+from dlt.common.typing import TFun
 
 TPool = TypeVar("TPool", bound=Pool)
 
@@ -49,6 +49,7 @@ def workermethod(f: TFun) -> TFun:
     Returns:
         TFun: wrapped worker function
     """
+
     @wraps(f)
     def _wrap(rid: Union[int, Runnable[TPool]], *args: Any, **kwargs: Any) -> Any:
         if isinstance(rid, int):
@@ -94,4 +95,3 @@ def workermethod(f: TFun) -> TFun:
 #         return f(config, *args, **kwargs)
 
 #     return _wrap  # type: ignore
-

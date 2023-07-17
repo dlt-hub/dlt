@@ -1,4 +1,4 @@
-from typing import Tuple, Union, Optional
+from typing import Optional, Tuple, Union
 
 from dlt.common.typing import TimedeltaSeconds
 

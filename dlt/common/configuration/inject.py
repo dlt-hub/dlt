@@ -1,14 +1,13 @@
 import inspect
 from functools import wraps
-from typing import Callable, Dict, Type, Any, Optional, Tuple, TypeVar, overload
-from inspect import Signature, Parameter
+from inspect import Parameter, Signature
+from typing import Any, Callable, Dict, Optional, Tuple, Type, TypeVar, overload
 
-from dlt.common.typing import DictStrAny, StrAny, TFun, AnyFun
-from dlt.common.configuration.resolve import resolve_configuration, inject_section
+from dlt.common.configuration.resolve import inject_section, resolve_configuration
 from dlt.common.configuration.specs.base_configuration import BaseConfiguration
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.reflection.spec import spec_from_signature
-
+from dlt.common.typing import AnyFun, DictStrAny, StrAny, TFun
 
 _LAST_DLT_CONFIG = "_dlt_config"
 _ORIGINAL_ARGS = "_dlt_orig_args"
@@ -30,8 +29,8 @@ def with_config(
     sections: Tuple[str, ...] = (),
     sections_merge_style: ConfigSectionContext.TMergeFunc = ConfigSectionContext.prefer_incoming,
     auto_pipeline_section: bool = False,
-    include_defaults: bool = True
-) ->  TFun:
+    include_defaults: bool = True,
+) -> TFun:
     ...
 
 
@@ -43,8 +42,8 @@ def with_config(
     sections: Tuple[str, ...] = (),
     sections_merge_style: ConfigSectionContext.TMergeFunc = ConfigSectionContext.prefer_incoming,
     auto_pipeline_section: bool = False,
-    include_defaults: bool = True
-) ->  Callable[[TFun], TFun]:
+    include_defaults: bool = True,
+) -> Callable[[TFun], TFun]:
     ...
 
 
@@ -55,8 +54,8 @@ def with_config(
     sections: Tuple[str, ...] = (),
     sections_merge_style: ConfigSectionContext.TMergeFunc = ConfigSectionContext.prefer_incoming,
     auto_pipeline_section: bool = False,
-    include_defaults: bool = True
-) ->  Callable[[TFun], TFun]:
+    include_defaults: bool = True,
+) -> Callable[[TFun], TFun]:
     """Injects values into decorated function arguments following the specification in `spec` or by deriving one from function's signature.
 
     The synthesized spec contains the arguments marked with `dlt.secrets.value` and `dlt.config.value` which are required to be injected at runtime.
@@ -81,7 +80,9 @@ def with_config(
     def decorator(f: TFun) -> TFun:
         SPEC: Type[BaseConfiguration] = None
         sig: Signature = inspect.signature(f)
-        kwargs_arg = next((p for p in sig.parameters.values() if p.kind == Parameter.VAR_KEYWORD), None)
+        kwargs_arg = next(
+            (p for p in sig.parameters.values() if p.kind == Parameter.VAR_KEYWORD), None
+        )
         spec_arg: Parameter = None
         pipeline_name_arg: Parameter = None
         section_context = ConfigSectionContext(sections=sections, merge_style=sections_merge_style)
@@ -106,7 +107,6 @@ def with_config(
                 pipeline_name_arg = p
                 pipeline_name_arg_default = None if p.default == Parameter.empty else p.default
 
-
         @wraps(f)
         def _wrap(*args: Any, **kwargs: Any) -> Any:
             # bind parameters to signature
@@ -119,7 +119,7 @@ def with_config(
                 # if section derivation function was provided then call it
                 nonlocal sections
                 if section_f:
-                    section_context.sections = (section_f(bound_args.arguments), )
+                    section_context.sections = (section_f(bound_args.arguments),)
                 # sections may be a string
                 if isinstance(sections, str):
                     section_context.sections = (sections,)
@@ -129,10 +129,14 @@ def with_config(
                     config = bound_args.arguments.get(spec_arg.name, None)
                 # resolve SPEC, also provide section_context with pipeline_name
                 if pipeline_name_arg:
-                    section_context.pipeline_name = bound_args.arguments.get(pipeline_name_arg.name, pipeline_name_arg_default)
+                    section_context.pipeline_name = bound_args.arguments.get(
+                        pipeline_name_arg.name, pipeline_name_arg_default
+                    )
                 with inject_section(section_context):
                     # print(f"RESOLVE CONF in inject: {f.__name__}: {section_context.sections} vs {sections}")
-                    config = resolve_configuration(config or SPEC(), explicit_value=bound_args.arguments)
+                    config = resolve_configuration(
+                        config or SPEC(), explicit_value=bound_args.arguments
+                    )
             resolved_params = dict(config)
             # overwrite or add resolved params
             for p in sig.parameters.values():
@@ -162,7 +166,10 @@ def with_config(
         return decorator
 
     if not callable(func):
-        raise ValueError("First parameter to the with_config must be callable ie. by using it as function decorator")
+        raise ValueError(
+            "First parameter to the with_config must be callable ie. by using it as function"
+            " decorator"
+        )
 
     # We're called as @with_config without parens.
     return decorator(func)

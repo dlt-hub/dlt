@@ -1,13 +1,13 @@
-import re
 import inspect
-from typing import Dict, List, Type, Any, Optional, NewType
-from inspect import Signature, Parameter
+import re
+import typing as t
+from inspect import Parameter, Signature
 
-from dlt.common.typing import AnyType, AnyFun, TSecretValue
-from dlt.common.configuration import configspec, is_valid_hint, is_secret_hint
-from dlt.common.configuration.specs import BaseConfiguration
+from dlt.common.configuration import configspec, is_secret_hint, is_valid_hint
 from dlt.common.configuration.accessors import DLT_CONFIG_VALUE, DLT_SECRETS_VALUE
+from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.reflection.utils import get_func_def_node, get_literal_defaults
+from dlt.common.typing import AnyFun, AnyType, TSecretValue
 from dlt.common.utils import get_callable_name
 
 # [^.^_]+ splits by . or _
@@ -15,7 +15,9 @@ _SLEEPING_CAT_SPLIT = re.compile("[^.^_]+")
 
 
 def _get_spec_name_from_f(f: AnyFun) -> str:
-    func_name = get_callable_name(f, "__qualname__").replace("<locals>.", "")  # func qual name contains position in the module, separated by dots
+    func_name = get_callable_name(f, "__qualname__").replace(
+        "<locals>.", ""
+    )  # func qual name contains position in the module, separated by dots
 
     def _first_up(s: str) -> str:
         return s[0].upper() + s[1:]
@@ -23,7 +25,9 @@ def _get_spec_name_from_f(f: AnyFun) -> str:
     return "".join(map(_first_up, _SLEEPING_CAT_SPLIT.findall(func_name))) + "Configuration"
 
 
-def spec_from_signature(f: AnyFun, sig: Signature, include_defaults: bool = True) -> Type[BaseConfiguration]:
+def spec_from_signature(
+    f: AnyFun, sig: Signature, include_defaults: bool = True
+) -> t.Type[BaseConfiguration]:
     name = _get_spec_name_from_f(f)
     module = inspect.getmodule(f)
 
@@ -33,7 +37,7 @@ def spec_from_signature(f: AnyFun, sig: Signature, include_defaults: bool = True
         return getattr(module, spec_id)  # type: ignore
 
     # find all the arguments that have following defaults
-    literal_defaults: Dict[str, str] = None
+    literal_defaults: t.Dict[str, str] = None
 
     def dlt_config_literal_to_type(arg_name: str) -> AnyType:
         nonlocal literal_defaults
@@ -55,12 +59,15 @@ def spec_from_signature(f: AnyFun, sig: Signature, include_defaults: bool = True
         return None
 
     # synthesize configuration from the signature
-    fields: Dict[str, Any] = {}
-    annotations: Dict[str, Any] = {}
+    fields: t.Dict[str, t.Any] = {}
+    annotations: t.Dict[str, t.Any] = {}
 
     for p in sig.parameters.values():
         # skip *args and **kwargs, skip typical method params
-        if p.kind not in (Parameter.VAR_KEYWORD, Parameter.VAR_POSITIONAL) and p.name not in ["self", "cls"]:
+        if p.kind not in (Parameter.VAR_KEYWORD, Parameter.VAR_POSITIONAL) and p.name not in [
+            "self",
+            "cls",
+        ]:
             field_type = AnyType if p.annotation == Parameter.empty else p.annotation
             # only valid hints and parameters with defaults are eligible
             if is_valid_hint(field_type) and p.default != Parameter.empty:
@@ -74,7 +81,7 @@ def spec_from_signature(f: AnyFun, sig: Signature, include_defaults: bool = True
                     type_from_literal = dlt_config_literal_to_type(p.name)
                     if type_from_literal is None:
                         # optional type
-                        field_type = Optional[field_type]
+                        field_type = t.Optional[field_type]
                     elif type_from_literal is TSecretValue:
                         # override type with secret value if secrets.value
                         # print(f"Param {p.name} is REQUIRED: secrets literal")
@@ -83,7 +90,7 @@ def spec_from_signature(f: AnyFun, sig: Signature, include_defaults: bool = True
                                 field_type = TSecretValue
                             else:
                                 # generate typed SecretValue
-                                field_type = NewType("TSecretValue", field_type)  # type: ignore
+                                field_type = t.NewType("TSecretValue", field_type)  # type: ignore
                     else:
                         # keep type mandatory if config.value
                         # print(f"Param {p.name} is REQUIRED: config literal")
@@ -102,7 +109,7 @@ def spec_from_signature(f: AnyFun, sig: Signature, include_defaults: bool = True
     # set annotations so they are present in __dict__
     fields["__annotations__"] = annotations
     # synthesize type
-    T: Type[BaseConfiguration] = type(name, (BaseConfiguration,), fields)
+    T: t.Type[BaseConfiguration] = type(name, (BaseConfiguration,), fields)
     SPEC = configspec(init=False)(T)
     # add to the module
     setattr(module, spec_id, SPEC)

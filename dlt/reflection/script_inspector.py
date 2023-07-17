@@ -1,18 +1,17 @@
+import builtins
 import os
 import sys
-import builtins
+from importlib import import_module
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
-from typing import Any, Tuple, List, Mapping, Sequence
+from typing import Any, List, Mapping, Sequence, Tuple
 from unittest.mock import patch
-from importlib import import_module
 
 from dlt.common import logger
 from dlt.common.exceptions import DltException, MissingDependencyException
 from dlt.common.typing import DictStrAny
-
-from dlt.pipeline import Pipeline
 from dlt.extract.source import DltSource, ManagedPipeIterator
+from dlt.pipeline import Pipeline
 
 
 def patch__init__(self: Any, *args: Any, **kwargs: Any) -> None:
@@ -21,6 +20,7 @@ def patch__init__(self: Any, *args: Any, **kwargs: Any) -> None:
 
 class DummyModule(ModuleType):
     """A dummy module from which you can import anything"""
+
     def __getattr__(self, key: str) -> Any:
         if key[0].isupper():
             # if imported name is capitalized, import type
@@ -28,13 +28,20 @@ class DummyModule(ModuleType):
         else:
             # otherwise import instance
             return SimpleNamespace()
-    __all__: List[Any] = []   # support wildcard imports
+
+    __all__: List[Any] = []  # support wildcard imports
 
 
 def _import_module(name: str, missing_modules: Tuple[str, ...] = ()) -> ModuleType:
     """Module importer that ignores missing modules by importing a dummy module"""
 
-    def _try_import(name: str, _globals: Mapping[str, Any] = None, _locals: Mapping[str, Any] = None, fromlist: Sequence[str] = (), level:int = 0) -> ModuleType:
+    def _try_import(
+        name: str,
+        _globals: Mapping[str, Any] = None,
+        _locals: Mapping[str, Any] = None,
+        fromlist: Sequence[str] = (),
+        level: int = 0,
+    ) -> ModuleType:
         """This function works as follows: on ImportError it raises. This import error is then next caught in the main function body and the name is added to exceptions.
         Next time if the name is on exception list or name is a package on exception list we return DummyModule and do not reraise
         This excepts only the modules that bubble up ImportError up until our code so any handled import errors are not excepted
@@ -62,7 +69,7 @@ def _import_module(name: str, missing_modules: Tuple[str, ...] = ()) -> ModuleTy
                 # print(f"ADD {ie.name} {ie.path} vs {name} vs {str(ie)}")
                 if ie.name in missing_modules:
                     raise
-                missing_modules += (ie.name, )
+                missing_modules += (ie.name,)
             except MissingDependencyException as me:
                 if isinstance(me.__context__, ImportError):
                     if me.__context__.name is None:
@@ -71,14 +78,16 @@ def _import_module(name: str, missing_modules: Tuple[str, ...] = ()) -> ModuleTy
                         # print(f"{me.__context__.name} IN :/")
                         raise
                     # print(f"ADD {me.__context__.name}")
-                    missing_modules += (me.__context__.name, )
+                    missing_modules += (me.__context__.name,)
                 else:
                     raise
     finally:
         builtins.__import__ = real_import
 
 
-def load_script_module(module_path:str, script_relative_path: str, ignore_missing_imports: bool = False) -> ModuleType:
+def load_script_module(
+    module_path: str, script_relative_path: str, ignore_missing_imports: bool = False
+) -> ModuleType:
     """Loads a module in `script_relative_path` by splitting it into a script module (file part) and package (folders).  `module_path` is added to sys.path
     Optionally, missing imports will be ignored by importing a dummy module instead.
     """
@@ -110,12 +119,24 @@ def load_script_module(module_path:str, script_relative_path: str, ignore_missin
             sys.path.remove(sys_path)
 
 
-def inspect_pipeline_script(module_path:str, script_relative_path: str, ignore_missing_imports: bool = False) -> ModuleType:
+def inspect_pipeline_script(
+    module_path: str, script_relative_path: str, ignore_missing_imports: bool = False
+) -> ModuleType:
     # patch entry points to pipeline, sources and resources to prevent pipeline from running
-    with patch.object(Pipeline, '__init__', patch__init__), patch.object(DltSource, '__init__', patch__init__), patch.object(ManagedPipeIterator, '__init__', patch__init__):
-        return load_script_module(module_path, script_relative_path, ignore_missing_imports=ignore_missing_imports)
+    with patch.object(Pipeline, "__init__", patch__init__), patch.object(
+        DltSource, "__init__", patch__init__
+    ), patch.object(ManagedPipeIterator, "__init__", patch__init__):
+        return load_script_module(
+            module_path, script_relative_path, ignore_missing_imports=ignore_missing_imports
+        )
 
 
 class PipelineIsRunning(DltException):
     def __init__(self, obj: object, args: Tuple[str, ...], kwargs: DictStrAny) -> None:
-        super().__init__(f"The pipeline script instantiates the pipeline on import. Did you forget to use if __name__ == 'main':? in {obj.__class__.__name__}", obj, args, kwargs)
+        super().__init__(
+            "The pipeline script instantiates the pipeline on import. Did you forget to use if"
+            f" __name__ == 'main':? in {obj.__class__.__name__}",
+            obj,
+            args,
+            kwargs,
+        )

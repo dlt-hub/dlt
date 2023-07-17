@@ -1,28 +1,31 @@
 import abc
-from typing import Any, Generic, Type, Iterator, Tuple, Callable, Protocol, TYPE_CHECKING, TypeVar
+import typing as t
 
-from dlt.common.typing import DictStrAny, TDataItem, StrAny
-if TYPE_CHECKING:
+from dlt.common.typing import DictStrAny, StrAny, TDataItem
+
+if t.TYPE_CHECKING:
     from dlt.common.schema import Schema
 else:
-    Schema = Any
+    Schema = t.Any
 
 # type definitions for json normalization function
 
 # iterator of form ((table_name, parent_table), dict) must be returned from normalization function
-TNormalizedRowIterator = Iterator[Tuple[Tuple[str, str], StrAny]]
+TNormalizedRowIterator = t.Iterator[t.Tuple[t.Tuple[str, str], StrAny]]
 
 # type var for data item normalizer config
-TNormalizerConfig = TypeVar("TNormalizerConfig", bound=Any)
+TNormalizerConfig = t.TypeVar("TNormalizerConfig", bound=t.Any)
 
-class DataItemNormalizer(abc.ABC, Generic[TNormalizerConfig]):
 
+class DataItemNormalizer(abc.ABC, t.Generic[TNormalizerConfig]):
     @abc.abstractmethod
     def __init__(self, schema: Schema) -> None:
         pass
 
     @abc.abstractmethod
-    def normalize_data_item(self, item: TDataItem, load_id: str, table_name: str) -> TNormalizedRowIterator:
+    def normalize_data_item(
+        self, item: TDataItem, load_id: str, table_name: str
+    ) -> TNormalizedRowIterator:
         pass
 
     @abc.abstractmethod
@@ -40,13 +43,13 @@ class DataItemNormalizer(abc.ABC, Generic[TNormalizerConfig]):
         pass
 
 
-class SupportsDataItemNormalizer(Protocol):
+class SupportsDataItemNormalizer(t.Protocol):
     """Expected of modules defining data item normalizer"""
 
-    DataItemNormalizer: Type[DataItemNormalizer[Any]]
+    DataItemNormalizer: t.Type[DataItemNormalizer[t.Any]]
     """A class with a name DataItemNormalizer deriving from normalizers.json.DataItemNormalizer"""
 
 
-def wrap_in_dict(item: Any) -> DictStrAny:
+def wrap_in_dict(item: t.Any) -> DictStrAny:
     """Wraps `item` that is not a dictionary into dictionary that can be json normalized"""
     return {"value": item}

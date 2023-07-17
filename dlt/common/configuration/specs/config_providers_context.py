@@ -1,10 +1,23 @@
 import contextlib
 import io
 from typing import List
+
 from dlt.common.configuration.exceptions import DuplicateConfigProviderException
-from dlt.common.configuration.providers import ConfigProvider, EnvironProvider, ContextProvider, SecretsTomlProvider, ConfigTomlProvider, GoogleSecretsProvider
+from dlt.common.configuration.providers import (
+    ConfigProvider,
+    ConfigTomlProvider,
+    ContextProvider,
+    EnvironProvider,
+    GoogleSecretsProvider,
+    SecretsTomlProvider,
+)
+from dlt.common.configuration.specs import (
+    BaseConfiguration,
+    GcpServiceAccountCredentials,
+    configspec,
+    known_sections,
+)
 from dlt.common.configuration.specs.base_configuration import ContainerInjectableContext
-from dlt.common.configuration.specs import GcpServiceAccountCredentials, BaseConfiguration, configspec, known_sections
 from dlt.common.runtime.exec_info import is_airflow_installed
 
 
@@ -21,6 +34,7 @@ class ConfigProvidersConfiguration(BaseConfiguration):
 @configspec
 class ConfigProvidersContext(ContainerInjectableContext):
     """Injectable list of providers used by the configuration `resolve` module"""
+
     providers: List[ConfigProvider]
     context_provider: ConfigProvider
 
@@ -70,27 +84,36 @@ def _initial_providers() -> List[ConfigProvider]:
     providers = [
         EnvironProvider(),
         SecretsTomlProvider(add_global_config=True),
-        ConfigTomlProvider(add_global_config=True)
+        ConfigTomlProvider(add_global_config=True),
     ]
     return providers
 
 
 def _extra_providers() -> List[ConfigProvider]:
     from dlt.common.configuration.resolve import resolve_configuration
+
     providers_config = resolve_configuration(ConfigProvidersConfiguration())
     extra_providers = []
     if providers_config.enable_airflow_secrets:
         extra_providers.extend(_airflow_providers())
     if providers_config.enable_google_secrets:
-        extra_providers.append(_google_secrets_provider(only_toml_fragments=providers_config.only_toml_fragments))
+        extra_providers.append(
+            _google_secrets_provider(only_toml_fragments=providers_config.only_toml_fragments)
+        )
     return extra_providers
 
 
-def _google_secrets_provider(only_secrets: bool = True, only_toml_fragments: bool = True) -> ConfigProvider:
+def _google_secrets_provider(
+    only_secrets: bool = True, only_toml_fragments: bool = True
+) -> ConfigProvider:
     from dlt.common.configuration.resolve import resolve_configuration
 
-    c = resolve_configuration(GcpServiceAccountCredentials(), sections=(known_sections.PROVIDERS, "google_secrets"))
-    return GoogleSecretsProvider(c, only_secrets=only_secrets, only_toml_fragments=only_toml_fragments)
+    c = resolve_configuration(
+        GcpServiceAccountCredentials(), sections=(known_sections.PROVIDERS, "google_secrets")
+    )
+    return GoogleSecretsProvider(
+        c, only_secrets=only_secrets, only_toml_fragments=only_toml_fragments
+    )
 
 
 def _airflow_providers() -> List[ConfigProvider]:
@@ -111,13 +134,17 @@ def _airflow_providers() -> List[ConfigProvider]:
 
     # hide stdio. airflow typically dumps tons of warnings and deprecations to stdout and stderr
     with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-        from airflow.models import Variable # noqa
+        from airflow.models import Variable  # noqa
+
         from dlt.common.configuration.providers.airflow import AirflowSecretsTomlProvider
 
         secrets_toml_var = Variable.get(SECRETS_TOML_KEY, default_var=None)
 
     if secrets_toml_var is None:
-        message = f"Airflow variable '{SECRETS_TOML_KEY}' not found. AirflowSecretsTomlProvider will not be used."
+        message = (
+            f"Airflow variable '{SECRETS_TOML_KEY}' not found. AirflowSecretsTomlProvider will not"
+            " be used."
+        )
         try:
             # prefer logging to task logger
             from airflow.operators.python import get_current_context  # noqa
@@ -127,6 +154,7 @@ def _airflow_providers() -> List[ConfigProvider]:
         except Exception:
             # otherwise log to dlt logger
             from dlt.common import logger
+
             if logger.is_logging():
                 logger.warning(message)
             else:

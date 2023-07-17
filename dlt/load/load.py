@@ -1,35 +1,51 @@
-from functools import reduce
 import datetime  # noqa: 251
-from typing import Dict, List, Optional, Tuple
-from multiprocessing.pool import ThreadPool
 import os
+from functools import reduce
+from multiprocessing.pool import ThreadPool
+from typing import Dict, List, Optional, Tuple
 
-from dlt.common import sleep, logger
-from dlt.common.configuration import with_config, known_sections
+from dlt.common import logger, sleep
+from dlt.common.configuration import known_sections, with_config
 from dlt.common.configuration.accessors import config
-from dlt.common.pipeline import LoadInfo, SupportsPipeline
-from dlt.common.schema.utils import get_child_tables, get_top_level_table, get_write_disposition
-from dlt.common.storages.load_storage import LoadPackageInfo, ParsedLoadJobFileName, TJobState
-from dlt.common.typing import StrAny
-from dlt.common.runners import TRunMetrics, Runnable, workermethod
-from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
-from dlt.common.runtime.logger import pretty_format_exception
+from dlt.common.destination.reference import (
+    DestinationClientConfiguration,
+    DestinationClientDwhConfiguration,
+    DestinationClientStagingConfiguration,
+    DestinationReference,
+    FollowupJob,
+    JobClientBase,
+    LoadJob,
+    NewLoadJob,
+    TLoadJobState,
+)
 from dlt.common.exceptions import TerminalValueError
+from dlt.common.pipeline import LoadInfo, SupportsPipeline
+from dlt.common.runners import Runnable, TRunMetrics, workermethod
+from dlt.common.runtime.collector import NULL_COLLECTOR, Collector
+from dlt.common.runtime.logger import pretty_format_exception
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import VERSION_TABLE_NAME, TTableSchema, TWriteDisposition
+from dlt.common.schema.utils import get_child_tables, get_top_level_table, get_write_disposition
 from dlt.common.storages import LoadStorage
-from dlt.common.destination.reference import DestinationClientDwhConfiguration, FollowupJob, JobClientBase, DestinationReference, LoadJob, NewLoadJob, TLoadJobState, DestinationClientConfiguration, DestinationClientStagingConfiguration
+from dlt.common.storages.load_storage import LoadPackageInfo, ParsedLoadJobFileName, TJobState
+from dlt.common.typing import StrAny
+from dlt.destinations.exceptions import (
+    DestinationTerminalException,
+    DestinationTransientException,
+    LoadJobUnknownTableException,
+)
 from dlt.destinations.filesystem.filesystem import LoadFilesystemJob
-
 from dlt.destinations.job_impl import EmptyLoadJob
-from dlt.destinations.exceptions import DestinationTerminalException, DestinationTransientException, LoadJobUnknownTableException
-
 from dlt.load.configuration import LoaderConfiguration
-from dlt.load.exceptions import LoadClientJobFailed, LoadClientJobRetry, LoadClientUnsupportedWriteDisposition, LoadClientUnsupportedFileFormats
+from dlt.load.exceptions import (
+    LoadClientJobFailed,
+    LoadClientJobRetry,
+    LoadClientUnsupportedFileFormats,
+    LoadClientUnsupportedWriteDisposition,
+)
 
 
 class Load(Runnable[ThreadPool]):
-
     @with_config(spec=LoaderConfiguration, sections=(known_sections.LOAD,))
     def __init__(
         self,
@@ -39,7 +55,7 @@ class Load(Runnable[ThreadPool]):
         is_storage_owner: bool = False,
         config: LoaderConfiguration = config.value,
         initial_client_config: DestinationClientConfiguration = config.value,
-        initial_staging_client_config: DestinationClientConfiguration = config.value
+        initial_staging_client_config: DestinationClientConfiguration = config.value,
     ) -> None:
         self.config = config
         self.collector = collector
@@ -52,16 +68,18 @@ class Load(Runnable[ThreadPool]):
         self.load_storage: LoadStorage = self.create_storage(is_storage_owner)
         self._processed_load_ids: Dict[str, int] = {}
 
-
     def create_storage(self, is_storage_owner: bool) -> LoadStorage:
         supported_file_formats = self.capabilities.supported_loader_file_formats
         if self.staging:
-            supported_file_formats = self.staging.capabilities().supported_loader_file_formats + ["reference", "sql"]
+            supported_file_formats = self.staging.capabilities().supported_loader_file_formats + [
+                "reference",
+                "sql",
+            ]
         load_storage = LoadStorage(
             is_storage_owner,
             self.capabilities.preferred_loader_file_format,
             supported_file_formats,
-            config=self.config._load_storage_config
+            config=self.config._load_storage_config,
         )
         return load_storage
 
@@ -79,20 +97,34 @@ class Load(Runnable[ThreadPool]):
 
     @staticmethod
     @workermethod
-    def w_spool_job(self: "Load", file_path: str, load_id: str, schema: Schema) -> Optional[LoadJob]:
+    def w_spool_job(
+        self: "Load", file_path: str, load_id: str, schema: Schema
+    ) -> Optional[LoadJob]:
         job: LoadJob = None
         try:
             # if we have a staging destination and the file is not a reference, send to staging
-            client = self.get_staging_client(schema) if self.is_staging_job(file_path) else self.get_destination_client(schema)
+            client = (
+                self.get_staging_client(schema)
+                if self.is_staging_job(file_path)
+                else self.get_destination_client(schema)
+            )
             with client as client:
                 job_info = self.load_storage.parse_job_file_name(file_path)
                 if job_info.file_format not in self.load_storage.supported_file_formats:
-                    raise LoadClientUnsupportedFileFormats(job_info.file_format, self.capabilities.supported_loader_file_formats, file_path)
+                    raise LoadClientUnsupportedFileFormats(
+                        job_info.file_format,
+                        self.capabilities.supported_loader_file_formats,
+                        file_path,
+                    )
                 logger.info(f"Will load file {file_path} with table name {job_info.table_name}")
                 table = self.get_load_table(schema, file_path)
                 if table["write_disposition"] not in ["append", "replace", "merge"]:
-                    raise LoadClientUnsupportedWriteDisposition(job_info.table_name, table["write_disposition"], file_path)
-                job = client.start_file_load(table, self.load_storage.storage.make_full_path(file_path), load_id)
+                    raise LoadClientUnsupportedWriteDisposition(
+                        job_info.table_name, table["write_disposition"], file_path
+                    )
+                job = client.start_file_load(
+                    table, self.load_storage.storage.make_full_path(file_path), load_id
+                )
         except (DestinationTerminalException, TerminalValueError):
             # if job irreversibly cannot be started, mark it as failed
             logger.exception(f"Terminal problem when adding job {file_path}")
@@ -110,7 +142,7 @@ class Load(Runnable[ThreadPool]):
         # use thread based pool as jobs processing is mostly I/O and we do not want to pickle jobs
         # TODO: combine files by providing a list of files pertaining to same table into job, so job must be
         # extended to accept a list
-        load_files = self.load_storage.list_new_jobs(load_id)[:self.config.workers]
+        load_files = self.load_storage.list_new_jobs(load_id)[: self.config.workers]
         file_count = len(load_files)
         if file_count == 0:
             logger.info(f"No new jobs found in {load_id}")
@@ -124,9 +156,15 @@ class Load(Runnable[ThreadPool]):
         return file_count, [job for job in jobs if job is not None]
 
     def is_staging_job(self, file_path: str) -> bool:
-        return self.staging is not None and os.path.splitext(file_path)[1][1:] in self.staging.capabilities().supported_loader_file_formats
+        return (
+            self.staging is not None
+            and os.path.splitext(file_path)[1][1:]
+            in self.staging.capabilities().supported_loader_file_formats
+        )
 
-    def retrieve_jobs(self, client: JobClientBase, load_id: str, staging_client: JobClientBase = None) -> Tuple[int, List[LoadJob]]:
+    def retrieve_jobs(
+        self, client: JobClientBase, load_id: str, staging_client: JobClientBase = None
+    ) -> Tuple[int, List[LoadJob]]:
         jobs: List[LoadJob] = []
 
         # list all files that were started but not yet completed
@@ -152,16 +190,24 @@ class Load(Runnable[ThreadPool]):
 
         return len(jobs), jobs
 
-    def get_new_jobs_info(self, load_id: str, schema: Schema, disposition: TWriteDisposition = None) -> List[ParsedLoadJobFileName]:
+    def get_new_jobs_info(
+        self, load_id: str, schema: Schema, disposition: TWriteDisposition = None
+    ) -> List[ParsedLoadJobFileName]:
         jobs_info: List[ParsedLoadJobFileName] = []
         new_job_files = self.load_storage.list_new_jobs(load_id)
         for job_file in new_job_files:
-            if not disposition or self.get_load_table(schema, job_file)["write_disposition"] == disposition:
+            if (
+                not disposition
+                or self.get_load_table(schema, job_file)["write_disposition"] == disposition
+            ):
                 jobs_info.append(LoadStorage.parse_job_file_name(job_file))
         return jobs_info
 
-    def get_completed_table_chain(self, load_id: str, schema: Schema, top_merged_table: TTableSchema, starting_job_id: str) -> List[TTableSchema]:
-        """Gets a table chain starting from the `top_merged_table` containing only tables with completed/failed jobs. None is returned if there's any job that is not completed"""
+    def get_completed_table_chain(
+        self, load_id: str, schema: Schema, top_merged_table: TTableSchema, starting_job_id: str
+    ) -> List[TTableSchema]:
+        """Gets a table chain starting from the `top_merged_table` containing only tables with completed/failed jobs. None is returned if there's any job that is not completed
+        """
         # returns ordered list of tables from parent to child leaf tables
         table_chain: List[TTableSchema] = []
         # make sure all the jobs for the table chain is completed
@@ -172,24 +218,36 @@ class Load(Runnable[ThreadPool]):
             if not table_jobs:
                 continue
             # all jobs must be completed in order for merge to be created
-            if any(job.state not in ("failed_jobs", "completed_jobs") and job.job_file_info.job_id() != starting_job_id for job in table_jobs):
+            if any(
+                job.state not in ("failed_jobs", "completed_jobs")
+                and job.job_file_info.job_id() != starting_job_id
+                for job in table_jobs
+            ):
                 return None
             table_chain.append(table)
         # there must be at least 1 job
         assert len(table_chain) > 0
         return table_chain
 
-    def create_followup_jobs(self, load_id: str, state: TLoadJobState, starting_job: LoadJob, schema: Schema) -> List[NewLoadJob]:
+    def create_followup_jobs(
+        self, load_id: str, state: TLoadJobState, starting_job: LoadJob, schema: Schema
+    ) -> List[NewLoadJob]:
         jobs: List[NewLoadJob] = []
         if isinstance(starting_job, FollowupJob):
             # check for merge jobs only for non-staging jobs. we may move that logic to the interface
             starting_job_file_name = starting_job.file_name()
             if state == "completed" and not self.is_staging_job(starting_job_file_name):
-                top_job_table = get_top_level_table(schema.tables, self.get_load_table(schema, starting_job_file_name)["name"])
+                top_job_table = get_top_level_table(
+                    schema.tables, self.get_load_table(schema, starting_job_file_name)["name"]
+                )
                 if top_job_table["write_disposition"] == "merge":
                     # if all tables completed, create merge sql job on destination client
-                    if table_chain := self.get_completed_table_chain(load_id, schema, top_job_table, starting_job.job_file_info().job_id()):
-                        if job := self.destination.client(schema, self.initial_client_config).create_merge_job(table_chain):
+                    if table_chain := self.get_completed_table_chain(
+                        load_id, schema, top_job_table, starting_job.job_file_info().job_id()
+                    ):
+                        if job := self.destination.client(
+                            schema, self.initial_client_config
+                        ).create_merge_job(table_chain):
                             jobs.append(job)
             jobs = jobs + starting_job.create_followup_jobs(state)
         return jobs
@@ -209,22 +267,34 @@ class Load(Runnable[ThreadPool]):
                 # try to get exception message from job
                 failed_message = job.exception()
                 self.load_storage.fail_job(load_id, job.file_name(), failed_message)
-                logger.error(f"Job for {job.job_id()} failed terminally in load {load_id} with message {failed_message}")
+                logger.error(
+                    f"Job for {job.job_id()} failed terminally in load {load_id} with message"
+                    f" {failed_message}"
+                )
             elif state == "retry":
                 # try to get exception message from job
                 retry_message = job.exception()
                 # move back to new folder to try again
                 self.load_storage.retry_job(load_id, job.file_name())
-                logger.warning(f"Job for {job.job_id()} retried in load {load_id} with message {retry_message}")
+                logger.warning(
+                    f"Job for {job.job_id()} retried in load {load_id} with message {retry_message}"
+                )
             elif state == "completed":
                 # create followup jobs
                 followup_jobs = self.create_followup_jobs(load_id, state, job, schema)
                 for followup_job in followup_jobs:
                     # running should be moved into "new jobs", other statuses into started
-                    folder: TJobState = "new_jobs" if followup_job.state() == "running" else "started_jobs"
+                    folder: TJobState = (
+                        "new_jobs" if followup_job.state() == "running" else "started_jobs"
+                    )
                     # save all created jobs
-                    self.load_storage.add_new_job(load_id, followup_job.new_file_path(), job_state=folder)
-                    logger.info(f"Job {job.job_id()} CREATED a new FOLLOWUP JOB {followup_job.new_file_path()} placed in {folder}")
+                    self.load_storage.add_new_job(
+                        load_id, followup_job.new_file_path(), job_state=folder
+                    )
+                    logger.info(
+                        f"Job {job.job_id()} CREATED a new FOLLOWUP JOB"
+                        f" {followup_job.new_file_path()} placed in {folder}"
+                    )
                     # if followup job is not "running" place it in current queue to be finalized
                     if not followup_job.state() == "running":
                         remaining_jobs.append(followup_job)
@@ -236,7 +306,9 @@ class Load(Runnable[ThreadPool]):
             if state in ["failed", "completed"]:
                 self.collector.update("Jobs")
                 if state == "failed":
-                    self.collector.update("Jobs", 1, message="WARNING: Some of the jobs failed!", label="Failed")
+                    self.collector.update(
+                        "Jobs", 1, message="WARNING: Some of the jobs failed!", label="Failed"
+                    )
 
         return remaining_jobs
 
@@ -249,7 +321,9 @@ class Load(Runnable[ThreadPool]):
             with self.get_destination_client(schema) as job_client:
                 job_client.complete_load(load_id)
         self.load_storage.complete_load_package(load_id, aborted)
-        logger.info(f"All jobs completed, archiving package {load_id} with aborted set to {aborted}")
+        logger.info(
+            f"All jobs completed, archiving package {load_id} with aborted set to {aborted}"
+        )
         self._processed_load_ids[load_id] = 1
 
     def load_single_package(self, load_id: str, schema: Schema) -> None:
@@ -259,23 +333,43 @@ class Load(Runnable[ThreadPool]):
             expected_update = self.load_storage.begin_schema_update(load_id)
             if expected_update is not None:
                 # update the default dataset
-                logger.info(f"Client for {job_client.config.destination_name} will start initialize storage")
+                logger.info(
+                    f"Client for {job_client.config.destination_name} will start initialize storage"
+                )
                 job_client.initialize_storage()
-                logger.info(f"Client for {job_client.config.destination_name} will update schema to package schema")
+                logger.info(
+                    f"Client for {job_client.config.destination_name} will update schema to package"
+                    " schema"
+                )
                 all_jobs = self.get_new_jobs_info(load_id, schema)
                 all_tables = set(job.table_name for job in all_jobs)
                 dlt_tables = set(t["name"] for t in schema.dlt_tables())
                 # only update tables that are present in the load package
-                applied_update = job_client.update_storage_schema(only_tables=all_tables | dlt_tables, expected_update=expected_update)
+                applied_update = job_client.update_storage_schema(
+                    only_tables=all_tables | dlt_tables, expected_update=expected_update
+                )
                 # update the staging dataset
                 merge_jobs = self.get_new_jobs_info(load_id, schema, "merge")
                 if merge_jobs:
-                    logger.info(f"Client for {job_client.config.destination_name} will start initialize STAGING storage")
+                    logger.info(
+                        f"Client for {job_client.config.destination_name} will start initialize"
+                        " STAGING storage"
+                    )
                     job_client.initialize_storage(staging=True)
-                    logger.info(f"Client for {job_client.config.destination_name} will UPDATE STAGING SCHEMA to package schema")
+                    logger.info(
+                        f"Client for {job_client.config.destination_name} will UPDATE STAGING"
+                        " SCHEMA to package schema"
+                    )
                     merge_tables = set(job.table_name for job in merge_jobs)
-                    job_client.update_storage_schema(staging=True, only_tables=merge_tables | {VERSION_TABLE_NAME}, expected_update=expected_update)
-                    logger.info(f"Client for {job_client.config.destination_name} will TRUNCATE STAGING TABLES: {merge_tables}")
+                    job_client.update_storage_schema(
+                        staging=True,
+                        only_tables=merge_tables | {VERSION_TABLE_NAME},
+                        expected_update=expected_update,
+                    )
+                    logger.info(
+                        f"Client for {job_client.config.destination_name} will TRUNCATE STAGING"
+                        f" TABLES: {merge_tables}"
+                    )
                     job_client.initialize_storage(staging=True, truncate_tables=merge_tables)
                 self.load_storage.commit_schema_update(load_id, applied_update)
             # spool or retrieve unfinished jobs
@@ -299,7 +393,9 @@ class Load(Runnable[ThreadPool]):
         no_completed_jobs = len(package_info.jobs["completed_jobs"]) + no_failed_jobs
         self.collector.update("Jobs", no_completed_jobs, total_jobs)
         if no_failed_jobs > 0:
-            self.collector.update("Jobs", no_failed_jobs, message="WARNING: Some of the jobs failed!", label="Failed")
+            self.collector.update(
+                "Jobs", no_failed_jobs, message="WARNING: Some of the jobs failed!", label="Failed"
+            )
         # loop until all jobs are processed
         while True:
             try:
@@ -311,13 +407,22 @@ class Load(Runnable[ThreadPool]):
                     if self.config.raise_on_failed_jobs:
                         if package_info.jobs["failed_jobs"]:
                             failed_job = package_info.jobs["failed_jobs"][0]
-                            raise LoadClientJobFailed(load_id, failed_job.job_file_info.job_id(), failed_job.failed_message)
+                            raise LoadClientJobFailed(
+                                load_id,
+                                failed_job.job_file_info.job_id(),
+                                failed_job.failed_message,
+                            )
                     # possibly raise on too many retires
                     if self.config.raise_on_max_retries:
                         for new_job in package_info.jobs["new_jobs"]:
                             r_c = new_job.job_file_info.retry_count
                             if r_c > 0 and r_c % self.config.raise_on_max_retries == 0:
-                                raise LoadClientJobRetry(load_id, new_job.job_file_info.job_id(), r_c, self.config.raise_on_max_retries)
+                                raise LoadClientJobRetry(
+                                    load_id,
+                                    new_job.job_file_info.job_id(),
+                                    r_c,
+                                    self.config.raise_on_max_retries,
+                                )
                     break
                 # process remaining jobs again
                 jobs = remaining_jobs
@@ -356,7 +461,9 @@ class Load(Runnable[ThreadPool]):
 
         return TRunMetrics(False, len(self.load_storage.list_packages()))
 
-    def get_load_info(self, pipeline: SupportsPipeline, started_at: datetime.datetime = None) -> LoadInfo:
+    def get_load_info(
+        self, pipeline: SupportsPipeline, started_at: datetime.datetime = None
+    ) -> LoadInfo:
         # TODO: Load must provide a clear interface to get last loads and metrics
         # TODO: LoadInfo should hold many datasets
         load_ids = list(self._processed_load_ids.keys())
@@ -371,11 +478,13 @@ class Load(Runnable[ThreadPool]):
             pipeline,
             self.initial_client_config.destination_name,
             str(self.initial_client_config),
-            self.initial_staging_client_config.destination_name if self.initial_staging_client_config else None,
+            self.initial_staging_client_config.destination_name
+            if self.initial_staging_client_config
+            else None,
             str(self.initial_staging_client_config) if self.initial_staging_client_config else None,
             dataset_name,
             list(load_ids),
             load_packages,
             started_at,
-            pipeline.first_run
+            pipeline.first_run,
         )

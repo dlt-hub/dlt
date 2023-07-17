@@ -1,12 +1,11 @@
 import re
-from typing import Any, List, Sequence
+import typing as t
 from functools import lru_cache
 
 from dlt.common.normalizers.naming.naming import NamingConvention as BaseNamingConvention
 
 
 class NamingConvention(BaseNamingConvention):
-
     _RE_UNDERSCORES = re.compile("_+")
     _RE_LEADING_DIGITS = re.compile(r"^\d+")
     # _RE_ENDING_UNDERSCORES = re.compile(r"_+$")
@@ -28,7 +27,7 @@ class NamingConvention(BaseNamingConvention):
         # only non empty identifiers participate
         return self.PATH_SEPARATOR.join(filter(lambda x: x.strip(), identifiers))
 
-    def break_path(self, path: str) -> Sequence[str]:
+    def break_path(self, path: str) -> t.Sequence[str]:
         return [ident for ident in path.split(self.PATH_SEPARATOR) if ident.strip()]
 
     @staticmethod
@@ -41,16 +40,14 @@ class NamingConvention(BaseNamingConvention):
 
         # shorten identifier
         return NamingConvention.shorten_identifier(
-            NamingConvention._to_snake_case(normalized_ident),
-            identifier,
-            max_length
+            NamingConvention._to_snake_case(normalized_ident), identifier, max_length
         )
 
     @staticmethod
     def _to_snake_case(identifier: str) -> str:
         # then convert to snake case
-        identifier = NamingConvention._SNAKE_CASE_BREAK_1.sub(r'\1_\2', identifier)
-        identifier = NamingConvention._SNAKE_CASE_BREAK_2.sub(r'\1_\2', identifier).lower()
+        identifier = NamingConvention._SNAKE_CASE_BREAK_1.sub(r"\1_\2", identifier)
+        identifier = NamingConvention._SNAKE_CASE_BREAK_2.sub(r"\1_\2", identifier).lower()
 
         # leading digits will be prefixed
         if NamingConvention._RE_LEADING_DIGITS.match(identifier):

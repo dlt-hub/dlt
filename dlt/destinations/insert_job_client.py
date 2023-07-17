@@ -1,24 +1,31 @@
-import os
 import abc
+import os
 from typing import Any, Iterator, List, Type
 
-from dlt.common.destination.reference import LoadJob, FollowupJob, TLoadJobState
+from dlt.common.destination.reference import FollowupJob, LoadJob, TLoadJobState
 from dlt.common.schema.typing import TTableSchema, TWriteDisposition
 from dlt.common.storages import FileStorage
-
-from dlt.destinations.sql_client import SqlClientBase
-from dlt.destinations.job_impl import EmptyLoadJob
 from dlt.destinations.job_client_impl import SqlJobClientBase
+from dlt.destinations.job_impl import EmptyLoadJob
+from dlt.destinations.sql_client import SqlClientBase
 
 
 class InsertValuesLoadJob(LoadJob, FollowupJob):
-    def __init__(self, table_name: str, write_disposition: TWriteDisposition, file_path: str, sql_client: SqlClientBase[Any]) -> None:
+    def __init__(
+        self,
+        table_name: str,
+        write_disposition: TWriteDisposition,
+        file_path: str,
+        sql_client: SqlClientBase[Any],
+    ) -> None:
         super().__init__(FileStorage.get_file_name_from_file_path(file_path))
         self._sql_client = sql_client
         # insert file content immediately
-        with self._sql_client.with_staging_dataset(write_disposition=="merge"):
+        with self._sql_client.with_staging_dataset(write_disposition == "merge"):
             with self._sql_client.begin_transaction():
-                for fragments in self._insert(sql_client.make_qualified_table_name(table_name), write_disposition, file_path):
+                for fragments in self._insert(
+                    sql_client.make_qualified_table_name(table_name), write_disposition, file_path
+                ):
                     self._sql_client.execute_fragments(fragments)
 
     def state(self) -> TLoadJobState:
@@ -29,7 +36,9 @@ class InsertValuesLoadJob(LoadJob, FollowupJob):
         # this part of code should be never reached
         raise NotImplementedError()
 
-    def _insert(self, qualified_table_name: str, write_disposition: TWriteDisposition, file_path: str) -> Iterator[List[str]]:
+    def _insert(
+        self, qualified_table_name: str, write_disposition: TWriteDisposition, file_path: str
+    ) -> Iterator[List[str]]:
         # WARNING: maximum redshift statement is 16MB https://docs.aws.amazon.com/redshift/latest/dg/c_redshift-sql.html
         # the procedure below will split the inserts into max_query_length // 2 packs
         with FileStorage.open_zipsafe_ro(file_path, "r", encoding="utf-8") as f:
@@ -70,7 +79,6 @@ class InsertValuesLoadJob(LoadJob, FollowupJob):
 
 
 class InsertValuesJobClient(SqlJobClientBase):
-
     def restore_file_load(self, file_path: str) -> LoadJob:
         """Returns a completed SqlLoadJob or InsertValuesJob
 
@@ -92,7 +100,9 @@ class InsertValuesJobClient(SqlJobClientBase):
         job = super().start_file_load(table, file_path, load_id)
         if not job:
             # this is using sql_client internally and will raise a right exception
-            job = InsertValuesLoadJob(table["name"], table["write_disposition"], file_path, self.sql_client)
+            job = InsertValuesLoadJob(
+                table["name"], table["write_disposition"], file_path, self.sql_client
+            )
         return job
 
     # TODO: implement indexes and primary keys for postgres
@@ -103,4 +113,3 @@ class InsertValuesJobClient(SqlJobClientBase):
     def _get_out_table_constrains_sql(self, t: TTableSchema) -> str:
         # set non unique indexes
         pass
-

@@ -1,10 +1,24 @@
-import os
 import inspect
-from types import ModuleType
+import os
 from functools import wraps
-from typing import TYPE_CHECKING, Any, Callable, ClassVar, Iterator, List, Optional, Tuple, Type, TypeVar, Union, cast, overload
+from types import ModuleType
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    ClassVar,
+    Iterator,
+    List,
+    Optional,
+    Tuple,
+    Type,
+    TypeVar,
+    Union,
+    cast,
+    overload,
+)
 
-from dlt.common.configuration import with_config, get_fun_spec, known_sections, configspec
+from dlt.common.configuration import configspec, get_fun_spec, known_sections, with_config
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import ContextDefaultCannotBeCreated
 from dlt.common.configuration.resolve import inject_section
@@ -12,31 +26,41 @@ from dlt.common.configuration.specs import BaseConfiguration, ContainerInjectabl
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.exceptions import ArgumentsOverloadException
 from dlt.common.pipeline import PipelineContext
-from dlt.common.source import _SOURCES, SourceInfo
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import TColumnKey, TTableSchemaColumns, TWriteDisposition
+from dlt.common.source import _SOURCES, SourceInfo
 from dlt.common.storages.exceptions import SchemaNotFoundError
 from dlt.common.storages.schema_storage import SchemaStorage
-from dlt.common.typing import AnyFun, ParamSpec, Concatenate, TDataItem, TDataItems
+from dlt.common.typing import AnyFun, Concatenate, ParamSpec, TDataItem, TDataItems
 from dlt.common.utils import get_callable_name, get_module_name, is_inner_callable
-from dlt.extract.exceptions import InvalidTransformerDataTypeGeneratorFunctionRequired, ResourceFunctionExpected, ResourceInnerCallableConfigWrapDisallowed, SourceDataIsNone, SourceIsAClassTypeError, ExplicitSourceNameInvalid, SourceNotAFunction, SourceSchemaNotAvailable
+from dlt.extract.exceptions import (
+    ExplicitSourceNameInvalid,
+    InvalidTransformerDataTypeGeneratorFunctionRequired,
+    ResourceFunctionExpected,
+    ResourceInnerCallableConfigWrapDisallowed,
+    SourceDataIsNone,
+    SourceIsAClassTypeError,
+    SourceNotAFunction,
+    SourceSchemaNotAvailable,
+)
 from dlt.extract.incremental import IncrementalResourceWrapper
-
-from dlt.extract.typing import TTableHintTemplate
 from dlt.extract.source import DltResource, DltSource, TUnboundDltResource
-
+from dlt.extract.typing import TTableHintTemplate
 
 
 @configspec(init=True)
 class SourceSchemaInjectableContext(ContainerInjectableContext):
     """A context containing the source schema, present when decorated function is executed"""
+
     schema: Schema
 
     can_create_default: ClassVar[bool] = False
 
     if TYPE_CHECKING:
+
         def __init__(self, schema: Schema = None) -> None:
             ...
+
 
 TSourceFunParams = ParamSpec("TSourceFunParams")
 TResourceFunParams = ParamSpec("TResourceFunParams")
@@ -51,9 +75,10 @@ def source(
     max_table_nesting: int = None,
     root_key: bool = False,
     schema: Schema = None,
-    spec: Type[BaseConfiguration] = None
+    spec: Type[BaseConfiguration] = None,
 ) -> Callable[TSourceFunParams, DltSource]:
     ...
+
 
 @overload
 def source(
@@ -64,9 +89,10 @@ def source(
     max_table_nesting: int = None,
     root_key: bool = False,
     schema: Schema = None,
-    spec: Type[BaseConfiguration] = None
+    spec: Type[BaseConfiguration] = None,
 ) -> Callable[[Callable[TSourceFunParams, Any]], Callable[TSourceFunParams, DltSource]]:
     ...
+
 
 def source(
     func: Optional[AnyFun] = None,
@@ -76,7 +102,7 @@ def source(
     max_table_nesting: int = None,
     root_key: bool = False,
     schema: Schema = None,
-    spec: Type[BaseConfiguration] = None
+    spec: Type[BaseConfiguration] = None,
 ) -> Any:
     """A decorator that transforms a function returning one or more `dlt resources` into a `dlt source` in order to load it with `dlt`.
 
@@ -117,7 +143,9 @@ def source(
     """
 
     if name and schema:
-        raise ArgumentsOverloadException("'name' has no effect when `schema` argument is present", source.__name__)
+        raise ArgumentsOverloadException(
+            "'name' has no effect when `schema` argument is present", source.__name__
+        )
 
     def decorator(f: Callable[TSourceFunParams, Any]) -> Callable[TSourceFunParams, DltSource]:
         nonlocal schema, name
@@ -132,7 +160,9 @@ def source(
             # source name is passed directly or taken from decorated function name
             effective_name = name or get_callable_name(f)
             # load the schema from file with name_schema.yaml/json from the same directory, the callable resides OR create new default schema
-            schema = _maybe_load_schema_for_callable(f, effective_name) or Schema(effective_name, normalize_name=True)
+            schema = _maybe_load_schema_for_callable(f, effective_name) or Schema(
+                effective_name, normalize_name=True
+            )
 
         if name and name != schema.name:
             raise ExplicitSourceNameInvalid(name, schema.name)
@@ -153,7 +183,11 @@ def source(
                 # configurations will be accessed in this section in the source
                 proxy = Container()[PipelineContext]
                 pipeline_name = None if not proxy.is_active() else proxy.pipeline().pipeline_name
-                with inject_section(ConfigSectionContext(pipeline_name=pipeline_name, sections=source_sections, source_state_key=name)):
+                with inject_section(
+                    ConfigSectionContext(
+                        pipeline_name=pipeline_name, sections=source_sections, source_state_key=name
+                    )
+                ):
                     rv = conf_f(*args, **kwargs)
                     if rv is None:
                         raise SourceDataIsNone(name)
@@ -169,7 +203,6 @@ def source(
             # enable root propagation
             s.root_key = root_key
             return s
-
 
         # get spec for wrapped function
         SPEC = get_fun_spec(conf_f)
@@ -198,9 +231,10 @@ def resource(
     primary_key: TTableHintTemplate[TColumnKey] = None,
     merge_key: TTableHintTemplate[TColumnKey] = None,
     selected: bool = True,
-    spec: Type[BaseConfiguration] = None
+    spec: Type[BaseConfiguration] = None,
 ) -> Callable[TResourceFunParams, DltResource]:
     ...
+
 
 @overload
 def resource(
@@ -213,9 +247,10 @@ def resource(
     primary_key: TTableHintTemplate[TColumnKey] = None,
     merge_key: TTableHintTemplate[TColumnKey] = None,
     selected: bool = True,
-    spec: Type[BaseConfiguration] = None
+    spec: Type[BaseConfiguration] = None,
 ) -> Callable[[Callable[TResourceFunParams, Any]], DltResource]:
     ...
+
 
 @overload
 def resource(
@@ -228,7 +263,7 @@ def resource(
     primary_key: TTableHintTemplate[TColumnKey] = None,
     merge_key: TTableHintTemplate[TColumnKey] = None,
     selected: bool = True,
-    spec: Type[BaseConfiguration] = None
+    spec: Type[BaseConfiguration] = None,
 ) -> DltResource:
     ...
 
@@ -301,22 +336,36 @@ def resource(
     Returns:
         DltResource instance which may be loaded, iterated or combined with other resources into a pipeline.
     """
-    def make_resource(_name: str, _section: str, _data: Any, incremental: IncrementalResourceWrapper = None) -> DltResource:
+
+    def make_resource(
+        _name: str, _section: str, _data: Any, incremental: IncrementalResourceWrapper = None
+    ) -> DltResource:
         table_template = DltResource.new_table_template(
             table_name or _name,
             write_disposition=write_disposition,
             columns=columns,
             primary_key=primary_key,
-            merge_key=merge_key
+            merge_key=merge_key,
         )
-        return DltResource.from_data(_data, _name, _section, table_template, selected, cast(DltResource, depends_on), incremental=incremental)
+        return DltResource.from_data(
+            _data,
+            _name,
+            _section,
+            table_template,
+            selected,
+            cast(DltResource, depends_on),
+            incremental=incremental,
+        )
 
-
-    def decorator(f: Callable[TResourceFunParams, Any]) -> Callable[TResourceFunParams, DltResource]:
+    def decorator(
+        f: Callable[TResourceFunParams, Any]
+    ) -> Callable[TResourceFunParams, DltResource]:
         if not callable(f):
             if depends_on:
                 # raise more descriptive exception if we construct transformer
-                raise InvalidTransformerDataTypeGeneratorFunctionRequired(name or "<no name>", f, type(f))
+                raise InvalidTransformerDataTypeGeneratorFunctionRequired(
+                    name or "<no name>", f, type(f)
+                )
             raise ResourceFunctionExpected(name or "<no name>", f, type(f))
 
         resource_name = name or get_callable_name(f)
@@ -338,7 +387,10 @@ def resource(
         # this lets the source to override those values and provide common section for all config values for resources present in that source
         conf_f = with_config(
             incr_f,
-            spec=spec, sections=resource_sections, sections_merge_style=ConfigSectionContext.resource_merge_style, include_defaults=False
+            spec=spec,
+            sections=resource_sections,
+            sections_merge_style=ConfigSectionContext.resource_merge_style,
+            include_defaults=False,
         )
         is_inner_resource = is_inner_callable(f)
         if conf_f != incr_f and is_inner_resource:
@@ -382,9 +434,13 @@ def transformer(
     primary_key: TTableHintTemplate[TColumnKey] = None,
     merge_key: TTableHintTemplate[TColumnKey] = None,
     selected: bool = True,
-    spec: Type[BaseConfiguration] = None
-) -> Callable[[Callable[Concatenate[TDataItem, TResourceFunParams], Any]], Callable[TResourceFunParams, DltResource]]:
+    spec: Type[BaseConfiguration] = None,
+) -> Callable[
+    [Callable[Concatenate[TDataItem, TResourceFunParams], Any]],
+    Callable[TResourceFunParams, DltResource],
+]:
     ...
+
 
 @overload
 def transformer(
@@ -398,9 +454,10 @@ def transformer(
     primary_key: TTableHintTemplate[TColumnKey] = None,
     merge_key: TTableHintTemplate[TColumnKey] = None,
     selected: bool = True,
-    spec: Type[BaseConfiguration] = None
+    spec: Type[BaseConfiguration] = None,
 ) -> Callable[TResourceFunParams, DltResource]:
     ...
+
 
 def transformer(  # type: ignore
     f: Optional[Callable[Concatenate[TDataItem, TResourceFunParams], Any]] = None,
@@ -413,8 +470,11 @@ def transformer(  # type: ignore
     primary_key: TTableHintTemplate[TColumnKey] = None,
     merge_key: TTableHintTemplate[TColumnKey] = None,
     selected: bool = True,
-    spec: Type[BaseConfiguration] = None
-) -> Callable[[Callable[Concatenate[TDataItem, TResourceFunParams], Any]], Callable[TResourceFunParams, DltResource]]:
+    spec: Type[BaseConfiguration] = None,
+) -> Callable[
+    [Callable[Concatenate[TDataItem, TResourceFunParams], Any]],
+    Callable[TResourceFunParams, DltResource],
+]:
     """A form of `dlt resource` that takes input from other resources via `data_from` argument in order to enrich or transform the data.
 
     The decorated function `f` must take at least one argument of type TDataItems (a single item or list of items depending on the resource `data_from`). `dlt` will pass
@@ -468,7 +528,10 @@ def transformer(  # type: ignore
         spec (Type[BaseConfiguration], optional): A specification of configuration and secret values required by the source.
     """
     if isinstance(f, DltResource):
-        raise ValueError("Please pass `data_from=` argument as keyword argument. The only positional argument to transformer is the decorated function")
+        raise ValueError(
+            "Please pass `data_from=` argument as keyword argument. The only positional argument to"
+            " transformer is the decorated function"
+        )
 
     return resource(  # type: ignore
         f,
@@ -480,7 +543,7 @@ def transformer(  # type: ignore
         merge_key=merge_key,
         selected=selected,
         spec=spec,
-        depends_on=data_from
+        depends_on=data_from,
     )
 
 
@@ -506,7 +569,8 @@ def _get_source_section_name(m: ModuleType) -> str:
 
 
 def get_source_schema() -> Schema:
-    """When executed from the function decorated with @dlt.source, returns a writable source Schema"""
+    """When executed from the function decorated with @dlt.source, returns a writable source Schema
+    """
     try:
         return Container()[SourceSchemaInjectableContext].schema
     except ContextDefaultCannotBeCreated:
@@ -518,12 +582,14 @@ TDeferred = Callable[[], TBoundItems]
 TDeferredFunParams = ParamSpec("TDeferredFunParams")
 
 
-def defer(f: Callable[TDeferredFunParams, TBoundItems]) -> Callable[TDeferredFunParams, TDeferred[TBoundItems]]:
-
+def defer(
+    f: Callable[TDeferredFunParams, TBoundItems]
+) -> Callable[TDeferredFunParams, TDeferred[TBoundItems]]:
     @wraps(f)
     def _wrap(*args: Any, **kwargs: Any) -> TDeferred[TBoundItems]:
         def _curry() -> TBoundItems:
             return f(*args, **kwargs)
+
         return _curry
 
     return _wrap

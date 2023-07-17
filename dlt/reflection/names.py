@@ -2,7 +2,7 @@ import inspect
 
 import dlt
 import dlt.destinations
-from dlt import pipeline, attach, run, source, resource
+from dlt import attach, pipeline, resource, run, source
 
 DLT = dlt.__name__
 DESTINATIONS = dlt.destinations.__name__
@@ -18,5 +18,5 @@ SIGNATURES = {
     ATTACH: inspect.signature(attach),
     RUN: inspect.signature(run),
     SOURCE: inspect.signature(source),
-    RESOURCE: inspect.signature(resource)
+    RESOURCE: inspect.signature(resource),
 }

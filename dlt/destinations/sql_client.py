@@ -1,19 +1,29 @@
+import inspect
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from functools import wraps
-import inspect
 from types import TracebackType
-from typing import Any, ClassVar, ContextManager, Generic, Iterator, Optional, Sequence, Tuple, Type, AnyStr, List
+from typing import (
+    Any,
+    AnyStr,
+    ClassVar,
+    ContextManager,
+    Generic,
+    Iterator,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+    Type,
+)
 
-from dlt.common.typing import TFun
 from dlt.common.destination import DestinationCapabilitiesContext
-
+from dlt.common.typing import TFun
 from dlt.destinations.exceptions import DestinationConnectionError, LoadClientNotConnected
-from dlt.destinations.typing import DBApi, TNativeConn, DBApiCursor, DataFrame, DBTransaction
+from dlt.destinations.typing import DataFrame, DBApi, DBApiCursor, DBTransaction, TNativeConn
 
 
 class SqlClientBase(ABC, Generic[TNativeConn]):
-
     dbapi: ClassVar[DBApi] = None
     capabilities: ClassVar[DestinationCapabilitiesContext] = None
 
@@ -45,7 +55,9 @@ class SqlClientBase(ABC, Generic[TNativeConn]):
         self.open_connection()
         return self
 
-    def __exit__(self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: TracebackType) -> None:
+    def __exit__(
+        self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: TracebackType
+    ) -> None:
         self.close_connection()
 
     @property
@@ -80,18 +92,26 @@ SELECT 1
     def drop_tables(self, *tables: str) -> None:
         if not tables:
             return
-        statements = [f"DROP TABLE IF EXISTS {self.make_qualified_table_name(table)};" for table in tables]
+        statements = [
+            f"DROP TABLE IF EXISTS {self.make_qualified_table_name(table)};" for table in tables
+        ]
         self.execute_fragments(statements)
 
     @abstractmethod
-    def execute_sql(self, sql: AnyStr, *args: Any, **kwargs: Any) -> Optional[Sequence[Sequence[Any]]]:
+    def execute_sql(
+        self, sql: AnyStr, *args: Any, **kwargs: Any
+    ) -> Optional[Sequence[Sequence[Any]]]:
         pass
 
     @abstractmethod
-    def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> ContextManager[DBApiCursor]:
+    def execute_query(
+        self, query: AnyStr, *args: Any, **kwargs: Any
+    ) -> ContextManager[DBApiCursor]:
         pass
 
-    def execute_fragments(self, fragments: Sequence[AnyStr], *args: Any, **kwargs: Any) -> Optional[Sequence[Sequence[Any]]]:
+    def execute_fragments(
+        self, fragments: Sequence[AnyStr], *args: Any, **kwargs: Any
+    ) -> Optional[Sequence[Sequence[Any]]]:
         """Executes several SQL fragments as efficiently as possible to prevent data copying. Default implementation just joins the strings and executes them together.
         """
         return self.execute_sql("".join(fragments), *args, **kwargs)  # type: ignore
@@ -111,8 +131,11 @@ SELECT 1
         return column_name
 
     @contextmanager
-    def with_alternative_dataset_name(self, dataset_name: str) -> Iterator["SqlClientBase[TNativeConn]"]:
-        """Sets the `dataset_name` as the default dataset during the lifetime of the context. Does not modify any search paths in the existing connection."""
+    def with_alternative_dataset_name(
+        self, dataset_name: str
+    ) -> Iterator["SqlClientBase[TNativeConn]"]:
+        """Sets the `dataset_name` as the default dataset during the lifetime of the context. Does not modify any search paths in the existing connection.
+        """
         current_dataset_name = self.dataset_name
         try:
             self.dataset_name = dataset_name
@@ -121,7 +144,9 @@ SELECT 1
             # restore previous dataset name
             self.dataset_name = current_dataset_name
 
-    def with_staging_dataset(self, staging: bool = False)-> ContextManager["SqlClientBase[TNativeConn]"]:
+    def with_staging_dataset(
+        self, staging: bool = False
+    ) -> ContextManager["SqlClientBase[TNativeConn]"]:
         dataset_name = self.dataset_name
         if staging:
             dataset_name = SqlClientBase.make_staging_dataset_name(dataset_name)
@@ -129,7 +154,7 @@ SELECT 1
 
     def _ensure_native_conn(self) -> None:
         if not self.native_connection:
-            raise LoadClientNotConnected(type(self).__name__ , self.dataset_name)
+            raise LoadClientNotConnected(type(self).__name__, self.dataset_name)
 
     @staticmethod
     @abstractmethod
@@ -147,9 +172,9 @@ SELECT 1
         return dataset_name + "_staging"
 
 
-
 class DBApiCursorImpl(DBApiCursor):
     """A DBApi Cursor wrapper with dataframes reading functionality"""
+
     def __init__(self, curr: DBApiCursor) -> None:
         self.native_cursor = curr
 
@@ -181,7 +206,6 @@ class DBApiCursorImpl(DBApiCursor):
 
 
 def raise_database_error(f: TFun) -> TFun:
-
     @wraps(f)
     def _wrap_gen(self: SqlClientBase[Any], *args: Any, **kwargs: Any) -> Any:
         try:
@@ -205,7 +229,6 @@ def raise_database_error(f: TFun) -> TFun:
 
 
 def raise_open_connection_error(f: TFun) -> TFun:
-
     @wraps(f)
     def _wrap(self: SqlClientBase[Any], *args: Any, **kwargs: Any) -> Any:
         try:

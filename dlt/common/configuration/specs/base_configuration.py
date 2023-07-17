@@ -1,19 +1,43 @@
-import inspect
 import contextlib
 import dataclasses
+import inspect
 from collections.abc import Mapping as C_Mapping
-from typing import Callable, List, Optional, Union, Any, Dict, Iterator, MutableMapping, Type, TYPE_CHECKING, get_args, get_origin, overload, ClassVar, TypeVar
 from functools import wraps
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    ClassVar,
+    Dict,
+    Iterator,
+    List,
+    MutableMapping,
+    Optional,
+    Type,
+    TypeVar,
+    Union,
+    get_args,
+    get_origin,
+    overload,
+)
 
 if TYPE_CHECKING:
     TDtcField = dataclasses.Field[Any]
 else:
     TDtcField = dataclasses.Field
 
-from dlt.common.typing import TAnyClass, TSecretValue, extract_inner_type, is_optional_type, is_union
+from dlt.common.configuration.exceptions import (
+    ConfigFieldMissingTypeHintException,
+    ConfigFieldTypeHintNotSupported,
+)
 from dlt.common.data_types import py_type_to_sc_type
-from dlt.common.configuration.exceptions import ConfigFieldMissingTypeHintException, ConfigFieldTypeHintNotSupported
-
+from dlt.common.typing import (
+    TAnyClass,
+    TSecretValue,
+    extract_inner_type,
+    is_optional_type,
+    is_union,
+)
 
 # forward class declaration
 _F_BaseConfiguration: Any = type(object)
@@ -66,7 +90,7 @@ def extract_inner_hint(hint: Type[Any], preserve_new_types: bool = False) -> Typ
 
 
 def is_secret_hint(hint: Type[Any]) -> bool:
-    is_secret =  False
+    is_secret = False
     if hasattr(hint, "__name__"):
         is_secret = hint.__name__ == "TSecretValue"
     if not is_secret:
@@ -85,11 +109,15 @@ def configspec(cls: Type[TAnyClass], /, *, init: bool = False) -> Type[TAnyClass
 
 
 @overload
-def configspec(cls: None = ..., /, *, init: bool = False) -> Callable[[Type[TAnyClass]], Type[TAnyClass]]:
+def configspec(
+    cls: None = ..., /, *, init: bool = False
+) -> Callable[[Type[TAnyClass]], Type[TAnyClass]]:
     ...
 
 
-def configspec(cls: Optional[Type[Any]] = None, /, *, init: bool = False) -> Union[Type[TAnyClass], Callable[[Type[TAnyClass]], Type[TAnyClass]]]:
+def configspec(
+    cls: Optional[Type[Any]] = None, /, *, init: bool = False
+) -> Union[Type[TAnyClass], Callable[[Type[TAnyClass]], Type[TAnyClass]]]:
     """Converts (via derivation) any decorated class to a Python dataclass that may be used as a spec to resolve configurations
 
     In comparison the Python dataclass, a spec implements full dictionary interface for its attributes, allows instance creation from ie. strings
@@ -97,6 +125,7 @@ def configspec(cls: Optional[Type[Any]] = None, /, *, init: bool = False) -> Uni
     more information.
 
     """
+
     def wrap(cls: Type[TAnyClass]) -> Type[TAnyClass]:
         cls.__hint_resolvers__ = {}  # type: ignore[attr-defined]
         is_context = issubclass(cls, _F_ContainerInjectableContext)
@@ -104,7 +133,10 @@ def configspec(cls: Optional[Type[Any]] = None, /, *, init: bool = False) -> Uni
         with contextlib.suppress(NameError):
             if not issubclass(cls, BaseConfiguration):
                 # keep the original module
-                fields = {"__module__": cls.__module__, "__annotations__": getattr(cls, "__annotations__", {})}
+                fields = {
+                    "__module__": cls.__module__,
+                    "__annotations__": getattr(cls, "__annotations__", {}),
+                }
                 cls = type(cls.__name__, (cls, _F_BaseConfiguration), fields)
         # get all annotations without corresponding attributes and set them to None
         for ann in cls.__annotations__:
@@ -117,7 +149,9 @@ def configspec(cls: Optional[Type[Any]] = None, /, *, init: bool = False) -> Uni
                 if hint_field_name := getattr(att_value, "__hint_for_field__", None):
                     cls.__hint_resolvers__[hint_field_name] = att_value  # type: ignore[attr-defined]
                 continue
-            if not att_name.startswith(("__", "_abc_impl")) and not isinstance(att_value, (staticmethod, classmethod, property)):
+            if not att_name.startswith(("__", "_abc_impl")) and not isinstance(
+                att_value, (staticmethod, classmethod, property)
+            ):
                 if att_name not in cls.__annotations__:
                     raise ConfigFieldMissingTypeHintException(att_name, cls)
                 hint = cls.__annotations__[att_name]
@@ -134,15 +168,13 @@ def configspec(cls: Optional[Type[Any]] = None, /, *, init: bool = False) -> Uni
     return wrap(cls)
 
 
-
 @configspec
 class BaseConfiguration(MutableMapping[str, Any]):
-
-    __is_resolved__: bool = dataclasses.field(default = False, init=False, repr=False)
+    __is_resolved__: bool = dataclasses.field(default=False, init=False, repr=False)
     """True when all config fields were resolved and have a specified value type"""
-    __section__: str = dataclasses.field(default = None, init=False, repr=False)
+    __section__: str = dataclasses.field(default=None, init=False, repr=False)
     """Obligatory section used by config providers when searching for keys, always present in the search path"""
-    __exception__: Exception = dataclasses.field(default = None, init=False, repr=False)
+    __exception__: Exception = dataclasses.field(default=None, init=False, repr=False)
     """Holds the exception that prevented the full resolution"""
     __config_gen_annotations__: ClassVar[List[str]] = []
     """Additional annotations for config generator, currently holds a list of fields of interest that have defaults"""
@@ -176,11 +208,12 @@ class BaseConfiguration(MutableMapping[str, Any]):
 
     @classmethod
     def get_resolvable_fields(cls) -> Dict[str, type]:
-        """Returns a mapping of fields to their type hints. Dunders should not be resolved and are not returned"""
+        """Returns a mapping of fields to their type hints. Dunders should not be resolved and are not returned
+        """
         # Sort dynamic type hint fields last because they depend on other values
         fields = sorted(
             (f for f in cls.__dataclass_fields__.values() if not f.name.startswith("__")),
-            key=lambda f: f.name in cls.__hint_resolvers__
+            key=lambda f: f.name in cls.__hint_resolvers__,
         )
         return {f.name: f.type for f in fields}
 
@@ -193,7 +226,9 @@ class BaseConfiguration(MutableMapping[str, Any]):
             return False
         # check if all resolvable fields have value
         return any(
-            field for field, hint in self.get_resolvable_fields().items() if getattr(self, field) is None and not is_optional_type(hint)
+            field
+            for field, hint in self.get_resolvable_fields().items()
+            if getattr(self, field) is None and not is_optional_type(hint)
         )
 
     def resolve(self) -> None:
@@ -260,7 +295,8 @@ _F_BaseConfiguration = BaseConfiguration
 
 @configspec
 class CredentialsConfiguration(BaseConfiguration):
-    """Base class for all credentials. Credentials are configurations that may be stored only by providers supporting secrets."""
+    """Base class for all credentials. Credentials are configurations that may be stored only by providers supporting secrets.
+    """
 
     __section__: str = "credentials"
 
@@ -290,12 +326,14 @@ class CredentialsConfiguration(BaseConfiguration):
         return self.to_native_representation()
 
     def __str__(self) -> str:
-        """Get string representation of credentials to be displayed, with all secret parts removed """
+        """Get string representation of credentials to be displayed, with all secret parts removed
+        """
         return super().__str__()
 
 
 class CredentialsWithDefault:
-    """A mixin for credentials that can be instantiated from default ie. from well known env variable with credentials"""
+    """A mixin for credentials that can be instantiated from default ie. from well known env variable with credentials
+    """
 
     def has_default_credentials(self) -> bool:
         return hasattr(self, "_default_credentials")
@@ -311,13 +349,15 @@ class CredentialsWithDefault:
 
 @configspec
 class ContainerInjectableContext(BaseConfiguration):
-    """Base class for all configurations that may be injected from a Container. Injectable configuration is called a context"""
+    """Base class for all configurations that may be injected from a Container. Injectable configuration is called a context
+    """
 
     can_create_default: ClassVar[bool] = True
     """If True, `Container` is allowed to create default context instance, if none exists"""
 
     def add_extras(self) -> None:
-        """Called right after context was added to the container. Benefits mostly the config provider injection context which adds extra providers using the initial ones."""
+        """Called right after context was added to the container. Benefits mostly the config provider injection context which adds extra providers using the initial ones.
+        """
         pass
 
 
@@ -327,11 +367,15 @@ _F_ContainerInjectableContext = ContainerInjectableContext
 TSpec = TypeVar("TSpec", bound=BaseConfiguration)
 THintResolver = Callable[[TSpec], Type[Any]]
 
+
 def resolve_type(field_name: str) -> Callable[[THintResolver[TSpec]], THintResolver[TSpec]]:
     def decorator(func: THintResolver[TSpec]) -> THintResolver[TSpec]:
         func.__hint_for_field__ = field_name  # type: ignore[attr-defined]
+
         @wraps(func)
         def wrapper(self: TSpec) -> Type[Any]:
             return func(self)
+
         return wrapper
+
     return decorator

@@ -1,25 +1,25 @@
-import os
 import abc
-import tomlkit
 import contextlib
-from tomlkit.items import Item as TOMLItem
-from tomlkit.container import Container as TOMLContainer
+import os
 from typing import Any, Dict, Optional, Tuple, Type, Union
 
+import tomlkit
+from tomlkit.container import Container as TOMLContainer
+from tomlkit.items import Item as TOMLItem
+
 from dlt.common import pendulum
-from dlt.common.configuration.paths import get_dlt_settings_dir, get_dlt_data_dir
-from dlt.common.configuration.utils import auto_cast
+from dlt.common.configuration.paths import get_dlt_data_dir, get_dlt_settings_dir
 from dlt.common.configuration.specs import known_sections
 from dlt.common.configuration.specs.base_configuration import is_secret_hint
-from dlt.common.utils import update_dict_nested
-
+from dlt.common.configuration.utils import auto_cast
 from dlt.common.typing import AnyType
+from dlt.common.utils import update_dict_nested
 
 from .provider import ConfigProvider, ConfigProviderException, get_key_name
 
 CONFIG_TOML = "config.toml"
 SECRETS_TOML = "secrets.toml"
-SECRETS_TOML_KEY = 'dlt_secrets_toml'
+SECRETS_TOML_KEY = "dlt_secrets_toml"
 
 
 class BaseTomlProvider(ConfigProvider):
@@ -30,10 +30,12 @@ class BaseTomlProvider(ConfigProvider):
     def get_key_name(key: str, *sections: str) -> str:
         return get_key_name(key, ".", *sections)
 
-    def get_value(self, key: str, hint: Type[Any], pipeline_name: str, *sections: str) -> Tuple[Optional[Any], str]:
+    def get_value(
+        self, key: str, hint: Type[Any], pipeline_name: str, *sections: str
+    ) -> Tuple[Optional[Any], str]:
         full_path = sections + (key,)
         if pipeline_name:
-            full_path = (pipeline_name, ) + full_path
+            full_path = (pipeline_name,) + full_path
         full_key = self.get_key_name(key, pipeline_name, *sections)
         node: Union[TOMLContainer, TOMLItem] = self._toml
         try:
@@ -48,7 +50,7 @@ class BaseTomlProvider(ConfigProvider):
 
     def set_value(self, key: str, value: Any, pipeline_name: str, *sections: str) -> None:
         if pipeline_name:
-            sections = (pipeline_name, ) + sections
+            sections = (pipeline_name,) + sections
 
         if isinstance(value, TOMLContainer):
             if key is None:
@@ -85,7 +87,6 @@ class BaseTomlProvider(ConfigProvider):
 
 
 class StringTomlProvider(BaseTomlProvider):
-
     def __init__(self, toml_string: str) -> None:
         super().__init__(StringTomlProvider.loads(toml_string))
 
@@ -138,12 +139,13 @@ class VaultTomlProvider(BaseTomlProvider):
         super().__init__(tomlkit.document())
         self._update_from_vault(SECRETS_TOML_KEY, None, AnyType, None, ())
 
-    def get_value(self, key: str, hint: type, pipeline_name: str, *sections: str) -> Tuple[Optional[Any], str]:
+    def get_value(
+        self, key: str, hint: type, pipeline_name: str, *sections: str
+    ) -> Tuple[Optional[Any], str]:
         full_key = self.get_key_name(key, pipeline_name, *sections)
 
         value, _ = super().get_value(key, hint, pipeline_name, *sections)
         if value is None:
-
             # only secrets hints are handled
             if self.only_secrets and not is_secret_hint(hint) and hint is not AnyType:
                 return None, full_key
@@ -153,7 +155,6 @@ class VaultTomlProvider(BaseTomlProvider):
                 lookup_fk = self.get_key_name(SECRETS_TOML_KEY, pipeline_name)
                 self._update_from_vault(lookup_fk, "", AnyType, pipeline_name, ())
 
-
             # generate auxiliary paths to get from vault
             for known_section in [known_sections.SOURCES, known_sections.DESTINATION]:
 
@@ -161,7 +162,9 @@ class VaultTomlProvider(BaseTomlProvider):
                     lookup_key = full_path[idx]
                     lookup_sections = full_path[:idx]
                     lookup_fk = self.get_key_name(lookup_key, *lookup_sections)
-                    self._update_from_vault(lookup_fk, lookup_key, AnyType, pipeline_name, lookup_sections)
+                    self._update_from_vault(
+                        lookup_fk, lookup_key, AnyType, pipeline_name, lookup_sections
+                    )
 
                 def _lookup_paths(pipeline_name_: str, known_section_: str) -> None:
                     with contextlib.suppress(ValueError):
@@ -177,7 +180,9 @@ class VaultTomlProvider(BaseTomlProvider):
                 # first query the shortest paths so the longer paths can override it
                 _lookup_paths(None, known_section)  # check sources and sources.<source_name>
                 if pipeline_name:
-                    _lookup_paths(pipeline_name, known_section) # check <pipeline_name>.sources and <pipeline_name>.sources.<source_name>
+                    _lookup_paths(
+                        pipeline_name, known_section
+                    )  # check <pipeline_name>.sources and <pipeline_name>.sources.<source_name>
 
         value, _ = super().get_value(key, hint, pipeline_name, *sections)
         # skip checking the exact path if we check only toml fragments
@@ -200,7 +205,9 @@ class VaultTomlProvider(BaseTomlProvider):
     def _look_vault(self, full_key: str, hint: type) -> str:
         pass
 
-    def _update_from_vault(self, full_key: str, key: str, hint: type, pipeline_name: str, sections: Tuple[str, ...]) -> None:
+    def _update_from_vault(
+        self, full_key: str, key: str, hint: type, pipeline_name: str, sections: Tuple[str, ...]
+    ) -> None:
         if full_key in self._vault_lookups:
             return
         # print(f"tries '{key}' {pipeline_name} | {sections} at '{full_key}'")
@@ -213,8 +220,11 @@ class VaultTomlProvider(BaseTomlProvider):
     def is_empty(self) -> bool:
         return False
 
+
 class TomlFileProvider(BaseTomlProvider):
-    def __init__(self, file_name: str, project_dir: str = None, add_global_config: bool = False) -> None:
+    def __init__(
+        self, file_name: str, project_dir: str = None, add_global_config: bool = False
+    ) -> None:
         """Creates config provider from a `toml` file
 
         The provider loads the `toml` file with specified name and from specified folder. If `add_global_config` flags is specified,
@@ -233,7 +243,9 @@ class TomlFileProvider(BaseTomlProvider):
         toml_document = self._read_toml_file(file_name, project_dir, add_global_config)
         super().__init__(toml_document)
 
-    def _read_toml_file(self, file_name: str, project_dir: str = None, add_global_config: bool = False) -> tomlkit.TOMLDocument:
+    def _read_toml_file(
+        self, file_name: str, project_dir: str = None, add_global_config: bool = False
+    ) -> tomlkit.TOMLDocument:
         self._file_name = file_name
         self._toml_path = os.path.join(project_dir or get_dlt_settings_dir(), file_name)
         self._add_global_config = add_global_config
@@ -251,7 +263,9 @@ class TomlFileProvider(BaseTomlProvider):
         return get_dlt_data_dir()
 
     def write_toml(self) -> None:
-        assert not self._add_global_config, "Will not write configs when `add_global_config` flag was set"
+        assert (
+            not self._add_global_config
+        ), "Will not write configs when `add_global_config` flag was set"
         with open(self._toml_path, "w", encoding="utf-8") as f:
             tomlkit.dump(self._toml, f)
 
@@ -266,7 +280,6 @@ class TomlFileProvider(BaseTomlProvider):
 
 
 class ConfigTomlProvider(TomlFileProvider):
-
     def __init__(self, project_dir: str = None, add_global_config: bool = False) -> None:
         super().__init__(CONFIG_TOML, project_dir=project_dir, add_global_config=add_global_config)
 
@@ -284,7 +297,6 @@ class ConfigTomlProvider(TomlFileProvider):
 
 
 class SecretsTomlProvider(TomlFileProvider):
-
     def __init__(self, project_dir: str = None, add_global_config: bool = False) -> None:
         super().__init__(SECRETS_TOML, project_dir=project_dir, add_global_config=add_global_config)
 
@@ -302,7 +314,9 @@ class SecretsTomlProvider(TomlFileProvider):
 
 
 class TomlProviderReadException(ConfigProviderException):
-    def __init__(self, provider_name: str, file_name: str, full_path: str, toml_exception: str) -> None:
+    def __init__(
+        self, provider_name: str, file_name: str, full_path: str, toml_exception: str
+    ) -> None:
         self.file_name = file_name
         self.full_path = full_path
         msg = f"A problem encountered when loading {provider_name} from {full_path}:\n"

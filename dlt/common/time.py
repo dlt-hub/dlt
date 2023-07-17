@@ -1,22 +1,28 @@
 import contextlib
-from typing import Any, Optional, Union, overload  # noqa
 import datetime  # noqa: I251
+from typing import Any, Optional, Union, overload  # noqa
+
+from pendulum.parsing import _parse_common as parse_datetime_common
+from pendulum.parsing import parse_iso8601
+from pendulum.tz import UTC
 
 from dlt.common.pendulum import pendulum, timedelta
 from dlt.common.typing import TimedeltaSeconds
-from pendulum.parsing import parse_iso8601, _parse_common as parse_datetime_common
-from pendulum.tz import UTC
 
 PAST_TIMESTAMP: float = 0.0
 FUTURE_TIMESTAMP: float = 9999999999.0
 DAY_DURATION_SEC: float = 24 * 60 * 60.0
 
 
-def timestamp_within(timestamp: float, min_exclusive: Optional[float], max_inclusive: Optional[float]) -> bool:
+def timestamp_within(
+    timestamp: float, min_exclusive: Optional[float], max_inclusive: Optional[float]
+) -> bool:
     """
     check if timestamp within range uniformly treating none and range inclusiveness
     """
-    return timestamp > (min_exclusive or PAST_TIMESTAMP) and timestamp <= (max_inclusive or FUTURE_TIMESTAMP)
+    return timestamp > (min_exclusive or PAST_TIMESTAMP) and timestamp <= (
+        max_inclusive or FUTURE_TIMESTAMP
+    )
 
 
 def timestamp_before(timestamp: float, max_inclusive: Optional[float]) -> bool:
@@ -48,7 +54,7 @@ def parse_iso_like_datetime(value: Any) -> pendulum.DateTime:
             dtv.minute,
             dtv.second,
             dtv.microsecond,
-            tz=dtv.tzinfo or UTC  # type: ignore
+            tz=dtv.tzinfo or UTC,  # type: ignore
         )
     # no typings for pendulum
     return dtv  # type: ignore
@@ -60,9 +66,7 @@ def ensure_datetime(value: Union[datetime.datetime, datetime.date]) -> datetime.
     """
     if isinstance(value, datetime.datetime):
         return value
-    return pendulum.datetime(
-        value.year, value.month, value.day, tz=UTC
-    )
+    return pendulum.datetime(value.year, value.month, value.day, tz=UTC)
 
 
 def ensure_date(value: Union[datetime.datetime, datetime.date]) -> datetime.date:

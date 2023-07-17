@@ -1,21 +1,24 @@
 import multiprocessing
+from multiprocessing.pool import Pool, ThreadPool
 from typing import Callable, Union, cast
-from multiprocessing.pool import ThreadPool, Pool
 
 from dlt.common import logger, sleep
-from dlt.common.runtime import init
-from dlt.common.runners.runnable import Runnable, TPool
-from dlt.common.runners.configuration import PoolRunnerConfiguration
-from dlt.common.runners.typing import TRunMetrics
-from dlt.common.runtime import signals
 from dlt.common.exceptions import SignalReceivedException
+from dlt.common.runners.configuration import PoolRunnerConfiguration
+from dlt.common.runners.runnable import Runnable, TPool
+from dlt.common.runners.typing import TRunMetrics
+from dlt.common.runtime import init, signals
 
 
 def create_pool(config: PoolRunnerConfiguration) -> Pool:
     if config.pool_type == "process":
         # if not fork method, provide initializer for logs and configuration
         if multiprocessing.get_start_method() != "fork" and init._INITIALIZED:
-            return Pool(processes=config.workers, initializer=init.initialize_runtime, initargs=(init._RUN_CONFIGURATION, ))
+            return Pool(
+                processes=config.workers,
+                initializer=init.initialize_runtime,
+                initargs=(init._RUN_CONFIGURATION,),
+            )
         else:
             return Pool(processes=config.workers)
     elif config.pool_type == "thread":
@@ -24,10 +27,14 @@ def create_pool(config: PoolRunnerConfiguration) -> Pool:
     return None
 
 
-def run_pool(config: PoolRunnerConfiguration, run_f: Union[Runnable[TPool], Callable[[TPool], TRunMetrics]]) -> int:
+def run_pool(
+    config: PoolRunnerConfiguration, run_f: Union[Runnable[TPool], Callable[[TPool], TRunMetrics]]
+) -> int:
     # validate the run function
     if not isinstance(run_f, Runnable) and not callable(run_f):
-        raise ValueError(run_f, "Pool runner entry point must be a function f(pool: TPool) or Runnable")
+        raise ValueError(
+            run_f, "Pool runner entry point must be a function f(pool: TPool) or Runnable"
+        )
 
     # start pool
     pool = create_pool(config)

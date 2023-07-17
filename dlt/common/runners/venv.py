@@ -1,9 +1,9 @@
-import sys
 import os
 import shutil
-import venv
-import types
 import subprocess
+import sys
+import types
+import venv
 from typing import Any, List, Type
 
 from dlt.common.exceptions import CannotInstallDependency, VenvNotFound
@@ -19,17 +19,19 @@ class DLTEnvBuilder(venv.EnvBuilder):
         self.context = context
 
 
-class Venv():
+class Venv:
     """Creates and wraps the Python Virtual Environment to allow for code execution"""
 
     def __init__(self, context: types.SimpleNamespace, current: bool = False) -> None:
-        """Please use `Venv.create`, `Venv.restore` or `Venv.restore_current` methods to create Venv instance"""
+        """Please use `Venv.create`, `Venv.restore` or `Venv.restore_current` methods to create Venv instance
+        """
         self.context = context
         self.current = current
 
     @classmethod
     def create(cls, venv_dir: str, dependencies: List[str] = None) -> "Venv":
-        """Creates a new Virtual Environment at the location specified in `venv_dir` and installs `dependencies` via pip. Deletes partially created environment on failure."""
+        """Creates a new Virtual Environment at the location specified in `venv_dir` and installs `dependencies` via pip. Deletes partially created environment on failure.
+        """
         b = DLTEnvBuilder()
         try:
             b.create(os.path.abspath(venv_dir))
@@ -59,6 +61,7 @@ class Venv():
             venv = cls.restore(os.environ["VIRTUAL_ENV"], current=True)
         except KeyError:
             import sys
+
             bin_path, _ = os.path.split(sys.executable)
             context = types.SimpleNamespace(bin_path=bin_path, env_exe=sys.executable)
             venv = cls(context, current=True)
@@ -69,7 +72,9 @@ class Venv():
             raise NotImplementedError("Context manager does not work with current venv")
         return self
 
-    def __exit__(self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: types.TracebackType) -> None:
+    def __exit__(
+        self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: types.TracebackType
+    ) -> None:
         self.delete_environment()
 
     def delete_environment(self) -> None:
@@ -80,20 +85,24 @@ class Venv():
         if self.context.env_dir and os.path.isdir(self.context.env_dir):
             shutil.rmtree(self.context.env_dir)
 
-    def start_command(self, entry_point: str, *script_args: Any, **popen_kwargs: Any) -> "subprocess.Popen[str]":
+    def start_command(
+        self, entry_point: str, *script_args: Any, **popen_kwargs: Any
+    ) -> "subprocess.Popen[str]":
         command = os.path.join(self.context.bin_path, entry_point)
         cmd = [command, *script_args]
         return subprocess.Popen(cmd, **popen_kwargs)
 
     def run_command(self, entry_point: str, *script_args: Any) -> str:
-        """Runs any `command` with specified `script_args`. Current `os.environ` and cwd is passed to executed process"""
+        """Runs any `command` with specified `script_args`. Current `os.environ` and cwd is passed to executed process
+        """
         # runs one of installed entry points typically CLIs coming with packages and installed into PATH
         command = os.path.join(self.context.bin_path, entry_point)
         cmd = [command, *script_args]
         return subprocess.check_output(cmd, stderr=subprocess.STDOUT, text=True)
 
     def run_script(self, script_path: str, *script_args: Any) -> str:
-        """Runs a python `script` source with specified `script_args`. Current `os.environ` and cwd is passed to executed process"""
+        """Runs a python `script` source with specified `script_args`. Current `os.environ` and cwd is passed to executed process
+        """
         # os.environ is passed to executed process
         cmd = [self.context.env_exe, os.path.abspath(script_path), *script_args]
         try:
@@ -105,7 +114,8 @@ class Venv():
                 raise
 
     def run_module(self, module: str, *module_args: Any) -> str:
-        """Runs a python `module` with specified `module_args`. Current `os.environ` and cwd is passed to executed process"""
+        """Runs a python `module` with specified `module_args`. Current `os.environ` and cwd is passed to executed process
+        """
         cmd = [self.context.env_exe, "-m", module, *module_args]
         return subprocess.check_output(cmd, stderr=subprocess.STDOUT, text=True)
 

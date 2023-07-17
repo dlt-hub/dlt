@@ -1,9 +1,8 @@
 from typing import Final, Optional
 
-from dlt.common.typing import TSecretValue
 from dlt.common.configuration import configspec
-
-from dlt.destinations.postgres.configuration import PostgresCredentials, PostgresClientConfiguration
+from dlt.common.typing import TSecretValue
+from dlt.destinations.postgres.configuration import PostgresClientConfiguration, PostgresCredentials
 
 
 @configspec

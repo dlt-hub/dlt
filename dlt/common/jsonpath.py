@@ -1,10 +1,10 @@
-from typing import Iterable, Union, List, Any
 from itertools import chain
+from typing import Any, Iterable, List, Union
+
+from jsonpath_ng import JSONPath
+from jsonpath_ng import parse as _parse
 
 from dlt.common.typing import DictStrAny
-
-from jsonpath_ng import parse as _parse, JSONPath
-
 
 TJsonPath = Union[str, JSONPath]  # Jsonpath compiled or str
 TAnyJsonPath = Union[TJsonPath, Iterable[TJsonPath]]  # A single or multiple jsonpaths

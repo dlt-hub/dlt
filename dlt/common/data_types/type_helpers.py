@@ -1,66 +1,67 @@
-import binascii
 import base64
+import binascii
 import datetime  # noqa: I251
-from collections.abc import Mapping as C_Mapping, Sequence as C_Sequence
-from typing import Any, Type, Literal, Union, Optional, cast
+import typing as t
+from collections.abc import Mapping as C_Mapping
+from collections.abc import Sequence as C_Sequence
 
-from dlt.common import pendulum, json, Decimal, Wei
-from dlt.common.json import custom_pua_remove
-from dlt.common.json._simplejson import custom_encode as json_custom_encode
+from dlt.common import Decimal, Wei, json, pendulum
 from dlt.common.arithmetics import InvalidOperation
 from dlt.common.data_types.typing import TDataType
-from dlt.common.time import parse_iso_like_datetime, ensure_datetime, ensure_date
+from dlt.common.json import custom_pua_remove
+from dlt.common.json._simplejson import custom_encode as json_custom_encode
+from dlt.common.time import ensure_date, ensure_datetime, parse_iso_like_datetime
 from dlt.common.utils import map_nested_in_place, str2bool
 
 
-def py_type_to_sc_type(t: Type[Any]) -> TDataType:
+def py_type_to_sc_type(typ: t.Type[t.Any]) -> TDataType:
     # start with most popular types
-    if t is str:
+    if typ is str:
         return "text"
-    if t is float:
+    if typ is float:
         return "double"
     # bool is subclass of int so must go first
-    if t is bool:
+    if typ is bool:
         return "bool"
-    if t is int:
+    if typ is int:
         return "bigint"
-    if issubclass(t, (dict, list)):
+    if issubclass(typ, (dict, list)):
         return "complex"
 
     # those are special types that will not be present in json loaded dict
     # wei is subclass of decimal and must be checked first
-    if issubclass(t, Wei):
+    if issubclass(typ, Wei):
         return "wei"
-    if issubclass(t, Decimal):
+    if issubclass(typ, Decimal):
         return "decimal"
     # datetime is subclass of date and must be checked first
-    if issubclass(t, datetime.datetime):
+    if issubclass(typ, datetime.datetime):
         return "timestamp"
-    if issubclass(t, datetime.date):
+    if issubclass(typ, datetime.date):
         return "date"
     # check again for subclassed basic types
-    if issubclass(t, str):
+    if issubclass(typ, str):
         return "text"
-    if issubclass(t, float):
+    if issubclass(typ, float):
         return "double"
-    if issubclass(t, int):
+    if issubclass(typ, int):
         return "bigint"
-    if issubclass(t, bytes):
+    if issubclass(typ, bytes):
         return "binary"
-    if issubclass(t, (C_Mapping, C_Sequence)):
+    if issubclass(typ, (C_Mapping, C_Sequence)):
         return "complex"
 
-    raise TypeError(t)
+    raise TypeError(typ)
 
 
-def complex_to_str(value: Any) -> str:
+def complex_to_str(value: t.Any) -> str:
     return json.dumps(map_nested_in_place(custom_pua_remove, value))
 
 
 def coerce_date_types(
-    to_type: Literal["timestamp", "date"], from_type: TDataType, value: Any
-) -> Union[datetime.datetime, datetime.date]:
-    result: Union[datetime.datetime, datetime.date]
+    to_type: t.Literal["timestamp", "date"], from_type: TDataType, value: t.Any
+) -> t.Union[datetime.datetime, datetime.date]:
+    result: t.Union[datetime.datetime, datetime.date]
     try:
         if from_type in ["bigint", "double"]:
             # returns ISO datetime with timezone
@@ -93,7 +94,7 @@ def coerce_date_types(
     return ensure_datetime(result)
 
 
-def coerce_value(to_type: TDataType, from_type: TDataType, value: Any) -> Any:
+def coerce_value(to_type: TDataType, from_type: TDataType, value: t.Any) -> t.Any:
     if to_type == from_type:
         if to_type == "complex":
             # complex types need custom encoding to be removed
@@ -120,7 +121,7 @@ def coerce_value(to_type: TDataType, from_type: TDataType, value: Any) -> Any:
             except binascii.Error:
                 raise ValueError(value)
         if from_type == "bigint":
-            return value.to_bytes((value.bit_length() + 7) // 8, 'little')
+            return value.to_bytes((value.bit_length() + 7) // 8, "little")
 
     if to_type == "bigint":
         if from_type in ["wei", "decimal", "double"]:
@@ -165,7 +166,7 @@ def coerce_value(to_type: TDataType, from_type: TDataType, value: Any) -> Any:
                     raise ValueError(trim_value)
 
     if to_type in ["timestamp", "date"]:
-        return coerce_date_types(cast(Literal["timestamp", "date"], to_type), from_type, value)
+        return coerce_date_types(t.cast(t.Literal["timestamp", "date"], to_type), from_type, value)
 
     if to_type == "bool":
         if from_type == "text":

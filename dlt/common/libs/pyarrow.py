@@ -1,16 +1,18 @@
-from dlt.common.exceptions import MissingDependencyException
-from typing import Any, Tuple
+import typing as t
 
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
+from dlt.common.exceptions import MissingDependencyException
 
 try:
     import pyarrow
     import pyarrow.parquet
 except ImportError:
-    raise MissingDependencyException("DLT parquet Helpers", ["parquet"], "DLT Helpers for for parquet.")
+    raise MissingDependencyException(
+        "DLT parquet Helpers", ["parquet"], "DLT Helpers for for parquet."
+    )
 
 
-def get_py_arrow_datatype(column_type: str, caps: DestinationCapabilitiesContext) -> Any:
+def get_py_arrow_datatype(column_type: str, caps: DestinationCapabilitiesContext) -> t.Any:
     if column_type == "text":
         return pyarrow.string()
     elif column_type == "double":
@@ -18,7 +20,7 @@ def get_py_arrow_datatype(column_type: str, caps: DestinationCapabilitiesContext
     elif column_type == "bool":
         return pyarrow.bool_()
     elif column_type == "timestamp":
-        return pyarrow.timestamp('ms')
+        return pyarrow.timestamp("ms")
     elif column_type == "bigint":
         return pyarrow.int64()
     elif column_type == "binary":
@@ -36,7 +38,7 @@ def get_py_arrow_datatype(column_type: str, caps: DestinationCapabilitiesContext
         raise ValueError(column_type)
 
 
-def get_py_arrow_numeric(precision: Tuple[int, int]) -> Any:
+def get_py_arrow_numeric(precision: t.Tuple[int, int]) -> t.Any:
     if precision[0] <= 38:
         return pyarrow.decimal128(*precision)
     if precision[0] <= 76:

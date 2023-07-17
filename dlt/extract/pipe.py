@@ -1,24 +1,52 @@
+import asyncio
 import inspect
 import types
-import asyncio
-import makefun
 from asyncio import Future
 from concurrent.futures import ThreadPoolExecutor
 from copy import copy
 from threading import Thread
-from typing import Any, ContextManager, Optional, Sequence, Union, Callable, Iterable, Iterator, List, NamedTuple, Awaitable, Tuple, Type, TYPE_CHECKING, Literal
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Awaitable,
+    Callable,
+    ContextManager,
+    Iterable,
+    Iterator,
+    List,
+    Literal,
+    NamedTuple,
+    Optional,
+    Sequence,
+    Tuple,
+    Type,
+    Union,
+)
+
+import makefun
 
 from dlt.common import sleep
 from dlt.common.configuration import configspec
+from dlt.common.configuration.container import Container
 from dlt.common.configuration.inject import with_config
 from dlt.common.configuration.specs import BaseConfiguration, ContainerInjectableContext
-from dlt.common.configuration.container import Container
 from dlt.common.exceptions import PipelineException
-from dlt.common.source import unset_current_pipe_name, set_current_pipe_name
+from dlt.common.source import set_current_pipe_name, unset_current_pipe_name
 from dlt.common.typing import AnyFun, AnyType, TDataItems
 from dlt.common.utils import get_callable_name
-
-from dlt.extract.exceptions import CreatePipeException, DltSourceException, ExtractorException, InvalidResourceDataTypeFunctionNotAGenerator, InvalidStepFunctionArguments, InvalidTransformerGeneratorFunction, ParametrizedResourceUnbound, PipeException, PipeItemProcessingError, PipeNotBoundToData, ResourceExtractionError
+from dlt.extract.exceptions import (
+    CreatePipeException,
+    DltSourceException,
+    ExtractorException,
+    InvalidResourceDataTypeFunctionNotAGenerator,
+    InvalidStepFunctionArguments,
+    InvalidTransformerGeneratorFunction,
+    ParametrizedResourceUnbound,
+    PipeException,
+    PipeItemProcessingError,
+    PipeNotBoundToData,
+    ResourceExtractionError,
+)
 from dlt.extract.typing import DataItemWithMeta, ItemTransform, SupportsPipe, TPipedDataItems
 
 if TYPE_CHECKING:
@@ -62,7 +90,7 @@ TPipeStep = Union[
     Iterator[TPipedDataItems],
     Callable[[TDataItems, Optional[Any]], TPipedDataItems],
     Callable[[TDataItems, Optional[Any]], Iterator[TPipedDataItems]],
-    Callable[[TDataItems, Optional[Any]], Iterator[ResolvablePipeItem]]
+    Callable[[TDataItems, Optional[Any]], Iterator[ResolvablePipeItem]],
 ]
 
 TPipeNextItemMode = Union[Literal["fifo"], Literal["round_robin"]]
@@ -70,7 +98,8 @@ TPipeNextItemMode = Union[Literal["fifo"], Literal["round_robin"]]
 
 class ForkPipe:
     def __init__(self, pipe: "Pipe", step: int = -1, copy_on_fork: bool = False) -> None:
-        """A transformer that forks the `pipe` and sends the data items to forks added via `add_pipe` method."""
+        """A transformer that forks the `pipe` and sends the data items to forks added via `add_pipe` method.
+        """
         self._pipes: List[Tuple["Pipe", int]] = []
         self.copy_on_fork = copy_on_fork
         """If true, the data items going to a forked pipe will be copied"""
@@ -107,7 +136,12 @@ class Pipe(SupportsPipe):
                 self.append_step(step)
 
     @classmethod
-    def from_data(cls, name: str, gen: Union[Iterable[TPipedDataItems], Iterator[TPipedDataItems], AnyFun], parent: "Pipe" = None) -> "Pipe":
+    def from_data(
+        cls,
+        name: str,
+        gen: Union[Iterable[TPipedDataItems], Iterator[TPipedDataItems], AnyFun],
+        parent: "Pipe" = None,
+    ) -> "Pipe":
         return cls(name, [gen], parent=parent)
 
     @property
@@ -117,12 +151,14 @@ class Pipe(SupportsPipe):
 
     @property
     def has_parent(self) -> bool:
-        """Checks if pipe is connected to parent pipe from which it takes data items. Connected pipes are created from transformer resources"""
+        """Checks if pipe is connected to parent pipe from which it takes data items. Connected pipes are created from transformer resources
+        """
         return self.parent is not None
 
     @property
     def is_data_bound(self) -> bool:
-        """Checks if pipe is bound to data and can be iterated. Pipe is bound if has a parent that is bound xor is not empty."""
+        """Checks if pipe is bound to data and can be iterated. Pipe is bound if has a parent that is bound xor is not empty.
+        """
         if self.has_parent:
             return self.parent.is_data_bound
         else:
@@ -143,7 +179,7 @@ class Pipe(SupportsPipe):
 
     def find(self, *step_type: AnyType) -> int:
         """Finds a step with object of type `step_type`"""
-        return next((i for i,v in enumerate(self._steps) if type(v) in step_type), -1)
+        return next((i for i, v in enumerate(self._steps) if type(v) in step_type), -1)
 
     def __getitem__(self, i: int) -> TPipeStep:
         return self._steps[i]
@@ -164,7 +200,8 @@ class Pipe(SupportsPipe):
         return self
 
     def append_step(self, step: TPipeStep) -> "Pipe":
-        """Appends pipeline step. On first added step performs additional verification if step is a valid data generator"""
+        """Appends pipeline step. On first added step performs additional verification if step is a valid data generator
+        """
         step_no = len(self._steps)
         if step_no == 0 and not self.has_parent:
             self._verify_head_step(step)
@@ -181,7 +218,11 @@ class Pipe(SupportsPipe):
             return self.append_step(step)
         if index == 0:
             if not self.has_parent:
-                raise CreatePipeException(self.name, "You cannot insert a step before head of the resource that is not a transformer")
+                raise CreatePipeException(
+                    self.name,
+                    "You cannot insert a step before head of the resource that is not a"
+                    " transformer",
+                )
         step = self._wrap_transform_step_meta(index, step)
         # actually insert in the list
         self._steps.insert(index, step)
@@ -193,7 +234,10 @@ class Pipe(SupportsPipe):
     def remove_step(self, index: int) -> None:
         """Removes steps at a given index. Gen step cannot be removed"""
         if index == self._gen_idx:
-            raise CreatePipeException(self.name, f"Step at index {index} holds a data generator for this pipe and cannot be removed")
+            raise CreatePipeException(
+                self.name,
+                f"Step at index {index} holds a data generator for this pipe and cannot be removed",
+            )
         self._steps.pop(index)
         if index < self._gen_idx:
             self._gen_idx -= 1
@@ -234,10 +278,17 @@ class Pipe(SupportsPipe):
             sig.bind()
         except TypeError as ex:
             callable_name = get_callable_name(head)
-            raise ParametrizedResourceUnbound(self.name, callable_name, sig.replace(parameters=list(sig.parameters.values())[1:]), "resource", str(ex))
+            raise ParametrizedResourceUnbound(
+                self.name,
+                callable_name,
+                sig.replace(parameters=list(sig.parameters.values())[1:]),
+                "resource",
+                str(ex),
+            )
 
     def evaluate_gen(self) -> None:
-        """Lazily evaluate gen of the pipe when creating PipeIterator. Allows creating multiple use pipes from generator functions and lists"""
+        """Lazily evaluate gen of the pipe when creating PipeIterator. Allows creating multiple use pipes from generator functions and lists
+        """
         if not self.is_data_bound:
             raise PipeNotBoundToData(self.name, self.has_parent)
 
@@ -248,7 +299,13 @@ class Pipe(SupportsPipe):
                     # must be parameter-less callable or parameters must have defaults
                     self.replace_gen(gen())  # type: ignore
                 except TypeError as ex:
-                    raise ParametrizedResourceUnbound(self.name, get_callable_name(gen), inspect.signature(gen), "resource", str(ex))
+                    raise ParametrizedResourceUnbound(
+                        self.name,
+                        get_callable_name(gen),
+                        inspect.signature(gen),
+                        "resource",
+                        str(ex),
+                    )
             # otherwise it must be an iterator
             if isinstance(gen, Iterable):
                 self.replace_gen(iter(gen))
@@ -263,7 +320,8 @@ class Pipe(SupportsPipe):
                 self._steps[step_no] = step.bind(self)
 
     def bind_gen(self, *args: Any, **kwargs: Any) -> Any:
-        """Finds and wraps with `args` + `kwargs` the callable generating step in the resource pipe and then replaces the pipe gen with the wrapped one"""
+        """Finds and wraps with `args` + `kwargs` the callable generating step in the resource pipe and then replaces the pipe gen with the wrapped one
+        """
         try:
             gen = self._wrap_gen(*args, **kwargs)
             self.replace_gen(gen)
@@ -282,7 +340,8 @@ class Pipe(SupportsPipe):
             raise
 
     def _wrap_gen(self, *args: Any, **kwargs: Any) -> Any:
-        """Finds and wraps with `args` + `kwargs` the callable generating step in the resource pipe."""
+        """Finds and wraps with `args` + `kwargs` the callable generating step in the resource pipe.
+        """
         head = self.gen
         _data: Any = None
 
@@ -294,7 +353,9 @@ class Pipe(SupportsPipe):
         sig = inspect.signature(head)
         # simulate the call to the underlying callable
         if args or kwargs:
-            skip_items_arg = 1 if self.has_parent else 0  # skip the data item argument for transformers
+            skip_items_arg = (
+                1 if self.has_parent else 0
+            )  # skip the data item argument for transformers
             no_item_sig = sig.replace(parameters=list(sig.parameters.values())[skip_items_arg:])
             try:
                 no_item_sig.bind(*args, **kwargs)
@@ -303,7 +364,6 @@ class Pipe(SupportsPipe):
 
         # create wrappers with partial
         if self.has_parent:
-
             if len(sig.parameters) == 2 and "meta" in sig.parameters:
                 return head
 
@@ -337,30 +397,44 @@ class Pipe(SupportsPipe):
     def _verify_head_step(self, step: TPipeStep) -> None:
         # first element must be Iterable, Iterator or Callable in resource pipe
         if not isinstance(step, (Iterable, Iterator)) and not callable(step):
-            raise CreatePipeException(self.name, "A head of a resource pipe must be Iterable, Iterator or a Callable")
+            raise CreatePipeException(
+                self.name, "A head of a resource pipe must be Iterable, Iterator or a Callable"
+            )
 
     def _wrap_transform_step_meta(self, step_no: int, step: TPipeStep) -> TPipeStep:
         # step must be a callable: a transformer or a transformation
         if isinstance(step, (Iterable, Iterator)) and not callable(step):
             if self.has_parent:
-                raise CreatePipeException(self.name, "Iterable or Iterator cannot be a step in transformer pipe")
+                raise CreatePipeException(
+                    self.name, "Iterable or Iterator cannot be a step in transformer pipe"
+                )
             else:
-                raise CreatePipeException(self.name, "Iterable or Iterator can only be a first step in resource pipe")
+                raise CreatePipeException(
+                    self.name, "Iterable or Iterator can only be a first step in resource pipe"
+                )
 
         if not callable(step):
-            raise CreatePipeException(self.name, "Pipe step must be a callable taking one data item as argument and optional second meta argument")
+            raise CreatePipeException(
+                self.name,
+                "Pipe step must be a callable taking one data item as argument and optional second"
+                " meta argument",
+            )
         else:
             # check the signature
             sig = inspect.signature(step)
             sig_arg_count = len(sig.parameters)
             callable_name = get_callable_name(step)
             if sig_arg_count == 0:
-                raise InvalidStepFunctionArguments(self.name, callable_name, sig, "Function takes no arguments")
+                raise InvalidStepFunctionArguments(
+                    self.name, callable_name, sig, "Function takes no arguments"
+                )
             # see if meta is present in kwargs
             meta_arg = next((p for p in sig.parameters.values() if p.name == "meta"), None)
             if meta_arg is not None:
                 if meta_arg.kind not in (meta_arg.KEYWORD_ONLY, meta_arg.POSITIONAL_OR_KEYWORD):
-                    raise InvalidStepFunctionArguments(self.name, callable_name, sig, "'meta' cannot be pos only argument '")
+                    raise InvalidStepFunctionArguments(
+                        self.name, callable_name, sig, "'meta' cannot be pos only argument '"
+                    )
             elif meta_arg is None:
                 # add meta parameter when not present
                 orig_step = step
@@ -371,15 +445,16 @@ class Pipe(SupportsPipe):
                     return orig_step(*args, **kwargs)
 
                 step = makefun.wraps(
-                        step,
-                        append_args=inspect.Parameter("meta", inspect._ParameterKind.KEYWORD_ONLY, default=None)
-                    )(_partial)
+                    step,
+                    append_args=inspect.Parameter(
+                        "meta", inspect._ParameterKind.KEYWORD_ONLY, default=None
+                    ),
+                )(_partial)
 
             # verify the step callable, gen may be parametrized and will be evaluated at run time
             if not self.is_empty:
                 self._ensure_transform_step(step_no, step)
         return step
-
 
     def _ensure_transform_step(self, step_no: int, step: TPipeStep) -> None:
         """Verifies that `step` is a valid callable to be a transform step of the pipeline"""
@@ -397,12 +472,19 @@ class Pipe(SupportsPipe):
                     raise InvalidTransformerGeneratorFunction(self.name, callable_name, sig, code=1)
                 else:
                     # show the sig without first argument
-                    raise ParametrizedResourceUnbound(self.name, callable_name, sig.replace(parameters=list(sig.parameters.values())[1:]), "transformer", str(ty_ex))
+                    raise ParametrizedResourceUnbound(
+                        self.name,
+                        callable_name,
+                        sig.replace(parameters=list(sig.parameters.values())[1:]),
+                        "transformer",
+                        str(ty_ex),
+                    )
             else:
                 raise InvalidStepFunctionArguments(self.name, callable_name, sig, str(ty_ex))
 
     def _clone(self, keep_pipe_id: bool = True) -> "Pipe":
-        """Clones the pipe steps, optionally keeping the pipe id. Used internally to clone a list of connected pipes."""
+        """Clones the pipe steps, optionally keeping the pipe id. Used internally to clone a list of connected pipes.
+        """
         p = Pipe(self.name, [], self.parent)
         p._steps = self._steps.copy()
         # clone shares the id with the original
@@ -415,11 +497,13 @@ class Pipe(SupportsPipe):
             bound_str = " data bound to " + repr(self.parent)
         else:
             bound_str = ""
-        return f"Pipe {self.name} ({self._pipe_id})[steps: {len(self._steps)}] at {id(self)}{bound_str}"
+        return (
+            f"Pipe {self.name} ({self._pipe_id})[steps: {len(self._steps)}] at"
+            f" {id(self)}{bound_str}"
+        )
 
 
 class PipeIterator(Iterator[PipeItem]):
-
     @configspec
     class PipeIteratorConfiguration(BaseConfiguration):
         max_parallel_items: int = 20
@@ -430,7 +514,13 @@ class PipeIterator(Iterator[PipeItem]):
 
         __section__ = "extract"
 
-    def __init__(self, max_parallel_items: int, workers: int, futures_poll_interval: float, next_item_mode: TPipeNextItemMode) -> None:
+    def __init__(
+        self,
+        max_parallel_items: int,
+        workers: int,
+        futures_poll_interval: float,
+        next_item_mode: TPipeNextItemMode,
+    ) -> None:
         self.max_parallel_items = max_parallel_items
         self.workers = workers
         self.futures_poll_interval = futures_poll_interval
@@ -446,7 +536,15 @@ class PipeIterator(Iterator[PipeItem]):
 
     @classmethod
     @with_config(spec=PipeIteratorConfiguration)
-    def from_pipe(cls, pipe: Pipe, *, max_parallel_items: int = 20, workers: int = 5, futures_poll_interval: float = 0.01, next_item_mode: TPipeNextItemMode = "fifo") -> "PipeIterator":
+    def from_pipe(
+        cls,
+        pipe: Pipe,
+        *,
+        max_parallel_items: int = 20,
+        workers: int = 5,
+        futures_poll_interval: float = 0.01,
+        next_item_mode: TPipeNextItemMode = "fifo",
+    ) -> "PipeIterator":
         # join all dependent pipes
         if pipe.parent:
             pipe = pipe.full_pipe()
@@ -473,14 +571,12 @@ class PipeIterator(Iterator[PipeItem]):
         workers: int = 5,
         futures_poll_interval: float = 0.01,
         copy_on_fork: bool = False,
-        next_item_mode: TPipeNextItemMode = "fifo"
+        next_item_mode: TPipeNextItemMode = "fifo",
     ) -> "PipeIterator":
-
         # print(f"max_parallel_items: {max_parallel_items} workers: {workers}")
         extract = cls(max_parallel_items, workers, futures_poll_interval, next_item_mode)
         # clone all pipes before iterating (recursively) as we will fork them (this add steps) and evaluate gens
         pipes = PipeIterator.clone_pipes(pipes)
-
 
         def _fork_pipeline(pipe: Pipe) -> None:
             if pipe.parent:
@@ -536,7 +632,9 @@ class PipeIterator(Iterator[PipeItem]):
             # if item is iterator, then add it as a new source
             if isinstance(item, Iterator):
                 # print(f"adding iterable {item}")
-                self._sources.append(SourcePipeItem(item, pipe_item.step, pipe_item.pipe, pipe_item.meta))
+                self._sources.append(
+                    SourcePipeItem(item, pipe_item.step, pipe_item.pipe, pipe_item.meta)
+                )
                 pipe_item = None
                 continue
 
@@ -563,7 +661,11 @@ class PipeIterator(Iterator[PipeItem]):
                 # must be resolved
                 if isinstance(item, (Iterator, Awaitable)) or callable(item):
                     raise PipeItemProcessingError(
-                        pipe_item.pipe.name, f"Pipe item at step {pipe_item.step} was not fully evaluated and is of type {type(pipe_item.item).__name__}. This is internal error or you are yielding something weird from resources ie. functions or awaitables.")
+                        pipe_item.pipe.name,
+                        f"Pipe item at step {pipe_item.step} was not fully evaluated and is of type"
+                        f" {type(pipe_item.item).__name__}. This is internal error or you are"
+                        " yielding something weird from resources ie. functions or awaitables.",
+                    )
                 # mypy not able to figure out that item was resolved
                 return pipe_item  # type: ignore
 
@@ -578,17 +680,26 @@ class PipeIterator(Iterator[PipeItem]):
                     next_item = next_item.data
             except TypeError as ty_ex:
                 assert callable(step)
-                raise InvalidStepFunctionArguments(pipe_item.pipe.name, get_callable_name(step), inspect.signature(step), str(ty_ex))
+                raise InvalidStepFunctionArguments(
+                    pipe_item.pipe.name,
+                    get_callable_name(step),
+                    inspect.signature(step),
+                    str(ty_ex),
+                )
             except (PipelineException, ExtractorException, DltSourceException, PipeException):
                 raise
             except StopIteration:
                 # To avoid catching StopIteration in the general Exception handler below, we just want to stop the generator
                 raise
             except Exception as ex:
-                raise ResourceExtractionError(pipe_item.pipe.name, step, str(ex), "transform") from ex
+                raise ResourceExtractionError(
+                    pipe_item.pipe.name, step, str(ex), "transform"
+                ) from ex
             # create next pipe item if a value was returned. A None means that item was consumed/filtered out and should not be further processed
             if next_item is not None:
-                pipe_item = ResolvablePipeItem(next_item, pipe_item.step + 1, pipe_item.pipe, next_meta)
+                pipe_item = ResolvablePipeItem(
+                    next_item, pipe_item.step + 1, pipe_item.pipe, next_meta
+                )
             else:
                 pipe_item = None
 
@@ -632,7 +743,9 @@ class PipeIterator(Iterator[PipeItem]):
             loop.run_forever()
 
         self._async_pool = asyncio.new_event_loop()
-        self._async_pool_thread = Thread(target=start_background_loop, args=(self._async_pool,), daemon=True)
+        self._async_pool_thread = Thread(
+            target=start_background_loop, args=(self._async_pool,), daemon=True
+        )
         self._async_pool_thread.start()
 
         # start or return async pool
@@ -649,7 +762,9 @@ class PipeIterator(Iterator[PipeItem]):
     def __enter__(self) -> "PipeIterator":
         return self
 
-    def __exit__(self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: types.TracebackType) -> None:
+    def __exit__(
+        self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: types.TracebackType
+    ) -> None:
         self.close()
 
     def _next_future(self) -> int:
@@ -674,7 +789,9 @@ class PipeIterator(Iterator[PipeItem]):
 
         if future.exception():
             ex = future.exception()
-            if isinstance(ex, (PipelineException, ExtractorException, DltSourceException, PipeException)):
+            if isinstance(
+                ex, (PipelineException, ExtractorException, DltSourceException, PipeException)
+            ):
                 raise ex
             raise ResourceExtractionError(pipe.name, future, str(ex), "future") from ex
 
@@ -790,11 +907,13 @@ class PipeIterator(Iterator[PipeItem]):
 
 class ManagedPipeIterator(PipeIterator):
     """A version of the pipe iterator that gets closed automatically on an exception in _next_"""
+
     _ctx: List[ContainerInjectableContext] = None
     _container: Container = None
 
     def set_context(self, ctx: List[ContainerInjectableContext]) -> None:
-        """Sets list of injectable contexts that will be injected into Container for each call to __next__"""
+        """Sets list of injectable contexts that will be injected into Container for each call to __next__
+        """
         self._ctx = ctx
         self._container = Container()
 

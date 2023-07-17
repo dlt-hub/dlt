@@ -1,14 +1,14 @@
 import abc
-
+import typing as t
 from dataclasses import dataclass
-from typing import Any, Dict, Sequence, IO, Type, Optional, List, cast
 
 from dlt.common import json
-from dlt.common.typing import StrAny
-from dlt.common.schema.typing import TTableSchemaColumns
-from dlt.common.destination import TLoaderFileFormat, DestinationCapabilitiesContext
-from dlt.common.configuration import with_config, known_sections, configspec
+from dlt.common.configuration import configspec, known_sections, with_config
 from dlt.common.configuration.specs import BaseConfiguration
+from dlt.common.destination import DestinationCapabilitiesContext, TLoaderFileFormat
+from dlt.common.schema.typing import TTableSchemaColumns
+from dlt.common.typing import StrAny
+
 
 @dataclass
 class TFileFormatSpec:
@@ -21,7 +21,7 @@ class TFileFormatSpec:
 
 
 class DataWriter(abc.ABC):
-    def __init__(self, f: IO[Any], caps: DestinationCapabilitiesContext = None) -> None:
+    def __init__(self, f: t.IO[t.Any], caps: DestinationCapabilitiesContext = None) -> None:
         self._f = f
         self._caps = caps
         self.items_count = 0
@@ -30,18 +30,17 @@ class DataWriter(abc.ABC):
     def write_header(self, columns_schema: TTableSchemaColumns) -> None:
         pass
 
-    def write_data(self, rows: Sequence[Any]) -> None:
+    def write_data(self, rows: t.Sequence[t.Any]) -> None:
         self.items_count += len(rows)
 
     @abc.abstractmethod
     def write_footer(self) -> None:
         pass
 
-    def write_all(self, columns_schema: TTableSchemaColumns, rows: Sequence[Any]) -> None:
+    def write_all(self, columns_schema: TTableSchemaColumns, rows: t.Sequence[t.Any]) -> None:
         self.write_header(columns_schema)
         self.write_data(rows)
         self.write_footer()
-
 
     @classmethod
     @abc.abstractmethod
@@ -49,11 +48,18 @@ class DataWriter(abc.ABC):
         pass
 
     @classmethod
-    def from_file_format(cls, file_format: TLoaderFileFormat, f: IO[Any], caps: DestinationCapabilitiesContext = None) -> "DataWriter":
+    def from_file_format(
+        cls,
+        file_format: TLoaderFileFormat,
+        f: t.IO[t.Any],
+        caps: DestinationCapabilitiesContext = None,
+    ) -> "DataWriter":
         return cls.class_factory(file_format)(f, caps)
 
     @classmethod
-    def from_destination_capabilities(cls, caps: DestinationCapabilitiesContext, f: IO[Any]) -> "DataWriter":
+    def from_destination_capabilities(
+        cls, caps: DestinationCapabilitiesContext, f: t.IO[t.Any]
+    ) -> "DataWriter":
         return cls.class_factory(caps.preferred_loader_file_format)(f, caps)
 
     @classmethod
@@ -61,7 +67,7 @@ class DataWriter(abc.ABC):
         return cls.class_factory(file_format).data_format()
 
     @staticmethod
-    def class_factory(file_format: TLoaderFileFormat) -> Type["DataWriter"]:
+    def class_factory(file_format: TLoaderFileFormat) -> t.Type["DataWriter"]:
         if file_format == "jsonl":
             return JsonlWriter
         elif file_format == "puae-jsonl":
@@ -75,11 +81,10 @@ class DataWriter(abc.ABC):
 
 
 class JsonlWriter(DataWriter):
-
     def write_header(self, columns_schema: TTableSchemaColumns) -> None:
         pass
 
-    def write_data(self, rows: Sequence[Any]) -> None:
+    def write_data(self, rows: t.Sequence[t.Any]) -> None:
         super().write_data(rows)
         for row in rows:
             json.dump(row, self._f)
@@ -100,8 +105,7 @@ class JsonlWriter(DataWriter):
 
 
 class JsonlListPUAEncodeWriter(JsonlWriter):
-
-    def write_data(self, rows: Sequence[Any]) -> None:
+    def write_data(self, rows: t.Sequence[t.Any]) -> None:
         # skip JsonlWriter when calling super
         super(JsonlWriter, self).write_data(rows)
         # write all rows as one list which will require to write just one line
@@ -121,11 +125,10 @@ class JsonlListPUAEncodeWriter(JsonlWriter):
 
 
 class InsertValuesWriter(DataWriter):
-
-    def __init__(self, f: IO[Any], caps: DestinationCapabilitiesContext = None) -> None:
+    def __init__(self, f: t.IO[t.Any], caps: DestinationCapabilitiesContext = None) -> None:
         super().__init__(f, caps)
         self._chunks_written = 0
-        self._headers_lookup: Dict[str, int] = None
+        self._headers_lookup: t.Dict[str, int] = None
 
     def write_header(self, columns_schema: TTableSchemaColumns) -> None:
         assert self._chunks_written == 0
@@ -138,12 +141,12 @@ class InsertValuesWriter(DataWriter):
         self._f.write(",".join(map(self._caps.escape_identifier, headers)))
         self._f.write(")\nVALUES\n")
 
-    def write_data(self, rows: Sequence[Any]) -> None:
+    def write_data(self, rows: t.Sequence[t.Any]) -> None:
         super().write_data(rows)
 
         def write_row(row: StrAny) -> None:
             output = ["NULL"] * len(self._headers_lookup)
-            for n,v  in row.items():
+            for n, v in row.items():
                 output[self._headers_lookup[n]] = self._caps.escape_literal(v)
             self._f.write("(")
             self._f.write(",".join(output))
@@ -186,40 +189,55 @@ class ParquetDataWriterConfiguration(BaseConfiguration):
 
     __section__: str = known_sections.DATA_WRITER
 
-class ParquetDataWriter(DataWriter):
 
+class ParquetDataWriter(DataWriter):
     @with_config(spec=ParquetDataWriterConfiguration)
-    def __init__(self,
-                 f: IO[Any],
-                 caps: DestinationCapabilitiesContext = None,
-                 *,
-                 flavor: str = "spark",
-                 version: str = "2.4",
-                 data_page_size: int = 1024 * 1024
-                 ) -> None:
+    def __init__(
+        self,
+        f: t.IO[t.Any],
+        caps: DestinationCapabilitiesContext = None,
+        *,
+        flavor: str = "spark",
+        version: str = "2.4",
+        data_page_size: int = 1024 * 1024,
+    ) -> None:
         super().__init__(f, caps)
         from dlt.common.libs.pyarrow import pyarrow
 
-        self.writer: Optional[pyarrow.parquet.ParquetWriter] = None
-        self.schema: Optional[pyarrow.Schema] = None
-        self.complex_indices: List[str] = None
+        self.writer: t.Optional[pyarrow.parquet.ParquetWriter] = None
+        self.schema: t.Optional[pyarrow.Schema] = None
+        self.complex_indices: t.List[str] = None
         self.parquet_flavor = flavor
         self.parquet_version = version
         self.parquet_data_page_size = data_page_size
 
     def write_header(self, columns_schema: TTableSchemaColumns) -> None:
-        from dlt.common.libs.pyarrow import pyarrow, get_py_arrow_datatype
+        from dlt.common.libs.pyarrow import get_py_arrow_datatype, pyarrow
 
         # build schema
         self.schema = pyarrow.schema(
-            [pyarrow.field(name, get_py_arrow_datatype(schema_item["data_type"], self._caps), nullable=schema_item["nullable"]) for name, schema_item in columns_schema.items()]
+            [
+                pyarrow.field(
+                    name,
+                    get_py_arrow_datatype(schema_item["data_type"], self._caps),
+                    nullable=schema_item["nullable"],
+                )
+                for name, schema_item in columns_schema.items()
+            ]
         )
         # find row items that are of the complex type (could be abstracted out for use in other writers?)
-        self.complex_indices = [i for i, field in columns_schema.items() if field["data_type"] == "complex"]
-        self.writer = pyarrow.parquet.ParquetWriter(self._f, self.schema, flavor=self.parquet_flavor, version=self.parquet_version, data_page_size=self.parquet_data_page_size)
+        self.complex_indices = [
+            i for i, field in columns_schema.items() if field["data_type"] == "complex"
+        ]
+        self.writer = pyarrow.parquet.ParquetWriter(
+            self._f,
+            self.schema,
+            flavor=self.parquet_flavor,
+            version=self.parquet_version,
+            data_page_size=self.parquet_data_page_size,
+        )
 
-
-    def write_data(self, rows: Sequence[Any]) -> None:
+    def write_data(self, rows: t.Sequence[t.Any]) -> None:
         super().write_data(rows)
         from dlt.common.libs.pyarrow import pyarrow
 
@@ -237,7 +255,13 @@ class ParquetDataWriter(DataWriter):
         self.writer.close()
         self.writer = None
 
-
     @classmethod
     def data_format(cls) -> TFileFormatSpec:
-        return TFileFormatSpec("parquet", "parquet", True, False, requires_destination_capabilities=True, supports_compression=False)
+        return TFileFormatSpec(
+            "parquet",
+            "parquet",
+            True,
+            False,
+            requires_destination_capabilities=True,
+            supports_compression=False,
+        )

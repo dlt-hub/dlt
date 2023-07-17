@@ -1,24 +1,33 @@
-import yaml
 from typing import Iterator, List, Mapping, Tuple
+
+import yaml
 
 from dlt.common import json, logger
 from dlt.common.configuration import with_config
 from dlt.common.configuration.accessors import config
-from dlt.common.storages.configuration import SchemaStorageConfiguration, TSchemaFileFormat, SchemaFileExtensions
-from dlt.common.storages.file_storage import FileStorage
 from dlt.common.schema import Schema, verify_schema_hash
+from dlt.common.storages.configuration import (
+    SchemaFileExtensions,
+    SchemaStorageConfiguration,
+    TSchemaFileFormat,
+)
+from dlt.common.storages.exceptions import (
+    InStorageSchemaModified,
+    SchemaNotFoundError,
+    UnexpectedSchemaName,
+)
+from dlt.common.storages.file_storage import FileStorage
 from dlt.common.typing import DictStrAny
-
-from dlt.common.storages.exceptions import InStorageSchemaModified, SchemaNotFoundError, UnexpectedSchemaName
 
 
 class SchemaStorage(Mapping[str, Schema]):
-
     SCHEMA_FILE_NAME = "schema.%s"
     NAMED_SCHEMA_FILE_PATTERN = f"%s.{SCHEMA_FILE_NAME}"
 
     @with_config(spec=SchemaStorageConfiguration, sections=("schema",))
-    def __init__(self, config: SchemaStorageConfiguration = config.value, makedirs: bool = False) -> None:
+    def __init__(
+        self, config: SchemaStorageConfiguration = config.value, makedirs: bool = False
+    ) -> None:
         self.config = config
         self.storage = FileStorage(config.schema_volume_path, makedirs=makedirs)
 
@@ -97,7 +106,11 @@ class SchemaStorage(Mapping[str, Schema]):
                 # if schema was imported, overwrite storage schema
                 rv_schema._imported_version_hash = rv_schema.version_hash
                 self._save_schema(rv_schema)
-                logger.info(f"Schema {name} not present in {self.storage.storage_path} and got imported with version {rv_schema.stored_version} and imported hash {rv_schema._imported_version_hash}")
+                logger.info(
+                    f"Schema {name} not present in {self.storage.storage_path} and got imported"
+                    f" with version {rv_schema.stored_version} and imported hash"
+                    f" {rv_schema._imported_version_hash}"
+                )
             else:
                 # import schema when imported schema was modified from the last import
                 sc = Schema.from_dict(storage_schema)
@@ -108,14 +121,23 @@ class SchemaStorage(Mapping[str, Schema]):
                     rv_schema._imported_version_hash = rv_schema.version_hash
                     # if schema was imported, overwrite storage schema
                     self._save_schema(rv_schema)
-                    logger.info(f"Schema {name} was present in {self.storage.storage_path} but is overwritten with imported schema version {rv_schema.stored_version} and imported hash {rv_schema._imported_version_hash}")
+                    logger.info(
+                        f"Schema {name} was present in {self.storage.storage_path} but is"
+                        f" overwritten with imported schema version {rv_schema.stored_version} and"
+                        f" imported hash {rv_schema._imported_version_hash}"
+                    )
                 else:
                     # use storage schema as nothing changed
                     rv_schema = sc
         except FileNotFoundError:
             # no schema to import -> skip silently and return the original
             if storage_schema is None:
-                raise SchemaNotFoundError(name, self.config.schema_volume_path, self.config.import_schema_path, self.config.external_schema_format)
+                raise SchemaNotFoundError(
+                    name,
+                    self.config.schema_volume_path,
+                    self.config.import_schema_path,
+                    self.config.external_schema_format,
+                )
             rv_schema = Schema.from_dict(storage_schema)
 
         assert rv_schema is not None
@@ -124,20 +146,29 @@ class SchemaStorage(Mapping[str, Schema]):
     def _load_import_schema(self, name: str) -> DictStrAny:
         import_storage = FileStorage(self.config.import_schema_path, makedirs=False)
         schema_file = self._file_name_in_store(name, self.config.external_schema_format)
-        return self._parse_schema_str(import_storage.load(schema_file), self.config.external_schema_format)
+        return self._parse_schema_str(
+            import_storage.load(schema_file), self.config.external_schema_format
+        )
 
     def _export_schema(self, schema: Schema, export_path: str) -> None:
         if self.config.external_schema_format == "json":
-            exported_schema_s = schema.to_pretty_json(remove_defaults=self.config.external_schema_format_remove_defaults)
+            exported_schema_s = schema.to_pretty_json(
+                remove_defaults=self.config.external_schema_format_remove_defaults
+            )
         elif self.config.external_schema_format == "yaml":
-            exported_schema_s = schema.to_pretty_yaml(remove_defaults=self.config.external_schema_format_remove_defaults)
+            exported_schema_s = schema.to_pretty_yaml(
+                remove_defaults=self.config.external_schema_format_remove_defaults
+            )
         else:
             raise ValueError(self.config.external_schema_format)
 
         export_storage = FileStorage(export_path, makedirs=True)
         schema_file = self._file_name_in_store(schema.name, self.config.external_schema_format)
         export_storage.save(schema_file, exported_schema_s)
-        logger.info(f"Schema {schema.name} exported to {export_path} with version {schema.stored_version} as {self.config.external_schema_format}")
+        logger.info(
+            f"Schema {schema.name} exported to {export_path} with version"
+            f" {schema.stored_version} as {self.config.external_schema_format}"
+        )
 
     def _save_schema(self, schema: Schema) -> str:
         # save a schema to schema store
@@ -145,7 +176,9 @@ class SchemaStorage(Mapping[str, Schema]):
         return self.storage.save(schema_file, schema.to_pretty_json(remove_defaults=False))
 
     @staticmethod
-    def load_schema_file(path: str, name: str, extensions: Tuple[TSchemaFileFormat, ...]=SchemaFileExtensions) -> Schema:
+    def load_schema_file(
+        path: str, name: str, extensions: Tuple[TSchemaFileFormat, ...] = SchemaFileExtensions
+    ) -> Schema:
         storage = FileStorage(path)
         for extension in extensions:
             file = SchemaStorage._file_name_in_store(name, extension)

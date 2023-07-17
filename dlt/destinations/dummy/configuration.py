@@ -1,11 +1,13 @@
 from dlt.common.configuration import configspec
 from dlt.common.destination import TLoaderFileFormat
-from dlt.common.destination.reference import DestinationClientConfiguration, CredentialsConfiguration
+from dlt.common.destination.reference import (
+    CredentialsConfiguration,
+    DestinationClientConfiguration,
+)
 
 
 @configspec
 class DummyClientCredentials(CredentialsConfiguration):
-
     def __str__(self) -> str:
         return "/dev/null"
 

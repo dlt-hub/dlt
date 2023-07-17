@@ -1,8 +1,8 @@
-import threading
 import signal
+import threading
 from contextlib import contextmanager
 from threading import Event
-from typing import Any, TYPE_CHECKING, Iterator
+from typing import TYPE_CHECKING, Any, Iterator
 
 from dlt.common.exceptions import SignalReceivedException
 
@@ -37,7 +37,8 @@ def raise_if_signalled() -> None:
 
 
 def sleep(sleep_seconds: float) -> None:
-    """A signal-aware version of sleep function. Will raise SignalReceivedException if signal was received during sleep period."""
+    """A signal-aware version of sleep function. Will raise SignalReceivedException if signal was received during sleep period.
+    """
     # do not allow sleeping if signal was received
     raise_if_signalled()
     # sleep or wait for signal

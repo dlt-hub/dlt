@@ -1,14 +1,15 @@
 import contextlib
 import logging
-import json_logging
 import traceback
-from logging import LogRecord, Logger
+from logging import Logger, LogRecord
 from typing import Any, Iterator, Protocol
 
+import json_logging
+
+from dlt.common.configuration.specs import RunConfiguration
 from dlt.common.json import json
 from dlt.common.runtime.exec_info import dlt_version_info
 from dlt.common.typing import StrAny, StrStr
-from dlt.common.configuration.specs import RunConfiguration
 
 DLT_LOGGER_NAME = "dlt"
 LOGGER: Logger = None
@@ -21,6 +22,7 @@ class LogMethod(Protocol):
 
 def __getattr__(name: str) -> LogMethod:
     """Forwards log method calls (debug, info, error etc.) to LOGGER"""
+
     def wrapper(msg: str, *args: Any, **kwargs: Any) -> None:
         if LOGGER:
             # skip stack frames when displaying log so the original logging frame is displayed
@@ -29,6 +31,7 @@ def __getattr__(name: str) -> LogMethod:
                 # exception has one more frame
                 stacklevel = 3
             getattr(LOGGER, name)(msg, *args, **kwargs, stacklevel=stacklevel)
+
     return wrapper
 
 
@@ -51,11 +54,8 @@ def init_logging(config: RunConfiguration) -> None:
 
     version = dlt_version_info(config.pipeline_name)
     LOGGER = _init_logging(
-        DLT_LOGGER_NAME,
-        config.log_level,
-        config.log_format,
-        config.pipeline_name,
-        version)
+        DLT_LOGGER_NAME, config.log_level, config.log_format, config.pipeline_name, version
+    )
 
 
 def is_logging() -> bool:
@@ -86,7 +86,6 @@ class _MetricsFormatter(logging.Formatter):
 
 
 class _CustomJsonFormatter(json_logging.JSONLogFormatter):
-
     version: StrStr = None
 
     def _format_log_object(self, record: LogRecord, request_util: Any) -> Any:
@@ -96,7 +95,9 @@ class _CustomJsonFormatter(json_logging.JSONLogFormatter):
         return json_log_object
 
 
-def _init_logging(logger_name: str, level: str, fmt: str, component: str, version: StrStr) -> Logger:
+def _init_logging(
+    logger_name: str, level: str, fmt: str, component: str, version: StrStr
+) -> Logger:
     if logger_name == "root":
         logging.basicConfig(level=level)
         handler = logging.getLogger().handlers[0]
@@ -121,6 +122,6 @@ def _init_logging(logger_name: str, level: str, fmt: str, component: str, versio
         if logger_name == "root":
             json_logging.config_root_logger()
     else:
-        handler.setFormatter(_MetricsFormatter(fmt=fmt, style='{'))
+        handler.setFormatter(_MetricsFormatter(fmt=fmt, style="{"))
 
     return logger

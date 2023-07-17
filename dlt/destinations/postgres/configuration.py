@@ -1,4 +1,5 @@
-from typing import Final, ClassVar, Any, List
+from typing import Any, ClassVar, Final, List
+
 from sqlalchemy.engine import URL
 
 from dlt.common.configuration import configspec

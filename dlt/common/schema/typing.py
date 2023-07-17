@@ -1,4 +1,18 @@
-from typing import Any, Callable, Dict, List, Literal, Optional, Sequence, Set, Type, TypedDict, NewType, Union, get_args
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    List,
+    Literal,
+    NewType,
+    Optional,
+    Sequence,
+    Set,
+    Type,
+    TypedDict,
+    Union,
+    get_args,
+)
 
 from dlt.common.data_types import TDataType
 from dlt.common.normalizers.typing import TNormalizersConfig
@@ -10,15 +24,50 @@ SCHEMA_ENGINE_VERSION = 5
 VERSION_TABLE_NAME = "_dlt_version"
 LOADS_TABLE_NAME = "_dlt_loads"
 
-TColumnHint = Literal["not_null", "partition", "cluster", "primary_key", "foreign_key", "sort", "unique", "root_key", "merge_key"]
-TColumnProp = Literal["name", "data_type", "nullable", "partition", "cluster", "primary_key", "foreign_key", "sort", "unique", "merge_key", "root_key"]
+TColumnHint = Literal[
+    "not_null",
+    "partition",
+    "cluster",
+    "primary_key",
+    "foreign_key",
+    "sort",
+    "unique",
+    "root_key",
+    "merge_key",
+]
+TColumnProp = Literal[
+    "name",
+    "data_type",
+    "nullable",
+    "partition",
+    "cluster",
+    "primary_key",
+    "foreign_key",
+    "sort",
+    "unique",
+    "merge_key",
+    "root_key",
+]
 TWriteDisposition = Literal["skip", "append", "replace", "merge"]
-TTypeDetections = Literal["timestamp", "iso_timestamp", "large_integer", "hexbytes_to_text", "wei_to_double"]
+TTypeDetections = Literal[
+    "timestamp", "iso_timestamp", "large_integer", "hexbytes_to_text", "wei_to_double"
+]
 TTypeDetectionFunc = Callable[[Type[Any], Any], Optional[TDataType]]
 TColumnKey = Union[str, Sequence[str]]
 
 COLUMN_PROPS: Set[TColumnProp] = set(get_args(TColumnProp))
-COLUMN_HINTS: Set[TColumnHint] = set(["partition", "cluster", "primary_key", "foreign_key", "sort", "unique", "merge_key", "root_key"])
+COLUMN_HINTS: Set[TColumnHint] = set(
+    [
+        "partition",
+        "cluster",
+        "primary_key",
+        "foreign_key",
+        "sort",
+        "unique",
+        "merge_key",
+        "root_key",
+    ]
+)
 WRITE_DISPOSITIONS: Set[TWriteDisposition] = set(get_args(TWriteDisposition))
 
 
@@ -69,6 +118,7 @@ class TPartialTableSchema(TTableSchema):
 
 TSchemaTables = Dict[str, TTableSchema]
 TSchemaUpdate = Dict[str, List[TPartialTableSchema]]
+
 
 class TSchemaSettings(TypedDict, total=False):
     schema_sealed: Optional[bool]

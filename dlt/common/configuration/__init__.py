@@ -1,11 +1,15 @@
-from .specs.base_configuration import configspec, is_valid_hint, is_secret_hint, resolve_type  # noqa: F401
-from .specs import known_sections  # noqa: F401
-from .resolve import resolve_configuration, inject_section  # noqa: F401
-from .inject import with_config, last_config, get_fun_spec  # noqa: F401
-
 from .exceptions import (  # noqa: F401
     ConfigFieldMissingException,
-    ConfigValueCannotBeCoercedException,
     ConfigFileNotFoundException,
-    ConfigurationValueError
+    ConfigurationValueError,
+    ConfigValueCannotBeCoercedException,
+)
+from .inject import get_fun_spec, last_config, with_config  # noqa: F401
+from .resolve import inject_section, resolve_configuration  # noqa: F401
+from .specs import known_sections  # noqa: F401
+from .specs.base_configuration import (  # noqa: F401
+    configspec,
+    is_secret_hint,
+    is_valid_hint,
+    resolve_type,
 )

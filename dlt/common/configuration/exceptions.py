@@ -1,4 +1,4 @@
-from typing import Any, Mapping, Type, Tuple, NamedTuple, Sequence
+from typing import Any, Mapping, NamedTuple, Sequence, Tuple, Type
 
 from dlt.common.exceptions import DltException, TerminalException
 
@@ -20,17 +20,22 @@ class ConfigurationValueError(ConfigurationException, ValueError):
 
 class ContainerException(DltException):
     """base exception for all exceptions related to injectable container"""
+
     pass
 
 
 class ConfigProviderException(ConfigurationException):
     """base exceptions for all exceptions raised by config providers"""
+
     pass
 
 
 class ConfigurationWrongTypeException(ConfigurationException):
     def __init__(self, _typ: type) -> None:
-        super().__init__(f"Invalid configuration instance type {_typ}. Configuration instances must derive from BaseConfiguration.")
+        super().__init__(
+            f"Invalid configuration instance type {_typ}. Configuration instances must derive from"
+            " BaseConfiguration."
+        )
 
 
 class ConfigFieldMissingException(KeyError, ConfigurationException):
@@ -43,34 +48,46 @@ class ConfigFieldMissingException(KeyError, ConfigurationException):
         super().__init__(spec_name)
 
     def __str__(self) -> str:
-        msg = f"Following fields are missing: {str(self.fields)} in configuration with spec {self.spec_name}\n"
+        msg = (
+            f"Following fields are missing: {str(self.fields)} in configuration with spec"
+            f" {self.spec_name}\n"
+        )
         for f, field_traces in self.traces.items():
             msg += f'\tfor field "{f}" config providers and keys were tried in following order:\n'
             for tr in field_traces:
-                msg += f'\t\tIn {tr.provider} key {tr.key} was not found.\n'
-        msg += "Please refer to https://dlthub.com/docs/general-usage/credentials for more information\n"
+                msg += f"\t\tIn {tr.provider} key {tr.key} was not found.\n"
+        msg += (
+            "Please refer to https://dlthub.com/docs/general-usage/credentials for more"
+            " information\n"
+        )
         return msg
 
 
 class UnmatchedConfigHintResolversException(ConfigurationException):
     """Raised when using `@resolve_type` on a field that doesn't exist in the spec"""
+
     def __init__(self, spec_name: str, field_names: Sequence[str]) -> None:
         self.field_names = field_names
         self.spec_name = spec_name
-        example = f">>> class {spec_name}(BaseConfiguration)\n" + "\n".join(f">>>    {name}: Any" for name in field_names)
+        example = f">>> class {spec_name}(BaseConfiguration)\n" + "\n".join(
+            f">>>    {name}: Any" for name in field_names
+        )
         msg = (
-            f"The config spec {spec_name} has dynamic type resolvers for fields: {field_names} "
-            "but these fields are not defined in the spec.\n"
-            "When using @resolve_type() decorator, Add the fields with 'Any' or another common type hint, example:\n"
-            f"\n{example}"
+            f"The config spec {spec_name} has dynamic type resolvers for fields: {field_names} but"
+            " these fields are not defined in the spec.\nWhen using @resolve_type() decorator, Add"
+            f" the fields with 'Any' or another common type hint, example:\n\n{example}"
         )
         super().__init__(msg)
 
 
 class FinalConfigFieldException(ConfigurationException):
-    """rises when field was annotated as final ie Final[str] and the value is modified by config provider"""
+    """rises when field was annotated as final ie Final[str] and the value is modified by config provider
+    """
+
     def __init__(self, spec_name: str, field: str) -> None:
-        super().__init__(f"Field {field} in spec {spec_name} is final but is being changed by a config provider")
+        super().__init__(
+            f"Field {field} in spec {spec_name} is final but is being changed by a config provider"
+        )
 
 
 class ConfigValueCannotBeCoercedException(ConfigurationValueError):
@@ -80,7 +97,9 @@ class ConfigValueCannotBeCoercedException(ConfigurationValueError):
         self.field_name = field_name
         self.field_value = field_value
         self.hint = hint
-        super().__init__('Configured value for field %s cannot be coerced into type %s' % (field_name, str(hint)))
+        super().__init__(
+            "Configured value for field %s cannot be coerced into type %s" % (field_name, str(hint))
+        )
 
 
 # class ConfigIntegrityException(ConfigurationException):
@@ -106,7 +125,9 @@ class ConfigFieldMissingTypeHintException(ConfigurationException):
     def __init__(self, field_name: str, spec: Type[Any]) -> None:
         self.field_name = field_name
         self.typ_ = spec
-        super().__init__(f"Field {field_name} on configspec {spec} does not provide required type hint")
+        super().__init__(
+            f"Field {field_name} on configspec {spec} does not provide required type hint"
+        )
 
 
 class ConfigFieldTypeHintNotSupported(ConfigurationException):
@@ -115,25 +136,39 @@ class ConfigFieldTypeHintNotSupported(ConfigurationException):
     def __init__(self, field_name: str, spec: Type[Any], typ_: Type[Any]) -> None:
         self.field_name = field_name
         self.typ_ = spec
-        super().__init__(f"Field {field_name} on configspec {spec} has hint with unsupported type {typ_}")
+        super().__init__(
+            f"Field {field_name} on configspec {spec} has hint with unsupported type {typ_}"
+        )
 
 
 class ValueNotSecretException(ConfigurationException):
     def __init__(self, provider_name: str, key: str) -> None:
         self.provider_name = provider_name
         self.key = key
-        super().__init__(f"Provider {provider_name} cannot hold secret values but key {key} with secret value is present")
+        super().__init__(
+            f"Provider {provider_name} cannot hold secret values but key {key} with secret value is"
+            " present"
+        )
 
 
 class InvalidNativeValue(ConfigurationException):
-    def __init__(self, spec: Type[Any], native_value_type: Type[Any], embedded_sections: Tuple[str, ...], inner_exception: Exception) -> None:
+    def __init__(
+        self,
+        spec: Type[Any],
+        native_value_type: Type[Any],
+        embedded_sections: Tuple[str, ...],
+        inner_exception: Exception,
+    ) -> None:
         self.spec = spec
         self.native_value_type = native_value_type
         self.embedded_sections = embedded_sections
         self.inner_exception = inner_exception
         inner_msg = f" {self.inner_exception}" if inner_exception is not ValueError else ""
         super().__init__(
-            f"{spec.__name__} cannot parse the configuration value provided. The value is of type {native_value_type.__name__} and comes from the {embedded_sections} section(s).{inner_msg}")
+            f"{spec.__name__} cannot parse the configuration value provided. The value is of type"
+            f" {native_value_type.__name__} and comes from the"
+            f" {embedded_sections} section(s).{inner_msg}"
+        )
 
 
 class ContainerInjectableContextMangled(ContainerException):
@@ -141,7 +176,10 @@ class ContainerInjectableContextMangled(ContainerException):
         self.spec = spec
         self.existing_config = existing_config
         self.expected_config = expected_config
-        super().__init__(f"When restoring context {spec.__name__}, instance {expected_config} was expected, instead instance {existing_config} was found.")
+        super().__init__(
+            f"When restoring context {spec.__name__}, instance {expected_config} was expected,"
+            f" instead instance {existing_config} was found."
+        )
 
 
 class ContextDefaultCannotBeCreated(ContainerException, KeyError):
@@ -153,4 +191,6 @@ class ContextDefaultCannotBeCreated(ContainerException, KeyError):
 class DuplicateConfigProviderException(ConfigProviderException):
     def __init__(self, provider_name: str) -> None:
         self.provider_name = provider_name
-        super().__init__(f"Provider with name {provider_name} already present in ConfigProvidersContext")
+        super().__init__(
+            f"Provider with name {provider_name} already present in ConfigProvidersContext"
+        )

@@ -1,20 +1,32 @@
-import os
-from pathlib import Path
-import sys
 import base64
 import hashlib
+import os
 import secrets
+import sys
+import zlib
+from collections.abc import Mapping as C_Mapping
 from contextlib import contextmanager
 from functools import wraps
 from os import environ
+from pathlib import Path
 from types import ModuleType
-import zlib
+from typing import (
+    Any,
+    ContextManager,
+    Counter,
+    Dict,
+    Iterator,
+    List,
+    Mapping,
+    Optional,
+    Sequence,
+    Set,
+    Tuple,
+    TypeVar,
+    Union,
+)
 
-from typing import Any, ContextManager, Dict, Iterator, Optional, Sequence, Set, Tuple, TypeVar, Mapping, List, Union, Counter
-from collections.abc import Mapping as C_Mapping
-
-from dlt.common.typing import AnyFun, StrAny, DictStrAny, StrStr, TAny, TFun
-
+from dlt.common.typing import AnyFun, DictStrAny, StrAny, StrStr, TAny, TFun
 
 T = TypeVar("T")
 TDict = TypeVar("TDict", bound=DictStrAny)
@@ -22,7 +34,7 @@ TDict = TypeVar("TDict", bound=DictStrAny)
 
 def chunks(seq: Sequence[T], n: int) -> Iterator[Sequence[T]]:
     for i in range(0, len(seq), n):
-        yield seq[i:i + n]
+        yield seq[i : i + n]
 
 
 def uniq_id(len_: int = 16) -> str:
@@ -32,34 +44,40 @@ def uniq_id(len_: int = 16) -> str:
 
 def uniq_id_base64(len_: int = 16) -> str:
     """Returns a base64 encoded crypto-grade string of random bytes with desired len_"""
-    return base64.b64encode(secrets.token_bytes(len_)).decode('ascii').rstrip("=")
+    return base64.b64encode(secrets.token_bytes(len_)).decode("ascii").rstrip("=")
 
 
 def digest128(v: str, len_: int = 15) -> str:
-    """Returns a base64 encoded shake128 hash of str `v` with digest of length `len_` (default: 15 bytes = 20 characters length)"""
-    return base64.b64encode(hashlib.shake_128(v.encode("utf-8")).digest(len_)).decode('ascii').rstrip("=")
+    """Returns a base64 encoded shake128 hash of str `v` with digest of length `len_` (default: 15 bytes = 20 characters length)
+    """
+    return (
+        base64.b64encode(hashlib.shake_128(v.encode("utf-8")).digest(len_))
+        .decode("ascii")
+        .rstrip("=")
+    )
 
 
 def digest128b(v: bytes, len_: int = 15) -> str:
-    """Returns a base64 encoded shake128 hash of bytes `v` with digest of length `len_` (default: 15 bytes = 20 characters length)"""
-    enc_v = base64.b64encode(hashlib.shake_128(v).digest(len_)).decode('ascii')
+    """Returns a base64 encoded shake128 hash of bytes `v` with digest of length `len_` (default: 15 bytes = 20 characters length)
+    """
+    enc_v = base64.b64encode(hashlib.shake_128(v).digest(len_)).decode("ascii")
     return enc_v.rstrip("=")
 
 
 def digest256(v: str) -> str:
     digest = hashlib.sha3_256(v.encode("utf-8")).digest()
-    return base64.b64encode(digest).decode('ascii')
+    return base64.b64encode(digest).decode("ascii")
 
 
 def str2bool(v: str) -> bool:
     if isinstance(v, bool):
         return v
-    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+    if v.lower() in ("yes", "true", "t", "y", "1"):
         return True
-    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+    elif v.lower() in ("no", "false", "f", "n", "0"):
         return False
     else:
-        raise ValueError('Boolean value expected.')
+        raise ValueError("Boolean value expected.")
 
 
 # def flatten_list_of_dicts(dicts: Sequence[StrAny]) -> StrAny:
@@ -82,7 +100,7 @@ def flatten_list_of_str_or_dicts(seq: Sequence[Union[StrAny, str]]) -> StrAny:
     o: DictStrAny = {}
     for e in seq:
         if isinstance(e, dict):
-            for k,v in e.items():
+            for k, v in e.items():
                 if k in o:
                     raise KeyError(f"Cannot flatten with duplicate key {k}")
                 o[k] = v
@@ -163,7 +181,9 @@ def concat_strings_with_limit(strings: List[str], separator: str, limit: int) ->
     sep_len = len(separator)
 
     for i in range(1, len(strings)):
-        if current_length + len(strings[i]) + sep_len > limit:  # accounts for the length of separator
+        if (
+            current_length + len(strings[i]) + sep_len > limit
+        ):  # accounts for the length of separator
             yield separator.join(strings[start:i])
             start = i
             current_length = len(strings[i])
@@ -173,7 +193,9 @@ def concat_strings_with_limit(strings: List[str], separator: str, limit: int) ->
     yield separator.join(strings[start:])
 
 
-def graph_edges_to_nodes(edges: Sequence[Tuple[TAny, TAny]], directed: bool = True) -> Dict[TAny, Set[TAny]]:
+def graph_edges_to_nodes(
+    edges: Sequence[Tuple[TAny, TAny]], directed: bool = True
+) -> Dict[TAny, Set[TAny]]:
     """Converts a directed graph represented as a sequence of edges to a graph represented as a mapping from nodes a set of connected nodes.
 
     Isolated nodes are represented as edges to itself. If `directed` is `False`, each edge is duplicated but going in opposite direction.
@@ -207,7 +229,6 @@ def graph_find_scc_nodes(undag: Dict[TAny, Set[TAny]]) -> List[Set[TAny]]:
             for neighbor in undag[node]:
                 dfs(neighbor, current_component)
 
-
     for node in undag:
         if node not in visited:
             component: Set[TAny] = set()
@@ -222,7 +243,8 @@ def filter_env_vars(envs: List[str]) -> StrStr:
 
 
 def update_dict_with_prune(dest: DictStrAny, update: StrAny) -> None:
-    """Updates values that are both in `dest` and `update` and deletes `dest` values that are None in `update`"""
+    """Updates values that are both in `dest` and `update` and deletes `dest` values that are None in `update`
+    """
     for k, v in update.items():
         if v is not None:
             dest[k] = v
@@ -255,7 +277,8 @@ def update_dict_nested(dst: TDict, src: StrAny) -> TDict:
 
 
 def map_nested_in_place(func: AnyFun, _complex: TAny) -> TAny:
-    """Applies `func` to all elements in `_dict` recursively, replacing elements in nested dictionaries and lists in place."""
+    """Applies `func` to all elements in `_dict` recursively, replacing elements in nested dictionaries and lists in place.
+    """
     if isinstance(_complex, tuple):
         if hasattr(_complex, "_asdict"):
             _complex = _complex._asdict()
@@ -287,9 +310,10 @@ def is_interactive() -> bool:
         bool: True if interactive (e.g., REPL, IPython, Jupyter Notebook), False if running as a script.
     """
     import __main__ as main
+
     # When running as a script, the __main__ module has a __file__ attribute.
     # In an interactive environment, the __file__ attribute is absent.
-    return not hasattr(main, '__file__')
+    return not hasattr(main, "__file__")
 
 
 def dict_remove_nones_in_place(d: Dict[Any, Any]) -> Dict[Any, Any]:
@@ -317,7 +341,6 @@ def custom_environ(env: StrStr) -> Iterator[None]:
 
 
 def with_custom_environ(f: TFun) -> TFun:
-
     @wraps(f)
     def _wrap(*args: Any, **kwargs: Any) -> Any:
         saved_environ = os.environ.copy()
@@ -356,7 +379,8 @@ def set_working_dir(path: str) -> Iterator[str]:
 
 @contextmanager
 def multi_context_manager(managers: Sequence[ContextManager[Any]]) -> Iterator[Any]:
-    """A context manager holding several other context managers. Enters and exists all of them. Yields from the last in the list"""
+    """A context manager holding several other context managers. Enters and exists all of them. Yields from the last in the list
+    """
     try:
         rv: Any = None
         for manager in managers:
@@ -390,11 +414,20 @@ def is_inner_callable(f: AnyFun) -> bool:
 
 
 def obfuscate_pseudo_secret(pseudo_secret: str, pseudo_key: bytes) -> str:
-    return base64.b64encode(bytes([_a ^ _b for _a, _b in zip(pseudo_secret.encode("utf-8"), pseudo_key*250)])).decode()
+    return base64.b64encode(
+        bytes([_a ^ _b for _a, _b in zip(pseudo_secret.encode("utf-8"), pseudo_key * 250)])
+    ).decode()
 
 
 def reveal_pseudo_secret(obfuscated_secret: str, pseudo_key: bytes) -> str:
-    return bytes([_a ^ _b for _a, _b in zip(base64.b64decode(obfuscated_secret.encode("ascii"), validate=True), pseudo_key*250)]).decode("utf-8")
+    return bytes(
+        [
+            _a ^ _b
+            for _a, _b in zip(
+                base64.b64decode(obfuscated_secret.encode("ascii"), validate=True), pseudo_key * 250
+            )
+        ]
+    ).decode("utf-8")
 
 
 def get_module_name(m: ModuleType) -> str:
@@ -414,7 +447,7 @@ def derives_from_class_of_name(o: object, name: str) -> bool:
 
 def compressed_b64encode(value: bytes) -> str:
     """Compress and b64 encode the given bytestring"""
-    return base64.b64encode(zlib.compress(value, level=9)).decode('ascii')
+    return base64.b64encode(zlib.compress(value, level=9)).decode("ascii")
 
 
 def compressed_b64decode(value: str) -> bytes:

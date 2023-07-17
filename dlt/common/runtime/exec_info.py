@@ -1,13 +1,14 @@
+import contextlib
 import io
 import os
-import contextlib
 
-from dlt.common.typing import StrStr, StrAny, Literal, List
+from dlt.common.typing import List, Literal, StrAny, StrStr
 from dlt.common.utils import filter_env_vars
 from dlt.version import __version__
 
-
-TExecInfoNames = Literal["kubernetes", "docker", "codespaces", "github_actions", "airflow", "notebook", "colab"]
+TExecInfoNames = Literal[
+    "kubernetes", "docker", "codespaces", "github_actions", "airflow", "notebook", "colab"
+]
 # if one of these environment variables is set, we assume to be running in CI env
 CI_ENVIRONMENT_TELL = [
     "bamboo.buildKey",
@@ -96,7 +97,7 @@ def is_running_in_airflow_task() -> bool:
             from airflow.operators.python import get_current_context
 
             context = get_current_context()
-            return context is not None and 'ti' in context
+            return context is not None and "ti" in context
     except Exception:
         return False
 

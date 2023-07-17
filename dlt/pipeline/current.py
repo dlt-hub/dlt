@@ -1,8 +1,9 @@
 """Easy access to active pipelines, state, sources and schemas"""
 
-from dlt.common.pipeline import source_state as _state, resource_state
-from dlt.pipeline import pipeline as _pipeline
+from dlt.common.pipeline import resource_state
+from dlt.common.pipeline import source_state as _state
 from dlt.extract.decorators import get_source_schema
+from dlt.pipeline import pipeline as _pipeline
 
 pipeline = _pipeline
 """Alias for dlt.pipeline"""

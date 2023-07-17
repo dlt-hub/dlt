@@ -1,9 +1,13 @@
-from typing import Optional, TYPE_CHECKING, Dict, Any
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
+from dlt import version
+from dlt.common.configuration.specs import (
+    CredentialsConfiguration,
+    CredentialsWithDefault,
+    configspec,
+)
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.typing import TSecretStrValue
-from dlt.common.configuration.specs import CredentialsConfiguration, CredentialsWithDefault, configspec
-from dlt import version
 
 
 @configspec
@@ -20,19 +24,18 @@ class AwsCredentialsWithoutDefaults(CredentialsConfiguration):
             key=self.aws_access_key_id,
             secret=self.aws_secret_access_key,
             token=self.aws_session_token,
-            profile=self.aws_profile
+            profile=self.aws_profile,
         )
 
     def to_native_representation(self) -> Dict[str, Optional[str]]:
         """Return a dict that can be passed as kwargs to boto3 session"""
         d = dict(self)
-        d['profile_name'] = d.pop('aws_profile')  # boto3 argument doesn't match env var name
+        d["profile_name"] = d.pop("aws_profile")  # boto3 argument doesn't match env var name
         return d
 
 
 @configspec
 class AwsCredentials(AwsCredentialsWithoutDefaults, CredentialsWithDefault):
-
     def on_partial(self) -> None:
         # Try get default credentials
         session = self._to_session()
@@ -50,7 +53,9 @@ class AwsCredentials(AwsCredentialsWithoutDefaults, CredentialsWithDefault):
         try:
             import boto3
         except ImportError:
-            raise MissingDependencyException(self.__class__.__name__, [f"{version.DLT_PKG_NAME}[s3]"])
+            raise MissingDependencyException(
+                self.__class__.__name__, [f"{version.DLT_PKG_NAME}[s3]"]
+            )
         return boto3.Session(**self.to_native_representation())
 
     def to_native_credentials(self) -> Optional[Any]:

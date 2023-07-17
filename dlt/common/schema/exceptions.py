@@ -1,7 +1,7 @@
 from typing import Any
 
-from dlt.common.exceptions import DltException
 from dlt.common.data_types import TDataType
+from dlt.common.exceptions import DltException
 
 
 class SchemaException(DltException):
@@ -11,23 +11,41 @@ class SchemaException(DltException):
 class InvalidSchemaName(SchemaException):
     def __init__(self, name: str, normalized_name: str) -> None:
         self.name = name
-        super().__init__(f"{name} is an invalid schema name. The schema name must conform to wide range of destinations and ideally should contain only small letters, numbers and underscores. Try {normalized_name} instead as suggested by current naming module.")
+        super().__init__(
+            f"{name} is an invalid schema name. The schema name must conform to wide range of"
+            " destinations and ideally should contain only small letters, numbers and underscores."
+            f" Try {normalized_name} instead as suggested by current naming module."
+        )
 
 
 class InvalidDatasetName(SchemaException):
     def __init__(self, name: str, normalized_name: str) -> None:
         self.name = name
-        super().__init__(f"{name} is an invalid dataset name. The dataset name must conform to wide range of destinations and ideally should contain only small letters, numbers and underscores. Try {normalized_name} instead as suggested by current naming module.")
+        super().__init__(
+            f"{name} is an invalid dataset name. The dataset name must conform to wide range of"
+            " destinations and ideally should contain only small letters, numbers and underscores."
+            f" Try {normalized_name} instead as suggested by current naming module."
+        )
 
 
 class CannotCoerceColumnException(SchemaException):
-    def __init__(self, table_name: str, column_name: str, from_type: TDataType, to_type: TDataType, coerced_value: Any) -> None:
+    def __init__(
+        self,
+        table_name: str,
+        column_name: str,
+        from_type: TDataType,
+        to_type: TDataType,
+        coerced_value: Any,
+    ) -> None:
         self.table_name = table_name
         self.column_name = column_name
         self.from_type = from_type
         self.to_type = to_type
         self.coerced_value = coerced_value
-        super().__init__(f"Cannot coerce type in table {table_name} column {column_name} existing type {from_type} coerced type {to_type} value: {coerced_value}")
+        super().__init__(
+            f"Cannot coerce type in table {table_name} column {column_name} existing type"
+            f" {from_type} coerced type {to_type} value: {coerced_value}"
+        )
 
 
 class TablePropertiesConflictException(SchemaException):
@@ -36,19 +54,27 @@ class TablePropertiesConflictException(SchemaException):
         self.prop_name = prop_name
         self.val1 = val1
         self.val2 = val2
-        super().__init__(f"Cannot merge partial tables for {table_name} due to property {prop_name}: {val1} != {val2}")
+        super().__init__(
+            f"Cannot merge partial tables for {table_name} due to property {prop_name}: {val1} !="
+            f" {val2}"
+        )
 
 
 class ParentTableNotFoundException(SchemaException):
     def __init__(self, table_name: str, parent_table_name: str, explanation: str = "") -> None:
         self.table_name = table_name
         self.parent_table_name = parent_table_name
-        super().__init__(f"Parent table {parent_table_name} for {table_name} was not found in the schema.{explanation}")
+        super().__init__(
+            f"Parent table {parent_table_name} for {table_name} was not found in the"
+            f" schema.{explanation}"
+        )
 
 
 class CannotCoerceNullException(SchemaException):
     def __init__(self, table_name: str, column_name: str) -> None:
-        super().__init__(f"Cannot coerce NULL in table {table_name} column {column_name} which is not nullable")
+        super().__init__(
+            f"Cannot coerce NULL in table {table_name} column {column_name} which is not nullable"
+        )
 
 
 class SchemaCorruptedException(SchemaException):
@@ -56,9 +82,14 @@ class SchemaCorruptedException(SchemaException):
 
 
 class SchemaEngineNoUpgradePathException(SchemaException):
-    def __init__(self, schema_name: str, init_engine: int, from_engine: int, to_engine: int) -> None:
+    def __init__(
+        self, schema_name: str, init_engine: int, from_engine: int, to_engine: int
+    ) -> None:
         self.schema_name = schema_name
         self.init_engine = init_engine
         self.from_engine = from_engine
         self.to_engine = to_engine
-        super().__init__(f"No engine upgrade path in schema {schema_name} from {init_engine} to {to_engine}, stopped at {from_engine}")
+        super().__init__(
+            f"No engine upgrade path in schema {schema_name} from {init_engine} to {to_engine},"
+            f" stopped at {from_engine}"
+        )

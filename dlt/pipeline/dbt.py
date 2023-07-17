@@ -1,16 +1,21 @@
-import os
 import contextlib
+import os
+
 from dlt.common.exceptions import VenvNotFound
 from dlt.common.runners import Venv
 from dlt.common.schema import Schema
 from dlt.common.typing import TSecretValue
-
-from dlt.helpers.dbt import create_venv as _create_venv, package_runner as _package_runner, DBTPackageRunner, DEFAULT_DBT_VERSION as _DEFAULT_DBT_VERSION, restore_venv as _restore_venv
+from dlt.helpers.dbt import DEFAULT_DBT_VERSION as _DEFAULT_DBT_VERSION
+from dlt.helpers.dbt import DBTPackageRunner
+from dlt.helpers.dbt import create_venv as _create_venv
+from dlt.helpers.dbt import package_runner as _package_runner
+from dlt.helpers.dbt import restore_venv as _restore_venv
 from dlt.pipeline.pipeline import Pipeline
 
 
-
-def get_venv(pipeline: Pipeline, venv_path: str = "dbt", dbt_version: str = _DEFAULT_DBT_VERSION) -> Venv:
+def get_venv(
+    pipeline: Pipeline, venv_path: str = "dbt", dbt_version: str = _DEFAULT_DBT_VERSION
+) -> Venv:
     """Creates or restores a virtual environment in which the `dbt` packages are executed.
 
     The recommended way to execute dbt package is to use a separate virtual environment where only the dbt-core
@@ -42,12 +47,12 @@ def get_venv(pipeline: Pipeline, venv_path: str = "dbt", dbt_version: str = _DEF
 
 
 def package(
-        pipeline: Pipeline,
-        package_location: str,
-        package_repository_branch: str = None,
-        package_repository_ssh_key: TSecretValue = TSecretValue(""),  # noqa
-        auto_full_refresh_when_out_of_sync: bool = None,
-        venv: Venv = None
+    pipeline: Pipeline,
+    package_location: str,
+    package_repository_branch: str = None,
+    package_repository_ssh_key: TSecretValue = TSecretValue(""),  # noqa
+    auto_full_refresh_when_out_of_sync: bool = None,
+    venv: Venv = None,
 ) -> DBTPackageRunner:
     """Creates a Python wrapper over `dbt` package present at specified location, that allows to control it (ie. run and test) from Python code.
 
@@ -70,7 +75,9 @@ def package(
     Returns:
         DBTPackageRunner: A configured and authenticated Python `dbt` wrapper
     """
-    schema = pipeline.default_schema if pipeline.default_schema_name else Schema(pipeline.dataset_name)
+    schema = (
+        pipeline.default_schema if pipeline.default_schema_name else Schema(pipeline.dataset_name)
+    )
     job_client = pipeline._sql_job_client(schema)
     if not venv:
         venv = Venv.restore_current()
@@ -81,5 +88,5 @@ def package(
         package_location,
         package_repository_branch,
         package_repository_ssh_key,
-        auto_full_refresh_when_out_of_sync
+        auto_full_refresh_when_out_of_sync,
     )
