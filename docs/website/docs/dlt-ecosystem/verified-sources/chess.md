@@ -36,7 +36,7 @@ To get started with your data pipeline, follow these steps:
    dlt init chess duckdb
    ```
 
-   [This command](../../reference/command-line-interface) will initialize [the pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/asana_dlt_pipeline.py) with Chess.com as the source](../../general-usage/source) and [duckdb](../destinations/duckdb.md) as the [destination](../destinations).
+   [This command](../../reference/command-line-interface) will initialize [the pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/chess_pipeline.py) with Chess.com as the [source](../../general-usage/source) and [duckdb](../destinations/duckdb.md) as the [destination](../destinations).
 
 2. If you'd like to use a different destination, simply replace `duckdb` with the name of your preferred [destination](../destinations).
 
@@ -46,7 +46,7 @@ For more information, read the [Walkthrough: Add a verified source.](../../walkt
 
 ### Add credentials
 
-To add credentials to your destination, follow the instructions in the [destination documentation](../../dlt-ecosystem/destinations). This will ensure that your data is properly routed to its final destination.
+To add credentials to your destination, follow the instructions in the [destination](../../dlt-ecosystem/destinations) documentation. This will ensure that your data is properly routed to its final destination.
 
 For more information, read the [General Usage: Credentials.](../../general-usage/credentials)
 
@@ -96,9 +96,10 @@ def source(
          )
 ```
 `players`: This is a list of player usernames for which you want to fetch data.
+
 `start_month` and `end_month`: These optional parameters specify the time period for which you want to fetch game data. (In  "YYYY/MM" format).
 
-The above function is a dlt.source function for the Chess.com API named "chess", which returns a sequence of DltResource objects. That we'll discuss subsequently as resources. 
+The above function is a dlt.source function for the Chess.com API named "chess", which returns a sequence of DltResource objects. That we'll discuss in subsequent sections as resources. 
 
 ### Resource `players_profiles`
 
@@ -142,12 +143,35 @@ def players_archives(players: List[str]) -> Iterator[List[TDataItem]]:
 def players_games(
     players: List[str], start_month: str = None, end_month: str = None
 ) -> Iterator[Callable[[], List[TDataItem]]]:
+    
+    # gets a list of already checked(loaded) archives.
+    checked_archives = dlt.current.resource_state().setdefault("archives", [])
+    
+    # The `player_archive` function is called which returns a list of archive URLs. 
+    archives = players_archives(players):  
+    
+    # The `_get_archive` function retrieves the "games" data from a given URL by sending a GET request.
+    @dlt.defer
+    def _get_archive(url: str) -> List[TDataItem]:
+    ...code... 
+    # Returns `players` games that happened between `start_month` and `end_month`.
+    return games
 
- # Yields `players` games that happened between `start_month` and `end_month`.
+    # enumerate the archives
+    url: str = None
+    for url in archives:
+    # do not allow to download archive again 
+    ...code...
+        yield _get_archive(url)
+     
 ```
 `players`: is a list of player usernames for which you want to fetch games.
 
-The `players_games` function gets chess games for a group of players during a set time period. Provides player usernames and specify start/end month. It checks for valid archives within the time range and creates a callable URL for the games. The `get_path_with_retry` function fetches their archives using an API request with a `for` loop iterating over a list of players. The loop yields the list of archives or an empty list if there are none. 
+`checked_archives = dlt.current.resource_state().setdefault("archives", [])`: initializes a list called "checked_archives" by retrieving "archives" from the current [state](../../general-usage/state) of resources. If the "archives" key is not present in the state, it creates the key and assigns an empty list to it.
+
+ `_get_archive`: function takes a URL as input, sends a GET request to that URL, and returns the "games" data from the response.
+
+The `players_games` function gets chess games for a group of players during a set time period. Provides player usernames and specify start/end month. The loop yields the list of archives or an empty list if there are none. 
 
 ### Resource `players_online_status`
 
@@ -169,14 +193,14 @@ def players_online_status(players: List[str]) -> Iterator[TDataItem]:
 
 `players`: is a list of player usernames for which you want to fetch online status.
 
-The `players_online_status` function to check the online status of multiple chess players. It retrieves their username, status, last login date, and check time using the Chess.com API, without altering any existing data.
+The `players_online_status` function to check the online status of multiple chess players. It retrieves their username, status, last login date, and check time using the Chess.com API.
 
 ## Customization
 ### Create your own pipeline
 
 If you wish to create your own pipelines, you can leverage source and resource methods from this verified source.
 
-To create your data pipeline using incremental loading for players as mentioned below and load data, follow these steps:
+To create your data loading pipeline for players and load data, follow these steps:
 
 1. Configure the pipeline by specifying the pipeline name, destination, and dataset as follows:
 
@@ -195,8 +219,8 @@ To create your data pipeline using incremental loading for players as mentioned 
     ```python
     data = source(
         ["magnuscarlsen", "vincentkeymer", "dommarajugukesh", "rpragchess"],
-        start_month="2022/11"",
-        end_month="2022/11",
+        start_month= start_date, # passed to the function as an arg, say "2022/11"
+        end_month= end_date,     # passed to the function as an arg, say "2022/11"
     )
     # Loads games for Nov 2022
     ```
@@ -217,15 +241,12 @@ To create your data pipeline using incremental loading for players as mentioned 
     print(info)
     ```
     
-5. To load the data incrementally, modify the `source` method as follows and re-run the pipeline.
+5. Please note that the resource `player_games`, uses state to initialize a list called "checked_archives" from the current resource [state](../../general-usage/state). 
 
-    ```python
-    data = source(
-        ["magnuscarlsen", "vincentkeymer", "dommarajugukesh", "rpragchess"],
-        start_month="2022/11"",
-        end_month="2022/12",
-    )
-    # Loads games for Nov 2022 to Dec 2022
-    ```
-    >Maintaining the same pipeline and dataset names is crucial for preserving the [state](../../general-usage/state) of the last run, including the end date required for [incremental data loading.](../../general-usage/incremental-loading). Modifying these names can cause a ["full_refresh"](../../general-usage/pipeline#do-experiments-with-full-refresh).
+    - "checked_archives" list is used to load new archives and skip the ones already loaded.
+
+    - For example, when you load games data for Nov 2022 in the first pipeline run, then in the second run, you load for Nov-2022 to Jan-2023. So in the second run, the "player_games" resource state will check the archives already loaded in the first run and will load only the new ones.
+
+
+    > Note: This is only applicable to the `player_games` resource. Maintaining the same pipeline and dataset names is crucial for preserving the [state](../../general-usage/state) of the last run, including the end date required for [incremental data loading](../../general-usage/incremental-loading). Modifying these names can cause a ["full_refresh"](../../general-usage/pipeline#do-experiments-with-full-refresh).
     
