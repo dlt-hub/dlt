@@ -169,9 +169,7 @@ In addition to these source and resource functions, there are seven transformer 
 various endpoints like “projects”, “sections”, “tags”, “tasks”, “stories”, “teams” and “users”. The
 transformer functions transform or process data from one or more resources.
 
-Below is an example of one of the transformer functions "projects".
-
-In this case, the transformer function `projects` process data from the `workspaces` resource. It
+The transformer function `projects` process data from the `workspaces` resource. It
 fetches and returns a list of projects for a given workspace from Asana.
 
 ```python
