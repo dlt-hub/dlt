@@ -21,7 +21,7 @@ from dlt.common.schema.typing import TTableSchema
 from dlt.common.configuration.specs import AwsCredentialsWithoutDefaults
 
 from dlt.destinations.insert_job_client import InsertValuesJobClient
-from dlt.destinations.sql_jobs import SqlMergeJob
+from dlt.destinations.sql_jobs import SqlMergeJob, SqlStagingCopyJob
 from dlt.destinations.exceptions import DatabaseTerminalException, LoadJobTerminalException
 from dlt.destinations.job_client_impl import CopyRemoteFileLoadJob, LoadJob
 
@@ -81,10 +81,16 @@ class RedshiftSqlClient(Psycopg2SqlClient):
 
 class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
 
-    def __init__(self, table: TTableSchema, file_path: str, sql_client: SqlClientBase[Any], use_staging_table: bool, truncate_destination_table: bool, staging_credentials: Optional[CredentialsConfiguration] = None, staging_iam_role: str = None) -> None:
+    def __init__(self, table: TTableSchema,
+                 file_path: str,
+                 sql_client: SqlClientBase[Any],
+                 use_staging_table: bool,
+                 should_truncate_destination_table: bool,
+                 staging_credentials: Optional[CredentialsConfiguration] = None,
+                 staging_iam_role: str = None) -> None:
         self._staging_iam_role = staging_iam_role
         self._use_staging_table = use_staging_table
-        self._truncate_destination_table = truncate_destination_table
+        self._should_truncate_destination_table = should_truncate_destination_table
         super().__init__(table, file_path, sql_client, staging_credentials)
 
     def execute(self, table: TTableSchema, bucket_path: str) -> None:
@@ -121,7 +127,7 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
 
         with self._sql_client.with_staging_dataset(self._use_staging_table):
             with self._sql_client.begin_transaction():
-                if self._truncate_destination_table:
+                if self._should_truncate_destination_table:
                     self._sql_client.execute_sql(f"""TRUNCATE TABLE {table_name}""")
                 dataset_name = self._sql_client.dataset_name
                 # TODO: if we ever support csv here remember to add column names to COPY
@@ -150,6 +156,21 @@ class RedshiftMergeJob(SqlMergeJob):
         return SqlMergeJob.gen_key_table_clauses(root_table_name, staging_root_table_name, key_clauses, for_delete)
 
 
+class RedshiftStagingCopyJob(SqlStagingCopyJob):
+
+    @classmethod
+    def generate_sql(cls, table_chain: Sequence[TTableSchema], sql_client: SqlClientBase[Any]) -> List[str]:
+        sql: List[str] = []
+        for table in table_chain:
+            with sql_client.with_staging_dataset(staging=True):
+                staging_table_name = sql_client.make_qualified_table_name(table["name"])
+            table_name = sql_client.make_qualified_table_name(table["name"])
+            # drop destination table
+            sql.append(f"DROP TABLE IF EXISTS {table_name};")
+            sql.append(f"CREATE TABLE {table_name} AS SELECT * FROM {staging_table_name};")
+        return sql
+
+
 class RedshiftClient(InsertValuesJobClient):
 
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
@@ -163,7 +184,7 @@ class RedshiftClient(InsertValuesJobClient):
         self.sql_client = sql_client
         self.config: RedshiftClientConfiguration = config
 
-    def create_merge_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
+    def _create_merge_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
         return RedshiftMergeJob.from_table_chain(table_chain, self.sql_client)
 
     def _get_column_def_sql(self, c: TColumnSchema) -> str:
@@ -175,8 +196,11 @@ class RedshiftClient(InsertValuesJobClient):
         """Starts SqlLoadJob for files ending with .sql or returns None to let derived classes to handle their specific jobs"""
         if NewReferenceJob.is_reference_job(file_path):
             disposition = table["write_disposition"]
-            return RedshiftCopyFileLoadJob(table, file_path, self.sql_client, disposition in self.get_stage_dispositions(), self.truncate_destination_table(disposition), staging_credentials=self.config.staging_credentials, staging_iam_role=self.config.staging_iam_role)
+            return RedshiftCopyFileLoadJob(table, file_path, self.sql_client, disposition in self.get_stage_dispositions(), self._should_truncate_destination_table(disposition), staging_credentials=self.config.staging_credentials, staging_iam_role=self.config.staging_iam_role)
         return super().start_file_load(table, file_path, load_id)
+
+    def _create_staging_copy_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
+        return RedshiftStagingCopyJob.from_table_chain(table_chain, self.sql_client)
 
     @classmethod
     def _to_db_type(cls, sc_t: TDataType) -> str:

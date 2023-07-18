@@ -6,6 +6,9 @@ from tests.load.pipeline.utils import  load_table_counts
 from tests.utils import ALL_DESTINATIONS
 from tests.load.pipeline.utils import STAGING_AND_NON_STAGING_COMBINATIONS, STAGING_COMBINATION_FIELDS
 
+replace_strategies = ["drop", "truncate", "staging"]
+
+
 @pytest.mark.parametrize(STAGING_COMBINATION_FIELDS, STAGING_AND_NON_STAGING_COMBINATIONS)
 def test_replace_disposition(destination: str, staging: str, file_format: str, bucket: str, settings: Dict[str, Any]) -> None:
 
@@ -13,10 +16,6 @@ def test_replace_disposition(destination: str, staging: str, file_format: str, b
     os.environ['DATA_WRITER__FILE_MAX_ITEMS'] = "40"
     # use staging tables for replace
     os.environ['DESTINATION__REPLACE_STRATEGY'] = "staging"
-
-    # snowflake requires gcs prefix instead of gs in bucket path
-    if destination == "snowflake":
-        bucket = bucket.replace("gs://", "gcs://")
 
     # set env vars
     os.environ['DESTINATION__FILESYSTEM__BUCKET_URL'] = bucket

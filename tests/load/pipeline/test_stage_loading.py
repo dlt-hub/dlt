@@ -30,10 +30,6 @@ def load_modified_issues():
 @pytest.mark.parametrize(STAGING_COMBINATION_FIELDS, ALL_STAGING_COMBINATIONS)
 def test_staging_load(destination: str, staging: str, file_format: str, bucket: str, settings: Dict[str, Any]) -> None:
 
-    # snowflake requires gcs prefix instead of gs in bucket path
-    if destination == "snowflake":
-        bucket = bucket.replace("gs://", "gcs://")
-
     # set env vars
     os.environ['DESTINATION__FILESYSTEM__BUCKET_URL'] = bucket
     os.environ['DESTINATION__STAGE_NAME'] = settings.get("stage_name", "")

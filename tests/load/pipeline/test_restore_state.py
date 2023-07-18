@@ -23,10 +23,6 @@ from tests.load.pipeline.utils import assert_query_data, drop_active_pipeline_da
 @pytest.mark.parametrize(STAGING_COMBINATION_FIELDS, STAGING_AND_NON_STAGING_COMBINATIONS)
 def test_restore_state_utils(destination: str, staging: str, file_format: str, bucket: str, settings: Dict[str, Any]) -> None:
 
-    # snowflake requires gcs prefix instead of gs in bucket path
-    if destination == "snowflake" and bucket:
-        bucket = bucket.replace("gs://", "gcs://")
-
     # set env vars
     os.environ['DESTINATION__FILESYSTEM__BUCKET_URL'] = bucket
     os.environ['DESTINATION__STAGE_NAME'] = settings.get("stage_name", "")

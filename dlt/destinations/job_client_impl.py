@@ -6,8 +6,9 @@ import contextlib
 from copy import copy
 import datetime  # noqa: 251
 from types import TracebackType
-from typing import Any, ClassVar, List, NamedTuple, Optional, Sequence, Tuple, Type, Iterable, Iterator
+from typing import Any, ClassVar, List, NamedTuple, Optional, Sequence, Tuple, Type, Iterable, Iterator, ContextManager
 import zlib
+import re
 
 from dlt.common import json, pendulum, logger
 from dlt.common.data_types import TDataType
@@ -15,7 +16,7 @@ from dlt.common.schema.typing import COLUMN_HINTS, LOADS_TABLE_NAME, VERSION_TAB
 from dlt.common.schema.utils import add_missing_hints
 from dlt.common.storages import FileStorage
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns, TSchemaTables
-from dlt.common.destination.reference import DestinationClientConfiguration, DestinationClientDwhConfiguration, NewLoadJob, TLoadJobState, LoadJob, JobClientBase, FollowupJob, DestinationClientStagingConfiguration, CredentialsConfiguration
+from dlt.common.destination.reference import DestinationClientConfiguration, DestinationClientDwhConfiguration, NewLoadJob, TLoadJobState, LoadJob, StagingJobClientBase, FollowupJob, DestinationClientStagingConfiguration, CredentialsConfiguration
 from dlt.common.utils import concat_strings_with_limit
 from dlt.destinations.exceptions import DatabaseUndefinedRelation, DestinationSchemaWillNotUpdate
 from dlt.destinations.job_impl import EmptyLoadJobWithoutFollowup, NewReferenceJob
@@ -33,6 +34,12 @@ class StorageSchemaInfo(NamedTuple):
     inserted_at: datetime.datetime
     schema: str
 
+# this should suffice for now
+DDL_COMMANDS = [
+    "ALTER",
+    "CREATE",
+    "DROP"
+]
 
 class SqlLoadJob(LoadJob):
     """A job executing sql statement, without followup trait"""
@@ -42,7 +49,12 @@ class SqlLoadJob(LoadJob):
         # execute immediately if client present
         with FileStorage.open_zipsafe_ro(file_path, "r", encoding="utf-8") as f:
             sql = f.read()
-        with sql_client.begin_transaction():
+
+        # if we detect ddl transactions, only execute transaction if supported by client
+        if not self._string_containts_ddl_queries(sql) or sql_client.capabilities.supports_ddl_transactions:
+            # with sql_client.begin_transaction():
+            sql_client.execute_sql(sql)
+        else:
             sql_client.execute_sql(sql)
 
     def state(self) -> TLoadJobState:
@@ -52,6 +64,12 @@ class SqlLoadJob(LoadJob):
     def exception(self) -> str:
         # this part of code should be never reached
         raise NotImplementedError()
+
+    def _string_containts_ddl_queries(self, sql: str) -> bool:
+        for cmd in DDL_COMMANDS:
+            if re.search(cmd, sql, re.IGNORECASE):
+                return True
+        return False
 
     @staticmethod
     def is_sql_job(file_path: str) -> bool:
@@ -75,7 +93,7 @@ class CopyRemoteFileLoadJob(LoadJob, FollowupJob):
         return "completed"
 
 
-class SqlJobClientBase(JobClientBase):
+class SqlJobClientBase(StagingJobClientBase):
 
     VERSION_TABLE_SCHEMA_COLUMNS: ClassVar[str] = "version_hash, schema_name, version, engine_version, inserted_at, schema"
 
@@ -85,41 +103,36 @@ class SqlJobClientBase(JobClientBase):
         assert isinstance(config, DestinationClientDwhConfiguration)
         self.config: DestinationClientDwhConfiguration = config
 
-    def initialize_storage(self, staging: bool = False, truncate_tables: Iterable[str] = None) -> None:
-        # use regular or staging dataset name
-        with self.sql_client.with_staging_dataset(staging):
-            if not self.is_storage_initialized():
-                self.sql_client.create_dataset()
-            else:
-                # truncate requested tables
-                if truncate_tables:
-                    self.sql_client.truncate_tables(*truncate_tables)
+    def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
+        if not self.is_storage_initialized():
+            self.sql_client.create_dataset()
+        else:
+            # truncate requested tables
+            if truncate_tables:
+                self.sql_client.truncate_tables(*truncate_tables)
 
 
-    def is_storage_initialized(self, staging: bool = False) -> bool:
-        with self.sql_client.with_staging_dataset(staging):
-            return self.sql_client.has_dataset()
+    def is_storage_initialized(self) -> bool:
+        return self.sql_client.has_dataset()
 
-    def update_storage_schema(self, staging: bool = False, only_tables: Iterable[str] = None, expected_update: TSchemaTables = None) -> Optional[TSchemaTables]:
-        with self.sql_client.with_staging_dataset(staging):
-            super().update_storage_schema(staging, only_tables, expected_update)
-            applied_update: TSchemaTables = {}
-            schema_info = self.get_schema_by_hash(self.schema.stored_version_hash)
-            if schema_info is None:
-                logger.info(f"Schema with hash {self.schema.stored_version_hash} not found in the storage. upgrading")
+    def update_storage_schema(self, only_tables: Iterable[str] = None, expected_update: TSchemaTables = None) -> Optional[TSchemaTables]:
+        super().update_storage_schema(only_tables, expected_update)
+        applied_update: TSchemaTables = {}
+        schema_info = self.get_schema_by_hash(self.schema.stored_version_hash)
+        if schema_info is None:
+            logger.info(f"Schema with hash {self.schema.stored_version_hash} not found in the storage. upgrading")
 
-                with self.maybe_ddl_transaction():
-                    applied_update = self._execute_schema_update_sql(only_tables)
-            else:
-                logger.info(f"Schema with hash {self.schema.stored_version_hash} inserted at {schema_info.inserted_at} found in storage, no upgrade required")
-            return applied_update
+            with self.maybe_ddl_transaction():
+                applied_update = self._execute_schema_update_sql(only_tables)
+        else:
+            logger.info(f"Schema with hash {self.schema.stored_version_hash} inserted at {schema_info.inserted_at} found in storage, no upgrade required")
+        return applied_update
 
-    def drop_tables(self, *tables: str, staging: bool = False, replace_schema: bool = True) -> None:
+    def drop_tables(self, *tables: str, replace_schema: bool = True) -> None:
         with self.maybe_ddl_transaction():
-            with self.sql_client.with_staging_dataset(staging):
-                self.sql_client.drop_tables(*tables)
-                if replace_schema:
-                    self._replace_schema_in_storage(self.schema)
+            self.sql_client.drop_tables(*tables)
+            if replace_schema:
+                self._replace_schema_in_storage(self.schema)
 
     @contextlib.contextmanager
     def maybe_ddl_transaction(self) -> Iterator[None]:
@@ -130,6 +143,11 @@ class SqlJobClientBase(JobClientBase):
         else:
             yield
 
+    @contextlib.contextmanager
+    def with_staging_dataset(self)-> Iterator["SqlJobClientBase"]:
+        with self.sql_client.with_staging_dataset(True):
+            yield self
+
     def get_stage_dispositions(self) -> List[TWriteDisposition]:
         """Returns a list of dispositions that require staging tables to be populated"""
         dispositions: List[TWriteDisposition] = ["merge"]
@@ -138,13 +156,13 @@ class SqlJobClientBase(JobClientBase):
             dispositions.append("replace")
         return dispositions
 
-    def truncate_destination_table(self, disposition: TWriteDisposition) -> bool:
+    def _should_truncate_destination_table(self, disposition: TWriteDisposition) -> bool:
         return disposition == "replace" and self.config.replace_strategy == "classic"
 
-    def create_merge_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
+    def _create_merge_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
         return SqlMergeJob.from_table_chain(table_chain, self.sql_client)
 
-    def create_staging_copy_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
+    def _create_staging_copy_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
         return SqlStagingCopyJob.from_table_chain(table_chain, self.sql_client)
 
     def create_table_chain_completed_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
@@ -152,9 +170,9 @@ class SqlJobClientBase(JobClientBase):
         """Creates a list of followup jobs that should be executed after a table chain is completed"""
         write_disposition = table_chain[0]["write_disposition"]
         if write_disposition == "merge":
-            jobs.append(self.create_merge_job(table_chain))
-        elif write_disposition == "replace":
-            jobs.append(self.create_staging_copy_job(table_chain))
+            jobs.append(self._create_merge_job(table_chain))
+        elif write_disposition == "replace" and self.config.replace_strategy == "staging":
+            jobs.append(self._create_staging_copy_job(table_chain))
         return jobs
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:

@@ -18,7 +18,7 @@ from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import VERSION_TABLE_NAME, TTableSchema, TWriteDisposition
 from dlt.common.storages import LoadStorage
-from dlt.common.destination.reference import DestinationClientDwhConfiguration, FollowupJob, JobClientBase, DestinationReference, LoadJob, NewLoadJob, TLoadJobState, DestinationClientConfiguration, DestinationClientStagingConfiguration
+from dlt.common.destination.reference import DestinationClientDwhConfiguration, FollowupJob, JobClientBase, StagingJobClientBase, DestinationReference, LoadJob, NewLoadJob, TLoadJobState, DestinationClientConfiguration, DestinationClientStagingConfiguration
 from dlt.destinations.filesystem.filesystem import LoadFilesystemJob
 
 from dlt.destinations.job_impl import EmptyLoadJob
@@ -187,11 +187,10 @@ class Load(Runnable[ThreadPool]):
             if state == "completed" and not self.is_staging_job(starting_job_file_name):
                 client = self.destination.client(schema, self.initial_client_config)
                 top_job_table = get_top_level_table(schema.tables, self.get_load_table(schema, starting_job_file_name)["name"])
-                if top_job_table["write_disposition"] in client.get_stage_dispositions():
-                    # if all tables completed, create merge sql job on destination client
-                    if table_chain := self.get_completed_table_chain(load_id, schema, top_job_table, starting_job.job_file_info().job_id()):
-                        if follow_up_jobs := client.create_table_chain_completed_followup_jobs(table_chain):
-                            jobs = jobs + follow_up_jobs
+                # if all tables of chain completed, create follow  up jobs
+                if table_chain := self.get_completed_table_chain(load_id, schema, top_job_table, starting_job.job_file_info().job_id()):
+                    if follow_up_jobs := client.create_table_chain_completed_followup_jobs(table_chain):
+                        jobs = jobs + follow_up_jobs
             jobs = jobs + starting_job.create_followup_jobs(state)
         return jobs
 
@@ -268,16 +267,17 @@ class Load(Runnable[ThreadPool]):
                 dlt_tables = set(t["name"] for t in schema.dlt_tables())
                 # only update tables that are present in the load package
                 applied_update = job_client.update_storage_schema(only_tables=all_tables | dlt_tables, expected_update=expected_update)
-                # update the staging dataset
-                staging_table_jobs = self.get_new_jobs_info(load_id, schema, job_client.get_stage_dispositions())
-                if staging_table_jobs:
-                    logger.info(f"Client for {job_client.config.destination_name} will start initialize STAGING storage")
-                    job_client.initialize_storage(staging=True)
-                    logger.info(f"Client for {job_client.config.destination_name} will UPDATE STAGING SCHEMA to package schema")
-                    staging_tables = set(job.table_name for job in staging_table_jobs)
-                    job_client.update_storage_schema(staging=True, only_tables=staging_tables | dlt_tables, expected_update=expected_update)
-                    logger.info(f"Client for {job_client.config.destination_name} will TRUNCATE STAGING TABLES: {staging_tables}")
-                    job_client.initialize_storage(staging=True, truncate_tables=staging_tables)
+                # update the staging dataset if client supports this
+                if isinstance(job_client, StagingJobClientBase):
+                    if staging_table_jobs := self.get_new_jobs_info(load_id, schema, job_client.get_stage_dispositions()):
+                        with job_client.with_staging_dataset():
+                            logger.info(f"Client for {job_client.config.destination_name} will start initialize STAGING storage")
+                            job_client.initialize_storage()
+                            logger.info(f"Client for {job_client.config.destination_name} will UPDATE STAGING SCHEMA to package schema")
+                            staging_tables = set(job.table_name for job in staging_table_jobs)
+                            job_client.update_storage_schema(only_tables=staging_tables | {VERSION_TABLE_NAME}, expected_update=expected_update)
+                            logger.info(f"Client for {job_client.config.destination_name} will TRUNCATE STAGING TABLES: {staging_tables}")
+                            job_client.initialize_storage(truncate_tables=staging_tables)
                 self.load_storage.commit_schema_update(load_id, applied_update)
             # spool or retrieve unfinished jobs
             if self.staging:

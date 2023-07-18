@@ -98,10 +98,10 @@ class FilesystemClient(JobClientBase):
     def dataset_path(self) -> str:
         return posixpath.join(self.fs_path, self.config.dataset_name)
 
-    def initialize_storage(self, staging: bool = False, truncate_tables: Iterable[str] = None) -> None:
+    def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
         self.fs_client.makedirs(self.dataset_path, exist_ok=True)
 
-    def is_storage_initialized(self, staging: bool = False) -> bool:
+    def is_storage_initialized(self) -> bool:
         return self.fs_client.isdir(self.dataset_path)  # type: ignore[no-any-return]
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
@@ -120,19 +120,9 @@ class FilesystemClient(JobClientBase):
     def restore_file_load(self, file_path: str) -> LoadJob:
         return EmptyLoadJob.from_file_path(file_path, "completed")
 
-    def get_stage_dispositions(self) -> List[TWriteDisposition]:
-        """Returns a list of dispositions that require staging tables to be populated"""
-        return []
-
     def create_table_chain_completed_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
         """Creates a list of followup jobs that should be executed after a table chain is completed"""
         return []
-
-    def create_merge_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
-        """Creates a table merge job without executing it. The `table_chain` contains a list of tables, ordered by ancestry, that should be merged.
-        Clients that cannot merge should return None
-        """
-        pass
 
     def complete_load(self, load_id: str) -> None:
         schema_name = self.schema.name

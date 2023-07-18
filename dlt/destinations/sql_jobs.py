@@ -59,7 +59,6 @@ class SqlStagingCopyJob(SqlBaseJob):
             sql.append(f"INSERT INTO {table_name}({columns}) SELECT {columns} FROM {staging_table_name};")
         return sql
 
-
 class SqlMergeJob(SqlBaseJob):
     """Generates a list of sql statements that merge the data from staging dataset into destination dataset."""
     failed_text: str = "Tried to generate a merge sql job for the following tables:"

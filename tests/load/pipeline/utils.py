@@ -40,7 +40,6 @@ STAGING_AND_NON_STAGING_COMBINATIONS = ALL_DEFAULT_FILETYPE_STAGING_COMBINATIONS
   (destination, None, None, "", {}) for destination in ALL_DESTINATIONS
 ]
 
-
 @pytest.fixture(autouse=True)
 def drop_pipeline() -> Iterator[None]:
     yield

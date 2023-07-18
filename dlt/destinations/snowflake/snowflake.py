@@ -1,9 +1,9 @@
-from typing import ClassVar, Dict, Optional, Sequence, Tuple, List
+from typing import ClassVar, Dict, Optional, Sequence, Tuple, List, Any
 from urllib.parse import urlparse
 
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import FollowupJob, TLoadJobState, LoadJob, CredentialsConfiguration
+from dlt.common.destination.reference import FollowupJob, NewLoadJob, TLoadJobState, LoadJob, CredentialsConfiguration
 from dlt.common.configuration.specs import AwsCredentialsWithoutDefaults
 from dlt.common.data_types import TDataType
 from dlt.common.storages.file_storage import FileStorage
@@ -18,9 +18,10 @@ from dlt.destinations.exceptions import LoadJobTerminalException
 from dlt.destinations.snowflake import capabilities
 from dlt.destinations.snowflake.configuration import SnowflakeClientConfiguration
 from dlt.destinations.snowflake.sql_client import SnowflakeSqlClient
-from dlt.destinations.sql_jobs import SqlMergeJob
+from dlt.destinations.sql_jobs import SqlStagingCopyJob
 from dlt.destinations.snowflake.sql_client import SnowflakeSqlClient
 from dlt.destinations.job_impl import NewReferenceJob
+from dlt.destinations.sql_client import SqlClientBase
 
 BIGINT_PRECISION = 19
 MAX_NUMERIC_PRECISION = 38
@@ -51,7 +52,7 @@ SNOW_TO_SCT: Dict[str, TDataType] = {
 
 class SnowflakeLoadJob(LoadJob, FollowupJob):
     def __init__(
-            self, file_path: str, table_name: str, use_staging_table: bool, truncate_destination_table: bool, load_id: str, client: SnowflakeSqlClient,
+            self, file_path: str, table_name: str, use_staging_table: bool, _should_truncate_destination_table: bool, load_id: str, client: SnowflakeSqlClient,
             stage_name: Optional[str] = None, keep_staged_files: bool = True, staging_credentials: Optional[CredentialsConfiguration] = None
     ) -> None:
         file_name = FileStorage.get_file_name_from_file_path(file_path)
@@ -74,6 +75,8 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
                     credentials_clause = f"""CREDENTIALS=(AWS_KEY_ID='{staging_credentials.aws_access_key_id}' AWS_SECRET_KEY='{staging_credentials.aws_secret_access_key}')"""
                     from_clause = f"FROM '{bucket_path}'"
                 else:
+                    # ensure that gcs bucket path starts with gcs://, this is a requirement of snowflake
+                    bucket_path = bucket_path.replace("gs://", "gcs://")
                     if not stage_name:
                         # when loading from bucket stage must be given
                         raise LoadJobTerminalException(file_path, f"Cannot load from bucket path {bucket_path} without a stage name. See https://dlthub.com/docs/dlt-ecosystem/destinations/snowflake for instructions on setting up the `stage_name`")
@@ -93,7 +96,7 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
                 source_format = "(TYPE = 'PARQUET', BINARY_AS_TEXT = FALSE)"
 
             with client.begin_transaction():
-                if truncate_destination_table:
+                if _should_truncate_destination_table:
                     client.execute_sql(f"TRUNCATE TABLE IF EXISTS {qualified_table_name}")
                 # PUT and COPY in one tx if local file, otherwise only copy
                 if not bucket_path:
@@ -117,6 +120,21 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
     def exception(self) -> str:
         raise NotImplementedError()
 
+class SnowflakeStagingCopyJob(SqlStagingCopyJob):
+
+    @classmethod
+    def generate_sql(cls, table_chain: Sequence[TTableSchema], sql_client: SqlClientBase[Any]) -> List[str]:
+        sql: List[str] = []
+        for table in table_chain:
+            with sql_client.with_staging_dataset(staging=True):
+                staging_table_name = sql_client.make_qualified_table_name(table["name"])
+            table_name = sql_client.make_qualified_table_name(table["name"])
+            # drop destination table
+            sql.append(f"DROP TABLE IF EXISTS {table_name};")
+            # recreate destination table with data cloned from staging table
+            sql.append(f"CREATE TABLE {table_name} CLONE {staging_table_name};")
+        return sql
+
 
 class SnowflakeClient(SqlJobClientBase):
 
@@ -137,7 +155,7 @@ class SnowflakeClient(SqlJobClientBase):
         if not job:
             disposition = table['write_disposition']
             job = SnowflakeLoadJob(
-                file_path, table['name'], disposition in self.get_stage_dispositions(), self.truncate_destination_table(disposition), load_id, self.sql_client,
+                file_path, table['name'], disposition in self.get_stage_dispositions(), self._should_truncate_destination_table(disposition), load_id, self.sql_client,
                 stage_name=self.config.stage_name, keep_staged_files=self.config.keep_staged_files,
                 staging_credentials=self.config.staging_credentials
             )
@@ -149,6 +167,9 @@ class SnowflakeClient(SqlJobClientBase):
     def _make_add_column_sql(self, new_columns: Sequence[TColumnSchema]) -> List[str]:
         # Override because snowflake requires multiple columns in a single ADD COLUMN clause
         return ["ADD COLUMN\n" + ",\n".join(self._get_column_def_sql(c) for c in new_columns)]
+
+    def _create_staging_copy_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
+        return SnowflakeStagingCopyJob.from_table_chain(table_chain, self.sql_client)
 
     def _get_table_update_sql(self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool, separate_alters: bool = False) -> List[str]:
         sql = super()._get_table_update_sql(table_name, new_columns, generate_alter)

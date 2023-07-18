@@ -296,11 +296,13 @@ def test_drop_tables(client: SqlJobClientBase) -> None:
     schema.bump_version()
     client.drop_tables(*tables_to_drop)
     with contextlib.suppress(DatabaseUndefinedRelation):
-        client.drop_tables(*tables_to_drop, staging=True, replace_schema=False)
+        with client.with_staging_dataset():
+            client.drop_tables(*tables_to_drop, replace_schema=False)
     # drop again - should not break anything
     client.drop_tables(*tables_to_drop)
     with contextlib.suppress(DatabaseUndefinedRelation):
-        client.drop_tables(*tables_to_drop, staging=True, replace_schema=False)
+        with client.with_staging_dataset():
+            client.drop_tables(*tables_to_drop, replace_schema=False)
 
     # Verify requested tables are dropped
     for tbl in tables_to_drop:
@@ -457,8 +459,9 @@ def test_write_dispositions(client: SqlJobClientBase, write_disposition: str, fi
         # add root key
         client.schema.tables[table_name]["columns"]["col1"]["root_key"] = True
         # create staging for merge dataset
-        client.initialize_storage(staging=True)
-        client.update_storage_schema(staging=True)
+        with client.with_staging_dataset():
+            client.initialize_storage()
+            client.update_storage_schema()
     for idx in range(2):
         for t in [table_name, child_table]:
             # write row, use col1 (INT) as row number

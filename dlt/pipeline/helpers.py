@@ -124,7 +124,8 @@ class DropCommand:
             client.drop_tables(*table_names)
             # also delete staging but ignore if staging does not exist
             with contextlib.suppress(DatabaseUndefinedRelation):
-                client.drop_tables(*table_names, staging=True)
+                with client.with_staging_dataset():
+                    client.drop_tables(*table_names)
 
     def _delete_pipeline_tables(self) -> None:
         for tbl in self.tables_to_drop:
