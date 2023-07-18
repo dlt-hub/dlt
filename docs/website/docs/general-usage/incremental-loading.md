@@ -337,7 +337,7 @@ Note that `dlt`'s incremental filtering considers the ranges half closed. `initi
 
 The `dlt.sources.incremental` instance provides `start_out_of_range` and `end_out_of_range`
 attributes which are set when the resource yields an element with a higher/lower cursor value than the
-intial or end values.
+initial or end values.
 This makes it convenient to optimize resources in some cases.
 
 * `start_out_of_range` is `True` when the resource yields any item with a _lower_ cursor value than the `initial_value`
