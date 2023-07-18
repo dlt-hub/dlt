@@ -782,7 +782,7 @@ def test_end_value_initial_value_errors() -> None:
 def test_out_of_range_flags() -> None:
     """Test incremental.start_out_of_range / end_out_of_range flags are set when items are filtered out"""
     @dlt.resource
-    def some_data_descending(
+    def descending(
         updated_at: dlt.sources.incremental[int] = dlt.sources.incremental('updated_at', initial_value=10)
     ) -> Any:
         for chunk in chunks(list(reversed(range(48))), 10):
@@ -795,7 +795,7 @@ def test_out_of_range_flags() -> None:
                 return
 
     @dlt.resource
-    def some_data_ascending(
+    def ascending(
         updated_at: dlt.sources.incremental[int] = dlt.sources.incremental('updated_at', initial_value=22, end_value=45)
     ) -> Any:
         for chunk in chunks(list(range(22, 500)), 10):
@@ -807,8 +807,37 @@ def test_out_of_range_flags() -> None:
                 assert updated_at.end_out_of_range is True
                 return
 
+
+    @dlt.resource
+    def descending_single_item(
+        updated_at: dlt.sources.incremental[int] = dlt.sources.incremental('updated_at', initial_value=10)
+    ) -> Any:
+        for i in reversed(range(14)):
+            yield {'updated_at': i}
+            if i >= 10:
+                assert updated_at.start_out_of_range is False
+            else:
+                assert updated_at.start_out_of_range is True
+                return
+
+    @dlt.resource
+    def ascending_single_item(
+        updated_at: dlt.sources.incremental[int] = dlt.sources.incremental('updated_at', initial_value=10, end_value=22)
+    ) -> Any:
+        for i in range(10, 500):
+            yield {'updated_at': i}
+            if i < 22:
+                assert updated_at.end_out_of_range is False
+            else:
+                assert updated_at.end_out_of_range is True
+                return
+
     pipeline = dlt.pipeline(pipeline_name='incremental_' + uniq_id(), destination='duckdb')
 
-    pipeline.extract(some_data_descending())
+    pipeline.extract(descending())
 
-    pipeline.extract(some_data_ascending())
+    pipeline.extract(ascending())
+
+    pipeline.extract(descending_single_item())
+
+    pipeline.extract(ascending_single_item())

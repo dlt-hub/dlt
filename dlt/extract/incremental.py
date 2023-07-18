@@ -249,8 +249,9 @@ class Incremental(FilterItem, BaseConfiguration, Generic[TCursorValue]):
         check_values = (row_value,) + ((last_value, ) if last_value is not None else ())
         new_value = last_value_func(check_values)
         if last_value == new_value:
+            processed_row_value = last_value_func((row_value, ))
             # we store row id for all records with the current "last_value" in state and use it to deduplicate
-            if last_value_func((row_value, )) == last_value:
+            if processed_row_value == last_value:
                 unique_value = self.unique_value(row)
                 # if unique value exists then use it to deduplicate
                 if unique_value:
@@ -262,7 +263,8 @@ class Incremental(FilterItem, BaseConfiguration, Generic[TCursorValue]):
             # skip the record that is not a last_value or new_value: that record was already processed
             check_values = (row_value,) + ((self.start_value,) if self.start_value is not None else ())
             new_value = last_value_func(check_values)
-            if new_value == self.start_value:
+            # Include rows == start_value but exclude "lower"
+            if new_value == self.start_value and processed_row_value != self.start_value:
                 self.start_out_of_range = True
                 return False
             else:
