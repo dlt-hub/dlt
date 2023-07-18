@@ -57,7 +57,7 @@ Replace the **`access_token`** in the **`secrets.toml`** file with the long-live
 To retrieve the expiry date and the associated scopes of the token, you can use the following command:
 
 ```python
-from facebook_ads.fb import debug_access_token
+from facebook_ads import debug_access_token
 debug_access_token()
 ```
 We strongly advice you to add the token expiration timestamp to get notified a week before token expiration that you need to rotate it. Right now the notifications are sent to logger with error level. In config.toml / secrets.toml:
