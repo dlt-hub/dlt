@@ -14,7 +14,7 @@ from dlt.common.configuration import ConfigurationValueError
 from dlt.common.pendulum import pendulum, timedelta
 from dlt.common.pipeline import StateInjectableContext, resource_state
 from dlt.common.schema.schema import Schema
-from dlt.common.utils import uniq_id, digest128
+from dlt.common.utils import uniq_id, digest128, chunks
 from dlt.common.json import json
 
 from dlt.extract.source import DltSource
@@ -701,6 +701,39 @@ def test_chunked_ranges() -> None:
     assert items == expected_range
 
 
+def test_end_value_with_batches() -> None:
+    """Ensure incremental with end_value works correctly when resource yields lists instead of single items"""
+    @dlt.resource
+    def batched_sequence(
+            updated_at: dlt.sources.incremental[int] = dlt.sources.incremental('updated_at', initial_value=1)
+    ) -> Any:
+        start = updated_at.last_value
+        yield [{'updated_at': i} for i in range(start, start + 12)]
+        yield [{'updated_at': i} for i in range(start+12, start + 20)]
+
+    pipeline = dlt.pipeline(pipeline_name='incremental_' + uniq_id(), destination='duckdb')
+
+    pipeline.run(
+        batched_sequence(updated_at=dlt.sources.incremental(initial_value=1, end_value=10)),
+        write_disposition='append'
+    )
+
+    with pipeline.sql_client() as client:
+        items = [row[0] for row in client.execute_sql("SELECT updated_at FROM batched_sequence ORDER BY updated_at")]
+
+    assert items == list(range(1, 10))
+
+    pipeline.run(
+        batched_sequence(updated_at=dlt.sources.incremental(initial_value=10, end_value=14)),
+        write_disposition='append'
+    )
+
+    with pipeline.sql_client() as client:
+        items = [row[0] for row in client.execute_sql("SELECT updated_at FROM batched_sequence ORDER BY updated_at")]
+
+    assert items == list(range(1, 14))
+
+
 def test_load_with_end_value_does_not_write_state() -> None:
     """When loading chunk with initial/end value range. The resource state is untouched.
     """
@@ -744,3 +777,67 @@ def test_end_value_initial_value_errors() -> None:
         list(some_data(updated_at=dlt.sources.incremental(initial_value=42, end_value=22, last_value_func=custom_last_value)))
 
     assert "The result of 'custom_last_value([end_value, initial_value])' must equal 'end_value'" in str(ex.value)
+
+
+def test_out_of_range_flags() -> None:
+    """Test incremental.start_out_of_range / end_out_of_range flags are set when items are filtered out"""
+    @dlt.resource
+    def descending(
+        updated_at: dlt.sources.incremental[int] = dlt.sources.incremental('updated_at', initial_value=10)
+    ) -> Any:
+        for chunk in chunks(list(reversed(range(48))), 10):
+            yield [{'updated_at': i} for i in chunk]
+            # Assert flag is set only on the first item < initial_value
+            if all(item > 9 for item in chunk):
+                assert updated_at.start_out_of_range is False
+            else:
+                assert updated_at.start_out_of_range is True
+                return
+
+    @dlt.resource
+    def ascending(
+        updated_at: dlt.sources.incremental[int] = dlt.sources.incremental('updated_at', initial_value=22, end_value=45)
+    ) -> Any:
+        for chunk in chunks(list(range(22, 500)), 10):
+            yield [{'updated_at': i} for i in chunk]
+            # Flag is set only when end_value is reached
+            if all(item < 45 for item in chunk):
+                assert updated_at.end_out_of_range is False
+            else:
+                assert updated_at.end_out_of_range is True
+                return
+
+
+    @dlt.resource
+    def descending_single_item(
+        updated_at: dlt.sources.incremental[int] = dlt.sources.incremental('updated_at', initial_value=10)
+    ) -> Any:
+        for i in reversed(range(14)):
+            yield {'updated_at': i}
+            if i >= 10:
+                assert updated_at.start_out_of_range is False
+            else:
+                assert updated_at.start_out_of_range is True
+                return
+
+    @dlt.resource
+    def ascending_single_item(
+        updated_at: dlt.sources.incremental[int] = dlt.sources.incremental('updated_at', initial_value=10, end_value=22)
+    ) -> Any:
+        for i in range(10, 500):
+            yield {'updated_at': i}
+            if i < 22:
+                assert updated_at.end_out_of_range is False
+            else:
+                assert updated_at.end_out_of_range is True
+                return
+
+    pipeline = dlt.pipeline(pipeline_name='incremental_' + uniq_id(), destination='duckdb')
+
+    pipeline.extract(descending())
+
+    pipeline.extract(ascending())
+
+    pipeline.extract(descending_single_item())
+
+    pipeline.extract(ascending_single_item())
