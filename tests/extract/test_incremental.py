@@ -14,7 +14,7 @@ from dlt.common.configuration import ConfigurationValueError
 from dlt.common.pendulum import pendulum, timedelta
 from dlt.common.pipeline import StateInjectableContext, resource_state
 from dlt.common.schema.schema import Schema
-from dlt.common.utils import uniq_id, digest128
+from dlt.common.utils import uniq_id, digest128, chunks
 from dlt.common.json import json
 
 from dlt.extract.source import DltSource
@@ -777,3 +777,38 @@ def test_end_value_initial_value_errors() -> None:
         list(some_data(updated_at=dlt.sources.incremental(initial_value=42, end_value=22, last_value_func=custom_last_value)))
 
     assert "The result of 'custom_last_value([end_value, initial_value])' must equal 'end_value'" in str(ex.value)
+
+
+def test_out_of_range_flags() -> None:
+    """Test incremental.start_out_of_range / end_out_of_range flags are set when items are filtered out"""
+    @dlt.resource
+    def some_data_descending(
+        updated_at: dlt.sources.incremental[int] = dlt.sources.incremental('updated_at', initial_value=10)
+    ) -> Any:
+        for chunk in chunks(list(reversed(range(48))), 10):
+            yield [{'updated_at': i} for i in chunk]
+            # Assert flag is set only on the first item < initial_value
+            if all(item > 9 for item in chunk):
+                assert updated_at.start_out_of_range is False
+            else:
+                assert updated_at.start_out_of_range is True
+                return
+
+    @dlt.resource
+    def some_data_ascending(
+        updated_at: dlt.sources.incremental[int] = dlt.sources.incremental('updated_at', initial_value=22, end_value=45)
+    ) -> Any:
+        for chunk in chunks(list(range(22, 500)), 10):
+            yield [{'updated_at': i} for i in chunk]
+            # Flag is set only when end_value is reached
+            if all(item < 45 for item in chunk):
+                assert updated_at.end_out_of_range is False
+            else:
+                assert updated_at.end_out_of_range is True
+                return
+
+    pipeline = dlt.pipeline(pipeline_name='incremental_' + uniq_id(), destination='duckdb')
+
+    pipeline.extract(some_data_descending())
+
+    pipeline.extract(some_data_ascending())
