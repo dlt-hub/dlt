@@ -52,7 +52,7 @@ To get started with your data pipeline, follow these steps:
    configuration settings to get started.
 
 For more information, read the
-[Walkthrough: Add a verified source.](../../walkthroughs/add-a-verified-source)
+[Walkthrough: Add a verified source.](../../walkthroughs/add-a-verified-source.md)
 
 ### Add credentials
 
@@ -133,7 +133,7 @@ def players_profiles(players: List[str]) -> Iterator[TDataItem]:
 
 `players`: Is a list of player usernames for which you want to fetch profile data.
 
-It uses `defer` decorator to enable parallel run in thread pool.
+It uses `@dlt.defer` decorator to enable parallel run in thread pool.
 
 ### Resource `players_archives`
 
