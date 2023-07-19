@@ -19,7 +19,7 @@ from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.utils import get_module_name
 from dlt.common.configuration.specs import GcpCredentials, AwsCredentialsWithoutDefaults
 
-TLoaderReplaceStrategy = Literal["classic", "staging"]
+TLoaderReplaceStrategy = Literal["truncate-and-insert", "insert-from-staging", "optimized"]
 
 @configspec(init=True)
 class DestinationClientConfiguration(BaseConfiguration):
@@ -45,7 +45,7 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
     """name of default schema to be used to name effective dataset to load data to"""
     staging_credentials: Optional[CredentialsConfiguration] = None
     """How to handle replace disposition for this destination, can be classic or staging"""
-    replace_strategy: TLoaderReplaceStrategy = "classic"
+    replace_strategy: TLoaderReplaceStrategy = "truncate-and-insert"
 
     if TYPE_CHECKING:
         def __init__(

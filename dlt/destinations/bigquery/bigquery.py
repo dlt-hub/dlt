@@ -148,7 +148,7 @@ class BigQueryClient(SqlJobClientBase):
     def _create_merge_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
         return BigQueryMergeJob.from_table_chain(table_chain, self.sql_client)
 
-    def _create_staging_copy_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
+    def _create_optimized_replace_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
         return BigqueryStagingCopyJob.from_table_chain(table_chain, self.sql_client)
 
     def restore_file_load(self, file_path: str) -> LoadJob:

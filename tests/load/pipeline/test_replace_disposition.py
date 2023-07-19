@@ -6,16 +6,16 @@ from tests.load.pipeline.utils import  load_table_counts
 from tests.utils import ALL_DESTINATIONS
 from tests.load.pipeline.utils import STAGING_AND_NON_STAGING_COMBINATIONS, STAGING_COMBINATION_FIELDS
 
-replace_strategies = ["drop", "truncate", "staging"]
-
+REPLACE_STRATEGIES = ["truncate-and-insert", "insert-from-staging", "optimized"]
 
 @pytest.mark.parametrize(STAGING_COMBINATION_FIELDS, STAGING_AND_NON_STAGING_COMBINATIONS)
-def test_replace_disposition(destination: str, staging: str, file_format: str, bucket: str, settings: Dict[str, Any]) -> None:
+@pytest.mark.parametrize("replace_strategy", REPLACE_STRATEGIES)
+def test_replace_disposition(destination: str, staging: str, file_format: str, bucket: str, settings: Dict[str, Any], replace_strategy: str) -> None:
 
     # only allow 40 items per file
     os.environ['DATA_WRITER__FILE_MAX_ITEMS'] = "40"
     # use staging tables for replace
-    os.environ['DESTINATION__REPLACE_STRATEGY'] = "staging"
+    os.environ['DESTINATION__REPLACE_STRATEGY'] = replace_strategy
 
     # set env vars
     os.environ['DESTINATION__FILESYSTEM__BUCKET_URL'] = bucket
@@ -53,6 +53,7 @@ def test_replace_disposition(destination: str, staging: str, file_format: str, b
 
     # first run with offset 0
     info = pipeline.run(load_items, loader_file_format=file_format)
+
     # second run with higher offset so we can check the results
     offset = 1000
     info = pipeline.run(load_items, loader_file_format=file_format)
@@ -60,6 +61,15 @@ def test_replace_disposition(destination: str, staging: str, file_format: str, b
 
     # we should have all items loaded
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
+
+    # in the classic truncate and insert replace strategy we will lose content and also not know exactly what content is there
+    if replace_strategy == "truncate-and-insert":
+        assert table_counts["items"] == 40
+        assert table_counts["items__sub_items"] == 40
+        assert table_counts["items__sub_items__sub_sub_items"] == 40
+        return
+
+    # in the other strategies we know the result exactly
     assert table_counts["items"] == 120
     assert table_counts["items__sub_items"] == 240
     assert table_counts["items__sub_items__sub_sub_items"] == 120

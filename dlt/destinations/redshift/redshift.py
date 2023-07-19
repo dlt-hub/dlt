@@ -127,9 +127,10 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
 
         with self._sql_client.with_staging_dataset(self._use_staging_table):
             with self._sql_client.begin_transaction():
-                if self._should_truncate_destination_table:
-                    self._sql_client.execute_sql(f"""TRUNCATE TABLE {table_name}""")
                 dataset_name = self._sql_client.dataset_name
+                if self._should_truncate_destination_table:
+                    # can't use truncate, this will break the tx
+                    self._sql_client.execute_sql(f"""DELETE FROM {dataset_name}.{table_name} WHERE 1=1;""")
                 # TODO: if we ever support csv here remember to add column names to COPY
                 self._sql_client.execute_sql(f"""
                     COPY {dataset_name}.{table_name}
@@ -138,6 +139,9 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
                     {dateformat}
                     {compression}
                     {credentials} MAXERROR 0;""")
+
+
+
 
     def exception(self) -> str:
         # this part of code should be never reached
@@ -154,21 +158,6 @@ class RedshiftMergeJob(SqlMergeJob):
         if for_delete:
             return [f"FROM {root_table_name} WHERE EXISTS (SELECT 1 FROM {staging_root_table_name} WHERE {' OR '.join([c.format(d=root_table_name,s=staging_root_table_name) for c in key_clauses])})"]
         return SqlMergeJob.gen_key_table_clauses(root_table_name, staging_root_table_name, key_clauses, for_delete)
-
-
-class RedshiftStagingCopyJob(SqlStagingCopyJob):
-
-    @classmethod
-    def generate_sql(cls, table_chain: Sequence[TTableSchema], sql_client: SqlClientBase[Any]) -> List[str]:
-        sql: List[str] = []
-        for table in table_chain:
-            with sql_client.with_staging_dataset(staging=True):
-                staging_table_name = sql_client.make_qualified_table_name(table["name"])
-            table_name = sql_client.make_qualified_table_name(table["name"])
-            # drop destination table
-            sql.append(f"DROP TABLE IF EXISTS {table_name};")
-            sql.append(f"CREATE TABLE {table_name} AS SELECT * FROM {staging_table_name};")
-        return sql
 
 
 class RedshiftClient(InsertValuesJobClient):
@@ -198,9 +187,6 @@ class RedshiftClient(InsertValuesJobClient):
             disposition = table["write_disposition"]
             return RedshiftCopyFileLoadJob(table, file_path, self.sql_client, disposition in self.get_stage_dispositions(), self._should_truncate_destination_table(disposition), staging_credentials=self.config.staging_credentials, staging_iam_role=self.config.staging_iam_role)
         return super().start_file_load(table, file_path, load_id)
-
-    def _create_staging_copy_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
-        return RedshiftStagingCopyJob.from_table_chain(table_chain, self.sql_client)
 
     @classmethod
     def _to_db_type(cls, sc_t: TDataType) -> str:

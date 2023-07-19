@@ -151,19 +151,26 @@ class SqlJobClientBase(StagingJobClientBase):
     def get_stage_dispositions(self) -> List[TWriteDisposition]:
         """Returns a list of dispositions that require staging tables to be populated"""
         dispositions: List[TWriteDisposition] = ["merge"]
-        # if we have the replace staging strategy, we need staging tables
-        if self.config.replace_strategy == "staging":
+        # if we have anything but the truncate-and-insert replace strategy, we need staging tables
+        if self.config.replace_strategy in ["insert-from-staging", "optimized"]:
             dispositions.append("replace")
         return dispositions
 
     def _should_truncate_destination_table(self, disposition: TWriteDisposition) -> bool:
-        return disposition == "replace" and self.config.replace_strategy == "classic"
+        return disposition == "replace" and self.config.replace_strategy == "truncate-and-insert"
 
     def _create_merge_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
         return SqlMergeJob.from_table_chain(table_chain, self.sql_client)
 
+    # update destination tables from staging tables
     def _create_staging_copy_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
         return SqlStagingCopyJob.from_table_chain(table_chain, self.sql_client)
+
+    # optimized replace strategy, defaults to _create_staging_copy_job for the basic client
+    # for some destinations there are much faster destination updates at the cost of
+    # dropping tables possible
+    def _create_optimized_replace_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
+        return self._create_staging_copy_job(table_chain)
 
     def create_table_chain_completed_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
         jobs = super().create_table_chain_completed_followup_jobs(table_chain)
@@ -171,8 +178,10 @@ class SqlJobClientBase(StagingJobClientBase):
         write_disposition = table_chain[0]["write_disposition"]
         if write_disposition == "merge":
             jobs.append(self._create_merge_job(table_chain))
-        elif write_disposition == "replace" and self.config.replace_strategy == "staging":
+        elif write_disposition == "replace" and self.config.replace_strategy == "insert-from-staging":
             jobs.append(self._create_staging_copy_job(table_chain))
+        elif write_disposition == "replace" and self.config.replace_strategy == "optimized":
+            jobs.append(self._create_optimized_replace_job(table_chain))
         return jobs
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
