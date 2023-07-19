@@ -1,7 +1,7 @@
 ---
 title: Facebook Ads
 description: dlt verified source for Facebook Ads
-keywords: [asana api, verified source, asana]
+keywords: [facebook ads api, verified source, facebook ads]
 ---
 
 # Facebook Ads
@@ -42,7 +42,7 @@ To get a complete list of sub-endpoints that can be loaded, see
 1. Ensure that you have Ads Manager active for your Facebook account.
 1. Find your account ID, which is a long number. You can locate it by clicking on the Account
    Overview dropdown in Ads Manager or by checking the link address. For example
-   **https://adsmanager.facebook.com/adsmanager/manage/accounts?act=10150974068878324**
+   https://adsmanager.facebook.com/adsmanager/manage/accounts?act=10150974068878324
 1. Note this account ID as it will further be used in configuring dlt.
 
 #### Grab `Access_Token`
