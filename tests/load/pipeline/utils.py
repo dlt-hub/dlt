@@ -68,12 +68,13 @@ def destinations_configs(
     # filter out non active destinations
     destination_configs = [conf for conf in destination_configs if conf.destination in ALL_DESTINATIONS]
 
-    # set env vars and yield
-    for conf in destination_configs:
-        os.environ['DESTINATION__FILESYSTEM__BUCKET_URL'] = conf.bucket_url or ""
-        os.environ['DESTINATION__STAGE_NAME'] = conf.stage_name or ""
-        os.environ['DESTINATION__STAGING_IAM_ROLE'] = conf.staging_iam_role or ""
-        yield conf
+    return destination_configs
+
+def set_destination_config_envs(conf: DestinationTestConfiguration) -> None:
+    os.environ['DESTINATION__FILESYSTEM__BUCKET_URL'] = conf.bucket_url or ""
+    os.environ['DESTINATION__STAGE_NAME'] = conf.stage_name or ""
+    os.environ['DESTINATION__STAGING_IAM_ROLE'] = conf.staging_iam_role or ""
+
 
 @pytest.fixture(autouse=True)
 def drop_pipeline() -> Iterator[None]:

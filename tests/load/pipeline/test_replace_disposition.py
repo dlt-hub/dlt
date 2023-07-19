@@ -4,13 +4,14 @@ from typing import Any, Dict
 from tests.pipeline.utils import  assert_load_info
 from tests.load.pipeline.utils import  load_table_counts
 from tests.utils import ALL_DESTINATIONS
-from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
+from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration, set_destination_config_envs
 
 REPLACE_STRATEGIES = ["truncate-and-insert", "insert-from-staging", "optimized"]
 
 @pytest.mark.parametrize("destination_config", destinations_configs(default_staging_configs=True, default_non_staging_configs=True), ids=lambda x: x.name)
 @pytest.mark.parametrize("replace_strategy", REPLACE_STRATEGIES)
 def test_replace_disposition(destination_config: DestinationTestConfiguration, replace_strategy: str) -> None:
+    set_destination_config_envs(destination_config)
 
     # only allow 40 items per file
     os.environ['DATA_WRITER__FILE_MAX_ITEMS'] = "40"

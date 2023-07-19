@@ -18,11 +18,12 @@ from tests.cases import JSON_TYPED_DICT
 from tests.common.utils import IMPORTED_VERSION_HASH_ETH_V5, yml_case_path as common_yml_case_path
 from tests.common.configuration.utils import environment
 from tests.load.pipeline.utils import assert_query_data, drop_active_pipeline_data
-from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
+from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration, set_destination_config_envs
 
 
 @pytest.mark.parametrize("destination_config", destinations_configs(default_staging_configs=True, default_non_staging_configs=True), ids=lambda x: x.name)
 def test_restore_state_utils(destination_config: DestinationTestConfiguration) -> None:
+    set_destination_config_envs(destination_config)
 
     p = dlt.pipeline(pipeline_name="pipe_" + uniq_id(), destination=destination_config.destination, staging=destination_config.staging, dataset_name="state_test_" + uniq_id())
     schema = Schema("state")
