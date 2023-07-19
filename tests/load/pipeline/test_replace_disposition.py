@@ -4,25 +4,20 @@ from typing import Any, Dict
 from tests.pipeline.utils import  assert_load_info
 from tests.load.pipeline.utils import  load_table_counts
 from tests.utils import ALL_DESTINATIONS
-from tests.load.pipeline.utils import STAGING_AND_NON_STAGING_COMBINATIONS, STAGING_COMBINATION_FIELDS
+from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
 
 REPLACE_STRATEGIES = ["truncate-and-insert", "insert-from-staging", "optimized"]
 
-@pytest.mark.parametrize(STAGING_COMBINATION_FIELDS, STAGING_AND_NON_STAGING_COMBINATIONS)
+@pytest.mark.parametrize("destination_config", destinations_configs(default_staging_configs=True, default_non_staging_configs=True), ids=lambda x: x.name)
 @pytest.mark.parametrize("replace_strategy", REPLACE_STRATEGIES)
-def test_replace_disposition(destination: str, staging: str, file_format: str, bucket: str, settings: Dict[str, Any], replace_strategy: str) -> None:
+def test_replace_disposition(destination_config: DestinationTestConfiguration, replace_strategy: str) -> None:
 
     # only allow 40 items per file
     os.environ['DATA_WRITER__FILE_MAX_ITEMS'] = "40"
     # use staging tables for replace
     os.environ['DESTINATION__REPLACE_STRATEGY'] = replace_strategy
 
-    # set env vars
-    os.environ['DESTINATION__FILESYSTEM__BUCKET_URL'] = bucket
-    os.environ['DESTINATION__STAGE_NAME'] = settings.get("stage_name", "")
-    os.environ['DESTINATION__STAGING_IAM_ROLE'] = settings.get("staging_iam_role", "")
-
-    pipeline = dlt.pipeline(pipeline_name='test_replace_strategies', destination=destination, staging=staging, dataset_name='test_replace_strategies', full_refresh=True)
+    pipeline = dlt.pipeline(pipeline_name='test_replace_strategies', destination=destination_config.destination, staging=destination_config.staging, dataset_name='test_replace_strategies', full_refresh=True)
 
     global offset
     offset = 1000
@@ -50,13 +45,12 @@ def test_replace_disposition(destination: str, staging: str, file_format: str, b
                 }]
                 }
 
-
     # first run with offset 0
-    info = pipeline.run(load_items, loader_file_format=file_format)
+    info = pipeline.run(load_items, loader_file_format=destination_config.file_format)
 
     # second run with higher offset so we can check the results
     offset = 1000
-    info = pipeline.run(load_items, loader_file_format=file_format)
+    info = pipeline.run(load_items, loader_file_format=destination_config.file_format)
     assert_load_info(info)
 
     # we should have all items loaded

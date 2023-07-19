@@ -1,6 +1,6 @@
 import contextlib
 from copy import deepcopy
-import io
+import io, os
 from time import sleep
 from unittest.mock import patch
 import pytest
@@ -440,10 +440,17 @@ def test_load_with_all_types(client: SqlJobClientBase, write_disposition: str, f
     # content must equal
     assert_all_data_types_row(db_row)
 
-
-@pytest.mark.parametrize('write_disposition', ["append", "replace", "merge"])
+@pytest.mark.parametrize('write_disposition,replace_strategy', [
+    ("append", ""),
+    ("merge", ""),
+    ("replace", "truncate-and-insert"),
+    ("replace", "insert-from-staging"),
+    ("replace", "optimized")
+    ])
 @pytest.mark.parametrize('client', ALL_CLIENTS, indirect=True)
-def test_write_dispositions(client: SqlJobClientBase, write_disposition: str, file_storage: FileStorage) -> None:
+def test_write_dispositions(client: SqlJobClientBase, write_disposition: str, replace_strategy: str, file_storage: FileStorage) -> None:
+    os.environ['DESTINATION__REPLACE_STRATEGY'] = replace_strategy
+
     table_name = "event_test_table" + uniq_id()
     client.schema.update_schema(
         new_table(table_name, write_disposition=write_disposition, columns=TABLE_UPDATE)
