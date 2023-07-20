@@ -31,21 +31,24 @@ Load chess game data from chess.com API and save it in DuckDB:
 
 ```python
 import dlt
-from chess import chess # a utility function that grabs data from the chess.com API
-
-# create a dlt pipeline that will load chess game data to the DuckDB destination
+import requests
+# Create a dlt pipeline that will load
+# chess player data to the DuckDB destination
 pipeline = dlt.pipeline(
     pipeline_name='chess_pipeline',
     destination='duckdb',
-    dataset_name='games_data'
+    dataset_name='player_data'
 )
-
-# use chess.com API to grab data about a few players
-data = chess(['magnuscarlsen', 'rpragchess'], start_month='2022/11', end_month='2022/12')
-
-# extract, normalize, and load the data
-pipeline.run(data)
+# Grab some player data from Chess.com API
+data = []
+for player in ['magnuscarlsen', 'rpragchess']:
+    response = requests.get(f'https://api.chess.com/pub/player/{player}')
+    response.raise_for_status()
+    data.append(response.json())
+# Extract, normalize, and load the data
+pipeline.run(data, table_name='player')
 ```
+
 
 Try it out in our **[Colab Demo](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing)**
 
