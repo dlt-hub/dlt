@@ -9,24 +9,25 @@ keywords: [Use an existing a data source]
 While dlt is primarily a pipeline building tool, on dlthub we host some common pipelines and also encourage the community to build and distribute high quality pipelines.
 Read on.
 
-## What is not a verified source but still widely available?
-
-We have a GPT-4 assistant on our docs, which will give you a code sample if you ask it nicely.
-Take note, it's meant to be a docs assistant first, so it might refuse your request if not
-worded as aligned with its goal.
-
-Or, join our [Slack community](https://join.slack.com/t/dlthub-community/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g) and ask a fellow human!
-
 ## What is a verified source?
 
 A verified source is a source which we test daily in our verified sources repository.
 You can find them [here](../dlt-ecosystem/verified-sources).
 
-## Distribution, or how to get the source code
+Quality guarantees:
+- We reviewed both the code and generated datasets and wrote demos and docs for them
+- Many of them already in production.
+- All of them are constantly tested on real data and distributed as simple Python code so they can be easily customized or hacked.
+
+## Distribution, or how add sources to your pipelines
 
 To get the code from [this](https://github.com/dlt-hub/verified-sources) repository, follow this guide to [use the dlt init command](../walkthroughs/add-a-verified-source).
 This will create dlt scaffolding for credentials, configuration and versioning,
 and copy the code from the verified sources repository, templated to the chosen destination.
+
+Versioning and updates: Want to get the updated version of a pipeline? dlt init command done in the same location will read
+the .dlt/version file and will upgrade your pipeline to the latest version. If you have
+made changes to your local version, you will need to merge them.
 
 ## Contribution
 
@@ -39,12 +40,6 @@ To request a new source, open an issue [here](https://github.com/dlt-hub/verifie
 ## Request an extension
 
 Something missing from a source? You can request it [here](https://github.com/dlt-hub/verified-sources/issues/new?template=extend-a-source.md).
-
-## Versioning
-
-Want to get the updated version of a pipeline? dlt init command done in the same location will read
-the .dlt/version file and will upgrade your pipeline to the latest version. If you have
-made changes to your local version, you will need to merge them.
 
 ## Customisation support
 
