@@ -67,6 +67,8 @@ pipeline = dlt.pipeline(pipeline_name='chess', destination='postgres', dataset_n
 ## Write disposition
 All write dispositions are supported
 
+If you set the [`replace` strategy](../../general-usage/full-loading.md) to `staging-optimized` the destination tables will be dropped and replaced by the staging tables.
+
 ## Data loading
 `dlt` will load data using large INSERT VALUES statements by default. Loading is multithreaded (20 threads by default).
 
