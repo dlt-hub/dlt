@@ -445,7 +445,7 @@ def test_load_with_all_types(client: SqlJobClientBase, write_disposition: str, f
     ("merge", ""),
     ("replace", "truncate-and-insert"),
     ("replace", "insert-from-staging"),
-    ("replace", "optimized")
+    ("replace", "staging-optimized")
     ])
 @pytest.mark.parametrize('client', ALL_CLIENTS, indirect=True)
 def test_write_dispositions(client: SqlJobClientBase, write_disposition: str, replace_strategy: str, file_storage: FileStorage) -> None:

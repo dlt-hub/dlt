@@ -6,7 +6,7 @@ from tests.load.pipeline.utils import  load_table_counts
 from tests.utils import ALL_DESTINATIONS
 from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration, set_destination_config_envs
 
-REPLACE_STRATEGIES = ["truncate-and-insert", "insert-from-staging", "optimized"]
+REPLACE_STRATEGIES = ["truncate-and-insert", "insert-from-staging", "staging-optimized"]
 
 @pytest.mark.parametrize("destination_config", destinations_configs(default_staging_configs=True, default_non_staging_configs=True), ids=lambda x: x.name)
 @pytest.mark.parametrize("replace_strategy", REPLACE_STRATEGIES)

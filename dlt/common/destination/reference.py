@@ -19,7 +19,7 @@ from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.utils import get_module_name
 from dlt.common.configuration.specs import GcpCredentials, AwsCredentialsWithoutDefaults
 
-TLoaderReplaceStrategy = Literal["truncate-and-insert", "insert-from-staging", "optimized"]
+TLoaderReplaceStrategy = Literal["truncate-and-insert", "insert-from-staging", "staging-optimized"]
 
 @configspec(init=True)
 class DestinationClientConfiguration(BaseConfiguration):

@@ -152,7 +152,7 @@ class SqlJobClientBase(StagingJobClientBase):
         """Returns a list of dispositions that require staging tables to be populated"""
         dispositions: List[TWriteDisposition] = ["merge"]
         # if we have anything but the truncate-and-insert replace strategy, we need staging tables
-        if self.config.replace_strategy in ["insert-from-staging", "optimized"]:
+        if self.config.replace_strategy in ["insert-from-staging", "staging-optimized"]:
             dispositions.append("replace")
         return dispositions
 
@@ -180,7 +180,7 @@ class SqlJobClientBase(StagingJobClientBase):
             jobs.append(self._create_merge_job(table_chain))
         elif write_disposition == "replace" and self.config.replace_strategy == "insert-from-staging":
             jobs.append(self._create_staging_copy_job(table_chain))
-        elif write_disposition == "replace" and self.config.replace_strategy == "optimized":
+        elif write_disposition == "replace" and self.config.replace_strategy == "staging-optimized":
             jobs.append(self._create_optimized_replace_job(table_chain))
         return jobs
 

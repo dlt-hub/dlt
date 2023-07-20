@@ -51,7 +51,10 @@ def test_restore_state_utils(destination_config: DestinationTestConfiguration) -
             **STATE_TABLE_COLUMNS
         })
         schema.update_schema(resource.table_schema())
-        schema.bump_version()
+        # do not bump version here or in sync_schema, dlt won't recognize that schema changed and it won't update it in storage
+        # so dlt in normalize stage infers _state_version table again but with different column order and the column order in schema is different
+        # then in database. parquet is created in schema order and in Redshift it must exactly match the order.
+        # schema.bump_version()
         p.sync_schema()
         exists, _ = job_client.get_storage_table(STATE_TABLE_NAME)
         assert exists is True
