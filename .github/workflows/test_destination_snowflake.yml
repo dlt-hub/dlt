@@ -59,7 +59,7 @@ jobs:
           key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}-gcp
 
       - name: Install dependencies
-        run: poetry install --no-interaction -E snowflake
+        run: poetry install --no-interaction -E snowflake -E s3
 
       - run: |
           poetry run pytest tests/load --ignore=tests/load/redshift --ignore=tests/load/postgres --ignore=tests/load/duckdb --ignore=tests/load/filesystem --ignore=tests/load/bigquery -k '(not redshift and not postgres and not duckdb and not filesystem and not bigquery)'
