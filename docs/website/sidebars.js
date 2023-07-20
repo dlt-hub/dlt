@@ -234,6 +234,7 @@ const sidebars = {
         'general-usage/pipeline',
         'general-usage/state',
         'general-usage/incremental-loading',
+        'general-usage/full-loading',
         'general-usage/credentials',
         'general-usage/schema',
         'general-usage/configuration',
