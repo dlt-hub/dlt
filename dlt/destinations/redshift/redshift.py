@@ -129,8 +129,7 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
             with self._sql_client.begin_transaction():
                 dataset_name = self._sql_client.dataset_name
                 if self._should_truncate_destination_table:
-                    # can't use truncate, this will break the tx
-                    self._sql_client.execute_sql(f"""DELETE FROM {dataset_name}.{table_name} WHERE 1=1;""")
+                    self._sql_client.execute_sql(f"""TRUNCATE TABLE {table_name}""")
                 # TODO: if we ever support csv here remember to add column names to COPY
                 self._sql_client.execute_sql(f"""
                     COPY {dataset_name}.{table_name}
