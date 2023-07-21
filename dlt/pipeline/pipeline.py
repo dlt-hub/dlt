@@ -49,6 +49,8 @@ from dlt.pipeline.trace import PipelineTrace, PipelineStepTrace, load_trace, mer
 from dlt.pipeline.typing import TPipelineStep
 from dlt.pipeline.state_sync import STATE_ENGINE_VERSION, load_state_from_destination, merge_state_if_changed, migrate_state, state_resource, json_encode_state, json_decode_state
 
+from dlt.common.configuration.resolve import initialize_credentials
+
 
 def with_state_sync(may_extract_state: bool = False) -> Callable[[TFun], TFun]:
 
@@ -351,7 +353,9 @@ class Pipeline(SupportsPipeline):
         staging_client = None
         if self.staging:
             staging_client = self._get_staging_client(self.default_schema)
-            # inject staging config into destination config, TODO: Not super clean I think?
+            # inject staging config into destination config,
+            # TODO: Not super clean I think? - DestinationClientDwhConfiguration must be refactored
+            # staging_credentials, dataset name and default schema name are arguments for the loader not parts of configuration
             if isinstance(client.config, DestinationClientDwhConfiguration) and not client.config.staging_credentials:
                 client.config.staging_credentials = staging_client.config.credentials
 
@@ -361,7 +365,15 @@ class Pipeline(SupportsPipeline):
             raise_on_failed_jobs=raise_on_failed_jobs,
             _load_storage_config=self._load_storage_config
         )
-        load = Load(self.destination, staging=self.staging, collector=self.collector, is_storage_owner=False, config=load_config, initial_client_config=client.config, initial_staging_client_config=staging_client.config if staging_client else None)
+        load = Load(
+            self.destination,
+            staging=self.staging,
+            collector=self.collector,
+            is_storage_owner=False,
+            config=load_config,
+            initial_client_config=client.config,
+            initial_staging_client_config=staging_client.config if staging_client else None
+        )
         try:
             with signals.delayed_signals():
                 runner.run_pool(load.config, load)
@@ -875,10 +887,15 @@ class Pipeline(SupportsPipeline):
         # create initial destination client config
         client_spec = destination.spec()
         # initialize explicit credentials
-        credentials = credentials or self.credentials
+        if not as_staging:
+            # explicit credentials passed to dlt.pipeline should not be applied to staging
+            credentials = credentials or self.credentials
         if credentials is not None and not isinstance(credentials, CredentialsConfiguration):
             # use passed credentials as initial value. initial value may resolve credentials
-            credentials = client_spec.get_resolvable_fields()["credentials"](credentials)
+            credentials = initialize_credentials(
+                client_spec.get_resolvable_fields()["credentials"],
+                credentials
+            )
         # this client support schemas and datasets
         default_schema_name = None if self.config.use_single_dataset else self.default_schema_name
 
