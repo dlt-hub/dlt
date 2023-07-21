@@ -16,7 +16,7 @@ from dlt.pipeline.pipeline import Pipeline
 from dlt.pipeline.state_sync import migrate_state, STATE_ENGINE_VERSION
 
 from tests.utils import test_storage
-from tests.pipeline.utils import json_case_path, load_json_case
+from tests.pipeline.utils import json_case_path, load_json_case, airtable_emojis
 
 
 @dlt.resource()
@@ -426,3 +426,19 @@ def test_migrate_state(test_storage: FileStorage) -> None:
     p = dlt.attach(pipeline_name="debug_pipeline", pipelines_dir=test_storage.storage_path)
     assert p.dataset_name == "debug_pipeline_data"
     assert p.default_schema_name == "example_source"
+
+
+def test_resource_state_name_not_normalized() -> None:
+    pipeline = dlt.pipeline(pipeline_name="emojis", destination="duckdb")
+    peacock_s = airtable_emojis().with_resources("🦚Peacock")
+    pipeline.extract(peacock_s)
+    assert peacock_s.resources["🦚Peacock"].state == {"🦚🦚🦚": "🦚"}
+    pipeline.normalize()
+    pipeline.load()
+
+    # get state from destination
+    from dlt.pipeline.state_sync import load_state_from_destination
+    with pipeline.sql_client() as client:
+        state = load_state_from_destination(pipeline.pipeline_name, client)
+        assert "airtable_emojis" in state["sources"]
+        assert state["sources"]["airtable_emojis"]["resources"] == {"🦚Peacock": {"🦚🦚🦚": "🦚"}}

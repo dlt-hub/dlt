@@ -27,8 +27,7 @@ from dlt.reflection import names as n
 
 from tests.cli.utils import echo_default_choice, repo_dir, project_files, cloned_init_repo, get_repo_dir, get_project_files
 from tests.common.utils import modify_and_commit_file
-from tests.pipeline.utils import drop_pipeline
-from tests.utils import ALL_DESTINATIONS, preserve_environ, autouse_test_storage, clean_test_storage, unload_modules
+from tests.utils import ALL_DESTINATIONS, preserve_environ, autouse_test_storage, clean_test_storage, unload_modules, wipe_pipeline
 
 
 def get_verified_source_candidates(repo_dir: str) -> List[str]:

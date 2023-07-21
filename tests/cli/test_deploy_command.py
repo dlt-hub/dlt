@@ -18,8 +18,7 @@ from dlt.cli import deploy_command, _dlt, echo
 from dlt.cli.exceptions import CliCommandException
 from dlt.pipeline.exceptions import CannotRestorePipelineException
 
-from tests.pipeline.utils import drop_pipeline
-from tests.utils import preserve_environ, autouse_test_storage, TEST_STORAGE_ROOT, test_storage
+from tests.utils import preserve_environ, autouse_test_storage, TEST_STORAGE_ROOT, test_storage, wipe_pipeline
 
 
 @pytest.mark.parametrize("deployment_method", [dm.value for dm in deploy_command.DeploymentMethods])

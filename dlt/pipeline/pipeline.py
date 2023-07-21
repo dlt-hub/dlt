@@ -858,7 +858,7 @@ class Pipeline(SupportsPipeline):
 
         # get the current schema and merge tables from source_schema
         # note we are not merging props like max nesting or column propagation
-        for table in source_schema.data_tables():
+        for table in source_schema.data_tables(include_incomplete=True):
             pipeline_schema.update_schema(pipeline_schema.normalize_table_identifiers(table))
 
         return extract_id

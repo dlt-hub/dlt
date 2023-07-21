@@ -4,7 +4,7 @@ from dlt.common.storages import NormalizeStorageConfiguration
 from dlt.extract.extract import ExtractorStorage, extract
 from dlt.extract.source import DltResource, DltSource
 
-from tests.utils import autouse_test_storage, clean_test_storage
+from tests.utils import clean_test_storage
 from tests.extract.utils import expect_extracted_file
 
 

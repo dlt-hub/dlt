@@ -27,7 +27,7 @@ from tests.common.utils import TEST_SENTRY_DSN
 from tests.utils import ALL_DESTINATIONS, TEST_STORAGE_ROOT
 from tests.common.configuration.utils import environment
 from tests.extract.utils import expect_extracted_file
-from tests.pipeline.utils import assert_load_info
+from tests.pipeline.utils import assert_load_info, airtable_emojis
 
 
 def test_default_pipeline() -> None:
@@ -837,3 +837,75 @@ def test_pipeline_source_state_activation() -> None:
     with pytest.raises(PipelineStateNotAvailable):
         assert s_appendix.state == {}
 
+
+def test_extract_add_tables() -> None:
+    # we extract and make sure that tables are added to schema
+    s = airtable_emojis()
+    assert list(s.resources.keys()) == ["💰Budget", "📆 Schedule", "🦚Peacock", "🦚WidePeacock"]
+    assert s.resources["🦚Peacock"].table_schema()["resource"] == "🦚Peacock"
+    # only name will be normalized
+    assert s.resources["🦚Peacock"].table_schema()["name"] == "🦚Peacock"
+    assert s.resources["💰Budget"].table_schema()["columns"]["🔑book_id"]["name"] == "🔑book_id"
+    pipeline = dlt.pipeline(pipeline_name="emojis", destination="dummy")
+    info = pipeline.extract(s)
+    assert info.extract_data_info[0]["name"] == "airtable_emojis"
+    schema = pipeline.default_schema
+    assert schema.tables["_schedule"]["resource"] == "📆 Schedule"
+    assert len(schema.tables["_schedule"]["columns"]) == 0
+    assert "_budget" not in schema.tables
+
+    # extract peacock
+    s = airtable_emojis()
+    s.resources["🦚Peacock"].selected = True
+    pipeline.extract(s)
+    # live schema
+    assert schema.tables["_peacock"]["resource"] == "🦚Peacock"
+    assert len(schema.tables["_peacock"]["columns"]) == 1
+    assert "_wide_peacock" not in schema.tables
+
+    # extract wide peacock
+    s = airtable_emojis()
+    s.resources["🦚WidePeacock"].selected = True
+    pipeline.extract(s)
+    assert len(schema.tables["_wide_peacock"]["columns"]) == 0
+    assert schema.tables["_wide_peacock"]["resource"] == "🦚WidePeacock"
+
+    # now normalize, we should have columns
+    pipeline.normalize()
+    # dlt tables added
+    assert len(schema.tables["_wide_peacock"]["columns"]) == 2
+    # resource still not normalized
+    assert schema.tables["_wide_peacock"]["resource"] == "🦚WidePeacock"
+
+    # reload schema
+    schema = pipeline._schema_storage.load_schema("airtable_emojis")
+    assert len(schema.tables["_wide_peacock"]["columns"]) == 2
+    # resource still not normalized
+    assert schema.tables["_wide_peacock"]["resource"] == "🦚WidePeacock"
+
+
+def test_emojis_resource_names() -> None:
+    pipeline = dlt.pipeline(pipeline_name="emojis", destination="duckdb")
+    info = pipeline.run(airtable_emojis())
+    assert_load_info(info)
+    # make sure that resource in schema update has a right name
+    table = info.load_packages[0].schema_update["_schedule"]
+    assert table["resource"] == "📆 Schedule"
+    # only schedule is added
+    assert set(info.load_packages[0].schema_update.keys()) == {"_dlt_version", "_dlt_loads", "_schedule", "_dlt_pipeline_state"}
+    info = pipeline.run(airtable_emojis())
+    assert_load_info(info)
+    # here we add _peacock with has primary_key (so at least single column)
+    s = airtable_emojis()
+    s.resources["🦚Peacock"].selected = True
+    info = pipeline.run(s)
+    assert_load_info(info)
+    table = info.load_packages[0].schema_update["_peacock"]
+    assert table["resource"] == "🦚Peacock"
+    # here we add _wide_peacock which has no columns
+    s = airtable_emojis()
+    s.resources["🦚WidePeacock"].selected = True
+    info = pipeline.run(s)
+    assert_load_info(info)
+    table = info.load_packages[0].schema_update["_wide_peacock"]
+    assert table["resource"] == "🦚WidePeacock"

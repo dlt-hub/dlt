@@ -265,9 +265,9 @@ class Schema:
         else:
             return self._schema_tables[table_name]["columns"]
 
-    def data_tables(self) -> List[TTableSchema]:
+    def data_tables(self, include_incomplete: bool = False) -> List[TTableSchema]:
         """Gets list of all tables, that hold the loaded data. Excludes dlt tables. Excludes incomplete tables (ie. without columns)"""
-        return [t for t in self._schema_tables.values() if not t["name"].startswith("_dlt") and len(t["columns"]) > 0]
+        return [t for t in self._schema_tables.values() if not t["name"].startswith("_dlt") and (len(t["columns"]) > 0 or include_incomplete)]
 
     def dlt_tables(self) -> List[TTableSchema]:
         """Gets dlt tables"""
