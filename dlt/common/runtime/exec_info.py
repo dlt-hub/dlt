@@ -49,7 +49,7 @@ def exec_info_names() -> List[TExecInfoNames]:
         names.append("aws_lambda")
     if is_gcp_cloud_function():
         names.append("gcp_cloud_function")
-        return names
+    return names
 
 
 def is_codespaces() -> bool:
