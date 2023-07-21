@@ -1,5 +1,6 @@
-import posixpath
-from typing import Any, Iterator, List, Sequence, TYPE_CHECKING
+import posixpath, os
+from dataclasses import dataclass
+from typing import Any, Iterator, List, Sequence, TYPE_CHECKING, Optional
 import pytest
 
 import dlt
@@ -14,31 +15,65 @@ if TYPE_CHECKING:
 from tests.load.utils import ALL_DESTINATIONS, AWS_BUCKET, GCS_BUCKET
 
 
-# destination configs including staging
-STAGING_COMBINATION_FIELDS = "destination,staging,file_format,bucket,settings"
+@dataclass
+class DestinationTestConfiguration:
+    """Class for keeping track of an item in inventory."""
+    destination: str
+    staging: Optional[str] = None
+    file_format: Optional[str] = None
+    bucket_url: Optional[str] = None
+    stage_name: Optional[str] = None
+    staging_iam_role: Optional[str] = None
+    extra_info: Optional[str] = None
 
-ALL_DEFAULT_FILETYPE_STAGING_COMBINATIONS = [
-    # redshift with iam role
-    ("redshift","filesystem","parquet",AWS_BUCKET,{"staging_iam_role": "arn:aws:iam::267388281016:role/redshift_s3_read"}),
-    ("bigquery","filesystem","parquet",GCS_BUCKET, {}),
-    ("snowflake","filesystem","jsonl",GCS_BUCKET, {"stage_name": "PUBLIC.dlt_gcs_stage"}),
-    ("snowflake","filesystem","jsonl",AWS_BUCKET, {"stage_name":"PUBLIC.dlt_s3_stage"})
-    ]
-# filter out destinations not set for this run
-ALL_DEFAULT_FILETYPE_STAGING_COMBINATIONS = [item for item in ALL_DEFAULT_FILETYPE_STAGING_COMBINATIONS if item[0] in ALL_DESTINATIONS]
+    @property
+    def name(self) -> str:
+        name: str =  self.destination
+        if not self.staging:
+            name += "-no-staging"
+        else:
+            name += "-staging"
+        if self.extra_info:
+            name += f"-{self.extra_info}"
+        return name
 
-ALL_STAGING_COMBINATIONS = ALL_DEFAULT_FILETYPE_STAGING_COMBINATIONS + [
-    ("redshift","filesystem","parquet",AWS_BUCKET,{}), # redshift with credential forwarding
-    ("snowflake","filesystem","parquet",AWS_BUCKET, {}), # snowflake with credential forwarding
-    ("redshift","filesystem","jsonl",AWS_BUCKET, {}),
-    ("bigquery","filesystem","jsonl",GCS_BUCKET, {})
-]
-# filter out destinations not set for this run
-ALL_STAGING_COMBINATIONS = [item for item in ALL_STAGING_COMBINATIONS if item[0] in ALL_DESTINATIONS]
+def destinations_configs(
+        default_non_staging_configs: bool = False,
+        default_staging_configs: bool = False,
+        all_staging_configs: bool = False) -> Iterator[DestinationTestConfiguration]:
 
-STAGING_AND_NON_STAGING_COMBINATIONS = ALL_DEFAULT_FILETYPE_STAGING_COMBINATIONS + [
-  (destination, None, None, "", {}) for destination in ALL_DESTINATIONS
-]
+    # build destination configs
+    destination_configs: List[DestinationTestConfiguration] = []
+
+    # default non staging configs, one per destination
+    if default_non_staging_configs:
+        destination_configs += [DestinationTestConfiguration(destination=destination) for destination in ALL_DESTINATIONS]
+
+    if default_staging_configs or all_staging_configs:
+        destination_configs += [
+            DestinationTestConfiguration(destination="redshift", staging="filesystem", file_format="parquet", bucket_url=AWS_BUCKET, staging_iam_role="arn:aws:iam::267388281016:role/redshift_s3_read", extra_info="s3-role"),
+            DestinationTestConfiguration(destination="bigquery", staging="filesystem", file_format="parquet", bucket_url=GCS_BUCKET, extra_info="gcs-authorization"),
+            DestinationTestConfiguration(destination="snowflake", staging="filesystem", file_format="jsonl", bucket_url=GCS_BUCKET, stage_name="PUBLIC.dlt_gcs_stage", extra_info="gcs-integration"),
+            DestinationTestConfiguration(destination="snowflake", staging="filesystem", file_format="jsonl", bucket_url=AWS_BUCKET, stage_name="PUBLIC.dlt_s3_stage", extra_info="s3-integration")
+        ]
+
+    if all_staging_configs:
+        destination_configs += [
+            DestinationTestConfiguration(destination="redshift", staging="filesystem", file_format="parquet", bucket_url=AWS_BUCKET, extra_info="credential-forwarding"),
+            DestinationTestConfiguration(destination="snowflake", staging="filesystem", file_format="parquet", bucket_url=AWS_BUCKET, extra_info="credential-forwarding"),
+            DestinationTestConfiguration(destination="redshift", staging="filesystem", file_format="jsonl", bucket_url=AWS_BUCKET, extra_info="credential-forwarding"),
+            DestinationTestConfiguration(destination="bigquery", staging="filesystem", file_format="jsonl", bucket_url=GCS_BUCKET, extra_info="gcs-authorization"),
+        ]
+
+    # filter out non active destinations
+    destination_configs = [conf for conf in destination_configs if conf.destination in ALL_DESTINATIONS]
+
+    return destination_configs
+
+def set_destination_config_envs(conf: DestinationTestConfiguration) -> None:
+    os.environ['DESTINATION__FILESYSTEM__BUCKET_URL'] = conf.bucket_url or ""
+    os.environ['DESTINATION__STAGE_NAME'] = conf.stage_name or ""
+    os.environ['DESTINATION__STAGING_IAM_ROLE'] = conf.staging_iam_role or ""
 
 
 @pytest.fixture(autouse=True)

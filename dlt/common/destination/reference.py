@@ -1,11 +1,13 @@
 from abc import ABC, abstractmethod
 from importlib import import_module
 from types import TracebackType, ModuleType
-from typing import ClassVar, Final, Optional, Literal, Sequence, Iterable, Type, Protocol, Union, TYPE_CHECKING, cast, List
+from typing import ClassVar, Final, Optional, Literal, Sequence, Iterable, Type, Protocol, Union, TYPE_CHECKING, cast, List, ContextManager
+from contextlib import contextmanager
 
 from dlt.common import logger
 from dlt.common.exceptions import IdentifierTooLongException, InvalidDestinationReference, UnknownDestinationModule
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
+from dlt.common.schema.typing import TWriteDisposition
 from dlt.common.schema.exceptions import InvalidDatasetName
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration
@@ -17,6 +19,7 @@ from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.utils import get_module_name
 from dlt.common.configuration.specs import GcpCredentials, AwsCredentialsWithoutDefaults
 
+TLoaderReplaceStrategy = Literal["truncate-and-insert", "insert-from-staging", "staging-optimized"]
 
 @configspec(init=True)
 class DestinationClientConfiguration(BaseConfiguration):
@@ -41,6 +44,8 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
     default_schema_name: Optional[str] = None
     """name of default schema to be used to name effective dataset to load data to"""
     staging_credentials: Optional[CredentialsConfiguration] = None
+    """How to handle replace disposition for this destination, can be classic or staging"""
+    replace_strategy: TLoaderReplaceStrategy = "truncate-and-insert"
 
     if TYPE_CHECKING:
         def __init__(
@@ -137,24 +142,23 @@ class JobClientBase(ABC):
         self.config = config
 
     @abstractmethod
-    def initialize_storage(self, staging: bool = False, truncate_tables: Iterable[str] = None) -> None:
-        """Prepares storage to be used ie. creates database schema or file system folder. Creates a staging storage if `staging` flag is true. Truncates requested tables.
+    def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
+        """Prepares storage to be used ie. creates database schema or file system folder. Truncates requested tables.
         """
         pass
 
     @abstractmethod
-    def is_storage_initialized(self, staging: bool = False) -> bool:
-        """Returns if storage is ready to be read/written. Checks staging storage if `staging` flag is true"""
+    def is_storage_initialized(self) -> bool:
+        """Returns if storage is ready to be read/written."""
         pass
 
-    def update_storage_schema(self, staging: bool = False, only_tables: Iterable[str] = None, expected_update: TSchemaTables = None) -> Optional[TSchemaTables]:
+    def update_storage_schema(self, only_tables: Iterable[str] = None, expected_update: TSchemaTables = None) -> Optional[TSchemaTables]:
         """Updates storage to the current schema.
 
         Implementations should not assume that `expected_update` is the exact difference between destination state and the self.schema. This is only the case if
         destination has single writer and no other processes modify the schema.
 
         Args:
-            staging (bool, optional): Updates the staging if True. Defaults to False.
             only_tables (Sequence[str], optional): Updates only listed tables. Defaults to None.
             expected_update (TSchemaTables, optional): Update that is expected to be applied to the destination
         Returns:
@@ -173,11 +177,9 @@ class JobClientBase(ABC):
         pass
 
     @abstractmethod
-    def create_merge_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
-        """Creates a table merge job without executing it. The `table_chain` contains a list of tables, ordered by ancestry, that should be merged.
-        Clients that cannot merge should return None
-        """
-        pass
+    def create_table_chain_completed_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
+        """Creates a list of followup jobs that should be executed after a table chain is completed"""
+        return []
 
     @abstractmethod
     def complete_load(self, load_id: str) -> None:
@@ -229,6 +231,16 @@ class JobClientBase(ABC):
             norm_name += "_" + schema.name
 
         return norm_name
+
+class StagingJobClientBase(JobClientBase):
+
+    @abstractmethod
+    def get_stage_dispositions(self) -> List[TWriteDisposition]:
+        return []
+
+    @abstractmethod
+    def with_staging_dataset(self)-> ContextManager["JobClientBase"]:
+        return self
 
 
 TDestinationReferenceArg = Union["DestinationReference", ModuleType, None, str]

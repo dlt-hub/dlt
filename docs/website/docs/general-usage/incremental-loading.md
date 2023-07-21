@@ -18,7 +18,7 @@ The challenge of incremental pipelines is that if we do not keep track of the st
 ### The 3 write dispositions:
 
 - **Full load**: replaces the destination dataset with whatever the source produced on this run. To
-achieve this, use `write_disposition='replace'` in your resources.
+achieve this, use `write_disposition='replace'` in your resources. Learn more in the [full loading docs](./full-loading.md)
 
 - **Append**: appends the new data to the destination. Use `write_disposition='append'`.
 

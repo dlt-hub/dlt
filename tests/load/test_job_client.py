@@ -1,6 +1,6 @@
 import contextlib
 from copy import deepcopy
-import io
+import io, os
 from time import sleep
 from unittest.mock import patch
 import pytest
@@ -296,11 +296,13 @@ def test_drop_tables(client: SqlJobClientBase) -> None:
     schema.bump_version()
     client.drop_tables(*tables_to_drop)
     with contextlib.suppress(DatabaseUndefinedRelation):
-        client.drop_tables(*tables_to_drop, staging=True, replace_schema=False)
+        with client.with_staging_dataset():
+            client.drop_tables(*tables_to_drop, replace_schema=False)
     # drop again - should not break anything
     client.drop_tables(*tables_to_drop)
     with contextlib.suppress(DatabaseUndefinedRelation):
-        client.drop_tables(*tables_to_drop, staging=True, replace_schema=False)
+        with client.with_staging_dataset():
+            client.drop_tables(*tables_to_drop, replace_schema=False)
 
     # Verify requested tables are dropped
     for tbl in tables_to_drop:
@@ -438,10 +440,17 @@ def test_load_with_all_types(client: SqlJobClientBase, write_disposition: str, f
     # content must equal
     assert_all_data_types_row(db_row)
 
-
-@pytest.mark.parametrize('write_disposition', ["append", "replace", "merge"])
+@pytest.mark.parametrize('write_disposition,replace_strategy', [
+    ("append", ""),
+    ("merge", ""),
+    ("replace", "truncate-and-insert"),
+    ("replace", "insert-from-staging"),
+    ("replace", "staging-optimized")
+    ])
 @pytest.mark.parametrize('client', ALL_CLIENTS, indirect=True)
-def test_write_dispositions(client: SqlJobClientBase, write_disposition: str, file_storage: FileStorage) -> None:
+def test_write_dispositions(client: SqlJobClientBase, write_disposition: str, replace_strategy: str, file_storage: FileStorage) -> None:
+    os.environ['DESTINATION__REPLACE_STRATEGY'] = replace_strategy
+
     table_name = "event_test_table" + uniq_id()
     client.schema.update_schema(
         new_table(table_name, write_disposition=write_disposition, columns=TABLE_UPDATE)
@@ -457,8 +466,9 @@ def test_write_dispositions(client: SqlJobClientBase, write_disposition: str, fi
         # add root key
         client.schema.tables[table_name]["columns"]["col1"]["root_key"] = True
         # create staging for merge dataset
-        client.initialize_storage(staging=True)
-        client.update_storage_schema(staging=True)
+        with client.with_staging_dataset():
+            client.initialize_storage()
+            client.update_storage_schema()
     for idx in range(2):
         for t in [table_name, child_table]:
             # write row, use col1 (INT) as row number

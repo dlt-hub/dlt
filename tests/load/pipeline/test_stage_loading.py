@@ -9,7 +9,7 @@ from tests.load.pipeline.test_merge_disposition import github
 from tests.load.pipeline.utils import  load_table_counts
 from tests.pipeline.utils import  assert_load_info
 from tests.load.utils import TABLE_ROW_ALL_DATA_TYPES, TABLE_UPDATE_COLUMNS_SCHEMA, assert_all_data_types_row
-from tests.load.pipeline.utils import ALL_STAGING_COMBINATIONS, STAGING_COMBINATION_FIELDS
+from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration, set_destination_config_envs
 
 
 @dlt.resource(table_name="issues", write_disposition="merge", primary_key="id", merge_key=("node_id", "url"))
@@ -27,21 +27,13 @@ def load_modified_issues():
         yield from issues
 
 
-@pytest.mark.parametrize(STAGING_COMBINATION_FIELDS, ALL_STAGING_COMBINATIONS)
-def test_staging_load(destination: str, staging: str, file_format: str, bucket: str, settings: Dict[str, Any]) -> None:
+@pytest.mark.parametrize("destination_config", destinations_configs(all_staging_configs=True), ids=lambda x: x.name)
+def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
+    set_destination_config_envs(destination_config)
 
-    # snowflake requires gcs prefix instead of gs in bucket path
-    if destination == "snowflake":
-        bucket = bucket.replace("gs://", "gcs://")
+    pipeline = dlt.pipeline(pipeline_name='test_stage_loading_5', destination=destination_config.destination, staging=destination_config.staging, dataset_name='staging_test', full_refresh=True)
 
-    # set env vars
-    os.environ['DESTINATION__FILESYSTEM__BUCKET_URL'] = bucket
-    os.environ['DESTINATION__STAGE_NAME'] = settings.get("stage_name", "")
-    os.environ['DESTINATION__STAGING_IAM_ROLE'] = settings.get("staging_iam_role", "")
-
-    pipeline = dlt.pipeline(pipeline_name='test_stage_loading_5', destination=destination, staging=staging, dataset_name='staging_test', full_refresh=True)
-
-    info = pipeline.run(github(), loader_file_format=file_format)
+    info = pipeline.run(github(), loader_file_format=destination_config.file_format)
     assert_load_info(info)
     package_info = pipeline.get_load_package_info(info.loads_ids[0])
     assert package_info.state == "loaded"
@@ -50,7 +42,7 @@ def test_staging_load(destination: str, staging: str, file_format: str, bucket: 
     # we have 4 parquet and 4 reference jobs plus one merge job
     assert len(package_info.jobs["completed_jobs"]) == 9
     assert len([x for x in package_info.jobs["completed_jobs"] if x.job_file_info.file_format == "reference"]) == 4
-    assert len([x for x in package_info.jobs["completed_jobs"] if x.job_file_info.file_format == file_format]) == 4
+    assert len([x for x in package_info.jobs["completed_jobs"] if x.job_file_info.file_format == destination_config.file_format]) == 4
     assert len([x for x in package_info.jobs["completed_jobs"] if x.job_file_info.file_format == "sql"]) == 1
 
     initial_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
@@ -62,7 +54,7 @@ def test_staging_load(destination: str, staging: str, file_format: str, bucket: 
         assert rows[0][0] == "https://api.github.com/repos/duckdb/duckdb/issues/71"
 
     # test merging in some changed values
-    info = pipeline.run(load_modified_issues, loader_file_format=file_format)
+    info = pipeline.run(load_modified_issues, loader_file_format=destination_config.file_format)
     assert_load_info(info)
     assert pipeline.default_schema.tables["issues"]["write_disposition"] == "merge"
     merge_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
@@ -76,7 +68,7 @@ def test_staging_load(destination: str, staging: str, file_format: str, bucket: 
         assert rows[0][0] == 300
 
     # test append
-    info = pipeline.run(github().load_issues, write_disposition="append", loader_file_format=file_format)
+    info = pipeline.run(github().load_issues, write_disposition="append", loader_file_format=destination_config.file_format)
     assert_load_info(info)
     assert pipeline.default_schema.tables["issues"]["write_disposition"] == "append"
     # the counts of all tables must be double
@@ -84,7 +76,7 @@ def test_staging_load(destination: str, staging: str, file_format: str, bucket: 
     assert {k:v*2 for k, v in initial_counts.items()} == append_counts
 
     # test replace
-    info = pipeline.run(github().load_issues, write_disposition="replace", loader_file_format=file_format)
+    info = pipeline.run(github().load_issues, write_disposition="replace", loader_file_format=destination_config.file_format)
     assert_load_info(info)
     assert pipeline.default_schema.tables["issues"]["write_disposition"] == "replace"
     # the counts of all tables must be double
@@ -92,24 +84,23 @@ def test_staging_load(destination: str, staging: str, file_format: str, bucket: 
     assert replace_counts == initial_counts
 
 
-@pytest.mark.parametrize(STAGING_COMBINATION_FIELDS, ALL_STAGING_COMBINATIONS)
-def test_all_data_types(destination: str, staging: str, file_format: str, bucket: str, settings: Dict[str, Any]) -> None:
-    # set env vars
-    os.environ['DESTINATION__FILESYSTEM__BUCKET_URL'] = bucket
-    os.environ['DESTINATION__STAGE_NAME'] = settings.get("stage_name", "")
-    pipeline = dlt.pipeline(pipeline_name='test_stage_loading', destination=destination, dataset_name='staging_test', full_refresh=True, staging=staging)
+@pytest.mark.parametrize("destination_config", destinations_configs(all_staging_configs=True), ids=lambda x: x.name)
+def test_all_data_types(destination_config: DestinationTestConfiguration) -> None:
+    set_destination_config_envs(destination_config)
+
+    pipeline = dlt.pipeline(pipeline_name='test_stage_loading', destination=destination_config.destination, dataset_name='staging_test', full_refresh=True, staging=destination_config.staging)
 
     data_types = deepcopy(TABLE_ROW_ALL_DATA_TYPES)
     column_schemas = deepcopy(TABLE_UPDATE_COLUMNS_SCHEMA)
 
     # bigquery cannot load into JSON fields from parquet
-    if file_format == "parquet":
-        if destination == "bigquery":
+    if destination_config.file_format == "parquet":
+        if destination_config.destination == "bigquery":
             # change datatype to text and then allow for it in the assert (parse_complex_strings)
             column_schemas["col9_null"]["data_type"] = column_schemas["col9"]["data_type"] = "text"
     # redshift cannot load from json into VARBYTE
-    if file_format == "jsonl":
-        if destination == "redshift":
+    if destination_config.file_format == "jsonl":
+        if destination_config.destination == "redshift":
             # change the datatype to text which will result in inserting base64 (allow_base64_binary)
             column_schemas["col7_null"]["data_type"] = column_schemas["col7"]["data_type"] = "text"
 
@@ -123,7 +114,7 @@ def test_all_data_types(destination: str, staging: str, file_format: str, bucket
     def my_source():
         return my_resource
 
-    info = pipeline.run(my_source(), loader_file_format=file_format)
+    info = pipeline.run(my_source(), loader_file_format=destination_config.file_format)
     assert_load_info(info)
 
     with pipeline.sql_client() as sql_client:
@@ -131,7 +122,7 @@ def test_all_data_types(destination: str, staging: str, file_format: str, bucket
         assert len(db_rows) == 10
         db_row = list(db_rows[0])
         # parquet is not really good at inserting json, best we get are strings in JSON columns
-        parse_complex_strings = file_format == "parquet" and destination in ["redshift", "bigquery", "snowflake"]
-        allow_base64_binary = file_format == "jsonl" and destination in ["redshift"]
+        parse_complex_strings = destination_config.file_format == "parquet" and destination_config.destination in ["redshift", "bigquery", "snowflake"]
+        allow_base64_binary = destination_config.file_format == "jsonl" and destination_config.destination in ["redshift"]
         # content must equal
         assert_all_data_types_row(db_row[:-2], parse_complex_strings=parse_complex_strings, allow_base64_binary=allow_base64_binary)

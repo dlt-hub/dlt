@@ -9,18 +9,23 @@ else:
     from psycopg2.sql import SQL, Composed
 
 
-from typing import ClassVar, Dict, Optional
+from typing import ClassVar, Dict, Optional, Sequence, List, Any
 
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
+from dlt.common.destination.reference import NewLoadJob
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.data_types import TDataType
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
+from dlt.common.schema.typing import TTableSchema
+
+from dlt.destinations.sql_jobs import SqlStagingCopyJob
 
 from dlt.destinations.insert_job_client import InsertValuesJobClient
 
 from dlt.destinations.postgres import capabilities
 from dlt.destinations.postgres.sql_client import Psycopg2SqlClient
 from dlt.destinations.postgres.configuration import PostgresClientConfiguration
+from dlt.destinations.sql_client import SqlClientBase
 
 
 SCT_TO_PGT: Dict[TDataType, str] = {
@@ -51,6 +56,23 @@ HINT_TO_POSTGRES_ATTR: Dict[TColumnHint, str] = {
     "unique": "UNIQUE"
 }
 
+class PostgresStagingCopyJob(SqlStagingCopyJob):
+
+    @classmethod
+    def generate_sql(cls, table_chain: Sequence[TTableSchema], sql_client: SqlClientBase[Any]) -> List[str]:
+        sql: List[str] = []
+        for table in table_chain:
+            with sql_client.with_staging_dataset(staging=True):
+                staging_table_name = sql_client.make_qualified_table_name(table["name"])
+            table_name = sql_client.make_qualified_table_name(table["name"])
+            # drop destination table
+            sql.append(f"DROP TABLE IF EXISTS {table_name};")
+            # moving staging table to destination schema
+            sql.append(f"ALTER TABLE {staging_table_name} SET SCHEMA {sql_client.fully_qualified_dataset_name()};")
+            # recreate staging table
+            sql.append(f"CREATE TABLE {staging_table_name} (like {table_name} including all);")
+        return sql
+
 class PostgresClient(InsertValuesJobClient):
 
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
@@ -70,6 +92,9 @@ class PostgresClient(InsertValuesJobClient):
         column_name = self.capabilities.escape_identifier(c["name"])
         return f"{column_name} {self._to_db_type(c['data_type'])} {hints_str} {self._gen_not_null(c['nullable'])}"
 
+    def _create_optimized_replace_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
+        return PostgresStagingCopyJob.from_table_chain(table_chain, self.sql_client)
+
     @classmethod
     def _to_db_type(cls, sc_t: TDataType) -> str:
         if sc_t == "wei":
@@ -87,3 +112,4 @@ class PostgresClient(InsertValuesJobClient):
             if (precision, scale) == cls.capabilities.wei_precision:
                 return "wei"
         return PGT_TO_SCT.get(pq_t, "text")
+

@@ -101,6 +101,9 @@ destination.postgres.snowflake="snowflake://loader:<password>@kgiotue-wn98412/dl
 ## Write disposition
 All write dispositions are supported
 
+If you set the [`replace` strategy](../../general-usage/full-loading.md) to `staging-optimized` the destination tables will be dropped and
+recreated with a [clone command](https://docs.snowflake.com/en/sql-reference/sql/create-clone) from the staging tables.
+
 ## Data loading
 The data is loaded using internal Snowflake stage. We use `PUT` command and per-table built-in stages by default. Stage files are immediately removed (if not specified otherwise).
 

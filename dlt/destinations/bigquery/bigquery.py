@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from typing import ClassVar, Dict, Optional, Sequence, Tuple, List, cast, Type
+from typing import ClassVar, Dict, Optional, Sequence, Tuple, List, cast, Type, Any
 import google.cloud.bigquery as bigquery  # noqa: I250
 from google.cloud import exceptions as gcp_exceptions
 from google.api_core import exceptions as api_core_exceptions
@@ -19,8 +19,9 @@ from dlt.destinations.exceptions import DestinationSchemaWillNotUpdate, Destinat
 from dlt.destinations.bigquery import capabilities
 from dlt.destinations.bigquery.configuration import BigQueryClientConfiguration
 from dlt.destinations.bigquery.sql_client import BigQuerySqlClient, BQ_TERMINAL_REASONS
-from dlt.destinations.sql_merge_job import SqlMergeJob
+from dlt.destinations.sql_jobs import SqlMergeJob, SqlStagingCopyJob
 from dlt.destinations.job_impl import NewReferenceJob
+from dlt.destinations.sql_client import SqlClientBase
 
 from dlt.common.schema.utils import table_schema_has_type
 
@@ -113,6 +114,20 @@ class BigQueryMergeJob(SqlMergeJob):
             sql.append(f"FROM {root_table_name} AS d WHERE EXISTS (SELECT 1 FROM {staging_root_table_name} AS s WHERE {clause.format(d='d', s='s')})")
         return sql
 
+class BigqueryStagingCopyJob(SqlStagingCopyJob):
+
+    @classmethod
+    def generate_sql(cls, table_chain: Sequence[TTableSchema], sql_client: SqlClientBase[Any]) -> List[str]:
+        sql: List[str] = []
+        for table in table_chain:
+            with sql_client.with_staging_dataset(staging=True):
+                staging_table_name = sql_client.make_qualified_table_name(table["name"])
+            table_name = sql_client.make_qualified_table_name(table["name"])
+            # drop destination table
+            sql.append(f"DROP TABLE IF EXISTS {table_name};")
+            # recreate destination table with data cloned from staging table
+            sql.append(f"CREATE TABLE {table_name} CLONE {staging_table_name};")
+        return sql
 
 class BigQueryClient(SqlJobClientBase):
 
@@ -130,8 +145,11 @@ class BigQueryClient(SqlJobClientBase):
         self.config: BigQueryClientConfiguration = config
         self.sql_client: BigQuerySqlClient = sql_client  # type: ignore
 
-    def create_merge_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
+    def _create_merge_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
         return BigQueryMergeJob.from_table_chain(table_chain, self.sql_client)
+
+    def _create_optimized_replace_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
+        return BigqueryStagingCopyJob.from_table_chain(table_chain, self.sql_client)
 
     def restore_file_load(self, file_path: str) -> LoadJob:
         """Returns a completed SqlLoadJob or restored BigQueryLoadJob
@@ -168,9 +186,10 @@ class BigQueryClient(SqlJobClientBase):
 
         if not job:
             try:
+                disposition = table["write_disposition"]
                 job = BigQueryLoadJob(
                     FileStorage.get_file_name_from_file_path(file_path),
-                    self._create_load_job(table, file_path),
+                    self._create_load_job(table, disposition in self.get_stage_dispositions(), self._should_truncate_destination_table(disposition), file_path),
                     self.config.http_timeout,
                     self.config.retry_deadline
                 )
@@ -237,11 +256,10 @@ class BigQueryClient(SqlJobClientBase):
         except gcp_exceptions.NotFound:
             return False, schema_table
 
-    def _create_load_job(self, table: TTableSchema, file_path: str) -> bigquery.LoadJob:
-        table_name = table["name"]
-        write_disposition = table["write_disposition"]
+    def _create_load_job(self, table: TTableSchema, use_staging_table: bool, _should_truncate_destination_table: bool, file_path: str) -> bigquery.LoadJob:
         # append to table for merge loads (append to stage) and regular appends
-        bq_wd = bigquery.WriteDisposition.WRITE_TRUNCATE if write_disposition == "replace" else bigquery.WriteDisposition.WRITE_APPEND
+        bq_wd = bigquery.WriteDisposition.WRITE_TRUNCATE if _should_truncate_destination_table else bigquery.WriteDisposition.WRITE_APPEND
+        table_name = table["name"]
 
         # determine wether we load from local or uri
         bucket_path = None
@@ -262,7 +280,7 @@ class BigQueryClient(SqlJobClientBase):
             decimal_target_types = ["NUMERIC", "BIGNUMERIC"]
 
         # if merge then load to staging
-        with self.sql_client.with_staging_dataset(write_disposition == "merge"):
+        with self.sql_client.with_staging_dataset(use_staging_table):
             job_id = BigQueryLoadJob.get_job_id_from_file_path(file_path)
             job_config = bigquery.LoadJobConfig(
                 autodetect=False,

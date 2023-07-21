@@ -1,10 +1,11 @@
 import random
 from copy import copy
 from types import TracebackType
-from typing import ClassVar, Dict, Optional, Sequence, Type, Iterable
+from typing import ClassVar, Dict, Optional, Sequence, Type, Iterable, List
 
 from dlt.common import pendulum
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
+from dlt.common.schema.typing import TWriteDisposition
 from dlt.common.storages import FileStorage
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import FollowupJob, NewLoadJob, TLoadJobState, LoadJob, JobClientBase
@@ -77,14 +78,14 @@ class DummyClient(JobClientBase):
         super().__init__(schema, config)
         self.config: DummyClientConfiguration = config
 
-    def initialize_storage(self, staging: bool = False, truncate_tables: Iterable[str] = None) -> None:
+    def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
         pass
 
-    def is_storage_initialized(self, staging: bool = False) -> bool:
+    def is_storage_initialized(self) -> bool:
         return True
 
-    def update_storage_schema(self, staging: bool = False, only_tables: Iterable[str] = None, expected_update: TSchemaTables = None) -> Optional[TSchemaTables]:
-        applied_update = super().update_storage_schema(staging, only_tables, expected_update)
+    def update_storage_schema(self, only_tables: Iterable[str] = None, expected_update: TSchemaTables = None) -> Optional[TSchemaTables]:
+        applied_update = super().update_storage_schema(only_tables, expected_update)
         if self.config.fail_schema_update:
             raise DestinationTransientException("Raise on schema update due to fail_schema_update config flag")
         return applied_update
@@ -108,8 +109,9 @@ class DummyClient(JobClientBase):
             raise LoadJobNotExistsException(job_id)
         return JOBS[job_id]
 
-    def create_merge_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
-        return None
+    def create_table_chain_completed_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
+        """Creates a list of followup jobs that should be executed after a table chain is completed"""
+        return []
 
     def complete_load(self, load_id: str) -> None:
         pass

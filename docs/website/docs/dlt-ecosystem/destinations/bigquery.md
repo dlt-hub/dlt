@@ -94,6 +94,9 @@ location = "US"
 ## Write disposition
 All write dispositions are supported
 
+If you set the [`replace` strategy](../../general-usage/full-loading.md) to `staging-optimized` the destination tables will be dropped and
+  recreated with a [clone command](https://cloud.google.com/bigquery/docs/table-clones-create) from the staging tables.
+
 ## Data loading
 `dlt` uses `BigQuery` load jobs that send files from local filesystem or gcs buckets. Loader follows [Google recommendations](https://cloud.google.com/bigquery/docs/error-messages) when retrying and terminating jobs. Google BigQuery client implements elaborate retry mechanism and timeouts for queries and file uploads, which may be configured in destination options.
 
