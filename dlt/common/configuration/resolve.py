@@ -14,6 +14,8 @@ from dlt.common.configuration.exceptions import (
     FinalConfigFieldException, LookupTrace, ConfigFieldMissingException, ConfigurationWrongTypeException,
     ValueNotSecretException, InvalidNativeValue, UnmatchedConfigHintResolversException)
 
+from dlt.common.configuration.specs.exceptions import NativeValueError
+
 TConfiguration = TypeVar("TConfiguration", bound=BaseConfiguration)
 
 
@@ -33,6 +35,33 @@ def resolve_configuration(config: TConfiguration, *, sections: Tuple[str, ...] =
             log_traces(None, config.__section__, type(config), explicit_value, None, traces)
 
     return _resolve_configuration(config, sections, (), explicit_value, accept_partial)
+
+
+def initialize_credentials(hint: Any, initial_value: Any) -> CredentialsConfiguration:
+    """Instantiate credentials of type `hint` with `initial_value`. The initial value must be a native representation (typically string)
+    or a dictionary corresponding to credential's fields. In case of union of credentials, the first configuration in the union fully resolved by
+    initial value will be instantiated."""
+    # use passed credentials as initial value. initial value may resolve credentials
+    if is_union(hint):
+        specs_in_union = get_all_types_of_class_in_union(hint, CredentialsConfiguration)
+        assert len(specs_in_union) > 0
+        first_credentials: CredentialsConfiguration = None
+        for idx, spec in enumerate(specs_in_union):
+            try:
+                # print(spec)
+                credentials = spec(initial_value)
+                if credentials.is_resolved():
+                    return credentials
+                # keep first credentials in the union to return in case all of the match but not resolve
+                first_credentials = first_credentials or credentials
+            except (NativeValueError, NotImplementedError):
+                # if none of specs in union parsed
+                if idx == len(specs_in_union) - 1 and first_credentials is None:
+                    raise
+        return first_credentials
+    else:
+        assert issubclass(hint, CredentialsConfiguration)
+        return hint(initial_value)  # type: ignore
 
 
 def inject_section(section_context: ConfigSectionContext, merge_existing: bool = True) -> ContextManager[ConfigSectionContext]:
