@@ -6,9 +6,10 @@ keywords: [facebook ads api, verified source, facebook ads]
 
 # Facebook Ads
 
-:::infoNeed help deploying these sources, or figuring out how to run them in your data stack?
+:::info
+Need help deploying these sources, or figuring out how to run them in your data stack?
 
-[Join our slack community](https://dlthub-community.slack.com/join/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g)
+[Join our Slack community](https://dlthub-community.slack.com/join/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g)
 or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
 :::
 
@@ -42,14 +43,14 @@ To get a complete list of sub-endpoints that can be loaded, see
 1. Ensure that you have Ads Manager active for your Facebook account.
 1. Find your account ID, which is a long number. You can locate it by clicking on the Account
    Overview dropdown in Ads Manager or by checking the link address. For example
-   https://adsmanager.facebook.com/adsmanager/manage/accounts?act=10150974068878324
+   https://adsmanager.facebook.com/adsmanager/manage/accounts?act=10150974068878324.
 1. Note this account ID as it will further be used in configuring dlt.
 
 #### Grab `Access_Token`
 
 1. Sign up for a developer account on
    [developers.facebook.com](https://developers.facebook.com/).
-1. Log in to your developer account and click on "My Apps" at the top right corner.
+1. Log in to your developer account and click on "My Apps" in the top right corner.
 1. Create an app, select "Other" as the type, choose "Business" as the category, and click "Next".
 1. Enter the name of your app and select the associated business manager account.
 1. Go to the "Basic" settings in the left-hand side menu.
@@ -58,12 +59,12 @@ To get a complete list of sub-endpoints that can be loaded, see
 1. Next, obtain a short-lived access token at https://developers.facebook.com/tools/explorer/.
 1. Select the created app, add "ads_read" and "lead_retrieval" permissions, and generate a
    short-lived access token.
-1. Copy the access token and update it in the `secrets.toml` file.
+1. Copy the access token and update it in the `.dlt/secrets.toml` file.
 
 #### Exchange _short-lived token_ for a _long-lived token_:
 
 By default, Facebook access tokens have a short lifespan of one hour. To exchange a short-lived
-Facebook access token for a long-lived token, update the `secrets.toml` with client_id, and
+Facebook access token for a long-lived token, update the `.dlt/secrets.toml` with client_id, and
 client_secret and execute the provided Python code.
 
 ```python
@@ -71,8 +72,8 @@ from facebook_ads import get_long_lived_token
 print(get_long_lived_token("your short-lived token")
 ```
 
-Replace the `access_token` in the `secrets.toml` file with the long-lived token obtained from the
-above code snippet.
+Replace the `access_token` in the `.dlt/secrets.toml` file with the long-lived token obtained from
+the above code snippet.
 
 To retrieve the expiry date and the associated scopes of the token, you can use the following
 command:
@@ -82,7 +83,7 @@ from facebook_ads import debug_access_token
 debug_access_token()
 ```
 
-We strongly advice you to add the token expiration timestamp to get notified a week before token
+We highly recommend you to add the token expiration timestamp to get notified a week before token
 expiration that you need to rotate it. Right now the notifications are sent to logger with error
 level. In config.toml / secrets.toml:
 
@@ -122,13 +123,14 @@ For more information, read the
    file with care and keep it safe. Here's what the file looks like:
 
    ```toml
-   # put your secret values and credentials here. do not share this file and do not push it to github
+   # put your secret values and credentials here
+   # do not share this file and do not push it to github
    [sources.facebook_ads]
    access_token="set me up!"
    ```
 
 1. Replace the access_token value with the [previously copied one](facebook_ads.md#grab-credentials)
-   to ensure secure access to your Workable resources.
+   to ensure secure access to your Facebook resources.
 
 1. Next, Follow the [destination documentation](../../dlt-ecosystem/destinations) instructions to
    add credentials for your chosen destination, ensuring proper routing of your data to the final
@@ -139,7 +141,7 @@ For more information, read the
 
 1. Next, store your pipeline configuration details in the `.dlt/config.toml`.
 
-   Here's what the config.toml looks like:
+   Here's what the `config.toml` looks like:
 
    ```toml
    [sources.facebook_ads]
@@ -182,7 +184,7 @@ it is important to note the complete list of the default endpoints given in
 
 ### Source `facebook_ads_source`
 
-This function returns a list of resources to load campaigns, ad sets, ads, creatives and ad leads
+This function returns a list of resources to load campaigns, ad sets, ads, creatives, and ad leads
 data from Facebook Marketing API.
 
 ```python
@@ -224,14 +226,14 @@ def ads(
   yield get_data_chunked(account.get_ads, fields, states, chunk_size)
 ```
 
-`fields`: retrives fields for each ad. For example, “id”, “name”, “adset_id” etc.
+`fields`: Retrives fields for each ad. For example, “id”, “name”, “adset_id” etc.
 
-`states`: the possible states include "Active," "Paused," "Pending Review," "Disapproved,"
+`states`: The possible states include "Active," "Paused," "Pending Review," "Disapproved,"
 "Completed," and "Archived."
 
 ### Resources for `facebook_ads_source`
 
-Simlar to resource `ads`, the following resources have been defined in the `__init__.py` for source
+Similar to resource `ads`, the following resources have been defined in the `__init__.py` for source
 `facebook_ads_source`:
 
 | Resource     | Description                                                          |
@@ -318,7 +320,7 @@ def facebook_insights(
 ) -> Iterator[TDataItems]:
 ```
 
-`date_start`: parameter sets the initial value for the "date_start" parameter in
+`date_start`: Parameter sets the initial value for the "date_start" parameter in
 dlt.sources.incremental. It is based on the last pipeline run or defaults to today's date minus the
 specified number of days in the "initial_load_past_days" parameter.
 
@@ -350,7 +352,7 @@ verified source.
    print(load_info)
    ```
 
-1. To merge the Facebook ads with the state “DISAPPROVED” snd with ads state “PAUSED” you can do the
+1. To merge the Facebook ads with the state “DISAPPROVED” and with ads state “PAUSED” you can do the
    following:
 
    ```python
@@ -421,7 +423,7 @@ verified source.
 
 1. You can load the insights reports incrementally with defined granularity levels, fields,
    breakdowns etc. As defined in the facebook_insights_source. To load the data from the past 7 days
-   in time increments of 1 day you can do as follows:
+   in time increments of 1 day, you can do as follows:
 
    ```python
    load_data = facebook_insights_source(initial_load_past_days=7, time_increment_days=7)
