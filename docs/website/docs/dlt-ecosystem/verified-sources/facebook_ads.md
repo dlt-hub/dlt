@@ -128,7 +128,7 @@ For more information, read the
    ```
 
 1. Replace the access_token value with the [previously copied one](facebook_ads.md#grab-credentials)
-   to ensure secure access to your Workable resources.
+   to ensure secure access to your Facebook Ads resources.
 
 1. Next, Follow the [destination documentation](../../dlt-ecosystem/destinations) instructions to
    add credentials for your chosen destination, ensuring proper routing of your data to the final
