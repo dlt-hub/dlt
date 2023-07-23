@@ -2,7 +2,7 @@ import pytest
 import sqlfluff
 from copy import deepcopy
 
-from dlt.common.utils import uniq_id, custom_environ
+from dlt.common.utils import uniq_id, custom_environ, digest128
 from dlt.common.schema import Schema
 from dlt.common.configuration import resolve_configuration
 
@@ -24,12 +24,18 @@ def client(schema: Schema) -> RedshiftClient:
     return RedshiftClient(schema, RedshiftClientConfiguration(dataset_name="test_" + uniq_id(), credentials=RedshiftCredentials()))
 
 
-def test_configuration() -> None:
+def test_redshift_configuration() -> None:
     # check names normalized
     with custom_environ({"DESTINATION__REDSHIFT__CREDENTIALS__DATABASE": "UPPER_CASE_DATABASE", "DESTINATION__REDSHIFT__CREDENTIALS__PASSWORD": " pass\n"}):
         C = resolve_configuration(RedshiftCredentials(), sections=("destination", "redshift"))
         assert C.database == "upper_case_database"
         assert C.password == "pass"
+
+    # check fingerprint
+    assert RedshiftClientConfiguration().fingerprint() == ""
+    # based on host
+    c = resolve_configuration(RedshiftCredentials(), explicit_value="postgres://user1:pass@host1/db1?warehouse=warehouse1&role=role1")
+    assert RedshiftClientConfiguration(credentials=c).fingerprint() == digest128("host1")
 
 
 def test_create_table(client: RedshiftClient) -> None:

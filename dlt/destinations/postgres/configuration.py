@@ -3,8 +3,10 @@ from sqlalchemy.engine import URL
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ConnectionStringCredentials
-from dlt.common.destination.reference import DestinationClientDwhConfiguration
+from dlt.common.utils import digest128
 from dlt.common.typing import TSecretValue
+
+from dlt.common.destination.reference import DestinationClientDwhConfiguration
 
 
 @configspec
@@ -38,3 +40,9 @@ class PostgresClientConfiguration(DestinationClientDwhConfiguration):
     credentials: PostgresCredentials
 
     create_indexes: bool = True
+
+    def fingerprint(self) -> str:
+        """Returns a fingerprint of host part of a connection string"""
+        if self.credentials and self.credentials.host:
+            return digest128(self.credentials.host)
+        return ""

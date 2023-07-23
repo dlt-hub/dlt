@@ -63,6 +63,7 @@ class LoadInfo(NamedTuple):
     destination_displayable_credentials: str
     staging_name: str
     staging_displayable_credentials: str
+    destination_fingerprint: str
     dataset_name: str
     loads_ids: List[str]
     """ids of the loaded packages"""

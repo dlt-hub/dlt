@@ -34,6 +34,7 @@ class LoadFilesystemJob(LoadJob):
         file_name = FileStorage.get_file_name_from_file_path(local_path)
         self.config = config
         self.dataset_path = dataset_path
+        self.destination_file_name = LoadFilesystemJob.make_destination_filename(file_name, schema_name, load_id)
 
         super().__init__(file_name)
         fs_client, _ = client_from_config(config)
@@ -62,7 +63,6 @@ class LoadFilesystemJob(LoadJob):
                 except FileNotFoundError:
                     pass
 
-        self.destination_file_name = LoadFilesystemJob.make_destination_filename(file_name, schema_name, load_id)
         fs_client.put_file(local_path, self.make_remote_path())
 
     @staticmethod

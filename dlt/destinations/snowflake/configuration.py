@@ -9,6 +9,7 @@ from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common.configuration import configspec
 from dlt.common.destination.reference import DestinationClientDwhConfiguration
+from dlt.common.utils import digest128
 
 
 def _read_private_key(private_key: str, password: Optional[str] = None) -> bytes:
@@ -91,3 +92,9 @@ class SnowflakeClientConfiguration(DestinationClientDwhConfiguration):
     """Use an existing named stage instead of the default. Default uses the implicit table stage per table"""
     keep_staged_files: bool = True
     """Whether to keep or delete the staged files after COPY INTO succeeds"""
+
+    def fingerprint(self) -> str:
+        """Returns a fingerprint of host part of a connection string"""
+        if self.credentials and self.credentials.host:
+            return digest128(self.credentials.host)
+        return ""

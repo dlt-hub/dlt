@@ -374,6 +374,7 @@ class Load(Runnable[ThreadPool]):
             str(self.initial_client_config),
             self.initial_staging_client_config.destination_name if self.initial_staging_client_config else None,
             str(self.initial_staging_client_config) if self.initial_staging_client_config else None,
+            self.initial_client_config.fingerprint(),
             dataset_name,
             list(load_ids),
             load_packages,

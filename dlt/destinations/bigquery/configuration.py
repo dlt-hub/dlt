@@ -3,6 +3,8 @@ from typing import TYPE_CHECKING, ClassVar, List, Optional
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import GcpServiceAccountCredentials
+from dlt.common.utils import digest128
+
 from dlt.common.destination.reference import DestinationClientDwhConfiguration
 
 
@@ -25,6 +27,12 @@ class BigQueryClientConfiguration(DestinationClientDwhConfiguration):
         if self.credentials.location != "US":
             warnings.warn("Setting BigQuery location in the credentials is deprecated. Please set the location directly in bigquery section ie. destinations.bigquery.location='EU'")
         return self.credentials.location
+
+    def fingerprint(self) -> str:
+        """Returns a fingerprint of project_id"""
+        if self.credentials and self.credentials.project_id:
+            return digest128(self.credentials.project_id)
+        return ""
 
     if TYPE_CHECKING:
         def __init__(

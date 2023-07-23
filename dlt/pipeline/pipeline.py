@@ -13,7 +13,9 @@ from dlt.common.configuration.specs import RunConfiguration, CredentialsConfigur
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import ConfigFieldMissingException, ContextDefaultCannotBeCreated
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
-from dlt.common.exceptions import DestinationLoadingViaStagingNotSupported, DestinationNoStagingMode, MissingDependencyException, DestinationIncompatibleLoaderFileFormatException
+from dlt.common.configuration.resolve import initialize_credentials
+from dlt.common.exceptions import (DestinationLoadingViaStagingNotSupported, DestinationNoStagingMode, MissingDependencyException,
+                                   DestinationIncompatibleLoaderFileFormatException)
 from dlt.common.normalizers import default_normalizers, import_normalizers
 from dlt.common.runtime import signals, initialize_runtime
 from dlt.common.schema.exceptions import InvalidDatasetName
@@ -48,8 +50,6 @@ from dlt.pipeline.exceptions import CannotRestorePipelineException, InvalidPipel
 from dlt.pipeline.trace import PipelineTrace, PipelineStepTrace, load_trace, merge_traces, start_trace, start_trace_step, end_trace_step, end_trace, describe_extract_data
 from dlt.pipeline.typing import TPipelineStep
 from dlt.pipeline.state_sync import STATE_ENGINE_VERSION, load_state_from_destination, merge_state_if_changed, migrate_state, state_resource, json_encode_state, json_decode_state
-
-from dlt.common.configuration.resolve import initialize_credentials
 
 
 def with_state_sync(may_extract_state: bool = False) -> Callable[[TFun], TFun]:

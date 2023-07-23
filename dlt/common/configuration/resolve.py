@@ -7,14 +7,13 @@ from dlt.common.typing import AnyType, StrAny, TSecretValue, get_all_types_of_cl
 
 from dlt.common.configuration.specs.base_configuration import BaseConfiguration, CredentialsConfiguration, is_secret_hint, extract_inner_hint, is_context_inner_hint, is_base_configuration_inner_hint, is_valid_hint
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
-from dlt.common.configuration.container import Container
+from dlt.common.configuration.specs.exceptions import NativeValueError
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
+from dlt.common.configuration.container import Container
 from dlt.common.configuration.utils import log_traces, deserialize_value
 from dlt.common.configuration.exceptions import (
     FinalConfigFieldException, LookupTrace, ConfigFieldMissingException, ConfigurationWrongTypeException,
     ValueNotSecretException, InvalidNativeValue, UnmatchedConfigHintResolversException)
-
-from dlt.common.configuration.specs.exceptions import NativeValueError
 
 TConfiguration = TypeVar("TConfiguration", bound=BaseConfiguration)
 
