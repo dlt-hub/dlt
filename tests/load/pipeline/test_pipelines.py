@@ -433,15 +433,13 @@ def test_pipeline_with_sources_sharing_schema(destination_name: str) -> None:
 
     p = dlt.pipeline(pipeline_name="multi", destination="duckdb", full_refresh=True)
     p.extract([source_1(), source_2()])
-    # tables without columns are not added after extract
     default_schema = p.default_schema
     gen1_table = default_schema.tables["gen1"]
     assert "user_id" in gen1_table["columns"]
     assert "id" in gen1_table["columns"]
     assert "conflict" in default_schema.tables
-    assert "gen2" not in default_schema.tables
+    assert "gen2" in default_schema.tables
     p.normalize()
-    # default schema is a live object and must contain gen2 now
     assert "gen2" in default_schema.tables
     p.load()
     table_names = [t["name"] for t in default_schema.data_tables()]

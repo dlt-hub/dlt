@@ -5,6 +5,7 @@ import platform
 import requests
 import pytest
 from os import environ
+from typing import Iterator
 from unittest.mock import patch
 
 import dlt
@@ -19,7 +20,8 @@ from dlt.common.storages import FileStorage
 from dlt.common.schema import Schema
 from dlt.common.storages.versioned_storage import VersionedStorage
 from dlt.common.typing import StrAny
-from dlt.common.utils import uniq_id
+from dlt.common.utils import custom_environ, uniq_id
+from dlt.common.pipeline import PipelineContext
 
 TEST_STORAGE_ROOT = "_storage"
 
@@ -76,6 +78,12 @@ def preserve_environ() -> None:
 
 
 @pytest.fixture(autouse=True)
+def duckdb_pipeline_location() -> None:
+    with custom_environ({"DESTINATION__DUCKDB__CREDENTIALS": ":pipeline:"}):
+        yield
+
+
+@pytest.fixture(autouse=True)
 def patch_home_dir() -> None:
     with patch("dlt.common.configuration.paths._get_user_home_dir") as _get_home_dir:
         _get_home_dir.return_value = os.path.abspath(TEST_STORAGE_ROOT)
@@ -99,6 +107,20 @@ def unload_modules() -> None:
     mod_diff = set(sys.modules.keys()) - set(prev_modules.keys())
     for mod in mod_diff:
         del sys.modules[mod]
+
+
+@pytest.fixture(autouse=True)
+def wipe_pipeline() -> Iterator[None]:
+    container = Container()
+    if container[PipelineContext].is_active():
+        container[PipelineContext].deactivate()
+    yield
+    if container[PipelineContext].is_active():
+        # take existing pipeline
+        p = dlt.pipeline()
+        p._wipe_working_folder()
+        # deactivate context
+        container[PipelineContext].deactivate()
 
 
 def init_test_logging(c: RunConfiguration = None) -> None:

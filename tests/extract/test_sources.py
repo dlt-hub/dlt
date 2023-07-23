@@ -12,8 +12,6 @@ from dlt.extract.pipe import Pipe
 from dlt.extract.typing import FilterItem, MapItem
 from dlt.extract.source import DltResource, DltSource
 
-from tests.pipeline.utils import drop_pipeline
-
 
 def test_call_data_resource() -> None:
     with pytest.raises(TypeError):

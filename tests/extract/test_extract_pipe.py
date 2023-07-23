@@ -13,8 +13,6 @@ from dlt.extract.exceptions import CreatePipeException, ResourceExtractionError
 from dlt.extract.typing import DataItemWithMeta, FilterItem, MapItem, YieldMapItem
 from dlt.extract.pipe import ManagedPipeIterator, Pipe, PipeItem, PipeIterator
 
-# from tests.utils import preserve_environ
-
 
 def test_next_item_mode() -> None:
 

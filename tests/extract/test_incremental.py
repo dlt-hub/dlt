@@ -21,10 +21,6 @@ from dlt.extract.source import DltSource
 from dlt.sources.helpers.transform import take_first
 from dlt.extract.incremental import IncrementalCursorPathMissing, IncrementalPrimaryKeyMissing
 
-from tests.pipeline.utils import drop_pipeline
-# from tests.load.pipeline.utils import load_table_counts
-from tests.utils import preserve_environ, autouse_test_storage, patch_home_dir
-
 
 def test_single_items_last_value_state_is_updated() -> None:
     @dlt.resource

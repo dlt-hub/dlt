@@ -17,7 +17,6 @@ from dlt.cli.source_detection import detect_source_configs
 from dlt.extract.exceptions import ExplicitSourceNameInvalid, InvalidResourceDataTypeFunctionNotAGenerator, InvalidResourceDataTypeIsNone, ParametrizedResourceUnbound, PipeNotBoundToData, ResourceFunctionExpected, ResourceInnerCallableConfigWrapDisallowed, SourceDataIsNone, SourceIsAClassTypeError, SourceNotAFunction, SourceSchemaNotAvailable
 from dlt.extract.source import DltResource, DltSource
 
-from tests.utils import preserve_environ
 from tests.common.utils import IMPORTED_VERSION_HASH_ETH_V5
 
 

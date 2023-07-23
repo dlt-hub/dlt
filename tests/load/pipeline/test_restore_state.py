@@ -8,7 +8,7 @@ import dlt
 from dlt.common import pendulum
 from dlt.common.schema.schema import Schema, utils
 from dlt.common.schema.typing import LOADS_TABLE_NAME, VERSION_TABLE_NAME
-from dlt.common.utils import uniq_id
+from dlt.common.utils import custom_environ, uniq_id
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.pipeline.pipeline import Pipeline
 from dlt.pipeline.state_sync import STATE_TABLE_COLUMNS, STATE_TABLE_NAME, load_state_from_destination, state_resource
@@ -19,6 +19,13 @@ from tests.common.utils import IMPORTED_VERSION_HASH_ETH_V5, yml_case_path as co
 from tests.common.configuration.utils import environment
 from tests.load.pipeline.utils import assert_query_data, drop_active_pipeline_data
 from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration, set_destination_config_envs
+
+
+@pytest.fixture(autouse=True)
+def duckdb_pipeline_location() -> None:
+    # this will store duckdb in working folder so it survives pipeline wipe
+    if "DESTINATION__DUCKDB__CREDENTIALS" in os.environ:
+        del os.environ["DESTINATION__DUCKDB__CREDENTIALS"]
 
 
 @pytest.mark.parametrize("destination_config", destinations_configs(default_staging_configs=True, default_non_staging_configs=True), ids=lambda x: x.name)
