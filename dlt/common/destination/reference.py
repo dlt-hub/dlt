@@ -26,6 +26,10 @@ class DestinationClientConfiguration(BaseConfiguration):
     destination_name: str = None  # which destination to load data to
     credentials: Optional[CredentialsConfiguration]
 
+    def fingerprint(self) -> str:
+        """Returns a destination fingerprint which is a hash of selected configuration fields. ie. host in case of connection string"""
+        return ""
+
     def __str__(self) -> str:
         """Return displayable destination location"""
         return str(self.credentials)

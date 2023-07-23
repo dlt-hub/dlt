@@ -232,6 +232,9 @@ def test_trace_telemetry() -> None:
             # check extract info
             if step == "extract":
                 assert event["properties"]["extract_data"] == [{"name": "", "data_type": "int"}]
+            if step == "load":
+                # dummy has empty fingerprint
+                assert event["properties"]["destination_fingerprint"] == ""
         # we have two failed files (state and data) that should be logged by sentry
         assert len(SENTRY_SENT_ITEMS) == 2
 

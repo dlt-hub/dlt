@@ -234,6 +234,8 @@ def test_evolve_schema(destination_name: str) -> None:
     info = p.load(dataset_name=dataset_name)
     # test __str__
     print(info)
+    # test fingerprint in load
+    assert info.destination_fingerprint == p._destination_client().config.fingerprint()
     # print(p.default_schema.to_pretty_yaml())
     schema = p.default_schema
     assert "simple_rows" in schema.tables

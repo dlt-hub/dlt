@@ -3,6 +3,7 @@ from typing import Any, ClassVar, Final, List
 from dlt.common.configuration import configspec
 from dlt.common.destination.reference import DestinationClientDwhConfiguration
 from dlt.common.typing import TSecretValue
+from dlt.common.utils import digest128
 from dlt.common.configuration.exceptions import ConfigurationValueError
 
 from dlt.destinations.duckdb.configuration import DuckDbBaseCredentials
@@ -43,3 +44,9 @@ class MotherDuckClientConfiguration(DestinationClientDwhConfiguration):
     credentials: MotherDuckCredentials
 
     create_indexes: bool = False  # should unique indexes be created, this slows loading down massively
+
+    def fingerprint(self) -> str:
+        """Returns a fingerprint of user access token"""
+        if self.credentials and self.credentials.password:
+            return digest128(self.credentials.password)
+        return ""

@@ -90,6 +90,9 @@ def on_end_trace_step(trace: PipelineTrace, step: PipelineStepTrace, pipeline: S
     if step.step == "extract" and step_info:
         assert isinstance(step_info, ExtractInfo)
         props["extract_data"] = step_info.extract_data_info
+    if step.step == "load" and step_info:
+        assert isinstance(step_info, LoadInfo)
+        props["destination_fingerprint"] = step_info.destination_fingerprint
     dlthub_telemetry_track("pipeline", step.step, props)
 
 

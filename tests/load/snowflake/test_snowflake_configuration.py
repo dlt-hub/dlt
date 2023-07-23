@@ -5,6 +5,7 @@ from sqlalchemy.engine import make_url
 
 from dlt.common.configuration.resolve import resolve_configuration
 from dlt.common.configuration.exceptions import ConfigurationValueError
+from dlt.common.utils import digest128
 
 from dlt.destinations.snowflake.configuration import SnowflakeClientConfiguration, SnowflakeCredentials
 
@@ -80,3 +81,9 @@ def test_snowflake_credentials_native_value(environment) -> None:
     assert c.private_key == "pk"
 
 
+def test_snowflake_configuration() -> None:
+    # def empty fingerprint
+    assert SnowflakeClientConfiguration().fingerprint() == ""
+    # based on host
+    c = resolve_configuration(SnowflakeCredentials(), explicit_value="snowflake://user1:pass@host1/db1?warehouse=warehouse1&role=role1")
+    assert SnowflakeClientConfiguration(credentials=c).fingerprint() == digest128("host1")

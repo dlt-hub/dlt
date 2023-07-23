@@ -5,8 +5,9 @@ from fsspec import AbstractFileSystem
 
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.typing import DictStrAny
-from dlt.common.configuration.specs import CredentialsWithDefault
-from dlt.destinations.filesystem.configuration import FilesystemClientConfiguration, GcpCredentials, GcpServiceAccountCredentials,  AwsCredentials
+from dlt.common.configuration.specs import CredentialsWithDefault, GcpCredentials,  AwsCredentials
+
+from dlt.destinations.filesystem.configuration import FilesystemClientConfiguration
 
 from dlt import version
 

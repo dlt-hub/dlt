@@ -2,11 +2,11 @@ import posixpath
 from typing import Sequence, Tuple, List
 
 import pytest
-from dlt.common.schema.schema import Schema
-
+from dlt.common.utils import digest128
 from dlt.common.storages import LoadStorage, FileStorage
 from dlt.common.destination.reference import LoadJob
-from dlt.destinations.filesystem.filesystem import FilesystemClient, LoadFilesystemJob
+
+from dlt.destinations.filesystem.filesystem import FilesystemClient, LoadFilesystemJob, FilesystemClientConfiguration
 from dlt.load import Load
 from dlt.destinations.job_impl import EmptyLoadJob
 
@@ -29,6 +29,12 @@ NORMALIZED_FILES = [
     "event_user.839c6e6b514e427687586ccc65bf133f.0.jsonl",
     "event_loop_interrupted.839c6e6b514e427687586ccc65bf133f.0.jsonl"
 ]
+
+
+def test_filesystem_configuration() -> None:
+    assert FilesystemClientConfiguration().fingerprint() == ""
+    assert FilesystemClientConfiguration(bucket_url="s3://cool").fingerprint() == digest128("s3://cool")
+
 
 @pytest.mark.parametrize('write_disposition', ('replace', 'append', 'merge'))
 def test_successful_load(write_disposition: str, all_buckets_env: str, filesystem_client: FilesystemClient) -> None:
