@@ -22,6 +22,9 @@ from dlt.load.exceptions import LoadClientJobFailed
 from dlt.pipeline.exceptions import InvalidPipelineName, PipelineNotActive, PipelineStepFailed
 from dlt.pipeline.helpers import retry_load
 from dlt.pipeline.state_sync import STATE_TABLE_NAME
+from dlt.common.configuration.specs.exceptions import NativeValueError
+from dlt.common.configuration.specs.aws_credentials import AwsCredentials
+from dlt.common.configuration.specs.gcp_credentials import GcpOAuthCredentials
 from tests.common.utils import TEST_SENTRY_DSN
 
 from tests.utils import ALL_DESTINATIONS, TEST_STORAGE_ROOT
@@ -173,6 +176,35 @@ def test_create_pipeline_all_destinations(destination: str) -> None:
     assert p.default_schema.naming.max_length == min(caps.max_column_identifier_length, caps.max_identifier_length)
     p.normalize()
     assert p.default_schema.naming.max_length == min(caps.max_column_identifier_length, caps.max_identifier_length)
+
+
+def test_destination_explicit_credentials() -> None:
+    # test redshift
+    p = dlt.pipeline(pipeline_name="postgres_pipeline", destination="redshift", credentials="redshift://loader:loader@localhost:5432/dlt_data")
+    config = p._get_destination_client_initial_config()
+    assert config.credentials.is_resolved()
+    # with staging
+    p = dlt.pipeline(pipeline_name="postgres_pipeline", staging="filesystem", destination="redshift", credentials="redshift://loader:loader@localhost:5432/dlt_data")
+    config = p._get_destination_client_initial_config(p.destination)
+    assert config.credentials.is_resolved()
+    config = p._get_destination_client_initial_config(p.staging, as_staging=True)
+    assert config.credentials is None
+    p._wipe_working_folder()
+    # try filesystem which uses union of credentials that requires bucket_url to resolve
+    p = dlt.pipeline(pipeline_name="postgres_pipeline", destination="filesystem", credentials={"aws_access_key_id": "key_id", "aws_secret_access_key": "key"})
+    config = p._get_destination_client_initial_config(p.destination)
+    assert isinstance(config.credentials, AwsCredentials)
+    assert config.credentials.is_resolved()
+    # resolve gcp oauth
+    p = dlt.pipeline(pipeline_name="postgres_pipeline", destination="filesystem", credentials={"project_id": "pxid", "refresh_token": "123token", "client_id": "cid", "client_secret": "s"})
+    config = p._get_destination_client_initial_config(p.destination)
+    assert isinstance(config.credentials, GcpOAuthCredentials)
+    assert config.credentials.is_resolved()
+    # if string cannot be parsed
+    p = dlt.pipeline(pipeline_name="postgres_pipeline", destination="filesystem", credentials="PR8BLEM")
+    with pytest.raises(NativeValueError):
+        p._get_destination_client_initial_config(p.destination)
+
 
 
 def test_extract_source_twice() -> None:
