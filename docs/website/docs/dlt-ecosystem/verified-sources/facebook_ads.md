@@ -426,7 +426,11 @@ verified source.
    reports for a specified number of past days.
 
    ```python
-   load_data = facebook_insights_source(initial_load_past_days=30,  attribution_window_days_lag= 7, time_increment_days=1)
+   load_data = facebook_insights_source(
+       initial_load_past_days=30,
+       attribution_window_days_lag= 7,
+       time_increment_days=1
+   )
    load_info = pipeline.run(load_data)
    print(load_info)
    ```
