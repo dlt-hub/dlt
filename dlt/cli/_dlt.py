@@ -79,7 +79,6 @@ def deploy_command_wrapper(pipeline_script_path: str, deployment_method: str, re
     except Exception as ex:
         click.secho(str(ex), err=True, fg="red")
         fmt.note("Please refer to %s for further assistance" % fmt.bold(DLT_DEPLOY_DOCS_URL))
-        raise
         return -5
         # TODO: display stack trace if with debug flag
     return 0
