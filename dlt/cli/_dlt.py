@@ -79,6 +79,7 @@ def deploy_command_wrapper(pipeline_script_path: str, deployment_method: str, re
     except Exception as ex:
         click.secho(str(ex), err=True, fg="red")
         fmt.note("Please refer to %s for further assistance" % fmt.bold(DLT_DEPLOY_DOCS_URL))
+        raise
         return -5
         # TODO: display stack trace if with debug flag
     return 0
@@ -205,7 +206,7 @@ def main() -> int:
 
     # deploy airflow composer
     deploy_airflow_cmd = deploy_sub_parsers.add_parser(DeploymentMethods.airflow_composer.value, help="Deploys the pipeline to Airflow")
-    deploy_airflow_cmd.add_argument("--secrets-format", default=SecretFormats.env, choices=[v.value for v in SecretFormats], required=False, help="Format of the secrets")
+    deploy_airflow_cmd.add_argument("--secrets-format", default=SecretFormats.toml.value, choices=[v.value for v in SecretFormats], required=False, help="Format of the secrets")
 
     schema = subparsers.add_parser("schema", help="Shows, converts and upgrades schemas")
     schema.add_argument("file", help="Schema file name, in yaml or json format, will autodetect based on extension")
