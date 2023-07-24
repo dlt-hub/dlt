@@ -5,10 +5,12 @@ import binascii
 import zlib
 
 import weaviate
+from weaviate.util import generate_uuid5
 
 from dlt.common import json, pendulum, logger
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
 from dlt.common.schema.typing import VERSION_TABLE_NAME, LOADS_TABLE_NAME
+from dlt.common.schema.utils import get_columns_names_with_prop
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
     NewLoadJob,
@@ -52,7 +54,7 @@ def table_name_to_class_name(table_name: str) -> str:
 class LoadWeaviateJob(LoadJob):
     def __init__(
         self,
-        table_name: str,
+        table_schema: TTableSchema,
         local_path: str,
         db_client: weaviate.Client,
         client_config: WeaviateClientConfiguration,
@@ -61,7 +63,9 @@ class LoadWeaviateJob(LoadJob):
         file_name = FileStorage.get_file_name_from_file_path(local_path)
         super().__init__(file_name)
 
-        class_name = table_name_to_class_name(table_name)
+        class_name = table_name_to_class_name(table_schema["name"])
+
+        unique_identifiers = self.list_unique_identifiers(table_schema)
 
         with db_client.batch(
             batch_size=client_config.weaviate_batch_size,
@@ -69,7 +73,25 @@ class LoadWeaviateJob(LoadJob):
             with FileStorage.open_zipsafe_ro(local_path) as f:
                 for line in f:
                     data = json.loads(line)
-                    batch.add_data_object(data, class_name)
+
+                    if unique_identifiers:
+                        uuid = self.generate_uuid(data, unique_identifiers, class_name)
+                    else:
+                        uuid = None
+
+                    batch.add_data_object(data, class_name, uuid=uuid)
+
+    def list_unique_identifiers(self, table_schema: TTableSchema) -> Sequence[str]:
+        primary_keys = get_columns_names_with_prop(table_schema, "primary_key")
+        if primary_keys:
+            return primary_keys
+        return get_columns_names_with_prop(table_schema, "unique")
+
+    def generate_uuid(
+        self, data: Dict[str, Any], unique_identifiers: Sequence[str], class_name: str
+    ) -> str:
+        data_id = "_".join([str(data[key]) for key in unique_identifiers])
+        return generate_uuid5(data_id, class_name)
 
     def state(self) -> TLoadJobState:
         return "completed"
@@ -229,7 +251,7 @@ class WeaviateClient(JobClientBase):
         self, table: TTableSchema, file_path: str, load_id: str
     ) -> LoadJob:
         return LoadWeaviateJob(
-            table["name"],
+            table,
             file_path,
             db_client=self.db_client,
             client_config=self.config,
