@@ -19,6 +19,11 @@ class SourceRequirements:
         self.dlt_requirement_base = Requirement(str(self.dlt_requirement))
         self.dlt_requirement_base.extras.clear()
 
+    @classmethod
+    def from_string(cls, requirements: str) -> "SourceRequirements":
+        """Initialize from requirements.txt string, one dependency per line"""
+        return cls([line for line in requirements.splitlines() if line])
+
     def _ensure_dlt_requirement(self) -> Requirement:
         """Find or create dlt requirement"""
         for req in self.parsed_requirements:

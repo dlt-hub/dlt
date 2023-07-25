@@ -66,7 +66,7 @@ def test_init_command_new_pipeline_same_name(repo_dir: str, project_files: FileS
 def test_init_command_chess_verified_source(repo_dir: str, project_files: FileStorage) -> None:
     init_command.init_command("chess", "duckdb", False, repo_dir)
     assert_source_files(project_files, "chess", "duckdb", has_source_section=True)
-    assert_requests_txt(project_files)
+    assert_requirements_txt(project_files)
     # check files hashes
     local_index = files_ops.load_verified_sources_local_index("chess")
     # chess has one file
@@ -126,11 +126,15 @@ def test_init_list_verified_pipelines_update_warning(repo_dir: str, project_file
 
 def test_init_all_verified_sources_together(repo_dir: str, project_files: FileStorage) -> None:
     source_candidates = get_verified_source_candidates(repo_dir)
+    # source_candidates = [source_name for source_name in source_candidates if source_name == "salesforce"]
     for source_name in source_candidates:
         # all must install correctly
         init_command.init_command(source_name, "bigquery", False, repo_dir)
         # verify files
         _, secrets = assert_source_files(project_files, source_name, "bigquery")
+
+    # requirements.txt is created from the first source and not overwritten afterwards
+    assert_index_version_constraint(project_files, source_candidates[0])
     # secrets should contain sections for all sources
     for source_name in source_candidates:
         assert secrets.get_value(source_name, Any, None, "sources") is not None
@@ -158,7 +162,8 @@ def test_init_all_verified_sources_isolated(cloned_init_repo: FileStorage) -> No
         with set_working_dir(files.storage_path):
             init_command.init_command(candidate, "bigquery", False, repo_dir)
             assert_source_files(files, candidate, "bigquery")
-            assert_requests_txt(files)
+            assert_requirements_txt(files)
+            assert_index_version_constraint(files, candidate)
 
 
 @pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
@@ -421,14 +426,21 @@ def test_incompatible_dlt_version_warning(repo_dir: str, project_files: FileStor
 def assert_init_files(project_files: FileStorage, pipeline_name: str, destination_name: str) -> PipelineScriptVisitor:
     visitor, _ = assert_common_files(project_files, pipeline_name + ".py", destination_name)
     assert not project_files.has_folder(pipeline_name)
-    assert_requests_txt(project_files)
+    assert_requirements_txt(project_files)
     return visitor
 
 
-def assert_requests_txt(project_files: FileStorage) -> None:
+def assert_requirements_txt(project_files: FileStorage) -> None:
     # check requirements
     assert project_files.has_file(cli_utils.REQUIREMENTS_TXT)
     assert "dlt" in project_files.load(cli_utils.REQUIREMENTS_TXT)
+
+
+def assert_index_version_constraint(project_files: FileStorage, source_name: str) -> None:
+    # check dlt version constraint in .sources index for given source matches the one in requirements.txt
+    local_index = files_ops.load_verified_sources_local_index(source_name)
+    index_constraint = local_index["dlt_version_constraint"]
+    assert index_constraint == SourceRequirements.from_string(project_files.load(cli_utils.REQUIREMENTS_TXT)).dlt_version_constraint()
 
 
 def assert_source_files(project_files: FileStorage, source_name: str, destination_name: str, has_source_section: bool = True) -> Tuple[PipelineScriptVisitor, SecretsTomlProvider]:
