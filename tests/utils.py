@@ -29,6 +29,7 @@ TEST_STORAGE_ROOT = "_storage"
 ALL_DESTINATIONS = dlt.config.get("ALL_DESTINATIONS", list) or ["bigquery", "redshift", "postgres", "duckdb", "snowflake"]
 ALL_LOCAL_DESTINATIONS = set(ALL_DESTINATIONS).intersection("postgres", "duckdb")
 
+
 def TEST_DICT_CONFIG_PROVIDER():
     # add test dictionary provider
     providers_context = Container()[ConfigProvidersContext]

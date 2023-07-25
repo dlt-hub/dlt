@@ -12,13 +12,13 @@ from dlt.destinations.job_client_impl import SqlJobClientBase
 
 
 class InsertValuesLoadJob(LoadJob, FollowupJob):
-    def __init__(self, table_name: str, use_staging_table: bool, _should_truncate_destination_table: bool, file_path: str, sql_client: SqlClientBase[Any]) -> None:
+    def __init__(self, table_name: str, use_staging_table: bool, file_path: str, sql_client: SqlClientBase[Any]) -> None:
         super().__init__(FileStorage.get_file_name_from_file_path(file_path))
         self._sql_client = sql_client
         # insert file content immediately
         with self._sql_client.with_staging_dataset(use_staging_table):
             with self._sql_client.begin_transaction():
-                for fragments in self._insert(sql_client.make_qualified_table_name(table_name), _should_truncate_destination_table, file_path):
+                for fragments in self._insert(sql_client.make_qualified_table_name(table_name), file_path):
                     self._sql_client.execute_fragments(fragments)
 
     def state(self) -> TLoadJobState:
@@ -29,7 +29,7 @@ class InsertValuesLoadJob(LoadJob, FollowupJob):
         # this part of code should be never reached
         raise NotImplementedError()
 
-    def _insert(self, qualified_table_name: str, _should_truncate_destination_table: bool, file_path: str) -> Iterator[List[str]]:
+    def _insert(self, qualified_table_name: str, file_path: str) -> Iterator[List[str]]:
         # WARNING: maximum redshift statement is 16MB https://docs.aws.amazon.com/redshift/latest/dg/c_redshift-sql.html
         # the procedure below will split the inserts into max_query_length // 2 packs
         with FileStorage.open_zipsafe_ro(file_path, "r", encoding="utf-8") as f:
@@ -39,8 +39,6 @@ class InsertValuesLoadJob(LoadJob, FollowupJob):
             assert values_mark == "VALUES\n"
 
             insert_sql = []
-            if _should_truncate_destination_table:
-                insert_sql.append("DELETE FROM {};".format(qualified_table_name))
             while content := f.read(self._sql_client.capabilities.max_query_length // 2):
                 # write INSERT
                 insert_sql.extend([header.format(qualified_table_name), values_mark, content])
@@ -93,7 +91,7 @@ class InsertValuesJobClient(SqlJobClientBase):
         if not job:
             # this is using sql_client internally and will raise a right exception
             disposition = table["write_disposition"]
-            job = InsertValuesLoadJob(table["name"], disposition in self.get_stage_dispositions(), self._should_truncate_destination_table(disposition), file_path, self.sql_client)
+            job = InsertValuesLoadJob(table["name"], disposition in self.get_stage_dispositions(), file_path, self.sql_client)
         return job
 
     # TODO: implement indexes and primary keys for postgres

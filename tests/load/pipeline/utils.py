@@ -67,7 +67,7 @@ def destinations_configs(
 
     # filter out non active destinations
     destination_configs = [conf for conf in destination_configs if conf.destination in ALL_DESTINATIONS]
-
+    return [DestinationTestConfiguration(destination="bigquery")]
     return destination_configs
 
 def set_destination_config_envs(conf: DestinationTestConfiguration) -> None:

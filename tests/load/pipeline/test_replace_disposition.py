@@ -57,15 +57,6 @@ def test_replace_disposition(destination_config: DestinationTestConfiguration, r
     # we should have all items loaded
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
 
-    # in the classic truncate and insert replace for now no one knows what will happen, just check that we have
-    # max the items that we expect
-    if replace_strategy == "truncate-and-insert":
-        assert table_counts["items"] <= 120
-        assert table_counts["items__sub_items"] <= 240
-        assert table_counts["items__sub_items__sub_sub_items"] <= 120
-        return
-
-    # in the other strategies we know the result exactly
     assert table_counts["items"] == 120
     assert table_counts["items__sub_items"] == 240
     assert table_counts["items__sub_items__sub_sub_items"] == 120
@@ -98,9 +89,6 @@ def test_replace_disposition(destination_config: DestinationTestConfiguration, r
 @pytest.mark.parametrize("replace_strategy", REPLACE_STRATEGIES)
 def test_replace_table_clearing(destination_config: DestinationTestConfiguration,replace_strategy: str) -> None:
     set_destination_config_envs(destination_config)
-
-    if replace_strategy == "truncate-and-insert":
-        pytest.skip("truncate-and-insert does not clear child tables for now")
 
     # use staging tables for replace
     os.environ['DESTINATION__REPLACE_STRATEGY'] = replace_strategy
@@ -146,21 +134,40 @@ def test_replace_table_clearing(destination_config: DestinationTestConfiguration
         }
         yield None
 
+    # this resource only gets loaded once, and should remain populated regardless of the loads to the other tables
+    @dlt.resource(table_name="static_items", write_disposition="replace", primary_key="id")
+    def static_items():
+        yield {
+            "id": 1,
+            "name": "item",
+            "sub_items": [{
+                "id": 101,
+                "name": "sub item 101"
+            },{
+                "id": 101,
+                "name": "sub item 102"
+            }]
+        }
+
     @dlt.resource(table_name="items", write_disposition="replace", primary_key="id")
     def yield_none():
         yield None
 
     # regular call
-    pipeline.run(items_with_subitems, loader_file_format=destination_config.file_format)
+    pipeline.run([items_with_subitems, static_items], loader_file_format=destination_config.file_format)
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
     assert table_counts["items"] == 1
     assert table_counts["items__sub_items"] == 2
+    assert table_counts["static_items"] == 1
+    assert table_counts["static_items__sub_items"] == 2
 
     # see if child table gets cleared
     pipeline.run(items_without_subitems, loader_file_format=destination_config.file_format)
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
     assert table_counts["items"] == 1
     assert table_counts["items__sub_items"] == 0
+    assert table_counts["static_items"] == 1
+    assert table_counts["static_items__sub_items"] == 2
 
     # see if yield none clears everything
     pipeline.run(items_with_subitems, loader_file_format=destination_config.file_format)
@@ -168,9 +175,13 @@ def test_replace_table_clearing(destination_config: DestinationTestConfiguration
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
     assert table_counts["items"] == 0
     assert table_counts["items__sub_items"] == 0
+    assert table_counts["static_items"] == 1
+    assert table_counts["static_items__sub_items"] == 2
 
     # see if yielding something next to other none entries still goes into db
     pipeline.run(items_with_subitems_yield_none, loader_file_format=destination_config.file_format)
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
     assert table_counts["items"] == 1
     assert table_counts["items__sub_items"] == 2
+    assert table_counts["static_items"] == 1
+    assert table_counts["static_items__sub_items"] == 2

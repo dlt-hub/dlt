@@ -51,7 +51,6 @@ class Load(Runnable[ThreadPool]):
         self.pool: ThreadPool = None
         self.load_storage: LoadStorage = self.create_storage(is_storage_owner)
         self._processed_load_ids: Dict[str, int] = {}
-        self._existing_tables: Set[str] = set()
 
 
     def create_storage(self, is_storage_owner: bool) -> LoadStorage:
@@ -173,7 +172,7 @@ class Load(Runnable[ThreadPool]):
             if any(job.state not in ("failed_jobs", "completed_jobs") and job.job_file_info.job_id() != starting_job_id for job in table_jobs):
                 return None
             table_chain.append(table)
-        # there must be at least 1 job
+        # there must be at least table
         assert len(table_chain) > 0
         return table_chain
 
@@ -250,6 +249,16 @@ class Load(Runnable[ThreadPool]):
         logger.info(f"All jobs completed, archiving package {load_id} with aborted set to {aborted}")
         self._processed_load_ids[load_id] = 1
 
+    def get_table_chain_tables_for_write_disposition(self, load_id: str, schema: Schema, dispositions: List[TWriteDisposition]) -> Set[str]:
+        # get all jobs for tables with given write disposition and resolve the table chain
+        result: Set[str] = set()
+        table_jobs = self.get_new_jobs_info(load_id, schema, dispositions)
+        for job in table_jobs:
+            top_job_table = get_top_level_table(schema.tables, self.get_load_table(schema, job.job_id())["name"])
+            table_chain = get_child_tables(schema.tables, top_job_table["name"])
+            result = result.union({table["name"] for table in table_chain})
+        return result
+
     def load_single_package(self, load_id: str, schema: Schema) -> None:
         # initialize analytical storage ie. create dataset required by passed schema
         job_client: JobClientBase
@@ -258,7 +267,8 @@ class Load(Runnable[ThreadPool]):
             if expected_update is not None:
                 # update the default dataset
                 logger.info(f"Client for {job_client.config.destination_name} will start initialize storage")
-                job_client.initialize_storage()
+                truncate_tables = self.get_table_chain_tables_for_write_disposition(load_id, schema, job_client.get_truncate_destination_table_dispositions())
+                job_client.initialize_storage(truncate_tables=truncate_tables)
                 logger.info(f"Client for {job_client.config.destination_name} will update schema to package schema")
                 all_jobs = self.get_new_jobs_info(load_id, schema)
                 all_tables = set(job.table_name for job in all_jobs)
@@ -267,16 +277,11 @@ class Load(Runnable[ThreadPool]):
                 applied_update = job_client.update_storage_schema(only_tables=all_tables | dlt_tables, expected_update=expected_update)
                 # update the staging dataset if client supports this
                 if isinstance(job_client, StagingJobClientBase):
-                    if staging_table_jobs := self.get_new_jobs_info(load_id, schema, job_client.get_stage_dispositions()):
+                    if staging_tables := self.get_table_chain_tables_for_write_disposition(load_id, schema, job_client.get_stage_dispositions()):
                         with job_client.with_staging_dataset():
                             logger.info(f"Client for {job_client.config.destination_name} will start initialize STAGING storage")
                             job_client.initialize_storage()
                             logger.info(f"Client for {job_client.config.destination_name} will UPDATE STAGING SCHEMA to package schema")
-                            staging_tables: Set[str] = set()
-                            for job in staging_table_jobs:
-                                top_job_table = get_top_level_table(schema.tables, self.get_load_table(schema, job.job_id())["name"])
-                                table_chain = get_child_tables(schema.tables, top_job_table["name"])
-                                staging_tables = staging_tables.union({table["name"] for table in table_chain})
                             job_client.update_storage_schema(only_tables=staging_tables | {VERSION_TABLE_NAME}, expected_update=expected_update)
                             logger.info(f"Client for {job_client.config.destination_name} will TRUNCATE STAGING TABLES: {staging_tables}")
                             job_client.initialize_storage(truncate_tables=staging_tables)

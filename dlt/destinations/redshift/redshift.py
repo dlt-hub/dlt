@@ -85,12 +85,10 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
                  file_path: str,
                  sql_client: SqlClientBase[Any],
                  use_staging_table: bool,
-                 should_truncate_destination_table: bool,
                  staging_credentials: Optional[CredentialsConfiguration] = None,
                  staging_iam_role: str = None) -> None:
         self._staging_iam_role = staging_iam_role
         self._use_staging_table = use_staging_table
-        self._should_truncate_destination_table = should_truncate_destination_table
         super().__init__(table, file_path, sql_client, staging_credentials)
 
     def execute(self, table: TTableSchema, bucket_path: str) -> None:
@@ -128,8 +126,6 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
         with self._sql_client.with_staging_dataset(self._use_staging_table):
             with self._sql_client.begin_transaction():
                 dataset_name = self._sql_client.dataset_name
-                if self._should_truncate_destination_table:
-                    self._sql_client.execute_sql(f"""TRUNCATE TABLE {table_name}""")
                 # TODO: if we ever support csv here remember to add column names to COPY
                 self._sql_client.execute_sql(f"""
                     COPY {dataset_name}.{table_name}
@@ -184,7 +180,7 @@ class RedshiftClient(InsertValuesJobClient):
         """Starts SqlLoadJob for files ending with .sql or returns None to let derived classes to handle their specific jobs"""
         if NewReferenceJob.is_reference_job(file_path):
             disposition = table["write_disposition"]
-            return RedshiftCopyFileLoadJob(table, file_path, self.sql_client, disposition in self.get_stage_dispositions(), self._should_truncate_destination_table(disposition), staging_credentials=self.config.staging_credentials, staging_iam_role=self.config.staging_iam_role)
+            return RedshiftCopyFileLoadJob(table, file_path, self.sql_client, disposition in self.get_stage_dispositions(), staging_credentials=self.config.staging_credentials, staging_iam_role=self.config.staging_iam_role)
         return super().start_file_load(table, file_path, load_id)
 
     @classmethod

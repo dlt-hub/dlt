@@ -52,7 +52,7 @@ SNOW_TO_SCT: Dict[str, TDataType] = {
 
 class SnowflakeLoadJob(LoadJob, FollowupJob):
     def __init__(
-            self, file_path: str, table_name: str, use_staging_table: bool, _should_truncate_destination_table: bool, load_id: str, client: SnowflakeSqlClient,
+            self, file_path: str, table_name: str, use_staging_table: bool, load_id: str, client: SnowflakeSqlClient,
             stage_name: Optional[str] = None, keep_staged_files: bool = True, staging_credentials: Optional[CredentialsConfiguration] = None
     ) -> None:
         file_name = FileStorage.get_file_name_from_file_path(file_path)
@@ -96,8 +96,6 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
                 source_format = "(TYPE = 'PARQUET', BINARY_AS_TEXT = FALSE)"
 
             with client.begin_transaction():
-                if _should_truncate_destination_table:
-                    client.execute_sql(f"TRUNCATE TABLE IF EXISTS {qualified_table_name}")
                 # PUT and COPY in one tx if local file, otherwise only copy
                 if not bucket_path:
                     client.execute_sql(f'PUT file://{file_path} @{stage_name}/"{load_id}" OVERWRITE = TRUE, AUTO_COMPRESS = FALSE')
@@ -155,7 +153,7 @@ class SnowflakeClient(SqlJobClientBase):
         if not job:
             disposition = table['write_disposition']
             job = SnowflakeLoadJob(
-                file_path, table['name'], disposition in self.get_stage_dispositions(), self._should_truncate_destination_table(disposition), load_id, self.sql_client,
+                file_path, table['name'], disposition in self.get_stage_dispositions(), load_id, self.sql_client,
                 stage_name=self.config.stage_name, keep_staged_files=self.config.keep_staged_files,
                 staging_credentials=self.config.staging_credentials
             )
