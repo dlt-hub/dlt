@@ -181,7 +181,7 @@ class JobClientBase(ABC):
         pass
 
     def get_truncate_destination_table_dispositions(self) -> List[TWriteDisposition]:
-        return []
+        return ["replace"]
 
     @abstractmethod
     def create_table_chain_completed_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
