@@ -191,7 +191,9 @@ def init_command(source_name: str, destination_name: str, use_generic_template: 
         # get pipeline files
         source_files = files_ops.get_verified_source_files(sources_storage, source_name)
         # get file index from remote verified source files being copied
-        remote_index = files_ops.get_remote_source_index(source_files.storage.storage_path, source_files.files)
+        remote_index = files_ops.get_remote_source_index(
+            source_files.storage.storage_path, source_files.files, source_files.requirements.dlt_version_constraint()
+        )
         # diff local and remote index to get modified and deleted files
         remote_new, remote_modified, remote_deleted = files_ops.gen_index_diff(local_index, remote_index)
         # find files that are modified locally

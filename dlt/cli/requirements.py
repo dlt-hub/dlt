@@ -37,6 +37,9 @@ class SourceRequirements:
     def current_dlt_version(self) -> str:
         return pkg_version(DLT_PKG_NAME)
 
+    def dlt_version_constraint(self) -> str:
+        return str(self.dlt_requirement.specifier)
+
     def installed_dlt_is_compatible(self) -> bool:
         """Check whether currently installed version is compatible with dlt requirement
 

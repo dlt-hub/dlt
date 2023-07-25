@@ -184,7 +184,7 @@ def test_init_code_update_index_diff(repo_dir: str, project_files: FileStorage) 
     sources_storage.delete(del_file_path)
 
     source_files = files_ops.get_verified_source_files(sources_storage, "pipedrive")
-    remote_index = files_ops.get_remote_source_index(sources_storage.storage_path, source_files.files)
+    remote_index = files_ops.get_remote_source_index(sources_storage.storage_path, source_files.files, ">=0.3.5")
     assert mod_file_path in remote_index["files"]
     assert remote_index["is_dirty"] is True
     assert remote_index["files"][mod_file_path]["sha3_256"] == new_content_hash
@@ -226,7 +226,7 @@ def test_init_code_update_index_diff(repo_dir: str, project_files: FileStorage) 
     sources_storage.save(mod_file_path_2, local_content)
     local_index = files_ops.load_verified_sources_local_index("pipedrive")
     source_files = files_ops.get_verified_source_files(sources_storage, "pipedrive")
-    remote_index = files_ops.get_remote_source_index(sources_storage.storage_path, source_files.files)
+    remote_index = files_ops.get_remote_source_index(sources_storage.storage_path, source_files.files, ">=0.3.5")
     new, modified, deleted = files_ops.gen_index_diff(local_index, remote_index)
     assert mod_file_path_2 in new
     conflict_modified, conflict_deleted = files_ops.find_conflict_files(local_index, new, modified, deleted, project_files)
@@ -259,7 +259,7 @@ def test_init_code_update_index_diff(repo_dir: str, project_files: FileStorage) 
     sources_storage.save(mod_file_path, local_content)
     project_files.delete(del_file_path)
     source_files = files_ops.get_verified_source_files(sources_storage, "pipedrive")
-    remote_index = files_ops.get_remote_source_index(sources_storage.storage_path, source_files.files)
+    remote_index = files_ops.get_remote_source_index(sources_storage.storage_path, source_files.files, ">=0.3.5")
     new, modified, deleted = files_ops.gen_index_diff(local_index, remote_index)
     conflict_modified, conflict_deleted = files_ops.find_conflict_files(local_index, new, modified, deleted, project_files)
     assert conflict_modified == []
@@ -268,7 +268,7 @@ def test_init_code_update_index_diff(repo_dir: str, project_files: FileStorage) 
     # generate a conflict by deleting file locally that is modified on remote
     project_files.delete(mod_file_path)
     source_files = files_ops.get_verified_source_files(sources_storage, "pipedrive")
-    remote_index = files_ops.get_remote_source_index(sources_storage.storage_path, source_files.files)
+    remote_index = files_ops.get_remote_source_index(sources_storage.storage_path, source_files.files, ">=0.3.5")
     new, modified, deleted = files_ops.gen_index_diff(local_index, remote_index)
     conflict_modified, conflict_deleted = files_ops.find_conflict_files(local_index, new, modified, deleted, project_files)
     assert conflict_modified == [mod_file_path]
