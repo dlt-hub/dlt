@@ -231,11 +231,12 @@ def init_command(source_name: str, destination_name: str, use_generic_template: 
 
     # Check compatibility with installed dlt
     if not source_files.requirements.installed_dlt_is_compatible():
-        # TODO: Prompt to install/continue
-        raise CliCommandException("init", (
-            "Your installed dlt version is not compatible with this pipeline. "
-            f'Run `pip install "{source_files.requirements.dlt_requirement}" to install the correct version.'
-        ))
+        msg = f"This pipeline requires a newer version of dlt than your installed version ({source_files.requirements.current_dlt_version()}). " \
+            f"Pipeline requires '{source_files.requirements.dlt_requirement_base}'"
+        fmt.warning(msg)
+        if not fmt.confirm("Would you like to continue anyway? (you can update dlt after this step)"):
+            fmt.echo(f'You can update dlt with: pip3 install -U "{source_files.requirements.dlt_requirement_base}"')
+            return
 
     # read module source and parse it
     visitor = utils.parse_init_script("init", source_files.storage.load(source_files.pipeline_script), source_files.pipeline_script)
