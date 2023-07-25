@@ -7,6 +7,10 @@ from subprocess import CalledProcessError
 from typing import Any, List, Tuple
 from hexbytes import HexBytes
 import pytest
+from unittest import mock
+import re
+from packaging.requirements import Requirement
+
 
 import dlt
 
@@ -22,6 +26,7 @@ from dlt.common.utils import set_working_dir
 from dlt.cli import init_command, echo
 from dlt.cli.init_command import SOURCES_MODULE_NAME, utils as cli_utils, files_ops, _select_source_files
 from dlt.cli.exceptions import CliCommandException
+from dlt.cli.requirements import SourceRequirements
 from dlt.reflection.script_visitor import PipelineScriptVisitor
 from dlt.reflection import names as n
 
@@ -98,6 +103,25 @@ def test_init_list_verified_pipelines(repo_dir: str, project_files: FileStorage)
         assert sources[k_p].doc
     # run the command
     init_command.list_verified_sources_command(repo_dir)
+
+
+def test_init_list_verified_pipelines_update_warning(repo_dir: str, project_files: FileStorage) -> None:
+    """Sources listed include a warning if a different dlt version is required"""
+    with mock.patch.object(SourceRequirements, "current_dlt_version", return_value="0.0.1"):
+        with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+            init_command.list_verified_sources_command(repo_dir)
+            _out = buf.getvalue()
+
+    # Check one listed source
+    fb_line = [line for line in _out.splitlines() if line.startswith("facebook_ads")][0]
+
+    pat = re.compile(r"^facebook_ads:.+\[needs update: (dlt.+)\]$")
+    match = pat.match(fb_line)
+
+    assert match
+    # Try parsing the printed requiremnt string to verify it's valid
+    parsed_requirement = Requirement(match.group(1))
+    assert '0.0.1' not in parsed_requirement.specifier
 
 
 def test_init_all_verified_sources_together(repo_dir: str, project_files: FileStorage) -> None:
@@ -383,6 +407,15 @@ def test_pipeline_template_sources_in_single_file(repo_dir: str, project_files: 
     with pytest.raises(CliCommandException) as cli_ex:
         init_command.init_command("generic_pipeline", "redshift", True, repo_dir)
     assert "In init scripts you must declare all sources and resources in single file." in str(cli_ex.value)
+
+
+def test_incompatible_dlt_version_warning(repo_dir: str, project_files: FileStorage) -> None:
+    with mock.patch.object(SourceRequirements, "current_dlt_version", return_value="0.1.1"):
+        with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+            init_command.init_command("facebook_ads", "bigquery", False, repo_dir)
+            _out = buf.getvalue()
+
+    assert "WARNING: This pipeline requires a newer version of dlt than your installed version (0.1.1)." in _out
 
 
 def assert_init_files(project_files: FileStorage, pipeline_name: str, destination_name: str) -> PipelineScriptVisitor:

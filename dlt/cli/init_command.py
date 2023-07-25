@@ -239,7 +239,7 @@ def init_command(source_name: str, destination_name: str, use_generic_template: 
         msg = f"This pipeline requires a newer version of dlt than your installed version ({source_files.requirements.current_dlt_version()}). " \
             f"Pipeline requires '{source_files.requirements.dlt_requirement_base}'"
         fmt.warning(msg)
-        if not fmt.confirm("Would you like to continue anyway? (you can update dlt after this step)"):
+        if not fmt.confirm("Would you like to continue anyway? (you can update dlt after this step)", default=True):
             fmt.echo(f'You can update dlt with: pip3 install -U "{source_files.requirements.dlt_requirement_base}"')
             return
 
