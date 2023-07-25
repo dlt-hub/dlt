@@ -183,7 +183,7 @@ def get_verified_source_files(sources_storage: FileStorage, source_name: str) ->
     # read requirements
     requirements_path = os.path.join(source_name, utils.REQUIREMENTS_TXT)
     if sources_storage.has_file(requirements_path):
-        requirements = SourceRequirements(sources_storage.load(requirements_path).splitlines())
+        requirements = SourceRequirements.from_string(sources_storage.load(requirements_path))
     else:
         requirements = SourceRequirements([])
     # find requirements
