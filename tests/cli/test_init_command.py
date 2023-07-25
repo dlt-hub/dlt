@@ -4,7 +4,7 @@ import hashlib
 import os
 import contextlib
 from subprocess import CalledProcessError
-from typing import Any, List, Tuple
+from typing import Any, List, Tuple, Optional
 from hexbytes import HexBytes
 import pytest
 from unittest import mock
@@ -66,7 +66,7 @@ def test_init_command_new_pipeline_same_name(repo_dir: str, project_files: FileS
 def test_init_command_chess_verified_source(repo_dir: str, project_files: FileStorage) -> None:
     init_command.init_command("chess", "duckdb", False, repo_dir)
     assert_source_files(project_files, "chess", "duckdb", has_source_section=True)
-    assert_requirements_txt(project_files)
+    assert_requirements_txt(project_files, "duckdb")
     # check files hashes
     local_index = files_ops.load_verified_sources_local_index("chess")
     # chess has one file
@@ -146,11 +146,11 @@ def test_init_all_verified_sources_together(repo_dir: str, project_files: FileSt
 
     # create pipeline template on top
     init_command.init_command("debug_pipeline", "postgres", False, repo_dir)
-    assert_init_files(project_files, "debug_pipeline", "postgres")
+    assert_init_files(project_files, "debug_pipeline", "postgres", "bigquery")
     # clear the resources otherwise sources not belonging to generic_pipeline will be found
     _SOURCES.clear()
     init_command.init_command("generic_pipeline", "redshift", True, repo_dir)
-    assert_init_files(project_files, "generic_pipeline", "redshift")
+    assert_init_files(project_files, "generic_pipeline", "redshift", "bigquery")
 
 
 def test_init_all_verified_sources_isolated(cloned_init_repo: FileStorage) -> None:
@@ -162,7 +162,7 @@ def test_init_all_verified_sources_isolated(cloned_init_repo: FileStorage) -> No
         with set_working_dir(files.storage_path):
             init_command.init_command(candidate, "bigquery", False, repo_dir)
             assert_source_files(files, candidate, "bigquery")
-            assert_requirements_txt(files)
+            assert_requirements_txt(files, "bigquery")
             assert_index_version_constraint(files, candidate)
 
 
@@ -423,17 +423,24 @@ def test_incompatible_dlt_version_warning(repo_dir: str, project_files: FileStor
     assert "WARNING: This pipeline requires a newer version of dlt than your installed version (0.1.1)." in _out
 
 
-def assert_init_files(project_files: FileStorage, pipeline_name: str, destination_name: str) -> PipelineScriptVisitor:
+def assert_init_files(
+        project_files: FileStorage, pipeline_name: str, destination_name: str, dependency_destination: Optional[str] = None
+) -> PipelineScriptVisitor:
     visitor, _ = assert_common_files(project_files, pipeline_name + ".py", destination_name)
     assert not project_files.has_folder(pipeline_name)
-    assert_requirements_txt(project_files)
+    assert_requirements_txt(project_files, dependency_destination or destination_name)
     return visitor
 
 
-def assert_requirements_txt(project_files: FileStorage) -> None:
+def assert_requirements_txt(project_files: FileStorage, destination_name: str) -> None:
     # check requirements
     assert project_files.has_file(cli_utils.REQUIREMENTS_TXT)
     assert "dlt" in project_files.load(cli_utils.REQUIREMENTS_TXT)
+    # dlt dependency specifies destination_name as extra
+    source_requirements = SourceRequirements.from_string(project_files.load(cli_utils.REQUIREMENTS_TXT))
+    assert destination_name in source_requirements.dlt_requirement.extras
+    # Check that atleast some version range is specified
+    assert len(source_requirements.dlt_requirement.specifier) >= 1
 
 
 def assert_index_version_constraint(project_files: FileStorage, source_name: str) -> None:
