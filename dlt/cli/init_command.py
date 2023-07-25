@@ -26,6 +26,7 @@ from dlt.cli import utils
 from dlt.cli.config_toml_writer import WritableConfigValue, write_values
 from dlt.cli.pipeline_files import VerifiedSourceFiles, TVerifiedSourceFileEntry, TVerifiedSourceFileIndex
 from dlt.cli.exceptions import CliCommandException
+from dlt.cli.requirements import SourceRequirements
 
 DLT_INIT_DOCS_URL = "https://dlthub.com/docs/reference/command-line-interface#dlt-init"
 DEFAULT_VERIFIED_SOURCES_REPO = "https://github.com/dlt-hub/verified-sources.git"
@@ -126,12 +127,13 @@ def _welcome_message(source_name: str, destination_name: str, source_files: Veri
 
     if dependency_system:
         fmt.echo("* Add the required dependencies to %s:" % fmt.bold(dependency_system))
-        for dep in source_files.requirements:
+        compiled_requirements = source_files.requirements.compiled()
+        for dep in compiled_requirements:
             fmt.echo("  " + fmt.bold(dep))
         fmt.echo("  If the dlt dependency is already added, make sure you install the extra for %s to it" % fmt.bold(destination_name))
         if dependency_system == utils.REQUIREMENTS_TXT:
             qs = "' '"
-            fmt.echo("  To install with pip: %s" % fmt.bold(f"pip3 install '{qs.join(source_files.requirements)}'"))
+            fmt.echo("  To install with pip: %s" % fmt.bold(f"pip3 install '{qs.join(compiled_requirements)}'"))
         elif dependency_system == utils.PYPROJECT_TOML:
             fmt.echo("  If you are using poetry you may issue the following command:")
             fmt.echo(fmt.bold("  poetry add %s -E %s" % (DLT_PKG_NAME, destination_name)))
@@ -216,7 +218,7 @@ def init_command(source_name: str, destination_name: str, use_generic_template: 
         if norm_source_name != source_name:
             raise InvalidSchemaName(source_name, norm_source_name)
         dest_pipeline_script = norm_source_name + ".py"
-        source_files = VerifiedSourceFiles(True, init_storage, pipeline_script, dest_pipeline_script, template_files, [], "")
+        source_files = VerifiedSourceFiles(True, init_storage, pipeline_script, dest_pipeline_script, template_files, SourceRequirements([]), "")
         if dest_storage.has_file(dest_pipeline_script):
             fmt.warning("Pipeline script %s already exist, exiting" % dest_pipeline_script)
             return
@@ -225,9 +227,15 @@ def init_command(source_name: str, destination_name: str, use_generic_template: 
     source_files.files.extend([make_dlt_settings_path(CONFIG_TOML), make_dlt_settings_path(SECRETS_TOML)])
 
     # add dlt extras line to requirements
-    req_dep = f"{DLT_PKG_NAME}[{destination_name}]"
-    req_dep_line = f"{req_dep}>={pkg_version(DLT_PKG_NAME)}"
-    source_files.requirements.insert(0, req_dep_line)
+    source_files.requirements.update_dlt_extras(destination_name)
+
+    # Check compatibility with installed dlt
+    if not source_files.requirements.installed_dlt_is_compatible():
+        # TODO: Prompt to install/continue
+        raise CliCommandException("init", (
+            "Your installed dlt version is not compatible with this pipeline. "
+            f'Run `pip install "{source_files.requirements.dlt_requirement}" to install the correct version.'
+        ))
 
     # read module source and parse it
     visitor = utils.parse_init_script("init", source_files.storage.load(source_files.pipeline_script), source_files.pipeline_script)
@@ -344,5 +352,5 @@ def init_command(source_name: str, destination_name: str, use_generic_template: 
 
     # if there's no dependency system write the requirements file
     if dependency_system is None:
-        requirements_txt = "\n".join(source_files.requirements)
+        requirements_txt = "\n".join(source_files.requirements.compiled())
         dest_storage.save(utils.REQUIREMENTS_TXT, requirements_txt)

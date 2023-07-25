@@ -14,6 +14,7 @@ from dlt.common.storages import FileStorage
 from dlt.common.reflection.utils import get_module_docstring
 
 from dlt.cli import utils
+from dlt.cli.requirements import SourceRequirements
 
 
 SOURCES_INIT_INFO_ENGINE_VERSION = 1
@@ -28,7 +29,7 @@ class VerifiedSourceFiles(NamedTuple):
     pipeline_script: str
     dest_pipeline_script: str
     files: List[str]
-    requirements: List[str]
+    requirements: SourceRequirements
     doc: str
 
 
@@ -178,9 +179,9 @@ def get_verified_source_files(sources_storage: FileStorage, source_name: str) ->
     # read requirements
     requirements_path = os.path.join(source_name, utils.REQUIREMENTS_TXT)
     if sources_storage.has_file(requirements_path):
-        requirements = sources_storage.load(requirements_path).splitlines()
+        requirements = SourceRequirements(sources_storage.load(requirements_path).splitlines())
     else:
-        requirements = []
+        requirements = SourceRequirements([])
     # find requirements
     return VerifiedSourceFiles(False, sources_storage, example_script, example_script, files, requirements, docstring)
 
