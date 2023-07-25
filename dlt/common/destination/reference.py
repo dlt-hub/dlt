@@ -181,6 +181,7 @@ class JobClientBase(ABC):
         pass
 
     def get_truncate_destination_table_dispositions(self) -> List[TWriteDisposition]:
+        # in the base job, all replace strategies are treated the same, see filesystem for example
         return ["replace"]
 
     @abstractmethod

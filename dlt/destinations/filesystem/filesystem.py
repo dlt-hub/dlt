@@ -38,31 +38,7 @@ class LoadFilesystemJob(LoadJob):
 
         super().__init__(file_name)
         fs_client, _ = client_from_config(config)
-
-        # fallback to replace for merge without any merge keys
-        if write_disposition == 'merge':
-            write_disposition = 'append' if has_merge_keys else 'replace'
-
-        # replace existing files. also check if dir exists for bucket storages that cannot create dirs
-        if write_disposition == 'replace' and fs_client.isdir(dataset_path):
-            job_info = LoadStorage.parse_job_file_name(file_name)
-            # remove those files
-            search_prefix = posixpath.join(dataset_path, f"{schema_name}.{job_info.table_name}.")
-            # but leave actual load id - files may be loaded from other threads
-            ignore_prefix = posixpath.join(dataset_path, f"{schema_name}.{job_info.table_name}.{load_id}.")
-            # NOTE: glob implementation in fsspec does not look thread safe, way better is to use ls and then filter
-            all_files: List[str] = fs_client.ls(dataset_path, detail=False, refresh=True)
-            items = [item for item in all_files if item.startswith(search_prefix) and not item.startswith(ignore_prefix)]
-            # NOTE: deleting in chunks on s3 does not raise on access denied, file non existing and probably other errors
-            # if items:
-            #     fs_client.rm(items[0])
-            for item in items:
-                # ignore file not found as we can have races from other deleting threads
-                try:
-                    fs_client.rm_file(item)
-                except FileNotFoundError:
-                    pass
-
+        self.destination_file_name = LoadFilesystemJob.make_destination_filename(file_name, schema_name, load_id)
         fs_client.put_file(local_path, self.make_remote_path())
 
     @staticmethod
@@ -106,6 +82,16 @@ class FilesystemClient(JobClientBase):
         return posixpath.join(self.fs_path, self.config.dataset_name)
 
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
+        # clean up existing files for tables selected for truncating
+        if truncate_tables and self.fs_client.isdir(self.dataset_path):
+            all_files = self.fs_client.ls(self.dataset_path, detail=False, refresh=True)
+            for table in truncate_tables:
+                search_prefix = posixpath.join(self.dataset_path, f"{self.schema.name}.{table}.")
+                for item in all_files:
+                    if item.startswith(search_prefix):
+                        self.fs_client.rm_file(item)
+
+        # create destination dir
         self.fs_client.makedirs(self.dataset_path, exist_ok=True)
 
     def is_storage_initialized(self) -> bool:
