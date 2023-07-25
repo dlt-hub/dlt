@@ -150,7 +150,12 @@ def _welcome_message(source_name: str, destination_name: str, source_files: Veri
 def list_verified_sources_command(repo_location: str, branch: str = None) -> None:
     fmt.echo("Looking up for verified sources in %s..." % fmt.bold(repo_location))
     for source_name, source_files in _list_verified_sources(repo_location, branch).items():
-        fmt.echo("%s: %s" % (fmt.bold(source_name), source_files.doc))
+        reqs = source_files.requirements
+        dlt_req_string = str(reqs.dlt_requirement_base)
+        msg = "%s: %s" % (fmt.bold(source_name), source_files.doc)
+        if not reqs.installed_dlt_is_compatible():
+            msg += fmt.warning_style(" [needs update: %s]" % (dlt_req_string))
+        fmt.echo(msg)
 
 
 def init_command(source_name: str, destination_name: str, use_generic_template: bool, repo_location: str, branch: str = None) -> None:
