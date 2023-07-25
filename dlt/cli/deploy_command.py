@@ -185,9 +185,8 @@ class AirflowDeployment(BaseDeployment):
         self.artifacts["dag_file"] = dag_file
 
         # ask user if to overwrite the files
-        dest_cloud_build = os.path.join(utils.AIRFLOW_BUILD_FOLDER, AIRFLOW_CLOUDBUILD_YAML)
         dest_dag_script = os.path.join(utils.AIRFLOW_DAGS_FOLDER, dag_script_name)
-        ask_files_overwrite([dest_cloud_build, dest_dag_script])
+        ask_files_overwrite([dest_dag_script])
 
     def _make_modification(self) -> None:
         if not self.repo_storage.has_folder(utils.AIRFLOW_DAGS_FOLDER):
@@ -196,9 +195,12 @@ class AirflowDeployment(BaseDeployment):
         if not self.repo_storage.has_folder(utils.AIRFLOW_BUILD_FOLDER):
             self.repo_storage.create_folder(utils.AIRFLOW_BUILD_FOLDER)
 
-        self.repo_storage.save(
-            os.path.join(utils.AIRFLOW_BUILD_FOLDER, AIRFLOW_CLOUDBUILD_YAML),
-            self.artifacts["cloudbuild_file"]
+        # save cloudbuild.yaml only if not exist to allow to run the deploy command for many different pipelines
+        dest_cloud_build = os.path.join(utils.AIRFLOW_BUILD_FOLDER, AIRFLOW_CLOUDBUILD_YAML)
+        if not os.path.exists(dest_cloud_build):
+            self.repo_storage.save(
+                dest_cloud_build,
+                self.artifacts["cloudbuild_file"]
         )
         self.repo_storage.save(
             os.path.join(utils.AIRFLOW_DAGS_FOLDER, self.artifacts["dag_script_name"]),

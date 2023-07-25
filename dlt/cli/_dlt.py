@@ -205,7 +205,7 @@ def main() -> int:
 
     # deploy airflow composer
     deploy_airflow_cmd = deploy_sub_parsers.add_parser(DeploymentMethods.airflow_composer.value, help="Deploys the pipeline to Airflow")
-    deploy_airflow_cmd.add_argument("--secrets-format", default=SecretFormats.env, choices=[v.value for v in SecretFormats], required=False, help="Format of the secrets")
+    deploy_airflow_cmd.add_argument("--secrets-format", default=SecretFormats.toml.value, choices=[v.value for v in SecretFormats], required=False, help="Format of the secrets")
 
     schema = subparsers.add_parser("schema", help="Shows, converts and upgrades schemas")
     schema.add_argument("file", help="Schema file name, in yaml or json format, will autodetect based on extension")

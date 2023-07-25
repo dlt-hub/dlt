@@ -63,14 +63,10 @@ By default, the `dlt deploy` command shows you the deployment credentials in ENV
 ## Example with the pipedrive pipeline
 
 ### 1. Run the deploy command
-
 ```bash
 dlt deploy pipedrive_pipeline.py airflow-composer
 ```
-
-On the command line, when you execute the `deploy` command, you will receive a brief instruction and
-the output of environment variables. These variables will be necessary for setting up the Airflow
-environment.
+where `pipedrive_pipeline.py` is the pipeline script that you just ran and `airflow-composer` is a deployment method. The command will create deployment files and provide instructions to set up the credentials.
 
 ```toml
 Your airflow-composer deployment for pipeline pipedrive is ready!
@@ -86,6 +82,20 @@ If you are planning run the pipeline with Google Cloud Composer, follow the next
 
 1. Read this doc and set up the Environment: https://dlthub.com/docs/running-in-production/orchestrators/airflow-gcp-cloud-composer
 2. Set _BUCKET_NAME up in build/cloudbuild.yaml file.
+3. Add the following toml-string to the Airflow UI as the dlt_secrets_toml variable.
+
+[sources.pipedrive]
+pipedrive_api_key = "c66..."
+```
+
+> 💡 `deploy` command will use [Airflow variable](#4-add-credentials) called `dlt_secrets_toml` to store all the required secrets as `toml` fragment. You can also use **environment variables** by passing `--secrets-format env` option:
+
+```bash
+dlt deploy pipedrive_pipeline.py airflow-composer --secrets-format env
+```
+which will output the environment variable names and their values.
+
+```toml
 3. Add the following secret values (typically stored in ./.dlt/secrets.toml):
 SOURCES__PIPEDRIVE__PIPEDRIVE_API_KEY
 
@@ -95,24 +105,6 @@ Name:
 SOURCES__PIPEDRIVE__PIPEDRIVE_API_KEY
 Secret:
 c66c..
-```
-
-**Note**: The `deploy` command for airflow-composer now includes a *secrets-format* option. It
-allows to pass the secrets in a single Airflow Variable as explained later.
-
-Run the command `deploy` with the key `--secrets-format toml`:
-
-```bash
-dlt deploy pipedrive_pipeline.py airflow-composer --secrets-format toml
-```
-
-which will result in a env output of the following if env or secrets are present:
-
-```toml
-3. Add the following toml-string to the Airflow UI as the dlt_secrets_toml variable.
-
-[sources.pipedrive]
-pipedrive_api_key = "c66..."
 ```
 
 ### 2. Modify DAG file
@@ -353,8 +345,24 @@ load_pipedrive_data()
 
 ### 4. Add credentials
 
-In this example, we will add our credential to Airflow environment using Google Composer UI in two
-ways:
+There are two ways to pass the credentials
+
+1. in the `dlt_secrets_toml` Airflow variable.
+
+   - During the execution of the `deploy` command with `--secrets-format toml`, secret variables
+     will be displayed in the output:
+
+     ```toml
+     3. Add the following toml-string to the Airflow UI as the dlt_secrets_toml variable.
+
+     [sources.pipedrive]
+     pipedrive_api_key = "c66c..."
+     ```
+
+   - Launch the Airflow UI, head to **Admin** top level menu and select **Variables**
+   - Add a new variable with a name `dlt_secrets_toml`
+   - Paste the `toml` fragment displayed by the `deploy` command.
+   - 💡 the content of this variable will be used by `dlt` Airflow helper instead of local `secrets.toml` which you are familiar with. If your local secrets file contains anything else you want to access on Airflow, you are good to just copy the local `secrets.toml` content to `dlt_secrets_toml` variable.
 
 1. as ENVIRONMENT VARIABLES.
 
@@ -377,21 +385,6 @@ ways:
      pick it up.
 
      ![add-credential](images/add-credential.png)
-
-1. as the `dlt_secrets_toml` variable.
-
-   - During the execution of the `deploy` command with `--secrets-format toml`, secret variables
-     will be displayed in the output:
-
-     ```toml
-     3. Add the following toml-string to the Airflow UI as the dlt_secrets_toml variable.
-
-     [sources.pipedrive]
-     pipedrive_api_key = "c66c..."
-     ```
-
-   - Copy toml secrets and add it into airflow’s env variables as `dlt_secrets_toml`, save it. Now,
-     `dlt` can pick it up.
 
 Read more about credentials for Airflow [here](airflow-gcp-cloud-composer.md#adding-credentials).
 
