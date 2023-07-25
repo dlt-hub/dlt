@@ -95,9 +95,9 @@ def test_replace_table_clearing(destination_config: DestinationTestConfiguration
 
     pipeline = dlt.pipeline(pipeline_name='test_replace_table_clearing', destination=destination_config.destination, staging=destination_config.staging, dataset_name='test_replace_table_clearing', full_refresh=True)
 
-    @dlt.resource(table_name="items", write_disposition="replace", primary_key="id")
+    @dlt.resource(write_disposition="replace", primary_key="id")
     def items_with_subitems():
-        yield {
+        data = {
             "id": 1,
             "name": "item",
             "sub_items": [{
@@ -108,20 +108,24 @@ def test_replace_table_clearing(destination_config: DestinationTestConfiguration
                 "name": "sub item 102"
             }]
         }
+        yield dlt.mark.with_table_name(data, "items")
+        yield dlt.mark.with_table_name(data, "other_items")
 
-    @dlt.resource(table_name="items", write_disposition="replace", primary_key="id")
+    @dlt.resource(write_disposition="replace", primary_key="id")
     def items_without_subitems():
-        yield {
+        data = [{
             "id": 1,
             "name": "item",
             "sub_items": []
-        }
+        }]
+        yield dlt.mark.with_table_name(data, "items")
+        yield dlt.mark.with_table_name(data, "other_items")
 
     @dlt.resource(table_name="items", write_disposition="replace", primary_key="id")
     def items_with_subitems_yield_none():
         yield None
         yield None
-        yield {
+        data = [{
             "id": 1,
             "name": "item",
             "sub_items": [{
@@ -131,7 +135,9 @@ def test_replace_table_clearing(destination_config: DestinationTestConfiguration
                 "id": 101,
                 "name": "sub item 102"
             }]
-        }
+        }]
+        yield dlt.mark.with_table_name(data, "items")
+        yield dlt.mark.with_table_name(data, "other_items")
         yield None
 
     # this resource only gets loaded once, and should remain populated regardless of the loads to the other tables
@@ -149,15 +155,18 @@ def test_replace_table_clearing(destination_config: DestinationTestConfiguration
             }]
         }
 
-    @dlt.resource(table_name="items", write_disposition="replace", primary_key="id")
+    @dlt.resource(write_disposition="replace", primary_key="id")
     def yield_none():
-        yield None
+        yield dlt.mark.with_table_name(None, "items")
+        yield dlt.mark.with_table_name(None, "other_items")
 
     # regular call
     pipeline.run([items_with_subitems, static_items], loader_file_format=destination_config.file_format)
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
     assert table_counts["items"] == 1
     assert table_counts["items__sub_items"] == 2
+    assert table_counts["other_items"] == 1
+    assert table_counts["other_items__sub_items"] == 2
     assert table_counts["static_items"] == 1
     assert table_counts["static_items__sub_items"] == 2
 
@@ -166,6 +175,8 @@ def test_replace_table_clearing(destination_config: DestinationTestConfiguration
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
     assert table_counts["items"] == 1
     assert table_counts["items__sub_items"] == 0
+    assert table_counts["other_items"] == 1
+    assert table_counts["other_items__sub_items"] == 0
     assert table_counts["static_items"] == 1
     assert table_counts["static_items__sub_items"] == 2
 
@@ -175,6 +186,8 @@ def test_replace_table_clearing(destination_config: DestinationTestConfiguration
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
     assert table_counts["items"] == 0
     assert table_counts["items__sub_items"] == 0
+    assert table_counts["other_items"] == 0
+    assert table_counts["other_items__sub_items"] == 0
     assert table_counts["static_items"] == 1
     assert table_counts["static_items__sub_items"] == 2
 
@@ -183,5 +196,7 @@ def test_replace_table_clearing(destination_config: DestinationTestConfiguration
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
     assert table_counts["items"] == 1
     assert table_counts["items__sub_items"] == 2
+    assert table_counts["other_items"] == 1
+    assert table_counts["other_items__sub_items"] == 2
     assert table_counts["static_items"] == 1
     assert table_counts["static_items__sub_items"] == 2
