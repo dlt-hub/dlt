@@ -40,18 +40,16 @@ replace_strategy = "staging-optimized"
 ### The `truncate-and-insert` strategy
 
 The `truncate-and-insert` replace strategy is the default and the fastest of all three strategies. If you load data with this setting, then the
-destination tables will be truncated and the new data will be inserted. The downside of this strategy is, that there is no transaction safety
-that ensures that parent tables and child tables will be in a consistent state if your pipeline run fails at some point during the loading. You
-may end up with new data in the main table and stale data in the its child tables. Furthermore on large loads, there is a possibility that not
-all data present in the resource will actually end up in the destination table, as `dlt` chunks data into predefined (and configurable) filesizes
-before loading into the destination, and there is no mechnism to ensure that chunked data will be appended back together. If you have large loads
-or consistently failing pipeline runs, it is better to choose one of the other two strategies. This strategy behaves the same way across all
-destinations.
+destination tables will be truncated at the beginning of the load and the new data will be inserted consecutively but not within the same transaction. 
+The downside of this strategy is, that your tables will have no data for a while until the load is completed. You
+may end up with new data in some tables and no data in other tables if the load fails during the run. 
+If you prefer to have no data downtime, please use one of the other strategies.
 
 ### The `insert-from-staging` strategy
 
-The `insert-from-staging` is the slowest of all three strategies. It will load all new data into staging tables away from your final destination tables and will then truncate and insert the new data in one transaction. It also maintains a consistent state between child and parent tables.
-Use this strategy if you have large loads or the requirement for consistent destination datasets with zero downtime and the `optimized` strategy does not work for you. This strategy behaves the same way across all destinations.
+The `insert-from-staging` is the slowest of all three strategies. It will load all new data into staging tables away from your final destination tables and will then truncate and insert the new data in one transaction. 
+It also maintains a consistent state between child and parent tables at all times. Use this strategy if you have the requirement for consistent destination datasets with zero downtime and the `optimized` strategy does not work for you. 
+This strategy behaves the same way across all destinations.
 
 ### The `staging-optimized` strategy
 
