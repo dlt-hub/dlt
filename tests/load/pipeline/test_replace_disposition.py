@@ -2,23 +2,22 @@ import dlt, os, pytest
 from typing import Any, Dict
 
 from tests.pipeline.utils import  assert_load_info
-from tests.load.pipeline.utils import  load_table_counts
+from tests.load.pipeline.utils import  load_table_counts, load_tables_to_dicts
 from tests.utils import ALL_DESTINATIONS
-from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration, set_destination_config_envs
+from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
 
 REPLACE_STRATEGIES = ["truncate-and-insert", "insert-from-staging", "staging-optimized"]
 
-@pytest.mark.parametrize("destination_config", destinations_configs(default_staging_configs=True, default_non_staging_configs=True), ids=lambda x: x.name)
+@pytest.mark.parametrize("destination_config", destinations_configs(local_filesystem_configs=True, default_staging_configs=True, default_non_staging_configs=True), ids=lambda x: x.name)
 @pytest.mark.parametrize("replace_strategy", REPLACE_STRATEGIES)
 def test_replace_disposition(destination_config: DestinationTestConfiguration, replace_strategy: str) -> None:
-    set_destination_config_envs(destination_config)
 
     # only allow 40 items per file
     os.environ['DATA_WRITER__FILE_MAX_ITEMS'] = "40"
     # use staging tables for replace
     os.environ['DESTINATION__REPLACE_STRATEGY'] = replace_strategy
 
-    pipeline = dlt.pipeline(pipeline_name='test_replace_strategies', destination=destination_config.destination, staging=destination_config.staging, dataset_name='test_replace_strategies', full_refresh=True)
+    pipeline = destination_config.setup_pipeline("test_replace_strategies", full_refresh=True)
 
     global offset
     offset = 1000
@@ -62,13 +61,10 @@ def test_replace_disposition(destination_config: DestinationTestConfiguration, r
     assert table_counts["items__sub_items__sub_sub_items"] == 120
 
     # check we really have the replaced data in our destination
-    with pipeline._get_destination_client(pipeline.default_schema) as client:
-        rows = client.sql_client.execute_sql("SELECT id FROM items")
-        assert {x for i,x in enumerate(range(1000, 1120), 1)} == {x[0] for x in rows}
-        rows = client.sql_client.execute_sql("SELECT id FROM items__sub_items")
-        assert {x for i,x in enumerate(range(2000, 2000+120), 1)}.union({x for i,x in enumerate(range(3000, 3000+120), 1)}) == {x[0] for x in rows}
-        rows = client.sql_client.execute_sql("SELECT id FROM items__sub_items__sub_sub_items")
-        assert {x for i,x in enumerate(range(4000, 4120), 1)} == {x[0] for x in rows}
+    table_dicts = load_tables_to_dicts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
+    assert {x for i,x in enumerate(range(1000, 1120), 1)} == {int(x["id"]) for x in table_dicts["items"]}
+    assert {x for i,x in enumerate(range(2000, 2000+120), 1)}.union({x for i,x in enumerate(range(3000, 3000+120), 1)}) == {int(x["id"]) for x in table_dicts["items__sub_items"]}
+    assert {x for i,x in enumerate(range(4000, 4120), 1)} == {int(x["id"]) for x in table_dicts["items__sub_items__sub_sub_items"]}
 
     # TODO uncomment once child table clearing is implemented
     # we need to test that destination tables including child tables are cleared when we yield none from the resource
@@ -81,21 +77,20 @@ def test_replace_disposition(destination_config: DestinationTestConfiguration, r
 
     # table and child tables should be cleared
     assert table_counts["items"] == 0
-    assert table_counts["items__sub_items"] == 0
-    assert table_counts["items__sub_items__sub_sub_items"] == 0
+    assert table_counts.get("items__sub_items", 0) == 0
+    assert table_counts.get("items__sub_items__sub_sub_items", 0) == 0
 
 
-@pytest.mark.parametrize("destination_config", destinations_configs(default_staging_configs=True, default_non_staging_configs=True), ids=lambda x: x.name)
+@pytest.mark.parametrize("destination_config", destinations_configs(local_filesystem_configs=True, default_staging_configs=True, default_non_staging_configs=True), ids=lambda x: x.name)
 @pytest.mark.parametrize("replace_strategy", REPLACE_STRATEGIES)
 def test_replace_table_clearing(destination_config: DestinationTestConfiguration,replace_strategy: str) -> None:
-    set_destination_config_envs(destination_config)
 
     # use staging tables for replace
     os.environ['DESTINATION__REPLACE_STRATEGY'] = replace_strategy
 
-    pipeline = dlt.pipeline(pipeline_name='test_replace_table_clearing', destination=destination_config.destination, staging=destination_config.staging, dataset_name='test_replace_table_clearing', full_refresh=True)
+    pipeline = destination_config.setup_pipeline("test_replace_table_clearing", full_refresh=True)
 
-    @dlt.resource(write_disposition="replace", primary_key="id")
+    @dlt.resource(name="main_resource", write_disposition="replace", primary_key="id")
     def items_with_subitems():
         data = {
             "id": 1,
@@ -111,7 +106,7 @@ def test_replace_table_clearing(destination_config: DestinationTestConfiguration
         yield dlt.mark.with_table_name(data, "items")
         yield dlt.mark.with_table_name(data, "other_items")
 
-    @dlt.resource(write_disposition="replace", primary_key="id")
+    @dlt.resource(name="main_resource", write_disposition="replace", primary_key="id")
     def items_without_subitems():
         data = [{
             "id": 1,
@@ -121,7 +116,7 @@ def test_replace_table_clearing(destination_config: DestinationTestConfiguration
         yield dlt.mark.with_table_name(data, "items")
         yield dlt.mark.with_table_name(data, "other_items")
 
-    @dlt.resource(table_name="items", write_disposition="replace", primary_key="id")
+    @dlt.resource(name="main_resource", write_disposition="replace", primary_key="id")
     def items_with_subitems_yield_none():
         yield None
         yield None
@@ -141,7 +136,7 @@ def test_replace_table_clearing(destination_config: DestinationTestConfiguration
         yield None
 
     # this resource only gets loaded once, and should remain populated regardless of the loads to the other tables
-    @dlt.resource(table_name="static_items", write_disposition="replace", primary_key="id")
+    @dlt.resource(name="static_items", write_disposition="replace", primary_key="id")
     def static_items():
         yield {
             "id": 1,
@@ -155,10 +150,9 @@ def test_replace_table_clearing(destination_config: DestinationTestConfiguration
             }]
         }
 
-    @dlt.resource(write_disposition="replace", primary_key="id")
+    @dlt.resource(name="main_resource", write_disposition="replace", primary_key="id")
     def yield_none():
-        yield dlt.mark.with_table_name(None, "items")
-        yield dlt.mark.with_table_name(None, "other_items")
+        yield
 
     # regular call
     pipeline.run([items_with_subitems, static_items], loader_file_format=destination_config.file_format)
@@ -174,9 +168,9 @@ def test_replace_table_clearing(destination_config: DestinationTestConfiguration
     pipeline.run(items_without_subitems, loader_file_format=destination_config.file_format)
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
     assert table_counts["items"] == 1
-    assert table_counts["items__sub_items"] == 0
+    assert table_counts.get("items__sub_items", 0) == 0
     assert table_counts["other_items"] == 1
-    assert table_counts["other_items__sub_items"] == 0
+    assert table_counts.get("other_items__sub_items", 0) == 0
     assert table_counts["static_items"] == 1
     assert table_counts["static_items__sub_items"] == 2
 
@@ -184,10 +178,10 @@ def test_replace_table_clearing(destination_config: DestinationTestConfiguration
     pipeline.run(items_with_subitems, loader_file_format=destination_config.file_format)
     pipeline.run(yield_none, loader_file_format=destination_config.file_format)
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
-    assert table_counts["items"] == 0
-    assert table_counts["items__sub_items"] == 0
-    assert table_counts["other_items"] == 0
-    assert table_counts["other_items__sub_items"] == 0
+    assert table_counts.get("items", 0) == 0
+    assert table_counts.get("items__sub_items", 0) == 0
+    assert table_counts.get("other_items", 0) == 0
+    assert table_counts.get("other_items__sub_items", 0) == 0
     assert table_counts["static_items"] == 1
     assert table_counts["static_items__sub_items"] == 2
 

@@ -9,7 +9,7 @@ from tests.load.pipeline.test_merge_disposition import github
 from tests.load.pipeline.utils import  load_table_counts
 from tests.pipeline.utils import  assert_load_info
 from tests.load.utils import TABLE_ROW_ALL_DATA_TYPES, TABLE_UPDATE_COLUMNS_SCHEMA, assert_all_data_types_row
-from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration, set_destination_config_envs
+from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
 
 
 @dlt.resource(table_name="issues", write_disposition="merge", primary_key="id", merge_key=("node_id", "url"))
@@ -29,7 +29,7 @@ def load_modified_issues():
 
 @pytest.mark.parametrize("destination_config", destinations_configs(all_staging_configs=True), ids=lambda x: x.name)
 def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
-    set_destination_config_envs(destination_config)
+    destination_config.setup()
 
     pipeline = dlt.pipeline(pipeline_name='test_stage_loading_5', destination=destination_config.destination, staging=destination_config.staging, dataset_name='staging_test', full_refresh=True)
 
@@ -86,7 +86,7 @@ def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
 
 @pytest.mark.parametrize("destination_config", destinations_configs(all_staging_configs=True), ids=lambda x: x.name)
 def test_all_data_types(destination_config: DestinationTestConfiguration) -> None:
-    set_destination_config_envs(destination_config)
+    destination_config.setup()
 
     pipeline = dlt.pipeline(pipeline_name='test_stage_loading', destination=destination_config.destination, dataset_name='staging_test', full_refresh=True, staging=destination_config.staging)
 
