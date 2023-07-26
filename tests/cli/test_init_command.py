@@ -4,9 +4,13 @@ import hashlib
 import os
 import contextlib
 from subprocess import CalledProcessError
-from typing import Any, List, Tuple
+from typing import Any, List, Tuple, Optional
 from hexbytes import HexBytes
 import pytest
+from unittest import mock
+import re
+from packaging.requirements import Requirement
+
 
 import dlt
 
@@ -22,6 +26,7 @@ from dlt.common.utils import set_working_dir
 from dlt.cli import init_command, echo
 from dlt.cli.init_command import SOURCES_MODULE_NAME, utils as cli_utils, files_ops, _select_source_files
 from dlt.cli.exceptions import CliCommandException
+from dlt.cli.requirements import SourceRequirements
 from dlt.reflection.script_visitor import PipelineScriptVisitor
 from dlt.reflection import names as n
 
@@ -61,7 +66,7 @@ def test_init_command_new_pipeline_same_name(repo_dir: str, project_files: FileS
 def test_init_command_chess_verified_source(repo_dir: str, project_files: FileStorage) -> None:
     init_command.init_command("chess", "duckdb", False, repo_dir)
     assert_source_files(project_files, "chess", "duckdb", has_source_section=True)
-    assert_requests_txt(project_files)
+    assert_requirements_txt(project_files, "duckdb")
     # check files hashes
     local_index = files_ops.load_verified_sources_local_index("chess")
     # chess has one file
@@ -100,13 +105,36 @@ def test_init_list_verified_pipelines(repo_dir: str, project_files: FileStorage)
     init_command.list_verified_sources_command(repo_dir)
 
 
+def test_init_list_verified_pipelines_update_warning(repo_dir: str, project_files: FileStorage) -> None:
+    """Sources listed include a warning if a different dlt version is required"""
+    with mock.patch.object(SourceRequirements, "current_dlt_version", return_value="0.0.1"):
+        with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+            init_command.list_verified_sources_command(repo_dir)
+            _out = buf.getvalue()
+
+    # Check one listed source
+    fb_line = [line for line in _out.splitlines() if line.startswith("facebook_ads")][0]
+
+    pat = re.compile(r"^facebook_ads:.+\[needs update: (dlt.+)\]$")
+    match = pat.match(fb_line)
+
+    assert match
+    # Try parsing the printed requiremnt string to verify it's valid
+    parsed_requirement = Requirement(match.group(1))
+    assert '0.0.1' not in parsed_requirement.specifier
+
+
 def test_init_all_verified_sources_together(repo_dir: str, project_files: FileStorage) -> None:
     source_candidates = get_verified_source_candidates(repo_dir)
+    # source_candidates = [source_name for source_name in source_candidates if source_name == "salesforce"]
     for source_name in source_candidates:
         # all must install correctly
         init_command.init_command(source_name, "bigquery", False, repo_dir)
         # verify files
         _, secrets = assert_source_files(project_files, source_name, "bigquery")
+
+    # requirements.txt is created from the first source and not overwritten afterwards
+    assert_index_version_constraint(project_files, source_candidates[0])
     # secrets should contain sections for all sources
     for source_name in source_candidates:
         assert secrets.get_value(source_name, Any, None, "sources") is not None
@@ -118,11 +146,11 @@ def test_init_all_verified_sources_together(repo_dir: str, project_files: FileSt
 
     # create pipeline template on top
     init_command.init_command("debug_pipeline", "postgres", False, repo_dir)
-    assert_init_files(project_files, "debug_pipeline", "postgres")
+    assert_init_files(project_files, "debug_pipeline", "postgres", "bigquery")
     # clear the resources otherwise sources not belonging to generic_pipeline will be found
     _SOURCES.clear()
     init_command.init_command("generic_pipeline", "redshift", True, repo_dir)
-    assert_init_files(project_files, "generic_pipeline", "redshift")
+    assert_init_files(project_files, "generic_pipeline", "redshift", "bigquery")
 
 
 def test_init_all_verified_sources_isolated(cloned_init_repo: FileStorage) -> None:
@@ -134,7 +162,8 @@ def test_init_all_verified_sources_isolated(cloned_init_repo: FileStorage) -> No
         with set_working_dir(files.storage_path):
             init_command.init_command(candidate, "bigquery", False, repo_dir)
             assert_source_files(files, candidate, "bigquery")
-            assert_requests_txt(files)
+            assert_requirements_txt(files, "bigquery")
+            assert_index_version_constraint(files, candidate)
 
 
 @pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
@@ -160,7 +189,7 @@ def test_init_code_update_index_diff(repo_dir: str, project_files: FileStorage) 
     sources_storage.delete(del_file_path)
 
     source_files = files_ops.get_verified_source_files(sources_storage, "pipedrive")
-    remote_index = files_ops.get_remote_source_index(sources_storage.storage_path, source_files.files)
+    remote_index = files_ops.get_remote_source_index(sources_storage.storage_path, source_files.files, ">=0.3.5")
     assert mod_file_path in remote_index["files"]
     assert remote_index["is_dirty"] is True
     assert remote_index["files"][mod_file_path]["sha3_256"] == new_content_hash
@@ -202,7 +231,7 @@ def test_init_code_update_index_diff(repo_dir: str, project_files: FileStorage) 
     sources_storage.save(mod_file_path_2, local_content)
     local_index = files_ops.load_verified_sources_local_index("pipedrive")
     source_files = files_ops.get_verified_source_files(sources_storage, "pipedrive")
-    remote_index = files_ops.get_remote_source_index(sources_storage.storage_path, source_files.files)
+    remote_index = files_ops.get_remote_source_index(sources_storage.storage_path, source_files.files, ">=0.3.5")
     new, modified, deleted = files_ops.gen_index_diff(local_index, remote_index)
     assert mod_file_path_2 in new
     conflict_modified, conflict_deleted = files_ops.find_conflict_files(local_index, new, modified, deleted, project_files)
@@ -235,7 +264,7 @@ def test_init_code_update_index_diff(repo_dir: str, project_files: FileStorage) 
     sources_storage.save(mod_file_path, local_content)
     project_files.delete(del_file_path)
     source_files = files_ops.get_verified_source_files(sources_storage, "pipedrive")
-    remote_index = files_ops.get_remote_source_index(sources_storage.storage_path, source_files.files)
+    remote_index = files_ops.get_remote_source_index(sources_storage.storage_path, source_files.files, ">=0.3.5")
     new, modified, deleted = files_ops.gen_index_diff(local_index, remote_index)
     conflict_modified, conflict_deleted = files_ops.find_conflict_files(local_index, new, modified, deleted, project_files)
     assert conflict_modified == []
@@ -244,7 +273,7 @@ def test_init_code_update_index_diff(repo_dir: str, project_files: FileStorage) 
     # generate a conflict by deleting file locally that is modified on remote
     project_files.delete(mod_file_path)
     source_files = files_ops.get_verified_source_files(sources_storage, "pipedrive")
-    remote_index = files_ops.get_remote_source_index(sources_storage.storage_path, source_files.files)
+    remote_index = files_ops.get_remote_source_index(sources_storage.storage_path, source_files.files, ">=0.3.5")
     new, modified, deleted = files_ops.gen_index_diff(local_index, remote_index)
     conflict_modified, conflict_deleted = files_ops.find_conflict_files(local_index, new, modified, deleted, project_files)
     assert conflict_modified == [mod_file_path]
@@ -385,17 +414,40 @@ def test_pipeline_template_sources_in_single_file(repo_dir: str, project_files: 
     assert "In init scripts you must declare all sources and resources in single file." in str(cli_ex.value)
 
 
-def assert_init_files(project_files: FileStorage, pipeline_name: str, destination_name: str) -> PipelineScriptVisitor:
+def test_incompatible_dlt_version_warning(repo_dir: str, project_files: FileStorage) -> None:
+    with mock.patch.object(SourceRequirements, "current_dlt_version", return_value="0.1.1"):
+        with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+            init_command.init_command("facebook_ads", "bigquery", False, repo_dir)
+            _out = buf.getvalue()
+
+    assert "WARNING: This pipeline requires a newer version of dlt than your installed version (0.1.1)." in _out
+
+
+def assert_init_files(
+        project_files: FileStorage, pipeline_name: str, destination_name: str, dependency_destination: Optional[str] = None
+) -> PipelineScriptVisitor:
     visitor, _ = assert_common_files(project_files, pipeline_name + ".py", destination_name)
     assert not project_files.has_folder(pipeline_name)
-    assert_requests_txt(project_files)
+    assert_requirements_txt(project_files, dependency_destination or destination_name)
     return visitor
 
 
-def assert_requests_txt(project_files: FileStorage) -> None:
+def assert_requirements_txt(project_files: FileStorage, destination_name: str) -> None:
     # check requirements
     assert project_files.has_file(cli_utils.REQUIREMENTS_TXT)
     assert "dlt" in project_files.load(cli_utils.REQUIREMENTS_TXT)
+    # dlt dependency specifies destination_name as extra
+    source_requirements = SourceRequirements.from_string(project_files.load(cli_utils.REQUIREMENTS_TXT))
+    assert destination_name in source_requirements.dlt_requirement.extras
+    # Check that atleast some version range is specified
+    assert len(source_requirements.dlt_requirement.specifier) >= 1
+
+
+def assert_index_version_constraint(project_files: FileStorage, source_name: str) -> None:
+    # check dlt version constraint in .sources index for given source matches the one in requirements.txt
+    local_index = files_ops.load_verified_sources_local_index(source_name)
+    index_constraint = local_index["dlt_version_constraint"]
+    assert index_constraint == SourceRequirements.from_string(project_files.load(cli_utils.REQUIREMENTS_TXT)).dlt_version_constraint()
 
 
 def assert_source_files(project_files: FileStorage, source_name: str, destination_name: str, has_source_section: bool = True) -> Tuple[PipelineScriptVisitor, SecretsTomlProvider]:

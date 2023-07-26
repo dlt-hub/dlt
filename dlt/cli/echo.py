@@ -30,6 +30,10 @@ def bold(msg: str) -> str:
     return click.style(msg, bold=True, reset=True)
 
 
+def warning_style(msg: str) -> str:
+    return click.style(msg, fg="yellow", reset=True)
+
+
 def error(msg: str) -> None:
     click.secho("ERROR: " + msg, fg="red")
 

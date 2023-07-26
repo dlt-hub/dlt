@@ -14,6 +14,7 @@ from dlt.common.storages import FileStorage
 from dlt.common.reflection.utils import get_module_docstring
 
 from dlt.cli import utils
+from dlt.cli.requirements import SourceRequirements
 
 
 SOURCES_INIT_INFO_ENGINE_VERSION = 1
@@ -28,7 +29,7 @@ class VerifiedSourceFiles(NamedTuple):
     pipeline_script: str
     dest_pipeline_script: str
     files: List[str]
-    requirements: List[str]
+    requirements: SourceRequirements
     doc: str
 
 
@@ -43,6 +44,7 @@ class TVerifiedSourceFileIndex(TypedDict):
     last_commit_sha: str
     last_commit_timestamp: str
     files: Dict[str, TVerifiedSourceFileEntry]
+    dlt_version_constraint: str
 
 
 class TVerifiedSourcesFileIndex(TypedDict):
@@ -84,6 +86,7 @@ def _merge_remote_index(
     local_index["is_dirty"] = remote_index["is_dirty"]
     local_index["last_commit_sha"] = remote_index["last_commit_sha"]
     local_index["last_commit_timestamp"] = remote_index["last_commit_timestamp"]
+    local_index["dlt_version_constraint"] = remote_index["dlt_version_constraint"]
 
     return local_index
 
@@ -93,7 +96,8 @@ def load_verified_sources_local_index(source_name: str) -> TVerifiedSourceFileIn
         "is_dirty": False,
         "last_commit_sha": None,
         "last_commit_timestamp": None,
-        "files": {}
+        "files": {},
+        "dlt_version_constraint": ">=0.1.0"
         }
     )
 
@@ -111,7 +115,7 @@ def save_verified_source_local_index(
     _save_dot_sources(all_sources)
 
 
-def get_remote_source_index(repo_path: str, files: Sequence[str]) -> TVerifiedSourceFileIndex:
+def get_remote_source_index(repo_path: str, files: Sequence[str], dlt_version_constraint: str) -> TVerifiedSourceFileIndex:
 
     with git.get_repo(repo_path) as repo:
         tree = repo.tree()
@@ -139,7 +143,8 @@ def get_remote_source_index(repo_path: str, files: Sequence[str]) -> TVerifiedSo
             "is_dirty": git.is_dirty(repo),
             "last_commit_sha": commit_sha,
             "last_commit_timestamp": repo.head.commit.committed_datetime.isoformat(),
-            "files": files_sha
+            "files": files_sha,
+            "dlt_version_constraint": dlt_version_constraint
         }
 
 
@@ -178,9 +183,9 @@ def get_verified_source_files(sources_storage: FileStorage, source_name: str) ->
     # read requirements
     requirements_path = os.path.join(source_name, utils.REQUIREMENTS_TXT)
     if sources_storage.has_file(requirements_path):
-        requirements = sources_storage.load(requirements_path).splitlines()
+        requirements = SourceRequirements.from_string(sources_storage.load(requirements_path))
     else:
-        requirements = []
+        requirements = SourceRequirements([])
     # find requirements
     return VerifiedSourceFiles(False, sources_storage, example_script, example_script, files, requirements, docstring)
 
