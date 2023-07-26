@@ -47,22 +47,22 @@ case the primary key or other unique columns are defined.
 
 ## Load IDs
 
-Load IDs are important and present in all the top tables (`_dlt_loads`, `load_id`, etc.). Each
-pipeline run creates one or more load packages, which can be identified by their `load_id`. A load
+Each pipeline run creates one or more load packages, which can be identified by their `load_id`. A load
 package typically contains data from all [resources](../../general-usage/glossary.md#resource) of a
 particular [source](../../general-usage/glossary.md#source). The `load_id` of a particular package
-is added to the top data tables and to the `_dlt_loads` table with a status 0 (when the load process
+is added to the top data tables (`_dlt_load_id` column) and to the `_dlt_loads` table with a status 0 (when the load process
 is fully completed).
+
+The `_dlt_loads` table tracks complete loads and allows chaining transformations on top of them.
+Many destinations do not support distributed and long-running transactions (e.g. Amazon Redshift).
+In that case, the user may see the partially loaded data. It is possible to filter such data out—any
+row with a `load_id` that does not exist in `_dlt_loads` is not yet completed. The same procedure may be used to delete and identify
+and delete data for packages that never got completed.
 
 For each load, you can test and [alert](../../running-in-production/alerting.md) on anomalies (e.g.
 no data, too much loaded to a table). There are also some useful load stats in the `Load info` tab
 of the [Streamlit app](understanding-the-tables.md#show-tables-and-data-in-the-destination)
 mentioned above.
-
-The `_dlt_loads` table tracks complete loads and allows chaining transformations on top of them.
-Many destinations do not support distributed and long-running transactions (e.g. Amazon Redshift).
-In that case, the user may see the partially loaded data. It is possible to filter such data out—any
-row with a `load_id` that does not exist in `_dlt_loads` is not yet completed.
 
 You can add [transformations](../transformations) and chain them together
 using the `status` column. You start the transformation for all the data with a particular
