@@ -469,6 +469,7 @@ def test_write_dispositions(client: SqlJobClientBase, write_disposition: str, re
         )
     client.schema.bump_version()
     client.update_storage_schema()
+
     if write_disposition == "merge":
         # add root key
         client.schema.tables[table_name]["columns"]["col1"]["root_key"] = True
@@ -477,13 +478,19 @@ def test_write_dispositions(client: SqlJobClientBase, write_disposition: str, re
             client.initialize_storage()
             client.update_storage_schema()
     for idx in range(2):
+        # in the replace strategies, tables get truncated between loads
+        truncate_tables = [table_name, child_table]
+        if write_disposition == "replace":
+            client.initialize_storage(truncate_tables=truncate_tables)
+
         for t in [table_name, child_table]:
             # write row, use col1 (INT) as row number
-            table_row = deepcopy(TABLE_ROW_ALL_DATA_TYPES )
+            table_row = deepcopy(TABLE_ROW_ALL_DATA_TYPES)
             table_row["col1"] = idx
             with io.BytesIO() as f:
                 write_dataset(client, f, [table_row], TABLE_UPDATE_COLUMNS_SCHEMA)
                 query = f.getvalue().decode()
+
             expect_load_file(client, file_storage, query, t)
             db_rows = list(client.sql_client.execute_sql(f"SELECT * FROM {client.sql_client.make_qualified_table_name(t)} ORDER BY col1 ASC"))
             # in case of merge
@@ -492,6 +499,7 @@ def test_write_dispositions(client: SqlJobClientBase, write_disposition: str, re
                 assert len(db_rows) == idx + 1
             elif write_disposition == "replace":
                 # we overwrite with the same row. merge fallbacks to replace when no keys specified
+                print(db_rows)
                 assert len(db_rows) == 1
             else:
                 # merge on client level, without loader, loads to staging dataset. so this table is empty

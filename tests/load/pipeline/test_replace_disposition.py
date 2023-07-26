@@ -17,7 +17,7 @@ def test_replace_disposition(destination_config: DestinationTestConfiguration, r
     # use staging tables for replace
     os.environ['DESTINATION__REPLACE_STRATEGY'] = replace_strategy
 
-    pipeline = destination_config.setup_pipeline("test_replace_strategies", full_refresh=True)
+    pipeline = destination_config.setup_pipeline("test_replace_strategies")
 
     global offset
     offset = 1000
@@ -88,7 +88,7 @@ def test_replace_table_clearing(destination_config: DestinationTestConfiguration
     # use staging tables for replace
     os.environ['DESTINATION__REPLACE_STRATEGY'] = replace_strategy
 
-    pipeline = destination_config.setup_pipeline("test_replace_table_clearing", full_refresh=True)
+    pipeline = destination_config.setup_pipeline("test_replace_table_clearing")
 
     @dlt.resource(name="main_resource", write_disposition="replace", primary_key="id")
     def items_with_subitems():

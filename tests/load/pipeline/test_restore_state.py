@@ -30,9 +30,9 @@ def duckdb_pipeline_location() -> None:
 
 @pytest.mark.parametrize("destination_config", destinations_configs(default_staging_configs=True, default_non_staging_configs=True), ids=lambda x: x.name)
 def test_restore_state_utils(destination_config: DestinationTestConfiguration) -> None:
-    destination_config.setup()
 
-    p = dlt.pipeline(pipeline_name="pipe_" + uniq_id(), destination=destination_config.destination, staging=destination_config.staging, dataset_name="state_test_" + uniq_id())
+    p = destination_config.setup_pipeline(pipeline_name="pipe_" + uniq_id(), dataset_name="state_test_" + uniq_id())
+
     schema = Schema("state")
     # inject schema into pipeline, don't do it in production
     p._inject_schema(schema)

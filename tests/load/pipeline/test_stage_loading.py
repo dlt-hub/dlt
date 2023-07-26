@@ -29,9 +29,8 @@ def load_modified_issues():
 
 @pytest.mark.parametrize("destination_config", destinations_configs(all_staging_configs=True), ids=lambda x: x.name)
 def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
-    destination_config.setup()
 
-    pipeline = dlt.pipeline(pipeline_name='test_stage_loading_5', destination=destination_config.destination, staging=destination_config.staging, dataset_name='staging_test', full_refresh=True)
+    pipeline = destination_config.setup_pipeline(pipeline_name='test_stage_loading_5')
 
     info = pipeline.run(github(), loader_file_format=destination_config.file_format)
     assert_load_info(info)
@@ -86,9 +85,8 @@ def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
 
 @pytest.mark.parametrize("destination_config", destinations_configs(all_staging_configs=True), ids=lambda x: x.name)
 def test_all_data_types(destination_config: DestinationTestConfiguration) -> None:
-    destination_config.setup()
 
-    pipeline = dlt.pipeline(pipeline_name='test_stage_loading', destination=destination_config.destination, dataset_name='staging_test', full_refresh=True, staging=destination_config.staging)
+    pipeline = destination_config.setup_pipeline('test_stage_loading')
 
     data_types = deepcopy(TABLE_ROW_ALL_DATA_TYPES)
     column_schemas = deepcopy(TABLE_UPDATE_COLUMNS_SCHEMA)

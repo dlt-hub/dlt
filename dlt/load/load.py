@@ -171,6 +171,9 @@ class Load(Runnable[ThreadPool]):
             # all jobs must be completed in order for merge to be created
             if any(job.state not in ("failed_jobs", "completed_jobs") and job.job_file_info.job_id() != starting_job_id for job in table_jobs):
                 return None
+            # if there are no jobs for the table, skip it, unless the write disposition is replace, as we need to create and clear the child tables
+            if not table_jobs and top_merged_table["write_disposition"] != "replace":
+                 continue
             table_chain.append(table)
         # there must be at least table
         assert len(table_chain) > 0
@@ -256,7 +259,12 @@ class Load(Runnable[ThreadPool]):
         for job in table_jobs:
             top_job_table = get_top_level_table(schema.tables, self.get_load_table(schema, job.job_id())["name"])
             table_chain = get_child_tables(schema.tables, top_job_table["name"])
-            result = result.union({table["name"] for table in table_chain})
+            for table in table_chain:
+                existing_jobs = self.load_storage.list_jobs_for_table(load_id, table["name"])
+                # only add tables for tables that have jobs unless the disposition is replace
+                if not existing_jobs and top_job_table["write_disposition"] != "replace":
+                    continue
+                result.add(table["name"])
         return result
 
     def load_single_package(self, load_id: str, schema: Schema) -> None:
