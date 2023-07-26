@@ -137,7 +137,7 @@ coerced in existing column.
 | binary | `b'\x00\x01\x02\x03'` |
 | complex | `[4, 5, 6]`, `{'a': 1}` |
 | decimal | `Decimal('4.56')` |
-| wei | 2**56 |
+| wei | `2**56` |
 
 
 > ⛔ You cannot specify scale and precision for bigint, binary, text and decimal.
