@@ -128,16 +128,16 @@ coerced in existing column.
 
 | dlt Data Type | Source Value Example |
 | --- | --- |
-| text | `"hello world"` |
+| text | `'hello world'` |
 | double | `45.678` |
 | bool | `True` |
-| timestamp | `2023-07-26T14:45:00Z` |
+| timestamp | `'2023-07-26T14:45:00Z'`, `datetime.datetime.now()` |
 | date | `datetime.date(2023, 7, 26)` |
 | bigint | `9876543210` |
 | binary | `b'\x00\x01\x02\x03'` |
 | complex | `[4, 5, 6]`, `{'a': 1}` |
 | decimal | `Decimal('4.56')` |
-| wei | - |
+| wei | 2**56 |
 
 
 > ⛔ You cannot specify scale and precision for bigint, binary, text and decimal.
