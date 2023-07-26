@@ -1,4 +1,4 @@
-from typing import Sequence, List, Optional, Iterator
+from typing import Sequence, List
 from importlib.metadata import version as pkg_version
 from packaging.requirements import Requirement
 
@@ -45,10 +45,10 @@ class SourceRequirements:
     def dlt_version_constraint(self) -> str:
         return str(self.dlt_requirement.specifier)
 
-    def installed_dlt_is_compatible(self) -> bool:
+    def is_installed_dlt_compatible(self) -> bool:
         """Check whether currently installed version is compatible with dlt requirement
 
-        For example, requirements.txt of the source may specifiy dlt>=0.3.5,<0.4.0
+        For example, requirements.txt of the source may specify dlt>=0.3.5,<0.4.0
         and we check whether the installed dlt version (e.g. 0.3.6) falls within this range.
         """
         if not self.dlt_requirement:

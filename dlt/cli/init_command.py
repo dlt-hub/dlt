@@ -153,7 +153,7 @@ def list_verified_sources_command(repo_location: str, branch: str = None) -> Non
         reqs = source_files.requirements
         dlt_req_string = str(reqs.dlt_requirement_base)
         msg = "%s: %s" % (fmt.bold(source_name), source_files.doc)
-        if not reqs.installed_dlt_is_compatible():
+        if not reqs.is_installed_dlt_compatible():
             msg += fmt.warning_style(" [needs update: %s]" % (dlt_req_string))
         fmt.echo(msg)
 
@@ -237,7 +237,7 @@ def init_command(source_name: str, destination_name: str, use_generic_template: 
     source_files.requirements.update_dlt_extras(destination_name)
 
     # Check compatibility with installed dlt
-    if not source_files.requirements.installed_dlt_is_compatible():
+    if not source_files.requirements.is_installed_dlt_compatible():
         msg = f"This pipeline requires a newer version of dlt than your installed version ({source_files.requirements.current_dlt_version()}). " \
             f"Pipeline requires '{source_files.requirements.dlt_requirement_base}'"
         fmt.warning(msg)
