@@ -135,7 +135,7 @@ coerced in existing column.
 | date | `datetime.date(2023, 7, 26)` |
 | bigint | `9876543210` |
 | binary | `b'\x00\x01\x02\x03'` |
-| complex | `list`, `dict` |
+| complex | `[4, 5, 6]`, `{'a': 1}` |
 | decimal | `Decimal('4.56')` |
 | wei | - |
 
