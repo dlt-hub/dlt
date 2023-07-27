@@ -1,10 +1,12 @@
 import posixpath, os
 from dataclasses import dataclass
-from typing import Any, Iterator, List, Sequence, TYPE_CHECKING, Optional
+from typing import Any, Iterator, List, Sequence, TYPE_CHECKING, Optional, Tuple, Dict
 import pytest
 
 import dlt
+from dlt.pipeline.pipeline import Pipeline
 
+from dlt.common import json
 from dlt.common.configuration.container import Container
 from dlt.common.pipeline import LoadInfo, PipelineContext
 from dlt.common.typing import DictStrAny
@@ -12,7 +14,7 @@ from dlt.pipeline.exceptions import SqlClientNotAvailable
 if TYPE_CHECKING:
     from dlt.destinations.filesystem.filesystem import FilesystemClient
 
-from tests.load.utils import ALL_DESTINATIONS, AWS_BUCKET, GCS_BUCKET
+from tests.load.utils import ALL_DESTINATIONS, AWS_BUCKET, GCS_BUCKET, FILE_BUCKET
 
 
 @dataclass
@@ -29,6 +31,8 @@ class DestinationTestConfiguration:
     @property
     def name(self) -> str:
         name: str =  self.destination
+        if self.file_format:
+            name += f"-{self.file_format}"
         if not self.staging:
             name += "-no-staging"
         else:
@@ -37,10 +41,28 @@ class DestinationTestConfiguration:
             name += f"-{self.extra_info}"
         return name
 
+    def setup(self) -> None:
+        """Sets up environment variables for this destination configuration"""
+        os.environ['DESTINATION__FILESYSTEM__BUCKET_URL'] = self.bucket_url or ""
+        os.environ['DESTINATION__STAGE_NAME'] = self.stage_name or ""
+        os.environ['DESTINATION__STAGING_IAM_ROLE'] = self.staging_iam_role or ""
+
+        """For the filesystem destinations we disable compression to make analysing the result easier"""
+        if self.destination == "filesystem":
+            os.environ['DATA_WRITER__DISABLE_COMPRESSION'] = "True"
+
+
+    def setup_pipeline(self, pipeline_name: str, dataset_name: str = None, full_refresh: bool = True) -> dlt.Pipeline:
+        """Convenience method to setup pipeline with this configuration"""
+        self.setup()
+        pipeline = dlt.pipeline(pipeline_name=pipeline_name, destination=self.destination, staging=self.staging, dataset_name=dataset_name or pipeline_name, full_refresh=full_refresh)
+        return pipeline
+
 def destinations_configs(
         default_non_staging_configs: bool = False,
         default_staging_configs: bool = False,
-        all_staging_configs: bool = False) -> Iterator[DestinationTestConfiguration]:
+        all_staging_configs: bool = False,
+        local_filesystem_configs: bool = False) -> Iterator[DestinationTestConfiguration]:
 
     # build destination configs
     destination_configs: List[DestinationTestConfiguration] = []
@@ -68,13 +90,13 @@ def destinations_configs(
     # filter out non active destinations
     destination_configs = [conf for conf in destination_configs if conf.destination in ALL_DESTINATIONS]
 
+    # add local filesystem destinations if requested
+    if local_filesystem_configs:
+        destination_configs += [DestinationTestConfiguration(destination="filesystem", bucket_url=FILE_BUCKET, file_format="insert_values")]
+        destination_configs += [DestinationTestConfiguration(destination="filesystem", bucket_url=FILE_BUCKET, file_format="parquet")]
+        destination_configs += [DestinationTestConfiguration(destination="filesystem", bucket_url=FILE_BUCKET, file_format="jsonl")]
+
     return destination_configs
-
-def set_destination_config_envs(conf: DestinationTestConfiguration) -> None:
-    os.environ['DESTINATION__FILESYSTEM__BUCKET_URL'] = conf.bucket_url or ""
-    os.environ['DESTINATION__STAGE_NAME'] = conf.stage_name or ""
-    os.environ['DESTINATION__STAGING_IAM_ROLE'] = conf.staging_iam_role or ""
-
 
 @pytest.fixture(autouse=True)
 def drop_pipeline() -> Iterator[None]:
@@ -173,14 +195,119 @@ def assert_query_data(p: dlt.Pipeline, sql: str, table_data: List[Any], schema_n
             assert row[1] in info.loads_ids
 
 
+def load_file(path: str) -> Tuple[str, List[Dict[str, Any]]]:
+    """
+    util function to load a filesystem destination file and return parsed content
+    values may not be cast to the right type, especially for insert_values, please
+    make sure to do conversions and casting if needed in your tests
+    """
+    result: List[dict, str] = []
+    path_items = os.path.basename(path).split(".")
+    ext = path_items[-1]
+    table_name = path_items[1]
+
+    # skip loads table
+    if table_name == "_dlt_loads":
+        return table_name, []
+
+    # load jsonl
+    if ext == "jsonl":
+        with open(path, "rU", encoding="utf-8") as f:
+            for line in f:
+                result.append(json.loads(line))
+
+    # load insert_values (this is a bit volatile if the extact format of the source file changes)
+    elif ext == "insert_values":
+        with open(path, "rU", encoding="utf-8") as f:
+            lines = f.readlines()
+            # extract col names
+            cols = lines[0][15:-2].split(",")
+            for line in lines[2:]:
+                values = line[1:-3].split(",")
+                result.append(dict(zip(cols, values)))
+
+    # load parquet
+    elif ext == "parquet":
+        import pyarrow.parquet as pq
+        with open(path, "rb") as f:
+            table = pq.read_table(f)
+            cols = table.column_names
+            count = 0
+            for column in table:
+                column_name = cols[count]
+                item_count = 0
+                for item in column.to_pylist():
+                    if len(result) <= item_count:
+                        result.append({column_name: item})
+                    else:
+                        result[item_count][column_name] = item
+                    item_count += 1
+                count += 1
+
+    else:
+        raise NotImplementedError(f"Unsupported filetype: {ext}")
+
+    return table_name, result
+
+def load_files(p: dlt.Pipeline, *table_names: str) -> Dict[str, List[Dict[str, Any]]]:
+    client: FilesystemClient = p._destination_client()  # type: ignore[assignment]
+    all_files = client.fs_client.ls(client.dataset_path, detail=False, refresh=True)
+    result = {}
+    for path in all_files:
+        table_name, items = load_file(path)
+        if table_name not in table_names:
+            continue
+        if table_name in result:
+            result[table_name] = result[table_name] + items
+        else:
+            result[table_name] = items
+    return result
+
+
 def load_table_counts(p: dlt.Pipeline, *table_names: str) -> DictStrAny:
     """Returns row counts for `table_names` as dict"""
-    query = "\nUNION ALL\n".join([f"SELECT '{name}' as name, COUNT(1) as c FROM {name}" for name in table_names])
-    with p.sql_client() as c:
-        with c.execute_query(query) as cur:
-            rows = list(cur.fetchall())
-            return {r[0]: r[1] for r in rows}
 
+    # try sql, could be other destination though
+    try:
+        query = "\nUNION ALL\n".join([f"SELECT '{name}' as name, COUNT(1) as c FROM {name}" for name in table_names])
+        with p.sql_client() as c:
+            with c.execute_query(query) as cur:
+                rows = list(cur.fetchall())
+                return {r[0]: r[1] for r in rows}
+    except SqlClientNotAvailable:
+        pass
+
+    # try filesystem
+    file_tables = load_files(p, *table_names)
+    result = {}
+    for table_name, items in file_tables.items():
+        result[table_name] = len(items)
+    return result
+
+
+def load_tables_to_dicts(p: dlt.Pipeline, *table_names: str) -> Dict[str, List[Dict[str, Any]]]:
+
+    # try sql, could be other destination though
+    try:
+        result = {}
+        for table in table_names:
+            table_rows = []
+            columns = p.default_schema.tables[table]["columns"].keys()
+            query_columns = ",".join(columns)
+
+            query = f"SELECT {query_columns} FROM {table}"
+            with p.sql_client() as c:
+                with c.execute_query(query) as cur:
+                    for row in list(cur.fetchall()):
+                        table_rows.append(dict(zip(columns, row)))
+            result[table] = table_rows
+        return result
+
+    except SqlClientNotAvailable:
+        pass
+
+    # try files
+    return load_files(p, *table_names)
 
 def load_table_distinct_counts(p: dlt.Pipeline, distinct_column: str, *table_names: str) -> DictStrAny:
     """Returns counts of distinct values for column `distinct_column` for `table_names` as dict"""

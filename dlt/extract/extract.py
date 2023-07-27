@@ -1,6 +1,6 @@
 import contextlib
 import os
-from typing import ClassVar, List
+from typing import ClassVar, List, Set
 
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.resolve import inject_section
@@ -69,15 +69,21 @@ def extract(
 
     dynamic_tables: TSchemaUpdate = {}
     schema = source.schema
+    resources_with_items: Set[str] = set()
 
     with collector(f"Extract {source.name}"):
 
-        def _write_item(table_name: str, item: TDataItems) -> None:
+        def _write_empty_file(table_name: str) -> None:
+            table_name = schema.naming.normalize_identifier(table_name)
+            storage.write_empty_file(extract_id, schema.name, table_name, None)
+
+        def _write_item(table_name: str, resource_name: str, item: TDataItems) -> None:
             # normalize table name before writing so the name match the name in schema
             # note: normalize function should be cached so there's almost no penalty on frequent calling
             # note: column schema is not required for jsonl writer used here
             table_name = schema.naming.normalize_identifier(table_name)
             collector.update(table_name)
+            resources_with_items.add(resource_name)
             storage.write_data_item(extract_id, schema.name, table_name, item, None)
 
         def _write_dynamic_table(resource: DltResource, item: TDataItem) -> None:
@@ -95,7 +101,7 @@ def extract(
                     # if there are no other dynamic hints besides name then we just leave the existing partial table
                     pass
             # write to storage with inferred table name
-            _write_item(table_name, item)
+            _write_item(table_name, resource.name, item)
 
         def _write_static_table(resource: DltResource, table_name: str) -> None:
             existing_table = dynamic_tables.get(table_name)
@@ -121,10 +127,11 @@ def extract(
                 # TODO: many resources may be returned. if that happens the item meta must be present with table name and this name must match one of resources
                 # if meta contains table name
                 resource = source.resources.find_by_pipe(pipe_item.pipe)
+                table_name: str = None
                 if isinstance(pipe_item.meta, TableNameMeta):
                     table_name = pipe_item.meta.table_name
                     _write_static_table(resource, table_name)
-                    _write_item(table_name, pipe_item.item)
+                    _write_item(table_name, resource.name, pipe_item.item)
                 else:
                     # get partial table from table template
                     if resource._table_name_hint_fun:
@@ -137,7 +144,20 @@ def extract(
                         # write item belonging to table with static name
                         table_name = resource.table_name
                         _write_static_table(resource, table_name)
-                        _write_item(table_name, pipe_item.item)
+                        _write_item(table_name, resource.name, pipe_item.item)
+
+            # find defined resources that did not yield any pipeitems and create empty jobs for them
+            data_tables = {t["name"]: t for t in schema.data_tables()}
+            tables_by_resources = utils.group_tables_by_resource(data_tables)
+            for resource in source.resources.selected.values():
+                if resource.write_disposition != "replace" or resource.name in resources_with_items:
+                    continue
+                if resource.name not in tables_by_resources:
+                    _write_empty_file(resource.table_name)
+                    continue
+                for table in tables_by_resources[resource.name]:
+                    _write_empty_file(table["name"])
+
             if left_gens > 0:
                 # go to 100%
                 collector.update("Resources", left_gens)

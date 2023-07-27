@@ -156,8 +156,10 @@ class SqlJobClientBase(StagingJobClientBase):
             dispositions.append("replace")
         return dispositions
 
-    def _should_truncate_destination_table(self, disposition: TWriteDisposition) -> bool:
-        return disposition == "replace" and self.config.replace_strategy == "truncate-and-insert"
+    def get_truncate_destination_table_dispositions(self) -> List[TWriteDisposition]:
+        if self.config.replace_strategy == "truncate-and-insert":
+            return ["replace"]
+        return []
 
     def _create_merge_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
         return SqlMergeJob.from_table_chain(table_chain, self.sql_client)

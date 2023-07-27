@@ -110,7 +110,15 @@ def perform_load(
     load_id, schema = prepare_load_package(load.load_storage, cases, write_disposition)
 
     client.schema = schema
-    client.initialize_storage()
+
+    # for the replace disposition in the loader we truncate the tables, so do this here
+    truncate_tables = []
+    if write_disposition == 'replace':
+        for item in cases:
+            parts = item.split('.')
+            truncate_tables.append(parts[0])
+
+    client.initialize_storage(truncate_tables=truncate_tables)
     root_path = posixpath.join(client.fs_path, client.config.dataset_name)
 
     files = load.load_storage.list_new_jobs(load_id)

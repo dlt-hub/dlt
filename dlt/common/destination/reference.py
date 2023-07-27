@@ -180,6 +180,10 @@ class JobClientBase(ABC):
     def restore_file_load(self, file_path: str) -> LoadJob:
         pass
 
+    def get_truncate_destination_table_dispositions(self) -> List[TWriteDisposition]:
+        # in the base job, all replace strategies are treated the same, see filesystem for example
+        return ["replace"]
+
     @abstractmethod
     def create_table_chain_completed_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
         """Creates a list of followup jobs that should be executed after a table chain is completed"""

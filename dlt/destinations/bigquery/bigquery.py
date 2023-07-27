@@ -189,7 +189,7 @@ class BigQueryClient(SqlJobClientBase):
                 disposition = table["write_disposition"]
                 job = BigQueryLoadJob(
                     FileStorage.get_file_name_from_file_path(file_path),
-                    self._create_load_job(table, disposition in self.get_stage_dispositions(), self._should_truncate_destination_table(disposition), file_path),
+                    self._create_load_job(table, disposition in self.get_stage_dispositions(), file_path),
                     self.config.http_timeout,
                     self.config.retry_deadline
                 )
@@ -256,9 +256,8 @@ class BigQueryClient(SqlJobClientBase):
         except gcp_exceptions.NotFound:
             return False, schema_table
 
-    def _create_load_job(self, table: TTableSchema, use_staging_table: bool, _should_truncate_destination_table: bool, file_path: str) -> bigquery.LoadJob:
+    def _create_load_job(self, table: TTableSchema, use_staging_table: bool, file_path: str) -> bigquery.LoadJob:
         # append to table for merge loads (append to stage) and regular appends
-        bq_wd = bigquery.WriteDisposition.WRITE_TRUNCATE if _should_truncate_destination_table else bigquery.WriteDisposition.WRITE_APPEND
         table_name = table["name"]
 
         # determine wether we load from local or uri
@@ -284,7 +283,7 @@ class BigQueryClient(SqlJobClientBase):
             job_id = BigQueryLoadJob.get_job_id_from_file_path(file_path)
             job_config = bigquery.LoadJobConfig(
                 autodetect=False,
-                write_disposition=bq_wd,
+                write_disposition=bigquery.WriteDisposition.WRITE_APPEND,
                 create_disposition=bigquery.CreateDisposition.CREATE_NEVER,
                 source_format=source_format,
                 decimal_target_types=decimal_target_types,

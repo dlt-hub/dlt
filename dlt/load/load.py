@@ -1,6 +1,6 @@
 from functools import reduce
 import datetime  # noqa: 251
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Set
 from multiprocessing.pool import ThreadPool
 import os
 
@@ -160,6 +160,7 @@ class Load(Runnable[ThreadPool]):
                 jobs_info.append(LoadStorage.parse_job_file_name(job_file))
         return jobs_info
 
+
     def get_completed_table_chain(self, load_id: str, schema: Schema, top_merged_table: TTableSchema, starting_job_id: str) -> List[TTableSchema]:
         """Gets a table chain starting from the `top_merged_table` containing only tables with completed/failed jobs. None is returned if there's any job that is not completed"""
         # returns ordered list of tables from parent to child leaf tables
@@ -167,15 +168,14 @@ class Load(Runnable[ThreadPool]):
         # make sure all the jobs for the table chain is completed
         for table in get_child_tables(schema.tables, top_merged_table["name"]):
             table_jobs = self.load_storage.list_jobs_for_table(load_id, table["name"])
-            # if no jobs for table then skip the table in the chain. we assume that if parent has no jobs, the child would also have no jobs
-            # so it will be eliminated by this loop as well
-            if not table_jobs:
-                continue
             # all jobs must be completed in order for merge to be created
             if any(job.state not in ("failed_jobs", "completed_jobs") and job.job_file_info.job_id() != starting_job_id for job in table_jobs):
                 return None
+            # if there are no jobs for the table, skip it, unless the write disposition is replace, as we need to create and clear the child tables
+            if not table_jobs and top_merged_table["write_disposition"] != "replace":
+                 continue
             table_chain.append(table)
-        # there must be at least 1 job
+        # there must be at least table
         assert len(table_chain) > 0
         return table_chain
 
@@ -252,6 +252,21 @@ class Load(Runnable[ThreadPool]):
         logger.info(f"All jobs completed, archiving package {load_id} with aborted set to {aborted}")
         self._processed_load_ids[load_id] = 1
 
+    def get_table_chain_tables_for_write_disposition(self, load_id: str, schema: Schema, dispositions: List[TWriteDisposition]) -> Set[str]:
+        # get all jobs for tables with given write disposition and resolve the table chain
+        result: Set[str] = set()
+        table_jobs = self.get_new_jobs_info(load_id, schema, dispositions)
+        for job in table_jobs:
+            top_job_table = get_top_level_table(schema.tables, self.get_load_table(schema, job.job_id())["name"])
+            table_chain = get_child_tables(schema.tables, top_job_table["name"])
+            for table in table_chain:
+                existing_jobs = self.load_storage.list_jobs_for_table(load_id, table["name"])
+                # only add tables for tables that have jobs unless the disposition is replace
+                if not existing_jobs and top_job_table["write_disposition"] != "replace":
+                    continue
+                result.add(table["name"])
+        return result
+
     def load_single_package(self, load_id: str, schema: Schema) -> None:
         # initialize analytical storage ie. create dataset required by passed schema
         job_client: JobClientBase
@@ -260,7 +275,8 @@ class Load(Runnable[ThreadPool]):
             if expected_update is not None:
                 # update the default dataset
                 logger.info(f"Client for {job_client.config.destination_name} will start initialize storage")
-                job_client.initialize_storage()
+                truncate_tables = self.get_table_chain_tables_for_write_disposition(load_id, schema, job_client.get_truncate_destination_table_dispositions())
+                job_client.initialize_storage(truncate_tables=truncate_tables)
                 logger.info(f"Client for {job_client.config.destination_name} will update schema to package schema")
                 all_jobs = self.get_new_jobs_info(load_id, schema)
                 all_tables = set(job.table_name for job in all_jobs)
@@ -269,12 +285,11 @@ class Load(Runnable[ThreadPool]):
                 applied_update = job_client.update_storage_schema(only_tables=all_tables | dlt_tables, expected_update=expected_update)
                 # update the staging dataset if client supports this
                 if isinstance(job_client, StagingJobClientBase):
-                    if staging_table_jobs := self.get_new_jobs_info(load_id, schema, job_client.get_stage_dispositions()):
+                    if staging_tables := self.get_table_chain_tables_for_write_disposition(load_id, schema, job_client.get_stage_dispositions()):
                         with job_client.with_staging_dataset():
                             logger.info(f"Client for {job_client.config.destination_name} will start initialize STAGING storage")
                             job_client.initialize_storage()
                             logger.info(f"Client for {job_client.config.destination_name} will UPDATE STAGING SCHEMA to package schema")
-                            staging_tables = set(job.table_name for job in staging_table_jobs)
                             job_client.update_storage_schema(only_tables=staging_tables | {VERSION_TABLE_NAME}, expected_update=expected_update)
                             logger.info(f"Client for {job_client.config.destination_name} will TRUNCATE STAGING TABLES: {staging_tables}")
                             job_client.initialize_storage(truncate_tables=staging_tables)
