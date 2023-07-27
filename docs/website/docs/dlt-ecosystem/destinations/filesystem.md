@@ -110,7 +110,7 @@ bucket_url = "file:///absolute/path"  # three / for absolute path
 `filesystem` destination handles the write dispositions as follows:
 - `append` - files belonging to such tables are added to dataset folder
 - `replace` - all files that belong to such tables are deleted from dataset folder and then current set of files is added.
-- `merge` - fallbacks to `append` or to `replace` when no merge nor primary key is defined
+- `merge` - fallbacks to `append`
 
 ## Data loading
 All the files are stored in a single folder with the name of the dataset that you passed to the `run` or `load` methods of `pipeline`. In our example chess pipeline it is **chess_players_games_data**.
