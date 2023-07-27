@@ -157,7 +157,7 @@ class SqlJobClientBase(StagingJobClientBase):
         return dispositions
 
     def get_truncate_destination_table_dispositions(self) -> List[TWriteDisposition]:
-        if self.config.replace_strategy:
+        if self.config.replace_strategy == "truncate-and-insert":
             return ["replace"]
         return []
 

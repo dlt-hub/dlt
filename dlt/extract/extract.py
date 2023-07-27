@@ -86,7 +86,8 @@ def extract(
             resources_with_items.add(resource_name)
             storage.write_data_item(extract_id, schema.name, table_name, item, None)
 
-        def _write_dynamic_table(table_name: str, resource: DltResource, item: TDataItem) -> None:
+        def _write_dynamic_table(resource: DltResource, item: TDataItem) -> None:
+            table_name = resource._table_name_hint_fun(item)
             existing_table = dynamic_tables.get(table_name)
             if existing_table is None:
                 dynamic_tables[table_name] = [resource.table_schema(item)]
@@ -136,11 +137,9 @@ def extract(
                     if resource._table_name_hint_fun:
                         if isinstance(pipe_item.item, List):
                             for item in pipe_item.item:
-                                table_name = resource._table_name_hint_fun(item)
-                                _write_dynamic_table(table_name, resource, item)
+                                _write_dynamic_table(resource, item)
                         else:
-                            table_name = resource._table_name_hint_fun(pipe_item.item)
-                            _write_dynamic_table(table_name, resource, pipe_item.item)
+                            _write_dynamic_table(resource, pipe_item.item)
                     else:
                         # write item belonging to table with static name
                         table_name = resource.table_name
@@ -148,7 +147,8 @@ def extract(
                         _write_item(table_name, resource.name, pipe_item.item)
 
             # find defined resources that did not yield any pipeitems and create empty jobs for them
-            tables_by_resources = utils.group_tables_by_resource(schema.tables)
+            data_tables = {t["name"]: t for t in schema.data_tables()}
+            tables_by_resources = utils.group_tables_by_resource(data_tables)
             for resource in source.resources.selected.values():
                 if resource.write_disposition != "replace" or resource.name in resources_with_items:
                     continue

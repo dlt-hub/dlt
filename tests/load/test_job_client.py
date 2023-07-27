@@ -499,7 +499,6 @@ def test_write_dispositions(client: SqlJobClientBase, write_disposition: str, re
                 assert len(db_rows) == idx + 1
             elif write_disposition == "replace":
                 # we overwrite with the same row. merge fallbacks to replace when no keys specified
-                print(db_rows)
                 assert len(db_rows) == 1
             else:
                 # merge on client level, without loader, loads to staging dataset. so this table is empty

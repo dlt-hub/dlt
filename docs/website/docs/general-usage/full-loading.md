@@ -42,8 +42,8 @@ replace_strategy = "staging-optimized"
 The `truncate-and-insert` replace strategy is the default and the fastest of all three strategies. If you load data with this setting, then the
 destination tables will be truncated at the beginning of the load and the new data will be inserted consecutively but not within the same transaction. 
 The downside of this strategy is, that your tables will have no data for a while until the load is completed. You
-may end up with new data in some tables and no data in other tables if the load fails during the run. 
-If you prefer to have no data downtime, please use one of the other strategies.
+may end up with new data in some tables and no data in other tables if the load fails during the run. Such incomplete load may be however detected by checking if the 
+[_dlt_loads table contains load id](../dlt-ecosystem/visualizations/understanding-the-tables.md#load-ids) from _dlt_load_id of the replaced tables. If you prefer to have no data downtime, please use one of the other strategies.
 
 ### The `insert-from-staging` strategy
 

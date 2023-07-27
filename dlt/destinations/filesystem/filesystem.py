@@ -88,7 +88,9 @@ class FilesystemClient(JobClientBase):
             for table in truncate_tables:
                 search_prefix = posixpath.join(self.dataset_path, f"{self.schema.name}.{table}.")
                 for item in all_files:
+                    # NOTE: glob implementation in fsspec does not look thread safe, way better is to use ls and then filter
                     if item.startswith(search_prefix):
+                        # NOTE: deleting in chunks on s3 does not raise on access denied, file non existing and probably other errors
                         self.fs_client.rm_file(item)
 
         # create destination dir
