@@ -22,7 +22,7 @@ def test_replace_disposition(destination_config: DestinationTestConfiguration, r
     global offset
     offset = 1000
 
-    @dlt.resource(table_name="items", write_disposition="replace", primary_key="id")
+    @dlt.resource(name="items", write_disposition="replace", primary_key="id")
     def load_items():
         # will produce 3 jobs for the main table with 40 items each
         # 6 jobs for the sub_items
@@ -66,11 +66,11 @@ def test_replace_disposition(destination_config: DestinationTestConfiguration, r
     assert {x for i,x in enumerate(range(2000, 2000+120), 1)}.union({x for i,x in enumerate(range(3000, 3000+120), 1)}) == {int(x["id"]) for x in table_dicts["items__sub_items"]}
     assert {x for i,x in enumerate(range(4000, 4120), 1)} == {int(x["id"]) for x in table_dicts["items__sub_items__sub_sub_items"]}
 
-    # TODO uncomment once child table clearing is implemented
+
     # we need to test that destination tables including child tables are cleared when we yield none from the resource
-    @dlt.resource(table_name="items", write_disposition="replace", primary_key="id")
+    @dlt.resource(name="items", write_disposition="replace", primary_key="id")
     def load_items_none():
-        yield None
+        yield
     info = pipeline.run(load_items_none, loader_file_format=destination_config.file_format)
 
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
