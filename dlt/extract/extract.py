@@ -153,7 +153,6 @@ def extract(
                 if resource.write_disposition != "replace" or resource.name in resources_with_items:
                     continue
                 if resource.name not in tables_by_resources:
-                    _write_empty_file(resource.table_name)
                     continue
                 for table in tables_by_resources[resource.name]:
                     _write_empty_file(table["name"])
