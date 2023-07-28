@@ -17,7 +17,7 @@ from dlt.cli.source_detection import detect_source_configs
 from dlt.extract.exceptions import ExplicitSourceNameInvalid, InvalidResourceDataTypeFunctionNotAGenerator, InvalidResourceDataTypeIsNone, ParametrizedResourceUnbound, PipeNotBoundToData, ResourceFunctionExpected, ResourceInnerCallableConfigWrapDisallowed, SourceDataIsNone, SourceIsAClassTypeError, SourceNotAFunction, SourceSchemaNotAvailable
 from dlt.extract.source import DltResource, DltSource
 
-from tests.common.utils import IMPORTED_VERSION_HASH_ETH_V5
+from tests.common.utils import IMPORTED_VERSION_HASH_ETH_V6
 
 
 def test_none_returning_source() -> None:
@@ -64,7 +64,7 @@ def test_load_schema_for_callable() -> None:
     schema = s.schema
     assert schema.name == "ethereum" == s.name
     # the schema in the associated file has this hash
-    assert schema.stored_version_hash == IMPORTED_VERSION_HASH_ETH_V5
+    assert schema.stored_version_hash == IMPORTED_VERSION_HASH_ETH_V6
 
 
 def test_unbound_parametrized_transformer() -> None:

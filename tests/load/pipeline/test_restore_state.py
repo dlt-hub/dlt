@@ -15,7 +15,7 @@ from dlt.pipeline.state_sync import STATE_TABLE_COLUMNS, STATE_TABLE_NAME, load_
 
 from tests.utils import ALL_DESTINATIONS, TEST_STORAGE_ROOT
 from tests.cases import JSON_TYPED_DICT
-from tests.common.utils import IMPORTED_VERSION_HASH_ETH_V5, yml_case_path as common_yml_case_path
+from tests.common.utils import IMPORTED_VERSION_HASH_ETH_V6, yml_case_path as common_yml_case_path
 from tests.common.configuration.utils import environment
 from tests.load.pipeline.utils import assert_query_data, drop_active_pipeline_data
 from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
@@ -389,7 +389,7 @@ def test_restore_schemas_while_import_schemas_exist(destination_name: str) -> No
     assert "labels" in schema.tables
     assert "annotations" in schema.tables
     # check if attached to import schema
-    assert schema._imported_version_hash == IMPORTED_VERSION_HASH_ETH_V5
+    assert schema._imported_version_hash == IMPORTED_VERSION_HASH_ETH_V6
     # extract some data with restored pipeline
     p.run(["C", "D", "E"], table_name="blacklist")
     assert "labels" in schema.tables
