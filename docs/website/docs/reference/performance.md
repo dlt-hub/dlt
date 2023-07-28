@@ -149,7 +149,7 @@ Many requests settings can be added to the runtime section in your `config.toml`
 
 ```toml
 [runtime]
-request_max_attemts = 10  # Stop after 10 retry attempts instead of 5
+request_max_attempts = 10  # Stop after 10 retry attempts instead of 5
 request_backoff_factor = 1.5  # Multiplier applied to the exponential delays. Default is 1
 request_timeout = 120  # Timeout in seconds
 request_max_retry_delay = 30  # Cap exponential delay to 30 seconds
@@ -187,7 +187,7 @@ def retry_if_error_key(response: Optional[requests.Response], exception: Optiona
     return 'error' in data
 
 http_client = Client(
-    retry_condition=retry_timeout=120
+    retry_condition=retry_if_error_key
 )
 ```
 
