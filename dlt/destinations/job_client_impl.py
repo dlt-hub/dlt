@@ -213,7 +213,9 @@ class SqlJobClientBase(StagingJobClientBase):
         name = self.sql_client.make_qualified_table_name(LOADS_TABLE_NAME)
         now_ts = pendulum.now()
         self.sql_client.execute_sql(
-            f"INSERT INTO {name}(load_id, schema_name, status, inserted_at) VALUES(%s, %s, %s, %s);", load_id, self.schema.name, 0, now_ts)
+            f"INSERT INTO {name}(load_id, schema_name, version, status, inserted_at) VALUES(%s, %s, %s, %s, %s);",
+            load_id, self.schema.name, self.schema.version, 0, now_ts
+        )
 
     def __enter__(self) -> "SqlJobClientBase":
         self.sql_client.open_connection()
