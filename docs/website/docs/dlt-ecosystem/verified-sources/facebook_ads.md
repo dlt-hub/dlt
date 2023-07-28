@@ -173,7 +173,7 @@ For more information, read the [Walkthrough: Run a pipeline.](../../walkthroughs
 
 ## Sources and resources
 
-`dlt` works on the principle of [sources](../../general-usage/source) and 
+`dlt` works on the principle of [sources](../../general-usage/source) and
 [resources](../../general-usage/resource).
 
 ### Default endpoints
