@@ -238,7 +238,7 @@ def test_evolve_schema(destination_name: str) -> None:
     assert info.destination_fingerprint == p._destination_client().config.fingerprint()
     # print(p.default_schema.to_pretty_yaml())
     schema = p.default_schema
-    version_history = [schema.version]
+    version_history = [schema.stored_version_hash]
     assert "simple_rows" in schema.tables
     assert "simple" not in schema.tables
     assert "new_column" not in schema.get_table("simple_rows")["columns"]
@@ -247,7 +247,7 @@ def test_evolve_schema(destination_name: str) -> None:
     if destination_name == "postgres":
         assert p.dataset_name == dataset_name
         err_info = p.run(source(1).with_resources("simple_rows"))
-        version_history.append(p.default_schema.version)
+        version_history.append(p.default_schema.stored_version_hash)
         # print(err_info)
         # we have failed jobs
         assert len(err_info.load_packages[0].jobs["failed_jobs"]) == 1
@@ -259,7 +259,7 @@ def test_evolve_schema(destination_name: str) -> None:
     print(info_ext)
     # print(p.default_schema.to_pretty_yaml())
     schema = p.default_schema
-    version_history.append(schema.version)
+    version_history.append(schema.stored_version_hash)
     assert "simple_rows" in schema.tables
     assert "simple" in schema.tables
     assert "new_column" in schema.get_table("simple_rows")["columns"]
@@ -269,7 +269,7 @@ def test_evolve_schema(destination_name: str) -> None:
     # test data
     id_data = sorted(["level" + str(n) for n in range(10)] + ["level" + str(n) for n in range(100, 110)])
     assert_query_data(p, "SELECT * FROM simple_rows ORDER BY id", id_data)
-    assert_query_data(p, "SELECT version FROM _dlt_loads ORDER BY version", version_history)
+    assert_query_data(p, "SELECT schema_version_hash FROM _dlt_loads ORDER BY inserted_at", version_history)
 
 
 @pytest.mark.parametrize('disable_compression', [True, False])
