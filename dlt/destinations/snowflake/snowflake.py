@@ -89,26 +89,26 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
             stage_file_path = f'@{stage_name}/"{load_id}"/{file_name}'
             from_clause = f"FROM {stage_file_path}"
 
-            # decide on source format, stage_file_path will either be a local file or a bucket path
-            source_format = "( TYPE = 'JSON', BINARY_FORMAT = 'BASE64' )"
-            if file_name.endswith("parquet"):
-                source_format = "(TYPE = 'PARQUET', BINARY_AS_TEXT = FALSE)"
+        # decide on source format, stage_file_path will either be a local file or a bucket path
+        source_format = "( TYPE = 'JSON', BINARY_FORMAT = 'BASE64' )"
+        if file_name.endswith("parquet"):
+            source_format = "(TYPE = 'PARQUET', BINARY_AS_TEXT = FALSE)"
 
-            with client.begin_transaction():
-                # PUT and COPY in one tx if local file, otherwise only copy
-                if not bucket_path:
-                    client.execute_sql(f'PUT file://{file_path} @{stage_name}/"{load_id}" OVERWRITE = TRUE, AUTO_COMPRESS = FALSE')
-                client.execute_sql(
-                    f"""COPY INTO {qualified_table_name}
-                    {from_clause}
-                    {files_clause}
-                    {credentials_clause}
-                    FILE_FORMAT = {source_format}
-                    MATCH_BY_COLUMN_NAME='CASE_INSENSITIVE'
-                    """
-                )
-                if stage_file_path and not keep_staged_files:
-                    client.execute_sql(f'REMOVE {stage_file_path}')
+        with client.begin_transaction():
+            # PUT and COPY in one tx if local file, otherwise only copy
+            if not bucket_path:
+                client.execute_sql(f'PUT file://{file_path} @{stage_name}/"{load_id}" OVERWRITE = TRUE, AUTO_COMPRESS = FALSE')
+            client.execute_sql(
+                f"""COPY INTO {qualified_table_name}
+                {from_clause}
+                {files_clause}
+                {credentials_clause}
+                FILE_FORMAT = {source_format}
+                MATCH_BY_COLUMN_NAME='CASE_INSENSITIVE'
+                """
+            )
+            if stage_file_path and not keep_staged_files:
+                client.execute_sql(f'REMOVE {stage_file_path}')
 
 
     def state(self) -> TLoadJobState:
@@ -151,7 +151,8 @@ class SnowflakeClient(SqlJobClientBase):
 
         if not job:
             job = SnowflakeLoadJob(
-                file_path, table['name'],
+                file_path,
+                table['name'],
                 load_id,
                 self.sql_client,
                 stage_name=self.config.stage_name,

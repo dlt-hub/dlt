@@ -65,16 +65,14 @@ SELECT 1
         rows = self.execute_sql(query, *db_params)
         return len(rows) > 0
 
-    @abstractmethod
     def create_dataset(self) -> None:
-        pass
+        self.execute_sql("CREATE SCHEMA %s" % self.fully_qualified_dataset_name())
 
-    @abstractmethod
     def drop_dataset(self) -> None:
-        pass
+        self.execute_sql("DROP SCHEMA %s CASCADE;" % self.fully_qualified_dataset_name())
 
     def truncate_tables(self, *tables: str) -> None:
-        statements = [f"TRUNCATE TABLE {self.make_qualified_table_name(t)};" for t in tables]
+        statements = [self._truncate_table_sql(self.make_qualified_table_name(t)) for t in tables]
         self.execute_fragments(statements)
 
     def drop_tables(self, *tables: str) -> None:
@@ -149,11 +147,11 @@ SELECT 1
     #
     # generate sql statements
     #
-    def truncate_table_sql(self, table_name: str) -> str:
+    def _truncate_table_sql(self, qualified_table_name: str) -> str:
         if self.capabilities.supports_truncate_command:
-            return f"TRUNCATE TABLE {table_name};"
+            return f"TRUNCATE TABLE {qualified_table_name};"
         else:
-            return f"DELETE FROM {table_name};"
+            return f"DELETE FROM {qualified_table_name} WHERE 1=1;"
 
 
 class DBApiCursorImpl(DBApiCursor):

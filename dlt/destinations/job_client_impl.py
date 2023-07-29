@@ -111,7 +111,6 @@ class SqlJobClientBase(StagingJobClientBase):
             if truncate_tables:
                 self.sql_client.truncate_tables(*truncate_tables)
 
-
     def is_storage_initialized(self) -> bool:
         return self.sql_client.has_dataset()
 
@@ -213,8 +212,8 @@ class SqlJobClientBase(StagingJobClientBase):
         name = self.sql_client.make_qualified_table_name(LOADS_TABLE_NAME)
         now_ts = pendulum.now()
         self.sql_client.execute_sql(
-            f"INSERT INTO {name}(load_id, schema_name, version, status, inserted_at) VALUES(%s, %s, %s, %s, %s);",
-            load_id, self.schema.name, self.schema.version, 0, now_ts
+            f"INSERT INTO {name}(load_id, schema_name, status, inserted_at, schema_version_hash) VALUES(%s, %s, %s, %s, %s);",
+            load_id, self.schema.name, 0, now_ts, self.schema.version_hash
         )
 
     def __enter__(self) -> "SqlJobClientBase":

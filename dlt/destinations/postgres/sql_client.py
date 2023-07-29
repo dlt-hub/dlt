@@ -68,12 +68,6 @@ class Psycopg2SqlClient(SqlClientBase["psycopg2.connection"], DBTransaction):
     def native_connection(self) -> "psycopg2.connection":
         return self._conn
 
-    def create_dataset(self) -> None:
-        self.execute_sql("CREATE SCHEMA %s" % self.fully_qualified_dataset_name())
-
-    def drop_dataset(self) -> None:
-        self.execute_sql("DROP SCHEMA %s CASCADE;" % self.fully_qualified_dataset_name())
-
     # @raise_database_error
     def execute_sql(self, sql: AnyStr, *args: Any, **kwargs: Any) -> Optional[Sequence[Sequence[Any]]]:
         with self.execute_query(sql, *args, **kwargs) as curr:

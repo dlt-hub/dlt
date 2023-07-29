@@ -69,7 +69,7 @@ def test_simple_load(client: InsertValuesJobClient, file_storage: FileStorage) -
 def test_loading_errors(client: InsertValuesJobClient, file_storage: FileStorage) -> None:
     # test expected dbiapi exceptions for supported destinations
     import duckdb
-    from dlt.destinations.postgres.postgres import psycopg2
+    from dlt.destinations.postgres.sql_client import psycopg2
 
     TNotNullViolation = psycopg2.errors.NotNullViolation
     TNumericValueOutOfRange = psycopg2.errors.NumericValueOutOfRange

@@ -285,7 +285,14 @@ class DestinationReference(Protocol):
                     # from known location
                     destination_ref = cast(DestinationReference, import_module(f"dlt.destinations.{destination}"))
             except ImportError:
-                raise UnknownDestinationModule(destination)
+                if "." in destination:
+                    raise UnknownDestinationModule(destination)
+                else:
+                    # allow local external module imported without dot
+                    try:
+                        destination_ref = cast(DestinationReference, import_module(destination))
+                    except ImportError:
+                        raise UnknownDestinationModule(destination)
         else:
             destination_ref = cast(DestinationReference, destination)
 
