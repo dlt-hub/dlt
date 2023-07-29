@@ -466,6 +466,8 @@ def group_tables_by_resource(tables: TSchemaTables, pattern: Optional[REPattern]
 
 
 def version_table() -> TTableSchema:
+    # NOTE: always add new columns at the end of the table so we have identical layout
+    # after an update of existing tables (always at the end)
     table = new_table(VERSION_TABLE_NAME, columns=[
             add_missing_hints({
                 "name": "version",
@@ -505,6 +507,8 @@ def version_table() -> TTableSchema:
 
 
 def load_table() -> TTableSchema:
+    # NOTE: always add new columns at the end of the table so we have identical layout
+    # after an update of existing tables (always at the end)
     table = new_table(LOADS_TABLE_NAME, columns=[
             add_missing_hints({
                 "name": "load_id",
@@ -517,11 +521,6 @@ def load_table() -> TTableSchema:
                 "nullable": True
             }),
             add_missing_hints({
-                "name": "version",
-                "data_type": "bigint",
-                "nullable": True,
-            }),
-            add_missing_hints({
                 "name": "status",
                 "data_type": "bigint",
                 "nullable": False
@@ -530,7 +529,12 @@ def load_table() -> TTableSchema:
                 "name": "inserted_at",
                 "data_type": "timestamp",
                 "nullable": False
-            })
+            }),
+            add_missing_hints({
+                "name": "schema_version_hash",
+                "data_type": "text",
+                "nullable": True,
+            }),
         ]
     )
     table["write_disposition"] = "skip"

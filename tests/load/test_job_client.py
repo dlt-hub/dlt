@@ -165,10 +165,10 @@ def test_complete_load(client: SqlJobClientBase) -> None:
     assert len(load_rows) == 1
     assert load_rows[0][0] == load_id
     assert load_rows[0][1] == client.schema.name
-    assert load_rows[0][2] == client.schema.version
-    assert load_rows[0][3] == 0
+    assert load_rows[0][2] == 0
     import datetime  # noqa: I251
     assert type(load_rows[0][3]) is datetime.datetime
+    assert load_rows[0][4] == client.schema.version_hash
     client.complete_load("load2")
     load_rows = list(client.sql_client.execute_sql(f"SELECT * FROM {load_table}"))
     assert len(load_rows) == 2

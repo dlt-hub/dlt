@@ -1,5 +1,5 @@
 version: 13
-version_hash: AhyewCGalymdL4DSrPP9kmdV3LBcx4WPIceBSyACYdM=
+version_hash: ++bJOVuScYYoVUFtjmZMBV+cxsWs8irYHIMV8J1xD5g=
 engine_version: 6
 name: ethereum
 tables:
@@ -11,15 +11,15 @@ tables:
       schema_name:
         nullable: true
         data_type: text
-      version:
-        nullable: true
-        data_type: bigint
       status:
         nullable: false
         data_type: bigint
       inserted_at:
         nullable: false
         data_type: timestamp
+      schema_version_hash:
+        nullable: true
+        data_type: text
     write_disposition: skip
     description: Created by DLT. Tracks completed loads
   _dlt_version:
