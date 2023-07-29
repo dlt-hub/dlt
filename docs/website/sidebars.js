@@ -215,7 +215,7 @@ const sidebars = {
             'walkthroughs/deploy-a-pipeline/airflow-gcp-cloud-composer',
           ]
         },
-
+        'walkthroughs/add-a-destination',
       ],
     },
     {
