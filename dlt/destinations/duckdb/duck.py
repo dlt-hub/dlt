@@ -44,13 +44,19 @@ HINT_TO_POSTGRES_ATTR: Dict[TColumnHint, str] = {
 
 
 class DuckDbCopyJob(LoadJob, FollowupJob):
-    def __init__(self, table_name: str, use_staging_table: bool, file_path: str, sql_client: DuckDbSqlClient) -> None:
+    def __init__(self, table_name: str, file_path: str, sql_client: DuckDbSqlClient) -> None:
         super().__init__(FileStorage.get_file_name_from_file_path(file_path))
 
-        with sql_client.with_staging_dataset(use_staging_table):
-            qualified_table_name = sql_client.make_qualified_table_name(table_name)
-            with sql_client.begin_transaction():
-                sql_client.execute_sql(f"COPY {qualified_table_name} FROM '{file_path}' ( FORMAT PARQUET );")
+        if file_path.endswith("parquet"):
+            source_format = "PARQUET"
+        elif file_path.endswith("jsonl"):
+            # NOTE: loading JSON does not work in practice on duckdb: the missing keys fail the load instead of being interpreted as NULL
+            source_format = "JSON"  # newline delimited, compression auto
+        else:
+            raise ValueError(file_path)
+        qualified_table_name = sql_client.make_qualified_table_name(table_name)
+        with sql_client.begin_transaction():
+            sql_client.execute_sql(f"COPY {qualified_table_name} FROM '{file_path}' ( FORMAT {source_format} );")
 
 
     def state(self) -> TLoadJobState:
@@ -74,10 +80,10 @@ class DuckDbClient(InsertValuesJobClient):
         self.active_hints = HINT_TO_POSTGRES_ATTR if self.config.create_indexes else {}
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
-        if file_path.endswith("parquet"):
-            disposition = table["write_disposition"]
-            return DuckDbCopyJob(table["name"], disposition in self.get_stage_dispositions(),  file_path, self.sql_client)
-        return super().start_file_load(table, file_path, load_id)
+        job = super().start_file_load(table, file_path, load_id)
+        if not job:
+            job = DuckDbCopyJob(table["name"], file_path, self.sql_client)
+        return job
 
     def _get_column_def_sql(self, c: TColumnSchema) -> str:
         hints_str = " ".join(self.active_hints.get(h, "") for h in self.active_hints.keys() if c.get(h, False) is True)

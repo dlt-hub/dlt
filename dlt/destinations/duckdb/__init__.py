@@ -19,7 +19,7 @@ def _configure(config: DuckDbClientConfiguration = config.value) -> DuckDbClient
 def capabilities() -> DestinationCapabilitiesContext:
     caps = DestinationCapabilitiesContext()
     caps.preferred_loader_file_format = "insert_values"
-    caps.supported_loader_file_formats = ["insert_values", "parquet", "sql"]
+    caps.supported_loader_file_formats = ["insert_values", "parquet", "jsonl"]
     caps.preferred_staging_file_format = None
     caps.supported_staging_file_formats = []
     caps.escape_identifier = escape_postgres_identifier

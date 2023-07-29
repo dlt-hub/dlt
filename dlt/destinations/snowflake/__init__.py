@@ -20,9 +20,9 @@ def _configure(config: SnowflakeClientConfiguration = config.value) -> Snowflake
 def capabilities() -> DestinationCapabilitiesContext:
     caps = DestinationCapabilitiesContext()
     caps.preferred_loader_file_format = "jsonl"
-    caps.supported_loader_file_formats = ["jsonl", "parquet", "sql"]
+    caps.supported_loader_file_formats = ["jsonl", "parquet"]
     caps.preferred_staging_file_format = "jsonl"
-    caps.supported_staging_file_formats = ["jsonl", "parquet", "sql"]
+    caps.supported_staging_file_formats = ["jsonl", "parquet"]
     caps.escape_identifier = escape_snowflake_identifier
     caps.decimal_precision = (DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE)
     caps.wei_precision = (DEFAULT_NUMERIC_PRECISION, 0)

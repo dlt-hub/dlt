@@ -1,17 +1,6 @@
-import platform
-
-from dlt.common.wei import EVM_DECIMAL_PRECISION
-if platform.python_implementation() == "PyPy":
-    import psycopg2cffi as psycopg2
-    from psycopg2cffi.sql import SQL, Composed
-else:
-    import psycopg2
-    from psycopg2.sql import SQL, Composed
-
-
 from typing import ClassVar, Dict, Optional, Sequence, List, Any
 
-from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
+from dlt.common.wei import EVM_DECIMAL_PRECISION
 from dlt.common.destination.reference import NewLoadJob
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.data_types import TDataType

@@ -84,11 +84,9 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
     def __init__(self, table: TTableSchema,
                  file_path: str,
                  sql_client: SqlClientBase[Any],
-                 use_staging_table: bool,
                  staging_credentials: Optional[CredentialsConfiguration] = None,
                  staging_iam_role: str = None) -> None:
         self._staging_iam_role = staging_iam_role
-        self._use_staging_table = use_staging_table
         super().__init__(table, file_path, sql_client, staging_credentials)
 
     def execute(self, table: TTableSchema, bucket_path: str) -> None:
@@ -123,17 +121,16 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
         else:
             raise ValueError(f"Unsupported file type {ext} for Redshift.")
 
-        with self._sql_client.with_staging_dataset(self._use_staging_table):
-            with self._sql_client.begin_transaction():
-                dataset_name = self._sql_client.dataset_name
-                # TODO: if we ever support csv here remember to add column names to COPY
-                self._sql_client.execute_sql(f"""
-                    COPY {dataset_name}.{table_name}
-                    FROM '{bucket_path}'
-                    {file_type}
-                    {dateformat}
-                    {compression}
-                    {credentials} MAXERROR 0;""")
+        with self._sql_client.begin_transaction():
+            dataset_name = self._sql_client.dataset_name
+            # TODO: if we ever support csv here remember to add column names to COPY
+            self._sql_client.execute_sql(f"""
+                COPY {dataset_name}.{table_name}
+                FROM '{bucket_path}'
+                {file_type}
+                {dateformat}
+                {compression}
+                {credentials} MAXERROR 0;""")
 
 
 
@@ -178,10 +175,11 @@ class RedshiftClient(InsertValuesJobClient):
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         """Starts SqlLoadJob for files ending with .sql or returns None to let derived classes to handle their specific jobs"""
-        if NewReferenceJob.is_reference_job(file_path):
-            disposition = table["write_disposition"]
-            return RedshiftCopyFileLoadJob(table, file_path, self.sql_client, disposition in self.get_stage_dispositions(), staging_credentials=self.config.staging_credentials, staging_iam_role=self.config.staging_iam_role)
-        return super().start_file_load(table, file_path, load_id)
+        job = super().start_file_load(table, file_path, load_id)
+        if not job:
+            assert NewReferenceJob.is_reference_job(file_path), "Redshift must use staging to load files"
+            job = RedshiftCopyFileLoadJob(table, file_path, self.sql_client, staging_credentials=self.config.staging_credentials, staging_iam_role=self.config.staging_iam_role)
+        return job
 
     @classmethod
     def _to_db_type(cls, sc_t: TDataType) -> str:

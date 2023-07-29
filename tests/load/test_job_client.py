@@ -491,8 +491,13 @@ def test_write_dispositions(client: SqlJobClientBase, write_disposition: str, re
             with io.BytesIO() as f:
                 write_dataset(client, f, [table_row], TABLE_UPDATE_COLUMNS_SCHEMA)
                 query = f.getvalue().decode()
-
-            expect_load_file(client, file_storage, query, t)
+            if write_disposition in client.get_stage_dispositions():
+                # load to staging dataset on merge
+                with client.with_staging_dataset():
+                    expect_load_file(client, file_storage, query, t)
+            else:
+                # load directly on other
+                expect_load_file(client, file_storage, query, t)
             db_rows = list(client.sql_client.execute_sql(f"SELECT * FROM {client.sql_client.make_qualified_table_name(t)} ORDER BY col1 ASC"))
             # in case of merge
             if write_disposition == "append":

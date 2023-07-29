@@ -1,6 +1,7 @@
+import contextlib
 from functools import reduce
 import datetime  # noqa: 251
-from typing import Dict, List, Optional, Tuple, Set
+from typing import Dict, List, Optional, Tuple, Set, Iterator
 from multiprocessing.pool import ThreadPool
 import os
 
@@ -18,8 +19,7 @@ from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import VERSION_TABLE_NAME, TTableSchema, TWriteDisposition
 from dlt.common.storages import LoadStorage
-from dlt.common.destination.reference import DestinationClientDwhConfiguration, FollowupJob, JobClientBase, StagingJobClientBase, DestinationReference, LoadJob, NewLoadJob, TLoadJobState, DestinationClientConfiguration, DestinationClientStagingConfiguration
-from dlt.destinations.filesystem.filesystem import LoadFilesystemJob
+from dlt.common.destination.reference import DestinationClientDwhConfiguration, FollowupJob, JobClientBase, StagingJobClientBase, DestinationReference, LoadJob, NewLoadJob, TLoadJobState, DestinationClientConfiguration
 
 from dlt.destinations.job_impl import EmptyLoadJob
 from dlt.destinations.exceptions import DestinationTerminalException, DestinationTransientException, LoadJobUnknownTableException
@@ -34,7 +34,7 @@ class Load(Runnable[ThreadPool]):
     def __init__(
         self,
         destination: DestinationReference,
-        staging: DestinationReference = None,
+        staging_destination: DestinationReference = None,
         collector: Collector = NULL_COLLECTOR,
         is_storage_owner: bool = False,
         config: LoaderConfiguration = config.value,
@@ -47,7 +47,7 @@ class Load(Runnable[ThreadPool]):
         self.initial_staging_client_config = initial_staging_client_config
         self.destination = destination
         self.capabilities = destination.capabilities()
-        self.staging = staging
+        self.staging_destination = staging_destination
         self.pool: ThreadPool = None
         self.load_storage: LoadStorage = self.create_storage(is_storage_owner)
         self._processed_load_ids: Dict[str, int] = {}
@@ -55,8 +55,10 @@ class Load(Runnable[ThreadPool]):
 
     def create_storage(self, is_storage_owner: bool) -> LoadStorage:
         supported_file_formats = self.capabilities.supported_loader_file_formats
-        if self.staging:
-            supported_file_formats = self.staging.capabilities().supported_loader_file_formats + ["reference", "sql"]
+        if self.staging_destination:
+            supported_file_formats = self.staging_destination.capabilities().supported_loader_file_formats + ["reference"]
+        if isinstance(self.get_destination_client(Schema("test")), StagingJobClientBase):
+            supported_file_formats += ["sql"]
         load_storage = LoadStorage(
             is_storage_owner,
             self.capabilities.preferred_loader_file_format,
@@ -77,14 +79,32 @@ class Load(Runnable[ThreadPool]):
         except KeyError:
             raise LoadJobUnknownTableException(table_name, file_name)
 
+    def get_destination_client(self, schema: Schema) -> JobClientBase:
+        return self.destination.client(schema, self.initial_client_config)
+
+    def get_staging_destination_client(self, schema: Schema) -> JobClientBase:
+        return self.staging_destination.client(schema, self.initial_staging_client_config)
+
+    def is_staging_destination_job(self, file_path: str) -> bool:
+        return self.staging_destination is not None and os.path.splitext(file_path)[1][1:] in self.staging_destination.capabilities().supported_loader_file_formats
+
+    @contextlib.contextmanager
+    def maybe_with_staging_dataset(self, job_client: JobClientBase, table: TTableSchema) -> Iterator[None]:
+        """Executes job client methods in context of staging dataset if `table` has `write_disposition` that requires it"""
+        if isinstance(job_client, StagingJobClientBase) and table["write_disposition"] in job_client.get_stage_dispositions():
+            with job_client.with_staging_dataset():
+                yield
+        else:
+            yield
+
     @staticmethod
     @workermethod
     def w_spool_job(self: "Load", file_path: str, load_id: str, schema: Schema) -> Optional[LoadJob]:
         job: LoadJob = None
         try:
             # if we have a staging destination and the file is not a reference, send to staging
-            client = self.get_staging_client(schema) if self.is_staging_job(file_path) else self.get_destination_client(schema)
-            with client as client:
+            job_client = self.get_staging_destination_client(schema) if self.is_staging_destination_job(file_path) else self.get_destination_client(schema)
+            with job_client as job_client:
                 job_info = self.load_storage.parse_job_file_name(file_path)
                 if job_info.file_format not in self.load_storage.supported_file_formats:
                     raise LoadClientUnsupportedFileFormats(job_info.file_format, self.capabilities.supported_loader_file_formats, file_path)
@@ -92,7 +112,8 @@ class Load(Runnable[ThreadPool]):
                 table = self.get_load_table(schema, file_path)
                 if table["write_disposition"] not in ["append", "replace", "merge"]:
                     raise LoadClientUnsupportedWriteDisposition(job_info.table_name, table["write_disposition"], file_path)
-                job = client.start_file_load(table, self.load_storage.storage.make_full_path(file_path), load_id)
+                with self.maybe_with_staging_dataset(job_client, table):
+                    job = job_client.start_file_load(table, self.load_storage.storage.make_full_path(file_path), load_id)
         except (DestinationTerminalException, TerminalValueError):
             # if job irreversibly cannot be started, mark it as failed
             logger.exception(f"Terminal problem when adding job {file_path}")
@@ -123,9 +144,6 @@ class Load(Runnable[ThreadPool]):
         # remove None jobs and check the rest
         return file_count, [job for job in jobs if job is not None]
 
-    def is_staging_job(self, file_path: str) -> bool:
-        return self.staging is not None and os.path.splitext(file_path)[1][1:] in self.staging.capabilities().supported_loader_file_formats
-
     def retrieve_jobs(self, client: JobClientBase, load_id: str, staging_client: JobClientBase = None) -> Tuple[int, List[LoadJob]]:
         jobs: List[LoadJob] = []
 
@@ -139,7 +157,7 @@ class Load(Runnable[ThreadPool]):
         for file_path in started_jobs:
             try:
                 logger.info(f"Will retrieve {file_path}")
-                client = staging_client if self.is_staging_job(file_path) else client
+                client = staging_client if self.is_staging_destination_job(file_path) else client
                 job = client.restore_file_load(file_path)
             except DestinationTerminalException:
                 logger.exception(f"Job retrieval for {file_path} failed, job will be terminated")
@@ -182,9 +200,10 @@ class Load(Runnable[ThreadPool]):
     def create_followup_jobs(self, load_id: str, state: TLoadJobState, starting_job: LoadJob, schema: Schema) -> List[NewLoadJob]:
         jobs: List[NewLoadJob] = []
         if isinstance(starting_job, FollowupJob):
-            # check for merge jobs only for non-staging jobs. we may move that logic to the interface
+            # check for merge jobs only for jobs executing on the destination, the staging destination jobs must be excluded
+            # NOTE: we may move that logic to the interface
             starting_job_file_name = starting_job.file_name()
-            if state == "completed" and not self.is_staging_job(starting_job_file_name):
+            if state == "completed" and not self.is_staging_destination_job(starting_job_file_name):
                 client = self.destination.client(schema, self.initial_client_config)
                 top_job_table = get_top_level_table(schema.tables, self.get_load_table(schema, starting_job_file_name)["name"])
                 # if all tables of chain completed, create follow  up jobs
@@ -240,9 +259,6 @@ class Load(Runnable[ThreadPool]):
 
         return remaining_jobs
 
-    def get_destination_client(self, schema: Schema) -> JobClientBase:
-        return self.destination.client(schema, self.initial_client_config)
-
     def complete_package(self, load_id: str, schema: Schema, aborted: bool = False) -> None:
         # do not commit load id for aborted packages
         if not aborted:
@@ -253,7 +269,7 @@ class Load(Runnable[ThreadPool]):
         self._processed_load_ids[load_id] = 1
 
     def get_table_chain_tables_for_write_disposition(self, load_id: str, schema: Schema, dispositions: List[TWriteDisposition]) -> Set[str]:
-        # get all jobs for tables with given write disposition and resolve the table chain
+        """Get all jobs for tables with given write disposition and resolve the table chain"""
         result: Set[str] = set()
         table_jobs = self.get_new_jobs_info(load_id, schema, dispositions)
         for job in table_jobs:
@@ -295,8 +311,8 @@ class Load(Runnable[ThreadPool]):
                             job_client.initialize_storage(truncate_tables=staging_tables)
                 self.load_storage.commit_schema_update(load_id, applied_update)
             # spool or retrieve unfinished jobs
-            if self.staging:
-                with self.get_staging_client(schema) as staging_client:
+            if self.staging_destination:
+                with self.get_staging_destination_client(schema) as staging_client:
                     jobs_count, jobs = self.retrieve_jobs(job_client, load_id, staging_client)
             else:
                 jobs_count, jobs = self.retrieve_jobs(job_client, load_id)
@@ -343,9 +359,6 @@ class Load(Runnable[ThreadPool]):
                 # the package is completed and skipped
                 self.complete_package(load_id, schema, True)
                 raise
-
-    def get_staging_client(self, schema: Schema) -> JobClientBase:
-        return self.staging.client(schema, self.initial_staging_client_config)
 
     def run(self, pool: ThreadPool) -> TRunMetrics:
         # store pool

@@ -186,10 +186,9 @@ class BigQueryClient(SqlJobClientBase):
 
         if not job:
             try:
-                disposition = table["write_disposition"]
                 job = BigQueryLoadJob(
                     FileStorage.get_file_name_from_file_path(file_path),
-                    self._create_load_job(table, disposition in self.get_stage_dispositions(), file_path),
+                    self._create_load_job(table, file_path),
                     self.config.http_timeout,
                     self.config.retry_deadline
                 )
@@ -256,7 +255,7 @@ class BigQueryClient(SqlJobClientBase):
         except gcp_exceptions.NotFound:
             return False, schema_table
 
-    def _create_load_job(self, table: TTableSchema, use_staging_table: bool, file_path: str) -> bigquery.LoadJob:
+    def _create_load_job(self, table: TTableSchema, file_path: str) -> bigquery.LoadJob:
         # append to table for merge loads (append to stage) and regular appends
         table_name = table["name"]
 
@@ -278,35 +277,33 @@ class BigQueryClient(SqlJobClientBase):
             # parquet needs NUMERIC type autodetection
             decimal_target_types = ["NUMERIC", "BIGNUMERIC"]
 
-        # if merge then load to staging
-        with self.sql_client.with_staging_dataset(use_staging_table):
-            job_id = BigQueryLoadJob.get_job_id_from_file_path(file_path)
-            job_config = bigquery.LoadJobConfig(
-                autodetect=False,
-                write_disposition=bigquery.WriteDisposition.WRITE_APPEND,
-                create_disposition=bigquery.CreateDisposition.CREATE_NEVER,
-                source_format=source_format,
-                decimal_target_types=decimal_target_types,
-                ignore_unknown_values=False,
-                max_bad_records=0)
+        job_id = BigQueryLoadJob.get_job_id_from_file_path(file_path)
+        job_config = bigquery.LoadJobConfig(
+            autodetect=False,
+            write_disposition=bigquery.WriteDisposition.WRITE_APPEND,
+            create_disposition=bigquery.CreateDisposition.CREATE_NEVER,
+            source_format=source_format,
+            decimal_target_types=decimal_target_types,
+            ignore_unknown_values=False,
+            max_bad_records=0)
 
-            if bucket_path:
-                return self.sql_client.native_connection.load_table_from_uri(
-                        bucket_path,
-                        self.sql_client.make_qualified_table_name(table_name, escape=False),
-                        job_id=job_id,
-                        job_config=job_config,
-                        timeout=self.config.file_upload_timeout
-                    )
+        if bucket_path:
+            return self.sql_client.native_connection.load_table_from_uri(
+                    bucket_path,
+                    self.sql_client.make_qualified_table_name(table_name, escape=False),
+                    job_id=job_id,
+                    job_config=job_config,
+                    timeout=self.config.file_upload_timeout
+                )
 
-            with open(file_path, "rb") as f:
-                return self.sql_client.native_connection.load_table_from_file(
-                        f,
-                        self.sql_client.make_qualified_table_name(table_name, escape=False),
-                        job_id=job_id,
-                        job_config=job_config,
-                        timeout=self.config.file_upload_timeout
-                    )
+        with open(file_path, "rb") as f:
+            return self.sql_client.native_connection.load_table_from_file(
+                    f,
+                    self.sql_client.make_qualified_table_name(table_name, escape=False),
+                    job_id=job_id,
+                    job_config=job_config,
+                    timeout=self.config.file_upload_timeout
+                )
 
     def _retrieve_load_job(self, file_path: str) -> bigquery.LoadJob:
         job_id = BigQueryLoadJob.get_job_id_from_file_path(file_path)

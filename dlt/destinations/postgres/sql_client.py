@@ -4,10 +4,10 @@ from dlt.common.destination import DestinationCapabilitiesContext
 
 if platform.python_implementation() == "PyPy":
     import psycopg2cffi as psycopg2
-    from psycopg2cffi.sql import SQL, Identifier, Literal as SQLLiteral
+    from psycopg2cffi.sql import SQL, Composed, Composable
 else:
     import psycopg2
-    from psycopg2.sql import SQL, Identifier, Literal as SQLLiteral, Composed, Composable
+    from psycopg2.sql import SQL, Composed, Composable
 
 from contextlib import contextmanager
 from typing import Any, AnyStr, ClassVar, Iterator, Optional, Sequence

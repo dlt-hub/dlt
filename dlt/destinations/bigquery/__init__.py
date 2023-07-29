@@ -19,7 +19,7 @@ def _configure(config: BigQueryClientConfiguration = config.value) -> BigQueryCl
 def capabilities() -> DestinationCapabilitiesContext:
     caps = DestinationCapabilitiesContext()
     caps.preferred_loader_file_format = "jsonl"
-    caps.supported_loader_file_formats = ["jsonl", "sql", "parquet"]
+    caps.supported_loader_file_formats = ["jsonl", "parquet"]
     caps.preferred_staging_file_format = "parquet"
     caps.supported_staging_file_formats = ["parquet", "jsonl"]
     caps.escape_identifier = escape_bigquery_identifier

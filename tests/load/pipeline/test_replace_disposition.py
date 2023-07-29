@@ -1,9 +1,7 @@
 import dlt, os, pytest
-from typing import Any, Dict
 
 from tests.pipeline.utils import  assert_load_info
 from tests.load.pipeline.utils import  load_table_counts, load_tables_to_dicts
-from tests.utils import ALL_DESTINATIONS
 from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
 
 REPLACE_STRATEGIES = ["truncate-and-insert", "insert-from-staging", "staging-optimized"]

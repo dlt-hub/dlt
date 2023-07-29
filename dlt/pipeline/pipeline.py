@@ -367,7 +367,7 @@ class Pipeline(SupportsPipeline):
         )
         load = Load(
             self.destination,
-            staging=self.staging,
+            staging_destination=self.staging,
             collector=self.collector,
             is_storage_owner=False,
             config=load_config,
