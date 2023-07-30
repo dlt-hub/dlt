@@ -1,5 +1,5 @@
 from types import TracebackType
-from typing import ClassVar, Optional, Sequence, Dict, Type, Iterable, Any
+from typing import ClassVar, Optional, Sequence, List, Dict, Type, Iterable, Any
 import base64
 import binascii
 import zlib
@@ -9,7 +9,7 @@ from weaviate.util import generate_uuid5
 
 from dlt.common import json, pendulum, logger
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
-from dlt.common.schema.typing import VERSION_TABLE_NAME, LOADS_TABLE_NAME
+from dlt.common.schema.typing import VERSION_TABLE_NAME, LOADS_TABLE_NAME, TColumnSchema
 from dlt.common.schema.utils import get_columns_names_with_prop
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
@@ -18,6 +18,7 @@ from dlt.common.destination.reference import (
     LoadJob,
     JobClientBase,
 )
+from dlt.common.data_types import TDataType
 from dlt.common.storages import FileStorage
 from dlt.destinations.job_impl import EmptyLoadJob
 from dlt.destinations.job_client_impl import StorageSchemaInfo
@@ -26,6 +27,17 @@ from dlt.destinations.weaviate import capabilities
 from dlt.destinations.weaviate.configuration import WeaviateClientConfiguration
 
 DLT_TABLE_PREFIX = "_dlt"
+
+
+SCT_TO_WT: Dict[TDataType, str] = {
+    "text": "text",
+    "double": "number",
+    "bool": "boolean",
+    "timestamp": "date",
+    "date": "date",
+    "bigint": "int",
+    "binary": "blob",
+}
 
 
 # TODO: move to common
@@ -109,6 +121,17 @@ class WeaviateClient(JobClientBase):
         super().__init__(schema, config)
         self.config: WeaviateClientConfiguration = config
         self.db_client = self.create_db_client(config)
+
+        self._vectorizer_config = {
+            "vectorizer": "text2vec-openai",
+            "moduleConfig": {
+                "text2vec-openai": {
+                    "model": "ada",
+                    "modelVersion": "002",
+                    "type": "text",
+                },
+            },
+        }
 
     @staticmethod
     def create_db_client(config: WeaviateClientConfiguration) -> weaviate.Client:
@@ -221,26 +244,76 @@ class WeaviateClient(JobClientBase):
         class_name = table_name_to_class_name(table_name)
 
         if is_dlt_table(table_name):
-            return self._make_non_vectorized_class_schema(class_name)
+            return self._make_non_vectorized_class_schema(class_name, table)
 
-        return self._make_vectorized_class_schema(class_name)
+        return self._make_vectorized_class_schema(class_name, table)
 
-    def _make_vectorized_class_schema(self, class_name: str) -> Dict[str, Any]:
+    def _make_properties(
+        self, table: TTableSchema, is_vectorized_class: bool = True
+    ) -> List[Dict[str, Any]]:
+        """Creates a Weaviate properties schema from a table schema.
+
+        Args:
+            table: The table schema.
+            is_vectorized_class: Controls whether the `moduleConfig` should be
+                added to the properties schema. This is only needed for
+                vectorized classes.
+        """
+
+        return [
+            self._make_property_schema(column_name, column, is_vectorized_class)
+            for column_name, column in table["columns"].items()
+        ]
+
+    def _make_property_schema(
+        self, column_name: str, column: TColumnSchema, is_vectorized_class: bool
+    ) -> Dict[str, Any]:
+        config = column.get("config", {})
+
+        if is_vectorized_class:
+            vectorizer_name = self._vectorizer_config["vectorizer"]
+
+            # TODO: Better way to check if vectorization is enabled
+            if "moduleConfig" not in config:
+                skip_vectorization = {
+                    "moduleConfig": {
+                        vectorizer_name: {
+                            "skip": True,
+                        }
+                    }
+                }
+                config = {**skip_vectorization, **config}
+            elif "__VECTORIZER__" in config["moduleConfig"]:
+                config = config.copy()
+                config["moduleConfig"][vectorizer_name] = config["moduleConfig"].pop(
+                    "__VECTORIZER__"
+                )
+
         return {
-            "class": class_name,
-            "vectorizer": "text2vec-openai",
-            "moduleConfig": {
-                "text2vec-openai": {
-                    "model": "ada",
-                    "modelVersion": "002",
-                    "type": "text",
-                },
-            },
+            "name": column_name,
+            "dataType": [self._to_db_type(column["data_type"])],
+            **config,
         }
 
-    def _make_non_vectorized_class_schema(self, class_name: str) -> Dict[str, Any]:
+    def _make_vectorized_class_schema(
+        self, class_name: str, table: TTableSchema
+    ) -> Dict[str, Any]:
+        properties = self._make_properties(table)
+
         return {
             "class": class_name,
+            "properties": properties,
+            **self._vectorizer_config,
+        }
+
+    def _make_non_vectorized_class_schema(
+        self, class_name: str, table: TTableSchema
+    ) -> Dict[str, Any]:
+        properties = self._make_properties(table, is_vectorized_class=False)
+
+        return {
+            "class": class_name,
+            "properties": properties,
             "vectorizer": "none",
             "vectorIndexConfig": {
                 "skip": True,
@@ -305,3 +378,7 @@ class WeaviateClient(JobClientBase):
         }
 
         self.db_client.data_object.create(properties, version_class_name)
+
+    @staticmethod
+    def _to_db_type(sc_t: TDataType) -> str:
+        return SCT_TO_WT[sc_t]
