@@ -76,7 +76,7 @@ You should avoid providing a custom `escape_literal` function by not enabling `i
 
 - When opening the connection: add current dataset name to search path, set session timezone to UTC.
 - Transactions: typically to begin a transaction, you need to disable the auto-commit (like `postgres` implementation does)
-- `execute_query`: dlt uses `?` to represent dbi api query parameters. see `duckdb sql_client for a crude way to align your `dbapi` client if it uses other parameter placeholders.
+- `execute_query`: dlt uses `%s` to represent dbi api query parameters. see `duckdb sql_client for a crude way to align your `dbapi` client if it uses other parameter placeholders.
 - `execute_fragments`: if your `dbapi` client does not provide a method to join SQL fragments without full string copy, just delete `postgres` override. The base class just joins strings.
 
 ### Fully qualified names
