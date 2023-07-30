@@ -1,8 +1,9 @@
+from typing import List, Dict, Any
 from dlt.extract.source import DltResource
 
 
-def _weaviate_properties_to_hints(properties: list):
-    """Converts Weaviate properties to DLT column hints"""
+def _weaviate_properties_to_hints(properties: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Converts Weaviate properties to DLT column hints."""
     hints = {}
     for prop in properties:
         config = prop.copy()
@@ -12,7 +13,10 @@ def _weaviate_properties_to_hints(properties: list):
 
 
 def weaviate_adapter(
-    resource: DltResource, class_schema=None, vectorize=None, tokenization=None
+    resource: DltResource,
+    vectorize: List[str] = None,
+    tokenization: Dict[str, str] = None,
+    class_schema: Dict[str, Any] = None,
 ) -> DltResource:
     if class_schema:
         column_hints = _weaviate_properties_to_hints(class_schema.get("properties", []))
