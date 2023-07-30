@@ -17,7 +17,7 @@ def github():
 
 
 if __name__ == "__main__":
-    p = dlt.pipeline(destination="duckdb", dataset_name="github_3", full_refresh=False)
+    p = dlt.pipeline("dlt_github_pipeline", destination="duckdb", dataset_name="github_3", full_refresh=False)
     github_source = github()
     if len(sys.argv) > 1:
         # load only N issues
