@@ -239,7 +239,7 @@ def test_normalize_typed_json(caps: DestinationCapabilitiesContext, raw_normaliz
     schema = raw_normalize.load_storage.load_package_schema(loads[0])
     assert schema.name == "special"
     # named as schema - default fallback
-    table = schema.get_table_columns("special")
+    table = schema.get_table_columns("special", include_incomplete=True)
     # assert inferred types
     for k, v in JSON_TYPED_DICT_TYPES.items():
         assert table[k]["data_type"] == v
@@ -432,4 +432,4 @@ def assert_timestamp_data_type(load_storage: LoadStorage, data_type: TDataType) 
     loads = load_storage.list_packages()
     event_schema = load_storage.load_package_schema(loads[0])
     # in raw normalize timestamp column must not be coerced to timestamp
-    assert event_schema.get_table_columns("event", only_complete=True)["timestamp"]["data_type"] == data_type
+    assert event_schema.get_table_columns("event")["timestamp"]["data_type"] == data_type

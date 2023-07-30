@@ -219,6 +219,7 @@ def expect_load_file(client: JobClientBase, file_storage: FileStorage, query: st
 
 
 def prepare_table(client: JobClientBase, case_name: str = "event_user", table_name: str = "event_user", make_uniq_table: bool = True) -> None:
+    client.schema.bump_version()
     client.update_storage_schema()
     user_table = load_table(case_name)[table_name]
     if make_uniq_table:
@@ -241,27 +242,27 @@ def yield_client(
     # import destination reference by name
     destination: DestinationReference = import_module(f"dlt.destinations.{destination_name}")
     # create initial config
-    config: DestinationClientDwhConfiguration = None
-    config = destination.spec()()
-    config.dataset_name = dataset_name
+    dest_config: DestinationClientDwhConfiguration = None
+    dest_config = destination.spec()()
+    dest_config.dataset_name = dataset_name
 
     if default_config_values is not None:
         # apply the values to credentials, if dict is provided it will be used as default
-        config.credentials = default_config_values
+        dest_config.credentials = default_config_values
         # also apply to config
-        config.update(default_config_values)
+        dest_config.update(default_config_values)
     # get event default schema
-    C = resolve_configuration(SchemaStorageConfiguration(), explicit_value={
+    storage_config = resolve_configuration(SchemaStorageConfiguration(), explicit_value={
         "schema_volume_path": "tests/common/cases/schemas/rasa"
     })
-    schema_storage = SchemaStorage(C)
+    schema_storage = SchemaStorage(storage_config)
     schema = schema_storage.load_schema(schema_name)
     # create client and dataset
     client: SqlJobClientBase = None
 
     # lookup for credentials in the section that is destination name
     with Container().injectable_context(ConfigSectionContext(sections=(destination_name,))):
-        with destination.client(schema, config) as client:
+        with destination.client(schema, dest_config) as client:
             yield client
 
 

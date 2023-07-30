@@ -385,6 +385,7 @@ def test_max_column_identifier_length(client: SqlJobClientBase) -> None:
 
 @pytest.mark.parametrize('client', ALL_CLIENTS, indirect=True)
 def test_recover_on_explicit_tx(client: SqlJobClientBase) -> None:
+    client.schema.bump_version()
     client.update_storage_schema()
     version_table = client.sql_client.make_qualified_table_name("_dlt_version")
     # simple syntax error

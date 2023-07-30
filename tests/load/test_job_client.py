@@ -275,6 +275,7 @@ def test_drop_tables(client: SqlJobClientBase) -> None:
     # Add columns in all tables
     schema.tables['event_user']['columns'] = dict(schema.tables['event_slot']['columns'])
     schema.tables['event_bot']['columns'] = dict(schema.tables['event_slot']['columns'])
+    schema.bump_version()
     client.update_storage_schema()
 
     # Create a second schema with 2 hashes
@@ -481,6 +482,7 @@ def test_write_dispositions(client: SqlJobClientBase, write_disposition: str, re
         # create staging for merge dataset
         with client.with_staging_dataset():
             client.initialize_storage()
+            client.schema.bump_version()
             client.update_storage_schema()
     for idx in range(2):
         # in the replace strategies, tables get truncated between loads

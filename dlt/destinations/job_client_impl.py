@@ -359,9 +359,9 @@ WHERE """
     def _gen_not_null(v: bool) -> str:
         return "NOT NULL" if not v else ""
 
-    def _create_table_update(self, table_name: str, storage_table: TTableSchemaColumns) -> Sequence[TColumnSchema]:
+    def _create_table_update(self, table_name: str, storage_columns: TTableSchemaColumns) -> Sequence[TColumnSchema]:
         # compare table with stored schema and produce delta
-        updates = self.schema.get_new_complete_columns(table_name, storage_table)
+        updates = self.schema.get_new_table_columns(table_name, storage_columns)
         logger.info(f"Found {len(updates)} updates for {table_name} in {self.schema.name}")
         return updates
 

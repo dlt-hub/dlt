@@ -365,7 +365,7 @@ def test_corece_null_value_over_not_null(schema: Schema) -> None:
     row = {"timestamp": 82178.1298812}
     _, new_table = schema.coerce_row("event_user", None, row)
     schema.update_schema(new_table)
-    schema.get_table_columns("event_user")["timestamp"]["nullable"] = False
+    schema.get_table_columns("event_user", include_incomplete=True)["timestamp"]["nullable"] = False
     row = {"timestamp": None}
     with pytest.raises(CannotCoerceNullException):
         schema.coerce_row("event_user", None, row)

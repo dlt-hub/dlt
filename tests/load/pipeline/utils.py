@@ -290,17 +290,17 @@ def load_tables_to_dicts(p: dlt.Pipeline, *table_names: str) -> Dict[str, List[D
     # try sql, could be other destination though
     try:
         result = {}
-        for table in table_names:
+        for table_name in table_names:
             table_rows = []
-            columns = p.default_schema.tables[table]["columns"].keys()
+            columns = p.default_schema.get_table_columns(table_name).keys()
             query_columns = ",".join(columns)
 
-            query = f"SELECT {query_columns} FROM {table}"
+            query = f"SELECT {query_columns} FROM {table_name}"
             with p.sql_client() as c:
                 with c.execute_query(query) as cur:
                     for row in list(cur.fetchall()):
                         table_rows.append(dict(zip(columns, row)))
-            result[table] = table_rows
+            result[table_name] = table_rows
         return result
 
     except SqlClientNotAvailable:

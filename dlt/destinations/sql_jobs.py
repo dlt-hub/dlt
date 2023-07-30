@@ -54,7 +54,7 @@ class SqlStagingCopyJob(SqlBaseJob):
             with sql_client.with_staging_dataset(staging=True):
                 staging_table_name = sql_client.make_qualified_table_name(table["name"])
             table_name = sql_client.make_qualified_table_name(table["name"])
-            columns = ", ".join(map(sql_client.capabilities.escape_identifier, table["columns"].keys()))
+            columns = ", ".join(map(sql_client.capabilities.escape_identifier, get_columns_names_with_prop(table, "name")))
             sql.append(sql_client._truncate_table_sql(table_name))
             sql.append(f"INSERT INTO {table_name}({columns}) SELECT {columns} FROM {staging_table_name};")
         return sql
@@ -185,7 +185,7 @@ class SqlMergeJob(SqlBaseJob):
             table_name = sql_client.make_qualified_table_name(table["name"])
             with sql_client.with_staging_dataset(staging=True):
                 staging_table_name = sql_client.make_qualified_table_name(table["name"])
-            columns = ", ".join(map(sql_client.capabilities.escape_identifier, table["columns"].keys()))
+            columns = ", ".join(map(sql_client.capabilities.escape_identifier, get_columns_names_with_prop(table, "name")))
             insert_sql = f"INSERT INTO {table_name}({columns}) SELECT {columns} FROM {staging_table_name}"
             if len(primary_keys) > 0:
                 if len(table_chain) == 1:
