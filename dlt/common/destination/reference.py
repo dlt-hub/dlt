@@ -223,7 +223,6 @@ class JobClientBase(ABC):
                     )
                 if not is_complete_column(column):
                     logger.warning(f"A column {column_name} in table {table_name} in schema {self.schema.name} is incomplete. It was not bound to the data during normalizations stage and its data type is unknown. Did you add this column manually in code ie. as a merge key?")
-                    table["columns"].pop(column_name)
 
     @staticmethod
     def make_dataset_name(schema: Schema, dataset_name: str, default_schema_name: str) -> str:
