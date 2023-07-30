@@ -25,9 +25,9 @@ def test_duckdb_open_conn_default() -> None:
     try:
         get_resolved_traces().clear()
         c = resolve_configuration(DuckDbClientConfiguration(dataset_name="test_dataset"))
-        print(str(c.credentials))
-        print(str(os.getcwd()))
-        print(get_resolved_traces())
+        # print(str(c.credentials))
+        # print(str(os.getcwd()))
+        # print(get_resolved_traces())
         conn = c.credentials.borrow_conn(read_only=False)
         assert c.credentials._conn_borrows == 1
         assert c.credentials._conn_owner is True

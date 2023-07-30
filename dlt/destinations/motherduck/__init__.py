@@ -19,7 +19,7 @@ def _configure(config: MotherDuckClientConfiguration = config.value) -> MotherDu
 def capabilities() -> DestinationCapabilitiesContext:
     caps = DestinationCapabilitiesContext()
     caps.preferred_loader_file_format = "parquet"
-    caps.supported_loader_file_formats = ["parquet", "insert_values", "sql"]
+    caps.supported_loader_file_formats = ["parquet", "insert_values", "jsonl"]
     caps.escape_identifier = escape_postgres_identifier
     caps.escape_literal = escape_duckdb_literal
     caps.decimal_precision = (DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE)

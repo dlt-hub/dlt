@@ -106,7 +106,7 @@ class Normalize(Runnable[ProcessPool]):
                     if table_name not in schema.tables:
                         continue
                     logger.debug(f"Writing empty job for table {table_name}")
-                    columns = schema.get_table_columns(table_name, only_complete=True)
+                    columns = schema.get_table_columns(table_name)
                     load_storage.write_empty_file(load_id, schema.name, table_name, columns)
             except Exception:
                 logger.exception(f"Exception when processing file {extracted_items_file}, line {line_no}")
@@ -143,11 +143,11 @@ class Normalize(Runnable[ProcessPool]):
                         table_updates = schema_update.setdefault(table_name, [])
                         table_updates.append(partial_table)
                         # update our columns
-                        column_schemas[table_name] = schema.get_table_columns(table_name, only_complete=True)
+                        column_schemas[table_name] = schema.get_table_columns(table_name)
                     # get current columns schema
                     columns = column_schemas.get(table_name)
                     if not columns:
-                        columns = schema.get_table_columns(table_name, only_complete=True)
+                        columns = schema.get_table_columns(table_name)
                         column_schemas[table_name] = columns
                     # store row
                     # TODO: it is possible to write to single file from many processes using this: https://gitlab.com/warsaw/flufl.lock

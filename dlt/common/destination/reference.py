@@ -173,24 +173,25 @@ class JobClientBase(ABC):
 
     @abstractmethod
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
-        """Creates a job for a particular `table` with content in `file_path`"""
+        """Creates and starts a load job for a particular `table` with content in `file_path`"""
         pass
 
     @abstractmethod
     def restore_file_load(self, file_path: str) -> LoadJob:
+        """Finds and restores already started loading job identified by `file_path` if destination supports it."""
         pass
 
     def get_truncate_destination_table_dispositions(self) -> List[TWriteDisposition]:
         # in the base job, all replace strategies are treated the same, see filesystem for example
         return ["replace"]
 
-    @abstractmethod
     def create_table_chain_completed_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
         """Creates a list of followup jobs that should be executed after a table chain is completed"""
         return []
 
     @abstractmethod
     def complete_load(self, load_id: str) -> None:
+        """Marks the load package with `load_id` as completed in the destination. Before such commit is done, the data with `load_id` is invalid."""
         pass
 
     @abstractmethod
@@ -222,7 +223,6 @@ class JobClientBase(ABC):
                     )
                 if not is_complete_column(column):
                     logger.warning(f"A column {column_name} in table {table_name} in schema {self.schema.name} is incomplete. It was not bound to the data during normalizations stage and its data type is unknown. Did you add this column manually in code ie. as a merge key?")
-                    table["columns"].pop(column_name)
 
     @staticmethod
     def make_dataset_name(schema: Schema, dataset_name: str, default_schema_name: str) -> str:
@@ -244,10 +244,12 @@ class StagingJobClientBase(JobClientBase):
 
     @abstractmethod
     def get_stage_dispositions(self) -> List[TWriteDisposition]:
+        """Returns a list of write dispositions that require staging dataset"""
         return []
 
     @abstractmethod
     def with_staging_dataset(self)-> ContextManager["JobClientBase"]:
+        """Executes job client methods on staging dataset"""
         return self
 
 
@@ -256,15 +258,16 @@ TDestinationReferenceArg = Union["DestinationReference", ModuleType, None, str]
 
 class DestinationReference(Protocol):
     __name__: str
+    """Name of the destination"""
 
     def capabilities(self) -> DestinationCapabilitiesContext:
-        ...
+        """Destination capabilities ie. supported loader file formats, identifier name lengths, naming conventions, escape function etc."""
 
     def client(self, schema: Schema, initial_config: DestinationClientConfiguration = config.value) -> "JobClientBase":
-        ...
+        """A job client responsible for starting and resuming load jobs"""
 
     def spec(self) -> Type[DestinationClientConfiguration]:
-        ...
+        """A spec of destination configuration that also contains destination credentials"""
 
     @staticmethod
     def from_name(destination: TDestinationReferenceArg) -> "DestinationReference":
@@ -281,7 +284,14 @@ class DestinationReference(Protocol):
                     # from known location
                     destination_ref = cast(DestinationReference, import_module(f"dlt.destinations.{destination}"))
             except ImportError:
-                raise UnknownDestinationModule(destination)
+                if "." in destination:
+                    raise UnknownDestinationModule(destination)
+                else:
+                    # allow local external module imported without dot
+                    try:
+                        destination_ref = cast(DestinationReference, import_module(destination))
+                    except ImportError:
+                        raise UnknownDestinationModule(destination)
         else:
             destination_ref = cast(DestinationReference, destination)
 

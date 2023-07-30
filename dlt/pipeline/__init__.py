@@ -148,16 +148,18 @@ def attach(
     pipelines_dir: str = None,
     pipeline_salt: TSecretValue = None,
     full_refresh: bool = False,
+    credentials: Any = None,
     progress: TCollectorArg = _NULL_COLLECTOR,
     **kwargs: Any
 ) -> Pipeline:
+    """Attaches to the working folder of `pipeline_name` in `pipelines_dir` or in default directory. Requires that valid pipeline state exists in working folder."""
     ensure_correct_pipeline_kwargs(attach, **kwargs)
     # if working_dir not provided use temp folder
     if not pipelines_dir:
         pipelines_dir = get_dlt_pipelines_dir()
     progress = collector_from_name(progress)
     # create new pipeline instance
-    p = Pipeline(pipeline_name, pipelines_dir, pipeline_salt, None, None, None, None, None, None, full_refresh, progress, True, last_config(**kwargs), kwargs["runtime"])
+    p = Pipeline(pipeline_name, pipelines_dir, pipeline_salt, None, None, None, credentials, None, None, full_refresh, progress, True, last_config(**kwargs), kwargs["runtime"])
     # set it as current pipeline
     p.activate()
     return p

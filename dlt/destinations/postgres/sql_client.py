@@ -4,10 +4,10 @@ from dlt.common.destination import DestinationCapabilitiesContext
 
 if platform.python_implementation() == "PyPy":
     import psycopg2cffi as psycopg2
-    from psycopg2cffi.sql import SQL, Identifier, Literal as SQLLiteral
+    from psycopg2cffi.sql import SQL, Composed, Composable
 else:
     import psycopg2
-    from psycopg2.sql import SQL, Identifier, Literal as SQLLiteral, Composed, Composable
+    from psycopg2.sql import SQL, Composed, Composable
 
 from contextlib import contextmanager
 from typing import Any, AnyStr, ClassVar, Iterator, Optional, Sequence
@@ -67,12 +67,6 @@ class Psycopg2SqlClient(SqlClientBase["psycopg2.connection"], DBTransaction):
     @property
     def native_connection(self) -> "psycopg2.connection":
         return self._conn
-
-    def create_dataset(self) -> None:
-        self.execute_sql("CREATE SCHEMA %s" % self.fully_qualified_dataset_name())
-
-    def drop_dataset(self) -> None:
-        self.execute_sql("DROP SCHEMA %s CASCADE;" % self.fully_qualified_dataset_name())
 
     # @raise_database_error
     def execute_sql(self, sql: AnyStr, *args: Any, **kwargs: Any) -> Optional[Sequence[Sequence[Any]]]:

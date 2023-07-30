@@ -12,14 +12,13 @@ from dlt.destinations.job_client_impl import SqlJobClientBase
 
 
 class InsertValuesLoadJob(LoadJob, FollowupJob):
-    def __init__(self, table_name: str, use_staging_table: bool, file_path: str, sql_client: SqlClientBase[Any]) -> None:
+    def __init__(self, table_name: str, file_path: str, sql_client: SqlClientBase[Any]) -> None:
         super().__init__(FileStorage.get_file_name_from_file_path(file_path))
         self._sql_client = sql_client
         # insert file content immediately
-        with self._sql_client.with_staging_dataset(use_staging_table):
-            with self._sql_client.begin_transaction():
-                for fragments in self._insert(sql_client.make_qualified_table_name(table_name), file_path):
-                    self._sql_client.execute_fragments(fragments)
+        with self._sql_client.begin_transaction():
+            for fragments in self._insert(sql_client.make_qualified_table_name(table_name), file_path):
+                self._sql_client.execute_fragments(fragments)
 
     def state(self) -> TLoadJobState:
         # this job is always done
@@ -90,16 +89,16 @@ class InsertValuesJobClient(SqlJobClientBase):
         job = super().start_file_load(table, file_path, load_id)
         if not job:
             # this is using sql_client internally and will raise a right exception
-            disposition = table["write_disposition"]
-            job = InsertValuesLoadJob(table["name"], disposition in self.get_stage_dispositions(), file_path, self.sql_client)
+            if file_path.endswith("insert_values"):
+                job = InsertValuesLoadJob(table["name"], file_path, self.sql_client)
         return job
 
-    # TODO: implement indexes and primary keys for postgres
-    def _get_in_table_constraints_sql(self, t: TTableSchema) -> str:
-        # get primary key
-        pass
+    # # TODO: implement indexes and primary keys for postgres
+    # def _get_in_table_constraints_sql(self, t: TTableSchema) -> str:
+    #     # get primary key
+    #     pass
 
-    def _get_out_table_constrains_sql(self, t: TTableSchema) -> str:
-        # set non unique indexes
-        pass
+    # def _get_out_table_constrains_sql(self, t: TTableSchema) -> str:
+    #     # set non unique indexes
+    #     pass
 

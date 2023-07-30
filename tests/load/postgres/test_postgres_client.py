@@ -8,7 +8,8 @@ from dlt.common.storages import FileStorage
 from dlt.common.utils import uniq_id
 
 from dlt.destinations.postgres.configuration import PostgresCredentials
-from dlt.destinations.postgres.postgres import PostgresClient, psycopg2
+from dlt.destinations.postgres.postgres import PostgresClient
+from dlt.destinations.postgres.sql_client import psycopg2
 
 from tests.utils import TEST_STORAGE_ROOT, delete_test_storage, skipifpypy, preserve_environ
 from tests.load.utils import expect_load_file, prepare_table, yield_client_with_storage

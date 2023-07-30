@@ -1,9 +1,7 @@
 import dlt, os, pytest
-from typing import Any, Dict
 
 from tests.pipeline.utils import  assert_load_info
 from tests.load.pipeline.utils import  load_table_counts, load_tables_to_dicts
-from tests.utils import ALL_DESTINATIONS
 from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
 
 REPLACE_STRATEGIES = ["truncate-and-insert", "insert-from-staging", "staging-optimized"]
@@ -22,7 +20,8 @@ def test_replace_disposition(destination_config: DestinationTestConfiguration, r
     global offset
     offset = 1000
 
-    @dlt.resource(name="items", write_disposition="replace", primary_key="id")
+    # keep merge key with unknown column to test replace SQL generator
+    @dlt.resource(name="items", write_disposition="replace", primary_key="id", merge_key="NA")
     def load_items():
         # will produce 3 jobs for the main table with 40 items each
         # 6 jobs for the sub_items

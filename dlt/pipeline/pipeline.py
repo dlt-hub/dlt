@@ -367,7 +367,7 @@ class Pipeline(SupportsPipeline):
         )
         load = Load(
             self.destination,
-            staging=self.staging,
+            staging_destination=self.staging,
             collector=self.collector,
             is_storage_owner=False,
             config=load_config,
@@ -1159,8 +1159,9 @@ class Pipeline(SupportsPipeline):
                         with contextlib.suppress(FileNotFoundError):
                             self._schema_storage.load_schema(schema_name)
                     else:
-                        logger.info(f"The schema {schema_name} was restored from the destination {self.destination.__name__}:{job_client.sql_client.dataset_name}")
-                        restored_schemas.append(Schema.from_dict(json.loads(schema_info.schema)))
+                        schema = Schema.from_dict(json.loads(schema_info.schema))
+                        logger.info(f"The schema {schema_name} version {schema.version} hash {schema.stored_version_hash} was restored from the destination {self.destination.__name__}:{job_client.sql_client.dataset_name}")
+                        restored_schemas.append(schema)
         return restored_schemas
 
     @contextmanager

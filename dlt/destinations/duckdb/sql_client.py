@@ -91,12 +91,6 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
     def native_connection(self) -> duckdb.DuckDBPyConnection:
         return self._conn
 
-    def create_dataset(self) -> None:
-        self.execute_sql("CREATE SCHEMA %s" % self.fully_qualified_dataset_name())
-
-    def drop_dataset(self) -> None:
-        self.execute_sql("DROP SCHEMA %s CASCADE;" % self.fully_qualified_dataset_name())
-
     def execute_sql(self, sql: AnyStr, *args: Any, **kwargs: Any) -> Optional[Sequence[Sequence[Any]]]:
         with self.execute_query(sql, *args, **kwargs) as curr:
             if curr.description is None:

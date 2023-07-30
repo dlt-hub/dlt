@@ -18,7 +18,7 @@ from dlt.common.storages import FileStorage
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns, TSchemaTables
 from dlt.common.destination.reference import DestinationClientConfiguration, DestinationClientDwhConfiguration, NewLoadJob, TLoadJobState, LoadJob, StagingJobClientBase, FollowupJob, DestinationClientStagingConfiguration, CredentialsConfiguration
 from dlt.common.utils import concat_strings_with_limit
-from dlt.destinations.exceptions import DatabaseUndefinedRelation, DestinationSchemaWillNotUpdate
+from dlt.destinations.exceptions import DatabaseUndefinedRelation, DestinationSchemaTampered, DestinationSchemaWillNotUpdate
 from dlt.destinations.job_impl import EmptyLoadJobWithoutFollowup, NewReferenceJob
 from dlt.destinations.sql_jobs import SqlMergeJob, SqlStagingCopyJob
 
@@ -110,7 +110,6 @@ class SqlJobClientBase(StagingJobClientBase):
             # truncate requested tables
             if truncate_tables:
                 self.sql_client.truncate_tables(*truncate_tables)
-
 
     def is_storage_initialized(self) -> bool:
         return self.sql_client.has_dataset()
@@ -213,8 +212,8 @@ class SqlJobClientBase(StagingJobClientBase):
         name = self.sql_client.make_qualified_table_name(LOADS_TABLE_NAME)
         now_ts = pendulum.now()
         self.sql_client.execute_sql(
-            f"INSERT INTO {name}(load_id, schema_name, version, status, inserted_at) VALUES(%s, %s, %s, %s, %s);",
-            load_id, self.schema.name, self.schema.version, 0, now_ts
+            f"INSERT INTO {name}(load_id, schema_name, status, inserted_at, schema_version_hash) VALUES(%s, %s, %s, %s, %s);",
+            load_id, self.schema.name, 0, now_ts, self.schema.version_hash
         )
 
     def __enter__(self) -> "SqlJobClientBase":
@@ -360,9 +359,9 @@ WHERE """
     def _gen_not_null(v: bool) -> str:
         return "NOT NULL" if not v else ""
 
-    def _create_table_update(self, table_name: str, storage_table: TTableSchemaColumns) -> Sequence[TColumnSchema]:
+    def _create_table_update(self, table_name: str, storage_columns: TTableSchemaColumns) -> Sequence[TColumnSchema]:
         # compare table with stored schema and produce delta
-        updates = self.schema.get_new_complete_columns(table_name, storage_table)
+        updates = self.schema.get_new_table_columns(table_name, storage_columns)
         logger.info(f"Found {len(updates)} updates for {table_name} in {self.schema.name}")
         return updates
 
@@ -401,6 +400,10 @@ WHERE """
         self._update_schema_in_storage(schema)
 
     def _update_schema_in_storage(self, schema: Schema) -> None:
+        # make sure that schema being saved was not modified from the moment it was loaded from storage
+        version_hash = schema.version_hash
+        if version_hash != schema.stored_version_hash:
+            raise DestinationSchemaTampered(schema.name, version_hash, schema.stored_version_hash)
         now_ts = str(pendulum.now())
         # get schema string or zip
         schema_str = json.dumps(schema.to_dict())

@@ -2,7 +2,6 @@ import sys
 import os
 from subprocess import CalledProcessError, PIPE
 import tempfile
-from dlt.common.typing import StrStr
 import pytest
 import shutil
 

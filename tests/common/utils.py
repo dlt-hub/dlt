@@ -3,10 +3,9 @@ import os
 import yaml
 from git import Repo, Commit
 from pathlib import Path
-from typing import Mapping, Tuple, cast, Any
+from typing import Mapping, Tuple, cast
 import datetime  # noqa: 251
 
-from dlt.common.arithmetics import Decimal
 from dlt.common import json
 from dlt.common.typing import StrAny
 from dlt.common.schema import utils
@@ -16,7 +15,7 @@ from dlt.common.configuration.providers import environ as environ_provider
 
 COMMON_TEST_CASES_PATH = "./tests/common/cases/"
 # for import schema tests, change when upgrading the schema version
-IMPORTED_VERSION_HASH_ETH_V6 = "AhyewCGalymdL4DSrPP9kmdV3LBcx4WPIceBSyACYdM=" # "y9FPYe9SXS7iE3OMnkTaJjdJN2jQKVCJxiv+z0os/Eo="
+IMPORTED_VERSION_HASH_ETH_V6 = "++bJOVuScYYoVUFtjmZMBV+cxsWs8irYHIMV8J1xD5g="
 # test sentry DSN
 TEST_SENTRY_DSN = "https://797678dd0af64b96937435326c7d30c1@o1061158.ingest.sentry.io/4504306172821504"
 # preserve secrets path to be able to restore it
