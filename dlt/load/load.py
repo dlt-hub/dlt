@@ -1,4 +1,5 @@
 import contextlib
+from copy import copy
 from functools import reduce
 import datetime  # noqa: 251
 from typing import Dict, List, Optional, Tuple, Set, Iterator
@@ -71,7 +72,8 @@ class Load(Runnable[ThreadPool]):
     def get_load_table(schema: Schema, file_name: str) -> TTableSchema:
         table_name = LoadStorage.parse_job_file_name(file_name).table_name
         try:
-            table = schema.get_table(table_name)
+            # make a copy of the schema so modifications do not affect the original document
+            table = copy(schema.get_table(table_name))
             # add write disposition if not specified - in child tables
             if "write_disposition" not in table:
                 table["write_disposition"] = get_write_disposition(schema.tables, table_name)
