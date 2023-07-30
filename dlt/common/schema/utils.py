@@ -425,7 +425,7 @@ def get_write_disposition(tables: TSchemaTables, table_name: str) -> TWriteDispo
 
 def table_schema_has_type(table: TTableSchema, _typ: TDataType) -> bool:
     """Checks if `table` schema contains column with type _typ"""
-    return any(c["data_type"] == _typ for c in table["columns"].values())
+    return any(c.get("data_type") == _typ for c in table["columns"].values())
 
 
 def get_top_level_table(tables: TSchemaTables, table_name: str) -> TTableSchema:
