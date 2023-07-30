@@ -45,6 +45,14 @@ class DestinationSchemaWillNotUpdate(DestinationTerminalException):
         super().__init__(f"Schema for table {table_name} column(s) {columns} will not update: {msg}")
 
 
+class DestinationSchemaTampered(DestinationTerminalException):
+    def __init__(self, schema_name: str, version_hash: str, stored_version_hash: str) -> None:
+        self.version_hash = version_hash
+        self.stored_version_hash = stored_version_hash
+        super().__init__(f"Schema {schema_name} content was changed - by a loader or by destination code - from the moment it was retrieved by load package. "
+                         f"Such schema cannot reliably be updated or saved. Current version hash: {version_hash} != stored version hash {stored_version_hash}")
+
+
 class LoadJobNotExistsException(DestinationTerminalException):
     def __init__(self, job_id: str) -> None:
         super().__init__(f"Job with id/file name {job_id} not found")

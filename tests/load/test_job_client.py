@@ -169,6 +169,10 @@ def test_complete_load(client: SqlJobClientBase) -> None:
     import datetime  # noqa: I251
     assert type(load_rows[0][3]) is datetime.datetime
     assert load_rows[0][4] == client.schema.version_hash
+    # make sure that hash in loads exists in schema versions table
+    versions_table = client.sql_client.make_qualified_table_name(VERSION_TABLE_NAME)
+    version_rows = list(client.sql_client.execute_sql(f"SELECT * FROM {versions_table} WHERE version_hash = %s", load_rows[0][4]))
+    assert len(version_rows) == 1
     client.complete_load("load2")
     load_rows = list(client.sql_client.execute_sql(f"SELECT * FROM {load_table}"))
     assert len(load_rows) == 2

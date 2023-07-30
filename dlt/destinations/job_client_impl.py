@@ -18,7 +18,7 @@ from dlt.common.storages import FileStorage
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns, TSchemaTables
 from dlt.common.destination.reference import DestinationClientConfiguration, DestinationClientDwhConfiguration, NewLoadJob, TLoadJobState, LoadJob, StagingJobClientBase, FollowupJob, DestinationClientStagingConfiguration, CredentialsConfiguration
 from dlt.common.utils import concat_strings_with_limit
-from dlt.destinations.exceptions import DatabaseUndefinedRelation, DestinationSchemaWillNotUpdate
+from dlt.destinations.exceptions import DatabaseUndefinedRelation, DestinationSchemaTampered, DestinationSchemaWillNotUpdate
 from dlt.destinations.job_impl import EmptyLoadJobWithoutFollowup, NewReferenceJob
 from dlt.destinations.sql_jobs import SqlMergeJob, SqlStagingCopyJob
 
@@ -400,6 +400,10 @@ WHERE """
         self._update_schema_in_storage(schema)
 
     def _update_schema_in_storage(self, schema: Schema) -> None:
+        # make sure that schema being saved was not modified from the moment it was loaded from storage
+        version_hash = schema.version_hash
+        if version_hash != schema.stored_version_hash:
+            raise DestinationSchemaTampered(schema.name, version_hash, schema.stored_version_hash)
         now_ts = str(pendulum.now())
         # get schema string or zip
         schema_str = json.dumps(schema.to_dict())

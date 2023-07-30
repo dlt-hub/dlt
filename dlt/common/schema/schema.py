@@ -297,10 +297,12 @@ class Schema:
 
     @property
     def version_hash(self) -> str:
+        """Current version hash of the schema, recomputed from the actual content"""
         return utils.bump_version_if_modified(self.to_dict())[1]
 
     @property
     def stored_version_hash(self) -> str:
+        """Version hash of the schema content form the time of schema loading/creation."""
         return self._stored_version_hash
 
     @property
