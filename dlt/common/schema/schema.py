@@ -203,7 +203,7 @@ class Schema:
         rv_row: DictStrAny = {}
         column_prop: TColumnProp = utils.hint_to_column_prop(hint_type)
         try:
-            table = self.get_table_columns(table_name)
+            table = self.get_table_columns(table_name, include_incomplete=True)
             for column_name in table:
                 if column_name in row:
                     hint_value = table[column_name][column_prop]
@@ -246,24 +246,24 @@ class Schema:
             table["columns"] = {c["name"]:c for c in columns.values()}
         return table
 
-    def get_new_complete_columns(self, table_name: str, t: TTableSchemaColumns) -> List[TColumnSchema]:
-        """Gets new columns to be added to "t" to bring up to date with stored schema. Exclude incomplete columns (without data type)"""
+    def get_new_table_columns(self, table_name: str, exiting_columns: TTableSchemaColumns, include_incomplete: bool = False) -> List[TColumnSchema]:
+        """Gets new columns to be added to `exiting_columns` to bring them to date with `table_name` schema. Optionally includes incomplete columns (without data type)"""
         diff_c: List[TColumnSchema] = []
-        s_t = self.get_table_columns(table_name, only_complete=True)
+        s_t = self.get_table_columns(table_name, include_incomplete=include_incomplete)
         for c in s_t.values():
-            if c["name"] not in t:
+            if c["name"] not in exiting_columns:
                 diff_c.append(c)
         return diff_c
 
     def get_table(self, table_name: str) -> TTableSchema:
         return self._schema_tables[table_name]
 
-    def get_table_columns(self, table_name: str, only_complete: bool = False) -> TTableSchemaColumns:
-        """Gets columns of `table_name`"""
-        if only_complete:
-            return {k:v for k, v in self._schema_tables[table_name]["columns"].items() if utils.is_complete_column(v)}
-        else:
+    def get_table_columns(self, table_name: str, include_incomplete: bool = False) -> TTableSchemaColumns:
+        """Gets columns of `table_name`. Optionally includes incomplete columns """
+        if include_incomplete:
             return self._schema_tables[table_name]["columns"]
+        else:
+            return {k:v for k, v in self._schema_tables[table_name]["columns"].items() if utils.is_complete_column(v)}
 
     def data_tables(self, include_incomplete: bool = False) -> List[TTableSchema]:
         """Gets list of all tables, that hold the loaded data. Excludes dlt tables. Excludes incomplete tables (ie. without columns)"""

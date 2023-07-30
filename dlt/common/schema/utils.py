@@ -392,10 +392,10 @@ def hint_to_column_prop(h: TColumnHint) -> TColumnProp:
     return h
 
 
-def get_columns_names_with_prop(table: TTableSchema, column_prop: TColumnProp, only_completed: bool = False) -> List[str]:
+def get_columns_names_with_prop(table: TTableSchema, column_prop: TColumnProp, include_incomplete: bool = False) -> List[str]:
     # column_prop: TColumnProp = hint_to_column_prop(hint_type)
     # default = column_prop != "nullable"  # default is true, only for nullable false
-    return [c["name"] for c in table["columns"].values() if c.get(column_prop, False) is True and (not only_completed or is_complete_column(c))]
+    return [c["name"] for c in table["columns"].values() if bool(c.get(column_prop, False)) is True and (include_incomplete or is_complete_column(c))]
 
 
 def merge_schema_updates(schema_updates: Sequence[TSchemaUpdate]) -> TSchemaTables:
