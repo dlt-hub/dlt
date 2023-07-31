@@ -3792,7 +3792,7 @@ snowflake = ["snowflake-connector-python"]
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.8,<4.0"
-content-hash = "cd69994be70ed51c8a80ee58c539a291c63b7e364bd263050437b9979cc7a59c"
+content-hash = "3d9174badd03bf9050f2bf3987d1fbbf24ee184948fde435351b8362d395535a"
 
 [metadata.files]
 about-time = [
