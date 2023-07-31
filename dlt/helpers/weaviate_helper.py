@@ -1,8 +1,8 @@
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Iterable
 from dlt.extract.source import DltResource
 
 
-def _weaviate_properties_to_hints(properties: List[Dict[str, Any]]) -> Dict[str, Any]:
+def _weaviate_properties_to_hints(properties: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
     """Converts Weaviate properties to DLT column hints."""
     hints = {}
     for prop in properties:
