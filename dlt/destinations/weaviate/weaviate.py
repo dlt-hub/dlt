@@ -141,19 +141,16 @@ class WeaviateClient(JobClientBase):
             additional_headers=config.credentials.additional_headers,
         )
 
-    def initialize_storage(
-        self, staging: bool = False, truncate_tables: Iterable[str] = None
-    ) -> None:
+    def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
         pass
 
-    def is_storage_initialized(self, staging: bool = False) -> bool:
+    def is_storage_initialized(self) -> bool:
         return True
 
     def update_storage_schema(
-        self,
-        staging: bool = False,
-        only_tables: Iterable[str] = None,
-        expected_update: TSchemaTables = None,
+        self, 
+        only_tables: Iterable[str] = None, 
+        expected_update: TSchemaTables = None
     ) -> Optional[TSchemaTables]:
         # Retrieve the schema from Weaviate
         applied_update: TSchemaTables = {}
