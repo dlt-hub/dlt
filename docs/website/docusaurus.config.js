@@ -78,17 +78,18 @@ const config = {
           },
           { to: 'blog', label: 'Blog', position: 'left' },
           {
-            href:'https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing',
-            label: 'Colab demo',
-            position:'right',
-          className: 'colab-demo',
-          },
-          {
             href: 'https://join.slack.com/t/dlthub-community/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g',
-            label: '.',
+            label: 'Join our community',
             position: 'right',
             className: 'slack-navbar',
           },
+          {
+            href:'https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing',
+            label: 'Colab demo',
+            position:'right',
+            className: 'colab-demo',
+          },
+
           {
             href: 'https://github.com/dlt-hub/dlt',
             label: '.',

@@ -382,7 +382,6 @@ html[data-theme='dark'] .footer__item a:hover{
 .slack-navbar:hover,
 .github-navbar:hover {
   display: flex;
-  color: transparent;
 }
 
 .github-navbar:before {
@@ -427,20 +426,31 @@ html[data-theme='dark'] .theme-edit-this-page::before {
   display: flex;
 }
 
-.slack-navbar:before {
+.slack-navbar::after {
   content: '';
   width: 32px;
   height: 32px;
   display: flex;
-  background: url("../../static/img/SlackDark.svg") no-repeat;
+  background: url("../../static/img/SlackColored.svg") no-repeat;
   position: relative;
   left: 10px;
   top: 0px;
+  color: blue;
+  margin-top:-4px;
 
 }
 
-html[data-theme='dark'] .slack-navbar::before {
-  background: url("../../static/img/SlackLight.svg") no-repeat;
+html[data-theme='dark'] .slack-navbar::after {
+  background: url("../../static/img/SlackColored.svg") no-repeat;
+  color: white;
+}
+
+a.slack-navbar
+{
+  font-size: 14px;
+  vertical-align: center;
+  margin-top:5px;
+  margin-right: 6px;
 }
 
 /* siderbar-icons */
