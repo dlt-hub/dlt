@@ -68,9 +68,9 @@ class DltResourceSchema:
         table_schema = self._merge_keys(resolved_template)
         table_schema["resource"] = self._name
         validate_dict(
-            spec=TPartialTableSchema, 
-            doc=table_schema, 
-            path=f"new_table/{self._name}", 
+            spec=TPartialTableSchema,
+            doc=table_schema,
+            path=f"new_table/{self._name}",
             filter_f=lambda k: not k.startswith("x-")
         )
         return table_schema
