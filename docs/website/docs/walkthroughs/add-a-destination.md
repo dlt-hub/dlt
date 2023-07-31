@@ -62,7 +62,7 @@ Specify which [loader file formats](../dlt-ecosystem/file-formats/) your destina
 
 > 💡 Mind that for each file type you'll need to implement a load job (which in most cases is a `COPY` command to which you pass a file path and file type)
 
-> 💡 Postgres does not support staging and any other file format beyond **insert-values**. Check the `snowflake`` capabilities for a destination that supports all possible formats.
+> 💡 Postgres does not support staging and any other file format beyond **insert-values**. Check the `snowflake` capabilities for a destination that supports all possible formats.
 
 ### Escape identifiers and literals
 The default `escape_identifier` function identifier escapes `"` and '\' and quotes identifier with `"`. This is standard SQL behavior. Mind that if you use default naming convention, `dlt` normalizes identifiers to an alphabet that does not accept any special characters. Users are able to change the naming convention in the configuration so correct escape function is still important.
