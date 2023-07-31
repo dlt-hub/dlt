@@ -148,9 +148,7 @@ class WeaviateClient(JobClientBase):
         return True
 
     def update_storage_schema(
-        self, 
-        only_tables: Iterable[str] = None, 
-        expected_update: TSchemaTables = None
+        self, only_tables: Iterable[str] = None, expected_update: TSchemaTables = None
     ) -> Optional[TSchemaTables]:
         # Retrieve the schema from Weaviate
         applied_update: TSchemaTables = {}
@@ -265,31 +263,28 @@ class WeaviateClient(JobClientBase):
     def _make_property_schema(
         self, column_name: str, column: TColumnSchema, is_vectorized_class: bool
     ) -> Dict[str, Any]:
-        config = column.get("config", {})
+        extra_kv = {}
 
         if is_vectorized_class:
             vectorizer_name = self._vectorizer_config["vectorizer"]
 
-            # TODO: Better way to check if vectorization is enabled
-            if "moduleConfig" not in config:
-                skip_vectorization = {
-                    "moduleConfig": {
-                        vectorizer_name: {
-                            "skip": True,
-                        }
+            # x-vectorize: (bool) means that this field should be vectorized
+            if not column.get("x-vectorize", False):
+                extra_kv["moduleConfig"] = {
+                    vectorizer_name: {
+                        "skip": True,
                     }
                 }
-                config = {**skip_vectorization, **config}
-            elif "__VECTORIZER__" in config["moduleConfig"]:
-                config = config.copy()
-                config["moduleConfig"][vectorizer_name] = config["moduleConfig"].pop(
-                    "__VECTORIZER__"
-                )
+
+            # x-tokenization: (str) specifies the method to use
+            # for tokenization
+            if column.get("x-tokenization"):
+                extra_kv["tokenization"] = column["x-tokenization"]
 
         return {
             "name": column_name,
             "dataType": [self._to_db_type(column["data_type"])],
-            **config,
+            **extra_kv,
         }
 
     def _make_vectorized_class_schema(
