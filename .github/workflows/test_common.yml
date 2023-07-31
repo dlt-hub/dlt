@@ -71,7 +71,7 @@ jobs:
         if: runner.os != 'Windows'
         name: Run tests Linux/MAC
       - run: |
-          poetry run pytest tests/common tests/normalize tests/extract tests/pipeline tests/reflection -m "not forked"
+          poetry run pytest tests/common tests/normalize tests/extract tests/pipeline tests/reflection tests/sources tests/cli/common -m "not forked"
         if: runner.os == 'Windows'
         name: Run tests Windows
         shell: cmd

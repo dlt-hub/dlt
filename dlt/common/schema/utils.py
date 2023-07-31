@@ -168,7 +168,13 @@ def compile_simple_regexes(r: Iterable[TSimpleRegex]) -> REPattern:
 
 def validate_stored_schema(stored_schema: TStoredSchema) -> None:
     # use lambda to verify only non extra fields
-    validate_dict(TStoredSchema, stored_schema, ".", lambda k: not k.startswith("x-"), simple_regex_validator)
+    validate_dict(
+        TStoredSchema,
+        stored_schema,
+        ".",
+        lambda k: not k.startswith("x-"),
+        simple_regex_validator
+    )
     # check child parent relationships
     for table_name, table in stored_schema["tables"].items():
         parent_table_name = table.get("parent")
