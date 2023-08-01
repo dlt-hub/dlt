@@ -25,7 +25,16 @@ Resources that can be loaded using this verified source are:
 
 ### Grab credentials
 
-#### Google Service Account credentials
+There are two methods to get authenticated for using this verified source:
+
+- OAuth credentials
+- Service account credential
+
+Let's go over how to set up both OAuth tokens and service account credentials. In general, OAuth
+tokens are preferred when user consent is required, while service account credentials are better
+suited for server-to-server interactions. You can choose the method of authentication you require.
+
+#### Grab google service account credentials
 
 You need to create a GCP service account to get API credentials, if you don't have one. To create
 one follow these steps:
@@ -46,6 +55,37 @@ one follow these steps:
       "Actions" column next to it.
    1. Create a new JSON key by selecting "Manage Keys" > "ADD KEY" > "CREATE".
    1. You can download the ".json" file containing the necessary credentials for future use.
+
+#### Grab google OAuth credentials
+
+You need to create a GCP service account to get API credentials, if you don't have one. To create
+one follow these steps:
+
+1. Ensure your email used for the GCP account has access to the GA4 property.
+1. Open a GCP project in your GCP account.
+1. Enable the Analytics API in the project.
+1. Search credentials in the search bar and go to Credentials.
+1. Go to Credentials -> OAuth client ID -> Select Desktop App from the Application type and give an
+   appropriate name.
+1. Download the credentials and fill "client_id", "client_secret" and "project_id" in
+   "secrets.toml".
+1. Go back to credentials and select the OAuth consent screen on the left.
+1. Fill in the App name, user support email(your email), authorized domain (localhost.com), and dev
+   contact info (your email again).
+1. Add the following scope: “https://www.googleapis.com/auth/analytics.readonly%E2%80%9D
+1. Add your email as a test user.
+
+After configuring "client_id", "client_secret" and "project_id" in "secrets.toml". To generate the
+refresh token run the following script from the root folder:
+
+```bash
+python3 google_analytics/setup_script_gcp_oauth.py
+```
+
+> Note: temporarily comment out the refresh token in "secrets.toml" before executing the script.
+
+Once you have executed the script and completed the authentication, you will receive a "refresh
+token" that can be used to set up the "secrets.toml" configuration.
 
 #### Share the Google Analytics Property with the API:
 
@@ -86,7 +126,8 @@ For more information, read the
 ## Add credentials
 
 1. In the `.dlt` folder, there's a file called `secrets.toml`. It's where you store sensitive
-   information securely, like access tokens. Keep this file safe. Here's its format:
+   information securely, like access tokens. Keep this file safe. Here's its format for service
+   account authentication:
 
    ```toml
    [sources.google_analytics.credentials]
@@ -96,14 +137,24 @@ For more information, read the
    project_id = "project_id" # please set me up!
    ```
 
-1. From the ".json" that you [downloaded earlier](#google-service-account-credentials),
-   copy `project_id`, `private_key`,
+1. From the ".json" that you \[downloaded earlier\](google_analytics.
+   md#grab-google-service-account-credentials), copy `project_id`, `private_key`,
    and `client_email` under `[sources.google_spreadsheet.credentials]`.
 
-1. Alternatively, if you're using service account credentials, replace the the fields and values
-   with those present in the credentials .json that you generated above.
+1. Alternatively, if you're using OAuth credentials, replace the the fields and values with those
+   you [grabbed for OAuth credentials](google_analytics.md#grab-google-oauth-credentials).
 
-1. Enter credentials for your chosen destination as per the [docs](../destinations/).
+1. The secrets.toml for OAuth authentication looks like:
+
+   ```toml
+   [sources.google_analytics.credentials]
+   client_id = "client_id" # please set me up!
+   client_secret = "client_secret" # please set me up!
+   refresh_token = "refresh_token" # please set me up!
+   project_id = "project_id" # please set me up!
+   ```
+
+1. Finally, Enter credentials for your chosen destination as per the [docs](../destinations/).
 
 #### Pass `property_id` and `request parameters`
 
