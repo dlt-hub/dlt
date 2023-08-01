@@ -58,7 +58,7 @@ one follow these steps:
 
 #### Grab google OAuth credentials
 
-You need to create a GCP service account to get API credentials, if you don't have one. To create
+You need to create a GCP account to get OAuth credentials, if you don't have one. To create
 one follow these steps:
 
 1. Ensure your email used for the GCP account has access to the GA4 property.
