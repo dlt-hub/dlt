@@ -564,7 +564,13 @@ def new_table(
         table["write_disposition"] = write_disposition or DEFAULT_WRITE_DISPOSITION
         table["resource"] = resource or table_name
     if validate_schema:
-        validate_dict(TTableSchema, table, f"new_table/{table_name}")
+        validate_dict(
+            spec=TTableSchema,
+            doc=table,
+            path=f"new_table/{table_name}",
+            filter_f=lambda k: not k.startswith("x-")
+        )
+
     return table
 
 
@@ -576,7 +582,13 @@ def new_column(column_name: str, data_type: TDataType = None, nullable: bool = T
     if data_type:
         column["data_type"] = data_type
     if validate_schema:
-        validate_dict(TColumnSchema, column, f"new_column/{column_name}")
+        validate_dict(
+            spec=TColumnSchema,
+            doc=column,
+            path=f"new_column/{column_name}",
+            filter_f=lambda k: not k.startswith("x-"),
+        )
+
     return column
 
 
