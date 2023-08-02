@@ -25,12 +25,12 @@ env:
 jobs:
   get_docs_changes:
     uses: ./.github/workflows/get_docs_changes.yml
-    if: !github.event.pull_request.head.repo.fork
+    if: ${{ !github.event.pull_request.head.repo.fork }}
 
   run_loader:
     name: Tests Snowflake loader
     needs: get_docs_changes
-    if: needs.get_docs_changes.outputs.changes_outside_docs == 'true' && !github.event.pull_request.head.repo.fork
+    if: needs.get_docs_changes.outputs.changes_outside_docs == 'true' && ${{ !github.event.pull_request.head.repo.fork }}
     strategy:
       fail-fast: false
       matrix:
