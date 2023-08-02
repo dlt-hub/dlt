@@ -60,20 +60,29 @@ jobs:
           key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
 
       - name: Install dependencies
-        # if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction -E duckdb -E pyarrow
-
-      # - name: Install self
-      #   run: poetry install --no-interaction
+        run: poetry install --no-interaction  -E pyarrow
 
       - run: |
-          make test-common
+          poetry run pytest tests/common tests/normalize tests/reflection tests/sources tests/cli/common
         if: runner.os != 'Windows'
         name: Run tests Linux/MAC
       - run: |
-          poetry run pytest tests/common tests/normalize tests/extract tests/pipeline tests/reflection -m "not forked"
+          poetry run pytest tests/common tests/normalize tests/reflection tests/sources tests/cli/common -m "not forked"
         if: runner.os == 'Windows'
         name: Run tests Windows
+        shell: cmd
+
+      - name: Install extra dependencies
+        run: poetry install --no-interaction -E duckdb
+
+      - run: |
+          poetry run pytest tests/extract tests/pipeline
+        if: runner.os != 'Windows'
+        name: Run extra tests Linux/MAC
+      - run: |
+          poetry run pytest tests/extract tests/pipeline -m "not forked"
+        if: runner.os == 'Windows'
+        name: Run extra tests Windows
         shell: cmd
 
   matrix_job_required_check:

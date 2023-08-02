@@ -174,7 +174,6 @@ def validate_stored_schema(stored_schema: TStoredSchema) -> None:
         path=".",
         validator_f=simple_regex_validator
     )
-
     # check child parent relationships
     for table_name, table in stored_schema["tables"].items():
         parent_table_name = table.get("parent")

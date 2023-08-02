@@ -61,7 +61,7 @@ test-local:
 	DESTINATION__POSTGRES__CREDENTIALS=postgresql://loader:loader@localhost:5432/dlt_data DESTINATION__DUCKDB__CREDENTIALS=duckdb:///_storage/test_quack.duckdb  poetry run pytest tests -k '(not redshift and not bigquery)'
 
 test-common:
-	poetry run pytest tests/common tests/normalize tests/extract tests/pipeline tests/reflection tests/sources
+	poetry run pytest tests/common tests/normalize tests/extract tests/pipeline tests/reflection tests/sources tests/cli/common
 
 reset-test-storage:
 	-rm -r _storage
