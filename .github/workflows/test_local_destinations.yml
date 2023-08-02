@@ -42,7 +42,7 @@ jobs:
         env:
           POSTGRES_PASSWORD: postgres
         ports:
-          - 5432/tcp          
+          - 5432/tcp
         # Set health checks to wait until postgres has started
         options: >-
           --health-cmd pg_isready
@@ -76,7 +76,7 @@ jobs:
       - name: Install dependencies
         run: poetry install --no-interaction -E postgres -E duckdb -E pyarrow -E filesystem
 
-      - run: poetry run pytest tests/load
+      - run: poetry run pytest tests/load -x
         name: Run tests Linux
         env:
           DESTINATION__POSTGRES__CREDENTIALS__HOST: localhost
