@@ -81,6 +81,6 @@ jobs:
         env:
           DESTINATION__POSTGRES__CREDENTIALS__HOST: localhost
           DESTINATION__POSTGRES__CREDENTIALS__DATABASE: postgres
-          DESTINATION__POSTGRES__CREDENTIALS__USER: postgres
+          DESTINATION__POSTGRES__CREDENTIALS__USERNAME: postgres
           DESTINATION__POSTGRES__CREDENTIALS__PASSWORD: postgres
           DESTINATION__POSTGRES__CREDENTIALS__PORT: ${{ job.services.postgres.ports[5432] }}
