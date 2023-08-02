@@ -52,7 +52,7 @@ jobs:
 
 
     env:
-        DESTINATION__POSTGRES__CREDENTIALS: postgresql://postgres:postgres@localhost:${{ job.services.postgres.ports[5432] }}/postgres
+        DESTINATION__POSTGRES__CREDENTIALS: "postgresql://postgres:postgres@localhost:${{ job.services.postgres.ports[5432] }}/postgres"
 
     steps:
       - name: Check out
