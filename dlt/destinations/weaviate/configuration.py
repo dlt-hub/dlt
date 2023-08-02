@@ -1,4 +1,5 @@
 from typing import Dict, Optional
+from dataclasses import field
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs.base_configuration import CredentialsConfiguration
@@ -19,3 +20,11 @@ class WeaviateClientConfiguration(DestinationClientConfiguration):
     weaviate_batch_size: int = 100
 
     credentials: WeaviateCredentials
+    vectorizer: str = "text2vec-openai"
+    module_config: Dict[str, Dict[str, str]] = field(default_factory=lambda: {
+        "text2vec-openai": {
+            "model": "ada",
+            "modelVersion": "002",
+            "type": "text",
+        }
+    })

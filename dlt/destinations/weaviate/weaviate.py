@@ -123,14 +123,8 @@ class WeaviateClient(JobClientBase):
         self.db_client = self.create_db_client(config)
 
         self._vectorizer_config = {
-            "vectorizer": "text2vec-openai",
-            "moduleConfig": {
-                "text2vec-openai": {
-                    "model": "ada",
-                    "modelVersion": "002",
-                    "type": "text",
-                },
-            },
+            "vectorizer": config.vectorizer,
+            "moduleConfig": config.module_config,
         }
 
     @staticmethod
