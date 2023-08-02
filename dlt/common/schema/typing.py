@@ -39,7 +39,6 @@ class TColumnSchema(TColumnSchemaBase, total=False):
     root_key: Optional[bool]
     merge_key: Optional[bool]
     variant: Optional[bool]
-    config: Optional[Dict[str, Any]] # TODO: might need a more specific name
 
 
 TTableSchemaColumns = Dict[str, TColumnSchema]
