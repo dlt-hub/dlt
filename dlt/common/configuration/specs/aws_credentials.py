@@ -13,6 +13,7 @@ class AwsCredentialsWithoutDefaults(CredentialsConfiguration):
     aws_secret_access_key: TSecretStrValue = None
     aws_session_token: Optional[TSecretStrValue] = None
     aws_profile: Optional[str] = None
+    aws_region: Optional[str] = None
 
     def to_s3fs_credentials(self) -> Dict[str, Optional[str]]:
         """Dict of keyword arguments that can be passed to s3fs"""

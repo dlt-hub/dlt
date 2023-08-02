@@ -47,6 +47,13 @@ def test_replace_disposition(destination_config: DestinationTestConfiguration, r
     # first run with offset 0
     info = pipeline.run(load_items, loader_file_format=destination_config.file_format)
 
+    # we should have all items loaded
+    table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
+
+    assert table_counts["items"] == 120
+    assert table_counts["items__sub_items"] == 240
+    assert table_counts["items__sub_items__sub_sub_items"] == 120
+
     # second run with higher offset so we can check the results
     offset = 1000
     info = pipeline.run(load_items, loader_file_format=destination_config.file_format)

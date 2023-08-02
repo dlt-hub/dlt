@@ -69,7 +69,10 @@ def destinations_configs(
 
     # default non staging configs, one per destination
     if default_non_staging_configs:
-        destination_configs += [DestinationTestConfiguration(destination=destination) for destination in ALL_DESTINATIONS]
+        destination_configs += [DestinationTestConfiguration(destination=destination) for destination in ALL_DESTINATIONS if destination != "athena"]
+        # athena needs filesystem staging, so add it separately
+        destination_configs += [DestinationTestConfiguration(destination="athena", staging="filesystem", bucket_url=AWS_BUCKET)]
+
 
     if default_staging_configs or all_staging_configs:
         destination_configs += [
@@ -195,30 +198,38 @@ def assert_query_data(p: dlt.Pipeline, sql: str, table_data: List[Any], schema_n
             assert row[1] in info.loads_ids
 
 
-def load_file(path: str) -> Tuple[str, List[Dict[str, Any]]]:
+def load_file(path: str, file: str) -> Tuple[str, List[Dict[str, Any]]]:
     """
     util function to load a filesystem destination file and return parsed content
     values may not be cast to the right type, especially for insert_values, please
     make sure to do conversions and casting if needed in your tests
     """
     result: List[dict, str] = []
-    path_items = os.path.basename(path).split(".")
-    ext = path_items[-1]
-    table_name = path_items[1]
+
+    # check if this is a file we want to read
+    file_name_items = file.split(".")
+    ext = file_name_items[-1]
+    if ext not in ["jsonl", "insert_values", "parquet"]:
+        return "skip", []
+
+    # table name will be last element of path
+    table_name = path.split("/")[-1]
 
     # skip loads table
     if table_name == "_dlt_loads":
         return table_name, []
 
+    full_path = posixpath.join(path, file)
+
     # load jsonl
     if ext == "jsonl":
-        with open(path, "rU", encoding="utf-8") as f:
+        with open(full_path, "rU", encoding="utf-8") as f:
             for line in f:
                 result.append(json.loads(line))
 
     # load insert_values (this is a bit volatile if the extact format of the source file changes)
     elif ext == "insert_values":
-        with open(path, "rU", encoding="utf-8") as f:
+        with open(full_path, "rU", encoding="utf-8") as f:
             lines = f.readlines()
             # extract col names
             cols = lines[0][15:-2].split(",")
@@ -229,7 +240,7 @@ def load_file(path: str) -> Tuple[str, List[Dict[str, Any]]]:
     # load parquet
     elif ext == "parquet":
         import pyarrow.parquet as pq
-        with open(path, "rb") as f:
+        with open(full_path, "rb") as f:
             table = pq.read_table(f)
             cols = table.column_names
             count = 0
@@ -244,23 +255,21 @@ def load_file(path: str) -> Tuple[str, List[Dict[str, Any]]]:
                     item_count += 1
                 count += 1
 
-    else:
-        raise NotImplementedError(f"Unsupported filetype: {ext}")
-
     return table_name, result
 
 def load_files(p: dlt.Pipeline, *table_names: str) -> Dict[str, List[Dict[str, Any]]]:
+    """For now this will expect the standard layout in the filesystem destination, if changed the results will not be correct"""
     client: FilesystemClient = p._destination_client()  # type: ignore[assignment]
-    all_files = client.fs_client.ls(client.dataset_path, detail=False, refresh=True)
     result = {}
-    for path in all_files:
-        table_name, items = load_file(path)
-        if table_name not in table_names:
-            continue
-        if table_name in result:
-            result[table_name] = result[table_name] + items
-        else:
-            result[table_name] = items
+    for basedir, _dirs, files  in client.fs_client.walk(client.dataset_path, detail=False, refresh=True):
+        for file in files:
+            table_name, items = load_file(basedir, file)
+            if table_name not in table_names:
+                continue
+            if table_name in result:
+                result[table_name] = result[table_name] + items
+            else:
+                result[table_name] = items
     return result
 
 

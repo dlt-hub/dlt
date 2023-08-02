@@ -17,7 +17,8 @@ from dlt.destinations.filesystem.filesystem_client import client_from_config
 from dlt.common.storages import LoadStorage
 from dlt.destinations.job_impl import NewLoadJobImpl
 from dlt.destinations.job_impl import NewReferenceJob
-
+from dlt.destinations import path_utils
+from dlt.destinations.exceptions import CantExtractTablePrefix
 
 class LoadFilesystemJob(LoadJob):
     def __init__(
@@ -34,17 +35,22 @@ class LoadFilesystemJob(LoadJob):
         file_name = FileStorage.get_file_name_from_file_path(local_path)
         self.config = config
         self.dataset_path = dataset_path
-        self.destination_file_name = LoadFilesystemJob.make_destination_filename(file_name, schema_name, load_id)
+        self.destination_file_name = LoadFilesystemJob.make_destination_filename(config.layout, file_name, schema_name, load_id)
 
         super().__init__(file_name)
         fs_client, _ = client_from_config(config)
-        self.destination_file_name = LoadFilesystemJob.make_destination_filename(file_name, schema_name, load_id)
+        self.destination_file_name = LoadFilesystemJob.make_destination_filename(config.layout, file_name, schema_name, load_id)
         fs_client.put_file(local_path, self.make_remote_path())
 
     @staticmethod
-    def make_destination_filename(file_name: str, schema_name: str, load_id: str) -> str:
+    def make_destination_filename(layout: str, file_name: str, schema_name: str, load_id: str) -> str:
         job_info = LoadStorage.parse_job_file_name(file_name)
-        return f"{schema_name}.{job_info.table_name}.{load_id}.{job_info.file_id}.{job_info.file_format}"
+        return path_utils.create_path(layout,
+                                      schema_name=schema_name,
+                                      table_name=job_info.table_name,
+                                      load_id=load_id,
+                                      file_id=job_info.file_id,
+                                      ext=job_info.file_format)
 
     def make_remote_path(self) -> str:
         return f"{self.config.protocol}://{posixpath.join(self.dataset_path, self.destination_file_name)}"
@@ -84,17 +90,31 @@ class FilesystemClient(JobClientBase):
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
         # clean up existing files for tables selected for truncating
         if truncate_tables and self.fs_client.isdir(self.dataset_path):
-            all_files = self.fs_client.ls(self.dataset_path, detail=False, refresh=True)
-            for table in truncate_tables:
-                search_prefix = posixpath.join(self.dataset_path, f"{self.schema.name}.{table}.")
-                for item in all_files:
-                    # NOTE: glob implementation in fsspec does not look thread safe, way better is to use ls and then filter
-                    if item.startswith(search_prefix):
-                        # NOTE: deleting in chunks on s3 does not raise on access denied, file non existing and probably other errors
-                        self.fs_client.rm_file(item)
 
-        # create destination dir
-        self.fs_client.makedirs(self.dataset_path, exist_ok=True)
+            # collect files
+            all_files = []
+            for basedir, _dirs, files  in self.fs_client.walk(self.dataset_path, detail=False, refresh=True):
+                all_files += [posixpath.join(basedir, file) for file in files]
+
+            for table in truncate_tables:
+                try:
+                    table_prefix = path_utils.get_table_prefix(self.config.layout, self.schema.name, table)
+                    search_prefix = posixpath.join(self.dataset_path, table_prefix)
+                    for item in all_files:
+                        # NOTE: glob implementation in fsspec does not look thread safe, way better is to use ls and then filter
+                        if item.startswith(search_prefix):
+                            # NOTE: deleting in chunks on s3 does not raise on access denied, file non existing and probably other errors
+                            self.fs_client.rm_file(item)
+                except CantExtractTablePrefix:
+                    # crazy deletions might happen if table files are not clearly separated, so do nothing
+                    # TODO: print a warning to console?
+                    pass
+
+        # create destination dirs for all tables
+        for tschema in self.schema.tables.values():
+            table_prefix = path_utils.get_table_prefix(self.config.layout, self.schema.name, tschema["name"])
+            destination_dir = posixpath.join(self.dataset_path, table_prefix)
+            self.fs_client.makedirs(destination_dir, exist_ok=True)
 
     def is_storage_initialized(self) -> bool:
         return self.fs_client.isdir(self.dataset_path)  # type: ignore[no-any-return]

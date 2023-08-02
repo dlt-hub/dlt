@@ -14,7 +14,7 @@ from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import ConfigFieldMissingException, ContextDefaultCannotBeCreated
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.configuration.resolve import initialize_credentials
-from dlt.common.exceptions import (DestinationLoadingViaStagingNotSupported, DestinationNoStagingMode, MissingDependencyException,
+from dlt.common.exceptions import (DestinationLoadingViaStagingNotSupported, DestinationLoadingWithoutStagingNotSupported, DestinationNoStagingMode, MissingDependencyException,
                                    DestinationIncompatibleLoaderFileFormatException)
 from dlt.common.normalizers import default_normalizers, import_normalizers
 from dlt.common.runtime import signals, initialize_runtime
@@ -25,7 +25,7 @@ from dlt.common.typing import TFun, TSecretValue
 from dlt.common.runners import pool_runner as runner
 from dlt.common.storages import LiveSchemaStorage, NormalizeStorage, LoadStorage, SchemaStorage, FileStorage, NormalizeStorageConfiguration, SchemaStorageConfiguration, LoadStorageConfiguration
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import DestinationReference, JobClientBase, DestinationClientConfiguration, DestinationClientDwhConfiguration, TDestinationReferenceArg, DestinationClientStagingConfiguration, DestinationClientDwhConfiguration
+from dlt.common.destination.reference import DestinationReference, JobClientBase, DestinationClientConfiguration, DestinationClientDwhConfiguration, TDestinationReferenceArg, DestinationClientStagingConfiguration,  DestinationClientStagingConfiguration, DestinationClientDwhConfiguration
 from dlt.common.destination.capabilities import INTERNAL_LOADER_FILE_FORMATS
 from dlt.common.pipeline import ExtractInfo, LoadInfo, NormalizeInfo, PipelineContext, SupportsPipeline, TPipelineLocalState, TPipelineState, StateInjectableContext
 from dlt.common.schema import Schema
@@ -356,8 +356,8 @@ class Pipeline(SupportsPipeline):
             # inject staging config into destination config,
             # TODO: Not super clean I think? - DestinationClientDwhConfiguration must be refactored
             # staging_credentials, dataset name and default schema name are arguments for the loader not parts of configuration
-            if isinstance(client.config, DestinationClientDwhConfiguration) and not client.config.staging_credentials:
-                client.config.staging_credentials = staging_client.config.credentials
+            if isinstance(client.config, DestinationClientDwhConfiguration) and isinstance(staging_client.config ,DestinationClientStagingConfiguration) and not client.config.staging_config:
+                client.config.staging_config = staging_client.config
 
         # create default loader config and the loader
         load_config = LoaderConfiguration(
@@ -1026,6 +1026,8 @@ class Pipeline(SupportsPipeline):
             possible_file_formats = [f for f in dest_caps.supported_staging_file_formats if f in stage_caps.supported_loader_file_formats]
         if not file_format:
             if not stage_caps:
+                if not dest_caps.preferred_loader_file_format:
+                    raise DestinationLoadingWithoutStagingNotSupported(destination)
                 file_format = dest_caps.preferred_loader_file_format
             elif stage_caps and dest_caps.preferred_staging_file_format in possible_file_formats:
                 file_format = dest_caps.preferred_staging_file_format

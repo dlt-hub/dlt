@@ -42,6 +42,7 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     naming_convention: str = "snake_case"
     alter_add_multi_column: bool = True
     supports_truncate_command: bool = True
+    supports_numeric_precision_in_schema: bool = True
 
     # do not allow to create default value, destination caps must be always explicitly inserted into container
     can_create_default: ClassVar[bool] = False

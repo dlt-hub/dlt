@@ -22,7 +22,7 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-python = ">=3.8,<4.0"
+python = ">=3.8.1,<4.0"
 requests = ">=2.26.0"
 pendulum = ">=2.1.2"
 simplejson = ">=3.17.5"
@@ -74,6 +74,7 @@ boto3 = {version = ">=1.26", optional = true}
 fsspec = "^2023.5.0"
 snowflake-connector-python = {version = "^3.0.4", optional = true, extras = ["pandas"]}
 packaging = "^23.1"
+pyathena = "^3.0.6"
 
 
 

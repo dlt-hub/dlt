@@ -39,15 +39,12 @@ class DestinationClientConfiguration(BaseConfiguration):
 ) -> None:
             ...
 
-
 @configspec(init=True)
-class DestinationClientDwhConfiguration(DestinationClientConfiguration):
+class DestinationClientDwhBaseConfiguration(DestinationClientConfiguration):
     # keep default/initial value if present
     dataset_name: Final[str] = None
     """dataset name in the destination to load data to, for schemas that are not default schema, it is used as dataset prefix"""
     default_schema_name: Optional[str] = None
-    """name of default schema to be used to name effective dataset to load data to"""
-    staging_credentials: Optional[CredentialsConfiguration] = None
     """How to handle replace disposition for this destination, can be classic or staging"""
     replace_strategy: TLoaderReplaceStrategy = "truncate-and-insert"
 
@@ -58,13 +55,15 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
             credentials: Optional[CredentialsConfiguration] = None,
             dataset_name: str = None,
             default_schema_name: Optional[str] = None,
-            staging_credentials: Optional[CredentialsConfiguration] = None
         ) -> None:
             ...
 
 @configspec(init=True)
-class DestinationClientStagingConfiguration(DestinationClientDwhConfiguration):
+class DestinationClientStagingConfiguration(DestinationClientDwhBaseConfiguration):
     as_staging: bool = False
+    bucket_url: str = None
+    # layout of the destination files
+    layout: str = "{schema_name}/{table_name}/{load_id}.{file_id}.{ext}"
 
     if TYPE_CHECKING:
         def __init__(
@@ -74,8 +73,31 @@ class DestinationClientStagingConfiguration(DestinationClientDwhConfiguration):
             dataset_name: str = None,
             default_schema_name: Optional[str] = None,
             as_staging: bool = False,
+            bucket_url: str = None,
+            layout: str =  None
         ) -> None:
             ...
+
+@configspec(init=True)
+class DestinationClientDwhConfiguration(DestinationClientDwhBaseConfiguration):
+    """name of default schema to be used to name effective dataset to load data to"""
+    staging_config: Optional[DestinationClientStagingConfiguration] = None
+
+    if TYPE_CHECKING:
+        def __init__(
+            self,
+            destination_name: str = None,
+            credentials: Optional[CredentialsConfiguration] = None,
+            dataset_name: str = None,
+            default_schema_name: Optional[str] = None,
+            staging_config: Optional[DestinationClientStagingConfiguration] = None
+        ) -> None:
+            ...
+
+
+
+
+
 
 TLoadJobState = Literal["running", "failed", "retry", "completed"]
 

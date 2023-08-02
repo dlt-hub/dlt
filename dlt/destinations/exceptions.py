@@ -91,3 +91,12 @@ class MergeDispositionException(DestinationTerminalException):
         msg += f"Data for the following tables ({tables}) is loaded to staging dataset. You may need to write your own materialization. The reason is:\n"
         msg += reason
         super().__init__(msg)
+
+class InvalidFilesystemLayout(DestinationTerminalException):
+    def __init__(self, invalid_placeholders: Sequence[str]) -> None:
+        self.invalid_placeholders = invalid_placeholders
+        super().__init__(f"Invalid placeholders found in filesystem layout: {invalid_placeholders}")
+
+class CantExtractTablePrefix(DestinationTerminalException):
+    def __init__(self) -> None:
+        super().__init__("Cant extract unique table prefix from layout. Please make sure you are using the table_name placeholder and no other placerholder than schema_name is used before it.")

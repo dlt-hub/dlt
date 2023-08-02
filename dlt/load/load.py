@@ -301,6 +301,11 @@ class Load(Runnable[ThreadPool]):
                 dlt_tables = set(t["name"] for t in schema.dlt_tables())
                 # only update tables that are present in the load package
                 applied_update = job_client.update_storage_schema(only_tables=all_tables | dlt_tables, expected_update=expected_update)
+                # initialize staging storage if needed
+                if self.staging_destination:
+                    with self.get_staging_destination_client(schema) as staging_client:
+                        truncate_tables = self.get_table_chain_tables_for_write_disposition(load_id, schema, staging_client.get_truncate_destination_table_dispositions())
+                        staging_client.initialize_storage(truncate_tables)
                 # update the staging dataset if client supports this
                 if isinstance(job_client, StagingJobClientBase):
                     if staging_tables := self.get_table_chain_tables_for_write_disposition(load_id, schema, job_client.get_stage_dispositions()):
@@ -312,7 +317,7 @@ class Load(Runnable[ThreadPool]):
                             logger.info(f"Client for {job_client.config.destination_name} will TRUNCATE STAGING TABLES: {staging_tables}")
                             job_client.initialize_storage(truncate_tables=staging_tables)
                 self.load_storage.commit_schema_update(load_id, applied_update)
-            # spool or retrieve unfinished jobs
+            # initialize staging destination and spool or retrieve unfinished jobs
             if self.staging_destination:
                 with self.get_staging_destination_client(schema) as staging_client:
                     jobs_count, jobs = self.retrieve_jobs(job_client, load_id, staging_client)

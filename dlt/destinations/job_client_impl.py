@@ -21,6 +21,7 @@ from dlt.common.utils import concat_strings_with_limit
 from dlt.destinations.exceptions import DatabaseUndefinedRelation, DestinationSchemaTampered, DestinationSchemaWillNotUpdate
 from dlt.destinations.job_impl import EmptyLoadJobWithoutFollowup, NewReferenceJob
 from dlt.destinations.sql_jobs import SqlMergeJob, SqlStagingCopyJob
+from dlt.common.schema.typing import LOADS_TABLE_NAME, VERSION_TABLE_NAME
 
 from dlt.destinations.typing import TNativeConn
 from dlt.destinations.sql_client import SqlClientBase
@@ -232,9 +233,12 @@ class SqlJobClientBase(StagingJobClientBase):
                 return True
             raise ValueError(v)
 
+        fields = ["column_name", "data_type", "is_nullable"]
+        if self.capabilities.supports_numeric_precision_in_schema:
+            fields += ["numeric_precision", "numeric_scale"]
         db_params = self.sql_client.make_qualified_table_name(table_name, escape=False).split(".", 3)
-        query = """
-SELECT column_name, data_type, is_nullable, numeric_precision, numeric_scale
+        query = f"""
+SELECT {",".join(fields)}
     FROM INFORMATION_SCHEMA.COLUMNS
 WHERE """
         if len(db_params) == 3:
@@ -249,10 +253,12 @@ WHERE """
             return False, schema_table
         # TODO: pull more data to infer indexes, PK and uniques attributes/constraints
         for c in rows:
+            numeric_precision = c[3] if self.capabilities.supports_numeric_precision_in_schema else None
+            numeric_scale = c[4] if self.capabilities.supports_numeric_precision_in_schema else None
             schema_c: TColumnSchemaBase = {
                 "name": c[0],
                 "nullable": _null_to_bool(c[2]),
-                "data_type": self._from_db_type(c[1], c[3], c[4]),
+                "data_type": self._from_db_type(c[1], numeric_precision, numeric_scale),
             }
             schema_table[c[0]] = add_missing_hints(schema_c)
         return True, schema_table
@@ -404,7 +410,6 @@ WHERE """
         version_hash = schema.version_hash
         if version_hash != schema.stored_version_hash:
             raise DestinationSchemaTampered(schema.name, version_hash, schema.stored_version_hash)
-        now_ts = str(pendulum.now())
         # get schema string or zip
         schema_str = json.dumps(schema.to_dict())
         # TODO: not all databases store data as utf-8 but this exception is mostly for redshift
@@ -412,10 +417,13 @@ WHERE """
         if len(schema_bytes) > self.capabilities.max_text_data_type_length:
             # compress and to base64
             schema_str = base64.b64encode(zlib.compress(schema_bytes, level=9)).decode("ascii")
+        self._commit_schema_update(schema, schema_str)
+
+    def _commit_schema_update(self, schema: Schema, schema_str: str) -> None:
         # insert
         name = self.sql_client.make_qualified_table_name(VERSION_TABLE_NAME)
+        now_ts = pendulum.now()
         # values =  schema.version_hash, schema.name, schema.version, schema.ENGINE_VERSION, str(now_ts), schema_str
         self.sql_client.execute_sql(
             f"INSERT INTO {name}({self.VERSION_TABLE_SCHEMA_COLUMNS}) VALUES (%s, %s, %s, %s, %s, %s);", schema.stored_version_hash, schema.name, schema.version, schema.ENGINE_VERSION, now_ts, schema_str
         )
-

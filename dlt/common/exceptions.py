@@ -124,6 +124,10 @@ class DestinationLoadingViaStagingNotSupported(DestinationTerminalException):
         self.destination = destination
         super().__init__(f"Destination {destination} does not support loading via staging.")
 
+class DestinationLoadingWithoutStagingNotSupported(DestinationTerminalException):
+    def __init__(self, destination: str) -> None:
+        self.destination = destination
+        super().__init__(f"Destination {destination} does not support loading without staging.")
 
 class DestinationNoStagingMode(DestinationTerminalException):
     def __init__(self, destination: str) -> None:

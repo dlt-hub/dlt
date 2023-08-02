@@ -178,7 +178,7 @@ class RedshiftClient(InsertValuesJobClient):
         job = super().start_file_load(table, file_path, load_id)
         if not job:
             assert NewReferenceJob.is_reference_job(file_path), "Redshift must use staging to load files"
-            job = RedshiftCopyFileLoadJob(table, file_path, self.sql_client, staging_credentials=self.config.staging_credentials, staging_iam_role=self.config.staging_iam_role)
+            job = RedshiftCopyFileLoadJob(table, file_path, self.sql_client, staging_credentials=self.config.staging_config.credentials, staging_iam_role=self.config.staging_iam_role)
         return job
 
     @classmethod

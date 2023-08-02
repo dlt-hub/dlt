@@ -150,7 +150,7 @@ class LoadStorage(DataItemStorage, VersionedStorage):
     ) -> None:
         if not LoadStorage.ALL_SUPPORTED_FILE_FORMATS.issuperset(supported_file_formats):
             raise TerminalValueError(supported_file_formats)
-        if preferred_file_format not in supported_file_formats:
+        if preferred_file_format and preferred_file_format not in supported_file_formats:
             raise TerminalValueError(preferred_file_format)
         self.supported_file_formats = supported_file_formats
         self.config = config

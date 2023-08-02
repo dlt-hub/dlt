@@ -49,6 +49,11 @@ def snowflake_client() -> Iterator[SqlJobClientBase]:
     yield from yield_client_with_storage('snowflake')
 
 
+@pytest.fixture(scope='function')
+def athena_client() -> Iterator[SqlJobClientBase]:
+    yield from yield_client_with_storage('athena')
+
+
 @pytest.fixture(scope="function")
 def client(request) -> SqlJobClientBase:
     yield request.getfixturevalue(request.param)
