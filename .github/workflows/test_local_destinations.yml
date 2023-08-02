@@ -1,5 +1,5 @@
 
-name: test redshift, postgres, duckdb and filesystem
+name: test local destinations
 
 on:
   pull_request:
