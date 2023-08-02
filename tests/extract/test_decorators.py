@@ -167,7 +167,7 @@ def test_resource_name_is_invalid_table_name_and_columns() -> None:
 
 def test_columns_argument() -> None:
 
-    @dlt.resource(name="user", columns={"tags": {"data_type": "complex"}})
+    @dlt.resource(name="user", columns={"tags": {"data_type": "complex", "x-extra": "x-annotation"}})
     def get_users():
         yield {"u": "u", "tags": [1, 2 ,3]}
 
@@ -175,11 +175,18 @@ def test_columns_argument() -> None:
     # nullable is added
     assert t["columns"]["tags"]["nullable"] is True
     assert t["columns"]["tags"]["data_type"] == "complex"
+    assert t["columns"]["tags"]["x-extra"] == "x-annotation"
 
     r = get_users()
     r.apply_hints(columns={"invalid": {"data_type": "unk", "wassup": False}})
     with pytest.raises(DictValidationException):
         r.table_schema()
+
+    r = get_users()
+    r.apply_hints(columns={"tags": {"x-second-extra": "x-second-annotation"}})
+    t = r.table_schema()
+
+    assert t["columns"]["tags"]["x-second-extra"] == "x-second-annotation"
 
 
 def test_resource_name_from_generator() -> None:

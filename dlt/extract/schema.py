@@ -5,7 +5,7 @@ from typing import List, TypedDict, cast, Any
 from dlt.common.schema.utils import DEFAULT_WRITE_DISPOSITION, merge_columns, new_column, new_table
 from dlt.common.schema.typing import TColumnKey, TColumnProp, TColumnSchema, TPartialTableSchema, TTableSchemaColumns, TWriteDisposition
 from dlt.common.typing import TDataItem
-from dlt.common.validation import validate_dict
+from dlt.common.validation import validate_dict_ignoring_xkeys
 
 from dlt.extract.incremental import Incremental
 from dlt.extract.typing import TFunHintTemplate, TTableHintTemplate
@@ -67,7 +67,11 @@ class DltResourceSchema:
         resolved_template.pop("incremental", None)
         table_schema = self._merge_keys(resolved_template)
         table_schema["resource"] = self._name
-        validate_dict(TPartialTableSchema, table_schema, f"new_table/{self._name}")
+        validate_dict_ignoring_xkeys(
+            spec=TPartialTableSchema,
+            doc=table_schema,
+            path=f"new_table/{self._name}",
+        )
         return table_schema
 
     def apply_hints(
