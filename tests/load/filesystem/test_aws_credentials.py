@@ -1,4 +1,7 @@
+import pytest
 from typing import Any, Dict
+
+pytest.importorskip('boto3', reason='boto3 needs to be installed for these tests')
 
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.specs.aws_credentials import AwsCredentials

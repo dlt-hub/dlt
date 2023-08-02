@@ -1,10 +1,14 @@
 import os
+import pytest
 
 from dlt.common.configuration.resolve import resolve_configuration
 
 from dlt.destinations.motherduck.configuration import MotherDuckCredentials, MotherDuckClientConfiguration
 
-from tests.utils import patch_home_dir, preserve_environ
+from tests.utils import patch_home_dir, preserve_environ, ALL_DESTINATIONS
+
+
+pytestmark = pytest.mark.skipif("motherduck" not in ALL_DESTINATIONS, reason="motherduck is not configured")
 
 
 def test_motherduck_database() -> None:
