@@ -25,6 +25,7 @@ env:
 jobs:
   get_docs_changes:
     uses: ./.github/workflows/get_docs_changes.yml
+    if: ${{ !github.event.pull_request.head.repo.fork }}
 
   run_dbt:
     name: Tests dbt runner

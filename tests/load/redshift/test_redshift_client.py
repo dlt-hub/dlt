@@ -20,6 +20,7 @@ from tests.utils import TEST_STORAGE_ROOT, autouse_test_storage, skipifpypy
 from tests.load.utils import expect_load_file, prepare_table, yield_client_with_storage
 
 
+
 @pytest.fixture
 def file_storage() -> FileStorage:
     return FileStorage(TEST_STORAGE_ROOT, file_type="b", makedirs=True)

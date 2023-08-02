@@ -5,7 +5,7 @@ import platform
 import requests
 import pytest
 from os import environ
-from typing import Iterator
+from typing import Iterator, List
 from unittest.mock import patch
 
 import dlt
@@ -26,8 +26,11 @@ from dlt.common.pipeline import PipelineContext
 TEST_STORAGE_ROOT = "_storage"
 
 # destination configs
-ALL_DESTINATIONS = dlt.config.get("ALL_DESTINATIONS", list) or ["duckdb", "bigquery", "redshift", "postgres", "snowflake"]
+ALL_DESTINATIONS = dlt.config.get("ALL_DESTINATIONS", list) or ["duckdb", "bigquery", "redshift", "postgres", "snowflake", "motherduck"]
 ALL_LOCAL_DESTINATIONS = set(ALL_DESTINATIONS).intersection("postgres", "duckdb")
+
+def ALL_DESTINATIONS_SUBSET(subset: List[str]) -> List[str]:
+    return list(set(ALL_DESTINATIONS).intersection(subset))
 
 
 def TEST_DICT_CONFIG_PROVIDER():

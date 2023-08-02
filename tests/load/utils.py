@@ -32,8 +32,12 @@ AWS_BUCKET = dlt.config.get("tests.bucket_url_aws", str)
 GCS_BUCKET = dlt.config.get("tests.bucket_url_gcs", str)
 FILE_BUCKET = dlt.config.get("tests.bucket_url_file", str)
 MEMORY_BUCKET = dlt.config.get("tests.memory", str)
-ALL_BUCKETS = [GCS_BUCKET, AWS_BUCKET, FILE_BUCKET, MEMORY_BUCKET]
 
+ALL_FILESYSTEM_DRIVERS = dlt.config.get("ALL_FILESYSTEM_DRIVERS", list) or ["aws", "gcs", "file", "memory"]
+
+# Filter out buckets not in all filesystem drivers
+ALL_BUCKETS = [GCS_BUCKET, AWS_BUCKET, FILE_BUCKET, MEMORY_BUCKET]
+ALL_BUCKETS = [bucket for bucket in ALL_BUCKETS if bucket.split(':')[0] in ALL_FILESYSTEM_DRIVERS]
 
 ALL_CLIENTS = [f"{name}_client" for name in ALL_DESTINATIONS]
 

@@ -22,9 +22,13 @@ env:
   RUNTIME__SENTRY_DSN: https://6f6f7b6f8e0f458a89be4187603b55fe@o1061158.ingest.sentry.io/4504819859914752
   RUNTIME__LOG_LEVEL: ERROR
 
+  ALL_DESTINATIONS: "[\"snowflake\"]"
+  ALL_FILESYSTEM_DRIVERS: "[\"memory\"]"
+
 jobs:
   get_docs_changes:
     uses: ./.github/workflows/get_docs_changes.yml
+    if: ${{ !github.event.pull_request.head.repo.fork }}
 
   run_loader:
     name: Tests Snowflake loader
@@ -67,11 +71,11 @@ jobs:
         run: poetry install --no-interaction -E snowflake -E s3 -E gs
 
       - run: |
-          poetry run pytest tests/load --ignore=tests/load/redshift --ignore=tests/load/postgres --ignore=tests/load/duckdb --ignore=tests/load/filesystem --ignore=tests/load/bigquery -k '(not redshift and not postgres and not duckdb and not filesystem and not bigquery)'
+          poetry run pytest tests/load
         if: runner.os != 'Windows'
         name: Run tests Linux/MAC
       - run: |
-          poetry run pytest tests/load --ignore=tests/load/redshift --ignore=tests/load/postgres --ignore=tests/load/duckdb --ignore=tests/load/filesystem --ignore=tests/load/bigquery -m "not forked" -k "(not redshift and not postgres and not duckdb and not filesystem and not bigquery)"
+          poetry run pytest tests/load
         if: runner.os == 'Windows'
         name: Run tests Windows
         shell: cmd

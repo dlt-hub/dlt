@@ -15,7 +15,7 @@ from dlt.common.utils import digest128
 from dlt.extract.source import DltResource
 from dlt.sources.helpers.transform import skip_first, take_first
 
-from tests.utils import ALL_DESTINATIONS
+from tests.utils import ALL_DESTINATIONS, ALL_DESTINATIONS_SUBSET
 from tests.pipeline.utils import assert_load_info
 from tests.load.pipeline.utils import load_table_counts, select_data
 
@@ -209,7 +209,7 @@ def test_merge_keys_non_existing_columns(destination_name: str) -> None:
         assert "m_a1" not in table_schema  # unbound columns were not created
 
 
-@pytest.mark.parametrize('destination_name', ["duckdb", "snowflake", "bigquery"])
+@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS_SUBSET(["duckdb", "snowflake", "bigquery"]))
 def test_pipeline_load_parquet(destination_name: str) -> None:
     p = dlt.pipeline(destination=destination_name, dataset_name="github_3", full_refresh=True)
     github_data = github()
