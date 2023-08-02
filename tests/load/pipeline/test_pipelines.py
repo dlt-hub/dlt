@@ -18,7 +18,7 @@ from dlt.pipeline.exceptions import CannotRestorePipelineException, PipelineConf
 from dlt.common.schema.exceptions import CannotCoerceColumnException
 from dlt.common.exceptions import DestinationHasFailedJobs
 
-from tests.utils import ALL_DESTINATIONS, TEST_STORAGE_ROOT
+from tests.utils import ALL_DESTINATIONS, TEST_STORAGE_ROOT, ALL_DESTINATIONS_SUBSET
 from tests.pipeline.utils import assert_load_info
 from tests.load.utils import TABLE_ROW_ALL_DATA_TYPES, TABLE_UPDATE_COLUMNS_SCHEMA, assert_all_data_types_row, delete_dataset
 from tests.load.pipeline.utils import drop_active_pipeline_data, assert_query_data, assert_table, load_table_counts, select_data
@@ -354,7 +354,7 @@ def test_dataset_name_change(destination_name: str) -> None:
 
 
 # do not remove - it allows us to filter tests by destination
-@pytest.mark.parametrize('destination_name', ["postgres"])
+@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS_SUBSET(["postgres"]))
 def test_pipeline_explicit_destination_credentials(destination_name: str) -> None:
 
     # explicit credentials resolved
@@ -385,7 +385,7 @@ def test_pipeline_explicit_destination_credentials(destination_name: str) -> Non
 
 
 # do not remove - it allows us to filter tests by destination
-@pytest.mark.parametrize('destination_name', ["postgres"])
+@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS_SUBSET(["postgres"]))
 def test_pipeline_with_sources_sharing_schema(destination_name: str) -> None:
 
     schema = Schema("shared")
@@ -469,7 +469,7 @@ def test_pipeline_with_sources_sharing_schema(destination_name: str) -> None:
 
 
 # do not remove - it allows us to filter tests by destination
-@pytest.mark.parametrize('destination_name', ["postgres"])
+@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS_SUBSET(["postgres"]))
 def test_many_pipelines_single_dataset(destination_name: str) -> None:
     schema = Schema("shared")
 
@@ -533,7 +533,7 @@ def test_many_pipelines_single_dataset(destination_name: str) -> None:
 
 
 # do not remove - it allows us to filter tests by destination
-@pytest.mark.parametrize('destination_name', ["snowflake"])
+@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS_SUBSET(["snowflake"]))
 def test_snowflake_custom_stage(destination_name: str) -> None:
     """Using custom stage name instead of the table stage"""
     os.environ['DESTINATION__SNOWFLAKE__STAGE_NAME'] = 'my_non_existing_stage'
@@ -566,7 +566,7 @@ def test_snowflake_custom_stage(destination_name: str) -> None:
 
 
 # do not remove - it allows us to filter tests by destination
-@pytest.mark.parametrize('destination_name', ["snowflake"])
+@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS_SUBSET(["snowflake"]))
 def test_snowflake_delete_file_after_copy(destination_name: str) -> None:
     """Using keep_staged_files = false option to remove staged files after copy"""
     os.environ['DESTINATION__SNOWFLAKE__KEEP_STAGED_FILES'] = 'FALSE'
@@ -590,7 +590,7 @@ def test_snowflake_delete_file_after_copy(destination_name: str) -> None:
 
 
 # do not remove - it allows us to filter tests by destination
-@pytest.mark.parametrize('destination_name', ["bigquery", "snowflake", "duckdb"])
+@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS_SUBSET(["bigquery", "snowflake", "duckdb"]))
 def test_parquet_loading(destination_name: str) -> None:
     """Run pipeline twice with merge write disposition
     Resource with primary key falls back to append. Resource without keys falls back to replace.
