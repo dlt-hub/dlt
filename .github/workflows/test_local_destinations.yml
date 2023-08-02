@@ -51,8 +51,6 @@ jobs:
           --health-retries 5
 
 
-    env:
-        DESTINATION__POSTGRES__CREDENTIALS: "postgresql://postgres:postgres@localhost:${{ job.services.postgres.ports[5432] }}/postgres"
 
     steps:
       - name: Check out
@@ -84,11 +82,16 @@ jobs:
           poetry run pytest tests/load tests/cli -k '(not motherduck)'
         if: runner.os != 'Windows'
         name: Run tests Linux/MAC
+        env:
+          DESTINATION__POSTGRES__CREDENTIALS: "postgresql://postgres:postgres@localhost:${{ job.services.postgres.ports[5432] }}/postgres"
+
       - run: |
           poetry run pytest tests/load tests/cli -k '(not motherduck)"
         if: runner.os == 'Windows'
         name: Run tests Windows
         shell: cmd
+        env:
+          DESTINATION__POSTGRES__CREDENTIALS: "postgresql://postgres:postgres@localhost:${{ job.services.postgres.ports[5432] }}/postgres"
 
   matrix_job_required_check:
     name: Redshift, PostgreSQL and DuckDB tests
