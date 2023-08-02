@@ -363,13 +363,13 @@ def test_pipeline_explicit_destination_credentials(destination_name: str) -> Non
     assert c.config.credentials.host == "localhost"
 
     # explicit credentials resolved ignoring the config providers
-    os.environ["CREDENTIALS__HOST"] = "HOST"
+    os.environ["DESTINATION__POSTGRES__CREDENTIALS__HOST"] = "HOST"
     p = dlt.pipeline(destination="postgres", credentials="postgresql://loader:loader@localhost:5432/dlt_data")
     c = p._get_destination_client(Schema("s"), p._get_destination_client_initial_config())
     assert c.config.credentials.host == "localhost"
 
     # explicit partial credentials will use config providers
-    os.environ["CREDENTIALS__USERNAME"] = "UN"
+    os.environ["DESTINATION__POSTGRES__CREDENTIALS__USERNAME"] = "UN"
     p = dlt.pipeline(destination="postgres", credentials="postgresql://localhost:5432/dlt_data")
     c = p._get_destination_client(Schema("s"), p._get_destination_client_initial_config())
     assert c.config.credentials.username == "UN"
