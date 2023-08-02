@@ -28,7 +28,7 @@ def weaviate_adapter(
         resource.apply_hints(columns=column_hints)
     else:
         raise ValueError(
-            "Either 'class_schema' or 'vectorize' and/or 'tokenization' must be specified."
+            "Either 'vectorize' or 'tokenization' must be specified."
         )
 
     return resource
