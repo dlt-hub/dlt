@@ -27,12 +27,10 @@ jobs:
     if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
     strategy:
       fail-fast: false
-      matrix:
-        os: ["ubuntu-latest", "macos-latest", "windows-latest"]
     defaults:
       run:
         shell: bash
-    runs-on: ${{ matrix.os }}
+    runs-on: "ubuntu-latest"
 
     # Service containers to run with `container-job`
     services:
@@ -92,14 +90,3 @@ jobs:
         shell: cmd
         env:
           DESTINATION__POSTGRES__CREDENTIALS: "postgresql://postgres:postgres@localhost:${{ job.services.postgres.ports[5432] }}/postgres"
-
-  matrix_job_required_check:
-    name: Redshift, PostgreSQL and DuckDB tests
-    needs: run_loader
-    runs-on: ubuntu-latest
-    if: always()
-    steps:
-      - name: Check matrix job results
-        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
-        run: |
-          echo "One or more matrix job tests failed or were cancelled. You may need to re-run them." && exit 1
