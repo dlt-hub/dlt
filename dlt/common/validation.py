@@ -1,3 +1,4 @@
+import functools
 from typing import Callable, Any, Type, get_type_hints, get_args
 
 from dlt.common.exceptions import DictValidationException
@@ -88,3 +89,9 @@ def validate_dict(spec: Type[_TypedDict], doc: StrAny, path: str, filter_f: TFil
     # check allowed props
     for pk, pv in props.items():
         verify_prop(pk, pv, allowed_props[pk])
+
+
+validate_dict_ignoring_xkeys = functools.partial(
+    validate_dict,
+    filter_f=lambda k: not k.startswith("x-")
+)

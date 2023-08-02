@@ -11,7 +11,7 @@ from dlt.common.exceptions import DictValidationException
 from dlt.common.normalizers import default_normalizers
 from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.typing import DictStrAny, REPattern
-from dlt.common.validation import TCustomValidator, validate_dict
+from dlt.common.validation import TCustomValidator, validate_dict, validate_dict_ignoring_xkeys
 from dlt.common.schema import detections
 from dlt.common.schema.typing import (SCHEMA_ENGINE_VERSION, LOADS_TABLE_NAME, SIMPLE_REGEX_PREFIX, VERSION_TABLE_NAME, TColumnName, TPartialTableSchema, TSchemaTables, TSchemaUpdate,
                                       TSimpleRegex, TStoredSchema, TTableSchema, TTableSchemaColumns, TColumnSchemaBase, TColumnSchema, TColumnProp,
@@ -168,7 +168,13 @@ def compile_simple_regexes(r: Iterable[TSimpleRegex]) -> REPattern:
 
 def validate_stored_schema(stored_schema: TStoredSchema) -> None:
     # use lambda to verify only non extra fields
-    validate_dict(TStoredSchema, stored_schema, ".", lambda k: not k.startswith("x-"), simple_regex_validator)
+    validate_dict_ignoring_xkeys(
+        spec=TStoredSchema,
+        doc=stored_schema,
+        path=".",
+        validator_f=simple_regex_validator
+    )
+
     # check child parent relationships
     for table_name, table in stored_schema["tables"].items():
         parent_table_name = table.get("parent")
@@ -564,11 +570,10 @@ def new_table(
         table["write_disposition"] = write_disposition or DEFAULT_WRITE_DISPOSITION
         table["resource"] = resource or table_name
     if validate_schema:
-        validate_dict(
-            spec=TTableSchema,
-            doc=table,
+        validate_dict_ignoring_xkeys(
+            spec=TColumnSchema,
+            doc=table["columns"],
             path=f"new_table/{table_name}",
-            filter_f=lambda k: not k.startswith("x-")
         )
 
     return table
@@ -582,11 +587,10 @@ def new_column(column_name: str, data_type: TDataType = None, nullable: bool = T
     if data_type:
         column["data_type"] = data_type
     if validate_schema:
-        validate_dict(
+        validate_dict_ignoring_xkeys(
             spec=TColumnSchema,
             doc=column,
             path=f"new_column/{column_name}",
-            filter_f=lambda k: not k.startswith("x-"),
         )
 
     return column
