@@ -48,8 +48,6 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
-
-
     steps:
       - name: Check out
         uses: actions/checkout@master
@@ -74,19 +72,10 @@ jobs:
           key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}-redshift
 
       - name: Install dependencies
-        run: poetry install --no-interaction -E redshift -E duckdb -E gs -E s3 -E pyarrow
+        run: poetry install --no-interaction -E postgres -E duckdb -E pyarrow -E filesystem
 
       - run: |
-          poetry run pytest tests/load tests/cli -k '(not motherduck)'
-        if: runner.os != 'Windows'
-        name: Run tests Linux/MAC
-        env:
-          DESTINATION__POSTGRES__CREDENTIALS: "postgresql://postgres:postgres@localhost:${{ job.services.postgres.ports[5432] }}/postgres"
-
-      - run: |
-          poetry run pytest tests/load tests/cli -k '(not motherduck)"
-        if: runner.os == 'Windows'
-        name: Run tests Windows
-        shell: cmd
+          poetry run pytest tests/load'
+        name: Run tests Linux
         env:
           DESTINATION__POSTGRES__CREDENTIALS: "postgresql://postgres:postgres@localhost:${{ job.services.postgres.ports[5432] }}/postgres"
