@@ -7,7 +7,9 @@ Be it a Google Colab notebook, AWS Lambda function, an Airflow DAG, your local l
 
 
 <h3 align="center">
-🚀 Join our thriving community of likeminded Developers and build the future together!
+
+🚀 Join our thriving community of likeminded developers and build the future together!
+
 </h3>
 
 <div align="center">
