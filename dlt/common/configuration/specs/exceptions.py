@@ -42,3 +42,9 @@ class InvalidGoogleOauth2Json(NativeValueError):
     def __init__(self, spec: Type[Any], native_value: Any):
         msg = f"The expected representation for {spec.__name__} is a string with serialized oauth2 user info and may be wrapped in 'install'/'web' node - depending of oauth2 app type."
         super().__init__(spec, native_value, msg)
+
+
+class InvalidBoto3Session(NativeValueError):
+    def __init__(self, spec: Type[Any], native_value: Any):
+        msg = f"The expected representation for {spec.__name__} is and instance of boto3.Session containing credentials"
+        super().__init__(spec, native_value, msg)

@@ -1,8 +1,9 @@
-from typing import Optional, TYPE_CHECKING, Dict, Any
+from typing import Optional, Dict, Any
 
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.typing import TSecretStrValue
 from dlt.common.configuration.specs import CredentialsConfiguration, CredentialsWithDefault, configspec
+from dlt.common.configuration.specs.exceptions import InvalidBoto3Session
 from dlt import version
 
 
@@ -36,14 +37,7 @@ class AwsCredentials(AwsCredentialsWithoutDefaults, CredentialsWithDefault):
     def on_partial(self) -> None:
         # Try get default credentials
         session = self._to_session()
-        self.aws_profile = session.profile_name
-        default = session.get_credentials()
-        if not default:
-            return None
-        self.aws_access_key_id = default.access_key
-        self.aws_secret_access_key = default.secret_key
-        self.aws_session_token = default.token
-        if not self.is_partial():
+        if self._from_session(session) and not self.is_partial():
             self.resolve()
 
     def _to_session(self) -> Any:
@@ -53,5 +47,30 @@ class AwsCredentials(AwsCredentialsWithoutDefaults, CredentialsWithDefault):
             raise MissingDependencyException(self.__class__.__name__, [f"{version.DLT_PKG_NAME}[s3]"])
         return boto3.Session(**self.to_native_representation())
 
+    def _from_session(self, session: Any) -> Any:
+        """Sets the credentials properties from boto3 `session` and return session's credentials if found"""
+        import boto3
+        assert isinstance(session, boto3.Session)
+        self.aws_profile = session.profile_name
+        default = session.get_credentials()
+        if not default:
+            return None
+        self.aws_access_key_id = default.access_key
+        self.aws_secret_access_key = default.secret_key
+        self.aws_session_token = default.token
+        return default
+
     def to_native_credentials(self) -> Optional[Any]:
         return self._to_session().get_credentials()
+
+    def parse_native_representation(self, native_value: Any) -> None:
+        """Import external boto session"""
+        try:
+            import boto3
+            if isinstance(native_value, boto3.Session):
+                if self._from_session(native_value):
+                    self.__is_resolved__ = True
+            else:
+                raise InvalidBoto3Session(self.__class__, native_value)
+        except ImportError:
+            pass
