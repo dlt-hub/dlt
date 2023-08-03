@@ -135,6 +135,8 @@ class AthenaSQLClient(SqlClientBase[Connection]):
         if isinstance(ex, OperationalError):
             if "TABLE_NOT_FOUND" in str(ex):
                 return DatabaseUndefinedRelation(ex)
+            elif "SCHEMA_NOT_FOUND" in str(ex):
+                return DatabaseUndefinedRelation(ex)
             return DatabaseTerminalException(ex)
         elif isinstance(ex, (ProgrammingError, IntegrityError)):
             return DatabaseTerminalException(ex)
