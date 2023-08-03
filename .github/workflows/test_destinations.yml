@@ -1,5 +1,5 @@
 
-name: test redshift and filesystem buckets
+name: test redshift, postgres and filesystem buckets
 
 on:
   pull_request:
@@ -9,6 +9,8 @@ on:
   workflow_dispatch:
 
 env:
+  DESTINATION__POSTGRES__CREDENTIALS: postgresql://loader@dlttests.cwz0jfxu0m7m.eu-central-1.rds.amazonaws.com:5432/dlt_data
+  DESTINATION__DUCKDB__CREDENTIALS: duckdb:///_storage/test_quack.duckdb
   DESTINATION__REDSHIFT__CREDENTIALS: postgresql://loader@3.73.90.3:5439/dlt_ci
   DESTINATION__FILESYSTEM__CREDENTIALS__AWS_ACCESS_KEY_ID: AKIAT4QMVMC4J46G55G4
   DESTINATION__FILESYSTEM__CREDENTIALS__AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -22,7 +24,8 @@ env:
   RUNTIME__LOG_LEVEL: ERROR
   RUNTIME__DLTHUB_TELEMETRY_SEGMENT_WRITE_KEY: TLJiyRkGVZGCi2TtjClamXpFcxAA1rSB
   # Test redshift and filesystem with all buckets
-  ALL_DESTINATIONS: "[\"redshift\"]"
+  # postgres runs again here so we can test on mac/windows
+  ALL_DESTINATIONS: "[\"redshift\", \"postgres\", \"duckdb\"]"
 
 jobs:
   get_docs_changes:
@@ -31,7 +34,7 @@ jobs:
     if: ${{ !github.event.pull_request.head.repo.fork }}
 
   run_loader:
-    name: test destinations redshift and filesystem
+    name: test destinations redshift, postgres and filesystem
     needs: get_docs_changes
     if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
     strategy:
