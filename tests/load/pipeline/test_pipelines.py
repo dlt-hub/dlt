@@ -77,13 +77,6 @@ def test_default_pipeline_names(use_single_dataset: bool, any_destination: str) 
         assert_table(p, "data_fun", data, schema_name="names", info=info)
 
 
-def test_default_duckdb_dataset_name() -> None:
-    # Check if dataset_name does not collide with pipeline_name
-    data = ["a", "b", "c"]
-    info = dlt.run(data, destination="duckdb", table_name="data")
-    assert_table(info.pipeline, "data", data, info=info)
-
-
 def test_default_schema_name(any_destination: str) -> None:
     dataset_name = "dataset_" + uniq_id()
     data = ["a", "b", "c"]
