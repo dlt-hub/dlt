@@ -44,7 +44,7 @@ jobs:
         env:
           POSTGRES_PASSWORD: postgres
         ports:
-          - 5432/tcp
+          - 5432:5432
         # Set health checks to wait until postgres has started
         options: >-
           --health-cmd pg_isready
@@ -81,8 +81,4 @@ jobs:
       - run: poetry run pytest tests/load tests/cli
         name: Run tests Linux
         env:
-          DESTINATION__POSTGRES__CREDENTIALS__HOST: localhost
-          DESTINATION__POSTGRES__CREDENTIALS__DATABASE: postgres
-          DESTINATION__POSTGRES__CREDENTIALS__USERNAME: postgres
-          DESTINATION__POSTGRES__CREDENTIALS__PASSWORD: postgres
-          DESTINATION__POSTGRES__CREDENTIALS__PORT: ${{ job.services.postgres.ports[5432] }}
+          DESTINATION__POSTGRES__CREDENTIALS: postgresql://postgres:postgres@localhost:5432/postgres
