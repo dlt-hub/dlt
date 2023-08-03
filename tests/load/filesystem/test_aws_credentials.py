@@ -22,6 +22,7 @@ def test_aws_credentials_resolved_from_default(environment: Dict[str, str]) -> N
     assert config.aws_profile == 'default'
 
 
+@pytest.mark.skipif('s3' not in ALL_FILESYSTEM_DRIVERS, reason='s3 filesystem driver not configured')
 def test_aws_credentials_from_boto3(environment: Dict[str, str]) -> None:
     environment['AWS_ACCESS_KEY_ID'] = 'fake_access_key'
     environment['AWS_SECRET_ACCESS_KEY'] = 'fake_secret_key'

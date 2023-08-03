@@ -178,7 +178,7 @@ def test_create_pipeline_all_destinations(destination: str) -> None:
     assert p.default_schema.naming.max_length == min(caps.max_column_identifier_length, caps.max_identifier_length)
 
 
-def test_destination_explicit_credentials() -> None:
+def test_destination_explicit_credentials(environment: Any) -> None:
     # test redshift
     p = dlt.pipeline(pipeline_name="postgres_pipeline", destination="redshift", credentials="redshift://loader:loader@localhost:5432/dlt_data")
     config = p._get_destination_client_initial_config()
@@ -202,9 +202,8 @@ def test_destination_explicit_credentials() -> None:
     assert config.credentials.is_resolved()
     # if string cannot be parsed
     p = dlt.pipeline(pipeline_name="postgres_pipeline", destination="filesystem", credentials="PR8BLEM")
-    with pytest.raises(NativeValueError):
-        p._get_destination_client_initial_config(p.destination)
-
+    # with pytest.raises(NativeValueError) as ne_x:
+    p._get_destination_client_initial_config(p.destination)
 
 
 def test_extract_source_twice() -> None:

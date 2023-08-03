@@ -1,10 +1,13 @@
 from collections.abc import Mapping as C_Mapping, Sequence as C_Sequence
+from datetime import datetime, date  # noqa: I251
 import inspect
 from re import Pattern as _REPattern
 from typing import Callable, Dict, Any, Final, Literal, List, Mapping, NewType, Tuple, Type, TypeVar, Generic, Protocol, TYPE_CHECKING, Union, runtime_checkable, get_args, get_origin
 from typing_extensions import TypeAlias, ParamSpec, Concatenate
 
-from dlt.common.pendulum import timedelta
+from dlt.common.pendulum import timedelta, pendulum
+
+
 
 
 if TYPE_CHECKING:
@@ -35,6 +38,7 @@ TSecretValue = NewType("TSecretValue", Any)  # type: ignore
 TSecretStrValue = NewType("TSecretValue", str)  # type: ignore
 TDataItem: TypeAlias = Any  # a single data item as extracted from data source
 TDataItems: TypeAlias = Union[TDataItem, List[TDataItem]]  # a single or many data items as extracted from the data source
+TAnyDateTime = Union[pendulum.DateTime, pendulum.Date, datetime, date, str]
 
 ConfigValue: None = None  # a value of type None indicating argument that may be injected by config provider
 

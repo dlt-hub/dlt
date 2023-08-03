@@ -1,4 +1,4 @@
-from typing import Union, List, Any, Sequence
+from typing import Union, List, Any
 
 from dlt.extract.typing import TTableHintTemplate, TDataItem
 from dlt.common.schema.typing import TColumnKey
