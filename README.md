@@ -6,9 +6,9 @@ Be it a Google Colab notebook, AWS Lambda function, an Airflow DAG, your local l
 </p>
 
 
-<h1 align="center">
+<h3 align="center">
 🚀 Join our thriving community of likeminded Developers and build the future together!
-</h1>
+</h3>
 
 <div align="center">
   <a target="_blank" href="https://join.slack.com/t/dlthub-community/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g" style="background:none">
