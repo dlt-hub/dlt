@@ -48,8 +48,7 @@ HIVET_TO_SCT: Dict[str, TDataType] = {
     "double": "double",
     "boolean": "bool",
     "date": "date",
-    "timestamp(6)": "timestamp", # TODO: what is going on here?
-    "timestamp(3)": "timestamp",
+    "timestamp": "timestamp",
     "bigint": "bigint",
     "binary": "binary",
     "decimal": "decimal"
@@ -212,7 +211,10 @@ class AthenaClient(SqlJobClientBase):
 
     @classmethod
     def _from_db_type(cls, hive_t: str, precision: Optional[int], scale: Optional[int]) -> TDataType:
-        return HIVET_TO_SCT[hive_t]
+        for key, val in HIVET_TO_SCT.items():
+            if hive_t.startswith(key):
+                return val
+        return None
 
     def get_schema_by_hash(self, version_hash: str) -> StorageSchemaInfo:
         query = f"""SELECT {self.VERSION_TABLE_SCHEMA_COLUMNS} FROM "{VERSION_TABLE_NAME}" WHERE version_hash = '{version_hash}';"""

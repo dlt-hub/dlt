@@ -63,7 +63,8 @@ def destinations_configs(
         default_staging_configs: bool = False,
         all_staging_configs: bool = False,
         local_filesystem_configs: bool = False,
-        all_buckets_filesystem_configs: bool = False) -> Iterator[DestinationTestConfiguration]:
+        all_buckets_filesystem_configs: bool = False,
+        subset: List[str] = "") -> Iterator[DestinationTestConfiguration]:
 
     # build destination configs
     destination_configs: List[DestinationTestConfiguration] = []
@@ -93,6 +94,11 @@ def destinations_configs(
 
     # filter out non active destinations
     destination_configs = [conf for conf in destination_configs if conf.destination in ALL_DESTINATIONS]
+
+    # filter out destinations not in subset
+    if subset:
+        destination_configs = [conf for conf in destination_configs if conf.destination in subset]
+
 
     # add local filesystem destinations if requested
     if local_filesystem_configs:

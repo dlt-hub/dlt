@@ -82,7 +82,11 @@ def test_replace_write_disposition(all_buckets_env: str, filesystem_client: File
 
     # First file from load1 remains, second file is replaced by load2
     # assert that only these two files are in the destination folder
-    ls = set(client.fs_client.ls(root_path, detail=False))
+    paths = []
+    for basedir, _dirs, files  in client.fs_client.walk(client.dataset_path, detail=False, refresh=True):
+        for f in files:
+            paths.append(posixpath.join(basedir, f))
+    ls = set(paths)
     assert ls == {job_2_load_1_path, job_1_load_2_path}
 
 
@@ -101,7 +105,11 @@ def test_append_write_disposition(all_buckets_env: str, filesystem_client: Files
     ]
     expected_files = sorted([posixpath.join(root_path, fn) for fn in expected_files])
 
-    assert list(sorted(client.fs_client.ls(root_path, detail=False))) == expected_files
+    paths = []
+    for basedir, _dirs, files  in client.fs_client.walk(client.dataset_path, detail=False, refresh=True):
+        for f in files:
+            paths.append(posixpath.join(basedir, f))
+    assert list(sorted(paths)) == expected_files
 
 
 def perform_load(

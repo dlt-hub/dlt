@@ -296,8 +296,8 @@ def test_pipeline_data_writer_compression(disable_compression: bool, destination
     assert_table(info.pipeline, "data", data, info=info)
 
 
-@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
-def test_source_max_nesting(destination_name: str) -> None:
+@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True), ids=lambda x: x.name)
+def test_source_max_nesting(destination_config: DestinationTestConfiguration) -> None:
 
     complex_part = {
                     "l": [1, 2, 3],
@@ -315,7 +315,7 @@ def test_source_max_nesting(destination_name: str) -> None:
                 "cn": complex_part
             }
         ], name="complex_cn")
-    info = dlt.run(complex_data(), destination=destination_name, dataset_name="ds_" + uniq_id())
+    info = dlt.run(complex_data(), destination=destination_config.destination, staging=destination_config.staging, dataset_name="ds_" + uniq_id())
     print(info)
     rows = select_data(dlt.pipeline(), "SELECT cn FROM complex_cn")
     assert len(rows) == 1
@@ -325,12 +325,12 @@ def test_source_max_nesting(destination_name: str) -> None:
     assert cn_val == complex_part
 
 
-@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
-def test_dataset_name_change(destination_name: str) -> None:
+@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True), ids=lambda x: x.name)
+def test_dataset_name_change(destination_config: DestinationTestConfiguration) -> None:
     ds_1_name = "iteration" + uniq_id()
     ds_2_name = "iteration" + uniq_id()
     ds_3_name = "iteration" + uniq_id()
-    p, s = simple_nested_pipeline(destination_name, dataset_name=ds_1_name, full_refresh=False)
+    p, s = simple_nested_pipeline(destination_config, dataset_name=ds_1_name, full_refresh=False)
     try:
         info = p.run(s())
         assert_load_info(info)
@@ -359,8 +359,8 @@ def test_dataset_name_change(destination_name: str) -> None:
 
 
 # do not remove - it allows us to filter tests by destination
-@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS_SUBSET(["postgres"]))
-def test_pipeline_explicit_destination_credentials(destination_name: str) -> None:
+@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True, subset=["postgres"]), ids=lambda x: x.name)
+def test_pipeline_explicit_destination_credentials(destination_config: DestinationTestConfiguration) -> None:
 
     # explicit credentials resolved
     p = dlt.pipeline(destination="postgres", credentials="postgresql://loader:loader@localhost:5432/dlt_data")
@@ -390,8 +390,8 @@ def test_pipeline_explicit_destination_credentials(destination_name: str) -> Non
 
 
 # do not remove - it allows us to filter tests by destination
-@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS_SUBSET(["postgres"]))
-def test_pipeline_with_sources_sharing_schema(destination_name: str) -> None:
+@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True, subset=["postgres"]), ids=lambda x: x.name)
+def test_pipeline_with_sources_sharing_schema(destination_config: DestinationTestConfiguration) -> None:
 
     schema = Schema("shared")
 
@@ -474,8 +474,8 @@ def test_pipeline_with_sources_sharing_schema(destination_name: str) -> None:
 
 
 # do not remove - it allows us to filter tests by destination
-@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS_SUBSET(["postgres"]))
-def test_many_pipelines_single_dataset(destination_name: str) -> None:
+@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True, subset=["postgres"]), ids=lambda x: x.name)
+def test_many_pipelines_single_dataset(destination_config: DestinationTestConfiguration) -> None:
     schema = Schema("shared")
 
     @dlt.source(schema=schema, max_table_nesting=1)
@@ -538,11 +538,11 @@ def test_many_pipelines_single_dataset(destination_name: str) -> None:
 
 
 # do not remove - it allows us to filter tests by destination
-@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS_SUBSET(["snowflake"]))
-def test_snowflake_custom_stage(destination_name: str) -> None:
+@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True, subset=["snowflake"]), ids=lambda x: x.name)
+def test_snowflake_custom_stage(destination_config: DestinationTestConfiguration) -> None:
     """Using custom stage name instead of the table stage"""
     os.environ['DESTINATION__SNOWFLAKE__STAGE_NAME'] = 'my_non_existing_stage'
-    pipeline, data = simple_nested_pipeline(destination_name, f"custom_stage_{uniq_id()}", False)
+    pipeline, data = simple_nested_pipeline(destination_config, f"custom_stage_{uniq_id()}", False)
     info = pipeline.run(data())
     with pytest.raises(DestinationHasFailedJobs) as f_jobs:
         info.raise_on_failed_jobs()
@@ -555,7 +555,7 @@ def test_snowflake_custom_stage(destination_name: str) -> None:
     # GRANT READ, WRITE ON STAGE DLT_DATA.PUBLIC.MY_CUSTOM_LOCAL_STAGE TO ROLE DLT_LOADER_ROLE;
     stage_name = 'PUBLIC.MY_CUSTOM_LOCAL_STAGE'
     os.environ['DESTINATION__SNOWFLAKE__STAGE_NAME'] = stage_name
-    pipeline, data = simple_nested_pipeline(destination_name, f"custom_stage_{uniq_id()}", False)
+    pipeline, data = simple_nested_pipeline(destination_config, f"custom_stage_{uniq_id()}", False)
     info = pipeline.run(data())
     assert_load_info(info)
 
@@ -571,12 +571,12 @@ def test_snowflake_custom_stage(destination_name: str) -> None:
 
 
 # do not remove - it allows us to filter tests by destination
-@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS_SUBSET(["snowflake"]))
-def test_snowflake_delete_file_after_copy(destination_name: str) -> None:
+@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True, subset=["snowflake"]), ids=lambda x: x.name)
+def test_snowflake_delete_file_after_copy(destination_config: DestinationTestConfiguration) -> None:
     """Using keep_staged_files = false option to remove staged files after copy"""
     os.environ['DESTINATION__SNOWFLAKE__KEEP_STAGED_FILES'] = 'FALSE'
 
-    pipeline, data = simple_nested_pipeline(destination_name, f"delete_staged_files_{uniq_id()}", False)
+    pipeline, data = simple_nested_pipeline(destination_config, f"delete_staged_files_{uniq_id()}", False)
 
     info = pipeline.run(data())
     assert_load_info(info)
@@ -595,12 +595,12 @@ def test_snowflake_delete_file_after_copy(destination_name: str) -> None:
 
 
 # do not remove - it allows us to filter tests by destination
-@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS_SUBSET(["bigquery", "snowflake", "duckdb"]))
-def test_parquet_loading(destination_name: str) -> None:
+@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True, subset=["bigquery", "snowflake", "duckdb"]), ids=lambda x: x.name)
+def test_parquet_loading(destination_config: DestinationTestConfiguration) -> None:
     """Run pipeline twice with merge write disposition
     Resource with primary key falls back to append. Resource without keys falls back to replace.
     """
-    pipeline = dlt.pipeline(pipeline_name='parquet_test_' + uniq_id(), destination=destination_name,  dataset_name='parquet_test_' + uniq_id())
+    pipeline = destination_config.setup_pipeline('parquet_test_' + uniq_id(), dataset_name='parquet_test_' + uniq_id())
 
     @dlt.resource(primary_key='id')
     def some_data():  # type: ignore[no-untyped-def]
@@ -614,7 +614,7 @@ def test_parquet_loading(destination_name: str) -> None:
     column_schemas = deepcopy(TABLE_UPDATE_COLUMNS_SCHEMA)
 
     # parquet on bigquery does not support JSON but we still want to run the test
-    if destination_name == "bigquery":
+    if destination_config.destination == "bigquery":
         column_schemas["col9_null"]["data_type"] = column_schemas["col9"]["data_type"] = "text"
 
     # apply the exact columns definitions so we process complex and wei types correctly!
@@ -642,10 +642,10 @@ def test_parquet_loading(destination_name: str) -> None:
         assert len(db_rows) == 10
         db_row = list(db_rows[0])
         # "snowflake" and "bigquery" do not parse JSON form parquet string so double parse
-        assert_all_data_types_row(db_row[:-2], parse_complex_strings=destination_name in ["snowflake", "bigquery"])
+        assert_all_data_types_row(db_row[:-2], parse_complex_strings=destination_config.destination in ["snowflake", "bigquery"])
 
 
-def simple_nested_pipeline(destination_name: str, dataset_name: str, full_refresh: bool) -> Tuple[dlt.Pipeline, Callable[[], DltSource]]:
+def simple_nested_pipeline(destination_config: DestinationTestConfiguration, dataset_name: str, full_refresh: bool) -> Tuple[dlt.Pipeline, Callable[[], DltSource]]:
     data = ["a", ["a", "b", "c"], ["a", "b", "c"]]
 
     def d():
@@ -655,6 +655,6 @@ def simple_nested_pipeline(destination_name: str, dataset_name: str, full_refres
     def _data():
         return dlt.resource(d(), name="lists", write_disposition="append")
 
-    p = dlt.pipeline(pipeline_name=f"pipeline_{dataset_name}", full_refresh=full_refresh, destination=destination_name, dataset_name=dataset_name)
+    p = dlt.pipeline(pipeline_name=f"pipeline_{dataset_name}", full_refresh=full_refresh, destination=destination_config.destination, staging=destination_config.staging, dataset_name=dataset_name)
     return p, _data
 
