@@ -1,3 +1,5 @@
+# Tests destinations that can run without credentials.
+# i.e. local postgres, duckdb, filesystem (with local fs/memory bucket)
 
 name: test local destinations
 
@@ -76,7 +78,7 @@ jobs:
       - name: Install dependencies
         run: poetry install --no-interaction -E postgres -E duckdb -E pyarrow -E filesystem
 
-      - run: poetry run pytest tests/load -x
+      - run: poetry run pytest tests/load tests/cli
         name: Run tests Linux
         env:
           DESTINATION__POSTGRES__CREDENTIALS__HOST: localhost
