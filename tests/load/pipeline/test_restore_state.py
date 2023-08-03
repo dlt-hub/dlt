@@ -28,7 +28,7 @@ def duckdb_pipeline_location() -> None:
         del os.environ["DESTINATION__DUCKDB__CREDENTIALS"]
 
 
-@pytest.mark.parametrize("destination_config", destinations_configs(default_staging_configs=True, default_non_staging_configs=True), ids=lambda x: x.name)
+@pytest.mark.parametrize("destination_config", destinations_configs(default_staging_configs=True, default_configs=True), ids=lambda x: x.name)
 def test_restore_state_utils(destination_config: DestinationTestConfiguration) -> None:
 
     p = destination_config.setup_pipeline(pipeline_name="pipe_" + uniq_id(), dataset_name="state_test_" + uniq_id())
@@ -133,18 +133,19 @@ def test_restore_state_utils(destination_config: DestinationTestConfiguration) -
         assert new_stored_state["_state_version"] + 1 == new_stored_state_2["_state_version"]
 
 
-@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
-def test_silently_skip_on_invalid_credentials(destination_name: str, environment: Any) -> None:
+@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True), ids=lambda x: x.name)
+def test_silently_skip_on_invalid_credentials(destination_config: DestinationTestConfiguration, environment: Any) -> None:
     environment["CREDENTIALS"] = "postgres://loader:password@localhost:5432/dlt_data"
     environment["DESTINATION__BIGQUERY__CREDENTIALS"] = '{"project_id": "chat-analytics-","client_email": "loader@chat-analytics-317513","private_key": "-----BEGIN PRIVATE KEY-----\\nMIIEuwIBADANBgkqhkiG9w0BAQEFAASCBKUwggShAgEAAoIBAQCNEN0bL39HmD"}'
     pipeline_name = "pipe_" + uniq_id()
     dataset_name="state_test_" + uniq_id()
     # NOTE: we are not restoring the state in __init__ anymore but the test should stay: init should not fail on lack of credentials
-    dlt.pipeline(pipeline_name=pipeline_name, destination=destination_name, dataset_name=dataset_name)
+    destination_config.setup_pipeline(pipeline_name=pipeline_name, dataset_name=dataset_name)
 
 
-@pytest.mark.parametrize('destination_name,use_single_dataset', itertools.product(ALL_DESTINATIONS, [True, False]))
-def test_get_schemas_from_destination(destination_name: str, use_single_dataset: bool) -> None:
+@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True), ids=lambda x: x.name)
+@pytest.mark.parametrize('use_single_dataset', [True, False])
+def test_get_schemas_from_destination(destination_config: DestinationTestConfiguration, use_single_dataset: bool) -> None:
     pipeline_name = "pipe_" + uniq_id()
     dataset_name="state_test_" + uniq_id()
 
@@ -154,7 +155,7 @@ def test_get_schemas_from_destination(destination_name: str, use_single_dataset:
         else:
             return f"{dataset_name}_{schema_name}"
 
-    p = dlt.pipeline(pipeline_name=pipeline_name, destination=destination_name, dataset_name=dataset_name)
+    p = destination_config.setup_pipeline(pipeline_name=pipeline_name, dataset_name=dataset_name)
     p.config.use_single_dataset = use_single_dataset
 
     default_schema = Schema("state")
@@ -179,7 +180,7 @@ def test_get_schemas_from_destination(destination_name: str, use_single_dataset:
 
     # wipe and restore
     p._wipe_working_folder()
-    p = dlt.pipeline(pipeline_name=pipeline_name, destination=destination_name, dataset_name=dataset_name)
+    p = destination_config.setup_pipeline(pipeline_name=pipeline_name, dataset_name=dataset_name)
     p.config.use_single_dataset = use_single_dataset
 
     assert not p.default_schema_name
@@ -212,12 +213,12 @@ def test_get_schemas_from_destination(destination_name: str, use_single_dataset:
     assert len(restored_schemas) == 3
 
 
-@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
-def test_restore_state_pipeline(destination_name: str) -> None:
+@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True), ids=lambda x: x.name)
+def test_restore_state_pipeline(destination_config: DestinationTestConfiguration) -> None:
     os.environ["RESTORE_FROM_DESTINATION"] = "True"
     pipeline_name = "pipe_" + uniq_id()
     dataset_name="state_test_" + uniq_id()
-    p = dlt.pipeline(pipeline_name=pipeline_name, destination=destination_name, dataset_name=dataset_name)
+    p = destination_config.setup_pipeline(pipeline_name=pipeline_name, dataset_name=dataset_name)
 
     def some_data_gen(param: str) -> Any:
         dlt.current.source_state()[param] = param
@@ -266,14 +267,14 @@ def test_restore_state_pipeline(destination_name: str) -> None:
     # wipe and restore
     p._wipe_working_folder()
     os.environ["RESTORE_FROM_DESTINATION"] = "False"
-    p = dlt.pipeline(pipeline_name=pipeline_name, destination=destination_name, dataset_name=dataset_name)
+    p = destination_config.setup_pipeline(pipeline_name=pipeline_name, dataset_name=dataset_name)
     p.run()
     # restore was not requested so schema is empty
     assert p.default_schema_name is None
     p._wipe_working_folder()
     # request restore
     os.environ["RESTORE_FROM_DESTINATION"] = "True"
-    p = dlt.pipeline(pipeline_name=pipeline_name, destination=destination_name, dataset_name=dataset_name)
+    p = destination_config.setup_pipeline(pipeline_name=pipeline_name, dataset_name=dataset_name)
     p.run()
     assert p.default_schema_name == "default"
     assert set(p.schema_names) == set(["default", "two", "three", "four"])
@@ -288,14 +289,14 @@ def test_restore_state_pipeline(destination_name: str) -> None:
 
     # full refresh will not restore pipeline even if requested
     p._wipe_working_folder()
-    p = dlt.pipeline(pipeline_name=pipeline_name, destination=destination_name, dataset_name=dataset_name, full_refresh=True)
+    p = destination_config.setup_pipeline(pipeline_name=pipeline_name, dataset_name=dataset_name, full_refresh=True)
     p.run()
     assert p.default_schema_name is None
     drop_active_pipeline_data()
 
     # create pipeline without restore
     os.environ["RESTORE_FROM_DESTINATION"] = "False"
-    p = dlt.pipeline(pipeline_name=pipeline_name, destination=destination_name, dataset_name=dataset_name)
+    p = destination_config.setup_pipeline(pipeline_name=pipeline_name, dataset_name=dataset_name)
     # now attach locally
     os.environ["RESTORE_FROM_DESTINATION"] = "True"
     p = dlt.attach(pipeline_name=pipeline_name)
@@ -322,11 +323,11 @@ def test_restore_state_pipeline(destination_name: str) -> None:
     assert set(p.schema_names) == set(["default", "two", "three", "four"])
 
 
-@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
-def test_ignore_state_unfinished_load(destination_name: str) -> None:
+@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True), ids=lambda x: x.name)
+def test_ignore_state_unfinished_load(destination_config: DestinationTestConfiguration) -> None:
     pipeline_name = "pipe_" + uniq_id()
     dataset_name="state_test_" + uniq_id()
-    p = dlt.pipeline(pipeline_name=pipeline_name, destination=destination_name, dataset_name=dataset_name)
+    p = destination_config.setup_pipeline(pipeline_name=pipeline_name, dataset_name=dataset_name)
 
     @dlt.resource
     def some_data(param: str) -> Any:
@@ -344,16 +345,15 @@ def test_ignore_state_unfinished_load(destination_name: str) -> None:
         assert state is None
 
 
-@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
-def test_restore_schemas_while_import_schemas_exist(destination_name: str) -> None:
+@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True), ids=lambda x: x.name)
+def test_restore_schemas_while_import_schemas_exist(destination_config: DestinationTestConfiguration) -> None:
     # restored schema should attach itself to imported schema and it should not get overwritten
     import_schema_path = os.path.join(TEST_STORAGE_ROOT, "schemas", "import")
     export_schema_path = os.path.join(TEST_STORAGE_ROOT, "schemas", "export")
     pipeline_name = "pipe_" + uniq_id()
     dataset_name="state_test_" + uniq_id()
-    p = dlt.pipeline(
+    p = destination_config.setup_pipeline(
         pipeline_name=pipeline_name,
-        destination=destination_name,
         dataset_name=dataset_name,
         import_schema_path=import_schema_path,
         export_schema_path=export_schema_path
@@ -384,7 +384,7 @@ def test_restore_schemas_while_import_schemas_exist(destination_name: str) -> No
         export_schema_path=export_schema_path
     )
     # use run to get changes
-    p.run(destination=destination_name, dataset_name=dataset_name)
+    p.run(destination=destination_config.destination, staging=destination_config.staging, dataset_name=dataset_name)
     schema = p.schemas["ethereum"]
     assert "labels" in schema.tables
     assert "annotations" in schema.tables
@@ -405,10 +405,11 @@ def test_restore_change_dataset_and_destination(destination_name: str) -> None:
     pass
 
 
-@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
-def test_restore_state_parallel_changes(destination_name: str) -> None:
+@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True), ids=lambda x: x.name)
+def test_restore_state_parallel_changes(destination_config: DestinationTestConfiguration) -> None:
     pipeline_name = "pipe_" + uniq_id()
     dataset_name="state_test_" + uniq_id()
+    destination_config.setup()
     p = dlt.pipeline(pipeline_name=pipeline_name)
 
     @dlt.resource
@@ -419,12 +420,12 @@ def test_restore_state_parallel_changes(destination_name: str) -> None:
     # extract two resources that modify the state
     data1 = some_data("state1")
     data1._name = "state1_data"
-    p.run([data1, some_data("state2")], schema=Schema("default"), destination=destination_name, dataset_name=dataset_name)
+    p.run([data1, some_data("state2")], schema=Schema("default"), destination=destination_config.destination, staging=destination_config.staging, dataset_name=dataset_name)
     orig_state = p.state
 
     # create a production pipeline in separate pipelines_dir
     production_p = dlt.pipeline(pipeline_name=pipeline_name, pipelines_dir=TEST_STORAGE_ROOT)
-    production_p.sync_destination(destination=destination_name, dataset_name=dataset_name)
+    production_p.sync_destination(destination=destination_config.destination, dataset_name=dataset_name)
     assert production_p.default_schema_name == "default"
     prod_state = production_p.state
     assert prod_state["sources"] == {"default": {'state1': 'state1', 'state2': 'state2'}}
@@ -483,10 +484,11 @@ def test_restore_state_parallel_changes(destination_name: str) -> None:
     assert_query_data(p, f"SELECT version, _dlt_load_id FROM {STATE_TABLE_NAME} ORDER BY created_at", [2, 3, 4, 4, 5])
 
 
-@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
-def test_reset_pipeline_on_deleted_dataset(destination_name: str) -> None:
+@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True), ids=lambda x: x.name)
+def test_reset_pipeline_on_deleted_dataset(destination_config: DestinationTestConfiguration) -> None:
     pipeline_name = "pipe_" + uniq_id()
     dataset_name="state_test_" + uniq_id()
+    destination_config.setup()
     p = dlt.pipeline(pipeline_name=pipeline_name)
 
     @dlt.resource
@@ -496,7 +498,7 @@ def test_reset_pipeline_on_deleted_dataset(destination_name: str) -> None:
 
     data4 = some_data("state4")
     data4.apply_hints(table_name="state1_data4")
-    p.run(data4, schema=Schema("sch1"), destination=destination_name, dataset_name=dataset_name)
+    p.run(data4, schema=Schema("sch1"), destination=destination_config.destination, staging=destination_config.staging, dataset_name=dataset_name)
     data5 = some_data("state4")
     data5.apply_hints(table_name="state1_data5")
     p.run(data5, schema=Schema("sch2"))
@@ -519,7 +521,7 @@ def test_reset_pipeline_on_deleted_dataset(destination_name: str) -> None:
     p.config.restore_from_destination = False
     data4 = some_data("state4")
     data4.apply_hints(table_name="state1_data4")
-    p.run(data4, schema=Schema("sch1"), destination=destination_name, dataset_name=dataset_name)
+    p.run(data4, schema=Schema("sch1"), destination=destination_config.destination, staging=destination_config.staging, dataset_name=dataset_name)
     assert p.first_run is False
     assert p.state["_local"]["first_run"] is False
     # attach again to make the `run` method check the destination

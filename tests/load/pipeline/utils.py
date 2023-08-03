@@ -52,14 +52,14 @@ class DestinationTestConfiguration:
             os.environ['DATA_WRITER__DISABLE_COMPRESSION'] = "True"
 
 
-    def setup_pipeline(self, pipeline_name: str, dataset_name: str = None, full_refresh: bool = True) -> dlt.Pipeline:
+    def setup_pipeline(self, pipeline_name: str, dataset_name: str = None, full_refresh: bool = False, **kwargs) -> dlt.Pipeline:
         """Convenience method to setup pipeline with this configuration"""
         self.setup()
-        pipeline = dlt.pipeline(pipeline_name=pipeline_name, destination=self.destination, staging=self.staging, dataset_name=dataset_name or pipeline_name, full_refresh=full_refresh)
+        pipeline = dlt.pipeline(pipeline_name=pipeline_name, destination=self.destination, staging=self.staging, dataset_name=dataset_name or pipeline_name, full_refresh=full_refresh, **kwargs)
         return pipeline
 
 def destinations_configs(
-        default_non_staging_configs: bool = False,
+        default_configs: bool = False,
         default_staging_configs: bool = False,
         all_staging_configs: bool = False,
         local_filesystem_configs: bool = False,
@@ -69,7 +69,7 @@ def destinations_configs(
     destination_configs: List[DestinationTestConfiguration] = []
 
     # default non staging configs, one per destination
-    if default_non_staging_configs:
+    if default_configs:
         destination_configs += [DestinationTestConfiguration(destination=destination) for destination in ALL_DESTINATIONS if destination != "athena"]
         # athena needs filesystem staging, so add it separately
         destination_configs += [DestinationTestConfiguration(destination="athena", staging="filesystem", bucket_url=AWS_BUCKET)]

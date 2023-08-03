@@ -6,7 +6,7 @@ from tests.load.pipeline.utils import destinations_configs, DestinationTestConfi
 
 REPLACE_STRATEGIES = ["truncate-and-insert", "insert-from-staging", "staging-optimized"]
 
-@pytest.mark.parametrize("destination_config", destinations_configs(local_filesystem_configs=True, default_staging_configs=True, default_non_staging_configs=True), ids=lambda x: x.name)
+@pytest.mark.parametrize("destination_config", destinations_configs(local_filesystem_configs=True, default_staging_configs=True, default_configs=True), ids=lambda x: x.name)
 @pytest.mark.parametrize("replace_strategy", REPLACE_STRATEGIES)
 def test_replace_disposition(destination_config: DestinationTestConfiguration, replace_strategy: str) -> None:
 
@@ -87,7 +87,7 @@ def test_replace_disposition(destination_config: DestinationTestConfiguration, r
     assert table_counts.get("items__sub_items__sub_sub_items", 0) == 0
 
 
-@pytest.mark.parametrize("destination_config", destinations_configs(local_filesystem_configs=True, default_staging_configs=True, default_non_staging_configs=True), ids=lambda x: x.name)
+@pytest.mark.parametrize("destination_config", destinations_configs(local_filesystem_configs=True, default_staging_configs=True, default_configs=True), ids=lambda x: x.name)
 @pytest.mark.parametrize("replace_strategy", REPLACE_STRATEGIES)
 def test_replace_table_clearing(destination_config: DestinationTestConfiguration,replace_strategy: str) -> None:
 

@@ -54,7 +54,7 @@ def test_successful_load(write_disposition: str, all_buckets_env: str, filesyste
         job_info = LoadStorage.parse_job_file_name(job.file_name())
         destination_path = posixpath.join(
             dataset_path,
-            f"{client.schema.name}.{job_info.table_name}.{load_id}.{job_info.file_id}.{job_info.file_format}"
+            f"{client.schema.name}/{job_info.table_name}/{load_id}.{job_info.file_id}.{job_info.file_format}"
         )
 
         # File is created with correct filename and path

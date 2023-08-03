@@ -25,7 +25,7 @@ from tests.load.pipeline.utils import drop_active_pipeline_data, assert_query_da
 from tests.load.utils import AWS_BUCKET
 from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
 
-@pytest.mark.parametrize("destination_config", destinations_configs(default_non_staging_configs=True, all_buckets_filesystem_configs=True), ids=lambda x: x.name)
+@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True, all_buckets_filesystem_configs=True), ids=lambda x: x.name)
 @pytest.mark.parametrize('use_single_dataset', [True, False])
 def test_default_pipeline_names(use_single_dataset: bool, destination_config: DestinationTestConfiguration) -> None:
     destination_config.setup()
@@ -100,7 +100,9 @@ def test_default_schema_name(any_destination: str) -> None:
     assert_table(p, "test", data, info=info)
 
 
-def test_attach_pipeline(any_destination: str) -> None:
+@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True, all_buckets_filesystem_configs=True), ids=lambda x: x.name)
+def test_attach_pipeline(destination_config: DestinationTestConfiguration) -> None:
+
     # load data and then restore the pipeline and see if data is still there
     data = ["a", "b", "c"]
 
@@ -109,7 +111,8 @@ def test_attach_pipeline(any_destination: str) -> None:
         for d in data:
             yield d
 
-    info = dlt.run(_data(), destination=any_destination, dataset_name="specific" + uniq_id())
+    destination_config.setup()
+    info = dlt.run(_data(), destination=destination_config.destination, staging=destination_config.staging, dataset_name="specific" + uniq_id())
 
     with pytest.raises(CannotRestorePipelineException):
         dlt.attach("unknown")
@@ -130,8 +133,8 @@ def test_attach_pipeline(any_destination: str) -> None:
     assert_table(p, "data_table", data, info=info)
 
 
-@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
-def test_skip_sync_schema_for_tables_without_columns(destination_name: str) -> None:
+@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True), ids=lambda x: x.name)
+def test_skip_sync_schema_for_tables_without_columns(destination_config: DestinationTestConfiguration) -> None:
 
     # load data and then restore the pipeline and see if data is still there
     data = ["a", "b", "c"]
@@ -141,7 +144,7 @@ def test_skip_sync_schema_for_tables_without_columns(destination_name: str) -> N
         for d in data:
             yield d
 
-    p = dlt.pipeline(destination=destination_name, full_refresh=True)
+    p = destination_config.setup_pipeline("test_skip_sync_schema_for_tables_without_columns")
     p.extract(_data)
     schema = p.default_schema
     assert "data_table" in schema.tables
@@ -186,8 +189,9 @@ def test_run_full_refresh(any_destination: str) -> None:
     assert_table(p, "lists__value", sorted(data[1] + data[2]))
 
 
-@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
-def test_evolve_schema(destination_name: str) -> None:
+
+@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True), ids=lambda x: x.name)
+def test_evolve_schema(destination_config: DestinationTestConfiguration) -> None:
     dataset_name = "d" + uniq_id()
     row = {
         "id": "level0",
@@ -226,7 +230,8 @@ def test_evolve_schema(destination_name: str) -> None:
 
     import_schema_path = os.path.join(TEST_STORAGE_ROOT, "schemas", "import")
     export_schema_path = os.path.join(TEST_STORAGE_ROOT, "schemas", "export")
-    p = dlt.pipeline(destination=destination_name, import_schema_path=import_schema_path, export_schema_path=export_schema_path)
+    p = destination_config.setup_pipeline("my_pipeline", import_schema_path=import_schema_path, export_schema_path=export_schema_path)
+
     p.extract(source(10).with_resources("simple_rows"))
     # print(p.default_schema.to_pretty_yaml())
     p.normalize()
@@ -243,7 +248,7 @@ def test_evolve_schema(destination_name: str) -> None:
     assert "new_column" not in schema.get_table("simple_rows")["columns"]
 
     # lets violate unique constraint on postgres, redshift and BQ ignore unique indexes
-    if destination_name == "postgres":
+    if destination_config.destination == "postgres":
         assert p.dataset_name == dataset_name
         err_info = p.run(source(1).with_resources("simple_rows"))
         version_history.append(p.default_schema.stored_version_hash)
@@ -271,13 +276,14 @@ def test_evolve_schema(destination_name: str) -> None:
     assert_query_data(p, "SELECT schema_version_hash FROM _dlt_loads ORDER BY inserted_at", version_history)
 
 
+@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True, all_buckets_filesystem_configs=True), ids=lambda x: x.name)
 @pytest.mark.parametrize('disable_compression', [True, False])
-def test_pipeline_data_writer_compression(disable_compression: bool, any_destination: str) -> None:
+def test_pipeline_data_writer_compression(disable_compression: bool, destination_config: DestinationTestConfiguration) -> None:
     # Ensure pipeline works without compression
     data = ["a", "b", "c"]
     dataset_name = "compression_data_"+ uniq_id()
     dlt.config["data_writer"] = {"disable_compression": disable_compression}  # not sure how else to set this
-    p = dlt.pipeline(pipeline_name="compression_test", destination=any_destination, dataset_name=dataset_name)
+    p = destination_config.setup_pipeline("compression_test", dataset_name=dataset_name)
     p.extract(dlt.resource(data, name="data"))
     s = p._get_normalize_storage()
     # check that files are not compressed if compression is disabled
