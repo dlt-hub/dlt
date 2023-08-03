@@ -5,10 +5,17 @@
 Be it a Google Colab notebook, AWS Lambda function, an Airflow DAG, your local laptop,<br/>or a GPT-4 assisted development playground—<strong>dlt</strong> can be dropped in anywhere.
 </p>
 
+
+<h3 align="center">
+🚀 Join our thriving community of likeminded Developers and build the future together!
+</h3>
+
 <div align="center">
   <a target="_blank" href="https://join.slack.com/t/dlthub-community/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g" style="background:none">
-    <img src="https://img.shields.io/badge/slack-join-dlt.svg?labelColor=191937&color=6F6FF7&logo=slack" />
+    <img src="https://img.shields.io/badge/slack-join-dlt.svg?labelColor=191937&color=6F6FF7&logo=slack" style="width: 260px;"  />
   </a>
+</div>
+<div align="center">
   <a target="_blank" href="https://pypi.org/project/dlt/" style="background:none">
     <img src="https://img.shields.io/pypi/v/dlt?labelColor=191937&color=6F6FF7">
   </a>
