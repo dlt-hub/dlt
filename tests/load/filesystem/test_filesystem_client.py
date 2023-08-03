@@ -64,11 +64,12 @@ def test_successful_load(write_disposition: str, all_buckets_env: str, filesyste
 def test_replace_write_disposition(all_buckets_env: str, filesystem_client: FilesystemClient) -> None:
     client = filesystem_client
     _, root_path, load_id1 = perform_load(client, NORMALIZED_FILES, write_disposition='replace')
+    layout = filesystem_client.config.layout
 
     # this path will be kept after replace
     job_2_load_1_path = posixpath.join(
         root_path,
-        LoadFilesystemJob.make_destination_filename(NORMALIZED_FILES[1], client.schema.name, load_id1)
+        LoadFilesystemJob.make_destination_filename(layout, NORMALIZED_FILES[1], client.schema.name, load_id1)
     )
 
     _, root_path, load_id2 = perform_load(client, [NORMALIZED_FILES[0]], write_disposition='replace')
@@ -76,7 +77,7 @@ def test_replace_write_disposition(all_buckets_env: str, filesystem_client: File
     # this one we expect to be replaced with
     job_1_load_2_path = posixpath.join(
         root_path,
-        LoadFilesystemJob.make_destination_filename(NORMALIZED_FILES[0], client.schema.name, load_id2)
+        LoadFilesystemJob.make_destination_filename(layout, NORMALIZED_FILES[0], client.schema.name, load_id2)
     )
 
     # First file from load1 remains, second file is replaced by load2
@@ -88,14 +89,15 @@ def test_replace_write_disposition(all_buckets_env: str, filesystem_client: File
 def test_append_write_disposition(all_buckets_env: str, filesystem_client: FilesystemClient) -> None:
     """Run load twice with append write_disposition and assert that there are two copies of each file in destination"""
     client = filesystem_client
+    layout = filesystem_client.config.layout
     jobs1, root_path, load_id1 = perform_load(client, NORMALIZED_FILES, write_disposition='append')
 
     jobs2, root_path, load_id2 = perform_load(client, NORMALIZED_FILES, write_disposition='append')
 
     expected_files = [
-        LoadFilesystemJob.make_destination_filename(job.file_name(), client.schema.name, load_id1) for job in jobs1
+        LoadFilesystemJob.make_destination_filename(layout, job.file_name(), client.schema.name, load_id1) for job in jobs1
     ] + [
-        LoadFilesystemJob.make_destination_filename(job.file_name(), client.schema.name, load_id2) for job in jobs2
+        LoadFilesystemJob.make_destination_filename(layout, job.file_name(), client.schema.name, load_id2) for job in jobs2
     ]
     expected_files = sorted([posixpath.join(root_path, fn) for fn in expected_files])
 

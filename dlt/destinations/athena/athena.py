@@ -119,6 +119,12 @@ class AthenaSQLClient(SqlClientBase[Connection]):
     def fully_qualified_dataset_name(self, escape: bool = True) -> str:
         return self.capabilities.escape_identifier(self.dataset_name) if escape else self.dataset_name
 
+    def drop_tables(self, *tables: str) -> None:
+        if not tables:
+            return
+        statements = [f"DROP TABLE IF EXISTS `{table}`;" for table in tables]
+        self.execute_fragments(statements)
+
     @contextmanager
     @raise_database_error
     def begin_transaction(self) -> Iterator[Any]:

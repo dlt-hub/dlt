@@ -22,7 +22,7 @@ from tests.utils import ALL_DESTINATIONS, TEST_STORAGE_ROOT, ALL_DESTINATIONS_SU
 from tests.pipeline.utils import assert_load_info
 from tests.load.utils import TABLE_ROW_ALL_DATA_TYPES, TABLE_UPDATE_COLUMNS_SCHEMA, assert_all_data_types_row, delete_dataset
 from tests.load.pipeline.utils import drop_active_pipeline_data, assert_query_data, assert_table, load_table_counts, select_data
-
+from tests.load.utils import AWS_BUCKET
 
 @pytest.mark.parametrize('use_single_dataset', [True, False])
 def test_default_pipeline_names(use_single_dataset: bool, any_destination: str) -> None:
@@ -62,6 +62,12 @@ def test_default_pipeline_names(use_single_dataset: bool, any_destination: str) 
     # mock the correct destinations (never do that in normal code)
     with p.managed_state():
         p.destination = DestinationReference.from_name(any_destination)
+        # for athena we also add the staging destination
+        # it would be nicer to have this somehow covered by the destination configs
+        if any_destination == "athena":
+            p.destination = DestinationReference.from_name("filesystem")   
+            os.environ['DESTINATION__FILESYSTEM__BUCKET_URL'] = AWS_BUCKET
+
     p.normalize()
     info = p.load(dataset_name="d" + uniq_id())
     assert info.pipeline is p
