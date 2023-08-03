@@ -24,8 +24,8 @@ env:
   RUNTIME__LOG_LEVEL: ERROR
   RUNTIME__DLTHUB_TELEMETRY_SEGMENT_WRITE_KEY: TLJiyRkGVZGCi2TtjClamXpFcxAA1rSB
   # Test redshift and filesystem with all buckets
-  # postgres runs again here so we can test on mac/windows
-  ALL_DESTINATIONS: "[\"redshift\", \"postgres\", \"duckdb\"]"
+  # postgres runs again here so we can test on mac/windows, athena might need its own test?
+  ALL_DESTINATIONS: "[\"redshift\", \"postgres\", \"duckdb\", \"athena\"]"
 
 jobs:
   get_docs_changes:

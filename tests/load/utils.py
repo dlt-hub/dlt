@@ -271,7 +271,7 @@ def yield_client(
             if destination_name == "athena":
                 staging_config = DestinationClientStagingConfiguration()
                 staging_config.bucket_url = AWS_BUCKET
-                client.config.staging_config = staging_config    
+                client.config.staging_config = staging_config
             yield client
 
 

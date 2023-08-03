@@ -22,10 +22,13 @@ from tests.utils import ALL_DESTINATIONS, TEST_STORAGE_ROOT, ALL_DESTINATIONS_SU
 from tests.pipeline.utils import assert_load_info
 from tests.load.utils import TABLE_ROW_ALL_DATA_TYPES, TABLE_UPDATE_COLUMNS_SCHEMA, assert_all_data_types_row, delete_dataset
 from tests.load.pipeline.utils import drop_active_pipeline_data, assert_query_data, assert_table, load_table_counts, select_data
+from tests.load.utils import AWS_BUCKET
+from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
 
-
+@pytest.mark.parametrize("destination_config", destinations_configs(default_non_staging_configs=True, all_buckets_filesystem_configs=True), ids=lambda x: x.name)
 @pytest.mark.parametrize('use_single_dataset', [True, False])
-def test_default_pipeline_names(use_single_dataset: bool, any_destination: str) -> None:
+def test_default_pipeline_names(use_single_dataset: bool, destination_config: DestinationTestConfiguration) -> None:
+    destination_config.setup()
     p = dlt.pipeline()
     p.config.use_single_dataset = use_single_dataset
     # this is a name of executing test harness or blank pipeline on windows
@@ -61,7 +64,10 @@ def test_default_pipeline_names(use_single_dataset: bool, any_destination: str) 
 
     # mock the correct destinations (never do that in normal code)
     with p.managed_state():
-        p.destination = DestinationReference.from_name(any_destination)
+        p.destination = DestinationReference.from_name(destination_config.destination)
+        if destination_config.staging:
+            p.staging = DestinationReference.from_name(destination_config.staging)
+
     p.normalize()
     info = p.load(dataset_name="d" + uniq_id())
     assert info.pipeline is p

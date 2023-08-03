@@ -14,7 +14,7 @@ from dlt.pipeline.exceptions import SqlClientNotAvailable
 if TYPE_CHECKING:
     from dlt.destinations.filesystem.filesystem import FilesystemClient
 
-from tests.load.utils import ALL_DESTINATIONS, AWS_BUCKET, GCS_BUCKET, FILE_BUCKET
+from tests.load.utils import ALL_DESTINATIONS, AWS_BUCKET, GCS_BUCKET, FILE_BUCKET, ALL_BUCKETS
 
 
 @dataclass
@@ -62,7 +62,8 @@ def destinations_configs(
         default_non_staging_configs: bool = False,
         default_staging_configs: bool = False,
         all_staging_configs: bool = False,
-        local_filesystem_configs: bool = False) -> Iterator[DestinationTestConfiguration]:
+        local_filesystem_configs: bool = False,
+        all_buckets_filesystem_configs: bool = False) -> Iterator[DestinationTestConfiguration]:
 
     # build destination configs
     destination_configs: List[DestinationTestConfiguration] = []
@@ -98,6 +99,11 @@ def destinations_configs(
         destination_configs += [DestinationTestConfiguration(destination="filesystem", bucket_url=FILE_BUCKET, file_format="insert_values")]
         destination_configs += [DestinationTestConfiguration(destination="filesystem", bucket_url=FILE_BUCKET, file_format="parquet")]
         destination_configs += [DestinationTestConfiguration(destination="filesystem", bucket_url=FILE_BUCKET, file_format="jsonl")]
+
+    if all_buckets_filesystem_configs:
+        for bucket in ALL_BUCKETS:
+            destination_configs += [DestinationTestConfiguration(destination="filesystem", bucket_url=bucket, extra_info=bucket)]
+
 
     return destination_configs
 
@@ -172,7 +178,7 @@ def _assert_table_sql(p: dlt.Pipeline, table_name: str, table_data: List[Any], s
 def _assert_table_fs(p: dlt.Pipeline, table_name: str, table_data: List[Any], schema_name: str = None, info: LoadInfo = None) -> None:
     """Assert table is loaded to filesystem destination"""
     client: "FilesystemClient" = p._destination_client(schema_name)  # type: ignore[assignment]
-    glob =  client.fs_client.glob(posixpath.join(client.dataset_path, f'{client.schema.name}.{table_name}.*'))
+    glob =  client.fs_client.glob(posixpath.join(client.dataset_path, f'{client.schema.name}/{table_name}/*'))
     assert len(glob) == 1
     assert client.fs_client.isfile(glob[0])
     # TODO: may verify that filesize matches load package size
