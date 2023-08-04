@@ -37,7 +37,8 @@ To get details about endpoints that can be loaded, see
 ### Grab credentials
 
 :::note As of November 30, 2022, HubSpot API Keys are being deprecated and are no longer supported.
-Instead, it would be best to authenticate using a private app access token or OAuth. :::
+Instead, it would be best to authenticate using a private app access token or OAuth. Access token
+used for this verfied source :::
 
 Create a private app and get an authentication token before running the
 [pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/hubspot_pipeline.py).
@@ -57,9 +58,9 @@ Follow these steps:
    1. Required read scopes under the CMS, CRM, and Settings options.
    1. The following under the Standard options:
 
-   ```
-   business-intelligence, actions, crm.export, e-commerce, oauth, tickets
-   ```
+      ```
+      business-intelligence, actions, crm.export, e-commerce, oauth, tickets
+      ```
 
 1. Click on Create app and choose "Continue Creating".
 
@@ -142,7 +143,7 @@ it is important to note the complete list of the default endpoints given in
 ### Source `hubspot`
 
 This function returns a list of resources to load companies, contacts, deals, tickets, products, and
-web analytics events.
+web analytics events into the destination.
 
 ```python
 @dlt.source(name="hubspot")
@@ -164,15 +165,15 @@ the destination, replacing any existing data.
 ```python
 @dlt.resource(name="companies", write_disposition="replace")
 def companies(
-    api_key: str = dlt.secrets.value, include_history: bool = False
-) -> Iterator[TDataItems]:
-    """Hubspot companies resource"""
-    yield from crm_objects("company", api_key, include_history=False)
+      api_key: str = dlt.secrets.value, include_history: bool = False
+) ->  Iterator[TDataItems]:
+      """Hubspot companies resource"""
+      yield from crm_objects("company", api_key, include_history=False)
 ```
 
-This resource function takes the same arguments, `api_key` and `include_history` as the source
-`hubspot` described [above](hubspot.md#source-hubspot). Similar to this, resource functions
-"contacts", "deals", "tickets", "products", and "quotes" retrieve data from the Hubspot API.
+This resource function takes the same arguments, `api_key` and `include_history` as the husbpot
+source described [above](hubspot.md#source-hubspot). Similar to this, resource functions "contacts",
+"deals", "tickets", "products", and "quotes" retrieve data from the Hubspot API.
 
 ### Resource `hubspot_events_for_objects`
 
@@ -181,10 +182,10 @@ This function loads web analytics events for specific objects from Hubspot API i
 ```python
 @dlt.resource
 def hubspot_events_for_objects(
-    object_type: THubspotObjectType,
-    object_ids: List[str],
-    api_key: str = dlt.secrets.value,
-    start_date: pendulum.DateTime = STARTDATE,
+     object_type: THubspotObjectType,
+     object_ids: List[str],
+     api_key: str = dlt.secrets.value,
+     start_date: pendulum.DateTime = STARTDATE,
 ) -> DltResource:
 ```
 
@@ -235,7 +236,7 @@ verified source.
    print(load_info)
    ```
 
-   > include_history loads property change history and entities as separate tables. By default set
+   > `include_history` loads property change history and entities as separate tables. By default set
    > as False.
 
 1. To load the web analytics events or a given object type and object id.
