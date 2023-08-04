@@ -1,5 +1,5 @@
 
-name: test redshift, postgres, duckdb and filesystem
+name: test redshift, postgres and filesystem buckets
 
 on:
   pull_request:
@@ -10,8 +10,8 @@ on:
 
 env:
   DESTINATION__POSTGRES__CREDENTIALS: postgresql://loader@dlttests.cwz0jfxu0m7m.eu-central-1.rds.amazonaws.com:5432/dlt_data
-  DESTINATION__REDSHIFT__CREDENTIALS: postgresql://loader@3.73.90.3:5439/dlt_ci
   DESTINATION__DUCKDB__CREDENTIALS: duckdb:///_storage/test_quack.duckdb
+  DESTINATION__REDSHIFT__CREDENTIALS: postgresql://loader@3.73.90.3:5439/dlt_ci
   DESTINATION__FILESYSTEM__CREDENTIALS__AWS_ACCESS_KEY_ID: AKIAT4QMVMC4J46G55G4
   DESTINATION__FILESYSTEM__CREDENTIALS__AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
   # password is the same so it will be shared
@@ -23,13 +23,18 @@ env:
   RUNTIME__SENTRY_DSN: https://6f6f7b6f8e0f458a89be4187603b55fe@o1061158.ingest.sentry.io/4504819859914752
   RUNTIME__LOG_LEVEL: ERROR
   RUNTIME__DLTHUB_TELEMETRY_SEGMENT_WRITE_KEY: TLJiyRkGVZGCi2TtjClamXpFcxAA1rSB
+  # Test redshift and filesystem with all buckets
+  # postgres runs again here so we can test on mac/windows
+  ALL_DESTINATIONS: "[\"redshift\", \"postgres\", \"duckdb\"]"
 
 jobs:
   get_docs_changes:
     uses: ./.github/workflows/get_docs_changes.yml
+    # Tests that require credentials do not run in forks
+    if: ${{ !github.event.pull_request.head.repo.fork }}
 
   run_loader:
-    name: test destinations redshift, postgres, duckdb and filesystem
+    name: test destinations redshift, postgres and filesystem
     needs: get_docs_changes
     if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
     strategy:
@@ -74,17 +79,17 @@ jobs:
 
       - name: Install dependencies
         # if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction -E redshift -E duckdb -E gs -E s3 -E pyarrow
+        run: poetry install --no-interaction -E redshift -E gs -E s3 -E pyarrow -E duckdb
 
       # - name: Install self
       #   run: poetry install --no-interaction
 
       - run: |
-          poetry run pytest tests/load tests/cli --ignore=tests/load/bigquery --ignore=tests/load/snowflake -k '(not bigquery and not snowflake and not motherduck)'
+          poetry run pytest tests/load
         if: runner.os != 'Windows'
         name: Run tests Linux/MAC
       - run: |
-          poetry run pytest tests/load tests/cli --ignore=tests/load/bigquery --ignore=tests/load/snowflake -k "(not bigquery and not snowflake and not motherduck)"
+          poetry run pytest tests/load
         if: runner.os == 'Windows'
         name: Run tests Windows
         shell: cmd

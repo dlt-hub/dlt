@@ -73,7 +73,7 @@ jobs:
         shell: cmd
 
       - name: Install extra dependencies
-        run: poetry install --no-interaction -E duckdb
+        run: poetry install --no-interaction -E duckdb -E pyarrow
 
       - run: |
           poetry run pytest tests/extract tests/pipeline

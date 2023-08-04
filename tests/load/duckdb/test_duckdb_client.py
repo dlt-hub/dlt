@@ -7,9 +7,8 @@ from dlt.common.configuration.utils import get_resolved_traces
 
 from dlt.destinations.duckdb.configuration import DUCK_DB_NAME, DuckDbClientConfiguration, DuckDbCredentials, DEFAULT_DUCK_DB_NAME
 
-from tests.load.pipeline.utils import drop_pipeline
+from tests.load.pipeline.utils import drop_pipeline, assert_table
 from tests.utils import patch_home_dir, autouse_test_storage, preserve_environ, TEST_STORAGE_ROOT
-
 
 @pytest.fixture(autouse=True)
 def delete_default_duckdb_credentials() -> None:
@@ -214,6 +213,12 @@ def test_external_duckdb_database() -> None:
     assert c.credentials._conn_owner is False
     assert hasattr(c.credentials, "_conn")
     conn.close()
+
+def test_default_duckdb_dataset_name() -> None:
+    # Check if dataset_name does not collide with pipeline_name
+    data = ["a", "b", "c"]
+    info = dlt.run(data, destination="duckdb", table_name="data")
+    assert_table(info.pipeline, "data", data, info=info)
 
 
 def delete_quack_db() -> None:
