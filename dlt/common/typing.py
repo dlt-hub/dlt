@@ -2,7 +2,7 @@ from collections.abc import Mapping as C_Mapping, Sequence as C_Sequence
 from datetime import datetime, date  # noqa: I251
 import inspect
 from re import Pattern as _REPattern
-from typing import Callable, Dict, Any, Final, Literal, List, Mapping, NewType, Tuple, Type, TypeVar, Generic, Protocol, TYPE_CHECKING, Union, runtime_checkable, get_args, get_origin
+from typing import Callable, Dict, Any, Final, Literal, List, Mapping, NewType, Optional, Tuple, Type, TypeVar, Generic, Protocol, TYPE_CHECKING, Union, runtime_checkable, get_args, get_origin
 from typing_extensions import TypeAlias, ParamSpec, Concatenate
 
 from dlt.common.pendulum import timedelta, pendulum
@@ -133,3 +133,23 @@ def extract_inner_type(hint: Type[Any], preserve_new_types: bool = False) -> Typ
 
 def get_all_types_of_class_in_union(hint: Type[Any], cls: Type[TAny]) -> List[Type[TAny]]:
     return [t for t in get_args(hint) if inspect.isclass(t) and issubclass(t, cls)]
+
+
+def get_generic_type_argument_from_instance(instance: Any, sample_value: Optional[Any]) -> Type[Any]:
+    """Infers type argument of a Generic class from an `instance` of that class using optional `sample_value` of the argument type
+
+    Inference depends on the presence of __orig_class__ attribute in instance, if not present - sample_Value will be used
+
+    Args:
+        instance (Any): instance of Generic class
+        sample_value (Optional[Any]): instance of type of generic class, optional
+
+    Returns:
+        Type[Any]: type argument or Any if not known
+    """
+    orig_param_type = Any
+    if hasattr(instance, "__orig_class__"):
+        orig_param_type = get_args(instance.__orig_class__)[0]
+    if orig_param_type is Any and sample_value is not None:
+        orig_param_type = type(sample_value)
+    return orig_param_type  # type: ignore

@@ -8,7 +8,7 @@ import dlt
 from dlt.common import pendulum, logger
 from dlt.common.json import json
 from dlt.common.jsonpath import compile_path, find_values, JSONPath
-from dlt.common.typing import TDataItem, TDataItems, TFun, extract_inner_type, is_optional_type
+from dlt.common.typing import TDataItem, TDataItems, TFun, extract_inner_type, get_generic_type_argument_from_instance, is_optional_type
 from dlt.common.schema.typing import TColumnKey
 from dlt.common.configuration import configspec, ConfigurationValueError
 from dlt.common.configuration.specs import BaseConfiguration
@@ -305,14 +305,9 @@ class Incremental(FilterItem, BaseConfiguration, Generic[TCursorValue]):
 
     def get_incremental_value_type(self) -> Type[Any]:
         """Infers the type of incremental value from a class of an instance if those preserve the Generic arguments information."""
-        orig_param_type = Any
-        if hasattr(self, "__orig_class__"):
-            orig_param_type = get_args(self.__orig_class__)[0]
-        if orig_param_type is Any and self.initial_value is not None:
-            orig_param_type = type(self.initial_value)
-        return orig_param_type  # type: ignore
+        return get_generic_type_argument_from_instance(self, self.initial_value)
 
-    def join_external_scheduler(self) -> None:
+    def _join_external_scheduler(self) -> None:
         """Detects existence of external scheduler from which `start_value` and `end_value` are taken. Detects Airflow and environment variables.
            The logical "start date" coming from external scheduler will set the `initial_value` in incremental. if additionally logical "end date" is
            present then also "end_value" will be set which means that resource state is not used and exactly this range of date will be loaded
@@ -331,11 +326,18 @@ class Incremental(FilterItem, BaseConfiguration, Generic[TCursorValue]):
                            "Please add typing when declaring incremental argument in your resource or pass initial_value from which the type can be inferred.")
             return
 
+        def _ensure_past_end_date(end_date: pendulum.DateTime) -> Optional[pendulum.DateTime]:
+            """if end_date is in the future, set it to None so dlt state is used for incremental loading"""
+            if end_date is None or end_date > pendulum.now():
+                return None
+            return end_date
+
         try:
             # we can move it to separate module when we have more of those
             from airflow.operators.python import get_current_context  # noqa
             context = get_current_context()
-            start_date, end_date = context["execution_date"], context["next_execution_date"]
+            start_date = context["execution_date"]
+            end_date = _ensure_past_end_date(context["next_execution_date"])
             self.initial_value = coerce_from_date_types(data_type, start_date)
             if end_date is not None:
                 self.end_value = coerce_from_date_types(data_type, end_date)
@@ -363,7 +365,7 @@ class Incremental(FilterItem, BaseConfiguration, Generic[TCursorValue]):
         self.resource_name = pipe.name
         # try to join external scheduler
         if self.allow_external_schedulers:
-            self.join_external_scheduler()
+            self._join_external_scheduler()
         # set initial value from last value, in case of a new state those are equal
         self.start_value = self.last_value
         # cache state

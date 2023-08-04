@@ -172,13 +172,11 @@ def test_no_next_execution_date() -> None:
             r = incremental_datetime()
             state = list(r)[0]
             assert state["state"]["initial_value"] == context["execution_date"]
-            # end_value is None so state will be used
-            assert r.incremental._incremental.end_value == context["next_execution_date"]
+            # end_value is None because next_execution_date was in the future!
+            assert r.incremental._incremental.end_value is None
             # initial_value very close to now
             delta = context["execution_date"] - now
             assert delta.total_minutes() < 2
-            # next date is a day break
-            # assert context["next_execution_date"] == now.end_of("day")
 
         scheduled()
     dag_def = dag_daily_schedule()
@@ -207,6 +205,15 @@ def test_scheduler_pipeline_state() -> None:
     dag_def.test(execution_date=CATCHUP_BEGIN)
 
     # no source and resource state
+    assert "sources" not in pipeline.state
+
+    dag_def.test()
+    # state was saved (end date was in the future)
+    assert "existing_incremental" in pipeline.state["sources"]["pipeline_dag_regular"]["resources"]
+
+    pipeline = pipeline.drop()
+
+    dag_def.test(execution_date=CATCHUP_BEGIN)
     assert "sources" not in pipeline.state
 
     @dag(
