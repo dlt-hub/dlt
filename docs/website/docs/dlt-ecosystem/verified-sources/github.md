@@ -6,8 +6,7 @@ keywords: [github api, github verified source, github]
 
 # GitHub
 
-:::info 
-Need help deploying these sources, or figuring out how to run them in your data stack?
+:::info Need help deploying these sources, or figuring out how to run them in your data stack?
 
 [Join our Slack community](https://dlthub-community.slack.com/join/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g)
 or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
@@ -187,9 +186,6 @@ dlt.resource(
 
 > The credentials used are the same as those in the source function, github_reactions.
 
-Similarly, data about "pull_requests" is obtained by substituting "issues" with "pull_requests" in
-another similar resource function.
-
 ### Source `github_repo_events`
 
 This `dlt.source` fetches repository events incrementally, dispatching them to separate tables based
@@ -212,8 +208,8 @@ anonymously.
 
 ### Resource `repo_events`
 
-This `dlt.resource` function serves as the resource for the github_repo_events source. It
-yields repository events as data items.
+This `dlt.resource` function serves as the resource for the github_repo_events source. It yields
+repository events as data items.
 
 ```python
 dlt.resource(primary_key="id", table_name=lambda i: i["type"])  # type: ignore
@@ -228,9 +224,9 @@ dlt.resource(primary_key="id", table_name=lambda i: i["type"])  # type: ignore
 
 `table_name`: Routes data to appropriate tables based on the data type.
 
-`last_created_at`: The parameter sets the starting value for "last_created_at" in
-dlt.sources.incremental. If not provided, it uses the default value of "initial_value." The function
-"last_value_func" determines the latest 'created_at' value.
+`last_created_at`: This parameter determines the initial value for "last_created_at" in
+dlt.sources.incremental. If no value is given, the default "initial_value" is used. The function
+"last_value_func" determines the most recent 'created_at' value.
 
 ## Customization
 
