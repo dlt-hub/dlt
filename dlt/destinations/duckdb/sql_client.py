@@ -137,6 +137,8 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
         if isinstance(ex, (duckdb.CatalogException)):
             raise DatabaseUndefinedRelation(ex)
         elif isinstance(ex, duckdb.InvalidInputException):
+            if "Catalog Error" in str(ex):
+                raise DatabaseUndefinedRelation(ex)
             # duckdb raises TypeError on malformed query parameters
             return DatabaseTransientException(duckdb.ProgrammingError(ex))
         elif isinstance(ex, (duckdb.OperationalError, duckdb.InternalError, duckdb.SyntaxException, duckdb.ParserException)):
