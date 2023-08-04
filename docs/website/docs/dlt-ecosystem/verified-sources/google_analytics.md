@@ -1,6 +1,7 @@
 # Google Analytics
 
-:::info Need help deploying these sources, or figuring out how to run them in your data stack?
+:::info 
+Need help deploying these sources, or figuring out how to run them in your data stack?
 
 [Join our slack community](https://dlthub-community.slack.com/join/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g)
 or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
@@ -18,8 +19,8 @@ Resources that can be loaded using this verified source are:
 
 | Name             | Description                                                   |
 | ---------------- | ------------------------------------------------------------- |
-| metrics_table    | Assembles and presents data relevant to the report's metrics  |
-| dimensions_table | Compiles and displays data related to the report's dimensions |
+| metrics_table    | assembles and presents data relevant to the report's metrics  |
+| dimensions_table | compiles and displays data related to the report's dimensions |
 
 ## Setup Guide
 
@@ -32,9 +33,9 @@ There are two methods to get authenticated for using this verified source:
 
 Let's go over how to set up both OAuth tokens and service account credentials. In general, OAuth
 tokens are preferred when user consent is required, while service account credentials are better
-suited for server-to-server interactions. You can choose the method of authentication you require.
+suited for server-to-server interactions. You can choose the method of authentication as per your requirement.
 
-#### Grab google service account credentials
+#### Grab google service account credentials - ( First authentication method )
 
 You need to create a GCP service account to get API credentials, if you don't have one. To create
 one follow these steps:
@@ -56,23 +57,32 @@ one follow these steps:
    1. Create a new JSON key by selecting "Manage Keys" > "ADD KEY" > "CREATE".
    1. You can download the ".json" file containing the necessary credentials for future use.
 
-#### Grab google OAuth credentials
+#### Grab google OAuth credentials - ( Second authentication method )
 
 You need to create a GCP account to get OAuth credentials, if you don't have one. To create
 one follow these steps:
 
 1. Ensure your email used for the GCP account has access to the GA4 property.
+
 1. Open a GCP project in your GCP account.
+
 1. Enable the Analytics API in the project.
+
 1. Search credentials in the search bar and go to Credentials.
+
 1. Go to Credentials -> OAuth client ID -> Select Desktop App from the Application type and give an
    appropriate name.
+
 1. Download the credentials and fill "client_id", "client_secret" and "project_id" in
    "secrets.toml".
+
 1. Go back to credentials and select the OAuth consent screen on the left.
+
 1. Fill in the App name, user support email(your email), authorized domain (localhost.com), and dev
    contact info (your email again).
-1. Add the following scope: “https://www.googleapis.com/auth/analytics.readonly%E2%80%9D
+   
+1. Add the following scope: “https://www.googleapis.com/auth/analytics.readonly%E2%80%9D"
+
 1. Add your email as a test user.
 
 After configuring "client_id", "client_secret" and "project_id" in "secrets.toml". To generate the
@@ -85,18 +95,26 @@ python3 google_analytics/setup_script_gcp_oauth.py
 > Note: temporarily comment out the refresh token in "secrets.toml" before executing the script.
 
 Once you have executed the script and completed the authentication, you will receive a "refresh
-token" that can be used to set up the "secrets.toml" configuration.
+token" that can be used to set up the "secrets.toml".
 
 #### Share the Google Analytics Property with the API:
 
+>Note: For service account authentication, use the client_email. For OAuth authentication, use the email associated with the app creation and refresh token generation.
+
 1. Log into your Google Analytics account.
+
 1. Choose the website property you wish to share.
+
 1. In the lower-left corner, select the "Admin" tab.
+
 1. In the "Account" column, navigate to "Account Access Management."
+
 1. Locate and click on the blue “+” icon at the top right corner of the screen.
-1. Choose “Add users” and input the client_email from the
-   [previously downloaded](#google-service-account-credentials) JSON file. Ensure to grant at least
+
+1. Choose “Add users” and input the email from the
+   [service account](google_analytics.md#grab-google-service-account-credentials----first-authentication-method) or [OAuth](google_analytics.md#grab-google-oauth-credentials----second-authentication-method) authentication methods. Ensure to grant at least
    viewer privileges.
+
 1. Conclude the process by clicking the “Add” button in the top right corner.
 
 ### Initialize the verified source
@@ -161,9 +179,9 @@ For more information, read the
 1. `property_id` is a unique number that identifies a particular property. You will need to
    explicitly pass it to get data from the property that you're interested in. For example, if the
    property that you want to get data from is “GA4- Google Merch Shop” then you will need to pass
-   its property id 213025502.
+   its property id "213025502".
 
-   <img src="../../dlt-ecosystem/verified-sources/docs_images/GA4_Property_ID.png" alt="Admin Centre" width = "50%" />
+   <img src="../../dlt-ecosystem/verified-sources/docs_images/GA4_Property_ID.png" alt="Admin Centre" width = "32.5%" />
 
 1. You can also specify the parameters of the API requests such as dimensions and metrics to get
    your desired data.
@@ -177,7 +195,7 @@ For more information, read the
    queries = [
        {"resource_name"= "sample_analytics_data1", "dimensions"= ["browser", "city"], "metrics"= ["totalUsers", "transactions"]},
        {"resource_name"= "sample_analytics_data2", "dimensions"= ["browser", "city", "dateHour"], "metrics"= ["totalUsers"]}
-   ]
+             ]
    ```
 
    > Include request parameters in a queries list. The data from each request fills a table, with
