@@ -1,7 +1,6 @@
 # Google Analytics
 
-:::info 
-Need help deploying these sources, or figuring out how to run them in your data stack?
+:::info Need help deploying these sources, or figuring out how to run them in your data stack?
 
 [Join our slack community](https://dlthub-community.slack.com/join/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g)
 or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
@@ -33,7 +32,8 @@ There are two methods to get authenticated for using this verified source:
 
 Let's go over how to set up both OAuth tokens and service account credentials. In general, OAuth
 tokens are preferred when user consent is required, while service account credentials are better
-suited for server-to-server interactions. You can choose the method of authentication as per your requirement.
+suited for server-to-server interactions. You can choose the method of authentication as per your
+requirement.
 
 #### Grab google service account credentials - ( First authentication method )
 
@@ -59,8 +59,8 @@ one follow these steps:
 
 #### Grab google OAuth credentials - ( Second authentication method )
 
-You need to create a GCP account to get OAuth credentials, if you don't have one. To create
-one follow these steps:
+You need to create a GCP account to get OAuth credentials, if you don't have one. To create one
+follow these steps:
 
 1. Ensure your email used for the GCP account has access to the GA4 property.
 
@@ -80,7 +80,7 @@ one follow these steps:
 
 1. Fill in the App name, user support email(your email), authorized domain (localhost.com), and dev
    contact info (your email again).
-   
+
 1. Add the following scope: “https://www.googleapis.com/auth/analytics.readonly%E2%80%9D"
 
 1. Add your email as a test user.
@@ -99,7 +99,8 @@ token" that can be used to set up the "secrets.toml".
 
 #### Share the Google Analytics Property with the API:
 
->Note: For service account authentication, use the client_email. For OAuth authentication, use the email associated with the app creation and refresh token generation.
+> Note: For service account authentication, use the client_email. For OAuth authentication, use the
+> email associated with the app creation and refresh token generation.
 
 1. Log into your Google Analytics account.
 
@@ -112,8 +113,9 @@ token" that can be used to set up the "secrets.toml".
 1. Locate and click on the blue “+” icon at the top right corner of the screen.
 
 1. Choose “Add users” and input the email from the
-   [service account](google_analytics.md#grab-google-service-account-credentials----first-authentication-method) or [OAuth](google_analytics.md#grab-google-oauth-credentials----second-authentication-method) authentication methods. Ensure to grant at least
-   viewer privileges.
+   [service account](google_analytics.md#grab-google-service-account-credentials----first-authentication-method)
+   or [OAuth](google_analytics.md#grab-google-oauth-credentials----second-authentication-method)
+   authentication methods. Ensure to grant at least viewer privileges.
 
 1. Conclude the process by clicking the “Add” button in the top right corner.
 
