@@ -84,7 +84,7 @@ class Incremental(FilterItem, BaseConfiguration, Generic[TCursorValue]):
             Use in conjunction with `initial_value`, e.g. load records from given month `incremental(initial_value="2022-01-01T00:00:00Z", end_value="2022-02-01T00:00:00Z")`
             Note, when this is set the incremental filtering is stateless and `initial_value` always supersedes any previous incremental value in state.
         allow_external_schedulers: If set to True, allows dlt to look for external schedulers from which it will take "initial_value" and "end_value" resulting in loading only
-            specified range of data. Currently Airflow scheduler is detected: "execution_date" and "next_execution_date" are taken from the context and passed Incremental class.
+            specified range of data. Currently Airflow scheduler is detected: "data_interval_start" and "data_interval_end" are taken from the context and passed Incremental class.
             The values passed explicitly to Incremental will be ignored.
             Note that if logical "end date" is present then also "end_value" will be set which means that resource state is not used and exactly this range of date will be loaded
     """
@@ -326,23 +326,25 @@ class Incremental(FilterItem, BaseConfiguration, Generic[TCursorValue]):
                            "Please add typing when declaring incremental argument in your resource or pass initial_value from which the type can be inferred.")
             return
 
-        def _ensure_past_end_date(end_date: pendulum.DateTime) -> Optional[pendulum.DateTime]:
-            """if end_date is in the future, set it to None so dlt state is used for incremental loading"""
-            if end_date is None or end_date > pendulum.now():
-                return None
+        def _ensure_airflow_end_date(start_date: pendulum.DateTime, end_date: pendulum.DateTime) -> Optional[pendulum.DateTime]:
+            """if end_date is in the future or same as start date (manual run), set it to None so dlt state is used for incremental loading"""
+            now = pendulum.now()
+            if end_date is None or end_date > now or start_date == end_date:
+                return now
             return end_date
 
         try:
             # we can move it to separate module when we have more of those
             from airflow.operators.python import get_current_context  # noqa
             context = get_current_context()
-            start_date = context["execution_date"]
-            end_date = _ensure_past_end_date(context["next_execution_date"])
+            start_date = context["data_interval_start"]
+            end_date = _ensure_airflow_end_date(start_date, context["data_interval_end"])
             self.initial_value = coerce_from_date_types(data_type, start_date)
             if end_date is not None:
                 self.end_value = coerce_from_date_types(data_type, end_date)
             else:
                 self.end_value = None
+            logger.info(f"Found Airflow scheduler: initial value: {self.initial_value} from data_interval_start {context['data_interval_start']}, end value: {self.end_value} from data_interval_end {context['data_interval_end']}")
             return
         except TypeError as te:
             logger.warning(f"Could not coerce Airflow execution dates into the last value type {param_type}. ({te})")
@@ -368,6 +370,7 @@ class Incremental(FilterItem, BaseConfiguration, Generic[TCursorValue]):
             self._join_external_scheduler()
         # set initial value from last value, in case of a new state those are equal
         self.start_value = self.last_value
+        logger.info(f"Bind incremental on {self.resource_name} with initial_value: {self.initial_value}, start_value: {self.start_value}, end_value: {self.end_value}")
         # cache state
         self._cached_state = self.get_state()
         return self

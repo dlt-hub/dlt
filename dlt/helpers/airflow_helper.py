@@ -263,6 +263,6 @@ def airflow_get_execution_dates() -> Tuple[pendulum.DateTime, Optional[pendulum.
     try:
         from airflow.operators.python import get_current_context  # noqa
         context = get_current_context()
-        return context["execution_date"], context["next_execution_date"]
+        return context["data_interval_start"], context["data_interval_end"]
     except Exception:
         return None, None

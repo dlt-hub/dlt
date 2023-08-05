@@ -2,7 +2,11 @@ import datetime
 from pendulum.tz import UTC
 from airflow import DAG
 from airflow.decorators import dag, task
+from airflow.models import DagRun
+from airflow.models.taskinstance import TaskInstance
 from airflow.operators.python import get_current_context  # noqa
+from airflow.utils.state import State, DagRunState
+from airflow.utils.types import DagRunType
 
 import dlt
 from dlt.common import pendulum
@@ -19,7 +23,6 @@ default_args = {
     'email_on_failure': False,
     'email_on_retry': False,
     'retries': 0,
-    'max_active_runs': 1
 }
 
 @dlt.resource()
@@ -31,11 +34,10 @@ def test_date_coercion() -> None:
     @dag(schedule_interval='@daily',
         start_date=CATCHUP_BEGIN,
         catchup=False,
+        max_active_runs=1,
         default_args=default_args
     )
     def dag_regular():
-        # pipeline_dag_regular = dlt.pipeline(
-        #     pipeline_name="pipeline_dag_regular", dataset_name="mock_data_" + uniq_id(), destination="dummy")
 
         @task
         def scheduled() -> None:
@@ -48,13 +50,14 @@ def test_date_coercion() -> None:
             assert state["updated_at"] == CATCHUP_BEGIN
             assert "Europe/Berlin" in str(state["updated_at"].tz)
             # must have UTC timezone
-            assert state["state"]["initial_value"] == CATCHUP_BEGIN == context["execution_date"]
+            assert state["state"]["initial_value"] == CATCHUP_BEGIN == context["data_interval_start"]
             assert state["state"]["initial_value"].tz == UTC
-            assert state["state"]["last_value"] == CATCHUP_BEGIN == context["execution_date"]
+            assert state["state"]["last_value"] == CATCHUP_BEGIN == context["data_interval_start"]
             assert state["state"]["last_value"].tz == UTC
             # end date
-            assert r.incremental._incremental.end_value == context["next_execution_date"]
+            assert r.incremental._incremental.end_value == context["data_interval_end"]
             assert r.incremental._incremental.end_value.tz == UTC
+            assert (r.incremental._incremental.end_value - state["state"]["initial_value"]) == datetime.timedelta(hours=24)
 
             # datetime.datetime coercion must be pendulum anyway
             @dlt.resource()
@@ -64,7 +67,7 @@ def test_date_coercion() -> None:
             r = incremental_datetime()
             state = list(r)[0]
             # must have UTC timezone
-            assert state["state"]["initial_value"] == CATCHUP_BEGIN == context["execution_date"]
+            assert state["state"]["initial_value"] == CATCHUP_BEGIN == context["data_interval_start"]
             assert state["state"]["initial_value"].tz == UTC
 
             # datetime.date coercion also works
@@ -74,7 +77,7 @@ def test_date_coercion() -> None:
 
             r = incremental_datetime()
             state = list(r)[0]
-            assert state["state"]["initial_value"] == ensure_pendulum_date(context["execution_date"])
+            assert state["state"]["initial_value"] == ensure_pendulum_date(context["data_interval_start"])
             assert isinstance(state["state"]["initial_value"], datetime.date)
 
             # coerce to int
@@ -84,8 +87,8 @@ def test_date_coercion() -> None:
 
             r = incremental_datetime()
             state = list(r)[0]
-            assert state["state"]["initial_value"] == context["execution_date"].int_timestamp
-            assert r.incremental._incremental.end_value == context["next_execution_date"].int_timestamp
+            assert state["state"]["initial_value"] == context["data_interval_start"].int_timestamp
+            assert r.incremental._incremental.end_value == context["data_interval_end"].int_timestamp
 
             # coerce to float
             @dlt.resource()
@@ -94,8 +97,8 @@ def test_date_coercion() -> None:
 
             r = incremental_datetime()
             state = list(r)[0]
-            assert state["state"]["initial_value"] == context["execution_date"].timestamp()
-            assert r.incremental._incremental.end_value == context["next_execution_date"].timestamp()
+            assert state["state"]["initial_value"] == context["data_interval_start"].timestamp()
+            assert r.incremental._incremental.end_value == context["data_interval_end"].timestamp()
 
             # coerce to str
             @dlt.resource()
@@ -105,23 +108,25 @@ def test_date_coercion() -> None:
             r = incremental_datetime()
             state = list(r)[0]
             # must have UTC timezone
-            assert state["state"]["initial_value"] == context["execution_date"].in_tz("UTC").isoformat()
-            assert r.incremental._incremental.end_value == context["next_execution_date"].in_tz("UTC").isoformat()
+            assert state["state"]["initial_value"] == context["data_interval_start"].in_tz("UTC").isoformat()
+            assert r.incremental._incremental.end_value == context["data_interval_end"].in_tz("UTC").isoformat()
 
         scheduled()
 
     dag_def: DAG = dag_regular()
-    # print(dag_def.get_run_dates(CATCHUP_BEGIN.add(minutes=10)))
+    # this will correctly simulate data inverval but only because execution_date is a scheduled one
     dag_def.test(execution_date=CATCHUP_BEGIN)
+    # print(dag_def.get_run_dates(CATCHUP_BEGIN.add(minutes=10)))
 
 
 def test_no_next_execution_date() -> None:
     now = pendulum.now()
 
     @dag(schedule=None,
-        start_date=CATCHUP_BEGIN,
         catchup=False,
-        default_args=default_args
+        start_date=CATCHUP_BEGIN,
+        default_args=default_args,
+        max_active_runs=1
     )
     def dag_no_schedule():
         @task
@@ -130,31 +135,42 @@ def test_no_next_execution_date() -> None:
 
             @dlt.resource()
             def incremental_datetime(updated_at = dlt.sources.incremental[datetime.datetime]("updated_at", allow_external_schedulers=True)):
-                yield {"updated_at": context["execution_date"], "state": updated_at.get_state()}
+                yield {"updated_at": context["data_interval_start"], "state": updated_at.get_state()}
 
             r = incremental_datetime()
             state = list(r)[0]
-            assert state["state"]["initial_value"] == context["execution_date"]
-            # end_value is None so state will be used
-            assert r.incremental._incremental.end_value is None
-            # initial_value very close to now
-            delta = context["execution_date"] - now
+            assert state["state"]["initial_value"] == context["data_interval_start"]
+            # end_value is set very close to now (incremental detected manual run and set it to now)
+            delta = r.incremental._incremental.end_value - now
             assert delta.total_minutes() < 2
+            # initial_value very close to now
+            delta = context["data_interval_start"] - now
+            assert delta.total_minutes() < 2
+            # intervals start and end are the same
+            assert context["data_interval_start"] == context["data_interval_end"]
 
-            # will be filtered out (now earlier than execution_date)
+            # will be filtered out (now earlier than data_interval_start)
             @dlt.resource()
             def incremental_datetime(updated_at = dlt.sources.incremental[datetime.datetime]("updated_at", allow_external_schedulers=True)):
-                yield {"updated_at": now, "state": updated_at.get_state()}
+                yield {"updated_at": now.subtract(hours=1, seconds=1), "state": updated_at.get_state()}
 
             r = incremental_datetime()
             assert len(list(r)) == 0
 
         unscheduled()
 
-    dag_def: DAG = dag_no_schedule()
-    dag_def.test()
-
     now = pendulum.now()
+
+    dag_def: DAG = dag_no_schedule()
+    dag_def.create_dagrun(
+        state=DagRunState.QUEUED,
+        execution_date=now.subtract(hours=1),
+        run_type=DagRunType.MANUAL,
+    )
+    task_def = dag_def.task_dict["unscheduled"]
+    ti = TaskInstance(task=task_def, execution_date=now.subtract(hours=1))
+    ti.run()
+    assert ti.state == State.SUCCESS
 
     @dag(schedule_interval='@daily',
         start_date=CATCHUP_BEGIN,
@@ -167,25 +183,44 @@ def test_no_next_execution_date() -> None:
             context = get_current_context()
             @dlt.resource()
             def incremental_datetime(updated_at = dlt.sources.incremental[datetime.datetime]("updated_at", allow_external_schedulers=True)):
-                yield {"updated_at": context["execution_date"], "state": updated_at.get_state()}
+                yield {"updated_at": context["data_interval_start"], "state": updated_at.get_state()}
 
             r = incremental_datetime()
             state = list(r)[0]
-            assert state["state"]["initial_value"] == context["execution_date"]
-            # end_value is None because next_execution_date was in the future!
-            assert r.incremental._incremental.end_value is None
-            # initial_value very close to now
-            delta = context["execution_date"] - now
+            assert state["state"]["initial_value"] == context["data_interval_start"]
+            # end_value is set very close to now (incremental detected manual run and set it to now)
+            delta = r.incremental._incremental.end_value - now
             assert delta.total_minutes() < 2
+            # initial_value very close to now
+            delta = context["data_interval_start"] - now
+            assert delta.total_minutes() < 2
+            # intervals start and end are the same
+            assert context["data_interval_start"] == context["data_interval_end"]
 
         scheduled()
+
     dag_def = dag_daily_schedule()
-    dag_def.test()
+    # manually run a scheduled DAG.
+    # WARNING: explicit data interval must be specified! the code that infers intervals in create_dagrun produces different results than in docs
+    # https://airflow.apache.org/docs/apache-airflow/stable/faq.html#why-next-ds-or-prev-ds-might-not-contain-expected-values
+    # "When manually triggering DAG, the schedule will be ignored, and prev_ds == next_ds == ds"
+    dag_def.create_dagrun(
+        state=DagRunState.RUNNING,
+        execution_date=now,
+        run_type=DagRunType.MANUAL,
+        data_interval=(now, now)
+    )
+    dag_def.run(start_date=now, run_at_least_once=True)
+    task_def = dag_def.task_dict["scheduled"]
+    ti = TaskInstance(task=task_def, execution_date=now)
+    ti.run()
+    assert ti.state == State.SUCCESS
 
 
 def test_scheduler_pipeline_state() -> None:
     pipeline = dlt.pipeline(
             pipeline_name="pipeline_dag_regular", dataset_name="mock_data_" + uniq_id(), destination="duckdb", credentials=":pipeline:")
+    now = pendulum.now()
 
     @dag(schedule_interval='@daily',
         start_date=CATCHUP_BEGIN,
@@ -198,6 +233,7 @@ def test_scheduler_pipeline_state() -> None:
         def scheduled() -> None:
             r = existing_incremental()
             pipeline.run(r)
+            assert r.incremental._incremental.end_value is not None
 
         scheduled()
 
@@ -207,9 +243,24 @@ def test_scheduler_pipeline_state() -> None:
     # no source and resource state
     assert "sources" not in pipeline.state
 
+    # end of interval in the future - state still not saved
     dag_def.test()
-    # state was saved (end date was in the future)
-    assert "existing_incremental" in pipeline.state["sources"]["pipeline_dag_regular"]["resources"]
+    assert "sources" not in pipeline.state
+
+    # start ==  end interval
+    dag_def.create_dagrun(
+        state=DagRunState.RUNNING,
+        execution_date=now,
+        run_type=DagRunType.MANUAL,
+        data_interval=(now, now)
+    )
+    dag_def.run(start_date=now, run_at_least_once=True)
+    task_def = dag_def.task_dict["scheduled"]
+    ti = TaskInstance(task=task_def, execution_date=now)
+    ti.run()
+    assert ti.state == State.SUCCESS
+    assert "sources" not in pipeline.state
+
 
     pipeline = pipeline.drop()
 
@@ -235,4 +286,4 @@ def test_scheduler_pipeline_state() -> None:
     dag_def.test(execution_date=CATCHUP_BEGIN)
 
     # state was saved (end date not specified)
-    assert "existing_incremental" in pipeline.state["sources"]["pipeline_dag_regular"]["resources"]
+    assert "sources" not in pipeline.state
