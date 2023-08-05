@@ -11,13 +11,14 @@ import cron_descriptor
 
 import dlt
 
+from dlt.common import git
 from dlt.common.configuration.exceptions import LookupTrace
 from dlt.common.configuration.providers import ConfigTomlProvider, EnvironProvider
 from dlt.common.git import get_origin, get_repo, Repo
 from dlt.common.configuration.specs.run_configuration import get_default_pipeline_name
 from dlt.common.typing import StrAny
 from dlt.common.reflection.utils import evaluate_node_literal
-from dlt.common.pipeline import LoadInfo, TPipelineState
+from dlt.common.pipeline import LoadInfo, TPipelineState, get_dlt_repos_dir
 from dlt.common.storages import FileStorage
 from dlt.common.utils import set_working_dir
 
@@ -84,7 +85,7 @@ class BaseDeployment(abc.ABC):
         # validate schedule
         self.schedule_description = self._get_schedule_description()
         fmt.echo("Looking up the deployment template scripts in %s...\n" % fmt.bold(self.repo_location))
-        self.template_storage = utils.clone_command_repo(self.repo_location, self.branch)
+        self.template_storage = git.get_fresh_repo_files(self.repo_location, get_dlt_repos_dir(), branch=self.branch)
         self.working_directory = os.path.split(self.pipeline_script_path)[0]
 
     def _get_schedule_description(self) -> Optional[Any]:
@@ -106,7 +107,19 @@ class BaseDeployment(abc.ABC):
             self._prepare_deployment()
             # go through all once launched pipelines
             visitors = get_visitors(self.pipeline_script, self.pipeline_script_path)
-            pipeline_name, pipelines_dir = parse_pipeline_info(visitors)
+            possible_pipelines = parse_pipeline_info(visitors)
+            pipeline_name: str = None
+            pipelines_dir: str = None
+
+            uniq_possible_pipelines = {t[0]:t for t in possible_pipelines}
+            if len(uniq_possible_pipelines) == 1:
+                pipeline_name, pipelines_dir = possible_pipelines[0]
+            elif len(uniq_possible_pipelines) > 1:
+                choices = list(uniq_possible_pipelines.keys())
+                choices_str = "".join([str(i+1) for i in range(len(choices))])
+                choices_selection = [f"{idx+1}-{name}" for idx, name in enumerate(choices)]
+                sel = fmt.prompt("Several pipelines found in script, please select one: " + ", ".join(choices_selection), choices=choices_str)
+                pipeline_name, pipelines_dir = uniq_possible_pipelines[choices[int(sel) - 1]]
 
             if pipelines_dir:
                 self.pipelines_dir = os.path.abspath(pipelines_dir)
@@ -121,6 +134,7 @@ class BaseDeployment(abc.ABC):
                     if not self.pipeline_name:
                         self.pipeline_name = get_default_pipeline_name(self.pipeline_script_path)
                         fmt.warning(f"Using default pipeline name {self.pipeline_name}. The pipeline name is not passed as argument to dlt.pipeline nor configured via config provides ie. config.toml")
+                # fmt.echo("Generating deployment for pipeline %s" % fmt.bold(self.pipeline_name))
 
                 # attach to pipeline name, get state and trace
                 pipeline = dlt.attach(pipeline_name=self.pipeline_name, pipelines_dir=self.pipelines_dir)
@@ -199,10 +213,11 @@ def get_visitors(pipeline_script: str, pipeline_script_path: str) -> PipelineScr
     return visitor
 
 
-def parse_pipeline_info(visitor: PipelineScriptVisitor) -> Tuple[Optional[str], Optional[str]]:
-    pipeline_name, pipelines_dir = None, None
+def parse_pipeline_info(visitor: PipelineScriptVisitor) -> List[Tuple[str, Optional[str]]]:
+    pipelines: List[Tuple[str, Optional[str]]] = []
     if n.PIPELINE in visitor.known_calls:
         for call_args in visitor.known_calls[n.PIPELINE]:
+            pipeline_name, pipelines_dir = None, None
             f_r_node = call_args.arguments.get("full_refresh")
             if f_r_node:
                 f_r_value = evaluate_node_literal(f_r_node)
@@ -210,7 +225,7 @@ def parse_pipeline_info(visitor: PipelineScriptVisitor) -> Tuple[Optional[str], 
                     fmt.warning(f"The value of `full_refresh` in call to `dlt.pipeline` cannot be determined from {unparse(f_r_node).strip()}. We assume that you know what you are doing :)")
                 if f_r_value is True:
                     if fmt.confirm("The value of 'full_refresh' is set to True. Do you want to abort to set it to False?", default=True):
-                        return None, None
+                        return pipelines
 
             p_d_node = call_args.arguments.get("pipelines_dir")
             if p_d_node:
@@ -223,8 +238,9 @@ def parse_pipeline_info(visitor: PipelineScriptVisitor) -> Tuple[Optional[str], 
                 pipeline_name = evaluate_node_literal(p_n_node)
                 if pipeline_name is None:
                     raise CliCommandException("deploy", f"The value of 'pipeline_name' argument in call to `dlt_pipeline` cannot be determined from {unparse(p_d_node).strip()}. Pipeline working dir will be found. Pass it directly with --pipeline-name option.")
+            pipelines.append((pipeline_name, pipelines_dir))
 
-    return pipeline_name, pipelines_dir
+    return pipelines
 
 
 def str_representer(dumper: yaml.Dumper, data: str) -> yaml.ScalarNode:
