@@ -73,8 +73,6 @@ with your destination, say BigQuery, you would do the following:
 
 1. Create a GCP account.
 1. Start up an Airflow instance. We suggest using some CI/CD for simple deployment.
-   [Here](../../walkthroughs/deploy-a-pipeline/airflow-gcp-cloud-composer.md) is
-   a step-by-step guide.
 
 ### Adding a pipeline
 
