@@ -13,7 +13,8 @@ class AwsCredentialsWithoutDefaults(CredentialsConfiguration):
     aws_access_key_id: str = None
     aws_secret_access_key: TSecretStrValue = None
     aws_session_token: Optional[TSecretStrValue] = None
-    aws_profile: Optional[str] = None
+    profile_name: Optional[str] = None
+    region_name: Optional[str] = None
 
     def to_s3fs_credentials(self) -> Dict[str, Optional[str]]:
         """Dict of keyword arguments that can be passed to s3fs"""
@@ -21,14 +22,12 @@ class AwsCredentialsWithoutDefaults(CredentialsConfiguration):
             key=self.aws_access_key_id,
             secret=self.aws_secret_access_key,
             token=self.aws_session_token,
-            profile=self.aws_profile
+            profile=self.profile_name
         )
 
     def to_native_representation(self) -> Dict[str, Optional[str]]:
         """Return a dict that can be passed as kwargs to boto3 session"""
-        d = dict(self)
-        d['profile_name'] = d.pop('aws_profile')  # boto3 argument doesn't match env var name
-        return d
+        return dict(self)
 
 
 @configspec
@@ -51,7 +50,8 @@ class AwsCredentials(AwsCredentialsWithoutDefaults, CredentialsWithDefault):
         """Sets the credentials properties from boto3 `session` and return session's credentials if found"""
         import boto3
         assert isinstance(session, boto3.Session)
-        self.aws_profile = session.profile_name
+        self.profile_name = session.profile_name
+        self.region_name = session.region_name
         default = session.get_credentials()
         if not default:
             return None
