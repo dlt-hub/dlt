@@ -25,13 +25,6 @@ LOCAL_COMMAND_REPO_FOLDER = "repos"
 MODULE_INIT = "__init__.py"
 
 
-def clone_command_repo(repo_location: str, branch: str) -> FileStorage:
-    template_dir = tempfile.mkdtemp()
-    # TODO: handle ImportError (no git command available) gracefully
-    with git.clone_repo(repo_location, template_dir, branch=branch):
-        return FileStorage(template_dir)
-
-
 def parse_init_script(command: str, script_source: str, init_script_name: str) -> PipelineScriptVisitor:
     # parse the script first
     tree = ast.parse(source=script_source)

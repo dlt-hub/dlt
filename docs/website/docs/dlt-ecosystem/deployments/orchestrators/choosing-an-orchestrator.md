@@ -43,7 +43,7 @@ Your Airflow options are:
 
 1. Broadly used managed Airflow vendors:
 
-   - [GCP Cloud Composer](../../../walkthroughs/deploy-a-pipeline/airflow-gcp-cloud-composer.md) is
+   - [GCP Cloud Composer](https://cloud.google.com/composer?hl=en) is
      recommended due to GCP being easy to use for non engineers and Google BigQuery being a popular
      solution.
    - [Astronomer.io](http://Astronomer.io) (recommended for non GCP users). CI/CD out of the box

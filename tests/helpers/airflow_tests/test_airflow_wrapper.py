@@ -11,9 +11,8 @@ from dlt.common.utils import uniq_id
 from dlt.helpers.airflow_helper import PipelineTasksGroup, DEFAULT_RETRY_BACKOFF
 from dlt.pipeline.exceptions import CannotRestorePipelineException, PipelineStepFailed
 
-from tests.utils import preserve_environ, autouse_test_storage, TEST_STORAGE_ROOT
 from tests.load.pipeline.utils import load_table_counts
-from tests.helpers.airflow_tests.utils import initialize_airflow_db
+from tests.utils import TEST_STORAGE_ROOT
 
 
 DEFAULT_DATE = pendulum.datetime(2023, 4, 18, tz='Europe/Berlin')
@@ -177,6 +176,9 @@ def test_regular_run() -> None:
     pipeline_dag_decomposed = dlt.attach(pipeline_name="pipeline_dag_decomposed")
     pipeline_dag_decomposed_counts = load_table_counts(pipeline_dag_decomposed, *[t["name"] for t in pipeline_dag_decomposed.default_schema.data_tables()])
     assert pipeline_dag_decomposed_counts == pipeline_standalone_counts
+
+
+# def test_run_with_dag_config()
 
 
 # def test_decompose_errors() -> None:

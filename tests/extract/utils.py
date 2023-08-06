@@ -1,7 +1,11 @@
+from typing import Any, Optional
 import pytest
 from itertools import zip_longest
 
+from dlt.common.typing import TDataItem, TDataItems, TAny
+
 from dlt.extract.extract import ExtractorStorage
+from dlt.extract.typing import ItemTransform, ItemTransformFunc
 
 
 def expect_extracted_file(storage: ExtractorStorage, schema_name: str, table_name: str, content: str) -> None:
@@ -20,3 +24,12 @@ def expect_extracted_file(storage: ExtractorStorage, schema_name: str, table_nam
         return
     for line, file_line in zip_longest(content.splitlines(), file_content.splitlines()):
         assert line == file_line
+
+
+class AssertItems(ItemTransform[TDataItem]):
+     def __init__(self, expected_items: Any) -> None:
+         self.expected_items = expected_items
+
+     def __call__(self, item: TDataItems, meta: Any = None) -> Optional[TDataItems]:
+        assert item == self.expected_items
+        return item

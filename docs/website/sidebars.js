@@ -212,10 +212,9 @@ const sidebars = {
             'walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer',
             'walkthroughs/deploy-a-pipeline/deploy-with-google-cloud-functions',
             'walkthroughs/deploy-a-pipeline/deploy-gcp-cloud-function-as-webhook',
-            'walkthroughs/deploy-a-pipeline/airflow-gcp-cloud-composer',
           ]
         },
-        'walkthroughs/add-a-destination',
+        'walkthroughs/create-new-destination',
       ],
     },
     {
@@ -283,6 +282,7 @@ const sidebars = {
         'reference/explainers/how-dlt-works',
         'reference/explainers/schema-evolution',
         'reference/telemetry',
+        'reference/airflow-gcp-cloud-composer',
       ],
     },
   ]

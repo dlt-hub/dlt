@@ -11,19 +11,29 @@ keywords: [command line interface, cli, dlt init]
 ```shell
 dlt init <source> <destination>
 ```
+This command creates new dlt pipeline script that loads data from `source` to `destination` to it. When you run the command:
+1. It creates basic project structure if the current folder is empty. Adds `.dlt/config.toml` and `.dlt/secrets.toml` and `.gitignore` files.
+2. It checks if `source` argument is matching one of our [verified sources](../dlt-ecosystem/verified-sources/) and if it is so, [it adds it to the project](../walkthroughs/add-a-verified-source.md).
+3. If the `source` is unknown it will use a [generic template](https://github.com/dlt-hub/python-dlt-init-template) to [get you started](../walkthroughs/create-a-pipeline.md).
+4. It will rewrite the pipeline scripts to use your `destination`.
+5. It will create sample config and credentials in `secrets.toml` and `config.toml` for the specified source and destination.
+6. It will create `requirements.txt` with dependencies required by source and destination. If one exists, it will print instructions what to add to it.
 
-If you want to start from a [generic template](https://github.com/dlt-hub/python-dlt-init-template),
-then run `dlt init` with a [source](../general-usage/glossary.md#source) name of your choice and one
-of the three [destination](../general-usage/glossary.md#destination) options. The optional
-`--generic` flag will provide a more complex example, which can be used to speed up implementation
-if you have built `dlt` pipelines before.
+This command can be used several times in the same folders to add more sources, destinations and pipelines. It will also update the verified source code to the newest
+version if run again with existing `source` name. You are warned if files will be overwritten or if `dlt` version needs upgrade to run particular pipeline.
 
-If you don't want to start with a generic template, then try out the chess.com API to Google
-BigQuery complete example by running `dlt init chess bigquery`.
+### Specify your own "verified sources" repository.
+You can use `--location <repo_url or local folder>` option to specify your own repository with sources. Typically you would [fork ours](https://github.com/dlt-hub/verified-sources) and start customizing and adding sources ie. to use them for your team or organization. You can also specify a branch with `--branch <name>` ie. to test a version being developed.
 
-Follow the [Create a pipeline](../walkthroughs/create-a-pipeline.md) walkthrough to learn more.
+### List all verified sources
+```shell
+dlt init --list-verified-sources
+```
+Shows all available verified sources and their short descriptions. For each source, checks if your local `dlt` version requires update
+and prints the relevant warning.
 
 ## `dlt deploy`
+This command prepares your pipeline for deployment and gives you step by step instruction how to accomplish it.
 
 ### github-action
 
@@ -51,8 +61,7 @@ walkthrough to learn more.
 dlt deploy <script>.py airflow-composer
 ```
 
-[Google Composer](../walkthroughs/deploy-a-pipeline/airflow-gcp-cloud-composer.md) is a managed
-Airflow deployment provided by Google.
+[Google Composer](https://cloud.google.com/composer?hl=en) is a managed Airflow environment provided by Google.
 
 Follow the [Deploy a pipeline with Airflow](../walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer)
 walkthrough to learn more.

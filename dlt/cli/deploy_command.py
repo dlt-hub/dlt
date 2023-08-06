@@ -197,15 +197,20 @@ class AirflowDeployment(BaseDeployment):
 
         # save cloudbuild.yaml only if not exist to allow to run the deploy command for many different pipelines
         dest_cloud_build = os.path.join(utils.AIRFLOW_BUILD_FOLDER, AIRFLOW_CLOUDBUILD_YAML)
-        if not os.path.exists(dest_cloud_build):
+        if not self.repo_storage.has_file(dest_cloud_build):
             self.repo_storage.save(
                 dest_cloud_build,
                 self.artifacts["cloudbuild_file"]
-        )
+            )
+        else:
+            fmt.warning(f"{AIRFLOW_CLOUDBUILD_YAML} already created. Delete the file and run the deploy command again to re-create.")
+
+        dest_dag_script = os.path.join(utils.AIRFLOW_DAGS_FOLDER, self.artifacts["dag_script_name"])
         self.repo_storage.save(
-            os.path.join(utils.AIRFLOW_DAGS_FOLDER, self.artifacts["dag_script_name"]),
+            dest_dag_script,
             self.artifacts["dag_file"]
         )
+
 
     def _echo_instructions(self, *args: Optional[Any]) -> None:
         fmt.echo("Your %s deployment for pipeline %s is ready!" % (
@@ -219,10 +224,10 @@ class AirflowDeployment(BaseDeployment):
         ))
         fmt.echo()
 
-        fmt.echo("You must prepare your repository first:")
+        fmt.echo("You must prepare your DAG first:")
 
-        fmt.echo("1. Import your sources in %s, change default_args if necessary." % (fmt.bold(self.artifacts["dag_script_name"])))
-        fmt.echo("2. Run airflow pipeline locally.\nSee Airflow getting started: %s" % (fmt.bold(AIRFLOW_GETTING_STARTED)))
+        fmt.echo("1. Import your sources in %s, configure the DAG ans tasks as needed." % (fmt.bold(self.artifacts["dag_script_name"])))
+        fmt.echo("2. Test the DAG with Airflow locally .\nSee Airflow getting started: %s" % (fmt.bold(AIRFLOW_GETTING_STARTED)))
         fmt.echo()
 
         fmt.echo("If you are planning run the pipeline with Google Cloud Composer, follow the next instructions:\n")

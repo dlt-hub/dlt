@@ -1,22 +1,27 @@
-from typing import Generic, TypeVar, Any, Optional, Callable, List, TypedDict, get_origin, Sequence
+import os
+from typing import Generic, TypeVar, Any, Optional, Callable, List, TypedDict, get_args, get_origin, Sequence, Type
 import inspect
 from functools import wraps
 from datetime import datetime  # noqa: I251
 
 import dlt
+from dlt.common import pendulum, logger
 from dlt.common.json import json
 from dlt.common.jsonpath import compile_path, find_values, JSONPath
-from dlt.common.typing import TDataItem, TDataItems, TFun, extract_inner_type, is_optional_type
+from dlt.common.typing import TDataItem, TDataItems, TFun, extract_inner_type, get_generic_type_argument_from_instance, is_optional_type
 from dlt.common.schema.typing import TColumnKey
 from dlt.common.configuration import configspec, ConfigurationValueError
 from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.pipeline import resource_state
 from dlt.common.utils import digest128
+from dlt.common.data_types.type_helpers import coerce_from_date_types, coerce_value, py_type_to_sc_type
+
 from dlt.extract.exceptions import IncrementalUnboundError, PipeException
 from dlt.extract.pipe import Pipe
 from dlt.extract.utils import resolve_column_value
 from dlt.extract.typing import FilterItem, SupportsPipe, TTableHintTemplate
-from dlt.common import pendulum
+
+from dlt.common.time import ensure_pendulum_datetime
 
 
 TCursorValue = TypeVar("TCursorValue", bound=Any)
@@ -78,6 +83,10 @@ class Incremental(FilterItem, BaseConfiguration, Generic[TCursorValue]):
         end_value: Optional value used to load a limited range of records between `initial_value` and `end_value`.
             Use in conjunction with `initial_value`, e.g. load records from given month `incremental(initial_value="2022-01-01T00:00:00Z", end_value="2022-02-01T00:00:00Z")`
             Note, when this is set the incremental filtering is stateless and `initial_value` always supersedes any previous incremental value in state.
+        allow_external_schedulers: If set to True, allows dlt to look for external schedulers from which it will take "initial_value" and "end_value" resulting in loading only
+            specified range of data. Currently Airflow scheduler is detected: "data_interval_start" and "data_interval_end" are taken from the context and passed Incremental class.
+            The values passed explicitly to Incremental will be ignored.
+            Note that if logical "end date" is present then also "end_value" will be set which means that resource state is not used and exactly this range of date will be loaded
     """
     cursor_path: str = None
     # TODO: Support typevar here
@@ -90,7 +99,8 @@ class Incremental(FilterItem, BaseConfiguration, Generic[TCursorValue]):
             initial_value: Optional[TCursorValue]=None,
             last_value_func: Optional[LastValueFunc[TCursorValue]]=max,
             primary_key: Optional[TTableHintTemplate[TColumnKey]] = None,
-            end_value: Optional[TCursorValue] = None
+            end_value: Optional[TCursorValue] = None,
+            allow_external_schedulers: bool = False
     ) -> None:
         self.cursor_path = cursor_path
         if self.cursor_path:
@@ -103,6 +113,8 @@ class Incremental(FilterItem, BaseConfiguration, Generic[TCursorValue]):
         """Value of last_value at the beginning of current pipeline run"""
         self.resource_name: Optional[str] = None
         self.primary_key: Optional[TTableHintTemplate[TColumnKey]] = primary_key
+        self.allow_external_schedulers = allow_external_schedulers
+
         self._cached_state: IncrementalColumnState = None
         """State dictionary cached on first access"""
         super().__init__(self.transform)
@@ -121,8 +133,15 @@ class Incremental(FilterItem, BaseConfiguration, Generic[TCursorValue]):
         return i
 
     def copy(self) -> "Incremental[TCursorValue]":
-        return self.__class__(
-            self.cursor_path, initial_value=self.initial_value, last_value_func=self.last_value_func, primary_key=self.primary_key, end_value=self.end_value
+        # preserve Generic param information
+        constructor = self.__orig_class__ if hasattr(self, "__orig_class__") else self.__class__
+        return constructor(  # type: ignore
+            self.cursor_path,
+            initial_value=self.initial_value,
+            last_value_func=self.last_value_func,
+            primary_key=self.primary_key,
+            end_value=self.end_value,
+            allow_external_schedulers=self.allow_external_schedulers
         )
 
     def merge(self, other: "Incremental[TCursorValue]") -> "Incremental[TCursorValue]":
@@ -136,10 +155,17 @@ class Incremental(FilterItem, BaseConfiguration, Generic[TCursorValue]):
         >>> my_resource(updated=incremental(initial_value='2023-01-01', end_value='2023-02-01'))
         """
         kwargs = dict(self, last_value_func=self.last_value_func, primary_key=self.primary_key)
-        for key, value in dict(other, last_value_func=other.last_value_func, primary_key=other.primary_key).items():
+        for key, value in dict(
+                other,
+                last_value_func=other.last_value_func, primary_key=other.primary_key).items():
             if value is not None:
                 kwargs[key] = value
-        return self.__class__(**kwargs)
+        # preserve Generic param information
+        if hasattr(self, "__orig_class__"):
+            constructor = self.__orig_class__
+        else:
+            constructor = other.__orig_class__ if hasattr(other, "__orig_class__") else other.__class__
+        return constructor(**kwargs)  # type: ignore
 
     def on_resolved(self) -> None:
         self.cursor_path_p = compile_path(self.cursor_path)
@@ -277,14 +303,74 @@ class Incremental(FilterItem, BaseConfiguration, Generic[TCursorValue]):
 
         return True
 
+    def get_incremental_value_type(self) -> Type[Any]:
+        """Infers the type of incremental value from a class of an instance if those preserve the Generic arguments information."""
+        return get_generic_type_argument_from_instance(self, self.initial_value)
+
+    def _join_external_scheduler(self) -> None:
+        """Detects existence of external scheduler from which `start_value` and `end_value` are taken. Detects Airflow and environment variables.
+           The logical "start date" coming from external scheduler will set the `initial_value` in incremental. if additionally logical "end date" is
+           present then also "end_value" will be set which means that resource state is not used and exactly this range of date will be loaded
+        """
+        # fit the pendulum into incremental type
+        param_type = self.get_incremental_value_type()
+
+        try:
+            if param_type is not Any:
+                data_type = py_type_to_sc_type(param_type)
+        except Exception as ex:
+            logger.warning(f"Specified Incremental last value type {param_type} is not supported. Please use DateTime, Date, float, int or str to join external schedulers.({ex})")
+
+        if param_type is Any:
+            logger.warning("Could not find the last value type of Incremental class participating in external schedule. "
+                           "Please add typing when declaring incremental argument in your resource or pass initial_value from which the type can be inferred.")
+            return
+
+        def _ensure_airflow_end_date(start_date: pendulum.DateTime, end_date: pendulum.DateTime) -> Optional[pendulum.DateTime]:
+            """if end_date is in the future or same as start date (manual run), set it to None so dlt state is used for incremental loading"""
+            now = pendulum.now()
+            if end_date is None or end_date > now or start_date == end_date:
+                return now
+            return end_date
+
+        try:
+            # we can move it to separate module when we have more of those
+            from airflow.operators.python import get_current_context  # noqa
+            context = get_current_context()
+            start_date = context["data_interval_start"]
+            end_date = _ensure_airflow_end_date(start_date, context["data_interval_end"])
+            self.initial_value = coerce_from_date_types(data_type, start_date)
+            if end_date is not None:
+                self.end_value = coerce_from_date_types(data_type, end_date)
+            else:
+                self.end_value = None
+            logger.info(f"Found Airflow scheduler: initial value: {self.initial_value} from data_interval_start {context['data_interval_start']}, end value: {self.end_value} from data_interval_end {context['data_interval_end']}")
+            return
+        except TypeError as te:
+            logger.warning(f"Could not coerce Airflow execution dates into the last value type {param_type}. ({te})")
+        except Exception:
+            pass
+
+        if start_value := os.environ.get("DLT_START_VALUE"):
+            self.initial_value = coerce_value(data_type, "text", start_value)
+            if end_value := os.environ.get("DLT_END_VALUE"):
+                self.end_value = coerce_value(data_type, "text", end_value)
+            else:
+                self.end_value = None
+            return
+
     def bind(self, pipe: SupportsPipe) -> "Incremental[TCursorValue]":
-        "Called by pipe just before evaluation"
+        """Called by pipe just before evaluation"""
         # bind the resource/pipe name
         if self.is_partial():
             raise IncrementalCursorPathMissing(pipe.name, None, None)
         self.resource_name = pipe.name
+        # try to join external scheduler
+        if self.allow_external_schedulers:
+            self._join_external_scheduler()
         # set initial value from last value, in case of a new state those are equal
         self.start_value = self.last_value
+        logger.info(f"Bind incremental on {self.resource_name} with initial_value: {self.initial_value}, start_value: {self.start_value}, end_value: {self.end_value}")
         # cache state
         self._cached_state = self.get_state()
         return self
@@ -298,9 +384,20 @@ class IncrementalResourceWrapper(FilterItem):
     """Keeps the injectable incremental"""
 
     def __init__(self, resource_name: str, primary_key: Optional[TTableHintTemplate[TColumnKey]] = None) -> None:
+        """Creates a wrapper over a resource function that accepts Incremental instance in its argument to perform incremental loading.
+
+        The wrapper delays instantiation of the Incremental to the moment of actual execution and is currently used by `dlt.resource` decorator.
+        The wrapper explicitly (via `resource_name`) parameter binds the Incremental state to a resource state.
+        Note that wrapper implements `FilterItem` transform interface and functions as a processing step in the before-mentioned resource pipe.
+
+        Args:
+            resource_name (str): A name of resource to which the Incremental will be bound at execution
+            primary_key (TTableHintTemplate[TColumnKey], optional): A primary key to be passed to Incremental Instance at execution. Defaults to None.
+        """
         self.resource_name = resource_name
         self.primary_key = primary_key
         self.incremental_state: IncrementalColumnState = None
+        self._allow_external_schedulers: bool = None
 
     @staticmethod
     def should_wrap(sig: inspect.Signature) -> bool:
@@ -346,12 +443,15 @@ class IncrementalResourceWrapper(FilterItem):
             elif isinstance(p.default, Incremental):
                 new_incremental = p.default.copy()
 
-
             if not new_incremental or new_incremental.is_partial():
                 if is_optional_type(p.annotation):
                     bound_args.arguments[p.name] = None  # Remove partial spec
                     return func(*bound_args.args, **bound_args.kwargs)
                 raise ValueError(f"{p.name} Incremental has no default")
+            # pass Generic information from annotation to new_incremental
+            if not hasattr(new_incremental, "__orig_class__") and p.annotation and get_args(p.annotation):
+                new_incremental.__orig_class__ = p.annotation  # type: ignore
+
             # set the incremental only if not yet set or if it was passed explicitly
             # NOTE: the _incremental may be also set by applying hints to the resource see `set_template` in `DltResource`
             if p.name in bound_args.arguments or not self._incremental:
@@ -364,8 +464,23 @@ class IncrementalResourceWrapper(FilterItem):
 
         return _wrap  # type: ignore
 
+    @property
+    def allow_external_schedulers(self) -> bool:
+        """Allows the Incremental instance to get its initial and end values from external schedulers like Airflow"""
+        if self._incremental:
+            return self._incremental.allow_external_schedulers
+        return self._allow_external_schedulers
+
+    @allow_external_schedulers.setter
+    def allow_external_schedulers(self, value: bool) -> None:
+        self._allow_external_schedulers = value
+        if self._incremental:
+            self._incremental.allow_external_schedulers = value
+
     def bind(self, pipe: SupportsPipe) -> "IncrementalResourceWrapper":
         if self._incremental:
+            if self._allow_external_schedulers is not None:
+                self._incremental.allow_external_schedulers = self._allow_external_schedulers
             self._incremental.bind(pipe)
         return self
 

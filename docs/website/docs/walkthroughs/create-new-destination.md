@@ -1,4 +1,4 @@
-# Add a destination
+# Create new destination
 
 `dlt` can import destinations from external python modules. Below we show how to quickly add a [dbapi](https://peps.python.org/pep-0249/) based destination. `dbapi` is a standardized interface to access
 databases in Python. If you used ie. postgres (ie. `psycopg2`) you are already familiar with it.

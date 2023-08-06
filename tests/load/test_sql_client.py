@@ -225,6 +225,22 @@ def test_database_exceptions(client: SqlJobClientBase) -> None:
         with client.sql_client.execute_query("SELECT * FROM TABLE_XXX ORDER BY inserted_at"):
             pass
     assert client.sql_client.is_dbapi_exception(term_ex.value.dbapi_exception)
+    with pytest.raises(DatabaseUndefinedRelation) as term_ex:
+        with client.sql_client.execute_query("DELETE FROM TABLE_XXX WHERE 1=1"):
+            pass
+    assert client.sql_client.is_dbapi_exception(term_ex.value.dbapi_exception)
+    with pytest.raises(DatabaseUndefinedRelation) as term_ex:
+        with client.sql_client.execute_query("DROP TABLE TABLE_XXX"):
+            pass
+    assert client.sql_client.is_dbapi_exception(term_ex.value.dbapi_exception)
+    with pytest.raises(DatabaseUndefinedRelation) as term_ex:
+        with client.sql_client.execute_query("DELETE FROM TABLE_XXX WHERE 1=1;DELETE FROM ticket_forms__ticket_field_ids WHERE 1=1;"):
+            pass
+    assert client.sql_client.is_dbapi_exception(term_ex.value.dbapi_exception)
+    with pytest.raises(DatabaseUndefinedRelation) as term_ex:
+        with client.sql_client.execute_query("DROP TABLE TABLE_XXX;DROP TABLE ticket_forms__ticket_field_ids;"):
+            pass
+
     # invalid syntax
     with pytest.raises(DatabaseTransientException) as term_ex:
         with client.sql_client.execute_query("SELECTA * FROM TABLE_XXX ORDER BY inserted_at"):
@@ -245,6 +261,14 @@ def test_database_exceptions(client: SqlJobClientBase) -> None:
         qualified_name = client.sql_client.make_qualified_table_name(LOADS_TABLE_NAME)
         with pytest.raises(DatabaseUndefinedRelation) as term_ex:
             with client.sql_client.execute_query(f"SELECT * FROM {qualified_name} ORDER BY inserted_at"):
+                pass
+        assert client.sql_client.is_dbapi_exception(term_ex.value.dbapi_exception)
+        with pytest.raises(DatabaseUndefinedRelation) as term_ex:
+            with client.sql_client.execute_query(f"DELETE FROM {qualified_name} WHERE 1=1"):
+                pass
+        assert client.sql_client.is_dbapi_exception(term_ex.value.dbapi_exception)
+        with pytest.raises(DatabaseUndefinedRelation) as term_ex:
+            with client.sql_client.execute_query("DROP SCHEMA UNKNOWN"):
                 pass
         assert client.sql_client.is_dbapi_exception(term_ex.value.dbapi_exception)
 

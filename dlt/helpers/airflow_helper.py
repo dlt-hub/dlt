@@ -1,8 +1,9 @@
 import os
 from tempfile import gettempdir
-from typing import Any, Callable, List, Literal, Sequence
+from typing import Any, Callable, List, Literal, Optional, Sequence, Tuple
 from tenacity import retry_if_exception, wait_exponential, stop_after_attempt, Retrying, RetryCallState
 
+from dlt.common import pendulum
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.runtime.telemetry import with_telemetry
 
@@ -256,3 +257,12 @@ class PipelineTasksGroup(TaskGroup):
         """Will execute a function `f` inside an Airflow task. It is up to the function to create pipeline and source(s)"""
         raise NotImplementedError()
 
+
+def airflow_get_execution_dates() -> Tuple[pendulum.DateTime, Optional[pendulum.DateTime]]:
+    # prefer logging to task logger
+    try:
+        from airflow.operators.python import get_current_context  # noqa
+        context = get_current_context()
+        return context["data_interval_start"], context["data_interval_end"]
+    except Exception:
+        return None, None

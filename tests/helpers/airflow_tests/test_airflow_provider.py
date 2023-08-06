@@ -12,9 +12,6 @@ from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
 from dlt.common.configuration.providers.toml import SECRETS_TOML_KEY
 
-from tests.utils import preserve_environ
-from tests.helpers.airflow_tests.utils import initialize_airflow_db
-
 DEFAULT_DATE = pendulum.datetime(2023, 4, 18, tz='Europe/Berlin')
 # Test data
 SECRETS_TOML_CONTENT = """

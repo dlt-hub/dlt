@@ -21,6 +21,8 @@ from dlt.extract.source import DltSource
 from dlt.sources.helpers.transform import take_first
 from dlt.extract.incremental import IncrementalCursorPathMissing, IncrementalPrimaryKeyMissing
 
+from tests.extract.utils import AssertItems
+
 
 def test_single_items_last_value_state_is_updated() -> None:
     @dlt.resource
@@ -837,3 +839,129 @@ def test_out_of_range_flags() -> None:
     pipeline.extract(descending_single_item())
 
     pipeline.extract(ascending_single_item())
+
+
+def test_get_incremental_value_type() -> None:
+    assert dlt.sources.incremental("id").get_incremental_value_type() is Any
+    assert dlt.sources.incremental("id", initial_value=0).get_incremental_value_type() is int
+    assert dlt.sources.incremental("id", initial_value=None).get_incremental_value_type() is Any
+    assert dlt.sources.incremental[int]("id").get_incremental_value_type() is int
+    assert dlt.sources.incremental[pendulum.DateTime]("id").get_incremental_value_type() is pendulum.DateTime
+    # typing has precedence
+    assert dlt.sources.incremental[pendulum.DateTime]("id", initial_value=1).get_incremental_value_type() is pendulum.DateTime
+
+    # pass default value
+    @dlt.resource
+    def test_type(updated_at = dlt.sources.incremental[str]("updated_at", allow_external_schedulers=True)):  # noqa: B008
+        yield [{"updated_at": d} for d in [1, 2, 3]]
+
+    r = test_type()
+    list(r)
+    assert r.incremental._incremental.get_incremental_value_type() is str
+
+    # use annotation
+    @dlt.resource
+    def test_type_2(updated_at: dlt.sources.incremental[int] = dlt.sources.incremental("updated_at", allow_external_schedulers=True)):
+        yield [{"updated_at": d} for d in [1, 2, 3]]
+
+    r = test_type_2()
+    list(r)
+    assert r.incremental._incremental.get_incremental_value_type() is int
+
+    # pass in explicit value
+    @dlt.resource
+    def test_type_3(updated_at: dlt.sources.incremental):
+        yield [{"updated_at": d} for d in [1, 2, 3]]
+
+    r = test_type_3(dlt.sources.incremental[float]("updated_at", allow_external_schedulers=True))
+    list(r)
+    assert r.incremental._incremental.get_incremental_value_type() is float
+
+    # pass explicit value overriding default that is typed
+    @dlt.resource
+    def test_type_4(updated_at = dlt.sources.incremental("updated_at", allow_external_schedulers=True)):
+        yield [{"updated_at": d} for d in [1, 2, 3]]
+
+    r = test_type_4(dlt.sources.incremental[str]("updated_at", allow_external_schedulers=True))
+    list(r)
+    assert r.incremental._incremental.get_incremental_value_type() is str
+
+    # no generic type information
+    @dlt.resource
+    def test_type_5(updated_at = dlt.sources.incremental("updated_at", allow_external_schedulers=True)):
+        yield [{"updated_at": d} for d in [1, 2, 3]]
+
+    r = test_type_5(dlt.sources.incremental("updated_at"))
+    list(r)
+    assert r.incremental._incremental.get_incremental_value_type() is Any
+
+
+def test_join_env_scheduler() -> None:
+    @dlt.resource
+    def test_type_2(updated_at: dlt.sources.incremental[int] = dlt.sources.incremental("updated_at", allow_external_schedulers=True)):
+        yield [{"updated_at": d} for d in [1, 2, 3]]
+
+    assert list(test_type_2()) == [{'updated_at': 1}, {'updated_at': 2}, {'updated_at': 3}]
+
+    # set start and end values
+    os.environ["DLT_START_VALUE"] = "2"
+    assert list(test_type_2()) == [{'updated_at': 2}, {'updated_at': 3}]
+    os.environ["DLT_END_VALUE"] = "3"
+    assert list(test_type_2()) == [{'updated_at': 2}]
+
+
+def test_join_env_scheduler_pipeline() -> None:
+    @dlt.resource
+    def test_type_2(updated_at: dlt.sources.incremental[int] = dlt.sources.incremental("updated_at", allow_external_schedulers=True)):
+        yield [{"updated_at": d} for d in [1, 2, 3]]
+
+    pip_1_name = 'incremental_' + uniq_id()
+    pipeline = dlt.pipeline(pipeline_name=pip_1_name, destination='duckdb')
+    r = test_type_2()
+    r.add_step(AssertItems([{'updated_at': 2}, {'updated_at': 3}]))
+    os.environ["DLT_START_VALUE"] = "2"
+    pipeline.extract(r)
+    # state is saved next extract has no items
+    r = test_type_2()
+    r.add_step(AssertItems([]))
+    pipeline.extract(r)
+
+    # setting end value will stop using state
+    os.environ["DLT_END_VALUE"] = "3"
+    r = test_type_2()
+    r.add_step(AssertItems([{'updated_at': 2}]))
+    pipeline.extract(r)
+    r = test_type_2()
+    os.environ["DLT_START_VALUE"] = "1"
+    r.add_step(AssertItems([{'updated_at': 1}, {'updated_at': 2}]))
+    pipeline.extract(r)
+
+
+def test_allow_external_schedulers() -> None:
+    @dlt.resource()
+    def test_type_2(updated_at: dlt.sources.incremental[int] = dlt.sources.incremental("updated_at")):
+        yield [{"updated_at": d} for d in [1, 2, 3]]
+
+    # does not participate
+    os.environ["DLT_START_VALUE"] = "2"
+    assert len(list(test_type_2())) == 3
+
+    assert test_type_2.incremental.allow_external_schedulers is False
+    assert test_type_2().incremental.allow_external_schedulers is False
+
+    # allow scheduler in wrapper
+    r = test_type_2()
+    r.incremental.allow_external_schedulers = True
+    assert len(list(test_type_2())) == 2
+    assert r.incremental.allow_external_schedulers is True
+    assert r.incremental._incremental.allow_external_schedulers is True
+
+    # add incremental dynamically
+    @dlt.resource()
+    def test_type_3():
+        yield [{"updated_at": d} for d in [1, 2, 3]]
+
+    r = test_type_3()
+    r.add_step(dlt.sources.incremental("updated_at"))
+    r.incremental.allow_external_schedulers = True
+    assert len(list(test_type_2())) == 2

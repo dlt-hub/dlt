@@ -3,7 +3,7 @@ from typing import Any, Optional, Union, overload  # noqa
 import datetime  # noqa: I251
 
 from dlt.common.pendulum import pendulum, timedelta
-from dlt.common.typing import TimedeltaSeconds
+from dlt.common.typing import TimedeltaSeconds, TAnyDateTime
 from pendulum.parsing import parse_iso8601, _parse_common as parse_datetime_common
 from pendulum.tz import UTC
 
@@ -26,7 +26,7 @@ def timestamp_before(timestamp: float, max_inclusive: Optional[float]) -> bool:
     return timestamp <= (max_inclusive or FUTURE_TIMESTAMP)
 
 
-def parse_iso_like_datetime(value: Any) -> pendulum.DateTime:
+def parse_iso_like_datetime(value: Any) -> Union[pendulum.DateTime, pendulum.Date]:
     # we use internal pendulum parse function. the generic function, for example, parses string "now" as now()
     # it also tries to parse ISO intervals but the code is very low quality
 
@@ -54,21 +54,29 @@ def parse_iso_like_datetime(value: Any) -> pendulum.DateTime:
     return dtv  # type: ignore
 
 
-def ensure_datetime(value: Union[datetime.datetime, datetime.date]) -> datetime.datetime:
-    """
-    Convert `date` to `datetime` if needed
+def ensure_pendulum_date(value: TAnyDateTime) -> pendulum.Date:
+    """Coerce a date/time value to a `pendulum.Date` object.
+
+    UTC is assumed if the value is not timezone aware. Other timezones are shifted to UTC
+
+    Args:
+        value: The value to coerce. Can be a pendulum.DateTime, pendulum.Date, datetime, date or iso date/time str.
+
+    Returns:
+        A timezone aware pendulum.Date object.
     """
     if isinstance(value, datetime.datetime):
-        return value
-    return pendulum.datetime(
-        value.year, value.month, value.day, tz=UTC
-    )
-
-
-def ensure_date(value: Union[datetime.datetime, datetime.date]) -> datetime.date:
-    if isinstance(value, datetime.datetime):
-        return value.date()
-    return value
+        # both py datetime and pendulum datetime are handled here
+        value = pendulum.instance(value)
+        return value.in_tz(UTC).date()  # type: ignore
+    elif isinstance(value, datetime.date):
+        return pendulum.date(value.year, value.month, value.day)
+    elif isinstance(value, str):
+        result = parse_iso_like_datetime(value)
+        if isinstance(result, pendulum.DateTime):
+            return result.in_tz(UTC).date()  # type: ignore
+        return pendulum.datetime(result.year, result.month, result.day)
+    raise TypeError(f"Cannot coerce {value} to a pendulum.DateTime object.")
 
 
 @overload
@@ -85,3 +93,28 @@ def to_seconds(td: Optional[TimedeltaSeconds]) -> Optional[float]:
     if isinstance(td, timedelta):
         return td.total_seconds()
     return td
+
+
+def ensure_pendulum_datetime(value: TAnyDateTime) -> pendulum.DateTime:
+    """Coerce a date/time value to a `pendulum.DateTime` object.
+
+    UTC is assumed if the value is not timezone aware. Other timezones are shifted to UTC
+
+    Args:
+        value: The value to coerce. Can be a pendulum.DateTime, pendulum.Date, datetime, date or iso date/time str.
+
+    Returns:
+        A timezone aware pendulum.DateTime object in UTC timezone.
+    """
+    if isinstance(value, datetime.datetime):
+        # both py datetime and pendulum datetime are handled here
+        ret = pendulum.instance(value)
+        return ret.in_tz(UTC)
+    elif isinstance(value, datetime.date):
+        return pendulum.datetime(value.year, value.month, value.day, tz=UTC)
+    elif isinstance(value, str):
+        result = parse_iso_like_datetime(value)
+        if isinstance(result, pendulum.DateTime):
+            return result.in_tz(UTC)
+        return pendulum.datetime(result.year, result.month, result.day, tz=UTC)
+    raise TypeError(f"Cannot coerce {value} to a pendulum.DateTime object.")

@@ -17,18 +17,13 @@ initialize a Git repository in your `dlt` project directory and push it to GitHu
 
 ## 2. Ensure your pipeline works
 
-Before you can deploy, you need a working pipeline.
-
-[Set up credentials](../../general-usage/credentials) so you can test. Fill them in the secrets file
-`.dlt/secrets.toml` for now.
-
-Make sure that it is working by running.
+Before you can deploy, you must run your pipeline locally at least once.
 
 ```bash
 python3 {pipeline_name}_pipeline.py
 ```
 
-This should successfully load data from the source to the destination once.
+This should successfully load data from the source to the destination once and allows `dlt` to gather required information for the deployment.
 
 ## 3. Initialize deployment
 
@@ -74,7 +69,7 @@ Your airflow-composer deployment for pipeline pipedrive is ready!
 * The dag_pipedrive.py script was created in dags.
 
 You must prepare your repository first:
-1. Import your sources in dag_pipedrive.py, change default_args if necessary.
+1. Import your sources in dag_pipedrive.py, change default_task_args if necessary.
 2. Run airflow pipeline locally.
 See Airflow getting started: https://airflow.apache.org/docs/apache-airflow/stable/start.html
 
@@ -119,21 +114,22 @@ from dlt.common import pendulum
 from dlt.helpers.airflow_helper import PipelineTasksGroup
 
 # Modify the dag arguments
-default_args = {
+default_task_args = {
     'owner': 'airflow',
     'depends_on_past': False,
     'email': 'test@test.com',
     'email_on_failure': False,
     'email_on_retry': False,
     'retries': 0,
-    'max_active_runs': 1
+
 }
 
 @dag(
     schedule=None,
     start_date=pendulum.datetime(2021, 1, 1),
     catchup=False,
-    default_args=default_args
+    max_active_runs=1,
+    default_args=default_task_args
 )
 def load_data():
     # Set `use_data_folder` to True to store temporary data on the `data` bucket.
@@ -255,7 +251,7 @@ created DAG script.
 - Customize the name of Airflow DAG by changing the name of the load_data function to your desired
   name, for example to `load_pipedrive_data`.
 
-- Modify the @dag arguments. Set up *schedule, start_date, default_args*.
+- Modify the @dag arguments. Set up *schedule, start_date, default_task_args*.
 
 As a result, we will get a script of the following form:
 
@@ -266,21 +262,22 @@ from dlt.common import pendulum
 from dlt.helpers.airflow_helper import PipelineTasksGroup
 
 # Modify the dag arguments
-default_args = {
+default_task_args = {
     'owner': 'airflow',
     'depends_on_past': False,
     'email': 'test@test.com',
     'email_on_failure': False,
     'email_on_retry': False,
     'retries': 0,
-    'max_active_runs': 1
+
 }
 
 @dag(
     schedule=None,
     start_date=pendulum.datetime(2021, 1, 1),
     catchup=False,
-    default_args=default_args
+    max_active_runs=1,
+    default_args=default_task_args
 )
 def load_pipedrive_data():
     from tenacity import Retrying, stop_after_attempt
@@ -386,12 +383,11 @@ There are two ways to pass the credentials
 
      ![add-credential](images/add-credential.png)
 
-Read more about credentials for Airflow [here](airflow-gcp-cloud-composer.md#adding-credentials).
 
 ### 5. Configure `build/cloudbuild.yaml` to run it with Google Cloud Platform \[[Cloud Composer](https://console.cloud.google.com/composer/environments)\]
 
 - Read our doc
-  [How to deploy the main branch of your airflow project from GitHub to Cloud Composer](airflow-gcp-cloud-composer.md).
+  [How to deploy the main branch of your airflow project from GitHub to Cloud Composer](../../reference/airflow-gcp-cloud-composer.md).
 
   There you can find:
 

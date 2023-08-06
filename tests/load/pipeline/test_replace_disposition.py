@@ -1,7 +1,9 @@
+import yaml
 import dlt, os, pytest
+from dlt.common.utils import uniq_id
 
 from tests.pipeline.utils import  assert_load_info
-from tests.load.pipeline.utils import  load_table_counts, load_tables_to_dicts
+from tests.load.pipeline.utils import  drop_active_pipeline_data, load_table_counts, load_tables_to_dicts
 from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
 
 REPLACE_STRATEGIES = ["truncate-and-insert", "insert-from-staging", "staging-optimized"]
@@ -15,7 +17,8 @@ def test_replace_disposition(destination_config: DestinationTestConfiguration, r
     # use staging tables for replace
     os.environ['DESTINATION__REPLACE_STRATEGY'] = replace_strategy
 
-    pipeline = destination_config.setup_pipeline("test_replace_strategies")
+    dataset_name = "test_replace_strategies_ds" + uniq_id()
+    pipeline = destination_config.setup_pipeline("test_replace_strategies", dataset_name=dataset_name, full_refresh=False)
 
     global offset
     offset = 1000
@@ -78,6 +81,13 @@ def test_replace_disposition(destination_config: DestinationTestConfiguration, r
     assert table_counts["items"] == 0
     assert table_counts.get("items__sub_items", 0) == 0
     assert table_counts.get("items__sub_items__sub_sub_items", 0) == 0
+
+    # drop and deactivate existing pipeline
+    # drop_active_pipeline_data()
+
+    # create a pipeline with different name but loading to the same dataset as above - this is to provoke truncating non existing tables
+    pipeline = destination_config.setup_pipeline("test_replace_strategies_2", dataset_name=dataset_name, full_refresh=False)
+    info = pipeline.run(load_items, table_name="items_copy", loader_file_format=destination_config.file_format)
 
 
 @pytest.mark.parametrize("destination_config", destinations_configs(local_filesystem_configs=True, default_staging_configs=True, default_non_staging_configs=True), ids=lambda x: x.name)

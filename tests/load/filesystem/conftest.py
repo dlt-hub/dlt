@@ -1,3 +1,4 @@
+import os
 from typing import Iterator
 
 import pytest
@@ -7,6 +8,7 @@ from dlt.common.utils import uniq_id
 from dlt.destinations.filesystem.filesystem import FilesystemClient
 
 from tests.utils import preserve_environ
+from tests.load.utils import ALL_BUCKETS
 from tests.load.filesystem.utils import get_client_instance
 
 
