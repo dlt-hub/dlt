@@ -292,11 +292,13 @@ def test_aws_credentials_resolved(environment: Dict[str, str]) -> None:
     environment['CREDENTIALS__AWS_ACCESS_KEY_ID'] = 'fake_access_key'
     environment['CREDENTIALS__AWS_SECRET_ACCESS_KEY'] = 'fake_secret_key'
     environment['CREDENTIALS__AWS_SESSION_TOKEN'] = 'fake_session_token'
-    environment['CREDENTIALS__AWS_PROFILE'] = 'fake_profile'
+    environment['CREDENTIALS__PROFILE_NAME'] = 'fake_profile'
+    environment['CREDENTIALS__REGION_NAME'] = 'eu-central'
 
     config = resolve_configuration(AwsCredentials())
 
     assert config.aws_access_key_id == 'fake_access_key'
     assert config.aws_secret_access_key == 'fake_secret_key'
     assert config.aws_session_token == 'fake_session_token'
-    assert config.aws_profile == 'fake_profile'
+    assert config.profile_name == 'fake_profile'
+    assert config.region_name == "eu-central"
