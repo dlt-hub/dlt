@@ -210,7 +210,7 @@ class BaseConfiguration(MutableMapping[str, Any]):
     @classmethod
     def _get_resolvable_dataclass_fields(cls) -> Iterator[dataclasses.Field[Any]]:
         """Yields all resolvable dataclass fields in the order they should be resolved"""
-        # Sort dynamic type hint fields last because they depend on other values        
+        # Sort dynamic type hint fields last because they depend on other values
         yield from sorted(
             (f for f in cls.__dataclass_fields__.values() if not f.name.startswith("__")),
             key=lambda f: f.name in cls.__hint_resolvers__
