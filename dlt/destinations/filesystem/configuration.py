@@ -17,7 +17,7 @@ PROTOCOL_CREDENTIALS = {
 }
 
 
-@configspec(init=True)
+@configspec
 class FilesystemClientConfiguration(DestinationClientStagingConfiguration):
     destination_name: Final[str] = "filesystem"  # type: ignore
     # should be an union of all possible credentials as found in PROTOCOL_CREDENTIALS

@@ -6,7 +6,7 @@ TSchemaFileFormat = Literal["json", "yaml"]
 SchemaFileExtensions = get_args(TSchemaFileFormat)
 
 
-@configspec(init=True)
+@configspec
 class SchemaStorageConfiguration(BaseConfiguration):
     schema_volume_path: str = None  # path to volume with default schemas
     import_schema_path: Optional[str] = None  # import schema from external location
@@ -19,7 +19,7 @@ class SchemaStorageConfiguration(BaseConfiguration):
             ...
 
 
-@configspec(init=True)
+@configspec
 class NormalizeStorageConfiguration(BaseConfiguration):
     normalize_volume_path: str = None  # path to volume where normalized loader files will be stored
 
@@ -28,7 +28,7 @@ class NormalizeStorageConfiguration(BaseConfiguration):
             ...
 
 
-@configspec(init=True)
+@configspec
 class LoadStorageConfiguration(BaseConfiguration):
     load_volume_path: str = None  # path to volume where files to be loaded to analytical storage are stored
     delete_completed_jobs: bool = False  # if set to true the folder with completed jobs will be deleted

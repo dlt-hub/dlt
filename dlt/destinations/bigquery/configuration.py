@@ -8,7 +8,7 @@ from dlt.common.utils import digest128
 from dlt.common.destination.reference import DestinationClientDwhConfiguration
 
 
-@configspec(init=True)
+@configspec
 class BigQueryClientConfiguration(DestinationClientDwhConfiguration):
     destination_name: str = "bigquery"
     credentials: GcpServiceAccountCredentials = None

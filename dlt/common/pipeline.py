@@ -223,7 +223,7 @@ class SupportsPipelineRun(Protocol):
         ...
 
 
-@configspec(init=True)
+@configspec
 class PipelineContext(ContainerInjectableContext):
     _deferred_pipeline: Callable[[], SupportsPipeline]
     _pipeline: SupportsPipeline
@@ -258,7 +258,7 @@ class PipelineContext(ContainerInjectableContext):
         self._deferred_pipeline = deferred_pipeline
 
 
-@configspec(init=True)
+@configspec
 class StateInjectableContext(ContainerInjectableContext):
     state: TPipelineState
 

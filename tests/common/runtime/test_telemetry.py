@@ -24,7 +24,7 @@ class SentryLoggerConfiguration(RunConfiguration):
     dlthub_telemetry_segment_write_key: str = "TLJiyRkGVZGCi2TtjClamXpFcxAA1rSB"
 
 
-@configspec(init=True)
+@configspec
 class SentryLoggerCriticalConfiguration(SentryLoggerConfiguration):
     log_level: str = "CRITICAL"
 

@@ -34,7 +34,7 @@ class PostgresCredentials(ConnectionStringCredentials):
         return url
 
 
-@configspec(init=True)
+@configspec
 class PostgresClientConfiguration(DestinationClientDwhConfiguration):
     destination_name: Final[str] = "postgres"  # type: ignore
     credentials: PostgresCredentials

@@ -3,7 +3,7 @@ from dlt.common.configuration.specs import known_sections
 
 from dlt.common.configuration.specs.base_configuration import ContainerInjectableContext, configspec
 
-@configspec(init=True)
+@configspec
 class ConfigSectionContext(ContainerInjectableContext):
 
     TMergeFunc = Callable[["ConfigSectionContext", "ConfigSectionContext"], None]

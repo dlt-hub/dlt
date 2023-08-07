@@ -77,12 +77,12 @@ class MockProdConfiguration(RunConfiguration):
     pipeline_name: str = "comp"
 
 
-@configspec(init=True)
+@configspec
 class FieldWithNoDefaultConfiguration(RunConfiguration):
     no_default: str
 
 
-@configspec(init=True)
+@configspec
 class InstrumentedConfiguration(BaseConfiguration):
     head: str
     tube: List[str]
@@ -106,7 +106,7 @@ class InstrumentedConfiguration(BaseConfiguration):
             raise RuntimeError("Head over heels")
 
 
-@configspec(init=True)
+@configspec
 class EmbeddedConfiguration(BaseConfiguration):
     default: str
     instrumented: InstrumentedConfiguration
@@ -130,22 +130,22 @@ class NonTemplatedComplexTypesConfiguration(BaseConfiguration):
     dict_val: dict
 
 
-@configspec(init=True)
+@configspec
 class DynamicConfigA(BaseConfiguration):
     field_for_a: str
 
 
-@configspec(init=True)
+@configspec
 class DynamicConfigB(BaseConfiguration):
     field_for_b: str
 
 
-@configspec(init=True)
+@configspec
 class DynamicConfigC(BaseConfiguration):
     field_for_c: str
 
 
-@configspec(init=True)
+@configspec
 class ConfigWithDynamicType(BaseConfiguration):
     discriminator: str
     embedded_config: BaseConfiguration
@@ -159,7 +159,7 @@ class ConfigWithDynamicType(BaseConfiguration):
         return BaseConfiguration
 
 
-@configspec(init=True)
+@configspec
 class ConfigWithInvalidDynamicType(BaseConfiguration):
     @resolve_type('a')
     def resolve_a_type(self) -> Type[BaseConfiguration]:
@@ -174,7 +174,7 @@ class ConfigWithInvalidDynamicType(BaseConfiguration):
         return DynamicConfigC
 
 
-@configspec(init=True)
+@configspec
 class SubclassConfigWithDynamicType(ConfigWithDynamicType):
     is_number: bool
     dynamic_type_field: Any
@@ -767,7 +767,7 @@ def test_is_valid_hint() -> None:
 
 def test_configspec_auto_base_config_derivation() -> None:
 
-    @configspec(init=True)
+    @configspec
     class AutoBaseDerivationConfiguration:
         auto: str
 

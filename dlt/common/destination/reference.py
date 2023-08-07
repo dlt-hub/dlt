@@ -21,7 +21,7 @@ from dlt.common.configuration.specs import GcpCredentials, AwsCredentialsWithout
 
 TLoaderReplaceStrategy = Literal["truncate-and-insert", "insert-from-staging", "staging-optimized"]
 
-@configspec(init=True)
+@configspec
 class DestinationClientConfiguration(BaseConfiguration):
     destination_name: str = None  # which destination to load data to
     credentials: Optional[CredentialsConfiguration]
@@ -40,7 +40,7 @@ class DestinationClientConfiguration(BaseConfiguration):
             ...
 
 
-@configspec(init=True)
+@configspec
 class DestinationClientDwhConfiguration(DestinationClientConfiguration):
     # keep default/initial value if present
     dataset_name: Final[str] = None
@@ -62,7 +62,7 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
         ) -> None:
             ...
 
-@configspec(init=True)
+@configspec
 class DestinationClientStagingConfiguration(DestinationClientDwhConfiguration):
     as_staging: bool = False
 

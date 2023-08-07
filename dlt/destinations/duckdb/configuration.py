@@ -174,7 +174,7 @@ class DuckDbCredentials(DuckDbBaseCredentials):
         return default_path, True
 
 
-@configspec(init=True)
+@configspec
 class DuckDbClientConfiguration(DestinationClientDwhConfiguration):
     destination_name: Final[str] = "duckdb"  # type: ignore
     credentials: DuckDbCredentials
