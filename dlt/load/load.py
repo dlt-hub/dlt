@@ -16,14 +16,14 @@ from dlt.common.typing import StrAny
 from dlt.common.runners import TRunMetrics, Runnable, workermethod
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.common.runtime.logger import pretty_format_exception
-from dlt.common.exceptions import TerminalValueError
+from dlt.common.exceptions import TerminalValueError, DestinationTerminalException, DestinationTransientException
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import VERSION_TABLE_NAME, TTableSchema, TWriteDisposition
 from dlt.common.storages import LoadStorage
 from dlt.common.destination.reference import DestinationClientDwhConfiguration, FollowupJob, JobClientBase, StagingJobClientBase, DestinationReference, LoadJob, NewLoadJob, TLoadJobState, DestinationClientConfiguration
 
 from dlt.destinations.job_impl import EmptyLoadJob
-from dlt.destinations.exceptions import DestinationTerminalException, DestinationTransientException, LoadJobUnknownTableException
+from dlt.destinations.exceptions import LoadJobUnknownTableException
 
 from dlt.load.configuration import LoaderConfiguration
 from dlt.load.exceptions import LoadClientJobFailed, LoadClientJobRetry, LoadClientUnsupportedWriteDisposition, LoadClientUnsupportedFileFormats

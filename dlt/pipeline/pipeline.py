@@ -14,7 +14,7 @@ from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import ConfigFieldMissingException, ContextDefaultCannotBeCreated
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.configuration.resolve import initialize_credentials
-from dlt.common.exceptions import (DestinationLoadingViaStagingNotSupported, DestinationNoStagingMode, MissingDependencyException,
+from dlt.common.exceptions import (DestinationLoadingViaStagingNotSupported, DestinationUndefinedEntity, DestinationNoStagingMode, MissingDependencyException,
                                    DestinationIncompatibleLoaderFileFormatException)
 from dlt.common.normalizers import default_normalizers, import_normalizers
 from dlt.common.runtime import signals, initialize_runtime
@@ -31,8 +31,6 @@ from dlt.common.pipeline import ExtractInfo, LoadInfo, NormalizeInfo, PipelineCo
 from dlt.common.schema import Schema
 from dlt.common.utils import is_interactive
 from dlt.common.data_writers import TLoaderFileFormat
-
-from dlt.destinations.exceptions import DatabaseUndefinedRelation
 
 from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, SourceExhausted
 from dlt.extract.extract import ExtractorStorage, extract_with_schema
@@ -540,7 +538,7 @@ class Pipeline(SupportsPipeline):
                 # if the remote state is present then unset first run
                 if remote_state is not None:
                     self.first_run = False
-            except DatabaseUndefinedRelation:
+            except DestinationUndefinedEntity:
                 # storage not present. wipe the pipeline if pipeline not new
                 # do it only if pipeline has any data
                 if self.has_data:
