@@ -71,6 +71,7 @@ dbt-snowflake = {version = ">=1.5.0", optional = true}
 s3fs = {version = "^2023.5.0", optional = true}
 gcsfs = {version = "^2023.5.0", optional = true}
 boto3 = {version = ">=1.26", optional = true}
+weaviate-client = {version = ">=3.22", optional = true}
 fsspec = "^2023.5.0"
 snowflake-connector-python = {version = "^3.0.4", optional = true, extras = ["pandas"]}
 packaging = "^23.1"
