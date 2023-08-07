@@ -1,7 +1,7 @@
 from typing import Any, List
 import dlt
 from dlt.helpers.weaviate_helper import weaviate_adapter
-from dlt.destinations.weaviate.weaviate import WeaviateClient
+from dlt.destinations.weaviate.weaviate_client import WeaviateClient
 from dlt.common.pipeline import LoadInfo
 
 from tests.pipeline.utils import assert_load_info
@@ -37,13 +37,14 @@ def assert_class(pipeline: dlt.Pipeline, class_name: str, data: List[Any]) -> No
     assert_unordered_list_equal(objects_without_dlt_keys, data)
 
 
-def test_pipeline_append() -> None:
-    def sequence_generator():
-        count = 1
-        while True:
-            yield [{"content": str(count + i)} for i in range(3)]
-            count += 3
+def sequence_generator():
+    count = 1
+    while True:
+        yield [{"content": str(count + i)} for i in range(3)]
+        count += 3
 
+
+def test_pipeline_append() -> None:
     generator_instance1 = sequence_generator()
     generator_instance2 = sequence_generator()
 
