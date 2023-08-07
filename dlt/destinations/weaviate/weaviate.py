@@ -3,6 +3,7 @@ from typing import ClassVar, Optional, Sequence, List, Dict, Type, Iterable, Any
 import base64
 import binascii
 import zlib
+from dlt.common.time import ensure_pendulum_datetime
 
 import weaviate
 from weaviate.util import generate_uuid5
@@ -208,24 +209,6 @@ class WeaviateClient(JobClientBase):
             return None
         return self._decode_schema(record)
 
-    def _decode_schema(self, record: Dict[str, Any]) -> StorageSchemaInfo:
-        # XXX: Duplicate code from dlt/destinations/job_client_impl.py
-        schema_str = record["schema"]
-        try:
-            schema_bytes = base64.b64decode(schema_str, validate=True)
-            schema_str = zlib.decompress(schema_bytes).decode("utf-8")
-        except binascii.Error:
-            pass
-
-        return StorageSchemaInfo(
-            version_hash=record["version_hash"],
-            schema_name=record["schema_name"],
-            version=record["version"],
-            engine_version=record["engine_version"],
-            inserted_at=pendulum.parse(record["inserted_at"]),
-            schema=schema_str,
-        )
-
     def make_weaviate_class_schema(self, table: TTableSchema) -> Dict[str, Any]:
         """Creates a Weaviate class schema from a table schema."""
         table_name = table["name"]
@@ -320,9 +303,6 @@ class WeaviateClient(JobClientBase):
     def restore_file_load(self, file_path: str) -> LoadJob:
         return EmptyLoadJob.from_file_path(file_path, "completed")
 
-    def create_merge_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
-        return None
-
     def complete_load(self, load_id: str) -> None:
         load_table_name = table_name_to_class_name(LOADS_TABLE_NAME)
         properties = {
@@ -347,12 +327,6 @@ class WeaviateClient(JobClientBase):
     def _update_schema_in_storage(self, schema: Schema) -> None:
         now_ts = str(pendulum.now())
         schema_str = json.dumps(schema.to_dict())
-        schema_bytes = schema_str.encode("utf-8")
-        if len(schema_bytes) > self.capabilities.max_text_data_type_length:
-            # compress and to base64
-            schema_str = base64.b64encode(zlib.compress(schema_bytes, level=9)).decode(
-                "ascii"
-            )
         version_class_name = table_name_to_class_name(VERSION_TABLE_NAME)
         properties = {
             "version_hash": schema.stored_version_hash,
@@ -364,6 +338,17 @@ class WeaviateClient(JobClientBase):
         }
 
         self.db_client.data_object.create(properties, version_class_name)
+
+    def _decode_schema(self, record: Dict[str, Any]) -> StorageSchemaInfo:
+        schema_str = record["schema"]
+        return StorageSchemaInfo(
+            version_hash=record["version_hash"],
+            schema_name=record["schema_name"],
+            version=record["version"],
+            engine_version=record["engine_version"],
+            inserted_at=ensure_pendulum_datetime(record["inserted_at"]),
+            schema=schema_str,
+        )
 
     @staticmethod
     def _to_db_type(sc_t: TDataType) -> str:

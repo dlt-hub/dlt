@@ -66,7 +66,7 @@ def coerce_to_date_types(
             # returns ISO datetime with timezone
             result = pendulum.from_timestamp(value)
 
-        elif from_type in "text":
+        elif from_type == "text":
             try:
                 result = parse_iso_like_datetime(value)
             except ValueError:
