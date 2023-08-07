@@ -4,6 +4,8 @@ from dlt.helpers.weaviate_helper import weaviate_adapter
 from dlt.destinations.weaviate.weaviate import WeaviateClient
 from dlt.common.pipeline import LoadInfo
 
+from tests.pipeline.utils import assert_load_info
+
 
 def assert_unordered_list_equal(list1: List[Any], list2: List[Any]) -> None:
     assert len(list1) == len(list2)
@@ -30,7 +32,10 @@ def assert_class(pipeline: dlt.Pipeline, class_name: str, data: List[Any]) -> No
         {k: v for k, v in obj.items() if k not in drop_keys} for obj in objects
     ]
 
-    assert_unordered_list_equal(objects_without_dlt_keys, data)
+    # pytest compares content wise but ignores order of elements of dict
+    assert sorted(objects_without_dlt_keys, key=lambda d: d['doc_id']) == sorted(data, key=lambda d: d['doc_id'])
+
+    # assert_unordered_list_equal(objects_without_dlt_keys, data)
 
 
 def test_pipeline_append(weaviate_client: WeaviateClient) -> None:
@@ -67,6 +72,7 @@ def test_pipeline_append(weaviate_client: WeaviateClient) -> None:
     info = pipeline.run(
         some_data(),
     )
+    assert_load_info(info)
 
     data.extend(next(generator_instance2))
     assert_class(info.pipeline, "SomeData", data)
@@ -100,13 +106,14 @@ def test_pipeline_merge(weaviate_client: WeaviateClient) -> None:
         },
     ]
 
+    # @weaviate_adapter(vectorize=["description"])  # TODO: make it work
     @dlt.resource(primary_key="doc_id")
     def movies_data():
         yield data
 
     weaviate_adapter(
         movies_data,
-        vectorize=["description"],
+        vectorize=["description"]
     )
 
     pipeline = dlt.pipeline(
@@ -118,6 +125,7 @@ def test_pipeline_merge(weaviate_client: WeaviateClient) -> None:
         movies_data(),
         write_disposition="merge",
     )
+    assert_load_info(info)
     package_info = pipeline.get_load_package_info(info.loads_ids[0])
     assert package_info.state == "loaded"
     assert len(package_info.jobs["failed_jobs"]) == 0
@@ -132,4 +140,5 @@ def test_pipeline_merge(weaviate_client: WeaviateClient) -> None:
         movies_data(),
         write_disposition="merge",
     )
+    assert_load_info(info)
     assert_class(info.pipeline, "MoviesData", data)

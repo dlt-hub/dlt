@@ -1,14 +1,15 @@
+from functools import wraps
 from types import TracebackType
-from typing import ClassVar, Optional, Sequence, List, Dict, Type, Iterable, Any
-import base64
-import binascii
-import zlib
+from typing import ClassVar, Optional, Sequence, List, Dict, Type, Iterable, Any, IO
+
 from dlt.common.time import ensure_pendulum_datetime
+from dlt.common.exceptions import DestinationUndefinedEntity, DestinationTransientException, DestinationTerminalException
 
 import weaviate
 from weaviate.util import generate_uuid5
 
 from dlt.common import json, pendulum, logger
+from dlt.common.typing import TFun
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
 from dlt.common.schema.typing import VERSION_TABLE_NAME, LOADS_TABLE_NAME, TColumnSchema
 from dlt.common.schema.utils import get_columns_names_with_prop
@@ -64,6 +65,36 @@ def table_name_to_class_name(table_name: str) -> str:
     )
 
 
+def wrap_weaviate_error(f: TFun) -> TFun:
+
+    @wraps(f)
+    def _wrap(self: JobClientBase, *args: Any, **kwargs: Any) -> Any:
+        try:
+            return f(self, *args, **kwargs)
+        # those look like terminal exceptions
+        except (weaviate.exceptions.ObjectAlreadyExistsException,
+                weaviate.exceptions.ObjectAlreadyExistsException,
+                weaviate.exceptions.SchemaValidationException,
+                weaviate.exceptions.WeaviateEmbeddedInvalidVersion) as term_ex:
+            print(term_ex)
+            raise DestinationTerminalException(term_ex) from term_ex
+        except weaviate.exceptions.UnexpectedStatusCodeException as status_ex:
+            print(status_ex)
+            # special handling for non existing objects/classes
+            if status_ex.status_code == 404:
+                raise DestinationUndefinedEntity(status_ex) from status_ex
+            # looks like there are no more terminal exceptions
+            if status_ex.status_code in (403,):
+                raise DestinationTerminalException(status_ex)
+            raise DestinationTransientException(status_ex)
+        except weaviate.exceptions.WeaviateBaseError as we_ex:
+            print(we_ex)
+            # also includes 401 as transient
+            raise DestinationTransientException(we_ex)
+
+    return _wrap  # type: ignore
+
+
 class LoadWeaviateJob(LoadJob):
     def __init__(
         self,
@@ -75,24 +106,44 @@ class LoadWeaviateJob(LoadJob):
     ) -> None:
         file_name = FileStorage.get_file_name_from_file_path(local_path)
         super().__init__(file_name)
+        self.client_config = client_config
+        self.db_client = db_client
+        self.class_name = table_name_to_class_name(table_schema["name"])
+        self.unique_identifiers = self.list_unique_identifiers(table_schema)
 
-        class_name = table_name_to_class_name(table_schema["name"])
+        with FileStorage.open_zipsafe_ro(local_path) as f:
+            self.load_batch(f)
 
-        unique_identifiers = self.list_unique_identifiers(table_schema)
 
-        with db_client.batch(
-            batch_size=client_config.weaviate_batch_size,
+    @wrap_weaviate_error
+    def load_batch(self, f: IO[str]) -> None:
+        """load all the lines from stream `f` in automatic Weaviate batches. Weaviate batch supports retries so we do not need to do that."""
+
+        def check_batch_result(results: dict):
+            """This kills batch on first error reported"""
+            if results is not None:
+                for result in results:
+                    if 'result' in result and 'errors' in result['result']:
+                        if 'error' in result['result']['errors']:
+                            raise DestinationTransientException(f'Batch failed {result["result"]["errors"]}')
+
+        with self.db_client.batch(
+            batch_size=self.client_config.batch_size,
+            timeout_retries=self.client_config.batch_retries,
+            connection_error_retries=self.client_config.batch_retries,
+            weaviate_error_retries=weaviate.WeaviateErrorRetryConf(self.client_config.batch_retries),
+            consistency_level=weaviate.ConsistencyLevel[self.client_config.batch_consistency],
+            num_workers=self.client_config.batch_workers,
+            callback=check_batch_result
         ) as batch:
-            with FileStorage.open_zipsafe_ro(local_path) as f:
-                for line in f:
-                    data = json.loads(line)
+            for line in f:
+                data = json.loads(line)
+                if self.unique_identifiers:
+                    uuid = self.generate_uuid(data, self.unique_identifiers, self.class_name)
+                else:
+                    uuid = None
 
-                    if unique_identifiers:
-                        uuid = self.generate_uuid(data, unique_identifiers, class_name)
-                    else:
-                        uuid = None
-
-                    batch.add_data_object(data, class_name, uuid=uuid)
+                batch.add_data_object(data, self.class_name, uuid=uuid)
 
     def list_unique_identifiers(self, table_schema: TTableSchema) -> Sequence[str]:
         primary_keys = get_columns_names_with_prop(table_schema, "primary_key")
@@ -136,12 +187,15 @@ class WeaviateClient(JobClientBase):
             additional_headers=config.credentials.additional_headers,
         )
 
+    @wrap_weaviate_error
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
         pass
 
+    @wrap_weaviate_error
     def is_storage_initialized(self) -> bool:
         return True
 
+    @wrap_weaviate_error
     def update_storage_schema(
         self, only_tables: Iterable[str] = None, expected_update: TSchemaTables = None
     ) -> Optional[TSchemaTables]:
@@ -303,6 +357,7 @@ class WeaviateClient(JobClientBase):
     def restore_file_load(self, file_path: str) -> LoadJob:
         return EmptyLoadJob.from_file_path(file_path, "completed")
 
+    @wrap_weaviate_error
     def complete_load(self, load_id: str) -> None:
         load_table_name = table_name_to_class_name(LOADS_TABLE_NAME)
         properties = {
@@ -340,15 +395,15 @@ class WeaviateClient(JobClientBase):
         self.db_client.data_object.create(properties, version_class_name)
 
     def _decode_schema(self, record: Dict[str, Any]) -> StorageSchemaInfo:
-        schema_str = record["schema"]
-        return StorageSchemaInfo(
-            version_hash=record["version_hash"],
-            schema_name=record["schema_name"],
-            version=record["version"],
-            engine_version=record["engine_version"],
-            inserted_at=ensure_pendulum_datetime(record["inserted_at"]),
-            schema=schema_str,
-        )
+        # schema_str = record["schema"]
+        return StorageSchemaInfo(**record)
+        #     version_hash=record["version_hash"],
+        #     schema_name=record["schema_name"],
+        #     version=record["version"],
+        #     engine_version=record["engine_version"],
+        #     inserted_at=ensure_pendulum_datetime(record["inserted_at"]),
+        #     schema=schema_str,
+        # )
 
     @staticmethod
     def _to_db_type(sc_t: TDataType) -> str:

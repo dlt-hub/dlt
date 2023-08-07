@@ -1,5 +1,5 @@
 from typing import Sequence
-from dlt.common.exceptions import DestinationTerminalException, DestinationTransientException, DestinationException
+from dlt.common.exceptions import DestinationTerminalException, DestinationTransientException, DestinationUndefinedEntity, DestinationException
 from dlt.common.destination.reference import TLoadJobState
 
 
@@ -14,7 +14,7 @@ class DatabaseTerminalException(DestinationTerminalException, DatabaseException)
         super().__init__(dbapi_exception)
 
 
-class DatabaseUndefinedRelation(DatabaseTerminalException):
+class DatabaseUndefinedRelation(DestinationUndefinedEntity):
     def __init__(self, dbapi_exception: Exception) -> None:
         super().__init__(dbapi_exception)
 
