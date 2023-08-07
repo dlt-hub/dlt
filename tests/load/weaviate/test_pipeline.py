@@ -33,9 +33,8 @@ def assert_class(pipeline: dlt.Pipeline, class_name: str, data: List[Any]) -> No
     ]
 
     # pytest compares content wise but ignores order of elements of dict
-    assert sorted(objects_without_dlt_keys, key=lambda d: d['doc_id']) == sorted(data, key=lambda d: d['doc_id'])
-
-    # assert_unordered_list_equal(objects_without_dlt_keys, data)
+    # assert sorted(objects_without_dlt_keys, key=lambda d: d['doc_id']) == sorted(data, key=lambda d: d['doc_id'])
+    assert_unordered_list_equal(objects_without_dlt_keys, data)
 
 
 def test_pipeline_append() -> None:
