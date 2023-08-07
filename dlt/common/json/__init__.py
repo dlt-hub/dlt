@@ -1,6 +1,5 @@
 import os
 import base64
-import pendulum
 import dataclasses
 from datetime import date, datetime  # noqa: I251
 from typing import Any, Callable, List, Protocol, IO, Union
@@ -11,6 +10,7 @@ from hexbytes import HexBytes
 from dlt.common.arithmetics import Decimal
 from dlt.common.wei import Wei
 from dlt.common.utils import map_nested_in_place
+from dlt.common.time import parse_iso_like_datetime
 
 
 class SupportsJson(Protocol):
@@ -95,8 +95,8 @@ _WEI = '\uF02C'
 
 DECODERS: List[Callable[[Any], Any]] = [
     Decimal,
-    pendulum.parse,
-    lambda s: pendulum.parse(s).date(),  # type: ignore
+    parse_iso_like_datetime,
+    lambda s: parse_iso_like_datetime(s).date(),  # type: ignore
     UUID,
     HexBytes,
     base64.b64decode,

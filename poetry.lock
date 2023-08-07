@@ -545,6 +545,17 @@ tests = ["attrs[tests-no-zope]", "zope-interface"]
 tests-no-zope = ["cloudpickle", "hypothesis", "mypy (>=1.1.1)", "pympler", "pytest (>=4.3.0)", "pytest-mypy-plugins", "pytest-xdist[psutil]"]
 
 [[package]]
+name = "authlib"
+version = "1.2.1"
+description = "The ultimate Python library in building OAuth and OpenID Connect servers and clients."
+category = "main"
+optional = true
+python-versions = "*"
+
+[package.dependencies]
+cryptography = ">=3.2"
+
+[[package]]
 name = "babel"
 version = "2.12.1"
 description = "Internationalization utilities"
@@ -3596,7 +3607,7 @@ python-versions = ">=3.7"
 name = "tqdm"
 version = "4.66.1"
 description = "Fast, Extensible Progress Meter"
-category = "dev"
+category = "main"
 optional = false
 python-versions = ">=3.7"
 
@@ -3757,12 +3768,43 @@ secure = ["certifi", "cryptography (>=1.3.4)", "idna (>=2.0.0)", "ipaddress", "p
 socks = ["PySocks (>=1.5.6,!=1.5.7,<2.0)"]
 
 [[package]]
+name = "validators"
+version = "0.20.0"
+description = "Python Data Validation for Humans™."
+category = "main"
+optional = true
+python-versions = ">=3.4"
+
+[package.dependencies]
+decorator = ">=3.4.0"
+
+[package.extras]
+test = ["flake8 (>=2.4.0)", "isort (>=4.2.2)", "pytest (>=2.2.3)"]
+
+[[package]]
 name = "wcwidth"
 version = "0.2.6"
 description = "Measures the displayed width of unicode strings in a terminal"
 category = "dev"
 optional = false
 python-versions = "*"
+
+[[package]]
+name = "weaviate-client"
+version = "3.22.1"
+description = "A python native Weaviate client"
+category = "main"
+optional = true
+python-versions = ">=3.8"
+
+[package.dependencies]
+authlib = ">=1.1.0"
+requests = ">=2.28.0,<=2.31.0"
+tqdm = ">=4.59.0,<5.0.0"
+validators = ">=0.18.2,<=0.21.0"
+
+[package.extras]
+grpc = ["grpcio", "grpcio-tools"]
 
 [[package]]
 name = "werkzeug"
@@ -3849,6 +3891,7 @@ pyarrow = ["pyarrow"]
 redshift = ["psycopg2-binary", "psycopg2cffi"]
 s3 = ["s3fs", "boto3"]
 snowflake = ["snowflake-connector-python"]
+weaviate = ["weaviate-client"]
 
 [metadata]
 lock-version = "1.1"
@@ -4047,6 +4090,10 @@ atomicwrites = [
 attrs = [
     {file = "attrs-23.1.0-py3-none-any.whl", hash = "sha256:1f28b4522cdc2fb4256ac1a020c78acf9cba2c6b461ccd2c126f3aa8e8335d04"},
     {file = "attrs-23.1.0.tar.gz", hash = "sha256:6279836d581513a26f1bf235f9acd333bc9115683f14f7e8fae46c98fc50e015"},
+]
+authlib = [
+    {file = "Authlib-1.2.1-py2.py3-none-any.whl", hash = "sha256:c88984ea00149a90e3537c964327da930779afa4564e354edfd98410bea01911"},
+    {file = "Authlib-1.2.1.tar.gz", hash = "sha256:421f7c6b468d907ca2d9afede256f068f87e34d23dd221c07d13d4c234726afb"},
 ]
 babel = [
     {file = "Babel-2.12.1-py3-none-any.whl", hash = "sha256:b4246fb7677d3b98f501a39d43396d3cafdc8eadb045f4a31be01863f655c610"},
@@ -6614,9 +6661,16 @@ urllib3 = [
     {file = "urllib3-1.26.16-py2.py3-none-any.whl", hash = "sha256:8d36afa7616d8ab714608411b4a3b13e58f463aee519024578e062e141dce20f"},
     {file = "urllib3-1.26.16.tar.gz", hash = "sha256:8f135f6502756bde6b2a9b28989df5fbe87c9970cecaa69041edcce7f0589b14"},
 ]
+validators = [
+    {file = "validators-0.20.0.tar.gz", hash = "sha256:24148ce4e64100a2d5e267233e23e7afeb55316b47d30faae7eb6e7292bc226a"},
+]
 wcwidth = [
     {file = "wcwidth-0.2.6-py2.py3-none-any.whl", hash = "sha256:795b138f6875577cd91bba52baf9e445cd5118fd32723b460e30a0af30ea230e"},
     {file = "wcwidth-0.2.6.tar.gz", hash = "sha256:a5220780a404dbe3353789870978e472cfe477761f06ee55077256e509b156d0"},
+]
+weaviate-client = [
+    {file = "weaviate-client-3.22.1.tar.gz", hash = "sha256:aff61bd3f5d74df20a62328443e3aa9c860d5330fdfb19c4d8ddc44cb604032f"},
+    {file = "weaviate_client-3.22.1-py3-none-any.whl", hash = "sha256:01843a4899a227300e570409e77628e9d1b28476313f94943c37aee3f75112e1"},
 ]
 werkzeug = [
     {file = "Werkzeug-2.3.6-py3-none-any.whl", hash = "sha256:935539fa1413afbb9195b24880778422ed620c0fc09670945185cce4d91a8890"},
