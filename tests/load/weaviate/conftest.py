@@ -1,16 +1,9 @@
-from typing import Iterator
-
 import dlt
 from dlt.common.pipeline import PipelineContext
 
 import pytest
 
-from dlt.common.schema import Schema
 from dlt.common.configuration.container import Container
-from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
-from dlt.common.utils import uniq_id
-from dlt.destinations import weaviate
-from dlt.destinations.weaviate.weaviate import WeaviateClient
 
 @pytest.fixture(autouse=True)
 def drop_weaviate_schema() -> None:
