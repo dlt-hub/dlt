@@ -18,9 +18,9 @@ onto a [destination](../../dlt-ecosystem/destinations) of your choice.
 Resources that can be loaded using this verified source are:
 
 | Name             | Description                                                                      |
-| ---------------- | -------------------------------------------------------------------------------- |
-| github_reactions | retrieves all issues, pull requests, comments and reactions associated with them |
-| repo_events      | gets all the events repo events associated with the repository                   |
+| ---------------- |----------------------------------------------------------------------------------|
+| github_reactions | Retrieves all issues, pull requests, comments and reactions associated with them |
+| github_repo_events      | Gets all the events repo events associated with the repository                   |
 
 ## Setup Guide
 
@@ -102,7 +102,7 @@ For more information, read the
 1. Replace the API token value with the [previously copied one](#grab-credentials) to ensure secure
    access to your GitHub resources.
 
-1. Next, Follow the [destination documentation](../../dlt-ecosystem/destinations) instructions to
+1. Next, follow the [destination documentation](../../dlt-ecosystem/destinations) instructions to
    add credentials for your chosen destination, ensuring proper routing of your data to the final
    destination.
 
@@ -135,7 +135,7 @@ For more information, read the [Walkthrough: Run a pipeline.](../../walkthroughs
 ### Source `github_reactions`
 
 This `dlt.source` function uses GraphQL to fetch DltResource objects: issues and pull requests along
-with associated reactions (up to 100), comments (up to 100), and reactions to comments (up to 100).
+with associated reactions, comments, and reactions to comments.
 
 ```python
 @dlt.source
@@ -159,14 +159,14 @@ file.
 `items_per_page`: The number of issues/pull requests to retrieve in a single page. Defaults to 100.
 
 `max_items`: The maximum number of issues/pull requests to retrieve in total. If set to None, it
-means all items will be retrieved.
+means all items will be retrieved. Defaults to None.
 
 `max_item_age_seconds`: The feature to restrict retrieval of items older than a specific duration is
 yet to be implemented. Defaults to None.
 
 ### Resource `_get_reactions_data`
 
-The `dlt.resource` function employs the "\_get_reactions_data" method to retrieve data about issues,
+The `dlt.resource` function employs the `_get_reactions_data` method to retrieve data about issues,
 their associated comments, and subsequent reactions.
 
 ```python
@@ -182,6 +182,7 @@ dlt.resource(
     ),
     name="issues",
     write_disposition="replace",
+  ),
 ```
 
 > The credentials used are the same as those in the source function, github_reactions.
@@ -196,7 +197,9 @@ on event type. It loads new events only and appends them to tables.
 
 ```python
 @dlt.source(max_table_nesting=2)
-def github_repo_events(owner: str, name: str, access_token: str = None) -> DltResource:
+def github_repo_events(
+    owner: str, name: str, access_token: str = None
+) -> DltResource:
 ```
 
 `owner`: Refers to the owner of the repository.
@@ -206,18 +209,22 @@ def github_repo_events(owner: str, name: str, access_token: str = None) -> DltRe
 `access_token`: Optional classic or fine-grained access token. If not provided, calls are made
 anonymously.
 
+`max_table_nesting=2` sets the maximum nesting level of child tables to 2.
+
+Read more about [nesting levels](../../general-usage/source#reduce-the-nesting-level-of-generated-tables).
+
 ### Resource `repo_events`
 
-This `dlt.resource` function serves as the resource for the github_repo_events source. It yields
+This `dlt.resource` function serves as the resource for the `github_repo_events` source. It yields
 repository events as data items.
 
 ```python
 dlt.resource(primary_key="id", table_name=lambda i: i["type"])  # type: ignore
-    def repo_events(
-        last_created_at: dlt.sources.incremental[str] = dlt.sources.incremental(
-            "created_at", initial_value="1970-01-01T00:00:00Z", last_value_func=max
-        )
-    ) -> Iterator[TDataItems]:
+def repo_events(
+    last_created_at: dlt.sources.incremental[str] = dlt.sources.incremental(
+        "created_at", initial_value="1970-01-01T00:00:00Z", last_value_func=max
+    )
+) -> Iterator[TDataItems]:
 ```
 
 `primary_key`: Serves as the primary key, instrumental in preventing data duplication.
@@ -227,6 +234,8 @@ dlt.resource(primary_key="id", table_name=lambda i: i["type"])  # type: ignore
 `last_created_at`: This parameter determines the initial value for "last_created_at" in
 dlt.sources.incremental. If no value is given, the default "initial_value" is used. The function
 "last_value_func" determines the most recent 'created_at' value.
+
+Read more about [incremental loading](../../general-usage/incremental-loading#incremental-loading-with-last-value).
 
 ## Customization
 
@@ -252,15 +261,16 @@ verified source.
    the following:
 
    ```python
-   load_data = github_reactions( "duckdb", "duckdb")
+   load_data = github_reactions("duckdb", "duckdb")
    load_info = pipeline.run(load_data)
    print(load_info)
    ```
+   here, "duckdb" is the owner of the repository and the name of the repository.
 
 1. To load only the first 100 issues, you can do the following:
 
    ```python
-   load_data = github_reactions("duckdb", "duckdb", items_per_page=100, max_items=100).with_resources("issues")
+   load_data = github_reactions("duckdb", "duckdb", max_items=100).with_resources("issues")
    load_info = pipeline.run(load_data)
    print(load_info)
    ```
@@ -269,9 +279,9 @@ verified source.
    run and incrementally in subsequent runs.
 
    ```python
-   load_data = github_repo_events("duckdb", "duckdb", access_token="")
+   load_data = github_repo_events("duckdb", "duckdb", access_token=os.getenv(ACCESS_TOKEN))
    load_info = pipeline.run(load_data)
    print(load_info)
    ```
 
-   > It is optional to use access_token or make anonymous API calls.
+   It is optional to use access_token or make anonymous API calls.
