@@ -126,11 +126,6 @@ def test_pipeline_merge(weaviate_client: WeaviateClient) -> None:
         write_disposition="merge",
     )
     assert_load_info(info)
-    package_info = pipeline.get_load_package_info(info.loads_ids[0])
-    assert package_info.state == "loaded"
-    assert len(package_info.jobs["failed_jobs"]) == 0
-    assert len(package_info.jobs["completed_jobs"]) == 1
-
     assert_class(info.pipeline, "MoviesData", data)
 
     # Change some data

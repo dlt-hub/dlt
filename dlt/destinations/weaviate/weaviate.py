@@ -261,7 +261,7 @@ class WeaviateClient(JobClientBase):
             record = response["data"]["Get"][version_class_name][0]
         except IndexError:
             return None
-        return self._decode_schema(record)
+        return StorageSchemaInfo(**record)
 
     def make_weaviate_class_schema(self, table: TTableSchema) -> Dict[str, Any]:
         """Creates a Weaviate class schema from a table schema."""
@@ -393,17 +393,6 @@ class WeaviateClient(JobClientBase):
         }
 
         self.db_client.data_object.create(properties, version_class_name)
-
-    def _decode_schema(self, record: Dict[str, Any]) -> StorageSchemaInfo:
-        # schema_str = record["schema"]
-        return StorageSchemaInfo(**record)
-        #     version_hash=record["version_hash"],
-        #     schema_name=record["schema_name"],
-        #     version=record["version"],
-        #     engine_version=record["engine_version"],
-        #     inserted_at=ensure_pendulum_datetime(record["inserted_at"]),
-        #     schema=schema_str,
-        # )
 
     @staticmethod
     def _to_db_type(sc_t: TDataType) -> str:
