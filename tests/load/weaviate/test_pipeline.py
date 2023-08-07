@@ -33,7 +33,7 @@ def assert_class(pipeline: dlt.Pipeline, class_name: str, data: List[Any]) -> No
     assert_unordered_list_equal(objects_without_dlt_keys, data)
 
 
-def test_pipeline_append(weaviate_client: WeaviateClient) -> None:
+def test_pipeline_append() -> None:
     def sequence_generator():
         count = 1
         while True:
@@ -72,7 +72,7 @@ def test_pipeline_append(weaviate_client: WeaviateClient) -> None:
     assert_class(info.pipeline, "SomeData", data)
 
 
-def test_pipeline_merge(weaviate_client: WeaviateClient) -> None:
+def test_pipeline_merge() -> None:
     data = [
         {
             "doc_id": 1,
