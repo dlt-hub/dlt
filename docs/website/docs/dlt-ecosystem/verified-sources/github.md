@@ -164,7 +164,7 @@ means all items will be retrieved. Defaults to None.
 `max_item_age_seconds`: The feature to restrict retrieval of items older than a specific duration is
 yet to be implemented. Defaults to None.
 
-### Resource `_get_reactions_data`
+### Resource `_get_reactions_data` ("issues")
 
 The `dlt.resource` function employs the `_get_reactions_data` method to retrieve data about issues,
 their associated comments, and subsequent reactions.
@@ -182,10 +182,8 @@ dlt.resource(
     ),
     name="issues",
     write_disposition="replace",
-  ),
+),
 ```
-
-> The credentials used are the same as those in the source function, github_reactions.
 
 ### Source `github_repo_events`
 
@@ -270,8 +268,8 @@ verified source.
 1. To load only the first 100 issues, you can do the following:
 
    ```python
-   load_data = github_reactions("duckdb", "duckdb", max_items=100).with_resources("issues")
-   load_info = pipeline.run(load_data)
+   load_data = github_reactions("duckdb", "duckdb", max_items=100)
+   load_info = pipeline.run(load_data.with_resources("issues"))
    print(load_info)
    ```
 
@@ -279,9 +277,11 @@ verified source.
    run and incrementally in subsequent runs.
 
    ```python
-   load_data = github_repo_events("duckdb", "duckdb", access_token=os.getenv(ACCESS_TOKEN))
+   load_data = github_repo_events(
+       "duckdb", "duckdb", access_token=os.getenv(ACCESS_TOKEN)
+   )
    load_info = pipeline.run(load_data)
    print(load_info)
    ```
 
-   It is optional to use access_token or make anonymous API calls.
+   It is optional to use `access_token` or make anonymous API calls.
