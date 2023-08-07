@@ -1,4 +1,8 @@
 from typing import Iterator
+
+import dlt
+from dlt.common.pipeline import PipelineContext
+
 import pytest
 
 from dlt.common.schema import Schema
@@ -8,19 +12,19 @@ from dlt.common.utils import uniq_id
 from dlt.destinations import weaviate
 from dlt.destinations.weaviate.weaviate import WeaviateClient
 
+@pytest.fixture(autouse=True)
+def drop_weaviate_schema() -> None:
+    yield
+    drop_active_pipeline_data()
 
-def get_client_instance(schema: Schema) -> WeaviateClient:
-    config = weaviate.spec()()
-    with Container().injectable_context(ConfigSectionContext(sections=('weaviate',))):
-        return weaviate.client(schema, config)  # type: ignore[return-value]
 
+def drop_active_pipeline_data() -> None:
+    if Container()[PipelineContext].is_active():
+        # take existing pipeline
+        p = dlt.pipeline()
+        db_client = p._destination_client().db_client
+        db_client.schema.delete_all()
 
-@pytest.fixture(scope='function')
-def weaviate_client() -> Iterator[WeaviateClient]:
-    schema = Schema('test_schema')
-    _client = get_client_instance(schema)
-    try:
-        yield _client
-    finally:
-        pass
-        _client.db_client.schema.delete_all()
+        p._wipe_working_folder()
+        # deactivate context
+        Container()[PipelineContext].deactivate()
