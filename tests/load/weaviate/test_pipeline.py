@@ -78,6 +78,44 @@ def test_pipeline_append() -> None:
     assert_class(info.pipeline, "SomeData", data)
 
 
+def test_explicit_append() -> None:
+    """Append should work even when primary key is specified."""
+    data = [
+        {"doc_id": 1, "content": "1"},
+        {"doc_id": 2, "content": "2"},
+        {"doc_id": 3, "content": "3"},
+    ]
+
+    @dlt.resource(primary_key="doc_id")
+    def some_data():
+        yield data
+
+    weaviate_adapter(
+        some_data,
+        vectorize=["content"],
+    )
+
+    pipeline = dlt.pipeline(
+        pipeline_name="test_pipeline_append",
+        destination="weaviate",
+        dataset_name="test_pipeline_append_dataset",
+    )
+    info = pipeline.run(
+        some_data(),
+    )
+
+    assert_class(info.pipeline, "SomeData", data)
+
+    info = pipeline.run(
+        some_data(),
+        write_disposition="append",
+    )
+    assert_load_info(info)
+
+    data.extend(data)
+    assert_class(info.pipeline, "SomeData", data)
+
+
 def test_pipeline_replace() -> None:
     generator_instance1 = sequence_generator()
     generator_instance2 = sequence_generator()
