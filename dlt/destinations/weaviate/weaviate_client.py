@@ -3,7 +3,11 @@ from types import TracebackType
 from typing import ClassVar, Optional, Sequence, List, Dict, Type, Iterable, Any, IO
 
 from dlt.common.time import ensure_pendulum_datetime
-from dlt.common.exceptions import DestinationUndefinedEntity, DestinationTransientException, DestinationTerminalException
+from dlt.common.exceptions import (
+    DestinationUndefinedEntity,
+    DestinationTransientException,
+    DestinationTerminalException,
+)
 
 import weaviate
 from weaviate.util import generate_uuid5
@@ -66,16 +70,17 @@ def table_name_to_class_name(table_name: str) -> str:
 
 
 def wrap_weaviate_error(f: TFun) -> TFun:
-
     @wraps(f)
     def _wrap(self: JobClientBase, *args: Any, **kwargs: Any) -> Any:
         try:
             return f(self, *args, **kwargs)
         # those look like terminal exceptions
-        except (weaviate.exceptions.ObjectAlreadyExistsException,
-                weaviate.exceptions.ObjectAlreadyExistsException,
-                weaviate.exceptions.SchemaValidationException,
-                weaviate.exceptions.WeaviateEmbeddedInvalidVersion) as term_ex:
+        except (
+            weaviate.exceptions.ObjectAlreadyExistsException,
+            weaviate.exceptions.ObjectAlreadyExistsException,
+            weaviate.exceptions.SchemaValidationException,
+            weaviate.exceptions.WeaviateEmbeddedInvalidVersion,
+        ) as term_ex:
             print(term_ex)
             raise DestinationTerminalException(term_ex) from term_ex
         except weaviate.exceptions.UnexpectedStatusCodeException as status_ex:
@@ -114,32 +119,41 @@ class LoadWeaviateJob(LoadJob):
         with FileStorage.open_zipsafe_ro(local_path) as f:
             self.load_batch(f)
 
-
     @wrap_weaviate_error
     def load_batch(self, f: IO[str]) -> None:
-        """load all the lines from stream `f` in automatic Weaviate batches. Weaviate batch supports retries so we do not need to do that."""
+        """Load all the lines from stream `f` in automatic Weaviate batches.
+        Weaviate batch supports retries so we do not need to do that.
+        """
 
         def check_batch_result(results: dict):
             """This kills batch on first error reported"""
             if results is not None:
                 for result in results:
-                    if 'result' in result and 'errors' in result['result']:
-                        if 'error' in result['result']['errors']:
-                            raise DestinationTransientException(f'Batch failed {result["result"]["errors"]}')
+                    if "result" in result and "errors" in result["result"]:
+                        if "error" in result["result"]["errors"]:
+                            raise DestinationTransientException(
+                                f'Batch failed {result["result"]["errors"]}'
+                            )
 
         with self.db_client.batch(
             batch_size=self.client_config.batch_size,
             timeout_retries=self.client_config.batch_retries,
             connection_error_retries=self.client_config.batch_retries,
-            weaviate_error_retries=weaviate.WeaviateErrorRetryConf(self.client_config.batch_retries),
-            consistency_level=weaviate.ConsistencyLevel[self.client_config.batch_consistency],
+            weaviate_error_retries=weaviate.WeaviateErrorRetryConf(
+                self.client_config.batch_retries
+            ),
+            consistency_level=weaviate.ConsistencyLevel[
+                self.client_config.batch_consistency
+            ],
             num_workers=self.client_config.batch_workers,
-            callback=check_batch_result
+            callback=check_batch_result,
         ) as batch:
             for line in f:
                 data = json.loads(line)
                 if self.unique_identifiers:
-                    uuid = self.generate_uuid(data, self.unique_identifiers, self.class_name)
+                    uuid = self.generate_uuid(
+                        data, self.unique_identifiers, self.class_name
+                    )
                 else:
                     uuid = None
 
