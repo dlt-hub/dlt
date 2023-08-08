@@ -2,7 +2,6 @@ from functools import wraps
 from types import TracebackType
 from typing import ClassVar, Optional, Sequence, List, Dict, Type, Iterable, Any, IO
 
-from dlt.common.time import ensure_pendulum_datetime
 from dlt.common.exceptions import (
     DestinationUndefinedEntity,
     DestinationTransientException,
