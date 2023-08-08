@@ -7,7 +7,7 @@ from dlt.common.normalizers.naming.naming import NamingConvention as BaseNamingC
 
 class NamingConvention(BaseNamingConvention):
 
-    _RE_UNDERSCORES = re.compile("_+")
+    _RE_UNDERSCORES = re.compile("__+")
     _RE_LEADING_DIGITS = re.compile(r"^\d+")
     # _RE_ENDING_UNDERSCORES = re.compile(r"_+$")
     _RE_NON_ALPHANUMERIC = re.compile(r"[^a-zA-Z\d_]+")
