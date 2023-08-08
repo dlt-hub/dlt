@@ -1,6 +1,17 @@
 from functools import wraps
 from types import TracebackType
-from typing import ClassVar, Optional, Sequence, List, Dict, Type, Iterable, Any, IO
+from typing import (
+    ClassVar,
+    Optional,
+    Sequence,
+    List,
+    Dict,
+    Type,
+    Iterable,
+    Any,
+    IO,
+    Tuple,
+)
 
 from dlt.common.exceptions import (
     DestinationUndefinedEntity,
@@ -13,8 +24,13 @@ from weaviate.util import generate_uuid5
 
 from dlt.common import json, pendulum, logger
 from dlt.common.typing import TFun
-from dlt.common.schema import Schema, TTableSchema, TSchemaTables
-from dlt.common.schema.typing import VERSION_TABLE_NAME, LOADS_TABLE_NAME, TColumnSchema
+from dlt.common.schema import Schema, TTableSchema, TSchemaTables, TTableSchemaColumns
+from dlt.common.schema.typing import (
+    VERSION_TABLE_NAME,
+    LOADS_TABLE_NAME,
+    TColumnSchema,
+    TColumnSchemaBase,
+)
 from dlt.common.schema.utils import get_columns_names_with_prop
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
@@ -42,6 +58,15 @@ SCT_TO_WT: Dict[TDataType, str] = {
     "date": "date",
     "bigint": "int",
     "binary": "blob",
+}
+
+WT_TO_SCT: Dict[str, TDataType] = {
+    "text": "text",
+    "number": "double",
+    "boolean": "bool",
+    "date": "timestamp",
+    "int": "bigint",
+    "blob": "binary",
 }
 
 
@@ -244,11 +269,45 @@ class WeaviateClient(JobClientBase):
 
     def _execute_schema_update(self, only_tables: Iterable[str]) -> None:
         for table_name in only_tables or self.schema.tables:
-            table = self.schema.tables[table_name]
-            class_schema = self.make_weaviate_class_schema(table)
-
-            self.db_client.schema.create_class(class_schema)
+            exists, existing_columns = self.get_storage_table(table_name)
+            new_columns = self.schema.get_new_table_columns(
+                table_name, existing_columns
+            )
+            logger.info(
+                f"Found {len(new_columns)} updates for {table_name} in {self.schema.name}"
+            )
+            if len(new_columns) > 0:
+                if exists:
+                    class_name = table_name_to_class_name(table_name)
+                    for column in new_columns:
+                        prop = self._make_property_schema(column['name'], column, True)
+                        self.db_client.schema.property.create(
+                            class_name, prop
+                        )
+                else:
+                    table = self.schema.tables[table_name]
+                    class_schema = self.make_weaviate_class_schema(table)
+                    self.db_client.schema.create_class(class_schema)
         self._update_schema_in_storage(self.schema)
+
+    def get_storage_table(self, table_name: str) -> Tuple[bool, TTableSchemaColumns]:
+        class_name = table_name_to_class_name(table_name)
+        table_schema: TTableSchemaColumns = {}
+        try:
+            class_schema = self.db_client.schema.get(class_name)
+        except weaviate.exceptions.UnexpectedStatusCodeException as e:
+            if e.status_code == 404:
+                return False, table_schema
+            raise
+
+        # Convert Weaviate class schema to dlt table schema
+        for prop in class_schema["properties"]:
+            schema_c: TColumnSchemaBase = {
+                "name": prop["name"],
+                "data_type": self._from_db_type(prop["dataType"][0]),
+            }
+            table_schema[prop["name"]] = schema_c
+        return True, table_schema
 
     def get_schema_by_hash(self, schema_hash: str) -> Optional[StorageSchemaInfo]:
         version_class_name = table_name_to_class_name(VERSION_TABLE_NAME)
@@ -422,3 +481,7 @@ class WeaviateClient(JobClientBase):
     @staticmethod
     def _to_db_type(sc_t: TDataType) -> str:
         return SCT_TO_WT[sc_t]
+
+    @staticmethod
+    def _from_db_type(wt_t: str) -> TDataType:
+        return WT_TO_SCT[wt_t]
