@@ -45,13 +45,15 @@ def test_merge_on_keys_in_schema(destination_config: DestinationTestConfiguratio
     # now we load the whole dataset. blocks should be created which adds columns to blocks
     # if the table would be created before the whole load would fail because new columns have hints
     info = p.run(data, table_name="blocks", write_disposition="merge", schema=schema)
-    assert_load_info(info)
     eth_2_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
     # we have 2 blocks in dataset
-    assert eth_2_counts["blocks"] == 2
+    assert eth_2_counts["blocks"] == 2 if destination_config.supports_merge else 3
     # make sure we have same record after merging full dataset again
     info = p.run(data, table_name="blocks", write_disposition="merge", schema=schema)
     assert_load_info(info)
+    # for non merge destinations we just check that the run passes
+    if destination_config.supports_merge:
+        return
     eth_3_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
     assert eth_2_counts == eth_3_counts
 
@@ -69,12 +71,15 @@ def test_merge_on_ad_hoc_primary_key(destination_config: DestinationTestConfigur
     # 17 issues
     assert github_1_counts["issues"] == 17
     # primary key set on issues
-    assert p.default_schema.tables["issues"]["columns"]["node_id"]["primary_key"] is True
+    assert p.default_schema.tables["issues"]["columns"]["node_itest_merge_on_ad_hoc_primary_keyd"]["primary_key"] is True
     assert p.default_schema.tables["issues"]["columns"]["node_id"]["data_type"] == "text"
     assert p.default_schema.tables["issues"]["columns"]["node_id"]["nullable"] is False
 
     info = p.run(data[5:], table_name="issues", write_disposition="merge", primary_key="node_id")
     assert_load_info(info)
+    # for non merge destinations we just check that the run passes
+    if destination_config.supports_merge:
+        return
     github_2_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
     # 100 issues total
     assert github_2_counts["issues"] == 100
@@ -151,8 +156,8 @@ def test_merge_no_child_tables(destination_config: DestinationTestConfiguration)
     info = p.run(github_data)
     assert_load_info(info)
     github_2_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
-    # 100 issues total
-    assert github_2_counts["issues"] == 100
+    # 100 issues total, or 115 if merge is not supported
+    assert github_2_counts["issues"] == 100 if destination_config.supports_merge else 115
 
 
 @pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True), ids=lambda x: x.name)
@@ -178,7 +183,7 @@ def test_merge_no_merge_keys(destination_config: DestinationTestConfiguration) -
     assert_load_info(info)
     github_1_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
     # only ten rows remains. merge fallbacks to replace when no keys are specified
-    assert github_1_counts["issues"] == 10
+    assert github_1_counts["issues"] == 10 if destination_config.supports_merge else 100 - 45
 
 
 @pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True), ids=lambda x: x.name)

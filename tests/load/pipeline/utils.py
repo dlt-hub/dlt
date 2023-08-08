@@ -27,6 +27,7 @@ class DestinationTestConfiguration:
     stage_name: Optional[str] = None
     staging_iam_role: Optional[str] = None
     extra_info: Optional[str] = None
+    supports_merge: bool = True
 
     @property
     def name(self) -> str:
@@ -78,7 +79,7 @@ def destinations_configs(
     if default_configs:
         destination_configs += [DestinationTestConfiguration(destination=destination) for destination in ALL_DESTINATIONS if destination != "athena"]
         # athena needs filesystem staging, so add it separately
-        destination_configs += [DestinationTestConfiguration(destination="athena", staging="filesystem", bucket_url=AWS_BUCKET)]
+        destination_configs += [DestinationTestConfiguration(destination="athena", staging="filesystem", supports_merge=False, bucket_url=AWS_BUCKET)]
 
 
     if default_staging_configs or all_staging_configs:
