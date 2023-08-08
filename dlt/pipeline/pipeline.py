@@ -381,7 +381,6 @@ class Pipeline(SupportsPipeline):
             self.first_run = False
             return info
         except Exception as l_ex:
-            raise l_ex
             raise PipelineStepFailed(self, "load", l_ex, self._get_load_info(load)) from l_ex
 
     @with_runtime_trace

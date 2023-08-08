@@ -1,5 +1,7 @@
 import pytest
+from tests.utils import ALL_DESTINATIONS
 
 
-pytest.importorskip("dlt.destinations.redshift.redshift", reason="redshift dependencies are not installed")
+if 'redshift' not in ALL_DESTINATIONS:
+    pytest.skip("redshift not configured", allow_module_level=True)
 

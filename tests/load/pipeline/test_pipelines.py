@@ -18,11 +18,10 @@ from dlt.pipeline.exceptions import CannotRestorePipelineException, PipelineConf
 from dlt.common.schema.exceptions import CannotCoerceColumnException
 from dlt.common.exceptions import DestinationHasFailedJobs
 
-from tests.utils import ALL_DESTINATIONS, TEST_STORAGE_ROOT, ALL_DESTINATIONS_SUBSET
+from tests.utils import ALL_DESTINATIONS, TEST_STORAGE_ROOT, ALL_DESTINATIONS_SUBSET, preserve_environ
 from tests.pipeline.utils import assert_load_info
 from tests.load.utils import TABLE_ROW_ALL_DATA_TYPES, TABLE_UPDATE_COLUMNS_SCHEMA, assert_all_data_types_row, delete_dataset
-from tests.load.pipeline.utils import drop_active_pipeline_data, assert_query_data, assert_table, load_table_counts, select_data
-from tests.load.utils import AWS_BUCKET
+from tests.load.pipeline.utils import drop_active_pipeline_data, assert_query_data, assert_table, load_table_counts, select_data, any_destination
 from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
 
 @pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True, all_buckets_filesystem_configs=True), ids=lambda x: x.name)
@@ -367,6 +366,9 @@ def test_pipeline_explicit_destination_credentials(destination_config: Destinati
     c = p._get_destination_client(Schema("s"), p._get_destination_client_initial_config())
     assert c.config.credentials.host == "localhost"
 
+    # Remove connection string in CI to start with clean environ
+    # TODO: may want to clear the env completely and ignore/mock config files somehow to avoid side effects
+    os.environ.pop("DESTINATION__POSTGRES__CREDENTIALS", None)
     # explicit credentials resolved ignoring the config providers
     os.environ["DESTINATION__POSTGRES__CREDENTIALS__HOST"] = "HOST"
     p = dlt.pipeline(destination="postgres", credentials="postgresql://loader:loader@localhost:5432/dlt_data")
@@ -375,6 +377,7 @@ def test_pipeline_explicit_destination_credentials(destination_config: Destinati
 
     # explicit partial credentials will use config providers
     os.environ["DESTINATION__POSTGRES__CREDENTIALS__USERNAME"] = "UN"
+    os.environ["DESTINATION__POSTGRES__CREDENTIALS__PASSWORD"] = "PW"
     p = dlt.pipeline(destination="postgres", credentials="postgresql://localhost:5432/dlt_data")
     c = p._get_destination_client(Schema("s"), p._get_destination_client_initial_config())
     assert c.config.credentials.username == "UN"

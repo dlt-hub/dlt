@@ -294,7 +294,7 @@ which we bind the endpoint: **dlt.resource(...)(endpoint)**.
 > is created. That prevents `dlt` from controlling the **created** argument during runtime and will
 > result in `IncrementalUnboundError` exception.
 
-### Using `dlt.sources.incremental` for backloading
+### Using `dlt.sources.incremental` for backfill
 You can specify both initial and end dates when defining incremental loading. Let's go back to our Github example:
 ```python
 @dlt.resource(primary_key="id")
@@ -311,9 +311,9 @@ Above we use `initial_value` and `end_value` arguments of the `incremental` to d
 and pass this range to the Github API (`since` and `until`). As in the examples above, `dlt` will make sure that only the issues from
 defined range are returned.
 
-Please note that when `end_date` is specified, `dlt` **will not modify the existing incremental state**. The backloading is **stateless** and:
-1. You can run backloading and incremental load in parallel (ie. in Airflow DAG) in a single pipeline.
-2. You can partition your backloading into several smaller chunks and run them in parallel as well.
+Please note that when `end_date` is specified, `dlt` **will not modify the existing incremental state**. The backfill is **stateless** and:
+1. You can run backfill and incremental load in parallel (ie. in Airflow DAG) in a single pipeline.
+2. You can partition your backfill into several smaller chunks and run them in parallel as well.
 
 To define specific ranges to load, you can simply override the incremental argument in the resource, for example:
 
@@ -332,6 +332,99 @@ august_issues = repo_issues(
 ```
 
 Note that `dlt`'s incremental filtering considers the ranges half closed. `initial_value` is inclusive, `end_value` is exclusive, so chaining ranges like above works without overlaps.
+
+### Using Airflow schedule for backfill and incremental loading
+When [running in Airflow task](../walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer.md#2-modify-dag-file), you can opt-in your resource to get the `initial_value`/`start_value` and `end_value` from Airflow schedule associated with your DAG. Let's assume that **Zendesk tickets** resource contains a year of data with thousands of tickets. We want to backfill the last year of data week by week and then continue incremental loading daily.
+```python
+@dlt.resource(primary_key="id")
+def tickets(
+    zendesk_client,
+    updated_at=dlt.sources.incremental[int](
+        "updated_at",
+        allow_external_schedulers=True
+    ),
+):
+    for page in zendesk_client.get_pages(
+        "/api/v2/incremental/tickets", "tickets", start_time=updated_at.last_value
+    ):
+        yield page
+```
+We opt-in to Airflow scheduler by setting `allow_external_schedulers` to `True`:
+1. When running on Airflow, the start and end values are controlled by Airflow and `dlt` [state](state.md) is not used.
+2. In all other environments, the `incremental` behaves as usual, maintaining `dlt` state.
+
+Let's generate a deployment with `dlt deploy zendesk_pipeline.py airflow-composer` and customize the dag:
+```python
+@dag(
+    schedule_interval='@weekly',
+    start_date=pendulum.datetime(2023, 2, 1),
+    end_date=pendulum.datetime(2023, 8, 1),
+    catchup=True,
+    max_active_runs=1,
+    default_args=default_task_args
+)
+def zendesk_backfill_bigquery():
+    tasks = PipelineTasksGroup("zendesk_support_backfill", use_data_folder=False, wipe_local_data=True)
+
+    # import zendesk like in the demo script
+    from zendesk import zendesk_support
+
+    pipeline = dlt.pipeline(
+        pipeline_name="zendesk_support_backfill",
+        dataset_name="zendesk_support_data",
+        destination='bigquery',
+    )
+    # select only incremental endpoints in support api
+    data = zendesk_support().with_resources("tickets", "ticket_events", "ticket_metric_events")
+    # create the source, the "serialize" decompose option will converts dlt resources into Airflow tasks. use "none" to disable it
+    tasks.add_run(pipeline, data, decompose="serialize", trigger_rule="all_done", retries=0, provide_context=True)
+
+
+zendesk_backfill_bigquery()
+```
+What got customized:
+1. We use weekly schedule, and want to get the data from February 2023 (`start_date`) until end of July ('end_date').
+2. We make Airflow to generate all weekly runs (`catchup` is True).
+2. We create `zendesk_support` resources where we select only the incremental resources we want to backfill.
+
+When you enable the DAG in Airflow, it will generate several runs and start executing them, starting in February and ending in August. Your resource will receive
+subsequent weekly intervals starting with `2023-02-12, 00:00:00 UTC` to `2023-02-19, 00:00:00 UTC`.
+
+You can repurpose the DAG above to start loading new data incrementally after (or during) the backfill:
+```python
+@dag(
+    schedule_interval='@daily',
+    start_date=pendulum.datetime(2023, 2, 1),
+    catchup=False,
+    max_active_runs=1,
+    default_args=default_task_args
+)
+def zendesk_new_bigquery():
+    tasks = PipelineTasksGroup("zendesk_support_new", use_data_folder=False, wipe_local_data=True)
+
+    # import your source from pipeline script
+    from zendesk import zendesk_support
+
+    pipeline = dlt.pipeline(
+        pipeline_name="zendesk_support_new",
+        dataset_name="zendesk_support_data",
+        destination='bigquery',
+    )
+    tasks.add_run(pipeline, zendesk_support(), decompose="serialize", trigger_rule="all_done", retries=0, provide_context=True)
+```
+Above, we switch to daily schedule and disable catchup and end date. We also load all the support resources to the same dataset as backfill (`zendesk_support_data`).
+If you want to run this DAG parallel with the backfill DAG, change the pipeline name ie. to `zendesk_support_new` as above.
+
+**Under the hood**
+Before `dlt` starts executing incremental resources, it looks for `data_interval_start` and `data_interval_end` Airflow task context variables. Those got mapped to `initial_value` and `end_value` of the
+`Incremental` class:
+1. `dlt` is smart enough to convert Airflow datetime to iso strings or unix timestamps if your resource is using them. In our example we instantiate `updated_at=dlt.sources.incremental[int]`, where we declare the last value type to be **int**. `dlt` can also infer type if you provide `initial_value` argument.
+2. If `data_interval_end` is in the future or is None, `dlt` sets the `end_value` to **now**.
+3. If  `data_interval_start` == `data_interval_end` we have a manually triggered DAG run. In that case `data_interval_end` will also be set to **now**.
+
+**Manual runs**
+You can run DAGs manually but you must remember to specify the Airflow logical date of the run in the past (use Run with config option). For such run `dlt` will load all data from that past date until now.
+If you do not specify the past date, a run with a range (now, now) will happen yielding no data.
 
 ### Using `start/end_out_of_range` flags with incremental resources
 
@@ -357,7 +450,7 @@ than the given `end_value` in no particular order, the `end_out_of_range` flag c
 The github events example above demonstrates how to use `start_out_of_range` as a stop condition.
 This approach works in any case where the API returns items in descending order and we're incrementally loading newer data.
 
-In the same fashion the `end_out_of_range` filter can be used to optimize backloading so we don't continue
+In the same fashion the `end_out_of_range` filter can be used to optimize backfill so we don't continue
 making unnecessary API requests after the end of range is reached. For example:
 
 ```python
@@ -381,7 +474,7 @@ def tickets(
 ```
 
 In this example we're loading tickets from Zendesk. The Zendesk API yields items paginated and ordered by oldest to newest,
-but only offers a `start_time` parameter for filtering. The incremental `end_out_of_range` flag is set on the first item which 
+but only offers a `start_time` parameter for filtering. The incremental `end_out_of_range` flag is set on the first item which
 has a timestamp equal or higher than `end_value`. All subsequent items get filtered out so there's no need to request more data.
 
 ## Doing a full refresh

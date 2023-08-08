@@ -1,3 +1,6 @@
 import pytest
 
-pytest.importorskip("dlt.destinations.postgres.postgres", reason="postgres dependencies not installed")
+from tests.utils import ALL_DESTINATIONS
+
+if 'postgres' not in ALL_DESTINATIONS:
+    pytest.skip("postgres not configured", allow_module_level=True)

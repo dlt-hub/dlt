@@ -20,8 +20,6 @@ from tests.utils import TEST_STORAGE_ROOT, autouse_test_storage, skipifpypy, ALL
 from tests.load.utils import expect_load_file, prepare_table, yield_client_with_storage
 
 
-pytestmark = pytest.mark.skipif('redshift' not in ALL_DESTINATIONS, reason="Redshift not configured")
-
 
 @pytest.fixture
 def file_storage() -> FileStorage:

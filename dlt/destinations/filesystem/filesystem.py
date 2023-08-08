@@ -27,8 +27,6 @@ class LoadFilesystemJob(LoadJob):
             dataset_path: str,
             *,
             config: FilesystemClientConfiguration,
-            write_disposition: TWriteDisposition,
-            has_merge_keys: bool,
             schema_name: str,
             load_id: str
     ) -> None:
@@ -121,13 +119,10 @@ class FilesystemClient(JobClientBase):
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         cls = FollowupFilesystemJob if self.config.as_staging else LoadFilesystemJob
-        has_merge_keys = any(col['merge_key'] or col['primary_key'] for col in table['columns'].values())
         return cls(
             file_path,
             self.dataset_path,
             config=self.config,
-            write_disposition=table['write_disposition'],
-            has_merge_keys=has_merge_keys,
             schema_name=self.schema.name,
             load_id=load_id
         )

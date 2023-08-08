@@ -8,7 +8,7 @@ from dlt.common.exceptions import DictValidationException
 from dlt.common.schema.typing import TStoredSchema, TColumnSchema
 from dlt.common.schema.utils import simple_regex_validator
 from dlt.common.typing import DictStrStr, StrStr
-from dlt.common.validation import validate_dict
+from dlt.common.validation import validate_dict, validate_dict_ignoring_xkeys
 
 TLiteral = Literal["uno", "dos", "tres"]
 
@@ -86,7 +86,12 @@ def test_validate_schema_cases() -> None:
     with open("tests/common/cases/schemas/eth/ethereum_schema_v4.yml", mode="r", encoding="utf-8") as f:
         schema_dict: TStoredSchema = yaml.safe_load(f)
 
-    validate_dict(TStoredSchema, schema_dict, ".", lambda k: not k.startswith("x-"), simple_regex_validator)
+    validate_dict_ignoring_xkeys(
+        spec=TStoredSchema,
+        doc=schema_dict,
+        path=".",
+        validator_f=simple_regex_validator
+    )
 
     # with open("tests/common/cases/schemas/rasa/event.schema.json") as f:
     #     schema_dict: TStoredSchema = json.load(f)

@@ -8,7 +8,8 @@ from dlt.destinations.motherduck.configuration import MotherDuckCredentials, Mot
 from tests.utils import patch_home_dir, preserve_environ, ALL_DESTINATIONS
 
 
-pytestmark = pytest.mark.skipif("motherduck" not in ALL_DESTINATIONS, reason="motherduck is not configured")
+if 'motherduck' not in ALL_DESTINATIONS:
+    pytest.skip("motherduck is not configured", allow_module_level=True)
 
 
 def test_motherduck_database() -> None:
