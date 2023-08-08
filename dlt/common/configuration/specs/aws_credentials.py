@@ -28,6 +28,7 @@ class AwsCredentialsWithoutDefaults(CredentialsConfiguration):
         """Return a dict that can be passed as kwargs to boto3 session"""
         d = dict(self)
         d['profile_name'] = d.pop('aws_profile')  # boto3 argument doesn't match env var name
+        d['region_name'] = d.pop('aws_region', None)  # boto3 argument doesn't match env var name
         return d
 
 

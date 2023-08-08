@@ -93,12 +93,11 @@ class AthenaSQLClient(SqlClientBase[Connection]):
 
     @raise_open_connection_error
     def open_connection(self) -> Connection:
+        native_credentials = self.config.credentials.to_native_representation()
         self._conn = connect(
             schema_name=self.dataset_name,
             s3_staging_dir=self.config.query_result_bucket,
-            region_name=self.config.credentials.aws_region,
-            aws_access_key_id=self.config.credentials.aws_access_key_id,
-            aws_secret_access_key=self.config.credentials.aws_secret_access_key)
+            **native_credentials)
         return self._conn
 
     def close_connection(self) -> None:
