@@ -21,6 +21,6 @@ def drop_active_pipeline_data() -> None:
         # TODO: drop only the dataset otherwise you destroy data for all parallel tests
         db_client.schema.delete_all()
 
-        # p._wipe_working_folder()
+        p._wipe_working_folder()
         # deactivate context
         Container()[PipelineContext].deactivate()

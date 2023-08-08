@@ -114,13 +114,13 @@ def test_explicit_append() -> None:
     pipeline = dlt.pipeline(
         pipeline_name="test_pipeline_append",
         destination="weaviate",
-        dataset_name="test_pipeline_append_dataset",
+        dataset_name="TestPipelineAppendDataset",
     )
     info = pipeline.run(
         some_data(),
     )
 
-    assert_class(info.pipeline, "SomeData", data)
+    assert_class(info.pipeline, "SomeData", pipeline.default_schema.tables["SomeData"], items=data)
 
     info = pipeline.run(
         some_data(),
@@ -129,7 +129,7 @@ def test_explicit_append() -> None:
     assert_load_info(info)
 
     data.extend(data)
-    assert_class(info.pipeline, "SomeData", data)
+    assert_class(info.pipeline, "SomeData", pipeline.default_schema.tables["SomeData"], items=data)
 
 
 def test_pipeline_replace() -> None:
@@ -248,13 +248,13 @@ def test_pipeline_with_schema_evolution():
     pipeline = dlt.pipeline(
         pipeline_name="test_pipeline_append",
         destination="weaviate",
-        dataset_name="test_schema_evolution_dataset",
+        dataset_name="TestSchemaEvolutionDataset",
     )
     info = pipeline.run(
         some_data(),
     )
 
-    assert_class(info.pipeline, "SomeData", data)
+    assert_class(info.pipeline, "SomeData", pipeline.default_schema.tables["SomeData"], items=data)
 
     aggregated_data = data.copy()
 
@@ -275,11 +275,14 @@ def test_pipeline_with_schema_evolution():
         some_data(),
     )
 
+    table_schema = pipeline.default_schema.tables["SomeData"]
+    assert "new_column" in table_schema["columns"]
+
     aggregated_data.extend(data)
     aggregated_data[0]["new_column"] = None
     aggregated_data[1]["new_column"] = None
 
-    assert_class(info.pipeline, "SomeData", aggregated_data)
+    assert_class(info.pipeline, "SomeData", pipeline.default_schema.tables["SomeData"], items=aggregated_data)
 
 
 def test_merge_github_nested() -> None:

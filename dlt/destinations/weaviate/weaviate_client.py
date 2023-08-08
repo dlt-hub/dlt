@@ -24,8 +24,8 @@ from weaviate.util import generate_uuid5
 
 from dlt.common import json, pendulum, logger
 from dlt.common.typing import TFun
-from dlt.common.schema import Schema, TTableSchema, TSchemaTables
-from dlt.common.schema.typing import TColumnSchema
+from dlt.common.schema import Schema, TTableSchema, TSchemaTables, TTableSchemaColumns
+from dlt.common.schema.typing import TColumnSchema, TColumnSchemaBase
 from dlt.common.schema.utils import get_columns_names_with_prop
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
@@ -44,6 +44,8 @@ from dlt.destinations.weaviate.configuration import WeaviateClientConfiguration
 
 from dlt.destinations.weaviate.exceptions import WeaviateBatchError
 
+from dlt.common.time import ensure_pendulum_datetime
+
 
 SCT_TO_WT: Dict[TDataType, str] = {
     "text": "text",
@@ -56,6 +58,15 @@ SCT_TO_WT: Dict[TDataType, str] = {
     "decimal": "text",
     "wei": "number",
     "complex": "text"
+}
+
+WT_TO_SCT: Dict[str, TDataType] = {
+    "text": "text",
+    "number": "double",
+    "boolean": "bool",
+    "date": "timestamp",
+    "int": "bigint",
+    "blob": "binary",
 }
 
 def table_name_to_class_name(table_name: str) -> str:
@@ -145,7 +156,7 @@ class LoadWeaviateJob(LoadJob):
         """
 
         @wrap_batch_error
-        def check_batch_result(results: dict):
+        def check_batch_result(results: Dict[str, Any]) -> None:
             """This kills batch on first error reported"""
             if results is not None:
                 for result in results:
