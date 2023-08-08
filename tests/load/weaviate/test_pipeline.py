@@ -78,6 +78,43 @@ def test_pipeline_append() -> None:
     assert_class(info.pipeline, "SomeData", data)
 
 
+def test_pipeline_replace() -> None:
+    generator_instance1 = sequence_generator()
+    generator_instance2 = sequence_generator()
+
+    @dlt.resource
+    def some_data():
+        yield from next(generator_instance1)
+
+    weaviate_adapter(
+        some_data,
+        vectorize=["content"],
+    )
+
+    pipeline = dlt.pipeline(
+        pipeline_name="test_pipeline_replace",
+        destination="weaviate",
+        dataset_name="test_pipeline_replace_dataset",
+    )
+
+    info = pipeline.run(
+        some_data(),
+        write_disposition="replace",
+    )
+
+    data = next(generator_instance2)
+    assert_class(info.pipeline, "SomeData", data)
+
+    info = pipeline.run(
+        some_data(),
+        write_disposition="replace",
+    )
+    assert_load_info(info)
+
+    data = next(generator_instance2)
+    assert_class(info.pipeline, "SomeData", data)
+
+
 def test_pipeline_merge() -> None:
     data = [
         {
