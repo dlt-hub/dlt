@@ -17,7 +17,7 @@ loads data using “Google Analytics API” to the destination of your choice.
 Sources and resources that can be loaded using this verified source are:
 
 | Name             | Description                                                   |
-|------------------|---------------------------------------------------------------|
+| ---------------- | ------------------------------------------------------------- |
 | google_analytics | Loads basic Analytics info to the pipeline                    |
 | metrics_table    | Assembles and presents data relevant to the report's metrics  |
 | dimensions_table | Compiles and displays data related to the report's dimensions |
@@ -65,29 +65,30 @@ follow these steps:
 
 1. Ensure your email used for the GCP account has access to the GA4 property.
 
-2. Open a GCP project in your GCP account.
+1. Open a GCP project in your GCP account.
 
-3. Enable the Analytics API in the project.
+1. Enable the Analytics API in the project.
 
-4. Search credentials in the search bar and go to Credentials.
+1. Search credentials in the search bar and go to Credentials.
 
-5. Go to Credentials -> OAuth client ID -> Select Desktop App from the Application type and give an
+1. Go to Credentials -> OAuth client ID -> Select Desktop App from the Application type and give an
    appropriate name.
 
-6. Download the credentials and fill "client_id", "client_secret" and "project_id" in
+1. Download the credentials and fill "client_id", "client_secret" and "project_id" in
    "secrets.toml".
 
-7. Go back to credentials and select the OAuth consent screen on the left.
+1. Go back to credentials and select the OAuth consent screen on the left.
 
-8. Fill in the App name, user support email(your email), authorized domain (localhost.com), and dev
+1. Fill in the App name, user support email(your email), authorized domain (localhost.com), and dev
    contact info (your email again).
 
-9. Add the following scope:
+1. Add the following scope:
+
    ```
    "https://www.googleapis.com/auth/analytics.readonly"
    ```
 
-10. Add your email as a test user.
+1. Add your email as a test user.
 
 After configuring "client_id", "client_secret" and "project_id" in "secrets.toml". To generate the
 refresh token run the following script from the root folder:
@@ -99,7 +100,7 @@ python3 google_analytics/setup_script_gcp_oauth.py
 Once you have executed the script and completed the authentication, you will receive a "refresh
 token" that can be used to set up the "secrets.toml".
 
-#### Share the Google Analytics Property with the API:
+### Share the Google Analytics Property with the API:
 
 > Note: For service account authentication, use the client_email. For OAuth authentication, use the
 > email associated with the app creation and refresh token generation.
@@ -115,9 +116,9 @@ token" that can be used to set up the "secrets.toml".
 1. Locate and click on the blue “+” icon in the top right corner of the screen.
 
 1. Choose “Add users” and input the email from the
-   [service account](google_analytics.md#grab-google-service-account-credentials)
-   or [OAuth](google_analytics.md#grab-google-oauth-credentials)
-   authentication methods. Ensure to grant at least viewer privileges.
+   [service account](google_analytics.md#grab-google-service-account-credentials) or
+   [OAuth](google_analytics.md#grab-google-oauth-credentials) authentication methods. Ensure to
+   grant at least viewer privileges.
 
 1. Conclude the process by clicking the “Add” button in the top right corner.
 
@@ -158,7 +159,9 @@ For more information, read the
    private_key = "private_key" # please set me up!
    ```
 
-1. From the ".json" that you [downloaded earlier](google_analytics.md#grab-google-service-account-credentials), copy `project_id`, `private_key`,
+1. From the ".json" that you
+   [downloaded earlier](google_analytics.md#grab-google-service-account-credentials),
+   copy `project_id`, `private_key`,
    and `client_email` under `[sources.google_analytics.credentials]`.
 
 1. Alternatively, if you're using OAuth credentials, replace the the fields and values with those
@@ -180,10 +183,10 @@ For more information, read the
 
 1. `property_id` is a unique number that identifies a particular property. You will need to
    explicitly pass it to get data from the property that you're interested in. For example, if the
-   property that you want to get data from is “GA4-Google Merch Shop” then you will need to pass
-   its property id "213025502".
+   property that you want to get data from is “GA4-Google Merch Shop” then you will need to pass its
+   property id "213025502".
 
-   <img src="docs_images/GA4_Property_ID.png" alt="Admin Centre" width = "32.5%" />
+   ![Property ID](./docs_images/GA4_Property_ID_size.png)
 
 1. You can also specify the parameters of the API requests such as dimensions and metrics to get
    your desired data.
@@ -318,7 +321,8 @@ verified source.
    print(load_info)
    ```
 
-   > Loads all the data till date in the first run, and then incrementally in subsequent runs.
+   > Loads all the data till date in the first run, and then
+   > [incrementally](https://dlthub.com/docs/general-usage/incremental-loading) in subsequent runs.
 
 1. To load data from a specific start date:
 
@@ -328,5 +332,5 @@ verified source.
    print(load_info)
    ```
 
-   > Loads data starting from the specified date during the first run, and then incrementally in
-   > subsequent runs.
+   > Loads data starting from the specified date during the first run, and then
+   > [incrementally](https://dlthub.com/docs/general-usage/incremental-loading) in subsequent runs.
