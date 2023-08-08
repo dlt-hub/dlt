@@ -159,9 +159,10 @@ class LoadWeaviateJob(LoadJob):
                 batch.add_data_object(data, self.class_name, uuid=uuid)
 
     def list_unique_identifiers(self, table_schema: TTableSchema) -> Sequence[str]:
-        primary_keys = get_columns_names_with_prop(table_schema, "primary_key")
-        if primary_keys:
-            return primary_keys
+        if table_schema.get("write_disposition") == "merge":
+            primary_keys = get_columns_names_with_prop(table_schema, "primary_key")
+            if primary_keys:
+                return primary_keys
         return get_columns_names_with_prop(table_schema, "unique")
 
     def generate_uuid(
