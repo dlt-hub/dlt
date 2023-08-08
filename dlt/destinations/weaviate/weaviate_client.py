@@ -24,13 +24,8 @@ from weaviate.util import generate_uuid5
 
 from dlt.common import json, pendulum, logger
 from dlt.common.typing import TFun
-from dlt.common.schema import Schema, TTableSchema, TSchemaTables, TTableSchemaColumns
-from dlt.common.schema.typing import (
-    VERSION_TABLE_NAME,
-    LOADS_TABLE_NAME,
-    TColumnSchema,
-    TColumnSchemaBase,
-)
+from dlt.common.schema import Schema, TTableSchema, TSchemaTables
+from dlt.common.schema.typing import TColumnSchema
 from dlt.common.schema.utils import get_columns_names_with_prop
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
@@ -47,7 +42,7 @@ from dlt.destinations.job_client_impl import StorageSchemaInfo
 from dlt.destinations.weaviate import capabilities
 from dlt.destinations.weaviate.configuration import WeaviateClientConfiguration
 
-DLT_TABLE_PREFIX = "_dlt"
+from dlt.destinations.weaviate.exceptions import WeaviateBatchError
 
 
 SCT_TO_WT: Dict[TDataType, str] = {
@@ -58,26 +53,10 @@ SCT_TO_WT: Dict[TDataType, str] = {
     "date": "date",
     "bigint": "int",
     "binary": "blob",
+    "decimal": "text",
+    "wei": "number",
+    "complex": "text"
 }
-
-WT_TO_SCT: Dict[str, TDataType] = {
-    "text": "text",
-    "number": "double",
-    "boolean": "bool",
-    "date": "timestamp",
-    "int": "bigint",
-    "blob": "binary",
-}
-
-
-# TODO: move to common
-def is_dlt_table(table_name: str) -> bool:
-    return table_name.startswith(DLT_TABLE_PREFIX)
-
-
-def snake_to_camel(snake_str: str) -> str:
-    return "".join(x.capitalize() for x in snake_str.split("_"))
-
 
 def table_name_to_class_name(table_name: str) -> str:
     # Weaviate requires class names to be written with
@@ -86,11 +65,7 @@ def table_name_to_class_name(table_name: str) -> str:
     # For dlt tables strip the underscore from the name
     # and make it all caps
     # For non dlt tables make the class name camel case
-    return (
-        snake_to_camel(table_name)
-        if not is_dlt_table(table_name)
-        else table_name.lstrip("_").upper()
-    )
+    return table_name
 
 
 def wrap_weaviate_error(f: TFun) -> TFun:
@@ -113,7 +88,7 @@ def wrap_weaviate_error(f: TFun) -> TFun:
             if status_ex.status_code == 404:
                 raise DestinationUndefinedEntity(status_ex) from status_ex
             # looks like there are no more terminal exceptions
-            if status_ex.status_code in (403,):
+            if status_ex.status_code in (403, 422):
                 raise DestinationTerminalException(status_ex)
             raise DestinationTransientException(status_ex)
         except weaviate.exceptions.WeaviateBaseError as we_ex:
@@ -121,6 +96,24 @@ def wrap_weaviate_error(f: TFun) -> TFun:
             # also includes 401 as transient
             raise DestinationTransientException(we_ex)
 
+    return _wrap  # type: ignore
+
+
+def wrap_batch_error(f: TFun) -> TFun:
+    @wraps(f)
+    def _wrap(*args: Any, **kwargs: Any) -> Any:
+        try:
+            return f(*args, **kwargs)
+        # those look like terminal exceptions
+        except WeaviateBatchError as batch_ex:
+            errors = batch_ex.args[0]
+            message = errors["error"][0]["message"]
+            # TODO: actually put the job in failed/retry state and prepare exception message with full info on failing item
+            if "invalid" in message and "property" in message and "on class" in message:
+                raise DestinationTerminalException(f'Batch failed {errors} AND WILL BE RETRIED')
+            raise DestinationTransientException(f'Batch failed {errors} AND WILL BE RETRIED')
+        except Exception:
+            raise DestinationTransientException(f'Batch failed AND WILL BE RETRIED')
     return _wrap  # type: ignore
 
 
@@ -139,6 +132,8 @@ class LoadWeaviateJob(LoadJob):
         self.db_client = db_client
         self.class_name = table_name_to_class_name(table_schema["name"])
         self.unique_identifiers = self.list_unique_identifiers(table_schema)
+        self.complex_indices = [i for i, field in table_schema["columns"].items() if field["data_type"] == "complex"]
+        self.date_indices = [i for i, field in table_schema["columns"].items() if field["data_type"] == "date"]
 
         with FileStorage.open_zipsafe_ro(local_path) as f:
             self.load_batch(f)
@@ -149,15 +144,14 @@ class LoadWeaviateJob(LoadJob):
         Weaviate batch supports retries so we do not need to do that.
         """
 
+        @wrap_batch_error
         def check_batch_result(results: dict):
             """This kills batch on first error reported"""
             if results is not None:
                 for result in results:
-                    if "result" in result and "errors" in result["result"]:
-                        if "error" in result["result"]["errors"]:
-                            raise DestinationTransientException(
-                                f'Batch failed {result["result"]["errors"]}'
-                            )
+                    if 'result' in result and 'errors' in result['result']:
+                        if 'error' in result['result']['errors']:
+                            raise WeaviateBatchError(result['result']['errors'])
 
         with self.db_client.batch(
             batch_size=self.client_config.batch_size,
@@ -174,6 +168,13 @@ class LoadWeaviateJob(LoadJob):
         ) as batch:
             for line in f:
                 data = json.loads(line)
+                # make complex to strings
+                for key in self.complex_indices:
+                    if key in data:
+                        data[key] = json.dumps(data[key])
+                for key in self.date_indices:
+                    if key in data:
+                        data[key] = str(ensure_pendulum_datetime(data[key]))
                 if self.unique_identifiers:
                     uuid = self.generate_uuid(
                         data, self.unique_identifiers, self.class_name
@@ -310,7 +311,7 @@ class WeaviateClient(JobClientBase):
         return True, table_schema
 
     def get_schema_by_hash(self, schema_hash: str) -> Optional[StorageSchemaInfo]:
-        version_class_name = table_name_to_class_name(VERSION_TABLE_NAME)
+        version_class_name = table_name_to_class_name(self.schema.version_table_name)
 
         try:
             self.db_client.schema.get(version_class_name)
@@ -353,7 +354,7 @@ class WeaviateClient(JobClientBase):
 
         class_name = table_name_to_class_name(table_name)
 
-        if is_dlt_table(table_name):
+        if table_name.startswith(self.schema._dlt_tables_prefix):
             return self._make_non_vectorized_class_schema(class_name, table)
 
         return self._make_vectorized_class_schema(class_name, table)
@@ -443,7 +444,7 @@ class WeaviateClient(JobClientBase):
 
     @wrap_weaviate_error
     def complete_load(self, load_id: str) -> None:
-        load_table_name = table_name_to_class_name(LOADS_TABLE_NAME)
+        load_table_name = table_name_to_class_name(self.schema.loads_table_name)
         properties = {
             "load_id": load_id,
             "schema_name": self.schema.name,
@@ -466,7 +467,7 @@ class WeaviateClient(JobClientBase):
     def _update_schema_in_storage(self, schema: Schema) -> None:
         now_ts = str(pendulum.now())
         schema_str = json.dumps(schema.to_dict())
-        version_class_name = table_name_to_class_name(VERSION_TABLE_NAME)
+        version_class_name = table_name_to_class_name(self.schema.version_table_name)
         properties = {
             "version_hash": schema.stored_version_hash,
             "schema_name": schema.name,
