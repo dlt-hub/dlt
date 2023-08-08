@@ -186,10 +186,7 @@ def test_pipeline_merge() -> None:
     def movies_data():
         yield data
 
-    weaviate_adapter(
-        movies_data,
-        vectorize=["description"]
-    )
+    weaviate_adapter(movies_data, vectorize=["description"])
 
     pipeline = dlt.pipeline(
         pipeline_name="movies",
@@ -212,3 +209,58 @@ def test_pipeline_merge() -> None:
     )
     assert_load_info(info)
     assert_class(info.pipeline, "MoviesData", data)
+
+
+def test_pipeline_with_schema_evolution():
+    data = [
+        {
+            "doc_id": 1,
+            "content": "1",
+        },
+        {
+            "doc_id": 2,
+            "content": "2",
+        },
+    ]
+
+    @dlt.resource()
+    def some_data():
+        yield data
+
+    weaviate_adapter(some_data, vectorize=["content"])
+
+    pipeline = dlt.pipeline(
+        pipeline_name="test_pipeline_append",
+        destination="weaviate",
+        dataset_name="test_schema_evolution_dataset",
+    )
+    info = pipeline.run(
+        some_data(),
+    )
+
+    assert_class(info.pipeline, "SomeData", data)
+
+    aggregated_data = data.copy()
+
+    data = [
+        {
+            "doc_id": 3,
+            "content": "3",
+            "new_column": "new",
+        },
+        {
+            "doc_id": 4,
+            "content": "4",
+            "new_column": "new",
+        },
+    ]
+
+    info = pipeline.run(
+        some_data(),
+    )
+
+    aggregated_data.extend(data)
+    aggregated_data[0]["new_column"] = None
+    aggregated_data[1]["new_column"] = None
+
+    assert_class(info.pipeline, "SomeData", aggregated_data)
