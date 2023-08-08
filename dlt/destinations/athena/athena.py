@@ -224,7 +224,7 @@ class AthenaClient(SqlJobClientBase):
             return None
 
     def _get_table_update_sql(self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool) -> List[str]:
-        # TODO: get bucket var from outside
+
         bucket = self.config.staging_config.bucket_url
         dataset = self.sql_client.dataset_name
         schema_name = self.schema.name

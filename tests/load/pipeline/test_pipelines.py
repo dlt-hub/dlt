@@ -21,7 +21,7 @@ from dlt.common.exceptions import DestinationHasFailedJobs
 from tests.utils import ALL_DESTINATIONS, TEST_STORAGE_ROOT, ALL_DESTINATIONS_SUBSET, preserve_environ
 from tests.pipeline.utils import assert_load_info
 from tests.load.utils import TABLE_ROW_ALL_DATA_TYPES, TABLE_UPDATE_COLUMNS_SCHEMA, assert_all_data_types_row, delete_dataset
-from tests.load.pipeline.utils import drop_active_pipeline_data, assert_query_data, assert_table, load_table_counts, select_data, any_destination
+from tests.load.pipeline.utils import drop_active_pipeline_data, assert_query_data, assert_table, load_table_counts, select_data
 from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
 
 @pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True, all_buckets_filesystem_configs=True), ids=lambda x: x.name)
@@ -82,11 +82,13 @@ def test_default_pipeline_names(use_single_dataset: bool, destination_config: De
         assert_table(p, "data_fun", data, schema_name="names", info=info)
 
 
-def test_default_schema_name(any_destination: str) -> None:
+@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True, all_buckets_filesystem_configs=True), ids=lambda x: x.name)
+def test_default_schema_name(destination_config: DestinationTestConfiguration) -> None:
+    destination_config.setup()
     dataset_name = "dataset_" + uniq_id()
     data = ["a", "b", "c"]
 
-    p = dlt.pipeline("test_default_schema_name", TEST_STORAGE_ROOT, destination=any_destination, dataset_name=dataset_name)
+    p = dlt.pipeline("test_default_schema_name", TEST_STORAGE_ROOT, destination=destination_config.destination, staging=destination_config.staging, dataset_name=dataset_name)
     p.extract(data, table_name="test", schema=Schema("default"))
     p.normalize()
     info = p.load()
@@ -161,8 +163,10 @@ def test_skip_sync_schema_for_tables_without_columns(destination_config: Destina
         assert not exists
 
 
-def test_run_full_refresh(any_destination: str) -> None:
+@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True, all_buckets_filesystem_configs=True), ids=lambda x: x.name)
+def test_run_full_refresh(destination_config: DestinationTestConfiguration) -> None:
     data = ["a", ["a", "b", "c"], ["a", "b", "c"]]
+    destination_config.setup()
 
     def d():
         yield data
@@ -172,7 +176,7 @@ def test_run_full_refresh(any_destination: str) -> None:
         return dlt.resource(d(), name="lists", write_disposition="replace")
 
     p = dlt.pipeline(full_refresh=True)
-    info = p.run(_data(), destination=any_destination, dataset_name="iteration" + uniq_id())
+    info = p.run(_data(), destination=destination_config.destination, staging=destination_config.staging, dataset_name="iteration" + uniq_id())
     assert info.dataset_name == p.dataset_name
     assert info.dataset_name.endswith(p._pipeline_instance_id)
     # print(p.default_schema.to_pretty_yaml())

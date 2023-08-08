@@ -293,7 +293,8 @@ class Load(Runnable[ThreadPool]):
             if expected_update is not None:
                 # update the default dataset
                 logger.info(f"Client for {job_client.config.destination_name} will start initialize storage")
-                job_client.initialize_storage()
+                truncate_tables = self.get_table_chain_tables_for_write_disposition(load_id, schema, job_client.get_truncate_destination_table_dispositions())
+                job_client.initialize_storage(truncate_tables=truncate_tables)
                 logger.info(f"Client for {job_client.config.destination_name} will update schema to package schema")
                 all_jobs = self.get_new_jobs_info(load_id, schema)
                 all_tables = set(job.table_name for job in all_jobs)

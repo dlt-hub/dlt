@@ -454,8 +454,8 @@ class Pipeline(SupportsPipeline):
             LoadInfo: Information on loaded data including the list of package ids and failed job statuses. Please not that `dlt` will not raise if a single job terminally fails. Such information is provided via LoadInfo.
         """
         signals.raise_if_signalled()
-        self._set_destination(destination)
         self._set_staging(staging)
+        self._set_destination(destination)
         self._set_dataset_name(dataset_name)
 
         # sync state with destination
