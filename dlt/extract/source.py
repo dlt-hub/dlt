@@ -654,7 +654,7 @@ class DltSource(Iterable[TDataItem]):
     def discover_schema(self, item: TDataItem = None) -> Schema:
         """Computes table schemas for all selected resources in the source and merges them with a copy of current source schema. If `item` is provided,
         dynamic tables will be evaluated, otherwise those tables will be ignored."""
-        schema = self._schema.clone()
+        schema = self._schema.clone(update_normalizers=True)
         for r in self.selected_resources.values():
             # names must be normalized here
             with contextlib.suppress(DataItemRequiredForDynamicTableHints):

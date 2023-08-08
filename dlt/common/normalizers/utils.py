@@ -55,6 +55,4 @@ def import_normalizers(
         max_length = None
     json_module = cast(SupportsDataItemNormalizer, import_module(item_normalizer["module"]))
 
-    # normalizers_config["names"] = names
-    # normalizers_config["json"] = item_normalizer
     return normalizers_config, naming_module.NamingConvention(max_length), json_module.DataItemNormalizer

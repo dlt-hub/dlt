@@ -8,13 +8,15 @@ class SchemaException(DltException):
     pass
 
 
-class InvalidSchemaName(SchemaException):
-    def __init__(self, name: str, normalized_name: str) -> None:
+class InvalidSchemaName(ValueError, SchemaException):
+    MAXIMUM_SCHEMA_NAME_LENGTH = 64
+
+    def __init__(self, name: str) -> None:
         self.name = name
-        super().__init__(f"{name} is an invalid schema name. The schema name must conform to wide range of destinations and ideally should contain only small letters, numbers and underscores. Try {normalized_name} instead as suggested by current naming module.")
+        super().__init__(f"{name} is an invalid schema/source name. The source or schema name must be a valid Python identifier ie. a snake case function name and have maximum {self.MAXIMUM_SCHEMA_NAME_LENGTH} characters. Ideally should contain only small letters, numbers and underscores.")
 
 
-class InvalidDatasetName(SchemaException):
+class InvalidDatasetName(ValueError, SchemaException):
     def __init__(self, name: str, normalized_name: str) -> None:
         self.name = name
         super().__init__(f"{name} is an invalid dataset name. The dataset name must conform to wide range of destinations and ideally should contain only small letters, numbers and underscores. Try {normalized_name} instead as suggested by current naming module.")

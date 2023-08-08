@@ -128,11 +128,12 @@ def source(
         if inspect.isclass(f):
             raise SourceIsAClassTypeError(name or "<no name>", f)
 
+        # source name is passed directly or taken from decorated function name
+        effective_name = name or get_callable_name(f)
+
         if not schema:
-            # source name is passed directly or taken from decorated function name
-            effective_name = name or get_callable_name(f)
             # load the schema from file with name_schema.yaml/json from the same directory, the callable resides OR create new default schema
-            schema = _maybe_load_schema_for_callable(f, effective_name) or Schema(effective_name, normalize_name=True)
+            schema = _maybe_load_schema_for_callable(f, effective_name) or Schema(effective_name)
 
         if name and name != schema.name:
             raise ExplicitSourceNameInvalid(name, schema.name)
@@ -143,7 +144,8 @@ def source(
         # wrap source extraction function in configuration with section
         func_module = inspect.getmodule(f)
         source_section = section or _get_source_section_name(func_module)
-        source_sections = (known_sections.SOURCES, source_section, name)
+        # use effective_name which is explicit source name or callable name to represent third element in source config path
+        source_sections = (known_sections.SOURCES, source_section, effective_name)
         conf_f = with_config(f, spec=spec, sections=source_sections)
 
         @wraps(conf_f)
@@ -162,7 +164,7 @@ def source(
                         rv = list(rv)
 
             # convert to source
-            s = DltSource.from_data(name, source_section, schema.clone(), rv)
+            s = DltSource.from_data(name, source_section, schema.clone(update_normalizers=True), rv)
             # apply hints
             if max_table_nesting is not None:
                 s.max_table_nesting = max_table_nesting
@@ -498,6 +500,7 @@ def _maybe_load_schema_for_callable(f: AnyFun, name: str) -> Optional[Schema]:
 
 
 def _get_source_section_name(m: ModuleType) -> str:
+    """Gets the source section name (as in SOURCES <section> <name> tuple) from __source_name__ of the module `m` or from its name"""
     if m is None:
         return None
     if hasattr(m, "__source_name__"):

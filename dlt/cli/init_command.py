@@ -9,12 +9,12 @@ from dlt.common import git
 from dlt.common.configuration.paths import get_dlt_settings_dir, make_dlt_settings_path
 from dlt.common.configuration.specs import known_sections
 from dlt.common.configuration.providers import CONFIG_TOML, SECRETS_TOML, ConfigTomlProvider, SecretsTomlProvider
-from dlt.common.normalizers import default_normalizers, import_normalizers
 from dlt.common.pipeline import get_dlt_repos_dir
 from dlt.common.source import _SOURCES
 from dlt.version import DLT_PKG_NAME, __version__
 from dlt.common.destination import DestinationReference
 from dlt.common.reflection.utils import rewrite_python_script
+from dlt.common.schema.utils import is_valid_schema_name
 from dlt.common.schema.exceptions import InvalidSchemaName
 from dlt.common.storages.file_storage import FileStorage
 
@@ -219,12 +219,10 @@ def init_command(source_name: str, destination_name: str, use_generic_template: 
         source_files.files.extend(template_files)
 
     else:
-        # normalize source name
-        naming, _ = import_normalizers(default_normalizers())
-        norm_source_name = naming.normalize_identifier(source_name)
-        if norm_source_name != source_name:
-            raise InvalidSchemaName(source_name, norm_source_name)
-        dest_pipeline_script = norm_source_name + ".py"
+
+        if not is_valid_schema_name(source_name):
+            raise InvalidSchemaName(source_name)
+        dest_pipeline_script = source_name + ".py"
         source_files = VerifiedSourceFiles(True, init_storage, pipeline_script, dest_pipeline_script, template_files, SourceRequirements([]), "")
         if dest_storage.has_file(dest_pipeline_script):
             fmt.warning("Pipeline script %s already exist, exiting" % dest_pipeline_script)

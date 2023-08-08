@@ -8,20 +8,33 @@ from typing import Dict, List, Sequence, Tuple, Type, Any, cast, Iterable, Optio
 from dlt.common import json
 from dlt.common.data_types import TDataType
 from dlt.common.exceptions import DictValidationException
-from dlt.common.normalizers import default_normalizers
+from dlt.common.normalizers import explicit_normalizers
 from dlt.common.normalizers.naming import NamingConvention
+from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCase
 from dlt.common.typing import DictStrAny, REPattern
 from dlt.common.validation import TCustomValidator, validate_dict, validate_dict_ignoring_xkeys
 from dlt.common.schema import detections
 from dlt.common.schema.typing import (SCHEMA_ENGINE_VERSION, LOADS_TABLE_NAME, SIMPLE_REGEX_PREFIX, VERSION_TABLE_NAME, TColumnName, TPartialTableSchema, TSchemaTables, TSchemaUpdate,
                                       TSimpleRegex, TStoredSchema, TTableSchema, TTableSchemaColumns, TColumnSchemaBase, TColumnSchema, TColumnProp,
                                       TColumnHint, TTypeDetectionFunc, TTypeDetections, TWriteDisposition)
-from dlt.common.schema.exceptions import CannotCoerceColumnException, ParentTableNotFoundException, SchemaEngineNoUpgradePathException, SchemaException, TablePropertiesConflictException
+from dlt.common.schema.exceptions import (CannotCoerceColumnException, ParentTableNotFoundException, SchemaEngineNoUpgradePathException, SchemaException,
+                                          TablePropertiesConflictException, InvalidSchemaName)
 
-# RE_LEADING_DIGITS = re.compile(r"^\d+")
-# RE_NON_ALPHANUMERIC = re.compile(r"[^a-zA-Z\d]")
+from dlt.common.normalizers.utils import import_normalizers
+
 RE_NON_ALPHANUMERIC_UNDERSCORE = re.compile(r"[^a-zA-Z\d_]")
 DEFAULT_WRITE_DISPOSITION: TWriteDisposition = "append"
+
+
+def is_valid_schema_name(name: str) -> bool:
+    """Schema name must be a valid python identifier and have max len of 64"""
+    return name is not None and name.isidentifier() and len(name) <= InvalidSchemaName.MAXIMUM_SCHEMA_NAME_LENGTH
+
+
+def normalize_schema_name(name: str) -> str:
+    """Normalizes schema name by using snake case naming convention. The maximum length is 64 characters"""
+    snake_case = SnakeCase(InvalidSchemaName.MAXIMUM_SCHEMA_NAME_LENGTH)
+    return snake_case.normalize_identifier(name)
 
 
 def apply_defaults(stored_schema: TStoredSchema) -> None:
@@ -73,6 +86,7 @@ def bump_version_if_modified(stored_schema: TStoredSchema) -> Tuple[int, str]:
         stored_schema["version"] += 1
     stored_schema["version_hash"] = hash_
     return stored_schema["version"], hash_
+
 
 def generate_version_hash(stored_schema: TStoredSchema) -> str:
     # generates hash out of stored schema content, excluding the hash itself and version
@@ -194,7 +208,7 @@ def migrate_schema(schema_dict: DictStrAny, from_engine: int, to_engine: int) ->
         # current version of the schema
         current = cast(TStoredSchema, schema_dict)
         # add default normalizers and root hash propagation
-        current["normalizers"] = default_normalizers()
+        current["normalizers"], _, _ = import_normalizers(explicit_normalizers())
         current["normalizers"]["json"]["config"] = {
                     "propagation": {
                         "root": {
@@ -267,7 +281,6 @@ def migrate_schema(schema_dict: DictStrAny, from_engine: int, to_engine: int) ->
         # replace loads table
         schema_dict["tables"][LOADS_TABLE_NAME] = load_table()
         from_engine = 6
-
 
     schema_dict["engine_version"] = from_engine
     if from_engine != to_engine:
