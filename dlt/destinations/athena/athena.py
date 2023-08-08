@@ -97,6 +97,7 @@ class AthenaSQLClient(SqlClientBase[Connection]):
         self._conn = connect(
             schema_name=self.dataset_name,
             s3_staging_dir=self.config.query_result_bucket,
+            work_group=self.config.workgroup,
             **native_credentials)
         return self._conn
 

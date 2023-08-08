@@ -1,4 +1,4 @@
-from typing import Final
+from typing import Final, Optional
 from dlt.common.typing import TSecretStrValue
 
 from dlt.common.configuration import configspec
@@ -11,3 +11,4 @@ class AthenaClientConfiguration(DestinationClientDwhConfiguration):
     destination_name: Final[str] = "athena"  # type: ignore[misc]
     query_result_bucket: str = None
     credentials: AwsCredentials = None
+    workgroup: Optional[str] = None
