@@ -6,7 +6,7 @@ from dlt.common import json
 
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import TStoredSchema
-from dlt.common.schema.utils import default_normalizers
+from dlt.common.schema.utils import explicit_normalizers
 from dlt.common.storages.exceptions import InStorageSchemaModified, SchemaNotFoundError, UnexpectedSchemaName
 from dlt.common.storages import SchemaStorageConfiguration, SchemaStorage, LiveSchemaStorage, FileStorage
 
@@ -197,8 +197,9 @@ def test_save_store_schema_over_import(ie_storage: SchemaStorage) -> None:
     assert schema._imported_version_hash == IMPORTED_VERSION_HASH_ETH_V6
     # load schema and make sure our new schema is here
     schema = ie_storage.load_schema("ethereum")
-    assert schema.version_hash == schema_hash
     assert schema._imported_version_hash == IMPORTED_VERSION_HASH_ETH_V6
+    assert schema._stored_version_hash == schema_hash
+    assert schema.version_hash == schema_hash
     # we have simple schema in export folder
     fs = FileStorage(ie_storage.config.export_schema_path)
     exported_name = ie_storage._file_name_in_store("ethereum", "yaml")
@@ -230,13 +231,14 @@ def test_save_store_schema_over_import_sync(synced_storage: SchemaStorage) -> No
 
 
 def test_save_store_schema(storage: SchemaStorage) -> None:
-    d_n = default_normalizers()
+    d_n = explicit_normalizers()
     d_n["names"] = "tests.common.normalizers.custom_normalizers"
     schema = Schema("column_event", normalizers=d_n)
     storage.save_schema(schema)
     assert storage.storage.has_file(SchemaStorage.NAMED_SCHEMA_FILE_PATTERN % ("column_event", "json"))
     loaded_schema = storage.load_schema("column_event")
-    assert loaded_schema.to_dict()["tables"]["_dlt_loads"] == schema.to_dict()["tables"]["_dlt_loads"]
+    # also tables gets normalized inside so custom_ is added
+    assert loaded_schema.to_dict()["tables"]["custom_dlt_loads"] == schema.to_dict()["tables"]["custom_dlt_loads"]
     assert loaded_schema.to_dict() == schema.to_dict()
 
 

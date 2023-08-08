@@ -4,7 +4,7 @@ from typing import ClassVar, Dict, List, Mapping, Optional, Sequence, Tuple, Any
 from dlt.common import json
 
 from dlt.common.typing import DictStrAny, StrAny, REPattern, SupportsVariant, VARIANT_FIELD_FORMAT, TDataItem
-from dlt.common.normalizers import TNormalizersConfig, default_normalizers, import_normalizers
+from dlt.common.normalizers import TNormalizersConfig, explicit_normalizers, import_normalizers
 from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.normalizers.json import DataItemNormalizer, TNormalizedRowIterator
 from dlt.common.schema import utils
@@ -24,8 +24,14 @@ class Schema:
     data_item_normalizer: DataItemNormalizer[Any]
     """Data item normalizer used by the schema to create tables"""
 
+    version_table_name: str
+    """Normalized name of the version table"""
+    loads_table_name: str
+    """Normalized name of the loads table"""
+
 
     _schema_name: str
+    _dlt_tables_prefix: str
     _stored_version: int  # version at load/creation time
     _stored_version_hash: str  # version hash at load/creation time
     _imported_version_hash: str  # version hash of recently imported schema
@@ -47,8 +53,8 @@ class Schema:
     # normalizers config
     _normalizers_config: TNormalizersConfig
 
-    def __init__(self, name: str, normalizers: TNormalizersConfig = None, normalize_name: bool = False) -> None:
-        self._reset_schema(name, normalizers, normalize_name)
+    def __init__(self, name: str, normalizers: TNormalizersConfig = None) -> None:
+        self._reset_schema(name, normalizers)
 
     @classmethod
     def from_dict(cls, d: DictStrAny) -> "Schema":
@@ -234,10 +240,10 @@ class Schema:
 
     def normalize_table_identifiers(self, table: TTableSchema) -> TTableSchema:
         # normalize all identifiers in table according to name normalizer of the schema
-        table["name"] = self.naming.normalize_path(table["name"])
+        table["name"] = self.naming.normalize_tables_path(table["name"])
         parent = table.get("parent")
         if parent:
-            table["parent"] = self.naming.normalize_path(parent)
+            table["parent"] = self.naming.normalize_tables_path(parent)
         columns = table.get("columns")
         if columns:
             for c in columns.values():
@@ -267,11 +273,11 @@ class Schema:
 
     def data_tables(self, include_incomplete: bool = False) -> List[TTableSchema]:
         """Gets list of all tables, that hold the loaded data. Excludes dlt tables. Excludes incomplete tables (ie. without columns)"""
-        return [t for t in self._schema_tables.values() if not t["name"].startswith("_dlt") and (len(t["columns"]) > 0 or include_incomplete)]
+        return [t for t in self._schema_tables.values() if not t["name"].startswith(self._dlt_tables_prefix) and (len(t["columns"]) > 0 or include_incomplete)]
 
     def dlt_tables(self) -> List[TTableSchema]:
         """Gets dlt tables"""
-        return [t for t in self._schema_tables.values() if t["name"].startswith("_dlt")]
+        return [t for t in self._schema_tables.values() if t["name"].startswith(self._dlt_tables_prefix)]
 
     def get_preferred_type(self, col_name: str) -> Optional[TDataType]:
         return next((m[1] for m in self._compiled_preferred_types if m[0].search(col_name)), None)
@@ -326,9 +332,22 @@ class Schema:
         d = self.to_dict(remove_defaults=remove_defaults)
         return yaml.dump(d, allow_unicode=True, default_flow_style=False, sort_keys=False)
 
-    def clone(self) -> "Schema":
+    def clone(self, update_normalizers: bool = False) -> "Schema":
+        """Make a deep copy of the schema, possibly updating normalizers and identifiers in the schema if `update_normalizers` is True"""
         d = deepcopy(self.to_dict())
-        return Schema.from_dict(d)  # type: ignore
+        schema = Schema.from_dict(d)  # type: ignore
+        # update normalizers and possibly all schema identifiers
+        if update_normalizers:
+            schema.update_normalizers()
+        return schema
+
+    def update_normalizers(self) -> None:
+        """Looks for new normalizer configuration or for destination capabilities context and updates all identifiers in the schema"""
+        normalizers = explicit_normalizers()
+        # set the current values as defaults
+        normalizers["names"] = normalizers["names"] or self._normalizers_config["names"]
+        normalizers["json"] = normalizers["json"] or self._normalizers_config["json"]
+        self._configure_normalizers(normalizers)
 
     def _infer_column(self, k: str, v: Any, data_type: TDataType = None, is_variant: bool = False) -> TColumnSchema:
         column_schema =  TColumnSchema(
@@ -365,7 +384,6 @@ class Schema:
         # and coerce type if inference changed the python type
         try:
             coerced_v = coerce_value(col_type, py_type, v)
-            # print(f"co: {py_type} -> {col_type} {v}")
         except (ValueError, SyntaxError):
             if is_variant:
                 # this is final call: we cannot generate any more auto-variants
@@ -415,8 +433,8 @@ class Schema:
             return False
 
     def _add_standard_tables(self) -> None:
-        self._schema_tables[VERSION_TABLE_NAME] = utils.version_table()
-        self._schema_tables[LOADS_TABLE_NAME] = utils.load_table()
+        self._schema_tables[self.version_table_name] = self.normalize_table_identifiers(utils.version_table())
+        self._schema_tables[self.loads_table_name] = self.normalize_table_identifiers(utils.load_table())
 
     def _add_standard_hints(self) -> None:
         default_hints = utils.standard_hints()
@@ -426,19 +444,27 @@ class Schema:
         if type_detections:
             self._settings["detections"] = type_detections
 
-    def _configure_normalizers(self) -> None:
-        if not self._normalizers_config:
-            # create default normalizer config
-            self._normalizers_config = default_normalizers()
+    def _configure_normalizers(self, normalizers: TNormalizersConfig) -> None:
         # import desired modules
-        naming_module, item_normalizer_class = import_normalizers(self._normalizers_config)
+        self._normalizers_config, naming_module, item_normalizer_class = import_normalizers(normalizers)
+        # print(f"{self.name}: {type(self.naming)} {type(naming_module)}")
+        if self.naming and type(self.naming) is not type(naming_module):
+            self.naming = naming_module
+            for table in self._schema_tables.values():
+                self.normalize_table_identifiers(table)
+            # re-index the table names
+            self._schema_tables = {t["name"]:t for t in self._schema_tables.values()}
+
         # name normalization functions
         self.naming = naming_module
+        self._dlt_tables_prefix = self.naming.normalize_table_identifier("_dlt")
+        self.version_table_name = self.naming.normalize_table_identifier(VERSION_TABLE_NAME)
+        self.loads_table_name = self.naming.normalize_table_identifier(LOADS_TABLE_NAME)
         # data item normalization function
         self.data_item_normalizer = item_normalizer_class(self)
         self.data_item_normalizer.extend_schema()
 
-    def _reset_schema(self, name: str, normalizers: TNormalizersConfig = None, normalize_name: bool = False) -> None:
+    def _reset_schema(self, name: str, normalizers: TNormalizersConfig = None) -> None:
         self._schema_tables: TSchemaTables = {}
         self._schema_name: str = None
         self._stored_version = 1
@@ -453,18 +479,20 @@ class Schema:
         self._compiled_includes: Dict[str, Sequence[REPattern]] = {}
         self._type_detections: Sequence[TTypeDetections] = None
 
-        self._normalizers_config: TNormalizersConfig = normalizers
+        self._normalizers_config = None
         self.naming = None
         self.data_item_normalizer = None
 
-        # add version tables
-        self._add_standard_tables()
+        # verify schema name - it does not depend on normalizers
+        self._set_schema_name(name)
         # add standard hints
         self._add_standard_hints()
         # configure normalizers, including custom config if present
-        self._configure_normalizers()
-        # verify schema name after configuring normalizers
-        self._set_schema_name(name, normalize_name)
+        if not normalizers:
+            normalizers = explicit_normalizers()
+        self._configure_normalizers(normalizers)
+        # add version tables
+        self._add_standard_tables()
         # compile all known regexes
         self._compile_settings()
         # set initial version hash
@@ -472,10 +500,10 @@ class Schema:
 
     def _from_stored_schema(self, stored_schema: TStoredSchema) -> None:
         self._schema_tables = stored_schema.get("tables") or {}
-        if VERSION_TABLE_NAME not in self._schema_tables:
-            raise SchemaCorruptedException(f"Schema must contain table {VERSION_TABLE_NAME}")
-        if LOADS_TABLE_NAME not in self._schema_tables:
-            raise SchemaCorruptedException(f"Schema must contain table {LOADS_TABLE_NAME}")
+        if self.version_table_name not in self._schema_tables:
+            raise SchemaCorruptedException(f"Schema must contain table {self.version_table_name}")
+        if self.loads_table_name not in self._schema_tables:
+            raise SchemaCorruptedException(f"Schema must contain table {self.loads_table_name}")
         self._stored_version = stored_schema["version"]
         self._stored_version_hash = stored_schema["version_hash"]
         self._imported_version_hash = stored_schema.get("imported_version_hash")
@@ -483,13 +511,10 @@ class Schema:
         self._settings = stored_schema.get("settings") or {}
         self._compile_settings()
 
-    def _set_schema_name(self, name: str, normalize_name: bool) -> None:
-        normalized_name = self.naming.normalize_identifier(name)
-        if name != normalized_name:
-            if normalize_name:
-                name = normalized_name
-            else:
-                raise InvalidSchemaName(name, normalized_name)
+    def _set_schema_name(self, name: str) -> None:
+        """Validates and sets the schema name. Validation does not need naming convention and checks against Python identifier"""
+        if not utils.is_valid_schema_name(name):
+            raise InvalidSchemaName(name)
         self._schema_name = name
 
     def _compile_settings(self) -> None:
