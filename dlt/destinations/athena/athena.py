@@ -5,11 +5,13 @@ import re
 from contextlib import contextmanager
 from pendulum.datetime import DateTime
 
+import pyathena
 from pyathena import connect
 from pyathena.connection import Connection
-from pyathena.error import OperationalError, DatabaseError, ProgrammingError, IntegrityError
+from pyathena.error import OperationalError, DatabaseError, ProgrammingError, IntegrityError, Error
 from pyathena.formatter import DefaultParameterFormatter, _DEFAULT_FORMATTERS, Formatter
 
+from dlt.destinations.typing import DBApi
 from dlt.destinations.exceptions import DatabaseTerminalException, DatabaseTransientException, DatabaseUndefinedRelation
 from dlt.common import pendulum
 from dlt.common.schema.typing import TTableSchemaColumns
@@ -85,6 +87,7 @@ class DoNothingJob(LoadJob):
 class AthenaSQLClient(SqlClientBase[Connection]):
 
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
+    dbapi: ClassVar[DBApi] = pyathena
 
     def __init__(self, dataset_name: str, config: AthenaClientConfiguration) -> None:
         super().__init__(None, dataset_name)
@@ -136,6 +139,10 @@ class AthenaSQLClient(SqlClientBase[Connection]):
                 return DatabaseUndefinedRelation(ex)
             elif "SCHEMA_NOT_FOUND" in str(ex):
                 return DatabaseUndefinedRelation(ex)
+            elif "Table not found" in str(ex):
+                return DatabaseUndefinedRelation(ex)
+            elif "Database does not exist" in str(ex):
+                return DatabaseUndefinedRelation(ex)
             return DatabaseTerminalException(ex)
         elif isinstance(ex, (ProgrammingError, IntegrityError)):
             return DatabaseTerminalException(ex)
@@ -156,9 +163,12 @@ class AthenaSQLClient(SqlClientBase[Connection]):
         # create a list of keys
         keys = ["arg"+str(i) for i, _ in enumerate(args)]
         # create an old style string and replace placeholders
-        old_style_string = re.sub(r"%s", lambda _: "%(" + keys.pop(0) + ")s", new_style_string)
+        old_style_string, count = re.subn(r"%s", lambda _: "%(" + keys.pop(0) + ")s", new_style_string)
         # create a dictionary mapping keys to args
         mapping = dict(zip(["arg"+str(i) for i, _ in enumerate(args)], args))
+        # raise if there is a mismatch between args and string
+        if count != len(args):
+            raise DatabaseTransientException(OperationalError())
         return old_style_string, mapping
 
     @contextmanager
@@ -175,7 +185,12 @@ class AthenaSQLClient(SqlClientBase[Connection]):
         cursor = self._conn.cursor(formatter=DLTAthenaFormatter())
         for query_line in query.split(";"):
             if query_line.strip():
-                cursor.execute(query_line, db_args)
+                try: 
+                    cursor.execute(query_line, db_args)
+                # catch key error only here, this will show up if we have a missing parameter
+                except KeyError:
+                    raise DatabaseTransientException(OperationalError())
+
         yield cursor
 
     def has_dataset(self) -> bool:
@@ -260,3 +275,7 @@ class AthenaClient(SqlJobClientBase):
         if not job:
             job = DoNothingJob(file_path)
         return job
+    
+    @staticmethod
+    def is_dbapi_exception(ex: Exception) -> bool:
+        return isinstance(ex, Error)
