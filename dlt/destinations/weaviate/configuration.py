@@ -4,7 +4,7 @@ from urllib.parse import urlparse
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs.base_configuration import CredentialsConfiguration
-from dlt.common.destination.reference import DestinationClientConfiguration
+from dlt.common.destination.reference import DestinationClientDwhConfiguration
 from dlt.common.utils import digest128
 
 TWeaviateBatchConsistency = Literal["ONE", "QUORUM", "ALL"]
@@ -18,7 +18,7 @@ class WeaviateCredentials(CredentialsConfiguration):
 
 
 @configspec(init=True)
-class WeaviateClientConfiguration(DestinationClientConfiguration):
+class WeaviateClientConfiguration(DestinationClientDwhConfiguration):
     destination_name: Final[str] = "weaviate"  # type: ignore
     batch_size: int = 100
     batch_workers: int = 1

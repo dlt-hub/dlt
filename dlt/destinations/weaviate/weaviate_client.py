@@ -241,7 +241,9 @@ class WeaviateClient(JobClientBase):
 
     @wrap_weaviate_error
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
-        if truncate_tables:
+        if not self.is_storage_initialized():
+            self.create_sentinel_class()
+        elif truncate_tables:
             for table_name in truncate_tables:
                 try:
                     class_schema = self.db_client.schema.get(table_name)
@@ -255,7 +257,20 @@ class WeaviateClient(JobClientBase):
 
     @wrap_weaviate_error
     def is_storage_initialized(self) -> bool:
+        try:
+            self.db_client.schema.get(self.config.dataset_name)
+        except weaviate.exceptions.UnexpectedStatusCodeException as e:
+            if e.status_code == 404:
+                return False
+            raise
         return True
+
+    def create_sentinel_class(self) -> None:
+        self.db_client.schema.create_class(
+            {
+                "class": self.config.dataset_name,
+            }
+        )
 
     @wrap_weaviate_error
     def update_storage_schema(
