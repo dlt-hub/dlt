@@ -27,6 +27,8 @@ from dlt.common.configuration.specs.aws_credentials import AwsCredentials
 from dlt.common.configuration.specs.gcp_credentials import GcpOAuthCredentials
 from tests.common.utils import TEST_SENTRY_DSN
 
+from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
+
 from tests.utils import ALL_DESTINATIONS, TEST_STORAGE_ROOT
 from tests.common.configuration.utils import environment
 from tests.extract.utils import expect_extracted_file
@@ -163,10 +165,10 @@ def test_deterministic_salt(environment) -> None:
     assert p.pipeline_salt != p3.pipeline_salt
 
 
-@pytest.mark.parametrize("destination", ALL_DESTINATIONS)
-def test_create_pipeline_all_destinations(destination: str) -> None:
+@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True), ids=lambda x: x.name)
+def test_create_pipeline_all_destinations(destination_config: DestinationTestConfiguration) -> None:
     # create pipelines, extract and normalize. that should be possible without installing any dependencies
-    p = dlt.pipeline(pipeline_name=destination + "_pipeline", destination=destination)
+    p = dlt.pipeline(pipeline_name=destination_config.destination + "_pipeline", destination=destination_config.destination, staging=destination_config.staging)
     # are capabilities injected
     caps = p._container[DestinationCapabilitiesContext]
     # are right naming conventions created

@@ -20,7 +20,7 @@ from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import VERSION_TABLE_NAME, TTableSchema, TWriteDisposition
 from dlt.common.storages import LoadStorage
-from dlt.common.destination.reference import DestinationClientDwhConfiguration, FollowupJob, JobClientBase, StagingJobClientBase, DestinationReference, LoadJob, NewLoadJob, TLoadJobState, DestinationClientConfiguration
+from dlt.common.destination.reference import DestinationClientDwhBaseConfiguration, FollowupJob, JobClientBase, StagingJobClientBase, DestinationReference, LoadJob, NewLoadJob, TLoadJobState, DestinationClientConfiguration
 
 from dlt.destinations.job_impl import EmptyLoadJob
 from dlt.destinations.exceptions import DestinationTerminalException, DestinationTransientException, LoadJobUnknownTableException
@@ -400,7 +400,7 @@ class Load(Runnable[ThreadPool]):
         for load_id in load_ids:
             load_packages.append(self.load_storage.get_load_package_info(load_id))
         dataset_name = None
-        if isinstance(self.initial_client_config, DestinationClientDwhConfiguration):
+        if isinstance(self.initial_client_config, DestinationClientDwhBaseConfiguration):
             dataset_name = self.initial_client_config.dataset_name
 
         return LoadInfo(

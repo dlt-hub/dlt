@@ -1,3 +1,4 @@
+import pytest
 import dlt, os
 from dlt.common.utils import uniq_id
 from tests.load.utils import AWS_BUCKET
@@ -5,6 +6,12 @@ from tests.load.pipeline.utils import  load_table_counts
 from tests.load.utils import TABLE_UPDATE_COLUMNS_SCHEMA, TABLE_ROW_ALL_DATA_TYPES, assert_all_data_types_row
 from copy import copy, deepcopy
 from tests.pipeline.utils import assert_load_info
+
+from tests.utils import ALL_DESTINATIONS
+
+# TODO: probably these tests are not needed if all the other pipeline load tests work with athena
+if 'athena' not in ALL_DESTINATIONS:
+    pytest.skip("athena not configured", allow_module_level=True)
 
 def test_athena_destinations() -> None:
 

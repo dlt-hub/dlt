@@ -18,7 +18,7 @@ from dlt.pipeline.exceptions import CannotRestorePipelineException, PipelineConf
 from dlt.common.schema.exceptions import CannotCoerceColumnException
 from dlt.common.exceptions import DestinationHasFailedJobs
 
-from tests.utils import ALL_DESTINATIONS, TEST_STORAGE_ROOT, ALL_DESTINATIONS_SUBSET, preserve_environ
+from tests.utils import ALL_DESTINATIONS, TEST_STORAGE_ROOT, preserve_environ
 from tests.pipeline.utils import assert_load_info
 from tests.load.utils import TABLE_ROW_ALL_DATA_TYPES, TABLE_UPDATE_COLUMNS_SCHEMA, assert_all_data_types_row, delete_dataset
 from tests.load.pipeline.utils import drop_active_pipeline_data, assert_query_data, assert_table, load_table_counts, select_data

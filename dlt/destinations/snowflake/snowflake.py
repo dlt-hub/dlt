@@ -157,7 +157,7 @@ class SnowflakeClient(SqlJobClientBase):
                 self.sql_client,
                 stage_name=self.config.stage_name,
                 keep_staged_files=self.config.keep_staged_files,
-                staging_credentials=self.config.staging_config.credentials
+                staging_credentials=self.config.staging_config.credentials if self.config.staging_config else None
             )
         return job
 
