@@ -197,7 +197,7 @@ def test_disable_trace(environment: StrStr) -> None:
 def test_trace_on_restore_state(environment: StrStr) -> None:
     environment["COMPLETED_PROB"] = "1.0"
 
-    def _sync_destination_patch(self: Pipeline, destination: str = None, dataset_name: str = None):
+    def _sync_destination_patch(self: Pipeline, destination: str = None, staging: str = None, dataset_name: str = None):
         # just wipe the pipeline simulating deleted dataset
         self._wipe_working_folder()
         self._configure(self._schema_storage_config.export_schema_path, self._schema_storage_config.import_schema_path, False)

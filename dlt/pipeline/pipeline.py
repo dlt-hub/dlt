@@ -349,15 +349,7 @@ class Pipeline(SupportsPipeline):
             return None
 
         # make sure that destination is set and client is importable and can be instantiated
-        client = self._get_destination_client(self.default_schema)
-        staging_client = None
-        if self.staging:
-            staging_client = self._get_staging_client(self.default_schema)
-            # inject staging config into destination config,
-            # TODO: Not super clean I think? - DestinationClientDwhConfiguration must be refactored
-            # staging_credentials, dataset name and default schema name are arguments for the loader not parts of configuration
-            if isinstance(client.config, DestinationClientDwhConfiguration) and isinstance(staging_client.config ,DestinationClientStagingConfiguration) and not client.config.staging_config:
-                client.config.staging_config = staging_client.config
+        client, staging_client = self._get_destination_clients(self.default_schema)
 
         # create default loader config and the loader
         load_config = LoaderConfiguration(
@@ -460,7 +452,7 @@ class Pipeline(SupportsPipeline):
 
         # sync state with destination
         if self.config.restore_from_destination and not self.full_refresh and not self._state_restored and (self.destination or destination):
-            self.sync_destination(destination, dataset_name)
+            self.sync_destination(destination, staging, dataset_name)
             # sync only once
             self._state_restored = True
 
@@ -482,7 +474,7 @@ class Pipeline(SupportsPipeline):
             return None
 
     @with_schemas_sync
-    def sync_destination(self, destination: TDestinationReferenceArg = None, dataset_name: str = None) -> None:
+    def sync_destination(self, destination: TDestinationReferenceArg = None, staging: TDestinationReferenceArg = None, dataset_name: str = None) -> None:
         """Synchronizes pipeline state with the `destination`'s state kept in `dataset_name`
 
         ### Summary
@@ -494,6 +486,8 @@ class Pipeline(SupportsPipeline):
         Note: this method is executed by the `run` method before any operation on data. Use `restore_from_destination` configuration option to disable that behavior.
 
         """
+        if staging:
+            self._set_staging(staging)
         self._set_destination(destination)
         self._set_dataset_name(dataset_name)
 
@@ -654,7 +648,7 @@ class Pipeline(SupportsPipeline):
 
         schema = self.schemas[schema_name] if schema_name else self.default_schema
         client_config = self._get_destination_client_initial_config(credentials)
-        with self._get_destination_client(schema, client_config) as client:
+        with self._get_destination_clients(schema, client_config)[0] as client:
             client.initialize_storage()
             return client.update_storage_schema()
 
@@ -701,11 +695,11 @@ class Pipeline(SupportsPipeline):
         else:
             schema = self.default_schema if self.default_schema_name else Schema(self.dataset_name)
         client_config = self._get_destination_client_initial_config(credentials)
-        return self._get_destination_client(schema, client_config)
+        return self._get_destination_clients(schema, client_config)[0]
 
     def _sql_job_client(self, schema: Schema, credentials: Any = None) -> SqlJobClientBase:
         client_config = self._get_destination_client_initial_config(credentials)
-        client = self._get_destination_client(schema , client_config)
+        client = self._get_destination_clients(schema , client_config)[0]
         if isinstance(client, SqlJobClientBase):
             return client
         else:
@@ -906,12 +900,20 @@ class Pipeline(SupportsPipeline):
             return client_spec(dataset_name=self.dataset_name, default_schema_name=default_schema_name, credentials=credentials)
         return client_spec(credentials=credentials)
 
-    def _get_destination_client(self, schema: Schema, initial_config: DestinationClientConfiguration = None) -> JobClientBase:
+    def _get_destination_clients(self, schema: Schema, initial_config: DestinationClientConfiguration = None, initial_staging_config: DestinationClientConfiguration = None) -> Tuple[JobClientBase, JobClientBase]:
         try:
             # config is not provided then get it with injected credentials
             if not initial_config:
                 initial_config = self._get_destination_client_initial_config(self.destination)
-            return self.destination.client(schema, initial_config)
+            client = self.destination.client(schema, initial_config)
+            staging_client = None
+            if self.staging:
+                if not initial_staging_config:
+                    initial_staging_config = self._get_destination_client_initial_config(self.staging, as_staging=True)
+                    staging_client = self.staging.client(schema, initial_staging_config)
+                if isinstance(client.config, DestinationClientDwhConfiguration) and isinstance(staging_client.config ,DestinationClientStagingConfiguration) and not client.config.staging_config:
+                    client.config.staging_config = staging_client.config
+            return client, staging_client
         except ImportError:
             client_spec = self.destination.spec()
             raise MissingDependencyException(
@@ -920,7 +922,7 @@ class Pipeline(SupportsPipeline):
                 "Dependencies for specific destinations are available as extras of dlt"
             )
 
-    def _get_staging_client(self, schema: Schema, initial_config: DestinationClientConfiguration = None) -> JobClientBase:
+    def ync(self, schema: Schema, initial_config: DestinationClientConfiguration = None) -> JobClientBase:
         try:
             # config is not provided then get it with injected credentials
             if not initial_config:

@@ -301,6 +301,7 @@ def test_pipeline_data_writer_compression(disable_compression: bool, destination
 
 @pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True), ids=lambda x: x.name)
 def test_source_max_nesting(destination_config: DestinationTestConfiguration) -> None:
+    destination_config.setup()
 
     complex_part = {
                     "l": [1, 2, 3],
@@ -367,7 +368,7 @@ def test_pipeline_explicit_destination_credentials(destination_config: Destinati
 
     # explicit credentials resolved
     p = dlt.pipeline(destination="postgres", credentials="postgresql://loader:loader@localhost:5432/dlt_data")
-    c = p._get_destination_client(Schema("s"), p._get_destination_client_initial_config())
+    c = p._get_destination_clients(Schema("s"), p._get_destination_client_initial_config())[0]
     assert c.config.credentials.host == "localhost"
 
     # Remove connection string in CI to start with clean environ
@@ -376,14 +377,14 @@ def test_pipeline_explicit_destination_credentials(destination_config: Destinati
     # explicit credentials resolved ignoring the config providers
     os.environ["DESTINATION__POSTGRES__CREDENTIALS__HOST"] = "HOST"
     p = dlt.pipeline(destination="postgres", credentials="postgresql://loader:loader@localhost:5432/dlt_data")
-    c = p._get_destination_client(Schema("s"), p._get_destination_client_initial_config())
+    c = p._get_destination_clients(Schema("s"), p._get_destination_client_initial_config())[0]
     assert c.config.credentials.host == "localhost"
 
     # explicit partial credentials will use config providers
     os.environ["DESTINATION__POSTGRES__CREDENTIALS__USERNAME"] = "UN"
     os.environ["DESTINATION__POSTGRES__CREDENTIALS__PASSWORD"] = "PW"
     p = dlt.pipeline(destination="postgres", credentials="postgresql://localhost:5432/dlt_data")
-    c = p._get_destination_client(Schema("s"), p._get_destination_client_initial_config())
+    c = p._get_destination_clients(Schema("s"), p._get_destination_client_initial_config())[0]
     assert c.config.credentials.username == "UN"
     # host is also overridden
     assert c.config.credentials.host == "HOST"
@@ -392,7 +393,7 @@ def test_pipeline_explicit_destination_credentials(destination_config: Destinati
     # c = RedshiftCredentials("postgresql://loader:loader@localhost/dlt_data")
     # assert c.is_resolved()
     # p = dlt.pipeline(destination="postgres", credentials=c)
-    # inner_c = p._get_destination_client(Schema("s"), p._get_destination_client_initial_config())
+    # inner_c = p._get_destination_clients(Schema("s"), p._get_destination_client_initial_config())[0]
     # assert inner_c is c
 
 

@@ -71,7 +71,7 @@ def assert_dropped_resource_tables(pipeline: Pipeline, resources: List[str]) -> 
 
     # Verify requested tables are dropped from destination
     client: SqlJobClientBase
-    with pipeline._get_destination_client(pipeline.default_schema) as client:  # type: ignore[assignment]
+    with pipeline._get_destination_clients(pipeline.default_schema)[0] as client:  # type: ignore[assignment]
         # Check all tables supposed to be dropped are not in dataset
         for table in dropped_tables:
             exists, _ = client.get_storage_table(table)

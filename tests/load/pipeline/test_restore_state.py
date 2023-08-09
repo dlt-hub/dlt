@@ -425,7 +425,7 @@ def test_restore_state_parallel_changes(destination_config: DestinationTestConfi
 
     # create a production pipeline in separate pipelines_dir
     production_p = dlt.pipeline(pipeline_name=pipeline_name, pipelines_dir=TEST_STORAGE_ROOT)
-    production_p.sync_destination(destination=destination_config.destination, dataset_name=dataset_name)
+    production_p.sync_destination(destination=destination_config.destination, staging=destination_config.staging, dataset_name=dataset_name)
     assert production_p.default_schema_name == "default"
     prod_state = production_p.state
     assert prod_state["sources"] == {"default": {'state1': 'state1', 'state2': 'state2'}}

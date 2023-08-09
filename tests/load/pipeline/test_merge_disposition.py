@@ -203,7 +203,7 @@ def test_merge_keys_non_existing_columns(destination_config: DestinationTestConf
     # for non merge destinations we just check that the run passes
     if not destination_config.supports_merge:
         return
-    
+
     # all the keys are invalid so the merge falls back to replace
     github_data = github()
     github_data.load_issues.apply_hints(merge_key=("mA1", "Ma2"), primary_key=("123-x", ))
@@ -277,7 +277,7 @@ def _get_shuffled_events(shuffle: bool = dlt.secrets.value):
 @pytest.mark.parametrize("github_resource",[github_repo_events, github_repo_events_table_meta])
 def test_merge_with_dispatch_and_incremental(destination_config: DestinationTestConfiguration, github_resource: DltResource) -> None:
 
-    # for athena we need to skip this test, as athena does not want a query string longer than 262144 (bytes?) and this is the 
+    # for athena we need to skip this test, as athena does not want a query string longer than 262144 (bytes?) and this is the
     # case here
     if destination_config.destination == "athena":
         return
@@ -362,8 +362,8 @@ def test_deduplicate_single_load(destination_config: DestinationTestConfiguratio
     info = p.run(duplicates())
     assert_load_info(info)
     counts = load_table_counts(p, "duplicates", "duplicates__child")
-    assert counts["duplicates"] == 1
-    assert counts["duplicates__child"] == 3
+    assert counts["duplicates"] == 1 if destination_config.supports_merge else 2
+    assert counts["duplicates__child"] == 3 if destination_config.supports_merge else 6
     select_data(p, "SELECT * FROM duplicates")[0]
 
 
