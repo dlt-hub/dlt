@@ -48,7 +48,8 @@ def weaviate_adapter(
     if tokenization:
         for column_name, method in tokenization.items():
             if method not in TOKENIZATION_METHODS:
-                raise ValueError(f"Tokenization type {method} for column {column_name} is invalid. Allowed ")
+                allowed_methods = ", ".join(TOKENIZATION_METHODS)
+                raise ValueError(f"Tokenization type {method} for column {column_name} is invalid. Allowed methods are: {allowed_methods}")
             if column_name in column_hints:
                 column_hints[column_name][TOKENIZATION_HINT] = method  # type: ignore
             else:
