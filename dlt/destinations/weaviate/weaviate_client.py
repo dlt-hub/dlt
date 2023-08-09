@@ -69,16 +69,6 @@ WT_TO_SCT: Dict[str, TDataType] = {
 }
 
 
-def table_name_to_class_name(table_name: str) -> str:
-    # Weaviate requires class names to be written with
-    # a capital letter first:
-    # https://weaviate.io/developers/weaviate/config-refs/schema#class
-    # For dlt tables strip the underscore from the name
-    # and make it all caps
-    # For non dlt tables make the class name camel case
-    return table_name
-
-
 def wrap_weaviate_error(f: TFun) -> TFun:
     @wraps(f)
     def _wrap(self: JobClientBase, *args: Any, **kwargs: Any) -> Any:
@@ -146,7 +136,7 @@ class LoadWeaviateJob(LoadJob):
         super().__init__(file_name)
         self.client_config = client_config
         self.db_client = db_client
-        self.class_name = table_name_to_class_name(table_schema["name"])
+        self.class_name = table_schema["name"]
         self.unique_identifiers = self.list_unique_identifiers(table_schema)
         self.complex_indices = [
             i
@@ -255,15 +245,14 @@ class WeaviateClient(JobClientBase):
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
         if truncate_tables:
             for table_name in truncate_tables:
-                class_name = table_name_to_class_name(table_name)
                 try:
-                    class_schema = self.db_client.schema.get(class_name)
+                    class_schema = self.db_client.schema.get(table_name)
                 except weaviate.exceptions.UnexpectedStatusCodeException as e:
                     if e.status_code == 404:
                         continue
                     raise
 
-                self.db_client.schema.delete_class(class_name)
+                self.db_client.schema.delete_class(table_name)
                 self.db_client.schema.create_class(class_schema)
 
     @wrap_weaviate_error
@@ -303,10 +292,9 @@ class WeaviateClient(JobClientBase):
             )
             if len(new_columns) > 0:
                 if exists:
-                    class_name = table_name_to_class_name(table_name)
                     for column in new_columns:
                         prop = self._make_property_schema(column["name"], column, True)
-                        self.db_client.schema.property.create(class_name, prop)
+                        self.db_client.schema.property.create(table_name, prop)
                 else:
                     table = self.schema.tables[table_name]
                     class_schema = self.make_weaviate_class_schema(table)
@@ -314,10 +302,9 @@ class WeaviateClient(JobClientBase):
         self._update_schema_in_storage(self.schema)
 
     def get_storage_table(self, table_name: str) -> Tuple[bool, TTableSchemaColumns]:
-        class_name = table_name_to_class_name(table_name)
         table_schema: TTableSchemaColumns = {}
         try:
-            class_schema = self.db_client.schema.get(class_name)
+            class_schema = self.db_client.schema.get(table_name)
         except weaviate.exceptions.UnexpectedStatusCodeException as e:
             if e.status_code == 404:
                 return False, table_schema
@@ -333,7 +320,7 @@ class WeaviateClient(JobClientBase):
         return True, table_schema
 
     def get_schema_by_hash(self, schema_hash: str) -> Optional[StorageSchemaInfo]:
-        version_class_name = table_name_to_class_name(self.schema.version_table_name)
+        version_class_name = self.schema.version_table_name
 
         try:
             self.db_client.schema.get(version_class_name)
@@ -374,12 +361,10 @@ class WeaviateClient(JobClientBase):
         """Creates a Weaviate class schema from a table schema."""
         table_name = table["name"]
 
-        class_name = table_name_to_class_name(table_name)
-
         if table_name.startswith(self.schema._dlt_tables_prefix):
-            return self._make_non_vectorized_class_schema(class_name, table)
+            return self._make_non_vectorized_class_schema(table_name, table)
 
-        return self._make_vectorized_class_schema(class_name, table)
+        return self._make_vectorized_class_schema(table_name, table)
 
     def _make_properties(
         self, table: TTableSchema, is_vectorized_class: bool = True
@@ -466,14 +451,13 @@ class WeaviateClient(JobClientBase):
 
     @wrap_weaviate_error
     def complete_load(self, load_id: str) -> None:
-        load_table_name = table_name_to_class_name(self.schema.loads_table_name)
         properties = {
             "load_id": load_id,
             "schema_name": self.schema.name,
             "status": 0,
             "inserted_at": str(pendulum.now()),
         }
-        self.db_client.data_object.create(properties, load_table_name)
+        self.db_client.data_object.create(properties, self.schema.loads_table_name)
 
     def __enter__(self) -> "WeaviateClient":
         return self
@@ -489,7 +473,6 @@ class WeaviateClient(JobClientBase):
     def _update_schema_in_storage(self, schema: Schema) -> None:
         now_ts = str(pendulum.now())
         schema_str = json.dumps(schema.to_dict())
-        version_class_name = table_name_to_class_name(self.schema.version_table_name)
         properties = {
             "version_hash": schema.stored_version_hash,
             "schema_name": schema.name,
@@ -499,7 +482,7 @@ class WeaviateClient(JobClientBase):
             "schema": schema_str,
         }
 
-        self.db_client.data_object.create(properties, version_class_name)
+        self.db_client.data_object.create(properties, self.schema.version_table_name)
 
     @staticmethod
     def _to_db_type(sc_t: TDataType) -> str:
