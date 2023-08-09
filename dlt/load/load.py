@@ -18,7 +18,7 @@ from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.common.runtime.logger import pretty_format_exception
 from dlt.common.exceptions import TerminalValueError, DestinationTerminalException, DestinationTransientException
 from dlt.common.schema import Schema
-from dlt.common.schema.typing import VERSION_TABLE_NAME, TTableSchema, TWriteDisposition
+from dlt.common.schema.typing import TTableSchema, TWriteDisposition
 from dlt.common.storages import LoadStorage
 from dlt.common.destination.reference import DestinationClientDwhConfiguration, FollowupJob, JobClientBase, StagingJobClientBase, DestinationReference, LoadJob, NewLoadJob, TLoadJobState, DestinationClientConfiguration
 
@@ -311,7 +311,7 @@ class Load(Runnable[ThreadPool]):
                             logger.info(f"Client for {job_client.config.destination_name} will start initialize STAGING storage")
                             job_client.initialize_storage()
                             logger.info(f"Client for {job_client.config.destination_name} will UPDATE STAGING SCHEMA to package schema")
-                            job_client.update_storage_schema(only_tables=staging_tables | {VERSION_TABLE_NAME}, expected_update=expected_update)
+                            job_client.update_storage_schema(only_tables=staging_tables | {schema.version_table_name}, expected_update=expected_update)
                             logger.info(f"Client for {job_client.config.destination_name} will TRUNCATE STAGING TABLES: {staging_tables}")
                             job_client.initialize_storage(truncate_tables=staging_tables)
                 self.load_storage.commit_schema_update(load_id, applied_update)

@@ -96,7 +96,7 @@ _WEI = '\uF02C'
 DECODERS: List[Callable[[Any], Any]] = [
     Decimal,
     parse_iso_like_datetime,
-    lambda s: parse_iso_like_datetime(s).date(),  # type: ignore
+    lambda s: parse_iso_like_datetime(s),
     UUID,
     HexBytes,
     base64.b64decode,

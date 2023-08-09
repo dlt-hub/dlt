@@ -74,14 +74,14 @@ def extract(
     with collector(f"Extract {source.name}"):
 
         def _write_empty_file(table_name: str) -> None:
-            table_name = schema.naming.normalize_identifier(table_name)
+            table_name = schema.naming.normalize_table_identifier(table_name)
             storage.write_empty_file(extract_id, schema.name, table_name, None)
 
         def _write_item(table_name: str, resource_name: str, item: TDataItems) -> None:
             # normalize table name before writing so the name match the name in schema
             # note: normalize function should be cached so there's almost no penalty on frequent calling
             # note: column schema is not required for jsonl writer used here
-            table_name = schema.naming.normalize_identifier(table_name)
+            table_name = schema.naming.normalize_table_identifier(table_name)
             collector.update(table_name)
             resources_with_items.add(resource_name)
             storage.write_data_item(extract_id, schema.name, table_name, item, None)

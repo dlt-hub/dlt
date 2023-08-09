@@ -134,10 +134,10 @@ def test_source_name_is_invalid_schema_name() -> None:
 
     s = dlt.source(camelCase)()
     # source name will be normalized
-    assert s.name == "camel_case"
-    assert s.schema.name == "camel_case"
+    assert s.name == "camelCase"
+    assert s.schema.name == "camelCase"
     schema = s.discover_schema()
-    assert schema.name == "camel_case"
+    assert schema.name == "camelCase"
     assert list(s) == [1, 2, 3]
 
     # explicit name

@@ -438,9 +438,10 @@ def test_load_with_all_types(client: SqlJobClientBase, write_disposition: str, f
     client.update_storage_schema()
 
     if write_disposition in client.get_stage_dispositions():
-        # create staging for merge dataset
-        client.initialize_storage(staging=True)
-        client.update_storage_schema(staging=True)
+        with client.with_staging_dataset():
+            # create staging for merge dataset
+            client.initialize_storage()
+            client.update_storage_schema()
 
     with client.sql_client.with_staging_dataset(write_disposition in client.get_stage_dispositions()):
         canonical_name = client.sql_client.make_qualified_table_name(table_name)

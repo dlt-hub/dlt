@@ -56,6 +56,7 @@ class Normalize(Runnable[ProcessPool]):
     def load_or_create_schema(schema_storage: SchemaStorage, schema_name: str) -> Schema:
         try:
             schema = schema_storage.load_schema(schema_name)
+            schema.update_normalizers()
             logger.info(f"Loaded schema with name {schema_name} with version {schema.stored_version}")
         except SchemaNotFoundError:
             schema = Schema(schema_name)
