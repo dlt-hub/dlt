@@ -29,7 +29,6 @@ from dlt.common.schema.typing import TColumnSchema, TColumnSchemaBase
 from dlt.common.schema.utils import get_columns_names_with_prop
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
-    NewLoadJob,
     TLoadJobState,
     LoadJob,
     JobClientBase,
@@ -57,7 +56,7 @@ SCT_TO_WT: Dict[TDataType, str] = {
     "binary": "blob",
     "decimal": "text",
     "wei": "number",
-    "complex": "text"
+    "complex": "text",
 }
 
 WT_TO_SCT: Dict[str, TDataType] = {
@@ -68,6 +67,7 @@ WT_TO_SCT: Dict[str, TDataType] = {
     "int": "bigint",
     "blob": "binary",
 }
+
 
 def table_name_to_class_name(table_name: str) -> str:
     # Weaviate requires class names to be written with
@@ -121,10 +121,15 @@ def wrap_batch_error(f: TFun) -> TFun:
             message = errors["error"][0]["message"]
             # TODO: actually put the job in failed/retry state and prepare exception message with full info on failing item
             if "invalid" in message and "property" in message and "on class" in message:
-                raise DestinationTerminalException(f'Batch failed {errors} AND WILL BE RETRIED')
-            raise DestinationTransientException(f'Batch failed {errors} AND WILL BE RETRIED')
+                raise DestinationTerminalException(
+                    f"Batch failed {errors} AND WILL BE RETRIED"
+                )
+            raise DestinationTransientException(
+                f"Batch failed {errors} AND WILL BE RETRIED"
+            )
         except Exception:
-            raise DestinationTransientException(f'Batch failed AND WILL BE RETRIED')
+            raise DestinationTransientException(f"Batch failed AND WILL BE RETRIED")
+
     return _wrap  # type: ignore
 
 
@@ -143,8 +148,16 @@ class LoadWeaviateJob(LoadJob):
         self.db_client = db_client
         self.class_name = table_name_to_class_name(table_schema["name"])
         self.unique_identifiers = self.list_unique_identifiers(table_schema)
-        self.complex_indices = [i for i, field in table_schema["columns"].items() if field["data_type"] == "complex"]
-        self.date_indices = [i for i, field in table_schema["columns"].items() if field["data_type"] == "date"]
+        self.complex_indices = [
+            i
+            for i, field in table_schema["columns"].items()
+            if field["data_type"] == "complex"
+        ]
+        self.date_indices = [
+            i
+            for i, field in table_schema["columns"].items()
+            if field["data_type"] == "date"
+        ]
 
         with FileStorage.open_zipsafe_ro(local_path) as f:
             self.load_batch(f)
@@ -160,9 +173,9 @@ class LoadWeaviateJob(LoadJob):
             """This kills batch on first error reported"""
             if results is not None:
                 for result in results:
-                    if 'result' in result and 'errors' in result['result']:
-                        if 'error' in result['result']['errors']:
-                            raise WeaviateBatchError(result['result']['errors'])
+                    if "result" in result and "errors" in result["result"]:
+                        if "error" in result["result"]["errors"]:
+                            raise WeaviateBatchError(result["result"]["errors"])
 
         with self.db_client.batch(
             batch_size=self.client_config.batch_size,
@@ -292,10 +305,8 @@ class WeaviateClient(JobClientBase):
                 if exists:
                     class_name = table_name_to_class_name(table_name)
                     for column in new_columns:
-                        prop = self._make_property_schema(column['name'], column, True)
-                        self.db_client.schema.property.create(
-                            class_name, prop
-                        )
+                        prop = self._make_property_schema(column["name"], column, True)
+                        self.db_client.schema.property.create(class_name, prop)
                 else:
                     table = self.schema.tables[table_name]
                     class_schema = self.make_weaviate_class_schema(table)
