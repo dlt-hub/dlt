@@ -20,7 +20,7 @@ Resources that can be loaded using this verified source are:
 | Name             | Description                                                                      |
 | ---------------- |----------------------------------------------------------------------------------|
 | github_reactions | Retrieves all issues, pull requests, comments and reactions associated with them |
-| github_repo_events      | Gets all the events repo events associated with the repository                   |
+| github_repo_events      | Gets all the repo events associated with the repository                   |
 
 ## Setup Guide
 
