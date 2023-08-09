@@ -792,7 +792,7 @@ files = [
 name = "boto3"
 version = "1.26.76"
 description = "The AWS SDK for Python"
-optional = false
+optional = true
 python-versions = ">= 3.7"
 files = [
     {file = "boto3-1.26.76-py3-none-any.whl", hash = "sha256:b4c2969b7677762914394b8273cc1905dfe5b71f250741c1a575487ae357e729"},
@@ -811,7 +811,7 @@ crt = ["botocore[crt] (>=1.21.0,<2.0a0)"]
 name = "botocore"
 version = "1.29.76"
 description = "Low-level, data-driven core of boto 3."
-optional = false
+optional = true
 python-versions = ">= 3.7"
 files = [
     {file = "botocore-1.29.76-py3-none-any.whl", hash = "sha256:70735b00cd529f152992231ca6757e458e5ec25db43767b3526e9a35b2f143b7"},
@@ -2909,7 +2909,7 @@ ansicon = {version = "*", markers = "platform_system == \"Windows\""}
 name = "jmespath"
 version = "1.0.1"
 description = "JSON Matching Expressions"
-optional = false
+optional = true
 python-versions = ">=3.7"
 files = [
     {file = "jmespath-1.0.1-py3-none-any.whl", hash = "sha256:02e2e4cc71b5bcab88332eebf907519190dd9e6e82107fa7f83b1003a6252980"},
@@ -4390,7 +4390,7 @@ pyasn1 = ">=0.4.6,<0.6.0"
 name = "pyathena"
 version = "3.0.6"
 description = "Python DB API 2.0 (PEP 249) client for Amazon Athena"
-optional = false
+optional = true
 python-versions = ">=3.8.1"
 files = [
     {file = "pyathena-3.0.6-py3-none-any.whl", hash = "sha256:27fb606a73644e62be8ef9b86cdf583ab3cb9f8cac9c2ad8f05b7ad6d4eaaa87"},
@@ -5184,7 +5184,7 @@ boto3 = ["aiobotocore[boto3] (>=2.5.0,<2.6.0)"]
 name = "s3transfer"
 version = "0.6.1"
 description = "An Amazon S3 Transfer Manager"
-optional = false
+optional = true
 python-versions = ">= 3.7"
 files = [
     {file = "s3transfer-0.6.1-py3-none-any.whl", hash = "sha256:3c0da2d074bf35d6870ef157158641178a4204a6e689e82546083e31e0311346"},
@@ -6317,6 +6317,7 @@ docs = ["furo", "jaraco.packaging (>=9)", "jaraco.tidelift (>=1.4)", "rst.linker
 testing = ["big-O", "flake8 (<5)", "jaraco.functools", "jaraco.itertools", "more-itertools", "pytest (>=6)", "pytest-black (>=0.3.7)", "pytest-checkdocs (>=2.4)", "pytest-cov", "pytest-enabler (>=1.3)", "pytest-flake8", "pytest-mypy (>=0.9.1)"]
 
 [extras]
+athena = []
 bigquery = ["gcsfs", "google-cloud-bigquery", "grpcio", "pyarrow"]
 dbt = ["dbt-bigquery", "dbt-core", "dbt-duckdb", "dbt-redshift", "dbt-snowflake"]
 duckdb = ["duckdb"]
@@ -6333,4 +6334,4 @@ snowflake = ["snowflake-connector-python"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8.1,<4.0"
-content-hash = "1afb1a5d9eb2c8c16e58950b6c7348ea7cf5411d2c0e807b5678a0c175b36773"
+content-hash = "5cf505bbc50193e0bb798686c42a26bfbfe464dd480f416afe5e5ff3850f8292"

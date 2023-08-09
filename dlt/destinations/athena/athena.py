@@ -176,7 +176,7 @@ class AthenaSQLClient(SqlClientBase[Connection]):
         for query_line in query.split(";"):
             if query_line.strip():
                 cursor.execute(query_line, db_args)
-        yield cursor  # type: ignore
+        yield cursor
 
     def has_dataset(self) -> bool:
         query = f"""SHOW DATABASES LIKE '{self.fully_qualified_dataset_name(escape=False)}';"""
