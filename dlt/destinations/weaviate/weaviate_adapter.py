@@ -1,6 +1,5 @@
 from typing import List, Dict, Union, Any, Literal, Set, get_args
 
-from dlt.common.schema.typing import TColumnNames
 from dlt.common.schema.typing import TColumnNames, TTableSchemaColumns
 from dlt.extract.decorators import resource as make_resource
 from dlt.extract.source import DltResource
