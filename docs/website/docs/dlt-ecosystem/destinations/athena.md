@@ -6,8 +6,7 @@ keywords: [aws, athena, glue catalog]
 
 # AWS Athena / Glue Catalog
 
-The athena destination stores data as parquet files in s3 buckets and creates [external tables in aws athena](https://docs.aws.amazon.com/athena/latest/ug/creating-tables.html). You can then query those tables with athena sql commands which will then scan the whole folder of parquet files and return the results. This destination works very similar to other sql based destinations, with the exception of the merge write disposition not being supported at this
-time.
+The athena destination stores data as parquet files in s3 buckets and creates [external tables in aws athena](https://docs.aws.amazon.com/athena/latest/ug/creating-tables.html). You can then query those tables with athena sql commands which will then scan the whole folder of parquet files and return the results. This destination works very similar to other sql based destinations, with the exception of the merge write disposition not being supported at this time. DLT metadata will be stored in the same bucket as the parquet files, but as iceberg tables.
 
 ## Setup Guide
 ### 1. Initialize the dlt project
@@ -21,7 +20,9 @@ Let's start by initializing a new dlt project as follows:
 
 ### 2. Setup bucket storage and athena credentials
 
-To edit the `dlt` credentials file with your secret info, open `.dlt/secrets.toml`, which looks like this:
+To edit the `dlt` credentials file with your secret info, open `.dlt/secrets.toml`. You will need to provide a `bucket_url` which holds the uploaded parquetfiles, a `query_result_bucket` which athena uses to write query results too, and credentials that have write and read access to these two buckets as well as the full athena access aws role.
+
+The toml file looks like this:
 
 ```toml
 [destination.filesystem]
@@ -32,7 +33,7 @@ aws_access_key_id = "please set me up!" # copy the access key here
 aws_secret_access_key = "please set me up!" # copy the secret access key here
 
 [destination.athena]
-query_result_bucket="please set me up!" # replace with your query results bucket name
+query_result_bucket="s3://[results_bucket_name]" # replace with your query results bucket name
 
 [destination.athena.credentials]
 aws_access_key_id="please set me up!" # same as credentials for filesystem
@@ -49,6 +50,14 @@ aws_profile="dlt-ci-user"
 aws_profile="dlt-ci-user"
 ```
 
+## Additional Destination Configuration
+
+You can provide an athena workgroup like so: 
+```toml
+[destination.athena]
+workgroup="my_workgroup"
+```
+
 ## Write disposition
 `filesystem` destination handles the write dispositions as follows:
 - `append` - files belonging to such tables are added to dataset folder
@@ -61,15 +70,3 @@ You can choose the following file formats:
 * [parquet](../file-formats/parquet.md) is used by default
 
 ------
-
-### Setup:
-* Provide aws credentials for an identity that has the athena full access role
-* Provide an s3 bucket which serves as the output for Athena queries, the aws identity will need access to this bucket too.
-* Ensure that the aws identity also had read and write access for the buckets that will have the files for the athena tables
-
-
-[destination.athena]
-credentials.aws_access_key_id=""
-credentials.aws_secret_access_key=""
-credentials.aws_region="eu-central-1"
-query_result_bucket="s3://athena-output-bucket"
