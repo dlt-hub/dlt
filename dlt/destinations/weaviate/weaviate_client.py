@@ -23,7 +23,8 @@ import weaviate
 from weaviate.util import generate_uuid5
 
 from dlt.common import json, pendulum, logger
-from dlt.common.typing import TFun
+from dlt.common.typing import StrAny, TFun
+from dlt.common.time import ensure_pendulum_datetime
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables, TTableSchemaColumns
 from dlt.common.schema.typing import TColumnSchema, TColumnSchemaBase
 from dlt.common.schema.utils import get_columns_names_with_prop
@@ -35,16 +36,14 @@ from dlt.common.destination.reference import (
 )
 from dlt.common.data_types import TDataType
 from dlt.common.storages import FileStorage
+
+from dlt.destinations.weaviate.weaviate_adapter import VECTORIZE_HINT, TOKENIZATION_HINT
+
 from dlt.destinations.job_impl import EmptyLoadJob
 from dlt.destinations.job_client_impl import StorageSchemaInfo
-
 from dlt.destinations.weaviate import capabilities
 from dlt.destinations.weaviate.configuration import WeaviateClientConfiguration
-
 from dlt.destinations.weaviate.exceptions import WeaviateBatchError
-
-from dlt.common.time import ensure_pendulum_datetime
-
 
 SCT_TO_WT: Dict[TDataType, str] = {
     "text": "text",
@@ -76,7 +75,6 @@ def wrap_weaviate_error(f: TFun) -> TFun:
             return f(self, *args, **kwargs)
         # those look like terminal exceptions
         except (
-            weaviate.exceptions.ObjectAlreadyExistsException,
             weaviate.exceptions.ObjectAlreadyExistsException,
             weaviate.exceptions.SchemaValidationException,
             weaviate.exceptions.WeaviateEmbeddedInvalidVersion,
@@ -118,7 +116,7 @@ def wrap_batch_error(f: TFun) -> TFun:
                 f"Batch failed {errors} AND WILL BE RETRIED"
             )
         except Exception:
-            raise DestinationTransientException(f"Batch failed AND WILL BE RETRIED")
+            raise DestinationTransientException("Batch failed AND WILL BE RETRIED")
 
     return _wrap  # type: ignore
 
@@ -159,7 +157,7 @@ class LoadWeaviateJob(LoadJob):
         """
 
         @wrap_batch_error
-        def check_batch_result(results: Dict[str, Any]) -> None:
+        def check_batch_result(results: List[StrAny]) -> None:
             """This kills batch on first error reported"""
             if results is not None:
                 for result in results:
@@ -209,7 +207,7 @@ class LoadWeaviateJob(LoadJob):
         self, data: Dict[str, Any], unique_identifiers: Sequence[str], class_name: str
     ) -> str:
         data_id = "_".join([str(data[key]) for key in unique_identifiers])
-        return generate_uuid5(data_id, class_name)
+        return generate_uuid5(data_id, class_name)  # type: ignore
 
     def state(self) -> TLoadJobState:
         return "completed"
@@ -312,7 +310,7 @@ class WeaviateClient(JobClientBase):
 
         # Convert Weaviate class schema to dlt table schema
         for prop in class_schema["properties"]:
-            schema_c: TColumnSchemaBase = {
+            schema_c: TColumnSchema = {
                 "name": prop["name"],
                 "data_type": self._from_db_type(prop["dataType"][0]),
             }
@@ -329,14 +327,7 @@ class WeaviateClient(JobClientBase):
                 return None
             raise
 
-        properties = [
-            "version_hash",
-            "schema_name",
-            "version",
-            "engine_version",
-            "inserted_at",
-            "schema",
-        ]
+        properties = list(self.schema.get_table_columns(version_class_name).keys())
 
         response = (
             self.db_client.query.get(version_class_name, properties)
@@ -391,18 +382,19 @@ class WeaviateClient(JobClientBase):
         if is_vectorized_class:
             vectorizer_name = self._vectorizer_config["vectorizer"]
 
-            # x-vectorize: (bool) means that this field should be vectorized
-            if not column.get("x-vectorize", False):
+            # x-weaviate-vectorize: (bool) means that this field should be vectorized
+            if not column.get(VECTORIZE_HINT, False):
+                # do not vectorize
                 extra_kv["moduleConfig"] = {
                     vectorizer_name: {
                         "skip": True,
                     }
                 }
 
-            # x-tokenization: (str) specifies the method to use
+            # x-weaviate-tokenization: (str) specifies the method to use
             # for tokenization
-            if column.get("x-tokenization"):
-                extra_kv["tokenization"] = column["x-tokenization"]
+            if TOKENIZATION_HINT in column:
+                extra_kv["tokenization"] = column[TOKENIZATION_HINT]  # type: ignore
 
         return {
             "name": column_name,

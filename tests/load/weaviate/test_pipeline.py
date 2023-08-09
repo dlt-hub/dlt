@@ -2,10 +2,10 @@ from typing import Any, List
 
 import dlt
 from dlt.common import json
-
-from dlt.helpers.weaviate_helper import weaviate_adapter
-from dlt.destinations.weaviate.weaviate_client import WeaviateClient
 from dlt.common.schema.typing import TTableSchema
+
+from dlt.destinations.weaviate.weaviate_adapter import weaviate_adapter, VECTORIZE_HINT, TOKENIZATION_HINT
+from dlt.destinations.weaviate.weaviate_client import WeaviateClient
 
 from tests.pipeline.utils import assert_load_info
 
@@ -30,7 +30,10 @@ def assert_class(pipeline: dlt.Pipeline, class_name: str, table_schema: TTableSc
     for column_name, column in table_schema["columns"].items():
         prop = properties[column_name]
         # text2vec-openai is the default
-        assert prop["moduleConfig"]["text2vec-openai"]["skip"] == (not column.get("x-vectorize", False))
+        assert prop["moduleConfig"]["text2vec-openai"]["skip"] == (not column.get(VECTORIZE_HINT, False))
+        # tokenization
+        if TOKENIZATION_HINT in column:
+            assert prop["tokenization"] == column[TOKENIZATION_HINT]
 
     response = db_client.query.get(class_name, list(properties.keys())).do()
     objects = response["data"]["Get"][class_name]
@@ -293,7 +296,7 @@ def test_merge_github_nested() -> None:
         data = json.load(f)
 
     info = p.run(
-        weaviate_adapter(data[:17], vectorize=["title", "body"]),
+        weaviate_adapter(data[:17], vectorize=["title", "body"], tokenization={"user__login": "lowercase"}),
         table_name="issues",
         write_disposition="merge",
         primary_key="id"
@@ -307,8 +310,9 @@ def test_merge_github_nested() -> None:
     # make sure that both "id" column and "primary_key" were changed to __id
     assert issues["columns"]["__id"]["primary_key"] is True
     # make sure that vectorization is enabled for
-    assert issues["columns"]["title"]["x-vectorize"]
-    assert issues["columns"]["body"]["x-vectorize"]
-    assert "x-vectorize" not in issues["columns"]["url"]
+    assert issues["columns"]["title"][VECTORIZE_HINT]
+    assert issues["columns"]["body"][VECTORIZE_HINT]
+    assert VECTORIZE_HINT not in issues["columns"]["url"]
+    assert issues["columns"]["user__login"][TOKENIZATION_HINT] == "lowercase"
 
     assert_class(p, "Issues", issues, expected_items_count=17)

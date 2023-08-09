@@ -15,7 +15,8 @@ TColumnProp = Literal["name", "data_type", "nullable", "partition", "cluster", "
 TWriteDisposition = Literal["skip", "append", "replace", "merge"]
 TTypeDetections = Literal["timestamp", "iso_timestamp", "large_integer", "hexbytes_to_text", "wei_to_double"]
 TTypeDetectionFunc = Callable[[Type[Any], Any], Optional[TDataType]]
-TColumnKey = Union[str, Sequence[str]]
+TColumnNames = Union[str, Sequence[str]]
+"""A string representing a column name or a list of"""
 
 COLUMN_PROPS: Set[TColumnProp] = set(get_args(TColumnProp))
 COLUMN_HINTS: Set[TColumnHint] = set(["partition", "cluster", "primary_key", "foreign_key", "sort", "unique", "merge_key", "root_key"])
@@ -23,12 +24,14 @@ WRITE_DISPOSITIONS: Set[TWriteDisposition] = set(get_args(TWriteDisposition))
 
 
 class TColumnSchemaBase(TypedDict, total=False):
+    """TypedDict that defines basic properties of a column: name, data type and nullable"""
     name: Optional[str]
     data_type: Optional[TDataType]
     nullable: Optional[bool]
 
 
 class TColumnSchema(TColumnSchemaBase, total=False):
+    """TypedDict that defines additional column hints"""
     description: Optional[str]
     partition: Optional[bool]
     cluster: Optional[bool]
@@ -42,6 +45,7 @@ class TColumnSchema(TColumnSchemaBase, total=False):
 
 
 TTableSchemaColumns = Dict[str, TColumnSchema]
+"""A mapping from column name to column schema, typically part of a table schema"""
 TSimpleRegex = NewType("TSimpleRegex", str)
 TColumnName = NewType("TColumnName", str)
 SIMPLE_REGEX_PREFIX = "re:"
@@ -53,6 +57,7 @@ class TRowFilters(TypedDict, total=True):
 
 
 class TTableSchema(TypedDict, total=False):
+    """TypedDict that defines properties of a table"""
     name: Optional[str]
     description: Optional[str]
     write_disposition: Optional[TWriteDisposition]
@@ -78,6 +83,7 @@ class TSchemaSettings(TypedDict, total=False):
 
 
 class TStoredSchema(TypedDict, total=False):
+    """TypeDict defining the schema representation in storage"""
     version: int
     version_hash: str
     imported_version_hash: Optional[str]
