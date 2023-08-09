@@ -119,7 +119,7 @@ All the files are stored in a single folder with the name of the dataset that yo
 
 The name of each file contains essential metadata on the content:
 
-`<schema_name>.<table_name>.<load_id>.<file_id>.<file_format>` where:
+`<schema_name>/<table_name>/<load_id>.<file_id>.<file_format>` where:
 - **schema_name** and **table_name** identify the [schema](../../general-usage/schema.md) and table that define the file structure (column names, data types etc.)
 - **load_id** is the [id of the load package](https://dlthub.com/docs/dlt-ecosystem/visualizations/understanding-the-tables#load-ids) form which the file comes from.
 - **file_id** is there are many files with data for a single table, they are copied with different file id.

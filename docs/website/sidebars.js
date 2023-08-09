@@ -110,6 +110,7 @@ const sidebars = {
             'dlt-ecosystem/destinations/postgres',
             'dlt-ecosystem/destinations/redshift',
             'dlt-ecosystem/destinations/snowflake',
+            'dlt-ecosystem/destinations/athena',
             'dlt-ecosystem/destinations/motherduck',
           ]
         },

@@ -49,6 +49,7 @@ We keep config and credentials in `configuration.py`. You should:
 * `supports_ddl_transactions` tells if the destination supports ddl transactions.
 * `alter_add_multi_column` tells if destination can add multiple columns in **ALTER** statement
 * `supports_truncate_command` tells dlt if **truncate** command is used, otherwise it will use **DELETE** to clear tables.
+* `supports_numeric_precision_in_schema` tells dlt wether the table schema supports numeric precision for number fields.
 
 ### Supported loader file formats
 Specify which [loader file formats](../dlt-ecosystem/file-formats/) your destination will support directly and via [storage staging](../dlt-ecosystem/staging.md). Direct support means that destination is able to load a local file or supports INSERT command. Loading via staging is using `filesystem` to send load package to a (typically) bucket storage and then load from there.
