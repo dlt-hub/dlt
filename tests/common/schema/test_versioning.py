@@ -86,10 +86,7 @@ def test_preserve_version_on_load() -> None:
     eth_v6: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v6")
     version = eth_v6["version"]
     version_hash = eth_v6["version_hash"]
-    print(eth_v6)
     schema = Schema.from_dict(eth_v6)
-    with open("_storage/eth7.yaml", "w") as f:
-        f.write(schema.to_pretty_yaml())
     # version should not be bumped
     assert version_hash == schema._stored_version_hash
     assert version_hash == schema.version_hash

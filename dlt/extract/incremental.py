@@ -9,7 +9,7 @@ from dlt.common import pendulum, logger
 from dlt.common.json import json
 from dlt.common.jsonpath import compile_path, find_values, JSONPath
 from dlt.common.typing import TDataItem, TDataItems, TFun, extract_inner_type, get_generic_type_argument_from_instance, is_optional_type
-from dlt.common.schema.typing import TColumnKey
+from dlt.common.schema.typing import TColumnNames
 from dlt.common.configuration import configspec, ConfigurationValueError
 from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.pipeline import resource_state
@@ -20,8 +20,6 @@ from dlt.extract.exceptions import IncrementalUnboundError, PipeException
 from dlt.extract.pipe import Pipe
 from dlt.extract.utils import resolve_column_value
 from dlt.extract.typing import FilterItem, SupportsPipe, TTableHintTemplate
-
-from dlt.common.time import ensure_pendulum_datetime
 
 
 TCursorValue = TypeVar("TCursorValue", bound=Any)
@@ -98,7 +96,7 @@ class Incremental(FilterItem, BaseConfiguration, Generic[TCursorValue]):
             cursor_path: str = dlt.config.value,
             initial_value: Optional[TCursorValue]=None,
             last_value_func: Optional[LastValueFunc[TCursorValue]]=max,
-            primary_key: Optional[TTableHintTemplate[TColumnKey]] = None,
+            primary_key: Optional[TTableHintTemplate[TColumnNames]] = None,
             end_value: Optional[TCursorValue] = None,
             allow_external_schedulers: bool = False
     ) -> None:
@@ -112,7 +110,7 @@ class Incremental(FilterItem, BaseConfiguration, Generic[TCursorValue]):
         self.start_value: Any = initial_value
         """Value of last_value at the beginning of current pipeline run"""
         self.resource_name: Optional[str] = None
-        self.primary_key: Optional[TTableHintTemplate[TColumnKey]] = primary_key
+        self.primary_key: Optional[TTableHintTemplate[TColumnNames]] = primary_key
         self.allow_external_schedulers = allow_external_schedulers
 
         self._cached_state: IncrementalColumnState = None
@@ -383,7 +381,7 @@ class IncrementalResourceWrapper(FilterItem):
     _incremental: Optional[Incremental[Any]] = None
     """Keeps the injectable incremental"""
 
-    def __init__(self, resource_name: str, primary_key: Optional[TTableHintTemplate[TColumnKey]] = None) -> None:
+    def __init__(self, resource_name: str, primary_key: Optional[TTableHintTemplate[TColumnNames]] = None) -> None:
         """Creates a wrapper over a resource function that accepts Incremental instance in its argument to perform incremental loading.
 
         The wrapper delays instantiation of the Incremental to the moment of actual execution and is currently used by `dlt.resource` decorator.
