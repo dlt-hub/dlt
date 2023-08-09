@@ -14,7 +14,7 @@ from dlt.common.exceptions import ArgumentsOverloadException
 from dlt.common.pipeline import PipelineContext
 from dlt.common.source import _SOURCES, SourceInfo
 from dlt.common.schema.schema import Schema
-from dlt.common.schema.typing import TColumnKey, TTableSchemaColumns, TWriteDisposition
+from dlt.common.schema.typing import TColumnNames, TTableSchemaColumns, TWriteDisposition
 from dlt.common.storages.exceptions import SchemaNotFoundError
 from dlt.common.storages.schema_storage import SchemaStorage
 from dlt.common.typing import AnyFun, ParamSpec, Concatenate, TDataItem, TDataItems
@@ -203,8 +203,8 @@ def resource(
     table_name: TTableHintTemplate[str] = None,
     write_disposition: TTableHintTemplate[TWriteDisposition] = None,
     columns: TTableHintTemplate[TTableSchemaColumns] = None,
-    primary_key: TTableHintTemplate[TColumnKey] = None,
-    merge_key: TTableHintTemplate[TColumnKey] = None,
+    primary_key: TTableHintTemplate[TColumnNames] = None,
+    merge_key: TTableHintTemplate[TColumnNames] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None
 ) -> Callable[TResourceFunParams, DltResource]:
@@ -218,8 +218,8 @@ def resource(
     table_name: TTableHintTemplate[str] = None,
     write_disposition: TTableHintTemplate[TWriteDisposition] = None,
     columns: TTableHintTemplate[TTableSchemaColumns] = None,
-    primary_key: TTableHintTemplate[TColumnKey] = None,
-    merge_key: TTableHintTemplate[TColumnKey] = None,
+    primary_key: TTableHintTemplate[TColumnNames] = None,
+    merge_key: TTableHintTemplate[TColumnNames] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None
 ) -> Callable[[Callable[TResourceFunParams, Any]], DltResource]:
@@ -233,8 +233,8 @@ def resource(
     table_name: TTableHintTemplate[str] = None,
     write_disposition: TTableHintTemplate[TWriteDisposition] = None,
     columns: TTableHintTemplate[TTableSchemaColumns] = None,
-    primary_key: TTableHintTemplate[TColumnKey] = None,
-    merge_key: TTableHintTemplate[TColumnKey] = None,
+    primary_key: TTableHintTemplate[TColumnNames] = None,
+    merge_key: TTableHintTemplate[TColumnNames] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None
 ) -> DltResource:
@@ -248,8 +248,8 @@ def resource(
     table_name: TTableHintTemplate[str] = None,
     write_disposition: TTableHintTemplate[TWriteDisposition] = None,
     columns: TTableHintTemplate[TTableSchemaColumns] = None,
-    primary_key: TTableHintTemplate[TColumnKey] = None,
-    merge_key: TTableHintTemplate[TColumnKey] = None,
+    primary_key: TTableHintTemplate[TColumnNames] = None,
+    merge_key: TTableHintTemplate[TColumnNames] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     depends_on: TUnboundDltResource = None,
@@ -387,8 +387,8 @@ def transformer(
     table_name: TTableHintTemplate[str] = None,
     write_disposition: TTableHintTemplate[TWriteDisposition] = None,
     columns: TTableHintTemplate[TTableSchemaColumns] = None,
-    primary_key: TTableHintTemplate[TColumnKey] = None,
-    merge_key: TTableHintTemplate[TColumnKey] = None,
+    primary_key: TTableHintTemplate[TColumnNames] = None,
+    merge_key: TTableHintTemplate[TColumnNames] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None
 ) -> Callable[[TTransformerFun[TResourceFunParams]], Callable[TResourceFunParams, DltResource]]:
@@ -403,8 +403,8 @@ def transformer(
     table_name: TTableHintTemplate[str] = None,
     write_disposition: TTableHintTemplate[TWriteDisposition] = None,
     columns: TTableHintTemplate[TTableSchemaColumns] = None,
-    primary_key: TTableHintTemplate[TColumnKey] = None,
-    merge_key: TTableHintTemplate[TColumnKey] = None,
+    primary_key: TTableHintTemplate[TColumnNames] = None,
+    merge_key: TTableHintTemplate[TColumnNames] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None
 ) -> Callable[TResourceFunParams, DltResource]:
@@ -418,8 +418,8 @@ def transformer(  # type: ignore
     table_name: TTableHintTemplate[str] = None,
     write_disposition: TTableHintTemplate[TWriteDisposition] = None,
     columns: TTableHintTemplate[TTableSchemaColumns] = None,
-    primary_key: TTableHintTemplate[TColumnKey] = None,
-    merge_key: TTableHintTemplate[TColumnKey] = None,
+    primary_key: TTableHintTemplate[TColumnNames] = None,
+    merge_key: TTableHintTemplate[TColumnNames] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None
 ) -> Callable[[TTransformerFun[TResourceFunParams]], Callable[TResourceFunParams, DltResource]]:

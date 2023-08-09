@@ -16,7 +16,7 @@ from dlt.common.configuration.specs import RunConfiguration
 from dlt.common.destination import DestinationReference, TDestinationReferenceArg
 from dlt.common.exceptions import DestinationHasFailedJobs, PipelineStateNotAvailable, ResourceNameNotAvailable, SourceSectionNotAvailable
 from dlt.common.schema import Schema
-from dlt.common.schema.typing import TColumnKey, TColumnSchema, TWriteDisposition
+from dlt.common.schema.typing import TColumnNames, TColumnSchema, TWriteDisposition
 from dlt.common.source import get_current_pipe_name
 from dlt.common.storages.load_storage import LoadPackageInfo
 from dlt.common.typing import DictStrAny, REPattern
@@ -194,7 +194,7 @@ class SupportsPipeline(Protocol):
         table_name: str = None,
         write_disposition: TWriteDisposition = None,
         columns: Sequence[TColumnSchema] = None,
-        primary_key: TColumnKey = None,
+        primary_key: TColumnNames = None,
         schema: Schema = None,
         loader_file_format: TLoaderFileFormat = None
         ) -> LoadInfo:

@@ -19,7 +19,7 @@ from dlt.common.exceptions import (DestinationLoadingViaStagingNotSupported, Des
 from dlt.common.normalizers import explicit_normalizers, import_normalizers
 from dlt.common.runtime import signals, initialize_runtime
 from dlt.common.schema.exceptions import InvalidDatasetName
-from dlt.common.schema.typing import TColumnKey, TColumnSchema, TSchemaTables, TWriteDisposition
+from dlt.common.schema.typing import TColumnNames, TColumnSchema, TSchemaTables, TWriteDisposition
 from dlt.common.storages.load_storage import LoadJobInfo, LoadPackageInfo
 from dlt.common.typing import TFun, TSecretValue
 from dlt.common.runners import pool_runner as runner
@@ -263,7 +263,7 @@ class Pipeline(SupportsPipeline):
         parent_table_name: str = None,
         write_disposition: TWriteDisposition = None,
         columns: Sequence[TColumnSchema] = None,
-        primary_key: TColumnKey = None,
+        primary_key: TColumnNames = None,
         schema: Schema = None,
         max_parallel_items: int = None,
         workers: int = None
@@ -396,7 +396,7 @@ class Pipeline(SupportsPipeline):
         table_name: str = None,
         write_disposition: TWriteDisposition = None,
         columns: Sequence[TColumnSchema] = None,
-        primary_key: TColumnKey = None,
+        primary_key: TColumnNames = None,
         schema: Schema = None,
         loader_file_format: TLoaderFileFormat = None
     ) -> LoadInfo:
@@ -779,7 +779,7 @@ class Pipeline(SupportsPipeline):
         parent_table_name: str = None,
         write_disposition: TWriteDisposition = None,
         columns: Sequence[TColumnSchema] = None,
-        primary_key: TColumnKey = None
+        primary_key: TColumnNames = None
     ) -> List[DltSource]:
 
         def apply_hint_args(resource: DltResource) -> None:
