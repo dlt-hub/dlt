@@ -37,7 +37,7 @@ from dlt.common.destination.reference import (
 from dlt.common.data_types import TDataType
 from dlt.common.storages import FileStorage
 
-from dlt.helpers.weaviate_helper import VECTORIZE_HINT, TOKENIZATION_HINT
+from dlt.destinations.weaviate.weaviate_adapter import VECTORIZE_HINT, TOKENIZATION_HINT
 
 from dlt.destinations.job_impl import EmptyLoadJob
 from dlt.destinations.job_client_impl import StorageSchemaInfo
