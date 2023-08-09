@@ -14,7 +14,7 @@ class DatabaseTerminalException(DestinationTerminalException, DatabaseException)
         super().__init__(dbapi_exception)
 
 
-class DatabaseUndefinedRelation(DestinationUndefinedEntity):
+class DatabaseUndefinedRelation(DestinationUndefinedEntity, DatabaseException):
     def __init__(self, dbapi_exception: Exception) -> None:
         super().__init__(dbapi_exception)
 

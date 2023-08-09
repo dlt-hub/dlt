@@ -1,8 +1,11 @@
 from typing import Any, List
+
 import dlt
+from dlt.common import json
+
 from dlt.helpers.weaviate_helper import weaviate_adapter
 from dlt.destinations.weaviate.weaviate_client import WeaviateClient
-from dlt.common.pipeline import LoadInfo
+from dlt.common.schema.typing import TTableSchema
 
 from tests.pipeline.utils import assert_load_info
 
@@ -13,18 +16,30 @@ def assert_unordered_list_equal(list1: List[Any], list2: List[Any]) -> None:
         assert item in list2
 
 
-def assert_class(pipeline: dlt.Pipeline, class_name: str, data: List[Any]) -> None:
+def assert_class(pipeline: dlt.Pipeline, class_name: str, table_schema: TTableSchema, expected_items_count: int = None, items: List[Any] = None) -> None:
     db_client = pipeline._destination_client().db_client
 
     # Check if class exists
     schema = db_client.schema.get(class_name)
     assert schema is not None
 
-    property_names = [prop["name"] for prop in schema["properties"]]
+    properties = {prop["name"]:prop for prop in schema["properties"]}
+    assert set(properties.keys()) == set(table_schema["columns"].keys())
 
-    response = db_client.query.get(class_name, property_names).do()
+    # make sure expected columns are vectorized
+    for column_name, column in table_schema["columns"].items():
+        prop = properties[column_name]
+        # text2vec-openai is the default
+        assert prop["moduleConfig"]["text2vec-openai"]["skip"] == (not column.get("x-vectorize", False))
 
+    response = db_client.query.get(class_name, list(properties.keys())).do()
     objects = response["data"]["Get"][class_name]
+
+    if expected_items_count is not None:
+        assert expected_items_count == len(objects)
+
+    if items is None:
+        return
 
     # TODO: Remove this once we have a better way comparing the data
     drop_keys = ["_dlt_id", "_dlt_load_id"]
@@ -34,7 +49,7 @@ def assert_class(pipeline: dlt.Pipeline, class_name: str, data: List[Any]) -> No
 
     # pytest compares content wise but ignores order of elements of dict
     # assert sorted(objects_without_dlt_keys, key=lambda d: d['doc_id']) == sorted(data, key=lambda d: d['doc_id'])
-    assert_unordered_list_equal(objects_without_dlt_keys, data)
+    assert_unordered_list_equal(objects_without_dlt_keys, items)
 
 
 def sequence_generator():
@@ -60,14 +75,15 @@ def test_pipeline_append() -> None:
     pipeline = dlt.pipeline(
         pipeline_name="test_pipeline_append",
         destination="weaviate",
-        dataset_name="test_pipeline_append_dataset",
+        dataset_name="TestPipelineAppendDataset",
     )
     info = pipeline.run(
         some_data(),
     )
+    assert_load_info(info)
 
     data = next(generator_instance2)
-    assert_class(info.pipeline, "SomeData", data)
+    assert_class(info.pipeline, "SomeData", pipeline.default_schema.tables["SomeData"], items=data)
 
     info = pipeline.run(
         some_data(),
@@ -75,7 +91,7 @@ def test_pipeline_append() -> None:
     assert_load_info(info)
 
     data.extend(next(generator_instance2))
-    assert_class(info.pipeline, "SomeData", data)
+    assert_class(info.pipeline, "SomeData", pipeline.default_schema.tables["SomeData"], items=data)
 
 
 def test_explicit_append() -> None:
@@ -98,13 +114,13 @@ def test_explicit_append() -> None:
     pipeline = dlt.pipeline(
         pipeline_name="test_pipeline_append",
         destination="weaviate",
-        dataset_name="test_pipeline_append_dataset",
+        dataset_name="TestPipelineAppendDataset",
     )
     info = pipeline.run(
         some_data(),
     )
 
-    assert_class(info.pipeline, "SomeData", data)
+    assert_class(info.pipeline, "SomeData", pipeline.default_schema.tables["SomeData"], items=data)
 
     info = pipeline.run(
         some_data(),
@@ -113,7 +129,7 @@ def test_explicit_append() -> None:
     assert_load_info(info)
 
     data.extend(data)
-    assert_class(info.pipeline, "SomeData", data)
+    assert_class(info.pipeline, "SomeData", pipeline.default_schema.tables["SomeData"], items=data)
 
 
 def test_pipeline_replace() -> None:
@@ -132,7 +148,7 @@ def test_pipeline_replace() -> None:
     pipeline = dlt.pipeline(
         pipeline_name="test_pipeline_replace",
         destination="weaviate",
-        dataset_name="test_pipeline_replace_dataset",
+        dataset_name="TestPipelineReplaceDataset",
     )
 
     info = pipeline.run(
@@ -141,7 +157,7 @@ def test_pipeline_replace() -> None:
     )
 
     data = next(generator_instance2)
-    assert_class(info.pipeline, "SomeData", data)
+    assert_class(info.pipeline, "SomeData", pipeline.default_schema.tables["SomeData"], items=data)
 
     info = pipeline.run(
         some_data(),
@@ -150,7 +166,7 @@ def test_pipeline_replace() -> None:
     assert_load_info(info)
 
     data = next(generator_instance2)
-    assert_class(info.pipeline, "SomeData", data)
+    assert_class(info.pipeline, "SomeData", pipeline.default_schema.tables["SomeData"], items=data)
 
 
 def test_pipeline_merge() -> None:
@@ -191,14 +207,14 @@ def test_pipeline_merge() -> None:
     pipeline = dlt.pipeline(
         pipeline_name="movies",
         destination="weaviate",
-        dataset_name="movies_dataset",
+        dataset_name="MoviesDataset",
     )
     info = pipeline.run(
         movies_data(),
         write_disposition="merge",
     )
     assert_load_info(info)
-    assert_class(info.pipeline, "MoviesData", data)
+    assert_class(info.pipeline, "MoviesData", pipeline.default_schema.tables["MoviesData"], items=data)
 
     # Change some data
     data[0]["title"] = "The Shawshank Redemption 2"
@@ -208,7 +224,7 @@ def test_pipeline_merge() -> None:
         write_disposition="merge",
     )
     assert_load_info(info)
-    assert_class(info.pipeline, "MoviesData", data)
+    assert_class(info.pipeline, "MoviesData", pipeline.default_schema.tables["MoviesData"], items=data)
 
 
 def test_pipeline_with_schema_evolution():
@@ -232,13 +248,13 @@ def test_pipeline_with_schema_evolution():
     pipeline = dlt.pipeline(
         pipeline_name="test_pipeline_append",
         destination="weaviate",
-        dataset_name="test_schema_evolution_dataset",
+        dataset_name="TestSchemaEvolutionDataset",
     )
     info = pipeline.run(
         some_data(),
     )
 
-    assert_class(info.pipeline, "SomeData", data)
+    assert_class(info.pipeline, "SomeData", pipeline.default_schema.tables["SomeData"], items=data)
 
     aggregated_data = data.copy()
 
@@ -259,8 +275,40 @@ def test_pipeline_with_schema_evolution():
         some_data(),
     )
 
+    table_schema = pipeline.default_schema.tables["SomeData"]
+    assert "new_column" in table_schema["columns"]
+
     aggregated_data.extend(data)
     aggregated_data[0]["new_column"] = None
     aggregated_data[1]["new_column"] = None
 
-    assert_class(info.pipeline, "SomeData", aggregated_data)
+    assert_class(info.pipeline, "SomeData", pipeline.default_schema.tables["SomeData"], items=aggregated_data)
+
+
+def test_merge_github_nested() -> None:
+    p = dlt.pipeline(destination="weaviate", dataset_name="Github1", full_refresh=True)
+    assert p.dataset_name.startswith("Github1202")
+
+    with open("tests/normalize/cases/github.issues.load_page_5_duck.json", "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    info = p.run(
+        weaviate_adapter(data[:17], vectorize=["title", "body"]),
+        table_name="issues",
+        write_disposition="merge",
+        primary_key="id"
+    )
+    assert_load_info(info)
+    # assert if schema contains tables with right names
+    assert set(p.default_schema.tables.keys()) == {'DltVersion', 'DltLoads', 'Issues', 'DltPipelineState', 'Issues__Labels', 'Issues__Assignees'}
+    assert set([t["name"] for t in p.default_schema.data_tables()]) == {'Issues', 'Issues__Labels', 'Issues__Assignees'}
+    assert set([t["name"] for t in p.default_schema.dlt_tables()]) == {'DltVersion', 'DltLoads', 'DltPipelineState'}
+    issues = p.default_schema.tables["Issues"]
+    # make sure that both "id" column and "primary_key" were changed to __id
+    assert issues["columns"]["__id"]["primary_key"] is True
+    # make sure that vectorization is enabled for
+    assert issues["columns"]["title"]["x-vectorize"]
+    assert issues["columns"]["body"]["x-vectorize"]
+    assert "x-vectorize" not in issues["columns"]["url"]
+
+    assert_class(p, "Issues", issues, expected_items_count=17)

@@ -24,6 +24,10 @@ class NamingConvention(ABC):
             raise ValueError(identifier)
         return identifier
 
+    def normalize_table_identifier(self, identifier: str) -> str:
+        """Normalizes and shortens identifier that will function as a dataset, table or schema name, defaults to `normalize_identifier`"""
+        return self.normalize_identifier(identifier)
+
     @abstractmethod
     def make_path(self, *identifiers: str) -> str:
         """Builds path out of identifiers. Identifiers are neither normalized nor shortened"""
@@ -37,6 +41,12 @@ class NamingConvention(ABC):
     def normalize_path(self, path: str) -> str:
         """Breaks path into identifiers, normalizes components, reconstitutes and shortens the path"""
         normalized_idents = [self.normalize_identifier(ident) for ident in self.break_path(path)]
+        # shorten the whole path
+        return self.shorten_identifier(self.make_path(*normalized_idents), path, self.max_length)
+
+    def normalize_tables_path(self, path: str) -> str:
+        """Breaks path of table identifiers, normalizes components, reconstitutes and shortens the path"""
+        normalized_idents = [self.normalize_table_identifier(ident) for ident in self.break_path(path)]
         # shorten the whole path
         return self.shorten_identifier(self.make_path(*normalized_idents), path, self.max_length)
 

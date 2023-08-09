@@ -48,8 +48,27 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
     default_schema_name: Optional[str] = None
     """name of default schema to be used to name effective dataset to load data to"""
     staging_credentials: Optional[CredentialsConfiguration] = None
-    """How to handle replace disposition for this destination, can be classic or staging"""
+    """Staging credentials injected at runtime"""
     replace_strategy: TLoaderReplaceStrategy = "truncate-and-insert"
+    """How to handle replace disposition for this destination, can be classic or staging"""
+
+    def make_dataset_name(self, schema: Schema) -> str:
+        """Builds full db dataset (dataset) name out of (normalized) default dataset and schema name"""
+        if not schema.name:
+            raise ValueError("schema_name is None or empty")
+        if not self.dataset_name:
+            raise ValueError("dataset_name is None or empty")
+
+        norm_name = schema.naming.normalize_table_identifier(self.dataset_name)
+        if norm_name != self.dataset_name:
+            raise InvalidDatasetName(self.dataset_name, norm_name)
+
+        # if default schema is None then suffix is not added
+        if self.default_schema_name is not None and schema.name != self.default_schema_name:
+            # also normalize schema name. schema name is Python identifier and here convention may be different
+            return schema.naming.normalize_table_identifier(self.dataset_name + "_" + schema.name)
+
+        return self.dataset_name
 
     if TYPE_CHECKING:
         def __init__(
@@ -224,21 +243,6 @@ class JobClientBase(ABC):
                 if not is_complete_column(column):
                     logger.warning(f"A column {column_name} in table {table_name} in schema {self.schema.name} is incomplete. It was not bound to the data during normalizations stage and its data type is unknown. Did you add this column manually in code ie. as a merge key?")
 
-    @staticmethod
-    def make_dataset_name(schema: Schema, dataset_name: str, default_schema_name: str) -> str:
-        """Builds full db dataset (dataset) name out of (normalized) default dataset and schema name"""
-        if not schema.name:
-            raise ValueError("schema_name is None or empty")
-        if not dataset_name:
-            raise ValueError("dataset_name is None or empty")
-        norm_name = schema.naming.normalize_identifier(dataset_name)
-        if norm_name != dataset_name:
-            raise InvalidDatasetName(dataset_name, norm_name)
-        # if default schema is None then suffix is not added
-        if default_schema_name is not None and schema.name != default_schema_name:
-            norm_name += "_" + schema.name
-
-        return norm_name
 
 class StagingJobClientBase(JobClientBase):
 

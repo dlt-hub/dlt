@@ -16,7 +16,7 @@ from dlt.common.configuration.specs.config_section_context import ConfigSectionC
 from dlt.common.configuration.resolve import initialize_credentials
 from dlt.common.exceptions import (DestinationLoadingViaStagingNotSupported, DestinationUndefinedEntity, DestinationNoStagingMode, MissingDependencyException,
                                    DestinationIncompatibleLoaderFileFormatException)
-from dlt.common.normalizers import default_normalizers, import_normalizers
+from dlt.common.normalizers import explicit_normalizers, import_normalizers
 from dlt.common.runtime import signals, initialize_runtime
 from dlt.common.schema.exceptions import InvalidDatasetName
 from dlt.common.schema.typing import TColumnKey, TColumnSchema, TSchemaTables, TWriteDisposition
@@ -48,6 +48,8 @@ from dlt.pipeline.exceptions import CannotRestorePipelineException, InvalidPipel
 from dlt.pipeline.trace import PipelineTrace, PipelineStepTrace, load_trace, merge_traces, start_trace, start_trace_step, end_trace_step, end_trace, describe_extract_data
 from dlt.pipeline.typing import TPipelineStep
 from dlt.pipeline.state_sync import STATE_ENGINE_VERSION, load_state_from_destination, merge_state_if_changed, migrate_state, state_resource, json_encode_state, json_decode_state
+
+from dlt.common.schema.utils import normalize_schema_name
 
 
 def with_state_sync(may_extract_state: bool = False) -> Callable[[TFun], TFun]:
@@ -221,8 +223,8 @@ class Pipeline(SupportsPipeline):
             # we overwrite the state with the values from init
             if staging:
                 self._set_staging(staging)
-            self._set_destination(destination)  # changing the destination could be dangerous if pipeline has not loaded items
-
+            # changing the destination could be dangerous if pipeline has pending load packages
+            self._set_destination(destination)
             self._set_dataset_name(dataset_name)
             self.credentials = credentials
             self._configure(import_schema_path, export_schema_path, must_attach_to_local_pipeline)
@@ -688,7 +690,7 @@ class Pipeline(SupportsPipeline):
         if schema_name:
             schema = self.schemas[schema_name]
         else:
-            schema = self.default_schema if self.default_schema_name else Schema(self.dataset_name)
+            schema = self.default_schema if self.default_schema_name else Schema(normalize_schema_name(self.dataset_name))
         return self._sql_job_client(schema, credentials).sql_client
 
     def _destination_client(self, schema_name: str = None, credentials: Any = None) -> JobClientBase:
@@ -697,7 +699,7 @@ class Pipeline(SupportsPipeline):
         if schema_name:
             schema = self.schemas[schema_name]
         else:
-            schema = self.default_schema if self.default_schema_name else Schema(self.dataset_name)
+            schema = self.default_schema if self.default_schema_name else Schema(normalize_schema_name(self.dataset_name))
         client_config = self._get_destination_client_initial_config(credentials)
         return self._get_destination_client(schema, client_config)
 
@@ -848,6 +850,7 @@ class Pipeline(SupportsPipeline):
     def _extract_source(self, storage: ExtractorStorage, source: DltSource, max_parallel_items: int, workers: int) -> str:
         # discover the schema from source
         source_schema = source.schema
+        source_schema.update_normalizers()
 
         extract_id = extract_with_schema(storage, source, source_schema, self.collector, max_parallel_items, workers)
 
@@ -957,10 +960,10 @@ class Pipeline(SupportsPipeline):
             schema_name = self.pipeline_name[:-9]
         else:
             schema_name = self.pipeline_name
-        return Schema(schema_name, normalize_name=True)
+        return Schema(normalize_schema_name(schema_name))
 
     def _validate_dataset_name(self, dataset_name: str) -> None:
-        normalized_name = self._default_naming.normalize_identifier(dataset_name)
+        normalized_name = self._default_naming.normalize_table_identifier(dataset_name)
         if normalized_name != dataset_name:
             raise InvalidDatasetName(dataset_name, normalized_name)
 
@@ -982,6 +985,7 @@ class Pipeline(SupportsPipeline):
         with self._maybe_destination_capabilities():
             # default normalizers must match the destination
             self._set_default_normalizers()
+
 
     def _set_staging(self, staging: TDestinationReferenceArg) -> None:
         staging_module = DestinationReference.from_name(staging)
@@ -1034,16 +1038,24 @@ class Pipeline(SupportsPipeline):
         return file_format
 
     def _set_default_normalizers(self) -> None:
-        self._default_naming, _ = import_normalizers(default_normalizers())
+        _, self._default_naming, _ = import_normalizers(explicit_normalizers())
 
     def _set_dataset_name(self, dataset_name: str) -> None:
+        orig_dataset_name = dataset_name
         if not dataset_name:
             if not self.dataset_name:
                 # set default dataset name from pipeline name
-                dataset_name = self._default_naming.normalize_identifier(self.pipeline_name)
-                dataset_name += self.DEFAULT_DATASET_SUFFIX
+                dataset_name = self.pipeline_name + self.DEFAULT_DATASET_SUFFIX
             else:
+                # we have existing name but no new name set
+                norm_dataset_name = self._default_naming.normalize_table_identifier(self.dataset_name)
+                # naming convention had to change
+                if self.dataset_name != norm_dataset_name:
+                    self.dataset_name = norm_dataset_name
                 return
+        else:
+            self._validate_dataset_name(dataset_name)
+            dataset_name = dataset_name
 
         # in case of full refresh add unique suffix
         if self.full_refresh:
@@ -1052,7 +1064,10 @@ class Pipeline(SupportsPipeline):
                 dataset_name += self._pipeline_instance_id[1:]
             else:
                 dataset_name += self._pipeline_instance_id
-        self._validate_dataset_name(dataset_name)
+
+        # if dataset name was modified normalize it automatically
+        if orig_dataset_name != dataset_name:
+            dataset_name = self._default_naming.normalize_table_identifier(dataset_name)
         self.dataset_name = dataset_name
 
     def _set_default_schema_name(self, schema: Schema) -> None:
@@ -1066,6 +1081,7 @@ class Pipeline(SupportsPipeline):
     @with_state_sync()
     def _inject_schema(self, schema: Schema) -> None:
         """Injects a schema into the pipeline. Existing schema will be overwritten"""
+        schema.update_normalizers()
         self._schema_storage.save_schema(schema)
         if not self.default_schema_name:
             self._set_default_schema_name(schema)
@@ -1114,7 +1130,7 @@ class Pipeline(SupportsPipeline):
         try:
             # force the main dataset to be used
             self.config.use_single_dataset = True
-            job_client = self._optional_sql_job_client(dataset_name)
+            job_client = self._optional_sql_job_client(normalize_schema_name(dataset_name))
             if job_client:
                 # handle open connection exception silently
                 state = None

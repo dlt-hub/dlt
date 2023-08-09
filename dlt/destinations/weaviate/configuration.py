@@ -7,8 +7,8 @@ from dlt.common.configuration.specs.base_configuration import CredentialsConfigu
 from dlt.common.destination.reference import DestinationClientConfiguration
 from dlt.common.utils import digest128
 
-
 TWeaviateBatchConsistency = Literal["ONE", "QUORUM", "ALL"]
+
 
 @configspec
 class WeaviateCredentials(CredentialsConfiguration):
