@@ -4,7 +4,7 @@ from urllib.parse import urlparse
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs.base_configuration import CredentialsConfiguration
-from dlt.common.destination.reference import DestinationClientConfiguration
+from dlt.common.destination.reference import DestinationClientDwhConfiguration
 from dlt.common.utils import digest128
 
 TWeaviateBatchConsistency = Literal["ONE", "QUORUM", "ALL"]
@@ -16,10 +16,16 @@ class WeaviateCredentials(CredentialsConfiguration):
     api_key: str
     additional_headers: Optional[Dict[str, str]] = None
 
+    def __str__(self) -> str:
+        """Used to display user friendly data location"""
+        # assuming no password in url scheme for Weaviate
+        return self.url
 
 @configspec(init=True)
-class WeaviateClientConfiguration(DestinationClientConfiguration):
+class WeaviateClientConfiguration(DestinationClientDwhConfiguration):
     destination_name: Final[str] = "weaviate"  # type: ignore
+    dataset_name: Optional[str] = None  # make it optional do empty dataset is allowed
+
     batch_size: int = 100
     batch_workers: int = 1
     batch_consistency: TWeaviateBatchConsistency = "ONE"
