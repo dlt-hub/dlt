@@ -20,6 +20,7 @@ from dlt.common.exceptions import (
 )
 
 import weaviate
+from weaviate.gql.get import GetBuilder
 from weaviate.util import generate_uuid5
 
 from dlt.common import json, pendulum, logger
@@ -129,21 +130,23 @@ class LoadWeaviateJob(LoadJob):
         local_path: str,
         db_client: weaviate.Client,
         client_config: WeaviateClientConfiguration,
+        class_name: str,
     ) -> None:
         file_name = FileStorage.get_file_name_from_file_path(local_path)
         super().__init__(file_name)
         self.client_config = client_config
         self.db_client = db_client
-        self.class_name = table_schema["name"]
+        self.table_name = table_schema["name"]
+        self.class_name = class_name
         self.unique_identifiers = self.list_unique_identifiers(table_schema)
         self.complex_indices = [
             i
-            for i, field in schema.get_table_columns(self.class_name).items()
+            for i, field in schema.get_table_columns(self.table_name).items()
             if field["data_type"] == "complex"
         ]
         self.date_indices = [
             i
-            for i, field in schema.get_table_columns(self.class_name).items()
+            for i, field in schema.get_table_columns(self.table_name).items()
             if field["data_type"] == "date"
         ]
 
@@ -239,6 +242,48 @@ class WeaviateClient(JobClientBase):
             additional_headers=config.credentials.additional_headers,
         )
 
+    def make_full_name(self, table_name: str) -> str:
+        """Make a full Weaviate class name from a table name by prepending
+        the dataset name if it exists.
+        """
+        return (
+            f"{self.config.dataset_name}_{table_name}"
+            if self.config.dataset_name
+            else table_name
+        )
+
+    def get_class_schema(self, table_name: str) -> Dict[str, Any]:
+        """Get the Weaviate class schema for a table."""
+        return self.db_client.schema.get(self.make_full_name(table_name))
+
+    def create_class(self, class_schema: Dict[str, Any]) -> None:
+        """Create a Weaviate class."""
+
+        updated_schema = class_schema.copy()
+        updated_schema["class"] = self.make_full_name(updated_schema["class"])
+
+        self.db_client.schema.create_class(updated_schema)
+
+    def create_class_property(
+        self, table_name: str, prop_schema: Dict[str, Any]
+    ) -> None:
+        """Create a Weaviate class property."""
+        self.db_client.schema.property.create(
+            self.make_full_name(table_name), prop_schema
+        )
+
+    def delete_class(self, table_name: str) -> None:
+        """Delete a Weaviate class."""
+        self.db_client.schema.delete_class(self.make_full_name(table_name))
+
+    def query_class(self, table_name: str, properties: List[str]) -> GetBuilder:
+        """Query a Weaviate class."""
+        return self.db_client.query.get(self.make_full_name(table_name), properties)
+
+    def create_object(self, obj: Dict[str, Any], table_name: str) -> None:
+        """Create a Weaviate object."""
+        self.db_client.data_object.create(obj, self.make_full_name(table_name))
+
     @wrap_weaviate_error
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
         if not self.is_storage_initialized():
@@ -246,14 +291,14 @@ class WeaviateClient(JobClientBase):
         elif truncate_tables:
             for table_name in truncate_tables:
                 try:
-                    class_schema = self.db_client.schema.get(table_name)
+                    class_schema = self.get_class_schema(table_name)
                 except weaviate.exceptions.UnexpectedStatusCodeException as e:
                     if e.status_code == 404:
                         continue
                     raise
 
-                self.db_client.schema.delete_class(table_name)
-                self.db_client.schema.create_class(class_schema)
+                self.delete_class(table_name)
+                self.create_class(class_schema)
 
     @wrap_weaviate_error
     def is_storage_initialized(self) -> bool:
@@ -307,16 +352,16 @@ class WeaviateClient(JobClientBase):
                 if exists:
                     for column in new_columns:
                         prop = self._make_property_schema(column["name"], column, True)
-                        self.db_client.schema.property.create(table_name, prop)
+                        self.create_class_property(table_name, prop)
                 else:
                     class_schema = self.make_weaviate_class_schema(table_name)
-                    self.db_client.schema.create_class(class_schema)
+                    self.create_class(class_schema)
         self._update_schema_in_storage(self.schema)
 
     def get_storage_table(self, table_name: str) -> Tuple[bool, TTableSchemaColumns]:
         table_schema: TTableSchemaColumns = {}
         try:
-            class_schema = self.db_client.schema.get(table_name)
+            class_schema = self.get_class_schema(table_name)
         except weaviate.exceptions.UnexpectedStatusCodeException as e:
             if e.status_code == 404:
                 return False, table_schema
@@ -335,7 +380,7 @@ class WeaviateClient(JobClientBase):
         version_class_name = self.schema.version_table_name
 
         try:
-            self.db_client.schema.get(version_class_name)
+            self.get_class_schema(version_class_name)
         except weaviate.exceptions.UnexpectedStatusCodeException as e:
             if e.status_code == 404:
                 return None
@@ -344,7 +389,7 @@ class WeaviateClient(JobClientBase):
         properties = list(self.schema.get_table_columns(version_class_name).keys())
 
         response = (
-            self.db_client.query.get(version_class_name, properties)
+            self.query_class(version_class_name, properties)
             .with_where(
                 {
                     "path": ["version_hash"],
@@ -357,7 +402,8 @@ class WeaviateClient(JobClientBase):
         )
 
         try:
-            record = response["data"]["Get"][version_class_name][0]
+            full_class_name = self.make_full_name(version_class_name)
+            record = response["data"]["Get"][full_class_name][0]
         except IndexError:
             return None
         return StorageSchemaInfo(**record)
@@ -443,7 +489,8 @@ class WeaviateClient(JobClientBase):
             table,
             file_path,
             db_client=self.db_client,
-            client_config=self.config
+            client_config=self.config,
+            class_name=self.make_full_name(table["name"]),
         )
 
     def restore_file_load(self, file_path: str) -> LoadJob:
@@ -457,7 +504,7 @@ class WeaviateClient(JobClientBase):
             "status": 0,
             "inserted_at": str(pendulum.now()),
         }
-        self.db_client.data_object.create(properties, self.schema.loads_table_name)
+        self.create_object(properties, self.schema.loads_table_name)
 
     def __enter__(self) -> "WeaviateClient":
         return self
@@ -482,7 +529,7 @@ class WeaviateClient(JobClientBase):
             "schema": schema_str,
         }
 
-        self.db_client.data_object.create(properties, self.schema.version_table_name)
+        self.create_object(properties, self.schema.version_table_name)
 
     @staticmethod
     def _to_db_type(sc_t: TDataType) -> str:

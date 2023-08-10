@@ -17,10 +17,13 @@ def assert_unordered_list_equal(list1: List[Any], list2: List[Any]) -> None:
 
 
 def assert_class(pipeline: dlt.Pipeline, class_name: str, expected_items_count: int = None, items: List[Any] = None) -> None:
+    client = pipeline._destination_client()
     db_client = pipeline._destination_client().db_client
 
+
     # Check if class exists
-    schema = db_client.schema.get(class_name)
+    # schema = db_client.schema.get(class_name)
+    schema = client.get_class_schema(class_name)
     assert schema is not None
 
     columns = pipeline.default_schema.get_table_columns(class_name)
@@ -37,8 +40,9 @@ def assert_class(pipeline: dlt.Pipeline, class_name: str, expected_items_count: 
         if TOKENIZATION_HINT in column:
             assert prop["tokenization"] == column[TOKENIZATION_HINT]
 
-    response = db_client.query.get(class_name, list(properties.keys())).do()
-    objects = response["data"]["Get"][class_name]
+    # response = db_client.query.get(class_name, list(properties.keys())).do()
+    response = client.query_class(class_name, list(properties.keys())).do()
+    objects = response["data"]["Get"][client.make_full_name(class_name)]
 
     if expected_items_count is not None:
         assert expected_items_count == len(objects)
