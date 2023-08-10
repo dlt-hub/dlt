@@ -61,7 +61,10 @@ def test_default_pipeline_names(use_single_dataset: bool, any_destination: str) 
 
     # mock the correct destinations (never do that in normal code)
     with p.managed_state():
-        p.destination = DestinationReference.from_name(any_destination)
+        p._set_destination(any_destination)
+        assert p.dataset_name is None
+        p._set_dataset_name(None)
+        assert p.dataset_name in possible_dataset_names
     p.normalize()
     info = p.load(dataset_name="d" + uniq_id())
     assert info.pipeline is p
@@ -315,9 +318,12 @@ def test_source_max_nesting(destination_name: str) -> None:
 
 @pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
 def test_dataset_name_change(destination_name: str) -> None:
+    # standard name
     ds_1_name = "iteration" + uniq_id()
-    ds_2_name = "iteration" + uniq_id()
-    ds_3_name = "iteration" + uniq_id()
+    # will go to snake case
+    ds_2_name = "IteRation" + uniq_id()
+    # illegal name that will be later normalized
+    ds_3_name = "1it/era 👍 tion__" + uniq_id()
     p, s = simple_nested_pipeline(destination_name, dataset_name=ds_1_name, full_refresh=False)
     try:
         info = p.run(s())
@@ -327,14 +333,16 @@ def test_dataset_name_change(destination_name: str) -> None:
         # run to another dataset
         info = p.run(s(), dataset_name=ds_2_name)
         assert_load_info(info)
-        assert info.dataset_name == ds_2_name
+        assert info.dataset_name.startswith("ite_ration")
+        # save normalized dataset name to delete correctly later
+        ds_2_name = info.dataset_name
         ds_2_counts = load_table_counts(p, "lists", "lists__value")
         assert ds_1_counts == ds_2_counts
         # set name and run to another dataset
         p.dataset_name = ds_3_name
         info = p.run(s())
         assert_load_info(info)
-        assert info.dataset_name == ds_3_name
+        assert info.dataset_name.startswith("_1it_era_tion_")
         ds_3_counts = load_table_counts(p, "lists", "lists__value")
         assert ds_1_counts == ds_3_counts
 

@@ -253,7 +253,7 @@ class Schema:
         return table
 
     def get_new_table_columns(self, table_name: str, exiting_columns: TTableSchemaColumns, include_incomplete: bool = False) -> List[TColumnSchema]:
-        """Gets new columns to be added to `exiting_columns` to bring them to date with `table_name` schema. Optionally includes incomplete columns (without data type)"""
+        """Gets new columns to be added to `exiting_columns` to bring them up to date with `table_name` schema. Optionally includes incomplete columns (without data type)"""
         diff_c: List[TColumnSchema] = []
         s_t = self.get_table_columns(table_name, include_incomplete=include_incomplete)
         for c in s_t.values():

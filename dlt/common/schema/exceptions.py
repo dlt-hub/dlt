@@ -16,10 +16,15 @@ class InvalidSchemaName(ValueError, SchemaException):
         super().__init__(f"{name} is an invalid schema/source name. The source or schema name must be a valid Python identifier ie. a snake case function name and have maximum {self.MAXIMUM_SCHEMA_NAME_LENGTH} characters. Ideally should contain only small letters, numbers and underscores.")
 
 
+# class InvalidDatasetName(ValueError, SchemaException):
+#     def __init__(self, name: str, normalized_name: str) -> None:
+#         self.name = name
+#         super().__init__(f"{name} is an invalid dataset name. The dataset name must conform to wide range of destinations and ideally should contain only small letters, numbers and underscores. Try {normalized_name} instead as suggested by current naming module.")
+
 class InvalidDatasetName(ValueError, SchemaException):
-    def __init__(self, name: str, normalized_name: str) -> None:
-        self.name = name
-        super().__init__(f"{name} is an invalid dataset name. The dataset name must conform to wide range of destinations and ideally should contain only small letters, numbers and underscores. Try {normalized_name} instead as suggested by current naming module.")
+    def __init__(self, destination_name: str) -> None:
+        self.destination_name = destination_name
+        super().__init__(f"Destination {destination_name} does not accept empty datasets. Please pass the dataset name to the destination configuration ie. via dlt pipeline.")
 
 
 class CannotCoerceColumnException(SchemaException):

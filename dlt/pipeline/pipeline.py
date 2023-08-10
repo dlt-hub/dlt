@@ -18,10 +18,9 @@ from dlt.common.exceptions import (DestinationLoadingViaStagingNotSupported, Des
                                    DestinationIncompatibleLoaderFileFormatException)
 from dlt.common.normalizers import explicit_normalizers, import_normalizers
 from dlt.common.runtime import signals, initialize_runtime
-from dlt.common.schema.exceptions import InvalidDatasetName
 from dlt.common.schema.typing import TColumnNames, TColumnSchema, TSchemaTables, TWriteDisposition
 from dlt.common.storages.load_storage import LoadJobInfo, LoadPackageInfo
-from dlt.common.typing import TFun, TSecretValue
+from dlt.common.typing import TFun, TSecretValue, is_optional_type
 from dlt.common.runners import pool_runner as runner
 from dlt.common.storages import LiveSchemaStorage, NormalizeStorage, LoadStorage, SchemaStorage, FileStorage, NormalizeStorageConfiguration, SchemaStorageConfiguration, LoadStorageConfiguration
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -690,7 +689,7 @@ class Pipeline(SupportsPipeline):
         if schema_name:
             schema = self.schemas[schema_name]
         else:
-            schema = self.default_schema if self.default_schema_name else Schema(normalize_schema_name(self.dataset_name))
+            schema = self.default_schema if self.default_schema_name else Schema(normalize_schema_name(self.pipeline_name))
         return self._sql_job_client(schema, credentials).sql_client
 
     def _destination_client(self, schema_name: str = None, credentials: Any = None) -> JobClientBase:
@@ -699,7 +698,7 @@ class Pipeline(SupportsPipeline):
         if schema_name:
             schema = self.schemas[schema_name]
         else:
-            schema = self.default_schema if self.default_schema_name else Schema(normalize_schema_name(self.dataset_name))
+            schema = self.default_schema if self.default_schema_name else Schema(normalize_schema_name(self.pipeline_name))
         client_config = self._get_destination_client_initial_config(credentials)
         return self._get_destination_client(schema, client_config)
 
@@ -897,14 +896,18 @@ class Pipeline(SupportsPipeline):
                 client_spec.get_resolvable_fields()["credentials"],
                 credentials
             )
-        # this client support schemas and datasets
-        default_schema_name = None if self.config.use_single_dataset else self.default_schema_name
 
-        if issubclass(client_spec, DestinationClientStagingConfiguration):
-            return client_spec(dataset_name=self.dataset_name, default_schema_name=default_schema_name, credentials=credentials, as_staging=as_staging)
-        elif issubclass(client_spec, DestinationClientDwhConfiguration):
+        # this client support many schemas and datasets
+        if issubclass(client_spec, DestinationClientDwhConfiguration):
+            if not self.dataset_name and self.full_refresh:
+                logger.warning("Full refresh may not work if dataset name is not set. Please set the dataset_name argument in dlt.pipeline or run method")
             # set default schema name to load all incoming data to a single dataset, no matter what is the current schema name
+            default_schema_name = None if self.config.use_single_dataset else self.default_schema_name
+
+            if issubclass(client_spec, DestinationClientStagingConfiguration):
+                return client_spec(dataset_name=self.dataset_name, default_schema_name=default_schema_name, credentials=credentials, as_staging=as_staging)
             return client_spec(dataset_name=self.dataset_name, default_schema_name=default_schema_name, credentials=credentials)
+
         return client_spec(credentials=credentials)
 
     def _get_destination_client(self, schema: Schema, initial_config: DestinationClientConfiguration = None) -> JobClientBase:
@@ -961,11 +964,6 @@ class Pipeline(SupportsPipeline):
         else:
             schema_name = self.pipeline_name
         return Schema(normalize_schema_name(schema_name))
-
-    def _validate_dataset_name(self, dataset_name: str) -> None:
-        normalized_name = self._default_naming.normalize_table_identifier(dataset_name)
-        if normalized_name != dataset_name:
-            raise InvalidDatasetName(dataset_name, normalized_name)
 
     def _set_context(self, is_active: bool) -> None:
         self.is_active = is_active
@@ -1040,35 +1038,31 @@ class Pipeline(SupportsPipeline):
     def _set_default_normalizers(self) -> None:
         _, self._default_naming, _ = import_normalizers(explicit_normalizers())
 
-    def _set_dataset_name(self, dataset_name: str) -> None:
-        orig_dataset_name = dataset_name
-        if not dataset_name:
-            if not self.dataset_name:
-                # set default dataset name from pipeline name
-                dataset_name = self.pipeline_name + self.DEFAULT_DATASET_SUFFIX
-            else:
-                # we have existing name but no new name set
-                norm_dataset_name = self._default_naming.normalize_table_identifier(self.dataset_name)
-                # naming convention had to change
-                if self.dataset_name != norm_dataset_name:
-                    self.dataset_name = norm_dataset_name
-                return
-        else:
-            self._validate_dataset_name(dataset_name)
-            dataset_name = dataset_name
+    def _set_dataset_name(self, new_dataset_name: str) -> None:
+        if not new_dataset_name and not self.dataset_name:
+            # dataset name is required but not provided - generate the default now
+            destination_needs_dataset = False
+            if self.destination:
+                fields = self.destination.spec().get_resolvable_fields()
+                dataset_name_type = fields.get("dataset_name")
+                # if dataset is required (default!) we create a default dataset name
+                destination_needs_dataset = dataset_name_type is not None and not is_optional_type(dataset_name_type)
+            # if destination is not specified - generate dataset
+            if not self.destination or destination_needs_dataset:
+                new_dataset_name = self.pipeline_name + self.DEFAULT_DATASET_SUFFIX
+
+        if not new_dataset_name:
+            return
 
         # in case of full refresh add unique suffix
         if self.full_refresh:
+            # dataset must be specified
             # double _ is not allowed
-            if dataset_name.endswith("_"):
-                dataset_name += self._pipeline_instance_id[1:]
+            if new_dataset_name.endswith("_"):
+                new_dataset_name += self._pipeline_instance_id[1:]
             else:
-                dataset_name += self._pipeline_instance_id
-
-        # if dataset name was modified normalize it automatically
-        if orig_dataset_name != dataset_name:
-            dataset_name = self._default_naming.normalize_table_identifier(dataset_name)
-        self.dataset_name = dataset_name
+                new_dataset_name += self._pipeline_instance_id
+        self.dataset_name = new_dataset_name
 
     def _set_default_schema_name(self, schema: Schema) -> None:
         assert self.default_schema_name is None
@@ -1119,10 +1113,6 @@ class Pipeline(SupportsPipeline):
             logger.info("Client not available due to missing credentials")
         return None
 
-    # def _save_runtime_trace(self, step: TPipelineStep, started_at: datetime.datetime, step_info: Any) -> None:
-    #     self._trace = add_trace_step(self._trace, step, started_at, step_info)
-    #     save_trace(self._pipeline_storage.storage_path, self._trace)
-
     def _restore_state_from_destination(self, raise_on_connection_error: bool = True) -> Optional[TPipelineState]:
         # if state is not present locally, take the state from the destination
         dataset_name = self.dataset_name
@@ -1130,7 +1120,7 @@ class Pipeline(SupportsPipeline):
         try:
             # force the main dataset to be used
             self.config.use_single_dataset = True
-            job_client = self._optional_sql_job_client(normalize_schema_name(dataset_name))
+            job_client = self._optional_sql_job_client(normalize_schema_name(self.pipeline_name))
             if job_client:
                 # handle open connection exception silently
                 state = None
