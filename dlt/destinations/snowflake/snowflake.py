@@ -139,7 +139,7 @@ class SnowflakeClient(SqlJobClientBase):
 
     def __init__(self, schema: Schema, config: SnowflakeClientConfiguration) -> None:
         sql_client = SnowflakeSqlClient(
-            config.make_dataset_name(schema),
+            config.normalize_dataset_name(schema),
             config.credentials
         )
         super().__init__(schema, config, sql_client)

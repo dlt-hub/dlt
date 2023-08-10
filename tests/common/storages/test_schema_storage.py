@@ -238,7 +238,7 @@ def test_save_store_schema(storage: SchemaStorage) -> None:
     assert storage.storage.has_file(SchemaStorage.NAMED_SCHEMA_FILE_PATTERN % ("column_event", "json"))
     loaded_schema = storage.load_schema("column_event")
     # also tables gets normalized inside so custom_ is added
-    assert loaded_schema.to_dict()["tables"]["custom_dlt_loads"] == schema.to_dict()["tables"]["custom_dlt_loads"]
+    assert loaded_schema.to_dict()["tables"]["column__dlt_loads"] == schema.to_dict()["tables"]["column__dlt_loads"]
     assert loaded_schema.to_dict() == schema.to_dict()
 
 

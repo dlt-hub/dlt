@@ -17,6 +17,9 @@ def test_table_name_normalization() -> None:
     assert n.normalize_table_identifier("_Flat__Space_") == "FlatSpacex"
     assert n.normalize_table_identifier("_Flat__Sp💡ace_") == "FlatSpAcex"
     assert n.normalize_table_identifier(" Flat Sp!ace ") == "FlatSpAce"
+    assert n.normalize_table_identifier("1") == "C1"
+    assert n.normalize_table_identifier("______") == "Xxxxxx"
+    assert n.normalize_table_identifier("1______1") == "C11"
 
 
 def test_property_normalization() -> None:
@@ -26,9 +29,14 @@ def test_property_normalization() -> None:
     assert n.normalize_identifier("_snake_case") == "_snake_case"
     assert n.normalize_identifier("_snake_case_") == "_snake_casex"
     assert n.normalize_identifier("Snake---🛑case_") == "Snake_casex"
+    assert n.normalize_identifier("--🛑Snake---🛑case_") == "___Snake_casex"
     # dashes are compacted
     assert n.normalize_identifier("Snake-______c__ase_") == "Snake_c_asex"
+    assert n.normalize_identifier("Snake-______c__ase_") == "Snake_c_asex"
     # but not the leading
+    assert n.normalize_identifier("-______Snake-______c__ase_") == "_______Snake_c_asex"
+    # starting digit
+    assert n.normalize_identifier("281782918739821") == "p_281782918739821"
 
 
 def test_reserved_property_names() -> None:

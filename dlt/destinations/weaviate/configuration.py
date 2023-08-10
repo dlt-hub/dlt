@@ -16,10 +16,16 @@ class WeaviateCredentials(CredentialsConfiguration):
     api_key: str
     additional_headers: Optional[Dict[str, str]] = None
 
+    def __str__(self) -> str:
+        """Used to display user friendly data location"""
+        # assuming no password in url scheme for Weaviate
+        return self.url
 
 @configspec(init=True)
 class WeaviateClientConfiguration(DestinationClientDwhConfiguration):
     destination_name: Final[str] = "weaviate"  # type: ignore
+    dataset_name: Optional[str] = None  # make it optional do empty dataset is allowed
+
     batch_size: int = 100
     batch_workers: int = 1
     batch_consistency: TWeaviateBatchConsistency = "ONE"

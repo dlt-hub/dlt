@@ -7,7 +7,7 @@ from dlt.common.configuration.container import Container
 from dlt.common.configuration.inject import get_fun_spec
 from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
-from dlt.common.exceptions import DictValidationException
+from dlt.common.exceptions import ArgumentsOverloadException, DictValidationException
 from dlt.common.pipeline import StateInjectableContext, TPipelineState
 from dlt.common.source import _SOURCES
 from dlt.common.schema import Schema
@@ -16,6 +16,7 @@ from dlt.common.schema.utils import new_table
 from dlt.cli.source_detection import detect_source_configs
 from dlt.extract.exceptions import ExplicitSourceNameInvalid, InvalidResourceDataTypeFunctionNotAGenerator, InvalidResourceDataTypeIsNone, ParametrizedResourceUnbound, PipeNotBoundToData, ResourceFunctionExpected, ResourceInnerCallableConfigWrapDisallowed, SourceDataIsNone, SourceIsAClassTypeError, SourceNotAFunction, SourceSchemaNotAvailable
 from dlt.extract.source import DltResource, DltSource
+from dlt.common.schema.exceptions import InvalidSchemaName
 
 from tests.common.utils import IMPORTED_VERSION_HASH_ETH_V6
 
@@ -127,8 +128,6 @@ def test_transformer_no_parens() -> None:
 
 def test_source_name_is_invalid_schema_name() -> None:
 
-    # inferred from function name, names must be small caps etc.
-
     def camelCase():
         return dlt.resource([1, 2, 3], name="resource")
 
@@ -141,10 +140,15 @@ def test_source_name_is_invalid_schema_name() -> None:
     assert list(s) == [1, 2, 3]
 
     # explicit name
-    with pytest.raises(ExplicitSourceNameInvalid) as py_ex:
+    with pytest.raises(InvalidSchemaName) as py_ex:
         s = dlt.source(camelCase, name="source!")()
-    assert py_ex.value.source_name == "source!"
-    assert py_ex.value.schema_name == "sourcex"
+    assert py_ex.value.name == "source!"
+
+    # explicit name and schema mismatch
+    with pytest.raises(ArgumentsOverloadException) as py_ex:
+        s = dlt.source(camelCase, name="source_ovr", schema=Schema("compat"))()
+    # overload exception applies to dlt.source
+    assert py_ex.value.func_name == "source"
 
 
 def test_resource_name_is_invalid_table_name_and_columns() -> None:
@@ -519,9 +523,9 @@ def test_class_source() -> None:
 
     # CAN decorate callable classes
     s = dlt.source(_Source(4))(more=1)
-    assert s.name == "_source"
+    assert s.name == "_Source"
     schema = s.discover_schema()
-    assert schema.name == "_source"
+    assert schema.name == "_Source"
     assert "_list" in schema.tables
     assert list(s) == ['A', 'V', 'A', 'V', 'A', 'V', 'A', 'V']
 

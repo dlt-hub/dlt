@@ -299,12 +299,12 @@ def yield_client_with_storage(
                 client.sql_client.drop_dataset()
 
 
-def delete_dataset(client: SqlClientBase[Any], dataset_name: str) -> None:
+def delete_dataset(client: SqlClientBase[Any], normalized_dataset_name: str) -> None:
     try:
-        with client.with_alternative_dataset_name(dataset_name) as client:
+        with client.with_alternative_dataset_name(normalized_dataset_name) as client:
             client.drop_dataset()
     except Exception as ex1:
-        print(f"Error when deleting temp dataset {dataset_name}: {str(ex1)}")
+        print(f"Error when deleting temp dataset {normalized_dataset_name}: {str(ex1)}")
 
 
 @contextlib.contextmanager

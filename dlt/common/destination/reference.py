@@ -43,7 +43,7 @@ class DestinationClientConfiguration(BaseConfiguration):
 @configspec
 class DestinationClientDwhConfiguration(DestinationClientConfiguration):
     # keep default/initial value if present
-    dataset_name: Final[str] = None
+    dataset_name: str = None
     """dataset name in the destination to load data to, for schemas that are not default schema, it is used as dataset prefix"""
     default_schema_name: Optional[str] = None
     """name of default schema to be used to name effective dataset to load data to"""
@@ -52,23 +52,24 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
     replace_strategy: TLoaderReplaceStrategy = "truncate-and-insert"
     """How to handle replace disposition for this destination, can be classic or staging"""
 
-    def make_dataset_name(self, schema: Schema) -> str:
-        """Builds full db dataset (dataset) name out of (normalized) default dataset and schema name"""
+    # def on_resolved(self) -> None:
+    #     if not self.dataset_name:
+    #         raise InvalidDatasetName(self.destination_name)
+
+    def normalize_dataset_name(self, schema: Schema) -> str:
+        """Builds full db dataset (schema) name out of configured dataset name and schema name: {dataset_name}_{schema.name}. The resulting name is normalized.
+
+           If default schema name equals schema.name, the schema suffix is skipped.
+        """
         if not schema.name:
             raise ValueError("schema_name is None or empty")
-        if not self.dataset_name:
-            raise ValueError("dataset_name is None or empty")
-
-        norm_name = schema.naming.normalize_table_identifier(self.dataset_name)
-        if norm_name != self.dataset_name:
-            raise InvalidDatasetName(self.dataset_name, norm_name)
 
         # if default schema is None then suffix is not added
         if self.default_schema_name is not None and schema.name != self.default_schema_name:
             # also normalize schema name. schema name is Python identifier and here convention may be different
-            return schema.naming.normalize_table_identifier(self.dataset_name + "_" + schema.name)
+            return schema.naming.normalize_table_identifier((self.dataset_name or "") + "_" + schema.name)
 
-        return self.dataset_name
+        return self.dataset_name if not self.dataset_name else schema.naming.normalize_table_identifier(self.dataset_name)
 
     if TYPE_CHECKING:
         def __init__(
