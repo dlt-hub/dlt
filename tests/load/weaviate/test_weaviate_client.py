@@ -42,7 +42,7 @@ def file_storage() -> FileStorage:
     return FileStorage(TEST_STORAGE_ROOT, file_type="b", makedirs=True)
 
 
-@pytest.mark.parametrize('write_disposition', ["append", "replace"])
+@pytest.mark.parametrize('write_disposition', ["append", "replace", "merge"])
 def test_all_data_types(client: WeaviateClient, write_disposition: str, file_storage: FileStorage) -> None:
     class_name = "AllTypes" + uniq_id()
     # we should have identical content with all disposition types

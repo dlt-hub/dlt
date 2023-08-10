@@ -124,11 +124,11 @@ def wrap_batch_error(f: TFun) -> TFun:
 class LoadWeaviateJob(LoadJob):
     def __init__(
         self,
+        schema: Schema,
         table_schema: TTableSchema,
         local_path: str,
         db_client: weaviate.Client,
         client_config: WeaviateClientConfiguration,
-        load_id: str,
     ) -> None:
         file_name = FileStorage.get_file_name_from_file_path(local_path)
         super().__init__(file_name)
@@ -138,12 +138,12 @@ class LoadWeaviateJob(LoadJob):
         self.unique_identifiers = self.list_unique_identifiers(table_schema)
         self.complex_indices = [
             i
-            for i, field in table_schema["columns"].items()
+            for i, field in schema.get_table_columns(self.class_name).items()
             if field["data_type"] == "complex"
         ]
         self.date_indices = [
             i
-            for i, field in table_schema["columns"].items()
+            for i, field in schema.get_table_columns(self.class_name).items()
             if field["data_type"] == "date"
         ]
 
@@ -294,8 +294,7 @@ class WeaviateClient(JobClientBase):
                         prop = self._make_property_schema(column["name"], column, True)
                         self.db_client.schema.property.create(table_name, prop)
                 else:
-                    table = self.schema.tables[table_name]
-                    class_schema = self.make_weaviate_class_schema(table)
+                    class_schema = self.make_weaviate_class_schema(table_name)
                     self.db_client.schema.create_class(class_schema)
         self._update_schema_in_storage(self.schema)
 
@@ -348,22 +347,20 @@ class WeaviateClient(JobClientBase):
             return None
         return StorageSchemaInfo(**record)
 
-    def make_weaviate_class_schema(self, table: TTableSchema) -> Dict[str, Any]:
+    def make_weaviate_class_schema(self, table_name: str) -> Dict[str, Any]:
         """Creates a Weaviate class schema from a table schema."""
-        table_name = table["name"]
-
         if table_name.startswith(self.schema._dlt_tables_prefix):
-            return self._make_non_vectorized_class_schema(table_name, table)
+            return self._make_non_vectorized_class_schema(table_name)
 
-        return self._make_vectorized_class_schema(table_name, table)
+        return self._make_vectorized_class_schema(table_name)
 
     def _make_properties(
-        self, table: TTableSchema, is_vectorized_class: bool = True
+        self, table_name: str, is_vectorized_class: bool = True
     ) -> List[Dict[str, Any]]:
         """Creates a Weaviate properties schema from a table schema.
 
         Args:
-            table: The table schema.
+            table: The table name for which columns should be converted to properties
             is_vectorized_class: Controls whether the `moduleConfig` should be
                 added to the properties schema. This is only needed for
                 vectorized classes.
@@ -371,7 +368,7 @@ class WeaviateClient(JobClientBase):
 
         return [
             self._make_property_schema(column_name, column, is_vectorized_class)
-            for column_name, column in table["columns"].items()
+            for column_name, column in self.schema.get_table_columns(table_name).items()
         ]
 
     def _make_property_schema(
@@ -402,24 +399,20 @@ class WeaviateClient(JobClientBase):
             **extra_kv,
         }
 
-    def _make_vectorized_class_schema(
-        self, class_name: str, table: TTableSchema
-    ) -> Dict[str, Any]:
-        properties = self._make_properties(table)
+    def _make_vectorized_class_schema(self, table_name: str) -> Dict[str, Any]:
+        properties = self._make_properties(table_name)
 
         return {
-            "class": class_name,
+            "class": table_name,
             "properties": properties,
             **self._vectorizer_config,
         }
 
-    def _make_non_vectorized_class_schema(
-        self, class_name: str, table: TTableSchema
-    ) -> Dict[str, Any]:
-        properties = self._make_properties(table, is_vectorized_class=False)
+    def _make_non_vectorized_class_schema(self, table_name: str) -> Dict[str, Any]:
+        properties = self._make_properties(table_name, is_vectorized_class=False)
 
         return {
-            "class": class_name,
+            "class": table_name,
             "properties": properties,
             "vectorizer": "none",
             "vectorIndexConfig": {
@@ -431,11 +424,11 @@ class WeaviateClient(JobClientBase):
         self, table: TTableSchema, file_path: str, load_id: str
     ) -> LoadJob:
         return LoadWeaviateJob(
+            self.schema,
             table,
             file_path,
             db_client=self.db_client,
-            client_config=self.config,
-            load_id=load_id,
+            client_config=self.config
         )
 
     def restore_file_load(self, file_path: str) -> LoadJob:
